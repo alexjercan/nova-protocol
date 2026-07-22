@@ -286,6 +286,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `gate-producer-and-its-consumers` (x1): a flag that skips PRODUCING an
   entity sweeps its CONSUMERS too - each must tolerate the skip (early
   return, not error spam). 20260525-133013.
+- `defer-opens-a-consumer-race` (x1): deferring a state change (objective/
+  marker) behind a timer while the world it refers to is already interactable
+  opens a race - every consumer that can fire in the gap (OnStart-spawned
+  pickups, edge-triggered area exits) must be guarded on the deferral latch, or
+  the referenced entity spawned at the transition, or a fast actor beats it
+  (shakedown's crate pickups + coast-ring exit). 20260722-142341.
 - `messagereader-needs-resource-guard-in-tests` (x2): minimal-app rigs omit
   `Messages<T>`; gate on `resource_exists` or init the resource in BOTH
   writing and consuming plugins. 20260714-174126, 20260716-193949.
@@ -764,7 +770,7 @@ out-of-context-review-pass annotated as already /flow round-1 practice. Kept
 here (annotated) as the paid record.
 
 - `prose-from-diff-not-intent` (x3, PROMOTED 2026-07-21 -> AGENTS.md Conventions): write CHANGELOG/wiki/NOTES from the final diff (count sites by counting the diff), then re-read asking "does the prose claim anything the diff does not do?". 20260717-112622, 20260717-163058, 20260719-001600.
-- `verify-stale-brief-against-tree` (x5, PROMOTED 2026-07-21 -> AGENTS.md Conventions + flow bug playbook): reproduce a filed bug against the CURRENT tree before implementing; a subsystem change can shrink or falsify the fix scope - and so can the WORLD state (broadside/lifeline have no gravity well, so "the Ceres Queen falls in" was impossible and the convoy "crash" was knockback, not gravity; a 5-min grep for `surface_gravity: Some` would have reframed both). 20260714-154958, 20260718-004834, 20260719-233732, 20260722-092427, 20260722-092432.
+- `verify-stale-brief-against-tree` (x5, PROMOTED 2026-07-21 -> AGENTS.md Conventions + flow bug playbook): reproduce a filed bug against the CURRENT tree before implementing; a subsystem change can shrink or falsify the fix scope - and so can the WORLD state (broadside/lifeline have no gravity well, so "the Ceres Queen falls in" was impossible and the convoy "crash" was knockback, not gravity; a 5-min grep for `surface_gravity: Some` would have reframed both). Also: a scoping brief can come from an EXPLORATION AGENT's summary ("shakedown DOES NOT USE the pacing module") - read the handlers before writing the plan around it; shakedown used the reverse ordering the summary glossed. 20260714-154958, 20260718-004834, 20260719-233732, 20260722-092427, 20260722-092432, 20260722-142341.
 - `render-output-eyeball` (x5, PROMOTED 2026-07-21 -> AGENTS.md Conventions): a dimensionally-valid generated artifact can be empty/wrong while every exit code is green - open it; a layout task is unverified until someone SEES it rendered. 20260718-122923, 20260719-112253.
 - `authored-vs-derived-values` (x4, PROMOTED 2026-07-21 -> AGENTS.md Conventions): author content against measured runtime consts, and encode layout invariants as computed rig assertions. 20260716-124722, 20260717-112630.
 - `advertised-but-unwired` (x3, PROMOTED 2026-07-21 -> AGENTS.md Conventions): a config surface is not a capability until producer/consumer wiring and preconditions are verified in the new context. 20260712-093044.
