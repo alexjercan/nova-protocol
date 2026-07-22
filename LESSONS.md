@@ -83,12 +83,13 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `review-the-generated-artifact-too` (x1): after changing an authored or
   generated schema, READ the regenerated file with an author's eye - parity
   tests never check readability. 20260717-215742.
-- `commit-review-retro-before-land` (x1, -> flow/review skills): commit
+- `commit-review-retro-before-land` (x2, -> flow/review skills): commit
   REVIEW.md (and any retro/decision file) on the feature branch and confirm the
   worktree `git status` is clean BEFORE `sprout land` - the squash only takes
   committed state and `sprout land` removes the worktree, so an uncommitted
-  review file is dropped AND lost with the worktree, not just left behind.
-  20260718-231601.
+  review file is dropped AND lost with the worktree (an out-of-context
+  reviewer that WRITES REVIEW.md is the classic trigger - commit it before
+  landing). 20260718-231601, 20260722-092427.
 - `rename-id-sweep-in-file` (x1): after renaming a content id, grep the WHOLE
   file for the old id - lint validates spawn/prototype/filter refs but not AI
   orbit/patrol targets. 20260716-215513.
@@ -255,6 +256,19 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `probe-surfaces-adjacent-issues` (x2): run de-risk probes for real; they
   pay beyond their stated question (the timeline recorder's first armed run
   exposed an unknown spawn-overlap onenter). 20260710-104421, 20260719-112238.
+- `probe-content-not-just-code` (x1): "data-only" content changes carry
+  BEHAVIOURAL bugs, so probe them too - a scenario pacing pass skipped probe as
+  "data-only, no perf surface" and shipped OnStart objective gates that read an
+  undefined `scenario_elapsed`, so the opening objectives never posted (caught
+  only when a later task's probe hit the same scenario). Probe is a behaviour
+  check, not just a perf one. 20260722-114541, 20260722-092421.
+- `review-rig-can-false-green` (x1): a review that BUILDS a bespoke rig to
+  clear a flagged risk can false-GREEN when the rig diverges from the real load
+  path - task 1's reviewer "verified" the OnStart clock read safe with a
+  synthetic scenario that seeded the clock the loader does not; the real loader
+  fires OnStart before the first tick. Verify a risk against the PRODUCTION path
+  (or a probe of it), not a hand-built stand-in; treat a bespoke-rig green as
+  inconclusive. 20260722-114541.
 - `upstream-api-gap-fix-beats-workaround` (positive, x1): when the blocking
   gap is a missing accessor in a dependency the USER owns, surface the fork -
   the small upstream fix + tag + pin bump beat both in-repo workarounds
@@ -499,9 +513,6 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `sweep-full-scale-before-believing-a-win` (x1): benchmark across the whole
   scale range and both regimes; an index won at 500 and lost at 5000.
   20260525-133014.
-- `lint-gate-is-the-last-step` (x2): fmt/clippy/tests run AFTER the final
-  edit; mirror remote CI locally before pushing. 20260525-133014,
-  20260715-142931.
 - `document-the-async-failure-path` (x1): concurrent-flow notes trace the
   async failure path and state the real atomicity boundary. 20260715-142931.
 - `sibling-change-leaves-stale-fixture` (x3, PROMOTED 2026-07-19 -> work
@@ -753,7 +764,7 @@ out-of-context-review-pass annotated as already /flow round-1 practice. Kept
 here (annotated) as the paid record.
 
 - `prose-from-diff-not-intent` (x3, PROMOTED 2026-07-21 -> AGENTS.md Conventions): write CHANGELOG/wiki/NOTES from the final diff (count sites by counting the diff), then re-read asking "does the prose claim anything the diff does not do?". 20260717-112622, 20260717-163058, 20260719-001600.
-- `verify-stale-brief-against-tree` (x3, PROMOTED 2026-07-21 -> AGENTS.md Conventions + flow bug playbook): reproduce a filed bug against the CURRENT tree before implementing; a subsystem change can shrink or falsify the fix scope. 20260714-154958, 20260718-004834, 20260719-233732.
+- `verify-stale-brief-against-tree` (x5, PROMOTED 2026-07-21 -> AGENTS.md Conventions + flow bug playbook): reproduce a filed bug against the CURRENT tree before implementing; a subsystem change can shrink or falsify the fix scope - and so can the WORLD state (broadside/lifeline have no gravity well, so "the Ceres Queen falls in" was impossible and the convoy "crash" was knockback, not gravity; a 5-min grep for `surface_gravity: Some` would have reframed both). 20260714-154958, 20260718-004834, 20260719-233732, 20260722-092427, 20260722-092432.
 - `render-output-eyeball` (x5, PROMOTED 2026-07-21 -> AGENTS.md Conventions): a dimensionally-valid generated artifact can be empty/wrong while every exit code is green - open it; a layout task is unverified until someone SEES it rendered. 20260718-122923, 20260719-112253.
 - `authored-vs-derived-values` (x4, PROMOTED 2026-07-21 -> AGENTS.md Conventions): author content against measured runtime consts, and encode layout invariants as computed rig assertions. 20260716-124722, 20260717-112630.
 - `advertised-but-unwired` (x3, PROMOTED 2026-07-21 -> AGENTS.md Conventions): a config surface is not a capability until producer/consumer wiring and preconditions are verified in the new context. 20260712-093044.
@@ -761,5 +772,9 @@ here (annotated) as the paid record.
 
 ## Pending promotions (3+ occurrences, user decides)
 
-None open - the 6 x3+ lessons were resolved and promoted on 2026-07-21
-(task 20260720-220051); see the Promoted section above.
+- `lint-gate-is-the-last-step` (x3): fmt/clippy/tests run AFTER the final edit;
+  mirror remote CI locally before pushing - a post-final-edit prelude tweak
+  landed an unformatted line that CI would have bounced (caught at flow Finish).
+  Promotion candidate (tool > prose): a pre-commit / pre-land `cargo fmt --check`
+  guard would make this impossible instead of relying on the author remembering.
+  20260525-133014, 20260715-142931, 20260722-092432.
