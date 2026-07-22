@@ -1,6 +1,6 @@
 # Goal: mainline campaign pacing + non-combatant ship behavior
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: goal
 
