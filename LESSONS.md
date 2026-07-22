@@ -110,9 +110,17 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   merging the default branch surfaces a red test, `git show <default>:<file>`
   first to classify inherited vs caused; fix inherited reds as named merge
   integration. 20260716-215423, 20260717-162121.
-- `edit-the-builder-not-the-generated-ron` (x1, PROMOTED 2026-07-19 -> repo
-  AGENTS.md): base `.content.ron` are generated - edit the builder and
-  regenerate, or parity goes red. 20260718-175502.
+- `edit-the-builder-not-the-generated-ron` (x2, PROMOTED 2026-07-19 -> repo
+  AGENTS.md, but RECURRED 2026-07-22 - prose did not hold): base `.content.ron`
+  are generated - edit the builder then `cargo run -p nova_assets gen` and
+  commit the RON in the SAME change, or parity goes red. 20260718-175502,
+  20260722-142341.
+- `local-merge-skips-the-guarding-ci` (x1): an ff-merge to master done LOCALLY
+  runs no CI, so any check that lives only in CI - or in a `tests/` integration
+  guard that `cargo test --lib` skips (content_ron_parity would have caught the
+  stale RON) - never fires. When landing locally without a push, run the FULL
+  affected suite (`--test <name>` for integration guards, not just `--lib`) or
+  push and let CI gate BEFORE merging. 20260722-142341.
 - `sweep-content-repo-wide-not-just-assets` (x2): relocating/renaming an
   asset sweeps EVERY content-shaped file repo-wide (examples/, include_str!,
   test data); an "X holds everywhere" audit sweeps base + webmods +
