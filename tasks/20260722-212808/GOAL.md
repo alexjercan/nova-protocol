@@ -81,7 +81,11 @@ Updated as tasks land (one line per land).
       landed 60c5d40a; 1 review round (APPROVE, 5 accuracy nits fixed); the
       pace-map is the shared brief for -214058/-214105/-214110/-214115; 5
       owner playtest questions batched to Finish Manual acceptance.
-- [ ] 20260722-214058 (p56, the-ledger) Beat-sheet pacing pass: ch1/ch2/ch2b
+- [x] 20260722-214058 (p56, the-ledger) Beat-sheet pacing pass: ch1/ch2/ch2b
+      landed 803a4e0c; 1 review round (APPROVE). Opening conversations +
+      lazy objectives + breathers + first dwell use; ch2/ch2b geometry
+      untouched, Victory deferred a beat (act latch stays synchronous, no
+      race); ledger_ch2_encounter gained pump_clock (12 passed).
 - [ ] 20260722-214105 (p54, the-ledger) ch3 depth: opening act + breather corridor + 2nd encounter
 - [ ] 20260722-214110 (p52, the-ledger) ch4 diverging endings (+ ending test rig)
 - [ ] 20260722-214115 (p46, the-ledger) Per-chapter look: cubemap assignment + SetSkybox accents
