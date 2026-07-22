@@ -1,6 +1,6 @@
 # Ledger diagnostic: campaign-wide pace-map + weak-spot brief (diagnostic-first)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.8.0, content, scenario, playtest
 
@@ -19,20 +19,20 @@ Umbrella: 20260722-212808 (see GOAL.md). Reference: the Shakedown pacing pass
 
 ## Steps
 
-- [ ] For each of the five files, tabulate: beats/objectives, encounters
+- [x] For each of the five files, tabulate: beats/objectives, encounters
       (spawns, waves, loadouts, engage_delay telegraphs), StoryMessage beats,
       and scenario-clock pacing (scenario_elapsed gates / dwell / beat_gate
       breathers vs pure position-gating). Count beats; mark where objectives
       dump on one frame, spawns lack telegraphs, or >1 StoryMessage shares a
       handler.
-- [ ] Call out the known weak spots concretely against the script: ch1 OnStart
+- [x] Call out the known weak spots concretely against the script: ch1 OnStart
       dumps 1 message + 3 objectives + all spawns; ch3 is one linear
       position-gated act with a single optional ambush and zero clock pacing;
       ch4's Auditor spawns with no engage_delay and both endings converge.
-- [ ] Write the target rhythm per chapter (announce -> breathe -> arrive ->
+- [x] Write the target rhythm per chapter (announce -> breathe -> arrive ->
       fight -> confirm -> breathe -> next) and the concrete fixes each sibling
       task will make, as the shared reference.
-- [ ] List the owner playtest questions (feel/balance calls) for the Finish
+- [x] List the owner playtest questions (feel/balance calls) for the Finish
       checkpoint, in this task.
 
 ## Definition of Done
