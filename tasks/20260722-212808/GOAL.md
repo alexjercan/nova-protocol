@@ -86,7 +86,11 @@ Updated as tasks land (one line per land).
       lazy objectives + breathers + first dwell use; ch2/ch2b geometry
       untouched, Victory deferred a beat (act latch stays synchronous, no
       race); ledger_ch2_encounter gained pump_clock (12 passed).
-- [ ] 20260722-214105 (p54, the-ledger) ch3 depth: opening act + breather corridor + 2nd encounter
+- [x] 20260722-214105 (p54, the-ledger) ch3 depth: opening act + breather corridor + 2nd encounter
+      landed def84930; 1 review round (APPROVE). Clock-paced opener +
+      breather corridor + debris-pinch hazard (~24u gap, computed pin);
+      new ledger_ch3_channel test (9 passed). Owner Q2 (pinch vs staggered
+      combat contact) batched to Finish.
 - [ ] 20260722-214110 (p52, the-ledger) ch4 diverging endings (+ ending test rig)
 - [ ] 20260722-214115 (p46, the-ledger) Per-chapter look: cubemap assignment + SetSkybox accents
 - [ ] 20260722-214119 (p40, the-ledger) Close-out: lint, version 1.6.0, ch2 test, catalog, doc sweep
