@@ -1,8 +1,8 @@
 # Broadside: terminal act on player death (Lifeline review R1.1 class)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 47
-- TAGS: v0.8.0,content,scenario,bug
+- TAGS: v0.8.0, content, scenario, bug
 
 ## Goal
 
