@@ -43,6 +43,8 @@ fmt/check clean, probes OK.
 
 Updated as tasks land (one line per land).
 
+- [ ] 20260722-163718 (p82, nova_assets) Per-beat objective pacing gaps: instruction vs reveal (mainline)
+
 ## Manual acceptance (batched for the user at Finish)
 
 - (pending) 20260722-163542: playtest the tutorial (shakedown) - do the
