@@ -95,4 +95,4 @@ would guard that decision. Optional hardening, not required for approval.
 
 ## Verdict
 
-APPROVE
+- VERDICT: APPROVE

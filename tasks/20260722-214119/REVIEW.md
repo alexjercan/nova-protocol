@@ -72,4 +72,5 @@ grounded in the content diff, every current-state live surface is synced, and th
 one directory the table missed turns out to be correctly-left-alone history.
 
 ## Verdict
-APPROVE
+
+- VERDICT: APPROVE

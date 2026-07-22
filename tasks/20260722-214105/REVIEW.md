@@ -96,4 +96,5 @@ gate on the confirm, or re-arm it, if the missing "clean through" line bothers r
 Not blocking.
 
 ## Verdict
-APPROVE
+
+- VERDICT: APPROVE

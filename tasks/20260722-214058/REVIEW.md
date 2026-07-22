@@ -101,4 +101,4 @@ required for approval.
 
 ## Verdict
 
-APPROVE
+- VERDICT: APPROVE

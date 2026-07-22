@@ -103,4 +103,5 @@ dropping the synchronous act=3 opens the death window that
   message-only swap flagged for the Finish checkpoint, not a code issue.
 
 ## Verdict
-APPROVE
+
+- VERDICT: APPROVE

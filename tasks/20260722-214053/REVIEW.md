@@ -118,4 +118,4 @@ downstream task."
 
 ## Verdict
 
-APPROVE
+- VERDICT: APPROVE
