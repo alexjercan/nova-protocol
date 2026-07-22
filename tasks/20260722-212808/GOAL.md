@@ -104,7 +104,11 @@ Updated as tasks land (one line per land).
       (rigs got AssetPlugin, production-faithful); new ledger_skybox test.
       NOTE: a mid-task concurrency slip (edited a live agent's worktree)
       was recovered; see RETRO. Visual look is an owner Finish check.
-- [ ] 20260722-214119 (p40, the-ledger) Close-out: lint, version 1.6.0, ch2 test, catalog, doc sweep
+- [x] 20260722-214119 (p40, the-ledger) Close-out: lint, version 1.6.0, ch2 test, catalog, doc sweep
+      landed 55e66bb5; 1 review round (APPROVE). Bundle 1.5.0->1.6.0,
+      CHANGELOG/README/wiki synced to shipped behavior (README ch4
+      divergence corrected), v0.8.0 news note staged, catalog regenerated
+      locally at 1.6.0. Live publish is the owner's step.
 
 Dependencies: 214053 (diagnostic) feeds 214058/214105/214110. 214115 (look)
 sequences AFTER the content passes so its skybox edits rebase cleanly. 214119
