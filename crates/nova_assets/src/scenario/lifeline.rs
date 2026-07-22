@@ -36,6 +36,7 @@ use nova_scenario::prelude::*;
 use super::{
     cast::{BELT_RELAY, CAPTAIN_HALLORAN, TALLYMAN},
     craft::{self, ShipGrade},
+    pacing::{self, mark_clock, BEAT_GAP},
     shakedown::{
         complete, destroyed, eq_num, gt_num, lt_num, mark, num, objective, set, spawn, story,
         unmark, var,
@@ -79,6 +80,11 @@ const VAR_R3B_DOWN: &str = "r3b_down";
 const VAR_HELLO_SAID: &str = "hello_said";
 const VAR_W1_CLEAR_SAID: &str = "w1_clear_said";
 const VAR_W2_CLEAR_SAID: &str = "w2_clear_said";
+/// Pacing (task 20260722-092421): the screen-the-convoy objective posts a beat
+/// AFTER the dispatch line, not the same frame. The gate holds the `mark_clock`
+/// deadline; the flag latches the one-shot post.
+const VAR_SCREEN_GATE: &str = "screen_gate";
+const VAR_SCREEN_POSTED: &str = "screen_posted";
 /// The HUD countdown: `RELIEF_SECS - scenario_elapsed`, recomputed every
 /// frame while the act is live, displayed by the `relief` readout in Time
 /// format. Only writing `scenario_elapsed` itself is linted; a DERIVED
@@ -388,6 +394,7 @@ pub(crate) fn lifeline(
         set(VAR_HELLO_SAID, num(0.0)),
         set(VAR_W1_CLEAR_SAID, num(0.0)),
         set(VAR_W2_CLEAR_SAID, num(0.0)),
+        set(VAR_SCREEN_POSTED, num(0.0)),
         set(VAR_RELIEF_REMAINING, num(RELIEF_SECS)),
         spawn(player_ship()),
         spawn(convoy_hauler(
@@ -416,15 +423,14 @@ pub(crate) fn lifeline(
     ];
     opening.extend(lane_boulders(&asteroid_texture).into_iter().map(spawn));
     opening.extend([
+        // Pacing pass (task 20260722-092421): the objective posts a beat after
+        // the dispatch line (the gated_once handler below), not the same frame.
         story(
             BELT_RELAY,
             "Relief wing is spooled and burning your way - four minutes \
              out. The convoy holds the lane until they arrive.",
         ),
-        objective(
-            OBJ_SCREEN,
-            "Keep the convoy alive until the relief wing arrives.",
-        ),
+        mark_clock(VAR_SCREEN_GATE, BEAT_GAP),
         mark(ID_QUEEN, "CERES QUEEN"),
         mark(ID_MERIDIAN, "LONG MERIDIAN"),
         EventActionConfig::HudReadout(HudReadoutActionConfig {
@@ -442,6 +448,17 @@ pub(crate) fn lifeline(
             filters: vec![],
             actions: opening,
         },
+        // The screen-the-convoy objective posts a beat after the dispatch line
+        // (pacing pass), while the defense is live.
+        pacing::gated_once(
+            VAR_SCREEN_POSTED,
+            VAR_SCREEN_GATE,
+            vec![eq_num(VAR_ACT, 1.0)],
+            vec![objective(
+                OBJ_SCREEN,
+                "Keep the convoy alive until the relief wing arrives.",
+            )],
+        ),
         // The countdown, recomputed every live frame: RELIEF_SECS - clock.
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,

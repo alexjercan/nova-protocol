@@ -50,6 +50,18 @@
                         key: "close_said",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
+                    VariableSet((
+                        key: "survey_posted",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "picket_posted",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "break_posted",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
                     SpawnScenarioObject((
                         base: (
                             id: "player_spaceship",
@@ -1163,13 +1175,47 @@
                         speaker: "Belt Relay",
                         text: "The raiders\' burn traces to a dead claim: a cracked megahauler berthed deep in a planetoid\'s pull. Confirm what\'s hiding there.",
                     )),
-                    Objective((
-                        id: "survey",
-                        message: "Survey the anchorage - hold a travel lock on the wreck\'s bow.",
+                    VariableSet((
+                        key: "survey_gate",
+                        expression: Add(
+                            Factor(Name("scenario_elapsed")),
+                            Term(Factor(Literal(Number(4.0)))),
+                        ),
                     )),
                     ObjectiveMarkerAttach((
                         target_id: "anchorage_bow",
                         label: "ANCHORAGE",
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("survey_posted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("survey_gate"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("survey_gate"))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "survey_posted",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    Objective((
+                        id: "survey",
+                        message: "Survey the anchorage - hold a travel lock on the wreck\'s bow.",
                     )),
                 ],
             ),
@@ -1240,6 +1286,46 @@
                     StoryMessage((
                         speaker: "Belt Relay",
                         text: "Confirmed: the Final Tally, berthed hot behind the wreck. Two pickets riding the well.",
+                    )),
+                    VariableSet((
+                        key: "picket_gate",
+                        expression: Add(
+                            Factor(Name("scenario_elapsed")),
+                            Term(Factor(Literal(Number(4.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("picket_posted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("picket_gate"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("picket_gate"))),
+                    ))),
+                    Conditional(Or(
+                        Expression((Equal(
+                            Term(Factor(Name("picket_a_down"))),
+                            Term(Factor(Literal(Number(0.0)))),
+                        ))),
+                        Expression((Equal(
+                            Term(Factor(Name("picket_b_down"))),
+                            Term(Factor(Literal(Number(0.0)))),
+                        ))),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "picket_posted",
+                        expression: Term(Factor(Literal(Number(1.0)))),
                     )),
                     Objective((
                         id: "picket",
@@ -2426,13 +2512,47 @@
                             ],
                         )),
                     )),
-                    Objective((
-                        id: "break_flagship",
-                        message: "Break the Final Tally.",
+                    VariableSet((
+                        key: "break_gate",
+                        expression: Add(
+                            Factor(Name("scenario_elapsed")),
+                            Term(Factor(Literal(Number(4.0)))),
+                        ),
                     )),
                     ObjectiveMarkerAttach((
                         target_id: "flagship",
                         label: "FINAL TALLY",
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("break_posted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("break_gate"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("break_gate"))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "break_posted",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    Objective((
+                        id: "break_flagship",
+                        message: "Break the Final Tally.",
                     )),
                 ],
             ),

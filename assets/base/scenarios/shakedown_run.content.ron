@@ -665,9 +665,9 @@
                         key: "breather_last",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
-                    Objective((
-                        id: "b0_standby",
-                        message: "Ease off the dock. Stand by for Capt. Halloran.",
+                    VariableSet((
+                        key: "scav_posted",
+                        expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                 ],
             ),
@@ -803,9 +803,6 @@
                         key: "opened",
                         expression: Term(Factor(Literal(Number(1.0)))),
                     )),
-                    ObjectiveComplete((
-                        id: "b0_standby",
-                    )),
                     SpawnScenarioObject((
                         base: (
                             id: "beacon_1",
@@ -844,7 +841,10 @@
                     )),
                     VariableSet((
                         key: "beat_gate",
-                        expression: Term(Factor(Name("scenario_elapsed"))),
+                        expression: Add(
+                            Factor(Name("scenario_elapsed")),
+                            Term(Factor(Literal(Number(4.0)))),
+                        ),
                     )),
                 ],
             ),
@@ -867,7 +867,10 @@
                     )),
                     VariableSet((
                         key: "beat_gate",
-                        expression: Term(Factor(Name("scenario_elapsed"))),
+                        expression: Add(
+                            Factor(Name("scenario_elapsed")),
+                            Term(Factor(Literal(Number(4.0)))),
+                        ),
                     )),
                     ObjectiveComplete((
                         id: "b1_burn",
@@ -940,7 +943,10 @@
                     )),
                     VariableSet((
                         key: "beat_gate",
-                        expression: Term(Factor(Name("scenario_elapsed"))),
+                        expression: Add(
+                            Factor(Name("scenario_elapsed")),
+                            Term(Factor(Literal(Number(4.0)))),
+                        ),
                     )),
                     ObjectiveComplete((
                         id: "b2_look",
@@ -1120,7 +1126,10 @@
                     )),
                     VariableSet((
                         key: "beat_gate",
-                        expression: Term(Factor(Name("scenario_elapsed"))),
+                        expression: Add(
+                            Factor(Name("scenario_elapsed")),
+                            Term(Factor(Literal(Number(4.0)))),
+                        ),
                     )),
                     ObjectiveComplete((
                         id: "b3_salvage",
@@ -1190,7 +1199,10 @@
                     )),
                     VariableSet((
                         key: "beat_gate",
-                        expression: Term(Factor(Name("scenario_elapsed"))),
+                        expression: Add(
+                            Factor(Name("scenario_elapsed")),
+                            Term(Factor(Literal(Number(4.0)))),
+                        ),
                     )),
                     ObjectiveComplete((
                         id: "b4_lock",
@@ -1226,7 +1238,10 @@
                     )),
                     VariableSet((
                         key: "beat_gate",
-                        expression: Term(Factor(Name("scenario_elapsed"))),
+                        expression: Add(
+                            Factor(Name("scenario_elapsed")),
+                            Term(Factor(Literal(Number(4.0)))),
+                        ),
                     )),
                     ObjectiveComplete((
                         id: "b5_autopilot",
@@ -1292,7 +1307,10 @@
                     )),
                     VariableSet((
                         key: "beat_gate",
-                        expression: Term(Factor(Name("scenario_elapsed"))),
+                        expression: Add(
+                            Factor(Name("scenario_elapsed")),
+                            Term(Factor(Literal(Number(4.0)))),
+                        ),
                     )),
                     ObjectiveComplete((
                         id: "b6_waypoint",
@@ -1348,7 +1366,10 @@
                     )),
                     VariableSet((
                         key: "beat_gate",
-                        expression: Term(Factor(Name("scenario_elapsed"))),
+                        expression: Add(
+                            Factor(Name("scenario_elapsed")),
+                            Term(Factor(Literal(Number(4.0)))),
+                        ),
                     )),
                     ObjectiveComplete((
                         id: "b7_coast",
@@ -1383,7 +1404,10 @@
                     )),
                     VariableSet((
                         key: "beat_gate",
-                        expression: Term(Factor(Name("scenario_elapsed"))),
+                        expression: Add(
+                            Factor(Name("scenario_elapsed")),
+                            Term(Factor(Literal(Number(4.0)))),
+                        ),
                     )),
                     ObjectiveComplete((
                         id: "b8_orbit",
@@ -1446,7 +1470,10 @@
                     )),
                     VariableSet((
                         key: "beat_gate",
-                        expression: Term(Factor(Name("scenario_elapsed"))),
+                        expression: Add(
+                            Factor(Name("scenario_elapsed")),
+                            Term(Factor(Literal(Number(4.0)))),
+                        ),
                     )),
                     ObjectiveComplete((
                         id: "b9_break",
@@ -1881,9 +1908,12 @@
                         speaker: "Capt. Halloran",
                         text: "Contact - scavenger picking through your debris field. Drive it off.",
                     )),
-                    Objective((
-                        id: "b12_contact",
-                        message: "Drive off the scavenger.",
+                    VariableSet((
+                        key: "scav_gate",
+                        expression: Add(
+                            Factor(Name("scenario_elapsed")),
+                            Term(Factor(Literal(Number(4.0)))),
+                        ),
                     )),
                     ObjectiveMarkerDetach((
                         target_id: "derelict",
@@ -1891,6 +1921,37 @@
                     ObjectiveMarkerAttach((
                         target_id: "pirate",
                         label: "SCAVENGER",
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("scav_posted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scav_gate"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("scav_gate"))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(12.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "scav_posted",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    Objective((
+                        id: "b12_contact",
+                        message: "Drive off the scavenger.",
                     )),
                 ],
             ),
@@ -1961,10 +2022,7 @@
                     ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("scenario_elapsed"))),
-                        Add(
-                            Factor(Name("beat_gate")),
-                            Term(Factor(Literal(Number(4.0)))),
-                        ),
+                        Term(Factor(Name("beat_gate"))),
                     ))),
                 ],
                 actions: [
@@ -1991,10 +2049,7 @@
                     ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("scenario_elapsed"))),
-                        Add(
-                            Factor(Name("beat_gate")),
-                            Term(Factor(Literal(Number(4.0)))),
-                        ),
+                        Term(Factor(Name("beat_gate"))),
                     ))),
                 ],
                 actions: [
@@ -2021,10 +2076,7 @@
                     ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("scenario_elapsed"))),
-                        Add(
-                            Factor(Name("beat_gate")),
-                            Term(Factor(Literal(Number(4.0)))),
-                        ),
+                        Term(Factor(Name("beat_gate"))),
                     ))),
                 ],
                 actions: [
@@ -2051,10 +2103,7 @@
                     ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("scenario_elapsed"))),
-                        Add(
-                            Factor(Name("beat_gate")),
-                            Term(Factor(Literal(Number(4.0)))),
-                        ),
+                        Term(Factor(Name("beat_gate"))),
                     ))),
                 ],
                 actions: [
@@ -2081,10 +2130,7 @@
                     ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("scenario_elapsed"))),
-                        Add(
-                            Factor(Name("beat_gate")),
-                            Term(Factor(Literal(Number(4.0)))),
-                        ),
+                        Term(Factor(Name("beat_gate"))),
                     ))),
                 ],
                 actions: [
@@ -2111,10 +2157,7 @@
                     ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("scenario_elapsed"))),
-                        Add(
-                            Factor(Name("beat_gate")),
-                            Term(Factor(Literal(Number(4.0)))),
-                        ),
+                        Term(Factor(Name("beat_gate"))),
                     ))),
                 ],
                 actions: [
@@ -2141,10 +2184,7 @@
                     ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("scenario_elapsed"))),
-                        Add(
-                            Factor(Name("beat_gate")),
-                            Term(Factor(Literal(Number(4.0)))),
-                        ),
+                        Term(Factor(Name("beat_gate"))),
                     ))),
                 ],
                 actions: [
@@ -2171,10 +2211,7 @@
                     ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("scenario_elapsed"))),
-                        Add(
-                            Factor(Name("beat_gate")),
-                            Term(Factor(Literal(Number(4.0)))),
-                        ),
+                        Term(Factor(Name("beat_gate"))),
                     ))),
                 ],
                 actions: [
@@ -2201,10 +2238,7 @@
                     ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("scenario_elapsed"))),
-                        Add(
-                            Factor(Name("beat_gate")),
-                            Term(Factor(Literal(Number(4.0)))),
-                        ),
+                        Term(Factor(Name("beat_gate"))),
                     ))),
                 ],
                 actions: [

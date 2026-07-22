@@ -74,6 +74,10 @@
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     VariableSet((
+                        key: "screen_posted",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
                         key: "relief_remaining",
                         expression: Term(Factor(Literal(Number(240.0)))),
                     )),
@@ -2220,9 +2224,12 @@
                         speaker: "Belt Relay",
                         text: "Relief wing is spooled and burning your way - four minutes out. The convoy holds the lane until they arrive.",
                     )),
-                    Objective((
-                        id: "screen_convoy",
-                        message: "Keep the convoy alive until the relief wing arrives.",
+                    VariableSet((
+                        key: "screen_gate",
+                        expression: Add(
+                            Factor(Name("scenario_elapsed")),
+                            Term(Factor(Literal(Number(4.0)))),
+                        ),
                     )),
                     ObjectiveMarkerAttach((
                         target_id: "hauler_queen",
@@ -2238,6 +2245,37 @@
                         format: Time,
                         label: Some("RELIEF"),
                         visible: true,
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("screen_posted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("screen_gate"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("screen_gate"))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "screen_posted",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    Objective((
+                        id: "screen_convoy",
+                        message: "Keep the convoy alive until the relief wing arrives.",
                     )),
                 ],
             ),

@@ -41,6 +41,7 @@ use nova_scenario::prelude::*;
 use super::{
     cast::{BELT_RELAY, CAPTAIN_HALLORAN, RUST_TALLY},
     craft::{self, ShipGrade},
+    pacing::{self, mark_clock, BEAT_GAP},
     shakedown::{
         complete, destroyed, emphasize, eq_num, lt_num, mark, num, objective, player_enters, set,
         spawn, story, unmark,
@@ -87,6 +88,19 @@ const VAR_CORVETTE_B_DOWN: &str = "corvette_b_down";
 /// (voice pass, task 20260721-160929). Scenario-scoped like every variable:
 /// each part tracks its OWN hauler (state does not cross the checkpoint).
 const VAR_HAULER_LOST: &str = "hauler_lost";
+
+/// Pacing (task 20260722-092421): objectives post a beat AFTER the comms line
+/// that introduces them, never the same frame. Each gate variable holds a
+/// `mark_clock` deadline; the paired `_posted` flag latches the one-shot
+/// `gated_once` that posts the objective once the clock passes it. Part one:
+/// the contact objective (after the distress call) and the defend objective
+/// (after the ambush line). Part two reuses its own pair in a separate scope.
+const VAR_CONTACT_GATE: &str = "contact_gate";
+const VAR_CONTACT_POSTED: &str = "contact_posted";
+const VAR_DEFEND_GATE: &str = "defend_gate";
+const VAR_DEFEND_POSTED: &str = "defend_posted";
+const VAR_GUN_OBJ_GATE: &str = "gun_obj_gate";
+const VAR_GUN_OBJ_POSTED: &str = "gun_obj_posted";
 
 /// The hauler drifts here; the fight happens around it.
 const HAULER_POS: Vec3 = Vec3::new(0.0, 10.0, -450.0);
@@ -306,6 +320,8 @@ pub(crate) fn broadside(
         set(VAR_CORVETTE_A_DOWN, num(0.0)),
         set(VAR_CORVETTE_B_DOWN, num(0.0)),
         set(VAR_HAULER_LOST, num(0.0)),
+        set(VAR_CONTACT_POSTED, num(0.0)),
+        set(VAR_DEFEND_POSTED, num(0.0)),
         spawn(player_ship()),
         spawn(hauler_ship()),
         cover_scatter,
@@ -322,13 +338,15 @@ pub(crate) fn broadside(
         // The voice pass (task 20260721-160929): the distress call the
         // shakedown banner promised is now HEARD - the announce beat's one
         // comms line; the objective shrinks to the goal.
+        // Pacing pass (task 20260722-092421): the objective no longer shares
+        // this frame with the distress call - the deadline is stamped here and
+        // OBJ_CONTACT posts a beat later (the gated_once handler below).
         story(
             CAPTAIN_HALLORAN,
             "Ceres Queen to any ship in the belt - drive's stripped, and \
              they're coming back for the hull.",
         ),
-        objective(OBJ_CONTACT, "Find the hauler Ceres Queen."),
-        mark(ID_HAULER, "CERES QUEEN"),
+        mark_clock(VAR_CONTACT_GATE, BEAT_GAP),
     ]);
 
     let events = vec![
@@ -337,13 +355,29 @@ pub(crate) fn broadside(
             filters: vec![],
             actions: opening,
         },
-        // Act 0 -> 1: reaching the hauler springs the ambush.
+        // The contact objective posts a beat after the distress call (pacing
+        // pass): still act 0, so a player who somehow reaches the hauler inside
+        // the beat springs the ambush without a stale objective appearing after.
+        pacing::gated_once(
+            VAR_CONTACT_POSTED,
+            VAR_CONTACT_GATE,
+            vec![eq_num(VAR_ACT, 0.0)],
+            vec![
+                objective(OBJ_CONTACT, "Find the hauler Ceres Queen."),
+                mark(ID_HAULER, "CERES QUEEN"),
+            ],
+        ),
+        // Act 0 -> 1: reaching the hauler springs the ambush. The threats spawn
+        // and the warning lands now; the DEFEND objective posts a beat later
+        // (gated_once below) so "contact done" and "drive them off" never share
+        // a frame.
         ScenarioEventConfig {
             name: EventConfig::OnEnter,
             filters: vec![player_enters(ID_HAULER_AREA), eq_num(VAR_ACT, 0.0)],
             actions: vec![
                 set(VAR_ACT, num(1.0)),
                 complete(OBJ_CONTACT),
+                mark_clock(VAR_DEFEND_GATE, BEAT_GAP),
                 spawn(corvette(ID_CORVETTE_A, CORVETTE_A_SPAWN)),
                 spawn(corvette(ID_CORVETTE_B, CORVETTE_B_SPAWN)),
                 story(
@@ -351,13 +385,21 @@ pub(crate) fn broadside(
                     "They're here - two of them, off the rocks. They were \
                      waiting for someone to answer.",
                 ),
-                objective(OBJ_DEFEND, "Drive the corvettes off the Ceres Queen."),
                 unmark(ID_HAULER),
                 mark(ID_CORVETTE_A, "CORVETTE"),
                 mark(ID_CORVETTE_B, "CORVETTE"),
                 emphasize("RADAR"),
             ],
         },
+        pacing::gated_once(
+            VAR_DEFEND_POSTED,
+            VAR_DEFEND_GATE,
+            vec![eq_num(VAR_ACT, 1.0)],
+            vec![objective(
+                OBJ_DEFEND,
+                "Drive the corvettes off the Ceres Queen.",
+            )],
+        ),
         // Corvette kills raise their flags (separate handlers, no counter
         // arithmetic - a double OnDestroyed cannot overshoot a flag).
         ScenarioEventConfig {
@@ -524,6 +566,7 @@ pub(crate) fn broadside_gunship(
     let mut opening = vec![
         set(VAR_ACT, num(1.0)),
         set(VAR_HAULER_LOST, num(0.0)),
+        set(VAR_GUN_OBJ_POSTED, num(0.0)),
         spawn(player_ship()),
         spawn(hauler_ship()),
         cover_scatter(&asteroid_texture),
@@ -532,17 +575,15 @@ pub(crate) fn broadside_gunship(
     opening.extend([
         spawn(gunship()),
         // The capital gets a voice (task 20260721-160929): the announce
-        // beat's one comms line, while the objectives shrink to goals.
+        // beat's one comms line, while the objectives shrink to goals. Pacing
+        // pass (task 20260722-092421): the objectives post a beat after the
+        // taunt (the gated_once handler below), not the same frame.
         story(
             RUST_TALLY,
             "You cost me two pickers, belt rat. The Rust Tally pays its \
              debts in torpedoes.",
         ),
-        objective(
-            OBJ_SCREEN,
-            "Lock the incoming torpedoes and screen them with your PDC.",
-        ),
-        objective(OBJ_BREAK, "Break the Rust Tally, section by section."),
+        mark_clock(VAR_GUN_OBJ_GATE, BEAT_GAP),
         mark(ID_GUNSHIP, "GUNSHIP"),
         emphasize("RADAR"),
     ]);
@@ -553,6 +594,18 @@ pub(crate) fn broadside_gunship(
             filters: vec![],
             actions: opening,
         },
+        pacing::gated_once(
+            VAR_GUN_OBJ_POSTED,
+            VAR_GUN_OBJ_GATE,
+            vec![eq_num(VAR_ACT, 1.0)],
+            vec![
+                objective(
+                    OBJ_SCREEN,
+                    "Lock the incoming torpedoes and screen them with your PDC.",
+                ),
+                objective(OBJ_BREAK, "Break the Rust Tally, section by section."),
+            ],
+        ),
         // Win: the gunship comes apart - and the deep scan keeps the door
         // open: the lingering chain rides into chapter three (Lifeline,
         // task 20260721-160957).

@@ -25,6 +25,7 @@ use nova_scenario::prelude::*;
 use super::{
     cast::{CAPTAIN_HALLORAN, PLAYER},
     craft::{self, ShipGrade},
+    pacing::{clock_past, gated_once, mark_clock},
 };
 
 /// The scenario id, shared with nova_menu's New Game entry.
@@ -149,7 +150,6 @@ const ID_PLANETOID: &str = "planetoid";
 const ID_PIRATE: &str = "pirate";
 
 // Objective ids (beat sheet v2: one gesture per objective).
-const OBJ_OPENING: &str = "b0_standby";
 const OBJ_B1: &str = "b1_burn";
 const OBJ_B2: &str = "b2_look";
 const OBJ_B3: &str = "b3_salvage";
@@ -178,6 +178,12 @@ const VAR_OPEN_STEP: &str = "open_step";
 const VAR_OPENED: &str = "opened";
 const VAR_GATE: &str = "beat_gate";
 const VAR_BREATHER_LAST: &str = "breather_last";
+// The scavenger fight is a threat reveal (task 20260722-092421): the warning
+// line lands with the spawn, and the objective posts a beat later - the same
+// deadline the story scenarios use, so no comms line shares a frame with an
+// objective anywhere in the mainline.
+const VAR_SCAV_GATE: &str = "scav_gate";
+const VAR_SCAV_POSTED: &str = "scav_posted";
 
 // The opening conversation runs on the scenario clock (seconds). The 25 u/s
 // speed cap makes the ~40s drift diegetic: the ship idles out of the dock while
@@ -309,24 +315,12 @@ pub(crate) fn story(speaker: &str, text: &str) -> EventActionConfig {
     })
 }
 
-/// Stamp the scenario clock into `beat_gate` at a beat transition, so a
-/// [`breather`] can fire a fixed delay later no matter how long the leg took.
+/// Stamp the breather deadline at a beat transition, so a [`breather`] fires
+/// [`BREATHER_DELAY`] seconds later no matter how long the leg took. Thin alias
+/// over the shared [`mark_clock`] so the whole mainline shares one gate
+/// mechanism (task 20260722-092421).
 fn stamp_gate() -> EventActionConfig {
-    set(VAR_GATE, var(SCENARIO_ELAPSED_VAR))
-}
-
-/// Filter: `scenario_elapsed > beat_gate + delay` - a breather gate relative to
-/// the last beat transition (the absolute clock gates are the opening only).
-fn past_gate(delay: f64) -> EventFilterConfig {
-    EventFilterConfig::Expression(ExpressionFilterConfig(
-        VariableConditionNode::new_greater_than(
-            var(SCENARIO_ELAPSED_VAR),
-            VariableExpressionNode::new_add(
-                VariableTermNode::new_factor(VariableFactorNode::new_name(VAR_GATE.to_string())),
-                num(delay),
-            ),
-        ),
-    ))
+    mark_clock(VAR_GATE, BREATHER_DELAY)
 }
 
 /// One line of the opening conversation: fires when the clock passes `at` and
@@ -354,7 +348,7 @@ fn breather(beat: f64, speaker: &str, line: &str) -> ScenarioEventConfig {
         filters: vec![
             eq_num(VAR_BEAT, beat),
             lt_num(VAR_BREATHER_LAST, beat),
-            past_gate(BREATHER_DELAY),
+            clock_past(VAR_GATE),
         ],
         actions: vec![set(VAR_BREATHER_LAST, num(beat)), story(speaker, line)],
     }
@@ -615,12 +609,12 @@ pub(crate) fn shakedown_run(
                     set(VAR_OPENED, num(0.0)),
                     set(VAR_GATE, num(0.0)),
                     set(VAR_BREATHER_LAST, num(0.0)),
-                    // A holding objective while the captain talks, so the panel
-                    // is never blank; the conversation carries the voice.
-                    objective(
-                        OBJ_OPENING,
-                        "Ease off the dock. Stand by for Capt. Halloran.",
-                    ),
+                    set(VAR_SCAV_POSTED, num(0.0)),
+                    // No objective during the opening conversation (owner pacing
+                    // pass, task 20260722-092421): the panel stays empty while
+                    // the captain talks and the first objective posts only when
+                    // the conversation hands off (the `opened` latch below). The
+                    // conversation carries the voice; the panel waits for it.
                 ])
                 .collect(),
         },
@@ -664,7 +658,6 @@ pub(crate) fn shakedown_run(
             filters: vec![eq_num(VAR_OPEN_STEP, 5.0), eq_num(VAR_OPENED, 0.0)],
             actions: vec![
                 set(VAR_OPENED, num(1.0)),
-                complete(OBJ_OPENING),
                 spawn(beacon(ID_BEACON_1, "BEACON 1", BEACON_1_POS)),
                 objective(OBJ_B1, "Burn to Beacon 1."),
                 // The gold marker rides the current leg's target (conveyance
@@ -931,12 +924,14 @@ pub(crate) fn shakedown_run(
                 // The one fight announces itself (beat-sheet telegraph): a
                 // warning line, a spawn back at the debris field, and the
                 // scavenger's own engage_delay grace before its guns come up.
+                // Pacing pass (task 20260722-092421): the objective posts a beat
+                // after this warning (the gated_once below), not the same frame.
                 story(
                     CAPTAIN_HALLORAN,
                     "Contact - scavenger picking through your debris field. \
                      Drive it off.",
                 ),
-                objective(OBJ_B12, "Drive off the scavenger."),
+                mark_clock(VAR_SCAV_GATE, BREATHER_DELAY),
                 // Defensive detach (the destroyed hulk takes its marker
                 // with it; do not depend on despawn timing), then the
                 // marker jumps to the intruder (attach after its spawn).
@@ -944,6 +939,15 @@ pub(crate) fn shakedown_run(
                 mark(ID_PIRATE, "SCAVENGER"),
             ],
         },
+        // The scavenger objective, a beat after the warning line. Gated on
+        // beat 12 so a fast kill (the win sets beat 13) cannot post a stale
+        // objective under the Victory overlay.
+        gated_once(
+            VAR_SCAV_POSTED,
+            VAR_SCAV_GATE,
+            vec![eq_num(VAR_BEAT, 12.0)],
+            vec![objective(OBJ_B12, "Drive off the scavenger.")],
+        ),
         // Beat 12 end: pirate destroyed - the chapter is won. The Victory
         // overlay chains into Broadside (chapter two, task 20260708-203659)
         // via the lingering switch: Continue (or Enter) answers the call,
@@ -1954,8 +1958,12 @@ mod tests {
             "beacon 1 spawns only after the briefing"
         );
         assert!(
-            has_objective(&app, OBJ_OPENING),
-            "the holding objective covers the briefing"
+            app.world()
+                .resource::<GameObjectives>()
+                .objectives
+                .is_empty(),
+            "the objectives panel stays empty during the opening conversation \
+             (owner pacing pass 20260722-092421)"
         );
         assert!(
             entity_with_id(&mut app, ID_PLAYER).is_some(),
@@ -1970,9 +1978,10 @@ mod tests {
             "the gold marker rides beacon 1 once the briefing ends"
         );
         assert!(has_objective(&app, OBJ_B1), "beat 1 objective is up");
-        assert!(
-            !has_objective(&app, OBJ_OPENING),
-            "the holding objective clears at hand-off"
+        assert_eq!(
+            app.world().resource::<GameObjectives>().objectives.len(),
+            1,
+            "only the real objective is up after hand-off - no holding line"
         );
         assert!(entity_with_id(&mut app, ID_BEACON_1).is_some());
         assert!(
@@ -2170,14 +2179,23 @@ mod tests {
         assert!(has_objective(&app, OBJ_B11));
         assert!(!radar_emphasized(&app), "RADAR retires with the red lock");
 
-        // Beat 11 -> 12: the hulk dies; NOW the scavenger appears.
+        // Beat 11 -> 12: the hulk dies; NOW the scavenger appears - the ship
+        // and its marker with the warning line, the objective a beat later
+        // (pacing pass, task 20260722-092421).
         destroy(&mut app, ID_DERELICT);
         assert_eq!(beat(&app), 12.0);
-        assert!(has_objective(&app, OBJ_B12));
+        assert!(
+            !has_objective(&app, OBJ_B12),
+            "the scavenger objective waits a beat past the warning line"
+        );
         assert!(
             entity_with_id(&mut app, ID_PIRATE).is_some(),
             "the scavenger spawns with the beat-12 reveal"
         );
+        // Advance past the beat's deadline: the objective posts now.
+        set_clock(&mut app, 100.0);
+        pulse(&mut app);
+        assert!(has_objective(&app, OBJ_B12));
         assert_eq!(
             marker_label(&mut app, ID_PIRATE).as_deref(),
             Some("SCAVENGER")
@@ -2263,7 +2281,26 @@ mod tests {
             app.world().resource::<HintEmphasis>().contains("RADAR"),
             "delivery guard: the rehearsal was mid-lesson"
         );
+        // The clock is live by the time the fight opens (production ticks it
+        // every frame); set a baseline so the beat's deadline is stamped off a
+        // real value, the way it is in play.
+        set_clock(&mut app, 10.0);
         destroy(&mut app, ID_DERELICT);
+
+        // Pacing pass (task 20260722-092421): the scavenger objective posts a
+        // beat AFTER the warning line, so right after the kill the panel is
+        // empty; it fills once the deadline passes.
+        assert!(
+            !app.world()
+                .resource::<GameObjectives>()
+                .objectives
+                .iter()
+                .any(|objective| objective.id == OBJ_B12),
+            "the scavenger objective waits a beat past the warning line"
+        );
+        // Advance well past the beat's deadline: the objective posts now.
+        set_clock(&mut app, 100.0);
+        pulse(&mut app);
 
         let objectives = &app.world().resource::<GameObjectives>().objectives;
         assert!(
@@ -2447,16 +2484,20 @@ mod tests {
                 .any(|a| matches!(a, EventActionConfig::Objective(o) if o.id == id))
         };
 
-        // OnStart posts the holding objective, NOT objective 1 - which waits
-        // for the conversation to hand off.
+        // OnStart posts NO objective at all - the panel stays empty through the
+        // opening conversation (owner pacing pass 20260722-092421); objective 1
+        // posts only when the conversation hands off.
         let on_start = config
             .events
             .iter()
             .find(|e| matches!(e.name, EventConfig::OnStart))
             .unwrap();
         assert!(
-            posts(on_start, OBJ_OPENING),
-            "OnStart posts the holding objective"
+            !on_start
+                .actions
+                .iter()
+                .any(|a| matches!(a, EventActionConfig::Objective(_))),
+            "OnStart posts no objective during the opening conversation"
         );
         assert!(
             !posts(on_start, OBJ_B1),

@@ -18,6 +18,10 @@
                         key: "hauler_lost",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
+                    VariableSet((
+                        key: "gun_obj_posted",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
                     SpawnScenarioObject((
                         base: (
                             id: "player_spaceship",
@@ -1980,13 +1984,12 @@
                         speaker: "Rust Tally",
                         text: "You cost me two pickers, belt rat. The Rust Tally pays its debts in torpedoes.",
                     )),
-                    Objective((
-                        id: "screen",
-                        message: "Lock the incoming torpedoes and screen them with your PDC.",
-                    )),
-                    Objective((
-                        id: "break",
-                        message: "Break the Rust Tally, section by section.",
+                    VariableSet((
+                        key: "gun_obj_gate",
+                        expression: Add(
+                            Factor(Name("scenario_elapsed")),
+                            Term(Factor(Literal(Number(4.0)))),
+                        ),
                     )),
                     ObjectiveMarkerAttach((
                         target_id: "gunship",
@@ -1994,6 +1997,41 @@
                     )),
                     HintEmphasisSet((
                         verb: "RADAR",
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("gun_obj_posted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("gun_obj_gate"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("gun_obj_gate"))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "gun_obj_posted",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    Objective((
+                        id: "screen",
+                        message: "Lock the incoming torpedoes and screen them with your PDC.",
+                    )),
+                    Objective((
+                        id: "break",
+                        message: "Break the Rust Tally, section by section.",
                     )),
                 ],
             ),

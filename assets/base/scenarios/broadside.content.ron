@@ -25,6 +25,14 @@
                         key: "hauler_lost",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
+                    VariableSet((
+                        key: "contact_posted",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "defend_posted",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
                     SpawnScenarioObject((
                         base: (
                             id: "player_spaceship",
@@ -1336,6 +1344,40 @@
                         speaker: "Capt. Halloran",
                         text: "Ceres Queen to any ship in the belt - drive\'s stripped, and they\'re coming back for the hull.",
                     )),
+                    VariableSet((
+                        key: "contact_gate",
+                        expression: Add(
+                            Factor(Name("scenario_elapsed")),
+                            Term(Factor(Literal(Number(4.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("contact_posted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("contact_gate"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("contact_gate"))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "contact_posted",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
                     Objective((
                         id: "contact",
                         message: "Find the hauler Ceres Queen.",
@@ -1365,6 +1407,13 @@
                     )),
                     ObjectiveComplete((
                         id: "contact",
+                    )),
+                    VariableSet((
+                        key: "defend_gate",
+                        expression: Add(
+                            Factor(Name("scenario_elapsed")),
+                            Term(Factor(Literal(Number(4.0)))),
+                        ),
                     )),
                     SpawnScenarioObject((
                         base: (
@@ -2080,10 +2129,6 @@
                         speaker: "Capt. Halloran",
                         text: "They\'re here - two of them, off the rocks. They were waiting for someone to answer.",
                     )),
-                    Objective((
-                        id: "defend",
-                        message: "Drive the corvettes off the Ceres Queen.",
-                    )),
                     ObjectiveMarkerDetach((
                         target_id: "hauler",
                     )),
@@ -2097,6 +2142,37 @@
                     )),
                     HintEmphasisSet((
                         verb: "RADAR",
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("defend_posted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("defend_gate"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("defend_gate"))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "defend_posted",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    Objective((
+                        id: "defend",
+                        message: "Drive the corvettes off the Ceres Queen.",
                     )),
                 ],
             ),

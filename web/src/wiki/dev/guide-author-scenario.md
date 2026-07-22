@@ -370,18 +370,32 @@ fight -> confirm -> breathe -> next.**
 - Pick the transition gear deliberately: hard cut for menu scenes,
   `delay: Some(secs)` for an unceremonial beat, the modal overlay (plus
   optional `auto_advance_secs`) for checkpoints and chapter ends.
-- Open with a conversation, not an order. To let a scene breathe before the
-  first objective, hold the objective back behind a short clock-gated
-  exchange: `OnStart` posts a "stand by" holding line and seeds an
-  `open_step` counter, each conversation line is an `OnUpdate` gated on
-  `open_step == n` + `scenario_elapsed > t` that advances the counter, and a
-  final `open_step == last` handler posts objective 1 and spawns its target
-  (so a burn cannot skip a beacon that is not there yet). The Shakedown Run's
-  ~40s captain briefing is the reference; a soft speed cap makes the drift
-  diegetic. For between-beat breathers, stamp the clock at each transition
-  (`beat_gate = scenario_elapsed`) and gate the comms line on
-  `scenario_elapsed > beat_gate + delay`, so it lands a fixed beat after the
-  objective regardless of how long the leg took.
+- An objective never shares a frame with a conversation. Every objective
+  posts a BEAT after the comms line that introduces it (owner playtest, task
+  20260722-092421) - never in the same handler, and never at `OnStart` while a
+  dispatch or conversation is still playing. The objectives panel stays EMPTY
+  through an opening conversation; the first goal appears only when the
+  conversation hands off. The mainline pins this with two invariants
+  (`no_mainline_handler_posts_an_objective_alongside_a_conversation`,
+  `no_mainline_scenario_posts_an_objective_at_onstart`).
+- The tool is the shared `pacing` module (one definition site for the whole
+  mainline): `mark_clock(gate, delay)` stamps a deadline
+  (`gate = scenario_elapsed + delay`) in the handler that opens the beat
+  (`OnStart`, or the transition that completes the previous objective), and
+  `gated_once(done, gate, extra, actions)` is a one-shot `OnUpdate` that fires
+  its actions once the clock passes that deadline (`clock_past`) - the
+  canonical "post the next objective a beat later" handler. A `gate > 0` guard
+  stops it firing before the deadline is ever stamped. Use it for the opening
+  objective AND for every objective swap, so completing one objective and
+  posting the next never land the same instant.
+- For a multi-line opening, seed an `open_step` counter and gate each line on
+  `open_step == n` + `scenario_elapsed > t` (advancing the counter); a final
+  `open_step == last` handler posts objective 1 and spawns its target (so a
+  burn cannot skip a beacon that is not there yet). The Shakedown Run's ~40s
+  captain briefing is the reference; a soft speed cap makes the drift diegetic.
+  For between-beat breathers, stamp `mark_clock(beat_gate, delay)` at each
+  transition and gate the comms line on `clock_past(beat_gate)`, so it lands a
+  fixed beat after the objective regardless of how long the leg took.
 
 The pacing toolbox, all authorable in RON: the scenario clock
 (`scenario_elapsed`), per-line `dwell` on StoryMessage, `engage_delay`
