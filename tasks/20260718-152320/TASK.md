@@ -1,8 +1,8 @@
 # Story campaign mod (The Ledger) polish + extension: longer, more interesting narrative arc; re-publish the portal mod
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 48
-- TAGS: v0.8.0,content,modding,scenario
+- TAGS: v0.8.0, content, modding, scenario
 
 ## Story
 
@@ -67,3 +67,13 @@ engine features.
   ch2; extend the same style to new chapters.
 - Feel/balance is ultimately the user's call; deliver content + a first tuning
   pass, flag questions.
+
+## Superseded (2026-07-22)
+
+Decomposed and driven via /flow umbrella 20260722-212808 (GOAL.md). This single
+big task is split into six sub-tasks (diagnostic pace-map, ch1/ch2/ch2b pacing,
+ch3 depth, ch4 diverging endings + rig, per-chapter look, close-out). Owner
+clarifications captured there: diagnostic-first pace-map, deepen existing
+chapters (no new chapter), one ch4 ending avoids the Auditor, minimal look
+sourcing (cubemap assignment + SetSkybox, no new self:// art), land to master /
+owner publishes. CLOSED as superseded; the umbrella tracks delivery.

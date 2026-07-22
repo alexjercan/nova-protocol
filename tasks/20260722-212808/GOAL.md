@@ -2,6 +2,7 @@
 
 - DATE: 20260722
 - UMBRELLA TASK: 20260722-212808
+- SUPERSEDES: 20260718-152320 (the original single big task; decomposed here)
 - LANDING SCOPE: squash-merge each task to local master via `sprout land` (no
   push). Content + mod-resource + version bump + regenerated portal catalog all
   land to master. The LIVE portal publish/push and the over-the-wire native+web
@@ -15,12 +16,17 @@ in five scenario files under `webmods/the-ledger/`) so the flagship portal mod
 plays like a real campaign. Deepen the EXISTING chapters (no new chapter) with
 stronger beats and more encounter variety - especially the thin chapter three -
 apply the Shakedown beat-sheet pacing discipline throughout, give each chapter a
-distinct look via mod-carried `self://` resources, and make the chapter-four
-sell-vs-burn choice actually diverge: one ending AVOIDS the Auditor fight (a
-real consequence) rather than both converging on the same brawl. Data/scenario +
-mod-resource work only; no new engine features. Then bump the bundle version
-(content rework = minor bump per 20260718-231601) and regenerate the portal
-catalog so the owner can re-publish.
+distinct look, and make the chapter-four sell-vs-burn choice actually diverge:
+one ending AVOIDS the Auditor fight (a real consequence) rather than both
+converging on the same brawl. Data/scenario + mod-resource work only; no new
+engine features. Then bump the bundle version (content rework = minor bump per
+20260718-231601) and regenerate the portal catalog so the owner can re-publish.
+
+Owner clarifications (2026-07-22): (a) diagnostic-first pace-map, owner replays
+at Finish; (b) deepen existing chapters, no new chapter; (c) one ch4 ending
+avoids the Auditor fight; (d) MINIMAL look sourcing - reuse base's two cubemaps
++ mid-scenario SetSkybox accents, NO new self:// art files this pass; (e) land
+to master, owner does the live publish.
 
 Carry forward the Shakedown learnings (owner playtests, tasks 20260712-110730,
 20260717-155740/163033/163042/163050/163058, 20260721-211506): beat-sheet rhythm
@@ -37,29 +43,31 @@ and a clock-pumping test helper for any time-gated content.
    (manual: owner replay at Finish confirms the added depth reads well; cmd:
    `git diff --stat` over the ledger RON shows substantial authored growth.)
 2. The chapter-four choice visibly diverges: one ending avoids the Auditor fight
-   entirely and the two endings reach distinct final situations. (test: a new
-   ledger_ch4 encounter/branch rig asserts the two branches wire to different
-   terminal outcomes; manual: owner replays both endings at Finish.)
-3. Each chapter has a distinct look carried by mod resources (`self://` skybox/
-   texture variety), not all reusing `dep://base` art. (manual: owner sees each
-   chapter rendered at Finish; cmd: bundle/content references `self://` art per
-   chapter.)
+   entirely and the two endings reach distinct terminal outcomes. (test: a new
+   ledger_ch4_ending rig asserts the two branches wire to different terminal
+   outcomes and only the sell path spawns the Auditor; manual: owner replays
+   both endings at Finish.)
+3. Each chapter has a distinct look via deliberate cubemap assignment across
+   base's two skyboxes + motivated mid-scenario SetSkybox accents (owner chose
+   MINIMAL sourcing - no new self:// art files this pass; the self:// mod-art
+   path is deferred). (manual: owner sees each chapter/beat rendered at Finish;
+   cmd: SetSkybox accents fire in a probe, not just parse.)
 4. Pacing follows the beat sheet: no >1-StoryMessage-per-handler or
    StoryMessage+Outcome lint warnings, objectives post a beat after their intro
    line, fights telegraph. (cmd: `content lint --target the-ledger` clean, acks
    only with reasons.)
-5. The ch2 fairness rig and any new/extended encounter tests pass with
-   DELIBERATE assertion updates (not reactive). (cmd: `cargo test -p nova_assets
-   --test ledger_ch2_encounter` and any new ledger tests green.)
-6. Bundle version bumped per convention (minor bump for content rework) and the
-   mod CHANGELOG updated. (cmd: `the-ledger.bundle.ron` meta.version bumped;
+5. The ch2 fairness rig and the new ch4 ending rig pass with DELIBERATE
+   assertion updates (not reactive). (cmd: `cargo test -p nova_assets --test
+   ledger_ch2_encounter` and `--test ledger_ch4_ending` green.)
+6. Bundle version bumped to 1.6.0 (minor, content rework) and the mod CHANGELOG
+   updated from the final diff. (cmd: `the-ledger.bundle.ron` meta.version;
    CHANGELOG entry present.)
-7. The portal catalog is regenerated for the new version. (cmd:
-   `scripts/gen-portal.py` run clean, catalog entry + thumbnails present.)
+7. The portal catalog is regenerated for the new version and verified locally
+   (entry + thumbnails). (cmd: `scripts/gen-portal.py` clean.)
 8. Docs synced in-task: mod README/CHANGELOG, player-wiki Ledger flow, v0.8.0
    news-post notes. (manual: owner reviews doc surfaces.)
 9. Playtest questions for the owner are listed in the tasks, not silently
-   decided.
+   decided. (manual.)
 
 Overall: `content lint --target the-ledger` clean (acks with reasons), the full
 check suite green on master, and the regenerated catalog ready for the owner to
@@ -69,7 +77,16 @@ publish.
 
 Updated as tasks land (one line per land).
 
-(planned in the /plan phase - see below)
+- [ ] 20260722-214053 (p60, the-ledger) Diagnostic: campaign-wide pace-map + weak-spot brief
+- [ ] 20260722-214058 (p56, the-ledger) Beat-sheet pacing pass: ch1/ch2/ch2b
+- [ ] 20260722-214105 (p54, the-ledger) ch3 depth: opening act + breather corridor + 2nd encounter
+- [ ] 20260722-214110 (p52, the-ledger) ch4 diverging endings (+ ending test rig)
+- [ ] 20260722-214115 (p46, the-ledger) Per-chapter look: cubemap assignment + SetSkybox accents
+- [ ] 20260722-214119 (p40, the-ledger) Close-out: lint, version 1.6.0, ch2 test, catalog, doc sweep
+
+Dependencies: 214053 (diagnostic) feeds 214058/214105/214110. 214115 (look)
+sequences AFTER the content passes so its skybox edits rebase cleanly. 214119
+(close-out) depends on all others.
 
 ## Manual acceptance (batched for the user at Finish)
 
@@ -77,7 +94,8 @@ Updated as tasks land (one line per land).
   diagnostic-first pace-map fixes read well; rush gone; ch3 no longer thin).
 - (pending) OWNER: replay BOTH chapter-four endings and confirm the divergence
   lands (one path genuinely avoids the Auditor fight; endings feel distinct).
-- (pending) OWNER: view each chapter and confirm the distinct `self://` look.
+- (pending) OWNER: view each chapter and confirm the deliberate cubemap +
+  SetSkybox look; decide whether a richer self:// art pass is worth a follow-up.
 - (pending) OWNER: run the LIVE portal publish/push and verify an over-the-wire
   install on native AND web, and that an existing install updates in place
   keeping its enabled state.
