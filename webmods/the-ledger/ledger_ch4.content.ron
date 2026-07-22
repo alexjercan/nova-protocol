@@ -1,13 +1,21 @@
-// The Ledger, chapter 4 of 4: THE BUYER. The handoff sours: an unmarked
-// military gunship - the AUDITOR - arrives for the box, and the Kestrel
-// chooses how the story ends. Two beacons open the branch (OnEnter sets
-// `choice`, gauntlet-style): fly the box to Vesh's HANDOFF berth and sell,
-// or to the BURN buoy and destroy it. Either way the Auditor must die; the
-// ending text differs by `choice`. Branching lives INSIDE the chapter -
-// variables do not survive scenario changes (spike 20260716-183104).
+// The Ledger, chapter 4 of 4: THE BUYER. The finale forks - and the two
+// endings DIVERGE, not just in flavor text. Two beacons open the branch
+// (OnEnter sets `choice`, gauntlet-style):
+//   - SELL (HANDOFF berth): dock the box and the sale calls the hammer down.
+//     The AUDITOR gunship ARRIVES (telegraphed: warning line, far spawn, 8s
+//     engage_delay grace) and you must break it. Terminal outcome: PAYDAY AT
+//     A PRICE (Victory, debt cleared, a gunship was the cost).
+//   - BURN (buoy): torch the box and there is nothing left to collect, so the
+//     Auditor NEVER comes. NO fight. Terminal outcome: SAFE BUT BROKE
+//     (Victory, clear but no payout). This path latches act -> 3 at the buoy
+//     and lands its own overlay a beat later; the Auditor is not spawned.
+// Branching lives INSIDE the chapter - variables do not survive scenario
+// changes (spike 20260716-183104). This is the last chapter: neither ending
+// chains to a NextScenario (only the Defeat retry requeues the finale).
 //
-// Acts: 1 = the choice, 2 = the fight, 3 = done. `choice`: 1 = sold,
-// 2 = burned. Player-death Defeat gates act < 3.
+// Acts: 1 = the choice, 2 = the (sell-only) fight, 3 = done. `choice`:
+// 1 = sold, 2 = burned. Player-death Defeat gates act < 3, so it can only
+// fire on the sell path (the burn path is already at act 3).
 [
     Scenario((
         id: "ledger_ch4_the_buyer",
@@ -27,6 +35,18 @@
                     )),
                     VariableSet((
                         key: "choice",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    // Burn-ending one-shots: the burn path bumps `act` to 3
+                    // synchronously (no death window) and lands its Victory a
+                    // beat later on `burn_gate`, guarded once by `burn_said`.
+                    // Seeded here so the deferred OnUpdate reads defined values.
+                    VariableSet((
+                        key: "burn_gate",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "burn_said",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     StoryMessage((
@@ -386,8 +406,12 @@
                     )),
                 ],
             ),
-            // --- The choice (act 1): either beacon locks it in, flips act 2,
-            // and brings the AUDITOR in hot. ---
+            // --- The SELL branch (act 1 -> 2): dock the box, the sale calls
+            // the hammer down. The AUDITOR ARRIVES (telegraphed): the warning
+            // comms line lands first, the gunship spawns far and flies passive
+            // behind an 8s engage_delay grace so its approach is readable
+            // before it is lethal (matches ch2/ch2b/ch3's telegraph). This is
+            // the path that KEEPS the fight - payday at a price. ---
             (
                 name: OnEnter,
                 filters: [
@@ -411,11 +435,11 @@
                     )),
                     StoryMessage((
                         speaker: "Broker Vesh",
-                        text: "Docking clamps on. Transferring now - wait. That's a military burn. Kestrel, my buyer did NOT send a gunship.",
+                        text: "Docking clamps on, transferring now - wait. Kestrel, that's a military burn painting you, closing fast. My buyer did NOT send a gunship. You've got maybe ten seconds before it's in range. MOVE.",
                     )),
                     Objective((
                         id: "obj_auditor",
-                        message: "The Auditor wants the box back. Break it.",
+                        message: "The sale brought the Auditor. Break it before it takes the box back.",
                     )),
                     SpawnScenarioObject((
                         base: (
@@ -425,7 +449,9 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
-                            controller: AI(()),
+                            controller: AI((
+                                engage_delay: Some(8.0),
+                            )),
                             sections: [
                                 (
                                     id: "cube_i0_j0_k0",
@@ -1078,6 +1104,15 @@
                     )),
                 ],
             ),
+            // --- The BURN branch (act 1 -> 3, TERMINAL, no fight): torch the
+            // box and there is nothing left to collect, so the Auditor never
+            // comes. `act` jumps straight to 3 (the "done" latch) SYNCHRONOUS
+            // with the choice, so no death window ever opens on this path - the
+            // player-death Defeat handler (act < 3) can never fire here. The
+            // terminal Victory lands a beat later on `burn_gate` (the burn line
+            // plays first, then the overlay), so no StoryMessage sits beside an
+            // Outcome. NO auditor spawn - this is the SAFE-BUT-BROKE escape as
+            // shipped (owner playtest question 1: bittersweet vs clean tone). ---
             (
                 name: OnEnter,
                 filters: [
@@ -1095,681 +1130,69 @@
                         key: "choice",
                         expression: Term(Factor(Literal(Number(2.0)))),
                     )),
+                    // Terminal latch: straight to act 3. Synchronous with the
+                    // choice so no death race opens (mirrors how ch2's win
+                    // handler bumps act immediately, then defers only overlay).
                     VariableSet((
                         key: "act",
-                        expression: Term(Factor(Literal(Number(2.0)))),
+                        expression: Term(Factor(Literal(Number(3.0)))),
+                    )),
+                    // Stamp the breather deadline; the Victory overlay follows
+                    // a beat later via the `burn_said` one-shot handler below.
+                    VariableSet((
+                        key: "burn_gate",
+                        expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(3.0))))),
+                    )),
+                    ObjectiveComplete((
+                        id: "obj_ch4_recap",
                     )),
                     StoryMessage((
                         speaker: "Broker Vesh",
-                        text: "You're really going to cook a fortune. Fine. Buoy's armed - and heads up, that flash just called down a military burn. They saw.",
-                    )),
-                    Objective((
-                        id: "obj_auditor",
-                        message: "The Auditor came for a box that no longer exists. Break it.",
-                    )),
-                    SpawnScenarioObject((
-                        base: (
-                            id: "auditor",
-                            name: "IV 'Auditor'",
-                            position: (0.0, 30.0, -260.0),
-                            rotation: (0.0, 0.0, 0.0, 1.0),
-                        ),
-                        kind: Spaceship((
-                            controller: AI(()),
-                            sections: [
-                                (
-                                    id: "cube_i0_j0_k0",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i0_j0_k0"),
-                                ),
-                                (
-                                    id: "cube_i0_j0_k1",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i0_j0_k1"),
-                                ),
-                                (
-                                    id: "cube_i0_j0_k2",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i0_j0_k2"),
-                                ),
-                                (
-                                    id: "cube_i0_j0_km1",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i0_j0_km1"),
-                                ),
-                                (
-                                    id: "cube_i0_j1_k2",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i0_j1_k2"),
-                                ),
-                                (
-                                    id: "cube_i0_j1_km1",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i0_j1_km1"),
-                                ),
-                                (
-                                    id: "cube_i0_j1_km2",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i0_j1_km2"),
-                                ),
-                                (
-                                    id: "cube_i0_j2_k0",
-                                    position: (
-                                        0.0,
-                                        2.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i0_j2_k0"),
-                                ),
-                                (
-                                    id: "cube_i0_j2_k1",
-                                    position: (
-                                        0.0,
-                                        2.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i0_j2_k1"),
-                                ),
-                                (
-                                    id: "cube_i0_j2_k2",
-                                    position: (
-                                        0.0,
-                                        2.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i0_j2_k2"),
-                                ),
-                                (
-                                    id: "cube_i0_j2_km1",
-                                    position: (
-                                        0.0,
-                                        2.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i0_j2_km1"),
-                                ),
-                                (
-                                    id: "cube_i0_j2_km2",
-                                    position: (
-                                        0.0,
-                                        2.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i0_j2_km2"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_k0",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j0_k0"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_k1",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j0_k1"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_k2",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j0_k2"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_km1",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j0_km1"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_km2",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j0_km2"),
-                                ),
-                                (
-                                    id: "cube_i1_j1_k0",
-                                    position: (
-                                        1.0,
-                                        1.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j1_k0"),
-                                ),
-                                (
-                                    id: "cube_i1_j1_k1",
-                                    position: (
-                                        1.0,
-                                        1.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j1_k1"),
-                                ),
-                                (
-                                    id: "cube_i1_j1_k2",
-                                    position: (
-                                        1.0,
-                                        1.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j1_k2"),
-                                ),
-                                (
-                                    id: "cube_i1_j1_km1",
-                                    position: (
-                                        1.0,
-                                        1.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j1_km1"),
-                                ),
-                                (
-                                    id: "cube_i1_j1_km2",
-                                    position: (
-                                        1.0,
-                                        1.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j1_km2"),
-                                ),
-                                (
-                                    id: "cube_i1_j2_k0",
-                                    position: (
-                                        1.0,
-                                        2.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        -0.70710677,
-                                        0.70710677,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j2_k0"),
-                                ),
-                                (
-                                    id: "cube_i1_j2_k1",
-                                    position: (
-                                        1.0,
-                                        2.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j2_k1"),
-                                ),
-                                (
-                                    id: "cube_i1_j2_k2",
-                                    position: (
-                                        1.0,
-                                        2.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j2_k2"),
-                                ),
-                                (
-                                    id: "cube_i1_j2_km1",
-                                    position: (
-                                        1.0,
-                                        2.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j2_km1"),
-                                ),
-                                (
-                                    id: "cube_i1_j2_km2",
-                                    position: (
-                                        1.0,
-                                        2.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j2_km2"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_k0",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j0_k0"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_k1",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j0_k1"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_k2",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j0_k2"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_km1",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j0_km1"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_km2",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j0_km2"),
-                                ),
-                                (
-                                    id: "cube_im1_j1_k0",
-                                    position: (
-                                        -1.0,
-                                        1.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j1_k0"),
-                                ),
-                                (
-                                    id: "cube_im1_j1_k1",
-                                    position: (
-                                        -1.0,
-                                        1.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j1_k1"),
-                                ),
-                                (
-                                    id: "cube_im1_j1_k2",
-                                    position: (
-                                        -1.0,
-                                        1.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j1_k2"),
-                                ),
-                                (
-                                    id: "cube_im1_j1_km1",
-                                    position: (
-                                        -1.0,
-                                        1.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j1_km1"),
-                                ),
-                                (
-                                    id: "cube_im1_j1_km2",
-                                    position: (
-                                        -1.0,
-                                        1.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j1_km2"),
-                                ),
-                                (
-                                    id: "cube_im1_j2_k0",
-                                    position: (
-                                        -1.0,
-                                        2.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.70710677,
-                                        0.70710677,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j2_k0"),
-                                ),
-                                (
-                                    id: "cube_im1_j2_k1",
-                                    position: (
-                                        -1.0,
-                                        2.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j2_k1"),
-                                ),
-                                (
-                                    id: "cube_im1_j2_k2",
-                                    position: (
-                                        -1.0,
-                                        2.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j2_k2"),
-                                ),
-                                (
-                                    id: "cube_im1_j2_km1",
-                                    position: (
-                                        -1.0,
-                                        2.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j2_km1"),
-                                ),
-                                (
-                                    id: "cube_im1_j2_km2",
-                                    position: (
-                                        -1.0,
-                                        2.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j2_km2"),
-                                ),
-                                (
-                                    id: "core_controller",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_core_controller"),
-                                ),
-                            
-                            ],
-                        )),
+                        text: "You cooked a fortune, Kestrel. The buoy's got it - nothing left in that flash but slag and static. No box, no buyer, nobody chasing a thing that no longer exists. Take us home. Quiet.",
                     )),
                 ],
             ),
-            // --- The endings: the Auditor dies, the story closes by choice.
-            // Two handlers on the same event, disjoint `choice` guards. ---
+            // The BURN terminal overlay: a beat after the burn line
+            // (`burn_said` one-shot). Victory + a DISTINCT no-fight message; no
+            // NextScenario (this is the last chapter, no chain), no
+            // StoryMessage beside the Outcome.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("choice"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("burn_said"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("burn_gate"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("burn_gate"))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "burn_said",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    Outcome((
+                        outcome: Victory,
+                        message: Some("BURNED. The box is slag and nobody's left to chase you - no Auditor, no gunship, no fight. But there's no payday either: the debt still stands, and the Kestrel limps home empty. Clear, and broke."),
+                    )),
+                ],
+            ),
+            // --- The SELL ending: the Auditor dies, payday at a price. Only
+            // the sell path (choice == 1) reaches a live Auditor, so there is
+            // ONE auditor-death handler now. The burn path closes itself above
+            // (act -> 3 at the buoy, then the deferred BURN overlay); the old
+            // `choice == 2` auditor-death handler was DEAD once the burn path
+            // stopped spawning the Auditor and has been removed. ---
             (
                 name: OnDestroyed,
                 filters: [
@@ -1795,40 +1218,14 @@
                     )),
                     Outcome((
                         outcome: Victory,
-                        message: Some("SOLD. Paid in full - every ledger line cleared. The buyer is silent, and somewhere a manifest lists a box that never existed. Try to look surprised when the yard asks how."),
+                        message: Some("SOLD. Paid in full - every ledger line cleared, the debt gone in one transfer. The buyer is silent, the Auditor is scrap, and somewhere a manifest lists a box that never existed. Payday, and the price was a gunship."),
                     )),
                 ],
             ),
-            (
-                name: OnDestroyed,
-                filters: [
-                    Entity((
-                        id: Some("auditor"),
-                    )),
-                    Expression((Equal(
-                        Term(Factor(Name("act"))),
-                        Term(Factor(Literal(Number(2.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("choice"))),
-                        Term(Factor(Literal(Number(2.0)))),
-                    ))),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "act",
-                        expression: Term(Factor(Literal(Number(3.0)))),
-                    )),
-                    ObjectiveComplete((
-                        id: "obj_auditor",
-                    )),
-                    Outcome((
-                        outcome: Victory,
-                        message: Some("BURNED. Still broke, still breathing - the debt stands, nobody owns that thing now, and the belt will drink to you. The Kestrel flies a little lighter."),
-                    )),
-                ],
-            ),
-            // Player death before the ending: Defeat + retry the finale.
+            // Player death before the ending: Defeat + retry the finale. Only
+            // reachable on the SELL path (act == 2 during the Auditor fight):
+            // the burn path latches act to 3 at the buoy BEFORE any death
+            // window, so this act < 3 gate can never trip after a burn.
             (
                 name: OnDestroyed,
                 filters: [

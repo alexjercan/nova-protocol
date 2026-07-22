@@ -1,6 +1,6 @@
 # Ledger ch4 diverging endings: burn avoids the Auditor, distinct terminal outcomes (+ ending test rig)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 52
 - TAGS: v0.8.0, content, scenario
 
@@ -20,30 +20,30 @@ new test `crates/nova_assets/tests/ledger_ch4_ending.rs`.
 
 ## Steps
 
-- [ ] BURN path (burn_buoy): remove the `auditor` SpawnScenarioObject; drive its
+- [x] BURN path (burn_buoy): remove the `auditor` SpawnScenarioObject; drive its
       own terminal beat instead (set act=3, land a distinct Outcome - a genuine
       "you slipped the belt" ending, optionally after a short beat_gate breather),
       no Auditor, no fight.
-- [ ] SELL path (handoff_berth): keep the Auditor fight, but add the missing
+- [x] SELL path (handoff_berth): keep the Auditor fight, but add the missing
       engage_delay telegraph on the `auditor` controller and a warning comms
       line + choice->fight breather (announce -> arrive -> fight).
-- [ ] Make the two endings DISTINCT terminal outcomes (not just different
+- [x] Make the two endings DISTINCT terminal outcomes (not just different
       message text on the same Victory): decide the burn ending's
       ScenarioOutcomeKind/framing vs the sell ending; owner playtest question if
       the tone split (bittersweet vs clean win) needs a call.
-- [ ] Remove/repurpose the now-dead choice==2 Auditor-death handler; ensure the
+- [x] Remove/repurpose the now-dead choice==2 Auditor-death handler; ensure the
       burn path advances act to 3 before any death window so Defeat cannot
       spuriously trip (outcome-is-last-write-wins-close-the-act: every
       outcome-declaring handler sets its own terminal act).
-- [ ] Condition obj_auditor text/ObjectiveComplete per path (burn path never
+- [x] Condition obj_auditor text/ObjectiveComplete per path (burn path never
       shows "break the Auditor").
-- [ ] New rig `ledger_ch4_ending.rs` (mirrors ledger_ch2_encounter style):
+- [x] New rig `ledger_ch4_ending.rs` (mirrors ledger_ch2_encounter style):
       loads the shipped ch4 RON; asserts HANDOFF sets choice=1/act=2 AND spawns
       auditor; BURN sets choice=2, does NOT spawn auditor, reaches a terminal
       Outcome without a fight; the two paths land distinct outcome kinds/messages;
       Defeat only reachable on the sell path (act<3); no NextScenario off the
       terminal chapter except retry.
-- [ ] `content lint --target the-ledger` clean; probe both branches against the
+- [x] `content lint --target the-ledger` clean; probe both branches against the
       real loader.
 
 ## Definition of Done

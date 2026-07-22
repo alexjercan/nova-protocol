@@ -10,15 +10,7 @@
         scenario: "ledger_ch4_the_buyer",
         hostile: "auditor",
         kind: "close-spawn",
-        reason: "The finale's drama entrance: the Auditor drops in at 301u by design. Its gun is the light mook turret (downgraded for exactly this spawn); the WARN is its torpedo tube's 1000u launch envelope, and shooting the incoming torpedo down IS the fight. Playtest verdict 2026-07-17.",
-        task: "20260717-143806",
-    ),
-    (
-        bundle: "the-ledger",
-        scenario: "ledger_ch4_the_buyer",
-        hostile: "auditor",
-        kind: "close-spawn",
-        reason: "Same acknowledgment for the second ending branch (the two handoff/burn handlers are mutually exclusive spawn sites of the same boss).",
+        reason: "The finale's drama entrance: the Auditor drops in at 301u by design. Its gun is the light mook turret (downgraded for exactly this spawn); the WARN is its torpedo tube's 1000u launch envelope, and shooting the incoming torpedo down IS the fight. It now telegraphs (8s engage_delay + a warning comms line) so the approach reads before it is lethal. Playtest verdict 2026-07-17; telegraph added 2026-07-22 (task 20260722-214110). The Auditor is spawned ONLY by the SELL branch now - the burn branch no longer fights (its spawn was removed, and this branch's stale duplicate ack was pruned).",
         task: "20260717-143806",
     ),
 ]
