@@ -69,7 +69,7 @@ tell a release apart at a glance:
 - a reskin or bug fix that does not change what content exists -> bump the PATCH,
   e.g. `1.0.1`.
 
-Gauntlet has walked `1.0.0 -> 1.1.0 -> 1.2.0` and The Ledger `1.0.0 -> 1.5.0`
+Gauntlet has walked `1.0.0 -> 1.1.0 -> 1.2.0` and The Ledger `1.0.0 -> 1.6.0`
 this way.
 
 `version` matters even though nothing parses it. The portal publishes each
