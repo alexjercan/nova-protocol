@@ -1,6 +1,6 @@
 # Ledger per-chapter look: deliberate cubemap assignment + motivated SetSkybox accents (minimal, no new art)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 46
 - TAGS: v0.8.0, content, scenario
 
@@ -18,18 +18,18 @@ new handlers.
 
 ## Steps
 
-- [ ] Assign base's two cubemaps deliberately per chapter so consecutive
+- [x] Assign base's two cubemaps deliberately per chapter so consecutive
       chapters read as distinct (rather than the current arbitrary split);
       document the intended per-chapter palette in NOTES.
-- [ ] Add mid-scenario SetSkybox accents where a beat earns a look shift, e.g.
+- [x] Add mid-scenario SetSkybox accents where a beat earns a look shift, e.g.
       ch4 sky darkens/shifts when the Auditor arrives (sell path) or when the
       box burns (burn path); ch3 shifts on entering the debris channel. Gate
       each SetSkybox on the beat that motivates it (not frame 0).
-- [ ] Confirm SetSkybox wiring against the shipped mechanism
+- [x] Confirm SetSkybox wiring against the shipped mechanism
       (`PendingSkyboxSwap`, loader.rs; gauntlet.content.ron uses SetSkybox
       mid-run) - advertised-is-not-wired: verify the swap actually fires in a
       probe, not just that the action parses.
-- [ ] `content lint --target the-ledger` clean; probe a chapter with a
+- [x] `content lint --target the-ledger` clean; probe a chapter with a
       mid-scenario swap to confirm the skybox actually changes at the beat.
 
 ## Definition of Done

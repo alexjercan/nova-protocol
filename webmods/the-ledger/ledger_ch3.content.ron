@@ -20,7 +20,7 @@
         id: "ledger_ch3_quiet_channel",
         name: "The Ledger 3: The Quiet Channel",
         description: "Go dark and thread the debris channel to Vesh's yard. Chapter three of The Ledger.",
-        cubemap: "dep://base/textures/cubemap_alt.png",
+        cubemap: "dep://base/textures/cubemap.png",
         thumbnail: Some("dep://base/textures/asteroid.png"),
         hidden: true,
         events: [
@@ -733,6 +733,9 @@
                         text: "Channel narrows here - two old wrecks the size of houses, and the gap between them is barely a lane. Thread it slow. No lock will save you off the rocks.",
                         dwell: Some(9.0),
                     )),
+                    // The channel closes in: darker sky for the pinch. Fires
+                    // once (pinch_warn_said 0 -> 1 guard above).
+                    SetSkybox((cubemap: "dep://base/textures/cubemap_alt.png")),
                 ],
             ),
             // The pinch CONFIRM: fires when the player clears the NARROWS

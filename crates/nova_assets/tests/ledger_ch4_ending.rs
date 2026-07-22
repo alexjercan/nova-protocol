@@ -77,6 +77,14 @@ fn spawn_by_id<'a>(event: &'a ScenarioEventConfig, id: &str) -> Option<&'a Scena
 fn slice_app() -> App {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
+    // The Auditor-arrival beat (sell path) now carries a real SetSkybox accent
+    // (task 20260722-214115); its command reads the AssetServer to start the
+    // cubemap load, exactly as in production. Register the asset plumbing so the
+    // shipped handoff_berth handler runs to completion in the rig rather than
+    // panicking on a missing resource (no scenario camera is present, so the
+    // swap no-ops after the load kicks off - all this behavior rig needs).
+    app.add_plugins(bevy::asset::AssetPlugin::default());
+    app.init_asset::<Image>();
     app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
     app.init_resource::<NovaEventWorld>();
     app.init_resource::<GameObjectives>();

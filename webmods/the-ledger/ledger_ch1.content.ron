@@ -1743,6 +1743,9 @@
                         text: "Hold up. Scope's showing a fourth return, deep in the stern... that container is not on any manifest I've ever filed.",
                         dwell: Some(8.0),
                     )),
+                    // The belt turns wrong the moment the black box shows up.
+                    // Fires once (ping_said 0 -> 1 guard above).
+                    SetSkybox((cubemap: "dep://base/textures/cubemap_alt.png")),
                 ],
             ),
             // The reveal BREATHE -> objective: the unlogged container posts a

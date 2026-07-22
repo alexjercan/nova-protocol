@@ -437,6 +437,9 @@
                         speaker: "Broker Vesh",
                         text: "Docking clamps on, transferring now - wait. Kestrel, that's a military burn painting you, closing fast. My buyer did NOT send a gunship. You've got maybe ten seconds before it's in range. MOVE.",
                     )),
+                    // The Auditor arrives: danger sky. Fires once (act 1 -> 2
+                    // guard above, choice==1 sell path).
+                    SetSkybox((cubemap: "dep://base/textures/cubemap_alt.png")),
                     Objective((
                         id: "obj_auditor",
                         message: "The sale brought the Auditor. Break it before it takes the box back.",
