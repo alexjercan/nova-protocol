@@ -67,8 +67,12 @@ clean.
       "unpiloted ships never feel a well" rule (no current-content change).
       Filed follow-up 20260722-105556 (lint guard). The observed convoy drift
       is knockback -> task 092432.
-- [ ] 20260722-092432 (p72, nova_assets) Ally convoy haulers loiter/orbit the
+- [x] 20260722-092432 (p72, nova_assets) Ally convoy haulers loiter/orbit the
       belt instead of drifting into the planetoid (depends on 092427)
+      landed aeaa3761; 1 review round (APPROVE). New non-combatant AI feature
+      (AINonCombatant, auto-detected from an unarmed loadout); lifeline convoy
+      now AI loiter patrols. Probe-verified in-region + non-engagement. The
+      observed "crash" was knockback drift (no well in lifeline), not gravity.
 - [x] 20260722-114541 (p88, nova_assets) DISCOVERED MID-FLOW + fixed: the
       pacing pass (092421) stamped opening-objective gates with mark_clock at
       OnStart, where scenario_elapsed is undefined -> opening objectives never

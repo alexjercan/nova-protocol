@@ -1,6 +1,6 @@
 # Ally convoy haulers loiter/orbit the belt instead of drifting into the planetoid (lifeline)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 72
 - TAGS: v0.8.0, content, ai, scenario
 
