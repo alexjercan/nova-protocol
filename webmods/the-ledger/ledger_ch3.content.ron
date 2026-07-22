@@ -1,8 +1,17 @@
 // The Ledger, chapter 3 of 4: THE QUIET CHANNEL. Run the box to Broker
 // Vesh's yard through the debris channel - thread the NAV gates in order
-// (the gauntlet's expression-guarded sequencing) with one mid-channel
-// Magpie ambush (act-gated spawn on the NAV-2 trigger). Fighting the ambush
-// is optional; the gates are the objective.
+// (the gauntlet's expression-guarded sequencing) with TWO distinct textured
+// beats: a mid-channel Magpie ambush (act-gated spawn on the NAV-2 trigger,
+// a FIGHT), and a debris pinch between NAV-1 and NAV-2 (two invulnerable
+// boulders tightening the lane, a PILOTING hazard). Both are optional to a
+// careful pilot; the gates are the objective.
+//
+// Pacing (task 20260722-214105, the ch1/Shakedown idiom): a clock-paced
+// opening conversation (open_step cascade) briefs the run before the first
+// NAV objective lazy-posts (nav_posted hand-off); each gate transition stamps
+// beat_gate so the next Vesh line lands a beat LATER (announce -> arrive ->
+// confirm -> breathe), not in the arrival frame; the pinch has its own
+// warning + far-side confirm beats.
 //
 // `gate` is the sequencing variable (1..4); `act` 1 = running, 2 = arrived.
 // Player-death Defeat gates act < 2.
@@ -27,17 +36,57 @@
                         key: "gate",
                         expression: Term(Factor(Literal(Number(1.0)))),
                     )),
-                    StoryMessage((
-                        speaker: "Broker Vesh",
-                        text: "New voice on the channel. Vesh. Follow my nav drops through the debris - stray off the line and the channel will do the Magpies' work for them.",
+                    // Opening-conversation sequencer (the Shakedown/ch1 idiom):
+                    // open_step walks Vesh's briefing lines on the scenario
+                    // clock; nav_posted is the one-shot hand-off that lazy-
+                    // posts the first NAV objective; beat_gate + the per-beat
+                    // arrive/said one-shots drive the corridor breathers. All
+                    // seeded here - an undefined gate fails closed forever.
+                    VariableSet((
+                        key: "open_step",
+                        expression: Term(Factor(Literal(Number(0.0)))),
                     )),
+                    VariableSet((
+                        key: "nav_posted",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "beat_gate",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    // Per-transition breather gates + one-shot said flags. The
+                    // delayed ack handlers gate on the *_said flag AND the clock
+                    // past beat_gate, so an un-stamped leg never speaks.
+                    VariableSet((
+                        key: "arrive1_said",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "arrive3_said",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    // The debris-pinch beat: pinch_gate stamps the breather
+                    // after NAV-1, pinch_warn_said is the "thread it slow"
+                    // warning one-shot, pinch_clear_said the far-side confirm.
+                    VariableSet((
+                        key: "pinch_gate",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "pinch_warn_said",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "pinch_clear_said",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    // The objectives panel stays EMPTY through the opening
+                    // conversation; this HOLDING line is all that shows until
+                    // the briefing hands off to the first NAV drop (beat sheet:
+                    // no objective shares a frame with a conversation).
                     Objective((
                         id: "obj_ch3_recap",
-                        message: "Ch.3 - The Quiet Channel: deliver the box to Vesh's yard.",
-                    )),
-                    Objective((
-                        id: "obj_gates",
-                        message: "Thread the NAV drops in order: 1, 2, 3, then the YARD.",
+                        message: "Ch.3 - The Quiet Channel: stand by for Vesh's nav drops.",
                     )),
                     SpawnScenarioObject((
                         base: (
@@ -398,6 +447,68 @@
                             lock_signature: None,
                         )),
                     )),
+                    // The DEBRIS PINCH (task 20260722-214105): the chapter's
+                    // second, distinct encounter - a PILOTING hazard, not a
+                    // fight. Two invulnerable boulders straddle the NAV-1 ->
+                    // NAV-2 leg so the lane threads between them. Nominal radii
+                    // are small on purpose: asteroid bodies run 3.5x-6x nominal
+                    // (ASTEROID_GEOMETRIC_FACTOR_MIN/MAX), so a nominal 3.5 is a
+                    // ~12-21u boulder. Centres are placed on a perpendicular to
+                    // the leg through its midpoint (30, 7.5, -135), separated
+                    // 66u, leaving a clear gap (~66 - 2*21 = 24u at the 6x
+                    // worst case) far wider than the tug (~4u body) - a careful
+                    // pilot threads it, preserving the fighting-is-optional
+                    // contract. No lock will save the player here; it is flown.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "pinch_boulder_port",
+                            name: "Channel Boulder",
+                            position: (2.5, 7.5, -153.3),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 3.5,
+                            texture: "dep://base/textures/asteroid.png",
+                            health: 1000.0,
+                            surface_gravity: None,
+                            invulnerable: true,
+                            lock_signature: None,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "pinch_boulder_starboard",
+                            name: "Channel Boulder",
+                            position: (57.5, 7.5, -116.7),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 3.5,
+                            texture: "dep://base/textures/asteroid.png",
+                            health: 1000.0,
+                            surface_gravity: None,
+                            invulnerable: true,
+                            lock_signature: None,
+                        )),
+                    )),
+                    // A silent trigger beacon on the far side of the pinch, on
+                    // the leg past the gap, so the "you're through" confirm
+                    // line fires when the player clears it (not on a timer).
+                    SpawnScenarioObject((
+                        base: (
+                            id: "pinch_clear",
+                            name: "Channel Narrows",
+                            position: (45.0, 11.0, -160.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Beacon((
+                            label: "NARROWS",
+                            radius: 1.0,
+                            color: Srgba((red: 0.9, green: 0.6, blue: 0.2, alpha: 1.0)),
+                            area_radius: Some(22.0),
+                            lock_signature: None,
+                        )),
+                    )),
                     // The channel: dense breakable debris around the line.
                     ScatterObjects((
                         id_prefix: "channel_debris_",
@@ -431,7 +542,140 @@
                     )),
                 ],
             ),
+            // --- Opening conversation (the Shakedown/ch1 idiom): Vesh briefs
+            // over the scenario clock, one line per handler/beat, spaced ~9s
+            // apart, the player answering. The objectives panel holds on the
+            // stand-by line the whole time; the first NAV objective lazy-posts
+            // only when the briefing hands off (open_step == 4 below), so a
+            // blind burn cannot start threading before the run is called. ---
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("open_step"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "open_step",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "New voice on the channel. Vesh. I run this stretch of belt - and right now I run the only clean way to my yard.",
+                        dwell: Some(7.0),
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("open_step"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Literal(Number(11.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "open_step",
+                        expression: Term(Factor(Literal(Number(2.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "You",
+                        text: "Copy, Vesh. I\'ve got a box that half the belt wants. What\'s the way in?",
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("open_step"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Literal(Number(20.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "open_step",
+                        expression: Term(Factor(Literal(Number(3.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "Run dark through the channel to my yard. I\'ll drop nav beacons - follow them in order, stay off the rocks, and stray off the line and the channel does the Magpies\' work for them.",
+                        dwell: Some(9.0),
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("open_step"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Literal(Number(30.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "open_step",
+                        expression: Term(Factor(Literal(Number(4.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "You",
+                        text: "Going dark. Bring up your first drop.",
+                    )),
+                ],
+            ),
+            // The hand-off: the briefing is done, so lazy-post the NAV
+            // objective and complete the holding recap. Gated nav_posted == 0
+            // so it fires exactly once (the count-gate lesson).
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("open_step"))),
+                        Term(Factor(Literal(Number(4.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("nav_posted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "nav_posted",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "obj_ch3_recap",
+                    )),
+                    Objective((
+                        id: "obj_gates",
+                        message: "Thread the NAV drops in order: 1, 2, 3, then the YARD.",
+                    )),
+                ],
+            ),
             // --- The gate line (strictly sequential: gate == N guards). ---
+            // NAV-1 advances the line AND arms the debris-pinch beat: it stamps
+            // pinch_gate so Vesh's "channel narrows" warning lands a beat later
+            // (announce -> arrive -> confirm -> breathe), not in the same frame
+            // as the arrival line.
             (
                 name: OnEnter,
                 filters: [
@@ -449,9 +693,76 @@
                         key: "gate",
                         expression: Term(Factor(Literal(Number(2.0)))),
                     )),
+                    // Arm the pinch-warning breather (fires ~4s after this
+                    // arrival line, before the player reaches the boulders).
+                    VariableSet((
+                        key: "pinch_gate",
+                        expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(4.0))))),
+                    )),
                     StoryMessage((
                         speaker: "Broker Vesh",
                         text: "Drop one. Keep your burn low, the channel listens.",
+                    )),
+                ],
+            ),
+            // The pinch WARNING (a beat after the NAV-1 line): thread it slow.
+            // One-shot on pinch_warn_said, gated on the clock past pinch_gate.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("pinch_warn_said"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("pinch_gate"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("pinch_gate"))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "pinch_warn_said",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "Channel narrows here - two old wrecks the size of houses, and the gap between them is barely a lane. Thread it slow. No lock will save you off the rocks.",
+                        dwell: Some(9.0),
+                    )),
+                ],
+            ),
+            // The pinch CONFIRM: fires when the player clears the NARROWS
+            // trigger on the far side of the gap. One-shot on pinch_clear_said;
+            // gated pinch_warn_said == 1 so it cannot pre-empt the warning.
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("pinch_clear"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("pinch_clear_said"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("pinch_warn_said"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "pinch_clear_said",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "Clean through. Steady hands, Kestrel. The line opens up ahead - close on drop two.",
+                        dwell: Some(6.0),
                     )),
                 ],
             ),
@@ -473,6 +784,12 @@
                     VariableSet((
                         key: "gate",
                         expression: Term(Factor(Literal(Number(3.0)))),
+                    )),
+                    // Arm the post-ambush breather: a reassurance line lands a
+                    // beat after the contacts call, not in the same frame.
+                    VariableSet((
+                        key: "beat_gate",
+                        expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(5.0))))),
                     )),
                     StoryMessage((
                         speaker: "Broker Vesh",
@@ -1148,6 +1465,43 @@
                     )),
                 ],
             ),
+            // The post-ambush BREATHER: a beat after the contacts call (clock
+            // past the beat_gate stamped on NAV-2), Vesh steadies the player.
+            // One-shot on arrive1_said; gate > 0 stops it firing pre-stamp.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("arrive1_said"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("gate"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("beat_gate"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("beat_gate"))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "arrive1_said",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "Don\'t chase them if they run. The box is the job, not the kill. Hold the line to drop three.",
+                        dwell: Some(7.0),
+                    )),
+                ],
+            ),
+            // NAV-3 advances the line AND arms the final-leg breather (stamps
+            // beat_gate for the arrive3 line below).
             (
                 name: OnEnter,
                 filters: [
@@ -1165,9 +1519,52 @@
                         key: "gate",
                         expression: Term(Factor(Literal(Number(4.0)))),
                     )),
+                    VariableSet((
+                        key: "beat_gate",
+                        expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(4.0))))),
+                    )),
                     StoryMessage((
                         speaker: "Broker Vesh",
                         text: "Drop three. The yard lights are on for you. Last leg.",
+                    )),
+                ],
+            ),
+            // The final-leg BREATHER: a beat after the drop-three line, Vesh
+            // welcomes the player toward the yard. One-shot on arrive3_said;
+            // gated gate == 4 so it only fires on the last leg.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("arrive3_said"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("gate"))),
+                        Term(Factor(Literal(Number(4.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("beat_gate"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("beat_gate"))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "arrive3_said",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "That\'s the last of the rocks behind you. Bring her into the yard slow - I\'ll have the lights on.",
+                        dwell: Some(6.0),
                     )),
                 ],
             ),

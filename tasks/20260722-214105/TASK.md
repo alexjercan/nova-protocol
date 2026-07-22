@@ -1,6 +1,6 @@
 # Ledger ch3 depth: clock-paced opening act, breather-gated corridor, a second distinct encounter
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 54
 - TAGS: v0.8.0, content, scenario
 
@@ -18,20 +18,20 @@ pace-map (dep). File: `webmods/the-ledger/ledger_ch3.content.ron`.
 
 ## Steps
 
-- [ ] Add a clock-paced opening act: a beat_gate/scenario_elapsed conversation
+- [x] Add a clock-paced opening act: a beat_gate/scenario_elapsed conversation
       cascade (Vesh briefs, Kestrel answers, "go dark") before NAV-1 arms, with
       the first objective lazy-posting on hand-off (Shakedown opening idiom).
-- [ ] Split the corridor into acts with breathers: stamp beat_gate at each gate
+- [x] Split the corridor into acts with breathers: stamp beat_gate at each gate
       transition, land the next Vesh line a fixed beat later (announce ->
       arrive -> confirm -> breathe), not instantly on OnEnter.
-- [ ] Add a SECOND distinct encounter beyond the NAV-2 ambush, shipped
+- [x] Add a SECOND distinct encounter beyond the NAV-2 ambush, shipped
       vocabulary only: e.g. a staggered contact at NAV-3 with a different
       loadout + engage_delay telegraph, or a debris-pinch hazard (invulnerable
       rocks tightening the lane, gauntlet-style). Keep the "fighting is
       optional" contract; give the channel two textured beats, not one.
-- [ ] Make the scattered debris load-bearing for at least one beat (thread it),
+- [x] Make the scattered debris load-bearing for at least one beat (thread it),
       so the field is content, not pure decoration.
-- [ ] Clock-pump test path for the new deferred objectives; `content lint
+- [x] Clock-pump test path for the new deferred objectives; `content lint
       --target the-ledger` clean; probe the chapter against the real loader
       (probe-content-not-just-code).
 
