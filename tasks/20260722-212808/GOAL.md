@@ -114,6 +114,21 @@ Dependencies: 214053 (diagnostic) feeds 214058/214105/214110. 214115 (look)
 sequences AFTER the content passes so its skybox edits rebase cleanly. 214119
 (close-out) depends on all others.
 
+
+## Residue disposal (Finish)
+
+- FILED: 20260722-233332 (backlog p0) - harden SetSkybox to warn-and-skip on a
+  missing AssetServer (surfaced by 214115; the production-faithful rig fix was
+  the chosen approach for this run).
+- DEFERRED (in GOAL, with reason): a richer `self://` per-chapter ART pass -
+  owner chose the MINIMAL look (base's two cubemaps + SetSkybox accents), see
+  done-means item 3. Revisit only if the owner wants it at replay.
+- Owner playtest questions (burn-ending tone, ch3 encounter flavor, opener
+  length, ch1 4th-ping stinger) are recorded in the task NOTES and batched
+  below; any change the owner wants becomes its own new task.
+- Pre-existing unrelated tatr findings (20260718-181305, 20260719-092952) are
+  NOT this run's residue - left untouched (append-only history).
+
 ## Manual acceptance (batched for the user at Finish)
 
 - (pending) OWNER: replay the full extended chain and confirm pacing/feel (the
