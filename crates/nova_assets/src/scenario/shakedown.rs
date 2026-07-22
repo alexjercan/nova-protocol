@@ -610,6 +610,10 @@ pub(crate) fn shakedown_run(
                     set(VAR_GATE, num(0.0)),
                     set(VAR_BREATHER_LAST, num(0.0)),
                     set(VAR_SCAV_POSTED, num(0.0)),
+                    // Seed the scavenger gate so its gated_once filter reads a
+                    // defined 0 (not fired) before beat 12 stamps it, rather than
+                    // erroring on an undefined var (bug 20260722-114541).
+                    set(VAR_SCAV_GATE, num(0.0)),
                     // No objective during the opening conversation (owner pacing
                     // pass, task 20260722-092421): the panel stays empty while
                     // the captain talks and the first objective posts only when

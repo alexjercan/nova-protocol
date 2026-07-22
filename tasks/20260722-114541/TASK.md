@@ -33,10 +33,10 @@ what would have caught this. Lesson: probe scenario CONTENT changes too.
 
 ## Steps
 
-- [ ] Verify-first: a test (or probe) that a mainline scenario's opening
+- [x] Verify-first: a test (or probe) that a mainline scenario's opening
       objective actually POSTS in a real run - fails today for lifeline
       (screen), broadside (contact), broadside_gunship, final_tally (survey).
-- [ ] Fix the gate stamping. Two sub-issues:
+- [x] Fix the gate stamping. Two sub-issues:
       (a) an OPENING gate must not read scenario_elapsed at OnStart - set it to
           an ABSOLUTE deadline (`set(gate, num(BEAT_GAP))`), correct because the
           opening is at t~=0;
@@ -44,11 +44,11 @@ what would have caught this. Lesson: probe scenario CONTENT changes too.
           num(0.0))`) so a `gated_once` filter reading it before its transition
           stamps it evaluates cleanly (0) instead of erroring on undefined -
           the shakedown convention every var already follows.
-- [ ] Apply to broadside, broadside_gunship, lifeline, final_tally. Regen
+- [x] Apply to broadside, broadside_gunship, lifeline, final_tally. Regen
       content; lint clean.
-- [ ] Consider a shared pacing helper (an `open_gate`/absolute-deadline stamp)
+- [x] Consider a shared pacing helper (an `open_gate`/absolute-deadline stamp)
       so the OnStart-vs-transition distinction is encoded, not re-remembered.
-- [ ] PROBE broadside, lifeline (which chains final_tally) end to end and
+- [x] PROBE broadside, lifeline (which chains final_tally) end to end and
       confirm 0 offending log lines AND the opening objectives are live during
       the run (add an objective-present assertion to the walks if practical).
 
@@ -69,3 +69,37 @@ what would have caught this. Lesson: probe scenario CONTENT changes too.
   gate inits) is safe and matches the existing init-your-vars convention.
 - Shared helper `mark_clock`/`clock_past`/`gated_once` in
   crates/nova_assets/src/scenario/pacing.rs.
+
+## Fix (2026-07-22)
+
+Targeted content fix (no evaluator semantic change):
+- New `pacing::open_gate(gate, delay)` stamps an ABSOLUTE deadline
+  (`set(gate, num(delay))`), for gates that open at OnStart where
+  `scenario_elapsed` is undefined. `mark_clock` (which reads the clock) is now
+  documented as MID-SCENARIO only.
+- Opening gates converted to `open_gate`: broadside contact, broadside_gunship
+  objectives, lifeline screen, final_tally survey.
+- Transition gates SEEDED to 0 at OnStart so their `gated_once` filters read a
+  defined 0 before the transition stamps them: broadside defend, final_tally
+  picket + break, and shakedown scavenger (also un-seeded before this - it
+  spammed `scav_gate` errors for the whole pre-beat-12 run, though its objective
+  still eventually posted; now clean). `mark_clock` at those transitions is fine
+  (the clock is live mid-run).
+
+Regression pins:
+- `no_onstart_handler_reads_the_scenario_clock` (scenario.rs invariant, all five
+  mainline configs): no OnStart VariableSet expression references
+  `scenario_elapsed`. This catches the whole bug class for any future scenario.
+- lifeline probe walk now asserts the `screen_convoy` objective is LIVE once the
+  defense is up (fail-first: it was absent before the fix).
+
+Verification: `nova_probe run lifeline` (chains final_tally) - log_clean PASS
+(0 panic/ERROR lines, was 174), run_completed + invariants_held PASS, the
+objective-present assertion holds. 21 scenario lib tests pass; content
+regenerated, lint clean.
+
+Deeper root cause noted for a possible follow-up: the content expression
+evaluator errors on an undefined variable read, while the engine's own
+`scenario_elapsed()` reader (loader.rs) defaults None -> 0. Reconciling the two
+(undefined numeric read -> 0) would remove the whole footgun class but is a
+broader, riskier change (it also removes a typo safety net) - deferred.

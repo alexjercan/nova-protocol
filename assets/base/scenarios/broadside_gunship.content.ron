@@ -1986,10 +1986,7 @@
                     )),
                     VariableSet((
                         key: "gun_obj_gate",
-                        expression: Add(
-                            Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(4.0)))),
-                        ),
+                        expression: Term(Factor(Literal(Number(4.0)))),
                     )),
                     ObjectiveMarkerAttach((
                         target_id: "gunship",

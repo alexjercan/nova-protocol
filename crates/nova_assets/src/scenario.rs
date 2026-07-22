@@ -599,4 +599,34 @@ pub(crate) mod tests {
             }
         }
     }
+
+    /// Regression pin for bug 20260722-114541: no OnStart handler may READ the
+    /// engine clock `scenario_elapsed`. It is undefined at OnStart (the first
+    /// `tick_scenario_clock` has not run) and the content evaluator errors on an
+    /// undefined read, so a `mark_clock`/gate stamp at OnStart silently fails and
+    /// the opening objective never posts. OnStart gates must use an ABSOLUTE
+    /// deadline (`pacing::open_gate`), not a `scenario_elapsed`-relative one.
+    #[test]
+    fn no_onstart_handler_reads_the_scenario_clock() {
+        for (name, config) in mainline_scenarios() {
+            for event in config
+                .events
+                .iter()
+                .filter(|e| matches!(e.name, EventConfig::OnStart))
+            {
+                for action in &event.actions {
+                    if let EventActionConfig::VariableSet(set) = action {
+                        let rendered = format!("{:?}", set.expression);
+                        assert!(
+                            !rendered.contains("scenario_elapsed"),
+                            "{name}: OnStart sets '{}' from scenario_elapsed, which \
+                             is undefined at OnStart - use pacing::open_gate for an \
+                             absolute deadline",
+                            set.key,
+                        );
+                    }
+                }
+            }
+        }
+    }
 }

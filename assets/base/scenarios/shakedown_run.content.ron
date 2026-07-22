@@ -669,6 +669,10 @@
                         key: "scav_posted",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
+                    VariableSet((
+                        key: "scav_gate",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
                 ],
             ),
             (

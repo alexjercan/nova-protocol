@@ -41,7 +41,7 @@ use nova_scenario::prelude::*;
 use super::{
     cast::{BELT_RELAY, CAPTAIN_HALLORAN, RUST_TALLY},
     craft::{self, ShipGrade},
-    pacing::{self, mark_clock, BEAT_GAP},
+    pacing::{self, mark_clock, open_gate, BEAT_GAP},
     shakedown::{
         complete, destroyed, emphasize, eq_num, lt_num, mark, num, objective, player_enters, set,
         spawn, story, unmark,
@@ -322,6 +322,9 @@ pub(crate) fn broadside(
         set(VAR_HAULER_LOST, num(0.0)),
         set(VAR_CONTACT_POSTED, num(0.0)),
         set(VAR_DEFEND_POSTED, num(0.0)),
+        // Seed the defend gate so its gated_once filter reads a defined 0 before
+        // the ambush stamps it, not an undefined var (bug 20260722-114541).
+        set(VAR_DEFEND_GATE, num(0.0)),
         spawn(player_ship()),
         spawn(hauler_ship()),
         cover_scatter,
@@ -346,7 +349,7 @@ pub(crate) fn broadside(
             "Ceres Queen to any ship in the belt - drive's stripped, and \
              they're coming back for the hull.",
         ),
-        mark_clock(VAR_CONTACT_GATE, BEAT_GAP),
+        open_gate(VAR_CONTACT_GATE, BEAT_GAP),
     ]);
 
     let events = vec![
@@ -583,7 +586,7 @@ pub(crate) fn broadside_gunship(
             "You cost me two pickers, belt rat. The Rust Tally pays its \
              debts in torpedoes.",
         ),
-        mark_clock(VAR_GUN_OBJ_GATE, BEAT_GAP),
+        open_gate(VAR_GUN_OBJ_GATE, BEAT_GAP),
         mark(ID_GUNSHIP, "GUNSHIP"),
         emphasize("RADAR"),
     ]);

@@ -34,11 +34,25 @@ use super::shakedown::{eq_num, gt_num, num, set, var};
 /// same instant.
 pub(crate) const BEAT_GAP: f64 = 4.0;
 
+/// Stamp an ABSOLUTE deadline of `delay` seconds into `key`, for a gate that
+/// opens at `OnStart`. The engine clock `scenario_elapsed` is UNDEFINED at
+/// OnStart (its first tick has not run), and the content evaluator errors on an
+/// undefined read - so [`mark_clock`] (which reads `scenario_elapsed`) must NOT
+/// be used at OnStart. The opening beat is at `t ~= 0`, so an absolute `delay`
+/// deadline is exactly what the relative one would be. Every gate the scenario
+/// uses must ALSO be seeded at OnStart (this seeds the opening gate; seed the
+/// rest with `set(gate, num(0.0))`), so a `gated_once` filter never reads an
+/// undefined gate before its transition stamps it (bug 20260722-114541).
+pub(crate) fn open_gate(key: &str, delay: f64) -> EventActionConfig {
+    set(key, num(delay))
+}
+
 /// Stamp `scenario_elapsed + delay` into `key`: a one-shot deadline a later
-/// [`clock_past`]/[`gated_once`] waits for. Call it in the handler that opens
-/// the beat - the OnStart, or the transition that completes the prior
-/// objective. Baking the delay into the stamp (rather than adding it at the
-/// gate) means one deadline variable drives one follow-up cleanly.
+/// [`clock_past`]/[`gated_once`] waits for. Call it MID-SCENARIO - the
+/// transition that completes the prior objective - where the clock is live.
+/// NOT at OnStart: `scenario_elapsed` is undefined there (use [`open_gate`]).
+/// Baking the delay into the stamp (rather than adding it at the gate) means
+/// one deadline variable drives one follow-up cleanly.
 pub(crate) fn mark_clock(key: &str, delay: f64) -> EventActionConfig {
     set(
         key,

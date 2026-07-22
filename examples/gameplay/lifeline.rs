@@ -244,6 +244,18 @@ fn slice_autopilot(world: &mut World, elapsed: f32) {
                     remaining < 215.0,
                     "the relief countdown tracks the clock (remaining {remaining})"
                 );
+                // The opening objective actually POSTED (bug 20260722-114541):
+                // it silently never posted when the OnStart gate stamp read an
+                // undefined scenario_elapsed. By now (defense live, clock past
+                // the opening beat) it must be on the board.
+                assert!(
+                    world
+                        .resource::<GameObjectives>()
+                        .objectives
+                        .iter()
+                        .any(|o| o.id == "screen_convoy"),
+                    "the screen-the-convoy objective posted after the dispatch"
+                );
                 let both = kill(world, "raider_1a") & kill(world, "raider_1b");
                 if both {
                     advance(&mut state, 8, "wave one down");

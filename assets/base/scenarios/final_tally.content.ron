@@ -62,6 +62,14 @@
                         key: "break_posted",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
+                    VariableSet((
+                        key: "picket_gate",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "break_gate",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
                     SpawnScenarioObject((
                         base: (
                             id: "player_spaceship",
@@ -1177,10 +1185,7 @@
                     )),
                     VariableSet((
                         key: "survey_gate",
-                        expression: Add(
-                            Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(4.0)))),
-                        ),
+                        expression: Term(Factor(Literal(Number(4.0)))),
                     )),
                     ObjectiveMarkerAttach((
                         target_id: "anchorage_bow",

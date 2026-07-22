@@ -33,7 +33,7 @@ use nova_scenario::prelude::*;
 use super::{
     cast::{BELT_RELAY, CAPTAIN_HALLORAN, TALLYMAN},
     craft::{self, ShipGrade},
-    pacing::{self, clock_past, mark_clock, BEAT_GAP},
+    pacing::{self, clock_past, mark_clock, open_gate, BEAT_GAP},
     shakedown::{
         complete, destroyed, eq_num, gt_num, mark, num, objective, set, spawn, story, unmark, var,
     },
@@ -350,6 +350,11 @@ pub(crate) fn final_tally(
         set(VAR_SURVEY_POSTED, num(0.0)),
         set(VAR_PICKET_POSTED, num(0.0)),
         set(VAR_BREAK_POSTED, num(0.0)),
+        // Seed the transition gates so their gated_once filters read a defined 0
+        // before the survey / cast-off stamp them, not an undefined var (bug
+        // 20260722-114541). The survey gate is seeded by its open_gate below.
+        set(VAR_PICKET_GATE, num(0.0)),
+        set(VAR_BREAK_GATE, num(0.0)),
         spawn(player_ship()),
         spawn(claim_anchor(&asteroid_texture)),
         spawn(anchorage_wreck(
@@ -378,7 +383,7 @@ pub(crate) fn final_tally(
             "The raiders' burn traces to a dead claim: a cracked megahauler \
              berthed deep in a planetoid's pull. Confirm what's hiding there.",
         ),
-        mark_clock(VAR_SURVEY_GATE, BEAT_GAP),
+        open_gate(VAR_SURVEY_GATE, BEAT_GAP),
         mark(ID_WRECK_BOW, "ANCHORAGE"),
     ];
 

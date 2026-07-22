@@ -33,6 +33,10 @@
                         key: "defend_posted",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
+                    VariableSet((
+                        key: "defend_gate",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
                     SpawnScenarioObject((
                         base: (
                             id: "player_spaceship",
@@ -1346,10 +1350,7 @@
                     )),
                     VariableSet((
                         key: "contact_gate",
-                        expression: Add(
-                            Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(4.0)))),
-                        ),
+                        expression: Term(Factor(Literal(Number(4.0)))),
                     )),
                 ],
             ),
