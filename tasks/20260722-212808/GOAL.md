@@ -77,7 +77,10 @@ publish.
 
 Updated as tasks land (one line per land).
 
-- [ ] 20260722-214053 (p60, the-ledger) Diagnostic: campaign-wide pace-map + weak-spot brief
+- [x] 20260722-214053 (p60, the-ledger) Diagnostic: campaign-wide pace-map + weak-spot brief
+      landed 60c5d40a; 1 review round (APPROVE, 5 accuracy nits fixed); the
+      pace-map is the shared brief for -214058/-214105/-214110/-214115; 5
+      owner playtest questions batched to Finish Manual acceptance.
 - [ ] 20260722-214058 (p56, the-ledger) Beat-sheet pacing pass: ch1/ch2/ch2b
 - [ ] 20260722-214105 (p54, the-ledger) ch3 depth: opening act + breather corridor + 2nd encounter
 - [ ] 20260722-214110 (p52, the-ledger) ch4 diverging endings (+ ending test rig)
