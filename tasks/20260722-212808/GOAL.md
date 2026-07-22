@@ -91,7 +91,12 @@ Updated as tasks land (one line per land).
       breather corridor + debris-pinch hazard (~24u gap, computed pin);
       new ledger_ch3_channel test (9 passed). Owner Q2 (pinch vs staggered
       combat contact) batched to Finish.
-- [ ] 20260722-214110 (p52, the-ledger) ch4 diverging endings (+ ending test rig)
+- [x] 20260722-214110 (p52, the-ledger) ch4 diverging endings (+ ending test rig)
+      landed 33dc293f; 1 review round (APPROVE). Burn avoids the Auditor
+      (act=3 synchronous, no death race) + own terminal Victory; sell keeps
+      a now-telegraphed Auditor; dead handler + orphaned ack removed; new
+      ledger_ch4_ending test (10 passed) pins the structural no-spawn
+      divergence. Owner Q1 (burn tone) batched to Finish.
 - [ ] 20260722-214115 (p46, the-ledger) Per-chapter look: cubemap assignment + SetSkybox accents
 - [ ] 20260722-214119 (p40, the-ledger) Close-out: lint, version 1.6.0, ch2 test, catalog, doc sweep
 
