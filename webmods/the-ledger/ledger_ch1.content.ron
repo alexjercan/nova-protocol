@@ -30,13 +30,71 @@
                         key: "crates",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
-                    StoryMessage((
-                        speaker: "Foreman Okono",
-                        text: "Kestrel, the Ceres Matron's yours. Three containers on the manifest. Strip it clean - quota's quota.",
+                    // Opening-conversation sequencer (the Shakedown idiom):
+                    // open_step walks the briefing lines on the scenario
+                    // clock; quota_posted is the one-shot hand-off that lazy-
+                    // posts the first crate objective; beat_gate/setup_last
+                    // drive the between-pickup breathers. All seeded here - an
+                    // undefined gate fails closed forever.
+                    VariableSet((
+                        key: "open_step",
+                        expression: Term(Factor(Literal(Number(0.0)))),
                     )),
+                    VariableSet((
+                        key: "quota_posted",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "beat_gate",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "setup_last",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    // Per-crate breather gates + one-shot said flags (seeded
+                    // 0: the delayed ack handlers gate on gate > 0, so an
+                    // un-stamped crate never speaks).
+                    VariableSet((
+                        key: "ack1_gate",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "ack2_gate",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "ack3_gate",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "ack1_said",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "ack2_said",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "ack3_said",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    // The 4th-ping reveal breather gate + one-shot (seeded 0).
+                    VariableSet((
+                        key: "ping_gate",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "ping_said",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    // The objectives panel stays EMPTY through the opening
+                    // conversation; this HOLDING line is all that shows until
+                    // the briefing hands off to the first crate (beat sheet:
+                    // no objective shares a frame with a conversation).
                     Objective((
                         id: "obj_ch1_recap",
-                        message: "Ch.1 - Dead Weight: work the wreck line for Mesa Verde.",
+                        message: "Ch.1 - Dead Weight: stand by for the work order.",
                     )),
                     // The tug: the gauntlet player loadout (turret included -
                     // later chapters fight, and the belt is not polite).
@@ -439,30 +497,11 @@
                             area_radius: 6.0,
                         )),
                     )),
-                    Objective((
-                        id: "obj_crate_1",
-                        message: "Salvage container MV-1.",
-                    )),
-                    ObjectiveMarkerAttach((
-                        target_id: "ledger_crate_1",
-                        label: "MV-1",
-                    )),
-                    Objective((
-                        id: "obj_crate_2",
-                        message: "Salvage container MV-2.",
-                    )),
-                    ObjectiveMarkerAttach((
-                        target_id: "ledger_crate_2",
-                        label: "MV-2",
-                    )),
-                    Objective((
-                        id: "obj_crate_3",
-                        message: "Salvage container MV-3.",
-                    )),
-                    ObjectiveMarkerAttach((
-                        target_id: "ledger_crate_3",
-                        label: "MV-3",
-                    )),
+                    // The three crate objectives + their markers are NOT
+                    // posted here - the crates spawn as set dressing and the
+                    // objectives lazy-post on the briefing hand-off (the
+                    // open_step cascade below), so a blind burn cannot start
+                    // the quota before Okono has called it.
                     // A Magpie watches the job from a lazy patrol loop.
                     // Neutral: chapter one has no fight, only a bad feeling.
                     SpawnScenarioObject((
@@ -1313,6 +1352,156 @@
                     )),
                 ],
             ),
+            // --- Opening conversation (the Shakedown idiom): Okono briefs
+            // over the scenario clock, one line per handler/beat, spaced
+            // ~9s apart. The objectives panel holds on the stand-by line the
+            // whole time; the first crate objective lazy-posts only when the
+            // briefing hands off (open_step == 4 below), so a blind burn
+            // cannot start the quota before it is called. ---
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("open_step"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "open_step",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Foreman Okono",
+                        text: "Kestrel, the Ceres Matron's yours. She died out here three weeks back - reactor scrammed, crew lifted off, and nobody's been back since.",
+                        dwell: Some(7.0),
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("open_step"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Literal(Number(11.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "open_step",
+                        expression: Term(Factor(Literal(Number(2.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "You",
+                        text: "Copy, Okono. She's a big one. What's Mesa Verde want off her?",
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("open_step"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Literal(Number(20.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "open_step",
+                        expression: Term(Factor(Literal(Number(3.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Foreman Okono",
+                        text: "Three containers on the manifest, that's the whole contract. Strip it clean and we call it a shift. Quota's quota.",
+                        dwell: Some(7.0),
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("open_step"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Literal(Number(29.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "open_step",
+                        expression: Term(Factor(Literal(Number(4.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "You",
+                        text: "Understood. Working the wreck line now.",
+                    )),
+                ],
+            ),
+            // The hand-off: the briefing is done, so lazy-post the first
+            // crate objective and its marker. Gated quota_posted == 0 so it
+            // fires exactly once. The other two crate objectives post on
+            // pickup, a beat apart, in the OnEnter handlers below.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("open_step"))),
+                        Term(Factor(Literal(Number(4.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("quota_posted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "quota_posted",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "obj_ch1_recap",
+                    )),
+                    Objective((
+                        id: "obj_crate_1",
+                        message: "Salvage container MV-1.",
+                    )),
+                    ObjectiveMarkerAttach((
+                        target_id: "ledger_crate_1",
+                        label: "MV-1",
+                    )),
+                    Objective((
+                        id: "obj_crate_2",
+                        message: "Salvage container MV-2.",
+                    )),
+                    ObjectiveMarkerAttach((
+                        target_id: "ledger_crate_2",
+                        label: "MV-2",
+                    )),
+                    Objective((
+                        id: "obj_crate_3",
+                        message: "Salvage container MV-3.",
+                    )),
+                    ObjectiveMarkerAttach((
+                        target_id: "ledger_crate_3",
+                        label: "MV-3",
+                    )),
+                ],
+            ),
             // --- Act 1: the quota. One handler per crate, order-free. ---
             (
                 name: OnEnter,
@@ -1337,9 +1526,14 @@
                     ObjectiveComplete((
                         id: "obj_crate_1",
                     )),
-                    StoryMessage((
-                        speaker: "Foreman Okono",
-                        text: "MV-1 on the hook. Two to go.",
+                    // Breather: stamp this crate's OWN gate and hand the
+                    // follow-up Okono line to the delayed handler below, so
+                    // the acknowledgment lands a beat after the pickup, not
+                    // on the same frame (the beat-sheet breather). Per-crate
+                    // gates keep the three pickups order-free and independent.
+                    VariableSet((
+                        key: "ack1_gate",
+                        expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(2.5))))),
                     )),
                 ],
             ),
@@ -1366,9 +1560,9 @@
                     ObjectiveComplete((
                         id: "obj_crate_2",
                     )),
-                    StoryMessage((
-                        speaker: "Foreman Okono",
-                        text: "MV-2 logged. Keep it moving, the Matron isn't getting any deader.",
+                    VariableSet((
+                        key: "ack2_gate",
+                        expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(2.5))))),
                     )),
                 ],
             ),
@@ -1395,6 +1589,93 @@
                     ObjectiveComplete((
                         id: "obj_crate_3",
                     )),
+                    VariableSet((
+                        key: "ack3_gate",
+                        expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(2.5))))),
+                    )),
+                ],
+            ),
+            // The three delayed pickup acknowledgments: each fires a beat
+            // after ITS crate is on the hook (clock_past the crate's own
+            // stamped gate), one line per handler. The gate is seeded 0 and
+            // only stamped by that crate's pickup, and the ackN_said guard
+            // makes each a one-shot - so the three are independent and the
+            // pickups stay order-free.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((GreaterThan(
+                        Term(Factor(Name("ack1_gate"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("ack1_said"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("ack1_gate"))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "ack1_said",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Foreman Okono",
+                        text: "MV-1 on the hook. Two to go.",
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((GreaterThan(
+                        Term(Factor(Name("ack2_gate"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("ack2_said"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("ack2_gate"))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "ack2_said",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Foreman Okono",
+                        text: "MV-2 logged. Keep it moving, the Matron isn't getting any deader.",
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((GreaterThan(
+                        Term(Factor(Name("ack3_gate"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("ack3_said"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("ack3_gate"))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "ack3_said",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
                     StoryMessage((
                         speaker: "Foreman Okono",
                         text: "MV-3. That's the manifest done.",
@@ -1402,7 +1683,10 @@
                 ],
             ),
             // Quota met (`> 2`, not `== 3`: a double-fire cannot skip the
-            // gate - the count-gate lesson) -> act 2: the fourth ping.
+            // gate - the count-gate lesson) -> act 2. This only ARMS the
+            // reveal (stamps ping_gate); the reveal itself is the chapter's
+            // hook, so it gets its own announce -> breathe -> objective beats
+            // below, not a single frame-0 dump.
             (
                 name: OnUpdate,
                 filters: [
@@ -1420,9 +1704,71 @@
                         key: "act",
                         expression: Term(Factor(Literal(Number(2.0)))),
                     )),
+                    // Let the "manifest done" line breathe before the hook.
+                    VariableSet((
+                        key: "ping_gate",
+                        expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(4.0))))),
+                    )),
+                ],
+            ),
+            // The 4th-ping reveal ANNOUNCE (a beat after the quota closes):
+            // one line, then re-stamp the gate for the objective breather.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("ping_said"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("ping_gate"))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "ping_said",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    VariableSet((
+                        key: "beat_gate",
+                        expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(3.5))))),
+                    )),
                     StoryMessage((
                         speaker: "Foreman Okono",
                         text: "Hold up. Scope's showing a fourth return, deep in the stern... that container is not on any manifest I've ever filed.",
+                        dwell: Some(8.0),
+                    )),
+                ],
+            ),
+            // The reveal BREATHE -> objective: the unlogged container posts a
+            // beat after the reveal line lands (ping_said == 1, clock past
+            // the re-stamped beat_gate), guarded by setup_last so it fires
+            // once.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("ping_said"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((LessThan(
+                        Term(Factor(Name("setup_last"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("beat_gate"))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "setup_last",
+                        expression: Term(Factor(Literal(Number(1.0)))),
                     )),
                     Objective((
                         id: "obj_blackbox",

@@ -41,21 +41,34 @@
                         key: "teach_sent",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
-                    StoryMessage((
-                        speaker: "Foreman Okono",
-                        text: "Kestrel, the Mule's inbound for the pickup - and so are the Magpies. Two contacts burning in from the east lane, light hulls.",
+                    // Opening-conversation sequencer + the objective hand-off
+                    // and the pre-handoff breather (the Shakedown idiom). All
+                    // seeded here - an undefined gate fails closed forever.
+                    VariableSet((
+                        key: "open_step",
+                        expression: Term(Factor(Literal(Number(0.0)))),
                     )),
+                    VariableSet((
+                        key: "obj_posted",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "win_gate",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "win_said",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    // The objectives panel stays EMPTY through the short
+                    // opener; this HOLDING line is all that shows until the
+                    // opener hands off to the real objectives (beat sheet: no
+                    // objective shares a frame with a conversation). The wave
+                    // still spawns below with its 8s engage_delay telegraph,
+                    // so the approach IS the breathing room.
                     Objective((
                         id: "obj_ch2_recap",
-                        message: "Ch.2 - Claim Jumpers: the Magpies want what you found.",
-                    )),
-                    Objective((
-                        id: "obj_escort",
-                        message: "The Dray Mule must survive.",
-                    )),
-                    Objective((
-                        id: "obj_wave",
-                        message: "Break the first Magpie wave (2 corvettes).",
+                        message: "Ch.2 - Claim Jumpers: stand by - contacts inbound.",
                     )),
                     SpawnScenarioObject((
                         base: (
@@ -1994,15 +2007,99 @@
                     )),
                 ],
             ),
-            // The teach beat, clock-spaced off the opening line (one line per
-            // beat - the beat-sheet convention): eight seconds after the
-            // contact call, while the arrivals are still inbound.
+            // --- Opening conversation (short, per the pace-map: a returning
+            // player has met the cast). Okono calls the contact, the player
+            // answers, then the real objectives lazy-post on the hand-off -
+            // the objectives panel holds on the stand-by line until then. The
+            // wave is already inbound behind its 8s engage_delay telegraph. ---
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("open_step"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "open_step",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Foreman Okono",
+                        text: "Kestrel, the Mule's inbound for the pickup - and so are the Magpies. Two contacts burning in from the east lane, light hulls.",
+                        dwell: Some(7.0),
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("open_step"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Literal(Number(11.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "open_step",
+                        expression: Term(Factor(Literal(Number(2.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "You",
+                        text: "I see them. Keep the Mule on my line, Okono - I'll take them off her.",
+                    )),
+                ],
+            ),
+            // The hand-off: opener done, lazy-post the real objectives (obj
+            // posted == 0 makes it one-shot). The stand-by line completes.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("open_step"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("obj_posted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "obj_posted",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "obj_ch2_recap",
+                    )),
+                    Objective((
+                        id: "obj_escort",
+                        message: "The Dray Mule must survive.",
+                    )),
+                    Objective((
+                        id: "obj_wave",
+                        message: "Break the first Magpie wave (2 corvettes).",
+                    )),
+                ],
+            ),
+            // The teach beat, clock-spaced AFTER the opener hands off (one
+            // line per beat - the beat-sheet convention), while the arrivals
+            // are still inbound behind their engage_delay.
             (
                 name: OnUpdate,
                 filters: [
                     Expression((GreaterThan(
                         Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Literal(Number(8.0)))),
+                        Term(Factor(Literal(Number(18.0)))),
                     ))),
                     Expression((Equal(
                         Term(Factor(Name("teach_sent"))),
@@ -2095,9 +2192,48 @@
                     ObjectiveComplete((
                         id: "obj_escort",
                     )),
+                    // Breather: the win lands as a COMMS line first, then the
+                    // Victory overlay follows a beat later (win_gate) - a
+                    // StoryMessage beside the Outcome would be frozen behind
+                    // the overlay (lint arm), so the line goes here and the
+                    // overlay handler is separate below.
+                    VariableSet((
+                        key: "win_gate",
+                        expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(3.0))))),
+                    )),
+                    StoryMessage((
+                        speaker: "Foreman Okono",
+                        text: "Wave one's scrap and the Mule's still with us. Breathe, Kestrel - the scope already shows two more burns coming.",
+                        dwell: Some(6.0),
+                    )),
+                ],
+            ),
+            // The checkpoint overlay, a beat after the win line (win_said
+            // one-shot). Outcome + lingering NextScenario, no StoryMessage.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("win_said"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("win_gate"))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "win_said",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
                     Outcome((
                         outcome: Victory,
-                        message: Some("Wave one broken. Catch your breath while you can - the Mule holds station, and the scope already shows two more burns. The Magpies are angry now."),
+                        message: Some("Wave one broken. Catch your breath while you can - the Mule holds station, and the Magpies are angry now."),
                     )),
                     NextScenario((
                         scenario_id: "ledger_ch2b_the_heavies",

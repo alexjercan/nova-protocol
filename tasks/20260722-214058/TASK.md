@@ -1,6 +1,6 @@
 # Ledger beat-sheet pacing pass: ch1/ch2/ch2b (opening conversations, breathers, no objective dump)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 56
 - TAGS: v0.8.0, content, scenario
 
@@ -18,23 +18,23 @@ diagnostic pace-map (dep). Idiom reference: shakedown_run.content.ron
 
 ## Steps
 
-- [ ] ch1: replace the OnStart dump (1 message + 3 objectives + all spawns)
+- [x] ch1: replace the OnStart dump (1 message + 3 objectives + all spawns)
       with a clock-paced opening (seed open_step/beat_gate; Okono briefs over
       ~scenario_elapsed gates; first objective lazy-posts + spawns its target on
       hand-off so a blind burn cannot skip it). One objective at a time,
       breathers between the quota pickups, one StoryMessage per handler.
-- [ ] ch2 + ch2b: split the opening frame-0 objective dumps; add a short
+- [x] ch2 + ch2b: split the opening frame-0 objective dumps; add a short
       opening conversation beat; add a breather between the kills==2 victory and
       the next-scenario handoff; keep the engage_delay telegraphs. Do NOT move
       spawn geometry (the ch2 fairness rig pins ranges/bearings/cover).
-- [ ] Add a clock-pumping test path where a walk test would stall on a deferred
+- [x] Add a clock-pumping test path where a walk test would stall on a deferred
       objective (lesson from 20260721-211506: time-gated content needs a clock
       pump or walk tests silently hang). Prefer sequencer counters over
       per-line one-shot flags.
-- [ ] `content lint --target the-ledger` clean (beat-sheet arms: no >1
+- [x] `content lint --target the-ledger` clean (beat-sheet arms: no >1
       StoryMessage/handler, no StoryMessage+Outcome co-fire); ack intended
       drama with reasons only.
-- [ ] Probe the changed scenarios (lesson probe-content-not-just-code /
+- [x] Probe the changed scenarios (lesson probe-content-not-just-code /
       review-rig-can-false-green: verify OnStart clock reads against the REAL
       loader/probe, not a synthetic rig - the loader fires OnStart before the
       first tick).

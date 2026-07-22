@@ -217,6 +217,20 @@ fn destroy(app: &mut App, id: &str) {
     app.update();
 }
 
+/// Pump the scenario clock past a deadline and tick, so a deferred
+/// (clock-gated) handler actually fires. The pacing rework defers each
+/// chapter's Victory overlay by a beat (`win_gate = scenario_elapsed +
+/// delay`, then a one-shot `OnUpdate` gated `scenario_elapsed > win_gate`),
+/// so a walk that never advances the clock would silently never see the
+/// outcome (the time-gated-content-needs-a-clock-pump lesson, task
+/// 20260721-211506). The rig sets no time, so `scenario_elapsed` reads 0
+/// until we stamp it here.
+fn pump_clock(app: &mut App, to_secs: f64) {
+    seed_var(app, "scenario_elapsed", to_secs);
+    app.update();
+    app.update();
+}
+
 fn number_var(app: &App, key: &str) -> Option<f64> {
     match app.world().resource::<NovaEventWorld>().get_variable(key) {
         Some(VariableLiteral::Number(n)) => Some(*n),
@@ -248,6 +262,11 @@ fn armed_app(scenario: &ScenarioConfig) -> App {
     register_non_start_handlers(&mut app, scenario);
     seed_var(&mut app, "act", 1.0);
     seed_var(&mut app, "kills", 0.0);
+    // The pacing rework defers the Victory overlay a beat behind the win
+    // comms line via a one-shot `win_said` guard that OnStart seeds to 0; the
+    // rig must seed it too, or the deferred overlay handler's `win_said == 0`
+    // filter reads undefined and fails closed (rig-supplies-precondition).
+    seed_var(&mut app, "win_said", 0.0);
     app
 }
 
@@ -458,15 +477,28 @@ fn wave_one_kills_checkpoint_into_the_heavies() {
     let scenario = scenario_from(CH2A_RON);
     let mut app = armed_app(&scenario);
 
+    // Give the clock a defined base value so win_gate = scenario_elapsed + 3
+    // stamps a real deadline when the wave breaks (the rig sets no time).
+    seed_var(&mut app, "scenario_elapsed", 30.0);
+
     destroy(&mut app, "magpie_1");
     assert_eq!(number_var(&app, "kills"), Some(1.0));
     assert_eq!(outcome_kind(&app), None, "one kill is not the wave");
 
     destroy(&mut app, "magpie_2");
+    // The win is now DEFERRED a beat behind the comms line (win_gate); the
+    // kill itself only arms it, so the overlay is not up yet.
+    assert_eq!(
+        outcome_kind(&app),
+        None,
+        "the win comms line plays first; the overlay is a beat behind"
+    );
+    // Pump the clock past the win_gate so the deferred checkpoint fires.
+    pump_clock(&mut app, 100.0);
     assert_eq!(
         outcome_kind(&app),
         Some(ScenarioOutcomeKind::Victory),
-        "breaking the pair wins part one"
+        "breaking the pair wins part one once the breather beat elapses"
     );
     let (next, linger) = queued_next(&app).expect("the checkpoint queues part two");
     assert_eq!(next, "ledger_ch2b_the_heavies");
@@ -496,6 +528,8 @@ fn heavies_kills_clear_the_lane_to_chapter_three() {
     let scenario = scenario_from(CH2B_RON);
     let mut app = armed_app(&scenario);
 
+    seed_var(&mut app, "scenario_elapsed", 30.0);
+
     destroy(&mut app, "magpie_3");
     assert_eq!(number_var(&app, "kills"), Some(1.0));
     assert_eq!(outcome_kind(&app), None);
@@ -503,8 +537,14 @@ fn heavies_kills_clear_the_lane_to_chapter_three() {
     destroy(&mut app, "magpie_4");
     assert_eq!(
         outcome_kind(&app),
+        None,
+        "the win comms line plays first; the overlay is a beat behind"
+    );
+    pump_clock(&mut app, 100.0);
+    assert_eq!(
+        outcome_kind(&app),
         Some(ScenarioOutcomeKind::Victory),
-        "breaking the heavies wins the chapter"
+        "breaking the heavies wins the chapter once the breather beat elapses"
     );
     let (next, linger) = queued_next(&app).expect("victory chains on");
     assert_eq!(next, "ledger_ch3_quiet_channel");
