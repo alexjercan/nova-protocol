@@ -43,7 +43,10 @@ fmt/check clean, probes OK.
 
 Updated as tasks land (one line per land).
 
-- [ ] 20260722-163718 (p82, nova_assets) Per-beat objective pacing gaps: instruction vs reveal (mainline)
+- [x] 20260722-163718 (p82, nova_assets) Per-beat objective pacing gaps: instruction vs reveal (mainline)
+      landed 26bf80f9 (+718ccdf0 review); 1 review round, APPROVE no findings;
+      8 instruction / 2 mid / reveal beats classified, broadside hauler marker
+      moved to OnStart, content regenerated, new mid-read pin test.
 
 ## Manual acceptance (batched for the user at Finish)
 

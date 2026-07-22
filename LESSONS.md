@@ -559,9 +559,11 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   that a pipeline swallows; `which` host tools first. 20260711-183417.
 - `no-source-edits-during-inflight-builds` (x1): a tree edited mid-build
   yields an indeterminate evidence binary; quiesce for A/B runs. 20260711-183417.
-- `gpu-example-local-skip` (x1): heavy render examples are ~100x too slow
-  under lavapipe; one short smoke attempt, then headless tests + CI.
-  20260717-004302.
+- `gpu-example-local-skip` (x2): heavy render examples are ~100x too slow
+  under lavapipe AND OOM its software render device on combat scenes (identical
+  wgpu OutOfMemory at the same frame across scenarios, with system RAM free);
+  one short smoke attempt, then headless tests + CI. 20260717-004302,
+  20260722-163718.
 - `borrowed-rig-coverage-check` (x1): a borrowed rig inherits its record's
   overclaims; verify coverage against the NEW failure mode. 20260712-115902.
 - `refutation-invalidates-earlier-prose` (x1): when a probe overturns the
