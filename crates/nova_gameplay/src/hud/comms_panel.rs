@@ -31,7 +31,10 @@ use crate::audio::UiSfx;
 
 /// Glob-import surface: `use nova_gameplay::hud::comms_panel::prelude::*` re-exports the public API of this module.
 pub mod prelude {
-    pub use super::{StoryFeed, StoryLine, COMMS_DWELL_MAX_SECS, COMMS_DWELL_MIN_SECS};
+    pub use super::{
+        StoryFeed, StoryLine, COMMS_DWELL_MAX_SECS, COMMS_DWELL_MIN_SECS, COMMS_DWELL_SECS,
+        COMMS_FADE_OUT_SECS,
+    };
 }
 
 /// One speaker-attributed story line, as delivered to the HUD.
@@ -54,8 +57,12 @@ pub struct StoryLine {
 #[derive(Resource, Clone, Debug, Default, PartialEq)]
 pub struct StoryFeed(pub Vec<StoryLine>);
 
-/// Default on-screen hold when nothing waits behind the line.
-const COMMS_DWELL_SECS: f32 = 8.0;
+/// Default on-screen hold when nothing waits behind the line. `pub` because the
+/// scenario pacing layer (nova_assets `pacing.rs`) derives the beat gap between
+/// a conversation line and the objective it introduces from this value - the
+/// objective must post as the line finishes, not before it (task
+/// 20260722-142341).
+pub const COMMS_DWELL_SECS: f32 = 8.0;
 /// The floor a showing line holds even with lines waiting: readable, but a
 /// burst still flows.
 const COMMS_MIN_SECS: f32 = 4.0;
@@ -66,9 +73,13 @@ pub const COMMS_DWELL_MIN_SECS: f32 = 3.0;
 pub const COMMS_DWELL_MAX_SECS: f32 = 30.0;
 /// Pending lines beyond this drop OLDEST-first.
 const COMMS_QUEUE_CAP: usize = 4;
-/// Fade timings (s): quick in, gentler out.
+/// Fade timings (s): quick in, gentler out. `COMMS_FADE_OUT_SECS` is `pub` so
+/// the scenario pacing layer can wait out the fade tail as well as the dwell
+/// before posting the next objective (task 20260722-142341).
 const COMMS_FADE_IN_SECS: f32 = 0.25;
-const COMMS_FADE_OUT_SECS: f32 = 0.4;
+/// Fade-out duration (s) after a line's dwell elapses; the pacing layer adds
+/// this to the dwell so the objective posts as the line clears, not mid-fade.
+pub const COMMS_FADE_OUT_SECS: f32 = 0.4;
 /// Comms blip volume, under the objective cues (0.30/0.38) - chatter, not
 /// a milestone.
 const COMMS_BLIP_VOLUME: f32 = 0.22;

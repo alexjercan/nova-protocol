@@ -23,16 +23,22 @@
 //! clock (`scenario_elapsed`) is engine-owned and pauses behind menus/outcome,
 //! so a deadline measures play time, not wall time.
 
+use nova_gameplay::prelude::{COMMS_DWELL_SECS, COMMS_FADE_OUT_SECS};
 use nova_scenario::prelude::*;
 
 use super::shakedown::{eq_num, gt_num, num, set, var};
 
-/// The default breathing beat, in seconds of play time: how long an objective
-/// waits after the conversation that introduces it, or after the previous
-/// objective completes, before it appears. Owner note: "show the objective,
-/// wait a bit, show the message" - and never the swap and the completion in the
-/// same instant.
-pub(crate) const BEAT_GAP: f64 = 4.0;
+/// The breathing beat, in seconds of play time: how long an objective waits
+/// after the conversation that introduces it before it appears. Owner playtest
+/// (task 20260722-142341): the objective must not post while its intro line is
+/// still on screen. Every mainline gate follows a `story()` line, so the gap is
+/// that line's full on-screen life - its default dwell plus the fade-out tail -
+/// NOT a fixed short breather (the old 4.0 posted the objective four seconds
+/// before an 8-second line finished). Derived from the comms panel's own
+/// constants ([`COMMS_DWELL_SECS`] + [`COMMS_FADE_OUT_SECS`]) so the gap and the
+/// dwell can never drift apart. Scenario lines all use the default dwell today;
+/// an authored per-line override would want a matching per-gate gap.
+pub(crate) const BEAT_GAP: f64 = (COMMS_DWELL_SECS + COMMS_FADE_OUT_SECS) as f64;
 
 /// Stamp an ABSOLUTE deadline of `delay` seconds into `key`, for a gate that
 /// opens at `OnStart`. The engine clock `scenario_elapsed` is UNDEFINED at
