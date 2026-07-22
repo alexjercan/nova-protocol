@@ -21,14 +21,16 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   commit that TOUCHED the string, not what it did with it - open the commit's
   diff and quote what it DID before writing history into a Record (a misread
   pickaxe put a never-true chain into three surfaces). 20260721-160842.
-- `keep-docs-in-sync-with-code` (x7, enforced in AGENTS.md but STILL recurring
+- `keep-docs-in-sync-with-code` (x8, enforced in AGENTS.md but STILL recurring
   -> needs a tooling guard, not more prose): a code change is not done until
   every doc surface it invalidates (CHANGELOG, news, player + dev wiki, tutorial,
   per-mod READMEs, content-file headers, and the crate table which lives in
   README + AGENTS + MULTIPLE wiki pages - project-tour, architecture) is fixed in
   the SAME task; map: `web/src/wiki/dev/keeping-docs-in-sync.md`. A ticked docs
-  step is not proof - `grep -rn <oldname>` tree-wide and fix EVERY hit, never a
-  hand-picked subset. 20260718-004723, 20260719-112231, 20260718-231555, 20260720-224236.
+  step is not proof - `grep -rn <oldname>` the WHOLE doc tree (wiki + news +
+  READMEs + CHANGELOGs), fix every live-state hit and LEAVE dated history (root
+  CHANGELOG, per-release news, tasks/) with a reason - never pre-narrow the grep
+  to one subdir. 20260718-004723, 20260719-112231, 20260718-231555, 20260720-224236, 20260722-214119.
 - `doc-sweep-covers-source-doc-comments` (x1): when RENAMING/REMOVING a
   command or symbol, `grep -rn '<oldname>' --include='*.rs'` the source
   `//!`/`///` doc comments too - a CLI surface is described in module/crate
@@ -270,13 +272,15 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   undefined `scenario_elapsed`, so the opening objectives never posted (caught
   only when a later task's probe hit the same scenario). Probe is a behaviour
   check, not just a perf one. 20260722-114541, 20260722-092421.
-- `review-rig-can-false-green` (x1): a review that BUILDS a bespoke rig to
+- `review-rig-can-false-green` (x2): a review that BUILDS a bespoke rig to
   clear a flagged risk can false-GREEN when the rig diverges from the real load
   path - task 1's reviewer "verified" the OnStart clock read safe with a
   synthetic scenario that seeded the clock the loader does not; the real loader
   fires OnStart before the first tick. Verify a risk against the PRODUCTION path
   (or a probe of it), not a hand-built stand-in; treat a bespoke-rig green as
-  inconclusive. 20260722-114541.
+  inconclusive; and a rig proving a DIVERGENCE (two endings, a branch) must pin
+  the STRUCTURAL fact (one path spawns the boss, the other does not), not just
+  banner text a re-convergence would still pass. 20260722-114541, 20260722-214110.
 - `upstream-api-gap-fix-beats-workaround` (positive, x1): when the blocking
   gap is a missing accessor in a dependency the USER owns, surface the fork -
   the small upstream fix + tag + pin bump beat both in-repo workarounds
@@ -294,12 +298,16 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `gate-producer-and-its-consumers` (x1): a flag that skips PRODUCING an
   entity sweeps its CONSUMERS too - each must tolerate the skip (early
   return, not error spam). 20260525-133013.
-- `defer-opens-a-consumer-race` (x1): deferring a state change (objective/
+- `defer-opens-a-consumer-race` (x2): deferring a state change (objective/
   marker) behind a timer while the world it refers to is already interactable
   opens a race - every consumer that can fire in the gap (OnStart-spawned
   pickups, edge-triggered area exits) must be guarded on the deferral latch, or
   the referenced entity spawned at the transition, or a fast actor beats it
-  (shakedown's crate pickups + coast-ring exit). 20260722-142341.
+  (shakedown's crate pickups + coast-ring exit). REMEDY when deferring an Outcome
+  behind a clock gate: keep the terminal/act LATCH synchronous with the trigger
+  detection (bump `act` in the same handler, defer only the player-facing
+  overlay) so the Defeat/consumer window closes at once - the Ledger ch2 win,
+  ch3 breather and ch4 burn all ride this. 20260722-142341, 20260722-214058, 20260722-214110.
 - `messagereader-needs-resource-guard-in-tests` (x2): minimal-app rigs omit
   `Messages<T>`; gate on `resource_exists` or init the resource in BOTH
   writing and consuming plugins. 20260714-174126, 20260716-193949.
@@ -315,10 +323,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `commit-before-sabotage` (x2, PROMOTED 2026-07-11 -> work skill): commit
   the fix before A/B sabotage; anchor splices on unique strings.
   20260710-231930.
-- `production-faithful-rigs` (x8, PROMOTED 2026-07-11 -> work skill): rigs
+- `production-faithful-rigs` (x9, PROMOTED 2026-07-11 -> work skill): rigs
   mirror production - scheduling, hierarchy, shipped configuration,
   required-component DEFAULTS; extract ONE shared registration helper both
-  plugin and rigs call. 20260711-103527, 20260717-163042.
+  plugin and rigs call; when a rig cannot run a shipped action for a missing
+  resource, give the rig the resource PRODUCTION has (an AssetPlugin) rather than
+  softening the engine to tolerate its absence. 20260711-103527, 20260717-163042, 20260722-214115.
 - `presence-vs-behavior-tests` (x2): component-exists assertions stay green
   while behavior regresses; assert the behavior. 20260709-160753.
 - `sweep-then-delete` (x11, PROMOTED 2026-07-13 -> work skill): before
@@ -427,6 +437,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `shared-id-space-shared-overlay` (x1): containers sharing an id space route
   through ONE overlay helper so overlay semantics cannot diverge.
   20260714-134119.
+- `one-writer-per-worktree` (x1): never edit a sprout worktree that has a LIVE
+  background agent working in it - one writer per worktree, or your edits and
+  its churn clobber each other (a guard edit was overwritten, stashed and lost).
+  A vague agent notification ("waiting...", "no action needed", no real report)
+  means STILL RUNNING or confused, not done; wait for a complete report before
+  touching its tree. 20260722-214115.
 - `verify-the-nit-compiles` (x2): every review fix is a hypothesis -
   compile/typecheck it and verify the contract it assumes. 20260714-134119,
   20260714-210131.
