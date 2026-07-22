@@ -267,6 +267,52 @@ fn player_death_retries_the_current_part_only() {
     }
 }
 
+/// Review R1.1 class (task 20260721-182034): CurrentOutcome is last-write-wins,
+/// so a mutual-destruction TRADE - the player's blast killing the last
+/// objective target on the same beat the player dies - must not let the win
+/// gate overwrite the Defeat with a Victory over the queued retry. Both parts'
+/// player-death handlers set a terminal act (3), which closes every win gate.
+/// Fails before the fix: the win target dying after the player re-opens the
+/// `act == 1` win and flips the Defeat to a Victory.
+#[test]
+fn a_trade_after_the_players_death_cannot_overwrite_the_defeat() {
+    // Per part: the destroys that, on a LIVE act, would declare the win.
+    let parts: [(&str, fn(&mut App)); 2] = [
+        (BROADSIDE_RON, |app| {
+            destroy(app, "corvette_a");
+            destroy(app, "corvette_b");
+        }),
+        (BROADSIDE_GUNSHIP_RON, |app| destroy(app, "gunship")),
+    ];
+    for (ron, finish_the_fight) in parts {
+        let scenario = scenario_from(ron);
+        let mut app = slice_app();
+        register_non_start_handlers(&mut app, &scenario);
+        seed_var(&mut app, "act", 1.0);
+        seed_var(&mut app, "corvette_a_down", 0.0);
+        seed_var(&mut app, "corvette_b_down", 0.0);
+        seed_var(&mut app, "hauler_lost", 0.0);
+
+        // The player dies on the live act: Defeat, TERMINAL act 3, retry queued.
+        destroy(&mut app, "player_spaceship");
+        assert_eq!(outcome_kind(&app), Some(ScenarioOutcomeKind::Defeat));
+        assert_eq!(
+            number_var(&app, "act"),
+            Some(3.0),
+            "the player's death is terminal (review R1.1): {ron}"
+        );
+
+        // The trade: the win target dies AFTER the player. Without the terminal
+        // act this re-opens the win gate and the Victory overwrites the Defeat.
+        finish_the_fight(&mut app);
+        assert_eq!(
+            outcome_kind(&app),
+            Some(ScenarioOutcomeKind::Defeat),
+            "no win gate opens after the player's death: {ron}"
+        );
+    }
+}
+
 /// Review R1.3 (original slice) + split review R1.3: a death AFTER the win
 /// (act 2 in either part - a death blast, a rock under the gold banner)
 /// declares NOTHING and pushes NOTHING - the earned Victory must not flip

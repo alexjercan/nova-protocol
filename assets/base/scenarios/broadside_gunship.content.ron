@@ -2147,6 +2147,10 @@
                     ))),
                 ],
                 actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(3.0)))),
+                    )),
                     Outcome((
                         outcome: Defeat,
                         message: Some("The Rust Tally walks its torpedoes onto your wreck."),

@@ -527,6 +527,13 @@ pub(crate) fn broadside(
             name: EventConfig::OnDestroyed,
             filters: vec![destroyed(ID_PLAYER), lt_num(VAR_ACT, 2.0)],
             actions: vec![
+                // Terminal act FIRST (review R1.1 class, task 20260721-182034):
+                // CurrentOutcome is last-write-wins, so a mutual-destruction
+                // trade - the player's blast killing the last corvette on the
+                // same beat the player dies - could let the checkpoint win
+                // (gated act == 1) overwrite this Defeat over the queued retry.
+                // Act 3 closes every win gate.
+                set(VAR_ACT, num(3.0)),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Defeat,
                     "The scavengers strip your wreck for parts.",
@@ -686,6 +693,12 @@ pub(crate) fn broadside_gunship(
             name: EventConfig::OnDestroyed,
             filters: vec![destroyed(ID_PLAYER), lt_num(VAR_ACT, 2.0)],
             actions: vec![
+                // Terminal act FIRST (review R1.1 class, task 20260721-182034):
+                // last-write-wins CurrentOutcome means a trade - the player's
+                // blast breaking the gunship on the same beat the player dies -
+                // could let the win (gated act == 1) overwrite this Defeat over
+                // the queued retry. Act 3 closes every win gate.
+                set(VAR_ACT, num(3.0)),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Defeat,
                     "The Rust Tally walks its torpedoes onto your wreck.",

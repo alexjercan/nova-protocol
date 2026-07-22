@@ -2368,6 +2368,10 @@
                     ))),
                 ],
                 actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(3.0)))),
+                    )),
                     Outcome((
                         outcome: Defeat,
                         message: Some("The scavengers strip your wreck for parts."),
