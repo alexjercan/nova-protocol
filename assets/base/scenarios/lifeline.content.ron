@@ -405,7 +405,25 @@
                             ),
                         ),
                         kind: Spaceship((
-                            controller: r#None,
+                            controller: AI((
+                                patrol: [
+                                    (
+                                        60.0,
+                                        20.0,
+                                        -370.0,
+                                    ),
+                                    (
+                                        -70.0,
+                                        0.0,
+                                        -410.0,
+                                    ),
+                                    (
+                                        10.0,
+                                        -10.0,
+                                        -480.0,
+                                    ),
+                                ],
+                            )),
                             allegiance: Some(Player),
                             sections: [
                                 (
@@ -1223,7 +1241,25 @@
                             ),
                         ),
                         kind: Spaceship((
-                            controller: r#None,
+                            controller: AI((
+                                patrol: [
+                                    (
+                                        100.0,
+                                        0.0,
+                                        -480.0,
+                                    ),
+                                    (
+                                        30.0,
+                                        -25.0,
+                                        -540.0,
+                                    ),
+                                    (
+                                        90.0,
+                                        -5.0,
+                                        -590.0,
+                                    ),
+                                ],
+                            )),
                             allegiance: Some(Player),
                             sections: [
                                 (

@@ -21,8 +21,9 @@ use crate::prelude::*;
 /// Glob-import surface: `use nova_gameplay::input::ai::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
-        AIBehaviorState, AIEngageGrace, AIEvade, AIFireCadence, AILeash, AIOrbitDirective,
-        AIPatrolRoute, AIPointDefenseTarget, AISpaceshipMarker, AITarget, AIThreat, AITorpedoBay,
+        AIBehaviorState, AIEngageGrace, AIEvade, AIFireCadence, AILeash, AINonCombatant,
+        AIOrbitDirective, AIPatrolRoute, AIPointDefenseTarget, AISpaceshipMarker, AITarget,
+        AIThreat, AITorpedoBay,
         SpaceshipAIInputPlugin,
     };
 }
@@ -125,6 +126,21 @@ impl Plugin for SpaceshipAIInputPlugin {
     AIEvade
 )]
 pub struct AISpaceshipMarker;
+
+/// A non-combatant AI ship: it flies its passive routine (patrol / orbit /
+/// idle) but NEVER acquires a target or engages - it simply cannot fight. An
+/// unarmed ship (no turret or torpedo section) gets this at spawn (see
+/// nova_scenario's `insert_spaceship_sections`); a Lifeline convoy hauler is
+/// the first user (task 20260722-092432).
+///
+/// It stays TARGET-able by hostiles (its allegiance is unchanged), so a
+/// Player-aligned convoy is still something the enemy hunts and the player must
+/// defend - it just does not shoot back or chase. `update_ai_target` skips it
+/// and keeps its [`AITarget`] clear, so `update_behavior_state` always reads
+/// "nothing hostile" and holds the routine.
+#[derive(Component, Debug, Clone, Copy, Default, Reflect)]
+#[reflect(Component)]
+pub struct AINonCombatant;
 
 /// The entity this AI ship currently fights - what every AI behavior system
 /// aims, chases and shoots at. Written by `update_ai_target` from the
@@ -262,11 +278,24 @@ fn update_ai_target(
             &Allegiance,
             &AIThreat,
             &mut AITarget,
+            Has<AINonCombatant>,
         ),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
 ) {
-    for (ship, transform, com, own_allegiance, threat, mut target) in &mut q_spaceship {
+    for (ship, transform, com, own_allegiance, threat, mut target, non_combatant) in
+        &mut q_spaceship
+    {
+        // A non-combatant never fights: keep its target clear so the behavior
+        // FSM holds the passive routine. Cleared defensively in case the ship
+        // was armed when it last acquired one (a future critical-damage path
+        // could flip this flag mid-fight).
+        if non_combatant {
+            if target.is_some() {
+                **target = None;
+            }
+            continue;
+        }
         let own_anchor = live_structure_anchor(transform, com);
         let candidates = q_candidates.iter().filter_map(
             |(entity, c_transform, c_com, allegiance, is_ship, is_torpedo, committed)| {
@@ -2220,6 +2249,49 @@ mod behavior_state_tests {
             *world.entity(ship).get::<AIBehaviorState>().unwrap(),
             AIBehaviorState::Engage,
             "a hostile appearing pulls Idle back into the fight"
+        );
+    }
+
+    /// A non-combatant (the convoy hauler, task 20260722-092432) never acquires
+    /// a target even with a hostile point-blank, so it holds its passive routine
+    /// instead of chasing. An armed ship in the same spot engages - the control.
+    #[test]
+    fn a_non_combatant_never_targets_or_engages() {
+        let mut world = World::new();
+        world.init_resource::<Time>();
+
+        // A hostile (player-marked) ship well inside acquisition range.
+        world.spawn((
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+            Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
+        ));
+
+        let hauler = world
+            .spawn((AISpaceshipMarker, AINonCombatant, Transform::default()))
+            .id();
+        world.run_system_once(update_ai_target).unwrap();
+        world.run_system_once(update_behavior_state).unwrap();
+        assert_eq!(
+            *world.entity(hauler).get::<AITarget>().unwrap(),
+            AITarget(None),
+            "a non-combatant never acquires a target"
+        );
+        assert!(
+            world
+                .entity(hauler)
+                .get::<AIBehaviorState>()
+                .unwrap()
+                .is_passive(),
+            "so it holds its passive routine instead of engaging"
+        );
+
+        // Control: an ARMED ship (no tag) acquires the same hostile.
+        let fighter = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        world.run_system_once(update_ai_target).unwrap();
+        assert!(
+            world.entity(fighter).get::<AITarget>().unwrap().is_some(),
+            "an ordinary AI ship acquires the hostile the non-combatant ignored"
         );
     }
 

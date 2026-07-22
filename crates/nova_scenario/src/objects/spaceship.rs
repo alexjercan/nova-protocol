@@ -311,6 +311,11 @@ fn insert_spaceship_sections(
     let infinite_ammo =
         matches!(controller_config, SpaceshipController::Player(config) if config.infinite_ammo);
 
+    // An AI ship with no turret or torpedo section cannot fight; it becomes a
+    // non-combatant below so it flies its routine and never chases. Tracked
+    // through the section loop (task 20260722-092432).
+    let mut has_weapon = false;
+
     commands.entity(entity).with_children(|parent| {
         for section in sections_config.iter() {
             // Resolve the section's source to an owned SectionConfig: an inline
@@ -360,6 +365,7 @@ fn insert_spaceship_sections(
                     }
                 }
                 SectionKind::Turret(turret_config) => {
+                    has_weapon = true;
                     let mut turret_config = turret_config.clone();
                     if infinite_ammo {
                         turret_config.ammo_capacity = None;
@@ -378,6 +384,7 @@ fn insert_spaceship_sections(
                     }
                 }
                 SectionKind::Torpedo(torpedo_config) => {
+                    has_weapon = true;
                     let mut torpedo_config = torpedo_config.clone();
                     if infinite_ammo {
                         torpedo_config.ammo_capacity = None;
@@ -419,6 +426,14 @@ fn insert_spaceship_sections(
         }
         SpaceshipController::AI(config) => {
             commands.entity(entity).insert(AISpaceshipMarker);
+            // An unarmed AI ship (no turret/torpedo section) cannot fight, so it
+            // flies its patrol/orbit/idle routine and never chases - a convoy
+            // hauler or civilian escort (task 20260722-092432). It stays
+            // targetable by hostiles, so a Player-aligned convoy is still hunted
+            // and must be defended.
+            if !has_weapon {
+                commands.entity(entity).insert(AINonCombatant);
+            }
             if !config.patrol.is_empty() {
                 commands
                     .entity(entity)
@@ -584,6 +599,72 @@ mod tests {
             Some(10),
             "without the flag the authored magazine is kept"
         );
+    }
+
+    /// An AI ship with no turret/torpedo section is tagged `AINonCombatant` at
+    /// spawn, so it flies its routine and never chases; an armed AI ship is not
+    /// (task 20260722-092432). Non-AI ships never get the tag regardless.
+    #[test]
+    fn an_unarmed_ai_ship_is_flagged_non_combatant() {
+        let mut world = World::new();
+        world.init_resource::<GameSections>();
+        world.add_observer(insert_spaceship_sections);
+
+        let turret_section = || SpaceshipSectionConfig {
+            id: "turret".to_string(),
+            position: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
+            source: SectionSource::Inline(SectionConfig {
+                base: BaseSectionConfig {
+                    id: "turret".to_string(),
+                    ..default()
+                },
+                kind: SectionKind::Turret(TurretSectionConfig::default()),
+            }),
+            modifications: vec![],
+        };
+        let spawn = |world: &mut World, controller, sections| {
+            let entity = world
+                .spawn((
+                    Transform::default(),
+                    spaceship_scenario_object(SpaceshipConfig {
+                        allegiance: None,
+                        controller,
+                        sections,
+                    }),
+                ))
+                .id();
+            world.flush();
+            entity
+        };
+
+        let unarmed = spawn(
+            &mut world,
+            SpaceshipController::AI(AIControllerConfig::default()),
+            vec![],
+        );
+        assert!(
+            world.entity(unarmed).contains::<AINonCombatant>(),
+            "an unarmed AI ship must be a non-combatant"
+        );
+
+        let armed = spawn(
+            &mut world,
+            SpaceshipController::AI(AIControllerConfig::default()),
+            vec![turret_section()],
+        );
+        assert!(
+            !world.entity(armed).contains::<AINonCombatant>(),
+            "an armed AI ship must NOT be a non-combatant"
+        );
+
+        // A player ship, unarmed, is not an AI ship at all - no tag.
+        let player = spawn(
+            &mut world,
+            SpaceshipController::Player(PlayerControllerConfig::default()),
+            vec![],
+        );
+        assert!(!world.entity(player).contains::<AINonCombatant>());
     }
 
     /// The arrival grace wires from config to component only for positive

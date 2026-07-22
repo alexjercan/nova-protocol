@@ -6,8 +6,9 @@
 //! over the shipped spawns, so the fairness constraints cannot silently
 //! rot:
 //!
-//! 1. the convoy is the ally mechanism in shipped form: `controller: None`
-//!    haulers with `allegiance: Some(Player)` (targetable, cannot chase);
+//! 1. the convoy is the ally mechanism in shipped form: unarmed AI
+//!    non-combatant haulers with `allegiance: Some(Player)` (targetable, they
+//!    loiter the belt but never chase or shoot);
 //! 2. every raider spawn sits outside the threat envelope's design floor
 //!    of EVERY friendly anchor (player spawn and both haulers) - the
 //!    telegraphed-arrival contract;
@@ -213,10 +214,11 @@ fn ship_in_world(app: &mut App, id: &str) -> bool {
 
 // --- the stage --------------------------------------------------------------
 
-/// OnStart stages the whole lane: the ally-mechanism convoy (None
-/// controller + Player allegiance - targetable, cannot chase), the frame
-/// beacons, the two cover tiers, the seeded state, the countdown readout,
-/// and the picker face (visible chapter head + thumbnail).
+/// OnStart stages the whole lane: the ally-mechanism convoy (unarmed AI
+/// non-combatant haulers on Player allegiance - targetable, loiter the belt,
+/// cannot chase or shoot), the frame beacons, the two cover tiers, the seeded
+/// state, the countdown readout, and the picker face (visible chapter head +
+/// thumbnail).
 #[test]
 fn on_start_stages_the_lane() {
     let scenario = scenario_from(LIFELINE_RON);
@@ -239,10 +241,18 @@ fn on_start_stages_the_lane() {
             config.allegiance, allegiance,
             "{id} is on the player's side (the ally mechanism)"
         );
+        let SpaceshipController::AI(ai) = &config.controller else {
+            panic!("{id} loiters under an AI driver, not a cold None controller");
+        };
         assert!(
-            matches!(config.controller, SpaceshipController::None),
-            "{id} is stalled: no controller, so it can never chase"
+            !ai.patrol.is_empty(),
+            "{id} flies a loiter loop, so it holds the belt instead of drifting"
         );
+        // The cargoa hull is unarmed (hull cubes + thrusters + controller, no
+        // turret/torpedo), so nova_scenario tags it AINonCombatant at spawn: it
+        // can never chase or shoot, only get defended. The runtime tag and its
+        // non-engagement are pinned in the convoy-loiter runtime test below and
+        // the nova_gameplay / nova_scenario unit tests.
     }
     spawn_by_id(start, "player_spaceship");
     spawn_by_id(start, "beacon_transfer");

@@ -9,12 +9,14 @@
 //! countdown on the HUD (the HudReadout surface's first campaign use).
 //!
 //! The convoy is the ch3-mechanisms discovery in shipped form (task
-//! 20260721-160906): STALLED haulers - `controller: None` (station-keeping,
-//! `SpaceshipRootMarker` still applies) with `allegiance: Some(Player)`, so
-//! enemy AI genuinely targets them over the relation model while they
-//! cannot chase anyone. Raiders spawning nearer to the convoy than to the
-//! player draw fire onto the convoy (nearest-hostile rule, pinned by
-//! `ally_relation_tests`), which is the whole mission.
+//! 20260721-160906): LOITERING haulers - unarmed AI ships (hull cubes, two
+//! thrusters, a controller, NO weapon) flying a slow patrol loop through the
+//! belt, tagged `AINonCombatant` at spawn so they never chase or shoot (task
+//! 20260722-092432). Their `allegiance: Some(Player)` keeps enemy AI targeting
+//! them over the relation model, so raiders spawning nearer to the convoy than
+//! to the player draw fire onto it (nearest-hostile rule, pinned by
+//! `ally_relation_tests`), which is the whole mission - the player screens a
+//! convoy that flies around and holds the belt instead of drifting off.
 //!
 //! Waves stage on the scenario clock AND the previous wave's kill flags, so
 //! a slow player is never buried under stacked waves (the schedule
@@ -105,9 +107,28 @@ const HELLO_AT: f64 = 9.0;
 
 /// Player spawn, looking down the lane toward the stalled convoy.
 const PLAYER_SPAWN: Vec3 = Vec3::new(0.0, 0.0, 40.0);
-/// The stalled convoy, mid-lane at the transfer stop.
+/// The convoy's holding stations, mid-lane at the transfer stop. The haulers
+/// LOITER around these (task 20260722-092432): unarmed non-combatant AI ships
+/// flying a slow loop through the belt so they read as alive and hold their
+/// ground under fire instead of drifting off when a raider shoves them. They
+/// never shoot or chase (unarmed => AINonCombatant), but stay Player-aligned so
+/// the raiders still hunt them and the player must screen them.
 const QUEEN_POS: Vec3 = Vec3::new(0.0, 5.0, -420.0);
 const MERIDIAN_POS: Vec3 = Vec3::new(70.0, -12.0, -520.0);
+/// Loiter loops: legs > the ~75u patrol arrival radius (arrival_standoff 50 +
+/// waypoint slack 25) so the haulers actually FLY the loop instead of parking
+/// at the cluster, and centred on the holding stations so they stay in the belt
+/// near where the player expects to defend them.
+const QUEEN_LOITER: [Vec3; 3] = [
+    Vec3::new(60.0, 20.0, -370.0),
+    Vec3::new(-70.0, 0.0, -410.0),
+    Vec3::new(10.0, -10.0, -480.0),
+];
+const MERIDIAN_LOITER: [Vec3; 3] = [
+    Vec3::new(100.0, 0.0, -480.0),
+    Vec3::new(30.0, -25.0, -540.0),
+    Vec3::new(90.0, -5.0, -590.0),
+];
 /// Raider spawn points: deep field past the convoy, all >= 700u from the
 /// player spawn AND both haulers - outside the light turret's threat
 /// envelope of every friendly anchor, so the balance audit stays clean by
@@ -170,10 +191,19 @@ fn player_ship() -> ScenarioObjectConfig {
     }
 }
 
-/// A stalled convoy hauler: the cargoa hull, NO controller (drives are
-/// cold - it station-keeps and cannot chase), PLAYER allegiance so raider
-/// AI genuinely hunts it. The defend mission in two fields.
-fn convoy_hauler(id: &str, name: &str, position: Vec3, yaw: f32) -> ScenarioObjectConfig {
+/// A loitering convoy hauler: the cargoa hull (unarmed - hull cubes, two rear
+/// thrusters, a controller), an AI driver flying `patrol` so it slow-loops the
+/// belt and holds its ground under fire instead of drifting off, PLAYER
+/// allegiance so raider AI genuinely hunts it. Unarmed, so nova_scenario tags it
+/// `AINonCombatant` at spawn: it never targets, chases, or shoots - it just
+/// flies its loop and gets defended (task 20260722-092432).
+fn convoy_hauler(
+    id: &str,
+    name: &str,
+    position: Vec3,
+    yaw: f32,
+    patrol: Vec<Vec3>,
+) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
@@ -182,7 +212,10 @@ fn convoy_hauler(id: &str, name: &str, position: Vec3, yaw: f32) -> ScenarioObje
             rotation: Quat::from_rotation_y(yaw),
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            controller: SpaceshipController::None,
+            controller: SpaceshipController::AI(AIControllerConfig {
+                patrol,
+                ..Default::default()
+            }),
             allegiance: Some(Allegiance::Player),
             sections: craft::cargoa_sections(),
         }),
@@ -402,12 +435,14 @@ pub(crate) fn lifeline(
             "Hauler Ceres Queen",
             QUEEN_POS,
             0.5,
+            QUEEN_LOITER.to_vec(),
         )),
         spawn(convoy_hauler(
             ID_MERIDIAN,
             "Hauler Long Meridian",
             MERIDIAN_POS,
             -0.4,
+            MERIDIAN_LOITER.to_vec(),
         )),
         spawn(lane_beacon(
             "beacon_transfer",

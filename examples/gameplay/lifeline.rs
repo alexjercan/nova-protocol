@@ -144,6 +144,15 @@ fn slice_autopilot(world: &mut World, elapsed: f32) {
         let mut q = world.query_filtered::<(Entity, &nova_protocol::nova_events::prelude::EntityId), With<SpaceshipRootMarker>>();
         q.iter(world).find(|(_, eid)| ***eid == *id).map(|(e, _)| e)
     };
+    // A ship root's world position, for the convoy loiter check: the haulers
+    // fly a bounded loop and must stay in the belt, not drift off (task
+    // 20260722-092432).
+    let root_pos = |world: &mut World, id: &str| -> Option<Vec3> {
+        let mut q = world.query_filtered::<(&Transform, &nova_protocol::nova_events::prelude::EntityId), With<SpaceshipRootMarker>>();
+        q.iter(world)
+            .find(|(_, eid)| ***eid == *id)
+            .map(|(t, _)| t.translation)
+    };
     let num_var = |world: &World, key: &str| -> Option<f64> {
         match world.resource::<NovaEventWorld>().get_variable(key) {
             Some(VariableLiteral::Number(n)) => Some(*n),
@@ -286,6 +295,25 @@ fn slice_autopilot(world: &mut World, elapsed: f32) {
         }
         11 => {
             if root_by_id(world, "raider_3a").is_some() {
+                // The convoy loitered through the WHOLE defense without drifting
+                // off (task 20260722-092432): both haulers are still near their
+                // loiter loops after two waves of fire. Centroids of
+                // QUEEN_LOITER / MERIDIAN_LOITER; the loops span < 90u from
+                // centre, so a hauler that had drifted away would be far past
+                // this bound.
+                for (id, centre) in [
+                    ("hauler_queen", Vec3::new(0.0, 3.3, -420.0)),
+                    ("hauler_meridian", Vec3::new(73.3, -10.0, -536.7)),
+                ] {
+                    if let Some(pos) = root_pos(world, id) {
+                        let drift = pos.distance(centre);
+                        assert!(
+                            drift < 200.0,
+                            "{id} loitered in the belt, but was {drift:.0}u from \
+                             its loiter centre (drifted off?)"
+                        );
+                    }
+                }
                 let both = kill(world, "raider_3a") & kill(world, "raider_3b");
                 if both {
                     advance(&mut state, 12, "the last wave down");

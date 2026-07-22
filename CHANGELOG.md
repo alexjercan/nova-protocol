@@ -14,6 +14,9 @@ tagged **(breaking)**.
 
 ### Gameplay & Flight
 
+- Unarmed AI ships are now NON-COMBATANTS: a ship with an AI pilot but no turret or torpedo section never acquires a target, chases, or shoots - it just flies its patrol/orbit/idle routine. It stays targetable by hostiles, so an unarmed escort or convoy on your side is still hunted and must be defended; it simply cannot fight back. Automatic at spawn from the ship's own loadout, so any unarmed AI craft (yours or a mod's) gets it for free.
+- The **Lifeline** supply convoy now flies. The two haulers were stalled hulks that drifted off when a raider shoved them; they are now unarmed non-combatant AI ships that loiter a slow loop through the belt, holding their ground under fire and reading as alive instead of sitting dead in the lane. They still never shoot or chase (unarmed), and stay on your side so the raiders keep hunting them - the "keep the convoy alive" mission is unchanged, the convoy just moves now.
+
 - Gravity wells now pull only PILOTED ships (yours and the AI's), not unpiloted ones. A ship with no pilot (`controller: None` - scripted bystanders like a distress-call hauler) has no drive to resist a well, so it now FLOATS where it sits instead of being dragged in. Piloted ships - player and AI - feel gravity exactly as before, and a ship that gains an AI pilot starts feeling it the moment it does. No shipped scenario currently parks an unpiloted ship inside a well, so nothing visibly changes today; this makes "bystanders do not fall into wells" a guaranteed rule for authors and mods.
 
 ### Scenarios & Objectives

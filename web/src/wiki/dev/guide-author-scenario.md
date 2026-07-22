@@ -420,6 +420,14 @@ delay elapses; shooting it ends the grace instantly and permanently, and
 its point-defense still swats torpedoes throughout. Omitted or
 non-positive delays mean no grace.
 
+An UNARMED AI ship (no turret or torpedo section) is a NON-COMBATANT: it
+never acquires a target, chases, or shoots - it just flies its patrol /
+orbit / idle routine. This is automatic from the loadout, no field to set.
+Give an escort or a convoy hauler a `patrol` loop and leave the guns off and
+it loiters without ever fighting; keep its `allegiance` on the side you want
+hunted (a Player-aligned convoy stays something the enemy targets and the
+player must defend). The Lifeline convoy is the shipped example.
+
 ### StoryMessage
 
 Speaker-attributed story text, rendered by the HUD comms panel
