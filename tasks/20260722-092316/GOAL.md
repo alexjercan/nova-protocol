@@ -60,8 +60,13 @@ clean.
       landed 0ae5c7f9; 1 review round (APPROVE, out-of-context); new shared
       scenario/pacing.rs unifying the gate mechanism; shakedown opening panel
       now empty (owner decision). 20/20 scenario tests, lint clean.
-- [ ] 20260722-092427 (p78, nova_gameplay) Non-combatant ships hold station
+- [x] 20260722-092427 (p78, nova_gameplay) Non-combatant ships hold station
       instead of falling into gravity wells (Ceres Queen floats)
+      landed f328797d; 1 review round (APPROVE). Verify-first partly falsified
+      the report (broadside/lifeline have no wells) - fix is the guaranteed
+      "unpiloted ships never feel a well" rule (no current-content change).
+      Filed follow-up 20260722-105556 (lint guard). The observed convoy drift
+      is knockback -> task 092432.
 - [ ] 20260722-092432 (p72, nova_assets) Ally convoy haulers loiter/orbit the
       belt instead of drifting into the planetoid (depends on 092427)
 - [x] 20260722-092320 (p0, backlog) FILED: critical-damage state feature
