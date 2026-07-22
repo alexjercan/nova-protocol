@@ -97,7 +97,13 @@ Updated as tasks land (one line per land).
       a now-telegraphed Auditor; dead handler + orphaned ack removed; new
       ledger_ch4_ending test (10 passed) pins the structural no-spawn
       divergence. Owner Q1 (burn tone) batched to Finish.
-- [ ] 20260722-214115 (p46, the-ledger) Per-chapter look: cubemap assignment + SetSkybox accents
+- [x] 20260722-214115 (p46, the-ledger) Per-chapter look: cubemap assignment + SetSkybox accents
+      landed 2894113c; 1 review round (APPROVE). Deliberate per-chapter
+      cubemap + motivated SetSkybox accents (ch1 reveal, ch3 pinch, ch4
+      sell); ch2/ch2b + ch4-burn swaps skipped by design; engine untouched
+      (rigs got AssetPlugin, production-faithful); new ledger_skybox test.
+      NOTE: a mid-task concurrency slip (edited a live agent's worktree)
+      was recovered; see RETRO. Visual look is an owner Finish check.
 - [ ] 20260722-214119 (p40, the-ledger) Close-out: lint, version 1.6.0, ch2 test, catalog, doc sweep
 
 Dependencies: 214053 (diagnostic) feeds 214058/214105/214110. 214115 (look)
