@@ -192,7 +192,8 @@ impl Plugin for NovaGravityPlugin {
             .register_type::<GravityAffected>()
             .register_type::<DominantWell>();
 
-        app.add_observer(insert_gravity_affected_on_ship);
+        app.add_observer(insert_gravity_affected_on_player_ship);
+        app.add_observer(insert_gravity_affected_on_ai_ship);
         app.add_observer(insert_gravity_affected_on_torpedo);
         app.add_observer(insert_gravity_affected_on_turret_round);
         app.add_observer(remove_dominant_well_on_well_removed);
@@ -205,8 +206,24 @@ impl Plugin for NovaGravityPlugin {
     }
 }
 
-/// Ship roots opt into gravity - player and AI alike, one arena, one physics.
-fn insert_gravity_affected_on_ship(add: On<Add, SpaceshipRootMarker>, mut commands: Commands) {
+/// PILOTED ships opt into gravity - player and AI alike, one arena, one
+/// physics. Keyed on the pilot markers, NOT the bare ship root, so the
+/// controller kind decides: nova_scenario attaches `PlayerSpaceshipMarker` /
+/// `AISpaceshipMarker` per controller (a `controller: None` ship gets neither).
+/// An unpiloted ship has no drive to resist a well, so gravity would just drag
+/// it in - scripted bystanders (the Broadside Ceres Queen) are meant to FLOAT,
+/// not fall (owner playtest, task 20260722-092427). A hauler that GAINS an AI
+/// pilot (the Lifeline loiter, task 20260722-092432) opts in the moment its
+/// `AISpaceshipMarker` lands. Both observers `try_insert` the same idempotent
+/// marker, so a ship that somehow carried both would just opt in once.
+fn insert_gravity_affected_on_player_ship(
+    add: On<Add, PlayerSpaceshipMarker>,
+    mut commands: Commands,
+) {
+    commands.entity(add.entity).try_insert(GravityAffected);
+}
+
+fn insert_gravity_affected_on_ai_ship(add: On<Add, AISpaceshipMarker>, mut commands: Commands) {
     commands.entity(add.entity).try_insert(GravityAffected);
 }
 
@@ -574,20 +591,50 @@ mod tests {
     // --- Observer wiring ---------------------------------------------------
 
     #[test]
-    fn ships_torpedoes_and_turret_rounds_opt_into_gravity() {
+    fn piloted_ships_torpedoes_and_turret_rounds_opt_into_gravity() {
         let mut app = App::new();
-        app.add_observer(insert_gravity_affected_on_ship);
+        app.add_observer(insert_gravity_affected_on_player_ship);
+        app.add_observer(insert_gravity_affected_on_ai_ship);
         app.add_observer(insert_gravity_affected_on_torpedo);
         app.add_observer(insert_gravity_affected_on_turret_round);
 
-        let ship = app.world_mut().spawn(SpaceshipRootMarker).id();
+        let player = app
+            .world_mut()
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
+            .id();
+        let ai = app
+            .world_mut()
+            .spawn((SpaceshipRootMarker, AISpaceshipMarker))
+            .id();
         let torpedo = app.world_mut().spawn(TorpedoProjectileMarker).id();
         let round = app.world_mut().spawn(TurretBulletProjectileMarker).id();
         app.update();
 
-        assert!(app.world().get::<GravityAffected>(ship).is_some());
+        assert!(app.world().get::<GravityAffected>(player).is_some());
+        assert!(app.world().get::<GravityAffected>(ai).is_some());
         assert!(app.world().get::<GravityAffected>(torpedo).is_some());
         assert!(app.world().get::<GravityAffected>(round).is_some());
+    }
+
+    /// The Ceres Queen case (owner playtest, task 20260722-092427): a
+    /// `controller: None` ship carries NO pilot marker, so it never opts into
+    /// gravity - it floats where it is spawned instead of falling into a well.
+    #[test]
+    fn an_unpiloted_ship_does_not_opt_into_gravity() {
+        let mut app = App::new();
+        app.add_observer(insert_gravity_affected_on_player_ship);
+        app.add_observer(insert_gravity_affected_on_ai_ship);
+
+        // A bystander: the ship root, but neither pilot marker (as nova_scenario
+        // spawns a `controller: None` ship).
+        let bystander = app.world_mut().spawn(SpaceshipRootMarker).id();
+        app.update();
+
+        assert!(
+            app.world().get::<GravityAffected>(bystander).is_none(),
+            "an unpiloted ship must not feel gravity - it has no drive to resist \
+             the well, so it would just fall in"
+        );
     }
 
     // --- Physics-level integration ------------------------------------------
@@ -833,11 +880,11 @@ mod tests {
     }
 
     #[test]
-    fn a_ship_root_is_pulled_through_the_real_plugin_wiring() {
+    fn a_piloted_ship_root_is_pulled_through_the_real_plugin_wiring() {
         let mut app = gravity_app();
         spawn_well(&mut app, Vec3::ZERO);
-        // A bare ship root: GravityAffected must arrive via the plugin's
-        // observer, not by hand.
+        // A piloted ship root: GravityAffected must arrive via the plugin's
+        // observer (keyed on the pilot marker), not by hand.
         let ship = app
             .world_mut()
             .spawn((
@@ -847,6 +894,7 @@ mod tests {
                 ColliderDensity(1.0),
                 LinearVelocity(Vec3::ZERO),
                 SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
             ))
             .id();
         settle(&mut app);
@@ -856,12 +904,56 @@ mod tests {
 
         assert!(
             app.world().get::<GravityAffected>(ship).is_some(),
-            "the plugin's observer must opt ship roots in"
+            "the plugin's observer must opt piloted ship roots in"
         );
         assert!(
             velocity_of(&app, ship).x < -0.1,
             "the ship must fall toward the well, got {:?}",
             velocity_of(&app, ship)
+        );
+    }
+
+    /// The Ceres Queen, behaviourally (owner playtest, task 20260722-092427):
+    /// an unpiloted ship (`controller: None`, no pilot marker) parked inside a
+    /// well's SOI holds its position - it never opts into gravity, so no force
+    /// acts on it and it FLOATS instead of falling in. Fails before the fix,
+    /// when every ship root opted in regardless of pilot.
+    #[test]
+    fn an_unpiloted_ship_root_floats_in_a_well() {
+        let mut app = gravity_app();
+        spawn_well(&mut app, Vec3::ZERO);
+        let start = Vec3::new(50.0, 0.0, 0.0);
+        let bystander = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::from_translation(start),
+                Collider::sphere(0.5),
+                ColliderDensity(1.0),
+                LinearVelocity(Vec3::ZERO),
+                // A ship root with NO pilot marker - a `controller: None`
+                // bystander.
+                SpaceshipRootMarker,
+            ))
+            .id();
+        settle(&mut app);
+        for _ in 0..120 {
+            app.update();
+        }
+
+        assert!(
+            app.world().get::<GravityAffected>(bystander).is_none(),
+            "an unpiloted ship must not opt into gravity"
+        );
+        assert_eq!(
+            velocity_of(&app, bystander),
+            Vec3::ZERO,
+            "an unpiloted ship must not be pulled - it floats where it spawned"
+        );
+        assert!(
+            (position_of(&app, bystander) - start).length() < 0.001,
+            "the bystander held its position, got {:?}",
+            position_of(&app, bystander)
         );
     }
 

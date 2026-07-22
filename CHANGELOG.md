@@ -12,6 +12,10 @@ tagged **(breaking)**.
 
 ## [Unreleased]
 
+### Gameplay & Flight
+
+- Gravity wells now pull only PILOTED ships (yours and the AI's), not unpiloted ones. A ship with no pilot (`controller: None` - scripted bystanders like a distress-call hauler) has no drive to resist a well, so it now FLOATS where it sits instead of being dragged in. Piloted ships - player and AI - feel gravity exactly as before, and a ship that gains an AI pilot starts feeling it the moment it does. No shipped scenario currently parks an unpiloted ship inside a well, so nothing visibly changes today; this makes "bystanders do not fall into wells" a guaranteed rule for authors and mods.
+
 ### Scenarios & Objectives
 
 - Objectives no longer crowd the conversation across the base campaign. An objective now appears a beat AFTER the comms line that introduces it, never in the same instant, and completing one objective no longer pops the next one on the same frame - there is a short breathing beat between them (owner playtest). The Shakedown opening panel stays EMPTY while Capt. Halloran briefs you (the old "stand by" holding line is gone); Broadside's distress call, the ambush, and the Rust Tally's taunt each land before their objective; Lifeline's convoy dispatch precedes the screen objective; and Final Tally's survey, picket, and flagship objectives each follow their reveal line. Data-only: a new shared scenario-pacing toolbox (a clock-deadline "mark and wait" the whole mainline shares) replaces the per-scenario copies, pinned by cross-scenario invariants so no future beat can post an objective on top of a conversation again.
