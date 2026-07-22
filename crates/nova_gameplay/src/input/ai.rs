@@ -23,8 +23,7 @@ pub mod prelude {
     pub use super::{
         AIBehaviorState, AIEngageGrace, AIEvade, AIFireCadence, AILeash, AINonCombatant,
         AIOrbitDirective, AIPatrolRoute, AIPointDefenseTarget, AISpaceshipMarker, AITarget,
-        AIThreat, AITorpedoBay,
-        SpaceshipAIInputPlugin,
+        AIThreat, AITorpedoBay, SpaceshipAIInputPlugin,
     };
 }
 
