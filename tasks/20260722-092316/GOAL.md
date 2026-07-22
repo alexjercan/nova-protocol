@@ -55,8 +55,11 @@ clean.
 
 ## Tasks
 
-- [ ] 20260722-092421 (p85, nova_assets) Sequence objectives after
+- [x] 20260722-092421 (p85, nova_assets) Sequence objectives after
       conversations + breathing room between objective swaps
+      landed 0ae5c7f9; 1 review round (APPROVE, out-of-context); new shared
+      scenario/pacing.rs unifying the gate mechanism; shakedown opening panel
+      now empty (owner decision). 20/20 scenario tests, lint clean.
 - [ ] 20260722-092427 (p78, nova_gameplay) Non-combatant ships hold station
       instead of falling into gravity wells (Ceres Queen floats)
 - [ ] 20260722-092432 (p72, nova_assets) Ally convoy haulers loiter/orbit the
