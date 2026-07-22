@@ -2262,7 +2262,7 @@
                     )),
                     VariableSet((
                         key: "screen_gate",
-                        expression: Term(Factor(Literal(Number(4.0)))),
+                        expression: Term(Factor(Literal(Number(8.399999618530273)))),
                     )),
                     ObjectiveMarkerAttach((
                         target_id: "hauler_queen",

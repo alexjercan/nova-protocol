@@ -1350,7 +1350,7 @@
                     )),
                     VariableSet((
                         key: "contact_gate",
-                        expression: Term(Factor(Literal(Number(4.0)))),
+                        expression: Term(Factor(Literal(Number(8.399999618530273)))),
                     )),
                 ],
             ),
@@ -1413,7 +1413,7 @@
                         key: "defend_gate",
                         expression: Add(
                             Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(4.0)))),
+                            Term(Factor(Literal(Number(8.399999618530273)))),
                         ),
                     )),
                     SpawnScenarioObject((

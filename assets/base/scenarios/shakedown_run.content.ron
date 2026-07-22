@@ -662,7 +662,7 @@
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     VariableSet((
-                        key: "breather_last",
+                        key: "setup_last",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     VariableSet((
@@ -847,7 +847,7 @@
                         key: "beat_gate",
                         expression: Add(
                             Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(4.0)))),
+                            Term(Factor(Literal(Number(8.399999618530273)))),
                         ),
                     )),
                 ],
@@ -873,7 +873,7 @@
                         key: "beat_gate",
                         expression: Add(
                             Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(4.0)))),
+                            Term(Factor(Literal(Number(8.399999618530273)))),
                         ),
                     )),
                     ObjectiveComplete((
@@ -886,6 +886,33 @@
                         id: "player_spaceship",
                         verb: Goto,
                         enabled: true,
+                    )),
+                    StoryMessage((
+                        speaker: "Capt. Halloran",
+                        text: "Good burn. Next one\'s off your beam - swing your look around and find it.",
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                    Expression((LessThan(
+                        Term(Factor(Name("setup_last"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("beat_gate"))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "setup_last",
+                        expression: Term(Factor(Literal(Number(2.0)))),
                     )),
                     SpawnScenarioObject((
                         base: (
@@ -949,11 +976,38 @@
                         key: "beat_gate",
                         expression: Add(
                             Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(4.0)))),
+                            Term(Factor(Literal(Number(8.399999618530273)))),
                         ),
                     )),
                     ObjectiveComplete((
                         id: "b2_look",
+                    )),
+                    StoryMessage((
+                        speaker: "You",
+                        text: "Salvage beacons. I\'ll sweep the cluster and pull them in.",
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                    Expression((LessThan(
+                        Term(Factor(Name("setup_last"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("beat_gate"))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "setup_last",
+                        expression: Term(Factor(Literal(Number(3.0)))),
                     )),
                     Objective((
                         id: "b3_salvage",
@@ -987,6 +1041,10 @@
                         Term(Factor(Name("beat"))),
                         Term(Factor(Literal(Number(3.0)))),
                     ))),
+                    Expression((Equal(
+                        Term(Factor(Name("setup_last"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
                 ],
                 actions: [
                     DespawnScenarioObject((
@@ -1012,6 +1070,10 @@
                         Term(Factor(Name("beat"))),
                         Term(Factor(Literal(Number(3.0)))),
                     ))),
+                    Expression((Equal(
+                        Term(Factor(Name("setup_last"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
                 ],
                 actions: [
                     DespawnScenarioObject((
@@ -1035,6 +1097,10 @@
                     )),
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("setup_last"))),
                         Term(Factor(Literal(Number(3.0)))),
                     ))),
                 ],
@@ -1132,11 +1198,38 @@
                         key: "beat_gate",
                         expression: Add(
                             Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(4.0)))),
+                            Term(Factor(Literal(Number(8.399999618530273)))),
                         ),
                     )),
                     ObjectiveComplete((
                         id: "b3_salvage",
+                    )),
+                    StoryMessage((
+                        speaker: "Capt. Halloran",
+                        text: "Targeting computer\'s warmed up. Hold your radar on it till the lock sets.",
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(4.0)))),
+                    ))),
+                    Expression((LessThan(
+                        Term(Factor(Name("setup_last"))),
+                        Term(Factor(Literal(Number(4.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("beat_gate"))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "setup_last",
+                        expression: Term(Factor(Literal(Number(4.0)))),
                     )),
                     SetControllerVerb((
                         id: "player_spaceship",
@@ -1205,18 +1298,45 @@
                         key: "beat_gate",
                         expression: Add(
                             Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(4.0)))),
+                            Term(Factor(Literal(Number(8.399999618530273)))),
                         ),
                     )),
                     ObjectiveComplete((
                         id: "b4_lock",
                     )),
+                    HintEmphasisClear((
+                        verb: "RADAR",
+                    )),
+                    StoryMessage((
+                        speaker: "Capt. Halloran",
+                        text: "Now hand her to the computer - it flies the leg while you watch the belt.",
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(5.0)))),
+                    ))),
+                    Expression((LessThan(
+                        Term(Factor(Name("setup_last"))),
+                        Term(Factor(Literal(Number(5.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("beat_gate"))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "setup_last",
+                        expression: Term(Factor(Literal(Number(5.0)))),
+                    )),
                     Objective((
                         id: "b5_autopilot",
                         message: "Locked. Press [G] to let the computer fly.",
-                    )),
-                    HintEmphasisClear((
-                        verb: "RADAR",
                     )),
                     HintEmphasisSet((
                         verb: "GOTO",
@@ -1244,11 +1364,38 @@
                         key: "beat_gate",
                         expression: Add(
                             Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(4.0)))),
+                            Term(Factor(Literal(Number(8.399999618530273)))),
                         ),
                     )),
                     ObjectiveComplete((
                         id: "b5_autopilot",
+                    )),
+                    StoryMessage((
+                        speaker: "You",
+                        text: "Long leg to the next mark. Re-locking and handing off again.",
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(6.0)))),
+                    ))),
+                    Expression((LessThan(
+                        Term(Factor(Name("setup_last"))),
+                        Term(Factor(Literal(Number(6.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("beat_gate"))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "setup_last",
+                        expression: Term(Factor(Literal(Number(6.0)))),
                     )),
                     SpawnScenarioObject((
                         base: (
@@ -1313,11 +1460,41 @@
                         key: "beat_gate",
                         expression: Add(
                             Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(4.0)))),
+                            Term(Factor(Literal(Number(8.399999618530273)))),
                         ),
                     )),
                     ObjectiveComplete((
                         id: "b6_waypoint",
+                    )),
+                    HintEmphasisClear((
+                        verb: "GOTO",
+                    )),
+                    StoryMessage((
+                        speaker: "Capt. Halloran",
+                        text: "That\'s the planetoid\'s pull. Ease off the drive and let the well carry you.",
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(7.0)))),
+                    ))),
+                    Expression((LessThan(
+                        Term(Factor(Name("setup_last"))),
+                        Term(Factor(Literal(Number(7.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("beat_gate"))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "setup_last",
+                        expression: Term(Factor(Literal(Number(7.0)))),
                     )),
                     CreateScenarioArea((
                         id: "coast_ring",
@@ -1346,9 +1523,6 @@
                         target_id: "planetoid",
                         label: "PLANETOID",
                     )),
-                    HintEmphasisClear((
-                        verb: "GOTO",
-                    )),
                 ],
             ),
             (
@@ -1372,11 +1546,38 @@
                         key: "beat_gate",
                         expression: Add(
                             Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(4.0)))),
+                            Term(Factor(Literal(Number(8.399999618530273)))),
                         ),
                     )),
                     ObjectiveComplete((
                         id: "b7_coast",
+                    )),
+                    StoryMessage((
+                        speaker: "Capt. Halloran",
+                        text: "Ride it around - the computer will hold your orbit for you.",
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(8.0)))),
+                    ))),
+                    Expression((LessThan(
+                        Term(Factor(Name("setup_last"))),
+                        Term(Factor(Literal(Number(8.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("beat_gate"))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "setup_last",
+                        expression: Term(Factor(Literal(Number(8.0)))),
                     )),
                     SetControllerVerb((
                         id: "player_spaceship",
@@ -1410,7 +1611,7 @@
                         key: "beat_gate",
                         expression: Add(
                             Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(4.0)))),
+                            Term(Factor(Literal(Number(8.399999618530273)))),
                         ),
                     )),
                     ObjectiveComplete((
@@ -1442,16 +1643,43 @@
                             lock_signature: Some(15.0),
                         )),
                     )),
-                    Objective((
-                        id: "b9_break",
-                        message: "Break away - press [Z] and burn clear.",
-                    )),
                     ObjectiveMarkerDetach((
                         target_id: "planetoid",
                     )),
                     ObjectiveMarkerAttach((
                         target_id: "derelict",
                         label: "DERELICT",
+                    )),
+                    StoryMessage((
+                        speaker: "Capt. Halloran",
+                        text: "Good. Break the orbit and burn clear when you\'re ready.",
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(9.0)))),
+                    ))),
+                    Expression((LessThan(
+                        Term(Factor(Name("setup_last"))),
+                        Term(Factor(Literal(Number(9.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("beat_gate"))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "setup_last",
+                        expression: Term(Factor(Literal(Number(9.0)))),
+                    )),
+                    Objective((
+                        id: "b9_break",
+                        message: "Break away - press [Z] and burn clear.",
                     )),
                 ],
             ),
@@ -1476,11 +1704,38 @@
                         key: "beat_gate",
                         expression: Add(
                             Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(4.0)))),
+                            Term(Factor(Literal(Number(8.399999618530273)))),
                         ),
                     )),
                     ObjectiveComplete((
                         id: "b9_break",
+                    )),
+                    StoryMessage((
+                        speaker: "Capt. Halloran",
+                        text: "Dead hulk off your old salvage field. Blood the guns on it - lock it up and watch your viewfinder.",
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(10.0)))),
+                    ))),
+                    Expression((LessThan(
+                        Term(Factor(Name("setup_last"))),
+                        Term(Factor(Literal(Number(10.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("beat_gate"))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "setup_last",
+                        expression: Term(Factor(Literal(Number(10.0)))),
                     )),
                     Objective((
                         id: "b10_paint",
@@ -1916,7 +2171,7 @@
                         key: "scav_gate",
                         expression: Add(
                             Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(4.0)))),
+                            Term(Factor(Literal(Number(8.399999618530273)))),
                         ),
                     )),
                     ObjectiveMarkerDetach((
@@ -2010,249 +2265,6 @@
                     NextScenario((
                         scenario_id: "shakedown_run",
                         linger: true,
-                    )),
-                ],
-            ),
-            (
-                name: OnUpdate,
-                filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(2.0)))),
-                    ))),
-                    Expression((LessThan(
-                        Term(Factor(Name("breather_last"))),
-                        Term(Factor(Literal(Number(2.0)))),
-                    ))),
-                    Expression((GreaterThan(
-                        Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Name("beat_gate"))),
-                    ))),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "breather_last",
-                        expression: Term(Factor(Literal(Number(2.0)))),
-                    )),
-                    StoryMessage((
-                        speaker: "Capt. Halloran",
-                        text: "Good burn. Next one\'s off your beam - swing your look around and find it.",
-                    )),
-                ],
-            ),
-            (
-                name: OnUpdate,
-                filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(3.0)))),
-                    ))),
-                    Expression((LessThan(
-                        Term(Factor(Name("breather_last"))),
-                        Term(Factor(Literal(Number(3.0)))),
-                    ))),
-                    Expression((GreaterThan(
-                        Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Name("beat_gate"))),
-                    ))),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "breather_last",
-                        expression: Term(Factor(Literal(Number(3.0)))),
-                    )),
-                    StoryMessage((
-                        speaker: "You",
-                        text: "Salvage beacons. I\'ll sweep the cluster and pull them in.",
-                    )),
-                ],
-            ),
-            (
-                name: OnUpdate,
-                filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(4.0)))),
-                    ))),
-                    Expression((LessThan(
-                        Term(Factor(Name("breather_last"))),
-                        Term(Factor(Literal(Number(4.0)))),
-                    ))),
-                    Expression((GreaterThan(
-                        Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Name("beat_gate"))),
-                    ))),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "breather_last",
-                        expression: Term(Factor(Literal(Number(4.0)))),
-                    )),
-                    StoryMessage((
-                        speaker: "Capt. Halloran",
-                        text: "Targeting computer\'s warmed up. Hold your radar on it till the lock sets.",
-                    )),
-                ],
-            ),
-            (
-                name: OnUpdate,
-                filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(5.0)))),
-                    ))),
-                    Expression((LessThan(
-                        Term(Factor(Name("breather_last"))),
-                        Term(Factor(Literal(Number(5.0)))),
-                    ))),
-                    Expression((GreaterThan(
-                        Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Name("beat_gate"))),
-                    ))),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "breather_last",
-                        expression: Term(Factor(Literal(Number(5.0)))),
-                    )),
-                    StoryMessage((
-                        speaker: "Capt. Halloran",
-                        text: "Now hand her to the computer - it flies the leg while you watch the belt.",
-                    )),
-                ],
-            ),
-            (
-                name: OnUpdate,
-                filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(6.0)))),
-                    ))),
-                    Expression((LessThan(
-                        Term(Factor(Name("breather_last"))),
-                        Term(Factor(Literal(Number(6.0)))),
-                    ))),
-                    Expression((GreaterThan(
-                        Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Name("beat_gate"))),
-                    ))),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "breather_last",
-                        expression: Term(Factor(Literal(Number(6.0)))),
-                    )),
-                    StoryMessage((
-                        speaker: "You",
-                        text: "Long leg to the next mark. Re-locking and handing off again.",
-                    )),
-                ],
-            ),
-            (
-                name: OnUpdate,
-                filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(7.0)))),
-                    ))),
-                    Expression((LessThan(
-                        Term(Factor(Name("breather_last"))),
-                        Term(Factor(Literal(Number(7.0)))),
-                    ))),
-                    Expression((GreaterThan(
-                        Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Name("beat_gate"))),
-                    ))),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "breather_last",
-                        expression: Term(Factor(Literal(Number(7.0)))),
-                    )),
-                    StoryMessage((
-                        speaker: "Capt. Halloran",
-                        text: "That\'s the planetoid\'s pull. Ease off the drive and let the well carry you.",
-                    )),
-                ],
-            ),
-            (
-                name: OnUpdate,
-                filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(8.0)))),
-                    ))),
-                    Expression((LessThan(
-                        Term(Factor(Name("breather_last"))),
-                        Term(Factor(Literal(Number(8.0)))),
-                    ))),
-                    Expression((GreaterThan(
-                        Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Name("beat_gate"))),
-                    ))),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "breather_last",
-                        expression: Term(Factor(Literal(Number(8.0)))),
-                    )),
-                    StoryMessage((
-                        speaker: "Capt. Halloran",
-                        text: "Ride it around - the computer will hold your orbit for you.",
-                    )),
-                ],
-            ),
-            (
-                name: OnUpdate,
-                filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(9.0)))),
-                    ))),
-                    Expression((LessThan(
-                        Term(Factor(Name("breather_last"))),
-                        Term(Factor(Literal(Number(9.0)))),
-                    ))),
-                    Expression((GreaterThan(
-                        Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Name("beat_gate"))),
-                    ))),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "breather_last",
-                        expression: Term(Factor(Literal(Number(9.0)))),
-                    )),
-                    StoryMessage((
-                        speaker: "Capt. Halloran",
-                        text: "Good. Break the orbit and burn clear when you\'re ready.",
-                    )),
-                ],
-            ),
-            (
-                name: OnUpdate,
-                filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(10.0)))),
-                    ))),
-                    Expression((LessThan(
-                        Term(Factor(Name("breather_last"))),
-                        Term(Factor(Literal(Number(10.0)))),
-                    ))),
-                    Expression((GreaterThan(
-                        Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Name("beat_gate"))),
-                    ))),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "breather_last",
-                        expression: Term(Factor(Literal(Number(10.0)))),
-                    )),
-                    StoryMessage((
-                        speaker: "Capt. Halloran",
-                        text: "Dead hulk off your old salvage field. Blood the guns on it - lock it up and watch your viewfinder.",
                     )),
                 ],
             ),
