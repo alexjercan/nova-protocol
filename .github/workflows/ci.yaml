@@ -60,6 +60,13 @@ jobs:
       - name: Formatting
         run: cargo fmt --check
 
+      # The local pre-commit fmt guard (.githooks/pre-commit) is what stops
+      # drift from LANDING - CI's fmt step above is only advisory for a local
+      # sprout-land + direct-push flow. This pins the guard itself so a broken
+      # hook script surfaces here instead of silently letting drift through.
+      - name: Fmt hook self-test
+        run: scripts/test-fmt-hook.sh
+
       # One clippy pass, workspace-wide, with the debug feature on. `debug`
       # fans out to every crate's debug feature (nova_debug has none - it IS
       # the debug tooling - and cargo is fine with that), so this lints the

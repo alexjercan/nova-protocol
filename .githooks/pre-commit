@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+#
+# Pre-commit fmt guard. Refuses a commit whose staged changes touch Rust when
+# the workspace is not rustfmt-clean, so formatting drift can never LAND on
+# master - not merely get reported by CI after the fact.
+#
+# Why a hook and not just CI: this project lands via `sprout land`, a local
+# squash-merge + direct push to master. CI's `cargo fmt --check` step runs
+# AFTER the commit is already on master (a red push-to-master run neither
+# blocks nor reverts it), so it cannot stop drift from accumulating. `sprout
+# land` commits with a plain `git commit` and rolls the main checkout back on a
+# hook failure by design, so this hook is the actual land-time gate. It also
+# fires on every in-worktree `/work` commit (git worktrees share this repo's
+# core.hooksPath), catching drift at the moment it would be introduced.
+#
+# Enable once per clone: `scripts/setup-hooks.sh` (sets core.hooksPath).
+# Emergency bypass (discouraged): `git commit --no-verify`.
+#
+# Parity with CI: runs the same whole-workspace `cargo fmt --check` the
+# ci.yaml "Formatting" step runs, so a commit the hook accepts is one CI's fmt
+# gate would also accept.
+
+set -euo pipefail
+
+# Only gate commits that actually touch Rust. A staged .rs file is the moment
+# drift would enter history; a docs-only commit (the many docs(task)/retro
+# commits a flow makes) never introduces Rust drift, so skip it and stay fast.
+# --diff-filter=d drops deletions: a removed .rs cannot be misformatted.
+if ! git diff --cached --name-only --diff-filter=d -z \
+    | grep -qz '\.rs$'; then
+    exit 0
+fi
+
+# Resolve a working `cargo`. On NixOS bare cargo is not on PATH; the toolchain
+# lives in the flake devshell (see AGENTS.md "Build, run, test"). Prefer bare
+# cargo when present (fast), else fall back to the devshell when a flake and
+# nix are available.
+repo_root="$(git rev-parse --show-toplevel)"
+if command -v cargo > /dev/null 2>&1; then
+    fmt_check=(cargo fmt --check)
+elif command -v nix > /dev/null 2>&1 && [[ -f "$repo_root/flake.nix" ]]; then
+    fmt_check=(nix develop "$repo_root" --command cargo fmt --check)
+else
+    echo "pre-commit: staged Rust changes but no cargo/nix toolchain found." >&2
+    echo "            Install the toolchain (or enter 'nix develop') and retry," >&2
+    echo "            or bypass with 'git commit --no-verify' (discouraged)." >&2
+    exit 1
+fi
+
+if ! (cd "$repo_root" && "${fmt_check[@]}"); then
+    echo >&2
+    echo "pre-commit: rustfmt drift - commit refused. Run 'cargo fmt' and restage." >&2
+    echo "            (bypass with 'git commit --no-verify' if you must)." >&2
+    exit 1
+fi

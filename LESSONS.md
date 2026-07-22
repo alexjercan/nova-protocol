@@ -794,3 +794,8 @@ here (annotated) as the paid record.
   Promotion candidate (tool > prose): a pre-commit / pre-land `cargo fmt --check`
   guard would make this impossible instead of relying on the author remembering.
   20260525-133014, 20260715-142931, 20260722-092432.
+  SHIPPED 2026-07-22 (20260722-183022): `.githooks/pre-commit` refuses a commit
+  whose staged changes touch Rust while the tree is not fmt-clean; armed via
+  `scripts/setup-hooks.sh`, and it gates the `sprout land` commit too (sprout
+  rolls back on hook failure). The "author remembering" failure mode is now a
+  tool guard - the recurrence this entry tracked should stop.

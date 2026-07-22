@@ -64,10 +64,19 @@ cargo run                        # the game (boots into the main menu)
 cargo run --features dev         # + debug tooling (inspector, wireframe)
 cargo run --example scenario     # examples are the fastest way to test a subsystem
 trunk serve                      # web build on :8080
-cargo check && cargo fmt         # do this before committing
+cargo check && cargo fmt         # do this before committing (a hook enforces fmt - see below)
 cargo run -p nova_assets --bin content -- gen   # regen base content (also: lint - refs + balance + input overlaps)
 cargo run -p nova_probe -- run playable      # run-harness check: correctness+perf report
 ```
+
+Enable the fmt guard once per fresh clone: `scripts/setup-hooks.sh` (points
+`core.hooksPath` at the tracked `.githooks/`). The `pre-commit` hook then
+refuses any commit whose staged changes touch Rust while the workspace is not
+`cargo fmt --check`-clean, so drift cannot land - CI's fmt step is only
+advisory here (we land via a local `sprout land` squash-merge + direct push to
+master, which CI cannot block). It skips docs-only commits and can be bypassed
+with `git commit --no-verify`. `scripts/test-fmt-hook.sh` (also run in CI)
+guards the hook itself.
 
 Do NOT run the full `cargo test` or `cargo clippy` locally unless asked: CI
 (`.github/workflows/ci.yaml`) runs both on every PR and push to master, and
