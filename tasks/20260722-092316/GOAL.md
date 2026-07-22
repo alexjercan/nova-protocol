@@ -69,8 +69,16 @@ clean.
       is knockback -> task 092432.
 - [ ] 20260722-092432 (p72, nova_assets) Ally convoy haulers loiter/orbit the
       belt instead of drifting into the planetoid (depends on 092427)
+- [x] 20260722-114541 (p88, nova_assets) DISCOVERED MID-FLOW + fixed: the
+      pacing pass (092421) stamped opening-objective gates with mark_clock at
+      OnStart, where scenario_elapsed is undefined -> opening objectives never
+      posted + 174 error lines. Found by probing lifeline for task 092432.
+      landed d320e1dc; 1 review round (APPROVE); new pacing::open_gate + an
+      OnStart-clock-read invariant. Lesson: probe scenario content changes.
 - [x] 20260722-092320 (p0, backlog) FILED: critical-damage state feature
 - [x] 20260722-092326 (p0, backlog) FILED: rethink kill condition
+- [x] 20260722-105556 (p0, backlog) FILED: content-lint guard for a
+      controller:None ship inside a well SOI (from task 092427 review)
 
 ## Manual acceptance (batched for the user at Finish)
 
