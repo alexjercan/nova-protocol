@@ -48,6 +48,21 @@ Updated as tasks land (one line per land).
       8 instruction / 2 mid / reveal beats classified, broadside hauler marker
       moved to OnStart, content regenerated, new mid-read pin test.
 
+## Done-definition disposition (Finish)
+
+1. Gap constants: MET (REVEAL/INSTRUCTION/MID_GAP in pacing.rs, comms-derived).
+2. Per-beat gaps applied: MET (22 scenario tests; RON = 8x4.0 + 2x6.0 shakedown,
+   etc.).
+3. Broadside hauler marked at transition: MET (verified in the RON + review).
+4. Content regenerated + parity: MET (content_ron_parity 2/2).
+5. Lint clean: MET (0 errors).
+6. Scenarios load/run: PARTIAL - menu_newgame probe OK (loads shakedown, 0
+   invariant violations); lifeline/broadside reach Playing (content loads/runs)
+   then hit a HOST wgpu render OOM on heavy combat scenes under software
+   rendering (identical across both, system RAM free). DEFERRED to CI (real
+   render path) per ledger `gpu-example-local-skip`; gameplay correctness is
+   covered by reached_playing + the unit/parity suite. Not a code residue.
+
 ## Manual acceptance (batched for the user at Finish)
 
 - (pending) 20260722-163542: playtest the tutorial (shakedown) - do the

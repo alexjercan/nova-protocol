@@ -25,31 +25,31 @@ the owner can tune them after playtest.
 
 ## Steps
 
-- [ ] comms_panel.rs: make COMMS_MIN_SECS `pub` (exported via the module
+- [x] comms_panel.rs: make COMMS_MIN_SECS `pub` (exported via the module
   prelude, like the other COMMS_* constants) so pacing can derive
   INSTRUCTION_GAP from it.
-- [ ] pacing.rs: add REVEAL_GAP (= the current BEAT_GAP expression),
+- [x] pacing.rs: add REVEAL_GAP (= the current BEAT_GAP expression),
   INSTRUCTION_GAP (= COMMS_MIN_SECS), MID_GAP (= (dwell+min)/2). Keep a BEAT_GAP
   alias = REVEAL_GAP if convenient, or migrate call sites. Document each as
   playtest-tunable and cross-reference the comms constants.
-- [ ] shakedown.rs: give `stamp_gate` a `delay: f64` parameter (or a sibling)
+- [x] shakedown.rs: give `stamp_gate` a `delay: f64` parameter (or a sibling)
   so each transition stamps its category's gap into VAR_GATE. Apply:
   INSTRUCTION_GAP on beats 1->2, 2->3, 3->4, 4->5, 5->6, 7->8, 8->9; MID_GAP on
   6->7 and 9->10; REVEAL_GAP on the beat-12 scavenger telegraph
   (mark_clock VAR_SCAV_GATE). The opening->obj1 seed stamp and the tight
   10->11 combat beat stay as-is.
-- [ ] lifeline.rs: open_gate(VAR_SCREEN_GATE, REVEAL_GAP).
-- [ ] broadside.rs: contact beat -> MID_GAP AND move `mark(ID_HAULER, ...)` out
+- [x] lifeline.rs: open_gate(VAR_SCREEN_GATE, REVEAL_GAP).
+- [x] broadside.rs: contact beat -> MID_GAP AND move `mark(ID_HAULER, ...)` out
   of the gated_once and onto the transition (OnStart-adjacent), so the nav
   marker exists during the distress line; ambush/defend -> REVEAL_GAP; gunship
   taunt -> REVEAL_GAP.
-- [ ] final_tally.rs: survey -> MID_GAP; picket -> MID_GAP; cast-off/break ->
+- [x] final_tally.rs: survey -> MID_GAP; picket -> MID_GAP; cast-off/break ->
   REVEAL_GAP.
-- [ ] Update shakedown pacing tests: `settle_beat` must advance past the
+- [x] Update shakedown pacing tests: `settle_beat` must advance past the
   LONGEST gap (REVEAL_GAP + margin) so every beat posts regardless of category;
   the not-posted-before / posted-after guards should still hold. Re-check the
   `_and_beats_breathe` gate-stamp count and any beat that changed gap.
-- [ ] Regenerate content: `cargo run -p nova_assets gen`, commit the changed
+- [x] Regenerate content: `cargo run -p nova_assets gen`, commit the changed
   assets/base/scenarios/*.content.ron in the SAME change.
 
 ## Definition of Done
