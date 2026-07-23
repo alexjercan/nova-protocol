@@ -652,6 +652,14 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 
 ## Domain lessons (nova-protocol specific)
 
+- `avoidance-geometry-is-computed` (x1): a "sneak past / thread it" mechanic is
+  only real if the SAFE corridor is pinned OUTSIDE the hazard volume by
+  computed geometry (worst-case body radius, detection-bubble radius, leg
+  centerline), the same rigor as a threadable-gap pin - a hand-placed bubble
+  that merely "looks avoidable" false-greens; and the rig must assert the live
+  post-flip COMPONENT (allegiance) after driving the real handler, not the
+  action's presence in RON. 20260723-000320.
+
 - `gate-scenario-handlers-to-their-acts` (x1): every handler fires in every
   act unless filtered; gate by default, especially terminal states.
   20260708-203659.
@@ -719,8 +727,11 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `verify-ci-triggers-before-claiming-coverage` (x2): read workflow triggers
   before writing "CI builds this"; run the real build (trunk) when it is the
   sole gate. 20260714-174131, 20260714-233438.
-- `lint-covers-types-not-variants` (x1): checks over a config tree enumerate
-  every PATH to the checked type, not remembered enum variants. 20260716-191543.
+- `lint-covers-types-not-variants` (x2): checks over a config tree enumerate
+  every PATH to the checked type, not remembered enum variants; and ADDING an
+  enum variant must sweep every non-exhaustive `match` on that enum (a `_ =>`
+  arm hides the gap the compiler would otherwise flag) - a new id-bearing
+  scenario action skipped the lint's dangling-target check. 20260716-191543, 20260723-000253.
 - `content-identifiers-sweep-by-script` (x1): cross-file content ids resolve
   at spawn and pass every gate; sweep by script against the catalogs before
   review. 20260716-123535.
