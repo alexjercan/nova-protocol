@@ -49,7 +49,10 @@ AI ship falling into a well.
 ## Tasks
 
 - [ ] 20260723-223947 (p0, umbrella) this goal
-- [ ] 20260723-223954 (p62, the-ledger) ch5 gravity r2 (content)
+- [x] 20260723-223954 (p62, the-ledger) ch5 gravity r2 (content)
+      landed 881273f7; 1 review round (APPROVE, out-of-context; R2.1 NIT - imprecise
+      "piloted" phrasing, no change); bundle 1.11.0 -> 1.12.0; base thrusterless
+      + moved clear of tiny wells, raiders leashed 200 short of every well
 - (backlog) 20260723-224003 smarter AI for gravity wells (separate future work)
 
 ## Decisions (load-bearing, architectural)
@@ -64,6 +67,35 @@ AI ship falling into a well.
 
 ## Manual acceptance (batched for the user at Finish)
 
-- (pending) playtest ch5: the base holds its position; NO AI ship (base or the
+All verifiable done-definition items MET + re-verified on master. This is the
+human-playtest gate (ch5 is un-hidden for direct testing). Any issue -> new task.
+
+- (pending user playtest) the base holds its position; NO AI ship (base or the
   four fighters) falls into a gravity well; the wells are gentle scenery on the
   approach; torpedoes still on R; launches from the picker.
+
+## Finish (2026-07-23)
+
+Task 20260723-223954 landed 881273f7 (review APPROVE r1; one NIT, R2.1 - an
+imprecise "piloted" shorthand in the planning prose, no code change). Master
+re-verified green: content lint 0 err/warn/finding (6 scenarios balance-audited);
+`ledger_ch5_raid` 11/11, `ledger_ch4_ending` 10/10, `webmods_validation` 1/1.
+
+Done-definition on master (all MET): (1) base thrusterless (`AI(())`, 0 thrusters,
+no leash), 2 turrets, parked at (0,15,-580) clear of every well (360-449u vs SOI
+64-72); (2) tiny wells (radius 8-9, gravity 1) in the early approach; (3) raiders
+leashed 200 and 96-185u short of any well - none fall in; (4) bundle 1.12.0 +
+docs synced. The playtest feel is the deferred user gate above.
+
+Conformance: `tatr check` clean on both tasks; `tatr check --ledger LESSONS.md`
+clean. `/lessons`: `/compound` folded this cycle's lessons (renamed/sharpened
+`read-all-branches-of-a-load-bearing-engine-rule` x2, and the
+`bundle-version-string-pin-bites-on-bump` x2 lesson paid off preventing its own
+recurrence); no loose docs/ scratch; the docs/ wipe defers to the 0.8.0 release.
+
+Residue: none dropped. The real fix for the underlying limitation (AI ships
+cannot fly gravity wells) is filed as backlog task 20260723-224003, so the wells
+can grow back once that lands - explicitly deferred, not silently omitted.
+
+REMINDER (still standing): ch5 is `hidden: false` for testing - re-hide it before
+the 0.8.0 release so the raid stays a fight-only reward.
