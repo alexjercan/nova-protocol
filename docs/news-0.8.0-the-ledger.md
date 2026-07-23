@@ -12,8 +12,12 @@ Player-facing beats, ready to fold into the news:
 - **Chapter three has real teeth.** The quiet channel now makes you fly. A
   debris pinch between the first two nav drops squeezes the lane down to a
   single thread between two wrecks the size of houses - thread it slow, no
-  lock will save you off the rocks. The Magpie ambush deeper in still waits,
-  and both are optional to a careful pilot: the drops are the job.
+  lock will save you off the rocks. Two Magpie pickets patrol the flanks,
+  cold and neutral until you give yourself away: stray into their watch,
+  paint one, or burn too hot through the narrows (over 8 u/s is noise they
+  hear - it warns you once, then wakes them). Run dark and slow and you slip
+  past for Vesh's quiet-scopes payoff; blow it and it is a fight. The drops
+  are the job either way.
 - **The finale actually forks.** Sell the box at Vesh's berth and the sale
   calls the Auditor down - a military gunship you have to break for the
   payday (and it now telegraphs its approach before it turns lethal). Burn

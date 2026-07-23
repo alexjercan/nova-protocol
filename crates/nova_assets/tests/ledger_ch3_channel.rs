@@ -28,6 +28,13 @@
 //!    paint both fire SetAllegiance -> Enemy on BOTH ships (asserted on the
 //!    live Allegiance COMPONENT, spawned through the real spawn action and
 //!    flushed by the production state_to_world sync) and stamp `spotted`.
+//! 5b. The overspeed provocation (task 20260723-143603): burning over 8 u/s
+//!    is the fifth wake path, warn-then-trip on the reserved `player_speed`
+//!    readout - the first breach only WARNS (pickets stay Neutral), and
+//!    tripping needs a FRESH breach after slowing under the 7 u/s rearm band,
+//!    so one continuous burn cannot warn-and-trip. All three OnUpdate handlers
+//!    gate `spotted == 0`, so a prior wake disarms them and a trip disarms the
+//!    other four - the same one-shot contract.
 //! 6. Watch-zone geometry: every detection bubble stays clear of the pinch
 //!    safe lane (the NAV-1 -> NAV-2 leg) AND covers the wide swing around
 //!    its boulder - sneaking through the pinch is how you stay unseen.
@@ -278,6 +285,18 @@ fn pump_clock(app: &mut App, to_secs: f64) {
     app.update();
 }
 
+/// Set the reserved `player_speed` readout (units/second) and tick, so the
+/// overspeed provocation handlers see it - the same idiom as `pump_clock` for
+/// the clock. In production `track_player_speed` (nova_scenario) writes this
+/// off the player ship's LinearVelocity every live tick; the tracker is
+/// unit-pinned there, so this rig injects the value directly and tests the
+/// CONTENT handlers that consume it (task 20260723-143603).
+fn pump_speed(app: &mut App, to_units: f64) {
+    seed_var(app, "player_speed", to_units);
+    app.update();
+    app.update();
+}
+
 fn number_var(app: &App, key: &str) -> Option<f64> {
     match app.world().resource::<NovaEventWorld>().get_variable(key) {
         Some(VariableLiteral::Number(n)) => Some(*n),
@@ -329,6 +348,7 @@ fn armed_app() -> App {
         ("pinch_warn_said", 0.0),
         ("pinch_clear_said", 0.0),
         ("spotted", 0.0),
+        ("speed_warned", 0.0),
         ("win_gate", 0.0),
         ("win_said", 0.0),
         ("scenario_elapsed", 0.0),
@@ -358,6 +378,7 @@ fn on_start_seeds_the_sequencer_and_spawns_the_cast() {
         "pinch_warn_said",
         "pinch_clear_said",
         "spotted",
+        "speed_warned",
         "win_gate",
         "win_said",
     ] {
@@ -761,6 +782,134 @@ fn painting_a_sleeping_magpie_wakes_both() {
     let (next, linger) = queued_next(&app).expect("a retry is queued");
     assert_eq!(next, "ledger_ch3_quiet_channel");
     assert!(linger);
+}
+
+/// The fifth provocation (task 20260723-143603): burning too hot wakes the
+/// pickets, warn-then-trip on the reserved `player_speed` readout. The rig
+/// injects `player_speed` via `pump_speed` exactly as `pump_clock` injects the
+/// clock (the engine writes it every tick in production; the tracker is
+/// unit-pinned in nova_scenario, so here the CONTENT handlers are under test).
+/// Hysteresis: warn > 8 u/s, rearm < 7, trip on the NEXT breach > 8 - so one
+/// continuous burn cannot warn-and-trip.
+#[test]
+fn overspeed_warns_then_a_fresh_breach_wakes_both_magpies() {
+    let scenario = scenario_from(CH3_RON);
+    let mut app = armed_app();
+    spawn_magpies(&mut app, &scenario);
+
+    // Baseline: both pickets asleep, nobody warned.
+    assert_eq!(number_var(&app, "speed_warned"), Some(0.0));
+    assert_eq!(
+        ship_allegiance(&mut app, "channel_magpie_1"),
+        Allegiance::Neutral
+    );
+
+    // First breach over 8 u/s: WARNS only. speed_warned -> 1, the pickets stay
+    // Neutral and spotted stays 0 (a warning is not a spotting).
+    pump_speed(&mut app, 9.0);
+    assert_eq!(
+        number_var(&app, "speed_warned"),
+        Some(1.0),
+        "the first overspeed only warns"
+    );
+    assert_eq!(
+        number_var(&app, "spotted"),
+        Some(0.0),
+        "a warning does not wake the pickets"
+    );
+    assert_eq!(
+        ship_allegiance(&mut app, "channel_magpie_1"),
+        Allegiance::Neutral
+    );
+    assert_eq!(
+        ship_allegiance(&mut app, "channel_magpie_2"),
+        Allegiance::Neutral
+    );
+
+    // A SINGLE CONTINUOUS burn above 8 never trips: the trip needs
+    // speed_warned == 2, which needs a rearm below 7 first. Hold hot; nothing
+    // advances.
+    for _ in 0..3 {
+        pump_speed(&mut app, 12.0);
+    }
+    assert_eq!(
+        number_var(&app, "speed_warned"),
+        Some(1.0),
+        "a continuous burn never rearms, so it never trips"
+    );
+    assert_eq!(number_var(&app, "spotted"), Some(0.0));
+    assert_eq!(
+        ship_allegiance(&mut app, "channel_magpie_1"),
+        Allegiance::Neutral
+    );
+
+    // Slow back under the rearm band (< 7): ARMS the trip (speed_warned -> 2),
+    // silently - still Neutral, still unspotted.
+    pump_speed(&mut app, 6.0);
+    assert_eq!(
+        number_var(&app, "speed_warned"),
+        Some(2.0),
+        "slowing under 7 arms the trip"
+    );
+    assert_eq!(number_var(&app, "spotted"), Some(0.0));
+    assert_eq!(
+        ship_allegiance(&mut app, "channel_magpie_1"),
+        Allegiance::Neutral
+    );
+
+    // A FRESH breach over 8 once armed: TRIP. spotted -> 1, BOTH pickets Enemy
+    // on the live Allegiance component - the same outcome as the zone/paint wakes.
+    pump_speed(&mut app, 9.0);
+    assert_eq!(
+        number_var(&app, "spotted"),
+        Some(1.0),
+        "the armed breach wakes them"
+    );
+    assert_eq!(
+        ship_allegiance(&mut app, "channel_magpie_1"),
+        Allegiance::Enemy
+    );
+    assert_eq!(
+        ship_allegiance(&mut app, "channel_magpie_2"),
+        Allegiance::Enemy
+    );
+}
+
+/// The overspeed provocation composes one-shot with the other four: once any
+/// wake has stamped `spotted`, the speed handlers (all gated spotted == 0) are
+/// inert - no second warning, no re-flip. Pins the one-shot contract from the
+/// speed side (task 20260723-143603).
+#[test]
+fn a_prior_wake_disarms_the_overspeed_provocation() {
+    let scenario = scenario_from(CH3_RON);
+    let mut app = armed_app();
+    spawn_magpies(&mut app, &scenario);
+
+    // A picket-watch zone entry wakes them first.
+    enter(&mut app, "picket_watch_starboard", "player_spaceship");
+    assert_eq!(
+        number_var(&app, "spotted"),
+        Some(1.0),
+        "the zone wakes them"
+    );
+    assert_eq!(
+        ship_allegiance(&mut app, "channel_magpie_1"),
+        Allegiance::Enemy
+    );
+
+    // Now burn hot: the speed handlers gate spotted == 0, so they never fire -
+    // speed_warned stays 0 (no second Vesh warning) and spotted stays 1.
+    pump_speed(&mut app, 20.0);
+    assert_eq!(
+        number_var(&app, "speed_warned"),
+        Some(0.0),
+        "an already-spotted run never warns on speed"
+    );
+    assert_eq!(number_var(&app, "spotted"), Some(1.0));
+    assert_eq!(
+        ship_allegiance(&mut app, "channel_magpie_1"),
+        Allegiance::Enemy
+    );
 }
 
 #[test]

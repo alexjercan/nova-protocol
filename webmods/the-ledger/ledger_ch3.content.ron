@@ -3,10 +3,12 @@
 // (the gauntlet's expression-guarded sequencing) with TWO distinct textured
 // beats: a REAL STEALTH run past two NEUTRAL Magpie pickets (task
 // 20260723-000320: they patrol the flanks of the lane and only wake -
-// SetAllegiance -> Enemy - if the player enters a picket-watch zone or
-// paints one), and a debris pinch between NAV-1 and NAV-2 (two invulnerable
-// boulders tightening the lane, a PILOTING hazard - and the one lane the
-// picket watch does not cover). Slip the channel undetected (spotted == 0)
+// SetAllegiance -> Enemy - if the player enters a picket-watch zone,
+// paints one, or BURNS TOO HOT through the channel: over 8 u/s reads as
+// noise the pickets hear, gated warn-then-trip on the reserved
+// player_speed readout, task 20260723-143603), and a debris pinch between
+// NAV-1 and NAV-2 (two invulnerable boulders tightening the lane, a
+// PILOTING hazard - and the one lane the picket watch does not cover). Slip the channel undetected (spotted == 0)
 // and the pickets stay asleep: Vesh's payoff line lands at the yard, then
 // the Victory a beat later. Wake them (spotted == 1) and it is the old
 // fight - run or shoot, the gates stay the objective either way.
@@ -87,12 +89,23 @@
                     )),
                     // Stealth state (task 20260723-000320): spotted is the
                     // provocation one-shot (0 = the pickets sleep, 1 = woken
-                    // by proximity or paint - and every wake handler gates on
-                    // 0, so the flip fires exactly once). win_gate/win_said
-                    // drive the clean-run deferred Victory beat (the ch2b
-                    // idiom: payoff line first, overlay a beat later).
+                    // by proximity, paint, or overspeed - and every wake
+                    // handler gates on 0, so the flip fires exactly once).
+                    // win_gate/win_said drive the clean-run deferred Victory
+                    // beat (the ch2b idiom: payoff line first, overlay a beat
+                    // later).
                     VariableSet((
                         key: "spotted",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    // speed_warned is the overspeed warn-then-trip state
+                    // machine (task 20260723-143603): 0 = never burned hot,
+                    // 1 = warned (Vesh called it, pickets still asleep),
+                    // 2 = armed (slowed back under the rearm band, the NEXT
+                    // breach wakes them). Gated on spotted == 0 like the other
+                    // provocations, so any wake disarms it and it disarms them.
+                    VariableSet((
+                        key: "speed_warned",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     VariableSet((
@@ -1502,13 +1515,16 @@
                     )),
                 ],
             ),
-            // --- The picket wake handlers (task 20260723-000320). Four
-            // provocations, one outcome: BOTH pickets flip Enemy
-            // (SetAllegiance reads the live Allegiance the AI targets by),
-            // spotted stamps 1, and Vesh calls it. Every handler gates
-            // spotted == 0 (setting it disqualifies the other three - the
-            // one-shot contract) and act == 1 (the yard closes the run; a
-            // post-arrival paint wakes nobody). ---
+            // --- The picket wake handlers (task 20260723-000320, overspeed
+            // added 20260723-143603). FIVE provocations, one outcome: BOTH
+            // pickets flip Enemy (SetAllegiance reads the live Allegiance the
+            // AI targets by), spotted stamps 1, and Vesh calls it. The four
+            // instant ones are below (two picket-watch zone entries, two
+            // OnCombatLock paints); the fifth is the warn-then-trip overspeed
+            // handler just after this block. Every handler gates spotted == 0
+            // (setting it disqualifies the others - the one-shot contract) and
+            // act == 1 (the yard closes the run; a post-arrival paint wakes
+            // nobody). ---
             (
                 name: OnEnter,
                 filters: [
@@ -1651,6 +1667,125 @@
                     StoryMessage((
                         speaker: "Broker Vesh",
                         text: "You painted them, Kestrel - lock light travels both ways. Both pickets going hot. Run or fight, but the line is still the line.",
+                        dwell: Some(7.0),
+                    )),
+                ],
+            ),
+            // --- Overspeed provocation (task 20260723-143603): the fifth way
+            // to wake the pickets. The channel wants a DARK, SLOW run; burning
+            // hot is noise they hear. Warn-then-trip on the reserved
+            // player_speed readout (units/second, engine-written each tick):
+            // the first breach over 8 u/s only WARNS (Vesh calls it, pickets
+            // stay asleep); tripping needs a FRESH breach after slowing back
+            // under 7 (the rearm band), so one continuous burn cannot
+            // warn-and-trip in consecutive frames. All three gate
+            // spotted == 0 && act == 1, so they compose one-shot with the
+            // zone/paint provocations: any wake stamps spotted = 1 and disarms
+            // these, and a trip here disarms those. speed_warned carries the
+            // 0 -> 1 -> 2 state. ---
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((GreaterThan(
+                        Term(Factor(Name("player_speed"))),
+                        Term(Factor(Literal(Number(8.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("speed_warned"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("spotted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "speed_warned",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "Ease off, Kestrel - you\'re burning too hot. A hull sings at speed and this channel carries every note. Throttle down and run dark, or those pickets will hear you coming.",
+                        dwell: Some(7.0),
+                    )),
+                ],
+            ),
+            // Rearm: dropping back under 7 u/s after a warning arms the trip.
+            // Silent - the run is quiet again; the payoff is simply that the
+            // NEXT overspeed is the one that wakes them. The 7..8 gap is
+            // hysteresis: without it a steady burn at ~8 would rearm and
+            // re-warn every other frame.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((LessThan(
+                        Term(Factor(Name("player_speed"))),
+                        Term(Factor(Literal(Number(7.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("speed_warned"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("spotted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "speed_warned",
+                        expression: Term(Factor(Literal(Number(2.0)))),
+                    )),
+                ],
+            ),
+            // Trip: a fresh breach over 8 u/s once armed wakes BOTH pickets -
+            // the real fifth provocation. Same outcome shape as the zone/paint
+            // wakes: stamp spotted, flip both Magpies Enemy, Vesh calls it.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((GreaterThan(
+                        Term(Factor(Name("player_speed"))),
+                        Term(Factor(Literal(Number(8.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("speed_warned"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("spotted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "spotted",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    SetAllegiance((
+                        id: "channel_magpie_1",
+                        allegiance: Enemy,
+                    )),
+                    SetAllegiance((
+                        id: "channel_magpie_2",
+                        allegiance: Enemy,
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "Too hot again - that\'s torn it. They heard that burn and both pickets are lighting up. Run or fight, but the line is still the line, Kestrel.",
                         dwell: Some(7.0),
                     )),
                 ],

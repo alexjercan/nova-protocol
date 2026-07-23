@@ -3,6 +3,18 @@
 All notable changes to The Ledger campaign mod. Versions are the `meta.version`
 in `the-ledger.bundle.ron`; the portal keeps every published version.
 
+## 1.8.0
+
+- Chapter three stealth gains a fifth way to blow the run: burning too hot.
+  Running over 8 u/s through the channel is noise the pickets hear. It is
+  warn-then-trip - the first time you push past 8, Vesh calls it and tells you
+  to throttle down (the pickets stay asleep); if you slow back under 7 and then
+  gun it again, that fresh breach wakes both Magpies, same as tripping a watch
+  zone or painting one. A single continuous burn only ever earns the one
+  warning, so an accidental nudge over the line will not end the run. The
+  channel now rewards a genuinely slow, dark approach, not just a wide berth
+  around the watch bubbles.
+
 ## 1.7.0
 
 - Chapter three is now a real stealth run. The two channel Magpies no longer

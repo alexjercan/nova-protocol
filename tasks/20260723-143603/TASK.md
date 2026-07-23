@@ -1,8 +1,8 @@
 # ch3 speed: warn-then-trip picket provocation on player overspeed (content)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 58
-- TAGS: v0.8.0,content,scenario,playtest
+- TAGS: v0.8.0, content, scenario, playtest
 
 ## Story
 
@@ -34,14 +34,14 @@ below encodes them as rig assertions.
 
 ## Steps
 
-- [ ] Seed `speed_warned = 0` in ch3's OnStart, next to `spotted`/`act` (so it
+- [x] Seed `speed_warned = 0` in ch3's OnStart, next to `spotted`/`act` (so it
       is defined before any gate reads it - the undefined-variable rule).
-- [ ] Add the three OnUpdate handlers above (WARN / REARM / TRIP) after the
+- [x] Add the three OnUpdate handlers above (WARN / REARM / TRIP) after the
       existing picket-wake block (ch3 RON ~line 1505-1657), matching the
       existing Expression-filter + SetAllegiance + StoryMessage shape. Vesh
       voice: warning = "ease off the throttle, they'll hear that hull sing";
       trip = "too hot again - they've got you, both pickets going hot".
-- [ ] Extend the ch3 rig `crates/nova_assets/tests/ledger_ch3_channel.rs`:
+- [x] Extend the ch3 rig `crates/nova_assets/tests/ledger_ch3_channel.rs`:
       drive `player_speed` (inject the reserved variable the way the rig pumps
       the scenario clock) through the warn -> slow -> breach sequence and
       assert: (a) first breach warns but leaves BOTH Magpies Neutral and
@@ -49,11 +49,11 @@ below encodes them as rig assertions.
       (c) slow below 7 then breach again flips BOTH to Enemy on the live
       Allegiance component and stamps `spotted == 1`; (d) once any other
       provocation (zone/paint) has set `spotted`, the speed handlers are inert.
-- [ ] Update the picket-wake header comment in the RON and the ch3 test's
+- [x] Update the picket-wake header comment in the RON and the ch3 test's
       module doc to list five provocations, and add a line to
       `webmods/the-ledger/CHANGELOG.md` / `README.md` describing the speed
       trip (write the prose from the final diff, per the ledger lesson).
-- [ ] Content lint clean: `cargo run -p nova_assets --bin content -- lint
+- [x] Content lint clean: `cargo run -p nova_assets --bin content -- lint
       webmods/the-ledger` (expect no undefined-variable flag for `player_speed`
       - guaranteed by the sibling task's lint exception) and the
       webmods_validation load.

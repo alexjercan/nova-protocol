@@ -19,11 +19,12 @@ belt starts paying attention.
    checkpoint: dying to the heavies retries the heavies.
 3. **The Quiet Channel** - run dark to Broker Vesh's yard, threading the
    NAV drops in order: a real stealth run. Two Magpie pickets patrol the
-   flanks, cold and neutral until provoked - stray into their watch or
-   paint one and both go hot. The debris pinch between the first two drops
-   is the blind spot: thread the wrecks slow and slip past unseen for
-   Vesh's quiet-scopes payoff, or wake them and fight it out. The drops
-   are the job either way.
+   flanks, cold and neutral until provoked - stray into their watch, paint
+   one, or burn too hot (over 8 u/s is noise they hear) and both go hot.
+   Overspeed warns first: the second time you push it, they wake. The debris
+   pinch between the first two drops is the blind spot: thread the wrecks
+   slow and slip past unseen for Vesh's quiet-scopes payoff, or wake them and
+   fight it out. The drops are the job either way.
 4. **The Buyer** - sell the box or burn it, decided at two beacons, and the
    endings diverge. Sell it at Vesh's berth and the sale calls the Auditor
    down: break the gunship for the payday. Burn it at the buoy and there is
