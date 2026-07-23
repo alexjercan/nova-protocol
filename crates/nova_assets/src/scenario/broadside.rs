@@ -567,7 +567,14 @@ pub(crate) fn broadside(
         thumbnail: Some(AssetRef::from("self://banner.png")),
         hidden: false,
         menu_backdrop: false,
-        campaign: None,
+        // Chapter two of the Nova Protocol campaign (task 20260723-095909).
+        // Only this part-one head is a campaign member; part two
+        // (`broadside_gunship`) is hidden and reached via the checkpoint chain,
+        // so it stays untagged.
+        campaign: Some(ScenarioCampaign {
+            name: "Nova Protocol".to_string(),
+            order: 2,
+        }),
         events,
     }
 }

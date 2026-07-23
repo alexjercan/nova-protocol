@@ -5,6 +5,10 @@
         description: "The scavengers come back in force: answer a hauler\'s distress call and break the ambush at the Ceres Queen. Chapter two of the base storyline, part one.",
         cubemap: "self://textures/cubemap_alt.png",
         thumbnail: Some("self://banner.png"),
+        campaign: Some((
+            name: "Nova Protocol",
+            order: 2,
+        )),
         events: [
             (
                 name: OnStart,

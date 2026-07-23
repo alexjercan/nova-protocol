@@ -5,6 +5,10 @@
         description: "The Tallyman hits back where it hurts: screen a stalled hauler convoy against raider waves until the relief wing arrives. Chapter three of the base storyline, part one.",
         cubemap: "self://textures/cubemap_alt.png",
         thumbnail: Some("self://banner.png"),
+        campaign: Some((
+            name: "Nova Protocol",
+            order: 3,
+        )),
         events: [
             (
                 name: OnStart,

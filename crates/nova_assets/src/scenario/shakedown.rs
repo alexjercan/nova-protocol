@@ -1171,6 +1171,12 @@ pub(crate) fn shakedown_run(
         // The main-story entry point: listed in the Scenarios picker with a
         // placeholder thumbnail (real per-scenario art is task 20260715-220011).
         thumbnail: Some(AssetRef::from("self://banner.png")),
+        // Chapter one of the Nova Protocol campaign - drives the picker's
+        // campaign grouping/ordering (task 20260723-095909).
+        campaign: Some(ScenarioCampaign {
+            name: "Nova Protocol".to_string(),
+            order: 1,
+        }),
         events,
         ..Default::default()
     }

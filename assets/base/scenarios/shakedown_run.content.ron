@@ -5,6 +5,10 @@
         description: "First flight: beacons, salvage, orbit - and one scavenger.",
         cubemap: "self://textures/cubemap.png",
         thumbnail: Some("self://banner.png"),
+        campaign: Some((
+            name: "Nova Protocol",
+            order: 1,
+        )),
         events: [
             (
                 name: OnStart,

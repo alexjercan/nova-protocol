@@ -1,8 +1,8 @@
 # Tag base storyline chapter-heads as Nova Protocol 1/2/3 + regen content
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 28
-- TAGS: v0.8.0,scenario,content
+- TAGS: v0.8.0, scenario, content
 
 ## Story
 
@@ -16,19 +16,24 @@ base content RON so the generated files and parity tests match.
 
 ## Steps
 
-- [ ] In `crates/nova_assets/src/scenario/shakedown.rs` (`shakedown_run`
+- [x] In `crates/nova_assets/src/scenario/shakedown.rs` (`shakedown_run`
       builder), set `campaign: Some(ScenarioCampaign { name: "Nova Protocol".into(), order: 1 })`.
-- [ ] In `crates/nova_assets/src/scenario/broadside.rs` (`broadside` builder -
+- [x] In `crates/nova_assets/src/scenario/broadside.rs` (`broadside` builder -
       the VISIBLE part-one head, id `broadside`), set campaign Nova Protocol
       order 2. Leave `broadside_gunship` (hidden continuation) untagged.
-- [ ] In `crates/nova_assets/src/scenario/lifeline.rs` (`lifeline` builder),
+- [x] In `crates/nova_assets/src/scenario/lifeline.rs` (`lifeline` builder),
       set campaign Nova Protocol order 3. Leave `final_tally` (hidden
       continuation) untagged.
-- [ ] Regenerate base content: `nix develop --command cargo run -p nova_assets
+- [x] Regenerate base content: `nix develop --command cargo run -p nova_assets
       --bin content -- gen`, then confirm `git status` shows only the three
       expected `*.content.ron` changed and the diff adds the campaign key.
-- [ ] Run the content parity + lint tests: `nix develop --command cargo test -p
+      (confirmed: exactly shakedown_run/broadside/lifeline .content.ron changed,
+      each adds `campaign: Some((name: "Nova Protocol", order: N))`)
+- [x] Run the content parity + lint tests: `nix develop --command cargo test -p
       nova_assets` (and `content -- lint` stays clean).
+      (content_ron_parity 2/2 PASS; `content -- lint` 0 errors/0 warnings,
+      13 scenarios audited; one UNRELATED pre-existing failure in
+      content_lint_gate - filed as 20260723-103523, fails identically on master)
 
 ## Definition of Done
 
@@ -46,3 +51,35 @@ base content RON so the generated files and parity tests match.
 - Edit the BUILDER and regenerate in the same commit; never hand-edit generated
   RON (AGENTS.md: generated-content rule).
 - Umbrella: 20260723-093914.
+
+## Close-out (20260723)
+
+What changed: tagged the three VISIBLE base storyline chapter-heads with
+`campaign: Some(ScenarioCampaign { name: "Nova Protocol", order })` in their
+builders - shakedown_run=1, broadside=2, lifeline=3 - and regenerated the base
+content RON. The hidden continuations (broadside_gunship, final_tally,
+asteroid_next) stay untagged: they are reached only by NextScenario chaining,
+never listed in the picker, so campaign membership would be meaningless for
+them.
+
+Verification: `cargo run -p nova_assets --bin content -- gen` changed exactly
+the three expected `*.content.ron`, each adding the campaign key with the right
+order (diff reviewed). `content_ron_parity` integration test passes 2/2
+(builder <-> RON parity holds). `content -- lint`: 0 errors, 0 warnings, 13
+scenarios balance-audited. `cargo fmt --check` clean.
+
+Difficulty: the full `cargo test -p nova_assets` surfaced ONE failure,
+`content_lint_gate::target_mode_lints_one_mod_in_repo_or_external`, asserting a
+the-ledger ch4 "mutually exclusive" warn that no longer exists. Per the
+merge-red discipline I checked it against master (`git branch --show-current`
+= master, ran the test there): it FAILS identically on master, at the same
+line 48. So it is INHERITED, not caused by this branch (which does not touch
+the-ledger), and is filed as its own task 20260723-103523. This branch's own
+guards (parity, lint) are green.
+
+Self-reflection: proactively running the narrow guards (content_ron_parity,
+content lint) FIRST, before the full suite, made it obvious the failure was
+outside my change's blast radius - the parity guard is the real proof for a
+content-regen task, and it was green immediately. Checking master before
+blaming the branch (the merge-red lesson) took one extra test run and saved a
+false diagnosis.
