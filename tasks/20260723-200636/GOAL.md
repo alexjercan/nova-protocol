@@ -56,7 +56,11 @@ gravity, a base that holds station, and the R-key torpedoes.
 ## Tasks
 
 - [ ] 20260723-200636 (p0, umbrella) this goal
-- [ ] 20260723-200643 (p60, the-ledger) ch5 raid tuning (content)
+- [x] 20260723-200643 (p60, the-ledger) ch5 raid tuning (content)
+      landed 9543e39f; 1 review round (APPROVE, out-of-context; R1.1 MINOR - the
+      recently-damaged leash override, a disclosed playtest item); bundle 1.10.0
+      -> 1.11.0; gravity shrunk, base RCS+leash+2 turrets, torpedoes on R, ch5
+      un-hidden for testing
 
 ## Decisions (load-bearing, architectural)
 
@@ -73,6 +77,43 @@ gravity, a base that holds station, and the R-key torpedoes.
 
 ## Manual acceptance (batched for the user at Finish)
 
-- (pending) playtest ch5: gravity feels manageable for the small ships; the base
-  holds its position (no drift); torpedoes fire on R; the base has a lighter
-  turret load; the chapter launches from the picker.
+All verifiable done-definition items (1-6) are MET and re-verified on master (see
+Finish). These are the human-playtest gate - the user is set up to test directly
+now that ch5 is un-hidden. Any playtest issue becomes a new prioritized task.
+
+- (pending user playtest) gravity feels manageable for the small ships; torpedoes
+  fire on R; the base has a lighter turret load (2); the chapter launches from
+  the picker.
+- (pending user playtest, R1.1) the base holds its position AND does not walk
+  toward you once your torpedoes start landing - the engine's `recently_damaged`
+  tether override can let a shot ship exceed its leash. If it drifts/lurches, the
+  levers are: tighten the leash, lower planetoid_3 gravity, or move the base out
+  of the well entirely.
+
+## Finish (2026-07-23)
+
+Task 20260723-200643 landed 9543e39f (review APPROVE r1; one MINOR, R1.1, a
+disclosed playtest item). Master re-verified green: content lint 0
+err/warn/finding (6 scenarios balance-audited); `ledger_ch5_raid` 11/11,
+`ledger_ch4_ending` 10/10, `webmods_validation` 1/1.
+
+Done-definition on master (all MET): (1) planetoids shrunk, base in only a mild
+residual well (geometry computed + reviewer-reproduced: p3 99u vs SOI 128, accel
+~0.08 u/s^2); (2) base holds via 2 RCS thrusters + leash 15 (rig-pinned); (3) 2
+turrets (rig-pinned); (4) torpedoes on R (rig-pinned exact binding, no flight
+conflict); (5) `hidden: false` (rig-pinned, re-hide comment); (6) bundle 1.11.0 +
+docs synced. The playtest feel (incl. R1.1) is the deferred user gate above.
+
+Conformance: `tatr check` clean on both tasks; `tatr check --ledger LESSONS.md`
+clean. `/lessons`: per-task `/compound` folded this cycle's lessons
+(`bundle-version-string-pin-bites-on-bump` x2, `read-the-override-branch-of-a-bounding-mechanism`
+x1); no loose docs/ scratch; the docs/ wipe defers to the 0.8.0 release.
+
+Residue: none dropped. R1.1 is carried as a manual-acceptance/playtest item above
+(not silently closed). A known shared-checkout event: a parallel session landed
+`f29c2727 docs: update tasks` (the unrelated pre-existing file) mid-cycle; merged
+cleanly into the branch before landing, no overlap with this work.
+
+REMINDER for the user: ch5 is temporarily `hidden: false` for testing - re-hide
+it (a one-line flip back to `hidden: true`) before the 0.8.0 release so the raid
+stays a fight-only reward.
