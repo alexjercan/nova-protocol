@@ -257,6 +257,10 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   `[table]` or they fold into it silently. 20260715-110417.
 - `verify-tool-via-subcommand-not-which` (x1): check `cargo <sub> --version`,
   not `which` - ~/.cargo/bin may be off PATH. 20260715-110417.
+- `inherited-cli-string-drifts` (x1): a CLI invocation copied from a prior
+  task's DoD/Steps can be stale against the current flags - run it (or `--help`)
+  once before trusting it. A ch3 task inherited `content lint <path>` when the
+  bin now takes `--target <path>`. 20260723-182850.
 - `relocation-leaves-ignored-siblings` (x1, PROMOTED 2026-07-19 -> sprout
   skill): gitignored files exist only in the main checkout; clean them up
   after landing a stop-shipping-dir move. 20260714-154958.

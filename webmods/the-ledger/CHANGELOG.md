@@ -3,6 +3,17 @@
 All notable changes to The Ledger campaign mod. Versions are the `meta.version`
 in `the-ledger.bundle.ron`; the portal keeps every published version.
 
+## 1.9.0
+
+- Chapter three overspeed now gives you a real reaction window before it wakes
+  the pickets. The first breach over 8 u/s still warns instantly (harmless).
+  But the SECOND strike no longer catches you the instant you cross the line: a
+  fresh breach after slowing starts a 3.5-second countdown, Vesh shouts the
+  last-chance warning, and the Magpies only wake if you HOLD the burn past the
+  window. Ease back under the rearm band in time and the countdown cancels - the
+  run stays dark and a later breach simply starts a fresh window. The trip is
+  now a sustained mistake, not a twitch of the throttle.
+
 ## 1.8.0
 
 - Chapter three stealth gains a fifth way to blow the run: burning too hot.

@@ -99,13 +99,25 @@
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     // speed_warned is the overspeed warn-then-trip state
-                    // machine (task 20260723-143603): 0 = never burned hot,
+                    // machine (task 20260723-143603; reaction window
+                    // 20260723-182850): 0 = never burned hot,
                     // 1 = warned (Vesh called it, pickets still asleep),
-                    // 2 = armed (slowed back under the rearm band, the NEXT
-                    // breach wakes them). Gated on spotted == 0 like the other
-                    // provocations, so any wake disarms it and it disarms them.
+                    // 2 = armed (slowed back under the rearm band),
+                    // 3 = counting down (a fresh breach started the 3.5s
+                    // sustained-overspeed window; hold hot past overspeed_deadline
+                    // to wake them, ease off under 7 to cancel back to armed).
+                    // Gated on spotted == 0 like the other provocations, so any
+                    // wake disarms it and it disarms them.
                     VariableSet((
                         key: "speed_warned",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    // overspeed_deadline: the scenario_elapsed timestamp the
+                    // held burn must outlast to trip (stamped = now + 3.5 when
+                    // the countdown starts). Seeded so the deferred trip gate
+                    // reads a defined value before any breach.
+                    VariableSet((
+                        key: "overspeed_deadline",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     VariableSet((
@@ -1671,18 +1683,23 @@
                     )),
                 ],
             ),
-            // --- Overspeed provocation (task 20260723-143603): the fifth way
-            // to wake the pickets. The channel wants a DARK, SLOW run; burning
-            // hot is noise they hear. Warn-then-trip on the reserved
-            // player_speed readout (units/second, engine-written each tick):
-            // the first breach over 8 u/s only WARNS (Vesh calls it, pickets
-            // stay asleep); tripping needs a FRESH breach after slowing back
-            // under 7 (the rearm band), so one continuous burn cannot
-            // warn-and-trip in consecutive frames. All three gate
-            // spotted == 0 && act == 1, so they compose one-shot with the
-            // zone/paint provocations: any wake stamps spotted = 1 and disarms
-            // these, and a trip here disarms those. speed_warned carries the
-            // 0 -> 1 -> 2 state. ---
+            // --- Overspeed provocation (task 20260723-143603; sustained
+            // reaction window 20260723-182850): the fifth way to wake the
+            // pickets. The channel wants a DARK, SLOW run; burning hot is noise
+            // they hear. Warn-then-trip on the reserved player_speed readout
+            // (units/second, engine-written each tick):
+            //   - first breach over 8 u/s only WARNS (Vesh calls it, pickets
+            //     stay asleep);
+            //   - the trip needs a FRESH breach after slowing back under 7 (the
+            //     rearm band), so one continuous burn cannot warn-and-trip;
+            //   - that fresh breach STARTS a 3.5s countdown, it does not wake
+            //     instantly - the player gets the window to ease off. Holding
+            //     hot past overspeed_deadline wakes them; dropping under 7 in
+            //     time cancels back to armed.
+            // All handlers gate spotted == 0 && act == 1, so they compose
+            // one-shot with the zone/paint provocations: any wake stamps
+            // spotted = 1 and disarms these, and a trip here disarms those.
+            // speed_warned carries the 0 -> 1 -> 2 -> 3 state. ---
             (
                 name: OnUpdate,
                 filters: [
@@ -1747,9 +1764,10 @@
                     )),
                 ],
             ),
-            // Trip: a fresh breach over 8 u/s once armed wakes BOTH pickets -
-            // the real fifth provocation. Same outcome shape as the zone/paint
-            // wakes: stamp spotted, flip both Magpies Enemy, Vesh calls it.
+            // Start the countdown: a fresh breach over 8 u/s once armed does
+            // NOT wake instantly - it starts a 3.5s sustained-overspeed window
+            // (speed_warned -> 3) and stamps overspeed_deadline = now + 3.5.
+            // Vesh gives the last-chance shout so the countdown is telegraphed.
             (
                 name: OnUpdate,
                 filters: [
@@ -1760,6 +1778,84 @@
                     Expression((Equal(
                         Term(Factor(Name("speed_warned"))),
                         Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("spotted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "speed_warned",
+                        expression: Term(Factor(Literal(Number(3.0)))),
+                    )),
+                    VariableSet((
+                        key: "overspeed_deadline",
+                        expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(3.5))))),
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "That burn again - they\'re turning to look. Kill your speed NOW, Kestrel, or they\'ll have a lock before you clear the lane.",
+                        dwell: Some(5.0),
+                    )),
+                ],
+            ),
+            // Cancel: easing back under 7 u/s DURING the countdown is the
+            // reprieve - the player heard it and slowed in time. Drop back to
+            // armed (speed_warned -> 2), silently; a later fresh breach starts a
+            // new countdown. Cancel on < 7 (the rearm band), not < 8, so a burn
+            // hovering right at the limit does not flip-flop cancel/re-arm every
+            // frame. The < 7 cancel and the > 8 trip are mutually exclusive in
+            // any frame, so no order-dependent same-frame cancel-and-trip.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((LessThan(
+                        Term(Factor(Name("player_speed"))),
+                        Term(Factor(Literal(Number(7.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("speed_warned"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("spotted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "speed_warned",
+                        expression: Term(Factor(Literal(Number(2.0)))),
+                    )),
+                ],
+            ),
+            // Trip: the burn was HELD over 8 u/s past the deadline - the window
+            // ran out and both pickets wake. The real fifth provocation. Same
+            // outcome shape as the zone/paint wakes: stamp spotted, flip both
+            // Magpies Enemy, Vesh calls it.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((GreaterThan(
+                        Term(Factor(Name("player_speed"))),
+                        Term(Factor(Literal(Number(8.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("speed_warned"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("overspeed_deadline"))),
                     ))),
                     Expression((Equal(
                         Term(Factor(Name("spotted"))),
@@ -1785,7 +1881,7 @@
                     )),
                     StoryMessage((
                         speaker: "Broker Vesh",
-                        text: "Too hot again - that\'s torn it. They heard that burn and both pickets are lighting up. Run or fight, but the line is still the line, Kestrel.",
+                        text: "Too hot too long - that\'s torn it. They heard that burn and both pickets are lighting up. Run or fight, but the line is still the line, Kestrel.",
                         dwell: Some(7.0),
                     )),
                 ],

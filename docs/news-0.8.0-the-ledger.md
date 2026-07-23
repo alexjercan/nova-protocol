@@ -15,7 +15,8 @@ Player-facing beats, ready to fold into the news:
   lock will save you off the rocks. Two Magpie pickets patrol the flanks,
   cold and neutral until you give yourself away: stray into their watch,
   paint one, or burn too hot through the narrows (over 8 u/s is noise they
-  hear - it warns you once, then wakes them). Run dark and slow and you slip
+  hear - it warns you once, and if you push it again you get a few seconds to
+  ease off before they wake). Run dark and slow and you slip
   past for Vesh's quiet-scopes payoff; blow it and it is a fight. The drops
   are the job either way.
 - **The finale actually forks.** Sell the box at Vesh's berth and the sale

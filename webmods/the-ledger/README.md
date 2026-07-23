@@ -21,7 +21,8 @@ belt starts paying attention.
    NAV drops in order: a real stealth run. Two Magpie pickets patrol the
    flanks, cold and neutral until provoked - stray into their watch, paint
    one, or burn too hot (over 8 u/s is noise they hear) and both go hot.
-   Overspeed warns first: the second time you push it, they wake. The debris
+   Overspeed warns first; push it again and a short countdown starts - hold the
+   burn past it and they wake, ease off in time and the run stays dark. The debris
    pinch between the first two drops is the blind spot: thread the wrecks
    slow and slip past unseen for Vesh's quiet-scopes payoff, or wake them and
    fight it out. The drops are the job either way.

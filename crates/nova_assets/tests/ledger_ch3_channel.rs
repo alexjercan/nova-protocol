@@ -349,6 +349,7 @@ fn armed_app() -> App {
         ("pinch_clear_said", 0.0),
         ("spotted", 0.0),
         ("speed_warned", 0.0),
+        ("overspeed_deadline", 0.0),
         ("win_gate", 0.0),
         ("win_said", 0.0),
         ("scenario_elapsed", 0.0),
@@ -379,6 +380,7 @@ fn on_start_seeds_the_sequencer_and_spawns_the_cast() {
         "pinch_clear_said",
         "spotted",
         "speed_warned",
+        "overspeed_deadline",
         "win_gate",
         "win_said",
     ] {
@@ -784,15 +786,18 @@ fn painting_a_sleeping_magpie_wakes_both() {
     assert!(linger);
 }
 
-/// The fifth provocation (task 20260723-143603): burning too hot wakes the
-/// pickets, warn-then-trip on the reserved `player_speed` readout. The rig
-/// injects `player_speed` via `pump_speed` exactly as `pump_clock` injects the
-/// clock (the engine writes it every tick in production; the tracker is
-/// unit-pinned in nova_scenario, so here the CONTENT handlers are under test).
-/// Hysteresis: warn > 8 u/s, rearm < 7, trip on the NEXT breach > 8 - so one
-/// continuous burn cannot warn-and-trip.
+/// The fifth provocation (task 20260723-143603, reaction window
+/// 20260723-182850): burning too hot wakes the pickets, but the SECOND strike
+/// gives the player a sustained-overspeed grace before it lands. The rig
+/// injects `player_speed` via `pump_speed` and the clock via `pump_clock`
+/// (independent reserved-variable seeds; the engine writes `player_speed` off
+/// the ship every tick in production, the tracker is unit-pinned in
+/// nova_scenario, so here the CONTENT handlers are under test). Hysteresis:
+/// warn > 8 u/s, rearm < 7; the armed breach STARTS a 3.5s countdown and the
+/// wake lands only if the burn is held past the deadline - so one continuous
+/// burn cannot warn-and-trip, and an armed breach cannot instantly trip.
 #[test]
-fn overspeed_warns_then_a_fresh_breach_wakes_both_magpies() {
+fn overspeed_warns_then_a_held_breach_wakes_both_magpies_after_the_window() {
     let scenario = scenario_from(CH3_RON);
     let mut app = armed_app();
     spawn_magpies(&mut app, &scenario);
@@ -826,16 +831,16 @@ fn overspeed_warns_then_a_fresh_breach_wakes_both_magpies() {
         Allegiance::Neutral
     );
 
-    // A SINGLE CONTINUOUS burn above 8 never trips: the trip needs
-    // speed_warned == 2, which needs a rearm below 7 first. Hold hot; nothing
-    // advances.
+    // A SINGLE CONTINUOUS burn above 8 never advances past the warning: the
+    // countdown needs speed_warned == 2, which needs a rearm below 7 first.
+    // Hold hot; nothing advances.
     for _ in 0..3 {
         pump_speed(&mut app, 12.0);
     }
     assert_eq!(
         number_var(&app, "speed_warned"),
         Some(1.0),
-        "a continuous burn never rearms, so it never trips"
+        "a continuous burn never rearms, so it never arms the countdown"
     );
     assert_eq!(number_var(&app, "spotted"), Some(0.0));
     assert_eq!(
@@ -843,13 +848,13 @@ fn overspeed_warns_then_a_fresh_breach_wakes_both_magpies() {
         Allegiance::Neutral
     );
 
-    // Slow back under the rearm band (< 7): ARMS the trip (speed_warned -> 2),
-    // silently - still Neutral, still unspotted.
+    // Slow back under the rearm band (< 7): ARMS the countdown (speed_warned ->
+    // 2), silently - still Neutral, still unspotted.
     pump_speed(&mut app, 6.0);
     assert_eq!(
         number_var(&app, "speed_warned"),
         Some(2.0),
-        "slowing under 7 arms the trip"
+        "slowing under 7 arms the countdown"
     );
     assert_eq!(number_var(&app, "spotted"), Some(0.0));
     assert_eq!(
@@ -857,13 +862,122 @@ fn overspeed_warns_then_a_fresh_breach_wakes_both_magpies() {
         Allegiance::Neutral
     );
 
-    // A FRESH breach over 8 once armed: TRIP. spotted -> 1, BOTH pickets Enemy
-    // on the live Allegiance component - the same outcome as the zone/paint wakes.
+    // A FRESH breach over 8 once armed: STARTS the 3.5s countdown (speed_warned
+    // -> 3) and stamps overspeed_deadline = scenario_elapsed + 3.5. It does NOT
+    // wake yet - this is the reaction window the player asked for.
     pump_speed(&mut app, 9.0);
+    assert_eq!(
+        number_var(&app, "speed_warned"),
+        Some(3.0),
+        "the armed breach starts the countdown, it does not trip"
+    );
+    assert_eq!(
+        number_var(&app, "overspeed_deadline"),
+        Some(3.5),
+        "the deadline is stamped scenario_elapsed (0) + 3.5"
+    );
+    assert_eq!(
+        number_var(&app, "spotted"),
+        Some(0.0),
+        "the countdown has not elapsed, so the pickets stay asleep"
+    );
+    assert_eq!(
+        ship_allegiance(&mut app, "channel_magpie_1"),
+        Allegiance::Neutral
+    );
+
+    // Still hot but BEFORE the deadline (clock at 2.0 < 3.5): no wake. The burn
+    // persists (player_speed holds at 9 across the clock pump).
+    pump_clock(&mut app, 2.0);
+    assert_eq!(
+        number_var(&app, "spotted"),
+        Some(0.0),
+        "before the deadline the run is still dark"
+    );
+    assert_eq!(
+        number_var(&app, "speed_warned"),
+        Some(3.0),
+        "the countdown is still running"
+    );
+    assert_eq!(
+        ship_allegiance(&mut app, "channel_magpie_1"),
+        Allegiance::Neutral
+    );
+
+    // Held past the deadline (clock at 4.0 > 3.5) with the burn still > 8: WAKE.
+    // spotted -> 1, BOTH pickets Enemy on the live Allegiance component - the
+    // same outcome as the zone/paint wakes.
+    pump_clock(&mut app, 4.0);
     assert_eq!(
         number_var(&app, "spotted"),
         Some(1.0),
-        "the armed breach wakes them"
+        "holding the burn past the window wakes them"
+    );
+    assert_eq!(
+        ship_allegiance(&mut app, "channel_magpie_1"),
+        Allegiance::Enemy
+    );
+    assert_eq!(
+        ship_allegiance(&mut app, "channel_magpie_2"),
+        Allegiance::Enemy
+    );
+}
+
+/// The reaction window is real: easing off the throttle BEFORE the deadline
+/// cancels the wake and re-arms, and the run stays dark. A later held breach
+/// past a fresh deadline still wakes them - so the cancel is a reprieve, not an
+/// immunity (task 20260723-182850).
+#[test]
+fn easing_off_during_the_countdown_cancels_the_wake() {
+    let scenario = scenario_from(CH3_RON);
+    let mut app = armed_app();
+    spawn_magpies(&mut app, &scenario);
+
+    // Warn, rearm, then a fresh breach starts the countdown (deadline 3.5).
+    pump_speed(&mut app, 9.0);
+    pump_speed(&mut app, 6.0);
+    pump_speed(&mut app, 9.0);
+    assert_eq!(number_var(&app, "speed_warned"), Some(3.0));
+    assert_eq!(number_var(&app, "overspeed_deadline"), Some(3.5));
+
+    // Ease off under the rearm band BEFORE the deadline: the countdown CANCELS
+    // back to armed (speed_warned -> 2), silently, and the pickets stay asleep.
+    pump_clock(&mut app, 2.0); // clock past 0 but before 3.5
+    pump_speed(&mut app, 6.0);
+    assert_eq!(
+        number_var(&app, "speed_warned"),
+        Some(2.0),
+        "easing off in time cancels the countdown and re-arms"
+    );
+    assert_eq!(number_var(&app, "spotted"), Some(0.0));
+    assert_eq!(
+        ship_allegiance(&mut app, "channel_magpie_1"),
+        Allegiance::Neutral
+    );
+
+    // Even letting the clock run well past the OLD deadline: no wake - the state
+    // is armed (2), not counting (3).
+    pump_clock(&mut app, 10.0);
+    assert_eq!(number_var(&app, "spotted"), Some(0.0));
+    assert_eq!(
+        ship_allegiance(&mut app, "channel_magpie_1"),
+        Allegiance::Neutral
+    );
+
+    // A fresh breach starts a NEW countdown (deadline 10 + 3.5 = 13.5); held
+    // past it, they wake. The reprieve did not grant immunity.
+    pump_speed(&mut app, 9.0);
+    assert_eq!(number_var(&app, "speed_warned"), Some(3.0));
+    assert_eq!(
+        number_var(&app, "overspeed_deadline"),
+        Some(13.5),
+        "the new countdown is stamped off the current clock"
+    );
+    pump_clock(&mut app, 14.0);
+    assert_eq!(
+        number_var(&app, "spotted"),
+        Some(1.0),
+        "a held breach after the reprieve still wakes them"
     );
     assert_eq!(
         ship_allegiance(&mut app, "channel_magpie_1"),
