@@ -3,6 +3,17 @@
 All notable changes to The Ledger campaign mod. Versions are the `meta.version`
 in `the-ledger.bundle.ron`; the portal keeps every published version.
 
+## 1.12.0
+
+- The Raid gravity, round two. The planetoid wells are now tiny and sit only in
+  the early approach, so they are gentle scenery the player brushes on the way
+  in - nothing gets thrown around. The Magpie base no longer tries (and fails) to
+  station-keep with thrusters: it is a fixed emplacement now, parked well clear of
+  any well, so it simply holds its post and its turrets keep firing. The four
+  fighters are pulled in tight around the base, away from the wells, so they stop
+  falling into the gravity. (Proper gravity-aware AI - so the wells can grow back
+  - is separate future work.)
+
 ## 1.11.0
 
 - The Raid (chapter five) tuning from the first playtest: the planetoids' pull

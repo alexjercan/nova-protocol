@@ -681,13 +681,13 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 
 ## Domain lessons (nova-protocol specific)
 
-- `read-the-override-branch-of-a-bounding-mechanism` (x1): when a leash/cap/guard
-  is load-bearing for correctness, read its OVERRIDE/exception branches too, not
-  just the happy path - the AI `leash` is overridden by a `recently_damaged`
-  tether so a SHOT ship can chase past it; that edge is exactly what matters for
-  a base that gets shot (the ch5 station). Also: an armed AI ship Engages by
-  CHASING, so "holds station + shoots" needs no-thrusters OR a tight leash, never
-  thrusters alone. 20260723-200643.
+- `read-all-branches-of-a-load-bearing-engine-rule` (x2): when a leash/cap/guard/
+  opt-in is load-bearing, read ALL its branches, not the first that confirms your
+  phrasing - the AI `leash` has a `recently_damaged` override (a SHOT ship chases
+  past it), and gravity opts in BOTH the player AND the AI ship (so "only piloted
+  ships feel gravity" wrongly reads as AI-exempt; AI ships DO feel it). Also: an
+  armed AI Engages by CHASING, so "holds station + shoots" needs no-thrusters OR a
+  tight leash, never thrusters alone. 20260723-200643, 20260723-223954.
 - `lint-is-the-fast-oracle-for-new-scenarios` (x1): for a new/large scenario RON
   the bugs that matter are game-geometry and balance invariants a human cannot
   eyeball (turret mount cells, "spawned-dead" enemies inside their threat

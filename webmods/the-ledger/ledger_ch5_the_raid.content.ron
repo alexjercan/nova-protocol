@@ -774,7 +774,7 @@
                                 patrol: [
                                     (-40.0, 6.0, 20.0),
                                     (-30.0, -10.0, -260.0),
-                                    (-65.0, 12.0, -440.0),
+                                    (-65.0, 12.0, -520.0),
                                 ],
                                 leash: Some(700.0),
                             )),
@@ -1069,7 +1069,7 @@
                                 patrol: [
                                     (40.0, -6.0, 20.0),
                                     (30.0, 10.0, -260.0),
-                                    (65.0, -12.0, -440.0),
+                                    (65.0, -12.0, -520.0),
                                 ],
                                 leash: Some(700.0),
                             )),
@@ -1358,13 +1358,13 @@
                         base: (
                             id: "raider_1",
                             name: "Magpie 'Cutpurse'",
-                            position: (-60.0, 10.0, -460.0),
+                            position: (-70.0, 10.0, -520.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
                             controller: AI((
                                 orbit: Some("magpie_base"),
-                                leash: Some(320.0),
+                                leash: Some(200.0),
                                 engage_delay: Some(6.0),
                             )),
                             sections: [
@@ -1648,13 +1648,13 @@
                         base: (
                             id: "raider_2",
                             name: "Magpie 'Skimmer'",
-                            position: (65.0, -5.0, -485.0),
+                            position: (75.0, -5.0, -540.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
                             controller: AI((
                                 orbit: Some("magpie_base"),
-                                leash: Some(320.0),
+                                leash: Some(200.0),
                                 engage_delay: Some(6.0),
                             )),
                             sections: [
@@ -1938,13 +1938,13 @@
                         base: (
                             id: "raider_3",
                             name: "Magpie 'Tallymark'",
-                            position: (-35.0, -25.0, -560.0),
+                            position: (-40.0, -30.0, -630.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
                             controller: AI((
                                 orbit: Some("magpie_base"),
-                                leash: Some(320.0),
+                                leash: Some(200.0),
                                 engage_delay: Some(8.0),
                             )),
                             sections: [
@@ -2228,13 +2228,13 @@
                         base: (
                             id: "raider_4",
                             name: "Magpie 'Last Word'",
-                            position: (40.0, 30.0, -575.0),
+                            position: (45.0, 35.0, -640.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
                             controller: AI((
                                 orbit: Some("magpie_base"),
-                                leash: Some(320.0),
+                                leash: Some(200.0),
                                 engage_delay: Some(8.0),
                             )),
                             sections: [
@@ -2516,23 +2516,23 @@
                     )),
                     // --- The Magpie base: a custom station built from a
                     // reinforced-hull keep around a controller core, with two
-                    // turrets and two RCS thrusters. The thrusters give its
-                    // controller the RCS authority to STATION-KEEP against the
-                    // (mild, reduced) gravity here; a tight leash (15u, centred on
-                    // its spawn) keeps it from chasing the player when it engages
-                    // - beyond the leash the AILeash tether breaks off combat and
-                    // pulls it home. Enemy, destructible - the torpedoes' target.
+                    // turrets. THRUSTERLESS by design: with no propulsion it
+                    // physically cannot move, so it holds station and cannot
+                    // chase the player (and cannot be dragged off by gravity - it
+                    // is placed clear of every planetoid well, since the AI cannot
+                    // fly a well yet; see backlog 20260723-224003). Its turrets
+                    // still aim and fire. Enemy, destructible - the torpedoes'
+                    // target. (Reverts the RCS/leash approach of 20260723-200643,
+                    // which could not hold it and let a shot base chase.)
                     SpawnScenarioObject((
                         base: (
                             id: "magpie_base",
                             name: "Magpie Forward Post 'The Nest'",
-                            position: (0.0, 15.0, -520.0),
+                            position: (0.0, 15.0, -580.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
-                            controller: AI((
-                                leash: Some(15.0),
-                            )),
+                            controller: AI(()),
                             allegiance: Some(Enemy),
                             sections: [
                                 (
@@ -2617,40 +2617,28 @@
                                     rotation: (0.0, 0.0, 0.0, 1.0),
                                     source: Prototype("better_turret_section"),
                                 ),
-                                // Two RCS thrusters on the x-arm tips (where the
-                                // other two turrets were) - the station-keeping
-                                // propulsion budget the controller trims against
-                                // gravity to hold position.
-                                (
-                                    id: "rcs_xp",
-                                    position: (2.0, 1.0, 0.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
-                                    source: Prototype("basic_thruster_section"),
-                                ),
-                                (
-                                    id: "rcs_xm",
-                                    position: (-2.0, 1.0, 0.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
-                                    source: Prototype("basic_thruster_section"),
-                                ),
                             ],
                         )),
                     )),
-                    // --- Planetoids: three big bodies for cover and scale. Large
-                    // radius, invulnerable, some with surface gravity.
+                    // --- Planetoids: three bodies for cover and scale, in the
+                    // EARLY approach corridor. TINY wells now (radius 8-9,
+                    // gravity 1 -> SOI 64-72, gentle pull): the AI cannot fly a
+                    // well yet (backlog 20260723-224003), so the wells sit only
+                    // where the player passes and are kept clear of the base and
+                    // the leashed fighters. Invulnerable.
                     SpawnScenarioObject((
                         base: (
                             id: "planetoid_1",
                             name: "Planetoid",
-                            position: (-160.0, -40.0, -140.0),
+                            position: (-120.0, -30.0, -150.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
-                            radius: 14.0,
+                            radius: 8.0,
                             texture: "dep://base/textures/asteroid.png",
                             health: 2000.0,
                             impact_sound: Some("dep://base/sounds/impact.wav"),
-                            surface_gravity: Some(3.0),
+                            surface_gravity: Some(1.0),
                             invulnerable: true,
                         )),
                     )),
@@ -2658,15 +2646,15 @@
                         base: (
                             id: "planetoid_2",
                             name: "Planetoid",
-                            position: (150.0, 50.0, -300.0),
+                            position: (130.0, 40.0, -190.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
-                            radius: 12.0,
+                            radius: 9.0,
                             texture: "dep://base/textures/asteroid.png",
                             health: 2000.0,
                             impact_sound: Some("dep://base/sounds/impact.wav"),
-                            surface_gravity: Some(3.0),
+                            surface_gravity: Some(1.0),
                             invulnerable: true,
                         )),
                     )),
@@ -2674,15 +2662,15 @@
                         base: (
                             id: "planetoid_3",
                             name: "Planetoid",
-                            position: (0.0, -70.0, -470.0),
+                            position: (-40.0, -60.0, -230.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
-                            radius: 16.0,
+                            radius: 8.0,
                             texture: "dep://base/textures/asteroid.png",
                             health: 2000.0,
                             impact_sound: Some("dep://base/sounds/impact.wav"),
-                            surface_gravity: Some(3.0),
+                            surface_gravity: Some(1.0),
                             invulnerable: true,
                         )),
                     )),

@@ -349,13 +349,15 @@ fn the_wing_is_friendly_and_the_defenders_are_hostile() {
     );
 }
 
-// --- the base holds station: RCS thrusters + a tight leash, fewer turrets ----
+// --- the base holds station: THRUSTERLESS, out of gravity, fewer turrets -----
 
-/// Playtest tuning (task 20260723-200643): the base gets RCS thrusters and a
-/// tight leash so it station-keeps against the (reduced) gravity instead of
-/// being dragged off, and its turret load is trimmed from four to two.
+/// Gravity round 2 (task 20260723-223954): the RCS + leash approach could not
+/// hold the base, so it is now THRUSTERLESS - with no propulsion it physically
+/// cannot move (holds station AND cannot chase), and it is placed clear of every
+/// planetoid well (the AI cannot fly a well yet - backlog 20260723-224003). Its
+/// turret load stays at two.
 #[test]
-fn the_base_holds_station_with_rcs_and_a_tight_leash() {
+fn the_base_holds_station_thrusterless() {
     let scenario = scenario_from(CH5_RON);
     let start = on_start(&scenario);
     let base = spaceship_at(start, "magpie_base");
@@ -372,22 +374,25 @@ fn the_base_holds_station_with_rcs_and_a_tight_leash() {
             })
             .count()
     };
-    let turrets = count(|k| matches!(k, SectionKind::Turret(_)));
-    let thrusters = count(|k| matches!(k, SectionKind::Thruster(_)));
-    assert_eq!(turrets, 2, "the base turret load is trimmed to two");
-    assert!(
-        thrusters >= 2,
-        "the base carries RCS thrusters to station-keep (found {thrusters})"
+    assert_eq!(
+        count(|k| matches!(k, SectionKind::Turret(_))),
+        2,
+        "the base keeps its two turrets"
+    );
+    assert_eq!(
+        count(|k| matches!(k, SectionKind::Thruster(_))),
+        0,
+        "the base is thrusterless so it cannot move, drift, or chase"
     );
 
-    // The tight leash keeps it from chasing the player off its post.
+    // AI-flown (turrets aim/fire) but with no leash - the no-thrusters is what
+    // holds it, not a tether.
     let SpaceshipController::AI(ai) = &base.controller else {
         panic!("the base is AI-flown");
     };
     assert_eq!(
-        ai.leash,
-        Some(15.0),
-        "the base is leashed tight to its post so it holds station"
+        ai.leash, None,
+        "the thrusterless base needs no leash - it cannot move"
     );
 }
 
@@ -587,7 +592,7 @@ fn the_bundle_ships_the_raid_and_bumps_the_version() {
         "the bundle lists the raid finale"
     );
     assert!(
-        LEDGER_BUNDLE_RON.contains("version: \"1.11.0\""),
+        LEDGER_BUNDLE_RON.contains("version: \"1.12.0\""),
         "the bundle version is bumped for the raid finale + its tuning"
     );
 }
