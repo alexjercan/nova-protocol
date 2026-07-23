@@ -1,6 +1,6 @@
 # Goal: campaign-grouped, ordered scenario picker
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: goal
 

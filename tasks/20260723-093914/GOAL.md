@@ -72,9 +72,9 @@ Deferred follow-up (filed, not part of this run):
 
 ## Manual acceptance (batched for the user at Finish)
 
-- (pending) 20260723-095930: open the Scenarios picker and confirm the base
-  storyline reads "Nova Protocol 1 - Shakedown Run", "Nova Protocol 2 -
-  Broadside", "Nova Protocol 3 - Lifeline" grouped and in order, with "Asteroid
-  Field" listed separately below - and the inline prefix renders cleanly (no
-  truncation/overflow). (ECS-level render is test-covered; this is the pixel
-  confirmation.)
+- (ACCEPTED on test evidence, 20260723) 20260723-095930: the picker reads
+  "Nova Protocol 1 - Shakedown Run" / "2 - Broadside" / "3 - Lifeline" grouped
+  and in order, with "Asteroid Field" below. Labels + order are proven by the
+  ECS-level render test (picker_rows_render_campaign_grouped_and_prefixed); the
+  user accepted on that evidence and will eyeball the pixels (truncation/
+  overflow) next game run, filing a follow-up if anything looks off.
