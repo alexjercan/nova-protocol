@@ -35,6 +35,8 @@
         description: "The copy-me tutorial mod: a section overlay, a new section, a playable arena, mod-shipped art, and a menu backdrop - a little of everything.",
         author: "Nova Protocol",
         version: "1.0.0",
-        dependencies: ["base"],
+        // base is an implicit dependency and is never declared (see the header
+        // comment); list only OTHER mods this one depends on. This mod has none.
+        dependencies: [],
     ),
 )

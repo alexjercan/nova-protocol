@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>v0.8.0 - The campaign finds its voice - Nova Protocol</title>
+        <meta name="description" content="Nova Protocol v0.8.0: the base campaign is finished and finds its voice - two new chapters (Lifeline's convoy defense and the Final Tally gravity-well finale) close the arc, and the whole mainline briefs you over the comms and breathes between beats. The Ledger story mod (now 1.12.0) grows a real stealth run, a forking finale, and a fifth reward chapter you fly a torpedo-armed gunship into; Gauntlet becomes a time-trial on the new HudReadout action; and the dev tooling grows the nova_probe run-harness that verifies an autopilot playthrough is still correct, a unified content lint with per-mod reports, and an ephemeral docs model." />
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/news.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="news">
+                <nav class="news__toc" aria-label="On this page">
+                    <p class="news__toc-title">On this page</p>
+                    <a href="#the-base-campaign-is-finished" class="news__toc-link">The base campaign is finished</a>
+                    <a href="#lifeline-hold-the-line-for-the-convoy" class="news__toc-link news__toc-link--sub">Lifeline: hold the line for the convoy</a>
+                    <a href="#final-tally-the-gravity-well-finale" class="news__toc-link news__toc-link--sub">Final Tally: the gravity-well finale</a>
+                    <a href="#it-briefs-you-now-instead-of-dumping-on-you" class="news__toc-link news__toc-link--sub">It briefs you now instead of dumping on you</a>
+                    <a href="#rules-that-make-ally-and-neutral-ships-behave" class="news__toc-link news__toc-link--sub">Rules that make ally and neutral ships behave</a>
+                    <a href="#the-ledger-a-story-mod-that-grew-up" class="news__toc-link">The Ledger: a story mod that grew up</a>
+                    <a href="#a-campaign-that-breathes" class="news__toc-link news__toc-link--sub">A campaign that breathes</a>
+                    <a href="#chapter-three-is-a-real-stealth-run" class="news__toc-link news__toc-link--sub">Chapter three is a real stealth run</a>
+                    <a href="#the-finale-actually-forks" class="news__toc-link news__toc-link--sub">The finale actually forks</a>
+                    <a href="#a-reward-for-fighting-the-raid" class="news__toc-link news__toc-link--sub">A reward for fighting: The Raid</a>
+                    <a href="#a-look-for-each-chapter" class="news__toc-link news__toc-link--sub">A look for each chapter</a>
+                    <a href="#gauntlet-run-is-a-time-trial" class="news__toc-link">Gauntlet Run is a time-trial</a>
+                    <a href="#under-the-hood-the-run-harness" class="news__toc-link">Under the hood: the run-harness</a>
+                    <a href="#tooling-that-pinpoints-the-mistake" class="news__toc-link">Tooling that pinpoints the mistake</a>
+                    <a href="#fixes" class="news__toc-link">Fixes</a>
+                </nav>
+                <article class="prose news__body">
+                <p class="prose__meta">
+                    <a href="/nova-protocol/news/">&larr; News</a>
+                    &nbsp;//&nbsp; 2026-07-23 &nbsp;//&nbsp; v0.8.0
+                </p>
+                <h1>v0.8.0 - The campaign finds its voice</h1>
+                <p>For seven releases Nova Protocol grew systems: flight, combat, scenarios,
+mods, and in v0.7.0 the stakes that let a scenario be won or lost. v0.8.0 is the
+release that takes all of that and makes it <em>land</em>. No new headline system this
+cycle - instead the base campaign got its two missing chapters and learned to
+talk to you, both campaigns learned to breathe between their beats, the story
+mod on the portal grew a stealth run and a reward finale you have to earn, and
+the tooling underneath grew a run-harness that watches an autopilot playthrough
+and reports whether the game is still <em>correct</em>, not just still running.</p>
+<p>It is a polish release, and polish is the whole point. The fights, the story,
+and the checks all got slower where they needed room, sharper where they were
+mushy, and much harder to break. Here is the whole of it.</p>
+<h2 id="the-base-campaign-is-finished" tabindex="-1">The base campaign is finished</h2>
+<p>For the first time the New Game storyline runs a full arc end to end: five
+scenarios, a beginning, a middle, and a real ending. <strong>Shakedown Run -&gt;
+Broadside (two parts) -&gt; Lifeline -&gt; Final Tally.</strong> Two of those are brand new
+this release, and the Scenarios picker now groups them together as one ordered
+campaign instead of scattering them in the list - so the arc reads as a sequence
+you can see, not a menu you have to decode.</p>
+<h3 id="lifeline-hold-the-line-for-the-convoy" tabindex="-1">Lifeline: hold the line for the convoy</h3>
+<p><strong>Lifeline</strong> (chapter three, part one) is the first ally content in the game.
+The Tallyman's raiders hit the belt's supply convoy in revenge for the Rust
+Tally, and the job is to keep two stalled haulers - the Ceres Queen among them -
+alive through three telegraphed raider waves until the relief wing arrives.</p>
+<p>A live <code>RELIEF mm:ss</code> countdown runs on the HUD so you always know how long you
+have to survive. The wave gates ride <em>both</em> the scenario clock and the previous
+wave's clears, so a slow, careful run never gets two waves stacked on top of it,
+and an aggressive one that clears fast earns an early win. The convoy is real:
+unpiloted haulers flying on your side, genuinely hunted by the raider AI, so
+&quot;keep the convoy alive&quot; means exactly what it says - screen them, or watch them
+die.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-080-lifeline.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-080-lifeline.png</span>
+        <span class="figure__placeholder-note">Lifeline mid-wave: the two haulers holding station in the belt while a raider wave burns in, the RELIEF mm:ss countdown readout on the HUD.</span>
+    </div>
+    <figcaption class="figure__caption">Lifeline: screen the convoy through three waves until the relief wing arrives.</figcaption>
+</figure>
+<h3 id="final-tally-the-gravity-well-finale" tabindex="-1">Final Tally: the gravity-well finale</h3>
+<p><strong>Final Tally</strong> (chapter three, part two) is where the trace ends and the
+campaign closes. The gang's claim is a cracked megahauler anchorage berthed deep
+in a planetoid's gravity well - the base campaign's first <em>combat</em> gravity well,
+ringed by a scattered belt. Three beats, escalating: survey the anchorage by
+holding a travel lock on its bow, break a two-ship orbital picket flying guard
+on rails, then finish the gang's flagship when it casts off with an escort - the
+campaign's only simultaneous capital-plus-escort fight.</p>
+<p>The flagship kill opens a paced epilogue - a confirmation line, the guild's
+close, then the banner - and the campaign completes properly: <em>&quot;End of the base
+campaign - for now.&quot;</em> It is the first base scenario to end the way a story
+should, not just stop.</p>
+<h3 id="it-briefs-you-now-instead-of-dumping-on-you" tabindex="-1">It briefs you now instead of dumping on you</h3>
+<p>The single biggest change to how the base game <em>feels</em> is that it finally paces
+itself. Across the whole mainline, an objective now appears a beat <strong>after</strong> the
+comms line that introduces it, never in the same instant, and completing one
+objective no longer pops the next one on the same frame - there is a short
+breathing beat between them. Beats no longer trip over each other.</p>
+<p><strong>Shakedown Run</strong> shows this best. Instead of dropping you straight onto the
+first objective, you now drift off the dock while Capt. Halloran briefs you over
+the comms panel - a five-line back-and-forth (the campaign's first player voice,
+simply &quot;You&quot;) that plays over about forty seconds before objective one even
+posts. Between the later beats she keeps talking, a line landing after each
+objective, and the objective texts shrank to the bare goal (&quot;Burn to Beacon 1.&quot;)
+with the story moved into her voice. The old &quot;stand by&quot; holding line is gone; the
+opening panel just stays quiet while she talks.</p>
+<p><strong>Broadside</strong> got the same voice. Halloran's distress call opens the chapter -
+the same call the Shakedown banner promised - she calls the ambush and the first
+corvette kill, the Rust Tally taunts on arrival, and Belt Relay reports the Ceres
+Queen's beacon going dark. Objectives shrank to imperative goals (&quot;Find the
+hauler Ceres Queen.&quot;), and the Victory banners now check whether the Ceres Queen
+actually survived the fight and pick the matching line.</p>
+<p>Under all of it is one shared <strong>scenario-pacing toolbox</strong> - a clock-deadline
+&quot;mark and wait&quot; the whole mainline uses instead of each scenario carrying its
+own copy, pinned by cross-scenario invariants so no future beat can ever post an
+objective on top of a conversation again.</p>
+<h3 id="rules-that-make-ally-and-neutral-ships-behave" tabindex="-1">Rules that make ally and neutral ships behave</h3>
+<p>Two quiet engine rules make all this new convoy-and-bystander content play fair:</p>
+<ul>
+<li><strong>Unarmed AI ships are non-combatants.</strong> A ship with an AI pilot but no turret
+or torpedo never acquires a target, chases, or shoots - it just flies its
+patrol or orbit. It stays targetable, so an escort or convoy on your side is
+still hunted and must be defended; it simply cannot fight back. Any unarmed AI
+craft, yours or a mod's, gets this for free.</li>
+<li><strong>Gravity wells pull only piloted ships.</strong> A scripted bystander with no pilot
+has no drive to resist a well, so it now floats where it sits instead of being
+dragged in - a guaranteed rule authors and mods can rely on.</li>
+</ul>
+<h2 id="the-ledger-a-story-mod-that-grew-up" tabindex="-1">The Ledger: a story mod that grew up</h2>
+<p>The story campaign on the portal, <strong>The Ledger</strong>, went from a solid four-chapter
+arc to a genuinely deep one this cycle - version 1.5.0 all the way to <strong>1.12.0</strong>.
+A salvage crew in over its head, one sealed crate everyone in the belt wants, and
+now a stealth run, a forking finale, and a reward chapter you only see if you
+earn it. Install or update it from <strong>Mods &gt; Explore</strong>.</p>
+<h3 id="a-campaign-that-breathes" tabindex="-1">A campaign that breathes</h3>
+<p>Every chapter now opens with a briefing over the comms before the objective
+drops, and the story lines land a beat apart - announce, arrive, confirm,
+breathe - holding long enough to actually read instead of flashing past. No
+objective ever shares a frame with a conversation anymore. The same pacing
+discipline the base campaign got, applied end to end across the mod.</p>
+<h3 id="chapter-three-is-a-real-stealth-run" tabindex="-1">Chapter three is a real stealth run</h3>
+<p>The quiet channel is the standout. It is no longer a corridor with an ambush at
+the end - it is a stealth run you can pass clean or blow wide open, and there are
+now <strong>five</strong> distinct ways to give yourself away.</p>
+<p>The two channel Magpies are present from the first frame as <strong>neutral pickets</strong>
+patrolling the flanks of a debris pinch, not hostiles that spawn on a trigger. A
+debris pinch between the first two nav drops squeezes the lane down to a single
+threadable gap between two wrecks the size of houses - the one line the pickets'
+watch does not cover. Thread it slow and dark and you slip past for Vesh's
+&quot;nothing on their scopes&quot; payoff and a clean Victory with the pickets still
+asleep. Stray into a picket's watch bubble, red-lock one, or <strong>burn too hot
+through the narrows</strong> and both flip hostile at once, and it becomes the same
+fight it always was.</p>
+<p>That last one - overspeed - got its own careful design. Running over 8 u/s
+through the channel is noise the pickets hear, but it is warn-then-trip, not a
+hair trigger: the first breach just gets you Vesh calling it and telling you to
+throttle down. Push past again after slowing and a <strong>3.5-second countdown</strong>
+starts - a real last-chance window with a shouted warning - and the Magpies only
+wake if you <em>hold</em> the burn past it. Ease back under the band in time and the
+countdown cancels. The trip is a sustained mistake, not a twitch of the throttle.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-080-ledger-stealth.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-080-ledger-stealth.png</span>
+        <span class="figure__placeholder-note">The Ledger chapter three: the debris pinch narrowing the lane to a single gap between two big wrecks, a neutral Magpie picket patrolling a flank, Vesh's warning line in the comms panel.</span>
+    </div>
+    <figcaption class="figure__caption">The Ledger's quiet channel: thread the pinch slow and dark, or wake the pickets.</figcaption>
+</figure>
+<h3 id="the-finale-actually-forks" tabindex="-1">The finale actually forks</h3>
+<p>Chapter four's two endings are genuinely different games now, not two flavors of
+the same one. <strong>Sell</strong> the box at Vesh's berth and the sale calls the Auditor
+down - a military gunship you have to break for the payday, now telegraphed with
+a warning line and an engage grace so it reads before it turns lethal. <strong>Burn</strong>
+the box at the buoy and there is nothing left to collect: the Auditor never
+comes, no fight - but no payout either. Payday at a price, or clear and broke.
+Each path reaches its own terminal Victory.</p>
+<h3 id="a-reward-for-fighting-the-raid" tabindex="-1">A reward for fighting: The Raid</h3>
+<p>And if you took the fight - broke the Auditor on the sell path - the campaign no
+longer just ends. It opens into a <strong>fifth chapter you only reach by winning that
+fight.</strong> Your payday buys a gunship, and for the first time in the whole story
+you fly a capital ship with torpedoes: guns on the left mouse, torpedo tubes on
+the R key. With two of Vesh's wing flying escort, you raid the Magpies' forward
+base among the asteroids and planetoids - a real multi-section station and four
+fighters - and crack it to close the account for good. The burn ending stays
+terminal at chapter four; <strong>the raid is what fighting earns.</strong></p>
+<figure class="figure">
+    <!-- Capture: assets/news-080-ledger-raid.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-080-ledger-raid.png</span>
+        <span class="figure__placeholder-note">The Raid: the player's torpedo-armed gunship with two escorts closing on the multi-section Magpie base among planetoids, a torpedo away on the R-key.</span>
+    </div>
+    <figcaption class="figure__caption">The Raid - the reward finale: a capital ship, two escorts, and a station to crack.</figcaption>
+</figure>
+<h3 id="a-look-for-each-chapter" tabindex="-1">A look for each chapter</h3>
+<p>Every chapter now picks its own sky, and the sky shifts at the beats that matter</p>
+<ul>
+<li>the moment the fourth ping shows up on the manifest in chapter one, the channel
+narrowing in chapter three, the Auditor arriving on the sell path in the finale.
+Built entirely on <code>SetSkybox</code> accents over deliberate per-chapter cubemaps, no
+new art required.</li>
+</ul>
+<h2 id="gauntlet-run-is-a-time-trial" tabindex="-1">Gauntlet Run is a time-trial</h2>
+<p>The Gauntlet Run mod (bundle 1.3.0) is now a proper time-trial. A live <code>mm:ss.s</code>
+run clock shows from the START gate and freezes at your final time behind the
+Victory banner, and a clean-run bonus rewards a flawless line: graze a hazard
+zone and a crash counter ticks up; cross FINISH with a clean sheet and you earn a
+<strong>CLEAN RUN</strong> banner where a grazed run gets the plain finish.</p>
+<p>It is built entirely on a new <strong><code>HudReadout</code></strong> scenario action - show a live
+scenario variable on the HUD in number, integer, or <code>mm:ss.s</code> time format. It is
+the display half of the variable vocabulary, and any mod can use it: a countdown,
+a score, a distance, a lap clock. No new engine machinery, just a readout bound
+to a variable that updates every frame.</p>
+<h2 id="under-the-hood-the-run-harness" tabindex="-1">Under the hood: the run-harness</h2>
+<p>The biggest single investment this cycle is invisible in the game and load-
+bearing for everything that ships in it. The old <code>nova_perf</code> crate grew up into
+<strong><code>nova_probe</code></strong>, a run-harness that drives an autopilot example end to end and
+reports whether the run was <em>correct</em>, not just whether it survived to the end.</p>
+<p>One command - <code>cargo run -p nova_probe -- run &lt;example&gt;</code> - plays the example
+under a headless renderer and assembles whatever the run captured into a single
+self-contained <code>report.html</code> plus a machine-readable <code>checks.json</code>:</p>
+<ul>
+<li>an <strong>ordered timeline</strong> of state transitions, fired scenario events with their
+payloads, and variable changes, with the section examples emitting outcome
+markers right at their assertion sites (turret fired, gate damaged, the
+torpedo fire-arm-detonate-hit chain) so the timeline shows the <em>feature</em>
+working, not just the process surviving;</li>
+<li><strong>continuous per-frame invariant assertions</strong> - health bounds, finite
+velocities plus an absurd-speed bound, no entity-count leaks - that warn (or,
+in strict mode, panic at the moment of corruption) and land on the timeline;</li>
+<li><strong>frame-time percentiles</strong> with the backend, GPU, resolution, preset and git
+SHA recorded in every row, an optional Perfetto profile and samply flamegraph
+from separate passes so tracing overhead never touches the clean numbers;</li>
+<li>an <strong>OK/WARN/FAIL/NO_DATA verdict</strong> with <code>measured: n/total</code> coverage and a
+reviewer checklist that owns the final call.</li>
+</ul>
+<p>It runs whole fleets (<code>probe run gameplay</code>, <code>probe run --all</code>) with an aggregated
+index, regression-checks a group against a prior capture with <code>--baseline</code>, and
+hardens itself for unattended use - a hung or crashed run still produces a
+<em>failing</em> report instead of no report at all. The examples themselves moved into
+purpose directories (<code>sections</code>, <code>gameplay</code>, <code>ui</code>, <code>screenshots</code>, <code>perf</code>) with a
+single catalog in the root <code>Cargo.toml</code> as the source of truth, and every
+cataloged example is now probe-evaluable. Harness runs also mute themselves, so a
+headless smoke test no longer plays the game through your speakers.</p>
+<h2 id="tooling-that-pinpoints-the-mistake" tabindex="-1">Tooling that pinpoints the mistake</h2>
+<p><strong><code>content lint</code> is now the single content-validation command.</strong> The balance
+<code>audit</code> folded into it (balance is a kind of lint), so one pass runs the
+reference and geometry checks, the combat-fairness audit, and a new flight-rig
+input-overlap check that flags a mod binding a key the always-on flight rig
+already drives - the silent double-drive behind a real &quot;guns on Space&quot; bug.
+<code>lint --target &lt;mod&gt; --report &lt;path&gt;</code> writes a per-mod document - Markdown, or
+HTML for a <code>.html</code> path - that pinpoints, for every finding, the source file, the
+offending element, an explanation, and a suggested fix, instead of a bare stdout
+line you have to go hunting from.</p>
+<p>A local <code>cargo fmt --check</code> <strong>pre-commit hook</strong> (armed once with
+<code>scripts/setup-hooks.sh</code>) now makes formatting drift impossible to land rather
+than merely flagged by CI after the fact. And <code>docs/</code> became <strong>ephemeral
+scratch</strong>: a release-time step compiles anything durable into the root
+<code>LESSONS.md</code> and the folder wipes to only its README, with a release guard that
+fails the tag if anything else is left behind - so the repo can never ship a
+junk-drawer of stale notes again.</p>
+<h2 id="fixes" tabindex="-1">Fixes</h2>
+<ul>
+<li><strong>Destroying a sectioned ship no longer crashes.</strong> When a ship exploded, its
+section damage-tint could try to colour a section the explosion had already
+destroyed that same frame, panicking the game (seen killing the Rust Tally
+gunship). The tint now tolerates a section that vanished mid-frame.</li>
+<li><strong>The mouse cursor is hidden while flying, in dev builds too.</strong> Flight always
+captured the cursor in a shipped build, but the whole grab was compiled out
+under the <code>debug</code> feature, leaving a stray cursor floating over every
+<code>--features dev</code> playtest. Flight now hides it unconditionally; the F11
+inspector defaults off and hands the cursor back only while its panel is up.
+As a consequence a <code>--features debug</code> build now boots with the whole debug
+layer off - gizmos, inspector, physics debug, wireframe, ammo number - and F11
+raises and lowers all of it together, instead of the toggles falling out of
+phase.</li>
+<li><strong>The Asteroid Field sandbox is back in the Scenarios picker.</strong> It had been
+hidden as &quot;a mid-story stage reached by chaining&quot; - a premise that was never
+true, so hiding it just made finished content unreachable. Its relay
+continuation stays hidden as before.</li>
+</ul>
+
+                <footer class="post-footer">
+                    <p class="post-footer__discuss">
+                        Got a reaction, a question, or a ship you want to show
+                        off?
+                        <a
+                            href="https://github.com/alexjercan/nova-protocol/discussions"
+                            target="_blank"
+                            rel="noopener"
+                            >Talk about this release on GitHub Discussions</a
+                        >.
+                    </p>
+                    <p class="post-footer__discuss">
+                        Want the terse, complete list for every version
+                        (patch releases included)?
+                        <a
+                            href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md"
+                            target="_blank"
+                            rel="noopener"
+                            >Read CHANGELOG.md on GitHub</a
+                        >.
+                    </p>
+                    <p class="post-footer__nav">
+                        <a href="/nova-protocol/news/">&larr; All news</a>
+                    </p>
+                </footer>
+            </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

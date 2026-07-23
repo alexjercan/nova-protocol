@@ -103,11 +103,7 @@ for responsibilities and the dependency graph.</p>
 </tr>
 <tr>
 <td><code>nova_mod_format</code></td>
-<td>Pure serde types for the mod formats (engine-free); re-exported by <code>nova_modding</code>.</td>
-</tr>
-<tr>
-<td><code>nova_portal_gen</code></td>
-<td>Binary: generates the static mod portal from <code>webmods/</code> (engine-free).</td>
+<td>Pure serde types for the mod formats (engine-free); re-exported by <code>nova_modding</code>. The static mod portal is built by <code>scripts/gen-portal.py</code>.</td>
 </tr>
 <tr>
 <td><code>nova_editor</code></td>
@@ -128,6 +124,14 @@ for responsibilities and the dependency graph.</p>
 <tr>
 <td><code>nova_info</code></td>
 <td>Exposes <code>APP_VERSION</code>, injected by <code>build.rs</code>.</td>
+</tr>
+<tr>
+<td><code>nova_probe</code></td>
+<td>Dev tool (not in the shipped game): run-harness - frame-time capture + run-timeline/invariant report over autopilot examples; <code>run</code>/<code>report</code>.</td>
+</tr>
+<tr>
+<td><code>nova_meta_gen</code></td>
+<td>Binary under <code>tools/</code> (web-build tooling, not a game crate): writes default <code>.meta</code> sidecars for web assets (Trunk <code>post_build</code> hook).</td>
 </tr>
 </tbody>
 </table>

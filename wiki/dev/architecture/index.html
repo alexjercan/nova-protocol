@@ -92,11 +92,7 @@ real code lives under <code>crates/</code>.</p>
 </tr>
 <tr>
 <td><code>nova_mod_format</code></td>
-<td>Pure serde types for the mod formats (bundle manifests, catalog declarations, the portal wire schema). Engine-free; re-exported by <code>nova_modding</code>.</td>
-</tr>
-<tr>
-<td><code>nova_portal_gen</code></td>
-<td>Binary: generates the static mod portal (catalog.json + hashed file copies) from <code>webmods/</code>. Engine-free. See <a href="../mod-portal/">Mod portal</a>.</td>
+<td>Pure serde types for the mod formats (bundle manifests, catalog declarations, the portal wire schema). Engine-free; re-exported by <code>nova_modding</code>. The static mod portal is built by <code>scripts/gen-portal.py</code>, not a crate. See <a href="../mod-portal/">Mod portal</a>.</td>
 </tr>
 <tr>
 <td><code>nova_ui</code></td>
@@ -109,6 +105,14 @@ real code lives under <code>crates/</code>.</p>
 <tr>
 <td><code>nova_info</code></td>
 <td>Exposes <code>APP_VERSION</code>, injected by <code>build.rs</code>.</td>
+</tr>
+<tr>
+<td><code>nova_probe</code></td>
+<td>Dev tooling (not in the shipped game): the run-harness that drives an autopilot example headless and assembles a run report - frame-time capture plus the run-timeline recorder and continuous invariant checks. <code>run</code>/<code>report</code> CLI. See <a href="../development/">Development</a>.</td>
+</tr>
+<tr>
+<td><code>nova_meta_gen</code></td>
+<td>Binary under <code>tools/</code> (web-build tooling, not a game crate): writes default <code>.meta</code> sidecars for web assets that lack one (a Trunk <code>post_build</code> hook for <code>AssetMetaCheck::Always</code>). Boots a headless Bevy app, so it stays Rust.</td>
 </tr>
 </tbody>
 </table>
@@ -124,7 +128,6 @@ real code lives under <code>crates/</code>.</p>
     scenario --&gt; events
     assets --&gt; modding[&quot;nova_modding&quot;]
     modding --&gt; modfmt[&quot;nova_mod_format&quot;]
-    portal[&quot;nova_portal_gen&quot;] --&gt; modfmt
     menu --&gt; ui[&quot;nova_ui&quot;]
     editor --&gt; ui
     core --&gt; debug[&quot;nova_debug&quot;]
@@ -187,7 +190,7 @@ UI, and the clock freeze (<code>Time&lt;Virtual&gt;</code> + <code>Time&lt;Physi
 inside <code>Playing</code>; leaving <code>Playing</code> resets it.</li>
 <li><code>GameAssetsStates { Loading, Processing, Loaded }</code> (<code>nova_assets</code>) - asset
 pipeline. Scenario setup hooks <code>OnEnter(GameAssetsStates::Loaded)</code> - see
-<code>examples/08_scenario.rs</code>.</li>
+<code>examples/gameplay/scenario.rs</code>.</li>
 </ul>
 <p>The top-level lifecycle, the pause overlay nested inside <code>Playing</code>, and the asset
 pipeline that gates entry:</p>

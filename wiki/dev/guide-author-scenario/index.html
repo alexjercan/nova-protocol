@@ -106,7 +106,8 @@ findings REFUSES to start - the player sees a FAILED TO START report
 naming each problem (instead of a silently half-spawned scene), and a
 broken menu backdrop is skipped by the backdrop rotation. Fix the
 findings and re-enable the mod.</p>
-<p>Audit your BALANCE too: <code>cargo run -p nova_assets --bin content -- audit</code>
+<p>The same <code>content lint</code> run audits your BALANCE too (the balance <code>audit</code> is
+folded into <code>lint</code> - balance is a kind of lint): it
 derives every combat scenario's fairness sheet from the shipped data -
 per spawn group, the hostile count, combined burst dps, weapon
 envelopes, distance from the player spawn and time-to-kill against the
@@ -396,6 +397,32 @@ overlay's own <code>message</code> carries the closing line.</li>
 <li>Pick the transition gear deliberately: hard cut for menu scenes,
 <code>delay: Some(secs)</code> for an unceremonial beat, the modal overlay (plus
 optional <code>auto_advance_secs</code>) for checkpoints and chapter ends.</li>
+<li>An objective never shares a frame with a conversation. Every objective
+posts a BEAT after the comms line that introduces it (owner playtest, task
+20260722-092421) - never in the same handler, and never at <code>OnStart</code> while a
+dispatch or conversation is still playing. The objectives panel stays EMPTY
+through an opening conversation; the first goal appears only when the
+conversation hands off. The mainline pins this with two invariants
+(<code>no_mainline_handler_posts_an_objective_alongside_a_conversation</code>,
+<code>no_mainline_scenario_posts_an_objective_at_onstart</code>).</li>
+<li>The tool is the shared <code>pacing</code> module (one definition site for the whole
+mainline): <code>mark_clock(gate, delay)</code> stamps a deadline
+(<code>gate = scenario_elapsed + delay</code>) in the handler that opens the beat
+(<code>OnStart</code>, or the transition that completes the previous objective), and
+<code>gated_once(done, gate, extra, actions)</code> is a one-shot <code>OnUpdate</code> that fires
+its actions once the clock passes that deadline (<code>clock_past</code>) - the
+canonical &quot;post the next objective a beat later&quot; handler. A <code>gate &gt; 0</code> guard
+stops it firing before the deadline is ever stamped. Use it for the opening
+objective AND for every objective swap, so completing one objective and
+posting the next never land the same instant.</li>
+<li>For a multi-line opening, seed an <code>open_step</code> counter and gate each line on
+<code>open_step == n</code> + <code>scenario_elapsed &gt; t</code> (advancing the counter); a final
+<code>open_step == last</code> handler posts objective 1 and spawns its target (so a
+burn cannot skip a beacon that is not there yet). The Shakedown Run's ~40s
+captain briefing is the reference; a soft speed cap makes the drift diegetic.
+For between-beat breathers, stamp <code>mark_clock(beat_gate, delay)</code> at each
+transition and gate the comms line on <code>clock_past(beat_gate)</code>, so it lands a
+fixed beat after the objective regardless of how long the leg took.</li>
 </ul>
 <p>The pacing toolbox, all authorable in RON: the scenario clock
 (<code>scenario_elapsed</code>), per-line <code>dwell</code> on StoryMessage, <code>engage_delay</code>
@@ -414,6 +441,13 @@ its approach is visible but not yet lethal:</p>
 delay elapses; shooting it ends the grace instantly and permanently, and
 its point-defense still swats torpedoes throughout. Omitted or
 non-positive delays mean no grace.</p>
+<p>An UNARMED AI ship (no turret or torpedo section) is a NON-COMBATANT: it
+never acquires a target, chases, or shoots - it just flies its patrol /
+orbit / idle routine. This is automatic from the loadout, no field to set.
+Give an escort or a convoy hauler a <code>patrol</code> loop and leave the guns off and
+it loiters without ever fighting; keep its <code>allegiance</code> on the side you want
+hunted (a Player-aligned convoy stays something the enemy targets and the
+player must defend). The Lifeline convoy is the shipped example.</p>
 <h3 id="storymessage" tabindex="-1">StoryMessage</h3>
 <p>Speaker-attributed story text, rendered by the HUD comms panel
 (bottom-left) as <code>SPEAKER &gt; text</code>. Lines QUEUE and display in arrival
@@ -431,6 +465,34 @@ the menu, or a retry of the same scenario.</p>
 <pre><code class="hljs">StoryMessage((
     speaker: &quot;Foreman Okono&quot;,
     text: &quot;Strip it clean, Kestrel. Quota's quota.&quot;,
+)),
+</code></pre>
+<h3 id="hudreadout" tabindex="-1">HudReadout</h3>
+<p>Show a scenario VARIABLE on the HUD - the display half of the variable
+vocabulary. Where <code>StoryMessage</code> carries voice, this carries a live number:
+a run clock, a score, a countdown. <code>slot</code> is a stable id (fire again to
+update it, or with <code>visible: false</code> to clear it; several run side by side).
+<code>variable</code> names the variable whose CURRENT value shows, read live every
+frame. <code>format</code> is <code>Number</code> (one decimal, default), <code>Integer</code> (rounded) or
+<code>Time</code> (<code>mm:ss.s</code>); <code>label</code> is an optional caption. One fire is enough - the
+readout tracks the variable thereafter. It freezes on pause and behind the
+Victory/Defeat overlay because the bound variable does, so a time-trial's
+FINAL time simply holds on screen through the banner. Scenario-scoped like
+every event-world effect: teardown clears it, so it never leaks into the next
+scenario, the menu, or a retry.</p>
+<pre><code class="hljs">// A live mm:ss.s run clock from the start gate (the Gauntlet time-trial).
+HudReadout((
+    slot: &quot;run_timer&quot;,
+    variable: &quot;scenario_elapsed&quot;,
+    format: Time,
+    label: Some(&quot;TIME&quot;),
+)),
+</code></pre>
+<pre><code class="hljs">// Clear it (rarely needed - teardown clears it for you).
+HudReadout((
+    slot: &quot;run_timer&quot;,
+    variable: &quot;scenario_elapsed&quot;,
+    visible: false,
 )),
 </code></pre>
 <h3 id="objectivemarkerattach-objectivemarkerdetach" tabindex="-1">ObjectiveMarkerAttach / ObjectiveMarkerDetach</h3>
@@ -473,6 +535,16 @@ section (<code>DisableVerb(Goto)</code>) and re-grants them as the tutorial adva
     id: &quot;player_spaceship&quot;,
     verb: Goto,
     enabled: true,
+)),
+</code></pre>
+<h3 id="setallegiance" tabindex="-1">SetAllegiance</h3>
+<p>Overwrite a scoped ship's <code>Allegiance</code> (<code>Player</code> / <code>Enemy</code> / <code>Neutral</code>) by id at
+runtime. Allegiance is otherwise fixed at spawn; this is the neutral-until-provoked
+primitive - spawn a bystander as <code>Neutral</code>, then a trigger flips it to <code>Enemy</code> to
+make it engage:</p>
+<pre><code class="hljs">SetAllegiance((
+    id: &quot;ship_x&quot;,
+    allegiance: Enemy,
 )),
 </code></pre>
 <h3 id="createscenarioarea" tabindex="-1">CreateScenarioArea</h3>
@@ -578,6 +650,13 @@ crashing.</p>
 <p>This mirrors <code>asteroid_field.content.ron</code>: seed a counter on start, count
 destroyed asteroids, complete an objective once the count crosses a threshold,
 then reach a zone to advance to the next scenario.</p>
+<p>For a larger, self-contained mod that turns this single-counter idea into an
+ordered gate run - and adds the act-gating guard so a post-victory wreck cannot
+flip the result - see the <a href="../scenario-system/#the-gauntlet-worked-example">Gauntlet worked
+example</a>: the shipped content
+file <code>webmods/gauntlet/gauntlet.content.ron</code> and its behavior/layout test rig
+<code>crates/nova_assets/tests/gauntlet_course.rs</code> are the reference implementation
+of the <a href="../scenario-system/#scenario-patterns">scenario patterns</a>.</p>
 <pre class="mermaid">flowchart TD
     Start[&quot;OnStart: seed counter = 0, flag = false; add objective&quot;] --&gt; Kill
     Kill[&quot;OnDestroyed asteroid: counter += 1&quot;] --&gt; Gate
@@ -878,10 +957,15 @@ mid-story continuations reached by <code>NextScenario</code>.</li>
 <code>NextScenario</code> action (section 4), the way <code>asteroid_field</code> chains to
 <code>asteroid_next</code>. Use this to string scenarios into a campaign, or to reach a
 <code>hidden</code> continuation the picker deliberately omits.</li>
-<li>MAKE IT THE DEFAULT NEW GAME. <code>NEW_GAME_SCENARIO_ID</code> in
-<code>crates/nova_menu/src/lib.rs</code> is the scenario the New Game button plays. Point
-it at your id (one line of Rust) if you want your scenario to BE the New Game
-start, rather than one pick among many in the picker.</li>
+<li>MAKE IT THE DEFAULT NEW GAME (base only). The scenario the New Game button
+plays is declared in the BASE bundle: <code>new_game_scenario</code> in
+<code>assets/base/base.bundle.ron</code> (currently <code>Some(&quot;shakedown_run&quot;)</code>). It lands in
+the <code>NewGameStart</code> resource at load (<code>crates/nova_scenario/src/loader.rs</code>) and
+is honored ONLY from base - a mod cannot repoint New Game. While you iterate in
+the base bundle you can set it there; a shipped mod instead reaches players
+through the Scenarios picker (option 1) or a <code>NextScenario</code> chain (option 2).
+(Picking a row and hitting Play also sets a per-session <code>NewGameScenario</code>
+override, so the New Game button replays your last pick.)</li>
 </ol>
 <p>While iterating, sprinkle <code>DebugMessage</code> actions and run with <code>--features dev</code> to
 watch each event fire as you play, then edit, re-run, repeat.</p>
@@ -889,11 +973,11 @@ watch each event fire as you play, then edit, re-run, repeat.</p>
 <p>Once it works, do NOT leave it in the base bundle - package it as its OWN mod
 (its own folder, <code>*.bundle.ron</code>, and catalog entry), and optionally publish it to
 the portal so others can install it. The whole flow - bundle layout, local
-install, the <code>nova_portal_gen</code> publish step, and what a player sees - is
+install, the <code>scripts/gen-portal.py</code> publish step, and what a player sees - is
 <a href="../guide-make-a-mod/">Make &amp; publish a mod</a>. The two guides are two halves of
 one job: THIS page is the scenario grammar; that one is how the file becomes an
 installable mod.</p>
-<p>(The <code>examples/08_scenario.rs</code> smoke test builds its <code>ScenarioConfig</code> in Rust,
+<p>(The <code>examples/gameplay/scenario.rs</code> smoke test builds its <code>ScenarioConfig</code> in Rust,
 not RON - it exercises the engine grammar for contributors, not an authored
 file, so it is not a way to test your own scenario.)</p>
 <h2 id="8-sharp-edges" tabindex="-1">8. Sharp edges</h2>
@@ -905,7 +989,8 @@ editor yet.</li>
 scenario and launches the one you pick, so a mod scenario is playable with no
 Rust once its mod is enabled. A <code>hidden</code> scenario stays off the picker and is
 reached only by a <code>NextScenario</code> chain; making yours the New Game default is
-the <code>NEW_GAME_SCENARIO_ID</code> one-liner (see section 7).</li>
+the base bundle's <code>new_game_scenario</code> declaration (base-owned, not moddable -
+see section 7).</li>
 <li>The loader uses STRICT RON: an unknown or misspelled field is a hard parse
 error, and enum variants must use the newtype form -
 <code>Asteroid((...))</code>, <code>DebugMessage((...))</code>, <code>Objective((...))</code> - double parens

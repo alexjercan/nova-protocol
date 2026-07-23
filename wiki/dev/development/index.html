@@ -42,16 +42,21 @@
 <ul>
 <li><strong>Rust nightly</strong>, pinned by <code>rust-toolchain.toml</code> (with rustfmt + clippy).</li>
 <li><strong>NixOS</strong>: <code>nix develop</code> gives the toolchain, the <code>wasm32-unknown-unknown</code>
-target, all system libs Bevy needs (udev, alsa, vulkan, X11/wayland), and
-<code>trunk</code>. Without Nix, install those yourself.</li>
+target, all system libs Bevy needs (udev, alsa, vulkan, X11/wayland),
+<code>trunk</code>, and <code>sccache</code> (see fast worktree builds below). Without Nix, install
+those yourself. Bare <code>cargo</code> is not on PATH under Nix: run every cargo/rust
+command via <code>nix develop --command &lt;cmd&gt;</code> (the commands below assume you are
+inside <code>nix develop</code>).</li>
 </ul>
 <h2 id="everyday-commands" tabindex="-1">Everyday commands</h2>
 <pre><code class="hljs language-sh">cargo run                         <span class="hljs-comment"># the game (boots into the main menu)</span>
 cargo run --features dev          <span class="hljs-comment"># + debug tooling (inspector, wireframe)</span>
-cargo run --example 08_scenario   <span class="hljs-comment"># run an example</span>
+cargo run --example scenario   <span class="hljs-comment"># run an example</span>
 cargo build --release             <span class="hljs-comment"># release profile: opt=s, lto, stripped</span>
 cargo check &amp;&amp; cargo <span class="hljs-built_in">fmt</span>          <span class="hljs-comment"># before committing</span>
 cargo <span class="hljs-built_in">test</span> --workspace            <span class="hljs-comment"># full suite (CI runs this; skip locally unless asked)</span>
+cargo run -p nova_assets --bin content -- lint   <span class="hljs-comment"># validate content: refs + balance + input overlaps (also: gen)</span>
+cargo run -p nova_probe -- run playable          <span class="hljs-comment"># run-harness check (correctness + perf)</span>
 </code></pre>
 <p>Notes that keep the suite honest and fast:</p>
 <ul>
@@ -69,11 +74,56 @@ first build, fast iteration. <code>split-debuginfo = &quot;unpacked&quot;</code>
 <code>debug = &quot;line-tables-only&quot;</code> keep link-time RAM around 20 GB instead of 40
 (one Bevy-sized binary per test/example target); set <code>debug = true</code> temporarily
 if you need a debugger.</p>
-<p><strong>Worktree builds</strong>: a fresh sprout worktree has an empty <code>target/</code>, so the
-first build is a cold Bevy compile. Do NOT point <code>CARGO_TARGET_DIR</code> at the main
-checkout's cache: both checkouts hold the same crates at the same versions, so
-their artifacts overwrite each other and a worktree binary can silently link
-the main checkout's code. Accept the cold build.</p>
+<p><strong>Worktree builds (fast via sccache)</strong>: a fresh sprout worktree starts with an
+empty <code>target/</code>, but the devshell wires <code>sccache</code> as <code>RUSTC_WRAPPER</code> (with
+<code>CARGO_INCREMENTAL=0</code>, which sccache requires) so it does NOT pay a full cold
+build. sccache caches each rustc invocation's output keyed by a hash of the
+source content plus flags plus compiler version, in a shared cache
+(<code>~/.cache/sccache</code>). Unchanged deps (bevy, avian, the whole pinned tree) are
+100% cache hits across worktrees; only changed <code>nova_*</code> crates recompile.</p>
+<p>Measured on 2026-07-21 (game binary, quiet host):</p>
+<table>
+<thead>
+<tr>
+<th>build</th>
+<th>wall clock</th>
+<th>sccache stats</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>cold (empty cache)</td>
+<td>~6m45s (405s)</td>
+<td>517 misses / 0 hits</td>
+</tr>
+<tr>
+<td>warm (<code>cargo clean</code>, same source)</td>
+<td>~38s</td>
+<td>517 hits / 0 misses (100%)</td>
+</tr>
+</tbody>
+</table>
+<p>The warm number is what a fresh sprout worktree gets once the shared cache is
+warm. Recipe from a new worktree:</p>
+<pre><code class="hljs language-sh"><span class="hljs-built_in">cd</span> <span class="hljs-string">&quot;<span class="hljs-subst">$(sprout new &lt;branch&gt;)</span>&quot;</span>
+nix develop --<span class="hljs-built_in">command</span> cargo build          <span class="hljs-comment"># warm-cache: seconds, not minutes</span>
+nix develop --<span class="hljs-built_in">command</span> sccache --show-stats <span class="hljs-comment"># confirm the hit rate</span>
+</code></pre>
+<p>Still do NOT point <code>CARGO_TARGET_DIR</code> at another checkout's cache: cargo keys
+fingerprints on crate name + version + features + profile + rustc, NOT the
+source path, so two checkouts alias each other's artifacts in a shared dir and
+a worktree binary can silently link another checkout's code (the stale-binary
+incident). Each worktree keeps its OWN <code>target/</code>; sccache is the SAFE way to
+share compilation because its cache key IS the source content - there is no
+path where a worktree links code from different source. That content-keying is
+also why sccache is transparent to CI: an empty cache is just a cold build.</p>
+<p>The devshell sets <code>CARGO_INCREMENTAL=0</code> shell-wide (sccache is incompatible
+with incremental). This costs the main checkout's iterative edit-rebuild loop
+its incremental speedup; the fresh-worktree-per-task agent workflow only ever
+does cold-shaped builds, so it is pure win there. A sprout-scoped variant
+(export the wrapper only in sprout shells, keep the main checkout on
+incremental) is possible as a nix.dotfiles follow-up if the main-checkout
+iteration cost bites.</p>
 <h2 id="features" tabindex="-1">Features</h2>
 <ul>
 <li><code>debug</code> - the whole <code>nova_debug</code> plugin (inspector, wireframe, overlays) plus
@@ -104,54 +154,107 @@ and exit. It dumps the <code>Update</code> schedule (<code>debugdump</code> in
 </ul>
 <h2 id="examples" tabindex="-1">Examples</h2>
 <p><code>examples/</code> exercises one subsystem each, end to end; this repo prefers
-runnable examples over isolated unit tests. The set reads as a curriculum in
-four blocks:</p>
+runnable examples over isolated unit tests. The examples live in purpose
+directories (bevy-repo style: category dirs, plain slug names), and the
+<code>[[example]]</code> catalog in the root Cargo.toml (<code>autoexamples = false</code>) is the
+single source of truth, listed in curriculum reading order:</p>
 <ul>
-<li>Sections: <code>01_controller_section</code> (PD attitude), <code>02_thruster_section</code>
-(burn -&gt; thrust + plume shader), <code>03_hull_section</code> (damage -&gt; destroy -&gt;
-ship survives), <code>04_turret_section</code> and <code>05_torpedo_section</code> (the weapon
-test ranges), <code>06_torpedo_guidance</code> (PN deep-dive), <code>07_com_range</code> (mass
-properties under section destruction).</li>
-<li>Scenario: <code>08_scenario</code> (the scenario language - variables, events,
-filters, actions - built in code and asserted live).</li>
-<li>Editor: <code>09_editor</code> (the shipped editor flow).</li>
-<li>Playable: <code>10_playable</code> (a scenario played through the real input
+<li><code>sections/</code> - one test range per ship section: <code>controller_section</code> (PD
+attitude), <code>thruster_section</code> (burn -&gt; thrust + plume shader),
+<code>hull_section</code> (damage -&gt; destroy -&gt; ship survives), <code>turret_section</code>
+and <code>torpedo_section</code> (the weapon test ranges), <code>torpedo_guidance</code> (PN
+deep-dive), <code>com_range</code> (mass properties under section destruction).</li>
+<li><code>gameplay/</code> - full autopilot scenario runs: <code>scenario</code> (the scenario
+language - variables, events, filters, actions - built in code and
+asserted live), <code>playable</code> (a scenario played through the real input
 pipeline: lock, kill, GOTO, arrive - watched by its own handlers),
-<code>11_hud_range</code> (screen-projected HUD indicators, velocity sphere
-included), <code>12_menu_newgame</code> (the shipped boot flow).</li>
-<li>Screenshots: <code>13_screenshot_reel</code>, <code>14_screenshot_ui</code>,
-<code>15_screenshot_combat</code>, <code>16_screenshot_sections</code>, <code>17_screenshot_juice</code>,
-<code>18_screenshot_orbit</code> (drive the shipped scenes headless to capture the
-wiki and marketing frames).</li>
-<li>Slice: <code>19_broadside</code> (the chapter-two scenario end to end through the
-Scenarios picker: defeat -&gt; Retry reload -&gt; the full act machine -&gt; the
-Victory overlay, all staged on scenario state).</li>
+<code>broadside</code> (the chapter-two scenario end to end through the Scenarios
+picker: defeat -&gt; Retry reload -&gt; the full act machine -&gt; the Victory
+overlay, all staged on scenario state).</li>
+<li><code>ui/</code> - staged UI flows: <code>editor</code> (the shipped editor flow), <code>hud_range</code>
+(screen-projected HUD indicators, velocity sphere included),
+<code>menu_newgame</code> (the shipped boot flow).</li>
+<li><code>screenshots/</code> - <code>screenshot_reel</code>, <code>screenshot_ui</code>, <code>screenshot_combat</code>,
+<code>screenshot_sections</code>, <code>screenshot_juice</code>, <code>screenshot_orbit</code> (drive the
+shipped scenes headless to capture the wiki and marketing frames), and
+<code>render_scale_shot</code> (a real-GPU window capture proving the render-scale
+lever draws a correct frame).</li>
+<li><code>perf/</code> - <code>perf_baseline</code> (the frame-time measurement scene the probe
+sweep runs; see <a href="#performance-and-run-verification">Performance and run verification</a>).</li>
 </ul>
 <p>When adding a substantial feature, add or extend the example that drives it.
-(Consolidated over time: 01_scene/03_scenario merged into 08_scenario;
-02_thruster_shader into 02_thruster_section; 05_directional into
-11_hud_range; 10_gameplay into 03_hull_section + 10_playable; 07b_slicer's
+(Consolidated over time: 01_scene/03_scenario merged into scenario;
+02_thruster_shader into thruster_section; 05_directional into
+hud_range; 10_gameplay into hull_section + playable; 07b_slicer's
 subject lives in bevy-common-systems; 04_asteroids' slider tuning tool was
 dropped.)</p>
-<p>Every example is HARNESSED: it drives itself under <code>BCS_AUTOPILOT=1</code>, and
-<code>tests/examples_smoke.rs</code> (the <code>HARNESSED_EXAMPLES</code> list) runs all eighteen
-headless as a regression suite - each must reach <code>Playing</code> and exit without
-panic. The gameplay examples (01-12) additionally carry panic-on-failure
-behavior assertions with completion backstops (a stalled script fails instead
-of passing vacuously), except <code>06_torpedo_guidance</code> and <code>09_editor</code>, which
-assert at the scenario-load / reach-gameplay level; the screenshot examples
-(13-18) drive the shipped scenes to capture frames. Keep list and disk in
-sync: a new example joins the list with a harness, or it does not merge.</p>
+<p>Every example outside <code>perf/</code> (plus <code>render_scale_shot</code>) is HARNESSED: it
+drives itself under <code>BCS_AUTOPILOT=1</code>, and <code>tests/examples_smoke.rs</code> runs
+each category headless as a regression suite, one test per category -
+<code>cargo test --test examples_smoke sections</code> (or <code>gameplay</code>, <code>ui</code>,
+<code>screenshots</code>) runs a single category alone. Each example must reach
+<code>Playing</code> and exit without panic; the sections, gameplay and ui examples
+additionally carry panic-on-failure behavior assertions with completion
+backstops (a stalled script fails instead of passing vacuously), except
+<code>torpedo_guidance</code> and <code>editor</code>, which assert at the scenario-load /
+reach-gameplay level; the screenshot examples drive the shipped scenes to
+capture frames. Disk, catalog and smoke lists cannot drift: the
+display-free <code>catalog_matches_disk</code> test fails a bare <code>cargo test</code> when a
+new example misses its <code>[[example]]</code> block or its category's smoke list
+(<code>render_scale_shot</code> and <code>perf_baseline</code> are deliberately unsmoked; the
+<code>NOT_SMOKED</code> list records why).</p>
+<p>Harness runs are SILENT: any bcs harness env (<code>BCS_AUTOPILOT</code>, <code>BCS_SHOT</code>,
+<code>BCS_REEL</code>) zeroes the audio output via <code>HarnessMute</code> - Xvfb hides the
+window but not the speakers, and nobody listens to a smoke test. The
+volume SETTING is untouched (persistence and the settings menu never see
+the mute). <code>NOVA_MUTE=0</code> forces sound through a harness run;
+<code>NOVA_MUTE=1</code> mutes a normal one.</p>
 <h3 id="examples-as-bug-pins" tabindex="-1">Examples as bug pins</h3>
 <p>When a bug is fixed, prefer pinning it where it lives: a unit/App test for a
 system-level mechanism, an example assertion when the bug only manifests in a
-composed scene (for example, <code>12_menu_newgame</code> runs the shipped boot flow with
+composed scene (for example, <code>menu_newgame</code> runs the shipped boot flow with
 the ECS fallback error handler swapped to panic, so unhandled command errors on
 those transitions fail CI). An example pin is an autopilot-script assertion
-(<code>.input(...)</code> closure, staged by elapsed time - see <code>07_com_range</code>/<code>11_hud_range</code>
+(<code>.input(...)</code> closure, staged by elapsed time - see <code>com_range</code>/<code>hud_range</code>
 for the style); the smoke suite runs it on every push. Caveat: the handler swap
 does NOT catch <code>remove</code>/<code>despawn</code> command warns (they bake in the WARN handler
 at queue time).</p>
+<h2 id="content-cli" tabindex="-1">Content CLI</h2>
+<p><code>content</code> (<code>crates/nova_assets/src/bin/content.rs</code>) authors and validates the
+game's content. One bin, two subcommands, run from the repo root:</p>
+<pre><code class="hljs language-sh">cargo run -p nova_assets --bin content -- gen                                   <span class="hljs-comment"># regenerate the base *.content.ron</span>
+cargo run -p nova_assets --bin content -- lint                                  <span class="hljs-comment"># lint the whole content tree</span>
+cargo run -p nova_assets --bin content -- lint --target &lt;mod&gt;                   <span class="hljs-comment"># lint one mod (dir, id, or `base`)</span>
+cargo run -p nova_assets --bin content -- lint --target &lt;mod&gt; --report r.md     <span class="hljs-comment"># + write a per-mod report (md|html)</span>
+</code></pre>
+<ul>
+<li><code>gen</code> serializes the code-built base content into the committed
+<code>assets/base/**/*.content.ron</code>. The base RON is GENERATED from Rust builders
+(<code>nova_assets::scenario_generation</code>) - edit the builder and regenerate, never
+hand-edit the RON, or the <code>content_ron_parity</code> test goes red.</li>
+<li><code>lint</code> runs EVERY content check in one pass (the <code>audit</code> subcommand was folded
+in here - balance is a kind of lint):
+<ul>
+<li>the identifier + geometry + resource checks the load/publish gates cannot
+(dangling <code>NextScenario</code> targets, unspawnable filter targets, duplicate ids,
+scenarios with no terminal <code>Outcome</code>, resource-ref membership, ...);</li>
+<li>the combat balance/fairness audit - every combat scenario's derived sheet,
+graded for spawned-dead (ERROR) and close-spawn (WARN) hostiles; deliberate
+imbalances are acknowledged in <code>crates/nova_assets/balance_acks.ron</code> (a
+stale ack that matches no live finding is an ERROR, so the list stays
+pruned);</li>
+<li>the flight-rig input-overlap check - a content <code>input_mapping</code> section
+bound to a key the always-on flight rig also binds (W/Space/RightTrigger
+burn, autopilot, ...) silently double-drives flight and is flagged (WARN).</li>
+<li><code>--target</code> lints a single mod by directory or in-repo id
+(<code>webmods/&lt;id&gt;</code>, <code>assets/mods/&lt;id&gt;</code>, or <code>base</code>); <code>--report &lt;path&gt;</code> writes a
+per-mod document (Markdown, or HTML for a <code>.html</code> path / <code>--format html</code>)
+that names, for each finding, the file + element + explanation + suggested
+fix. Exits non-zero on any ERROR. The <code>content_lint_gate</code>,
+<code>balance_audit_gate</code> and <code>content_report_gate</code> tests run these walks in CI.</li>
+</ul>
+</li>
+</ul>
 <h2 id="web-build" tabindex="-1">Web build</h2>
 <p>WASM via <strong>Trunk</strong> (<code>Trunk.toml</code>, <code>index.html</code>):</p>
 <pre><code class="hljs language-sh">trunk serve            <span class="hljs-comment"># serve on http://localhost:8080</span>
@@ -182,12 +285,12 @@ no HTML edit is needed - just drop the file in.</p>
 <p>Capture (needs a display + GPU; headless CI-style is Xvfb + lavapipe) into a
 staging dir, then package into <code>web/src/assets/</code>:</p>
 <pre><code class="hljs language-sh"><span class="hljs-built_in">export</span> NOVA_SHOT_DIR=target/reel
-BCS_REEL=1                cargo run --example 13_screenshot_reel   --features debug
-BCS_AUTOPILOT=1 BCS_REEL=1 cargo run --example 14_screenshot_ui     --features debug
-BCS_AUTOPILOT=1 BCS_REEL=1 cargo run --example 15_screenshot_combat --features debug
+BCS_REEL=1                cargo run --example screenshot_reel   --features debug
+BCS_AUTOPILOT=1 BCS_REEL=1 cargo run --example screenshot_ui     --features debug
+BCS_AUTOPILOT=1 BCS_REEL=1 cargo run --example screenshot_combat --features debug
 python3 scripts/gen-web-screenshots.py   <span class="hljs-comment"># validate + copy; build composites; write the 44x44 icons</span>
 </code></pre>
-<p>The example examples run headless under <code>BCS_AUTOPILOT</code>; the reel poses a
+<p>The capture examples run headless under <code>BCS_AUTOPILOT</code>; the reel poses a
 free-fly camera per beat and captures 1920x1080 PNGs. The Python step validates
 each shot is 16:9, copies it in, builds the composite shots a single capture
 cannot make (e.g. <code>devlog5-radar-stance-slots</code>, two lock stances side by side)
@@ -195,6 +298,166 @@ with a stdlib PNG codec, generates the section icons, and reports which shots
 have no capture example yet. Commit the resulting PNGs (they are content, like
 <code>banner.png</code>). Run <code>python3 scripts/gen-web-screenshots.py --self-test</code> to check
 the PNG codec (decode/resize/compose) in isolation.</p>
+<h2 id="performance-and-run-verification" tabindex="-1">Performance and run verification</h2>
+<p><code>nova_probe</code> (<code>crates/nova_probe/</code>) is the run-harness: it drives an autopilot
+example, records what happened (correctness) and what it cost (performance),
+and assembles one reviewable report. The POST-FEATURE CHECK - &quot;did my change
+break behavior or perf?&quot; - is one command:</p>
+<pre><code class="hljs language-sh">cargo run -p nova_probe -- run playable            <span class="hljs-comment"># clean pass -&gt; report</span>
+cargo run -p nova_probe -- run playable --profile  <span class="hljs-comment"># + traced pass (top-N systems)</span>
+cargo run -p nova_probe -- run playable --samply   <span class="hljs-comment"># + named flamegraph</span>
+cargo run -p nova_probe -- run playable --baseline probe-runs/before  <span class="hljs-comment"># FPS deltas</span>
+cargo run -p nova_probe -- run playable,scenario   <span class="hljs-comment"># comma list -&gt; aggregate index</span>
+cargo run -p nova_probe -- run gameplay            <span class="hljs-comment"># a whole category</span>
+cargo run -p nova_probe -- run --all               <span class="hljs-comment"># the fleet (minus NOT_PROBED)</span>
+</code></pre>
+<p>It runs the example headless (throwaway Xvfb; <code>--display :0</code> to reuse yours),
+captures the run timeline + continuous invariants + the log into
+<code>probe-runs/&lt;example&gt;/</code>, optionally adds the profiled and samply passes
+(separate builds - tracing overhead never touches the clean numbers), and
+renders <code>report.html</code> + <code>checks.json</code> with a provisional
+OK/WARN/FAIL/NO_DATA the reviewer confirms. Every run dir carries a
+<code>probe-run.json</code> manifest (identity, passes, outcomes); <code>probe report</code> only
+re-renders dirs that have one. Two verbs is the whole surface - <code>run</code> and
+<code>report</code>; the transitional <code>sweep|web|profile</code> aliases and the <code>trace</code>
+verb retired at the v0.8.0 cut (retired commands error with a pointer to
+the <code>run</code> form).</p>
+<p>Multi specs (comma list, category dir name, <code>--all</code>) resolve against the
+<code>[[example]]</code> catalog, run each example sequentially with
+continue-on-failure, and write an aggregated status index above the run
+dirs: <code>index.html</code> (one row per example - verdict, measured n/total, the
+six check statuses, duration, a link to its report), <code>index.json</code> (the
+machine mirror), and <code>probe-all.json</code> (the re-render gate). The aggregate
+verdict is the WORST row; the exit code mirrors it. <code>--all</code> skips the
+NOT_PROBED exclusions, which the report lists with their reasons - and a
+bare <code>probe run</code> errors with the catalog rather than starting a fleet
+sweep by accident. Categories take single-digit minutes warm; <code>--all</code> is
+the pre-release/nightly sweep (roughly half an hour). <code>--baseline</code> works
+across a group too: for a multi-spec it is a baseline ROOT (a prior group's
+out dir), and each example compares against <code>&lt;root&gt;/&lt;example&gt;/frametime.csv</code>
+when present, else that example skips the comparison (<code>fps_within_baseline</code>
+SKIPPED, not an error) - so <code>probe run --all --fps --baseline probe-runs/before</code>
+regression-checks the whole fleet against a previous <code>--all</code> run and quietly
+skips the examples that had no prior capture.</p>
+<p>Under the hood: an env-gated capture plugin drives the real gameplay app to
+<code>Playing</code>, warms up, records the wall-clock delta of every frame for a fixed
+window, and writes percentile stats. It is inert unless <code>NOVA_PERF</code> is set,
+so the whole fleet carries it permanently. <code>--fps</code> runs it as a DEDICATED
+capture-only pass (the correctness recorder flushes per entry on the frame
+path - measurement and correctness never share a pass), the harness
+completion protocol keeps the app alive until the window closes, and
+enrolled scenes (<code>loop_while_pending</code>) reload + replay so the window
+measures activity - reload intervals are excluded from the stats and
+reported as their own line. Narrative one-shot examples that cannot loop to
+fill a window (e.g. <code>broadside</code>, a scripted die/retry/win smoke test) are
+marked <strong>fps-exempt</strong> in the root <code>Cargo.toml</code> under
+<code>[package.metadata.nova_probe] fps_exempt</code> - they run the clean + profiled
+CORRECTNESS passes and the report says &quot;fps-exempt&quot; instead of timing out on
+a window they can never fill; add narrative examples to that list. Outside
+<code>perf/</code>, <code>--fps</code> defaults to a short 60/240 window (<code>perf/</code> and the sweep
+matrix keep the full 180/900 baseline window) so a bare
+<code>probe run gameplay --fps</code> fits the completion deadline; your own
+<code>NOVA_PERF_WARMUP</code> / <code>NOVA_PERF_FRAMES</code> always override it. The completion
+deadline is SIZED to that window (not a flat 120s): probe sets
+<code>BCS_HARNESS_DEADLINE</code> for the fps pass to <code>(warmup + frames) / ~2fps + margin</code>, so a slow-but-progressing capture (a heavy scene in a dev build under
+software rendering - <code>perf_baseline --fps</code> is the case) completes instead of
+tripping the hang detector; a genuine hang still fails at a window-appropriate
+bound, and your own <code>BCS_HARNESS_DEADLINE</code> overrides it. Every example's <code>main</code>
+returns <code>AppExit</code>, so a deadline expiry is a non-zero process exit the
+<code>process_exit</code> check reports. See the crate docs for the full knob list
+(<code>NOVA_PERF_*</code>).</p>
+<p>The perf sweep is the same front door: a scenario x preset matrix of the
+frame-time capture, one labeled <code>frametime.csv</code> row per cell, release-built
+(dev-profile frame numbers are not baselines):</p>
+<pre><code class="hljs language-sh">cargo run -p nova_probe -- run perf_baseline --fps --release \
+  --scenario asteroid_field --scenario broadside --preset high --preset low
+cargo run -p nova_probe -- run perf_baseline --fps --release --render sw ...  <span class="hljs-comment"># lavapipe floor</span>
+cargo run -p nova_probe -- run &lt;scenario&gt; --platform web   <span class="hljs-comment"># web/WebGPU capture (scraped)</span>
+</code></pre>
+<p>Every capture records run metadata (wgpu backend + GPU adapter, resolution,
+graphics preset, git SHA, host and - schema v3 - the BUILD PROFILE) so a
+results file names its own renderer (pre-v3 files, like the v0.7.0
+baseline, still load; their profile reads <code>unknown</code>). The report badges
+each row <code>dev</code> or <code>release</code>: dev numbers are NOT baselines, and since the
+whole fleet now carries the capture (<code>--fps</code> works on any example), the
+badge is what keeps ad-hoc dev captures from being mistaken for
+comparable measurements. The web platform
+builds the perf_web wasm app through Trunk, serves it from an embedded static
+server, drives headless Chromium with the calibrated WebGPU flags, and
+scrapes the summary line into a labeled CSV row (no fs in the browser).
+Compare runs with <code>probe report &lt;after&gt; --baseline &lt;before&gt;</code> - signed deltas
+per label - and <code>report</code> only accepts dirs probe itself produced
+(<code>probe-run.json</code> is the gate).</p>
+<h3 id="run-timeline-correctness-recording" tabindex="-1">Run timeline (correctness recording)</h3>
+<p><code>nova_probe</code> also records WHAT HAPPENED during a run: set
+<code>NOVA_PERF_TIMELINE=&lt;out.jsonl&gt;</code> on any example that adds
+<code>nova_probe::nova_timeline()</code> - since the fleet wiring (task
+20260719-210443) that is EVERY cataloged example except
+<code>render_scale_shot</code> - and the run appends one JSON object per line - every <code>GameStates</code>/pause transition, every fired scenario
+event with its payload (kills, area enter/exit, locks), every scenario-variable
+change (old/new), plus the beats the autopilot script pushes itself via
+<code>nova_probe::probe_marker</code>. Entries are flushed as written, so a panicked run
+keeps everything up to the panic. Compare runs by ORDER and VALUES, not
+timestamps (wall-clock and frame counts vary across hosts):</p>
+<pre><code class="hljs language-sh">NOVA_PERF_TIMELINE=/tmp/run.jsonl BCS_AUTOPILOT=1 \
+  cargo run --example playable --features debug
+</code></pre>
+<p>The timeline is native-only (no fs in the browser) and inert without the env
+var. It is the correctness half of the run-harness the perf capture is the
+performance half of; the unified run report (task 20260719-112304) renders
+both.</p>
+<h3 id="the-run-report-one-verdict-surface" tabindex="-1">The run report (one verdict surface)</h3>
+<p><code>run_report</code> assembles a RUN DIRECTORY - whatever the passes above dropped
+into it (<code>timeline.jsonl</code>, <code>frametime.csv</code>, <code>trace.json</code>, <code>run.log</code>, each
+optional) - into a self-contained <code>report.html</code> plus a machine-readable
+<code>checks.json</code>:</p>
+<pre><code class="hljs language-sh">cargo run -p nova_probe -- report &lt;run-dir&gt; [--baseline &lt;old-run-dir&gt;]
+</code></pre>
+<p>Auto checks produce a provisional OK/WARN/FAIL/NO_DATA (process exit from
+the run manifest, run completed, reached Playing, invariants held, FPS vs
+baseline as a soft gate, log scan); missing artifacts are SKIPPED - &quot;not
+measured&quot;, never &quot;held&quot; - and <code>checks.json</code> pairs the verdict with a
+<code>measured: n/total</code> figure plus per-check structured data. Zero evidence is
+NO_DATA (nonzero exit), FPS improvements PASS (only regressions WARN -
+frame numbers are host-noisy), a hung run is killed and still produces a
+FAILing report, and the report ends with a reviewer checklist: the final
+OK/NOT-OK is a human's or an agent's call, off <code>checks.json</code> without
+parsing HTML.</p>
+<h3 id="profiled-pass-where-does-the-time-go" tabindex="-1">Profiled pass (where does the time go)</h3>
+<p>Per-system costs come from a SEPARATE traced run - tracing overhead inflates
+frame times, so a profiled run RANKS systems while the clean capture owns the
+FPS truth (never mix the two):</p>
+<pre><code class="hljs language-sh">cargo run -p nova_probe -- run scenario --profile          <span class="hljs-comment"># trace + report table</span>
+cargo run -p nova_probe -- run scenario --profile --samply <span class="hljs-comment"># + flamegraph</span>
+</code></pre>
+<p>The profiled pass builds with <code>--features debug,trace</code> (bevy's per-system
+spans are compiled in only under <code>bevy/trace</code>), runs headless with
+<code>TRACE_CHROME</code> into the run dir (plus the <code>RUST_LOG=bevy_ecs=info</code> override
+that un-hides the spans from the game's log filter), and the report renders
+the top-N table (<code>probe report &lt;run-dir&gt;</code> re-renders it). Open the raw
+<code>trace.json</code> in <a href="https://ui.perfetto.dev">https://ui.perfetto.dev</a> for the full picture; <code>samply load</code>
+opens the flamegraph in the Firefox Profiler (the samply run is skipped with
+a note when samply is missing or blocked - sampling needs
+<code>perf_event_paranoid &lt;= 1</code> AND, on many-core hosts, enough perf ring-buffer
+memory: an &quot;mmap failed&quot; means raising <code>perf_event_mlock_kb</code>, e.g.
+<code>echo 16384 | sudo tee /proc/sys/kernel/perf_event_mlock_kb</code>). The samply
+run builds with the dedicated <code>profiling</code> cargo profile (full DWARF in the
+binary + frame pointers via RUSTFLAGS) so our frames symbolicate to real
+names instead of raw addresses; frames inside the NVIDIA driver blob and
+stripped system libraries stay hex - that is their stripping, not a build
+problem. Load the profile right after recording: symbolication resolves
+from the binary on disk, so a rebuild in between loses names. Expect the trace to be large (a 30 s autopilot
+run produces hundreds of MB); it is a scratch artifact, not something to
+commit.</p>
+<p>Continuous INVARIANTS ride the same stream: set <code>NOVA_PERF_INVARIANTS=1</code> (or
+<code>=strict</code> to panic on the first violation) on a wired example and every frame
+asserts what the engine guarantees - health within <code>0..=max</code> and finite,
+velocities finite (plus an absurd-speed bound at 10x a ship's soft
+<code>FlightSpeedCap</code>), scenario Number variables finite, registered monotonic
+variables never decreasing (opt-in per example: playable registers
+<code>target_down</code>/<code>leg</code>, scenario <code>beat</code>/<code>rocks_destroyed</code>), and a total
+entity-count leak bound. Violations warn, land on the timeline as
+<code>kind: &quot;invariant&quot;</code> entries, and feed the report's <code>invariants held</code> check.</p>
 <h2 id="versioning-and-release" tabindex="-1">Versioning and release</h2>
 <ul>
 <li>Version: <code>workspace.package.version</code> in root <code>Cargo.toml</code>; crates inherit it.</li>
@@ -205,6 +468,11 @@ the PNG codec (decode/resize/compose) in isolation.</p>
 <p>Pushing a tag <code>v[0-9]+.[0-9]+.[0-9]+*</code> triggers <code>release-flow</code>
 (<code>.github/workflows/release.yaml</code>). Steps, on <code>master</code>:</p>
 <ol>
+<li>Compile-and-wipe <code>docs/</code> (the ephemeral-docs model): distil anything durable
+out of <code>docs/</code> scratch into the root <code>LESSONS.md</code> (lessons) and the wiki
+(reference detail), then run <code>scripts/wipe-docs.sh</code> and commit. The
+release-flow guard (<code>scripts/check-docs-clean.sh</code>, a job the build waits on)
+FAILS the tag if <code>docs/</code> holds anything but its <code>README.md</code>.</li>
 <li>Bump <code>workspace.package.version</code> in root <code>Cargo.toml</code>.</li>
 <li>Refresh <code>Cargo.lock</code>: <code>cargo metadata --format-version 1 &gt;/dev/null</code>.</li>
 <li>Update <code>CHANGELOG.md</code> (Keep a Changelog, one concise line per entry):
@@ -286,8 +554,11 @@ separate, tagged flow (see <a href="#cutting-a-release">Cutting a release</a>).<
 they are versioned alongside the code. Check the backlog before starting and
 close tasks when done. Each task has its own folder holding its <code>TASK.md</code> plus
 any task-scoped records (<code>SPIKE.md</code>, <code>REVIEW.md</code>, <code>RETRO.md</code>, <code>NOTES.md</code>).
-Multi-task plans (<code>docs/plans/</code>) and the lessons ledger (<code>docs/LESSONS.md</code>)
-live under <code>docs/</code>.</p>
+Multi-task plans are tatr tasks too - a release plan is a task with the strand
+breakdown in its body (or a <code>release</code>/<code>meta</code> tracker task linking the per-strand
+tasks). <code>docs/</code> is ephemeral scratch wiped at each release to only its own
+<code>README.md</code> - the lessons ledger is <code>LESSONS.md</code> at the repo root; see that
+README for the model.</p>
 
                     <div id="wiki-seealso"></div>
                 </article>

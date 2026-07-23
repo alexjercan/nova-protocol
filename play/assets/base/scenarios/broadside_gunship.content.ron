@@ -14,6 +14,14 @@
                         key: "act",
                         expression: Term(Factor(Literal(Number(1.0)))),
                     )),
+                    VariableSet((
+                        key: "hauler_lost",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "gun_obj_posted",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
                     SpawnScenarioObject((
                         base: (
                             id: "player_spaceship",
@@ -1972,13 +1980,13 @@
                             ],
                         )),
                     )),
-                    Objective((
-                        id: "screen",
-                        message: "The gang\'s gunship burns in from the dark, tubes open. Lock the incoming torpedoes and screen them with your PDC.",
+                    StoryMessage((
+                        speaker: "Rust Tally",
+                        text: "You cost me two pickers, belt rat. The Rust Tally pays its debts in torpedoes.",
                     )),
-                    Objective((
-                        id: "break",
-                        message: "Break the Rust Tally, section by section.",
+                    VariableSet((
+                        key: "gun_obj_gate",
+                        expression: Term(Factor(Literal(Number(8.399999618530273)))),
                     )),
                     ObjectiveMarkerAttach((
                         target_id: "gunship",
@@ -1990,6 +1998,41 @@
                 ],
             ),
             (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("gun_obj_posted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("gun_obj_gate"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("gun_obj_gate"))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "gun_obj_posted",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    Objective((
+                        id: "screen",
+                        message: "Lock the incoming torpedoes and screen them with your PDC.",
+                    )),
+                    Objective((
+                        id: "break",
+                        message: "Break the Rust Tally, section by section.",
+                    )),
+                ],
+            ),
+            (
                 name: OnDestroyed,
                 filters: [
                     Entity((
@@ -1997,6 +2040,49 @@
                     )),
                     Expression((Equal(
                         Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("hauler_lost"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(2.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "screen",
+                    )),
+                    ObjectiveComplete((
+                        id: "break",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "gunship",
+                    )),
+                    Outcome((
+                        outcome: Victory,
+                        message: Some("The Rust Tally breaks apart - and the Ceres Queen is still whole to see it. But the deep scan does not go quiet: the gang\'s traffic keeps moving, and all of it is inbound to the freight lane."),
+                    )),
+                    NextScenario((
+                        scenario_id: "lifeline",
+                        linger: true,
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("gunship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("hauler_lost"))),
                         Term(Factor(Literal(Number(1.0)))),
                     ))),
                 ],
@@ -2016,7 +2102,11 @@
                     )),
                     Outcome((
                         outcome: Victory,
-                        message: Some("The Rust Tally breaks apart. The gang is done picking this belt clean."),
+                        message: Some("The Rust Tally breaks apart - too late for the Ceres Queen. And the deep scan does not go quiet: the gang\'s traffic keeps moving, and all of it is inbound to the freight lane."),
+                    )),
+                    NextScenario((
+                        scenario_id: "lifeline",
+                        linger: true,
                     )),
                 ],
             ),
@@ -2032,12 +2122,16 @@
                     ))),
                 ],
                 actions: [
+                    VariableSet((
+                        key: "hauler_lost",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
                     ObjectiveMarkerDetach((
                         target_id: "hauler",
                     )),
-                    Objective((
-                        id: "hauler_lost",
-                        message: "The Ceres Queen is gone. Make it cost them.",
+                    StoryMessage((
+                        speaker: "Belt Relay",
+                        text: "The Ceres Queen\'s beacon just went dark. Make it cost them.",
                     )),
                 ],
             ),
@@ -2053,6 +2147,10 @@
                     ))),
                 ],
                 actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(3.0)))),
+                    )),
                     Outcome((
                         outcome: Defeat,
                         message: Some("The Rust Tally walks its torpedoes onto your wreck."),

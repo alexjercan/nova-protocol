@@ -69,12 +69,16 @@ file and validated by neither gate. Declared content paths must resolve to
 files INSIDE the mod directory (the generator checks membership in the set it
 serves, so escaping <code>../</code> paths are rejected).</p>
 <h2 id="the-generator" tabindex="-1">The generator</h2>
-<p><code>crates/nova_portal_gen</code> (engine-free: no bevy, builds in seconds) turns
-<code>webmods/</code> into the portal tree:</p>
-<pre><code class="hljs language-sh">cargo run --release -p nova_portal_gen -- \
+<p><code>scripts/gen-portal.py</code> (Python 3, stdlib only - no toolchain, runs instantly)
+turns <code>webmods/</code> into the portal tree:</p>
+<pre><code class="hljs language-sh">python3 scripts/gen-portal.py \
     --<span class="hljs-built_in">source</span> webmods --shipped assets/mods.catalog.ron --out site/mods
 </code></pre>
-<p>It validates what a manifest gate can - bundle parses, publishable meta, every
+<p>It is the static mod-portal generator (originally a byte-for-byte port of a
+now-removed Rust crate; see task 20260718-152247). Its publish
+gates are exercised by <code>crates/nova_assets/tests/gen_portal_gate.rs</code>, which drives
+this script over synthetic fixtures. It
+validates what a manifest gate can - bundle parses, publishable meta, every
 listed content file exists, well-formed unique ids that do not collide with
 the SHIPPED catalog, dependencies resolve within the portal + shipped set -
 computes per-file size + sha256, copies files under <code>&lt;id&gt;/&lt;version&gt;/</code>, and
@@ -86,11 +90,42 @@ the <code>webmods_validation</code> integration test (crates/nova_assets/tests) 
 every webmods bundle through the real bevy loaders to recursive <code>Loaded</code> on
 regular CI - the deep half of the publish gate, running where tests already
 run.</p>
+<h3 id="the-publish-vs-load-split-what-publishes-clean-does-not-prove" tabindex="-1">The publish-vs-load split (what &quot;publishes clean&quot; does NOT prove)</h3>
+<p>The generator is a MANIFEST gate. It parses the bundle, checks publishable meta,
+confirms every listed file exists, rejects id collisions, resolves dependencies,
+and checks that asset refs are well-formed and name declared resources - but it
+NEVER deserializes or type-checks the content itself (it walks the RON only for
+its string leaves; it does not construct a single game type, and stays
+engine-free with no bevy). So a mod can publish CLEAN and still fail in-game: a
+scenario that references a section id no bundle defines, a fight that spawns
+already dead, a flight rig bound to a key the ship already drives - none of those
+are manifest-level, so the generator waves them through. Publishing clean means
+&quot;the portal can serve it&quot;, not &quot;the game can run it&quot;.</p>
+<p>Close that gap yourself with a two-part PRE-PUBLISH check on every release,
+before you land:</p>
+<ol>
+<li><code>cargo run -p nova_assets --bin content -- lint --target &lt;mod&gt;</code> - as of
+the folded-lint work this ONE command runs every check the manifest gate
+cannot: reference/geometry (prototype ids, chain targets, filter/action
+targets, duplicate object ids), the combat BALANCE audit
+(spawned-dead / close-spawn) and the flight-rig INPUT-OVERLAP check.
+<code>&lt;mod&gt;</code> may be a directory path or an in-repo id (<code>gauntlet</code>, <code>the-ledger</code>,
+<code>base</code>). Add <code>--report report.md</code> (or a <code>.html</code> path) to write a per-mod
+document grouping every finding by severity with source/id/fix for each - a
+checklist to work through instead of scanning stdout.</li>
+<li>A LOCAL in-game load: install/enable the mod and actually play it (or, for
+the shipped <code>webmods/</code>, <code>cargo test -p nova_assets --test webmods_validation</code>,
+which is the loader half CI runs anyway). <code>content lint</code> catches the content
+errors it knows about; only a real load proves the bevy loaders accept the
+whole tree.</li>
+</ol>
+<p>Do BOTH. <code>content lint</code> is fast and catches the common content errors; the load
+catches whatever it does not.</p>
 <h2 id="the-wire-schema-catalogjson" tabindex="-1">The wire schema (catalog.json)</h2>
 <p>The full publish-then-install flow ties these sections together:</p>
 <pre class="mermaid">sequenceDiagram
     participant Pub as Author
-    participant Gen as nova_portal_gen
+    participant Gen as gen-portal.py
     participant Portal as Static portal
     participant Game as Game client
     participant Cache as Local cache
@@ -120,7 +155,9 @@ to the cache.</p>
 <ol>
 <li>Add <code>webmods/&lt;id&gt;/</code> with a <code>&lt;name&gt;.bundle.ron</code> (content list + full meta,
 version non-empty) and its content files.</li>
-<li><code>cargo test -p nova_portal_gen</code> and <code>cargo test -p nova_assets --test webmods_validation</code> locally (or let CI run them).</li>
+<li><code>python3 scripts/gen-portal.py --source webmods --shipped assets/mods.catalog.ron --out /tmp/portal/mods</code> (the publish gates) and
+<code>cargo test -p nova_assets --test webmods_validation</code> (does it load?) locally
+(or let CI run them).</li>
 <li>Land on master; the next deploy publishes it.</li>
 </ol>
 <h2 id="local-development" tabindex="-1">Local development</h2>
@@ -142,7 +179,7 @@ same layout the deploy publishes:</p>
 goes to <code>&lt;site&gt;/mods</code>, a SIBLING of <code>&lt;site&gt;/play</code>, NOT inside it:</p>
 <pre><code class="hljs language-sh">trunk build                                      <span class="hljs-comment"># -&gt; dist/ (the game)</span>
 <span class="hljs-built_in">mkdir</span> -p site/play &amp;&amp; <span class="hljs-built_in">cp</span> -r dist/. site/play/    <span class="hljs-comment"># game under /play/</span>
-cargo run -p nova_portal_gen -- --<span class="hljs-built_in">source</span> webmods \
+python3 scripts/gen-portal.py --<span class="hljs-built_in">source</span> webmods \
   --shipped assets/mods.catalog.ron --out site/mods   <span class="hljs-comment"># portal as the /mods sibling</span>
 python3 -m http.server -d site 8090
 <span class="hljs-comment"># open http://localhost:8090/play/  with NO ?portal=</span>
@@ -152,7 +189,7 @@ looks at the <code>/mods</code> sibling and 404s - this was the bug in task 2026
 <h3 id="web-lighter-loop-trunk-serve-game-at-root" tabindex="-1">Web: lighter loop (trunk serve, game at root)</h3>
 <p>For a quick iteration without assembling the full <code>/play/</code> site, run the portal
 on its own server and let <code>trunk serve</code> proxy to it same-origin:</p>
-<pre><code class="hljs language-sh">cargo run -p nova_portal_gen -- --<span class="hljs-built_in">source</span> webmods --shipped assets/mods.catalog.ron --out /tmp/portal/mods
+<pre><code class="hljs language-sh">python3 scripts/gen-portal.py --<span class="hljs-built_in">source</span> webmods --shipped assets/mods.catalog.ron --out /tmp/portal/mods
 python3 -m http.server -d /tmp/portal 8000       <span class="hljs-comment"># portal at :8000/mods/</span>
 trunk serve                                       <span class="hljs-comment"># Trunk.toml proxies /mods -&gt; :8000/mods</span>
 <span class="hljs-comment"># open http://localhost:8080  (game at root) with NO ?portal=</span>
@@ -161,7 +198,7 @@ trunk serve                                       <span class="hljs-comment"># T
 <code>trunk build</code>), so it has no effect on the deploy.</p>
 <h3 id="native" tabindex="-1">Native</h3>
 <p>No origin rule applies; point at any local portal with <code>NOVA_PORTAL_URL</code>:</p>
-<pre><code class="hljs language-sh">cargo run -p nova_portal_gen -- --<span class="hljs-built_in">source</span> webmods --shipped assets/mods.catalog.ron --out /tmp/portal/mods
+<pre><code class="hljs language-sh">python3 scripts/gen-portal.py --<span class="hljs-built_in">source</span> webmods --shipped assets/mods.catalog.ron --out /tmp/portal/mods
 python3 -m http.server -d /tmp/portal 8000
 NOVA_PORTAL_URL=http://localhost:8000/mods cargo run
 </code></pre>

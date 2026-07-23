@@ -254,6 +254,9 @@ torpedoes dealing blast damage. The shipped <code>torpedo_section</code>:</p>
 <li><code>launch_sound</code> (optional) - the sound a departing torpedo plays
 (<code>dep://base/sounds/torpedo_launch.wav</code> is the base whoosh); omit for a
 silent launch.</li>
+<li><code>detonation_sound</code> (optional) - the sound the warhead plays when it blasts
+(proximity or on impact); rides the torpedo's own destroy event, so it fires
+even when a torpedo is shot down. Omit for a silent detonation.</li>
 <li><code>render_mesh</code>, <code>projectile_render_mesh</code> (both optional) - the bay mesh and the
 torpedo mesh; omit for defaults.</li>
 <li><code>spawn_offset</code> (<code>Vec3</code>), <code>spawn_rotation</code> (<code>Quat</code>, a bare 4-tuple) - where the
@@ -300,6 +303,16 @@ alongside the base catalog. Either way, a ship references the section by id via
 <code>source: Prototype(&quot;&lt;id&gt;&quot;)</code> in its <code>sections</code> list. To ship the section, package
 the file as a mod - <a href="../guide-make-a-mod/">Make and publish a mod</a> is the full
 flow.</p>
+<p>Base ships a whole CATALOG of ship-part prototypes - the mainline campaign ships
+(the racer, the cargo hauler) are themselves built from <code>racer_cube_*</code> /
+<code>cargob_cube_*</code> prototype parts. So a mod does not have to inline a big ship or
+carry any mesh paths: build one as a compact list of
+<code>(id, position, rotation, source: Prototype(&quot;&lt;base-part-id&gt;&quot;))</code> entries, and each
+prototype resolves the base's meshes and sounds for you. Vary a ship by grade by
+swapping which prototypes it references (e.g. a weaker <code>_light_</code> turret variant
+for an enemy) rather than re-authoring the parts. <code>SectionSource</code> is <code>Inline</code>
+(the full config, for a one-off part) or <code>Prototype</code> (a catalog reference, the
+compact reusable form).</p>
 
                     <div id="wiki-seealso"></div>
                 </article>

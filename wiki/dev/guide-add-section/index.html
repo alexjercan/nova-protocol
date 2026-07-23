@@ -197,14 +197,16 @@ instance. Give it a stable snake_case <code>id</code> (this is what
 </li>
 <li>
 <p><strong>Example.</strong>
-Add <code>examples/NN_&lt;kind&gt;_section.rs</code>, modelled on the per-section examples
-(<code>01_controller_section.rs</code> ... <code>05_torpedo_section.rs</code>; <code>03_hull_section.rs</code>
-is the smallest). Note 01-05 are the section slots and are taken, as are
-06-18 -- use the next free number. The example builds a minimal
+Add <code>examples/sections/&lt;kind&gt;_section.rs</code>, modelled on the existing
+per-section examples (<code>hull_section.rs</code> is the smallest), plus its
+<code>[[example]]</code> block in the root Cargo.toml (auto-discovery is off; the
+catalog is the source of truth) and its name in the <code>SECTIONS</code> list of
+<code>tests/examples_smoke.rs</code> - the <code>catalog_matches_disk</code> test fails until
+disk, catalog and smoke list agree. The example builds a minimal
 <code>ScenarioConfig</code> (a controller + your section), triggers
 <code>LoadScenario(...)</code>, and under <code>--features debug</code> drives an autopilot probe
 that asserts the kind's behavior end to end. Run it:</p>
-<pre><code class="hljs language-text">BCS_AUTOPILOT=1 cargo run --example NN_&lt;kind&gt;_section --features debug
+<pre><code class="hljs language-text">BCS_AUTOPILOT=1 cargo run --example &lt;kind&gt;_section --features debug
 </code></pre>
 </li>
 </ol>

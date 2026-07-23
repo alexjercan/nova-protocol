@@ -61,7 +61,7 @@ populated by <code>nova_assets</code> (ready at <code>GameAssetsStates::Loaded</
 <ul>
 <li><code>LoadScenario(ScenarioConfig)</code> - trigger to load: look one up in
 <code>GameScenarios</code>, <code>commands.trigger(LoadScenario(cfg.clone()))</code> (see
-<code>examples/08_scenario.rs</code>). Load tears down the previous scenario, spawns
+<code>examples/gameplay/scenario.rs</code>). Load tears down the previous scenario, spawns
 the camera, light, input context, one handler per event, fires <code>OnStart</code>.</li>
 <li><code>ScenarioLoaded</code> - fired after a load; carries <code>scenario_id</code>,
 <code>handler_count</code>, <code>object_count</code> for smoke-test assertions.</li>
@@ -173,15 +173,18 @@ build with <code>ConditionalFilterConfig::not/and/or(...)</code>.</li>
 marker chip (label + distance) on the scoped object by id; a despawned
 target detaches implicitly.</li>
 <li><code>HintEmphasisSet</code> / <code>HintEmphasisClear</code> - pulse one keybind-hint row gold
-(verbs: STOP, GOTO, ORBIT, CANCEL, RADAR, COMPONENT); availability never
+(verbs: STOP, GOTO, ORBIT, CANCEL, RADAR, COMPONENT, RCS); availability never
 changes, and teardown clears all emphasis.</li>
 <li><code>SpawnScenarioObject(ScenarioObjectConfig)</code> - spawn an object (see below).</li>
 <li><code>DespawnScenarioObject</code> - despawn the scoped object whose id matches
 (scoped-only lookup, so ship sections with colliding ids are safe).</li>
 <li><code>SetSpeedCap</code> - install (<code>Some(cap)</code>) or remove (<code>None</code>) the manual
 <code>FlightSpeedCap</code> on a scoped ship by id.</li>
-<li><code>SetControllerVerb</code> - enable/disable one flight verb (STOP/GOTO/ORBIT) on a
-scoped ship's controller sections by id.</li>
+<li><code>SetControllerVerb</code> - enable/disable one flight verb (STOP/GOTO/ORBIT/LOCK/RCS)
+on a scoped ship's controller sections by id.</li>
+<li><code>SetAllegiance</code> - overwrite a scoped ship's <code>Allegiance</code> (Player/Enemy/Neutral)
+by id at runtime; the neutral-until-provoked primitive (wake a Neutral ship
+by flipping it to Enemy).</li>
 <li><code>CreateScenarioArea(ScenarioAreaConfig)</code> - spawn a spherical sensor zone
 (id, name, position, rotation, radius) that drives <code>OnEnter</code>/<code>OnExit</code>.</li>
 <li><code>NextScenario</code> - queue a switch to another scenario by id; <code>linger: true</code>
@@ -219,6 +222,25 @@ action tags the scenario camera with a <code>PendingSkyboxSwap</code>, and
 image has loaded, because the skybox setup observer reads the image immediately
 and would panic on a not-yet-loaded handle. A failed load leaves the sky
 unchanged (warned); no scenario camera present is a no-op.</li>
+<li><code>HudReadout { slot, variable, format?, label?, visible? }</code> - show, update, or
+clear a named HUD readout bound to a scenario variable (the DISPLAY half of
+the scenario-variable vocabulary; <code>StoryMessage</code> is speaker text, this is a
+live number). <code>slot</code> is a stable id (update or clear just that one; run
+several side by side). <code>variable</code> names the scenario variable whose CURRENT
+value the readout shows, read live every frame - e.g. <code>scenario_elapsed</code> for a
+run clock, or any authored counter. <code>format</code> is <code>Number</code> (one decimal, the
+default), <code>Integer</code> (rounded, no decimals) or <code>Time</code> (<code>mm:ss.s</code>, e.g.
+<code>01:23.4</code>). <code>label</code> is an optional caption (e.g. <code>Some(&quot;TIME&quot;)</code>, shown
+upper-cased before the value). <code>visible</code> defaults to <code>true</code> (show/update);
+<code>false</code> clears the slot. One fire is enough for a live readout - it tracks the
+variable thereafter. The value freezes on pause and behind the outcome overlay
+because the bound variable does (<code>scenario_elapsed</code> stops ticking there), so a
+time-trial's FINAL time simply holds on the HUD through the Victory banner. It
+is an Instrument-tier widget (shown even at the Minimal HUD level) and clears
+at scenario teardown like the comms panel, so it cannot leak into the next
+scenario or the menu. RON:
+<code>HudReadout((slot: &quot;run_timer&quot;, variable: &quot;scenario_elapsed&quot;, format: Time, label: Some(&quot;TIME&quot;)))</code>;
+clear with <code>HudReadout((slot: &quot;run_timer&quot;, variable: &quot;scenario_elapsed&quot;, visible: false))</code>.</li>
 </ul>
 <h2 id="variables-and-the-event-world-worldrs-variablesrs" tabindex="-1">Variables and the event world (<code>world.rs</code>, <code>variables.rs</code>)</h2>
 <p><code>NovaEventWorld</code> holds the scenario state: variables, objectives,
@@ -307,13 +329,146 @@ duration since an event (<code>VariableSet((key: &quot;ambush_started&quot;, exp
 reserved key is always fine; only writing it is gated. The example mod's
 arena ships a timed comms nudge and a timed bonus spawn as copyable worked
 examples.</p>
+<p>To SHOW the clock (or any variable) on the HUD, use <code>HudReadout</code> with the
+<code>Time</code> format - <code>HudReadout((slot: &quot;run_timer&quot;, variable: &quot;scenario_elapsed&quot;, format: Time, label: Some(&quot;TIME&quot;)))</code> in <code>OnStart</code> gives a live <code>mm:ss.s</code> run
+clock that freezes at the final time behind the Victory overlay (the clock
+stops ticking on pause). See <code>HudReadout</code> in the actions list. The Gauntlet
+worked example wires exactly this as a time-trial with a clean-run bonus.</p>
+<h2 id="scenario-patterns" tabindex="-1">Scenario patterns</h2>
+<p>The event vocabulary has no built-in &quot;state&quot; beyond scenario variables, so the
+shipped mods build their control flow out of one numeric variable plus
+<code>Expression</code> filters. Two idioms recur; both are worked end to end in the
+<a href="#the-gauntlet-worked-example">Gauntlet worked example</a> below. Excerpts here are
+verbatim from <code>webmods/gauntlet/gauntlet.content.ron</code>.</p>
+<h3 id="the-gate-counter-ordering-pattern" tabindex="-1">The gate-counter ordering pattern</h3>
+<p>A single numeric variable acts as a state machine that enforces ORDERED entry:
+each stage's handler is guarded on the counter holding that stage's value, and
+the last thing the handler does is bump the counter to arm the NEXT stage only.
+An event that arrives out of order finds the counter on a different value and
+does nothing.</p>
+<p>Gauntlet's variable is <code>gate</code> (the index of the gate to thread next, <code>1..=7</code>).
+<code>OnStart</code> seeds it:</p>
+<pre><code class="hljs">VariableSet((
+    key: &quot;gate&quot;,
+    expression: Term(Factor(Literal(Number(1.0)))),
+)),
+</code></pre>
+<p>Each gate's <code>OnEnter</code> handler carries two filters - an <code>Entity</code> filter that
+matches the area/body, and an <code>Expression</code> filter that pins the counter - so
+only the in-order entry fires:</p>
+<pre><code class="hljs">(
+    name: OnEnter,
+    filters: [
+        Entity((
+            id: Some(&quot;gauntlet_gate_1&quot;),
+            other_id: Some(&quot;player_spaceship&quot;),
+        )),
+        Expression((Equal(
+            Term(Factor(Name(&quot;gate&quot;))),
+            Term(Factor(Literal(Number(1.0)))),
+        ))),
+    ],
+    actions: [
+        ObjectiveComplete((id: &quot;gate_1&quot;)),
+        VariableSet((
+            key: &quot;gate&quot;,
+            expression: Term(Factor(Literal(Number(2.0)))),
+        )),
+        // ... re-point the objective marker at gate 2 ...
+    ],
+),
+</code></pre>
+<p>Because gate 2's handler filters <code>Equal(gate, 2.0)</code>, flying through gate 3
+early - or back through gate 1 again - matches no live handler and is inert. The
+<code>gauntlet_course</code> rig's <code>gates_advance_only_in_order</code> test pins exactly this:
+an out-of-order entry does not advance <code>gate</code>.</p>
+<p>Use it whenever stages must be visited in sequence (a gate run, a guided tour, a
+tutorial's step chain). The base <code>shakedown_run</code> starter uses the same idiom
+with a <code>beat</code> counter; see <a href="#built-in-scenarios">Built-in scenarios</a>.</p>
+<h3 id="the-act-gating-pattern" tabindex="-1">The act-gating pattern</h3>
+<p>A post-decision event can otherwise flip an already-decided outcome: in Gauntlet
+a wreck normally means Defeat, but a wreck that drifts into a rock AFTER the win
+must not overwrite the earned Victory. The fix is to guard the Defeat handler on
+the same counter, past a terminal value the winning handler sets.</p>
+<p>The FINISH handler bumps <code>gate</code> one past the last real gate (to <code>8.0</code>, the
+terminal done-state) as it declares Victory:</p>
+<pre><code class="hljs">// Terminal: bump past the last gate so no OnEnter re-fires
+// AND the player-death Defeat handler (gated gate &lt; 8) can
+// never flip an earned Victory to Defeat.
+VariableSet((
+    key: &quot;gate&quot;,
+    expression: Term(Factor(Literal(Number(8.0)))),
+)),
+Outcome((
+    outcome: Victory,
+    message: Some(&quot;You ran the gauntlet clean. ...&quot;),
+)),
+</code></pre>
+<p>The <code>OnDestroyed</code> Defeat handler is then guarded <code>gate &lt; 8</code>, so a death blast
+after the course is finished declares nothing:</p>
+<pre><code class="hljs">(
+    name: OnDestroyed,
+    filters: [
+        Entity((
+            id: Some(&quot;player_spaceship&quot;),
+        )),
+        Expression((LessThan(
+            Term(Factor(Name(&quot;gate&quot;))),
+            Term(Factor(Literal(Number(8.0)))),
+        ))),
+    ],
+    actions: [
+        Outcome((
+            outcome: Defeat,
+            message: Some(&quot;You wore your hull down to nothing ...&quot;),
+        )),
+        NextScenario((
+            scenario_id: &quot;gauntlet_run&quot;,
+            linger: true,
+        )),
+    ],
+),
+</code></pre>
+<p>The rig's <code>wrecking_after_the_win_declares_nothing</code> test seeds <code>gate</code> to <code>8.0</code>,
+fires the death, and asserts no outcome and no retry. Use this whenever a lethal
+event can still fire after the scenario is decided (a boss's death explosion
+catching the player, a wreck sliding into a hazard): pick a terminal counter
+value the winning handler sets, and guard every outcome handler against it.</p>
+<h3 id="the-gauntlet-worked-example" tabindex="-1">The Gauntlet worked example</h3>
+<p><code>webmods/gauntlet</code> is the reference implementation for both patterns. Trace it
+end to end:</p>
+<ul>
+<li>The content file <code>webmods/gauntlet/gauntlet.content.ron</code> - one NEW scenario,
+no base overrides; the gate-counter and act-gating idioms above live here with
+header comments explaining the two geometric invariants.</li>
+<li>The time-trial wiring: <code>OnStart</code> fires one <code>HudReadout</code> on <code>scenario_elapsed</code>
+(<code>Time</code> format) for a live <code>mm:ss.s</code> clock, and seeds a <code>crash</code> counter that
+hazard-zone <code>OnEnter</code> handlers bump on each graze. Crossing FINISH bumps <code>gate</code>
+to its terminal <code>8.0</code>, then TWO <code>crash</code>-gated <code>Outcome(Victory)</code> handlers fire
+in the same pulse (exactly one matches): <code>crash == 0</code> earns the CLEAN RUN
+banner, <code>crash &gt; 0</code> the plain finish. The final time is shown by the frozen
+readout behind the banner (the clock stops on the outcome pause), so the banner
+text only has to vary the clean-run line - no message interpolation needed.</li>
+<li>The test rig <code>crates/nova_assets/tests/gauntlet_course.rs</code> - loads the ACTUAL
+shipped content, drives the real handlers, and pins both invariants (gate
+areas do not overlap; the racing line stays clear of every rock's worst-case
+body past <code>ASTEROID_GEOMETRIC_FACTOR_MAX</code>) plus the ordered-gate and
+act-gating behavior. Run it with
+<code>cargo test -p nova_assets --test gauntlet_course</code>.</li>
+<li>The <a href="../guide-author-scenario/#6-worked-example-an-objective-loop">authoring guide's objective-loop worked example</a>
+is the gentler, single-counter cousin of the gate-counter pattern.</li>
+</ul>
 <h2 id="scenario-objects-objects-scenarioobjectkind" tabindex="-1">Scenario objects (<code>objects/</code>, <code>ScenarioObjectKind</code>)</h2>
 <p>All share <code>BaseScenarioObjectConfig</code> (id, name, position, rotation) and spawn
 scoped, interpolated, dynamic bodies via <code>base_scenario_object</code>.</p>
 <ul>
 <li><code>Asteroid(AsteroidConfig)</code> - radius, texture, health, <code>surface_gravity</code>
 override, <code>invulnerable</code> (no health node, so its gravity well cannot die),
-<code>lock_signature</code> override.</li>
+<code>lock_signature</code> override, and optional per-spawn <code>impact_sound</code> /
+<code>destroy_sound</code> (<code>Some(&quot;dep://base/sounds/impact.wav&quot;)</code> / <code>explosion.wav</code>) so
+a scenario rock can carry its own hit and death audio, the same surface a
+section's <code>base</code> block exposes. Spawned ship sections take the same two
+fields; see <a href="../guide-author-section/">Authoring a section</a>.</li>
 <li><code>Spaceship(SpaceshipConfig)</code> - sections plus a <code>SpaceshipController</code>:
 <code>None</code>, <code>Player</code> (input mapping, optional <code>speed_cap</code>, <code>infinite_ammo</code>,
 optional <code>lock_refire_secs</code>), or <code>AI</code> (patrol route, orbit directive,

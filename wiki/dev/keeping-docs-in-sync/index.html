@@ -166,7 +166,7 @@ it if the change made it wrong - not every change touches every listed page.</p>
 <td>CHANGELOG <strong>(breaking?)</strong></td>
 </tr>
 <tr>
-<td>Mod portal + generator (<code>nova_portal_gen</code>, <code>nova_modding</code>)</td>
+<td>Mod portal + generator (<code>scripts/gen-portal.py</code>, <code>nova_modding</code>)</td>
 <td><code>modding.md</code></td>
 <td><code>dev/mod-portal.md</code>, <code>dev/modding-ron.md</code></td>
 <td>CHANGELOG</td>
@@ -205,6 +205,12 @@ bump in <code>CHANGELOG.md</code>.</p>
 <a href="../development/">Building &amp; running -&gt; Versioning and release</a>. At the doc
 level, a release means:</p>
 <ol>
+<li><strong><code>docs/</code> compile-and-wipe</strong> (ephemeral-docs model): <code>docs/</code> is free scratch
+during the cycle; before the tag, distil anything durable out of it into the
+root <code>LESSONS.md</code> (lessons) and the wiki (reference detail), then run
+<code>scripts/wipe-docs.sh</code>. The release-flow guard fails the tag if <code>docs/</code>
+holds anything but its <code>README.md</code>. (Plans live in tatr tasks, not
+<code>docs/plans</code>.)</li>
 <li><strong><code>CHANGELOG.md</code></strong>: promote <code>## [Unreleased]</code> to <code>## [&lt;version&gt;] - &lt;YYYY-MM-DD&gt;</code>, leave a fresh empty <code>[Unreleased]</code>, merge any duplicate
 subsystem headings that grew during the cycle, and update the compare links
 at the bottom.</li>
@@ -213,7 +219,12 @@ at the bottom.</li>
 <code>web/webpack.config.js</code> with a card added to <code>web/src/news.html</code>. A <strong>patch
 release</strong> (<code>0.X.Y</code>) gets <strong>no post of its own</strong> - fold it into its parent
 feature post's <code>## Point releases</code> section instead. Full steps: <a href="../development/">Writing the
-release news post</a>.</li>
+release news post</a>. Post conventions the 0.7.0 post sets:
+structure the body as <code>##</code> sections with <code>###</code> subsections - the build
+derives the sticky TOC sidebar from those headings, so a flat post gets an
+empty TOC; and use the figure-placeholder format (a <code>.figure</code> block that
+auto-upgrades to its screenshot once <code>scripts/gen-web-screenshots.py</code>
+packages the image) rather than inlining an <code>&lt;img&gt;</code>.</li>
 <li><strong>Wiki</strong>: sync any player or dev pages the release's changes touched (use the
 map above). Do this as you go during the cycle, not in a scramble at release.</li>
 <li><strong>Build check</strong>: <code>cd web &amp;&amp; npm run ci</code> (format check, lint, build) must be

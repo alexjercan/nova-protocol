@@ -1,0 +1,2211 @@
+// The Ledger, chapter 3 of 4: THE QUIET CHANNEL. Run the box to Broker
+// Vesh's yard through the debris channel - thread the NAV gates in order
+// (the gauntlet's expression-guarded sequencing) with TWO distinct textured
+// beats: a REAL STEALTH run past two NEUTRAL Magpie pickets (task
+// 20260723-000320: they patrol the flanks of the lane and only wake -
+// SetAllegiance -> Enemy - if the player enters a picket-watch zone,
+// paints one, or BURNS TOO HOT through the channel: over 8 u/s reads as
+// noise the pickets hear, gated warn-then-trip on the reserved
+// player_speed readout, task 20260723-143603), and a debris pinch between
+// NAV-1 and NAV-2 (two invulnerable boulders tightening the lane, a
+// PILOTING hazard - and the one lane the picket watch does not cover). Slip the channel undetected (spotted == 0)
+// and the pickets stay asleep: Vesh's payoff line lands at the yard, then
+// the Victory a beat later. Wake them (spotted == 1) and it is the old
+// fight - run or shoot, the gates stay the objective either way.
+//
+// Pacing (task 20260722-214105, the ch1/Shakedown idiom): a clock-paced
+// opening conversation (open_step cascade) briefs the run before the first
+// NAV objective lazy-posts (nav_posted hand-off); each gate transition stamps
+// beat_gate so the next Vesh line lands a beat LATER (announce -> arrive ->
+// confirm -> breathe), not in the arrival frame; the pinch has its own
+// warning + far-side confirm beats.
+//
+// `gate` is the sequencing variable (1..4); `act` 1 = running, 2 = arrived.
+// Player-death Defeat gates act < 2.
+[
+    Scenario((
+        id: "ledger_ch3_quiet_channel",
+        name: "The Ledger 3: The Quiet Channel",
+        description: "Go dark and thread the debris channel to Vesh's yard. Chapter three of The Ledger.",
+        cubemap: "dep://base/textures/cubemap.png",
+        thumbnail: Some("dep://base/textures/asteroid.png"),
+        hidden: true,
+        events: [
+            (
+                name: OnStart,
+                filters: [],
+                actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    VariableSet((
+                        key: "gate",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    // Opening-conversation sequencer (the Shakedown/ch1 idiom):
+                    // open_step walks Vesh's briefing lines on the scenario
+                    // clock; nav_posted is the one-shot hand-off that lazy-
+                    // posts the first NAV objective; beat_gate + the per-beat
+                    // arrive/said one-shots drive the corridor breathers. All
+                    // seeded here - an undefined gate fails closed forever.
+                    VariableSet((
+                        key: "open_step",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "nav_posted",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "beat_gate",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    // Per-transition breather gates + one-shot said flags. The
+                    // delayed ack handlers gate on the *_said flag AND the clock
+                    // past beat_gate, so an un-stamped leg never speaks.
+                    VariableSet((
+                        key: "arrive1_said",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "arrive3_said",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    // The debris-pinch beat: pinch_gate stamps the breather
+                    // after NAV-1, pinch_warn_said is the "thread it slow"
+                    // warning one-shot, pinch_clear_said the far-side confirm.
+                    VariableSet((
+                        key: "pinch_gate",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "pinch_warn_said",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "pinch_clear_said",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    // Stealth state (task 20260723-000320): spotted is the
+                    // provocation one-shot (0 = the pickets sleep, 1 = woken
+                    // by proximity, paint, or overspeed - and every wake
+                    // handler gates on 0, so the flip fires exactly once).
+                    // win_gate/win_said drive the clean-run deferred Victory
+                    // beat (the ch2b idiom: payoff line first, overlay a beat
+                    // later).
+                    VariableSet((
+                        key: "spotted",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    // speed_warned is the overspeed warn-then-trip state
+                    // machine (task 20260723-143603; reaction window
+                    // 20260723-182850): 0 = never burned hot,
+                    // 1 = warned (Vesh called it, pickets still asleep),
+                    // 2 = armed (slowed back under the rearm band),
+                    // 3 = counting down (a fresh breach started the 3.5s
+                    // sustained-overspeed window; hold hot past overspeed_deadline
+                    // to wake them, ease off under 7 to cancel back to armed).
+                    // Gated on spotted == 0 like the other provocations, so any
+                    // wake disarms it and it disarms them.
+                    VariableSet((
+                        key: "speed_warned",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    // overspeed_deadline: the scenario_elapsed timestamp the
+                    // held burn must outlast to trip (stamped = now + 3.5 when
+                    // the countdown starts). Seeded so the deferred trip gate
+                    // reads a defined value before any breach.
+                    VariableSet((
+                        key: "overspeed_deadline",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "win_gate",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "win_said",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    // The objectives panel stays EMPTY through the opening
+                    // conversation; this HOLDING line is all that shows until
+                    // the briefing hands off to the first NAV drop (beat sheet:
+                    // no objective shares a frame with a conversation).
+                    Objective((
+                        id: "obj_ch3_recap",
+                        message: "Ch.3 - The Quiet Channel: stand by for Vesh's nav drops.",
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "player_spaceship",
+                            name: "Salvage Tug Kestrel",
+                            position: (0.0, 0.0, 40.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: Player((
+                                input_mapping: {
+                                    "cube_i1_j0_km1": [
+                                        Mouse(Left),
+                                        Gamepad(RightTrigger2),
+                                    ],
+                                    "cube_im1_j0_km1": [
+                                        Mouse(Left),
+                                        Gamepad(RightTrigger2),
+                                    ],
+                                },
+                                speed_cap: Some(25.0),
+                                infinite_ammo: true,
+                            )),
+                            sections: [
+                                (
+                                    id: "cube_i0_j0_k0",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_k1",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_k2",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_km1",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_km1"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_km2",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_km2"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_k0",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k0"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_k1",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k1"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_k2",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k2"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_km1",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_km1"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_km2",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_km2"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k0",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k1",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k2",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_km1",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        -0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_km1"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k0",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k1",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k2",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_km1",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_km1"),
+                                ),
+                            
+                            ],
+                        )),
+                    )),
+                    // The nav line: three drops and the yard, each a trigger
+                    // beacon (the gauntlet gate bundle).
+                    SpawnScenarioObject((
+                        base: (
+                            id: "nav_1",
+                            name: "Nav Drop 1",
+                            position: (0.0, 0.0, -90.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Beacon((
+                            label: "NAV-1",
+                            radius: 2.0,
+                            color: Srgba((red: 0.3, green: 0.9, blue: 1.0, alpha: 1.0)),
+                            area_radius: Some(25.0),
+                            lock_signature: None,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "nav_2",
+                            name: "Nav Drop 2",
+                            position: (60.0, 15.0, -180.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Beacon((
+                            label: "NAV-2",
+                            radius: 2.0,
+                            color: Srgba((red: 0.3, green: 0.9, blue: 1.0, alpha: 1.0)),
+                            area_radius: Some(25.0),
+                            lock_signature: None,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "nav_3",
+                            name: "Nav Drop 3",
+                            position: (-40.0, -20.0, -280.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Beacon((
+                            label: "NAV-3",
+                            radius: 2.0,
+                            color: Srgba((red: 0.3, green: 0.9, blue: 1.0, alpha: 1.0)),
+                            area_radius: Some(25.0),
+                            lock_signature: None,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "vesh_yard",
+                            name: "Vesh's Yard",
+                            position: (20.0, 0.0, -380.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Beacon((
+                            label: "YARD",
+                            radius: 3.0,
+                            color: Srgba((red: 1.0, green: 0.55, blue: 0.15, alpha: 1.0)),
+                            area_radius: Some(30.0),
+                            lock_signature: None,
+                        )),
+                    )),
+                    // The DEBRIS PINCH (task 20260722-214105): the chapter's
+                    // second, distinct encounter - a PILOTING hazard, not a
+                    // fight. Two invulnerable boulders straddle the NAV-1 ->
+                    // NAV-2 leg so the lane threads between them. Nominal radii
+                    // are small on purpose: asteroid bodies run 3.5x-6x nominal
+                    // (ASTEROID_GEOMETRIC_FACTOR_MIN/MAX), so a nominal 3.5 is a
+                    // ~12-21u boulder. Centres are placed on a perpendicular to
+                    // the leg through its midpoint (30, 7.5, -135), separated
+                    // 66u, leaving a clear gap (~66 - 2*21 = 24u at the 6x
+                    // worst case) far wider than the tug (~4u body) - a careful
+                    // pilot threads it, preserving the fighting-is-optional
+                    // contract. No lock will save the player here; it is flown.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "pinch_boulder_port",
+                            name: "Channel Boulder",
+                            position: (2.5, 7.5, -153.3),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 3.5,
+                            texture: "dep://base/textures/asteroid.png",
+                            health: 1000.0,
+                            surface_gravity: None,
+                            invulnerable: true,
+                            lock_signature: None,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "pinch_boulder_starboard",
+                            name: "Channel Boulder",
+                            position: (57.5, 7.5, -116.7),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 3.5,
+                            texture: "dep://base/textures/asteroid.png",
+                            health: 1000.0,
+                            surface_gravity: None,
+                            invulnerable: true,
+                            lock_signature: None,
+                        )),
+                    )),
+                    // A silent trigger beacon on the far side of the pinch, on
+                    // the leg past the gap, so the "you're through" confirm
+                    // line fires when the player clears it (not on a timer).
+                    SpawnScenarioObject((
+                        base: (
+                            id: "pinch_clear",
+                            name: "Channel Narrows",
+                            position: (45.0, 11.0, -160.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Beacon((
+                            label: "NARROWS",
+                            radius: 1.0,
+                            color: Srgba((red: 0.9, green: 0.6, blue: 0.2, alpha: 1.0)),
+                            area_radius: Some(22.0),
+                            lock_signature: None,
+                        )),
+                    )),
+                    // THE PICKETS (task 20260723-000320): the two channel
+                    // Magpies are present from the first frame, patrolling the
+                    // open flanks of the debris pinch as NEUTRAL ships - the
+                    // player sees them ahead and plans the sneak. No
+                    // engage_delay (that was hostile-arrival grace; a Neutral
+                    // ship needs none): they only wake via SetAllegiance when
+                    // provoked - entering a picket-watch zone below, or
+                    // painting one (OnCombatLock). Patrol lanes run parallel to
+                    // the NAV-1 -> NAV-2 leg, 55u out along the pinch
+                    // perpendicular, so the pinch gap is the one lane their
+                    // watch does not cover.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "channel_magpie_1",
+                            name: "Magpie 'Loose Tooth'",
+                            position: (53.8, 2.0, -71.5),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: AI((
+                                patrol: [
+                                    (53.8, 2.0, -71.5),
+                                    (97.8, 13.0, -137.5),
+                                ],
+                            )),
+                            allegiance: Some(Neutral),
+                            sections: [
+                                (
+                                    id: "cube_i0_j0_k0",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k0"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i0_j0_k1",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k1"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i0_j0_k2",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k2"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i0_j0_km1",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_km1"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i0_j0_km2",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_km2"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i0_j1_k0",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k0"),
+                                    modifications: [
+                                        SetHealth(45.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i0_j1_k1",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k1"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i0_j1_k2",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k2"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i0_j1_km1",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_km1"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i0_j1_km2",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_km2"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i1_j0_k0",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k0"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i1_j0_k1",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k1"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i1_j0_k2",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k2"),
+                                    modifications: [
+                                        SetHealth(25.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i1_j0_km1",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        -0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("racer_light_cube_i1_j0_km1"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k0",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k0"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_im1_j0_k1",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k1"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_im1_j0_k2",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k2"),
+                                    modifications: [
+                                        SetHealth(25.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_im1_j0_km1",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("racer_light_cube_im1_j0_km1"),
+                                ),
+                            
+                            ],
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "channel_magpie_2",
+                            name: "Magpie 'Second Owner'",
+                            position: (6.2, 13.0, -198.5),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: AI((
+                                patrol: [
+                                    (6.2, 13.0, -198.5),
+                                    (-37.8, 2.0, -132.5),
+                                ],
+                            )),
+                            allegiance: Some(Neutral),
+                            sections: [
+                                (
+                                    id: "cube_i0_j0_k0",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k0"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i0_j0_k1",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k1"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i0_j0_k2",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k2"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i0_j0_km1",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_km1"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i0_j0_km2",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_km2"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i0_j1_k0",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k0"),
+                                    modifications: [
+                                        SetHealth(45.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i0_j1_k1",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k1"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i0_j1_k2",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k2"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i0_j1_km1",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_km1"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i0_j1_km2",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_km2"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i1_j0_k0",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k0"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i1_j0_k1",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k1"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i1_j0_k2",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k2"),
+                                    modifications: [
+                                        SetHealth(25.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i1_j0_km1",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        -0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("racer_light_cube_i1_j0_km1"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k0",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k0"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_im1_j0_k1",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k1"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_im1_j0_k2",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k2"),
+                                    modifications: [
+                                        SetHealth(25.0),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_im1_j0_km1",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("racer_light_cube_im1_j0_km1"),
+                                ),
+                            
+                            ],
+                        )),
+                    )),
+                    // The picket-watch zones: one detection bubble per patrol
+                    // lane, centred on the lane (gap centre (30, 7.5, -135)
+                    // +/- 55u along the pinch perpendicular (0.833, 0, 0.554),
+                    // radius 24). Derived from the pinch geometry: the gap
+                    // clears ~12u either side of the leg at the 6x worst-case
+                    // boulder, and the bubble edge sits 55 - 24 = 31u out - a
+                    // 19u margin around the safe lane. A wide swing around
+                    // either boulder (its far edge reaches ~54u out) flies
+                    // straight through the watch: thread the pinch or be seen.
+                    CreateScenarioArea((
+                        id: "picket_watch_starboard",
+                        name: "Picket Watch (Starboard)",
+                        position: (75.8, 7.5, -104.5),
+                        rotation: (0.0, 0.0, 0.0, 1.0),
+                        radius: 24.0,
+                    )),
+                    CreateScenarioArea((
+                        id: "picket_watch_port",
+                        name: "Picket Watch (Port)",
+                        position: (-15.8, 7.5, -165.5),
+                        rotation: (0.0, 0.0, 0.0, 1.0),
+                        radius: 24.0,
+                    )),
+                    // The channel: dense breakable debris around the line.
+                    ScatterObjects((
+                        id_prefix: "channel_debris_",
+                        count: 26,
+                        seed: 4473,
+                        region: Ring(
+                            inner: 60.0,
+                            outer: 200.0,
+                            y_min: -60.0,
+                            y_max: 40.0,
+                        ),
+                        template: (
+                            base: (
+                                id: "channel_debris_",
+                                name: "Channel Debris",
+                                position: (0.0, 0.0, 0.0),
+                                rotation: (0.0, 0.0, 0.0, 1.0),
+                            ),
+                            kind: Asteroid((
+                impact_sound: Some("dep://base/sounds/impact.wav"),
+                destroy_sound: Some("dep://base/sounds/explosion.wav"),
+                                radius: 1.0,
+                                texture: "dep://base/textures/asteroid.png",
+                                health: 100.0,
+                                surface_gravity: None,
+                                invulnerable: false,
+                                lock_signature: None,
+                            )),
+                        ),
+                        asteroid_radius: Some((1.5, 4.0)),
+                    )),
+                ],
+            ),
+            // --- Opening conversation (the Shakedown/ch1 idiom): Vesh briefs
+            // over the scenario clock, one line per handler/beat, spaced ~9s
+            // apart, the player answering. The objectives panel holds on the
+            // stand-by line the whole time; the first NAV objective lazy-posts
+            // only when the briefing hands off (open_step == 4 below), so a
+            // blind burn cannot start threading before the run is called. ---
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("open_step"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "open_step",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "New voice on the channel. Vesh. I run this stretch of belt - and right now I run the only clean way to my yard.",
+                        dwell: Some(7.0),
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("open_step"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Literal(Number(11.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "open_step",
+                        expression: Term(Factor(Literal(Number(2.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "You",
+                        text: "Copy, Vesh. I\'ve got a box that half the belt wants. What\'s the way in?",
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("open_step"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Literal(Number(20.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "open_step",
+                        expression: Term(Factor(Literal(Number(3.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "Run dark through the channel to my yard. I\'ll drop nav beacons - follow them in order. Two Magpie pickets sit the flanks of the narrows, running cold. Stay off their scopes, keep your lock stowed, and they\'ll never know you passed.",
+                        dwell: Some(10.0),
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("open_step"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Literal(Number(30.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "open_step",
+                        expression: Term(Factor(Literal(Number(4.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "You",
+                        text: "Going dark. Bring up your first drop.",
+                    )),
+                ],
+            ),
+            // The hand-off: the briefing is done, so lazy-post the NAV
+            // objective and complete the holding recap. Gated nav_posted == 0
+            // so it fires exactly once (the count-gate lesson).
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("open_step"))),
+                        Term(Factor(Literal(Number(4.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("nav_posted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "nav_posted",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "obj_ch3_recap",
+                    )),
+                    Objective((
+                        id: "obj_gates",
+                        message: "Thread the NAV drops in order: 1, 2, 3, then the YARD.",
+                    )),
+                ],
+            ),
+            // --- The gate line (strictly sequential: gate == N guards). ---
+            // NAV-1 advances the line AND arms the debris-pinch beat: it stamps
+            // pinch_gate so Vesh's "channel narrows" warning lands a beat later
+            // (announce -> arrive -> confirm -> breathe), not in the same frame
+            // as the arrival line.
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("nav_1"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("gate"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "gate",
+                        expression: Term(Factor(Literal(Number(2.0)))),
+                    )),
+                    // Arm the pinch-warning breather (fires ~4s after this
+                    // arrival line, before the player reaches the boulders).
+                    VariableSet((
+                        key: "pinch_gate",
+                        expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(4.0))))),
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "Drop one. Keep your burn low, the channel listens.",
+                    )),
+                ],
+            ),
+            // The pinch WARNING (a beat after the NAV-1 line): thread it slow.
+            // One-shot on pinch_warn_said, gated on the clock past pinch_gate.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("pinch_warn_said"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("pinch_gate"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("pinch_gate"))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "pinch_warn_said",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "Channel narrows here - two old wrecks the size of houses, and the gap between them is barely a lane. Thread it slow: the gap is the one lane the picket scopes don\'t cover. Swing wide around the wrecks and you\'re in their laps.",
+                        dwell: Some(10.0),
+                    )),
+                    // The channel closes in: darker sky for the pinch. Fires
+                    // once (pinch_warn_said 0 -> 1 guard above).
+                    SetSkybox((cubemap: "dep://base/textures/cubemap_alt.png")),
+                ],
+            ),
+            // The pinch CONFIRM: fires when the player clears the NARROWS
+            // trigger on the far side of the gap. One-shot on pinch_clear_said;
+            // gated pinch_warn_said == 1 so it cannot pre-empt the warning.
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("pinch_clear"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("pinch_clear_said"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("pinch_warn_said"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "pinch_clear_said",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "Clean through. Steady hands, Kestrel. The line opens up ahead - close on drop two.",
+                        dwell: Some(6.0),
+                    )),
+                ],
+            ),
+            // --- The picket wake handlers (task 20260723-000320, overspeed
+            // added 20260723-143603). FIVE provocations, one outcome: BOTH
+            // pickets flip Enemy (SetAllegiance reads the live Allegiance the
+            // AI targets by), spotted stamps 1, and Vesh calls it. The four
+            // instant ones are below (two picket-watch zone entries, two
+            // OnCombatLock paints); the fifth is the warn-then-trip overspeed
+            // handler just after this block. Every handler gates spotted == 0
+            // (setting it disqualifies the others - the one-shot contract) and
+            // act == 1 (the yard closes the run; a post-arrival paint wakes
+            // nobody). ---
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("picket_watch_starboard"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("spotted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "spotted",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    SetAllegiance((
+                        id: "channel_magpie_1",
+                        allegiance: Enemy,
+                    )),
+                    SetAllegiance((
+                        id: "channel_magpie_2",
+                        allegiance: Enemy,
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "They\'ve made you - you\'re inside their watch and both pickets are going hot. Run or fight, but the line is still the line, Kestrel.",
+                        dwell: Some(7.0),
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("picket_watch_port"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("spotted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "spotted",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    SetAllegiance((
+                        id: "channel_magpie_1",
+                        allegiance: Enemy,
+                    )),
+                    SetAllegiance((
+                        id: "channel_magpie_2",
+                        allegiance: Enemy,
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "They\'ve made you - you\'re inside their watch and both pickets are going hot. Run or fight, but the line is still the line, Kestrel.",
+                        dwell: Some(7.0),
+                    )),
+                ],
+            ),
+            // Paint provocation: red-locking a sleeping picket is the loudest
+            // thing in the channel - lock light travels both ways.
+            (
+                name: OnCombatLock,
+                filters: [
+                    Entity((
+                        id: Some("channel_magpie_1"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("spotted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "spotted",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    SetAllegiance((
+                        id: "channel_magpie_1",
+                        allegiance: Enemy,
+                    )),
+                    SetAllegiance((
+                        id: "channel_magpie_2",
+                        allegiance: Enemy,
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "You painted them, Kestrel - lock light travels both ways. Both pickets going hot. Run or fight, but the line is still the line.",
+                        dwell: Some(7.0),
+                    )),
+                ],
+            ),
+            (
+                name: OnCombatLock,
+                filters: [
+                    Entity((
+                        id: Some("channel_magpie_2"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("spotted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "spotted",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    SetAllegiance((
+                        id: "channel_magpie_1",
+                        allegiance: Enemy,
+                    )),
+                    SetAllegiance((
+                        id: "channel_magpie_2",
+                        allegiance: Enemy,
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "You painted them, Kestrel - lock light travels both ways. Both pickets going hot. Run or fight, but the line is still the line.",
+                        dwell: Some(7.0),
+                    )),
+                ],
+            ),
+            // --- Overspeed provocation (task 20260723-143603; sustained
+            // reaction window 20260723-182850): the fifth way to wake the
+            // pickets. The channel wants a DARK, SLOW run; burning hot is noise
+            // they hear. Warn-then-trip on the reserved player_speed readout
+            // (units/second, engine-written each tick):
+            //   - first breach over 8 u/s only WARNS (Vesh calls it, pickets
+            //     stay asleep);
+            //   - the trip needs a FRESH breach after slowing back under 7 (the
+            //     rearm band), so one continuous burn cannot warn-and-trip;
+            //   - that fresh breach STARTS a 3.5s countdown, it does not wake
+            //     instantly - the player gets the window to ease off. Holding
+            //     hot past overspeed_deadline wakes them; dropping under 7 in
+            //     time cancels back to armed.
+            // All handlers gate spotted == 0 && act == 1, so they compose
+            // one-shot with the zone/paint provocations: any wake stamps
+            // spotted = 1 and disarms these, and a trip here disarms those.
+            // speed_warned carries the 0 -> 1 -> 2 -> 3 state. ---
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((GreaterThan(
+                        Term(Factor(Name("player_speed"))),
+                        Term(Factor(Literal(Number(8.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("speed_warned"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("spotted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "speed_warned",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "Ease off, Kestrel - you\'re burning too hot. A hull sings at speed and this channel carries every note. Throttle down and run dark, or those pickets will hear you coming.",
+                        dwell: Some(7.0),
+                    )),
+                ],
+            ),
+            // Rearm: dropping back under 7 u/s after a warning arms the trip.
+            // Silent - the run is quiet again; the payoff is simply that the
+            // NEXT overspeed is the one that wakes them. The 7..8 gap is
+            // hysteresis: without it a steady burn at ~8 would rearm and
+            // re-warn every other frame.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((LessThan(
+                        Term(Factor(Name("player_speed"))),
+                        Term(Factor(Literal(Number(7.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("speed_warned"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("spotted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "speed_warned",
+                        expression: Term(Factor(Literal(Number(2.0)))),
+                    )),
+                ],
+            ),
+            // Start the countdown: a fresh breach over 8 u/s once armed does
+            // NOT wake instantly - it starts a 3.5s sustained-overspeed window
+            // (speed_warned -> 3) and stamps overspeed_deadline = now + 3.5.
+            // Vesh gives the last-chance shout so the countdown is telegraphed.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((GreaterThan(
+                        Term(Factor(Name("player_speed"))),
+                        Term(Factor(Literal(Number(8.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("speed_warned"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("spotted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "speed_warned",
+                        expression: Term(Factor(Literal(Number(3.0)))),
+                    )),
+                    VariableSet((
+                        key: "overspeed_deadline",
+                        expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(3.5))))),
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "That burn again - they\'re turning to look. Kill your speed NOW, Kestrel, or they\'ll have a lock before you clear the lane.",
+                        dwell: Some(5.0),
+                    )),
+                ],
+            ),
+            // Cancel: easing back under 7 u/s DURING the countdown is the
+            // reprieve - the player heard it and slowed in time. Drop back to
+            // armed (speed_warned -> 2), silently; a later fresh breach starts a
+            // new countdown. Cancel on < 7 (the rearm band), not < 8, so a burn
+            // hovering right at the limit does not flip-flop cancel/re-arm every
+            // frame. The < 7 cancel and the > 8 trip are mutually exclusive in
+            // any frame, so no order-dependent same-frame cancel-and-trip.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((LessThan(
+                        Term(Factor(Name("player_speed"))),
+                        Term(Factor(Literal(Number(7.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("speed_warned"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("spotted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "speed_warned",
+                        expression: Term(Factor(Literal(Number(2.0)))),
+                    )),
+                ],
+            ),
+            // Trip: the burn was HELD over 8 u/s past the deadline - the window
+            // ran out and both pickets wake. The real fifth provocation. Same
+            // outcome shape as the zone/paint wakes: stamp spotted, flip both
+            // Magpies Enemy, Vesh calls it.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((GreaterThan(
+                        Term(Factor(Name("player_speed"))),
+                        Term(Factor(Literal(Number(8.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("speed_warned"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("overspeed_deadline"))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("spotted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "spotted",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    SetAllegiance((
+                        id: "channel_magpie_1",
+                        allegiance: Enemy,
+                    )),
+                    SetAllegiance((
+                        id: "channel_magpie_2",
+                        allegiance: Enemy,
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "Too hot too long - that\'s torn it. They heard that burn and both pickets are lighting up. Run or fight, but the line is still the line, Kestrel.",
+                        dwell: Some(7.0),
+                    )),
+                ],
+            ),
+            // NAV-2 advances the line. The pickets flank this leg; whether
+            // they are still cold is the player's doing, so the line reads
+            // true on both paths and the spotted-gated breathers below carry
+            // the difference.
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("nav_2"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("gate"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "gate",
+                        expression: Term(Factor(Literal(Number(3.0)))),
+                    )),
+                    // Arm the mid-run breather: the status line lands a beat
+                    // after the arrival call, not in the same frame.
+                    VariableSet((
+                        key: "beat_gate",
+                        expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(5.0))))),
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "Drop two. Halfway, Kestrel - hold the line and keep your burn low.",
+                    )),
+                ],
+            ),
+            // The mid-run BREATHER, sneak path (spotted == 0): a beat after
+            // the drop-two call, Vesh confirms the pickets never stirred.
+            // One-shot on arrive1_said (shared with the fight-path twin below:
+            // exactly one of the pair ever speaks); gate > 0 stops it firing
+            // pre-stamp.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("arrive1_said"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("gate"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("spotted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("beat_gate"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("beat_gate"))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "arrive1_said",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "Both pickets still cold on my board. Whatever you\'re doing, keep doing it - drop three, then the yard.",
+                        dwell: Some(7.0),
+                    )),
+                ],
+            ),
+            // The mid-run BREATHER, fight path (spotted == 1): the pickets are
+            // awake, so Vesh steadies the player instead. Same arrive1_said
+            // one-shot as the sneak twin.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("arrive1_said"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("gate"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("spotted"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("beat_gate"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("beat_gate"))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "arrive1_said",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "Don\'t chase them if they run. The box is the job, not the kill. Hold the line to drop three.",
+                        dwell: Some(7.0),
+                    )),
+                ],
+            ),
+            // NAV-3 advances the line AND arms the final-leg breather (stamps
+            // beat_gate for the arrive3 line below).
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("nav_3"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("gate"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "gate",
+                        expression: Term(Factor(Literal(Number(4.0)))),
+                    )),
+                    VariableSet((
+                        key: "beat_gate",
+                        expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(4.0))))),
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "Drop three. The yard lights are on for you. Last leg.",
+                    )),
+                ],
+            ),
+            // The final-leg BREATHER: a beat after the drop-three line, Vesh
+            // welcomes the player toward the yard. One-shot on arrive3_said;
+            // gated gate == 4 so it only fires on the last leg.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("arrive3_said"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("gate"))),
+                        Term(Factor(Literal(Number(4.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("beat_gate"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("beat_gate"))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "arrive3_said",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "That\'s the last of the rocks behind you. Bring her into the yard slow - I\'ll have the lights on.",
+                        dwell: Some(6.0),
+                    )),
+                ],
+            ),
+            // The yard, fight path (spotted == 1): the pickets are awake, so
+            // there is nothing quiet to celebrate - the arrival wins the
+            // chapter on the spot, the shipped flow unchanged.
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("vesh_yard"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("gate"))),
+                        Term(Factor(Literal(Number(4.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("spotted"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(2.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "obj_gates",
+                    )),
+                    Outcome((
+                        outcome: Victory,
+                        message: Some("The channel is behind you. Vesh waves you into the yard: now the talk is about who exactly is buying this thing. The buyer is ahead."),
+                    )),
+                    NextScenario((
+                        scenario_id: "ledger_ch4_the_buyer",
+                        linger: true,
+                    )),
+                ],
+            ),
+            // The yard, CLEAN path (spotted == 0): the stealth payoff. Vesh's
+            // "nothing on their scopes" line lands FIRST as a comms beat and
+            // the Victory overlay follows a beat later (win_gate/win_said, the
+            // ch2b deferred-victory idiom - a StoryMessage beside an Outcome
+            // is never read). act stamps 2 here: the run is over, so a
+            // post-arrival death or paint changes nothing.
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("vesh_yard"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("gate"))),
+                        Term(Factor(Literal(Number(4.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("spotted"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(2.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "obj_gates",
+                    )),
+                    VariableSet((
+                        key: "win_gate",
+                        expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(3.0))))),
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "Nothing on their scopes, Kestrel. Nice and quiet - the pickets never even stirred. Bring her in.",
+                        dwell: Some(6.0),
+                    )),
+                ],
+            ),
+            // The clean-run overlay, a beat after the payoff line. Gated
+            // win_gate > 0: only the clean arrival stamps it, so the fight
+            // path (which declared its Victory above) can never double-fire.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("win_said"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("win_gate"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Name("win_gate"))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "win_said",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    Outcome((
+                        outcome: Victory,
+                        message: Some("The channel is behind you and nobody knows you came through it. Vesh waves you into the yard: now the talk is about who exactly is buying this thing. The buyer is ahead."),
+                    )),
+                    NextScenario((
+                        scenario_id: "ledger_ch4_the_buyer",
+                        linger: true,
+                    )),
+                ],
+            ),
+            // Player death before arrival: Defeat + retry.
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                    Expression((LessThan(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("The channel keeps what it catches. The box drifts with the Kestrel's bones."),
+                    )),
+                    NextScenario((
+                        scenario_id: "ledger_ch3_quiet_channel",
+                        linger: true,
+                    )),
+                ],
+            ),
+        ],
+    )),
+]

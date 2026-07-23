@@ -86,11 +86,43 @@ then falls back to the catalog id as the name) - but the portal will not
 publish a mod without a non-empty <code>name</code> and <code>version</code> (step 4). <code>dependencies</code>
 is a list of mod ids; <code>base</code> is an IMPLICIT dependency and is never declared.
 <code>icon</code> is an <code>Option</code>, so write <code>icon: Some(&quot;icon.png&quot;)</code>, not <code>icon: &quot;icon.png&quot;</code>.</p>
+<h4>Versioning your mod</h4>
+<p>The loader accepts ANY non-empty <code>version</code> string - it is an opaque token, not
+a parsed semver (there is no comparison and no update detection in code today).
+The convention the shipped portal mods follow is semver-ish, so a reader can
+tell a release apart at a glance:</p>
+<ul>
+<li>content rework (new/rebalanced sections or scenarios, changed dependencies) -&gt;
+bump the MINOR, e.g. <code>1.1.0</code>;</li>
+<li>a reskin or bug fix that does not change what content exists -&gt; bump the PATCH,
+e.g. <code>1.0.1</code>.</li>
+</ul>
+<p>Gauntlet has walked <code>1.0.0 -&gt; 1.1.0 -&gt; 1.2.0</code> and The Ledger <code>1.0.0 -&gt; 1.12.0</code>
+this way.</p>
+<p><code>version</code> matters even though nothing parses it. The portal publishes each
+release under <code>&lt;id&gt;/&lt;version&gt;/</code>, so the string is how a republish is
+distinguished from the one before it (the update the player sees), and it is the
+anchor a changelog entry associates with. FORGETTING to bump on a republish is
+the silent failure: the new bytes land under the same <code>&lt;version&gt;</code> directory and
+the update is indistinguishable from the old one. Because of that a mod's test
+may PIN its version - <code>crates/nova_assets/tests/gauntlet_course.rs</code> asserts the
+bundle <code>contains(&quot;version: \&quot;1.2.0\&quot;&quot;)</code> (<code>bundle_ships_the_bumped_version</code>) so a
+content change that ships without a bump fails CI instead of shipping silently.</p>
 <p>Lint your mod while you work: <code>cargo run -p nova_assets --bin content -- lint --target path/to/your-mod</code> (or an in-repo id like
 <code>--target the-ledger</code>) checks just your bundle - section prototype ids
 against the base catalog and your declared dependencies, scenario chain
-targets, filter/action target ids, duplicate object ids. An Error means
-the game would refuse the scenario at runtime; fix it before publishing.</p>
+targets, filter/action target ids, duplicate object ids. It also runs the
+combat BALANCE audit (spawned-dead / close-spawn hostiles) and the flight-rig
+INPUT-OVERLAP check (a section bound to W/Space/RightTrigger or another flight
+key silently double-drives the ship) in the same pass. An Error means the game
+would refuse the scenario at runtime or a fight is unwinnable; fix it before
+publishing.</p>
+<p>Pre-publish check: add <code>--report report.md</code> (or a <code>.html</code> path) to write a
+per-mod document that groups every finding by severity and pinpoints, for each,
+the source file, the offending id/field, a short explanation and a suggested
+fix - a checklist to work through before you ship a multi-file bundle instead
+of reading stdout lines. A clean mod still gets a report (it says so); zero
+findings is not an empty file.</p>
 <p>A manifest may also declare <code>new_game_scenario: Some(&quot;&lt;scenario id&gt;&quot;)</code> - the
 scenario New Game launches - but it is HONORED ONLY from the base game's own
 bundle: the merge warns and ignores it on any other bundle, so a mod cannot
@@ -130,6 +162,14 @@ texture: &quot;self://textures/rock.png&quot;,
 <code>content</code> and <code>meta.icon</code>). A <code>self://</code> ref may only name a listed resource -
 the portal generator, the static <code>content lint</code>, and the in-game content gate
 all reject a <code>self://</code> ref that is not in <code>resources</code>.</li>
+<li><code>.meta</code> SIDECAR files are the ONE exception: a <code>&lt;name&gt;.png.meta</code> (a texture's
+import settings, e.g. a skybox's <code>RowCount</code> cube reinterpret) rides along with
+its <code>&lt;name&gt;.png</code> AUTOMATICALLY and is NOT listed in <code>resources</code>. This is
+deliberate, not an oversight: the example mod ships <code>textures/nebula.png</code> AND
+<code>textures/nebula.png.meta</code> yet lists only the <code>.png</code> in <code>resources</code>, and it
+publishes and loads fine. If you find a <code>.meta</code> next to a listed asset but
+absent from <code>resources</code>, that is correct - do not add it, and do not treat the
+omission as a bug to fix.</li>
 <li><code>self://</code> resolves against the mod's own folder whether the mod is shipped
 (<code>assets/mods/&lt;id&gt;/</code>) or downloaded from the portal (<code>mods://&lt;id&gt;/</code>), on native
 and web alike - you never hard-code your own id.</li>
@@ -231,6 +271,35 @@ duplicate is skipped, and a message is recorded and logged (not a panic).</li>
 introduces both a NEW section (<code>example_plated_hull_section</code>) and a new playable
 scenario (<code>example_arena</code>, a small shooting gallery), so the one mod doubles as a
 worked scenario, not just an overlay demonstration.</p>
+<h3 id="dependencies-and-merge-order" tabindex="-1">Dependencies and merge order</h3>
+<p>Merge order decides who wins a replace, so it is worth stating exactly.
+<code>register_bundles</code> builds the enabled bundles in a fixed order:</p>
+<ol>
+<li>installed-catalog order first (<code>base</code> is first in <code>mods.catalog.ron</code>, so it
+always merges first and everything overlays it),</li>
+<li>then downloaded (portal-installed) mods, in install-index order - SHIPPED
+mods always merge before DOWNLOADED ones,</li>
+<li>then that list is topologically sorted so a mod's DEPENDENCIES merge BEFORE
+it (a dependent overlays its dependency), keeping the catalog-then-download
+sequence as the stable tiebreak among mods that do not depend on each other.</li>
+</ol>
+<p>The practical rule: a mod overlays <code>base</code> and everything it depends on, and last
+declared in the enabled set wins among independent mods.</p>
+<p>Adding or dropping a <code>dependencies</code> entry is a BREAKING change for players who
+already have the mod installed - not just a metadata edit. A dependency is
+enabled and merged alongside your mod, so:</p>
+<ul>
+<li>ADDING a dep means the resolver must fetch and enable another mod for yours to
+behave as shipped; on the second release players silently gain (and merge) it.</li>
+<li>DROPPING a dep removes whatever that mod was overlaying. Gauntlet's <code>1.0.0</code>
+declared <code>dependencies: [&quot;base&quot;, &quot;demo&quot;]</code>; the <code>demo</code> dep was silently
+overriding <code>reinforced_hull_section</code>'s health from 200 to 400 and forcing the
+demo arena on. Dropping <code>demo</code> in the rework restored base's honest 200-health
+hull - a real gameplay change for anyone who had <code>1.0.0</code> installed, which is
+why it rode a MINOR bump, not a patch.</li>
+</ul>
+<p>Treat any <code>dependencies</code> edit as content-affecting: bump the minor version and
+say so in your changelog.</p>
 <h2 id="3-test-it-locally" tabindex="-1">3. Test it locally</h2>
 <p>Register the mod in the installed catalog <code>assets/mods.catalog.ron</code>, a thin
 ordered pointer list (<code>base</code> first so mods overlay it):</p>
@@ -269,8 +338,8 @@ gauntlet mod as a template:</p>
     ),
 )
 </code></pre>
-<p>Run the generator (engine-free, no bevy, builds in seconds):</p>
-<pre><code class="hljs language-sh">cargo run --release -p nova_portal_gen -- \
+<p>Run the generator (a stdlib-only Python script, no build step):</p>
+<pre><code class="hljs language-sh">python3 scripts/gen-portal.py \
     --<span class="hljs-built_in">source</span> webmods --shipped assets/mods.catalog.ron --out site/mods
 </code></pre>
 <p><code>--source</code> is the mod-sources directory, <code>--shipped</code> is the game's installed
@@ -301,7 +370,9 @@ the <code>webmods_validation</code> integration test
 (<code>crates/nova_assets/tests/webmods_validation.rs</code>), which drives every
 <code>webmods/</code> bundle through the real bevy loaders to a recursive <code>Loaded</code> on CI -
 the deep half of the publish gate. To publish: add <code>webmods/&lt;id&gt;/</code>, run
-<code>cargo test -p nova_portal_gen</code> and <code>cargo test -p nova_assets --test webmods_validation</code> (or let CI), and land on master; the next deploy publishes.</p>
+<code>python3 scripts/gen-portal.py --source webmods --shipped assets/mods.catalog.ron --out /tmp/portal</code> (it runs the publish gates) and
+<code>cargo test -p nova_assets --test webmods_validation</code> (or let CI), and land on
+master; the next deploy publishes.</p>
 <h2 id="5-what-the-player-sees" tabindex="-1">5. What the player sees</h2>
 <p>Briefly (the flow lives in <a href="../mod-portal/">Mod portal</a>): the game fetches
 <code>catalog.json</code>, the player installs a mod (files downloaded sequentially, each
@@ -310,7 +381,7 @@ index-last only after all verify), then enables it from the Mods menu and
 plays. A downloaded mod loads and merges exactly like a shipped one.</p>
 <h2 id="lifecycle" tabindex="-1">Lifecycle</h2>
 <pre class="mermaid">flowchart LR
-    Author[Author webmods/id/] --&gt; Gen[nova_portal_gen]
+    Author[Author webmods/id/] --&gt; Gen[gen-portal.py]
     Gen --&gt; Validate{Gates pass?}
     Validate -- no --&gt; Fail[Deploy fails]
     Validate -- yes --&gt; Publish[catalog.json + hashed files]

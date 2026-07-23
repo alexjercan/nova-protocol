@@ -1,0 +1,2884 @@
+// The Ledger, chapter 5 of 5: THE RAID. The reward finale - reached ONLY by
+// the fight (SELL) path of chapter 4. When you break the Auditor gunship and
+// take the payday, Vesh spends a slice of it hiring you the one thing the whole
+// campaign never let you fly: a capital ship with torpedoes. You take her, with
+// two of Vesh's wing on small escorts, and go settle the Magpie account -
+// raiding their forward base among the rocks. This is the victory lap: go HAM.
+//
+// Reachability: ch4's Auditor-death (SELL, choice == 1) handler chains here with
+// NextScenario. The BURN ending stays terminal (no fight, no chain). Variables
+// do not survive scenario changes, so ch5 seeds its own from scratch.
+//
+// Cast:
+//   - player_spaceship: a cargoB-class gunship (the Auditor's own hull-class),
+//     Player-driven. Guns on LMB (the two turret cubes), torpedoes on a
+//     dedicated RMB / left-trigger (the two torpedo bays). infinite_ammo so the
+//     hero moment is not magazine-gated.
+//   - wing_1 / wing_2: two AI escorts on the player's side (allegiance Player),
+//     small racer hulls; they fly in and engage the defenders.
+//   - raider_1..4: four AI Magpie fighters (default Enemy), small racers,
+//     orbiting and leashed to the base so they defend it instead of scattering.
+//   - magpie_base: a real multi-section station (Hull + Turret, a controller
+//     core, NO thrusters so it holds station), Enemy. Destructible - cracking
+//     it is part of the win, the torpedoes' target.
+//
+// Win: all four raiders down AND the base destroyed -> Victory (terminal - this
+// is the campaign's end, no chain). Player death -> Defeat + retry ch5. Both
+// outcome handlers gate act == 1 and latch a distinct terminal act (2 win, 3
+// loss), so whichever lands first closes the act and the other cannot overwrite
+// it (outcome-is-last-write-wins).
+[
+    Scenario((
+        id: "ledger_ch5_the_raid",
+        name: "The Ledger 5: The Raid",
+        description: "Payday buys a gunship. Take the big ship and two of Vesh's wing and go settle the Magpie account - raid their forward base among the rocks. The reward finale of The Ledger.",
+        cubemap: "dep://base/textures/cubemap.png",
+        thumbnail: Some("dep://base/textures/asteroid.png"),
+        // hidden: false (temporarily) so the finale can be launched directly
+        // from the Scenarios picker for playtesting. RE-HIDE before release - it
+        // is meant to be reached only by winning the ch4 fight.
+        hidden: false,
+        events: [
+            (
+                name: OnStart,
+                filters: [],
+                actions: [
+                    // act: 1 = raiding, 2 = won, 3 = lost. Both terminals latch
+                    // act so the loser cannot overwrite the winner.
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    // raiders_left counts the four defending fighters down; the
+                    // base is tracked separately (base_down). Victory needs both.
+                    VariableSet((
+                        key: "raiders_left",
+                        expression: Term(Factor(Literal(Number(4.0)))),
+                    )),
+                    VariableSet((
+                        key: "base_down",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    // One-shot guards for the deferred Victory and the base line.
+                    VariableSet((
+                        key: "win_said",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "base_said",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "Here is what your payday bought, Kestrel: a gunship with teeth, and two of my wing to fly cover. The Magpies have a forward post out in the rocks - the same crew that shadowed you in the channel. Go settle it. LMB is your guns, and the R key drops those torpedo tubes. Crack the base and clean up their fighters.",
+                    )),
+                    Objective((
+                        id: "obj_raid",
+                        message: "Ch.5 - The Raid: destroy the Magpie base and its four fighters.",
+                    )),
+                    // --- The gunship: the player's cargoB-class capital hull.
+                    // Guns (the two turret cubes) on LMB; torpedoes (the two
+                    // torpedo bays) on RMB / left-trigger - a real torpedo
+                    // trigger, the one time the campaign hands the player one.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "player_spaceship",
+                            name: "Gunship Kestrel's Due",
+                            position: (0.0, 0.0, 90.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: Player((
+                                input_mapping: {
+                                    "cube_i1_j2_k0": [
+                                        Mouse(Left),
+                                        Gamepad(RightTrigger2),
+                                    ],
+                                    "cube_im1_j2_k0": [
+                                        Mouse(Left),
+                                        Gamepad(RightTrigger2),
+                                    ],
+                                    "cube_i1_j1_km2": [
+                                        Keyboard(KeyR),
+                                        Gamepad(RightTrigger2),
+                                    ],
+                                    "cube_im1_j1_km2": [
+                                        Keyboard(KeyR),
+                                        Gamepad(RightTrigger2),
+                                    ],
+                                },
+                                speed_cap: Some(35.0),
+                                infinite_ammo: true,
+                            )),
+                            sections: [
+                                (
+                                    id: "cube_i0_j0_k0",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_i0_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_k1",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_i0_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_k2",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_i0_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_km1",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_i0_j0_km1"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_k2",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_i0_j1_k2"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_km1",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_i0_j1_km1"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_km2",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_i0_j1_km2"),
+                                ),
+                                (
+                                    id: "cube_i0_j2_k0",
+                                    position: (
+                                        0.0,
+                                        2.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_i0_j2_k0"),
+                                ),
+                                (
+                                    id: "cube_i0_j2_k1",
+                                    position: (
+                                        0.0,
+                                        2.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_i0_j2_k1"),
+                                ),
+                                (
+                                    id: "cube_i0_j2_k2",
+                                    position: (
+                                        0.0,
+                                        2.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_i0_j2_k2"),
+                                ),
+                                (
+                                    id: "cube_i0_j2_km1",
+                                    position: (
+                                        0.0,
+                                        2.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_i0_j2_km1"),
+                                ),
+                                (
+                                    id: "cube_i0_j2_km2",
+                                    position: (
+                                        0.0,
+                                        2.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_i0_j2_km2"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k0",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_i1_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k1",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_i1_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k2",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_i1_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_km1",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_i1_j0_km1"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_km2",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_i1_j0_km2"),
+                                ),
+                                (
+                                    id: "cube_i1_j1_k0",
+                                    position: (
+                                        1.0,
+                                        1.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_i1_j1_k0"),
+                                ),
+                                (
+                                    id: "cube_i1_j1_k1",
+                                    position: (
+                                        1.0,
+                                        1.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_i1_j1_k1"),
+                                ),
+                                (
+                                    id: "cube_i1_j1_k2",
+                                    position: (
+                                        1.0,
+                                        1.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_i1_j1_k2"),
+                                ),
+                                (
+                                    id: "cube_i1_j1_km1",
+                                    position: (
+                                        1.0,
+                                        1.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_i1_j1_km1"),
+                                ),
+                                (
+                                    id: "cube_i1_j1_km2",
+                                    position: (
+                                        1.0,
+                                        1.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_i1_j1_km2"),
+                                ),
+                                (
+                                    id: "cube_i1_j2_k0",
+                                    position: (
+                                        1.0,
+                                        2.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        -0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("cargob_cube_i1_j2_k0"),
+                                ),
+                                (
+                                    id: "cube_i1_j2_k1",
+                                    position: (
+                                        1.0,
+                                        2.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_i1_j2_k1"),
+                                ),
+                                (
+                                    id: "cube_i1_j2_k2",
+                                    position: (
+                                        1.0,
+                                        2.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_i1_j2_k2"),
+                                ),
+                                (
+                                    id: "cube_i1_j2_km1",
+                                    position: (
+                                        1.0,
+                                        2.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_i1_j2_km1"),
+                                ),
+                                (
+                                    id: "cube_i1_j2_km2",
+                                    position: (
+                                        1.0,
+                                        2.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_i1_j2_km2"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k0",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_im1_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k1",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_im1_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k2",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_im1_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_km1",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_im1_j0_km1"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_km2",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_im1_j0_km2"),
+                                ),
+                                (
+                                    id: "cube_im1_j1_k0",
+                                    position: (
+                                        -1.0,
+                                        1.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_im1_j1_k0"),
+                                ),
+                                (
+                                    id: "cube_im1_j1_k1",
+                                    position: (
+                                        -1.0,
+                                        1.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_im1_j1_k1"),
+                                ),
+                                (
+                                    id: "cube_im1_j1_k2",
+                                    position: (
+                                        -1.0,
+                                        1.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_im1_j1_k2"),
+                                ),
+                                (
+                                    id: "cube_im1_j1_km1",
+                                    position: (
+                                        -1.0,
+                                        1.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_im1_j1_km1"),
+                                ),
+                                (
+                                    id: "cube_im1_j1_km2",
+                                    position: (
+                                        -1.0,
+                                        1.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_im1_j1_km2"),
+                                ),
+                                (
+                                    id: "cube_im1_j2_k0",
+                                    position: (
+                                        -1.0,
+                                        2.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("cargob_cube_im1_j2_k0"),
+                                ),
+                                (
+                                    id: "cube_im1_j2_k1",
+                                    position: (
+                                        -1.0,
+                                        2.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_im1_j2_k1"),
+                                ),
+                                (
+                                    id: "cube_im1_j2_k2",
+                                    position: (
+                                        -1.0,
+                                        2.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_im1_j2_k2"),
+                                ),
+                                (
+                                    id: "cube_im1_j2_km1",
+                                    position: (
+                                        -1.0,
+                                        2.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_im1_j2_km1"),
+                                ),
+                                (
+                                    id: "cube_im1_j2_km2",
+                                    position: (
+                                        -1.0,
+                                        2.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_cube_im1_j2_km2"),
+                                ),
+                                (
+                                    id: "core_controller",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargob_core_controller"),
+                                ),
+                            
+                            ],
+                        )),
+                    )),
+                    // --- Escort wing 1 (allegiance Player): flies in on the
+                    // player's flank and engages the defenders.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "wing_1",
+                            name: "Escort 'Tallyman's Grudge'",
+                            position: (-45.0, 8.0, 100.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: AI((
+                                patrol: [
+                                    (-40.0, 6.0, 20.0),
+                                    (-30.0, -10.0, -260.0),
+                                    (-65.0, 12.0, -520.0),
+                                ],
+                                leash: Some(700.0),
+                            )),
+                            allegiance: Some(Player),
+                            sections: [
+                                (
+                                    id: "cube_i0_j0_k0",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_k1",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_k2",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_km1",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_km1"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_km2",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_km2"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_k0",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k0"),
+                                    modifications: [
+                                        DisableVerb(Rcs),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i0_j1_k1",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k1"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_k2",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k2"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_km1",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_km1"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_km2",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_km2"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k0",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k1",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k2",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_km1",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        -0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_km1"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k0",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k1",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k2",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_km1",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_km1"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    // --- Escort wing 2 (allegiance Player).
+                    SpawnScenarioObject((
+                        base: (
+                            id: "wing_2",
+                            name: "Escort 'Short Count'",
+                            position: (45.0, -8.0, 100.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: AI((
+                                patrol: [
+                                    (40.0, -6.0, 20.0),
+                                    (30.0, 10.0, -260.0),
+                                    (65.0, -12.0, -520.0),
+                                ],
+                                leash: Some(700.0),
+                            )),
+                            allegiance: Some(Player),
+                            sections: [
+                                (
+                                    id: "cube_i0_j0_k0",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_k1",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_k2",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_km1",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_km1"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_km2",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_km2"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_k0",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k0"),
+                                    modifications: [
+                                        DisableVerb(Rcs),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i0_j1_k1",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k1"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_k2",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k2"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_km1",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_km1"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_km2",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_km2"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k0",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k1",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k2",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_km1",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        -0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_km1"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k0",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k1",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k2",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_km1",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_km1"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    // --- Magpie defenders: four small fighters (default Enemy),
+                    // orbiting and leashed to the base so they defend the post
+                    // rather than chasing off into the belt.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "raider_1",
+                            name: "Magpie 'Cutpurse'",
+                            position: (-70.0, 10.0, -520.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: AI((
+                                orbit: Some("magpie_base"),
+                                leash: Some(200.0),
+                                engage_delay: Some(6.0),
+                            )),
+                            sections: [
+                                (
+                                    id: "cube_i0_j0_k0",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_k1",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_k2",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_km1",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_km1"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_km2",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_km2"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_k0",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k0"),
+                                    modifications: [
+                                        DisableVerb(Rcs),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i0_j1_k1",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k1"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_k2",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k2"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_km1",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_km1"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_km2",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_km2"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k0",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k1",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k2",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_km1",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        -0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_km1"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k0",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k1",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k2",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_km1",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_km1"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "raider_2",
+                            name: "Magpie 'Skimmer'",
+                            position: (75.0, -5.0, -540.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: AI((
+                                orbit: Some("magpie_base"),
+                                leash: Some(200.0),
+                                engage_delay: Some(6.0),
+                            )),
+                            sections: [
+                                (
+                                    id: "cube_i0_j0_k0",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_k1",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_k2",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_km1",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_km1"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_km2",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_km2"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_k0",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k0"),
+                                    modifications: [
+                                        DisableVerb(Rcs),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i0_j1_k1",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k1"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_k2",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k2"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_km1",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_km1"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_km2",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_km2"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k0",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k1",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k2",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_km1",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        -0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_km1"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k0",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k1",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k2",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_km1",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_km1"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "raider_3",
+                            name: "Magpie 'Tallymark'",
+                            position: (-40.0, -30.0, -630.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: AI((
+                                orbit: Some("magpie_base"),
+                                leash: Some(200.0),
+                                engage_delay: Some(8.0),
+                            )),
+                            sections: [
+                                (
+                                    id: "cube_i0_j0_k0",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_k1",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_k2",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_km1",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_km1"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_km2",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_km2"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_k0",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k0"),
+                                    modifications: [
+                                        DisableVerb(Rcs),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i0_j1_k1",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k1"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_k2",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k2"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_km1",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_km1"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_km2",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_km2"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k0",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k1",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k2",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_km1",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        -0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_km1"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k0",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k1",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k2",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_km1",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_km1"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "raider_4",
+                            name: "Magpie 'Last Word'",
+                            position: (45.0, 35.0, -640.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: AI((
+                                orbit: Some("magpie_base"),
+                                leash: Some(200.0),
+                                engage_delay: Some(8.0),
+                            )),
+                            sections: [
+                                (
+                                    id: "cube_i0_j0_k0",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_k1",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_k2",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_km1",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_km1"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_km2",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_km2"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_k0",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k0"),
+                                    modifications: [
+                                        DisableVerb(Rcs),
+                                    ],
+                                ),
+                                (
+                                    id: "cube_i0_j1_k1",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k1"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_k2",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k2"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_km1",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_km1"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_km2",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_km2"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k0",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k1",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k2",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_km1",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        -0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_km1"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k0",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k1",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k2",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_km1",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_km1"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    // --- The Magpie base: a custom station built from a
+                    // reinforced-hull keep around a controller core, with two
+                    // turrets. THRUSTERLESS by design: with no propulsion it
+                    // physically cannot move, so it holds station and cannot
+                    // chase the player (and cannot be dragged off by gravity - it
+                    // is placed clear of every planetoid well, since the AI cannot
+                    // fly a well yet; see backlog 20260723-224003). Its turrets
+                    // still aim and fire. Enemy, destructible - the torpedoes'
+                    // target. (Reverts the RCS/leash approach of 20260723-200643,
+                    // which could not hold it and let a shot base chase.)
+                    SpawnScenarioObject((
+                        base: (
+                            id: "magpie_base",
+                            name: "Magpie Forward Post 'The Nest'",
+                            position: (0.0, 15.0, -580.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: AI(()),
+                            allegiance: Some(Enemy),
+                            sections: [
+                                (
+                                    id: "core",
+                                    position: (0.0, 0.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_controller_section"),
+                                ),
+                                (
+                                    id: "spine_zp1",
+                                    position: (0.0, 0.0, 1.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "spine_zp2",
+                                    position: (0.0, 0.0, 2.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "spine_zm1",
+                                    position: (0.0, 0.0, -1.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "spine_zm2",
+                                    position: (0.0, 0.0, -2.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "arm_xp1",
+                                    position: (1.0, 0.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "arm_xp2",
+                                    position: (2.0, 0.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "arm_xm1",
+                                    position: (-1.0, 0.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "arm_xm2",
+                                    position: (-2.0, 0.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "cap_yp",
+                                    position: (0.0, 1.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "cap_ym",
+                                    position: (0.0, -1.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                // Two turrets (trimmed from four) mount on TOP of
+                                // the z-arm tips: at y = +1 above an occupied hull
+                                // cube, so each turret's -Y base sits against an
+                                // occupied cell (the mount rule the lint enforces).
+                                (
+                                    id: "turret_zp",
+                                    position: (0.0, 1.0, 2.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("better_turret_section"),
+                                ),
+                                (
+                                    id: "turret_zm",
+                                    position: (0.0, 1.0, -2.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("better_turret_section"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    // --- Planetoids: three bodies for cover and scale, in the
+                    // EARLY approach corridor. TINY wells now (radius 8-9,
+                    // gravity 1 -> SOI 64-72, gentle pull): the AI cannot fly a
+                    // well yet (backlog 20260723-224003), so the wells sit only
+                    // where the player passes and are kept clear of the base and
+                    // the leashed fighters. Invulnerable.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "planetoid_1",
+                            name: "Planetoid",
+                            position: (-120.0, -30.0, -150.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 8.0,
+                            texture: "dep://base/textures/asteroid.png",
+                            health: 2000.0,
+                            impact_sound: Some("dep://base/sounds/impact.wav"),
+                            surface_gravity: Some(1.0),
+                            invulnerable: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "planetoid_2",
+                            name: "Planetoid",
+                            position: (130.0, 40.0, -190.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 9.0,
+                            texture: "dep://base/textures/asteroid.png",
+                            health: 2000.0,
+                            impact_sound: Some("dep://base/sounds/impact.wav"),
+                            surface_gravity: Some(1.0),
+                            invulnerable: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "planetoid_3",
+                            name: "Planetoid",
+                            position: (-40.0, -60.0, -230.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 8.0,
+                            texture: "dep://base/textures/asteroid.png",
+                            health: 2000.0,
+                            impact_sound: Some("dep://base/sounds/impact.wav"),
+                            surface_gravity: Some(1.0),
+                            invulnerable: true,
+                        )),
+                    )),
+                    // --- Asteroid field: destructible debris scattered through
+                    // the arena for cover and torpedo-splash hazards.
+                    ScatterObjects((
+                        id_prefix: "raid_rock_",
+                        count: 34,
+                        seed: 5107,
+                        region: Ring(
+                            inner: 70.0,
+                            outer: 260.0,
+                            y_min: -70.0,
+                            y_max: 60.0,
+                        ),
+                        template: (
+                            base: (
+                                id: "raid_rock_",
+                                name: "Belt Rock",
+                                position: (0.0, 0.0, 0.0),
+                                rotation: (0.0, 0.0, 0.0, 1.0),
+                            ),
+                            kind: Asteroid((
+                                impact_sound: Some("dep://base/sounds/impact.wav"),
+                                destroy_sound: Some("dep://base/sounds/explosion.wav"),
+                                radius: 1.0,
+                                texture: "dep://base/textures/asteroid.png",
+                                health: 100.0,
+                                surface_gravity: None,
+                                invulnerable: false,
+                                lock_signature: None,
+                            )),
+                        ),
+                        asteroid_radius: Some((1.5, 4.5)),
+                    )),
+                ],
+            ),
+            // --- Defender kills: each raider death drops raiders_left by one.
+            // Four one-shot handlers (an OnDestroyed fires once per entity).
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("raider_1"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "raiders_left",
+                        expression: Subtract(
+                            Factor(Name("raiders_left")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("raider_2"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "raiders_left",
+                        expression: Subtract(
+                            Factor(Name("raiders_left")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("raider_3"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "raiders_left",
+                        expression: Subtract(
+                            Factor(Name("raiders_left")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("raider_4"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "raiders_left",
+                        expression: Subtract(
+                            Factor(Name("raiders_left")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            // --- The base breaks: stamp base_down and let Vesh call it. One-shot
+            // on base_said. Does not itself win - the fighters may still be up.
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("magpie_base"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("base_said"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "base_down",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    VariableSet((
+                        key: "base_said",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "The Nest is coming apart - good shooting, Kestrel. Now finish their fighters and the account is closed.",
+                        dwell: Some(6.0),
+                    )),
+                ],
+            ),
+            // --- Victory: base down AND all four defenders down. An OnUpdate
+            // gate (the count is only known after the kills land), one-shot on
+            // win_said, latching act -> 2 in the same frame it declares the win
+            // so the Defeat handler (act == 1) can never overwrite it. Terminal:
+            // this is the campaign's end, no NextScenario.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("base_down"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("raiders_left"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("win_said"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(2.0)))),
+                    )),
+                    VariableSet((
+                        key: "win_said",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "obj_raid",
+                    )),
+                    Outcome((
+                        outcome: Victory,
+                        message: Some("The Nest is scrap and the last Magpie fighter is tumbling. The account is closed, Kestrel - the debt cleared, the crew that hunted you burning in the rocks, and a gunship under your hands. That is how The Ledger balances."),
+                    )),
+                ],
+            ),
+            // --- Player death before the win: Defeat + retry ch5. Gated act ==
+            // 1 and latches act -> 3, mirroring the win latch so the two
+            // terminals cannot overwrite each other.
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(3.0)))),
+                    )),
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("The gunship comes apart around you and the Nest's guns go quiet with satisfaction. The Magpies keep the belt - and the account stays open."),
+                    )),
+                    NextScenario((
+                        scenario_id: "ledger_ch5_the_raid",
+                        linger: true,
+                    )),
+                ],
+            ),
+        ],
+    )),
+]
