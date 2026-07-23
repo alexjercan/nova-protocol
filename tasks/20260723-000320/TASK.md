@@ -1,6 +1,6 @@
 # ch3 stealth rework: neutral-until-provoked channel Magpies (proximity + paint), clean-run comms payoff
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 58
 - TAGS: v0.8.0, content, scenario, playtest
 
@@ -21,29 +21,29 @@ action (20260723-000253).
 
 ## Steps
 
-- [ ] Spawn `channel_magpie_1/2` with `allegiance: Some(Neutral)` and a patrol
+- [x] Spawn `channel_magpie_1/2` with `allegiance: Some(Neutral)` and a patrol
       route down the channel (AI patrol waypoints), NOT engage_delay-hostile.
       Keep them on the lane the player must thread.
-- [ ] Detection: create `OnEnter` proximity areas (CreateScenarioArea) around
+- [x] Detection: create `OnEnter` proximity areas (CreateScenarioArea) around
       each Magpie's lane / a "hot zone"; entering one fires
       `SetAllegiance((id: "channel_magpie_N", allegiance: Enemy))` + a "they've
       seen us" Vesh line + sets a `spotted` variable. Tune the radius so the
       safe (pinch) lane stays outside it - careful slow threading avoids it.
-- [ ] Paint provocation: `OnCombatLock` on each Magpie fires the same
+- [x] Paint provocation: `OnCombatLock` on each Magpie fires the same
       SetAllegiance->Enemy + spotted flip (painting = about to shoot = wake).
-- [ ] Clean-run payoff: reaching YARD (gate==4) with `spotted==0` posts a Vesh
+- [x] Clean-run payoff: reaching YARD (gate==4) with `spotted==0` posts a Vesh
       "nothing on their scopes - nice and quiet" line before Victory; the
       Magpies never engage. `spotted>0` = the existing fight; Victory/retry and
       the ch4 chain unchanged either way.
-- [ ] Keep the fighting-is-optional contract and the debris-pinch beat (the
+- [x] Keep the fighting-is-optional contract and the debris-pinch beat (the
       pinch IS the slow safe lane that keeps you outside detection - make them
       reinforce each other).
-- [ ] Update `crates/nova_assets/tests/ledger_ch3_channel.rs`: pin the Neutral
+- [x] Update `crates/nova_assets/tests/ledger_ch3_channel.rs`: pin the Neutral
       spawn + patrol, both wake paths (proximity OnEnter and OnCombatLock ->
       SetAllegiance Enemy), the `spotted==0` clean-run payoff line, and that
       YARD->Victory->ledger_ch4_the_buyer holds on BOTH paths. Clock-pump as
       needed.
-- [ ] Bump the bundle 1.6.0 -> 1.7.0 (content rework, minor), update the mod
+- [x] Bump the bundle 1.6.0 -> 1.7.0 (content rework, minor), update the mod
       CHANGELOG + README (ch3 is now a real stealth run), regenerate the portal
       catalog locally (do NOT publish), sync any wiki ledger-version line
       (keep-docs-in-sync, whole-tree grep).

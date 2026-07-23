@@ -3,6 +3,23 @@
 All notable changes to The Ledger campaign mod. Versions are the `meta.version`
 in `the-ledger.bundle.ron`; the portal keeps every published version.
 
+## 1.7.0
+
+- Chapter three is now a real stealth run. The two channel Magpies no longer
+  spawn hostile on the NAV-2 trigger: they are present from the first frame
+  as NEUTRAL pickets patrolling the open flanks of the debris pinch, and
+  they only wake - both flipping hostile at once (`SetAllegiance`) - if the
+  player provokes them by entering one of the two picket-watch detection
+  zones (radius 24, centred 55u off the lane on each flank) or by
+  red-locking either picket. The pinch gap is the one lane the watch does
+  not cover: thread it slow and you slip past; swing wide around the wrecks
+  and you are seen. Reaching the yard undetected earns Vesh's "nothing on
+  their scopes" payoff line with the Victory a beat behind it and the
+  pickets still asleep; waking them is the same fight (and the same win at
+  the yard) as before. Comms retuned to read true on both paths: the
+  briefing calls out the pickets, the pinch warning sells the blind spot,
+  and the mid-run breather reports whether the flanks are still cold.
+
 ## 1.6.0
 
 - Pacing pass across the chapters: each opens with a clock-paced briefing
