@@ -34,9 +34,11 @@ Root causes found in the engine (not guesses):
    NO planetoid SOI (`8 * radius`) reaches the base spawn, and the approach
    corridor is flyable for the small ships. (cmd: content lint clean; manual:
    playtest - small ships handle the field, base does not drift.)
-2. The base holds its position: kept as a thrusterless armed AI ship, now clear
-   of gravity, so it station-keeps instead of falling. (test: the ch5 rig still
-   shows the base spawns Enemy, AI, no thruster sections; manual: it stays put.)
+2. The base holds its position via RCS + a tight leash: it gains thruster
+   sections and `leash: Some(15.0)`, kept AI + Enemy, placed in mild gravity at a
+   safe distance so RCS holds it and the leash keeps it from chasing. (test: the
+   ch5 rig shows the base spawns Enemy AI with thruster sections and a ~15u
+   leash; manual: it stays put and does not chase.)
 3. The base has FEWER turrets (4 -> 2). (test: ch5 rig asserts the base turret
    count; cmd: lint clean - mounts still valid.)
 4. Torpedoes fire on the R key (keyboard), not RMB; gamepad stays RightTrigger2.
@@ -58,12 +60,16 @@ gravity, a base that holds station, and the R-key torpedoes.
 
 ## Decisions (load-bearing, architectural)
 
-- Base station-keeping via THRUSTERLESS-armed-AI + out-of-gravity, NOT via added
-  RCS thrusters: an armed AI ship Engages by chasing (it would leave station if
-  it could move), so the only clean "holds position and shoots" is a ship that
-  physically cannot move (no thrusters) placed where no gravity well drags it.
-  The base already has a `basic_controller_section` core. (Diverges from the
-  user's "add a controller so it can RCS" suggestion - surfaced at the gate.)
+- Base station-keeping via RCS + a TIGHT LEASH at a safe distance (the user's
+  call at the gate: "place it such that RCS would work, safe distance"). The
+  base gets thruster sections (RCS authority) + its controller core + AI, placed
+  in MILD (reduced) gravity so RCS has authority to hold, at ~610u from the
+  player. The chase-when-engaging problem is bounded by a tight `leash` (~15u):
+  `AILeash` centers on the spawn position and, beyond its radius, "combat breaks
+  off and the tether reasserts" - so the base can only nudge a few units toward
+  the player before it is pulled home. Net: it station-keeps via RCS and cannot
+  wander off. (Chosen over the thrusterless/out-of-gravity alternative because
+  the user wants the RCS hold to be real.)
 
 ## Manual acceptance (batched for the user at Finish)
 

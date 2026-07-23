@@ -13,17 +13,21 @@ gravity; armed AI Engages by chasing).
 
 ## Steps
 
-- [ ] Shrink + reposition the three planetoids so NO SOI (`8 * radius`) reaches
-      the base spawn (0,15,-520) and the field is calmer:
-      - planetoid_1: radius 22->14, gravity 6->3, pos (-170,-40,-150)->(-160,-40,-140) (SOI 112; ~416u from base).
-      - planetoid_2: radius 18->12, gravity 5->3, pos (150,55,-330)->(150,50,-300) (SOI 96; ~269u from base).
-      - planetoid_3: radius 26->14, gravity 7->3, pos (30,-85,-470)->(-110,-70,-360) (SOI 112; ~212u from base - the one that was dragging it).
-      (Compute the base-to-planetoid distances and confirm each > that
-      planetoid's SOI before trusting the fix.)
-- [ ] Base holds station: keep it thrusterless AI + the controller core (do NOT
-      add thrusters - an armed AI with thrusters chases the player). It now sits
-      outside all wells, so it station-keeps. No RON change beyond the turret
-      trim; the fix is the gravity repositioning above.
+- [ ] Shrink the three planetoids so gravity is MILD (RCS can win) and the field
+      is calmer for the small ships. `mu = surface_gravity * radius^2`,
+      `SOI = 8 * radius`, accel at the base ~= mu / dist^2:
+      - planetoid_1: radius 22->14, gravity 6->3, pos (-170,-40,-150)->(-160,-40,-140) (SOI 112; ~416u from base - clear).
+      - planetoid_2: radius 18->12, gravity 5->3, pos (150,55,-330)->(150,50,-300) (SOI 96; ~269u from base - clear).
+      - planetoid_3: radius 26->16, gravity 7->3, pos (30,-85,-470)->(0,-70,-470) (SOI 128; ~99u from base, so the base sits in its MILD outer well: mu 768, accel ~0.08 u/s^2 - RCS-holdable, vs the old ~0.35 with no thrusters).
+      (Compute the base-to-planetoid distances/accels and confirm mild before trusting.)
+- [ ] Base holds station via RCS + tight leash (user's call - "place it such
+      that RCS would work, safe distance"): ADD two `basic_thruster_section`
+      sections to the base for RCS authority, keep the controller core + AI, and
+      set `leash: Some(15.0)` so it holds within ~15u of its spawn and cannot
+      chase the player far (AILeash tethers it home beyond the radius). The base
+      sits at z=-520 (~610u from the player spawn) in mild gravity, so RCS holds
+      it. Thruster mounts must sit base-against occupied cells (the lint rule) -
+      place them on hull cubes like the turrets.
 - [ ] Reduce the base turrets 4 -> 2: keep turret_zp (0,1,2) and turret_zm
       (0,1,-2) (they still sit base-against occupied spine cubes); remove
       turret_xp and turret_xm. Leave the arm hull cubes for the silhouette.
@@ -38,7 +42,8 @@ gravity; armed AI Engages by chasing).
 - [ ] Update the ch5 rig `crates/nova_assets/tests/ledger_ch5_raid.rs`:
       - the torpedo-binding test asserts the tubes bind the R key
         (`Keyboard(KeyCode::KeyR)`), not just contains_key;
-      - a base test asserts exactly 2 turret sections and no thruster section;
+      - a base test asserts exactly 2 turret sections AND >=2 thruster sections
+        (RCS) AND `leash == Some(15.0)` on the base's AI config;
       - assert the scenario is not hidden.
 - [ ] Docs: bump bundle `meta.version` 1.10.0 -> 1.11.0; CHANGELOG 1.11.0 entry
       (gravity/turret/torpedo-key tuning); update the README + `docs/news-*.md`
