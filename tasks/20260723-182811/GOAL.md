@@ -63,7 +63,8 @@ softer overspeed window and the finale playing HAM.
 ## Tasks
 
 - [ ] 20260723-182811 (p0, umbrella) this goal
-- [ ] 20260723-182850 (p60, the-ledger) ch3 overspeed: sustained ~3.5s window on the second strike (content)
+- [x] 20260723-182850 (p60, the-ledger) ch3 overspeed: sustained ~3.5s window on the second strike (content)
+      landed c4020325; 1 review round (APPROVE, out-of-context, zero findings); bundle 1.8.0 -> 1.9.0; manual playtest batched for Finish
 - [ ] 20260723-182855 (p58, the-ledger) ledger_ch5: torpedo-ship reward raid finale (content)
 
 ## Decisions (load-bearing, architectural)
