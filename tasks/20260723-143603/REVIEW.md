@@ -121,4 +121,4 @@ real pulse semantics, the one-shot composition is faithful to the existing four
 provocations, the tests exercise the shipped handlers and would fail on a wrong
 gate, lint is clean, and every doc surface is in sync.
 
-VERDICT: APPROVE
+- VERDICT: APPROVE

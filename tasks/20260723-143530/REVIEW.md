@@ -90,4 +90,4 @@ Faithful mirror of the established `scenario_elapsed` reserved-clock pattern wit
 no correctness, scoping, ordering, lint, or teardown defects; tests are
 production-faithful and would fail if the system were removed. Nothing to change.
 
-VERDICT: APPROVE
+- VERDICT: APPROVE
