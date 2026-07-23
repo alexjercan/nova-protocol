@@ -3,6 +3,18 @@
 All notable changes to The Ledger campaign mod. Versions are the `meta.version`
 in `the-ledger.bundle.ron`; the portal keeps every published version.
 
+## 1.10.0
+
+- A reward finale: THE RAID (chapter five). Win the chapter-four fight - break
+  the Auditor gunship on the SELL path - and the campaign no longer just ends.
+  Your payday buys a gunship, and for the first time in the whole story you fly
+  a capital ship with torpedoes (guns on the left mouse, torpedo tubes on the
+  right). With two of Vesh's wing flying escort, you raid the Magpies' forward
+  base among the asteroids and planetoids: a real multi-section station and four
+  fighters to break. Crack the base and clear its defenders to close the account
+  for good. The BURN (no-fight) ending is unchanged - it stays terminal, so the
+  raid is the reward for choosing to fight.
+
 ## 1.9.0
 
 - Chapter three overspeed now gives you a real reaction window before it wakes

@@ -25,6 +25,14 @@ Player-facing beats, ready to fold into the news:
   the box at the buoy and there is nothing left to collect: the Auditor never
   comes, no fight - but no payout either. Payday at a price, or clear and
   broke. Two genuinely different endings.
+- **A reward for fighting: THE RAID.** Choose to fight the finale - break the
+  Auditor - and the campaign keeps going into a fifth chapter you only see if
+  you took the fight. Your payday buys a gunship, and for the first time in the
+  whole story you fly a capital ship with torpedoes (guns on the left mouse,
+  tubes on the right). With two of Vesh's wing on escort you raid the Magpies'
+  forward base - a real multi-section station among the asteroids and
+  planetoids, plus four fighters - and crack it to close the account. The burn
+  ending still ends quietly at chapter four; the raid is what fighting earns.
 - **A look for each chapter.** Every chapter now picks its own sky, and the
   sky shifts at the beats that matter - the moment the fourth ping shows up
   on the manifest in chapter one, the channel narrowing in chapter three, the

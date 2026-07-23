@@ -16,8 +16,9 @@
 //!    win kind - but distinct MESSAGES, and structurally one has no fight);
 //! 5. Defeat (player death) is reachable ONLY on the sell path (act == 2) and
 //!    is inert once the burn path has latched act = 3;
-//! 6. neither terminal ending chains a NextScenario off this last chapter
-//!    (only the Defeat retry requeues the finale).
+//! 6. the SELL (fight) win chains a NextScenario to ch5, the reward raid
+//!    finale (task 20260723-182855); the BURN ending stays terminal (no
+//!    chain), and the Defeat retry requeues this chapter.
 //!
 //! Harness mirrors `ledger_ch2_encounter.rs` (mod content stays out of the
 //! deep core-CI behavior suite; nova_assets unifies the serde feature so this
@@ -323,10 +324,13 @@ fn sell_branch_wins_by_breaking_the_auditor() {
         outcome_message(&app).unwrap().contains("SOLD"),
         "the SELL ending is the payday message"
     );
+    // The SELL (fight) win now CHAINS to ch5, the reward raid finale (task
+    // 20260723-182855): payday buys the gunship you take into the raid. Only
+    // the fight path reaches this; the BURN ending stays terminal (below).
     assert_eq!(
         queued_next(&app),
-        None,
-        "the finale's win does not chain a NextScenario"
+        Some(("ledger_ch5_the_raid".to_string(), true)),
+        "the SELL win chains to the ch5 reward raid"
     );
 }
 
@@ -410,7 +414,7 @@ fn the_two_endings_are_distinct_terminal_outcomes() {
     destroy(&mut sell, "auditor");
     let sell_kind = outcome_kind(&sell).expect("sell reaches an outcome");
     let sell_msg = outcome_message(&sell).expect("sell has a message");
-    assert_eq!(number_var(&sell, "act"), Some(3.0), "sell is terminal");
+    assert_eq!(number_var(&sell, "act"), Some(3.0), "sell closes ch4's act");
 
     // Drive BURN to its terminal.
     let mut burn = armed_app(&scenario);

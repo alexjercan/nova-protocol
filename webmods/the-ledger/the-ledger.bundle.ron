@@ -1,10 +1,12 @@
 // The Ledger - the alt storyline campaign (task 20260716-123535, spike
-// 20260716-183104). Four chapters chained with NextScenario: chapter one is
+// 20260716-183104). Chapters chained with NextScenario: chapter one is
 // the campaign's entry in the Scenarios picker; everything after is hidden
 // (reached only by playing). Chapter two plays in two acts across two
 // scenario files (claim jumpers, then the heavies) so a death retries the
 // current act, not the chapter - the difficulty rework of task
-// 20260717-112630. A PORTAL mod like gauntlet: lives under webmods/,
+// 20260717-112630. Chapter five is a REWARD FINALE reached only by the fight
+// (SELL) ending of chapter four - the big-gunship raid on the Magpie base
+// (task 20260723-182855). A PORTAL mod like gauntlet: lives under webmods/,
 // published by scripts/gen-portal.py, never shipped inside assets/.
 (
     content: [
@@ -13,12 +15,13 @@
         "ledger_ch2b.content.ron",
         "ledger_ch3.content.ron",
         "ledger_ch4.content.ron",
+        "ledger_ch5_the_raid.content.ron",
     ],
     meta: (
         name: "The Ledger",
-        description: "A salvage crew in over its head: four chapters, one sealed crate everyone in the belt wants.",
+        description: "A salvage crew in over its head: four chapters and a reward finale, one sealed crate everyone in the belt wants.",
         author: "Nova Protocol",
-        version: "1.9.0",
+        version: "1.10.0",
         dependencies: ["base"],
     ),
 )

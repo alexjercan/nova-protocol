@@ -257,10 +257,10 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   `[table]` or they fold into it silently. 20260715-110417.
 - `verify-tool-via-subcommand-not-which` (x1): check `cargo <sub> --version`,
   not `which` - ~/.cargo/bin may be off PATH. 20260715-110417.
-- `inherited-cli-string-drifts` (x1): a CLI invocation copied from a prior
+- `inherited-cli-string-drifts` (x2): a CLI invocation copied from a prior
   task's DoD/Steps can be stale against the current flags - run it (or `--help`)
-  once before trusting it. A ch3 task inherited `content lint <path>` when the
-  bin now takes `--target <path>`. 20260723-182850.
+  once before trusting it. Both ch3 tasks this cycle inherited `content lint
+  <path>` when the bin now takes `--target <path>`. 20260723-182850, 20260723-182855.
 - `relocation-leaves-ignored-siblings` (x1, PROMOTED 2026-07-19 -> sprout
   skill): gitignored files exist only in the main checkout; clean them up
   after landing a stop-shipping-dir move. 20260714-154958.
@@ -675,6 +675,14 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 
 ## Domain lessons (nova-protocol specific)
 
+- `lint-is-the-fast-oracle-for-new-scenarios` (x1): for a new/large scenario RON
+  the bugs that matter are game-geometry and balance invariants a human cannot
+  eyeball (turret mount cells, "spawned-dead" enemies inside their threat
+  envelope, flight-rig input collisions), NOT syntax - run `content lint --target
+  <mod>` the moment the file parses and iterate to clean BEFORE writing the rig;
+  it caught three real ch5 bugs as quick fixes. Also: splice big ship section
+  lists from a SHIPPED ship (ids are ship-local, so reuse is safe) rather than
+  hand-transcribing cubes. 20260723-182855.
 - `avoidance-geometry-is-computed` (x1): a "sneak past / thread it" mechanic is
   only real if the SAFE corridor is pinned OUTSIDE the hazard volume by
   computed geometry (worst-case body radius, detection-bubble radius, leg

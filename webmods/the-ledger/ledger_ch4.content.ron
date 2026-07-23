@@ -1,4 +1,4 @@
-// The Ledger, chapter 4 of 4: THE BUYER. The finale forks - and the two
+// The Ledger, chapter 4 of 5: THE BUYER. The choice forks - and the two
 // endings DIVERGE, not just in flavor text. Two beacons open the branch
 // (OnEnter sets `choice`, gauntlet-style):
 //   - SELL (HANDOFF berth): dock the box and the sale calls the hammer down.
@@ -10,8 +10,9 @@
 //     (Victory, clear but no payout). This path latches act -> 3 at the buoy
 //     and lands its own overlay a beat later; the Auditor is not spawned.
 // Branching lives INSIDE the chapter - variables do not survive scenario
-// changes (spike 20260716-183104). This is the last chapter: neither ending
-// chains to a NextScenario (only the Defeat retry requeues the finale).
+// changes (spike 20260716-183104). The SELL (fight) win chains to ch5, the
+// reward raid finale (task 20260723-182855); the BURN ending is terminal (no
+// chain). The Defeat retry requeues this chapter.
 //
 // Acts: 1 = the choice, 2 = the (sell-only) fight, 3 = done. `choice`:
 // 1 = sold, 2 = burned. Player-death Defeat gates act < 3, so it can only
@@ -1157,8 +1158,9 @@
             ),
             // The BURN terminal overlay: a beat after the burn line
             // (`burn_said` one-shot). Victory + a DISTINCT no-fight message; no
-            // NextScenario (this is the last chapter, no chain), no
-            // StoryMessage beside the Outcome.
+            // NextScenario (the burn ending is terminal - only the SELL/fight
+            // win chains onward, to the ch5 raid), no StoryMessage beside the
+            // Outcome.
             (
                 name: OnUpdate,
                 filters: [
@@ -1221,7 +1223,15 @@
                     )),
                     Outcome((
                         outcome: Victory,
-                        message: Some("SOLD. Paid in full - every ledger line cleared, the debt gone in one transfer. The buyer is silent, the Auditor is scrap, and somewhere a manifest lists a box that never existed. Payday, and the price was a gunship."),
+                        message: Some("SOLD. Paid in full - every ledger line cleared, the debt gone in one transfer. The buyer is silent, the Auditor is scrap, and somewhere a manifest lists a box that never existed. Payday, and the price was a gunship - so Vesh spends a slice of it hiring you one to keep. Time to settle the Magpie account."),
+                    )),
+                    // The fight (SELL) ending earns the reward finale: chain to
+                    // ch5, the big-gunship raid on the Magpie base. Only this
+                    // path reaches a live Auditor, so only the fight leads here;
+                    // the BURN ending stays terminal (no chain) below.
+                    NextScenario((
+                        scenario_id: "ledger_ch5_the_raid",
+                        linger: true,
                     )),
                 ],
             ),

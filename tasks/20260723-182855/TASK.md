@@ -1,6 +1,6 @@
 # ledger_ch5: torpedo-ship reward raid finale (content)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 58
 - TAGS: v0.8.0, content, scenario, playtest
 
@@ -67,47 +67,51 @@ exactly as-is (terminal, no chain).
 
 ## Steps
 
-- [ ] Author `webmods/the-ledger/ledger_ch5_the_raid.content.ron`: the scenario
-      shell (id, name, description, cubemap/thumbnail, `hidden: true`), OnStart
-      seeding + Vesh raid briefing + the recap Objective.
-- [ ] Spawn the player big torpedo ship (Player controller, guns + torpedo
-      input_mapping, generous ammo, capital-sized section layout).
-- [ ] Spawn the 2 AI wingmen (allegiance Some(Player)) near the ingress.
-- [ ] Spawn the Magpie base as a multi-section static Spaceship (Hull + Turret,
-      Enemy) and the 4-5 AI enemy fighters defending it (default Enemy,
-      engage_delay for a readable open).
-- [ ] Scatter asteroids (ScatterObjects Ring) and place 2-3 planetoids for cover
-      and scale.
-- [ ] Wire the objectives + win/lose: an enemy/base-down counter, `Outcome
-      (Victory)` on the last defender+base destroyed with a payoff message;
-      `Outcome(Defeat)` + `NextScenario` ch5-retry on player death. Post/complete
-      Objectives as the raid progresses (ingress -> break the fighters -> crack
-      the base) matching the campaign's objective-pacing conventions.
-- [ ] Chain from ch4: edit `ledger_ch4.content.ron` Auditor-death (SELL) handler
-      to add `NextScenario` -> ch5 beside its Victory, and re-word the SELL
-      Victory message as a lead-in to the raid. Leave the BURN path terminal.
-- [ ] Register ch5 in `webmods/the-ledger/the-ledger.bundle.ron` `content` list
-      (after ch4) and bump `meta.version`.
-- [ ] Add a ch5 rig test (mirror `crates/nova_assets/tests/ledger_ch3_channel.rs`
-      / the ch4 rig if one exists): assert the scenario loads and spawns the
-      player ship, both wingmen (Player allegiance), the base + defenders (Enemy);
-      drive destroy events and assert base+all-defenders-down => Victory, and a
-      player-ship destroy => Defeat + ch5 requeue. Also assert the ch4 SELL
-      handler now carries a NextScenario to ch5 (fight path chains) while the
-      BURN path does not (no chain).
-- [ ] Content lint + real-loader load: `cargo run -p nova_assets --bin content
-      -- lint webmods/the-ledger` clean; `cargo test -p nova_assets --test
-      webmods_validation` loads ch5 through the real modding loader.
-- [ ] Docs sweep from the final diff (keep-docs-in-sync +
-      ephemeral-news-draft): `webmods/the-ledger/CHANGELOG.md` (the new chapter +
-      version), `README.md` (chapter count "four" -> "five" / the reward finale),
-      the bundle description if it says "four chapters", the wiki version-history,
-      and the `docs/news-*.md` the-ledger bullet.
+- [x] Authored `webmods/the-ledger/ledger_ch5_the_raid.content.ron`: shell
+      (`hidden: true`), OnStart seeding (act/raiders_left/base_down/win_said/
+      base_said), Vesh briefing + recap Objective. Big section blocks (cargoB
+      player ship, racer small ships) spliced in from the shipped auditor /
+      broadside layouts rather than hand-transcribed.
+- [x] Player big torpedo ship: the cargoB gunship (same hull-class as the ch4
+      Auditor), Player controller, guns (the 2 turret cubes) on LMB /
+      RightTrigger2 and torpedoes (the 2 torpedo bays) on RMB (dedicated) +
+      RightTrigger2 on gamepad, infinite_ammo, speed_cap 35.
+- [x] Two AI wingmen (`allegiance: Some(Player)`) on the player's flanks,
+      patrol leading toward the base, leash 700.
+- [x] Magpie base as a custom multi-section station (reinforced_hull +
+      better_turret around a controller core, NO thrusters so it holds station),
+      Enemy; four AI raiders (default Enemy) orbiting + leashed to the base with
+      engage_delay 6-8s.
+- [x] ScatterObjects Ring of destructible rocks + three big invulnerable
+      planetoids (with gravity) for cover and scale.
+- [x] Win/lose: per-raider OnDestroyed counter (raiders_left) + base_down flag,
+      an OnUpdate Victory gate (base_down==1 && raiders_left==0) latching act->2
+      one-shot (win_said); player-death Defeat latching act->3 + NextScenario
+      ch5 retry. Both terminals gate act==1 so neither overwrites the other.
+- [x] Chained from ch4: the Auditor-death (SELL) handler now adds NextScenario
+      -> ch5 beside its Victory, and its message re-worded as a raid lead-in.
+      BURN path left terminal. ch4 rig updated to the new contract; its stale
+      "chapter 4 of 4"/"last chapter" comments fixed.
+- [x] Registered ch5 in the bundle `content` list and bumped `meta.version`
+      1.9.0 -> 1.10.0 (+ bundle description/header comment).
+- [x] Added `crates/nova_assets/tests/ledger_ch5_raid.rs` (mirrors the ch4
+      rig): 9 tests - cast/counters, the torpedo gunship (carries Torpedo
+      sections, bound + infinite ammo), wing=Player / raiders=Enemy / base=Enemy,
+      win-needs-base-AND-all-defenders + partial-clear-does-not-win, player-death
+      Defeat+retry, victory-not-overwritten, ch4-SELL-chains-here (exactly one
+      handler), bundle-ships-raid+version.
+- [x] Content lint (`--target webmods/the-ledger`) 0 err/warn/finding (1
+      pre-existing ack); `webmods_validation` loads ch5 through the real loader.
+- [x] Docs sweep: CHANGELOG 1.10.0 entry; README (chapter count/list/hidden
+      range + new chapter 5); bundle description + header comment; ch4 RON header
+      + burn-overlay comment; `docs/news-0.8.0-the-ledger.md` finale bullet; the
+      mod-guide version walk 1.9.0 -> 1.10.0. (news-0.7.0 left verbatim - dated
+      release history.)
 
 ## Definition of Done
 
-- cmd: `cargo run -p nova_assets --bin content -- lint webmods/the-ledger` is
-  clean (no undefined-variable / dead-handler flags in ch5); `cargo test -p
+- cmd: `cargo run -p nova_assets --bin content -- lint --target webmods/the-ledger`
+  is clean (no undefined-variable / dead-handler flags in ch5); `cargo test -p
   nova_assets --test webmods_validation` loads ch5 through the real loader.
 - test: the ch5 rig passes - loads, spawns player + 2 Player-allegiance wingmen
   + base + 4-5 Enemy defenders; base+defenders down => Victory; player death =>
@@ -132,3 +136,65 @@ exactly as-is (terminal, no chain).
 - Big content file. Copy real section blocks from broadside_gunship / base
   sections / final_tally rather than hand-writing cube layouts; the exact cube
   ids and offsets must match a shipped, loading ship.
+
+## Outcome (2026-07-23)
+
+CLOSED. A new reward-finale chapter, pure content (RON) - no engine changes.
+
+**What changed and why.** Added `ledger_ch5_the_raid.content.ron` and chained it
+off ch4's SELL (fight) win so the campaign's fight ending now pays off with a
+victory-lap raid: the player flies a cargoB-class gunship (the Auditor's own
+hull-class) with real torpedo tubes, two Player-allegiance AI escorts, against a
+custom multi-section Magpie station and four Enemy fighters, among asteroids and
+planetoids. The BURN ending stays terminal, so the raid is specifically the
+reward for choosing to fight (confirmed with the user).
+
+**Key design decisions.**
+- No engine work was needed or done: allies = `controller: AI` +
+  `allegiance: Some(Player)` (the lifeline relief-wing pattern), enemies = AI
+  default Enemy, the base = a static Enemy `Spaceship` of `reinforced_hull_section`
+  + `better_turret_section` around a `basic_controller_section` core with NO
+  thrusters (so it holds station), torpedoes = the shipped `cargob_cube_*` bays.
+- The big ship reuses the ch4 Auditor's proven 42-section cargoB layout; small
+  ships reuse the broadside racer layout. I spliced these shipped section blocks
+  in via a placeholder pass rather than hand-transcribing ~2000 lines of cubes -
+  the exact cube ids/offsets must match a loading ship, and copying removes
+  transcription risk. Section ids are ship-local, so the same block is reused
+  across all six small ships safely.
+- Torpedoes get a DEDICATED trigger where the input model allows: `Mouse(Right)`
+  (RMB) for the tubes, guns on `Mouse(Left)`; on gamepad both share
+  `RightTrigger2` because the flight rig reserves every other gamepad button
+  (the lint caught my first attempt at `LeftTrigger2`, which double-drives RCS).
+- Win needs the base AND all four fighters (a base-down flag + a per-raider
+  decrement counter, checked by an OnUpdate gate); both the Victory and the
+  player-death Defeat latch a distinct terminal act (2 win / 3 loss) gated on
+  act==1, so neither can overwrite the other (outcome-is-last-write-wins).
+
+**Difficulties / how diagnosed.** The content lint was the workhorse here and
+caught three real classes before anything shipped: (1) my base turrets floated
+with empty cells below them - a turret's -Y mount base must sit against an
+occupied cell, fixed by mounting the turrets on top of the arm hull cubes;
+(2) the base + four raiders spawned inside their own 450u threat envelope of the
+player ("spawned-dead" - under fire before first input), fixed by pushing the
+base to z=-520 and the raiders to ~460-575u so the raid is a real approach;
+(3) the LeftTrigger2 torpedo binding double-drove the flight RCS. All fixed and
+re-linted clean. Separately, the ch4 change broke the ch4 rig's "the sell win
+does not chain" assertion (a fixture pin far from the diff) - updated it to the
+new contract (sell chains to ch5) and fixed the stale ch4 "chapter 4 of 4" /
+"last chapter" comments.
+
+**Verification.** `content lint --target webmods/the-ledger` 0 err/warn/finding
+(6 scenarios balance-audited incl. ch5, 1 pre-existing Auditor ack);
+`webmods_validation` loads ch5 through the real modding loader; `ledger_ch5_raid`
+10/10 and `ledger_ch4_ending` 9/9 green; `cargo fmt --check -p nova_assets` clean.
+
+**Self-reflection.** Leaning on the lint as a fast structural oracle (turret
+mounts, spawn distances, input conflicts) before writing the rig saved a lot -
+those are exactly the errors a text agent cannot eyeball in a 2900-line data
+file. The splice-shipped-section-blocks approach is the right call for capital
+ships and should be reused. Next time, run the sibling rig (ch4 here) as part of
+the same-scenario blast radius immediately after touching a chained chapter,
+rather than discovering the broken fixture pin later.
+
+Manual playtest (fly the raid, feel the reward) stays pending for the umbrella's
+Finish checkpoint.
