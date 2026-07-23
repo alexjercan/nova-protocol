@@ -680,6 +680,7 @@ pub(crate) fn final_tally(
         thumbnail: Some(AssetRef::from("self://banner.png")),
         hidden: true,
         menu_backdrop: false,
+        campaign: None,
         events,
     }
 }

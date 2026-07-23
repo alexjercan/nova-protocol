@@ -769,6 +769,7 @@ pub(crate) fn lifeline(
         thumbnail: Some(AssetRef::from("self://banner.png")),
         hidden: false,
         menu_backdrop: false,
+        campaign: None,
         events,
     }
 }

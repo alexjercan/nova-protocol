@@ -567,6 +567,7 @@ pub(crate) fn broadside(
         thumbnail: Some(AssetRef::from("self://banner.png")),
         hidden: false,
         menu_backdrop: false,
+        campaign: None,
         events,
     }
 }
@@ -735,6 +736,7 @@ pub(crate) fn broadside_gunship(
         thumbnail: Some(AssetRef::from("self://banner.png")),
         hidden: true,
         menu_backdrop: false,
+        campaign: None,
         events,
     }
 }
