@@ -175,6 +175,13 @@ const docPage = ({ slug, md, title, crumbParent }) =>
 // fill the meta line; description is the head meta; the title comes from the H1.
 const NEWS_POSTS = [
     {
+        slug: "0.8.0",
+        version: "v0.8.0",
+        date: "2026-07-23",
+        description:
+            "Nova Protocol v0.8.0: the base campaign is finished and finds its voice - two new chapters (Lifeline's convoy defense and the Final Tally gravity-well finale) close the arc, and the whole mainline briefs you over the comms and breathes between beats. The Ledger story mod (now 1.12.0) grows a real stealth run, a forking finale, and a fifth reward chapter you fly a torpedo-armed gunship into; Gauntlet becomes a time-trial on the new HudReadout action; and the dev tooling grows the nova_probe run-harness that verifies an autopilot playthrough is still correct, a unified content lint with per-mod reports, and an ephemeral docs model.",
+    },
+    {
         slug: "0.7.0",
         version: "v0.7.0",
         date: "2026-07-18",

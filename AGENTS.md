@@ -280,10 +280,13 @@ full map is the dev wiki page **Keeping docs in sync**
   `web/src/tutorial.html` if the first-flight flow moved.
 - **Internals or a data format changed**: fix `web/src/wiki/dev/*.md` (a
   RON/bundle/catalog break lands in modding-ron/mod-portal the same task).
-- **A release went out**: update `CHANGELOG.md` (terse, grouped by subsystem)
-  and `web/src/news/` (one post per FEATURE release, h2 sections + h3
-  subsections for the TOC; patch releases fold into the parent post's
-  `## Point releases`).
+- **A release went out**: update `CHANGELOG.md` and `web/src/news/`. Keep every
+  CHANGELOG entry SHORT - one commit-title line, grouped by subsystem: what
+  changed, the key name (action/scenario/flag/crate), and a `(breaking)` tag if
+  it breaks. No wrapped paragraphs, no rationale, no worked examples - the News
+  post (one per FEATURE release, h2 sections + h3 subsections for the TOC; patch
+  releases fold into the parent post's `## Point releases`) is where the detail
+  and narrative live, expanding on the changelog lines.
 - **New feature worth showing**: land a `.figure` placeholder slot + caption
   now, drop the capture in later.
 
