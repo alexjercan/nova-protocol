@@ -42,7 +42,8 @@ unseen, overspeed = warned-then-caught.
 
 - [x] 20260723-143530 (p60, nova_scenario) expose player_speed as a reserved scenario variable (engine)
       landed 104e429f; 1 review round (APPROVE, zero findings); reusable engine capability, ch3 content consumes it next
-- [ ] 20260723-143603 (p58, the-ledger) warn-then-trip picket provocation on player overspeed (content) [depends on 20260723-143530]
+- [x] 20260723-143603 (p58, the-ledger) warn-then-trip picket provocation on player overspeed (content)
+      landed 654b5749; 1 review round (APPROVE, one NIT fixed); mod bumped 1.7.0 -> 1.8.0, all doc surfaces synced
 
 ## Decisions (load-bearing, architectural)
 
