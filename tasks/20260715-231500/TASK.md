@@ -1,8 +1,8 @@
 # Annotate the HUD and radar wiki screenshots with callout labels
 
 - STATUS: OPEN
-- PRIORITY: 20
-- TAGS: docs,web,assets,v0.8.0
+- PRIORITY: 0
+- TAGS: docs,web,assets,backlog
 
 ## Story
 
