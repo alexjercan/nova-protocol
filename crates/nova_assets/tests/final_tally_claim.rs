@@ -131,7 +131,15 @@ fn register_non_start_handlers(app: &mut App, scenario: &ScenarioConfig) {
     }
 }
 
-/// Seed the whole OnStart variable block the way OnStart would.
+/// Seed the whole OnStart variable block the way OnStart would. Must stay in
+/// lockstep with the OnStart `VariableSet` block in
+/// `final_tally.content.ron` - the defer-objectives pass (commit 0ae5c7f9)
+/// added the `*_posted` / `*_gate` breathe variables, and a slice test that
+/// omits them leaves the gated handlers reading `None` (e.g. the picket handler
+/// filters `picket_posted == 0`, so an unseeded `picket_posted` never lets it
+/// fire, and the picket/break objectives never post). `scenario_elapsed` is
+/// engine-provided (the loader seeds it, task 20260721-000249), so the slice
+/// seeds it here too.
 fn seed_live_claim(app: &mut App) {
     for (key, value) in [
         ("act", 1.0),
@@ -144,6 +152,11 @@ fn seed_live_claim(app: &mut App) {
         ("hello_said", 0.0),
         ("taunt_said", 0.0),
         ("close_said", 0.0),
+        ("survey_posted", 0.0),
+        ("picket_posted", 0.0),
+        ("break_posted", 0.0),
+        ("picket_gate", 0.0),
+        ("break_gate", 0.0),
         ("scenario_elapsed", 0.0),
     ] {
         seed_var(app, key, value);
@@ -376,13 +389,22 @@ fn the_survey_is_a_one_shot_travel_lock_gate() {
 
     travel_lock(&mut app, "anchorage_bow");
     assert_eq!(number_var(&app, "surveyed"), Some(1.0), "the lock surveys");
+
+    // The picket objective lands a BREATHE after the survey, not the same
+    // frame: the survey sets `picket_gate = scenario_elapsed + 6` and a
+    // separate OnUpdate handler posts the objective once the clock passes that
+    // gate (the "announce, breathe, arrive" deferral, task 20260721-161020 /
+    // the defer-objectives pass). Advance the clock past the gate, then it
+    // posts.
+    seed_var(&mut app, "scenario_elapsed", 30.0);
+    pump(&mut app);
     assert!(
         app.world()
             .resource::<GameObjectives>()
             .objectives
             .iter()
             .any(|o| o.id == "picket"),
-        "the survey posts the picket objective"
+        "the survey posts the picket objective after the breathe"
     );
 
     // The 5s re-fire is a no-op (the one-shot flag gates the handler).
@@ -441,13 +463,20 @@ fn the_cast_off_waits_for_survey_pickets_and_the_breathe() {
         "the flagship casts off"
     );
     assert!(ship_in_world(&mut app, "escort"), "with its escort");
+
+    // The break objective also lands a breathe after the cast-off: the cast-off
+    // handler sets `break_gate = scenario_elapsed + 8.4` and a separate
+    // OnUpdate handler posts it once the clock passes that gate (same
+    // announce-breathe-arrive deferral). Advance past the gate, then it posts.
+    seed_var(&mut app, "scenario_elapsed", 60.0);
+    pump(&mut app);
     assert!(
         app.world()
             .resource::<GameObjectives>()
             .objectives
             .iter()
             .any(|o| o.id == "break_flagship"),
-        "the break objective posts"
+        "the break objective posts after the breathe"
     );
 
     // And the breathe clock is real: a fresh run with survey FIRST holds
