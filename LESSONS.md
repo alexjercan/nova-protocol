@@ -36,6 +36,18 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   `//!`/`///` doc comments too - a CLI surface is described in module/crate
   docs as often as in README/wiki, and a markdown-only sweep left three stale
   `audit` mentions for review to catch. 20260718-152240.
+- `rustdoc-no-public-to-private-intra-doc-link` (x1): a `pub` item's
+  rustdoc cannot `[intra-doc-link]` a PRIVATE symbol without a `cargo doc`
+  warning - use a plain code span for private references, reserve `[links]` for
+  items at least as public as the referrer. Keep `cargo doc -p <crate>
+  --no-deps` in the verify loop whenever a task adds rustdoc to public items
+  (it is the only check that catches this class). 20260723-143530.
+- `ephemeral-news-draft-drifts-behind-content` (x1): the `docs/news-*.md`
+  release drafts are ephemeral and easy to skip in a doc sweep, so they drift
+  BEHIND the content they describe - when a feature/chapter changes, RE-READ
+  the matching news bullet against the current source and REWRITE it, do not
+  just append (a stale pre-stealth-rework "ambush" bullet survived two tasks).
+  One more surface on `keep-docs-in-sync-with-code`. 20260723-143603.
 - `pin-mirrored-list-against-source` (positive, x1): a lint/tool that hardcodes
   a copy of runtime data (the flight rig's reserved keys) gets a test that
   builds the REAL source and set-diffs both directions, so the copy
