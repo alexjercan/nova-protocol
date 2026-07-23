@@ -1,8 +1,8 @@
 # ch3 speed: expose player_speed as a reserved scenario variable (engine)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 60
-- TAGS: v0.8.0,scenario,feature
+- TAGS: v0.8.0, scenario, feature
 
 ## Story
 
@@ -27,23 +27,23 @@ existing `world.clear()`.
 
 ## Steps
 
-- [ ] Add `PLAYER_SPEED_VAR: &str = "player_speed"` next to `SCENARIO_ELAPSED_VAR`
+- [x] Add `PLAYER_SPEED_VAR: &str = "player_speed"` next to `SCENARIO_ELAPSED_VAR`
       in `crates/nova_scenario/src/loader.rs`, with a doc comment stating it is
       a reserved, engine-written variable (authors read it, never set it).
-- [ ] Add a `track_player_speed` system: query the player ship for
+- [x] Add a `track_player_speed` system: query the player ship for
       `&LinearVelocity`, insert `player_speed = velocity.length() as f64`;
       insert 0.0 when there is no player ship. Import `LinearVelocity` from
       `avian3d::prelude` (avian3d 0.7 is already a nova_scenario dep).
-- [ ] Register it in `register_clock_and_pulse` chained as
+- [x] Register it in `register_clock_and_pulse` chained as
       `(tick_scenario_clock, track_player_speed, fire_on_update).chain()` under
       the existing `scenario_is_live && Unpaused` run condition, so it shares
       one gate with the clock/pulse and cannot drift between plugin and rigs.
-- [ ] Lint exception: add `PLAYER_SPEED_VAR` alongside `SCENARIO_ELAPSED_VAR`
+- [x] Lint exception: add `PLAYER_SPEED_VAR` alongside `SCENARIO_ELAPSED_VAR`
       in `crates/nova_scenario/src/lint.rs` (line ~304) so content that reads
       `player_speed` in an Expression is NOT flagged as an undefined variable.
       (It must never be flagged as a set-target either - it is engine-written;
       mirror whatever guard `scenario_elapsed` gets there.)
-- [ ] Harness test in nova_scenario (mirror the existing loader test rigs that
+- [x] Harness test in nova_scenario (mirror the existing loader test rigs that
       register the real clock+pulse): a scenario-live App with a player ship
       carrying a `LinearVelocity`, pump a frame, assert
       `player_speed ~= velocity.length()`; set velocity to ZERO, pump, assert

@@ -299,9 +299,11 @@ pub fn lint_scenario(
     }
 
     for var in &used_vars {
-        // The scenario clock is ENGINE-set every live unpaused tick
-        // (loader::tick_scenario_clock); reading it needs no VariableSet.
-        if var == crate::loader::SCENARIO_ELAPSED_VAR {
+        // The reserved engine variables (the scenario clock, the player-speed
+        // readout) are ENGINE-set every live unpaused tick (loader's
+        // tick_scenario_clock / track_player_speed); reading one needs no
+        // VariableSet.
+        if crate::loader::is_reserved_engine_var(var) {
             continue;
         }
         if !declared.set_vars.contains(var) {
@@ -376,16 +378,17 @@ fn check_action(
             }
         }
         EventActionConfig::VariableSet(config) => {
-            // The scenario clock is engine-owned: the tick system rewrites
-            // it every frame, so an authored write is at best a one-frame
-            // glitch and at worst a broken time gate - always a bug.
-            if config.key == crate::loader::SCENARIO_ELAPSED_VAR {
+            // The reserved engine variables (the scenario clock, the
+            // player-speed readout) are engine-owned: their tracker rewrites
+            // them every frame, so an authored write is at best a one-frame
+            // glitch and at worst a broken gate - always a bug.
+            if crate::loader::is_reserved_engine_var(&config.key) {
                 issues.push(LintIssue::error(
                     scenario,
                     format!(
-                        "VariableSet writes the reserved engine clock '{}' \
+                        "VariableSet writes the reserved engine variable '{}' \
                          (gate on it with expression filters instead)",
-                        crate::loader::SCENARIO_ELAPSED_VAR
+                        config.key
                     ),
                 ));
             }
@@ -1642,6 +1645,54 @@ mod tests {
             "writing the reserved clock is an error: {issues:?}"
         );
         assert!(issues[0].message.contains(SCENARIO_ELAPSED_VAR));
+    }
+
+    /// The reserved `player_speed` readout (task 20260723-143530) follows the
+    /// same contract as the clock: gating on it is clean (the engine writes it
+    /// each tick), authoring a VariableSet onto it is an error. Pins the second
+    /// reserved variable so the shared `is_reserved_engine_var` list cannot
+    /// drift from the lint rules that consume it.
+    #[test]
+    fn player_speed_reads_are_clean_and_writes_are_errors() {
+        use crate::loader::PLAYER_SPEED_VAR;
+
+        // A speed-gated handler the way an author writes one: no warning.
+        let read_only = scenario(
+            vec![],
+            vec![EventFilterConfig::Expression(ExpressionFilterConfig(
+                VariableConditionNode::new_greater_than(
+                    VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                        VariableFactorNode::new_name(PLAYER_SPEED_VAR),
+                    )),
+                    VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                        VariableFactorNode::new_literal(VariableLiteral::Number(8.0)),
+                    )),
+                ),
+            ))],
+        );
+        let issues = lint_scenario(&read_only, &sections(&[]), &known(&["test_scenario"]));
+        assert!(
+            issues.is_empty(),
+            "gating on the engine speed readout is the intended pattern: {issues:?}"
+        );
+
+        // An authored write to the readout: an error, not a warning.
+        let stomp = scenario(
+            vec![EventActionConfig::VariableSet(VariableSetActionConfig {
+                key: PLAYER_SPEED_VAR.to_string(),
+                expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                    VariableFactorNode::new_literal(VariableLiteral::Number(0.0)),
+                )),
+            })],
+            vec![],
+        );
+        let issues = lint_scenario(&stomp, &sections(&[]), &known(&["test_scenario"]));
+        assert_eq!(
+            errors(&issues).len(),
+            1,
+            "writing the reserved speed readout is an error: {issues:?}"
+        );
+        assert!(issues[0].message.contains(PLAYER_SPEED_VAR));
     }
 
     /// The mount-fixture ship (task 20260717-162121): a hull cell at the
