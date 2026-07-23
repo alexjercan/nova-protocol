@@ -87,8 +87,47 @@ softer overspeed window and the finale playing HAM.
 
 ## Manual acceptance (batched for the user at Finish)
 
-- (pending) ch3: playtest - warn, then gun it again and confirm you get ~3.5s
-  to ease off before both Magpies wake; hold it and confirm they wake.
-- (pending) ch5: playtest the finale - win the ch4 Auditor fight, confirm you
-  drop into the big torpedo ship with two wingmen, and that raiding the Magpie
-  station with 4-5 defenders among the rocks feels like a worthwhile reward.
+Both automated/verifiable done-definition items (1-5) are MET and re-verified on
+master (see Finish below). The two items here are the human playtest gate: this
+was an autonomous background run, so the agent cannot drive the live game - they
+are DEFERRED to the user's playtest. If a playtest surfaces a problem, it
+becomes a new prioritized tatr task (a rejected manual item is a new task, not a
+silent omission).
+
+- (pending user playtest) ch3: warn, then gun it again and confirm you get
+  ~3.5s to ease off before both Magpies wake; hold it and confirm they wake.
+- (pending user playtest) ch5: win the ch4 Auditor fight, confirm you drop into
+  the big torpedo ship with two wingmen, and that raiding the Magpie station
+  with 4 defenders among the rocks feels like a worthwhile reward. Confirm the
+  torpedo trigger (RMB) fires the tubes and the base can be cracked.
+
+## Finish (2026-07-23)
+
+Both tasks landed and APPROVEd, master re-verified green:
+- 20260723-182850 ch3 overspeed reaction window -> landed c4020325 (review
+  APPROVE r1, zero findings).
+- 20260723-182855 ch5 raid finale -> landed e4eb5150 (review APPROVE r1, one NIT
+  fixed).
+
+Done-definition check on master (all MET):
+1. ch3 sustained second-strike overspeed window - `ledger_ch3_channel` 17/17
+   (incl. the held-breach + cancel/re-arm pins). MET.
+2. ch3 lint + `webmods_validation` clean. MET.
+3. ch5 exists with the full cast, reachable only from ch4 SELL - lint clean (6
+   scenarios balance-audited incl. ch5), `webmods_validation` loads it. MET.
+4. ch5 win/lose + ch4 SELL chain - `ledger_ch5_raid` 9/9, `ledger_ch4_ending`
+   10/10 (the sell-win-chains-to-ch5 contract). MET.
+5. bundle lists ch5 at 1.10.0, docs synced (CHANGELOG/README/news/mod-guide/ch4
+   comments). MET.
+Overall: targeted CI-equivalent proofs green (full workspace suite intentionally
+not run locally - it OOMs the box; CI runs it on push). The two `playtest`/HAM
+confirmations are the deferred user gate above.
+
+Conformance: `tatr check` clean on all three tasks; `tatr check --ledger
+LESSONS.md` clean. `/lessons`: per-task `/compound` already folded the cycle's
+lessons (`inherited-cli-string-drifts` x2, `lint-is-the-fast-oracle-for-new-scenarios`
+x1); no loose docs/ scratch this cycle; the docs/ wipe correctly defers to the
+0.8.0 release tag (not a per-flow action).
+
+Residue: none dropped. No unresolved review findings. The only open items are the
+two deferred user playtests above.
