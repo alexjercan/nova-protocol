@@ -142,3 +142,13 @@ sequences AFTER the content passes so its skybox edits rebase cleanly. 214119
   keeping its enabled state.
 - (pending) OWNER: review the synced docs (README/CHANGELOG, wiki Ledger flow,
   v0.8.0 news-post notes).
+
+## Post-delivery playtest follow-on (2026-07-23)
+
+Owner replay of ch3 flagged that "go dark" read as stealth but the channel
+Magpies always engaged. Addressed as new work (umbrella stayed closed):
+- 20260723-000253 (landed c4f0b5c6): SetAllegiance engine action - flip a
+  scoped ship's allegiance at runtime (the neutral-until-provoked primitive).
+- 20260723-000320 (landed 9173ae3e): ch3 stealth rework - Neutral patrolling
+  pickets that wake only on proximity or paint; sneak the pinch lane to slip
+  past for a comms payoff, or provoke into the existing fight. Bundle -> 1.7.0.
