@@ -40,7 +40,8 @@ unseen, overspeed = warned-then-caught.
 
 ## Tasks
 
-- [ ] 20260723-143530 (p60, nova_scenario) expose player_speed as a reserved scenario variable (engine)
+- [x] 20260723-143530 (p60, nova_scenario) expose player_speed as a reserved scenario variable (engine)
+      landed 104e429f; 1 review round (APPROVE, zero findings); reusable engine capability, ch3 content consumes it next
 - [ ] 20260723-143603 (p58, the-ledger) warn-then-trip picket provocation on player overspeed (content) [depends on 20260723-143530]
 
 ## Decisions (load-bearing, architectural)
