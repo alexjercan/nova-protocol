@@ -64,12 +64,12 @@ the wiring, without needing an audio device.
 
 ## Steps
 
-- [ ] Build a minimal `App` in a test: `MinimalPlugins` (+ `AssetPlugin` /
+- [x] Build a minimal `App` in a test: `MinimalPlugins` (+ `AssetPlugin` /
       `init_asset::<AudioSource>` as needed) and `NovaAudioPlugin`, with a
       `SoundBank<NovaSfx>` resource inserted (use dummy/`AssetServer`-loaded
       handles - the handles need not resolve to real files for the observer to
       fire and spawn an audio entity).
-- [ ] For each one-shot seam, trigger the event and assert a `PlaySfx` fired (or
+- [x] For each one-shot seam, trigger the event and assert a `PlaySfx` fired (or
       an `AudioPlayer` entity was spawned by `SfxPlugin`):
       - add `IntegrityDestroyMarker` to an entity with a `GlobalTransform` ->
         Explosion;
@@ -81,12 +81,12 @@ the wiring, without needing an audio device.
       `SfxPlugin` spawns an `AudioPlayer` on `PlaySfx` even with no audio device,
       so counting spawned audio entities (or observing `PlaySfx`) is a
       device-free assertion.
-- [ ] Cover the graceful-degradation path too: with no `SoundBank` resource, the
+- [x] Cover the graceful-degradation path too: with no `SoundBank` resource, the
       same events must NOT panic and must produce no audio entity.
-- [ ] Optionally assert the throttle at the system level (two co-located
+- [x] Optionally assert the throttle at the system level (two co-located
       destroys in one run collapse to one Explosion; two distinct turrets each
       sound) to complement the existing pure `allow` unit test.
-- [ ] Verify: cargo test --workspace, fmt, clippy --all-targets. Shared
+- [x] Verify: cargo test --workspace, fmt, clippy --all-targets. Shared
       CARGO_TARGET_DIR.
 
 ## Notes

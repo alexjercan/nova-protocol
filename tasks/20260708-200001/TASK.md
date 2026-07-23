@@ -42,6 +42,6 @@ and its own known object/handler counts, not a shared constant.
   `smoke: ScenarioLoaded ...` line shows non-zero counts and the run still
   reports `cycle complete, no panic`. Build the examples cold first, then time
   only the run (lesson from 20260708-194524).
-- [ ] Run the full check suite (`cargo test`, `cargo clippy --all-targets
+- [x] Run the full check suite (`cargo test`, `cargo clippy --all-targets
   --features debug`, `cargo fmt --check`).
 

@@ -19,46 +19,46 @@ construction (no LockSignature at range).
 
 ## Steps
 
-- [ ] Decouple edge indicators first: emit a new `HostileContacts` component
+- [x] Decouple edge indicators first: emit a new `HostileContacts` component
       (all-directions hostile combat targets, from the same collection pass
       in `update_spaceship_target_input`) on the ship root; switch
       hud/edge_indicators.rs from `AvailableTargets` to it (its committed
       torpedo query stays). Test: a hostile behind the player still gets an
       edge arrow when it is not in the cone list.
-- [ ] Add `TARGETING_LIST_CONE_HALF_ANGLE_DEG` (~50.0, feel-knob const next
+- [x] Add `TARGETING_LIST_CONE_HALF_ANGLE_DEG` (~50.0, feel-knob const next
       to `TARGETING_CONE_HALF_ANGLE_DEG` at targeting.rs:128) and change
       list membership: ALL collected candidates (any class and hostility)
       whose bearing is inside that cone; generalize `rank_combat_targets`
       (targeting.rs:539) to `rank_targets` (same angle-then-distance rule).
       The 5-cap and pinned stable-order rules in `maintain_candidates`
       stay.
-- [ ] Change the lock-membership rule in `maintain_candidates`
+- [x] Change the lock-membership rule in `maintain_candidates`
       (targeting.rs:593-598): the current lock stays an entry while it is
       still a COLLECTED candidate (in range), even when outside the list
       cone - the reticle target must never vanish from its own list, and a
       cycle press must be able to step off an out-of-cone lock.
-- [ ] Universal stickiness: drop the `is_combat_target` condition from the
+- [x] Universal stickiness: drop the `is_combat_target` condition from the
       `held` gate (targeting.rs:483-487). Update the comment block above it:
       aim re-designation of nav targets is removed BY DESIGN (user steer
       2026-07-12); re-designation = cycling, since nav bodies are now in the
       list.
-- [ ] Replace the auto-pick (targeting.rs:489-511): no lock -> first HOSTILE
+- [x] Replace the auto-pick (targeting.rs:489-511): no lock -> first HOSTILE
       entry of the list (rank order, anywhere in the wide cone), else the
       best NON-hostile entry within the tight 18 deg pick cone (friendly
       ships and nav bodies designate by aiming), else
       `pick_signature_target` unchanged. The class asymmetry is the spike's
       cruise-noise guard: threats auto-acquire, rocks only when aimed at.
-- [ ] Update/extend the targeting tests: a nav (asteroid) lock is sticky
+- [x] Update/extend the targeting tests: a nav (asteroid) lock is sticky
       against aim wander; CTRL+scroll reaches a nav body in the cone; a
       hostile off-aim but in the wide cone auto-locks; an asteroid 30 deg
       off-aim does NOT auto-lock (outside tight cone) while one under the
       crosshair does; a friendly ship under the crosshair locks; an
       out-of-cone lock stays held and stays in entries; behind-player
       hostile is in `HostileContacts` but not in entries.
-- [ ] Verify hud/target_candidates.rs brackets and hint rows render nav
+- [x] Verify hud/target_candidates.rs brackets and hint rows render nav
       entries sanely (should be no code change; eyeball a scenario with
       04_asteroids).
-- [ ] cargo fmt + cargo check, run the touched test modules (targeting +
+- [x] cargo fmt + cargo check, run the touched test modules (targeting +
       hud) - full suite runs in CI.
 
 ## Notes

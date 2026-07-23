@@ -52,7 +52,7 @@ current behavior (do not add or drop meta).
       HTML; relative cross-links). Capture each post's date/version/description
       from its current `prose__meta` + `<meta>` into the BLOG_POSTS entry.
 - [x] `git rm` the old post HTML; remove the dead `page("post", ...)` entries.
-- [ ] Verify: `npm run ci` green; serve + headless-eyeball a converted post
+- [x] Verify: `npm run ci` green; serve + headless-eyeball a converted post
       (meta line, figures upgrade, YouTube embed renders, footer + back-to-blog,
       code/kbd), the blog index still links correctly; check at the deploy
       subpath. Confirm the built post HTML matches the old one's structure

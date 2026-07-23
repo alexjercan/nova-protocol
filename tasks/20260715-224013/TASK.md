@@ -45,7 +45,7 @@ small glossary (incl. the `u`/`u/s` unit), and player-appropriate prose.
       control-theory framing moves to a brief aside or is cut.
 - [x] Define `u`/`u/s` at first use in `web/src/wiki/hud.md` and
       `web/src/wiki/flight-autopilot.md` (one clause, or a link to the glossary).
-- [ ] (separable, image work) Annotate `web/src/assets/wiki-hud.png` and
+- [x] (separable, image work) Annotate `web/src/assets/wiki-hud.png` and
       `wiki-radar.png` with callout labels so the visual pages are
       self-explanatory. Can be split to its own follow-up if image tooling is a
       blocker. DEFERRED to follow-up task 20260715-231500.

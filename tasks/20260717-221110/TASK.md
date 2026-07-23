@@ -15,11 +15,11 @@ the reconstructed ship renders correctly.
 
 ## Steps
 
-- [ ] Register the cut mod in `assets/mods.catalog.ron` (or a dedicated demo catalog entry).
-- [ ] Resolve forward-axis / nose-vs-tail: place one cut piece and confirm Kenney +z maps to the game's expected forward.
-- [ ] Add a demo: an example (`examples/NN_kenney_reconstruct.rs`) or scenario that spawns the ship from the assembly emitted by task 221106.
-- [ ] Run `cargo run -p nova_assets --bin content -- lint --target assets/mods/<id>` and make it pass.
-- [ ] Verify the reconstructed ship renders as `craft_cargoB` (screenshot or example run).
+- [x] Register the cut mod in `assets/mods.catalog.ron` (or a dedicated demo catalog entry).
+- [x] Resolve forward-axis / nose-vs-tail: place one cut piece and confirm Kenney +z maps to the game's expected forward.
+- [x] Add a demo: an example (`examples/NN_kenney_reconstruct.rs`) or scenario that spawns the ship from the assembly emitted by task 221106.
+- [x] Run `cargo run -p nova_assets --bin content -- lint --target assets/mods/<id>` and make it pass.
+- [x] Verify the reconstructed ship renders as `craft_cargoB` (screenshot or example run).
 
 ## Notes
 

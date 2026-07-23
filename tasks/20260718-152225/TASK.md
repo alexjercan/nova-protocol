@@ -23,7 +23,7 @@ wipe" (owned by 20260718-175424).
 
 ## Steps
 
-- [ ] Write a small checker (scripts/ Python, matching the tooling direction)
+- [x] Write a small checker (scripts/ Python, matching the tooling direction)
       that lists docs/ entries not on the allowlist (just `LESSONS.md`) and
       exits non-zero, printing each offending path.
 - [x] Emit a clear remediation message ("run the docs compile step; docs/ must

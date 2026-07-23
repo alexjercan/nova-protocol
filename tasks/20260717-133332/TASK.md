@@ -56,9 +56,9 @@ it is pre-existing and was NOT introduced by the `Always` switch.
 
 ## Steps
 
-- [ ] Reproduce: run the editor (`ExampleStates::Editor`) and confirm whether
+- [x] Reproduce: run the editor (`ExampleStates::Editor`) and confirm whether
       the skybox renders; check the log for the bevy skybox sanity `warn_once`.
-- [ ] If broken: set the `Cube` `texture_view_descriptor` for the editor's
+- [x] If broken: set the `Cube` `texture_view_descriptor` for the editor's
       cubemap too. Prefer a shared helper over duplicating the applier logic -
       e.g. factor the "6-layer arrival needs a Cube view" write out of
       `apply_pending_skybox_swaps` and reuse it, or route the editor through the

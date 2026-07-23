@@ -82,7 +82,7 @@ it with a test rather than new code.
       NOT beacons.
 - [x] Gate `drive_inset_camera`'s `framed` predicate on
       `q.get(target).has::<InsetZoomable>()`.
-- [ ] Generalize `ship_framing_radius` to section-less bodies: use the section
+- [x] Generalize `ship_framing_radius` to section-less bodies: use the section
       spread when the target has sections, else the target's own collider
       (`Collider`) or mesh `Aabb` extent. Confirm the extent source against a
       torpedo/asteroid entity.
@@ -90,7 +90,7 @@ it with a test rather than new code.
       keeps the panel hidden; a zoomable ship still does (delivery guard); the
       inset stays hidden at HUD Minimal/None; the framing radius is finite for a
       section-less body.
-- [ ] Verify in `12_hud_range` (add a beacon to the range, or assert against a
+- [x] Verify in `12_hud_range` (add a beacon to the range, or assert against a
       torpedo) and update the docs note.
 
 ## Notes

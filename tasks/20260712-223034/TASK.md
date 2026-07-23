@@ -19,13 +19,13 @@ brackets/DPad, which share actions with the wheel.
 
 ## Steps
 
-- [ ] Move the WHEEL bindings (with their swizzle/negate/clamp modifiers)
+- [x] Move the WHEEL bindings (with their swizzle/negate/clamp modifiers)
       off `ComponentCycleNextInput`/`ComponentCyclePrevInput`
       (player.rs:628-663) onto `TargetCycleNextInput` /
       `TargetCyclePrevInput` (player.rs:670-688; prev has no bindings
       today). BracketLeft/Right and DPadLeft/Right STAY on the component
       actions; DPadUp stays on target-next.
-- [ ] Rename `TargetCycleModifierInput` -> `ComponentCycleModifierInput`
+- [x] Rename `TargetCycleModifierInput` -> `ComponentCycleModifierInput`
       and rebind CTRL -> ShiftLeft/ShiftRight (player.rs:616-626). Move
       the modifier dispatch from the component-cycle observers into
       `on_target_cycle_next`/`on_target_cycle_prev`
@@ -34,9 +34,9 @@ brackets/DPad, which share actions with the wheel.
       section params). Component-cycle observers lose their dispatch -
       brackets/DPad always component-cycle. Keep the observer-dispatch
       pattern; binding-level Chords are forbidden (bug 20260711-173237).
-- [ ] Free-aim is untouched by construction: it reads raw CTRL keys
+- [x] Free-aim is untouched by construction: it reads raw CTRL keys
       (player.rs:434), not the modifier action (verified in round 3).
-- [ ] Update BOTH hint ends: the gesture strings in
+- [x] Update BOTH hint ends: the gesture strings in
       `update_flight_verb_hints` (player.rs:256 "SCROLL", :268
       "CTRL+SCROLL") AND the field-to-caption pairing in
       keybind_hints.rs:242-243 with its pinned tests
@@ -44,12 +44,12 @@ brackets/DPad, which share actions with the wheel.
       field carries "SHIFT+SCROLL" and `target_cycle` carries "SCROLL";
       do not cross-wire. Caption wording must not imply brackets need
       SHIFT (they do not).
-- [ ] Tests with state-per-step assertions (retro 20260711-173237):
+- [x] Tests with state-per-step assertions (retro 20260711-173237):
       wheel-only steps the TARGET lock; SHIFT+wheel steps the COMPONENT
       lock; SHIFT alone no-ops; bare BracketRight and DPadRight still
       component-cycle; DPadUp still target-cycles; empty candidate list
       no-ops; pause gating holds; releases clear cleanly.
-- [ ] cargo fmt + cargo check + run the targeting/input/hud test modules.
+- [x] cargo fmt + cargo check + run the targeting/input/hud test modules.
 
 ## Notes
 

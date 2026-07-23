@@ -66,12 +66,12 @@ gold); gameplay HUD tests + the relevant example autopilots (e.g. `10_playable`,
 ## Steps
 
 - [x] Add `nova_ui = { path = "../nova_ui" }` to `crates/nova_gameplay/Cargo.toml`.
-- [ ] Add a `semantic` block to `nova_ui::theme` (or a `theme::semantic` module):
+- [x] Add a `semantic` block to `nova_ui::theme` (or a `theme::semantic` module):
   `NAV` (= CYAN), `OBJECTIVE`/`AMMO` (= AMBER), `THREAT` (combat red), `ALLY`
   (green), `NEUTRAL`/`STEEL` (light gray), plus neutral `BACKDROP` (the recurring
   `srgba(0.15,0.15,0.15,0.8)`) and `OUTLINE`. Pick the canonical hues from the
   current HUD consts so nothing shifts visibly. All `pub`.
-- [ ] Chrome pass - replace neutral/backdrop/border/text literals in the HUD with
+- [x] Chrome pass - replace neutral/backdrop/border/text literals in the HUD with
   `nova_ui::theme` refs, one file at a time, verifying nothing shifts:
   - `hud/mod.rs` objectives panel (280px, 13px, gold accent) - backdrop/text ->
     theme, `OBJECTIVE_GOLD` -> `theme::semantic::OBJECTIVE`.
@@ -82,7 +82,7 @@ gold); gameplay HUD tests + the relevant example autopilots (e.g. `10_playable`,
     (`0.15,0.15,0.15,0.8`), outlines, steel/neutral tones, and nav-cyan/gold
     accents move to shared consts; keep the file's own const NAME as a
     `pub(crate)` alias of the shared value where that reads clearer locally.
-- [ ] Semantic pass - point the threat/ally/neutral/faction consts
+- [x] Semantic pass - point the threat/ally/neutral/faction consts
   (`target_inset.rs` FACTION_*, the combat reds in `edge_indicators.rs`,
   `lock_crosshairs.rs`, `torpedo_target.rs`, `component_lock.rs`) at the shared
   `theme::semantic` accents WITHOUT changing the hue. `damage.rs::damage_type_color`
@@ -91,7 +91,7 @@ gold); gameplay HUD tests + the relevant example autopilots (e.g. `10_playable`,
 - [x] Do NOT touch diegetic/world colours: section materials
   (`sections/*_section.rs`), the velocity sphere gizmo (`velocity.rs`), juice
   particles (`juice.rs`) - these are 3D, not UI chrome.
-- [ ] `cargo check --workspace --all-targets --features debug` clean; `cargo fmt`;
+- [x] `cargo check --workspace --all-targets --features debug` clean; `cargo fmt`;
   `cargo test -p nova_gameplay`; run `10_playable` and/or `11_hud_range`
   headless (BCS_AUTOPILOT) and eyeball a `BCS_SHOT` capture to confirm the HUD
   reads the same (combat red/ally green/nav cyan intact).

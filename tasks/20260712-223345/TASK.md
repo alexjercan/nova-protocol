@@ -14,34 +14,34 @@ or superseded in place.
 
 ## Steps
 
-- [ ] Write tasks/20260712-223345/NOTES.md: the shipped model as the
+- [x] Write tasks/20260712-223345/NOTES.md: the shipped model as the
       current source of truth - TravelLock/CombatLock components on the
       ship root, travel auto-cast + sticky + scroll cycling, seed-on-raise,
       combat enemy ordering, fire gating, unlock key, HostileContacts,
       SHIFT+SCROLL components, HUD language. Written against the code as
       landed, not the spike's intentions; record where implementation
       diverged.
-- [ ] tasks/20260711-163800/SPIKE.md: SUPERSEDED banner
+- [x] tasks/20260711-163800/SPIKE.md: SUPERSEDED banner
       (torpedo exclusion overturned by 20260712-212742; CTRL+scroll cycle
       replaced by view-routed SCROLL; resource state replaced by
       components), pointing at the new design doc.
-- [ ] tasks/20260712-203235/SPIKE.md:
+- [x] tasks/20260712-203235/SPIKE.md:
       banner on the stickiness half (B5 ship-only stickiness -> per-slot
       stickiness); the inset-scope half still stands.
-- [ ] tasks/20260712-215256/SPIKE.md and
+- [x] tasks/20260712-215256/SPIKE.md and
       tasks/20260712-215733/SPIKE.md: verify their
       SUPERSEDED/addendum notes match what actually shipped; append Fix
       record entries (what shipped, task pointers).
-- [ ] tasks/20260712-222610/SPIKE.md: append Fix
+- [x] tasks/20260712-222610/SPIKE.md: append Fix
       record entries per landed task; resolve its open questions with the
       playtest verdicts known by then.
-- [ ] tasks/20260709-192358/NOTES.md: fix cone range 2000 m -> 20 km
+- [x] tasks/20260709-192358/NOTES.md: fix cone range 2000 m -> 20 km
       (`TARGETING_MAX_RANGE`, targeting.rs:119), "nearest AI ship" fallback
       -> hostile-relation gate, and the scroll gesture change; re-read the
       rest against the code.
-- [ ] tasks/20260710-195952/NOTES.md: verify against the code (expected
+- [x] tasks/20260710-195952/NOTES.md: verify against the code (expected
       accurate; range gates unchanged by the slot split).
-- [ ] Sweep README/CHANGELOG for targeting/input behavior claims the new
+- [x] Sweep README/CHANGELOG for targeting/input behavior claims the new
       model invalidates (CHANGELOG entries are dated records - only fix
       forward-looking text).
 

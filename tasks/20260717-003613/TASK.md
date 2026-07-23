@@ -61,7 +61,7 @@ aggregate number is the separate chip task 20260717-003620.
   (cuboid path) spawns a player root + section + mesh, damages via `Health`, and
   asserts the private material reddens/darkens while the shared source material
   stays pristine. `cargo test -p nova_gameplay damage_tint`: 3 passed.
-- [ ] Visual verify: run the base scenario (gltf ship), damage a section in
+- [x] Visual verify: run the base scenario (gltf ship), damage a section in
   combat, and confirm the tint reads on the real gltf meshes at combat framing.
   NOT DONE - not runnable headless in this job; needs a human playtest (this is
   the spike's camera-legibility open question). See NOTES.md.

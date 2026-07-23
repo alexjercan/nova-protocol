@@ -61,7 +61,7 @@ existing `wiki.ts` fills; parent/child manifest relationships already exist.
 - [x] Convert the 5 `sections/*` children; put the child grid div in `sections.md`.
 - [x] `git rm` the old HTML; confirm `WIKI_SLUGS` is empty (or only the index) and
       remove now-dead html plumbing.
-- [ ] Verify: `npm run ci` green; serve + headless-eyeball a converted top-level
+- [x] Verify: `npm run ci` green; serve + headless-eyeball a converted top-level
       page, the sections parent (child grid) and a child (two-level crumb),
       figures still upgrade, `<kbd>` renders, search/see-also intact; check at the
       deploy subpath.

@@ -26,11 +26,11 @@ This is a balance/design question, not a code bug:
 
 - [x] Decide the intended behavior with the user (blast friendly-fire on owner:
       yes/no; salvo fratricide: yes/no) before touching code.
-- [ ] Apply the decision: config knobs on TorpedoSectionConfig (e.g. blast
+- [x] Apply the decision: config knobs on TorpedoSectionConfig (e.g. blast
       falloff, min self-damage range) or an owner/sibling exemption in the blast
       overlap path in bevy_common_systems (which is our crate, see AGENTS.md:
       changes there get a task in ~/personal/bevy-common-systems).
-- [ ] Cover with a range scenario or physics test per the decision.
+- [x] Cover with a range scenario or physics test per the decision.
 
 ## Notes
 

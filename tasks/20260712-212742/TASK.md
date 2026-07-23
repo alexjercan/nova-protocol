@@ -72,7 +72,7 @@ GOTO) stays aim-driven and separate (do NOT make it sticky - review R1.1 of
       cycled/acquired committed torpedo is also sticky (holds while you shoot
       it) and reverts to the aim pick when it dies / leaves range. Nav bodies
       stay non-combat -> non-sticky.
-- [ ] Tests (delivery-guarded): CTRL+scroll from a ship lock reaches a
+- [x] Tests (delivery-guarded): CTRL+scroll from a ship lock reaches a
       committed hostile torpedo; a committed-torpedo lock is sticky (a closer
       body does not steal it); a passing torpedo still does NOT auto-steal a
       held ship lock; a non-combat nav lock (asteroid/beacon) stays aim-driven

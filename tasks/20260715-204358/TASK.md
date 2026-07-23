@@ -55,7 +55,7 @@ the top linking its guide; each guide links back to its reference page.
 - [x] Register the 5 pages in `web/webpack.config.js` WIKI_DOC_PAGES + manifest
       entries (with headings + cross-links) in `web/src/wiki-pages.ts`.
 - [x] Add "to extend this, see <guide>" pointers atop the reference pages.
-- [ ] Verify: `npm run ci` green; serve + headless-eyeball the new pages (render,
+- [x] Verify: `npm run ci` green; serve + headless-eyeball the new pages (render,
       diagrams, sidebar groups, search, see-also); check at the deploy subpath.
 
 ## Notes

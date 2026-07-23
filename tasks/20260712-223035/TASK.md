@@ -20,13 +20,13 @@ Builds on the 20260712-231141 infrastructure.
 
 ## Steps
 
-- [ ] Consume the 20260712-231141 infrastructure: the pool and travel
+- [x] Consume the 20260712-231141 infrastructure: the pool and travel
       casting use the ACTIVE look ray every frame (live in Normal and
       FreeLook per user directive); raise-frame seeding evaluates the
       press-frame look (the accessor's documented property); all routing
       reads the RAISED flag, never the camera enum. Turret slewing keeps
       the turret rig. Extend 231141's faithful split-rig test fixtures.
-- [ ] Componentize straight to the end state: replace
+- [x] Componentize straight to the end state: replace
       `SpaceshipPlayerTargetLock` (targeting.rs:72, registered :91) with
       `TravelLock { target: Option<Entity>, designated: bool }` and
       `CombatLock(Option<Entity>)`; replace
@@ -42,7 +42,7 @@ Builds on the 20260712-231141 infrastructure.
       (torpedo_target.rs:245-251) must write None on an empty query, not
       early-return; HUD teardown on ship despawn exists (hud/mod.rs:217-229).
       Port tests from `insert_resource` setups to components on the ship.
-- [ ] THE POOL: `AvailableTargets` = every lockable body (any class, any
+- [x] THE POOL: `AvailableTargets` = every lockable body (any class, any
       allegiance; signature range gates intact, no extra distance cap)
       inside a wide cone (~50 deg half-angle const next to
       `TARGETING_CONE_HALF_ANGLE_DEG`, targeting.rs:128) of the ACTIVE
@@ -51,13 +51,13 @@ Builds on the 20260712-231141 infrastructure.
       cycled stays a member while valid even out-of-cone (a cycle press
       must be able to step OFF it; existing reticle-in-own-list rule,
       targeting.rs:563). Keep the 5-cap and the pinned stable-order rule.
-- [ ] TRAVEL slot: empty -> auto-cast the nearest-to-ray body inside the
+- [x] TRAVEL slot: empty -> auto-cast the nearest-to-ray body inside the
       TIGHT 18 deg pick cone, `designated = false`. Scroll while lowered
       steps the pool and sets `designated = true`. Sticky: aim wander
       never moves it; clears on death/despawn/range. The 550 m
       direction-blind hostile fallback does NOT apply to travel; record
       its final disposition when implemented.
-- [ ] COMBAT slot: seed/re-seed ON RAISE by the incumbent-hysteresis rule
+- [x] COMBAT slot: seed/re-seed ON RAISE by the incumbent-hysteresis rule
       (rounds 2b/3): best ENEMY by angle from the press-frame look over a
       cone/on-screen pool; incumbent (current CombatLock, else hostile
       TravelLock IF designated or in-cone) holds unless a challenger is
@@ -69,7 +69,7 @@ Builds on the 20260712-231141 infrastructure.
       automatic pools (deliberate scroll reaches them). Clears: death,
       out-of-range, allegiance flip to non-hostile, optional ~20 s
       lowered-decay const (flag).
-- [ ] Scroll routing on RAISED (on top of 20260712-223034): lowered ->
+- [x] Scroll routing on RAISED (on top of 20260712-223034): lowered ->
       TravelLock step (+designated), raised -> CombatLock step - SAME
       pool, any member incl. neutrals/friends/rocks (Q1: deliberate
       scroll is unrestricted; this is what makes guided-torpedo-at-rock
@@ -78,21 +78,21 @@ Builds on the 20260712-231141 infrastructure.
       an EMPTY slot, no pin; a valid lock is never auto re-picked. Small
       debounce const so a wheel flick spanning raise/lower does not land
       on the wrong slot.
-- [ ] `HostileContacts` consumers: edge indicators
+- [x] `HostileContacts` consumers: edge indicators
       (hud/edge_indicators.rs:262) and the auto-seed pool ONLY - combat
       scroll does not walk it.
-- [ ] Consumer routing: G/GOTO + verb hints (player.rs:232/:841) ->
+- [x] Consumer routing: G/GOTO + verb hints (player.rs:232/:841) ->
       TravelLock; turret feed (player.rs:361), torpedo commit
       (player.rs:459), focus dwell (targeting.rs:606), component
       fine-lock (targeting.rs:665) -> CombatLock; inset view ->
       CombatLock, else TravelLock.
-- [ ] HUD baseline: reticle = CombatLock; NEW distinct travel
+- [x] HUD baseline: reticle = CombatLock; NEW distinct travel
       chevron/diamond = TravelLock; candidate brackets render the pool;
       edge indicators = `HostileContacts` + CombatLock + off-screen
       TravelLock arrow; "guns hot on <target>" banner whenever a
       CombatLock exists while lowered. Unmistakable slot distinction is
       IN scope; polish is not.
-- [ ] Tests (state-per-step for gestures; on the 231141 split-rig
+- [x] Tests (state-per-step for gestures; on the 231141 split-rig
       fixtures): travel cast follows the look ray in Normal AND FreeLook;
       raise out of FreeLook seeds toward the looked-at flanker; seeding -
       designated hostile incumbent holds / stale undesignated behind-you
@@ -106,7 +106,7 @@ Builds on the 20260712-231141 infrastructure.
       clears it; G reads travel while combat points elsewhere;
       behind-player hostile in `HostileContacts`, absent from the pool,
       edge arrow shown.
-- [ ] cargo fmt + cargo check + run targeting/input/hud test modules.
+- [x] cargo fmt + cargo check + run targeting/input/hud test modules.
 
 ## Notes
 

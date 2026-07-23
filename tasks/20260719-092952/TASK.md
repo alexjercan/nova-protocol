@@ -27,30 +27,30 @@ decision from that pass.
 
 ## Steps
 
-- [ ] Move generation into the project build: add a `build.rs` step (the root
+- [x] Move generation into the project build: add a `build.rs` step (the root
       `nova-protocol` crate, with `nova_assets` as a build-dependency, or a
       dedicated build hook) that calls `content_files()` and writes each file
       under `assets/base/`. Confirm the chicken-and-egg is fine: build-deps
       compile in a separate graph, so `nova_assets` building for the host is OK.
-- [ ] Decide the artifact policy and record it: do the generated RON files stay
+- [x] Decide the artifact policy and record it: do the generated RON files stay
       committed (they must physically exist under `assets/` for the wasm/web
       static-serve path and for `trunk build`), with the build refreshing them
       in place, OR does the build emit them to a staging location the game and
       Trunk read from? Default recommendation: keep them committed, build
       rewrites in place, but justify it against reproducible-build and
       dirty-tree concerns (a build that mutates tracked files can surprise CI).
-- [ ] Remove the `Gen` subcommand and `run_gen` from
+- [x] Remove the `Gen` subcommand and `run_gen` from
       `crates/nova_assets/src/bin/content.rs`; update the bin's module docs so
       it no longer advertises `gen`.
-- [ ] Repoint or retire `content_ron_parity.rs`: with the build regenerating,
+- [x] Repoint or retire `content_ron_parity.rs`: with the build regenerating,
       the test becomes "the committed RON matches the builders" WITHOUT naming a
       manual `content gen` command (update the `REGEN` message to name the build
       step), or it becomes a pure build-does-it check. Keep the parity guarantee
       one way or another so a stale-RON PR still fails CI.
-- [ ] Verify the base game still boots and loads base content on native AND web
+- [x] Verify the base game still boots and loads base content on native AND web
       (`trunk build`) after the move; a clean checkout that has never run `gen`
       must produce correct base RON purely from building.
-- [ ] Sweep every reference to `content -- gen` / `content gen` and repoint it
+- [x] Sweep every reference to `content -- gen` / `content gen` and repoint it
       (LESSONS.md, web/src/wiki/dev/*, docs/design/*, README tools section
       20260718-152205, the content bin docs). Grep: `content.*gen`.
 

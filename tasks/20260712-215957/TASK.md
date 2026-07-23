@@ -15,40 +15,40 @@ test keeps passing with mechanical query rewrites only.
 
 ## Steps
 
-- [ ] In input/targeting.rs, define `TargetLock(pub Option<Entity>)`
+- [x] In input/targeting.rs, define `TargetLock(pub Option<Entity>)`
       (Deref/DerefMut like the resource) and
       `AvailableTargets { entries: Vec<Entity>, pinned_until: Option<f32> }`
       as `#[derive(Component, ...)]`, keeping the resources' derives
       (Debug, Clone, PartialEq, Default) and doc comments (adapted).
-- [ ] Confirm where `PlayerSpaceshipMarker` is defined and how it reaches the
+- [x] Confirm where `PlayerSpaceshipMarker` is defined and how it reaches the
       ship root, then attach both components to every player ship root -
       prefer `#[require(TargetLock, AvailableTargets)]` on the marker if it
       is ours; otherwise insert at the spawn/rig site. Verify in a test that
       a spawned player ship carries both defaults.
-- [ ] Rewrite `update_spaceship_target_input` (targeting.rs:313): add
+- [x] Rewrite `update_spaceship_target_input` (targeting.rs:313): add
       `&mut TargetLock, &mut AvailableTargets` to the existing `spaceship`
       Single (targeting.rs:339-347), drop the two `ResMut` params
       (targeting.rs:349-350).
-- [ ] Rewrite the remaining targeting.rs readers: `tick_lock_focus`
+- [x] Rewrite the remaining targeting.rs readers: `tick_lock_focus`
       (targeting.rs:606), `update_component_lock` (targeting.rs:665), and
       the four cycle observers (targeting.rs:802-803, 857-858, 874-875) to
       query the player ship instead of the resources.
-- [ ] Migrate input/player.rs consumers: turret aim feed (:361), torpedo
+- [x] Migrate input/player.rs consumers: turret aim feed (:361), torpedo
       commit (:459), GOTO observer (:841) and the verb hint/controller reads
       (:232). Same query shape as above.
-- [ ] Migrate the five HUD modules (hud/torpedo_target.rs,
+- [x] Migrate the five HUD modules (hud/torpedo_target.rs,
       hud/target_candidates.rs, hud/edge_indicators.rs:262-263,
       hud/target_inset.rs, hud/component_lock.rs). GOTCHA: the resources
       always exist, the components only exist while a player ship does -
       HUD systems must degrade to their "no lock" path when the query is
       empty (Option<Single>/early return), matching today's None behavior.
-- [ ] Delete the resource definitions (targeting.rs:72, :235) and their
+- [x] Delete the resource definitions (targeting.rs:72, :235) and their
       registrations (targeting.rs:91-92).
-- [ ] Port the tests: replace `world.insert_resource(SpaceshipPlayerTarget*)`
+- [x] Port the tests: replace `world.insert_resource(SpaceshipPlayerTarget*)`
       setups (e.g. targeting.rs:1025-1026, edge_indicators.rs:419-420, :462)
       with inserting the components on the spawned player ship; assertions
       stay byte-identical (this is the no-behavior-change proof).
-- [ ] cargo fmt + cargo check, and run the touched test modules
+- [x] cargo fmt + cargo check, and run the touched test modules
       (nova_gameplay targeting + hud) - full suite runs in CI.
 
 ## Notes

@@ -118,7 +118,7 @@ Sketch:
       the two player end-to-end tests are unchanged in behaviour (now spawn
       `Allegiance::Player` directly instead of `PlayerSpaceshipMarker`, since the
       gate reads `Allegiance`).
-- [ ] Manual check in a combat scenario (e.g. Broadside): shoot out an enemy
+- [x] Manual check in a combat scenario (e.g. Broadside): shoot out an enemy
       section and confirm it reads black while intact sections stay pristine, and
       the player ship still reddens as before.
 - [x] CHANGELOG entry under Ships & Sections.

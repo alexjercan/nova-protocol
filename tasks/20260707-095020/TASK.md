@@ -22,9 +22,9 @@ ad-hoc one.
       couples it to nova, and whether its API is stable enough to reuse. Start from the
       known candidates in task 20260706-151804 (hud/health, hud/objectives, hud/velocity
       + shaders, integrity/blast + collision-damage helpers) and extend.
-- [ ] Add an in-code marker convention for eligible items (a short doc-comment tag like
+- [x] Add an in-code marker convention for eligible items (a short doc-comment tag like
       `// PROMOTE(bevy-common-systems): ...`) so `grep` surfaces the candidates.
-- [ ] Write the catalog to `docs/` (a "promotion candidates" doc), cross-linking task
+- [x] Write the catalog to `docs/` (a "promotion candidates" doc), cross-linking task
       20260706-151804 for the actual moves and 20260706-160503 (mesh slicer hardening,
       already external).
 - [x] Do NOT move code here - promotion is the follow-up. This task only decides and

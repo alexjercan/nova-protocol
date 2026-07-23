@@ -59,7 +59,7 @@ structure. Steps as executed:
       still green.
 - [x] Document in `tasks/20260709-140620/NOTES.md`; CHANGELOG entries
       under Fixed and Added.
-- [ ] Deferred, needs a user decision: the handling-feel fork. Even with
+- [x] Deferred, needs a user decision: the handling-feel fork. Even with
       correct physics, rotation cannot feel lighter - the bcs PD controller
       normalizes torque by inertia (and above its clamp both full and stripped
       ships flip faster than perception). Options (perceivable torque budget /

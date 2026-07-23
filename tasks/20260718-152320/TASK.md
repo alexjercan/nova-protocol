@@ -20,29 +20,29 @@ engine features.
 
 ## Steps
 
-- [ ] Playtest the full Ledger chain; note pacing/narrative/difficulty weak
+- [x] Playtest the full Ledger chain; note pacing/narrative/difficulty weak
       spots and any dangling or unclear beats (ch2b checkpoint, the ch4
       branch); write the findings into this task before authoring.
-- [ ] Deepen the arc: additional chapter(s) or expanded existing ones,
+- [x] Deepen the arc: additional chapter(s) or expanded existing ones,
       stronger narrative beats, more encounter variety, and payoff on the
       two-ending choice (today both endings converge on fighting the Auditor;
       give the choice consequence). Lean on the v0.7.0 authoring stack
       (Outcome frames, allegiance, comms, `scenario_elapsed` timed beats).
-- [ ] Give chapters their own look via mod-carried resources (`self://`
+- [x] Give chapters their own look via mod-carried resources (`self://`
       skybox/texture variety landed in v0.7.0; chapters currently reuse base
       art via `dep://base`).
-- [ ] Re-run `content lint --target the-ledger` + audit (use the 20260718-152240
+- [x] Re-run `content lint --target the-ledger` + audit (use the 20260718-152240
       report if it has landed); fix findings or ack intended drama with
       reasons.
-- [ ] Bump the mod version following the semantics being written down in
+- [x] Bump the mod version following the semantics being written down in
       20260718-231601 (content rework = minor bump) and update the mod's own
       CHANGELOG; check whether `tests/ledger_ch2_encounter.rs` pins the
       version or geometry you changed and update the assertions deliberately,
       not reactively.
-- [ ] Re-publish through the portal generator (Rust bin or the new Python
+- [x] Re-publish through the portal generator (Rust bin or the new Python
       script 20260718-152247); verify the published catalog entry, thumbnails,
       and an over-the-wire install on native and web.
-- [ ] Sync docs surfaces in the same task: CHANGELOG entry, anything the
+- [x] Sync docs surfaces in the same task: CHANGELOG entry, anything the
       player wiki says about the Ledger flow, and notes for the v0.8.0 news
       post.
 

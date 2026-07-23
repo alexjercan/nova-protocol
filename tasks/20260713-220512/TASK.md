@@ -18,7 +18,7 @@ recorded above; reproduce it with the rig in the first step.
 
 ## Steps
 
-- [ ] Reproduce with a minimal rig: the 10_playable scene (or a pared-down
+- [x] Reproduce with a minimal rig: the 10_playable scene (or a pared-down
       ship + torpedo bay), log the ship's LinearVelocity each frame during a
       volley alongside every impulse applied to it (diagnostic-first, real
       numbers before theorizing).

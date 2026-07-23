@@ -49,7 +49,7 @@ not who is flying.
       inspection of the component seam if child materials are awkward
       headless - the system should split a pure "desired palette"
       helper for the decision logic).
-- [ ] By-eye pass (piggyback, from retro 20260710-231926): the chip
+- [x] By-eye pass (piggyback, from retro 20260710-231926): the chip
       offsets (120px right of ship, mode row above), spoke thickness,
       and the new tint colors - run the game, orbit something, engage
       and disengage; adjust constants.

@@ -76,7 +76,7 @@ distances). Ends with New Game loading it instead of asteroid_field.
 - [x] Update docs: CHANGELOG (scenario + primitives entries),
       docs/scenario-system.md (shakedown_run as the beat-chain reference,
       OnUpdate now actually fired).
-- [ ] Visual playtest (boot -> New Game -> walk the beats by hand,
+- [x] Visual playtest (boot -> New Game -> walk the beats by hand,
       screenshots): NOT DONE - needs a human at the controls; the
       headless walk covers the script, not the feel. First playtest owns:
       beacon visual size/blink readability, crate pickup radius feel,

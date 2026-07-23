@@ -21,7 +21,7 @@ it.
 
 ## Steps
 
-- [ ] Replace the four mode observers with ONE derivation: each frame,
+- [x] Replace the four mode observers with ONE derivation: each frame,
       mode = Turret if `CombatInput` is held, else FreeLook if
       `FreeLookInput` is held, else Normal (priority Turret > FreeLook;
       memoryless, so any press/release order in any nesting lands on the
@@ -31,31 +31,31 @@ it.
       (camera_controller.rs:79-85) and only write on real change
       (set_if_neq) so `is_changed()` stays meaningful for the rig-sync
       system (camera_controller.rs:582-584).
-- [ ] Fix transition seeding in `sync_spaceship_control_mode`
+- [x] Fix transition seeding in `sync_spaceship_control_mode`
       (camera_controller.rs:575-631): the rig being ACTIVATED seeds its
       `PointRotation` from the rig being DEACTIVATED (the active look at
       transition time), not unconditionally from the Normal rig
       (today's :586/:623-628 bug - raising out of FreeLook snaps the aim
       to ship-forward instead of the flanker being looked at; same for
       Turret -> FreeLook).
-- [ ] Add the "active look ray" accessor: the `PointRotationOutput` of
+- [x] Add the "active look ray" accessor: the `PointRotationOutput` of
       the rig currently holding `SpaceshipRotationInputActiveMarker`
       (a small pub helper/SystemParam in camera_controller or a shared
       module - targeting and HUD will consume it in 20260712-223035).
       Document the press-frame property: on the frame a transition
       begins, the marker still sits on the outgoing rig, so the accessor
       IS the live look at raise time.
-- [ ] Re-point the EXISTING acquisition system (targeting.rs:313-319) at
+- [x] Re-point the EXISTING acquisition system (targeting.rs:313-319) at
       the accessor so the current single-lock behavior gains a live ray
       in Normal/FreeLook - this is the no-behavior-change proof that the
       plumbing works (aim at a rock in Normal view -> the lock follows,
       which today silently cannot happen). Turret slewing
       (player.rs:361-368 ray tier) keeps reading the turret rig.
-- [ ] Pause interaction: mode derivation runs from held action state, so
+- [x] Pause interaction: mode derivation runs from held action state, so
       overlay presses cannot fire hidden transitions; verify with a test
       that a press over the pause overlay does not leak a mode change or
       a raised-flag flip on unpause (feasibility m3).
-- [ ] Tests, with the camera rigs modeled as the REAL split entities
+- [x] Tests, with the camera rigs modeled as the REAL split entities
       (today's single both-marker test rig masks exactly this class of
       bug - targeting.rs:1029-1032/:1097-1101; retro rule: a clean trace
       on a non-faithful rig is not evidence): full transition matrix
@@ -64,7 +64,7 @@ it.
       and raised flag after every step; seeded rotation on every
       transition edge; ray-liveness regression - swivel in Normal view
       and assert the acquisition cone follows.
-- [ ] cargo fmt + cargo check + run camera_controller/targeting/input
+- [x] cargo fmt + cargo check + run camera_controller/targeting/input
       test modules.
 
 ## Notes
