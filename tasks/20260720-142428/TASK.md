@@ -1,8 +1,8 @@
 # v0.8.0 release tracker: docs, tooling & content polish
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 1
-- TAGS: v0.8.0,release,meta
+- TAGS: v0.8.0, release, meta
 
 Release-level tracker for v0.8.0, migrated from docs/plans/20260718-v0.8.0-plan.md
 when docs/plans was retired under the ephemeral-docs model (task 20260718-175424).
@@ -295,3 +295,28 @@ bodies): docs chain 152214 (drift audit, absorbs docs/design) -> 175424
 (compile-to-LESSONS + wipe) -> 152225 (CI guard); rustdoc chain 133033
 (conventions) -> 133030/133032. Everything not named above keeps its plan
 priority - the review found the original bands sound.
+
+## Release landed (2026-07-23)
+
+v0.8.0 prepared and tagged locally (annotated tag `v0.8.0` on the
+`chore(release): v0.8.0` version-bump commit). Release steps run:
+
+- CHANGELOG [Unreleased] -> [0.8.0] - 2026-07-23 with a fresh [Unreleased] and
+  repointed compare links. A completeness audit against the v0.7.0..v0.8.0 diff
+  added three engine/authoring entries the per-task changelog edits had missed:
+  the `SetAllegiance` action, the reserved `player_speed` variable, and the
+  Scenarios-picker campaign grouping (new Interface & HUD section).
+- New News post web/src/news/0.8.0.md ("The campaign finds its voice"),
+  registered in NEWS_POSTS + a news.html card. Long-form, section by section;
+  the Ledger section covers the full 1.5.0 -> 1.12.0 arc (stealth run, forking
+  finale, The Raid reward chapter), not just the stale 1.6.0 draft.
+- docs/ scratch (the Ledger news draft) folded into the post and
+  scripts/wipe-docs.sh run (release guard passes).
+- Workspace version 0.7.0 -> 0.8.0 across Cargo.toml + Cargo.lock (15 crates).
+
+Not pushed - pushing the tag triggers the release-flow CI that builds and
+uploads the platform binaries, left for the owner. The previously-red CI test
+(content_lint_gate::target_mode_lints_one_mod_in_repo_or_external) was already
+fixed by 20260723-103523 and passes on the tagged tree. The player wiki was
+spot-checked current (gravity-wells piloted-only rule, scenarios lists all five
+base chapters, factions non-combatants) - the closed docs-audit task held up.
