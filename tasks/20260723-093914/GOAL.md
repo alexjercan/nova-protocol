@@ -60,7 +60,8 @@ Updated as tasks land (one line per land).
       landed 3ca3f4c7; 1 review round (out-of-context APPROVE, no findings); added ScenarioCampaign + campaign field, 6 exhaustive literals fixed
 - [x] 20260723-095909 (p28, nova_assets) Tag base storyline chapter-heads as Nova Protocol 1/2/3 + regen content  [depends: 095849]
       landed ac6730f1; 1 review round (out-of-context APPROVE, 2 NITs); shakedown=1/broadside=2/lifeline=3, parity+lint clean. Spun off 20260723-103523 (inherited content_lint_gate failure)
-- [ ] 20260723-095930 (p26, nova_menu) Picker: group + order by campaign, inline position prefix  [depends: 095849, 095909]
+- [x] 20260723-095930 (p26, nova_menu) Picker: group + order by campaign, inline position prefix  [depends: 095849, 095909]
+      landed 78c0ed9b; 1 review round (out-of-context APPROVE, 1 NIT fixed); grouped sort + inline prefix, 3 tests (order/label/ECS-render). Manual pixel confirm pending (below)
 
 Deferred follow-up (filed, not part of this run):
 - 20260723-095951 (backlog) Scenarios tab: collapsible campaign headers + campaign->scenario mapping (replayability)
@@ -71,6 +72,9 @@ Deferred follow-up (filed, not part of this run):
 
 ## Manual acceptance (batched for the user at Finish)
 
-- (pending) task C: user opens the Scenarios picker and confirms the Ledger
-  chapters appear grouped and in 1-2-3 order with legible position markers, and
-  standalone scenarios read cleanly.
+- (pending) 20260723-095930: open the Scenarios picker and confirm the base
+  storyline reads "Nova Protocol 1 - Shakedown Run", "Nova Protocol 2 -
+  Broadside", "Nova Protocol 3 - Lifeline" grouped and in order, with "Asteroid
+  Field" listed separately below - and the inline prefix renders cleanly (no
+  truncation/overflow). (ECS-level render is test-covered; this is the pixel
+  confirmation.)
