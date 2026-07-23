@@ -29,27 +29,46 @@ fn repo_content_tree_has_no_lint_errors() {
     );
 }
 
-/// `--target` mode (task 20260716-204618): an in-repo id lints exactly that
-/// bundle's findings (the-ledger's known cross-handler warn, zero errors),
-/// and an EXTERNAL mod directory - the mod-developer case - sees the base
-/// section catalog (a base prototype passes) while a bad prototype still
-/// flags.
+/// `--target` mode (task 20260716-204618): an in-repo id scopes the report to
+/// exactly that bundle - zero errors, its findings and acked exceptions all
+/// attributed to it, and the-ledger's DURABLE acked signal (the auditor
+/// close-spawn finale entrance) surfaced. An EXTERNAL mod directory - the
+/// mod-developer case - sees the base section catalog (a base prototype
+/// passes) while a bad prototype still flags.
+///
+/// The in-repo half pins the ACKED auditor exception rather than an incidental
+/// warn on purpose (task 20260723-103523): the old assertion tracked a
+/// "mutually exclusive" cross-handler duplicate-spawn warn that ch4's diverging
+/// endings removed (the Auditor now spawns from one branch only, task
+/// 20260722-214110). A frozen-warn assertion should not track that kind of
+/// content churn; the acked finale entrance is a deliberate, playtested design
+/// decision recorded in `balance_acks.ron`, so it is the stable the-ledger
+/// signal to assert on.
 #[test]
 fn target_mode_lints_one_mod_in_repo_or_external() {
-    // In-repo by id: only ledger findings, no errors.
+    // In-repo by id: target mode scopes to exactly that bundle, error-free,
+    // surfacing its acked exception.
     let dir = nova_assets::lint_walk::resolve_target("the-ledger").expect("the-ledger resolves");
-    let issues = nova_assets::lint_walk::lint_target(&dir);
-    assert!(
-        issues
-            .iter()
-            .all(|(bundle, issue)| bundle == "the-ledger" && issue.severity != LintSeverity::Error),
-        "{issues:?}"
+    let report = nova_assets::lint_walk::collect_target(&dir);
+    assert_eq!(
+        report.error_count(),
+        0,
+        "the-ledger ships error-clean: {:?}",
+        report.findings
     );
     assert!(
-        issues
+        report.findings.iter().all(|f| f.bundle == "the-ledger")
+            && report.acked.iter().all(|a| a.bundle == "the-ledger"),
+        "target mode scopes findings and acks to the-ledger: {report:?}"
+    );
+    assert!(
+        report
+            .acked
             .iter()
-            .any(|(_, issue)| issue.message.contains("mutually exclusive")),
-        "the known ch4 warn shows in target mode: {issues:?}"
+            .any(|a| a.message.contains("auditor") && a.ack_task == "20260717-143806"),
+        "the-ledger's durable acked exception (the auditor close-spawn) surfaces \
+         in target mode: {:?}",
+        report.acked
     );
 
     // External path: a temp mod using a real base prototype AND a bogus one.
