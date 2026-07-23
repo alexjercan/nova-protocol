@@ -118,6 +118,9 @@ flowchart LR
   `FlightSpeedCap` on a scoped ship by id.
 - `SetControllerVerb` - enable/disable one flight verb (STOP/GOTO/ORBIT/LOCK/RCS)
   on a scoped ship's controller sections by id.
+- `SetAllegiance` - overwrite a scoped ship's `Allegiance` (Player/Enemy/Neutral)
+  by id at runtime; the neutral-until-provoked primitive (wake a Neutral ship
+  by flipping it to Enemy).
 - `CreateScenarioArea(ScenarioAreaConfig)` - spawn a spherical sensor zone
   (id, name, position, rotation, radius) that drives `OnEnter`/`OnExit`.
 - `NextScenario` - queue a switch to another scenario by id; `linger: true`

@@ -472,6 +472,9 @@ fn check_action(
         EventActionConfig::SetSpeedCap(config) => {
             check_target(&config.id, "SetSpeedCap", scenario, satisfiable, issues);
         }
+        EventActionConfig::SetAllegiance(config) => {
+            check_target(&config.id, "SetAllegiance", scenario, satisfiable, issues);
+        }
         EventActionConfig::SetControllerVerb(config) => {
             check_target(
                 &config.id,
@@ -1206,6 +1209,29 @@ mod tests {
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(errs[0].message.contains("gone"));
+    }
+
+    /// Review R1.1 (task 20260723-000253): SetAllegiance references a ship by
+    /// id like SetSpeedCap does, so a typo'd id must lint as a dangling
+    /// target, not silently no-op at runtime.
+    #[test]
+    fn dangling_set_allegiance_target_is_an_error() {
+        use nova_gameplay::prelude::Allegiance;
+
+        let s = scenario(
+            vec![EventActionConfig::SetAllegiance(
+                SetAllegianceActionConfig {
+                    id: "ghost".to_string(),
+                    allegiance: Allegiance::Enemy,
+                },
+            )],
+            vec![],
+        );
+        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        let errs = errors(&issues);
+        assert_eq!(errs.len(), 1, "{issues:?}");
+        assert!(errs[0].message.contains("ghost"));
+        assert!(errs[0].message.contains("SetAllegiance"));
     }
 
     #[test]

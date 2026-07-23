@@ -23,10 +23,10 @@ pub mod prelude {
         ObjectiveCompleteActionConfig, ObjectiveMarkerAttachActionConfig,
         ObjectiveMarkerDetachActionConfig, OutcomeActionConfig, PendingSkyboxSwap,
         ScatterObjectsConfig, ScatterRegion, ScenarioAreaConfig, ScenarioObjectConfig,
-        ScenarioObjectKind, ScenarioOutcomeKind, ScreenshotActionConfig, SetCameraActionConfig,
-        SetControllerVerbActionConfig, SetSkyboxActionConfig, SetSpeedCapActionConfig,
-        StoryMessageActionConfig, VariableSetActionConfig, NEXT_SCENARIO_DELAY_MAX_SECS,
-        NEXT_SCENARIO_DELAY_WARN_SECS, OUTCOME_AUTO_ADVANCE_MAX_SECS,
+        ScenarioObjectKind, ScenarioOutcomeKind, ScreenshotActionConfig, SetAllegianceActionConfig,
+        SetCameraActionConfig, SetControllerVerbActionConfig, SetSkyboxActionConfig,
+        SetSpeedCapActionConfig, StoryMessageActionConfig, VariableSetActionConfig,
+        NEXT_SCENARIO_DELAY_MAX_SECS, NEXT_SCENARIO_DELAY_WARN_SECS, OUTCOME_AUTO_ADVANCE_MAX_SECS,
     };
 }
 
@@ -61,6 +61,8 @@ pub enum EventActionConfig {
     SetSpeedCap(SetSpeedCapActionConfig),
     /// Enable or disable one flight verb on a scoped ship's controller by id.
     SetControllerVerb(SetControllerVerbActionConfig),
+    /// Overwrite a scoped ship's `Allegiance` at runtime (neutral-until-provoked).
+    SetAllegiance(SetAllegianceActionConfig),
     /// Spawn a spherical sensor zone that drives `OnEnter`/`OnExit`.
     CreateScenarioArea(ScenarioAreaConfig),
     /// Queue a switch to another scenario by id.
@@ -121,6 +123,9 @@ impl EventAction<NovaEventWorld> for EventActionConfig {
                 config.action(world, info);
             }
             EventActionConfig::SetControllerVerb(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::SetAllegiance(config) => {
                 config.action(world, info);
             }
             EventActionConfig::CreateScenarioArea(config) => {
@@ -1050,6 +1055,46 @@ impl EventAction<NovaEventWorld> for SetSpeedCapActionConfig {
                         world.entity_mut(ship).remove::<FlightSpeedCap>();
                     }
                 }
+            });
+        });
+    }
+}
+
+/// Overwrite a scenario ship's [`Allegiance`] by id at runtime, flipping it
+/// between Player/Enemy/Neutral. Allegiance is otherwise written only at spawn
+/// and never changed; this is the missing primitive for "neutral until
+/// provoked" encounters (a Neutral ship stays a bystander until a trigger fires
+/// this action to make it Enemy). Scoped-only lookup, same rule as SetSpeedCap.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct SetAllegianceActionConfig {
+    /// The `EntityId` of the scoped ship to re-align.
+    pub id: String,
+    /// The allegiance to overwrite the ship's `Allegiance` component with.
+    pub allegiance: Allegiance,
+}
+
+impl EventAction<NovaEventWorld> for SetAllegianceActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        let id = self.id.clone();
+        let allegiance = self.allegiance;
+        debug!("SetAllegiance: '{}' -> {:?}", id, allegiance);
+
+        world.push_command(move |commands| {
+            commands.queue(move |world: &mut World| {
+                let mut query = world.query_filtered::<(Entity, &EntityId), (
+                    With<ScenarioScopedMarker>,
+                    With<SpaceshipRootMarker>,
+                )>();
+                let Some(ship) = query
+                    .iter(world)
+                    .find(|(_, entity_id)| entity_id.0 == id)
+                    .map(|(entity, _)| entity)
+                else {
+                    warn!("SetAllegiance: no scoped ship with id '{}'", id);
+                    return;
+                };
+                world.entity_mut(ship).insert(allegiance);
             });
         });
     }
@@ -2509,6 +2554,78 @@ mod tests {
             }
             other => panic!("expected SetSkybox, got {other:?}"),
         }
+    }
+
+    /// A scenario authors `SetAllegiance` in RON to wake a neutral ship, so the
+    /// whole action must round-trip through serde with its id and allegiance.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn set_allegiance_action_round_trips_through_ron() {
+        let action = EventActionConfig::SetAllegiance(SetAllegianceActionConfig {
+            id: "x".into(),
+            allegiance: Allegiance::Enemy,
+        });
+        let ron = ron::to_string(&action).expect("serialize");
+        let back: EventActionConfig = ron::from_str(&ron).expect("deserialize");
+        match back {
+            EventActionConfig::SetAllegiance(config) => {
+                assert_eq!(config.id, "x");
+                assert_eq!(config.allegiance, Allegiance::Enemy);
+            }
+            other => panic!("expected SetAllegiance, got {other:?}"),
+        }
+    }
+
+    /// SetAllegiance overwrites the addressed ship's `Allegiance` at runtime:
+    /// a spawned-Neutral ship becomes Enemy (neutral-until-provoked). Without
+    /// the apply path the component would stay Neutral, failing this test. An
+    /// unknown id warns and does not panic.
+    #[test]
+    fn set_allegiance_flips_the_scoped_ship() {
+        use bevy_common_systems::prelude::EventWorld;
+
+        let mut world = World::new();
+        world.init_resource::<NovaEventWorld>();
+        world.init_resource::<GameObjectives>();
+
+        let ship = world
+            .spawn((
+                ScenarioScopedMarker,
+                SpaceshipRootMarker,
+                EntityId::new("magpie".to_string()),
+                Allegiance::Neutral,
+            ))
+            .id();
+
+        // Provoke: flip the neutral ship to Enemy.
+        let flip = SetAllegianceActionConfig {
+            id: "magpie".to_string(),
+            allegiance: Allegiance::Enemy,
+        };
+        let mut event_world = world.resource_mut::<NovaEventWorld>();
+        flip.action(&mut event_world, &GameEventInfo::default());
+        NovaEventWorld::state_to_world_system(&mut world);
+
+        assert_eq!(
+            world.get::<Allegiance>(ship).copied(),
+            Some(Allegiance::Enemy),
+            "the scoped ship's allegiance is now Enemy"
+        );
+
+        // A bad id warns and is a no-op (no panic, ship unchanged).
+        let miss = SetAllegianceActionConfig {
+            id: "nope".to_string(),
+            allegiance: Allegiance::Player,
+        };
+        let mut event_world = world.resource_mut::<NovaEventWorld>();
+        miss.action(&mut event_world, &GameEventInfo::default());
+        NovaEventWorld::state_to_world_system(&mut world);
+
+        assert_eq!(
+            world.get::<Allegiance>(ship).copied(),
+            Some(Allegiance::Enemy),
+            "an unknown id does not touch any ship"
+        );
     }
 }
 

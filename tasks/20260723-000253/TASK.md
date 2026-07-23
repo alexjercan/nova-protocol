@@ -1,6 +1,6 @@
 # Add SetAllegiance scenario action - flip a ship's allegiance mid-scenario (neutral-until-provoked primitive)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 62
 - TAGS: v0.8.0, modding, scenario
 
@@ -20,19 +20,19 @@ ship by `EntityId` + `ScenarioScopedMarker` and overwrites `Allegiance`).
 
 ## Steps
 
-- [ ] Add `SetAllegianceActionConfig { id: String, allegiance: Allegiance }`
+- [x] Add `SetAllegianceActionConfig { id: String, allegiance: Allegiance }`
       and the `EventActionConfig::SetAllegiance` variant in
       `crates/nova_scenario/src/actions.rs`, following `SetSpeedCap`
       (~actions.rs:1014-1056) and its RON round-trip.
-- [ ] Implement the action: resolve the ship by `EntityId` among
+- [x] Implement the action: resolve the ship by `EntityId` among
       `ScenarioScopedMarker` entities and overwrite its `Allegiance` component
       (re-use the `Allegiance` type from `nova_gameplay::relations`; check the
       import/prelude path). Warn-and-skip if the id is not found (no panic).
-- [ ] Unit test (nova_scenario): a scenario spawns a Neutral ship, the action
+- [x] Unit test (nova_scenario): a scenario spawns a Neutral ship, the action
       flips it to Enemy, and the component reflects it (fail-first: without the
       apply path the component stays Neutral). RON round-trip test like
       `set_skybox_action_round_trips_through_ron`.
-- [ ] content lint stays clean; `cargo check` + fmt green. Doc the action in the
+- [x] content lint stays clean; `cargo check` + fmt green. Doc the action in the
       scenario-system wiki action list + guide-author-scenario if it enumerates
       actions (keep-docs-in-sync).
 

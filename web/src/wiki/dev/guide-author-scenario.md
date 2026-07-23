@@ -547,6 +547,20 @@ SetControllerVerb((
 )),
 ```
 
+### SetAllegiance
+
+Overwrite a scoped ship's `Allegiance` (`Player` / `Enemy` / `Neutral`) by id at
+runtime. Allegiance is otherwise fixed at spawn; this is the neutral-until-provoked
+primitive - spawn a bystander as `Neutral`, then a trigger flips it to `Enemy` to
+make it engage:
+
+```ron
+SetAllegiance((
+    id: "ship_x",
+    allegiance: Enemy,
+)),
+```
+
 ### CreateScenarioArea
 
 Spawn a spherical sensor zone that drives `OnEnter`/`OnExit`:
