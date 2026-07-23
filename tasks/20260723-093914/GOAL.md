@@ -56,7 +56,8 @@ Overall: `cargo check` clean, `cargo fmt --check` clean, all newly written/touch
 
 Updated as tasks land (one line per land).
 
-- [ ] 20260723-095849 (p30, nova_scenario) Campaign metadata on ScenarioConfig (serde data model)
+- [x] 20260723-095849 (p30, nova_scenario) Campaign metadata on ScenarioConfig (serde data model)
+      landed 3ca3f4c7; 1 review round (out-of-context APPROVE, no findings); added ScenarioCampaign + campaign field, 6 exhaustive literals fixed
 - [ ] 20260723-095909 (p28, nova_assets) Tag base storyline chapter-heads as Nova Protocol 1/2/3 + regen content  [depends: 095849]
 - [ ] 20260723-095930 (p26, nova_menu) Picker: group + order by campaign, inline position prefix  [depends: 095849, 095909]
 
@@ -65,8 +66,7 @@ Deferred follow-up (filed, not part of this run):
 
 ## Decisions (load-bearing, architectural)
 
-- (pending) shape of the campaign metadata (flat fields vs nested struct;
-  campaign identity as free string vs registered id) - recorded in task A's DECISION.md.
+- 20260723-095849 DECISION.md: campaign metadata as one Option<ScenarioCampaign> (nested struct, atomic membership) over two loose Option fields (ACCEPTED)
 
 ## Manual acceptance (batched for the user at Finish)
 
