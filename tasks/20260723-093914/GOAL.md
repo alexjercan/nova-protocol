@@ -58,7 +58,8 @@ Updated as tasks land (one line per land).
 
 - [x] 20260723-095849 (p30, nova_scenario) Campaign metadata on ScenarioConfig (serde data model)
       landed 3ca3f4c7; 1 review round (out-of-context APPROVE, no findings); added ScenarioCampaign + campaign field, 6 exhaustive literals fixed
-- [ ] 20260723-095909 (p28, nova_assets) Tag base storyline chapter-heads as Nova Protocol 1/2/3 + regen content  [depends: 095849]
+- [x] 20260723-095909 (p28, nova_assets) Tag base storyline chapter-heads as Nova Protocol 1/2/3 + regen content  [depends: 095849]
+      landed ac6730f1; 1 review round (out-of-context APPROVE, 2 NITs); shakedown=1/broadside=2/lifeline=3, parity+lint clean. Spun off 20260723-103523 (inherited content_lint_gate failure)
 - [ ] 20260723-095930 (p26, nova_menu) Picker: group + order by campaign, inline position prefix  [depends: 095849, 095909]
 
 Deferred follow-up (filed, not part of this run):
