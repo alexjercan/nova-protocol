@@ -3,6 +3,16 @@
 All notable changes to The Ledger campaign mod. Versions are the `meta.version`
 in `the-ledger.bundle.ron`; the portal keeps every published version.
 
+## 1.11.0
+
+- The Raid (chapter five) tuning from the first playtest: the planetoids' pull
+  is much gentler now, so the small ships handle the field instead of getting
+  dragged around, and the Magpie base holds its post - it gained station-keeping
+  RCS thrusters and a tight tether so it no longer drifts off in the gravity. The
+  base also carries a lighter turret load. Torpedoes now fire on the R key
+  (freeing the mouse). (The chapter is also temporarily visible in the Scenarios
+  picker for testing; it will go back to fight-only before release.)
+
 ## 1.10.0
 
 - A reward finale: THE RAID (chapter five). Win the chapter-four fight - break

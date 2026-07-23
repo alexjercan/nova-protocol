@@ -34,7 +34,10 @@
         description: "Payday buys a gunship. Take the big ship and two of Vesh's wing and go settle the Magpie account - raid their forward base among the rocks. The reward finale of The Ledger.",
         cubemap: "dep://base/textures/cubemap.png",
         thumbnail: Some("dep://base/textures/asteroid.png"),
-        hidden: true,
+        // hidden: false (temporarily) so the finale can be launched directly
+        // from the Scenarios picker for playtesting. RE-HIDE before release - it
+        // is meant to be reached only by winning the ch4 fight.
+        hidden: false,
         events: [
             (
                 name: OnStart,
@@ -67,7 +70,7 @@
                     )),
                     StoryMessage((
                         speaker: "Broker Vesh",
-                        text: "Here is what your payday bought, Kestrel: a gunship with teeth, and two of my wing to fly cover. The Magpies have a forward post out in the rocks - the same crew that shadowed you in the channel. Go settle it. LMB is your guns, and those torpedo tubes are on the right mouse. Crack the base and clean up their fighters.",
+                        text: "Here is what your payday bought, Kestrel: a gunship with teeth, and two of my wing to fly cover. The Magpies have a forward post out in the rocks - the same crew that shadowed you in the channel. Go settle it. LMB is your guns, and the R key drops those torpedo tubes. Crack the base and clean up their fighters.",
                     )),
                     Objective((
                         id: "obj_raid",
@@ -96,11 +99,11 @@
                                         Gamepad(RightTrigger2),
                                     ],
                                     "cube_i1_j1_km2": [
-                                        Mouse(Right),
+                                        Keyboard(KeyR),
                                         Gamepad(RightTrigger2),
                                     ],
                                     "cube_im1_j1_km2": [
-                                        Mouse(Right),
+                                        Keyboard(KeyR),
                                         Gamepad(RightTrigger2),
                                     ],
                                 },
@@ -2511,10 +2514,14 @@
                             ],
                         )),
                     )),
-                    // --- The Magpie base: a custom station built from reinforced
-                    // hull + turret blocks around a controller core, NO thrusters
-                    // so it holds station. Enemy, destructible - the torpedoes'
-                    // target. A plus-shaped keep with a turret on each outer tip.
+                    // --- The Magpie base: a custom station built from a
+                    // reinforced-hull keep around a controller core, with two
+                    // turrets and two RCS thrusters. The thrusters give its
+                    // controller the RCS authority to STATION-KEEP against the
+                    // (mild, reduced) gravity here; a tight leash (15u, centred on
+                    // its spawn) keeps it from chasing the player when it engages
+                    // - beyond the leash the AILeash tether breaks off combat and
+                    // pulls it home. Enemy, destructible - the torpedoes' target.
                     SpawnScenarioObject((
                         base: (
                             id: "magpie_base",
@@ -2523,7 +2530,9 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
-                            controller: AI(()),
+                            controller: AI((
+                                leash: Some(15.0),
+                            )),
                             allegiance: Some(Enemy),
                             sections: [
                                 (
@@ -2592,22 +2601,10 @@
                                     rotation: (0.0, 0.0, 0.0, 1.0),
                                     source: Prototype("reinforced_hull_section"),
                                 ),
-                                // Turrets mount on TOP of the four arm tips: at
-                                // y = +1 above an occupied hull cube, so each
-                                // turret's -Y base sits against an occupied cell
-                                // (the mount rule the lint enforces).
-                                (
-                                    id: "turret_xp",
-                                    position: (2.0, 1.0, 0.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
-                                    source: Prototype("better_turret_section"),
-                                ),
-                                (
-                                    id: "turret_xm",
-                                    position: (-2.0, 1.0, 0.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
-                                    source: Prototype("better_turret_section"),
-                                ),
+                                // Two turrets (trimmed from four) mount on TOP of
+                                // the z-arm tips: at y = +1 above an occupied hull
+                                // cube, so each turret's -Y base sits against an
+                                // occupied cell (the mount rule the lint enforces).
                                 (
                                     id: "turret_zp",
                                     position: (0.0, 1.0, 2.0),
@@ -2620,6 +2617,22 @@
                                     rotation: (0.0, 0.0, 0.0, 1.0),
                                     source: Prototype("better_turret_section"),
                                 ),
+                                // Two RCS thrusters on the x-arm tips (where the
+                                // other two turrets were) - the station-keeping
+                                // propulsion budget the controller trims against
+                                // gravity to hold position.
+                                (
+                                    id: "rcs_xp",
+                                    position: (2.0, 1.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_thruster_section"),
+                                ),
+                                (
+                                    id: "rcs_xm",
+                                    position: (-2.0, 1.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_thruster_section"),
+                                ),
                             ],
                         )),
                     )),
@@ -2629,15 +2642,15 @@
                         base: (
                             id: "planetoid_1",
                             name: "Planetoid",
-                            position: (-170.0, -40.0, -150.0),
+                            position: (-160.0, -40.0, -140.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
-                            radius: 22.0,
+                            radius: 14.0,
                             texture: "dep://base/textures/asteroid.png",
                             health: 2000.0,
                             impact_sound: Some("dep://base/sounds/impact.wav"),
-                            surface_gravity: Some(6.0),
+                            surface_gravity: Some(3.0),
                             invulnerable: true,
                         )),
                     )),
@@ -2645,15 +2658,15 @@
                         base: (
                             id: "planetoid_2",
                             name: "Planetoid",
-                            position: (150.0, 55.0, -330.0),
+                            position: (150.0, 50.0, -300.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
-                            radius: 18.0,
+                            radius: 12.0,
                             texture: "dep://base/textures/asteroid.png",
                             health: 2000.0,
                             impact_sound: Some("dep://base/sounds/impact.wav"),
-                            surface_gravity: Some(5.0),
+                            surface_gravity: Some(3.0),
                             invulnerable: true,
                         )),
                     )),
@@ -2661,15 +2674,15 @@
                         base: (
                             id: "planetoid_3",
                             name: "Planetoid",
-                            position: (30.0, -85.0, -470.0),
+                            position: (0.0, -70.0, -470.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
-                            radius: 26.0,
+                            radius: 16.0,
                             texture: "dep://base/textures/asteroid.png",
                             health: 2000.0,
                             impact_sound: Some("dep://base/sounds/impact.wav"),
-                            surface_gravity: Some(7.0),
+                            surface_gravity: Some(3.0),
                             invulnerable: true,
                         )),
                     )),

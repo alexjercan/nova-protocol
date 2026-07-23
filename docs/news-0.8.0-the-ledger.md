@@ -29,7 +29,7 @@ Player-facing beats, ready to fold into the news:
   Auditor - and the campaign keeps going into a fifth chapter you only see if
   you took the fight. Your payday buys a gunship, and for the first time in the
   whole story you fly a capital ship with torpedoes (guns on the left mouse,
-  tubes on the right). With two of Vesh's wing on escort you raid the Magpies'
+  torpedo tubes on the R key). With two of Vesh's wing on escort you raid the Magpies'
   forward base - a real multi-section station among the asteroids and
   planetoids, plus four fighters - and crack it to close the account. The burn
   ending still ends quietly at chapter four; the raid is what fighting earns.

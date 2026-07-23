@@ -288,9 +288,18 @@ fn the_player_flies_a_torpedo_gunship() {
         panic!("the gunship is player-controlled");
     };
     for tube in &torpedo_ids {
+        let binds = cfg
+            .input_mapping
+            .get(*tube)
+            .unwrap_or_else(|| panic!("torpedo bay '{tube}' is bound to a fire input"));
+        // The tubes fire on the R KEY (playtest rebind, task 20260723-200643) -
+        // round-trip each Binding back to its authorable form and look for R.
         assert!(
-            cfg.input_mapping.contains_key(*tube),
-            "torpedo bay '{tube}' is bound to a fire input"
+            binds
+                .iter()
+                .any(|b| BindingInput::try_from(b).ok()
+                    == Some(BindingInput::Keyboard(KeyCode::KeyR))),
+            "torpedo bay '{tube}' fires on the R key"
         );
     }
     assert!(cfg.infinite_ammo, "infinite ammo for the victory lap");
@@ -337,6 +346,59 @@ fn the_wing_is_friendly_and_the_defenders_are_hostile() {
         base.allegiance,
         Some(Allegiance::Enemy),
         "the base is hostile"
+    );
+}
+
+// --- the base holds station: RCS thrusters + a tight leash, fewer turrets ----
+
+/// Playtest tuning (task 20260723-200643): the base gets RCS thrusters and a
+/// tight leash so it station-keeps against the (reduced) gravity instead of
+/// being dragged off, and its turret load is trimmed from four to two.
+#[test]
+fn the_base_holds_station_with_rcs_and_a_tight_leash() {
+    let scenario = scenario_from(CH5_RON);
+    let start = on_start(&scenario);
+    let base = spaceship_at(start, "magpie_base");
+    let catalog = nova_assets::scenario_generation::build_section_catalog();
+
+    let count = |pred: fn(&SectionKind) -> bool| {
+        base.sections
+            .iter()
+            .filter(|s| {
+                section_kind(s, &catalog)
+                    .as_ref()
+                    .map(pred)
+                    .unwrap_or(false)
+            })
+            .count()
+    };
+    let turrets = count(|k| matches!(k, SectionKind::Turret(_)));
+    let thrusters = count(|k| matches!(k, SectionKind::Thruster(_)));
+    assert_eq!(turrets, 2, "the base turret load is trimmed to two");
+    assert!(
+        thrusters >= 2,
+        "the base carries RCS thrusters to station-keep (found {thrusters})"
+    );
+
+    // The tight leash keeps it from chasing the player off its post.
+    let SpaceshipController::AI(ai) = &base.controller else {
+        panic!("the base is AI-flown");
+    };
+    assert_eq!(
+        ai.leash,
+        Some(15.0),
+        "the base is leashed tight to its post so it holds station"
+    );
+}
+
+/// The finale is temporarily un-hidden (playtest convenience) so it can be
+/// launched straight from the Scenarios picker. RE-HIDE before release.
+#[test]
+fn the_raid_is_launchable_for_testing() {
+    let scenario = scenario_from(CH5_RON);
+    assert!(
+        !scenario.hidden,
+        "ch5 is un-hidden for playtesting (re-hide before release)"
     );
 }
 
@@ -525,7 +587,7 @@ fn the_bundle_ships_the_raid_and_bumps_the_version() {
         "the bundle lists the raid finale"
     );
     assert!(
-        LEDGER_BUNDLE_RON.contains("version: \"1.10.0\""),
-        "the bundle version is bumped for the raid finale"
+        LEDGER_BUNDLE_RON.contains("version: \"1.11.0\""),
+        "the bundle version is bumped for the raid finale + its tuning"
     );
 }

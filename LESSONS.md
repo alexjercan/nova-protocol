@@ -48,6 +48,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   the matching news bullet against the current source and REWRITE it, do not
   just append (a stale pre-stealth-rework "ambush" bullet survived two tasks).
   One more surface on `keep-docs-in-sync-with-code`. 20260723-143603.
+- `bundle-version-string-pin-bites-on-bump` (x2): a test that asserts a bundle
+  `contains "vX.Y.Z"` lives far from the `meta.version` edit even within one
+  file, so a version bump silently invalidates it until the test runs - on ANY
+  version bump, `grep -rn '"<old-version>"' crates/` in the same change. Bit the
+  ch5 rig on 1.10->1.11 and the ch4 rig's sell-chain the cycle before.
+  20260723-182855, 20260723-200643.
 - `pin-mirrored-list-against-source` (positive, x1): a lint/tool that hardcodes
   a copy of runtime data (the flight rig's reserved keys) gets a test that
   builds the REAL source and set-diffs both directions, so the copy
@@ -675,6 +681,13 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 
 ## Domain lessons (nova-protocol specific)
 
+- `read-the-override-branch-of-a-bounding-mechanism` (x1): when a leash/cap/guard
+  is load-bearing for correctness, read its OVERRIDE/exception branches too, not
+  just the happy path - the AI `leash` is overridden by a `recently_damaged`
+  tether so a SHOT ship can chase past it; that edge is exactly what matters for
+  a base that gets shot (the ch5 station). Also: an armed AI ship Engages by
+  CHASING, so "holds station + shoots" needs no-thrusters OR a tight leash, never
+  thrusters alone. 20260723-200643.
 - `lint-is-the-fast-oracle-for-new-scenarios` (x1): for a new/large scenario RON
   the bugs that matter are game-geometry and balance invariants a human cannot
   eyeball (turret mount cells, "spawned-dead" enemies inside their threat

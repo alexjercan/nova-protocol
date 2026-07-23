@@ -34,7 +34,7 @@ belt starts paying attention.
    payout either. Clear, and broke.
 5. **The Raid** - the reward for choosing to fight: the payday buys you a
    gunship, and you finally fly a capital ship with torpedoes (guns on the
-   left mouse, tubes on the right). With two of Vesh's wing on escort, raid
+   left mouse, torpedo tubes on the R key). With two of Vesh's wing on escort, raid
    the Magpies' forward base among the rocks - a real multi-section station
    and four fighters. Crack the base and clear the defenders to close the
    account. Reached only from the sell/fight ending; the burn ending ends
