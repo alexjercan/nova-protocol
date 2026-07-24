@@ -112,6 +112,7 @@ impl Plugin for NovaMenuPlugin {
         app.init_resource::<SelectedScenarioId>();
         app.init_resource::<NewGameScenario>();
         app.init_resource::<PendingScenarioThumbnail>();
+        app.init_resource::<CollapsedCampaigns>();
         // The Explore tab's update choreography (uninstall-then-install). The
         // driver runs OUTSIDE the menu state on purpose: an update started
         // from the menu must complete even if the player closes it mid-flight.
@@ -1196,6 +1197,24 @@ struct ScenarioRow {
     id: ScenarioId,
 }
 
+/// The set of campaigns the player has COLLAPSED in the Scenarios picker.
+///
+/// Absent from the set = expanded (the default, so the initial view shows every
+/// campaign's chapters and the default selection is visible). Clicking a
+/// [`CampaignHeader`] toggles its id here, which re-arms `refresh_scenarios_list`
+/// via [`scenarios_list_dirty`]. Purely view state - never persisted, never
+/// touches the scenario registry.
+#[derive(Resource, Default)]
+struct CollapsedCampaigns(std::collections::HashSet<CampaignId>);
+
+/// One clickable campaign header row: clicking it expands/collapses the
+/// campaign's member rows. Carries the campaign id so the toggle handler knows
+/// which entry of [`CollapsedCampaigns`] to flip.
+#[derive(Component)]
+struct CampaignHeader {
+    id: CampaignId,
+}
+
 /// The scenario details side panel; `refresh_scenario_details` rebuilds its
 /// children (name, description, source, thumbnail, Play button) from the
 /// selected scenario.
@@ -2149,9 +2168,14 @@ fn listed_scenarios(scenarios: &GameScenarios) -> Vec<ScenarioConfig> {
 /// the same frame.
 fn scenarios_list_dirty(
     scenarios: Option<Res<GameScenarios>>,
+    campaigns: Option<Res<GameCampaigns>>,
+    collapsed: Res<CollapsedCampaigns>,
     selected: Res<SelectedScenarioId>,
 ) -> bool {
-    scenarios.is_some_and(|s| s.is_changed()) || selected.is_changed()
+    scenarios.is_some_and(|s| s.is_changed())
+        || campaigns.is_some_and(|c| c.is_changed())
+        || collapsed.is_changed()
+        || selected.is_changed()
 }
 
 fn scenario_details_dirty(
@@ -2161,11 +2185,59 @@ fn scenario_details_dirty(
     scenarios.is_some_and(|s| s.is_changed()) || selected.is_changed()
 }
 
-/// Rebuild the scenario list: one clickable row per `!hidden` scenario, with a
-/// default/repaired selection so the details pane always has a target.
+/// Campaigns in a stable display order: by display name, then id.
+///
+/// `GameCampaigns` is a HashMap, so a deterministic order is imposed here (the
+/// picker's campaign groups must not shuffle between frames). Within a campaign,
+/// member order comes from the campaign's own `scenarios` list, not from here.
+fn ordered_campaigns(campaigns: &GameCampaigns) -> Vec<CampaignConfig> {
+    let mut out: Vec<CampaignConfig> = campaigns.values().cloned().collect();
+    out.sort_by(|a, b| (&a.name, &a.id).cmp(&(&b.name, &b.id)));
+    out
+}
+
+/// Every scenario id that appears as a member of SOME campaign (hidden ones
+/// included). Used to keep a campaigned scenario out of the uncampaigned tail.
+fn campaign_member_ids(campaigns: &GameCampaigns) -> std::collections::HashSet<ScenarioId> {
+    campaigns
+        .values()
+        .flat_map(|c| c.scenarios.iter().cloned())
+        .collect()
+}
+
+/// Every scenario the picker can SELECT: the flat `!hidden` set plus every
+/// campaign member that resolves to a real scenario (so a `hidden` member listed
+/// under its campaign header is selectable/launchable even though the flat set
+/// excludes it). Selection-repair keeps the current pick only if it is in here.
+fn selectable_scenario_ids(
+    scenarios: &GameScenarios,
+    campaigns: &GameCampaigns,
+) -> std::collections::HashSet<ScenarioId> {
+    let mut ids: std::collections::HashSet<ScenarioId> = scenarios
+        .values()
+        .filter(|s| !s.hidden)
+        .map(|s| s.id.clone())
+        .collect();
+    for member in campaign_member_ids(campaigns) {
+        if scenarios.contains_key(&member) {
+            ids.insert(member);
+        }
+    }
+    ids
+}
+
+/// Rebuild the scenario list as collapsible campaign groups: one
+/// [`CampaignHeader`] per campaign (in `ordered_campaigns` order), and - when the
+/// campaign is expanded - one indented [`ScenarioRow`] per member in the
+/// campaign's declared order, resolved against `GameScenarios` (hidden members
+/// included, so a chained chapter is replayable from its header). Uncampaigned
+/// `!hidden` scenarios list flat below the campaigns. A default/repaired
+/// selection keeps the details pane fed.
 fn refresh_scenarios_list(
     mut commands: Commands,
     scenarios: Option<Res<GameScenarios>>,
+    campaigns: Option<Res<GameCampaigns>>,
+    collapsed: Res<CollapsedCampaigns>,
     mut selected: ResMut<SelectedScenarioId>,
     lists: Query<Entity, With<ScenariosList>>,
 ) {
@@ -2173,23 +2245,37 @@ fn refresh_scenarios_list(
         return;
     };
     commands.entity(list).despawn_related::<Children>();
-    let listed = scenarios
-        .as_ref()
-        .map(|s| listed_scenarios(s))
-        .unwrap_or_default();
-    // Selection repair against the visible set (the mods-list discipline): a
-    // selection that left the registry (a disabled mod) resets to the first row.
-    if !listed
-        .iter()
-        .any(|s| selected.0.as_deref() == Some(s.id.as_str()))
+
+    let empty_scenarios = GameScenarios::default();
+    let empty_campaigns = GameCampaigns::default();
+    let scenarios = scenarios.as_deref().unwrap_or(&empty_scenarios);
+    let campaigns = campaigns.as_deref().unwrap_or(&empty_campaigns);
+
+    // The flat, non-hidden sequence still defines the default/fallback pick (a
+    // hidden mid-campaign chapter is never a good default); selection-repair,
+    // though, accepts any selectable id so a hidden member stays selected.
+    let listed = listed_scenarios(scenarios);
+    let selectable = selectable_scenario_ids(scenarios, campaigns);
+    if !selected
+        .0
+        .as_deref()
+        .is_some_and(|id| selectable.contains(id))
     {
         let first = listed.first().map(|s| s.id.clone());
         if selected.0 != first {
             selected.0 = first;
         }
     }
+
+    let ordered = ordered_campaigns(campaigns);
+    let members = campaign_member_ids(campaigns);
+    // Uncampaigned tail: every !hidden scenario not claimed by a campaign, in the
+    // same flat name order as before.
+    let uncampaigned: Vec<&ScenarioConfig> =
+        listed.iter().filter(|s| !members.contains(&s.id)).collect();
+
     commands.entity(list).with_children(|list| {
-        if listed.is_empty() {
+        if ordered.is_empty() && uncampaigned.is_empty() {
             list.spawn((
                 Name::new("Scenarios Empty Note"),
                 Text::new("No scenarios available."),
@@ -2200,9 +2286,25 @@ fn refresh_scenarios_list(
                 TextColor(theme::TEXT_MUTED),
             ));
         }
-        for s in &listed {
+        for campaign in &ordered {
+            let expanded = !collapsed.0.contains(&campaign.id);
+            spawn_campaign_header(list, campaign, expanded);
+            if !expanded {
+                continue;
+            }
+            for member_id in &campaign.scenarios {
+                let Some(member) = scenarios.get(member_id) else {
+                    // A dangling member id (the content lint flags it) simply does
+                    // not render - the header still lists its resolvable chapters.
+                    continue;
+                };
+                let is_selected = selected.0.as_deref() == Some(member.id.as_str());
+                spawn_scenario_row(list, member, is_selected, true);
+            }
+        }
+        for s in &uncampaigned {
             let is_selected = selected.0.as_deref() == Some(s.id.as_str());
-            spawn_scenario_row(list, s, is_selected);
+            spawn_scenario_row(list, s, is_selected, false);
         }
     });
 }
@@ -2216,8 +2318,59 @@ fn scenario_row_label(s: &ScenarioConfig) -> String {
     s.name.clone()
 }
 
-/// Spawn one clickable scenario row: name over a muted description snippet.
-fn spawn_scenario_row(list: &mut ChildSpawnerCommands, s: &ScenarioConfig, selected: bool) {
+/// Spawn one clickable campaign header row: an `[-]`/`[+]` collapse affordance
+/// and the campaign's display name. Clicking it toggles the campaign in
+/// [`CollapsedCampaigns`], expanding or collapsing its member rows.
+fn spawn_campaign_header(
+    list: &mut ChildSpawnerCommands,
+    campaign: &CampaignConfig,
+    expanded: bool,
+) {
+    let marker = if expanded { "[-]" } else { "[+]" };
+    list.spawn((
+        Name::new(format!("Campaign Header: {}", campaign.id)),
+        CampaignHeader {
+            id: campaign.id.clone(),
+        },
+        Node {
+            align_self: AlignSelf::Stretch,
+            align_items: AlignItems::Center,
+            column_gap: px(8),
+            padding: UiRect::all(px(8)),
+            margin: UiRect::bottom(px(4)),
+            border: UiRect::all(px(theme::BORDER_W)),
+            border_radius: BorderRadius::all(px(theme::RADIUS)),
+            ..default()
+        },
+        ThemedButton,
+        Button,
+        Hovered::default(),
+        BorderColor::all(theme::BORDER),
+        BackgroundColor(theme::PANEL),
+        observe(on_campaign_header_toggle),
+    ))
+    .with_children(|header| {
+        header.spawn((
+            Name::new("Campaign Header Label"),
+            Text::new(format!("{marker} {}", campaign.name)),
+            TextFont {
+                font_size: FontSize::Px(15.0),
+                ..default()
+            },
+            TextColor(theme::CYAN),
+        ));
+    });
+}
+
+/// Spawn one clickable scenario row: name over a muted description snippet. An
+/// `indent`ed row (a campaign member under its header) gets a left margin so the
+/// grouping reads visually.
+fn spawn_scenario_row(
+    list: &mut ChildSpawnerCommands,
+    s: &ScenarioConfig,
+    selected: bool,
+    indent: bool,
+) {
     let mut row = list.spawn((
         Name::new(format!("Scenario Row: {}", s.id)),
         ScenarioRow { id: s.id.clone() },
@@ -2226,7 +2379,11 @@ fn spawn_scenario_row(list: &mut ChildSpawnerCommands, s: &ScenarioConfig, selec
             align_self: AlignSelf::Stretch,
             row_gap: px(2),
             padding: UiRect::all(px(8)),
-            margin: UiRect::bottom(px(4)),
+            margin: UiRect {
+                left: px(if indent { 16.0 } else { 0.0 }),
+                bottom: px(4.0),
+                ..default()
+            },
             border: UiRect::all(px(theme::BORDER_W)),
             border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
@@ -2851,6 +3008,22 @@ fn on_scenario_row_select(
     }
     commands.entity(entity).insert(Selected);
     selected.0 = Some(row.id.clone());
+}
+
+/// Toggle a campaign's expand/collapse state: flip its id in
+/// [`CollapsedCampaigns`], which re-arms `refresh_scenarios_list` (via
+/// [`scenarios_list_dirty`]) to add or remove its member rows.
+fn on_campaign_header_toggle(
+    activate: On<Activate>,
+    headers: Query<&CampaignHeader>,
+    mut collapsed: ResMut<CollapsedCampaigns>,
+) {
+    let Ok(header) = headers.get(activate.entity) else {
+        return;
+    };
+    if !collapsed.0.remove(&header.id) {
+        collapsed.0.insert(header.id.clone());
+    }
 }
 
 /// Play the selected scenario: record the override and hand off to Playing
@@ -6636,6 +6809,159 @@ mod tests {
         assert!(
             !ids.contains(&TEST_BACKDROP_ID.to_string()),
             "the hidden backdrop scenario is NOT listed: {ids:?}"
+        );
+    }
+
+    // --- Collapsible campaign headers (task 20260723-095951) ---------------
+
+    /// A registry with a two-chapter "Nova Protocol" campaign (chapter two is
+    /// `hidden`, reachable ONLY through the campaign header) plus one
+    /// uncampaigned standalone. The picker must render the campaign as a
+    /// collapsible header over its ordered members, hidden one included, with the
+    /// standalone flat below.
+    fn campaigns_app() -> App {
+        let mut app = app();
+        app.insert_resource(GameScenarios(bevy::platform::collections::HashMap::from([
+            picker_scenario("chap1", "Chapter One", false),
+            picker_scenario("chap2", "Chapter Two", true),
+            picker_scenario("standalone", "Standalone", false),
+        ])));
+        app.insert_resource(GameCampaigns(bevy::platform::collections::HashMap::from([
+            (
+                "nova_protocol".to_string(),
+                CampaignConfig {
+                    id: "nova_protocol".to_string(),
+                    name: "Nova Protocol".to_string(),
+                    scenarios: vec!["chap1".to_string(), "chap2".to_string()],
+                },
+            ),
+        ])));
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::MainMenu);
+        app.update();
+        app
+    }
+
+    /// The `ScenariosList` children in display order, each tagged `header:<label>`
+    /// or `row:<label>` - the render-output-eyeball at the ECS level, reading what
+    /// the picker actually spawned (headers AND rows, in child order).
+    fn list_display_in_order(app: &mut App) -> Vec<String> {
+        let list = {
+            let mut q = app
+                .world_mut()
+                .query_filtered::<Entity, With<ScenariosList>>();
+            q.iter(app.world()).next().expect("scenarios list exists")
+        };
+        let children: Vec<Entity> = app
+            .world()
+            .get::<Children>(list)
+            .map(|c| c.iter().collect())
+            .unwrap_or_default();
+        children
+            .into_iter()
+            .filter_map(|c| {
+                if app.world().get::<CampaignHeader>(c).is_some() {
+                    Some(format!("header:{}", label_of(app, c)))
+                } else if app.world().get::<ScenarioRow>(c).is_some() {
+                    Some(format!("row:{}", label_of(app, c)))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    fn campaign_header(app: &mut App, id: &str) -> Option<Entity> {
+        let mut q = app.world_mut().query::<(Entity, &CampaignHeader)>();
+        q.iter(app.world())
+            .find(|(_, h)| h.id == id)
+            .map(|(e, _)| e)
+    }
+
+    /// The picker renders a campaign as an expanded header over its members in
+    /// declared order (hidden chapter two included), then the uncampaigned
+    /// standalone flat below - the collapsible-grouping contract.
+    #[test]
+    fn picker_renders_collapsible_campaign_header_over_ordered_members() {
+        let mut app = campaigns_app();
+        assert_eq!(
+            list_display_in_order(&mut app),
+            vec![
+                "header:[-] Nova Protocol".to_string(),
+                "row:Chapter One".to_string(),
+                "row:Chapter Two".to_string(),
+                "row:Standalone".to_string(),
+            ],
+            "expanded header, then members in campaign order (hidden chapter two \
+             listed for replay), then the uncampaigned standalone"
+        );
+    }
+
+    /// Clicking a campaign header collapses it (members vanish, marker flips to
+    /// `[+]`); clicking again expands it (members return, marker `[-]`). Drives
+    /// the real toggle observer + refresh through the spawn path.
+    #[test]
+    fn toggling_a_campaign_header_collapses_and_expands_its_members() {
+        let mut app = campaigns_app();
+        let header = campaign_header(&mut app, "nova_protocol").expect("campaign header");
+
+        app.world_mut().trigger(Activate { entity: header });
+        app.update();
+        assert_eq!(
+            list_display_in_order(&mut app),
+            vec![
+                "header:[+] Nova Protocol".to_string(),
+                "row:Standalone".to_string(),
+            ],
+            "collapsed: members hidden, marker [+], standalone still shown"
+        );
+
+        let header = campaign_header(&mut app, "nova_protocol").expect("header persists");
+        app.world_mut().trigger(Activate { entity: header });
+        app.update();
+        assert_eq!(
+            list_display_in_order(&mut app),
+            vec![
+                "header:[-] Nova Protocol".to_string(),
+                "row:Chapter One".to_string(),
+                "row:Chapter Two".to_string(),
+                "row:Standalone".to_string(),
+            ],
+            "re-expanded: members return in order, marker [-]"
+        );
+    }
+
+    /// A HIDDEN campaign member is directly selectable and launchable for replay:
+    /// selecting chapter two (hidden) feeds the details pane and its Play button
+    /// loads chapter two itself - not the earlier chapter, not the canned start.
+    #[test]
+    fn a_hidden_campaign_member_is_selectable_and_launchable() {
+        let mut app = campaigns_app();
+        observe_load_scenario(&mut app);
+
+        let hidden_row = scenario_row(&mut app, "chap2").expect("hidden member row exists");
+        app.world_mut().trigger(Activate { entity: hidden_row });
+        app.update();
+
+        assert_eq!(
+            selected_scenario(&app).as_deref(),
+            Some("chap2"),
+            "the hidden member is selected"
+        );
+        assert_eq!(
+            scenario_details_name(&mut app).as_deref(),
+            Some("Chapter Two"),
+            "the details pane renders the hidden member"
+        );
+
+        let play = entity_by_name(&mut app, "Scenario Play Button").expect("play button");
+        app.world_mut().trigger(Activate { entity: play });
+        app.update();
+        assert_eq!(
+            app.world().resource::<LoadedScenario>().0.as_deref(),
+            Some("chap2"),
+            "playing the hidden member loads it directly - a mid-campaign replay"
         );
     }
 

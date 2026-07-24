@@ -31,4 +31,14 @@ This is the vocabulary the [Shakedown Run](../../tutorial/) is built from - each
 - **Asteroid Field** - a combat and gravity sandbox: a dense field, a planetoid to orbit, a fully outfitted ship and an AI drone. (A tiny _Asteroid Field - Next_ loops it.)
 - **Menu backdrops** - the living scenes behind the menus, picked at random on each menu entry: **Menu Ambience** (a planetoid with an AI ship flying a real ORBIT), **Waystation Traffic** (a hauler convoy circling a freight stop under amber dock lights), and **Scrapyard Drift** (a quiet salvage yard of drifting crates, two wrecks and a lone tug). No gameplay - just scale and motion. Mods can ship their own by flagging a scenario `menu_backdrop`.
 
+## Browsing and replaying scenarios
+
+The **Scenarios** tab groups a campaign under a collapsible header - click the
+`[-]`/`[+]` header to expand or fold its chapters. A campaign lists its chapters
+in play order, including mid-story chapters that the story reaches automatically
+(the Broadside gunship phase, the Final Tally finale): they show under the
+campaign header so you can launch any chapter directly for a replay without
+flying the whole arc again. Scenarios that belong to no campaign (Asteroid Field,
+standalone mod scenarios) list on their own below the campaigns.
+
 You can author your own scenarios and mods in RON - see [Modding](../modding/).

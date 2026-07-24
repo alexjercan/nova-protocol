@@ -14,6 +14,14 @@ tagged **(breaking)**.
 
 ## [Unreleased]
 
+### Scenarios & Objectives
+
+- Scenarios tab groups campaigns under collapsible `[-]`/`[+]` headers listing each campaign's ordered chapters - including hidden mid-story chapters - so any chapter is launchable directly for replay.
+
+### Modding & Mod Portal
+
+- New `Campaign` content kind: a bundle declares an ordered campaign->scenario mapping (`Campaign((id, name, scenarios: [...]))`) loaded into `GameCampaigns`; the content lint flags a member scenario no bundle provides.
+
 ### Interface & HUD
 
 - Tab ship-computer drawer: a right-side surface that slides in on Tab (or the gamepad right-stick click), pauses the game and frees the cursor, with an expanded objectives section (shell + interaction model; comms log, minimap and ship status to follow).
