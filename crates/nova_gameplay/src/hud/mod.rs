@@ -87,7 +87,9 @@ impl HudVisibility {
     pub fn shows(self, tier: HudTier) -> bool {
         matches!(
             (self, tier),
-            (HudVisibility::All, _) | (HudVisibility::Minimal, HudTier::Instrument)
+            (HudVisibility::All, _)
+                | (HudVisibility::Minimal, HudTier::Instrument)
+                | (HudVisibility::Minimal, HudTier::Status)
         )
     }
 }
@@ -105,6 +107,15 @@ pub enum HudTier {
     Instrument,
     /// Learning aids and secondary overlays: visible only at `All`.
     Chrome,
+    /// Persistent status/reference chrome (the fps/version status bar and the
+    /// objective count in it): visible at `All` and `Minimal` like an
+    /// instrument, but hidden ONLY at the cinematic `None` level so screenshots
+    /// stay clean (task 20260724-171509). Unlike flight chrome it is meant to
+    /// persist through the Tab drawer too - tag such a widget `HudDrawerExempt`
+    /// as well, which keeps it visible while the drawer is open and z-lifts it
+    /// above the backdrop. "It is like the FPS overlay": it rides the whole
+    /// session, not the moment-to-moment flight HUD.
+    Status,
 }
 
 /// Opt-out for widgets that drive their own `Visibility` every frame (the
@@ -965,6 +976,111 @@ mod tests {
         app.update();
         assert_eq!(vis(&app, instrument), Visibility::Inherited);
         assert_eq!(vis(&app, chrome), Visibility::Inherited);
+    }
+
+    /// The `Status` tier (task 20260724-171509) is persistent reference chrome:
+    /// it survives `Minimal` like an instrument (unlike `Chrome`), but the
+    /// cinematic `None` level still clears it for a clean screenshot.
+    #[test]
+    fn status_tier_shows_through_minimal_and_hides_at_none() {
+        let mut app = app();
+        let status = app
+            .world_mut()
+            .spawn((HudTier::Status, Visibility::Inherited))
+            .id();
+        let vis = |app: &App, e| *app.world().get::<Visibility>(e).unwrap();
+
+        app.update();
+        assert_eq!(vis(&app, status), Visibility::Inherited, "All shows Status");
+
+        app.insert_resource(HudVisibility::Minimal);
+        app.update();
+        assert_eq!(
+            vis(&app, status),
+            Visibility::Inherited,
+            "Minimal keeps the status bar (unlike Chrome, which drops here)"
+        );
+
+        app.insert_resource(HudVisibility::None);
+        app.update();
+        assert_eq!(
+            vis(&app, status),
+            Visibility::Hidden,
+            "None clears the status bar for a cinematic capture"
+        );
+    }
+
+    /// A `Status` widget tagged `HudDrawerExempt` (the real status bar's config)
+    /// stays visible while the Tab drawer is open, but the cinematic `None` level
+    /// still clears it even mid-drawer (task 20260724-171509).
+    #[test]
+    fn status_bar_persists_through_the_drawer_but_none_still_clears_it() {
+        let mut app = app();
+        let status = app
+            .world_mut()
+            .spawn((HudTier::Status, HudDrawerExempt, Visibility::Inherited))
+            .id();
+        let vis = |app: &App, e| *app.world().get::<Visibility>(e).unwrap();
+
+        set_pause(&mut app, crate::PauseStates::Drawer);
+        assert_eq!(
+            vis(&app, status),
+            Visibility::Inherited,
+            "the status bar stays while the drawer is open"
+        );
+
+        app.insert_resource(HudVisibility::None);
+        app.update();
+        assert_eq!(
+            vis(&app, status),
+            Visibility::Hidden,
+            "None clears the status bar even during the drawer"
+        );
+    }
+
+    /// The objective count is a CHILD of the status bar root with no `HudTier` of
+    /// its own, so it must INHERIT the bar's visibility (task 20260724-171509):
+    /// `apply_hud_visibility` manages only the tiered PARENT and must leave the
+    /// child's `Visibility::Inherited` untouched, so Bevy propagation carries the
+    /// bar's state (persist through the drawer, clear at None) to the count. This
+    /// pins that we do NOT give the child its own tier/visibility management.
+    #[test]
+    fn childless_node_is_left_to_inherit_the_status_bar() {
+        let mut app = app();
+        let bar = app
+            .world_mut()
+            .spawn((HudTier::Status, HudDrawerExempt, Visibility::Inherited))
+            .id();
+        let child = app
+            .world_mut()
+            .spawn((Visibility::Inherited, ChildOf(bar)))
+            .id();
+        let vis = |app: &App, e| *app.world().get::<Visibility>(e).unwrap();
+
+        // Drawer open: the bar persists; the child is never touched, so it is
+        // left Inherited to follow the (visible) bar.
+        set_pause(&mut app, crate::PauseStates::Drawer);
+        assert_eq!(vis(&app, bar), Visibility::Inherited);
+        assert_eq!(
+            vis(&app, child),
+            Visibility::Inherited,
+            "the child is not tier-managed - it inherits the bar"
+        );
+
+        // Cinematic None: the bar hides; the child stays Inherited so propagation
+        // hides it with the parent (rather than the child being independently set).
+        app.insert_resource(HudVisibility::None);
+        app.update();
+        assert_eq!(
+            vis(&app, bar),
+            Visibility::Hidden,
+            "None hides the bar root"
+        );
+        assert_eq!(
+            vis(&app, child),
+            Visibility::Inherited,
+            "the child stays Inherited so it follows the hidden bar"
+        );
     }
 
     fn set_pause(app: &mut App, state: crate::PauseStates) {

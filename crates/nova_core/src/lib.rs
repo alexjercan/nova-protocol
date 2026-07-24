@@ -296,9 +296,18 @@ pub fn assets_plugin() -> AssetPlugin {
 }
 
 fn setup_status_ui(mut commands: Commands, game_assets: Res<GameAssets>) {
-    // Chrome tier: the fps/version bar disappears at HudVisibility::Minimal
-    // and below (and in the main menu, which drives the level to None).
-    commands.spawn((HudTier::Chrome, status_bar(StatusBarRootConfig::default())));
+    // Status tier + drawer-exempt: the fps/version bar (and the objective count
+    // in it) is persistent reference chrome (task 20260724-171509). It stays at
+    // HudVisibility::Minimal and while the Tab drawer is open, and hides only at
+    // the cinematic `None` level (and in the main menu, which drives the level to
+    // None). HudDrawerExempt keeps it through the drawer and z-lifts it above the
+    // drawer backdrop; the base GlobalZIndex gives that lift a component to drive.
+    commands.spawn((
+        HudTier::Status,
+        HudDrawerExempt,
+        GlobalZIndex::default(),
+        status_bar(StatusBarRootConfig::default()),
+    ));
 
     commands.spawn((status_bar_item(StatusBarItemConfig {
         icon: Some(game_assets.fps_icon.clone()),

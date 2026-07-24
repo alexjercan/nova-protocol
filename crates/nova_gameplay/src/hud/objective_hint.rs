@@ -59,7 +59,7 @@ impl Plugin for ObjectiveHintPlugin {
 /// `update_hint` reveals it once there is an objective. Parenting it under
 /// [`StatusBarRootMarker`] is what puts it in the bar's flex row beside fps +
 /// version, so it can never overlap them. Visibility (the grave/tilde HUD cycle
-/// and the drawer hide) is INHERITED from the Chrome-tier bar root - the hint
+/// and the drawer hide) is INHERITED from the `Status`-tier bar root - the hint
 /// carries no `HudTier` of its own.
 fn setup_hint(
     add: On<Add, PlayerSpaceshipMarker>,
@@ -127,7 +127,7 @@ fn remove_hint(
 /// Toggles `Display` (not `Visibility`): as a flex child of the status bar a
 /// hidden-but-laid-out node would leave a gap in the row, so `Display::None`
 /// removes it from layout entirely and the bar closes up. The grave/tilde HUD
-/// cycle and the drawer hide still work - they act on the Chrome-tier bar root,
+/// cycle and the drawer hide still work - they act on the `Status`-tier bar root,
 /// whose computed visibility this child inherits.
 fn update_hint(
     objectives: Res<GameObjectives>,
