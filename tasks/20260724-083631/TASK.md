@@ -87,17 +87,36 @@ pass (see "Planning - next step"), NOT in this tracker.
    - Manual acceptance (batched to owner): a new objective appears large + slightly
      rotated, holds ~2-3s, tucks into the drawer tab handle and vanishes; reads
      well and lands into the tab.
-4. **20260721-211526** (p55, SIZE M, feature/hud/ui) Comms messages:
-   notification-style stacking, skip control, speaker icons, dismiss. Grows
-   20260717-163033 (CLOSED). Its speaker icons feed the log section below.
-5. **20260724-102309** (p50, SIZE S, spike/feature/ui/hud) Drawer comms-log
-   section: render the full `StoryFeed` as a scrollable speaker-grouped
-   transcript. Depends on the shell (102304); reuses 211526's icons.
-6. **20260724-102320** (p30, SIZE L, STRETCH, spike/feature/ui/hud) Drawer 3D
-   minimap / nav section (schematic orrery). Owner wants it in v0.9.0 but LAST,
-   after the core sections - "curious how it will look". The drawer's largest
-   single unknown; **cut first if Strand C runs long.** Depends on the shell
-   (102304).
+
+**Playtest REWORK (owner, 2026-07-24)** - after seeing shell + reveal + z-order
+in a real run, the owner reshaped the drawer family. Verdicts + the new/rescoped
+tasks (see the grooming-history block below for the full feedback):
+
+4. **20260724-134312** (p66, feature/ui/hud) Flight objective HUD: remove the
+   always-on compact objectives panel AND the drawer tab-handle square; replace
+   with a MINIMALIST top-right status-bar notification (hints Tab + gamepad);
+   repoint `DrawerTabAnchor` to it; retune the reveal SMALLER + vanish toward the
+   right. NEW. Covers feedback (1) old objective text still there, (2) dislike the
+   drawer square, (3) prefer a minimalist status-bar notification, (4) reveal too
+   big/centered.
+5. **20260724-134335** (p62, feature/ui/hud) Drawer open: HIDE the flight HUD +
+   BLUR the gray background (a present-but-dimmed HUD hurts readability); keep the
+   top status bar + the lower-left keybind hints visible; both side panels slide
+   in (right + left). NEW. The core interaction reshape.
+6. **20260721-211526** (p55, feature/hud/ui) Comms messages: stacking, skip,
+   speaker icons, dismiss. Grows 20260717-163033 (CLOSED). Its icons + StoryFeed
+   feed the left panel below.
+7. **20260724-134350** (p54, feature/ui/hud) Drawer RIGHT panel: objectives as a
+   styled LIST (not the plain text placeholder the shell shipped). NEW.
+8. **20260724-102309** (p50, spike/feature/ui/hud) Drawer LEFT panel: comms/chat
+   history + a curated flight-log EVENTS journal (nova_probe-style but in-game,
+   important events only); slides from the left; must not overlap the lower-left
+   keys. RESCOPED from "comms-log section".
+9. **20260724-102320** (p30, STRETCH, spike/feature/ui/hud) Drawer CENTER 3D
+   minimap - THIS SPRINT a placeholder: a downsized 3D map view (render-to-texture)
+   with WASD camera + placeholder asteroid/ship/enemy markers; zoom + flight
+   planning are LATER. RESCOPED to the center placeholder. **Cut first if Strand C
+   runs long.** Depends on the shell (102304) + the drawer-open rework (134335).
 
 ### Strand A - Combat readability
 
@@ -179,6 +198,29 @@ To be authored in the planning pass. Skeleton:
 
 ## Grooming history
 
+- **2026-07-24 (drawer-family playtest REWORK):** owner played shell (102304) +
+  reveal (211520) + z-order (121541) together and reshaped the drawer. Verdicts &
+  requests, filed as tasks (Strand C items 4-9 above):
+  1. The old always-on compact objectives text (top-right) is still there -> REMOVE
+     it (objectives live in the drawer + reveal now). (134312)
+  2. Dislikes the "drawer square" (tab handle) on the right during play -> remove,
+     or at most a tiny "Tab" hint. (134312)
+  3. PREFERRED: a minimalist top-right status-bar notification ("objectives" etc.),
+     terse, hinting Tab + a gamepad alternative. (134312)
+  4. The reveal is too big + too centered -> a bit SMALLER, and the vanish should
+     translate toward the RIGHT (into that notification). (134312)
+  5. Drawer opens as TWO side panels: RIGHT = objectives as a prettier LIST (rework
+     from plain text) sliding from the right (134350); LEFT = chat history + events
+     "flight-log journal" (nova_probe-style, in-game, important events) sliding from
+     the left (102309).
+  6. Background: keep the gray transparent dim (liked) and ADD blur; HIDE the
+     flight UI in drawer mode so the old UI does not fight readability. (134335)
+  7. The top STATUS BAR (readout strip) stays visible - reserve space, no drawer UI
+     on it (like a WM status bar). The lower-left keybind buttons must NOT be
+     overlapped by the left panel - keep keys visible. (134335)
+  8. CENTER of the drawer = the 3D minimap; this sprint a placeholder: downsized 3D
+     map view with WASD + placeholder markers; zoom/planning later. (102320,
+     rescoped)
 - **2026-07-24 (Tab drawer spike, 20260721-211512 CLOSED):** SPIKE.md fixed the
   drawer's v0.9.0 contents to objectives + comms log (both render data that
   already exists: `GameObjectives`, `StoryFeed`), deferring the 3D minimap
