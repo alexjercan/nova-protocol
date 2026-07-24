@@ -12,6 +12,10 @@ on:
         type: string
 
 env:
+  # The release asset names below (`<name>_<version>_<platform>.<ext>`) are
+  # matched by filename suffix in web/src/downloads.ts to deep-link the landing
+  # page download buttons. Renaming a `_windows.zip` / `_macOS.dmg` /
+  # `_linux.tar.gz` asset means updating OS_ASSET_SUFFIX there too.
   GAME_EXECUTABLE_NAME: nova-protocol
   GAME_OSX_APP_NAME: NovaProtocol
 

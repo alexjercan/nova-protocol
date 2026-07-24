@@ -371,6 +371,26 @@ main {
     font-size: 0.95rem;
     color: var(--text-muted);
 }
+/* Native-build download row, sitting below the primary Play/How-to-play CTAs. */
+.hero__downloads {
+    margin-top: 22px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+.hero__downloads-label {
+    font-size: 0.9rem;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+.hero__downloads-btns {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
 
 /* ---- buttons ------------------------------------------------------------- */
 .btn {
@@ -423,6 +443,25 @@ main {
     border-color: var(--amber);
 }
 .btn--ghost:active {
+    transform: translateY(2px);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+}
+/* Tertiary download buttons: muted panel chips that read below the primary and
+   ghost CTAs, keeping the same keycap-press idiom. */
+.btn--download {
+    color: var(--text-muted);
+    background: var(--panel);
+    border-color: var(--border);
+    box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35);
+    padding: 10px 20px;
+    font-size: 0.92rem;
+}
+.btn--download:hover {
+    color: var(--text);
+    background: var(--panel-2);
+    border-color: var(--border-bright);
+}
+.btn--download:active {
     transform: translateY(2px);
     box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
 }

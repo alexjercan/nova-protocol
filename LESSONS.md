@@ -110,6 +110,11 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   review file is dropped AND lost with the worktree (an out-of-context
   reviewer that WRITES REVIEW.md is the classic trigger - commit it before
   landing). 20260718-231601, 20260722-092427.
+- `review-agent-needs-tatr-verdict-format` (x1): an out-of-context review
+  subagent that WRITES REVIEW.md must be told the exact line format tatr checks
+  (`- VERDICT: APPROVE|REQUEST_CHANGES`) - a bare `VERDICT: APPROVE` line fails
+  `closed-not-approved` and costs a fix-up round at the compound gate.
+  20260724-074940.
 - `rename-id-sweep-in-file` (x1): after renaming a content id, grep the WHOLE
   file for the old id - lint validates spawn/prototype/filter refs but not AI
   orbit/patrol targets. 20260716-215513.
@@ -390,8 +395,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   `src/bin/*.rs` + `src/main.rs`), never by grepping `[[bin]]` stanzas -
   default targets carry no stanza (a grep pass reported 2 of 6 bins).
   20260718-152205.
-- `ci-skips-client-render` (x1): build-only CI proves the bundle compiles;
-  DOM logic needs a runtime check. 20260713-225324.
+- `ci-skips-client-render` (x2): build-only CI proves the bundle compiles;
+  DOM logic needs a runtime check. When the web project has NO browser test
+  runner, factor the risky client logic into a pure exported fn and run it
+  against REAL API JSON, stub `document`/`fetch` for the apply loop, and
+  chromium-screenshot the served build for layout. 20260713-225324,
+  20260724-074940.
 - `degrade-paths-need-a-forced-failure` (x1): a plan-claimed fallback ("skips
   gracefully when blocked") is untested until that failure is FORCED once -
   the samply perms case died under set -e and a user found it.
