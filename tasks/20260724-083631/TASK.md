@@ -77,9 +77,15 @@ pass (see "Planning - next step"), NOT in this tracker.
    the top-right objectives panel's stacking context). Shell follow-up, not a
    211520 concern.
 3. **20260721-211520** (p60, SIZE M, feature/hud/ui) Diegetic objective
-   presentation: big on the cockpit HUD, then tucks into the right tab (tweens to
-   the shell's tab-handle anchor). Depends on the shell (102304). Pairs with
-   20260721-211506 (CLOSED).
+   presentation: big on the cockpit HUD, then tucks into the right tab. **CLOSED /
+   LANDED 2026-07-24** (e6dbf78d; 1 review round, out-of-context APPROVE). A new
+   objective's big rotated card grows in, holds ~2s, tucks into the shell's
+   `DrawerTabAnchor` and despawns; replaced the gold posting ghost (completions
+   keep green). Placement via the `screen_indicator` px pattern; default clock
+   (plays unpaused). Paired with 20260721-211506 (CLOSED).
+   - Manual acceptance (batched to owner): a new objective appears large + slightly
+     rotated, holds ~2-3s, tucks into the drawer tab handle and vanishes; reads
+     well and lands into the tab.
 4. **20260721-211526** (p55, SIZE M, feature/hud/ui) Comms messages:
    notification-style stacking, skip control, speaker icons, dismiss. Grows
    20260717-163033 (CLOSED). Its speaker icons feed the log section below.
