@@ -70,6 +70,11 @@ pass (see "Planning - next step"), NOT in this tracker.
 5. **20260724-102309** (p50, SIZE S, spike/feature/ui/hud) Drawer comms-log
    section: render the full `StoryFeed` as a scrollable speaker-grouped
    transcript. Depends on the shell (102304); reuses 211526's icons.
+6. **20260724-102320** (p30, SIZE L, STRETCH, spike/feature/ui/hud) Drawer 3D
+   minimap / nav section (schematic orrery). Owner wants it in v0.9.0 but LAST,
+   after the core sections - "curious how it will look". The drawer's largest
+   single unknown; **cut first if Strand C runs long.** Depends on the shell
+   (102304).
 
 ### Strand A - Combat readability
 
@@ -114,13 +119,12 @@ pass (see "Planning - next step"), NOT in this tracker.
 - **20260724-082856** frontend app image refresh - web-content, not a v0.9.0
   game feature; backlog (consolidated the closed devlog-thumbnail and wiki-shot
   tasks).
-- **Drawer 3D minimap (20260724-102320) and ship-status/damage (20260724-102332)
-  sections** - deferred to backlog by the Tab spike (20260721-211512) to keep the
-  drawer from ballooning the release. The minimap is a net-new subsystem (the
-  drawer's largest unknown); the ship-status section overlaps STRETCH Strand B
-  (critical-damage, 20260722-092320). Both slot into the drawer's section
-  framework whenever pulled. NOTE: the 2026-07-21 owner questionnaire called
-  these "core" - reconcile at the flow gate (owner sign-off to defer).
+- **Drawer ship-status/damage section (20260724-102332)** - deferred to backlog
+  by the Tab spike (20260721-211512): it overlaps STRETCH Strand B
+  (critical-damage, 20260722-092320) and would risk double-work. Slots into the
+  drawer's section framework whenever pulled. (The 3D minimap, also "core" in the
+  2026-07-21 questionnaire, was pulled INTO v0.9.0 as a stretch item - see Strand
+  C item 6.)
 
 ## Planning - next step (pending owner OK)
 
@@ -160,8 +164,12 @@ To be authored in the planning pass. Skeleton:
   `PauseStates::Drawer` sim-gate variant reusing the 211500 cursor/freeze hooks,
   slide-in via bcs TweenPlugin, tab-handle screen anchor as 211520's diegetic
   tuck-target. Seeded the shell (20260724-102304, gate) and comms-log
-  (20260724-102309) tasks; Strand C reordered above. Owner reconciliation of the
-  "core four" vs the tighter set is pending at the flow gate.
+  (20260724-102309) tasks; Strand C reordered above.
+- **2026-07-24 (owner contents call, post-spike):** owner pulled the 3D minimap
+  (20260724-102320) back INTO v0.9.0 as a STRETCH item - wants it but at the end,
+  after the core sections, "curious how it will look"; cut first if Strand C runs
+  long (p30, Strand C item 6). Ship-status (20260724-102332) stays deferred to
+  backlog (overlaps stretch Strand B).
 - **2026-07-24 (planning triage + v0.9.0 groom):** triaged the 28-item backlog.
   Closed as wontdo: 20260723-224003 (AI gravity wells). Consolidated the two
   frontend-image tasks (20260715-092658, 20260715-231500) into new

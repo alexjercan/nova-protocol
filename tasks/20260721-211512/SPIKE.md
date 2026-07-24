@@ -195,14 +195,14 @@ resist front-loading them.
 
 ## Open questions
 
-- **Owner reconciliation (contents).** The 2026-07-21 questionnaire called the
-  3D minimap and ship-status "core"; the 2026-07-24 tracker recommends deferring
-  the minimap. This spike recommends the tracker's tighter set (objectives +
-  comms log). This needs one explicit owner "yes, defer the minimap +
-  ship-status to backlog for v0.9.0" at the flow gate. If the owner wants the
-  minimap in v0.9.0, pull task 3 below from backlog into v0.9.0 and expect the
-  release to grow by the largest single unknown (option C) - re-slot, do not
-  silently absorb.
+- **Owner reconciliation (contents) - RESOLVED 2026-07-24.** The 2026-07-21
+  questionnaire called the 3D minimap and ship-status "core"; this spike
+  recommended the tracker's tighter set (objectives + comms log). Owner call:
+  keep the **minimap in v0.9.0 as a STRETCH item** (do it LAST, "curious how it
+  will look", cut first if the core runs long) - pulled in as task
+  20260724-102320 (p30, stretch). **Ship-status stays deferred** to backlog
+  (20260724-102332). So v0.9.0 drawer = objectives + comms log (committed) +
+  minimap (stretch).
 - **ESC precedence from the drawer.** Recommended: ESC in `Drawer` closes to
   `Unpaused` (not into the pause menu). Trivially reversible; confirm in
   playtest.
@@ -230,12 +230,16 @@ shell task is the gate for the drawer sections and for 211520's tuck-target.
   `StoryFeed` as a scrollable speaker-grouped transcript in the drawer; reuses
   211526's speaker icons. Depends on the shell.
 
-**Deferred to backlog (documented, not pulled unless the owner reverses the
-contents call):**
+**v0.9.0 STRETCH (owner call 2026-07-24, post-spike - pulled in but LAST, cut
+first if the core runs long):**
 
-- tatr 20260724-102320 (p0, backlog): Drawer 3D minimap / nav section -
+- tatr 20260724-102320 (p30, stretch): Drawer 3D minimap / nav section -
   schematic-orrery design (option C2) captured; net-new subsystem, the release's
-  largest single unknown.
+  largest single unknown. Owner wants it in v0.9.0 but at the end - "curious how
+  it will look".
+
+**Deferred to backlog:**
+
 - tatr 20260724-102332 (p0, backlog): Drawer ship-status / damage section -
   overlaps the STRETCH critical-damage model (20260722-092320); sequence after
   it lands.
