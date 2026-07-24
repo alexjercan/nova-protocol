@@ -49,16 +49,27 @@ pass (see "Planning - next step"), NOT in this tracker.
 ### Strand C - Cockpit ship-computer drawer (headline)
 
 1. **20260721-211512** (p80, SIZE M, spike/ui/hud) Spike: the Tab ship-computer
-   drawer - objectives, comms log, 3D minimap, what else. GATES the two features
-   below; must FIX the drawer's v0.9.0 contents (recommend: objectives + comms
-   log in, defer the 3D minimap) so the release cannot balloon. Depends on the
-   cursor machinery from 20260721-211500 (CLOSED).
-2. **20260721-211520** (p60, SIZE M, feature/hud/ui) Diegetic objective
-   presentation: big on the cockpit HUD, then tucks into the right tab. Depends
-   on the spike (211512). Pairs with 20260721-211506 (CLOSED).
-3. **20260721-211526** (p55, SIZE M, feature/hud/ui) Comms messages:
-   notification-style stacking, skip control, speaker icons, dismiss. Depends on
-   the spike (211512) for the log view. Grows 20260717-163033 (CLOSED).
+   drawer. **CLOSED 2026-07-24** - SPIKE.md RECOMMENDED. Fixed the v0.9.0
+   contents to **objectives + comms log** (deferred the 3D minimap and
+   ship-status to backlog per the "cannot balloon" directive) and the
+   interaction model (Tab keybind, new `PauseStates::Drawer` sim-gate variant,
+   slide-in via bcs TweenPlugin, tab-handle anchor as 211520's tuck-target).
+   Seeded the shell + log tasks below. Depended on 20260721-211500 (CLOSED).
+2. **20260724-102304** (p72, SIZE M, spike/feature/ui/hud) Drawer shell +
+   interaction model + objectives section. The headline foundation - Tab
+   keybind, `PauseStates::Drawer`, slide animation, tab-handle screen anchor,
+   section framework, expanded objectives. Carries the A2 pause-axis DECISION.md.
+   GATES 211520 and the comms-log section.
+3. **20260721-211520** (p60, SIZE M, feature/hud/ui) Diegetic objective
+   presentation: big on the cockpit HUD, then tucks into the right tab (tweens to
+   the shell's tab-handle anchor). Depends on the shell (102304). Pairs with
+   20260721-211506 (CLOSED).
+4. **20260721-211526** (p55, SIZE M, feature/hud/ui) Comms messages:
+   notification-style stacking, skip control, speaker icons, dismiss. Grows
+   20260717-163033 (CLOSED). Its speaker icons feed the log section below.
+5. **20260724-102309** (p50, SIZE S, spike/feature/ui/hud) Drawer comms-log
+   section: render the full `StoryFeed` as a scrollable speaker-grouped
+   transcript. Depends on the shell (102304); reuses 211526's icons.
 
 ### Strand A - Combat readability
 
@@ -103,6 +114,13 @@ pass (see "Planning - next step"), NOT in this tracker.
 - **20260724-082856** frontend app image refresh - web-content, not a v0.9.0
   game feature; backlog (consolidated the closed devlog-thumbnail and wiki-shot
   tasks).
+- **Drawer 3D minimap (20260724-102320) and ship-status/damage (20260724-102332)
+  sections** - deferred to backlog by the Tab spike (20260721-211512) to keep the
+  drawer from ballooning the release. The minimap is a net-new subsystem (the
+  drawer's largest unknown); the ship-status section overlaps STRETCH Strand B
+  (critical-damage, 20260722-092320). Both slot into the drawer's section
+  framework whenever pulled. NOTE: the 2026-07-21 owner questionnaire called
+  these "core" - reconcile at the flow gate (owner sign-off to defer).
 
 ## Planning - next step (pending owner OK)
 
@@ -134,6 +152,16 @@ To be authored in the planning pass. Skeleton:
 
 ## Grooming history
 
+- **2026-07-24 (Tab drawer spike, 20260721-211512 CLOSED):** SPIKE.md fixed the
+  drawer's v0.9.0 contents to objectives + comms log (both render data that
+  already exists: `GameObjectives`, `StoryFeed`), deferring the 3D minimap
+  (20260724-102320) and ship-status (20260724-102332) to backlog per the
+  "cannot balloon" directive. Interaction model settled: Tab keybind, a new
+  `PauseStates::Drawer` sim-gate variant reusing the 211500 cursor/freeze hooks,
+  slide-in via bcs TweenPlugin, tab-handle screen anchor as 211520's diegetic
+  tuck-target. Seeded the shell (20260724-102304, gate) and comms-log
+  (20260724-102309) tasks; Strand C reordered above. Owner reconciliation of the
+  "core four" vs the tighter set is pending at the flow gate.
 - **2026-07-24 (planning triage + v0.9.0 groom):** triaged the 28-item backlog.
   Closed as wontdo: 20260723-224003 (AI gravity wells). Consolidated the two
   frontend-image tasks (20260715-092658, 20260715-231500) into new
