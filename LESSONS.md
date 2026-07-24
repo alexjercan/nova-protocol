@@ -583,13 +583,15 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   security boundary name it and default to the safe path. 20260715-214540.
 - `nix-devshell-for-cargo` (x2): no cargo on PATH means prefix with
   `nix develop --command ...` from the repo. 20260715-140049.
-- `reuse-known-good-stack` (x4, positive -> Pending promotions): scaffold new
+- `reuse-known-good-stack` (x5, positive -> Pending promotions): scaffold new
   work - and TEST RIGS especially - by copying the nearest passing in-repo
   reference verbatim, THEN mutate; reconstructing from a signature cost build
   cycles twice (manual `ButtonInput` needs `clear()`; the flyable-ship rig omits
   `FlightIntent`; a clock-driven reveal needed the manual-duration rig the sibling
-  tests already had). Applies to PRODUCTION too: copying `screen_indicator`'s
-  node-to-screen placement avoided a coordinate rabbit hole. 20260712-093048, 20260711-180511, 20260724-102304, 20260721-211520.
+  tests already had). Applies to PRODUCTION and FIXES too: copied
+  `screen_indicator`'s node placement (coord rabbit hole avoided) and nova_menu's
+  `GlobalZIndex` modal tier + overlay-z test shape (a UI-stacking fix made
+  mechanical). 20260712-093048, 20260711-180511, 20260724-102304, 20260721-211520, 20260724-121541.
 - `measure-before-writing-the-number` (x2): never write a quantity into a doc
   from a mental model; backfill from a run. 20260712-105505, 20260717-143806.
 - `manual-time-rig-measures-its-clock` (x2): `Time<Virtual>` clamps manual
@@ -888,7 +890,7 @@ here (annotated) as the paid record.
 
 ## Pending promotions (3+ occurrences, user decides)
 
-- `reuse-known-good-stack` (x4, positive) -> work skill: scaffold a new test rig
+- `reuse-known-good-stack` (x5, positive) -> work skill: scaffold a new test rig
   by copying the nearest passing sibling rig verbatim, then mutate - do not
   reconstruct it from the system's parameter signature. Prose target (the skill
   already says "grep the module for an existing rig of the same kind first"; this

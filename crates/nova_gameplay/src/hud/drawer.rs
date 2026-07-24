@@ -47,6 +47,14 @@ const DRAWER_TITLE_FONT_PX: f32 = 16.0;
 const DRAWER_SECTION_TITLE_FONT_PX: f32 = 12.0;
 const DRAWER_LINE_FONT_PX: f32 = 13.0;
 
+/// Global stacking-context z for the OPEN drawer: it is a modal, so backdrop and
+/// panel rise above the flight HUD chrome (which carries no `GlobalZIndex` = 0).
+/// Same modal tier the pause overlay uses (`nova_menu`); the drawer and the
+/// pause menu are mutually exclusive `PauseStates` variants, so sharing the tier
+/// is fine. The tab handle stays at the HUD z (it is chrome). Task 20260724-121541.
+const DRAWER_BACKDROP_Z: i32 = 10;
+const DRAWER_PANEL_Z: i32 = 11;
+
 /// The sliding panel root. Carries [`DrawerOpenness`].
 #[derive(Component)]
 struct DrawerRootMarker;
@@ -271,6 +279,7 @@ fn setup_drawer(
     commands.spawn((
         Name::new("DrawerBackdrop"),
         DrawerBackdropMarker,
+        GlobalZIndex(DRAWER_BACKDROP_Z),
         Visibility::Hidden,
         Node {
             position_type: PositionType::Absolute,
@@ -309,6 +318,7 @@ fn setup_drawer(
             Name::new("DrawerPanel"),
             DrawerRootMarker,
             DrawerOpenness(0.0),
+            GlobalZIndex(DRAWER_PANEL_Z),
             Visibility::Hidden,
             Node {
                 position_type: PositionType::Absolute,
@@ -518,6 +528,42 @@ mod tests {
                 "Dock at the relay".to_string()
             ],
             "the objectives section renders one line per objective"
+        );
+    }
+
+    /// The open drawer is a modal: its panel and backdrop must carry an explicit
+    /// `GlobalZIndex` above the HUD chrome (which carries none = 0), or the
+    /// top-right objectives panel and other flight HUD draw over it. Mirrors
+    /// nova_menu's overlay-z assertion. Fails before the fix (no `GlobalZIndex`).
+    #[test]
+    fn drawer_renders_above_the_hud() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_observer(setup_drawer);
+        // setup_drawer fires on the player ship's PlayerSpaceshipMarker add.
+        app.world_mut()
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker));
+        app.update();
+
+        let panel_z = app
+            .world_mut()
+            .query_filtered::<&GlobalZIndex, With<DrawerRootMarker>>()
+            .single(app.world())
+            .expect("the drawer panel carries an explicit GlobalZIndex")
+            .0;
+        let backdrop_z = app
+            .world_mut()
+            .query_filtered::<&GlobalZIndex, With<DrawerBackdropMarker>>()
+            .single(app.world())
+            .expect("the drawer backdrop carries an explicit GlobalZIndex")
+            .0;
+        assert!(
+            backdrop_z > 0,
+            "the backdrop must stack above the HUD chrome (z = {backdrop_z})"
+        );
+        assert!(
+            panel_z >= backdrop_z,
+            "the panel sits at or above the backdrop (panel {panel_z}, backdrop {backdrop_z})"
         );
     }
 }
