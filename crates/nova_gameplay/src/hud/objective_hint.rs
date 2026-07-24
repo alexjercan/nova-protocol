@@ -1,8 +1,16 @@
-//! The minimalist flight objective HINT (task 20260724-134312): a small
-//! top-right status widget that replaced the always-on compact objectives panel.
-//! It shows just an objective glyph + the ACTIVE-objective COUNT + a "TAB"
-//! affordance (owner choice - the per-objective detail lives in the diegetic
-//! reveal and the Tab drawer, not here). It hides when there are no objectives.
+//! The minimalist flight objective HINT (task 20260724-134312): the
+//! ACTIVE-objective COUNT + a "TAB" affordance (owner choice - the per-objective
+//! detail lives in the diegetic reveal and the Tab drawer, not here). It
+//! collapses when there are no objectives.
+//!
+//! The hint is a BLOCK IN THE STATUS BAR (task 20260724-161545): it is parented
+//! into the bcs status-bar row (the fps/version bar) so it flows beside those
+//! items and can never overlap the version, instead of floating as its own
+//! top-right node (which collided with the version). It renders as plain text
+//! (no pill/glyph) to match the other bar items. It is parented as our OWN child
+//! of `StatusBarRootMarker` rather than a `status_bar_item`, because it needs its
+//! own node markers for the two behaviours below (the registry's auto-insert
+//! builds an unmarked text-only visual).
 //!
 //! It is also the source of the diegetic reveal's tuck anchor: the hint writes
 //! [`DrawerTabAnchor`] from its own screen rect (the reveal, task 20260721-211520,
@@ -10,22 +18,19 @@
 //! handle as the tuck target.
 
 use bevy::prelude::*;
-use bevy_common_systems::prelude::GameObjectives;
+use bevy_common_systems::prelude::{GameObjectives, StatusBarRootMarker};
 use nova_ui::theme;
 
-use super::{drawer::DrawerTabAnchor, HudSelfDrivenVisibility, HudTier, NovaHudSystems};
+use super::{drawer::DrawerTabAnchor, NovaHudSystems};
 use crate::prelude::*;
 
-const HINT_TOP_PX: f32 = 16.0;
-const HINT_RIGHT_PX: f32 = 8.0;
-const HINT_GLYPH_PX: f32 = 10.0;
 const HINT_FONT_PX: f32 = 14.0;
 const HINT_CHIP_FONT_PX: f32 = 11.0;
 /// Nominal hint size for the reveal's tuck rect (the exact width flexes with the
 /// count; the CENTRE is what the tuck aims at). Task 20260721-211520's target.
 const HINT_ANCHOR_SIZE: Vec2 = Vec2::new(120.0, 28.0);
 
-/// The hint root - a top-right row (glyph + count + TAB chip). Also the tuck
+/// The hint block in the status bar (count + TAB, plain text). Also the tuck
 /// anchor source for the diegetic reveal.
 #[derive(Component)]
 struct ObjectiveHintMarker;
@@ -49,68 +54,62 @@ impl Plugin for ObjectiveHintPlugin {
     }
 }
 
-/// Spawn the hint with the player ship (mirrors the other HUD widgets). Starts
-/// hidden; `update_hint` shows it once there is an objective.
+/// Spawn the hint as a child of the status-bar row when the player ship appears
+/// (mirrors the other HUD widgets). It starts collapsed (`Display::None`);
+/// `update_hint` reveals it once there is an objective. Parenting it under
+/// [`StatusBarRootMarker`] is what puts it in the bar's flex row beside fps +
+/// version, so it can never overlap them. Visibility (the grave/tilde HUD cycle
+/// and the drawer hide) is INHERITED from the Chrome-tier bar root - the hint
+/// carries no `HudTier` of its own.
 fn setup_hint(
     add: On<Add, PlayerSpaceshipMarker>,
     mut commands: Commands,
     q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+    q_bar: Query<Entity, With<StatusBarRootMarker>>,
 ) {
     if q_spaceship.get(add.entity).is_err() {
         return;
     }
-    commands
-        .spawn((
-            Name::new("ObjectiveHintHUD"),
+    let Ok(bar) = q_bar.single() else {
+        // No status bar (a minimal rig without nova_core's setup_status_ui);
+        // the hint lives in the bar, so without it there is nothing to attach to.
+        warn!("objective hint: no status bar root found; hint not spawned");
+        return;
+    };
+    commands.entity(bar).with_children(|bar| {
+        bar.spawn((
+            Name::new("ObjectiveHintItem"),
             ObjectiveHintMarker,
-            HudTier::Chrome,
-            // The widget drives its own visibility (hidden at count 0), so the
-            // HUD-level restore must not stomp it.
-            HudSelfDrivenVisibility,
-            Visibility::Hidden,
+            Pickable::IGNORE,
+            // Metrics match the bcs status-bar item so the block sits flush with
+            // fps/version. Starts collapsed so an objective-less bar has no gap.
             Node {
-                position_type: PositionType::Absolute,
-                top: Val::Px(HINT_TOP_PX),
-                right: Val::Px(HINT_RIGHT_PX),
+                display: Display::None,
+                height: Val::Px(24.0),
+                margin: UiRect::all(Val::Px(4.0)),
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(6.0),
+                justify_content: JustifyContent::Center,
+                flex_direction: FlexDirection::Row,
+                column_gap: Val::Px(4.0),
                 ..default()
             },
-            Pickable::IGNORE,
         ))
         .with_children(|hint| {
-            // Objective glyph: a small gold square.
-            hint.spawn((
-                Node {
-                    width: Val::Px(HINT_GLYPH_PX),
-                    height: Val::Px(HINT_GLYPH_PX),
-                    ..default()
-                },
-                BackgroundColor(theme::semantic::OBJECTIVE),
-            ));
-            // Active-objective count.
+            // Active-objective count (gold, the objective accent).
             hint.spawn((
                 ObjectiveHintCountMarker,
                 Text::new("0"),
                 TextFont::from_font_size(HINT_FONT_PX),
                 TextColor(theme::semantic::OBJECTIVE),
             ));
-            // The "TAB" affordance chip.
+            // The "TAB" affordance, plain muted text (no pill).
             hint.spawn((
-                Node {
-                    padding: UiRect::axes(Val::Px(5.0), Val::Px(1.0)),
-                    border: UiRect::all(Val::Px(1.0)),
-                    ..default()
-                },
-                BorderColor::all(theme::BORDER_BRIGHT),
-                BackgroundColor(theme::PANEL),
-                children![(
-                    Text::new("TAB"),
-                    TextFont::from_font_size(HINT_CHIP_FONT_PX),
-                    TextColor(theme::TEXT_MUTED),
-                )],
+                Text::new("TAB"),
+                TextFont::from_font_size(HINT_CHIP_FONT_PX),
+                TextColor(theme::TEXT_MUTED),
             ));
         });
+    });
 }
 
 /// Despawn the hint with the player ship.
@@ -124,22 +123,27 @@ fn remove_hint(
     }
 }
 
-/// Keep the count current and hide the hint when there are no objectives.
+/// Keep the count current and collapse the hint when there are no objectives.
+/// Toggles `Display` (not `Visibility`): as a flex child of the status bar a
+/// hidden-but-laid-out node would leave a gap in the row, so `Display::None`
+/// removes it from layout entirely and the bar closes up. The grave/tilde HUD
+/// cycle and the drawer hide still work - they act on the Chrome-tier bar root,
+/// whose computed visibility this child inherits.
 fn update_hint(
     objectives: Res<GameObjectives>,
-    mut q_root: Query<&mut Visibility, With<ObjectiveHintMarker>>,
+    mut q_root: Query<&mut Node, With<ObjectiveHintMarker>>,
     mut q_count: Query<&mut Text, With<ObjectiveHintCountMarker>>,
 ) {
     let count = objectives.objectives.len();
-    for mut visibility in &mut q_root {
-        // Hidden at 0; otherwise Inherited so the HUD-visibility cycle can still
-        // hide the whole Chrome tier above it.
-        let wanted = if count == 0 {
-            Visibility::Hidden
-        } else {
-            Visibility::Inherited
-        };
-        visibility.set_if_neq(wanted);
+    let wanted = if count == 0 {
+        Display::None
+    } else {
+        Display::Flex
+    };
+    for mut node in &mut q_root {
+        if node.display != wanted {
+            node.display = wanted;
+        }
     }
     for mut text in &mut q_count {
         let s = count.to_string();
@@ -179,6 +183,9 @@ mod tests {
         app.init_resource::<DrawerTabAnchor>();
         app.add_observer(setup_hint);
         app.add_systems(Update, (update_hint, update_tab_anchor));
+        // The hint lives in the status bar, so the bar root must exist first
+        // (the real bar comes from nova_core's setup_status_ui).
+        app.world_mut().spawn(StatusBarRootMarker);
         // A player ship spawns the hint (like the real HUD).
         app.world_mut()
             .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker));
@@ -186,11 +193,28 @@ mod tests {
         app
     }
 
-    fn hint_visibility(app: &mut App) -> Visibility {
-        *app.world_mut()
-            .query_filtered::<&Visibility, With<ObjectiveHintMarker>>()
+    fn hint_display(app: &mut App) -> Display {
+        app.world_mut()
+            .query_filtered::<&Node, With<ObjectiveHintMarker>>()
             .single(app.world())
-            .expect("the hint spawned")
+            .expect("the hint spawned in the status bar")
+            .display
+    }
+
+    /// The hint is parented under the status bar root, not spawned free-floating.
+    fn hint_parent_is_bar(app: &mut App) -> bool {
+        let bar = app
+            .world_mut()
+            .query_filtered::<Entity, With<StatusBarRootMarker>>()
+            .single(app.world())
+            .expect("the bar root exists");
+        let parent = app
+            .world_mut()
+            .query_filtered::<&ChildOf, With<ObjectiveHintMarker>>()
+            .single(app.world())
+            .expect("the hint has a parent")
+            .0;
+        parent == bar
     }
 
     fn hint_count_text(app: &mut App) -> String {
@@ -203,27 +227,34 @@ mod tests {
     }
 
     #[test]
-    fn objective_hint_shows_count_and_hides_when_empty() {
+    fn objective_hint_is_a_status_bar_block_that_collapses_when_empty() {
         let mut app = hint_app();
-        // No objectives: hidden.
-        assert_eq!(hint_visibility(&mut app), Visibility::Hidden);
+        // It lives in the bar (not a free-floating top-right node), so it flows
+        // beside fps/version and cannot overlap them.
+        assert!(
+            hint_parent_is_bar(&mut app),
+            "the hint is parented under the status bar root"
+        );
+        // No objectives: collapsed out of the row (Display::None, not just hidden,
+        // so it leaves no gap).
+        assert_eq!(hint_display(&mut app), Display::None);
 
         app.world_mut().resource_mut::<GameObjectives>().objectives =
             vec![Objective::new("b1", "Burn"), Objective::new("b2", "Dock")];
         app.update();
         assert_eq!(
-            hint_visibility(&mut app),
-            Visibility::Inherited,
-            "two objectives -> the hint shows"
+            hint_display(&mut app),
+            Display::Flex,
+            "two objectives -> the hint takes its place in the row"
         );
         assert_eq!(hint_count_text(&mut app), "2", "the hint shows the count");
 
         app.world_mut().resource_mut::<GameObjectives>().objectives = Vec::new();
         app.update();
         assert_eq!(
-            hint_visibility(&mut app),
-            Visibility::Hidden,
-            "no objectives -> the hint hides"
+            hint_display(&mut app),
+            Display::None,
+            "no objectives -> the hint collapses out of the row"
         );
     }
 

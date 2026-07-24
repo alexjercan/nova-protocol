@@ -203,8 +203,8 @@ impl Plugin for NovaHudPlugin {
         // drawer + the diegetic reveal read it) and its `rebuild_lines`
         // no-ops when no objectives panel exists. The always-on compact
         // objectives panel was REMOVED from flight (task 20260724-134312):
-        // objectives now surface via the diegetic reveal, the minimalist
-        // top-right hint (`objective_hint`) and the Tab drawer's right panel.
+        // objectives now surface via the diegetic reveal, the objective hint
+        // in the status bar (`objective_hint`) and the Tab drawer's right panel.
         app.add_plugins(ObjectivesPlugin);
         // bcs tween advancement for HUD fades (first Nova adoption, task
         // 20260717-163033); registered here once for every HUD widget.
@@ -267,7 +267,8 @@ impl Plugin for NovaHudPlugin {
 // The always-on compact objectives panel (spawn_objectives_panel /
 // style_objective_lines / setup_hud_objectives / remove_hud_objectives) was
 // REMOVED in task 20260724-134312; objectives now surface via the diegetic
-// reveal, the top-right hint (`objective_hint`) and the Tab drawer's right panel.
+// reveal, the objective hint in the status bar (`objective_hint`) and the Tab
+// drawer's right panel.
 
 /// Cycle the HUD level on grave/tilde (or the gamepad Select button).
 /// Press-to-cycle, no hold gesture (the spike's call: three states are at most

@@ -1,8 +1,8 @@
 # Objective hint becomes a plain status-bar item (fix top-right overlap with the version)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 58
-- TAGS: v0.9.0,feature,ui,hud
+- TAGS: v0.9.0, feature, ui, hud
 
 # Objective hint becomes a plain status-bar item (fix top-right overlap with the version)
 
