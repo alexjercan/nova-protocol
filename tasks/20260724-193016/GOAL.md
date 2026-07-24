@@ -56,11 +56,17 @@ collapsible campaign groups.
 
 Updated as tasks land (one line per land).
 
-(to be filled at the plan gate)
+- [ ] 20260724-193830 (p66, nova_scenario/nova_modding/nova_assets) Campaign
+      content entity: first-class ordered scenario mapping (GameCampaigns);
+      retire per-scenario ScenarioCampaign.
+- [ ] 20260723-095951 (p64, nova_menu) Collapsible campaign-header picker +
+      per-chapter replay launch + harness + docs. DEPENDS ON 20260724-193830.
 
 ## Decisions (load-bearing, architectural)
 
-(to be filled at the plan gate)
+- 20260724-193830 DECISION.md: campaign is a first-class `Content::Campaign`
+  entity (single source of truth); per-scenario `ScenarioCampaign` retired; all
+  hidden chained members are launchable. (ACCEPTED)
 
 ## Manual acceptance (batched for the user at Finish)
 
