@@ -2129,34 +2129,16 @@ fn spawn_mod_row(list: &mut ChildSpawnerCommands, m: &ModInfo, enabled: bool, se
     });
 }
 
-/// The scenarios the picker lists: every `!hidden` entry, GROUPED by campaign
-/// and ORDERED within a campaign, with uncampaigned scenarios after the
-/// campaigns. Campaign members sort by campaign name then `order`, so the base
-/// storyline reads "Shakedown Run" (1), "Broadside" (2), "Lifeline" (3)
-/// contiguously; uncampaigned scenarios sort by display name. A stable,
-/// deterministic order over the HashMap-backed registry (final tie-break on
-/// id).
+/// The scenarios the picker lists: every `!hidden` entry, in a stable order by
+/// display name then id over the HashMap-backed registry.
+///
+/// This is the flat baseline. The collapsible campaign-header UI - which reads
+/// the first-class `GameCampaigns` mapping (task 20260724-193830) to group and
+/// launch campaign members, hidden ones included - is the follow-up UI task
+/// 20260723-095951; until it lands the picker lists the flat `!hidden` set.
 fn listed_scenarios(scenarios: &GameScenarios) -> Vec<ScenarioConfig> {
     let mut out: Vec<ScenarioConfig> = scenarios.values().filter(|s| !s.hidden).cloned().collect();
-    // Sort key: campaigned scenarios first (grouped by campaign name, ordered
-    // by `order`), then uncampaigned by name; id breaks any remaining tie.
-    out.sort_by(|a, b| {
-        let key = |s: &ScenarioConfig| {
-            let (has_campaign, campaign_name, order) = match &s.campaign {
-                // `false` sorts before `true`, so campaigned entries lead.
-                Some(c) => (false, c.name.clone(), c.order),
-                None => (true, String::new(), 0),
-            };
-            (
-                has_campaign,
-                campaign_name,
-                order,
-                s.name.clone(),
-                s.id.clone(),
-            )
-        };
-        key(a).cmp(&key(b))
-    });
+    out.sort_by(|a, b| (&a.name, &a.id).cmp(&(&b.name, &b.id)));
     out
 }
 
@@ -2225,17 +2207,13 @@ fn refresh_scenarios_list(
     });
 }
 
-/// The label a scenario row shows for its title. A campaign member gets an
-/// inline position prefix - `"<campaign> <order> - <title>"`, e.g.
-/// `"Nova Protocol 1 - Shakedown Run"` - so a player sees which campaign it
-/// belongs to and where it sits at a glance; an uncampaigned scenario keeps its
-/// bare name. (The richer collapsible campaign-header UI is the deferred
-/// follow-up, task 20260723-095951.)
+/// The label a scenario row shows for its title: the scenario's display name.
+///
+/// The interim inline campaign prefix ("Nova Protocol 1 - Shakedown Run") is
+/// gone - campaign grouping moves to the collapsible campaign-header UI reading
+/// `GameCampaigns` (task 20260723-095951).
 fn scenario_row_label(s: &ScenarioConfig) -> String {
-    match &s.campaign {
-        Some(c) => format!("{} {} - {}", c.name, c.order, s.name),
-        None => s.name.clone(),
-    }
+    s.name.clone()
 }
 
 /// Spawn one clickable scenario row: name over a muted description snippet.
@@ -2333,8 +2311,7 @@ fn refresh_scenario_details(
 
         details.spawn((
             Name::new("Scenario Details Name"),
-            // Same inline campaign prefix as the list row, so a selected member
-            // reads "Nova Protocol 1 - Shakedown Run" here too.
+            // Same label as the list row (the scenario's display name).
             Text::new(scenario_row_label(&scenario)),
             TextFont {
                 font_size: FontSize::Px(20.0),
@@ -6734,89 +6711,18 @@ mod tests {
         );
     }
 
-    /// A campaigned picker fixture: `id`/`name` plus a
-    /// `campaign: Some((name, order))`. Used to prove the picker groups and
-    /// orders campaign members instead of alphabetising them.
-    fn campaign_scenario(
-        id: &str,
-        name: &str,
-        campaign: &str,
-        order: u32,
-    ) -> (String, ScenarioConfig) {
-        (
-            id.to_string(),
-            ScenarioConfig {
-                id: id.to_string(),
-                name: name.to_string(),
-                description: format!("{name} blurb"),
-                campaign: Some(ScenarioCampaign {
-                    name: campaign.to_string(),
-                    order,
-                }),
-                ..Default::default()
-            },
-        )
-    }
-
-    /// The picker groups campaign members contiguously and orders them by
-    /// `order`, NOT alphabetically, with uncampaigned scenarios after the
-    /// campaigns. The three Nova Protocol members are inserted here in
-    /// scrambled order and carry names whose alphabetical order (Broadside <
-    /// Lifeline < Shakedown) differs from their campaign order (1 Shakedown, 2
-    /// Broadside, 3 Lifeline), so a plain name sort would fail this.
+    /// The flat baseline (the interim campaign grouping is superseded by the
+    /// collapsible-header UI, task 20260723-095951): the picker lists every
+    /// `!hidden` scenario sorted by display name, and a hidden backdrop does not
+    /// render. Reads the ACTUAL spawned row Text in child order through the real
+    /// spawn path, so it would catch a spawn path that ignored the sort or the
+    /// hidden filter.
     #[test]
-    fn listed_scenarios_groups_campaign_members_in_order() {
-        let scenarios = GameScenarios(bevy::platform::collections::HashMap::from([
-            campaign_scenario("lifeline", "Lifeline", "Nova Protocol", 3),
-            campaign_scenario("shakedown", "Shakedown Run", "Nova Protocol", 1),
-            campaign_scenario("broadside", "Broadside", "Nova Protocol", 2),
-            picker_scenario("asteroid_field", "Asteroid Field", false),
-        ]));
-        let order: Vec<String> = listed_scenarios(&scenarios)
-            .into_iter()
-            .map(|s| s.id)
-            .collect();
-        assert_eq!(
-            order,
-            vec![
-                "shakedown".to_string(),
-                "broadside".to_string(),
-                "lifeline".to_string(),
-                "asteroid_field".to_string(),
-            ],
-            "campaign members list contiguous in `order` (1,2,3), then \
-             uncampaigned by name - not alphabetical (which would put \
-             Asteroid Field first and Shakedown last)"
-        );
-    }
-
-    /// A campaigned row is labelled with its inline campaign prefix
-    /// ("<campaign> <order> - <title>"); an uncampaigned row keeps its bare
-    /// title. This is the player-facing "Nova Protocol 1 - Shakedown Run" cue.
-    #[test]
-    fn scenario_row_label_prefixes_campaign_members() {
-        let (_, member) = campaign_scenario("shakedown", "Shakedown Run", "Nova Protocol", 1);
-        assert_eq!(
-            scenario_row_label(&member),
-            "Nova Protocol 1 - Shakedown Run"
-        );
-        let (_, standalone) = picker_scenario("asteroid_field", "Asteroid Field", false);
-        assert_eq!(scenario_row_label(&standalone), "Asteroid Field");
-    }
-
-    /// End-to-end through the real spawn path (refresh_scenarios_list ->
-    /// spawn_scenario_row): a base-like registry - three Nova Protocol members
-    /// inserted scrambled, one uncampaigned standalone, one hidden backdrop -
-    /// renders its rows in campaign order with the inline prefix, standalone
-    /// after, hidden absent. Reads the ACTUAL spawned row Text in child order,
-    /// so it would catch a spawn path that ignored the label or the sort.
-    #[test]
-    fn picker_rows_render_campaign_grouped_and_prefixed() {
+    fn picker_rows_render_flat_name_sorted() {
         let mut app = app();
         app.insert_resource(GameScenarios(bevy::platform::collections::HashMap::from([
-            campaign_scenario("lifeline", "Lifeline", "Nova Protocol", 3),
-            campaign_scenario("shakedown", "Shakedown Run", "Nova Protocol", 1),
-            campaign_scenario("broadside", "Broadside", "Nova Protocol", 2),
+            picker_scenario("shakedown", "Shakedown Run", false),
+            picker_scenario("broadside", "Broadside", false),
             picker_scenario("asteroid_field", "Asteroid Field", false),
             picker_scenario(TEST_BACKDROP_ID, "Menu Ambience", true),
         ])));
@@ -6828,13 +6734,11 @@ mod tests {
         assert_eq!(
             scenario_row_labels_in_order(&mut app),
             vec![
-                "Nova Protocol 1 - Shakedown Run".to_string(),
-                "Nova Protocol 2 - Broadside".to_string(),
-                "Nova Protocol 3 - Lifeline".to_string(),
                 "Asteroid Field".to_string(),
+                "Broadside".to_string(),
+                "Shakedown Run".to_string(),
             ],
-            "rows render campaign-grouped (1,2,3), inline-prefixed, standalone \
-             after; the hidden backdrop does not render"
+            "rows render sorted by display name; the hidden backdrop does not render"
         );
     }
 

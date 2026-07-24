@@ -30,7 +30,8 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   step is not proof - `grep -rn <oldname>` the WHOLE doc tree (wiki + news +
   READMEs + CHANGELOGs), fix every live-state hit and LEAVE dated history (root
   CHANGELOG, per-release news, tasks/) with a reason - never pre-narrow the grep
-  to one subdir. 20260718-004723, 20260719-112231, 20260718-231555, 20260720-224236, 20260722-214119.
+  to one subdir. A NEW content KIND is a doc surface too: sweep the content-kind
+  enumerations (modding-ron, guide-make-a-mod, scenario-system). 20260718-004723, 20260719-112231, 20260718-231555, 20260720-224236, 20260722-214119, 20260724-193830.
 - `doc-sweep-covers-source-doc-comments` (x1): when RENAMING/REMOVING a
   command or symbol, `grep -rn '<oldname>' --include='*.rs'` the source
   `//!`/`///` doc comments too - a CLI surface is described in module/crate
@@ -275,9 +276,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `relocation-leaves-ignored-siblings` (x1, PROMOTED 2026-07-19 -> sprout
   skill): gitignored files exist only in the main checkout; clean them up
   after landing a stop-shipping-dir move. 20260714-154958.
-- `match-ci-feature-set-in-targeted-tests` (x2): run targeted tests with CI's
-  feature set or feature-gated test code fails to compile and reads as a
-  regression. 20260718-004834, 20260718-102022.
+- `match-ci-feature-set-in-targeted-tests` (x3 -> Pending promotions, work
+  skill): match the feature set to the code under test - and a workspace
+  `cargo check --all-targets` does NOT enable a crate's self dev-dep `serde`
+  feature, so it SILENTLY SKIPS serde-gated targets (a false green); run
+  per-crate `cargo test -p <crate> --no-run` on touched crates before trusting
+  it. 20260718-004834, 20260718-102022, 20260724-193830.
 - `landing-no-cd` (x4, PROMOTED 2026-07-11 -> flow skill): squash-merge from
   the main checkout, own command, no cd, `pwd` first - and never CHAIN the
   land onto a sync command that cd'd into the worktree (the squash merges
@@ -918,6 +922,13 @@ here (annotated) as the paid record.
 
 ## Pending promotions (3+ occurrences, user decides)
 
+- `match-ci-feature-set-in-targeted-tests` (x3) -> work skill: a workspace
+  `cargo check --all-targets` does not enable a crate's self dev-dep `serde`
+  feature, so it silently skips serde-gated targets (a false green). Prose
+  target (verify step): "run per-crate `cargo test -p <crate> --no-run` on
+  touched crates before trusting a workspace check". A tool guard is hard (the
+  feature unification is per-crate), so a work-skill line is the realistic home.
+  20260718-004834, 20260718-102022, 20260724-193830.
 - `reuse-known-good-stack` (x6, positive) -> work skill: scaffold a new test rig
   by copying the nearest passing sibling rig verbatim, then mutate - do not
   reconstruct it from the system's parameter signature. Prose target (the skill

@@ -19,7 +19,7 @@ use nova_gameplay::prelude::*;
 use nova_modding::prelude::{
     BundleAsset, Content, ContentAsset, InstalledCatalog, ModEntry, ModMeta,
 };
-use nova_scenario::prelude::{GameScenarios, NewGameStart};
+use nova_scenario::prelude::{GameCampaigns, GameScenarios, NewGameStart};
 
 pub mod content_report;
 pub mod mod_cache;
@@ -62,7 +62,7 @@ pub mod prelude {
 pub mod scenario_generation {
     use nova_gameplay::prelude::{AssetRef, SectionConfig};
     use nova_modding::prelude::Content;
-    use nova_scenario::prelude::ScenarioConfig;
+    use nova_scenario::prelude::{CampaignConfig, ScenarioConfig};
 
     use crate::sections::{build_sections, SectionMeshRefs};
 
@@ -117,6 +117,26 @@ pub mod scenario_generation {
         ]
     }
 
+    /// The base game's campaigns, in a stable order. Today just "Nova Protocol",
+    /// the base storyline, listing its chapters in play order - the three visible
+    /// chapter-heads plus the two `hidden` chained members (broadside_gunship, the
+    /// phase-two wave; final_tally, the epilogue), so both are reachable for
+    /// replay under the campaign header. The member ids reference the scenario-id
+    /// constants so a scenario rename cannot silently orphan a member.
+    pub fn build_campaigns() -> Vec<CampaignConfig> {
+        vec![CampaignConfig {
+            id: "nova_protocol".to_string(),
+            name: "Nova Protocol".to_string(),
+            scenarios: vec![
+                crate::scenario::shakedown::SHAKEDOWN_SCENARIO_ID.to_string(),
+                crate::scenario::broadside::BROADSIDE_SCENARIO_ID.to_string(),
+                crate::scenario::broadside::BROADSIDE_GUNSHIP_SCENARIO_ID.to_string(),
+                crate::scenario::lifeline::LIFELINE_SCENARIO_ID.to_string(),
+                crate::scenario::final_tally::FINAL_TALLY_SCENARIO_ID.to_string(),
+            ],
+        }]
+    }
+
     /// The section catalog wrapped as one `Vec<Content>` of `Content::Section`
     /// items - the shape the committed `assets/base/sections/base.content.ron` file
     /// carries. The parity test serializes this.
@@ -135,6 +155,17 @@ pub mod scenario_generation {
         build_scenarios()
             .into_iter()
             .map(|scenario| (scenario.id.clone(), vec![Content::Scenario(scenario)]))
+            .collect()
+    }
+
+    /// Each built-in campaign wrapped as its own single-item `Vec<Content>`
+    /// (`[Content::Campaign(..)]`) keyed by campaign id - the shape each committed
+    /// `assets/base/campaigns/<id>.content.ron` file carries. The parity test
+    /// serializes each.
+    pub fn build_campaign_contents() -> Vec<(String, Vec<Content>)> {
+        build_campaigns()
+            .into_iter()
+            .map(|campaign| (campaign.id.clone(), vec![Content::Campaign(campaign)]))
             .collect()
     }
 
@@ -170,6 +201,12 @@ pub mod scenario_generation {
         files.extend(build_scenario_contents().into_iter().map(|(id, content)| {
             (
                 format!("base/scenarios/{id}.content.ron"),
+                serialize_content(&content),
+            )
+        }));
+        files.extend(build_campaign_contents().into_iter().map(|(id, content)| {
+            (
+                format!("base/campaigns/{id}.content.ron"),
                 serialize_content(&content),
             )
         }));
@@ -788,6 +825,25 @@ pub fn register_bundles(
             content_issues.0.insert(scenario.id.clone(), found);
         }
     }
+    // Campaign membership: every member id a campaign lists must resolve to a
+    // merged scenario, or the picker renders a header row that launches nothing.
+    // Findings are keyed by the campaign id in the shared ContentIssues channel.
+    for campaign in outcome.campaigns.values() {
+        let found = nova_scenario::prelude::lint_campaign(campaign, &merged_scenarios);
+        for issue in &found {
+            warn!(
+                "register_bundles: content lint [{:?}] campaign '{}': {}",
+                issue.severity, issue.scenario, issue.message
+            );
+        }
+        if !found.is_empty() {
+            content_issues
+                .0
+                .entry(campaign.id.clone())
+                .or_default()
+                .extend(found);
+        }
+    }
     // Fold in the resource-ref findings gathered while flattening (undeclared
     // `self://` and ungated `dep://<id>/` refs): an Error per (scenario, message)
     // so the gate refuses the scenario.
@@ -806,6 +862,7 @@ pub fn register_bundles(
 
     commands.insert_resource(GameSections(outcome.sections));
     commands.insert_resource(outcome.scenarios);
+    commands.insert_resource(outcome.campaigns);
 }
 
 /// The result of merging an ordered list of bundles: the id-keyed registries plus
@@ -815,6 +872,9 @@ pub struct MergeOutcome {
     pub sections: Vec<SectionConfig>,
     /// Scenarios keyed by id, overlaid last-wins.
     pub scenarios: GameScenarios,
+    /// Campaigns keyed by id, overlaid last-wins (a later bundle may replace an
+    /// earlier campaign's membership by declaring the same id).
+    pub campaigns: GameCampaigns,
     /// Human-readable messages, one per intra-bundle duplicate id that was
     /// skipped. Empty on clean data.
     pub conflicts: Vec<String>,
@@ -841,6 +901,7 @@ where
 {
     let mut sections: Vec<SectionConfig> = Vec::new();
     let mut scenarios = GameScenarios::default();
+    let mut campaigns = GameCampaigns::default();
     let mut conflicts: Vec<String> = Vec::new();
 
     for bundle in bundles {
@@ -848,6 +909,7 @@ where
         // may overlay an earlier one, while a repeat within one bundle conflicts.
         let mut seen_sections: HashSet<&str> = HashSet::new();
         let mut seen_scenarios: HashSet<&str> = HashSet::new();
+        let mut seen_campaigns: HashSet<&str> = HashSet::new();
 
         for item in bundle {
             match item {
@@ -860,7 +922,7 @@ where
                         ));
                         continue;
                     }
-                    merge_content_item(item, &mut sections, &mut scenarios);
+                    merge_content_item(item, &mut sections, &mut scenarios, &mut campaigns);
                 }
                 Content::Scenario(cfg) => {
                     if !seen_scenarios.insert(cfg.id.as_str()) {
@@ -871,7 +933,18 @@ where
                         ));
                         continue;
                     }
-                    merge_content_item(item, &mut sections, &mut scenarios);
+                    merge_content_item(item, &mut sections, &mut scenarios, &mut campaigns);
+                }
+                Content::Campaign(cfg) => {
+                    if !seen_campaigns.insert(cfg.id.as_str()) {
+                        conflicts.push(format!(
+                            "campaign id '{}' appears more than once in one bundle; \
+                             keeping the first, skipping the duplicate",
+                            cfg.id
+                        ));
+                        continue;
+                    }
+                    merge_content_item(item, &mut sections, &mut scenarios, &mut campaigns);
                 }
             }
         }
@@ -880,20 +953,23 @@ where
     MergeOutcome {
         sections,
         scenarios,
+        campaigns,
         conflicts,
     }
 }
 
 /// Route one content item into the accumulating registries with last-wins
-/// overlay by id. Both kinds overlay identically: a later item (from a later
+/// overlay by id. All kinds overlay identically: a later item (from a later
 /// bundle) with the same id replaces the earlier one rather than appending a
 /// shadowed duplicate. Sections keep a Vec (order matters for the editor palette)
-/// so overlay is a linear replace-in-place; scenarios are a map so overlay is a
-/// plain `insert`. Called by [`merge_bundles`] once per accepted item.
+/// so overlay is a linear replace-in-place; scenarios and campaigns are maps so
+/// overlay is a plain `insert`. Called by [`merge_bundles`] once per accepted
+/// item.
 fn merge_content_item(
     item: &Content,
     sections: &mut Vec<SectionConfig>,
     scenarios: &mut GameScenarios,
+    campaigns: &mut GameCampaigns,
 ) {
     match item {
         Content::Section(cfg) => match sections.iter_mut().find(|s| s.base.id == cfg.base.id) {
@@ -902,6 +978,9 @@ fn merge_content_item(
         },
         Content::Scenario(cfg) => {
             scenarios.insert(cfg.id.clone(), cfg.clone());
+        }
+        Content::Campaign(cfg) => {
+            campaigns.insert(cfg.id.clone(), cfg.clone());
         }
     }
 }
@@ -1250,17 +1329,20 @@ mod tests {
     fn later_section_overlays_earlier_by_id_in_place() {
         let mut sections: Vec<SectionConfig> = Vec::new();
         let mut scenarios = GameScenarios::default();
+        let mut campaigns = GameCampaigns::default();
 
         // Base bundle: two sections in palette order.
         merge_content_item(
             &Content::Section(Box::new(section("hull", 100.0))),
             &mut sections,
             &mut scenarios,
+            &mut campaigns,
         );
         merge_content_item(
             &Content::Section(Box::new(section("thruster", 50.0))),
             &mut sections,
             &mut scenarios,
+            &mut campaigns,
         );
 
         // Mod bundle: overlays "hull" with a new health, leaves "thruster".
@@ -1268,6 +1350,7 @@ mod tests {
             &Content::Section(Box::new(section("hull", 999.0))),
             &mut sections,
             &mut scenarios,
+            &mut campaigns,
         );
 
         // No duplicate appended: still two sections, original order kept.
@@ -1284,6 +1367,7 @@ mod tests {
     fn later_scenario_overlays_earlier_by_id() {
         let mut sections: Vec<SectionConfig> = Vec::new();
         let mut scenarios = GameScenarios::default();
+        let mut campaigns = GameCampaigns::default();
 
         // Reuse a real built scenario (no Default on ScenarioConfig) and overlay
         // a second config sharing its id but with a different name.
@@ -1296,8 +1380,18 @@ mod tests {
         let mut modded = base.clone();
         modded.name = "modded".to_string();
 
-        merge_content_item(&Content::Scenario(base), &mut sections, &mut scenarios);
-        merge_content_item(&Content::Scenario(modded), &mut sections, &mut scenarios);
+        merge_content_item(
+            &Content::Scenario(base),
+            &mut sections,
+            &mut scenarios,
+            &mut campaigns,
+        );
+        merge_content_item(
+            &Content::Scenario(modded),
+            &mut sections,
+            &mut scenarios,
+            &mut campaigns,
+        );
 
         assert_eq!(scenarios.len(), 1, "overlay must replace, not add");
         assert_eq!(
@@ -1305,6 +1399,65 @@ mod tests {
             "modded",
             "later scenario must win"
         );
+    }
+
+    /// End to end over the REAL generated base content: merge the built-in
+    /// scenarios and the built-in campaign, then resolve the "nova_protocol"
+    /// campaign's membership. It must list its five chapters in play order -
+    /// including the two `hidden` chained members (broadside_gunship, the
+    /// phase-two wave; final_tally, the epilogue) - and every member must resolve
+    /// to a merged scenario, hidden ones included. This is the "real mapping, not
+    /// display-name parsing" contract: the order comes from the campaign's own
+    /// list, and a hidden member is reachable despite being filtered from the
+    /// flat picker.
+    #[test]
+    fn merged_campaign_resolves_members_in_order_including_hidden() {
+        let mut items: Vec<Content> = Vec::new();
+        for (_, content) in scenario_generation::build_scenario_contents() {
+            items.extend(content);
+        }
+        for (_, content) in scenario_generation::build_campaign_contents() {
+            items.extend(content);
+        }
+
+        let outcome = merge_bundles([items.iter()]);
+        assert!(
+            outcome.conflicts.is_empty(),
+            "base content merges clean: {:?}",
+            outcome.conflicts
+        );
+
+        let campaign = outcome
+            .campaigns
+            .get("nova_protocol")
+            .expect("the base Nova Protocol campaign registers");
+        assert_eq!(
+            campaign.scenarios,
+            vec![
+                "shakedown_run",
+                "broadside",
+                "broadside_gunship",
+                "lifeline",
+                "final_tally",
+            ],
+            "members resolve in the campaign's declared play order"
+        );
+
+        // Every member resolves to a merged scenario - the mapping never lists a
+        // ghost - and the two chained chapters are genuinely `hidden` (so they
+        // are reachable ONLY via this mapping, not the flat picker).
+        for member in &campaign.scenarios {
+            assert!(
+                outcome.scenarios.contains_key(member),
+                "campaign member '{member}' resolves to a real scenario"
+            );
+        }
+        for hidden_member in ["broadside_gunship", "final_tally"] {
+            assert!(
+                outcome.scenarios[hidden_member].hidden,
+                "'{hidden_member}' is hidden from the flat picker yet listed for replay"
+            );
+        }
     }
 
     /// A later bundle (a mod) overlays an earlier bundle (the base) by id:
@@ -1433,8 +1586,8 @@ pub mod lint_walk {
     use nova_mod_format::BundleManifest;
     use nova_modding::prelude::Content;
     use nova_scenario::prelude::{
-        lint_scenario, EventActionConfig, KnownSections, LintIssue, LintSeverity, ScenarioConfig,
-        ScenarioObjectKind, SpaceshipController,
+        lint_campaign, lint_scenario, CampaignConfig, EventActionConfig, KnownSections, LintIssue,
+        LintSeverity, ScenarioConfig, ScenarioObjectKind, SpaceshipController,
     };
 
     use crate::content_report::{
@@ -1448,22 +1601,25 @@ pub mod lint_walk {
         manifest: BundleManifest,
         sections: Vec<SectionConfig>,
         scenarios: Vec<ScenarioConfig>,
+        campaigns: Vec<CampaignConfig>,
         /// Every parsed content item paired with the bundle-relative file it was
         /// read from (a bundle lists several content files). Kept so the
-        /// mod-relative `self://` resource-ref check can see both kinds, and so
+        /// mod-relative `self://` resource-ref check can see every kind, and so
         /// the unified report can point each finding at its source file.
         content: Vec<(String, Content)>,
     }
 
     impl WalkedBundle {
-        /// The bundle-relative file a content element (scenario or section id)
-        /// was authored in, for report provenance. `None` when no content item
-        /// carries that id (e.g. a finding about a missing/foreign prototype).
+        /// The bundle-relative file a content element (scenario, section or
+        /// campaign id) was authored in, for report provenance. `None` when no
+        /// content item carries that id (e.g. a finding about a missing/foreign
+        /// prototype).
         fn file_of(&self, element_id: &str) -> Option<&str> {
             self.content.iter().find_map(|(file, item)| {
                 let id = match item {
                     Content::Scenario(cfg) => cfg.id.as_str(),
                     Content::Section(cfg) => cfg.base.id.as_str(),
+                    Content::Campaign(cfg) => cfg.id.as_str(),
                 };
                 (id == element_id).then_some(file.as_str())
             })
@@ -1506,10 +1662,12 @@ pub mod lint_walk {
         }
         let mut sections = Vec::new();
         let mut scenarios = Vec::new();
+        let mut campaigns = Vec::new();
         for (_, item) in &content {
             match item {
                 Content::Section(section) => sections.push(section.as_ref().clone()),
                 Content::Scenario(scenario) => scenarios.push(scenario.clone()),
+                Content::Campaign(campaign) => campaigns.push(campaign.clone()),
             }
         }
         WalkedBundle {
@@ -1517,6 +1675,7 @@ pub mod lint_walk {
             manifest,
             sections,
             scenarios,
+            campaigns,
             content,
         }
     }
@@ -1591,6 +1750,15 @@ pub mod lint_walk {
             }
         }
 
+        // Campaign membership: every scenario a campaign lists must resolve to a
+        // known scenario (base + all bundles + this bundle's own), or the picker
+        // renders a header row launching nothing.
+        for campaign in &bundle.campaigns {
+            for issue in lint_campaign(campaign, &known_scenarios) {
+                issues.push((bundle.id.clone(), issue));
+            }
+        }
+
         // Section-config well-formedness (turret joint trees today): validate
         // every section THIS bundle ships, so a malformed turret in a base or
         // mod catalog is caught even when no scenario inlines it.
@@ -1646,6 +1814,7 @@ pub mod lint_walk {
             let (scenario, kind) = match item {
                 Content::Scenario(cfg) => (cfg.id.clone(), "scenario"),
                 Content::Section(cfg) => (cfg.base.id.clone(), "section"),
+                Content::Campaign(cfg) => (cfg.id.clone(), "campaign"),
             };
             for message in crate::mod_refs::resource_ref_violations(item, &scope) {
                 issues.push((
@@ -2051,6 +2220,13 @@ pub mod lint_walk {
                     _ => None,
                 })
                 .collect();
+            let campaigns = content
+                .iter()
+                .filter_map(|c| match c {
+                    Content::Campaign(c) => Some(c.clone()),
+                    _ => None,
+                })
+                .collect();
             WalkedBundle {
                 id: id.to_string(),
                 manifest: BundleManifest {
@@ -2064,6 +2240,7 @@ pub mod lint_walk {
                 },
                 sections,
                 scenarios,
+                campaigns,
                 // The tests do not exercise multi-file provenance; a single
                 // synthetic file name carries every item.
                 content: content

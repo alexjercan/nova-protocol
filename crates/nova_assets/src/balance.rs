@@ -634,7 +634,6 @@ mod tests {
             thumbnail: None,
             hidden: true,
             menu_backdrop: false,
-            campaign: None,
             events,
         }
     }

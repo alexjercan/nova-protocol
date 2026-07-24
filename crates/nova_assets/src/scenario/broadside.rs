@@ -567,14 +567,10 @@ pub(crate) fn broadside(
         thumbnail: Some(AssetRef::from("self://banner.png")),
         hidden: false,
         menu_backdrop: false,
-        // Chapter two of the Nova Protocol campaign (task 20260723-095909).
-        // Only this part-one head is a campaign member; part two
-        // (`broadside_gunship`) is hidden and reached via the checkpoint chain,
-        // so it stays untagged.
-        campaign: Some(ScenarioCampaign {
-            name: "Nova Protocol".to_string(),
-            order: 2,
-        }),
+        // Chapter two of the Nova Protocol campaign. Membership + order now live
+        // in the `nova_protocol` campaign mapping (task 20260724-193830), which
+        // also lists the hidden part-two wave (`broadside_gunship`) so it is
+        // replayable from the campaign header.
         events,
     }
 }
@@ -741,9 +737,11 @@ pub(crate) fn broadside_gunship(
         cubemap,
         // Placeholder thumbnail (real per-scenario art: task 20260715-220011).
         thumbnail: Some(AssetRef::from("self://banner.png")),
+        // Hidden from the flat picker, but a member of the `nova_protocol`
+        // campaign mapping (task 20260724-193830) so it is replayable from the
+        // campaign header.
         hidden: true,
         menu_backdrop: false,
-        campaign: None,
         events,
     }
 }

@@ -71,7 +71,7 @@ fn scenario() -> ScenarioConfig {
         .into_iter()
         .find_map(|c| match c {
             Content::Scenario(s) => Some(s),
-            Content::Section(_) => None,
+            Content::Section(_) | Content::Campaign(_) => None,
         })
         .expect("content contains a Scenario")
 }

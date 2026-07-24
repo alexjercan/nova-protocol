@@ -25,7 +25,7 @@ A mod is a DIRECTORY containing:
 - one `<id>.bundle.ron` manifest (a `BundleManifest`: `content` list + `meta`,
   and an optional `resources` list of binary files it ships),
 - one or more `*.content.ron` files it lists (a `[Content]` list of
-  `Section((..))` / `Scenario((..))` items),
+  `Section((..))` / `Scenario((..))` / `Campaign((..))` items),
 - optionally, the binary assets it ships (textures, skyboxes, models, audio)
   under the folder, declared in `resources` and referenced with `self://`.
 

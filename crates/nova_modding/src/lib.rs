@@ -7,14 +7,17 @@
 //!
 //! A [`Content`] item is one of:
 //! - [`Content::Section`] - a [`SectionConfig`]
-//!   prototype (previously the `*.sections.ron` catalog), and
+//!   prototype (previously the `*.sections.ron` catalog),
 //! - [`Content::Scenario`] - a [`ScenarioConfig`]
-//!   (previously the `*.scenario.ron` file).
+//!   (previously the `*.scenario.ron` file), and
+//! - [`Content::Campaign`] - a [`CampaignConfig`], the ordered scenario-id
+//!   mapping the Scenarios picker groups and launches by.
 //!
 //! The kind lives IN the RON structure (an externally-tagged enum), so ONE
 //! loader reads any content file and a downstream router (`nova_assets`'s
 //! `register_bundles`) dispatches each item into its id-keyed registry
-//! (`GameSections` / `GameScenarios`). A single file may mix kinds.
+//! (`GameSections` / `GameScenarios` / `GameCampaigns`). A single file may mix
+//! kinds.
 //!
 //! The config trees are `serde` under nova_scenario's / nova_gameplay's `serde`
 //! features (which this crate enables), so the loader is a pure RON decode.
@@ -44,7 +47,7 @@ use nova_gameplay::prelude::SectionConfig;
 // generator builds without bevy; re-exported here so game code keeps importing
 // them from nova_modding.
 pub use nova_mod_format::{BundleManifest, CatalogManifest, ModEntry, ModMeta};
-use nova_scenario::prelude::ScenarioConfig;
+use nova_scenario::prelude::{CampaignConfig, ScenarioConfig};
 use serde::{Deserialize, Serialize};
 
 /// Glob-import surface: `use nova_modding::prelude::*` brings the content/bundle
@@ -73,6 +76,10 @@ pub enum Content {
     Section(Box<SectionConfig>),
     /// A [`ScenarioConfig`] - registers into `GameScenarios` keyed by its id.
     Scenario(ScenarioConfig),
+    /// A [`CampaignConfig`] - registers into `GameCampaigns` keyed by its id.
+    /// Carries the campaign's ordered member scenario ids (hidden ones
+    /// included) so the picker can group and launch them as a unit.
+    Campaign(CampaignConfig),
 }
 
 /// The content of one `*.content.ron` file: a thin [`Asset`] wrapper around a
@@ -405,11 +412,16 @@ mod tests {
                 cubemap: "scenarios/space.cube.png",
                 events: [],
             )),
+            Campaign((
+                id: "demo_campaign",
+                name: "Demo Campaign",
+                scenarios: ["demo", "demo_two"],
+            )),
         ]"#;
 
         let items: Vec<Content> =
             ron::de::from_bytes(ron.as_bytes()).expect("content RON should decode");
-        assert_eq!(items.len(), 2);
+        assert_eq!(items.len(), 3);
         match &items[0] {
             Content::Section(section) => assert_eq!(section.base.id, "basic_hull_section"),
             other => panic!("expected a Section, got {other:?}"),
@@ -421,6 +433,14 @@ mod tests {
                 assert_eq!(scenario.cubemap.path(), Some("scenarios/space.cube.png"));
             }
             other => panic!("expected a Scenario, got {other:?}"),
+        }
+        match &items[2] {
+            Content::Campaign(campaign) => {
+                assert_eq!(campaign.id, "demo_campaign");
+                assert_eq!(campaign.name, "Demo Campaign");
+                assert_eq!(campaign.scenarios, vec!["demo", "demo_two"]);
+            }
+            other => panic!("expected a Campaign, got {other:?}"),
         }
     }
 }

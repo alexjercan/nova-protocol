@@ -12,20 +12,34 @@ use crate::prelude::*;
 /// scenario registry resources, load/unload triggers, and markers into scope.
 pub mod prelude {
     pub use super::{
-        scenario_is_live, ContentIssues, CurrentScenario, GameScenarios, LoadScenario,
-        NewGameStart, ScenarioCameraMarker, ScenarioCampaign, ScenarioConfig, ScenarioEventConfig,
-        ScenarioId, ScenarioLoaded, ScenarioLoaderPlugin, ScenarioScopedMarker,
-        ScenarioStartFailure, ScenarioStartFailureReport, ScriptedCameraPose, UnloadScenario,
-        PLAYER_SPEED_VAR, SCENARIO_ELAPSED_VAR,
+        scenario_is_live, CampaignConfig, CampaignId, ContentIssues, CurrentScenario,
+        GameCampaigns, GameScenarios, LoadScenario, NewGameStart, ScenarioCameraMarker,
+        ScenarioConfig, ScenarioEventConfig, ScenarioId, ScenarioLoaded, ScenarioLoaderPlugin,
+        ScenarioScopedMarker, ScenarioStartFailure, ScenarioStartFailureReport, ScriptedCameraPose,
+        UnloadScenario, PLAYER_SPEED_VAR, SCENARIO_ELAPSED_VAR,
     };
 }
 
 /// Type alias for Scenario ID
 pub type ScenarioId = String;
 
+/// Type alias for Campaign ID (the stable key of a [`CampaignConfig`]).
+pub type CampaignId = String;
+
 /// The collection of available game scenarios
 #[derive(Resource, Clone, Debug, Deref, DerefMut, Default)]
 pub struct GameScenarios(pub HashMap<ScenarioId, ScenarioConfig>);
+
+/// The collection of available campaigns, keyed by campaign id.
+///
+/// A campaign owns the ORDERED list of its member scenario ids (see
+/// [`CampaignConfig`]); this registry is the single source of truth the
+/// Scenarios picker reads to render collapsible campaign groups and to launch
+/// any member - including `hidden` chapters that the flat picker filters out but
+/// that a campaign lists for replay. Written by the bundle merge from the merged
+/// `Content::Campaign` items (task 20260724-193830), mirroring [`GameScenarios`].
+#[derive(Resource, Clone, Debug, Deref, DerefMut, Default)]
+pub struct GameCampaigns(pub HashMap<CampaignId, CampaignConfig>);
 
 /// The scenario New Game launches, declared by the BASE bundle's manifest
 /// (`new_game_scenario` in `base.bundle.ron`) and written by the bundle merge
@@ -76,32 +90,40 @@ pub struct ScenarioStartFailureReport {
     pub messages: Vec<String>,
 }
 
-/// A scenario's membership in an ordered campaign.
+/// A campaign: a named, ORDERED sequence of member scenario ids.
 ///
-/// Ties a scenario to a named campaign at a fixed position, so the Scenarios
-/// picker can GROUP scenarios by campaign and ORDER them within it instead of
-/// relying on alphabetical display-name sorting. `name` is the campaign's
-/// DISPLAY name (e.g. `"Nova Protocol"`); `order` is its 1-based position in
-/// that campaign (chapter 1, 2, 3, ...).
+/// A campaign is a first-class content entity (`Content::Campaign`, in
+/// nova_modding) that owns
+/// its full membership - the single source of truth for which scenarios belong
+/// to it and in what order. Membership is the explicit `scenarios` list, so the
+/// order is unambiguous (the Vec order) and a `hidden` chapter reached only via
+/// `NextScenario` chaining can still be LISTED for replay simply by naming its
+/// id here. This replaces the interim per-scenario `campaign` metadata (task
+/// 20260724-193830): the picker groups and launches from this mapping instead of
+/// reconstructing groups by parsing per-scenario display names.
 ///
-/// Modelled as one `Option<ScenarioCampaign>` on [`ScenarioConfig`] rather than
-/// two loose `Option` fields so membership is ATOMIC: a scenario cannot carry
-/// an order without a campaign. In strict RON it is authored as the whole
-/// struct behind the `Some` variant:
-/// `campaign: Some((name: "Nova Protocol", order: 1))`.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// `id` is the stable key (e.g. `"nova_protocol"`); `name` is the DISPLAY name
+/// (e.g. `"Nova Protocol"`); `scenarios` are member scenario ids in play order,
+/// hidden members included. In strict RON a campaign content item is authored
+/// as `Campaign((id: "nova_protocol", name: "Nova Protocol", scenarios: ["a",
+/// "b"]))`.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct ScenarioCampaign {
+pub struct CampaignConfig {
+    /// The stable campaign key, e.g. `"nova_protocol"`.
+    pub id: CampaignId,
     /// The campaign's display name, e.g. `"Nova Protocol"`.
     pub name: String,
-    /// The scenario's 1-based position within the campaign (chapter number).
-    pub order: u32,
+    /// The member scenario ids, in play order (chapter 1, 2, 3, ...). May name
+    /// `hidden` scenarios: they are filtered from the flat picker but reachable
+    /// for replay under their campaign header.
+    pub scenarios: Vec<ScenarioId>,
 }
 
 /// Configuration for a game scenario.
 ///
 /// `Default` exists so the many code-built literals (examples, tests) can fill
-/// the optional `thumbnail`/`hidden`/`campaign` fields with
+/// the optional `thumbnail`/`hidden` fields with
 /// `..Default::default()`. Note a
 /// FULLY default `ScenarioConfig` is not serializable: its default `cubemap` is
 /// a handle-backed `AssetRef`, which errors on serialize (see `AssetRef`). Every
@@ -147,18 +169,6 @@ pub struct ScenarioConfig {
     /// Serde-defaulted to false; author as `menu_backdrop: true`.
     #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_false"))]
     pub menu_backdrop: bool,
-    /// The scenario's campaign membership, if it belongs to one. Drives the
-    /// Scenarios picker's grouping and ordering: campaigned scenarios list
-    /// together and in `order`, uncampaigned ones list separately. Serde-
-    /// defaulted to `None`, so scenarios (and mods) authored before this field
-    /// still parse; author a member as
-    /// `campaign: Some((name: "Nova Protocol", order: 1))`. See
-    /// [`ScenarioCampaign`].
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub campaign: Option<ScenarioCampaign>,
     /// Events associated with the scenario
     #[cfg_attr(
         feature = "serde",
@@ -2774,7 +2784,6 @@ mod tests {
             thumbnail: Some(AssetRef::from("thumb.png")),
             hidden: true,
             menu_backdrop: true,
-            campaign: None,
             events: vec![],
         };
         // `ron::to_string` is compact (no spaces after colons).
@@ -2799,53 +2808,39 @@ mod tests {
         assert!(!bare.contains("menu_backdrop"), "ron: {bare}");
     }
 
-    /// The `campaign` field is serde-defaulted, so a scenario RON authored
-    /// before it existed still parses (`None`), and a member scenario parses
-    /// its campaign from a HAND-WRITTEN RON string (not just a self-authored
-    /// round-trip) - the picker's grouping/ordering (tasks B and C) reads this
-    /// field, so its author-facing syntax is the contract under test.
+    /// A campaign parses from a HAND-WRITTEN RON string (not just a
+    /// self-authored round-trip) and round-trips, preserving member order
+    /// including hidden ids. A campaign is a first-class content entity (task
+    /// 20260724-193830), so this documented author-facing syntax is the contract
+    /// the picker reads.
     #[test]
-    fn campaign_defaults_when_absent_and_parses_from_authored_ron() {
-        // Legacy shape: no campaign key -> None.
-        let legacy = r#"(id: "legacy", name: "Legacy", description: "old", cubemap: "sky.png")"#;
-        let parsed: ScenarioConfig = ron::from_str(legacy).expect("legacy scenario parses");
-        assert_eq!(parsed.campaign, None, "absent campaign defaults to None");
-
-        // A member scenario as an author would WRITE it: the whole struct
-        // behind the `Some` variant, spaces and all. Parsing this literal (not
-        // a serialize-then-deserialize of our own value) is what proves the
-        // documented syntax actually loads.
+    fn campaign_parses_from_authored_ron_and_round_trips() {
+        // As an author would WRITE it: id, display name, ordered member ids.
+        // Parsing this literal (not a serialize-then-deserialize of our own
+        // value) is what proves the documented syntax actually loads.
         let authored = r#"(
-            id: "shakedown_run",
-            name: "Shakedown Run",
-            description: "chapter one",
-            cubemap: "sky.png",
-            campaign: Some((name: "Nova Protocol", order: 1)),
+            id: "nova_protocol",
+            name: "Nova Protocol",
+            scenarios: ["shakedown_run", "broadside", "broadside_gunship", "lifeline", "final_tally"],
         )"#;
-        let member: ScenarioConfig = ron::from_str(authored).expect("member scenario parses");
+        let campaign: CampaignConfig = ron::from_str(authored).expect("campaign parses");
+        assert_eq!(campaign.id, "nova_protocol");
+        assert_eq!(campaign.name, "Nova Protocol");
         assert_eq!(
-            member.campaign,
-            Some(ScenarioCampaign {
-                name: "Nova Protocol".to_string(),
-                order: 1,
-            }),
-            "the authored campaign parses to name + order"
+            campaign.scenarios,
+            vec![
+                "shakedown_run",
+                "broadside",
+                "broadside_gunship",
+                "lifeline",
+                "final_tally",
+            ],
+            "member ids parse in declared order, hidden ones included"
         );
 
-        // Round-trips and stays out of the serialized form when None
-        // (skip_serializing_if), matching thumbnail/hidden.
-        let ron = ron::to_string(&member).expect("member serializes");
-        assert!(
-            ron.contains("campaign:Some((name:\"Nova Protocol\",order:1))"),
-            "ron: {ron}"
-        );
-        let back: ScenarioConfig = ron::from_str(&ron).expect("member re-parses");
-        assert_eq!(back.campaign, member.campaign, "campaign round-trips");
-
-        let bare = ron::to_string(&parsed).expect("legacy re-serializes");
-        assert!(
-            !bare.contains("campaign"),
-            "absent campaign omitted: {bare}"
-        );
+        // Round-trips through serialize -> deserialize unchanged.
+        let ron = ron::to_string(&campaign).expect("campaign serializes");
+        let back: CampaignConfig = ron::from_str(&ron).expect("campaign re-parses");
+        assert_eq!(back, campaign, "campaign round-trips");
     }
 }

@@ -25,7 +25,9 @@ use crate::prelude::*;
 /// Glob-import surface: `use nova_scenario::lint::prelude::*` brings the
 /// content-lint entry points and result types into scope.
 pub mod prelude {
-    pub use super::{lint_scenario, lint_section_config, KnownSections, LintIssue, LintSeverity};
+    pub use super::{
+        lint_campaign, lint_scenario, lint_section_config, KnownSections, LintIssue, LintSeverity,
+    };
 }
 
 /// The section-prototype view a caller lints against: every visible
@@ -128,6 +130,44 @@ struct Declared {
     set_vars: HashSet<String>,
     objective_ids: HashSet<String>,
     completed_objectives: HashSet<String>,
+}
+
+/// Lint one campaign against the scenario ids the caller knows about
+/// (`known_scenarios`, normally base + all installed bundles). A campaign owns
+/// an ordered `scenarios` list; each member must resolve to a real scenario, or
+/// the picker would render a header row that launches nothing. Findings are
+/// keyed (via [`LintIssue::scenario`]) by the CAMPAIGN id, since a campaign is
+/// the element the finding is about.
+///
+/// Checks:
+/// - a member id absent from `known_scenarios` is a DANGLING reference (Error) -
+///   the same class as a `NextScenario` targeting a missing scenario;
+/// - a member id listed more than once in the campaign is a duplicate (Warn) -
+///   almost certainly an authoring slip, but the campaign still lists.
+pub fn lint_campaign(
+    campaign: &CampaignConfig,
+    known_scenarios: &HashSet<String>,
+) -> Vec<LintIssue> {
+    let id = campaign.id.as_str();
+    let mut issues = Vec::new();
+    let mut seen: HashSet<&str> = HashSet::new();
+    for member in &campaign.scenarios {
+        if !known_scenarios.contains(member) {
+            issues.push(LintIssue::error(
+                id,
+                format!(
+                    "campaign '{id}' lists member scenario '{member}', which no bundle provides"
+                ),
+            ));
+        }
+        if !seen.insert(member.as_str()) {
+            issues.push(LintIssue::warn(
+                id,
+                format!("campaign '{id}' lists member scenario '{member}' more than once"),
+            ));
+        }
+    }
+    issues
 }
 
 /// Lint one scenario against the identifier sets the caller knows about:
@@ -920,6 +960,66 @@ mod tests {
 
     fn known(ids: &[&str]) -> HashSet<String> {
         ids.iter().map(|s| s.to_string()).collect()
+    }
+
+    fn campaign(id: &str, members: &[&str]) -> CampaignConfig {
+        CampaignConfig {
+            id: id.to_string(),
+            name: id.to_string(),
+            scenarios: members.iter().map(|s| s.to_string()).collect(),
+        }
+    }
+
+    /// A campaign whose every member resolves lints clean - the baseline the
+    /// dangling case diverges from.
+    #[test]
+    fn campaign_with_known_members_lints_clean() {
+        let c = campaign(
+            "nova_protocol",
+            &["shakedown_run", "broadside", "final_tally"],
+        );
+        let issues = lint_campaign(&c, &known(&["shakedown_run", "broadside", "final_tally"]));
+        assert!(
+            issues.is_empty(),
+            "a campaign naming only real scenarios is clean, got {issues:?}"
+        );
+    }
+
+    /// A campaign member that no bundle provides is a DANGLING reference: an
+    /// Error, so the gate refuses a header row that would launch nothing. Would
+    /// pass trivially if lint_campaign did not check membership.
+    #[test]
+    fn campaign_flags_dangling_member() {
+        let c = campaign("nova_protocol", &["shakedown_run", "ghost_chapter"]);
+        let issues = lint_campaign(&c, &known(&["shakedown_run"]));
+        let errors: Vec<_> = issues
+            .iter()
+            .filter(|i| i.severity == LintSeverity::Error)
+            .collect();
+        assert_eq!(errors.len(), 1, "exactly the one missing member errors");
+        assert!(
+            errors[0].message.contains("ghost_chapter"),
+            "the finding names the dangling member: {}",
+            errors[0].message
+        );
+    }
+
+    /// A member listed twice is a Warn (authoring slip), not an Error - the
+    /// campaign still lists.
+    #[test]
+    fn campaign_warns_on_duplicate_member() {
+        let c = campaign("nova_protocol", &["shakedown_run", "shakedown_run"]);
+        let issues = lint_campaign(&c, &known(&["shakedown_run"]));
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.severity == LintSeverity::Warn && i.message.contains("more than once")),
+            "a duplicate member warns, got {issues:?}"
+        );
+        assert!(
+            !issues.iter().any(|i| i.severity == LintSeverity::Error),
+            "a duplicate of a KNOWN member is not an error, got {issues:?}"
+        );
     }
 
     /// A catalog of known prototype ids, none of them mounts (the shape

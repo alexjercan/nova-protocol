@@ -678,9 +678,11 @@ pub(crate) fn final_tally(
         // (the Broadside-gunship precedent), with the placeholder thumbnail
         // (real art: task 20260715-220011).
         thumbnail: Some(AssetRef::from("self://banner.png")),
+        // Hidden from the flat picker, but a member of the `nova_protocol`
+        // campaign mapping (task 20260724-193830) so the finale is replayable
+        // from the campaign header.
         hidden: true,
         menu_backdrop: false,
-        campaign: None,
         events,
     }
 }

@@ -769,13 +769,9 @@ pub(crate) fn lifeline(
         thumbnail: Some(AssetRef::from("self://banner.png")),
         hidden: false,
         menu_backdrop: false,
-        // Chapter three of the Nova Protocol campaign (task 20260723-095909).
-        // The finale (`final_tally`) is hidden and chained, so it stays
-        // untagged.
-        campaign: Some(ScenarioCampaign {
-            name: "Nova Protocol".to_string(),
-            order: 3,
-        }),
+        // Chapter three of the Nova Protocol campaign. Membership + order now
+        // live in the `nova_protocol` campaign mapping (task 20260724-193830),
+        // which also lists the hidden finale (`final_tally`) for replay.
         events,
     }
 }

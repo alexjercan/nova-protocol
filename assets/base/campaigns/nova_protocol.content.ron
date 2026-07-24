@@ -1,0 +1,13 @@
+[
+    Campaign((
+        id: "nova_protocol",
+        name: "Nova Protocol",
+        scenarios: [
+            "shakedown_run",
+            "broadside",
+            "broadside_gunship",
+            "lifeline",
+            "final_tally",
+        ],
+    )),
+]

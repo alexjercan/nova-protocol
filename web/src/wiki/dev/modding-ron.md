@@ -11,11 +11,20 @@ branch `modding-language` (v0.6.0). For the runtime it feeds, see the
 ## What shipped
 
 Scenarios (and sections) are now serializable. A `*.content.ron` file is a RON
-`Vec<Content>` where each `Content` item is a `Scenario((...))` or a
-`Section((...))`; a scenario item deserializes into the same
-`nova_scenario::ScenarioConfig` the runtime already used, and loads through a
-Bevy `AssetLoader` (`ContentAssetLoader`) that merges into the `GameScenarios`
+`Vec<Content>` where each `Content` item is a `Scenario((...))`, a
+`Section((...))`, or a `Campaign((...))`; a scenario item deserializes into the
+same `nova_scenario::ScenarioConfig` the runtime already used, and loads through
+a Bevy `AssetLoader` (`ContentAssetLoader`) that merges into the `GameScenarios`
 resource.
+
+- A `Campaign((id, name, scenarios: [...]))` item is the ordered mapping from a
+  campaign to its member scenario ids, in play order. It registers into the
+  `GameCampaigns` resource (mirroring `GameScenarios`), and the Scenarios picker
+  reads it to group and launch a campaign's chapters as a unit. `scenarios` may
+  name `hidden` scenarios: they are filtered from the flat picker but stay
+  reachable for replay under their campaign header. The content lint flags a
+  member id that no bundle provides. Example:
+  `Campaign((id: "nova_protocol", name: "Nova Protocol", scenarios: ["shakedown_run", "broadside", "broadside_gunship", "lifeline", "final_tally"]))`.
 
 - `nova_scenario` and `nova_gameplay` gained off-by-default `serde` features that
   `cfg_attr`-derive `Serialize`/`Deserialize` on the whole config tree (events,
