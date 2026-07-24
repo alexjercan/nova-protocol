@@ -66,6 +66,16 @@ pass (see "Planning - next step"), NOT in this tracker.
      in from the right, game pauses, cursor appears, objectives expand, tab
      handle visible when closed, Tab+ESC close, slide reads well, and the
      thruster/RCS loops go silent while open.
+   - **Playtest VERDICT (owner, 2026-07-24):** looks fine for now; LIKES the
+     transparency effect + slide animation (keep them). One REQUEST: the open
+     drawer must render ON TOP of the flight HUD (the compact objectives text
+     currently draws over it) - filed as 20260724-121541. Owner wants to see the
+     whole drawer family before deeper feedback.
+2b. **20260724-121541** (p68, SIZE S, bug/ui/hud) Tab drawer must render on top
+   of the flight HUD (z-order). From the 2026-07-24 playtest above; the open
+   drawer needs a `GlobalZIndex` above the HUD chrome (a plain `ZIndex` loses to
+   the top-right objectives panel's stacking context). Shell follow-up, not a
+   211520 concern.
 3. **20260721-211520** (p60, SIZE M, feature/hud/ui) Diegetic objective
    presentation: big on the cockpit HUD, then tucks into the right tab (tweens to
    the shell's tab-handle anchor). Depends on the shell (102304). Pairs with
