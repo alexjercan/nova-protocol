@@ -31,10 +31,131 @@ Scope (direction-level; /plan breaks into steps at pickup):
 - First section: EXPANDED objectives, rendering bevy_common_systems
   GameObjectives (data already exists).
 
+## Steps
+
+- [ ] **Audit the new state route (do FIRST, it sizes the task).** A new
+      `PauseStates::Drawer` is a new entry into "frozen". Grep the workspace for
+      every gate: `grep -rn "PauseStates" crates --include=*.rs`. Two suppression
+      mechanisms exist - (1) the `in_state(PauseStates::Unpaused)` set-gates
+      (`crates/nova_gameplay/src/plugin.rs:166`), already correct since `Drawer`
+      is not `Unpaused`; (2) **19 observer self-guards** that check
+      `== PauseStates::Paused` directly (observers bypass set-gating -
+      `set-gates-miss-observers`; 10 in `crates/nova_gameplay/src/input/player.rs`
+      from :902, the rest in `input/targeting.rs`, `audio.rs`,
+      `camera_controller.rs`, etc). Write the list of all 19 sites into NOTES,
+      classifying each as "means while-frozen -> widen to `!= Unpaused`" vs
+      "intentionally ungated (e.g. releases clear held keys during pause -
+      player.rs:900) -> leave". Also confirm `setup_pause_ui` /
+      `DespawnOnExit(PauseStates::Paused)` are `Paused`-only (pause menu must NOT
+      show for the drawer) and note the outcome setter `sync_outcome_pause`
+      (`nova_menu/src/lib.rs:989`) is unaffected (sim frozen in Drawer -> no new
+      outcome fires).
+- [ ] Add the `Drawer` variant to `PauseStates` in
+      `crates/nova_gameplay/src/lib.rs:124` with a doc comment (Tab drawer
+      overlay; frozen like `Paused`; only entered from `Unpaused`). Add the
+      `Drawer => PauseStates::Unpaused` arm to the exhaustive `match` in
+      `toggle_pause` (`crates/nova_menu/src/lib.rs:317`) so ESC closes the
+      drawer.
+- [ ] Widen the 19 `== PauseStates::Paused` guards flagged in the audit to
+      `!= PauseStates::Unpaused` (introduce a small `is_frozen(&State<PauseStates>)`
+      helper next to the enum and use it, so the meaning is named once and future
+      variants are covered). Leave the intentionally-ungated release paths as-is.
+- [ ] **Write the interaction-model tests FIRST (harness/App altitude) and watch
+      them fail** (no Tab system yet): in a headless `App` rig with `GameStates` +
+      `PauseStates` and a `PrimaryWindow`+`CursorOptions` entity (mirror the
+      cursor-rig pattern in `nova_editor`'s `scenario_grab_hides_and_locks...`
+      test): `tab_toggles_drawer_state` (Playing/Unpaused + Tab -> `Drawer`; Tab
+      again -> `Unpaused`), `esc_closes_drawer_to_unpaused` (in `Drawer`, ESC ->
+      `Unpaused`, NOT `Paused`), `entering_drawer_freezes_clocks_and_frees_cursor`
+      (on enter `Drawer`: `Time<Virtual>` paused + cursor visible/ungrabbed; and
+      `would-it-fail-without-it` - delete the OnEnter(Drawer) hook and it goes
+      red), and `flight_input_inert_while_drawer_open` (a `FlightBurnInput` in
+      `Drawer` does not change `FlightIntent` - pins the guard widen).
+- [ ] Wire the Drawer freeze/cursor in nova_menu's build
+      (`crates/nova_menu/src/lib.rs:221`): register
+      `OnEnter(PauseStates::Drawer) -> (pause_clocks, release_cursor)` and
+      `OnExit(PauseStates::Drawer) -> (unpause_clocks, restore_cursor)`, mirroring
+      the `Paused` wiring but WITHOUT `setup_pause_ui`.
+- [ ] Add the drawer module `crates/nova_gameplay/src/hud/drawer/` (or
+      `hud/drawer.rs`): a `toggle_drawer` system keyed on `KeyCode::Tab`,
+      `run_if(in_state(GameStates::Playing))` (NOT in the `Unpaused`-gated flight
+      rig, so it can also CLOSE while frozen), guarding on a live outcome like
+      `toggle_pause` does. Matches `Unpaused <-> Drawer`. Register a
+      `NovaDrawerPlugin` in `NovaHudPlugin` (`hud/mod.rs:155`). Make the state
+      tests pass.
+- [ ] Drawer surface: a right-side panel spawned `OnEnter(Drawer)` /
+      `DespawnOnExit(PauseStates::Drawer)`, sliding in from the right edge via the
+      bcs `TweenPlugin` already wired at `hud/mod.rs:198` (reference
+      `hud/comms_panel.rs` `apply_comms_fade` for the tween-progress pattern;
+      `verify-bevy-api-at-callsite`), with a dim backdrop. A collapsed tab HANDLE
+      on the right edge, visible while the drawer is closed.
+- [ ] Expose the tab-handle screen anchor as a resource/component
+      (`DrawerTabAnchor`, holding the handle's screen rect), updated each frame -
+      this is task 20260721-211520's tween target. Test
+      `drawer_exposes_tab_handle_anchor` asserts it is present and tracks the
+      handle node.
+- [ ] Section framework + first section: a sections container in the drawer whose
+      first section renders the expanded `GameObjectives`
+      (`bevy_common_systems`, already synced; compact panel at `hud/mod.rs:273`).
+      Decide + document (NOTES, `does-the-old-element-survive`) that the drawer
+      overlays independently of the grave/tilde `HudVisibility` cycle and the
+      top-right compact objectives panel - both stay; the drawer is a separate
+      axis. Test `drawer_objectives_section_lists_objectives`.
+- [ ] Verify: `cargo check --all-targets` (the new enum variant breaks any
+      exhaustive match / example - `check-all-targets-for-struct-field`), `cargo
+      fmt`, the new tests, and `cargo doc -p nova_gameplay -p nova_menu --no-deps`
+      (rustdoc intra-links). Run a probe of a gameplay example (drawer-closed path
+      must be unchanged) per the probe skill.
+- [ ] Docs sweep (`keep-docs-in-sync-with-code`, x8): add the Tab drawer to
+      `web/src/wiki/keybinds.md` and `web/src/wiki/hud.md`, and a CHANGELOG
+      `[Unreleased]` line under **Interface & HUD**. `grep -rn` the whole doc tree
+      for the keybind table and objectives/comms mentions the drawer changes.
+
+## Definition of Done
+
+- Tab opens and closes the drawer from flight, and ESC closes it to `Unpaused`
+  (not the pause menu) (test: `tab_toggles_drawer_state`,
+  `esc_closes_drawer_to_unpaused`).
+- Entering `Drawer` freezes the sim clocks and frees+shows the cursor; leaving
+  restores both (test: `entering_drawer_freezes_clocks_and_frees_cursor`, which
+  goes red if the `OnEnter(Drawer)` hook is removed).
+- Flight input is inert while the drawer is open - the observer guards suppress
+  in `Drawer`, not just `Paused` (test: `flight_input_inert_while_drawer_open`);
+  no `== PauseStates::Paused` "while-frozen" guard remains
+  (cmd: `grep -rn "== crate::PauseStates::Paused\|== PauseStates::Paused" crates --include=*.rs`
+  returns only the intentionally-ungated/​non-freeze sites listed in NOTES).
+- The drawer exposes its tab-handle screen anchor for task 20260721-211520
+  (test: `drawer_exposes_tab_handle_anchor`).
+- The expanded objectives section renders the current `GameObjectives` inside the
+  drawer (test: `drawer_objectives_section_lists_objectives`).
+- The pause menu does NOT spawn when the drawer opens (test asserts no pause-panel
+  entity in `Drawer`; part of the freeze/UI test).
+- The A2 pause-axis + Tab-keybind decision is recorded
+  (cmd: `test -f tasks/20260724-102304/DECISION.md`).
+- The Tab drawer is documented (cmd: `grep -ni drawer CHANGELOG.md web/src/wiki/keybinds.md`).
+- manual: in a real run the owner opens the drawer with Tab - it slides in from
+  the right, the game pauses, the cursor appears, objectives show expanded, and
+  the tab handle is visible when closed; Tab and ESC both close it; the slide
+  animation reads well.
+- Overall: `cargo check --all-targets` clean, `cargo fmt` clean, new tests green,
+  and a probe run of a gameplay example returns OK/WARN with the drawer-closed
+  path unchanged.
+
 ## Notes
 
 - Spike: tasks/20260721-211512/SPIKE.md (RECOMMENDED). This task carries the
-  load-bearing DECISION.md for the A2 pause-axis + Tab-keybind choice, citing
-  the spike as context.
+  load-bearing DECISION.md (tasks/20260724-102304/DECISION.md) for the A2
+  pause-axis + Tab-keybind choice, citing the spike as context.
 - Builds on the state-driven cursor from 20260721-211500 (CLOSED).
-- Gates 20260721-211520 (needs the tab-handle anchor) and the comms-log section.
+- Gates 20260721-211520 (needs the tab-handle anchor) and the comms-log section
+  (20260724-102309).
+- Grounded facts (verified 2026-07-24): `PauseStates` enum
+  `crates/nova_gameplay/src/lib.rs:124`; freeze/cursor hooks + `toggle_pause`
+  match `crates/nova_menu/src/lib.rs:221,296,317,333,351`; flight/section
+  set-gate `crates/nova_gameplay/src/plugin.rs:166`; 19 `== Paused` observer
+  guards (10 in `input/player.rs` from :902); `NovaHudPlugin` `hud/mod.rs:155`,
+  bcs `TweenPlugin` `hud/mod.rs:198`, objectives panel `hud/mod.rs:273`; comms
+  tween reference `hud/comms_panel.rs`. Bevy 0.19.
+- Touches TWO crates: nova_gameplay (enum variant, guard widen, drawer module,
+  Tab toggle, UI, objectives section) and nova_menu (Drawer freeze/cursor hooks,
+  `toggle_pause` match arm).

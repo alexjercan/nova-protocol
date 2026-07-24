@@ -165,6 +165,12 @@ To be authored in the planning pass. Skeleton:
   slide-in via bcs TweenPlugin, tab-handle screen anchor as 211520's diegetic
   tuck-target. Seeded the shell (20260724-102304, gate) and comms-log
   (20260724-102309) tasks; Strand C reordered above.
+- **2026-07-24 (drawer shell planned, 20260724-102304):** /plan authored Steps +
+  DoD. DECISION.md tasks/20260724-102304/DECISION.md (ACCEPTED): the Tab drawer
+  is a THIRD `PauseStates` variant (not a separate freeze state) - keeps one
+  clock-freeze axis and avoids the `unpause_clocks` stomp. Audit surfaced 19
+  observer `== Paused` self-guards to widen to `!= Unpaused` (set-gates-miss-
+  observers); that guard sweep is the bulk of the task. Awaiting the flow gate.
 - **2026-07-24 (owner contents call, post-spike):** owner pulled the 3D minimap
   (20260724-102320) back INTO v0.9.0 as a STRETCH item - wants it but at the end,
   after the core sections, "curious how it will look"; cut first if Strand C runs
