@@ -47,8 +47,8 @@ pub mod prelude {
         lock_crosshairs::prelude::*, lock_dwell_ring::prelude::*, maneuver_instruments::prelude::*,
         objective_feedback::prelude::*, objective_markers::prelude::*, readout::prelude::*,
         screen_indicator::prelude::*, target_inset::prelude::*, torpedo_target::prelude::*,
-        turret_lead::prelude::*, velocity::prelude::*, HudSelfDrivenVisibility, HudTier,
-        HudVisibility, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
+        turret_lead::prelude::*, velocity::prelude::*, HudDrawerExempt, HudSelfDrivenVisibility,
+        HudTier, HudVisibility, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
     };
 }
 
@@ -115,6 +115,17 @@ pub enum HudTier {
 #[reflect(Component)]
 pub struct HudSelfDrivenVisibility;
 
+/// Flight chrome that STAYS visible while the Tab drawer is open (task
+/// 20260724-134335): the top status strip (`readout`) and the lower-left
+/// keybind hints. Opening the drawer hides the rest of the flight HUD so it
+/// does not fight the drawer for readability; widgets tagged with this marker
+/// are exempt from that drawer-scoped hide. They are still subject to the
+/// grave/tilde [`HudVisibility`] cycle - the exemption is ONLY about the
+/// drawer. Tag the widget's tiered root.
+#[derive(Component, Clone, Copy, Debug, Reflect)]
+#[reflect(Component)]
+pub struct HudDrawerExempt;
+
 /// Nav cyan, the family color of every flight-computer projection (the
 /// destination marker tint, the orbit cue, the maneuver chips, the holo
 /// ring).
@@ -154,6 +165,7 @@ impl Plugin for NovaHudPlugin {
         app.init_resource::<HudVisibility>();
         app.register_type::<HudVisibility>();
         app.register_type::<HudTier>();
+        app.register_type::<HudDrawerExempt>();
         // The cycle key is gameplay-only (the menu drives the resource
         // itself); plain ButtonInput, same pattern as the debug F11 toggle.
         app.add_systems(
@@ -174,6 +186,12 @@ impl Plugin for NovaHudPlugin {
             apply_hud_visibility
                 .after(ScreenIndicatorSystems)
                 .before(bevy::ui::UiSystems::Layout),
+        );
+        // Lift the drawer-exempt chrome above the drawer backdrop only while the
+        // drawer is open (task 20260724-134335).
+        app.add_systems(
+            Update,
+            lift_exempt_chrome_over_drawer.in_set(NovaHudSystems),
         );
 
         app.add_plugins(velocity::VelocityHudPlugin);
@@ -283,35 +301,74 @@ fn cycle_hud_visibility(
 ///   or its nearest tagged ancestor; untagged trees are not HUD-managed.
 fn apply_hud_visibility(
     level: Res<HudVisibility>,
+    pause: Res<State<crate::PauseStates>>,
     mut q_roots: Query<
-        (&HudTier, &mut Visibility, Has<HudSelfDrivenVisibility>),
+        (
+            &HudTier,
+            &mut Visibility,
+            Has<HudSelfDrivenVisibility>,
+            Has<HudDrawerExempt>,
+        ),
         Without<ScreenIndicatorMarker>,
     >,
     mut q_indicators: Query<
-        (Entity, &mut Visibility, Option<&HudTier>),
+        (
+            Entity,
+            &mut Visibility,
+            Option<&HudTier>,
+            Has<HudDrawerExempt>,
+        ),
         With<ScreenIndicatorMarker>,
     >,
     q_parents: Query<&ChildOf>,
     q_tiers: Query<&HudTier>,
 ) {
-    let level_changed = level.is_changed();
-    for (tier, mut visibility, self_driven) in &mut q_roots {
-        if !level.shows(*tier) {
+    // While the Tab drawer is open the flight HUD hides so it does not fight the
+    // drawer for readability (task 20260724-134335); widgets carrying
+    // `HudDrawerExempt` (the status strip + keybind hints) stay. The restore
+    // branch fires on a pause change too, so CLOSING the drawer un-hides in the
+    // same frame - not just on a grave/tilde level change.
+    let drawer_open = *pause.get() == crate::PauseStates::Drawer;
+    let restore = level.is_changed() || pause.is_changed();
+    for (tier, mut visibility, self_driven, exempt) in &mut q_roots {
+        let shown = level.shows(*tier) && (!drawer_open || exempt);
+        if !shown {
             visibility.set_if_neq(Visibility::Hidden);
-        } else if level_changed && !self_driven {
+        } else if restore && !self_driven {
             visibility.set_if_neq(Visibility::Inherited);
         }
     }
-    for (entity, mut visibility, own_tier) in &mut q_indicators {
+    for (entity, mut visibility, own_tier, exempt) in &mut q_indicators {
         let tier = own_tier
             .copied()
             .or_else(|| ancestor_tier(entity, &q_parents, &q_tiers));
         let Some(tier) = tier else {
             continue;
         };
-        if !level.shows(tier) {
+        let shown = level.shows(tier) && (!drawer_open || exempt);
+        if !shown {
             visibility.set_if_neq(Visibility::Hidden);
         }
+    }
+}
+
+/// Lift the drawer-exempt chrome (the status strip + keybind hints) above the
+/// drawer backdrop ONLY while the drawer is open (task 20260724-134335): the
+/// deepened backdrop would otherwise dim them. Their base z is 0, so when the
+/// drawer is closed - including while the PAUSE overlay owns the freeze, which
+/// sits at the same z as the drawer backdrop - the exempt chrome stays at the
+/// base HUD z and the pause overlay covers it normally.
+fn lift_exempt_chrome_over_drawer(
+    pause: Res<State<crate::PauseStates>>,
+    mut q_exempt: Query<&mut GlobalZIndex, With<HudDrawerExempt>>,
+) {
+    let z = if *pause.get() == crate::PauseStates::Drawer {
+        drawer::DRAWER_EXEMPT_Z
+    } else {
+        0
+    };
+    for mut zindex in &mut q_exempt {
+        zindex.set_if_neq(GlobalZIndex(z));
     }
 }
 
@@ -451,7 +508,16 @@ fn setup_hud_flight_status(
     // The cluster and cues are global singletons, not ship-targeted
     // widgets: one player, one set (same guard as the flight input rig).
     if q_existing_cluster.is_empty() {
-        commands.spawn((HudTier::Chrome, keybind_hint_cluster_hud()));
+        // The keybind hints stay visible while the drawer is open (exempt);
+        // `lift_exempt_chrome_over_drawer` raises this base z above the deepened
+        // backdrop only while the drawer is open (task 20260724-134335).
+        // verb_cues are flight cues - they hide with the HUD.
+        commands.spawn((
+            HudTier::Chrome,
+            HudDrawerExempt,
+            GlobalZIndex::default(),
+            keybind_hint_cluster_hud(),
+        ));
         commands.spawn((HudTier::Chrome, verb_cues_hud()));
     }
 }
@@ -813,6 +879,8 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(StatesPlugin);
         app.init_state::<crate::GameStates>();
+        // apply_hud_visibility reads the drawer axis (task 20260724-134335).
+        app.init_state::<crate::PauseStates>();
         app.init_resource::<HudVisibility>();
         app.init_resource::<ButtonInput<KeyCode>>();
         app.add_systems(
@@ -896,6 +964,100 @@ mod tests {
         app.update();
         assert_eq!(vis(&app, instrument), Visibility::Inherited);
         assert_eq!(vis(&app, chrome), Visibility::Inherited);
+    }
+
+    fn set_pause(app: &mut App, state: crate::PauseStates) {
+        app.world_mut()
+            .resource_mut::<NextState<crate::PauseStates>>()
+            .set(state);
+        app.update();
+    }
+
+    /// Opening the Tab drawer hides the flight HUD so it does not fight the
+    /// drawer for readability (task 20260724-134335): every tiered widget goes
+    /// Hidden EXCEPT those carrying `HudDrawerExempt` (the status strip + the
+    /// keybind hints), and closing the drawer restores them in one frame.
+    #[test]
+    fn drawer_open_hides_flight_hud_except_exempt() {
+        let mut app = app();
+        let instrument = app
+            .world_mut()
+            .spawn((HudTier::Instrument, Visibility::Inherited))
+            .id();
+        let exempt = app
+            .world_mut()
+            .spawn((HudTier::Instrument, HudDrawerExempt, Visibility::Inherited))
+            .id();
+        let vis = |app: &App, e| *app.world().get::<Visibility>(e).unwrap();
+
+        app.update();
+        assert_eq!(vis(&app, instrument), Visibility::Inherited);
+        assert_eq!(vis(&app, exempt), Visibility::Inherited);
+
+        // Open the drawer: the plain instrument hides, the exempt one stays.
+        set_pause(&mut app, crate::PauseStates::Drawer);
+        assert_eq!(
+            vis(&app, instrument),
+            Visibility::Hidden,
+            "the flight HUD hides while the drawer is open"
+        );
+        assert_eq!(
+            vis(&app, exempt),
+            Visibility::Inherited,
+            "the status strip / keys stay visible while the drawer is open"
+        );
+
+        // Close it: the hidden widget restores in the same frame the pause
+        // axis changes back (the restore branch keys on pause.is_changed()).
+        set_pause(&mut app, crate::PauseStates::Unpaused);
+        assert_eq!(
+            vis(&app, instrument),
+            Visibility::Inherited,
+            "closing the drawer restores the flight HUD"
+        );
+        assert_eq!(vis(&app, exempt), Visibility::Inherited);
+    }
+
+    /// The exempt chrome (status strip + keys) is lifted above the drawer
+    /// backdrop ONLY while the drawer is open. When the PAUSE menu owns the
+    /// freeze it drops back to the base HUD z, so the pause overlay (which sits
+    /// at the same z as the drawer backdrop) still covers it - not the other way
+    /// round (task 20260724-134335). The bug this pins: a static high z made the
+    /// status strip poke over the pause menu.
+    #[test]
+    fn exempt_chrome_lifts_only_while_drawer_open() {
+        let mut app = App::new();
+        app.add_plugins(StatesPlugin);
+        app.init_state::<crate::PauseStates>();
+        app.add_systems(Update, lift_exempt_chrome_over_drawer);
+        let widget = app
+            .world_mut()
+            .spawn((HudDrawerExempt, GlobalZIndex::default()))
+            .id();
+        let z = |app: &App| app.world().get::<GlobalZIndex>(widget).unwrap().0;
+
+        app.update();
+        assert_eq!(z(&app), 0, "base z while unpaused");
+
+        app.world_mut()
+            .resource_mut::<NextState<crate::PauseStates>>()
+            .set(crate::PauseStates::Drawer);
+        app.update();
+        assert_eq!(
+            z(&app),
+            drawer::DRAWER_EXEMPT_Z,
+            "lifted above the backdrop while the drawer is open"
+        );
+
+        app.world_mut()
+            .resource_mut::<NextState<crate::PauseStates>>()
+            .set(crate::PauseStates::Paused);
+        app.update();
+        assert_eq!(
+            z(&app),
+            0,
+            "dropped to base z when the pause menu - not the drawer - owns the freeze"
+        );
     }
 
     /// The screen-indicator projection writes Visibility::Visible on its nodes

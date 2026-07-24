@@ -1,8 +1,8 @@
 # Drawer open: hide the flight HUD + blur the background; keep the top status bar + lower-left keys visible; panels slide from both sides
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 62
-- TAGS: v0.9.0,feature,ui,hud
+- TAGS: v0.9.0, feature, ui, hud
 
 ## Goal
 

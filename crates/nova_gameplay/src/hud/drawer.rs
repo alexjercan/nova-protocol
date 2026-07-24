@@ -1,7 +1,10 @@
-//! The Tab ship-computer drawer (task 20260724-102304): a right-side surface
-//! that slides in on Tab, freezes the sim and frees the cursor while it is
-//! open, and hosts expandable sections. This module owns the SHELL - the
-//! interaction model, the slide, the tab handle, the section framework - plus
+//! The Tab ship-computer drawer (task 20260724-102304): two side panels that
+//! slide in on Tab - a right panel (objectives) and a left panel (comms/log) -
+//! freezing the sim and freeing the cursor while open. Opening the drawer also
+//! HIDES the flight HUD and deepens the backdrop into a gray field so the old UI
+//! does not fight the drawer for readability, keeping only the top status strip
+//! and the lower-left keybind hints (task 20260724-134335). This module owns the
+//! SHELL - the interaction model, the dual slide, the section framework - plus
 //! the first section (expanded objectives). The comms-log, minimap and
 //! ship-status sections (tasks 20260724-102309/102320/102332) slot into the
 //! same section framework later.
@@ -38,11 +41,24 @@ use crate::{prelude::*, GameStates, PauseStates};
 const DRAWER_WIDTH_PX: f32 = 340.0;
 /// Seconds for the panel to slide fully open (or closed).
 const DRAWER_SLIDE_SECS: f32 = 0.22;
-/// Backdrop dim at full open.
-const DRAWER_BACKDROP_ALPHA: f32 = 0.55;
+/// Backdrop dim at full open. Deepened from the original 0.55 (task
+/// 20260724-134335): with the flight HUD hidden while the drawer is open, the
+/// backdrop is the ONLY thing separating the drawer from the frozen scene, so
+/// it doubles as the "you do not notice the old UI is gone" gray field. The
+/// owner chose a deeper gray over a real scene blur at the /flow gate (bevy
+/// 0.19 has no UI backdrop-filter; see this task's DECISION.md).
+const DRAWER_BACKDROP_ALPHA: f32 = 0.86;
 const DRAWER_TITLE_FONT_PX: f32 = 16.0;
 const DRAWER_SECTION_TITLE_FONT_PX: f32 = 12.0;
 const DRAWER_LINE_FONT_PX: f32 = 13.0;
+
+/// Top inset for BOTH panels, reserving the top status strip (`readout`) as a
+/// window-manager-style status bar: no drawer UI sits in it (task 20260724-134335).
+const DRAWER_TOP_INSET_PX: f32 = 52.0;
+/// Bottom inset for the LEFT panel so it never covers the lower-left keybind
+/// hint cluster (`keybind_hints`, anchored at bottom:8 left:8). Sized to clear
+/// the cluster's seven rows (task 20260724-134335).
+const DRAWER_LEFT_BOTTOM_INSET_PX: f32 = 140.0;
 
 /// Global stacking-context z for the OPEN drawer: it is a modal, so backdrop and
 /// panel rise above the flight HUD chrome (which carries no `GlobalZIndex` = 0).
@@ -51,10 +67,24 @@ const DRAWER_LINE_FONT_PX: f32 = 13.0;
 /// is fine. The tab handle stays at the HUD z (it is chrome). Task 20260724-121541.
 const DRAWER_BACKDROP_Z: i32 = 10;
 const DRAWER_PANEL_Z: i32 = 11;
+/// z for the drawer-exempt flight chrome (the status strip + keybind hints) that
+/// STAYS visible while the drawer is open: it must sit ABOVE the deepened
+/// backdrop so the gray field cannot dim it (task 20260724-134335). Read by
+/// `readout` and `keybind_hints` when they tag themselves [`super::HudDrawerExempt`].
+pub(crate) const DRAWER_EXEMPT_Z: i32 = 12;
 
-/// The sliding panel root. Carries [`DrawerOpenness`].
+/// The sliding panel root. Carries [`DrawerOpenness`] and a [`DrawerSide`].
 #[derive(Component)]
 struct DrawerRootMarker;
+
+/// Which edge a drawer panel slides in from. The right panel (objectives) and
+/// the left panel (comms/log placeholder, content in task 20260724-102309)
+/// share the shell, slide and openness; only the animated edge differs.
+#[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
+enum DrawerSide {
+    Left,
+    Right,
+}
 
 /// The dim full-screen backdrop behind the panel.
 #[derive(Component)]
@@ -64,9 +94,9 @@ struct DrawerBackdropMarker;
 #[derive(Component)]
 struct DrawerObjectivesListMarker;
 
-/// Openness in `[0, 1]`: 0 fully closed (off-screen right), 1 fully open
-/// (flush with the right edge). Eased toward the state-driven target with real
-/// time so it keeps moving while the sim is frozen.
+/// Openness in `[0, 1]`: 0 fully closed (off-screen past the panel's edge), 1
+/// fully open (flush with that edge). Eased toward the state-driven target with
+/// real time so it keeps moving while the sim is frozen.
 #[derive(Component, Default)]
 struct DrawerOpenness(f32);
 
@@ -155,7 +185,7 @@ fn drive_drawer_slide(
     time: Res<Time<Real>>,
     pause: Res<State<PauseStates>>,
     mut q_panel: Query<
-        (&mut DrawerOpenness, &mut Node, &mut Visibility),
+        (&mut DrawerOpenness, &mut Node, &mut Visibility, &DrawerSide),
         (With<DrawerRootMarker>, Without<DrawerBackdropMarker>),
     >,
     mut q_backdrop: Query<
@@ -170,14 +200,19 @@ fn drive_drawer_slide(
     };
     let step = time.delta_secs() / DRAWER_SLIDE_SECS.max(f32::EPSILON);
 
-    // The backdrop tracks the panel's openness; default to the target when no
-    // panel exists (headless rigs) so the two stay consistent.
+    // The backdrop tracks the panels' openness; default to the target when no
+    // panel exists (headless rigs) so the two stay consistent. Both panels
+    // share the same eased openness, so either one is a faithful source.
     let mut openness = target;
-    for (mut panel_openness, mut node, mut visibility) in &mut q_panel {
+    for (mut panel_openness, mut node, mut visibility, side) in &mut q_panel {
         panel_openness.0 = approach(panel_openness.0, target, step);
         openness = panel_openness.0;
-        // Closed -> off-screen right; open -> flush (right = 0).
-        node.right = Val::Px((panel_openness.0 - 1.0) * DRAWER_WIDTH_PX);
+        // Closed -> off-screen past its edge; open -> flush (offset = 0).
+        let offset = Val::Px((panel_openness.0 - 1.0) * DRAWER_WIDTH_PX);
+        match side {
+            DrawerSide::Left => node.left = offset,
+            DrawerSide::Right => node.right = offset,
+        }
         *visibility = visibility_for(panel_openness.0);
     }
 
@@ -279,17 +314,19 @@ fn setup_drawer(
     // top-right objective hint is the drawer affordance + the reveal's tuck
     // anchor now.)
 
-    // The sliding panel, starting closed (off-screen right).
+    // The RIGHT sliding panel (objectives), starting closed (off-screen right).
+    // Top-inset below the status strip so the reserved top bar stays clear.
     commands
         .spawn((
-            Name::new("DrawerPanel"),
+            Name::new("DrawerPanelRight"),
             DrawerRootMarker,
+            DrawerSide::Right,
             DrawerOpenness(0.0),
             GlobalZIndex(DRAWER_PANEL_Z),
             Visibility::Hidden,
             Node {
                 position_type: PositionType::Absolute,
-                top: Val::Px(0.0),
+                top: Val::Px(DRAWER_TOP_INSET_PX),
                 bottom: Val::Px(0.0),
                 right: Val::Px(-DRAWER_WIDTH_PX),
                 width: Val::Px(DRAWER_WIDTH_PX),
@@ -330,6 +367,64 @@ fn setup_drawer(
                             row_gap: Val::Px(3.0),
                             ..default()
                         },
+                    ));
+                });
+        });
+
+    // The LEFT sliding panel (comms/flight-log), starting closed (off-screen
+    // left). This task builds the SHELL + a titled placeholder section; the
+    // comms/flight-log content lands in task 20260724-102309, which fills this
+    // panel. Top-inset below the status strip like the right panel, and
+    // bottom-inset above the lower-left keybind hint cluster so it never covers
+    // the keys (task 20260724-134335).
+    commands
+        .spawn((
+            Name::new("DrawerPanelLeft"),
+            DrawerRootMarker,
+            DrawerSide::Left,
+            DrawerOpenness(0.0),
+            GlobalZIndex(DRAWER_PANEL_Z),
+            Visibility::Hidden,
+            Node {
+                position_type: PositionType::Absolute,
+                top: Val::Px(DRAWER_TOP_INSET_PX),
+                bottom: Val::Px(DRAWER_LEFT_BOTTOM_INSET_PX),
+                left: Val::Px(-DRAWER_WIDTH_PX),
+                width: Val::Px(DRAWER_WIDTH_PX),
+                padding: UiRect::all(Val::Px(14.0)),
+                border: UiRect::right(Val::Px(1.0)),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(12.0),
+                ..default()
+            },
+            BorderColor::all(theme::BORDER_BRIGHT),
+            BackgroundColor(theme::PANEL),
+        ))
+        .with_children(|panel| {
+            panel.spawn((
+                Text::new("COMMS / LOG"),
+                TextFont::from_font_size(DRAWER_TITLE_FONT_PX),
+                TextColor(theme::CYAN_BRIGHT),
+            ));
+            // Placeholder section: the comms/flight-log content (task
+            // 20260724-102309) drops into this framework, mirroring the
+            // right panel's titled-block + list shape.
+            panel
+                .spawn(Node {
+                    flex_direction: FlexDirection::Column,
+                    row_gap: Val::Px(4.0),
+                    ..default()
+                })
+                .with_children(|section| {
+                    section.spawn((
+                        Text::new("FLIGHT LOG"),
+                        TextFont::from_font_size(DRAWER_SECTION_TITLE_FONT_PX),
+                        TextColor(theme::TEXT_MUTED),
+                    ));
+                    section.spawn((
+                        Text::new("No messages yet."),
+                        TextFont::from_font_size(DRAWER_LINE_FONT_PX),
+                        TextColor(theme::TEXT_MUTED),
                     ));
                 });
         });
@@ -513,12 +608,6 @@ mod tests {
             .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker));
         app.update();
 
-        let panel_z = app
-            .world_mut()
-            .query_filtered::<&GlobalZIndex, With<DrawerRootMarker>>()
-            .single(app.world())
-            .expect("the drawer panel carries an explicit GlobalZIndex")
-            .0;
         let backdrop_z = app
             .world_mut()
             .query_filtered::<&GlobalZIndex, With<DrawerBackdropMarker>>()
@@ -529,9 +618,154 @@ mod tests {
             backdrop_z > 0,
             "the backdrop must stack above the HUD chrome (z = {backdrop_z})"
         );
-        assert!(
-            panel_z >= backdrop_z,
-            "the panel sits at or above the backdrop (panel {panel_z}, backdrop {backdrop_z})"
+        // BOTH panels (left + right) sit at or above the backdrop.
+        let panel_zs: Vec<i32> = app
+            .world_mut()
+            .query_filtered::<&GlobalZIndex, With<DrawerRootMarker>>()
+            .iter(app.world())
+            .map(|z| z.0)
+            .collect();
+        assert_eq!(
+            panel_zs.len(),
+            2,
+            "the shell spawns two panels (left + right)"
         );
+        for panel_z in panel_zs {
+            assert!(
+                panel_z >= backdrop_z,
+                "each panel sits at or above the backdrop (panel {panel_z}, backdrop {backdrop_z})"
+            );
+        }
+        // The drawer-exempt flight chrome (status strip + keys) must out-rank
+        // the backdrop so the deepened gray field cannot dim it.
+        assert!(
+            DRAWER_EXEMPT_Z > backdrop_z,
+            "exempt chrome z ({DRAWER_EXEMPT_Z}) must beat the backdrop ({backdrop_z})"
+        );
+    }
+
+    /// The shell builds BOTH sliding panels: a right panel that starts off the
+    /// right edge and a left panel that starts off the left edge, both inset
+    /// below the status strip, and the left one inset above the keybind cluster
+    /// so it never covers the keys (task 20260724-134335).
+    #[test]
+    fn setup_spawns_both_sliding_panels() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_observer(setup_drawer);
+        app.world_mut()
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker));
+        app.update();
+
+        let mut panels: Vec<(DrawerSide, Node)> = app
+            .world_mut()
+            .query_filtered::<(&DrawerSide, &Node), With<DrawerRootMarker>>()
+            .iter(app.world())
+            .map(|(side, node)| (*side, node.clone()))
+            .collect();
+        assert_eq!(panels.len(), 2);
+        panels.sort_by_key(|(side, _)| *side == DrawerSide::Right);
+
+        let (left_side, left) = &panels[0];
+        let (right_side, right) = &panels[1];
+        assert_eq!(*left_side, DrawerSide::Left);
+        assert_eq!(*right_side, DrawerSide::Right);
+
+        // Closed: each panel parked off ITS edge.
+        assert_eq!(left.left, Val::Px(-DRAWER_WIDTH_PX));
+        assert_eq!(right.right, Val::Px(-DRAWER_WIDTH_PX));
+        // Top strip reserved on both.
+        assert_eq!(left.top, Val::Px(DRAWER_TOP_INSET_PX));
+        assert_eq!(right.top, Val::Px(DRAWER_TOP_INSET_PX));
+        // The left panel clears the lower-left keybind cluster.
+        assert_eq!(left.bottom, Val::Px(DRAWER_LEFT_BOTTOM_INSET_PX));
+    }
+
+    /// `drive_drawer_slide` eases BOTH panels open from their own edges: the
+    /// left panel's `left` offset and the right panel's `right` offset both
+    /// advance toward 0 while the drawer is open (task 20260724-134335).
+    #[test]
+    fn slide_drives_both_panel_edges() {
+        use std::time::Duration;
+
+        let mut app = App::new();
+        // Disable the real TimePlugin so its per-frame clock update cannot
+        // overwrite the deltas we advance by hand; drive_drawer_slide reads
+        // Time<Real>, which we own here.
+        app.add_plugins(MinimalPlugins.build().disable::<bevy::time::TimePlugin>());
+        app.insert_resource(Time::<Real>::default());
+        app.add_plugins(StatesPlugin);
+        app.init_state::<PauseStates>();
+        app.add_systems(Update, drive_drawer_slide);
+
+        let backdrop = app
+            .world_mut()
+            .spawn((
+                DrawerBackdropMarker,
+                BackgroundColor(theme::semantic::BACKDROP.with_alpha(0.0)),
+                Visibility::Hidden,
+            ))
+            .id();
+        let _ = backdrop;
+        let left = app
+            .world_mut()
+            .spawn((
+                DrawerRootMarker,
+                DrawerSide::Left,
+                DrawerOpenness(0.0),
+                Visibility::Hidden,
+                Node {
+                    left: Val::Px(-DRAWER_WIDTH_PX),
+                    ..default()
+                },
+            ))
+            .id();
+        let right = app
+            .world_mut()
+            .spawn((
+                DrawerRootMarker,
+                DrawerSide::Right,
+                DrawerOpenness(0.0),
+                Visibility::Hidden,
+                Node {
+                    right: Val::Px(-DRAWER_WIDTH_PX),
+                    ..default()
+                },
+            ))
+            .id();
+
+        // Open the drawer, then advance real time and step the slide.
+        app.world_mut()
+            .resource_mut::<NextState<PauseStates>>()
+            .set(PauseStates::Drawer);
+        app.update();
+        for _ in 0..4 {
+            app.world_mut()
+                .resource_mut::<Time<Real>>()
+                .advance_by(Duration::from_millis(30));
+            app.update();
+        }
+
+        let left_off = px(app.world().get::<Node>(left).unwrap().left);
+        let right_off = px(app.world().get::<Node>(right).unwrap().right);
+        // Both moved in from -WIDTH toward 0 (flush at 0).
+        assert!(
+            left_off > -DRAWER_WIDTH_PX && left_off <= 0.0,
+            "left panel slid in from its edge (offset {left_off})"
+        );
+        assert!(
+            right_off > -DRAWER_WIDTH_PX && right_off <= 0.0,
+            "right panel slid in from its edge (offset {right_off})"
+        );
+        // They share the eased openness, so they track together.
+        assert!((left_off - right_off).abs() < f32::EPSILON);
+    }
+
+    /// Read a `Val::Px` back as an f32 for the slide assertions.
+    fn px(val: Val) -> f32 {
+        match val {
+            Val::Px(p) => p,
+            other => panic!("expected Val::Px, got {other:?}"),
+        }
     }
 }

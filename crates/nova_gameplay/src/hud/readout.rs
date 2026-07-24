@@ -131,6 +131,13 @@ fn spawn_readout_strip(mut commands: Commands) {
         Name::new("HudReadoutStrip"),
         HudReadoutStripMarker,
         HudTier::Instrument,
+        // Stay visible while the Tab drawer is open (window-manager-style status
+        // bar); `lift_exempt_chrome_over_drawer` raises this base z above the
+        // deepened backdrop ONLY while the drawer is open, so the pause overlay
+        // (same z as the drawer backdrop) still covers the strip normally
+        // (task 20260724-134335).
+        super::HudDrawerExempt,
+        GlobalZIndex::default(),
         Node {
             position_type: PositionType::Absolute,
             top: Val::Px(16.0),
