@@ -25,6 +25,36 @@ Scope (direction-level; /plan breaks into steps at pickup):
 - The tab handle's z can stay with the HUD (it is chrome); only the OPEN
   surface must rise above.
 
+## Steps
+
+- [ ] Write the z-order test FIRST (mirror nova_menu's overlay-z assertion at
+      `crates/nova_menu/src/lib.rs:4939`): in `hud/drawer.rs` tests, register the
+      `setup_drawer` observer, spawn an entity with `SpaceshipRootMarker` +
+      `PlayerSpaceshipMarker` (triggers the observer), `update`, then assert the
+      `DrawerRootMarker` (panel) AND `DrawerBackdropMarker` entities each carry a
+      `GlobalZIndex` with value > 0, and the panel's z >= the backdrop's. Watch it
+      fail (no `GlobalZIndex` today).
+- [ ] Add `GlobalZIndex` to the backdrop and panel in `setup_drawer`
+      (`hud/drawer.rs`): backdrop `GlobalZIndex(10)`, panel `GlobalZIndex(11)` -
+      the same modal tier the pause overlay uses (`nova_menu/src/lib.rs:457,540`).
+      The drawer and pause menu are mutually exclusive `PauseStates` variants, so
+      sharing the tier is fine. Leave the tab HANDLE at the HUD z (no
+      `GlobalZIndex`) - only the OPEN surface rises above.
+- [ ] Verify: `cargo check --all-targets`, `cargo fmt`, the new test + the
+      existing `drawer::` tests. (No probe: a UI stacking change touches no
+      gameplay logic/invariants.)
+
+## Definition of Done
+
+- The open drawer's panel and backdrop carry an explicit `GlobalZIndex` above the
+  HUD chrome (test: `drawer_renders_above_the_hud`; fails before the fix, when the
+  entities carry no `GlobalZIndex`).
+- manual: the owner opens the drawer in a real run and the panel sits ON TOP of
+  the compact top-right objectives panel and the rest of the flight HUD - the
+  reported "HUD draws over the drawer" bug is gone; the transparency + slide still
+  read well.
+- `cargo check --all-targets` + `cargo fmt` clean, tests green.
+
 ## Notes
 
 - From the drawer shell (20260724-102304, LANDED c13143d4). Files:
@@ -33,3 +63,8 @@ Scope (direction-level; /plan breaks into steps at pickup):
   intentionally carry NO HudTier (modal axis); z-order is the remaining gap.
 - Owner also confirmed (2026-07-24) they like the drawer transparency + slide
   animation - keep those.
+- No CHANGELOG entry: this is pre-release polish of the still-Unreleased drawer
+  feature, not a fix to a shipped release.
+- Grounded (2026-07-24): `GlobalZIndex` is the Bevy 0.19 global stacking-context
+  component; modal overlays in nova_menu use it (pause 10/11, outcome, tested at
+  :4941/:5501). Flight HUD widgets carry none (implicit 0).
