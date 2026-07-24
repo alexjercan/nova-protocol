@@ -58,9 +58,11 @@ Scope (direction-level; /plan breaks into steps at pickup):
       `ObjectiveHintPlugin`): a small top-right widget (top ~16px, right ~8px -
       beside the top-center readout strip, NOT on it), `HudTier::Chrome`,
       spawned/despawned with the player ship (mirror the other HUD widgets).
-      Terse content from `GameObjectives`: the current (first active) objective on
-      one short truncated line, plus a small "TAB" affordance (+ the pad glyph).
-      Marker `ObjectiveHintMarker`.
+      Content (OWNER CHOICE 2026-07-24 - "just a count/icon + TAB"): an objective
+      glyph + the ACTIVE-objective COUNT (`GameObjectives.objectives.len()`) + a
+      small "TAB" affordance (+ the right-stick pad glyph) - NO per-objective text
+      (the reveal + drawer carry the detail). Hidden when the count is 0. Marker
+      `ObjectiveHintMarker`.
 - [ ] Repoint the diegetic tuck anchor to the hint: the hint module writes
       `DrawerTabAnchor` (stays pub in `hud/drawer.rs`) from `ObjectiveHintMarker`'s
       screen rect; REMOVE `DrawerTabHandleMarker` + its spawn + the handle-based
@@ -89,9 +91,9 @@ Scope (direction-level; /plan breaks into steps at pickup):
 - The always-on compact objectives panel no longer spawns in flight
   (test: after a player spawns, no `ObjectivesPanelMarker` exists;
   cmd: `grep -n spawn_objectives_panel crates/nova_gameplay/src/hud/mod.rs` is empty).
-- A minimalist top-right objective hint spawns in flight showing terse objective
-  status + a Tab affordance
-  (test: `objective_hint_spawns_and_shows_current_objective`;
+- A minimalist top-right objective hint spawns in flight showing the active
+  objective COUNT + glyph + a Tab affordance (no per-objective text), and hides at
+  count 0 (test: `objective_hint_shows_count_and_hides_when_empty`;
   manual: reads minimal, hints Tab + pad).
 - The drawer tab-handle square no longer spawns, and the reveal's
   `DrawerTabAnchor` is sourced from the hint
@@ -119,7 +121,6 @@ Scope (direction-level; /plan breaks into steps at pickup):
 - Grounded (2026-07-24): bcs `ObjectivesPlugin` inits `GameObjectives` and
   `rebuild_lines` (`Single<..ObjectivesPanelMarker>`) skips with no panel - safe to
   drop the panel spawn, keep the plugin. `RightThumb` is the free pad button.
-- Decisions deferred to the flow gate (owner may weigh in): the gamepad button
-  (recommend `RightThumb`) and the hint content (recommend the current-objective
-  one-liner + Tab hint, vs a bare count/icon). No DECISION.md - relocations +
-  a value choice, not an architectural fork.
+- Gate decisions RESOLVED (owner, 2026-07-24): gamepad button = `RightThumb`
+  (right stick click); hint content = objective glyph + COUNT + TAB, no per-objective
+  text. No DECISION.md - relocations + value choices, not an architectural fork.
