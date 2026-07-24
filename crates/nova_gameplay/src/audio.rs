@@ -326,10 +326,14 @@ impl Plugin for NovaAudioPlugin {
         app.register_type::<SfxListenerMarker>();
 
         // Audio sinks do not follow Time<Virtual>: without this the thruster
-        // hum keeps roaring at its last volume behind the pause overlay
-        // (review R1.5).
+        // hum keeps roaring at its last volume behind a frozen sim (review
+        // R1.5). BOTH frozen overlays need it - the pause overlay and the Tab
+        // ship-computer drawer (task 20260724-102304), which freezes the same
+        // way (see PauseStates::is_frozen).
         app.add_systems(OnEnter(crate::PauseStates::Paused), pause_loops);
         app.add_systems(OnExit(crate::PauseStates::Paused), resume_loops);
+        app.add_systems(OnEnter(crate::PauseStates::Drawer), pause_loops);
+        app.add_systems(OnExit(crate::PauseStates::Drawer), resume_loops);
 
         app.add_observer(on_destroyed_play_explosion);
         app.add_observer(on_damage_play_impact);
@@ -1053,11 +1057,11 @@ fn apply_rcs_loop_volume(
     }
 }
 
-/// Silence the engine loop while the pause overlay is up; one-shot SFX are
-/// naturally quiet then (no events fire in a frozen sim).
-/// Pause every looping SFX sink (thruster hum + RCS hiss) behind the pause
-/// overlay - audio sinks do not follow `Time<Virtual>`, so without this a loop
-/// keeps roaring at its last volume while the game is frozen.
+/// Silence the engine loop while the sim is frozen (the pause overlay OR the
+/// Tab drawer); one-shot SFX are naturally quiet then (no events fire in a
+/// frozen sim). Pause every looping SFX sink (thruster hum + RCS hiss) - audio
+/// sinks do not follow `Time<Virtual>`, so without this a loop keeps roaring at
+/// its last volume while the game is frozen.
 fn pause_loops(
     q_thruster: Query<&AudioSink, With<ThrusterLoopSfx>>,
     q_rcs: Query<&AudioSink, With<RcsLoopSfx>>,

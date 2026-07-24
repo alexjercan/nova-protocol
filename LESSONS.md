@@ -537,13 +537,19 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   reason string. tasks/20260709-193338/NOTES.md.
 - `quat-angle-noise-floor` (x1): f32 quat angle_between floors ~1e-3 rad;
   assert above it or compare components. 20260711-140241.
-- `audit-state-gates-on-new-entry-path` (x3, PROMOTED 2026-07-19 -> plan
-  skill): a new route into a state greps run_if/in_state + OnEnter/OnExit and
-  writes the what-newly-runs list. 20260711-180426, 20260716-214919.
+- `audit-state-gates-on-new-entry-path` (x4, PROMOTED 2026-07-19 -> plan
+  skill): a new route into a state greps run_if/in_state + OnEnter/OnExit +
+  DespawnOnExit AND the `== <state>`/`is_frozen`-style runtime guards, across the
+  WHOLE workspace not just the crate under edit, and writes the what-newly-runs
+  list - a "while-frozen" behavior can be wired by SCHEDULE (audio loop-freeze on
+  `OnEnter(Paused)` only was invisible to a guard-only grep and let the drawer
+  roar). 20260711-180426, 20260716-214919, 20260724-102304.
 - `bound-scheduling-both-sides` (x1): a system between producer and reader
   needs both .after and .before. 20260711-180501.
-- `set-gates-miss-observers` (x1): gating a SystemSet does not touch
-  observers; enumerate systems + observers + hooks. 20260711-185156.
+- `set-gates-miss-observers` (x2): gating a SystemSet does not touch
+  observers; enumerate systems + observers + hooks - a new PauseStates variant
+  had to widen ~14 observer self-guards the `in_state(Unpaused)` set-gate never
+  covered. 20260711-185156, 20260724-102304.
 - `would-it-fail-without-it` (x6, PROMOTED 2026-07-13 -> work + review
   skills): a verification that cannot fail with the mechanism deleted proves
   nothing; a sabotage that will not go red refutes the assumed mechanism or
@@ -558,7 +564,9 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   ordering/observer/failure/API behavior - doc comments (upstream AND ours)
   are folklore, and SPIKE docs stating a dependency capability cite the
   verifying grep too (a spike claimed a Bevy per-system diagnostic that does
-  not exist). 20260717-133332, 20260719-112011.
+  not exist); the bcs `Tween` advances on `Res<Time>` (=`Time<Virtual>`), so a
+  pause-overlay slide had to use `Time<Real>` instead - checked at design time,
+  not after. 20260717-133332, 20260719-112011, 20260724-102304.
 - `cross-cycle-warning-with-numbers` (positive, x2): write hazards and
   findings belonging to a QUEUED task into that task's TASK.md with
   specifics. 20260711-140234, 20260716-155823.
@@ -569,8 +577,11 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   security boundary name it and default to the safe path. 20260715-214540.
 - `nix-devshell-for-cargo` (x2): no cargo on PATH means prefix with
   `nix develop --command ...` from the repo. 20260715-140049.
-- `reuse-known-good-stack` (x2, positive): scaffold new work by copying a
-  working in-repo reference verbatim. 20260712-093048, 20260711-180511.
+- `reuse-known-good-stack` (x3, positive -> Pending promotions): scaffold new
+  work - and TEST RIGS especially - by copying the nearest passing in-repo
+  reference verbatim, THEN mutate; reconstructing a rig from a system signature
+  cost two build cycles (a manual `ButtonInput` needs an explicit `clear()`; the
+  flyable-ship rig omits `FlightIntent`). 20260712-093048, 20260711-180511, 20260724-102304.
 - `measure-before-writing-the-number` (x2): never write a quantity into a doc
   from a mental model; backfill from a run. 20260712-105505, 20260717-143806.
 - `manual-time-rig-measures-its-clock` (x2): `Time<Virtual>` clamps manual
@@ -865,10 +876,15 @@ here (annotated) as the paid record.
 - `widget-tree-eyeball-for-logical-layout` (x1): for a text/list "layout", the eyeball is asserting the SPAWNED widget tree (Text/Node content in child/display order) through the real spawn path - it sees the rendered content deterministically and headlessly. Prefer it to a pixel screenshot for logical/text layouts; a pixel shot is flaky+expensive on a software GPU, so read the capture rig's window/settle/GPU limits BEFORE attempting one (a scenarios-picker capture overran the autopilot window on llvmpipe - a limit the rig's own comments documented). 20260723-095930.
 - `authored-vs-derived-values` (x4, PROMOTED 2026-07-21 -> AGENTS.md Conventions): author content against measured runtime consts, and encode layout invariants as computed rig assertions. 20260716-124722, 20260717-112630.
 - `advertised-but-unwired` (x3, PROMOTED 2026-07-21 -> AGENTS.md Conventions): a config surface is not a capability until producer/consumer wiring and preconditions are verified in the new context. 20260712-093044.
-- `out-of-context-review-pass` (positive, x31, PROMOTED 2026-07-21 -> already /flow round-1 practice): a fresh-context review re-derives load-bearing claims and catches MAJORs shared-session eyes miss; verify the verifier's counterexamples too. 20260717-212219, 20260719-112011.
+- `out-of-context-review-pass` (positive, x32, PROMOTED 2026-07-21 -> already /flow round-1 practice): a fresh-context review re-derives load-bearing claims and catches MAJORs shared-session eyes miss; verify the verifier's counterexamples too - it caught the drawer's audio-loop freeze gap the implementing session's own audit had missed. 20260717-212219, 20260719-112011, 20260724-102304.
 
 ## Pending promotions (3+ occurrences, user decides)
 
+- `reuse-known-good-stack` (x3, positive) -> work skill: scaffold a new test rig
+  by copying the nearest passing sibling rig verbatim, then mutate - do not
+  reconstruct it from the system's parameter signature. Prose target (the skill
+  already says "grep the module for an existing rig of the same kind first"; this
+  sharpens it to "copy it whole first"). 20260712-093048, 20260711-180511, 20260724-102304.
 - `lint-gate-is-the-last-step` (x3): fmt/clippy/tests run AFTER the final edit;
   mirror remote CI locally before pushing - a post-final-edit prelude tweak
   landed an unformatted line that CI would have bounced (caught at flow Finish).

@@ -253,5 +253,10 @@ handle anchor), 20260721-211526 (comms stack -> its icons feed the log section).
 (Appended by each implementing task as it lands - keeps this doc the family's
 single source of current state.)
 
-- (pending) 20260724-102304 drawer shell + interaction model
+- 20260724-102304 drawer shell + interaction model - LANDED 2026-07-24. Tab
+  drawer as a third `PauseStates::Drawer` variant on the one freeze axis (reuses
+  the pause freeze + cursor-free, minus the pause menu); slide via `Time<Real>`
+  (bcs Tween is virtual-clocked); tab-handle anchor `DrawerTabAnchor` exposed for
+  211520; expanded objectives section. 2 review rounds (out-of-context R1.1 caught
+  an audio-loop freeze gap). See tasks/20260724-102304/.
 - (pending) 20260724-102309 drawer comms-log section

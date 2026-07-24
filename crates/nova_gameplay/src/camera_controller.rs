@@ -760,7 +760,7 @@ fn on_rotation_input(
     // Observers bypass system-set gating; freeze intent changes while the
     // pause overlay is up (review R1.1). Releases stay ungated so held keys
     // clear cleanly during a pause.
-    if *pause.get() == crate::PauseStates::Paused {
+    if pause.get().is_frozen() {
         return;
     }
 

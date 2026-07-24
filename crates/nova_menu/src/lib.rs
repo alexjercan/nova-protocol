@@ -226,6 +226,17 @@ impl Plugin for NovaMenuPlugin {
             OnExit(PauseStates::Paused),
             (unpause_clocks, restore_cursor),
         );
+        // The Tab ship-computer drawer (task 20260724-102304) reuses the same
+        // freeze + cursor-free as the pause overlay - it is a third
+        // `PauseStates` variant on the SAME clock-freeze axis (see that task's
+        // DECISION.md) - but WITHOUT `setup_pause_ui`: the drawer draws its own
+        // surface in `nova_gameplay`'s HUD. Only ever entered from / exited to
+        // `Unpaused`, so these never race the `Paused` hooks.
+        app.add_systems(OnEnter(PauseStates::Drawer), (pause_clocks, release_cursor));
+        app.add_systems(
+            OnExit(PauseStates::Drawer),
+            (unpause_clocks, restore_cursor),
+        );
         // Leaving Playing while paused (Back to Main Menu) must not leave the
         // game frozen for the next session of play.
         app.add_systems(OnExit(GameStates::Playing), force_unpause);
@@ -317,6 +328,9 @@ fn toggle_pause(
         next.set(match current.get() {
             PauseStates::Unpaused => PauseStates::Paused,
             PauseStates::Paused => PauseStates::Unpaused,
+            // ESC while the Tab drawer is open closes it back to gameplay
+            // (task 20260724-102304) rather than stacking the pause menu.
+            PauseStates::Drawer => PauseStates::Unpaused,
         });
         // The overlay open/close toggle (task 20260714-090006): a soft UI blip
         // on both directions. The Resume/Exit buttons close it with their own
@@ -1013,7 +1027,7 @@ fn regrab_cursor_on_player_spawn(
     // guarantee; not verified for observers, so don't lean on it here).
     mut q_cursor: Query<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
-    if *game_state.get() != GameStates::Playing || *pause.get() == PauseStates::Paused {
+    if *game_state.get() != GameStates::Playing || pause.get().is_frozen() {
         return;
     }
     // Symmetric with restore_cursor (outcome review R1.1): never grab out
@@ -4341,6 +4355,90 @@ mod tests {
         );
         // The back button entity died with the overlay.
         assert!(app.world().get_entity(back).is_err());
+    }
+
+    /// Opening the Tab drawer (task 20260724-102304) reuses the pause freeze:
+    /// entering `PauseStates::Drawer` freezes both clocks and frees the cursor,
+    /// exactly like `Paused` - but WITHOUT spawning the pause menu. Deleting the
+    /// `OnEnter(Drawer)` wiring leaves the clocks running, so this fails without
+    /// the mechanism (`would-it-fail-without-it`).
+    #[test]
+    fn entering_drawer_freezes_clocks_frees_cursor_and_shows_no_pause_menu() {
+        let mut app = app();
+        app.insert_resource(dummy_scenarios());
+        // A window whose cursor starts grabbed (flight state), so freeing it is
+        // observable.
+        let window = app
+            .world_mut()
+            .spawn((
+                bevy::window::Window::default(),
+                bevy::window::PrimaryWindow,
+                CursorOptions {
+                    grab_mode: CursorGrabMode::Locked,
+                    visible: false,
+                    ..default()
+                },
+            ))
+            .id();
+        enter_playing(&mut app);
+        assert_eq!(clocks_paused(&app), (false, false));
+
+        // The drawer opens by driving the shared freeze axis to Drawer (what
+        // nova_gameplay's `toggle_drawer` does).
+        app.world_mut()
+            .resource_mut::<NextState<PauseStates>>()
+            .set(PauseStates::Drawer);
+        app.update();
+
+        assert_eq!(
+            clocks_paused(&app),
+            (true, true),
+            "opening the drawer freezes both clocks"
+        );
+        let cursor = app.world().get::<CursorOptions>(window).unwrap();
+        assert_eq!(
+            cursor.grab_mode,
+            CursorGrabMode::None,
+            "the drawer frees the cursor"
+        );
+        assert!(cursor.visible, "the drawer shows the cursor");
+
+        // The drawer is NOT the pause menu: no pause overlay spawns.
+        let mut q = app.world_mut().query::<(&Name,)>();
+        let has_pause_overlay = q
+            .iter(app.world())
+            .any(|(n,)| n.as_str() == "Pause Overlay");
+        assert!(
+            !has_pause_overlay,
+            "opening the drawer must not spawn the pause menu overlay"
+        );
+    }
+
+    /// ESC while the Tab drawer is open closes it back to gameplay (task
+    /// 20260724-102304) - not into the pause menu - and unfreezes the clocks.
+    #[test]
+    fn escape_closes_the_drawer_to_unpaused() {
+        let mut app = app();
+        app.insert_resource(dummy_scenarios());
+        enter_playing(&mut app);
+        app.world_mut()
+            .resource_mut::<NextState<PauseStates>>()
+            .set(PauseStates::Drawer);
+        app.update();
+        assert_eq!(pause_state(&app), PauseStates::Drawer);
+        assert_eq!(clocks_paused(&app), (true, true));
+
+        press_escape(&mut app);
+        assert_eq!(
+            pause_state(&app),
+            PauseStates::Unpaused,
+            "ESC closes the drawer straight back to gameplay, not into the pause menu"
+        );
+        assert_eq!(
+            clocks_paused(&app),
+            (false, false),
+            "closing the drawer unfreezes the clocks"
+        );
     }
 
     /// Retry needs something to reload: over a live scenario the pause

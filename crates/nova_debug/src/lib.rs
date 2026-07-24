@@ -168,7 +168,7 @@ fn sync_inspector_cursor(
     // than a shared helper because those live in a crate nova_debug does not
     // depend on and each carries a slightly different guard set; the predicate is
     // simple enough that the drift risk is low.
-    if *pause.get() == PauseStates::Paused
+    if pause.get().is_frozen()
         || outcome.is_some_and(|outcome| outcome.0.is_some())
         || q_player.is_empty()
     {

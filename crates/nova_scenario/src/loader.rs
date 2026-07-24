@@ -1034,7 +1034,7 @@ fn on_next_input(
     // Observers bypass system-set gating; freeze intent changes while the
     // pause overlay is up (review R1.1). Releases stay ungated so held keys
     // clear cleanly during a pause.
-    let paused = *pause.get() == PauseStates::Paused;
+    let paused = pause.get().is_frozen();
     let has_queued = world.next_scenario.is_some();
     let has_outcome = outcome.map(|o| o.0.is_some()).unwrap_or(false);
 

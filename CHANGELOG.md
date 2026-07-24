@@ -14,6 +14,10 @@ tagged **(breaking)**.
 
 ## [Unreleased]
 
+### Interface & HUD
+
+- Tab ship-computer drawer: a right-side surface that slides in on Tab, pauses the game and frees the cursor, with an expanded objectives section (shell + interaction model; comms log, minimap and ship status to follow).
+
 ## [0.8.1] - 2026-07-24
 
 ### Web & Platform

@@ -114,12 +114,18 @@ pub enum GameStates {
     Playing,
 }
 
-/// Whether gameplay is frozen behind the pause overlay (task
-/// 20260711-185156). Owned UI-wise by `nova_menu` (ESC toggle + overlay);
-/// `nova_gameplay` gates the spaceship input/section system sets on
-/// `Unpaused`, and the clocks (`Time<Virtual>` + `Time<Physics>`) pause on
-/// entering `Paused`. Init'd by `AppBuilder` next to [`GameStates`]. Only
-/// meaningful inside `GameStates::Playing`; leaving Playing must reset it.
+/// Whether gameplay is frozen behind a modal overlay (task 20260711-185156).
+/// Owned UI-wise by `nova_menu` (ESC toggle + overlay) and `nova_gameplay`'s
+/// Tab ship-computer drawer; `nova_gameplay` gates the spaceship input/section
+/// system sets on `Unpaused`, and the clocks (`Time<Virtual>` +
+/// `Time<Physics>`) pause on entering any frozen variant. Init'd by
+/// `AppBuilder` next to [`GameStates`]. Only meaningful inside
+/// `GameStates::Playing`; leaving Playing must reset it.
+///
+/// Both frozen variants ([`PauseStates::Paused`] and [`PauseStates::Drawer`])
+/// are entered ONLY from [`PauseStates::Unpaused`] and exit back to it - never
+/// one directly into the other - so the freeze/cursor hooks never
+/// double-fire (task 20260724-102304, see its DECISION.md).
 #[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
 pub enum PauseStates {
     #[default]
@@ -127,6 +133,22 @@ pub enum PauseStates {
     Unpaused,
     /// Gameplay is frozen behind the pause overlay; the clocks are stopped.
     Paused,
+    /// Gameplay is frozen behind the Tab ship-computer drawer; the clocks are
+    /// stopped and the cursor is freed, exactly like [`PauseStates::Paused`]
+    /// but without the pause menu (task 20260724-102304).
+    Drawer,
+}
+
+impl PauseStates {
+    /// True when gameplay is frozen (any non-[`Unpaused`](PauseStates::Unpaused)
+    /// variant): the clocks are stopped and input observers must suppress. This
+    /// is the predicate the ~18 observer self-guards use instead of comparing
+    /// against a single variant, so a new frozen overlay is covered without
+    /// re-auditing every guard (task 20260724-102304;
+    /// `set-gates-miss-observers`).
+    pub fn is_frozen(&self) -> bool {
+        *self != PauseStates::Unpaused
+    }
 }
 
 /// Which game the main menu handed off to when it set [`GameStates::Playing`].

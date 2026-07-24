@@ -899,7 +899,7 @@ fn on_flight_burn_input(
     // Observers bypass system-set gating; freeze intent changes while the
     // pause overlay is up (review R1.1). Releases stay ungated so held keys
     // clear cleanly during a pause.
-    if *pause.get() == crate::PauseStates::Paused {
+    if pause.get().is_frozen() {
         return;
     }
 
@@ -957,7 +957,7 @@ fn on_autopilot_stop_input(
     // Observers bypass system-set gating; freeze intent changes while the
     // pause overlay is up (review R1.1). Releases stay ungated so held keys
     // clear cleanly during a pause.
-    if *pause.get() == crate::PauseStates::Paused {
+    if pause.get().is_frozen() {
         return;
     }
 
@@ -994,7 +994,7 @@ fn on_autopilot_goto_input(
     // Observers bypass system-set gating; freeze intent changes while the
     // pause overlay is up (review R1.1). Releases stay ungated so held keys
     // clear cleanly during a pause.
-    if *pause.get() == crate::PauseStates::Paused {
+    if pause.get().is_frozen() {
         return;
     }
 
@@ -1045,7 +1045,7 @@ fn on_autopilot_orbit_input(
     // Observers bypass system-set gating; freeze intent changes while the
     // pause overlay is up (review R1.1). Releases stay ungated so held keys
     // clear cleanly during a pause.
-    if *pause.get() == crate::PauseStates::Paused {
+    if pause.get().is_frozen() {
         return;
     }
 
@@ -1100,7 +1100,7 @@ fn on_autopilot_off_input(
     // Observers bypass system-set gating; freeze intent changes while the
     // pause overlay is up (review R1.1). Releases stay ungated so held keys
     // clear cleanly during a pause.
-    if *pause.get() == crate::PauseStates::Paused {
+    if pause.get().is_frozen() {
         return;
     }
 
@@ -1128,7 +1128,7 @@ fn on_rcs_modifier_start(
     q_verbs: ControllerVerbQuery,
     pause: Res<State<crate::PauseStates>>,
 ) {
-    if *pause.get() == crate::PauseStates::Paused {
+    if pause.get().is_frozen() {
         return;
     }
     let entity = *ship;
@@ -1172,7 +1172,7 @@ fn on_rcs_aim(
     ship: Single<(&mut RcsIntent, Has<RcsActive>), With<PlayerSpaceshipMarker>>,
     pause: Res<State<crate::PauseStates>>,
 ) {
-    if *pause.get() == crate::PauseStates::Paused {
+    if pause.get().is_frozen() {
         return;
     }
     let (mut intent, active) = ship.into_inner();
@@ -1245,7 +1245,7 @@ fn on_thruster_input(
     // Observers bypass system-set gating; freeze intent changes while the
     // pause overlay is up (review R1.1). Releases stay ungated so held keys
     // clear cleanly during a pause.
-    if *pause.get() == crate::PauseStates::Paused {
+    if pause.get().is_frozen() {
         return;
     }
 
@@ -1334,7 +1334,7 @@ fn on_turret_input(
     // Observers bypass system-set gating; freeze intent changes while the
     // pause overlay is up (review R1.1). Releases stay ungated so held keys
     // clear cleanly during a pause.
-    if *pause.get() == crate::PauseStates::Paused {
+    if pause.get().is_frozen() {
         return;
     }
 
@@ -1427,7 +1427,7 @@ fn on_torpedo_input(
     // Observers bypass system-set gating; freeze intent changes while the
     // pause overlay is up (review R1.1). Releases stay ungated so held keys
     // clear cleanly during a pause.
-    if *pause.get() == crate::PauseStates::Paused {
+    if pause.get().is_frozen() {
         return;
     }
 
@@ -2020,6 +2020,72 @@ mod tests {
                 Some(AutopilotAction::Goto { target: t }) if t == target
             ),
             "GOTO granted: the keypress engages GOTO on the lock"
+        );
+    }
+
+    /// The Tab drawer freezes flight input exactly like the pause menu (task
+    /// 20260724-102304): the burn observer self-guards on
+    /// `PauseStates::is_frozen()`, so a throttle press in `Drawer` must NOT
+    /// move `FlightIntent`. This pins the guard-widen from `== Paused` to
+    /// `!= Unpaused`; narrowing it back to `== Paused` fails this test.
+    #[test]
+    fn flight_input_inert_while_drawer_open() {
+        use bevy::input::InputPlugin;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<crate::PauseStates>();
+        app.add_input_context::<FlightInputMarker>();
+        app.add_observer(on_flight_burn_input);
+
+        let (ship, _controller) = spawn_flyable_ship(app.world_mut());
+        // The burn observer writes an existing FlightIntent; give the ship one.
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(FlightIntent::default());
+        app.finish();
+        app.cleanup();
+        app.update();
+        app.world_mut().spawn(flight_input_rig());
+        app.update();
+
+        // Open the drawer, then press the throttle: intent stays put.
+        app.world_mut()
+            .resource_mut::<NextState<crate::PauseStates>>()
+            .set(crate::PauseStates::Drawer);
+        app.update();
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyW);
+        app.update();
+        app.update();
+        assert_eq!(
+            app.world().get::<FlightIntent>(ship).map(|i| i.burn),
+            Some(0.0),
+            "a throttle press while the drawer is open must not move FlightIntent"
+        );
+
+        // Close the drawer (back to Unpaused) and press again: now it burns,
+        // proving the press itself is live and the freeze is what suppressed it.
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .release(KeyCode::KeyW);
+        app.update();
+        app.world_mut()
+            .resource_mut::<NextState<crate::PauseStates>>()
+            .set(crate::PauseStates::Unpaused);
+        app.update();
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyW);
+        app.update();
+        app.update();
+        assert!(
+            app.world()
+                .get::<FlightIntent>(ship)
+                .is_some_and(|i| i.burn > 0.0),
+            "the same press burns once the drawer is closed"
         );
     }
 

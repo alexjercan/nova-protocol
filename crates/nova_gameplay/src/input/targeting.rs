@@ -1011,7 +1011,7 @@ fn on_radar_start(
     // Observers bypass system-set gating; freeze intent changes while the
     // pause overlay is up. Releases stay ungated so held keys clear cleanly
     // during a pause.
-    if *pause.get() == crate::PauseStates::Paused {
+    if pause.get().is_frozen() {
         return;
     }
     for ship in &q_ship {
@@ -1102,7 +1102,7 @@ fn on_lock_clear_tap(
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
 ) {
-    if *pause.get() == crate::PauseStates::Paused {
+    if pause.get().is_frozen() {
         return;
     }
     for (ship, raised, mut travel, mut combat, autopilot) in &mut q_ship {
@@ -1391,7 +1391,7 @@ pub(crate) fn on_component_cycle_next(
     // Observers bypass system-set gating; freeze intent changes while the
     // pause overlay is up (review R1.1). Releases stay ungated so held keys
     // clear cleanly during a pause.
-    if *pause.get() == crate::PauseStates::Paused {
+    if pause.get().is_frozen() {
         return;
     }
     for (lock, focus, mut component, rcs_active, rcs_intent) in &mut q_ship {
@@ -1427,7 +1427,7 @@ fn on_component_cycle_prev(
     // Observers bypass system-set gating; freeze intent changes while the
     // pause overlay is up (review R1.1). Releases stay ungated so held keys
     // clear cleanly during a pause.
-    if *pause.get() == crate::PauseStates::Paused {
+    if pause.get().is_frozen() {
         return;
     }
     for (lock, focus, mut component, rcs_active, rcs_intent) in &mut q_ship {

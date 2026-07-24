@@ -222,6 +222,12 @@ Weapon sections are rebindable: in the editor, click a section to bind it to any
         </td>
     </tr>
     <tr>
+        <td>Ship-computer drawer (objectives; pauses, frees the cursor)</td>
+        <td>
+            <kbd>Tab</kbd>
+        </td>
+    </tr>
+    <tr>
         <td>Pause menu</td>
         <td>
             <kbd>Esc</kbd> &nbsp;or&nbsp;

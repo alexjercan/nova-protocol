@@ -18,6 +18,7 @@ pub mod ammo_readout;
 pub mod beacon_chips;
 pub mod comms_panel;
 pub mod component_lock;
+pub mod drawer;
 pub mod edge_indicators;
 pub mod flight_status;
 pub mod holo_instruments;
@@ -197,6 +198,8 @@ impl Plugin for NovaHudPlugin {
         // 20260717-163033); registered here once for every HUD widget.
         app.add_plugins(bevy_common_systems::prelude::TweenPlugin);
         app.add_plugins(comms_panel::CommsPanelPlugin);
+        // The Tab ship-computer drawer shell (task 20260724-102304).
+        app.add_plugins(drawer::NovaDrawerPlugin);
         app.add_plugins(readout::HudReadoutPlugin);
         app.add_plugins(screen_indicator::ScreenIndicatorPlugin);
         app.add_plugins(torpedo_target::TorpedoTargetHudPlugin);
