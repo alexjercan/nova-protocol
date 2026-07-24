@@ -65,6 +65,35 @@
                         >How to play</a
                     >
                 </div>
+                <!-- Native download buttons. Every href defaults to the GitHub
+                     releases/latest PAGE so the buttons work with JS disabled;
+                     downloads.ts progressively rewrites each to the exact
+                     per-OS asset of the newest release. -->
+                <div class="hero__downloads">
+                    <span class="hero__downloads-label"
+                        >Or download the native build:</span
+                    >
+                    <div class="hero__downloads-btns">
+                        <a
+                            class="btn btn--download"
+                            data-os="windows"
+                            href="https://github.com/alexjercan/nova-protocol/releases/latest"
+                            >Windows</a
+                        >
+                        <a
+                            class="btn btn--download"
+                            data-os="macos"
+                            href="https://github.com/alexjercan/nova-protocol/releases/latest"
+                            >macOS</a
+                        >
+                        <a
+                            class="btn btn--download"
+                            data-os="linux"
+                            href="https://github.com/alexjercan/nova-protocol/releases/latest"
+                            >Linux</a
+                        >
+                    </div>
+                </div>
                 <a
                     class="hero__scroll"
                     href="#features"
