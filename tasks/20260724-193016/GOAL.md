@@ -56,9 +56,12 @@ collapsible campaign groups.
 
 Updated as tasks land (one line per land).
 
-- [ ] 20260724-193830 (p66, nova_scenario/nova_modding/nova_assets) Campaign
+- [x] 20260724-193830 (p66, nova_scenario/nova_modding/nova_assets) Campaign
       content entity: first-class ordered scenario mapping (GameCampaigns);
       retire per-scenario ScenarioCampaign.
+      landed 90df397a; 1 review round (out-of-context REQUEST_CHANGES on a doc
+      gap, fixed, in-session APPROVE); parity + campaign-resolution + lint tests
+      green, probe playable OK. No manual items (all test/cmd/artifact proofs).
 - [ ] 20260723-095951 (p64, nova_menu) Collapsible campaign-header picker +
       per-chapter replay launch + harness + docs. DEPENDS ON 20260724-193830.
 
