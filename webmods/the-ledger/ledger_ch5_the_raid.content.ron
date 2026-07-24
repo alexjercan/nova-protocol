@@ -30,14 +30,15 @@
 [
     Scenario((
         id: "ledger_ch5_the_raid",
-        name: "The Ledger 5: The Raid",
+        name: "The Raid",
         description: "Payday buys a gunship. Take the big ship and two of Vesh's wing and go settle the Magpie account - raid their forward base among the rocks. The reward finale of The Ledger.",
         cubemap: "dep://base/textures/cubemap.png",
         thumbnail: Some("dep://base/textures/asteroid.png"),
-        // hidden: false (temporarily) so the finale can be launched directly
-        // from the Scenarios picker for playtesting. RE-HIDE before release - it
-        // is meant to be reached only by winning the ch4 fight.
-        hidden: false,
+        // Hidden from the flat picker - reached by winning the ch4 fight. Still
+        // listed for replay under the "The Ledger" campaign header (the campaign
+        // mapping, task 20260724-220842, replaced the earlier temporary-visible
+        // hack that existed only so the finale could be launched directly).
+        hidden: true,
         events: [
             (
                 name: OnStart,

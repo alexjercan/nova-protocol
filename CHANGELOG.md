@@ -21,6 +21,7 @@ tagged **(breaking)**.
 ### Modding & Mod Portal
 
 - New `Campaign` content kind: a bundle declares an ordered campaign->scenario mapping (`Campaign((id, name, scenarios: [...]))`) loaded into `GameCampaigns`; the content lint flags a member scenario no bundle provides.
+- The Ledger (1.12.0 -> 1.13.0): its six chapters group under a "The Ledger" collapsible campaign header; the reward finale (The Raid) is re-hidden from the flat picker and now replayed from the header, and chapter titles drop their redundant "The Ledger N:" prefixes.
 
 ### Interface & HUD
 

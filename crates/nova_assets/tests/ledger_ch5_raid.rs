@@ -396,14 +396,18 @@ fn the_base_holds_station_thrusterless() {
     );
 }
 
-/// The finale is temporarily un-hidden (playtest convenience) so it can be
-/// launched straight from the Scenarios picker. RE-HIDE before release.
+/// The finale is HIDDEN from the flat picker - it is reached by winning the ch4
+/// fight, or replayed directly from the "The Ledger" campaign header (task
+/// 20260724-220842). The campaign membership + header launchability are pinned in
+/// `webmods_validation::the_ledger_campaign_lists_its_chapters_in_order`; here we
+/// just hold the finale hidden, retiring the earlier temporary-visible hack.
 #[test]
-fn the_raid_is_launchable_for_testing() {
+fn the_raid_is_hidden_reached_by_playing_or_the_campaign_header() {
     let scenario = scenario_from(CH5_RON);
     assert!(
-        !scenario.hidden,
-        "ch5 is un-hidden for playtesting (re-hide before release)"
+        scenario.hidden,
+        "the finale is hidden - reached by the ch4 win or the campaign header, \
+         not listed flat in the picker"
     );
 }
 
@@ -592,7 +596,7 @@ fn the_bundle_ships_the_raid_and_bumps_the_version() {
         "the bundle lists the raid finale"
     );
     assert!(
-        LEDGER_BUNDLE_RON.contains("version: \"1.12.0\""),
-        "the bundle version is bumped for the raid finale + its tuning"
+        LEDGER_BUNDLE_RON.contains("version: \"1.13.0\""),
+        "the bundle version is bumped for the campaign grouping + finale re-hide"
     );
 }

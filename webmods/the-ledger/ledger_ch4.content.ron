@@ -20,7 +20,7 @@
 [
     Scenario((
         id: "ledger_ch4_the_buyer",
-        name: "The Ledger 4: The Buyer",
+        name: "The Buyer",
         description: "Everyone wants the box. Decide who gets it - then survive the decision. Chapter four of The Ledger.",
         cubemap: "dep://base/textures/cubemap.png",
         thumbnail: Some("dep://base/textures/asteroid.png"),

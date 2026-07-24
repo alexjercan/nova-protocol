@@ -37,6 +37,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   `//!`/`///` doc comments too - a CLI surface is described in module/crate
   docs as often as in README/wiki, and a markdown-only sweep left three stale
   `audit` mentions for review to catch. 20260718-152240.
+- `doc-sweep-includes-the-changed-dirs-own-readme` (x1): when changing a mod's
+  (or subdir's) content - names, structure, visibility - grep the CHANGED
+  directory ITSELF, not only the central `web/`+`crates` doc tree: a mod ships
+  its own `README.md` that is a player-facing doc surface, and a sweep scoped to
+  the central docs called it "referenced nowhere" while a stale flat-picker
+  instruction sat in the mod's README. 20260724-220842.
 - `rustdoc-no-public-to-private-intra-doc-link` (x1): a `pub` item's
   rustdoc cannot `[intra-doc-link]` a PRIVATE symbol without a `cargo doc`
   warning - use a plain code span for private references, reserve `[links]` for

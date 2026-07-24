@@ -17,7 +17,7 @@
 [
     Scenario((
         id: "ledger_ch2_claim_jumpers",
-        name: "The Ledger 2: Claim Jumpers",
+        name: "Claim Jumpers",
         description: "The Magpies want the box. Break their first wave and keep them off the Dray Mule. Chapter two of The Ledger, wave one.",
         cubemap: "dep://base/textures/cubemap_alt.png",
         thumbnail: Some("dep://base/textures/asteroid.png"),

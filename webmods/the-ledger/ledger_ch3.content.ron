@@ -25,7 +25,7 @@
 [
     Scenario((
         id: "ledger_ch3_quiet_channel",
-        name: "The Ledger 3: The Quiet Channel",
+        name: "The Quiet Channel",
         description: "Go dark and thread the debris channel to Vesh's yard. Chapter three of The Ledger.",
         cubemap: "dep://base/textures/cubemap.png",
         thumbnail: Some("dep://base/textures/asteroid.png"),

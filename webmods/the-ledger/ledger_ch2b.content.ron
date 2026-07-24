@@ -13,7 +13,7 @@
 [
     Scenario((
         id: "ledger_ch2b_the_heavies",
-        name: "The Ledger 2: The Heavies",
+        name: "The Heavies",
         description: "The Magpies send their reinforced hulls for the box. Hold the lane. Chapter two of The Ledger, wave two.",
         cubemap: "dep://base/textures/cubemap_alt.png",
         thumbnail: Some("dep://base/textures/asteroid.png"),
