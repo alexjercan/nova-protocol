@@ -56,10 +56,16 @@ pass (see "Planning - next step"), NOT in this tracker.
    slide-in via bcs TweenPlugin, tab-handle anchor as 211520's tuck-target).
    Seeded the shell + log tasks below. Depended on 20260721-211500 (CLOSED).
 2. **20260724-102304** (p72, SIZE M, spike/feature/ui/hud) Drawer shell +
-   interaction model + objectives section. The headline foundation - Tab
-   keybind, `PauseStates::Drawer`, slide animation, tab-handle screen anchor,
-   section framework, expanded objectives. Carries the A2 pause-axis DECISION.md.
-   GATES 211520 and the comms-log section.
+   interaction model + objectives section. **CLOSED / LANDED 2026-07-24**
+   (c13143d4; 2 review rounds - out-of-context R1.1 caught an audio-loop freeze
+   gap). The headline foundation - Tab keybind, `PauseStates::Drawer` (third
+   variant on one freeze axis, DECISION.md), `Time<Real>` slide (bcs Tween is
+   virtual-clocked), `DrawerTabAnchor` for 211520, expanded objectives section.
+   Now UNBLOCKS 211520 and the comms-log section (102309).
+   - Manual acceptance (batched to owner): open with Tab in a real run - slides
+     in from the right, game pauses, cursor appears, objectives expand, tab
+     handle visible when closed, Tab+ESC close, slide reads well, and the
+     thruster/RCS loops go silent while open.
 3. **20260721-211520** (p60, SIZE M, feature/hud/ui) Diegetic objective
    presentation: big on the cockpit HUD, then tucks into the right tab (tweens to
    the shell's tab-handle anchor). Depends on the shell (102304). Pairs with
