@@ -62,8 +62,12 @@ Updated as tasks land (one line per land).
       landed 90df397a; 1 review round (out-of-context REQUEST_CHANGES on a doc
       gap, fixed, in-session APPROVE); parity + campaign-resolution + lint tests
       green, probe playable OK. No manual items (all test/cmd/artifact proofs).
-- [ ] 20260723-095951 (p64, nova_menu) Collapsible campaign-header picker +
+- [x] 20260723-095951 (p64, nova_menu) Collapsible campaign-header picker +
       per-chapter replay launch + harness + docs. DEPENDS ON 20260724-193830.
+      landed ac67a09f; 1 review round (out-of-context APPROVE, no findings);
+      collapsible [-]/[+] headers over ordered members incl. hidden, hidden-member
+      launch proven; 70 nova_menu tests green. DECISION cold-launch risk retired
+      (both hidden members spawn their own player in OnStart).
 
 ## Decisions (load-bearing, architectural)
 
@@ -73,5 +77,8 @@ Updated as tasks land (one line per land).
 
 ## Manual acceptance (batched for the user at Finish)
 
-- (pending) collapsible campaign header browse + expand/collapse in the Scenarios tab
-- (pending) replay a hidden mid-campaign chapter directly from its campaign header
+- (pending) 20260723-095951: in the Scenarios tab, browse a campaign under its
+  collapsible header and expand/collapse it ([-]/[+]).
+- (pending) 20260723-095951: replay a hidden mid-campaign chapter (the Broadside
+  gunship phase or Final Tally) directly from its campaign header, without
+  playing the earlier chapters.
