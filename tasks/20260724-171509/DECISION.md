@@ -1,7 +1,7 @@
 # DECISION: a third HudTier::Status for persistent reference chrome
 
 - DATE: 20260724
-- STATUS: ACCEPTED (owner gate 2026-07-24)
+- STATUS: ACCEPTED
 - TASK: 20260724-171509
 - TAGS: decision, ui, hud
 

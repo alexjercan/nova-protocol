@@ -1,7 +1,7 @@
 # DECISION: objective hint as a bespoke child of the status bar, not a status_bar_item
 
 - DATE: 20260724
-- STATUS: ACCEPTED (owner gate 2026-07-24)
+- STATUS: ACCEPTED
 - TASK: 20260724-161545
 
 > Backfilled after the fact (2026-07-24): this load-bearing build-shape choice

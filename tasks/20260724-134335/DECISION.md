@@ -2,7 +2,7 @@
 
 - DATE: 20260724
 - TASK: 20260724-134335
-- STATUS: ACCEPTED (owner call at the /flow gate, 2026-07-24)
+- STATUS: ACCEPTED
 
 ## Context
 
