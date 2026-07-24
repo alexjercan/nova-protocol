@@ -31,21 +31,24 @@ const REVEAL_TUCK_SECS: f32 = 0.55;
 /// Total lifetime; the card despawns after this.
 const REVEAL_TOTAL_SECS: f32 = REVEAL_APPEAR_SECS + REVEAL_HOLD_SECS + REVEAL_TUCK_SECS;
 
-/// Scale at full "big" reveal.
-const REVEAL_BIG_SCALE: f32 = 1.9;
-/// Scale as it disappears into the tab.
-const REVEAL_TUCK_SCALE: f32 = 0.25;
+/// Scale at full "big" reveal. Tuned smaller on the 2026-07-24 playtest (was
+/// 1.9 - the owner found it too big/centered); it now reads as a modest cockpit
+/// card that tucks up-and-right into the top-right objective hint (task
+/// 20260724-134312).
+const REVEAL_BIG_SCALE: f32 = 1.35;
+/// Scale as it disappears into the hint.
+const REVEAL_TUCK_SCALE: f32 = 0.22;
 /// The jaunty cockpit tilt.
 const REVEAL_ROTATION_DEG: f32 = -5.0;
 
-const REVEAL_FONT_PX: f32 = 22.0;
-const REVEAL_WIDTH_PX: f32 = 360.0;
+const REVEAL_FONT_PX: f32 = 18.0;
+const REVEAL_WIDTH_PX: f32 = 260.0;
 /// Nominal card height, used only to centre the card on its target point.
 /// This assumes a roughly single-line objective (the shipped ones are); a much
 /// taller multi-line objective would land slightly high on the tab during the
 /// tuck. Acceptable because the card is shrinking to a point as it arrives - the
 /// offset vanishes with it (review R1.1).
-const REVEAL_APPROX_HEIGHT_PX: f32 = 52.0;
+const REVEAL_APPROX_HEIGHT_PX: f32 = 44.0;
 
 /// Base cockpit position as a fraction of the viewport (upper-centre).
 const REVEAL_BASE_FRAC: Vec2 = Vec2::new(0.5, 0.34);
@@ -298,9 +301,10 @@ mod tests {
         app.update();
         assert_eq!(reveal_count(&mut app), 1, "a reveal card spawned");
         let base_left = reveal_left(&mut app).expect("card has a px left");
-        // base centre x = 1920*0.5 = 960, card left = 960 - 180 = 780.
+        // base centre x = 1920*0.5 = 960, card left = 960 - REVEAL_WIDTH_PX/2 = 830.
+        let expected_base_left = 960.0 - REVEAL_WIDTH_PX / 2.0;
         assert!(
-            (base_left - 780.0).abs() < 1.0,
+            (base_left - expected_base_left).abs() < 1.0,
             "card starts at the upper-centre base (got {base_left})"
         );
 

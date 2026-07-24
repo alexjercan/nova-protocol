@@ -17,8 +17,13 @@
 
 use bevy::prelude::*;
 
-use super::{HudTier, OBJECTIVES_PANEL_WIDTH_PX};
+use super::HudTier;
 use crate::prelude::*;
+
+/// Width of the completion-ghost column (top-right). Was shared with the removed
+/// compact objectives panel (task 20260724-134312); kept local since the green
+/// completion ghosts still stack in that column.
+const GHOST_COLUMN_WIDTH_PX: f32 = 280.0;
 
 /// Glob-import surface: `use nova_gameplay::hud::objective_feedback::prelude::*` re-exports the public API of this module.
 pub mod prelude {
@@ -127,7 +132,7 @@ fn spawn_ghost_stack(mut commands: Commands) {
             position_type: PositionType::Absolute,
             top: Val::Percent(58.0),
             right: Val::Px(8.0),
-            width: Val::Px(OBJECTIVES_PANEL_WIDTH_PX),
+            width: Val::Px(GHOST_COLUMN_WIDTH_PX),
             flex_direction: FlexDirection::Column,
             row_gap: Val::Px(2.0),
             ..default()

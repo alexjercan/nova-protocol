@@ -31,16 +31,13 @@ use bevy::prelude::*;
 use bevy_common_systems::prelude::GameObjectives;
 use nova_ui::theme;
 
-use super::{HudTier, NovaHudSystems};
+use super::NovaHudSystems;
 use crate::{prelude::*, GameStates, PauseStates};
 
 /// Panel width in logical pixels.
 const DRAWER_WIDTH_PX: f32 = 340.0;
 /// Seconds for the panel to slide fully open (or closed).
 const DRAWER_SLIDE_SECS: f32 = 0.22;
-/// The collapsed tab handle on the right edge.
-const TAB_HANDLE_WIDTH_PX: f32 = 22.0;
-const TAB_HANDLE_HEIGHT_PX: f32 = 96.0;
 /// Backdrop dim at full open.
 const DRAWER_BACKDROP_ALPHA: f32 = 0.55;
 const DRAWER_TITLE_FONT_PX: f32 = 16.0;
@@ -63,12 +60,6 @@ struct DrawerRootMarker;
 #[derive(Component)]
 struct DrawerBackdropMarker;
 
-/// The always-visible tab handle on the right edge. Its screen rect is
-/// republished as [`DrawerTabAnchor`] - the tuck-target for the diegetic
-/// objective animation (task 20260721-211520).
-#[derive(Component)]
-struct DrawerTabHandleMarker;
-
 /// The container the objectives-section lines are (re)built into.
 #[derive(Component)]
 struct DrawerObjectivesListMarker;
@@ -79,19 +70,21 @@ struct DrawerObjectivesListMarker;
 #[derive(Component, Default)]
 struct DrawerOpenness(f32);
 
-/// The tab handle's screen-space rectangle in logical pixels, republished every
-/// frame from the handle node's global transform. This is task
-/// 20260721-211520's tween TARGET: the big cockpit objective animates INTO this
-/// rect before tucking into the drawer. `None` until the handle has been laid
-/// out at least once (headless rigs without a UI layout pass leave it `None`).
+/// The reveal's tuck-target rect in logical pixels. This is task 20260721-211520's
+/// tween TARGET: the big cockpit objective animates INTO this rect. It is
+/// published each frame by `objective_hint` (the minimalist top-right hint
+/// replaced the old drawer tab handle as the anchor source - task
+/// 20260724-134312). `None` until the hint has laid out at least once (headless
+/// rigs without a UI layout pass leave it `None`).
 #[derive(Resource, Default, Debug, Clone, Copy)]
 pub struct DrawerTabAnchor {
-    /// The handle rect in logical window pixels, or `None` before first layout.
+    /// The hint rect in logical window pixels, or `None` before first layout.
     pub rect: Option<Rect>,
 }
 
-/// Wires the Tab drawer shell: the toggle, the slide, the tab-handle anchor and
-/// the objectives section. Registered by [`super::NovaHudPlugin`].
+/// Wires the Tab drawer shell: the toggle, the slide and the objectives section.
+/// The reveal's tuck anchor ([`DrawerTabAnchor`]) is published by `objective_hint`.
+/// Registered by [`super::NovaHudPlugin`].
 pub struct NovaDrawerPlugin;
 
 impl Plugin for NovaDrawerPlugin {
@@ -103,13 +96,13 @@ impl Plugin for NovaDrawerPlugin {
         // sim is frozen.
         app.add_systems(Update, toggle_drawer.run_if(in_state(GameStates::Playing)));
 
-        // Shell upkeep while the HUD is live: ease the slide, republish the tab
-        // anchor, and rebuild the objectives section on change / first spawn.
+        // Shell upkeep while the HUD is live: ease the slide and rebuild the
+        // objectives section on change / first spawn. (The reveal's tuck anchor
+        // is published by `objective_hint`.)
         app.add_systems(
             Update,
             (
                 drive_drawer_slide,
-                update_tab_anchor,
                 rebuild_drawer_objectives
                     .run_if(resource_changed::<GameObjectives>.or_else(list_just_spawned)),
             )
@@ -123,15 +116,21 @@ impl Plugin for NovaDrawerPlugin {
     }
 }
 
-/// Tab drives the shared freeze axis. `Unpaused <-> Drawer`; inert while the
-/// pause menu owns the freeze (`Paused`) - which is also how a live outcome
-/// (it forces `Paused`) blocks the drawer without a cross-crate dependency.
+/// Tab (or the gamepad right-stick click) drives the shared freeze axis.
+/// `Unpaused <-> Drawer`; inert while the pause menu owns the freeze (`Paused`) -
+/// which is also how a live outcome (it forces `Paused`) blocks the drawer
+/// without a cross-crate dependency. The pad button is `RightThumb`, the one free
+/// button (task 20260724-134312), mirroring `nova_menu`'s optional-gamepad guard.
 fn toggle_drawer(
     keys: Res<ButtonInput<KeyCode>>,
+    gamepad: Option<Res<ButtonInput<GamepadButton>>>,
     current: Res<State<PauseStates>>,
     mut next: ResMut<NextState<PauseStates>>,
 ) {
-    if !keys.just_pressed(KeyCode::Tab) {
+    let pad = gamepad
+        .map(|g| g.just_pressed(GamepadButton::RightThumb))
+        .unwrap_or(false);
+    if !keys.just_pressed(KeyCode::Tab) && !pad {
         return;
     }
     match current.get() {
@@ -208,22 +207,6 @@ fn approach(current: f32, target: f32, step: f32) -> f32 {
     }
 }
 
-/// Republish the tab handle's screen rect as [`DrawerTabAnchor`] for task
-/// 20260721-211520. The handle has a fixed pixel size, so the rect is its
-/// laid-out center (from the UI global transform) plus that size - no dependence
-/// on `ComputedNode`, which keeps the anchor math unit-testable.
-fn update_tab_anchor(
-    q_handle: Query<&GlobalTransform, With<DrawerTabHandleMarker>>,
-    mut anchor: ResMut<DrawerTabAnchor>,
-) {
-    let Ok(gt) = q_handle.single() else {
-        return;
-    };
-    let center = gt.translation().truncate();
-    let size = Vec2::new(TAB_HANDLE_WIDTH_PX, TAB_HANDLE_HEIGHT_PX);
-    anchor.rect = Some(Rect::from_center_size(center, size));
-}
-
 /// Rebuild the objectives-section lines from [`GameObjectives`]: despawn the
 /// old lines and spawn one text line per objective. Runs on an objectives
 /// change or the first frame the list container exists.
@@ -292,25 +275,9 @@ fn setup_drawer(
         BackgroundColor(theme::semantic::BACKDROP.with_alpha(0.0)),
     ));
 
-    // The tab handle on the right edge. Chrome tier: it IS flight chrome, so it
-    // rides the grave/tilde HUD-visibility cycle (hidden when the HUD is off) -
-    // unlike the panel/backdrop, which must show even with the HUD minimized.
-    commands.spawn((
-        Name::new("DrawerTabHandle"),
-        DrawerTabHandleMarker,
-        HudTier::Chrome,
-        Node {
-            position_type: PositionType::Absolute,
-            right: Val::Px(0.0),
-            top: Val::Percent(50.0),
-            width: Val::Px(TAB_HANDLE_WIDTH_PX),
-            height: Val::Px(TAB_HANDLE_HEIGHT_PX),
-            border: UiRect::all(Val::Px(1.0)),
-            ..default()
-        },
-        BorderColor::all(theme::BORDER_BRIGHT),
-        BackgroundColor(theme::PANEL_RAISED),
-    ));
+    // (The old flight-view tab handle was removed in task 20260724-134312; the
+    // top-right objective hint is the drawer affordance + the reveal's tuck
+    // anchor now.)
 
     // The sliding panel, starting closed (off-screen right).
     commands
@@ -372,14 +339,7 @@ fn setup_drawer(
 fn remove_drawer(
     _remove: On<Remove, PlayerSpaceshipMarker>,
     mut commands: Commands,
-    q_parts: Query<
-        Entity,
-        Or<(
-            With<DrawerRootMarker>,
-            With<DrawerBackdropMarker>,
-            With<DrawerTabHandleMarker>,
-        )>,
-    >,
+    q_parts: Query<Entity, Or<(With<DrawerRootMarker>, With<DrawerBackdropMarker>)>>,
 ) {
     for entity in &q_parts {
         commands.entity(entity).despawn();
@@ -447,6 +407,42 @@ mod tests {
         );
     }
 
+    /// One right-stick-click press: press + update (toggle sets NextState), then
+    /// release + clear + update (applies the transition; the clear stops the
+    /// stale edge re-firing next frame - same shape as `press_tab`).
+    fn press_pad(app: &mut App) {
+        app.world_mut()
+            .resource_mut::<ButtonInput<GamepadButton>>()
+            .press(GamepadButton::RightThumb);
+        app.update();
+        let mut pad = app.world_mut().resource_mut::<ButtonInput<GamepadButton>>();
+        pad.release(GamepadButton::RightThumb);
+        pad.clear();
+        app.update();
+    }
+
+    /// The gamepad right-stick click (`RightThumb`) opens the drawer too (task
+    /// 20260724-134312). Narrowing the pad button away fails this.
+    #[test]
+    fn pad_toggles_drawer_state() {
+        let mut app = toggle_app();
+        app.init_resource::<ButtonInput<GamepadButton>>();
+        assert_eq!(pause_state(&app), PauseStates::Unpaused);
+
+        press_pad(&mut app);
+        assert_eq!(
+            pause_state(&app),
+            PauseStates::Drawer,
+            "the right-stick click opens the drawer"
+        );
+        press_pad(&mut app);
+        assert_eq!(
+            pause_state(&app),
+            PauseStates::Unpaused,
+            "the right-stick click closes it again"
+        );
+    }
+
     #[test]
     fn tab_is_inert_while_the_pause_menu_owns_the_freeze() {
         let mut app = toggle_app();
@@ -462,37 +458,9 @@ mod tests {
         );
     }
 
-    /// The anchor math: a handle at a known laid-out center republishes a rect
-    /// centered there with the handle's fixed size. Deleting the update system
-    /// leaves the anchor `None`, so this fails without the mechanism.
-    #[test]
-    fn drawer_exposes_tab_handle_anchor() {
-        let mut app = App::new();
-        app.add_plugins(MinimalPlugins);
-        app.init_resource::<DrawerTabAnchor>();
-        app.add_systems(Update, update_tab_anchor);
-
-        app.world_mut().spawn((
-            DrawerTabHandleMarker,
-            GlobalTransform::from_translation(Vec3::new(1900.0, 540.0, 0.0)),
-        ));
-        app.update();
-
-        let rect = app
-            .world()
-            .resource::<DrawerTabAnchor>()
-            .rect
-            .expect("the anchor is published once the handle is laid out");
-        assert!(
-            (rect.center() - Vec2::new(1900.0, 540.0)).length() < 0.01,
-            "the anchor is centered on the handle"
-        );
-        assert!(
-            (rect.width() - TAB_HANDLE_WIDTH_PX).abs() < 0.01
-                && (rect.height() - TAB_HANDLE_HEIGHT_PX).abs() < 0.01,
-            "the anchor carries the handle's size"
-        );
-    }
+    // (The tab-handle anchor test moved to `objective_hint` -
+    // `objective_hint_provides_the_drawer_anchor` - now that the hint is the
+    // reveal's tuck-anchor source, task 20260724-134312.)
 
     #[test]
     fn drawer_objectives_section_lists_objectives() {

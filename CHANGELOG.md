@@ -16,8 +16,9 @@ tagged **(breaking)**.
 
 ### Interface & HUD
 
-- Tab ship-computer drawer: a right-side surface that slides in on Tab, pauses the game and frees the cursor, with an expanded objectives section (shell + interaction model; comms log, minimap and ship status to follow).
-- Diegetic objective reveal: a newly posted objective appears large and slightly rotated on the cockpit HUD, holds, then tucks into the drawer's tab handle - replacing the small gold posting flash (completions still ghost green).
+- Tab ship-computer drawer: a right-side surface that slides in on Tab (or the gamepad right-stick click), pauses the game and frees the cursor, with an expanded objectives section (shell + interaction model; comms log, minimap and ship status to follow).
+- Diegetic objective reveal: a newly posted objective appears slightly rotated on the cockpit HUD, holds, then tucks up-and-right into the objective hint - replacing the small gold posting flash (completions still ghost green).
+- Flight objective surface: the always-on compact objectives panel is replaced by a minimalist top-right objective hint (glyph + count + a Tab affordance); the full list lives in the drawer.
 
 ## [0.8.1] - 2026-07-24
 

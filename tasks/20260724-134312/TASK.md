@@ -1,6 +1,6 @@
 # Flight objective HUD: minimalist top-right status-bar notification (remove compact panel + tab square; retune reveal; gamepad open)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 66
 - TAGS: v0.9.0,feature,ui,hud
 
@@ -38,7 +38,7 @@ Scope (direction-level; /plan breaks into steps at pickup):
 
 ## Steps
 
-- [ ] Verify-first (recorded at plan time): (a) the bcs `ObjectivesPlugin`
+- [x] Verify-first (recorded at plan time): (a) the bcs `ObjectivesPlugin`
       (`hud/mod.rs:197`) inits `GameObjectives` AND its `rebuild_lines` uses
       `Single<.., With<ObjectivesPanelMarker>>`, which SILENTLY SKIPS when no
       panel exists - so dropping the nova compact-panel spawn is safe and
@@ -46,7 +46,7 @@ Scope (direction-level; /plan breaks into steps at pickup):
       (b) `GamepadButton::RightThumb` (right stick click) is the free pad button
       (DPadDown = scenario-advance, RightTrigger2 = editor/scenario, LeftThumb =
       editor, face/DPad/triggers/Start/Select all taken).
-- [ ] Remove the compact objectives panel from flight (`hud/mod.rs`): drop the
+- [x] Remove the compact objectives panel from flight (`hud/mod.rs`): drop the
       `setup_hud_objectives`/`remove_hud_objectives` observers, `spawn_objectives_panel`,
       `style_objective_lines`, the `ObjectivesPluginSystems::Sync` styling wiring,
       and now-unused `OBJECTIVES_PANEL_WIDTH_PX`/`OBJECTIVES_FONT_PX`. KEEP
@@ -54,7 +54,7 @@ Scope (direction-level; /plan breaks into steps at pickup):
       panel-styling test at `mod.rs:~1075` - it exercises a removed element
       (does-the-old-element-survive). Grep `ObjectivesPanelMarker` for any other
       consumer.
-- [ ] New minimalist flight objective HINT (new module `hud/objective_hint.rs`,
+- [x] New minimalist flight objective HINT (new module `hud/objective_hint.rs`,
       `ObjectiveHintPlugin`): a small top-right widget (top ~16px, right ~8px -
       beside the top-center readout strip, NOT on it), `HudTier::Chrome`,
       spawned/despawned with the player ship (mirror the other HUD widgets).
@@ -63,22 +63,22 @@ Scope (direction-level; /plan breaks into steps at pickup):
       small "TAB" affordance (+ the right-stick pad glyph) - NO per-objective text
       (the reveal + drawer carry the detail). Hidden when the count is 0. Marker
       `ObjectiveHintMarker`.
-- [ ] Repoint the diegetic tuck anchor to the hint: the hint module writes
+- [x] Repoint the diegetic tuck anchor to the hint: the hint module writes
       `DrawerTabAnchor` (stays pub in `hud/drawer.rs`) from `ObjectiveHintMarker`'s
       screen rect; REMOVE `DrawerTabHandleMarker` + its spawn + the handle-based
       `update_tab_anchor` from `hud/drawer.rs`. Update drawer tests:
       `drawer_exposes_tab_handle_anchor` (anchor now sourced from the hint) and
       `drawer_renders_above_the_hud` (no handle spawned; assert only panel +
       backdrop z).
-- [ ] Retune the reveal (`hud/objective_reveal.rs`): smaller card (reduce
+- [x] Retune the reveal (`hud/objective_reveal.rs`): smaller card (reduce
       `REVEAL_BIG_SCALE`, `REVEAL_WIDTH_PX`, `REVEAL_FONT_PX`) and a base position
       that reads less dead-center; it already tucks toward `DrawerTabAnchor` (now
       the top-right hint), so the vanish translates up-and-right into the hint.
       Update the reveal test's base-position math if the base frac/size changes.
-- [ ] Gamepad open (`hud/drawer.rs` `toggle_drawer`): also fire on
+- [x] Gamepad open (`hud/drawer.rs` `toggle_drawer`): also fire on
       `GamepadButton::RightThumb` (mirror `toggle_pause`'s `Option<Res<ButtonInput
       <GamepadButton>>>` handling). Test `pad_toggles_drawer_state`.
-- [ ] Verify: `cargo check --all-targets`, `cargo fmt`, the drawer/reveal/hint/hud
+- [x] Verify: `cargo check --all-targets`, `cargo fmt`, the drawer/reveal/hint/hud
       tests, `cargo doc -p nova_gameplay --no-deps`. Probe `playable` (posts
       objectives) - the hint spawns, the reveal plays, no compact panel, and
       `GameObjectives` still drives them. Docs: `web/src/wiki/keybinds.md` (drawer
@@ -124,3 +124,52 @@ Scope (direction-level; /plan breaks into steps at pickup):
 - Gate decisions RESOLVED (owner, 2026-07-24): gamepad button = `RightThumb`
   (right stick click); hint content = objective glyph + COUNT + TAB, no per-objective
   text. No DECISION.md - relocations + value choices, not an architectural fork.
+
+## Close-out (2026-07-24)
+
+Reworked the flight objective surface per the playtest.
+
+What changed:
+- REMOVED the always-on compact objectives panel (`hud/mod.rs`:
+  spawn_objectives_panel / style_objective_lines / setup_hud_objectives /
+  remove_hud_objectives + consts + the panel-styling test). KEPT bcs
+  `ObjectivesPlugin` (it owns `GameObjectives`; its `rebuild_lines` is a `Single`
+  system that skips with no panel). The green completion ghosts stay (their
+  column width is now a local const in `objective_feedback`).
+- NEW `hud/objective_hint.rs` (`ObjectiveHintPlugin`): a minimalist top-right
+  widget - objective glyph + active-objective COUNT + a "TAB" chip - spawned with
+  the player, `HudSelfDrivenVisibility`, hidden at count 0. It also publishes
+  `DrawerTabAnchor` from its own screen rect.
+- REMOVED the drawer tab handle (`hud/drawer.rs`: DrawerTabHandleMarker + spawn +
+  the handle-based update_tab_anchor + consts). `DrawerTabAnchor` (the reveal's
+  tuck target) is now written by the hint. Moved the anchor test to
+  objective_hint.
+- Retuned the reveal (`hud/objective_reveal.rs`) smaller (scale 1.9->1.35, width
+  360->260, font 22->18); it already tucks toward the anchor, now the top-right
+  hint, so the vanish slides up-and-right.
+- Gamepad: `toggle_drawer` also fires on `GamepadButton::RightThumb` (owner
+  choice; the one free pad button), mirroring toggle_pause's optional-gamepad guard.
+
+Difficulties:
+- The `pad_toggles_drawer_state` test first failed asserting after a single
+  `update()`: a `NextState` set during Update applies on the NEXT frame, and
+  without a `clear()` the stale `just_pressed` edge re-toggles - same shape as
+  `press_tab`. Fixed with a `press_pad` helper (press+update, release+clear+update).
+- One dangling consumer of the removed `OBJECTIVES_PANEL_WIDTH_PX`
+  (`objective_feedback`'s ghost column) - gave it a local `GHOST_COLUMN_WIDTH_PX`.
+
+Verification: 9 touched-module tests green (2 hint + 5 drawer incl. pad + 2
+reveal) plus objective_feedback; `cargo check --workspace --all-targets` + `cargo
+fmt` clean; `cargo doc -p nova_gameplay` warning-free; `cargo run -p nova_probe --
+run playable` -> OK (1382 frames, invariants held, log clean - objectives still
+drive the hint/reveal/drawer after the panel removal). Docs: CHANGELOG, keybinds
+(pad glyph), hud.md, and a scenario-authoring guide line swept off "objectives
+panel". Manual items (hint reads minimal + hints Tab/pad; reveal smaller + slides
+right; pad opens the drawer) batched for owner acceptance.
+
+Self-reflection: the `Single`-skips-when-absent guarantee made the panel removal
+safe and let me keep `GameObjectives` without any resource-init churn - verifying
+that at plan time (reading bcs `rebuild_lines`) was what made this a clean rework
+rather than a resource-lifetime scramble. The `NextState`-applies-next-frame +
+clear pattern for input tests has now bitten twice (Tab, pad); it is captured in
+the retro/ledger.

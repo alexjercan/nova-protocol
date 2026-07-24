@@ -49,11 +49,11 @@ The corner inset renders a live, magnified 3D view of your combat lock through a
 
 ## Comms and objectives
 
-Scenarios talk to you through a **comms panel**: speaker-attributed story lines (`OKONO > Strip it clean.`) that queue and display in arrival order, so a burst of chatter no longer overwrites its own first line. Each line fades in with a soft blip, holds for a readable dwell (the author can set how long), and yields when the next line is waiting. A newly posted **objective gets the big cockpit moment**: it appears large and slightly rotated on the HUD, holds for a couple of seconds, then tucks into the ship-computer drawer's tab handle on the right. A **completed** objective ghosts green beside the objectives panel as it fades. Both clear with the scenario rather than lingering over the menu.
+Scenarios talk to you through a **comms panel**: speaker-attributed story lines (`OKONO > Strip it clean.`) that queue and display in arrival order, so a burst of chatter no longer overwrites its own first line. Each line fades in with a soft blip, holds for a readable dwell (the author can set how long), and yields when the next line is waiting. A newly posted **objective gets the cockpit moment**: it appears slightly rotated on the HUD, holds for a couple of seconds, then tucks up-and-right into the small **objective hint** in the top-right corner. That hint is deliberately terse - an objective glyph, the active-objective count, and a `TAB` affordance - so at a glance you know there is work and how to see it; the full list lives in the ship-computer drawer. A **completed** objective ghosts green as it fades. Everything clears with the scenario rather than lingering over the menu.
 
 ## The ship-computer drawer
 
-Press <kbd>Tab</kbd> to slide out the **ship-computer drawer** from the right edge. Opening it pauses the game and frees the mouse cursor, so you can read at your own pace; <kbd>Tab</kbd> again (or <kbd>Esc</kbd>) closes it and resumes. The drawer holds an expanded view of your current objectives, and is where the comms log, a minimap and ship status will live as those sections land. A small tab handle sits on the right edge during flight, marking where the drawer opens from.
+Press <kbd>Tab</kbd> (or click the right stick on a gamepad) to slide out the **ship-computer drawer** from the right edge. Opening it pauses the game and frees the mouse cursor, so you can read at your own pace; <kbd>Tab</kbd> again (or <kbd>Esc</kbd>) closes it and resumes. The drawer holds an expanded view of your current objectives, and is where the comms log, a minimap and ship status will live as those sections land. The terse objective hint in the top-right corner is the in-flight cue that the drawer is there.
 
 ## The screen substrate
 

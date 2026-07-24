@@ -28,6 +28,7 @@ pub mod lock_crosshairs;
 pub mod lock_dwell_ring;
 pub mod maneuver_instruments;
 pub mod objective_feedback;
+pub mod objective_hint;
 pub mod objective_markers;
 pub mod objective_reveal;
 pub mod readout;
@@ -114,15 +115,6 @@ pub enum HudTier {
 #[reflect(Component)]
 pub struct HudSelfDrivenVisibility;
 
-/// Objectives panel width (px): narrow enough to sit as a side column,
-/// wide enough that a beat objective wraps to 3-4 lines.
-const OBJECTIVES_PANEL_WIDTH_PX: f32 = 280.0;
-
-/// Objective line font size (px). The bcs ObjectivesPlugin spawns its text
-/// lines at the default (much larger) size; nova restyles them as they
-/// appear (playtest 2026-07-12 finding 3).
-const OBJECTIVES_FONT_PX: f32 = 13.0;
-
 /// Nav cyan, the family color of every flight-computer projection (the
 /// destination marker tint, the orbit cue, the maneuver chips, the holo
 /// ring).
@@ -148,9 +140,8 @@ pub struct NovaHudAssets {
 /// Inits [`NovaHudAssets`] and [`HudVisibility`], adds all the per-widget
 /// plugins (velocity, flight status, maneuver instruments, crosshairs, insets,
 /// readouts, indicators, objectives, comms, ...), runs `cycle_hud_visibility`
-/// and `style_objective_lines` in Update within [`NovaHudSystems`], and runs
-/// `apply_hud_visibility` in PostUpdate after `ScreenIndicatorSystems` and
-/// before UI layout.
+/// in Update within [`NovaHudSystems`], and runs `apply_hud_visibility` in
+/// PostUpdate after `ScreenIndicatorSystems` and before UI layout.
 #[derive(Default)]
 pub struct NovaHudPlugin;
 
@@ -190,10 +181,12 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(maneuver_instruments::ManeuverInstrumentsPlugin);
         app.add_plugins(keybind_hints::KeybindHintsPlugin);
         app.add_plugins(holo_instruments::HoloInstrumentsPlugin);
-        // The objectives HUD is the generic bevy_common_systems widget. The
-        // health readout is diegetic (per-section ship-mesh tint, see
-        // sections::damage_tint / task 20260717-003613); the generic
-        // HealthDisplay bar is no longer spawned for the player ship.
+        // The bcs ObjectivesPlugin owns the `GameObjectives` resource (the
+        // drawer + the diegetic reveal read it) and its `rebuild_lines`
+        // no-ops when no objectives panel exists. The always-on compact
+        // objectives panel was REMOVED from flight (task 20260724-134312):
+        // objectives now surface via the diegetic reveal, the minimalist
+        // top-right hint (`objective_hint`) and the Tab drawer's right panel.
         app.add_plugins(ObjectivesPlugin);
         // bcs tween advancement for HUD fades (first Nova adoption, task
         // 20260717-163033); registered here once for every HUD widget.
@@ -218,24 +211,10 @@ impl Plugin for NovaHudPlugin {
         // The big diegetic objective reveal that tucks into the drawer tab
         // (task 20260721-211520); fed by objective_feedback's postings.
         app.add_plugins(objective_reveal::ObjectiveRevealPlugin);
-
-        // Restyle freshly rebuilt objective lines. After the Sync set in
-        // the same schedule: the rebuild despawns and respawns the text
-        // entities, so styling keys on Added<ObjectiveMarker> and must run
-        // downstream of the producer within the frame.
-        app.add_systems(
-            Update,
-            style_objective_lines
-                .after(ObjectivesPluginSystems::Sync)
-                .in_set(NovaHudSystems),
-        );
-
-        // Keep the generic HUD widgets inside nova's HUD ordering slot, as the local ones were.
-        // ScreenIndicatorSystems is NOT in this Update slot anymore: the
-        // projection runs in PostUpdate after the chase camera's final move
-        // (task 20260710-231928), and the Update-schedule driver systems
-        // precede it by schedule order alone.
-        app.configure_sets(Update, ObjectivesPluginSystems::Sync.in_set(NovaHudSystems));
+        // The minimalist top-right flight objective hint (count + glyph + Tab),
+        // and the source of the diegetic reveal's tuck anchor (task
+        // 20260724-134312).
+        app.add_plugins(objective_hint::ObjectiveHintPlugin);
 
         // Screen indicators project through the spaceship chase camera. The
         // widget is camera-agnostic (its own marker keeps it promotable), so
@@ -248,8 +227,6 @@ impl Plugin for NovaHudPlugin {
         app.add_observer(remove_hud_velocity);
         app.add_observer(setup_hud_flight_status);
         app.add_observer(remove_hud_flight_status);
-        app.add_observer(setup_hud_objectives);
-        app.add_observer(remove_hud_objectives);
         app.add_observer(setup_hud_torpedo_target);
         app.add_observer(remove_hud_torpedo_target);
         app.add_observer(setup_hud_turret_lead);
@@ -269,43 +246,10 @@ impl Plugin for NovaHudPlugin {
     }
 }
 
-/// Spawn the bcs objectives panel, then REPLACE its Node with nova's
-/// layout: fixed width so objective text WRAPS instead of running across
-/// the screen, stacked as a column (playtest 2026-07-12 finding 3; the
-/// full HUD treatment is the conveyance task 20260712-093831). The
-/// override MUST be a second insert, not part of the spawn bundle - a
-/// bundle with two Nodes (the panel's and ours) PANICS on duplicate
-/// components (playtest crash, review R1.5). insert-on-existing replaces.
-/// Factored out so the styling test exercises this exact spawn path.
-fn spawn_objectives_panel(commands: &mut Commands) {
-    commands
-        .spawn((HudTier::Chrome, objectives_panel(ObjectivesPanelConfig {})))
-        .insert(Node {
-            position_type: PositionType::Absolute,
-            top: Val::Percent(50.0),
-            right: Val::Px(8.0),
-            width: Val::Px(OBJECTIVES_PANEL_WIDTH_PX),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(4.0),
-            ..default()
-        });
-}
-
-/// Restyle the bcs objectives panel's text lines the frame they (re)spawn:
-/// smaller font, left-justified, wrapping inside the panel's fixed width.
-/// The lines are rebuilt from scratch on every objectives change
-/// (ObjectivesPlugin), so Added fires for each rebuild.
-fn style_objective_lines(mut commands: Commands, q_lines: Query<Entity, Added<ObjectiveMarker>>) {
-    for line in &q_lines {
-        commands.entity(line).insert((
-            TextFont::from_font_size(OBJECTIVES_FONT_PX),
-            TextLayout {
-                justify: Justify::Left,
-                linebreak: LineBreak::WordBoundary,
-            },
-        ));
-    }
-}
+// The always-on compact objectives panel (spawn_objectives_panel /
+// style_objective_lines / setup_hud_objectives / remove_hud_objectives) was
+// REMOVED in task 20260724-134312; objectives now surface via the diegetic
+// reveal, the top-right hint (`objective_hint`) and the Tab drawer's right panel.
 
 /// Cycle the HUD level on grave/tilde (or the gamepad Select button).
 /// Press-to-cycle, no hold gesture (the spike's call: three states are at most
@@ -549,38 +493,6 @@ fn remove_hud_flight_status(
         commands.entity(hud_entity).despawn();
     }
     for hud_entity in q_spoke.iter().chain(q_ribbon.iter()).chain(&q_gate) {
-        commands.entity(hud_entity).despawn();
-    }
-}
-
-fn setup_hud_objectives(
-    add: On<Add, PlayerSpaceshipMarker>,
-    mut commands: Commands,
-    q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
-) {
-    let entity = add.entity;
-    debug!("setup_hud_objectives: entity {:?}", entity);
-
-    let Ok(_) = q_spaceship.get(entity) else {
-        error!(
-            "setup_hud_objectives: entity {:?} not found in q_spaceship",
-            entity
-        );
-        return;
-    };
-
-    spawn_objectives_panel(&mut commands);
-}
-
-fn remove_hud_objectives(
-    remove: On<Remove, PlayerSpaceshipMarker>,
-    mut commands: Commands,
-    q_hud: Query<Entity, With<ObjectivesPanelMarker>>,
-) {
-    let entity = remove.entity;
-    debug!("remove_hud_objectives: entity {:?}", entity);
-
-    for hud_entity in &q_hud {
         commands.entity(hud_entity).despawn();
     }
 }
@@ -1058,71 +970,6 @@ mod tests {
             *app.world().get::<Visibility>(sphere).unwrap(),
             Visibility::Hidden,
             "restore must skip self-driven widgets"
-        );
-    }
-
-    /// Objective lines are restyled the frame the bcs plugin (re)spawns
-    /// them: nova's font size and wrapping layout land on every rebuild,
-    /// including replacements (the tally text swaps lines wholesale). The
-    /// panel is spawned through the PRODUCTION helper - a bare-panel spawn
-    /// here let a duplicate-Node bundle panic ship to a live playtest
-    /// (R1.5), and round 2 shipped a no-op edit claiming this was fixed
-    /// (R2.1): the helper call below is the actual guard, and the width
-    /// assert catches a dropped override.
-    #[test]
-    fn objective_lines_get_novas_font_and_wrap() {
-        let mut app = App::new();
-        app.add_plugins(ObjectivesPlugin);
-        app.add_systems(
-            Update,
-            style_objective_lines.after(ObjectivesPluginSystems::Sync),
-        );
-        app.add_systems(Startup, |mut commands: Commands| {
-            spawn_objectives_panel(&mut commands);
-        });
-        app.update();
-
-        let mut q_panel = app
-            .world_mut()
-            .query_filtered::<&Node, With<ObjectivesPanelMarker>>();
-        let panel_node = q_panel.single(app.world()).expect("the panel spawned");
-        assert_eq!(
-            panel_node.width,
-            Val::Px(OBJECTIVES_PANEL_WIDTH_PX),
-            "nova's Node override replaced the bcs panel layout"
-        );
-
-        app.world_mut().resource_mut::<GameObjectives>().objectives =
-            vec![Objective::new("b1", "Burn for Beacon 1")];
-        app.update();
-        app.update();
-
-        let expected = TextFont::from_font_size(OBJECTIVES_FONT_PX).font_size;
-        let mut q_lines = app
-            .world_mut()
-            .query_filtered::<&TextFont, With<ObjectiveMarker>>();
-        let fonts: Vec<_> = q_lines
-            .iter(app.world())
-            .map(|font| font.font_size)
-            .collect();
-        assert_eq!(fonts.len(), 1, "one line per objective");
-        assert_eq!(fonts[0], expected, "the line carries nova's font size");
-
-        // A rebuild (message swap) restyles the fresh line too.
-        app.world_mut().resource_mut::<GameObjectives>().objectives =
-            vec![Objective::new("b1", "Supply crates recovered: 1/3.")];
-        app.update();
-        app.update();
-        let fonts: Vec<_> = {
-            let mut q = app
-                .world_mut()
-                .query_filtered::<&TextFont, With<ObjectiveMarker>>();
-            q.iter(app.world()).map(|font| font.font_size).collect()
-        };
-        assert!(
-            fonts.iter().all(|size| *size == expected),
-            "rebuilt lines are restyled, got {:?}",
-            fonts
         );
     }
 }

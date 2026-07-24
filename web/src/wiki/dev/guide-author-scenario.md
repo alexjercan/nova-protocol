@@ -373,9 +373,9 @@ fight -> confirm -> breathe -> next.**
 - An objective never shares a frame with a conversation. Every objective
   posts a BEAT after the comms line that introduces it (owner playtest, task
   20260722-092421) - never in the same handler, and never at `OnStart` while a
-  dispatch or conversation is still playing. The objectives panel stays EMPTY
-  through an opening conversation; the first goal appears only when the
-  conversation hands off. The mainline pins this with two invariants
+  dispatch or conversation is still playing. No objective is posted through an
+  opening conversation (the objective hint stays hidden); the first goal appears
+  only when the conversation hands off. The mainline pins this with two invariants
   (`no_mainline_handler_posts_an_objective_alongside_a_conversation`,
   `no_mainline_scenario_posts_an_objective_at_onstart`).
 - The tool is the shared `pacing` module (one definition site for the whole

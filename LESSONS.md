@@ -326,6 +326,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   it runs before any real change; guard it against the default state, or in tests
   drive `T` to a non-default value first (an empty-init frame silently despawned a
   reveal before its assertions). 20260721-211520.
+- `nextstate-input-test-needs-clear-and-two-updates` (x2): a headless test that
+  presses an input to drive a `NextState` transition needs TWO updates (the set
+  applies next frame) AND a `clear()` of the `just_pressed` edge between them (no
+  InputPlugin clears it, so a stale edge re-fires the toggle) - copy the sibling
+  press-helper verbatim, do not hand-roll the cadence. Bit `press_tab` then
+  `pad_toggles_drawer_state` in the same drawer family. 20260724-102304, 20260724-134312.
 - `observer-over-spawn-site` (x1): attach derived components via an
   `On<Add, Marker>` observer, not by hunting spawn sites. 20260712-203345.
 - `gate-producer-and-its-consumers` (x1): a flag that skips PRODUCING an
@@ -571,8 +577,10 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   are folklore, and SPIKE docs stating a dependency capability cite the
   verifying grep too (a spike claimed a Bevy per-system diagnostic that does
   not exist); the bcs `Tween` advances on `Res<Time>` (=`Time<Virtual>`), so a
-  pause-overlay slide had to use `Time<Real>` instead - checked at design time,
-  not after. 20260717-133332, 20260719-112011, 20260724-102304.
+  pause-overlay slide had to use `Time<Real>`; and reading bcs `rebuild_lines`
+  (a `Single<..panel>` that skips when absent) at plan time made a compact-panel
+  removal a clean deletion instead of a resource-lifetime scramble - all checked
+  at design time, not after. 20260717-133332, 20260719-112011, 20260724-102304, 20260724-134312.
 - `cross-cycle-warning-with-numbers` (positive, x2): write hazards and
   findings belonging to a QUEUED task into that task's TASK.md with
   specifics. 20260711-140234, 20260716-155823.
@@ -583,10 +591,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   security boundary name it and default to the safe path. 20260715-214540.
 - `nix-devshell-for-cargo` (x2): no cargo on PATH means prefix with
   `nix develop --command ...` from the repo. 20260715-140049.
-- `reuse-known-good-stack` (x5, positive -> Pending promotions): scaffold new
+- `reuse-known-good-stack` (x6, positive -> Pending promotions): scaffold new
   work - and TEST RIGS especially - by copying the nearest passing in-repo
   reference verbatim, THEN mutate; reconstructing from a signature cost build
-  cycles twice (manual `ButtonInput` needs `clear()`; the flyable-ship rig omits
+  cycles repeatedly (a hand-rolled pad-toggle test re-hit the exact `press_tab`
+  clear+two-update gotcha - see nextstate-input-test-needs-clear-and-two-updates;
+  manual `ButtonInput` needs `clear()`; the flyable-ship rig omits
   `FlightIntent`; a clock-driven reveal needed the manual-duration rig the sibling
   tests already had). Applies to PRODUCTION and FIXES too: copied
   `screen_indicator`'s node placement (coord rabbit hole avoided) and nova_menu's
@@ -886,11 +896,11 @@ here (annotated) as the paid record.
 - `widget-tree-eyeball-for-logical-layout` (x1): for a text/list "layout", the eyeball is asserting the SPAWNED widget tree (Text/Node content in child/display order) through the real spawn path - it sees the rendered content deterministically and headlessly. Prefer it to a pixel screenshot for logical/text layouts; a pixel shot is flaky+expensive on a software GPU, so read the capture rig's window/settle/GPU limits BEFORE attempting one (a scenarios-picker capture overran the autopilot window on llvmpipe - a limit the rig's own comments documented). 20260723-095930.
 - `authored-vs-derived-values` (x4, PROMOTED 2026-07-21 -> AGENTS.md Conventions): author content against measured runtime consts, and encode layout invariants as computed rig assertions. 20260716-124722, 20260717-112630.
 - `advertised-but-unwired` (x3, PROMOTED 2026-07-21 -> AGENTS.md Conventions): a config surface is not a capability until producer/consumer wiring and preconditions are verified in the new context. 20260712-093044.
-- `out-of-context-review-pass` (positive, x32, PROMOTED 2026-07-21 -> already /flow round-1 practice): a fresh-context review re-derives load-bearing claims and catches MAJORs shared-session eyes miss; verify the verifier's counterexamples too - it caught the drawer's audio-loop freeze gap the implementing session's own audit had missed. 20260717-212219, 20260719-112011, 20260724-102304.
+- `out-of-context-review-pass` (positive, x33, PROMOTED 2026-07-21 -> already /flow round-1 practice): a fresh-context review re-derives load-bearing claims and catches MAJORs shared-session eyes miss; verify the verifier's counterexamples too - it caught the drawer's audio-loop freeze gap the implementing session's own audit had missed, and re-derived the bcs Single-skips panel-removal safety from the LOCKED rev on the hint rework. 20260717-212219, 20260719-112011, 20260724-102304, 20260724-134312.
 
 ## Pending promotions (3+ occurrences, user decides)
 
-- `reuse-known-good-stack` (x5, positive) -> work skill: scaffold a new test rig
+- `reuse-known-good-stack` (x6, positive) -> work skill: scaffold a new test rig
   by copying the nearest passing sibling rig verbatim, then mutate - do not
   reconstruct it from the system's parameter signature. Prose target (the skill
   already says "grep the module for an existing rig of the same kind first"; this
