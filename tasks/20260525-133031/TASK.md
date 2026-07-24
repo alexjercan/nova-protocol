@@ -1,8 +1,14 @@
 # Write documentation for bevy_common_systems public API
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: docs,backlog
+- TAGS: docs, backlog
+
+## Closed (2026-07-24, wrong repo)
+
+Closed during v0.9.0 planning triage. Every step is work in the separate
+bevy-common-systems repo (~/personal/bevy-common-systems); nova only bumps the
+git pin. Not a nova deliverable - track it there if/when picked up.
 
 ## Story
 
@@ -20,18 +26,18 @@ backlog where it had no body; part of the rustdoc strand coordinated by
 
 ## Steps
 
-- [ ] In the bevy-common-systems repo: crate-level `//!` doc describing the
+- In the bevy-common-systems repo: crate-level `//!` doc describing the
       library's scope and its Bevy version contract (the tag scheme tracks
       Bevy releases).
-- [ ] Document every public module and plugin: integrity/health/blast, mesh
+- Document every public module and plugin: integrity/health/blast, mesh
       slicer, event dispatch (including the indexed-dispatch behavior nova's
       perf notes reference), the BCS_AUTOPILOT test-driving harness, and the
       debug helpers.
-- [ ] Doc comments on the public components/systems nova imports (grep nova's
+- Doc comments on the public components/systems nova imports (grep nova's
       `use bevy_common_systems::` sites to build the priority list).
-- [ ] Verify `cargo doc --no-deps` warning-free in that repo; consider
+- Verify `cargo doc --no-deps` warning-free in that repo; consider
       `#![warn(missing_docs)]` per the 133033 enforcement decision.
-- [ ] Cut a tag/rev with the docs and bump nova's pin in the same cycle if any
+- Cut a tag/rev with the docs and bump nova's pin in the same cycle if any
       doc work required code-visible changes (it should not).
 
 ## Definition of Done

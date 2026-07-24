@@ -1,8 +1,16 @@
 # ch5: restore bigger planetoid wells once AI is gravity-aware (revert the tiny-well tuning of 20260723-223954)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, content, scenario
+
+## Closed (2026-07-24, premise removed)
+
+Closed during v0.9.0 planning. This depended on AI becoming gravity-aware
+(20260723-224003, now CLOSED wontdo), so the "restore bigger wells" premise is
+gone. The intent - retune ch5 planetoid wells back up - is really campaign
+polish that belongs in a future campaign-polish pass once the AI is improved,
+not a standalone task. Folded into that future work rather than kept open.
 
 ## Story
 

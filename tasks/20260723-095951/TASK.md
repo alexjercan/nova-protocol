@@ -1,8 +1,8 @@
 # Scenarios tab: collapsible campaign headers + campaign->scenario mapping (replayability)
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog,menu,scenario,ui,modding,feature
+- PRIORITY: 65
+- TAGS: v0.9.0,menu,scenario,ui,modding,feature
 
 ## Story
 

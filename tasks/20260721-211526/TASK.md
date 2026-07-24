@@ -1,8 +1,8 @@
 # Comms messages: notification-style stacking, skip control, speaker icons, dismiss
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog,feature,hud,ui
+- PRIORITY: 55
+- TAGS: v0.9.0,feature,hud,ui
 
 ## Goal
 

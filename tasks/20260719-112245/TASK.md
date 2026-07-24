@@ -1,8 +1,14 @@
 # nova_probe: golden run-timeline compare + bless workflow (drift detection with tolerance)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,spike,tooling,testing
+- TAGS: backlog, spike, tooling, testing
+
+## Closed (2026-07-24, superseded)
+
+Closed during v0.9.0 planning triage. Superseded by the continuous invariant
+assertions in nova_probe (20260719-114931, CLOSED), which were chosen as the
+drift-detection mechanism instead of golden-timeline compare + bless.
 
 ## Goal
 

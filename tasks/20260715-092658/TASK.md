@@ -1,8 +1,14 @@
 # Devlog post-card thumbnails: thumb-devlog-3/4/5 (source decision + package)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,web,screenshot,devlog
+- TAGS: backlog, web, screenshot, devlog
+
+## Closed (2026-07-24, folded into the frontend-images refresh)
+
+Closed during v0.9.0 planning triage. The devlog/news thumbnail work and the
+naming-drift reconciliation are folded into a single consolidated frontend-app
+image refresh task (missing + stale images across web/). See that task.
 
 Split out of the screenshot follow-up 20260715-004216 (which now covers only the
 `devlog5-radar-stance-slots` composite). Deferred at the user's request: the

@@ -1,8 +1,8 @@
 # Spike: the Tab ship-computer drawer - objectives, comms log, 3D minimap, what else?
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog,spike,ui,hud
+- PRIORITY: 80
+- TAGS: v0.9.0,spike,ui,hud
 
 ## Goal
 

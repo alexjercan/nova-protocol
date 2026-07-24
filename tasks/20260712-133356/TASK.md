@@ -1,9 +1,14 @@
 # Alt-fire modes: primary/secondary fire profiles and input
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,weapons,spike
+- TAGS: backlog, weapons, spike
 
+## Closed (2026-07-24, not pursuing)
+
+Closed during v0.9.0 planning triage. Owner decided (2026-07-12) not to pursue
+alt-fire profiles; station-based bullet/weapon switching is the preferred
+direction instead. Filed decision preserved here rather than lingering open.
 
 Spike: tasks/20260712-133135/SPIKE.md
 

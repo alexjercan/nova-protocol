@@ -1,8 +1,8 @@
 # Diegetic objective presentation: big on the cockpit HUD, then tucks into the right tab
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog,feature,hud,ui
+- PRIORITY: 60
+- TAGS: v0.9.0,feature,hud,ui
 
 ## Goal
 

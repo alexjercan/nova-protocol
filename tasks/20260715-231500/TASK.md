@@ -1,8 +1,14 @@
 # Annotate the HUD and radar wiki screenshots with callout labels
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: docs,web,assets,backlog
+- TAGS: docs, web, assets, backlog
+
+## Closed (2026-07-24, folded into the frontend-images refresh)
+
+Closed during v0.9.0 planning triage. The stale wiki-hud/wiki-radar captures and
+their annotation are folded into a single consolidated frontend-app image refresh
+task (missing + stale images across web/). See that task.
 
 ## Story
 
@@ -18,15 +24,15 @@ image tooling, not prose.
 
 ## Steps
 
-- [ ] Annotate `web/src/assets/wiki-hud.png` with callout labels for the named
+- Annotate `web/src/assets/wiki-hud.png` with callout labels for the named
       instruments (velocity sphere, speed/mode chips, ORBIT ring, keybind hint
       cluster) so `web/src/wiki/hud.md` is self-explanatory.
-- [ ] Annotate `web/src/assets/wiki-radar.png` with callout labels (sweep box,
+- Annotate `web/src/assets/wiki-radar.png` with callout labels (sweep box,
       combat vs nav lock, fine-lock section marker) matching
       `web/src/wiki/targeting-radar.md`.
-- [ ] Keep the annotation style consistent between the two images (font, arrow
+- Keep the annotation style consistent between the two images (font, arrow
       style, color that reads on the dark HUD). Plain ASCII labels only.
-- [ ] Verify: `npm run ci` green; serve + eyeball that both figures render
+- Verify: `npm run ci` green; serve + eyeball that both figures render
       with legible labels at the wiki figure size and on the deploy subpath.
 
 ## Definition of Done
@@ -63,14 +69,14 @@ callouts the prose names, so this is no longer a pure label-overlay task:
   game-render work (the screenshot harness in the right scene state).
 
 Revised approach (do these in order when picked up):
-- [ ] RE-CAPTURE `wiki-hud.png` at the current build in a scene state that shows
+- RE-CAPTURE `wiki-hud.png` at the current build in a scene state that shows
       every named instrument at once: manual + autopilot states as needed
       (velocity sphere, speed + mode chips with the autopilot engaged, the ORBIT
       ring while orbiting, the keybind cluster). May need 1-2 shots or a staged
       capture; keep the source reproducible via the screenshot harness.
-- [ ] RE-CAPTURE `wiki-radar.png` at the current build showing the sweep box, a
+- RE-CAPTURE `wiki-radar.png` at the current build showing the sweep box, a
       combat vs nav lock, and a fine-lock section marker.
-- [ ] THEN annotate both with consistent ASCII callouts (ImageMagick is
+- THEN annotate both with consistent ASCII callouts (ImageMagick is
       available in the devshell; 1920x1080 source) and verify `npm run ci` +
       eyeball at the rendered wiki figure size.
 

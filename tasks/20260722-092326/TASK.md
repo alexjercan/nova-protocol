@@ -1,8 +1,16 @@
 # Backlog: rethink kill condition - destroying a ship should not require zeroing all section health
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog
+
+## Closed (2026-07-24, merged into 20260722-092320)
+
+Closed during v0.9.0 planning: this and the critical-damage feature
+20260722-092320 are the same "when is a ship dead" question and are
+architecturally inseparable (see `inseparable-seeded-tasks-remerge` in
+LESSONS). The kill-condition rethink is now the first concern of 092320, which
+is tagged v0.9.0 as the Goal-B stretch. No work lost - the design lives there.
 
 ## Story
 
@@ -24,13 +32,13 @@ ship-behavior goal (umbrella 20260722-092316).
 
 ## Steps
 
-- [ ] Confirm today's kill condition in the integrity/sections code
+- Confirm today's kill condition in the integrity/sections code
       (nova_gameplay) - what exactly must reach zero for a ship to be
       destroyed.
-- [ ] Design a beaten-ship condition that does not require every section at
+- Design a beaten-ship condition that does not require every section at
       zero (likely: reuse the critical-damage predicate from 092320, or a
       total-integrity-fraction threshold).
-- [ ] Harness coverage pinning the new condition.
+- Harness coverage pinning the new condition.
 
 ## Definition of Done
 
