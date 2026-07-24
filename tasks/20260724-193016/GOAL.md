@@ -82,3 +82,30 @@ Updated as tasks land (one line per land).
 - (pending) 20260723-095951: replay a hidden mid-campaign chapter (the Broadside
   gunship phase or Final Tally) directly from its campaign header, without
   playing the earlier chapters.
+
+## Finish (20260724)
+
+STATUS: umbrella CLOSED. Done-definition verified item by item against the
+integrated master tree:
+
+1. Real mapping incl. hidden - MET. `merged_campaign_resolves_members_in_order_including_hidden`
+   (nova_assets) resolves Nova Protocol's 5 members in declared order, hidden
+   included.
+2. Regenerates + parity - MET. `content -- gen` leaves a clean tree; content_ron_parity (2) green.
+3. Collapsible headers, expand/collapse - MET (test half). `picker_renders_collapsible_campaign_header_over_ordered_members` + `toggling_a_campaign_header_collapses_and_expands_its_members`. Manual half PENDING user playtest.
+4. Launch any member incl. hidden - MET (test half). `a_hidden_campaign_member_is_selectable_and_launchable` fires LoadScenario for the hidden member. Manual half PENDING user playtest.
+5. New Game fallback + selection-repair deterministic - MET. `cargo test -p nova_menu` 70 green incl. `start_new_game_scenario_*`.
+6. DECISION.md - MET. `tasks/20260724-193830/DECISION.md` (ACCEPTED).
+
+Overall green bar: `cargo check --all-targets` + `cargo fmt --check` clean;
+touched-crate tests green; `content -- lint` 0 findings; `tatr check --ledger
+LESSONS.md` clean.
+
+Residue: none. Both member tasks landed (90df397a, ac67a09f); all review
+findings resolved; no dropped/deferred items. The two `manual:` items above await
+the user's playtest - if either fails, it becomes a new prioritized task, not a
+silent omission.
+
+DECISION cold-launch risk (hidden members replaying cold): RETIRED during task
+20260723-095951 - both broadside_gunship and final_tally spawn their own player
+in OnStart, and existing harness tests load them cold and pass.
