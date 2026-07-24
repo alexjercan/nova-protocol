@@ -72,10 +72,11 @@ pass (see "Planning - next step"), NOT in this tracker.
      currently draws over it) - filed as 20260724-121541. Owner wants to see the
      whole drawer family before deeper feedback.
 2b. **20260724-121541** (p68, SIZE S, bug/ui/hud) Tab drawer must render on top
-   of the flight HUD (z-order). From the 2026-07-24 playtest above; the open
-   drawer needs a `GlobalZIndex` above the HUD chrome (a plain `ZIndex` loses to
-   the top-right objectives panel's stacking context). Shell follow-up, not a
-   211520 concern.
+   of the flight HUD (z-order). **CLOSED / LANDED 2026-07-24** (b8de3a30; 1
+   in-session review round, trivial diff). Backdrop `GlobalZIndex(10)` + panel
+   `GlobalZIndex(11)` (the pause overlay's modal tier); tab handle stays at HUD z.
+   - Manual acceptance (batched to owner): the open drawer panel sits ON TOP of
+     the compact objectives panel + the rest of the flight HUD.
 3. **20260721-211520** (p60, SIZE M, feature/hud/ui) Diegetic objective
    presentation: big on the cockpit HUD, then tucks into the right tab. **CLOSED /
    LANDED 2026-07-24** (e6dbf78d; 1 review round, out-of-context APPROVE). A new
