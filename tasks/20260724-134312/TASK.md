@@ -36,11 +36,90 @@ Scope (direction-level; /plan breaks into steps at pickup):
   pick a free pad button - the flight rig uses bevy_enhanced_input; check
   reference.rs for a free one). Show the pad hint alongside "Tab".
 
+## Steps
+
+- [ ] Verify-first (recorded at plan time): (a) the bcs `ObjectivesPlugin`
+      (`hud/mod.rs:197`) inits `GameObjectives` AND its `rebuild_lines` uses
+      `Single<.., With<ObjectivesPanelMarker>>`, which SILENTLY SKIPS when no
+      panel exists - so dropping the nova compact-panel spawn is safe and
+      `GameObjectives` stays populated for the drawer/reveal. KEEP `ObjectivesPlugin`.
+      (b) `GamepadButton::RightThumb` (right stick click) is the free pad button
+      (DPadDown = scenario-advance, RightTrigger2 = editor/scenario, LeftThumb =
+      editor, face/DPad/triggers/Start/Select all taken).
+- [ ] Remove the compact objectives panel from flight (`hud/mod.rs`): drop the
+      `setup_hud_objectives`/`remove_hud_objectives` observers, `spawn_objectives_panel`,
+      `style_objective_lines`, the `ObjectivesPluginSystems::Sync` styling wiring,
+      and now-unused `OBJECTIVES_PANEL_WIDTH_PX`/`OBJECTIVES_FONT_PX`. KEEP
+      `ObjectivesPlugin` (it owns `GameObjectives`). Update/remove the
+      panel-styling test at `mod.rs:~1075` - it exercises a removed element
+      (does-the-old-element-survive). Grep `ObjectivesPanelMarker` for any other
+      consumer.
+- [ ] New minimalist flight objective HINT (new module `hud/objective_hint.rs`,
+      `ObjectiveHintPlugin`): a small top-right widget (top ~16px, right ~8px -
+      beside the top-center readout strip, NOT on it), `HudTier::Chrome`,
+      spawned/despawned with the player ship (mirror the other HUD widgets).
+      Terse content from `GameObjectives`: the current (first active) objective on
+      one short truncated line, plus a small "TAB" affordance (+ the pad glyph).
+      Marker `ObjectiveHintMarker`.
+- [ ] Repoint the diegetic tuck anchor to the hint: the hint module writes
+      `DrawerTabAnchor` (stays pub in `hud/drawer.rs`) from `ObjectiveHintMarker`'s
+      screen rect; REMOVE `DrawerTabHandleMarker` + its spawn + the handle-based
+      `update_tab_anchor` from `hud/drawer.rs`. Update drawer tests:
+      `drawer_exposes_tab_handle_anchor` (anchor now sourced from the hint) and
+      `drawer_renders_above_the_hud` (no handle spawned; assert only panel +
+      backdrop z).
+- [ ] Retune the reveal (`hud/objective_reveal.rs`): smaller card (reduce
+      `REVEAL_BIG_SCALE`, `REVEAL_WIDTH_PX`, `REVEAL_FONT_PX`) and a base position
+      that reads less dead-center; it already tucks toward `DrawerTabAnchor` (now
+      the top-right hint), so the vanish translates up-and-right into the hint.
+      Update the reveal test's base-position math if the base frac/size changes.
+- [ ] Gamepad open (`hud/drawer.rs` `toggle_drawer`): also fire on
+      `GamepadButton::RightThumb` (mirror `toggle_pause`'s `Option<Res<ButtonInput
+      <GamepadButton>>>` handling). Test `pad_toggles_drawer_state`.
+- [ ] Verify: `cargo check --all-targets`, `cargo fmt`, the drawer/reveal/hint/hud
+      tests, `cargo doc -p nova_gameplay --no-deps`. Probe `playable` (posts
+      objectives) - the hint spawns, the reveal plays, no compact panel, and
+      `GameObjectives` still drives them. Docs: `web/src/wiki/keybinds.md` (drawer
+      = Tab + right-stick-click pad glyph), `web/src/wiki/hud.md` (objectives are
+      now a terse top-right hint + the drawer, not the compact panel), CHANGELOG
+      Interface & HUD.
+
+## Definition of Done
+
+- The always-on compact objectives panel no longer spawns in flight
+  (test: after a player spawns, no `ObjectivesPanelMarker` exists;
+  cmd: `grep -n spawn_objectives_panel crates/nova_gameplay/src/hud/mod.rs` is empty).
+- A minimalist top-right objective hint spawns in flight showing terse objective
+  status + a Tab affordance
+  (test: `objective_hint_spawns_and_shows_current_objective`;
+  manual: reads minimal, hints Tab + pad).
+- The drawer tab-handle square no longer spawns, and the reveal's
+  `DrawerTabAnchor` is sourced from the hint
+  (test: `drawer_exposes_tab_handle_anchor` updated to the hint;
+  cmd: `grep -rn DrawerTabHandleMarker crates` is empty).
+- The reveal is smaller and tucks toward the top-right hint
+  (test: reveal scale/size reduced and tucks to the anchor;
+  manual: reads smaller and slides up-right).
+- Gamepad right-stick-click opens/closes the drawer
+  (test: `pad_toggles_drawer_state`; manual: the pad opens it).
+- `GameObjectives` still drives the drawer + reveal after the panel removal
+  (probe: `playable` OK, objectives path intact).
+- Docs updated (cmd: `grep -ni drawer web/src/wiki/keybinds.md web/src/wiki/hud.md`);
+  `cargo check --all-targets` + `cargo fmt` clean; new + touched tests green.
+
 ## Notes
 
 - From the 2026-07-24 playtest of the drawer family (shell 102304 + reveal 211520
   + z-order 121541, all LANDED). Files: hud/mod.rs (compact objectives panel),
-  hud/drawer.rs (tab handle + DrawerTabAnchor), hud/objective_reveal.rs (reveal),
-  hud/readout.rs (top status strip), input/player.rs + input/reference.rs (rig).
-- does-the-old-element-survive: this REMOVES the compact objectives panel and the
+  hud/drawer.rs (tab handle + DrawerTabAnchor + toggle_drawer), hud/objective_reveal.rs
+  (reveal), hud/readout.rs (top status strip for placement), nova_menu toggle_pause
+  (gamepad pattern), input/reference.rs (rig bindings).
+- does-the-old-element-survive: this REMOVES the compact objectives panel AND the
   tab-handle square - grep their markers/spawns and the tests that assert them.
+- Grounded (2026-07-24): bcs `ObjectivesPlugin` inits `GameObjectives` and
+  `rebuild_lines` (`Single<..ObjectivesPanelMarker>`) skips with no panel - safe to
+  drop the panel spawn, keep the plugin. `RightThumb` is the free pad button.
+- Decisions deferred to the flow gate (owner may weigh in): the gamepad button
+  (recommend `RightThumb`) and the hint content (recommend the current-objective
+  one-liner + Tab hint, vs a bare count/icon). No DECISION.md - relocations +
+  a value choice, not an architectural fork.
