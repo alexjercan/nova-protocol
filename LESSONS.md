@@ -580,7 +580,7 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   pause-overlay slide had to use `Time<Real>`; and reading bcs `rebuild_lines`
   (a `Single<..panel>` that skips when absent) at plan time made a compact-panel
   removal a clean deletion instead of a resource-lifetime scramble - all checked
-  at design time, not after. 20260717-133332, 20260719-112011, 20260724-102304, 20260724-134312.
+  at design time, not after. 20260717-133332, 20260719-112011, 20260724-102304, 20260724-134312, 20260723-233446.
 - `cross-cycle-warning-with-numbers` (positive, x2): write hazards and
   findings belonging to a QUEUED task into that task's TASK.md with
   specifics. 20260711-140234, 20260716-155823.
@@ -883,6 +883,24 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   build time to avoid it. (Distilled from docs/design on the ephemeral-docs
   wipe; the read-the-source half is [[verify-engine-guarantees-in-source]].)
   20260718-175424.
+- `bevy-css-border-triangle-needs-contentbox` (domain, x1): a filled UI
+  triangle with no art asset is a zero-CONTENT node + coloured top border +
+  transparent sides - Bevy's border shader (`nearest_border_active` in
+  bevy_ui_render) paints each side only in its mitered wedge, so a top-only
+  colour over a 0x0 box is a down-triangle. But `Node` defaults to
+  `BoxSizing::BorderBox`, under which a 0x0 node collapses its border box and
+  `extract_uinode_borders` (which gates on non-zero computed border) draws
+  nothing - set `box_sizing: ContentBox`. An instance of
+  [[verify-engine-guarantees-in-source]]. 20260723-233446.
+- `require-default-lands-after-root-add-observer` (domain, x1): a component
+  supplied by `#[require]` on a marker (Allegiance/PlayerSpaceshipMarker on the
+  controller markers) - or inserted by a deferred command inside another
+  `Add<Root>` observer (nova_scenario's `insert_spaceship_sections`) - is NOT
+  present when a SIBLING `Add<Root>` observer runs. Read it via change detection
+  / a later system, and do a "skip if sibling marker present" action from an
+  `Added<Sibling>` SYSTEM (which defers past the deferred-spawn flush), never an
+  `Add<Sibling>` observer (which runs before your own deferred `commands.spawn`
+  flushes, finding nothing to undo). 20260723-233446.
 
 ## Promoted (resolved 2026-07-21, task 20260720-220051)
 

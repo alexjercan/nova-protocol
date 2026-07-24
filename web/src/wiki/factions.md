@@ -20,4 +20,4 @@ Relation is the switch behind most of combat:
 
 ## Reading it on the HUD
 
-The [HUD](../hud/) carries the relation in the target viewfinder's faction caption (hostile red, own green, neutral steel) rather than tinting the reticle itself. A player ship spawns Player and an AI ship spawns Enemy automatically - the allegiance rides along with the ship marker at spawn.
+The [HUD](../hud/) reads allegiance two ways. An **allegiance marker** - a small filled triangle above every ship - is coloured by side (green ally, red threat, grey neutral) so you can read a whole brawl at a glance; your own ship shows none. Up close, the target viewfinder's faction caption carries the same relation (hostile red, own green, neutral steel) rather than tinting the reticle itself. A player ship spawns Player and an AI ship spawns Enemy automatically - the allegiance rides along with the ship marker at spawn, and a ship re-aligned mid-scenario (a neutral provoked into a threat) recolours its marker on the spot.
