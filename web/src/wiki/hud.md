@@ -49,7 +49,7 @@ The corner inset renders a live, magnified 3D view of your combat lock through a
 
 ## Comms and objectives
 
-Scenarios talk to you through a **comms panel**: speaker-attributed story lines (`OKONO > Strip it clean.`) that queue and display in arrival order, so a burst of chatter no longer overwrites its own first line. Each line fades in with a soft blip, holds for a readable dwell (the author can set how long), and yields when the next line is waiting. Alongside it, a newly posted or changed **objective flashes gold** in the ghost column beside the objectives panel, so a mid-fight objective change registers at a glance; the ghost lines clear with the scenario rather than lingering over the menu.
+Scenarios talk to you through a **comms panel**: speaker-attributed story lines (`OKONO > Strip it clean.`) that queue and display in arrival order, so a burst of chatter no longer overwrites its own first line. Each line fades in with a soft blip, holds for a readable dwell (the author can set how long), and yields when the next line is waiting. A newly posted **objective gets the big cockpit moment**: it appears large and slightly rotated on the HUD, holds for a couple of seconds, then tucks into the ship-computer drawer's tab handle on the right. A **completed** objective ghosts green beside the objectives panel as it fades. Both clear with the scenario rather than lingering over the menu.
 
 ## The ship-computer drawer
 

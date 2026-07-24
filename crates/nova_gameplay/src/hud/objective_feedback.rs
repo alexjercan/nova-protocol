@@ -213,34 +213,35 @@ fn objective_change_feedback(
     }
 
     if let Ok(stack) = q_stack.single() {
-        // Completions fade green; fresh postings flash objective gold so a
-        // mid-fight objective change registers at a glance (the panel row
-        // itself rebuilds silently; the ghost column is the animation
-        // surface - task 20260717-163033).
-        let spawns = completed
-            .iter()
-            .map(|objective| (*objective, GHOST_COLOR))
-            .chain(
-                added_objectives
-                    .iter()
-                    .map(|objective| (objective, super::OBJECTIVE_GOLD)),
-            );
-        for (objective, base) in spawns {
+        // Completions fade green in the ghost column (the panel row itself
+        // rebuilds silently). Fresh postings no longer ghost here - they get
+        // the big diegetic reveal below (task 20260721-211520 supersedes the
+        // gold posting flash of task 20260717-163033).
+        for objective in &completed {
             commands.entity(stack).with_children(|parent| {
                 parent.spawn((
                     Name::new(format!("ObjectiveGhost {}", objective.id)),
-                    ObjectiveGhostLineMarker { age: 0.0, base },
+                    ObjectiveGhostLineMarker {
+                        age: 0.0,
+                        base: GHOST_COLOR,
+                    },
                     Text::new(objective.message.clone()),
                     TextFont::from_font_size(GHOST_FONT_PX),
                     TextLayout {
                         justify: Justify::Left,
                         linebreak: LineBreak::WordBoundary,
                     },
-                    TextColor(base),
+                    TextColor(GHOST_COLOR),
                     Pickable::IGNORE,
                 ));
             });
         }
+    }
+
+    // Fresh postings get the big cockpit reveal that tucks into the Tab drawer's
+    // handle (task 20260721-211520), replacing the old gold ghost line.
+    for objective in &added_objectives {
+        super::objective_reveal::spawn_objective_reveal(&mut commands, objective);
     }
 
     *snapshot = objectives.objectives.clone();
@@ -412,16 +413,14 @@ mod tests {
         app.update();
         app.update();
 
-        // Fresh postings flash GOLD now (task 20260717-163033): two posts,
-        // two gold ghosts, zero green.
-        assert_eq!(ghosts_by(&mut app, super::super::OBJECTIVE_GOLD), 2);
+        // Fresh postings now get the big diegetic reveal (task 20260721-211520),
+        // NOT a gold ghost line - so the ghost column stays empty on a posting.
+        assert_eq!(
+            ghosts_by(&mut app, super::super::OBJECTIVE_GOLD),
+            0,
+            "postings no longer ghost gold - they reveal instead"
+        );
         assert_eq!(ghosts_by(&mut app, GHOST_COLOR), 0, "no completions yet");
-
-        // Ride out the posting flashes so the completion assert is clean.
-        for _ in 0..20 {
-            app.update();
-        }
-        assert_eq!(ghosts_by(&mut app, super::super::OBJECTIVE_GOLD), 0);
 
         // Complete b1 (remove it), keep b2.
         app.world_mut().resource_mut::<GameObjectives>().objectives =
@@ -488,12 +487,12 @@ mod tests {
         assert_eq!(
             total(&mut app),
             0,
-            "dying must not celebrate the failed objectives - and the \
-             posting flashes die with the scenario too"
+            "dying must not celebrate the failed objectives (postings no longer \
+             ghost - the reveal teardown is covered in objective_reveal)"
         );
 
-        // The restarted run behaves normally: post one (gold flash),
-        // complete it (green ghost) - one of each.
+        // The restarted run behaves normally: post one (reveal, no ghost),
+        // complete it (green ghost).
         app.world_mut().resource_mut::<GameObjectives>().objectives =
             vec![Objective::new("b1", "Burn for Beacon 1")];
         app.update();
@@ -527,9 +526,16 @@ mod tests {
         );
         assert_eq!(
             ghosts_by(&mut app, super::super::OBJECTIVE_GOLD),
-            1,
-            "only the ORIGINAL posting's gold flash exists - the swap \
-             added no second one (same id is not a fresh posting)"
+            0,
+            "postings no longer make gold ghosts (they reveal)"
         );
+        // Only the ORIGINAL posting revealed; the same-id swap is not a fresh
+        // posting, so it added no second reveal.
+        let reveals = app
+            .world_mut()
+            .query_filtered::<(), With<super::super::objective_reveal::ObjectiveRevealMarker>>()
+            .iter(app.world())
+            .count();
+        assert_eq!(reveals, 1, "the swap added no second reveal");
     }
 }

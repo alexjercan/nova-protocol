@@ -320,6 +320,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   register once and reuse the SystemId. 20260713-082330.
 - `run-system-once-always-changed` (x1): same trap on `Res::is_changed`; gate
   behavior needs an App-driven test across real frames. 20260712-093831.
+- `resource-changed-fires-on-init-frame` (x1): a `run_if(resource_changed::<T>)`
+  system that ACTS on the DEFAULT/empty `T` (teardown-on-empty, reset-on-clear)
+  fires on the resource's very first frame - `init_resource` marks it changed - so
+  it runs before any real change; guard it against the default state, or in tests
+  drive `T` to a non-default value first (an empty-init frame silently despawned a
+  reveal before its assertions). 20260721-211520.
 - `observer-over-spawn-site` (x1): attach derived components via an
   `On<Add, Marker>` observer, not by hunting spawn sites. 20260712-203345.
 - `gate-producer-and-its-consumers` (x1): a flag that skips PRODUCING an
@@ -577,11 +583,13 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   security boundary name it and default to the safe path. 20260715-214540.
 - `nix-devshell-for-cargo` (x2): no cargo on PATH means prefix with
   `nix develop --command ...` from the repo. 20260715-140049.
-- `reuse-known-good-stack` (x3, positive -> Pending promotions): scaffold new
+- `reuse-known-good-stack` (x4, positive -> Pending promotions): scaffold new
   work - and TEST RIGS especially - by copying the nearest passing in-repo
-  reference verbatim, THEN mutate; reconstructing a rig from a system signature
-  cost two build cycles (a manual `ButtonInput` needs an explicit `clear()`; the
-  flyable-ship rig omits `FlightIntent`). 20260712-093048, 20260711-180511, 20260724-102304.
+  reference verbatim, THEN mutate; reconstructing from a signature cost build
+  cycles twice (manual `ButtonInput` needs `clear()`; the flyable-ship rig omits
+  `FlightIntent`; a clock-driven reveal needed the manual-duration rig the sibling
+  tests already had). Applies to PRODUCTION too: copying `screen_indicator`'s
+  node-to-screen placement avoided a coordinate rabbit hole. 20260712-093048, 20260711-180511, 20260724-102304, 20260721-211520.
 - `measure-before-writing-the-number` (x2): never write a quantity into a doc
   from a mental model; backfill from a run. 20260712-105505, 20260717-143806.
 - `manual-time-rig-measures-its-clock` (x2): `Time<Virtual>` clamps manual
@@ -880,7 +888,7 @@ here (annotated) as the paid record.
 
 ## Pending promotions (3+ occurrences, user decides)
 
-- `reuse-known-good-stack` (x3, positive) -> work skill: scaffold a new test rig
+- `reuse-known-good-stack` (x4, positive) -> work skill: scaffold a new test rig
   by copying the nearest passing sibling rig verbatim, then mutate - do not
   reconstruct it from the system's parameter signature. Prose target (the skill
   already says "grep the module for an existing rig of the same kind first"; this

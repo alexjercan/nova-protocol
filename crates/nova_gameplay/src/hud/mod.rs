@@ -29,6 +29,7 @@ pub mod lock_dwell_ring;
 pub mod maneuver_instruments;
 pub mod objective_feedback;
 pub mod objective_markers;
+pub mod objective_reveal;
 pub mod readout;
 pub mod screen_indicator;
 pub mod target_inset;
@@ -214,6 +215,9 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(objective_markers::ObjectiveMarkersHudPlugin);
         app.add_plugins(item_highlights::ItemHighlightsHudPlugin);
         app.add_plugins(objective_feedback::ObjectiveFeedbackPlugin);
+        // The big diegetic objective reveal that tucks into the drawer tab
+        // (task 20260721-211520); fed by objective_feedback's postings.
+        app.add_plugins(objective_reveal::ObjectiveRevealPlugin);
 
         // Restyle freshly rebuilt objective lines. After the Sync set in
         // the same schedule: the rebuild despawns and respawns the text

@@ -259,4 +259,8 @@ single source of current state.)
   (bcs Tween is virtual-clocked); tab-handle anchor `DrawerTabAnchor` exposed for
   211520; expanded objectives section. 2 review rounds (out-of-context R1.1 caught
   an audio-loop freeze gap). See tasks/20260724-102304/.
+- 20260721-211520 diegetic objectives - LANDED 2026-07-24. A new objective's big
+  cockpit card tucks into the shell's `DrawerTabAnchor` (the spike's diegetic
+  hand-off), superseding the gold posting ghost. Rides the drawer shell above.
+  1 review round (out-of-context APPROVE). See tasks/20260721-211520/.
 - (pending) 20260724-102309 drawer comms-log section
