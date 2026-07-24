@@ -14,6 +14,12 @@ tagged **(breaking)**.
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-07-24
+
+### Web & Platform
+
+- Landing hero gains per-OS download buttons (Windows/macOS/Linux) that deep-link the matching release asset, with a fallback to the releases page.
+
 ## [0.8.0] - 2026-07-23
 
 ### Gameplay & Flight
@@ -372,7 +378,8 @@ tagged **(breaking)**.
 
 - Editor and simulation scenes.
 
-[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.8.0...HEAD
+[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/alexjercan/nova-protocol/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/alexjercan/nova-protocol/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/alexjercan/nova-protocol/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/alexjercan/nova-protocol/compare/v0.5.2...v0.6.0
