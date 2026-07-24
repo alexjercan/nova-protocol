@@ -92,13 +92,16 @@ pass (see "Planning - next step"), NOT in this tracker.
 in a real run, the owner reshaped the drawer family. Verdicts + the new/rescoped
 tasks (see the grooming-history block below for the full feedback):
 
-4. **20260724-134312** (p66, feature/ui/hud) Flight objective HUD: remove the
-   always-on compact objectives panel AND the drawer tab-handle square; replace
-   with a MINIMALIST top-right status-bar notification (hints Tab + gamepad);
-   repoint `DrawerTabAnchor` to it; retune the reveal SMALLER + vanish toward the
-   right. NEW. Covers feedback (1) old objective text still there, (2) dislike the
-   drawer square, (3) prefer a minimalist status-bar notification, (4) reveal too
-   big/centered.
+4. **20260724-134312** (p66, feature/ui/hud) Flight objective HUD rework.
+   **CLOSED / LANDED 2026-07-24** (c4693c3a; 1 review round, out-of-context
+   APPROVE, zero findings). Removed the compact objectives panel + the drawer
+   tab-handle square; new minimalist top-right hint (glyph + count + TAB), which
+   now publishes `DrawerTabAnchor`; reveal retuned smaller (tucks up-and-right);
+   gamepad open on `RightThumb`. Covers playtest feedback (1)-(4).
+   - Manual acceptance (batched to owner): the top-right hint reads minimal (glyph
+     + count + TAB) and the old compact panel/square are gone; the reveal is
+     smaller and slides up-and-right into the hint; the right-stick click opens
+     the drawer.
 5. **20260724-134335** (p62, feature/ui/hud) Drawer open: HIDE the flight HUD +
    BLUR the gray background (a present-but-dimmed HUD hurts readability); keep the
    top status bar + the lower-left keybind hints visible; both side panels slide
