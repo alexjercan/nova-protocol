@@ -30,8 +30,8 @@ use bevy_common_systems::prelude::{
     CommandsGameEventExt, EventHandler, GameEventsPlugin, GameObjectives,
 };
 use nova_events::prelude::{
-    OnDestroyedEvent, OnDestroyedEventInfo, OnEnterEvent, OnEnterEventInfo, OnUpdateEvent,
-    OnUpdateEventInfo,
+    OnDestroyedEvent, OnDestroyedEventInfo, OnEnterEvent, OnEnterEventInfo, OnNeutralizedEvent,
+    OnNeutralizedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
 };
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::*;
@@ -146,6 +146,20 @@ fn destroy(app: &mut App, id: &str) {
             commands.fire::<OnDestroyedEvent>(info.clone());
         })
         .expect("fire OnDestroyed");
+    app.update();
+    app.update();
+}
+
+fn neutralize(app: &mut App, id: &str) {
+    let info = OnNeutralizedEventInfo {
+        id: id.to_string(),
+        type_name: "spaceship".to_string(),
+    };
+    app.world_mut()
+        .run_system_once(move |mut commands: Commands| {
+            commands.fire::<OnNeutralizedEvent>(info.clone());
+        })
+        .expect("fire OnNeutralized");
     app.update();
     app.update();
 }
@@ -334,6 +348,36 @@ fn sell_branch_wins_by_breaking_the_auditor() {
     );
 }
 
+#[test]
+fn sell_branch_wins_by_neutralizing_the_auditor() {
+    let scenario = scenario_from(CH4_RON);
+    let mut app = armed_app(&scenario);
+
+    enter(&mut app, "handoff_berth");
+    assert_eq!(outcome_kind(&app), None);
+
+    neutralize(&mut app, "auditor");
+    assert_eq!(
+        number_var(&app, "act"),
+        Some(3.0),
+        "neutralizing the Auditor closes the act"
+    );
+    assert_eq!(
+        outcome_kind(&app),
+        Some(ScenarioOutcomeKind::Victory),
+        "combat-dead Auditor wins the SELL ending"
+    );
+    assert!(
+        outcome_message(&app).unwrap().contains("SOLD"),
+        "the SELL ending is the payday message"
+    );
+    assert_eq!(
+        queued_next(&app),
+        Some(("ledger_ch5_the_raid".to_string(), true)),
+        "the neutralized SELL win chains to the ch5 reward raid"
+    );
+}
+
 // --- BURN branch: no fight, distinct terminal outcome ----------------------
 
 #[test]
@@ -458,6 +502,24 @@ fn defeat_is_reachable_only_on_the_sell_path() {
         next, "ledger_ch4_the_buyer",
         "the retry is the finale itself"
     );
+    assert!(linger);
+}
+
+#[test]
+fn player_neutralized_on_the_sell_path_retries_the_finale() {
+    let scenario = scenario_from(CH4_RON);
+    let mut sell = armed_app(&scenario);
+
+    enter(&mut sell, "handoff_berth");
+    assert_eq!(number_var(&sell, "act"), Some(2.0));
+    neutralize(&mut sell, "player_spaceship");
+    assert_eq!(
+        outcome_kind(&sell),
+        Some(ScenarioOutcomeKind::Defeat),
+        "neutralizing during the Auditor fight loses the sell ending"
+    );
+    let (next, linger) = queued_next(&sell).expect("Defeat queues the retry");
+    assert_eq!(next, "ledger_ch4_the_buyer");
     assert!(linger);
 }
 

@@ -29,7 +29,8 @@ use bevy_common_systems::prelude::{
     CommandsGameEventExt, EventHandler, GameEventsPlugin, GameObjectives,
 };
 use nova_events::prelude::{
-    OnDestroyedEvent, OnDestroyedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
+    OnDestroyedEvent, OnDestroyedEventInfo, OnNeutralizedEvent, OnNeutralizedEventInfo,
+    OnUpdateEvent, OnUpdateEventInfo,
 };
 use nova_gameplay::prelude::{Allegiance, SectionConfig, SectionKind};
 use nova_modding::prelude::Content;
@@ -161,6 +162,20 @@ fn destroy(app: &mut App, id: &str) {
     app.update();
 }
 
+fn neutralize(app: &mut App, id: &str) {
+    let info = OnNeutralizedEventInfo {
+        id: id.to_string(),
+        type_name: "spaceship".to_string(),
+    };
+    app.world_mut()
+        .run_system_once(move |mut commands: Commands| {
+            commands.fire::<OnNeutralizedEvent>(info.clone());
+        })
+        .expect("fire OnNeutralized");
+    app.update();
+    app.update();
+}
+
 fn number_var(app: &App, key: &str) -> Option<f64> {
     match app.world().resource::<NovaEventWorld>().get_variable(key) {
         Some(VariableLiteral::Number(n)) => Some(*n),
@@ -199,6 +214,14 @@ fn armed_app(scenario: &ScenarioConfig) -> App {
     register_non_start_handlers(&mut app, scenario);
     seed_var(&mut app, "act", 1.0);
     seed_var(&mut app, "raiders_left", 4.0);
+    for key in [
+        "raider_1_down",
+        "raider_2_down",
+        "raider_3_down",
+        "raider_4_down",
+    ] {
+        seed_var(&mut app, key, 0.0);
+    }
     seed_var(&mut app, "base_down", 0.0);
     seed_var(&mut app, "win_said", 0.0);
     seed_var(&mut app, "base_said", 0.0);
@@ -223,7 +246,17 @@ fn on_start_spawns_the_raid_cast_and_seeds_counters() {
     let scenario = scenario_from(CH5_RON);
     let start = on_start(&scenario);
 
-    for key in ["act", "raiders_left", "base_down", "win_said", "base_said"] {
+    for key in [
+        "act",
+        "raiders_left",
+        "raider_1_down",
+        "raider_2_down",
+        "raider_3_down",
+        "raider_4_down",
+        "base_down",
+        "win_said",
+        "base_said",
+    ] {
         assert!(
             seeded_keys(start).contains(&key),
             "OnStart must seed '{key}' (an undefined counter fails the raid open)"
@@ -449,6 +482,42 @@ fn the_raid_wins_only_when_the_base_and_all_defenders_are_down() {
 }
 
 #[test]
+fn neutralized_raid_targets_count_once_and_can_win() {
+    let scenario = scenario_from(CH5_RON);
+    let mut app = armed_app(&scenario);
+
+    neutralize(&mut app, "raider_1");
+    assert_eq!(number_var(&app, "raiders_left"), Some(3.0));
+    assert_eq!(number_var(&app, "raider_1_down"), Some(1.0));
+    destroy(&mut app, "raider_1");
+    assert_eq!(
+        number_var(&app, "raiders_left"),
+        Some(3.0),
+        "destroying a neutralized fighter must not decrement twice"
+    );
+
+    neutralize(&mut app, "magpie_base");
+    assert_eq!(number_var(&app, "base_down"), Some(1.0));
+    destroy(&mut app, "magpie_base");
+    assert_eq!(
+        number_var(&app, "base_down"),
+        Some(1.0),
+        "destroying the neutralized base must not re-fire the base beat"
+    );
+
+    for raider in ["raider_2", "raider_3", "raider_4"] {
+        neutralize(&mut app, raider);
+    }
+    app.update();
+    assert_eq!(number_var(&app, "raiders_left"), Some(0.0));
+    assert_eq!(
+        outcome_kind(&app),
+        Some(ScenarioOutcomeKind::Victory),
+        "neutralized base + neutralized defenders wins the raid"
+    );
+}
+
+#[test]
 fn a_partial_clear_does_not_win() {
     let scenario = scenario_from(CH5_RON);
 
@@ -519,6 +588,33 @@ fn player_death_is_a_defeat_that_retries_the_raid() {
 }
 
 #[test]
+fn player_neutralized_is_a_defeat_that_retries_the_raid() {
+    let scenario = scenario_from(CH5_RON);
+    let mut app = armed_app(&scenario);
+
+    neutralize(&mut app, "player_spaceship");
+    assert_eq!(
+        outcome_kind(&app),
+        Some(ScenarioOutcomeKind::Defeat),
+        "neutralizing in the raid is a Defeat"
+    );
+    assert!(
+        outcome_message(&app)
+            .unwrap()
+            .contains("account stays open"),
+        "the neutralized loss carries the raid Defeat message"
+    );
+    assert_eq!(
+        number_var(&app, "act"),
+        Some(3.0),
+        "the neutralized loss latches the act"
+    );
+    let (next, linger) = queued_next(&app).expect("Defeat queues a retry");
+    assert_eq!(next, "ledger_ch5_the_raid");
+    assert!(linger);
+}
+
+#[test]
 fn a_won_raid_is_not_overwritten_by_a_late_defeat() {
     let scenario = scenario_from(CH5_RON);
     let mut app = armed_app(&scenario);
@@ -544,10 +640,11 @@ fn the_ch4_sell_win_chains_into_this_raid() {
     let ch4 = scenario_from(CH4_RON);
 
     // Count the ch4 handlers that chain a NextScenario into this raid: exactly
-    // one - the Auditor-death SELL win. Pin the structural reachability fact
-    // (review-rig-can-false-green: pin that ONE path chains, not just that a
-    // chain exists somewhere).
-    let chains_to_raid = ch4
+    // two equivalent SELL fight wins - Auditor destroyed and Auditor
+    // neutralized. Pin the structural reachability fact
+    // (review-rig-can-false-green: pin the exact paths, not just that a chain
+    // exists somewhere).
+    let chains_to_raid: Vec<_> = ch4
         .events
         .iter()
         .filter(|e| {
@@ -558,33 +655,53 @@ fn the_ch4_sell_win_chains_into_this_raid() {
                 )
             })
         })
-        .count();
+        .collect();
     assert_eq!(
-        chains_to_raid, 1,
-        "exactly one ch4 handler (the SELL/fight win) chains into the raid"
+        chains_to_raid.len(),
+        2,
+        "exactly two ch4 handlers (Auditor destroyed/neutralized SELL wins) chain into the raid"
     );
 
-    // And that handler is the one gated on the Auditor's death - it also filters
-    // the auditor entity, so the chain rides the fight win, not the burn ending.
-    let sell_win_chains = ch4.events.iter().any(|e| {
-        let filters_auditor = e.filters.iter().any(|f| {
+    for (label, matches_kind) in [
+        (
+            "destroyed",
+            matches_on_destroyed as fn(&EventConfig) -> bool,
+        ),
+        (
+            "neutralized",
+            matches_on_neutralized as fn(&EventConfig) -> bool,
+        ),
+    ] {
+        let sell_win_chains = chains_to_raid.iter().any(|e| {
+            matches_kind(&e.name)
+                && e.filters.iter().any(|f| {
+                    matches!(
+                        f,
+                        EventFilterConfig::Entity(entity) if entity.id.as_deref() == Some("auditor")
+                    )
+                })
+        });
+        assert!(
+            sell_win_chains,
+            "the raid is chained off the Auditor {label} fight win, not the burn ending"
+        );
+    }
+    assert!(chains_to_raid.iter().all(|e| {
+        e.filters.iter().any(|f| {
             matches!(
                 f,
                 EventFilterConfig::Entity(entity) if entity.id.as_deref() == Some("auditor")
             )
-        });
-        let chains = e.actions.iter().any(|a| {
-            matches!(
-                a,
-                EventActionConfig::NextScenario(next) if next.scenario_id == "ledger_ch5_the_raid"
-            )
-        });
-        filters_auditor && chains
-    });
-    assert!(
-        sell_win_chains,
-        "the raid is chained off the Auditor-death (fight) win, not the burn ending"
-    );
+        })
+    }));
+}
+
+fn matches_on_destroyed(event: &EventConfig) -> bool {
+    matches!(event, EventConfig::OnDestroyed)
+}
+
+fn matches_on_neutralized(event: &EventConfig) -> bool {
+    matches!(event, EventConfig::OnNeutralized)
 }
 
 // --- the bundle ships the raid and the bumped version -----------------------
@@ -596,7 +713,7 @@ fn the_bundle_ships_the_raid_and_bumps_the_version() {
         "the bundle lists the raid finale"
     );
     assert!(
-        LEDGER_BUNDLE_RON.contains("version: \"1.13.0\""),
-        "the bundle version is bumped for the campaign grouping + finale re-hide"
+        LEDGER_BUNDLE_RON.contains("version: \"1.14.0\""),
+        "the bundle version is bumped for Ledger neutralization handling"
     );
 }

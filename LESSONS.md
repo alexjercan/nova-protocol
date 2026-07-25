@@ -169,11 +169,6 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   stale RON) - never fires. When landing locally without a push, run the FULL
   affected suite (`--test <name>` for integration guards, not just `--lib`) or
   push and let CI gate BEFORE merging. 20260722-142341.
-- `sweep-content-repo-wide-not-just-assets` (x2): relocating/renaming an
-  asset sweeps EVERY content-shaped file repo-wide (examples/, include_str!,
-  test data); an "X holds everywhere" audit sweeps base + webmods +
-  assets/mods + Rust-coded scenarios, re-derived in review. 20260717-002105,
-  20260717-201534.
 - `build-time-move-weigh-generator-deps` (x1): before scoping a "move X to
   build-time" task, check whether the generator drags in a heavy dep (bevy via
   `Reflect` derives) - a `build.rs` then needs it as a build-dependency and
@@ -751,6 +746,11 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 
 ## Domain lessons (nova-protocol specific)
 
+- `neutralized-then-destroyed-counters` (x1): any objective counter mirrored
+  from `OnDestroyed` to `OnNeutralized` needs an idempotence flag per target;
+  a combat-dead ship can later be destroyed and fire both handlers, double
+  advancing counters unless the two events share the same down gate.
+  20260725-202255.
 - `read-all-branches-of-a-load-bearing-engine-rule` (x2): when a leash/cap/guard/
   opt-in is load-bearing, read ALL its branches, not the first that confirms your
   phrasing - the AI `leash` has a `recently_damaged` override (a SHOT ship chases
@@ -976,3 +976,10 @@ here (annotated) as the paid record.
   `scripts/setup-hooks.sh`, and it gates the `sprout land` commit too (sprout
   rolls back on hook failure). The "author remembering" failure mode is now a
   tool guard - the recurrence this entry tracked should stop.
+- `sweep-content-repo-wide-not-just-assets` (x3) -> work/review skills:
+  relocating/renaming an asset sweeps EVERY content-shaped file repo-wide
+  (examples/, include_str!, test data); an "X holds everywhere" audit sweeps
+  base + webmods + assets/mods + Rust-coded scenarios, re-derived in review.
+  Promotion target: make task planning and review check "base and webmods"
+  explicitly for content-wide behavior changes. 20260717-002105,
+  20260717-201534, 20260725-202255.

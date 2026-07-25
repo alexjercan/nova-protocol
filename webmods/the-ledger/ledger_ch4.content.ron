@@ -1192,12 +1192,12 @@
                     )),
                 ],
             ),
-            // --- The SELL ending: the Auditor dies, payday at a price. Only
-            // the sell path (choice == 1) reaches a live Auditor, so there is
-            // ONE auditor-death handler now. The burn path closes itself above
-            // (act -> 3 at the buoy, then the deferred BURN overlay); the old
-            // `choice == 2` auditor-death handler was DEAD once the burn path
-            // stopped spawning the Auditor and has been removed. ---
+            // --- The SELL ending: the Auditor is destroyed or neutralized,
+            // payday at a price. Only the sell path (choice == 1) reaches a live
+            // Auditor, so the burn path closes itself above (act -> 3 at the
+            // buoy, then the deferred BURN overlay); the old `choice == 2`
+            // auditor-death handler was DEAD once the burn path stopped spawning
+            // the Auditor and has been removed. ---
             (
                 name: OnDestroyed,
                 filters: [
@@ -1235,12 +1235,67 @@
                     )),
                 ],
             ),
+            (
+                name: OnNeutralized,
+                filters: [
+                    Entity((
+                        id: Some("auditor"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("choice"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(3.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "obj_auditor",
+                    )),
+                    Outcome((
+                        outcome: Victory,
+                        message: Some("SOLD. Paid in full - every ledger line cleared, the debt gone in one transfer. The buyer is silent, the Auditor hangs dead with guns cold and engines dark, and somewhere a manifest lists a box that never existed. Payday, and the price was a gunship - so Vesh spends a slice of it hiring you one to keep. Time to settle the Magpie account."),
+                    )),
+                    NextScenario((
+                        scenario_id: "ledger_ch5_the_raid",
+                        linger: true,
+                    )),
+                ],
+            ),
             // Player death before the ending: Defeat + retry the finale. Only
             // reachable on the SELL path (act == 2 during the Auditor fight):
             // the burn path latches act to 3 at the buoy BEFORE any death
             // window, so this act < 3 gate can never trip after a burn.
             (
                 name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                    Expression((LessThan(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("The Auditor collects the box, the wreck, and the silence."),
+                    )),
+                    NextScenario((
+                        scenario_id: "ledger_ch4_the_buyer",
+                        linger: true,
+                    )),
+                ],
+            ),
+            (
+                name: OnNeutralized,
                 filters: [
                     Entity((
                         id: Some("player_spaceship"),

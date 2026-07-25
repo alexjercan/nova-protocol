@@ -5,9 +5,10 @@
 // two of Vesh's wing on small escorts, and go settle the Magpie account -
 // raiding their forward base among the rocks. This is the victory lap: go HAM.
 //
-// Reachability: ch4's Auditor-death (SELL, choice == 1) handler chains here with
-// NextScenario. The BURN ending stays terminal (no fight, no chain). Variables
-// do not survive scenario changes, so ch5 seeds its own from scratch.
+// Reachability: ch4's Auditor destroyed/neutralized (SELL, choice == 1)
+// handlers chain here with NextScenario. The BURN ending stays terminal (no
+// fight, no chain). Variables do not survive scenario changes, so ch5 seeds its
+// own from scratch.
 //
 // Cast:
 //   - player_spaceship: a cargoB-class gunship (the Auditor's own hull-class),
@@ -22,11 +23,11 @@
 //     core, NO thrusters so it holds station), Enemy. Destructible - cracking
 //     it is part of the win, the torpedoes' target.
 //
-// Win: all four raiders down AND the base destroyed -> Victory (terminal - this
-// is the campaign's end, no chain). Player death -> Defeat + retry ch5. Both
-// outcome handlers gate act == 1 and latch a distinct terminal act (2 win, 3
-// loss), so whichever lands first closes the act and the other cannot overwrite
-// it (outcome-is-last-write-wins).
+// Win: all four raiders down AND the base destroyed or neutralized -> Victory
+// (terminal - this is the campaign's end, no chain). Player death or
+// neutralization -> Defeat + retry ch5. Both outcome handlers gate act == 1 and
+// latch a distinct terminal act (2 win, 3 loss), so whichever lands first closes
+// the act and the other cannot overwrite it (outcome-is-last-write-wins).
 [
     Scenario((
         id: "ledger_ch5_the_raid",
@@ -55,6 +56,22 @@
                     VariableSet((
                         key: "raiders_left",
                         expression: Term(Factor(Literal(Number(4.0)))),
+                    )),
+                    VariableSet((
+                        key: "raider_1_down",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "raider_2_down",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "raider_3_down",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "raider_4_down",
+                        expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     VariableSet((
                         key: "base_down",
@@ -2709,16 +2726,50 @@
                     )),
                 ],
             ),
-            // --- Defender kills: each raider death drops raiders_left by one.
-            // Four one-shot handlers (an OnDestroyed fires once per entity).
+            // --- Defender kills/neutralizations: each raider drops
+            // raiders_left by one. Per-raider flags make neutralize-then-destroy
+            // idempotent, since neutralized wrecks linger.
             (
                 name: OnDestroyed,
                 filters: [
                     Entity((
                         id: Some("raider_1"),
                     )),
+                    Expression((Equal(
+                        Term(Factor(Name("raider_1_down"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
                 ],
                 actions: [
+                    VariableSet((
+                        key: "raider_1_down",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    VariableSet((
+                        key: "raiders_left",
+                        expression: Subtract(
+                            Factor(Name("raiders_left")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            (
+                name: OnNeutralized,
+                filters: [
+                    Entity((
+                        id: Some("raider_1"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("raider_1_down"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "raider_1_down",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
                     VariableSet((
                         key: "raiders_left",
                         expression: Subtract(
@@ -2734,8 +2785,41 @@
                     Entity((
                         id: Some("raider_2"),
                     )),
+                    Expression((Equal(
+                        Term(Factor(Name("raider_2_down"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
                 ],
                 actions: [
+                    VariableSet((
+                        key: "raider_2_down",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    VariableSet((
+                        key: "raiders_left",
+                        expression: Subtract(
+                            Factor(Name("raiders_left")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            (
+                name: OnNeutralized,
+                filters: [
+                    Entity((
+                        id: Some("raider_2"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("raider_2_down"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "raider_2_down",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
                     VariableSet((
                         key: "raiders_left",
                         expression: Subtract(
@@ -2751,8 +2835,41 @@
                     Entity((
                         id: Some("raider_3"),
                     )),
+                    Expression((Equal(
+                        Term(Factor(Name("raider_3_down"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
                 ],
                 actions: [
+                    VariableSet((
+                        key: "raider_3_down",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    VariableSet((
+                        key: "raiders_left",
+                        expression: Subtract(
+                            Factor(Name("raiders_left")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            (
+                name: OnNeutralized,
+                filters: [
+                    Entity((
+                        id: Some("raider_3"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("raider_3_down"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "raider_3_down",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
                     VariableSet((
                         key: "raiders_left",
                         expression: Subtract(
@@ -2768,8 +2885,16 @@
                     Entity((
                         id: Some("raider_4"),
                     )),
+                    Expression((Equal(
+                        Term(Factor(Name("raider_4_down"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
                 ],
                 actions: [
+                    VariableSet((
+                        key: "raider_4_down",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
                     VariableSet((
                         key: "raiders_left",
                         expression: Subtract(
@@ -2779,8 +2904,34 @@
                     )),
                 ],
             ),
-            // --- The base breaks: stamp base_down and let Vesh call it. One-shot
-            // on base_said. Does not itself win - the fighters may still be up.
+            (
+                name: OnNeutralized,
+                filters: [
+                    Entity((
+                        id: Some("raider_4"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("raider_4_down"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "raider_4_down",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    VariableSet((
+                        key: "raiders_left",
+                        expression: Subtract(
+                            Factor(Name("raiders_left")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            // --- The base breaks or goes combat-dead: stamp base_down and let
+            // Vesh call it. One-shot on base_said. Does not itself win - the
+            // fighters may still be up.
             (
                 name: OnDestroyed,
                 filters: [
@@ -2804,6 +2955,33 @@
                     StoryMessage((
                         speaker: "Broker Vesh",
                         text: "The Nest is coming apart - good shooting, Kestrel. Now finish their fighters and the account is closed.",
+                        dwell: Some(6.0),
+                    )),
+                ],
+            ),
+            (
+                name: OnNeutralized,
+                filters: [
+                    Entity((
+                        id: Some("magpie_base"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("base_said"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "base_down",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    VariableSet((
+                        key: "base_said",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Broker Vesh",
+                        text: "The Nest hangs dead - guns cold, engines dark. Good shooting, Kestrel. Now finish their fighters and the account is closed.",
                         dwell: Some(6.0),
                     )),
                 ],
@@ -2873,6 +3051,32 @@
                     Outcome((
                         outcome: Defeat,
                         message: Some("The gunship comes apart around you and the Nest's guns go quiet with satisfaction. The Magpies keep the belt - and the account stays open."),
+                    )),
+                    NextScenario((
+                        scenario_id: "ledger_ch5_the_raid",
+                        linger: true,
+                    )),
+                ],
+            ),
+            (
+                name: OnNeutralized,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(3.0)))),
+                    )),
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("Guns and thrusters gone - the gunship drifts dead while the Nest's guns go quiet with satisfaction. The Magpies keep the belt - and the account stays open."),
                     )),
                     NextScenario((
                         scenario_id: "ledger_ch5_the_raid",

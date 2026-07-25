@@ -3,6 +3,13 @@
 All notable changes to The Ledger campaign mod. Versions are the `meta.version`
 in `the-ledger.bundle.ron`; the portal keeps every published version.
 
+## 1.14.0
+
+- Combat-dead ships now count correctly across the campaign. If an armed
+  Magpie, the Auditor, the Nest, or the player loses all working weapons and
+  thrusters before the hull is fully destroyed, the same win or retry path fires
+  as the corresponding destruction path.
+
 ## 1.12.0
 
 - The Raid gravity, round two. The planetoid wells are now tiny and sit only in

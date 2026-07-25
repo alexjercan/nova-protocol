@@ -55,7 +55,8 @@ use bevy_common_systems::prelude::{
 };
 use nova_events::prelude::{
     EntityId, OnCombatLockEvent, OnCombatLockEventInfo, OnDestroyedEvent, OnDestroyedEventInfo,
-    OnEnterEvent, OnEnterEventInfo, OnUpdateEvent, OnUpdateEventInfo,
+    OnEnterEvent, OnEnterEventInfo, OnNeutralizedEvent, OnNeutralizedEventInfo, OnUpdateEvent,
+    OnUpdateEventInfo,
 };
 use nova_gameplay::prelude::Allegiance;
 use nova_modding::prelude::Content;
@@ -228,6 +229,20 @@ fn destroy(app: &mut App, id: &str) {
             commands.fire::<OnDestroyedEvent>(info.clone());
         })
         .expect("fire OnDestroyed");
+    app.update();
+    app.update();
+}
+
+fn neutralize(app: &mut App, id: &str) {
+    let info = OnNeutralizedEventInfo {
+        id: id.to_string(),
+        type_name: "spaceship".to_string(),
+    };
+    app.world_mut()
+        .run_system_once(move |mut commands: Commands| {
+            commands.fire::<OnNeutralizedEvent>(info.clone());
+        })
+        .expect("fire OnNeutralized");
     app.update();
     app.update();
 }
@@ -1145,6 +1160,21 @@ fn player_death_before_arrival_retries_the_channel() {
         outcome_kind(&app),
         Some(ScenarioOutcomeKind::Defeat),
         "dying in the channel loses the run"
+    );
+    let (next, linger) = queued_next(&app).expect("a retry is queued");
+    assert_eq!(next, "ledger_ch3_quiet_channel", "retry is THIS chapter");
+    assert!(linger);
+}
+
+#[test]
+fn player_neutralized_before_arrival_retries_the_channel() {
+    let mut app = armed_app();
+
+    neutralize(&mut app, "player_spaceship");
+    assert_eq!(
+        outcome_kind(&app),
+        Some(ScenarioOutcomeKind::Defeat),
+        "neutralizing in the channel loses the run"
     );
     let (next, linger) = queued_next(&app).expect("a retry is queued");
     assert_eq!(next, "ledger_ch3_quiet_channel", "retry is THIS chapter");

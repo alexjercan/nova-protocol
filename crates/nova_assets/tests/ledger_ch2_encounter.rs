@@ -30,7 +30,8 @@ use bevy_common_systems::prelude::{
     CommandsGameEventExt, EventHandler, GameEventsPlugin, GameObjectives,
 };
 use nova_events::prelude::{
-    OnDestroyedEvent, OnDestroyedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
+    OnDestroyedEvent, OnDestroyedEventInfo, OnNeutralizedEvent, OnNeutralizedEventInfo,
+    OnUpdateEvent, OnUpdateEventInfo,
 };
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::*;
@@ -217,6 +218,20 @@ fn destroy(app: &mut App, id: &str) {
     app.update();
 }
 
+fn neutralize(app: &mut App, id: &str) {
+    let info = OnNeutralizedEventInfo {
+        id: id.to_string(),
+        type_name: "spaceship".to_string(),
+    };
+    app.world_mut()
+        .run_system_once(move |mut commands: Commands| {
+            commands.fire::<OnNeutralizedEvent>(info.clone());
+        })
+        .expect("fire OnNeutralized");
+    app.update();
+    app.update();
+}
+
 /// Pump the scenario clock past a deadline and tick, so a deferred
 /// (clock-gated) handler actually fires. The pacing rework defers each
 /// chapter's Victory overlay by a beat (`win_gate = scenario_elapsed +
@@ -262,6 +277,14 @@ fn armed_app(scenario: &ScenarioConfig) -> App {
     register_non_start_handlers(&mut app, scenario);
     seed_var(&mut app, "act", 1.0);
     seed_var(&mut app, "kills", 0.0);
+    for key in [
+        "magpie_1_down",
+        "magpie_2_down",
+        "magpie_3_down",
+        "magpie_4_down",
+    ] {
+        seed_var(&mut app, key, 0.0);
+    }
     // The pacing rework defers the Victory overlay a beat behind the win
     // comms line via a one-shot `win_said` guard that OnStart seeds to 0; the
     // rig must seed it too, or the deferred overlay handler's `win_said == 0`
@@ -506,6 +529,35 @@ fn wave_one_kills_checkpoint_into_the_heavies() {
 }
 
 #[test]
+fn wave_one_neutralized_ships_count_once_even_if_destroyed_later() {
+    let scenario = scenario_from(CH2A_RON);
+    let mut app = armed_app(&scenario);
+
+    seed_var(&mut app, "scenario_elapsed", 30.0);
+
+    neutralize(&mut app, "magpie_1");
+    assert_eq!(number_var(&app, "kills"), Some(1.0));
+    assert_eq!(number_var(&app, "magpie_1_down"), Some(1.0));
+    destroy(&mut app, "magpie_1");
+    assert_eq!(
+        number_var(&app, "kills"),
+        Some(1.0),
+        "destroying a neutralized wreck must not double-count the kill"
+    );
+
+    neutralize(&mut app, "magpie_2");
+    pump_clock(&mut app, 100.0);
+    assert_eq!(
+        outcome_kind(&app),
+        Some(ScenarioOutcomeKind::Victory),
+        "neutralizing the pair checkpoints into the heavies"
+    );
+    let (next, linger) = queued_next(&app).expect("the checkpoint queues part two");
+    assert_eq!(next, "ledger_ch2b_the_heavies");
+    assert!(linger);
+}
+
+#[test]
 fn wave_one_deaths_retry_wave_one() {
     for casualty in ["player_spaceship", "dray_mule"] {
         let scenario = scenario_from(CH2A_RON);
@@ -521,6 +573,18 @@ fn wave_one_deaths_retry_wave_one() {
         assert_eq!(next, "ledger_ch2_claim_jumpers", "retry is THIS part");
         assert!(linger);
     }
+}
+
+#[test]
+fn wave_one_player_neutralized_retries_wave_one() {
+    let scenario = scenario_from(CH2A_RON);
+    let mut app = armed_app(&scenario);
+
+    neutralize(&mut app, "player_spaceship");
+    assert_eq!(outcome_kind(&app), Some(ScenarioOutcomeKind::Defeat));
+    let (next, linger) = queued_next(&app).expect("a retry is queued");
+    assert_eq!(next, "ledger_ch2_claim_jumpers");
+    assert!(linger);
 }
 
 #[test]
@@ -552,6 +616,35 @@ fn heavies_kills_clear_the_lane_to_chapter_three() {
 }
 
 #[test]
+fn heavies_neutralized_ships_count_once_even_if_destroyed_later() {
+    let scenario = scenario_from(CH2B_RON);
+    let mut app = armed_app(&scenario);
+
+    seed_var(&mut app, "scenario_elapsed", 30.0);
+
+    neutralize(&mut app, "magpie_3");
+    assert_eq!(number_var(&app, "kills"), Some(1.0));
+    assert_eq!(number_var(&app, "magpie_3_down"), Some(1.0));
+    destroy(&mut app, "magpie_3");
+    assert_eq!(
+        number_var(&app, "kills"),
+        Some(1.0),
+        "destroying a neutralized heavy must not double-count the kill"
+    );
+
+    neutralize(&mut app, "magpie_4");
+    pump_clock(&mut app, 100.0);
+    assert_eq!(
+        outcome_kind(&app),
+        Some(ScenarioOutcomeKind::Victory),
+        "neutralizing the heavies clears the lane"
+    );
+    let (next, linger) = queued_next(&app).expect("victory chains on");
+    assert_eq!(next, "ledger_ch3_quiet_channel");
+    assert!(linger);
+}
+
+#[test]
 fn heavies_deaths_retry_the_heavies_only() {
     // THE checkpoint pin: dying to wave two must never send the player
     // back through wave one (spike F7 - full-chapter restarts were the
@@ -569,6 +662,18 @@ fn heavies_deaths_retry_the_heavies_only() {
         );
         assert!(linger);
     }
+}
+
+#[test]
+fn heavies_player_neutralized_retries_the_heavies_only() {
+    let scenario = scenario_from(CH2B_RON);
+    let mut app = armed_app(&scenario);
+
+    neutralize(&mut app, "player_spaceship");
+    assert_eq!(outcome_kind(&app), Some(ScenarioOutcomeKind::Defeat));
+    let (next, linger) = queued_next(&app).expect("a retry is queued");
+    assert_eq!(next, "ledger_ch2b_the_heavies");
+    assert!(linger);
 }
 
 #[test]
@@ -602,24 +707,26 @@ fn on_start_seeds_the_act_machine() {
     ] {
         let scenario = scenario_from(ron_str);
         let start = on_start(&scenario);
-        let mut seeded = start.actions.iter().filter_map(|a| match a {
-            EventActionConfig::VariableSet(set) => Some(set.key.as_str()),
-            _ => None,
-        });
-        assert!(seeded.any(|k| k == "act"), "{part}: OnStart seeds 'act'");
-        let mut seeded = start.actions.iter().filter_map(|a| match a {
-            EventActionConfig::VariableSet(set) => Some(set.key.as_str()),
-            _ => None,
-        });
-        assert!(
-            seeded.any(|k| k == "kills"),
-            "{part}: OnStart seeds 'kills'"
-        );
+        let seeded: Vec<_> = start
+            .actions
+            .iter()
+            .filter_map(|a| match a {
+                EventActionConfig::VariableSet(set) => Some(set.key.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert!(seeded.contains(&"act"), "{part}: OnStart seeds 'act'");
+        assert!(seeded.contains(&"kills"), "{part}: OnStart seeds 'kills'");
 
         spawn_by_id(start, "player_spaceship");
         spawn_by_id(start, "dray_mule");
         for id in wave {
             spawn_by_id(start, id);
+            let key = format!("{id}_down");
+            assert!(
+                seeded.contains(&key.as_str()),
+                "{part}: OnStart seeds '{key}' for neutralize/destroy idempotence"
+            );
         }
     }
 }

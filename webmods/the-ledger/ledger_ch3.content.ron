@@ -2206,6 +2206,28 @@
                     )),
                 ],
             ),
+            (
+                name: OnNeutralized,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                    Expression((LessThan(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("The channel keeps what it catches. The box drifts with the Kestrel's bones."),
+                    )),
+                    NextScenario((
+                        scenario_id: "ledger_ch3_quiet_channel",
+                        linger: true,
+                    )),
+                ],
+            ),
         ],
     )),
 ]

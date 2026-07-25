@@ -1841,6 +1841,28 @@
                     )),
                 ],
             ),
+            (
+                name: OnNeutralized,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                    Expression((LessThan(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("Guns and thrusters gone - the belt keeps the Kestrel. Mesa Verde files the claim, and the debt rolls over."),
+                    )),
+                    NextScenario((
+                        scenario_id: "ledger_ch1_dead_weight",
+                        linger: true,
+                    )),
+                ],
+            ),
         ],
     )),
 ]
