@@ -279,6 +279,25 @@ pub(crate) fn asteroid_field(
                 }),
             ],
         },
+        ScenarioEventConfig {
+            name: EventConfig::OnNeutralized,
+            filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
+                id: Some("player_spaceship".to_string()),
+                type_name: None,
+                ..default()
+            })],
+            actions: vec![
+                EventActionConfig::Outcome(OutcomeActionConfig::new(
+                    ScenarioOutcomeKind::Defeat,
+                    "Weapons and thrusters gone - you drift dead in the belt.",
+                )),
+                EventActionConfig::NextScenario(NextScenarioActionConfig {
+                    scenario_id: "asteroid_field".to_string(),
+                    linger: true,
+                    delay: None,
+                }),
+            ],
+        },
         // OnDestroyed: If an asteroid is destroyed, increment asteroids_destroyed
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,

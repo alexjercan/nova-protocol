@@ -43,8 +43,8 @@ use super::{
     craft::{self, ShipGrade},
     pacing::{self, mark_clock, open_gate, MID_GAP, REVEAL_GAP},
     shakedown::{
-        complete, destroyed, emphasize, eq_num, lt_num, mark, num, objective, player_enters, set,
-        spawn, story, unmark,
+        complete, destroyed, emphasize, eq_num, lt_num, mark, neutralized, num, objective,
+        player_enters, set, spawn, story, unmark,
     },
     SCATTER_SEED,
 };
@@ -419,8 +419,18 @@ pub(crate) fn broadside(
             actions: vec![set(VAR_CORVETTE_A_DOWN, num(1.0)), unmark(ID_CORVETTE_A)],
         },
         ScenarioEventConfig {
+            name: EventConfig::OnNeutralized,
+            filters: vec![neutralized(ID_CORVETTE_A)],
+            actions: vec![set(VAR_CORVETTE_A_DOWN, num(1.0)), unmark(ID_CORVETTE_A)],
+        },
+        ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
             filters: vec![destroyed(ID_CORVETTE_B)],
+            actions: vec![set(VAR_CORVETTE_B_DOWN, num(1.0)), unmark(ID_CORVETTE_B)],
+        },
+        ScenarioEventConfig {
+            name: EventConfig::OnNeutralized,
+            filters: vec![neutralized(ID_CORVETTE_B)],
             actions: vec![set(VAR_CORVETTE_B_DOWN, num(1.0)), unmark(ID_CORVETTE_B)],
         },
         // First-kill beat (voice pass): one line when the FIRST corvette
@@ -545,6 +555,22 @@ pub(crate) fn broadside(
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Defeat,
                     "The scavengers strip your wreck for parts.",
+                )),
+                EventActionConfig::NextScenario(NextScenarioActionConfig {
+                    scenario_id: BROADSIDE_SCENARIO_ID.to_string(),
+                    linger: true,
+                    delay: None,
+                }),
+            ],
+        },
+        ScenarioEventConfig {
+            name: EventConfig::OnNeutralized,
+            filters: vec![neutralized(ID_PLAYER), lt_num(VAR_ACT, 2.0)],
+            actions: vec![
+                set(VAR_ACT, num(3.0)),
+                EventActionConfig::Outcome(OutcomeActionConfig::new(
+                    ScenarioOutcomeKind::Defeat,
+                    "Guns and thrusters gone - you drift, and the scavengers close in.",
                 )),
                 EventActionConfig::NextScenario(NextScenarioActionConfig {
                     scenario_id: BROADSIDE_SCENARIO_ID.to_string(),
@@ -690,6 +716,59 @@ pub(crate) fn broadside_gunship(
                 }),
             ],
         },
+        ScenarioEventConfig {
+            name: EventConfig::OnNeutralized,
+            filters: vec![
+                neutralized(ID_GUNSHIP),
+                eq_num(VAR_ACT, 1.0),
+                eq_num(VAR_HAULER_LOST, 0.0),
+            ],
+            actions: vec![
+                set(VAR_ACT, num(2.0)),
+                complete(OBJ_SCREEN),
+                complete(OBJ_BREAK),
+                unmark(ID_GUNSHIP),
+                EventActionConfig::Outcome(OutcomeActionConfig::new(
+                    ScenarioOutcomeKind::Victory,
+                    "The Rust Tally hangs dead in the void, guns cold and \
+                     engines dark - and the Ceres Queen is still whole to see \
+                     it. But the deep scan does not go quiet: the gang's \
+                     traffic keeps moving, and all of it is inbound to the \
+                     freight lane.",
+                )),
+                EventActionConfig::NextScenario(NextScenarioActionConfig {
+                    scenario_id: super::lifeline::LIFELINE_SCENARIO_ID.to_string(),
+                    linger: true,
+                    delay: None,
+                }),
+            ],
+        },
+        ScenarioEventConfig {
+            name: EventConfig::OnNeutralized,
+            filters: vec![
+                neutralized(ID_GUNSHIP),
+                eq_num(VAR_ACT, 1.0),
+                eq_num(VAR_HAULER_LOST, 1.0),
+            ],
+            actions: vec![
+                set(VAR_ACT, num(2.0)),
+                complete(OBJ_SCREEN),
+                complete(OBJ_BREAK),
+                unmark(ID_GUNSHIP),
+                EventActionConfig::Outcome(OutcomeActionConfig::new(
+                    ScenarioOutcomeKind::Victory,
+                    "The Rust Tally hangs dead in the void, guns cold and \
+                     engines dark - too late for the Ceres Queen. And the deep \
+                     scan does not go quiet: the gang's traffic keeps moving, \
+                     and all of it is inbound to the freight lane.",
+                )),
+                EventActionConfig::NextScenario(NextScenarioActionConfig {
+                    scenario_id: super::lifeline::LIFELINE_SCENARIO_ID.to_string(),
+                    linger: true,
+                    delay: None,
+                }),
+            ],
+        },
         // Flavor, not failure: same soft-fail beat as part one.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
@@ -717,6 +796,22 @@ pub(crate) fn broadside_gunship(
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Defeat,
                     "The Rust Tally walks its torpedoes onto your wreck.",
+                )),
+                EventActionConfig::NextScenario(NextScenarioActionConfig {
+                    scenario_id: BROADSIDE_GUNSHIP_SCENARIO_ID.to_string(),
+                    linger: true,
+                    delay: None,
+                }),
+            ],
+        },
+        ScenarioEventConfig {
+            name: EventConfig::OnNeutralized,
+            filters: vec![neutralized(ID_PLAYER), lt_num(VAR_ACT, 2.0)],
+            actions: vec![
+                set(VAR_ACT, num(3.0)),
+                EventActionConfig::Outcome(OutcomeActionConfig::new(
+                    ScenarioOutcomeKind::Defeat,
+                    "Guns and thrusters gone - the Rust Tally finishes you at leisure.",
                 )),
                 EventActionConfig::NextScenario(NextScenarioActionConfig {
                     scenario_id: BROADSIDE_GUNSHIP_SCENARIO_ID.to_string(),

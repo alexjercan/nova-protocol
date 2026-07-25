@@ -35,7 +35,8 @@ use super::{
     craft::{self, ShipGrade},
     pacing::{self, clock_past, mark_clock, open_gate, MID_GAP, REVEAL_GAP},
     shakedown::{
-        complete, destroyed, eq_num, gt_num, mark, num, objective, set, spawn, story, unmark, var,
+        complete, destroyed, eq_num, gt_num, mark, neutralized, num, objective, set, spawn, story,
+        unmark, var,
     },
     SCATTER_SEED,
 };
@@ -502,8 +503,18 @@ pub(crate) fn final_tally(
             actions: vec![set(VAR_PICKET_A_DOWN, num(1.0)), unmark(ID_PICKET_A)],
         },
         ScenarioEventConfig {
+            name: EventConfig::OnNeutralized,
+            filters: vec![neutralized(ID_PICKET_A)],
+            actions: vec![set(VAR_PICKET_A_DOWN, num(1.0)), unmark(ID_PICKET_A)],
+        },
+        ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
             filters: vec![destroyed(ID_PICKET_B)],
+            actions: vec![set(VAR_PICKET_B_DOWN, num(1.0)), unmark(ID_PICKET_B)],
+        },
+        ScenarioEventConfig {
+            name: EventConfig::OnNeutralized,
+            filters: vec![neutralized(ID_PICKET_B)],
             actions: vec![set(VAR_PICKET_B_DOWN, num(1.0)), unmark(ID_PICKET_B)],
         },
         // Both pickets down: the Tallyman's last taunt, and the cast-off
@@ -586,6 +597,21 @@ pub(crate) fn final_tally(
                 ),
             ],
         },
+        ScenarioEventConfig {
+            name: EventConfig::OnNeutralized,
+            filters: vec![neutralized(ID_FLAGSHIP), eq_num(VAR_ACT, 1.0)],
+            actions: vec![
+                set(VAR_ACT, num(4.0)),
+                mark_clock(VAR_EPILOGUE_AT, 0.0),
+                complete(OBJ_BREAK),
+                unmark(ID_FLAGSHIP),
+                story(
+                    BELT_RELAY,
+                    "The Final Tally hangs dead - guns cold, engines dark. \
+                     The claim is going dark.",
+                ),
+            ],
+        },
         // Epilogue close line, +4s.
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
@@ -655,6 +681,22 @@ pub(crate) fn final_tally(
                     ScenarioOutcomeKind::Defeat,
                     "The claim keeps its secret, and the Tallyman keeps \
                      the belt.",
+                )),
+                EventActionConfig::NextScenario(NextScenarioActionConfig {
+                    scenario_id: FINAL_TALLY_SCENARIO_ID.to_string(),
+                    linger: true,
+                    delay: None,
+                }),
+            ],
+        },
+        ScenarioEventConfig {
+            name: EventConfig::OnNeutralized,
+            filters: vec![neutralized(ID_PLAYER), eq_num(VAR_ACT, 1.0)],
+            actions: vec![
+                set(VAR_ACT, num(3.0)),
+                EventActionConfig::Outcome(OutcomeActionConfig::new(
+                    ScenarioOutcomeKind::Defeat,
+                    "Guns and thrusters gone - you drift, and the Tallyman keeps the belt.",
                 )),
                 EventActionConfig::NextScenario(NextScenarioActionConfig {
                     scenario_id: FINAL_TALLY_SCENARIO_ID.to_string(),

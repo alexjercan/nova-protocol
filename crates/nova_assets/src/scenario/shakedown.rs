@@ -273,6 +273,13 @@ pub(crate) fn destroyed(id: &str) -> EventFilterConfig {
     })
 }
 
+pub(crate) fn neutralized(id: &str) -> EventFilterConfig {
+    EventFilterConfig::Entity(EntityFilterConfig {
+        id: Some(id.to_string()),
+        ..default()
+    })
+}
+
 pub(crate) fn objective(id: &str, message: &str) -> EventActionConfig {
     EventActionConfig::Objective(ObjectiveActionConfig::new(id, message))
 }
@@ -1137,6 +1144,30 @@ pub(crate) fn shakedown_run(
                 }),
             ],
         },
+        ScenarioEventConfig {
+            name: EventConfig::OnNeutralized,
+            filters: vec![neutralized(ID_PIRATE), eq_num(VAR_BEAT, 12.0)],
+            actions: vec![
+                set(VAR_BEAT, num(13.0)),
+                complete(OBJ_B12),
+                objective(
+                    OBJ_DONE,
+                    "Shakedown complete. Tap [CTRL] to stand down your locks - the belt is yours.",
+                ),
+                unmark(ID_PIRATE),
+                EventActionConfig::Outcome(OutcomeActionConfig::new(
+                    ScenarioOutcomeKind::Victory,
+                    "The scavenger drifts dead - guns cold, engines dark - \
+                     but it was flying scout. A distress call is already \
+                     crackling from the deep field.",
+                )),
+                EventActionConfig::NextScenario(NextScenarioActionConfig {
+                    scenario_id: super::broadside::BROADSIDE_SCENARIO_ID.to_string(),
+                    linger: true,
+                    delay: None,
+                }),
+            ],
+        },
         // Player death: the Defeat overlay offers Retry (the lingering
         // restart) and Main Menu - the win/lose frame's first dogfood
         // (task 20260716-125856). Before it, death silently queued the
@@ -1148,6 +1179,21 @@ pub(crate) fn shakedown_run(
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Defeat,
                     "Your ship broke apart in the belt.",
+                )),
+                EventActionConfig::NextScenario(NextScenarioActionConfig {
+                    scenario_id: SHAKEDOWN_SCENARIO_ID.to_string(),
+                    linger: true,
+                    delay: None,
+                }),
+            ],
+        },
+        ScenarioEventConfig {
+            name: EventConfig::OnNeutralized,
+            filters: vec![neutralized(ID_PLAYER)],
+            actions: vec![
+                EventActionConfig::Outcome(OutcomeActionConfig::new(
+                    ScenarioOutcomeKind::Defeat,
+                    "Guns and thrusters gone - you drift derelict in the belt.",
                 )),
                 EventActionConfig::NextScenario(NextScenarioActionConfig {
                     scenario_id: SHAKEDOWN_SCENARIO_ID.to_string(),

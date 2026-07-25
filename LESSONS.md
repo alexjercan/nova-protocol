@@ -157,11 +157,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   merging the default branch surfaces a red test, `git show <default>:<file>`
   first to classify inherited vs caused; fix inherited reds as named merge
   integration. 20260716-215423, 20260717-162121.
-- `edit-the-builder-not-the-generated-ron` (x2, PROMOTED 2026-07-19 -> repo
-  AGENTS.md, but RECURRED 2026-07-22 - prose did not hold): base `.content.ron`
-  are generated - edit the builder then `cargo run -p nova_assets gen` and
-  commit the RON in the SAME change, or parity goes red. 20260718-175502,
-  20260722-142341.
+- `edit-the-builder-not-the-generated-ron` (x3, PROMOTED 2026-07-19 -> repo
+  AGENTS.md, but RECURRED - prose did not hold): base `.content.ron` are
+  generated - edit the builder then `cargo run -p nova_assets -- gen` and commit
+  the generated RON in the SAME change; a direct RON edit can look correct until
+  the next generation wipes it. 20260718-175502, 20260722-142341,
+  20260722-092320.
 - `local-merge-skips-the-guarding-ci` (x1): an ff-merge to master done LOCALLY
   runs no CI, so any check that lives only in CI - or in a `tests/` integration
   guard that `cargo test --lib` skips (content_ron_parity would have caught the
