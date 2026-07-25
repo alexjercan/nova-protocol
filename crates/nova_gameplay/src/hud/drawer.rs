@@ -301,7 +301,10 @@ fn approach(current: f32, target: f32, step: f32) -> f32 {
 /// Update the drawer's mission-log view from the active objectives list.
 fn sync_drawer_objective_log(objectives: Res<GameObjectives>, mut log: ResMut<DrawerObjectiveLog>) {
     if objectives.objectives.is_empty() {
-        log.entries.clear();
+        let completed = std::mem::take(&mut log.previous_active);
+        for objective in completed {
+            upsert_drawer_log_entry(&mut log, &objective, DrawerObjectiveRowStatus::Completed);
+        }
         log.previous_active.clear();
         return;
     }
@@ -651,8 +654,11 @@ fn setup_drawer(
 fn remove_drawer(
     _remove: On<Remove, PlayerSpaceshipMarker>,
     mut commands: Commands,
+    mut log: ResMut<DrawerObjectiveLog>,
     q_parts: Query<Entity, Or<(With<DrawerRootMarker>, With<DrawerBackdropMarker>)>>,
 ) {
+    log.entries.clear();
+    log.previous_active.clear();
     for entity in &q_parts {
         commands.entity(entity).despawn();
     }
@@ -961,7 +967,7 @@ mod tests {
     }
 
     #[test]
-    fn drawer_objective_log_clears_on_teardown() {
+    fn drawer_objectives_keep_final_completed_row_with_strike() {
         let mut app = objectives_app();
         set_objectives(&mut app, vec![Objective::new("b1", "Burn for Beacon 1")]);
         spawn_objectives_list(&mut app);
@@ -970,14 +976,58 @@ mod tests {
         set_objectives(&mut app, Vec::new());
         app.update();
 
-        assert!(
-            row_entities(&mut app).is_empty(),
-            "teardown clears the retained objective log"
-        );
+        let rows = row_entities(&mut app);
+        assert_eq!(rows.len(), 1);
         assert_eq!(
-            app.world().resource::<DrawerObjectiveLog>().entries.len(),
-            0,
-            "derived history is cleared too"
+            *app.world()
+                .entity(rows[0])
+                .get::<DrawerObjectiveRowStatus>()
+                .expect("row status"),
+            DrawerObjectiveRowStatus::Completed
+        );
+        assert_eq!(row_text(&app, rows[0]), "Burn for Beacon 1");
+        assert!(
+            app.world_mut()
+                .query_filtered::<(), With<DrawerObjectiveStrikeMarker>>()
+                .iter(app.world())
+                .next()
+                .is_some(),
+            "the final completed row gets a line-through overlay"
+        );
+    }
+
+    #[test]
+    fn drawer_objective_log_clears_on_drawer_teardown() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.init_resource::<DrawerObjectiveLog>();
+        app.add_observer(setup_drawer);
+        app.add_observer(remove_drawer);
+
+        let player = app
+            .world_mut()
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
+            .id();
+        app.update();
+        app.world_mut().resource_mut::<DrawerObjectiveLog>().entries =
+            vec![DrawerObjectiveLogEntry {
+                id: "b1".to_string(),
+                message: "Burn for Beacon 1".to_string(),
+                status: DrawerObjectiveRowStatus::Completed,
+            }];
+        app.world_mut()
+            .resource_mut::<DrawerObjectiveLog>()
+            .previous_active = vec![Objective::new("b2", "Dock at the relay")];
+
+        app.world_mut()
+            .entity_mut(player)
+            .remove::<PlayerSpaceshipMarker>();
+        app.update();
+
+        let log = app.world().resource::<DrawerObjectiveLog>();
+        assert!(
+            log.entries.is_empty() && log.previous_active.is_empty(),
+            "drawer teardown clears the retained objective log"
         );
     }
 
