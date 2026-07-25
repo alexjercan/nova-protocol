@@ -117,6 +117,9 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   review file is dropped AND lost with the worktree (an out-of-context
   reviewer that WRITES REVIEW.md is the classic trigger - commit it before
   landing). 20260718-231601, 20260722-092427.
+- `log-ui-shape-before-plan` (x1): for log-style UI, decide whether the reader
+  wants one chronological stream, grouped categories, or separate panes before
+  mapping existing data sources into sections. 20260724-102309.
 - `review-current-base-before-ooc` (x1): before spawning out-of-context review,
   compare the branch against CURRENT local default and merge it if the diff
   includes inherited base noise - stale comparisons waste review on unrelated

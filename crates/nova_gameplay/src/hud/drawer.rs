@@ -4,10 +4,10 @@
 //! HIDES the flight HUD and deepens the backdrop into a gray field so the old UI
 //! does not fight the drawer for readability, keeping only the top status strip
 //! and the lower-left keybind hints (task 20260724-134335). This module owns the
-//! SHELL - the interaction model, the dual slide, the section framework - plus
-//! the first section (expanded objectives). The comms-log, minimap and
-//! ship-status sections (tasks 20260724-102309/102320/102332) slot into the
-//! same section framework later.
+//! SHELL - the interaction model, the dual slide, the section framework -
+//! plus the right current-objectives section and the left combined flight-log
+//! stream. The minimap and ship-status sections (tasks 20260724-102320/102332)
+//! slot into the same section framework later.
 //!
 //! # Interaction model
 //!
@@ -55,7 +55,7 @@ const DRAWER_ROW_GAP_PX: f32 = 6.0;
 const DRAWER_ROW_PADDING_X_PX: f32 = 8.0;
 const DRAWER_ROW_PADDING_Y_PX: f32 = 7.0;
 const DRAWER_OBJECTIVE_GLYPH_WIDTH_PX: f32 = 18.0;
-const DRAWER_STRIKE_HEIGHT_PX: f32 = 1.0;
+const DRAWER_LOG_ICON_SIZE_PX: f32 = 20.0;
 
 /// Top inset for BOTH panels, reserving the top status strip (`readout`) as a
 /// window-manager-style status bar: no drawer UI sits in it (task 20260724-134335).
@@ -111,7 +111,6 @@ struct DrawerObjectiveId(String);
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 enum DrawerObjectiveRowStatus {
     Active,
-    Completed,
 }
 
 /// The small status glyph at the start of a drawer objective row.
@@ -123,6 +122,7 @@ struct DrawerObjectiveGlyphMarker;
 struct DrawerObjectiveTextMarker;
 
 /// Thin overlay used as a completed row's line-through.
+#[cfg(test)]
 #[derive(Component)]
 struct DrawerObjectiveStrikeMarker;
 
@@ -130,28 +130,85 @@ struct DrawerObjectiveStrikeMarker;
 #[derive(Component)]
 struct DrawerObjectiveEmptyMarker;
 
+/// The container the combined left-panel flight log is rebuilt into.
+#[derive(Component)]
+struct DrawerFlightLogListMarker;
+
+/// One row in the left-panel combined flight log stream.
+#[derive(Component)]
+struct DrawerFlightLogRowMarker;
+
+/// Text entity for a combined flight log row.
+#[derive(Component)]
+struct DrawerFlightLogTextMarker;
+
+/// Styled empty-state row for the combined flight log.
+#[derive(Component)]
+struct DrawerFlightLogEmptyMarker;
+
+/// Icon semantics for a combined flight log row.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+struct DrawerFlightLogIconMarker {
+    kind: DrawerFlightLogIconKind,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DrawerFlightLogIconKind {
+    CommsAuthored,
+    Fallback,
+    Objective,
+}
+
 /// Openness in `[0, 1]`: 0 fully closed (off-screen past the panel's edge), 1
 /// fully open (flush with that edge). Eased toward the state-driven target with
 /// real time so it keeps moving while the sim is frozen.
 #[derive(Component, Default)]
 struct DrawerOpenness(f32);
 
-/// Drawer-local mission log derived from the active [`GameObjectives`] list.
+/// Drawer-local combined flight log derived from [`StoryFeed`] and
+/// [`GameObjectives`].
 ///
-/// `GameObjectives` is deliberately the active-objective model. The drawer keeps
-/// the completed history it needs by diffing that active list, mirroring the
-/// completion semantics used by `objective_feedback`.
+/// The right drawer panel is current-only. The left panel keeps the historical
+/// stream: comms rows plus objective posted/completed rows, in the order the HUD
+/// observes them. Objective text updates edit the open posted row rather than
+/// appending duplicate events.
 #[derive(Resource, Default, Debug, Clone)]
-struct DrawerObjectiveLog {
-    entries: Vec<DrawerObjectiveLogEntry>,
+struct DrawerFlightLog {
+    entries: Vec<DrawerFlightLogEntry>,
+    active_objective_entries: Vec<DrawerFlightLogActiveObjective>,
     previous_active: Vec<Objective>,
+    seen_story: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct DrawerObjectiveLogEntry {
+struct DrawerFlightLogActiveObjective {
     id: String,
+    entry_index: usize,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct DrawerFlightLogEntry {
+    kind: DrawerFlightLogEntryKind,
+    objective_id: Option<String>,
+    speaker: Option<String>,
     message: String,
-    status: DrawerObjectiveRowStatus,
+    icon: Option<AssetRef<Image>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DrawerFlightLogEntryKind {
+    Comms,
+    ObjectivePosted,
+    ObjectiveCompleted,
+}
+
+impl DrawerFlightLog {
+    fn clear(&mut self) {
+        self.entries.clear();
+        self.active_objective_entries.clear();
+        self.previous_active.clear();
+        self.seen_story = 0;
+    }
 }
 
 /// The reveal's tuck-target rect in logical pixels. This is task 20260721-211520's
@@ -174,7 +231,7 @@ pub struct NovaDrawerPlugin;
 impl Plugin for NovaDrawerPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DrawerTabAnchor>();
-        app.init_resource::<DrawerObjectiveLog>();
+        app.init_resource::<DrawerFlightLog>();
 
         // Tab toggles the drawer. Runs in all of Playing (NOT the
         // Unpaused-gated flight rig) so it can also CLOSE the drawer while the
@@ -188,9 +245,17 @@ impl Plugin for NovaDrawerPlugin {
             Update,
             (
                 drive_drawer_slide,
-                (sync_drawer_objective_log, rebuild_drawer_objectives)
+                (
+                    sync_drawer_logs,
+                    rebuild_drawer_objectives,
+                    rebuild_drawer_flight_log,
+                )
                     .chain()
-                    .run_if(resource_changed::<GameObjectives>.or_else(list_just_spawned)),
+                    .run_if(
+                        resource_changed::<GameObjectives>
+                            .or_else(resource_changed::<StoryFeed>)
+                            .or_else(drawer_lists_just_spawned),
+                    ),
             )
                 .in_set(NovaHudSystems),
         );
@@ -229,8 +294,11 @@ fn toggle_drawer(
 /// Run condition: the objectives list container was spawned this frame, so its
 /// initial contents must be built from the current [`GameObjectives`] even
 /// though the resource itself did not change.
-fn list_just_spawned(q: Query<(), Added<DrawerObjectivesListMarker>>) -> bool {
-    !q.is_empty()
+fn drawer_lists_just_spawned(
+    q_objectives: Query<(), Added<DrawerObjectivesListMarker>>,
+    q_log: Query<(), Added<DrawerFlightLogListMarker>>,
+) -> bool {
+    !q_objectives.is_empty() || !q_log.is_empty()
 }
 
 /// Ease [`DrawerOpenness`] toward the state-driven target (1 open, 0 closed)
@@ -298,16 +366,27 @@ fn approach(current: f32, target: f32, step: f32) -> f32 {
     }
 }
 
-/// Update the drawer's mission-log view from the active objectives list.
-fn sync_drawer_objective_log(objectives: Res<GameObjectives>, mut log: ResMut<DrawerObjectiveLog>) {
-    if objectives.objectives.is_empty() {
-        let completed = std::mem::take(&mut log.previous_active);
-        for objective in completed {
-            upsert_drawer_log_entry(&mut log, &objective, DrawerObjectiveRowStatus::Completed);
-        }
-        log.previous_active.clear();
-        return;
+/// Update the drawer's combined left-panel flight log from the story feed and
+/// active objective list.
+fn sync_drawer_logs(
+    story: Res<StoryFeed>,
+    objectives: Res<GameObjectives>,
+    mut log: ResMut<DrawerFlightLog>,
+) {
+    if story.0.len() < log.seen_story {
+        log.clear();
     }
+
+    for line in story.0.iter().skip(log.seen_story) {
+        log.entries.push(DrawerFlightLogEntry {
+            kind: DrawerFlightLogEntryKind::Comms,
+            objective_id: None,
+            speaker: Some(line.speaker.clone()),
+            message: line.text.clone(),
+            icon: line.icon.clone(),
+        });
+    }
+    log.seen_story = story.0.len();
 
     let completed: Vec<Objective> = log
         .previous_active
@@ -321,43 +400,52 @@ fn sync_drawer_objective_log(objectives: Res<GameObjectives>, mut log: ResMut<Dr
         .cloned()
         .collect();
     for objective in completed {
-        upsert_drawer_log_entry(&mut log, &objective, DrawerObjectiveRowStatus::Completed);
+        log.entries.push(DrawerFlightLogEntry {
+            kind: DrawerFlightLogEntryKind::ObjectiveCompleted,
+            objective_id: Some(objective.id.clone()),
+            speaker: None,
+            message: objective.message.clone(),
+            icon: None,
+        });
+        log.active_objective_entries
+            .retain(|entry| entry.id != objective.id);
     }
 
     for objective in &objectives.objectives {
-        upsert_drawer_log_entry(&mut log, objective, DrawerObjectiveRowStatus::Active);
+        if let Some(active) = log
+            .active_objective_entries
+            .iter()
+            .find(|entry| entry.id == objective.id)
+            .cloned()
+        {
+            if let Some(entry) = log.entries.get_mut(active.entry_index) {
+                entry.message = objective.message.clone();
+            }
+            continue;
+        }
+
+        let entry_index = log.entries.len();
+        log.entries.push(DrawerFlightLogEntry {
+            kind: DrawerFlightLogEntryKind::ObjectivePosted,
+            objective_id: Some(objective.id.clone()),
+            speaker: None,
+            message: objective.message.clone(),
+            icon: None,
+        });
+        log.active_objective_entries
+            .push(DrawerFlightLogActiveObjective {
+                id: objective.id.clone(),
+                entry_index,
+            });
     }
 
     log.previous_active = objectives.objectives.clone();
 }
 
-fn upsert_drawer_log_entry(
-    log: &mut DrawerObjectiveLog,
-    objective: &Objective,
-    status: DrawerObjectiveRowStatus,
-) {
-    match log
-        .entries
-        .iter_mut()
-        .find(|entry| entry.id == objective.id)
-    {
-        Some(entry) => {
-            entry.message = objective.message.clone();
-            entry.status = status;
-        }
-        None => log.entries.push(DrawerObjectiveLogEntry {
-            id: objective.id.clone(),
-            message: objective.message.clone(),
-            status,
-        }),
-    }
-}
-
-/// Rebuild the objectives-section rows from the drawer objective log. Runs on
-/// an objectives change or the first frame the list container exists.
+/// Rebuild the right objectives-section rows from the active objectives list.
 fn rebuild_drawer_objectives(
     mut commands: Commands,
-    log: Res<DrawerObjectiveLog>,
+    objectives: Res<GameObjectives>,
     q_list: Query<(Entity, Option<&Children>), With<DrawerObjectivesListMarker>>,
 ) {
     let Ok((list, children)) = q_list.single() else {
@@ -369,12 +457,12 @@ fn rebuild_drawer_objectives(
         }
     }
     commands.entity(list).with_children(|parent| {
-        if log.entries.is_empty() {
+        if objectives.objectives.is_empty() {
             spawn_drawer_empty_objective_row(parent);
             return;
         }
-        for entry in &log.entries {
-            spawn_drawer_objective_row(parent, entry);
+        for objective in &objectives.objectives {
+            spawn_drawer_objective_row(parent, objective);
         }
     });
 }
@@ -404,36 +492,13 @@ fn spawn_drawer_empty_objective_row(parent: &mut ChildSpawnerCommands) {
         });
 }
 
-fn spawn_drawer_objective_row(parent: &mut ChildSpawnerCommands, entry: &DrawerObjectiveLogEntry) {
-    let completed = entry.status == DrawerObjectiveRowStatus::Completed;
-    let text_color = if completed {
-        theme::TEXT_MUTED
-    } else {
-        theme::TEXT
-    };
-    let glyph_color = if completed {
-        theme::TEXT_MUTED
-    } else {
-        theme::semantic::OBJECTIVE
-    };
-    let border_color = if completed {
-        theme::BORDER
-    } else {
-        theme::BORDER_BRIGHT
-    };
-    let fill = if completed {
-        theme::PANEL.with_alpha(0.62)
-    } else {
-        theme::PANEL_RAISED
-    };
-    let glyph = if completed { "x" } else { ">" };
-
+fn spawn_drawer_objective_row(parent: &mut ChildSpawnerCommands, objective: &Objective) {
     parent
         .spawn((
-            Name::new(format!("DrawerObjective {}", entry.id)),
+            Name::new(format!("DrawerObjective {}", objective.id)),
             DrawerObjectiveRowMarker,
-            DrawerObjectiveId(entry.id.clone()),
-            entry.status,
+            DrawerObjectiveId(objective.id.clone()),
+            DrawerObjectiveRowStatus::Active,
             Node {
                 min_height: Val::Px(34.0),
                 padding: UiRect::axes(
@@ -446,15 +511,15 @@ fn spawn_drawer_objective_row(parent: &mut ChildSpawnerCommands, entry: &DrawerO
                 column_gap: Val::Px(DRAWER_ROW_GAP_PX),
                 ..default()
             },
-            BorderColor::all(border_color),
-            BackgroundColor(fill),
+            BorderColor::all(theme::BORDER_BRIGHT),
+            BackgroundColor(theme::PANEL_RAISED),
         ))
         .with_children(|row| {
             row.spawn((
                 DrawerObjectiveGlyphMarker,
-                Text::new(glyph),
+                Text::new(">"),
                 TextFont::from_font_size(DRAWER_LINE_FONT_PX),
-                TextColor(glyph_color),
+                TextColor(theme::semantic::OBJECTIVE),
                 Node {
                     width: Val::Px(DRAWER_OBJECTIVE_GLYPH_WIDTH_PX),
                     flex_shrink: 0.0,
@@ -471,30 +536,188 @@ fn spawn_drawer_objective_row(parent: &mut ChildSpawnerCommands, entry: &DrawerO
             .with_children(|text_wrap| {
                 text_wrap.spawn((
                     DrawerObjectiveTextMarker,
-                    Text::new(entry.message.clone()),
+                    Text::new(objective.message.clone()),
                     TextFont::from_font_size(DRAWER_LINE_FONT_PX),
                     TextLayout {
                         justify: Justify::Left,
                         linebreak: LineBreak::WordBoundary,
                     },
-                    TextColor(text_color),
+                    TextColor(theme::TEXT),
                 ));
-                if completed {
-                    text_wrap.spawn((
-                        DrawerObjectiveStrikeMarker,
-                        Node {
-                            position_type: PositionType::Absolute,
-                            left: Val::Px(0.0),
-                            right: Val::Px(0.0),
-                            top: Val::Percent(50.0),
-                            height: Val::Px(DRAWER_STRIKE_HEIGHT_PX),
-                            ..default()
-                        },
-                        BackgroundColor(theme::TEXT_MUTED.with_alpha(0.82)),
-                    ));
-                }
             });
         });
+}
+
+/// Rebuild the left combined flight-log stream.
+fn rebuild_drawer_flight_log(
+    mut commands: Commands,
+    log: Res<DrawerFlightLog>,
+    asset_server: Option<Res<AssetServer>>,
+    q_list: Query<(Entity, Option<&Children>), With<DrawerFlightLogListMarker>>,
+) {
+    let Ok((list, children)) = q_list.single() else {
+        return;
+    };
+    if let Some(children) = children {
+        for &child in children {
+            commands.entity(child).despawn();
+        }
+    }
+    commands.entity(list).with_children(|parent| {
+        if log.entries.is_empty() {
+            spawn_drawer_empty_flight_log_row(parent);
+            return;
+        }
+        for entry in &log.entries {
+            spawn_drawer_flight_log_row(parent, entry, asset_server.as_deref());
+        }
+    });
+}
+
+fn spawn_drawer_empty_flight_log_row(parent: &mut ChildSpawnerCommands) {
+    parent
+        .spawn((
+            Name::new("DrawerFlightLogEmpty"),
+            DrawerFlightLogEmptyMarker,
+            Node {
+                padding: UiRect::axes(
+                    Val::Px(DRAWER_ROW_PADDING_X_PX),
+                    Val::Px(DRAWER_ROW_PADDING_Y_PX),
+                ),
+                border: UiRect::all(Val::Px(theme::BORDER_W)),
+                ..default()
+            },
+            BorderColor::all(theme::BORDER),
+            BackgroundColor(theme::PANEL_RAISED.with_alpha(0.45)),
+        ))
+        .with_children(|row| {
+            row.spawn((
+                Text::new("No log entries."),
+                TextFont::from_font_size(DRAWER_LINE_FONT_PX),
+                TextColor(theme::TEXT_MUTED),
+            ));
+        });
+}
+
+fn spawn_drawer_flight_log_row(
+    parent: &mut ChildSpawnerCommands,
+    entry: &DrawerFlightLogEntry,
+    asset_server: Option<&AssetServer>,
+) {
+    let icon_kind = match entry.kind {
+        DrawerFlightLogEntryKind::Comms if entry.icon.is_some() => {
+            DrawerFlightLogIconKind::CommsAuthored
+        }
+        DrawerFlightLogEntryKind::Comms => DrawerFlightLogIconKind::Fallback,
+        DrawerFlightLogEntryKind::ObjectivePosted
+        | DrawerFlightLogEntryKind::ObjectiveCompleted => DrawerFlightLogIconKind::Objective,
+    };
+    let accent = match entry.kind {
+        DrawerFlightLogEntryKind::Comms => theme::CYAN,
+        DrawerFlightLogEntryKind::ObjectivePosted => theme::semantic::OBJECTIVE,
+        DrawerFlightLogEntryKind::ObjectiveCompleted => theme::semantic::ALLY,
+    };
+
+    parent
+        .spawn((
+            Name::new("DrawerFlightLogRow"),
+            DrawerFlightLogRowMarker,
+            DrawerFlightLogIconMarker { kind: icon_kind },
+            Node {
+                min_height: Val::Px(30.0),
+                padding: UiRect::axes(
+                    Val::Px(DRAWER_ROW_PADDING_X_PX),
+                    Val::Px(DRAWER_ROW_PADDING_Y_PX),
+                ),
+                border: UiRect::all(Val::Px(theme::BORDER_W)),
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(DRAWER_ROW_GAP_PX),
+                ..default()
+            },
+            BorderColor::all(theme::BORDER),
+            BackgroundColor(theme::PANEL_RAISED.with_alpha(0.58)),
+        ))
+        .with_children(|row| {
+            spawn_drawer_flight_log_icon(row, entry, icon_kind, accent, asset_server);
+            row.spawn((
+                DrawerFlightLogTextMarker,
+                Text::new(drawer_flight_log_text(entry)),
+                TextFont::from_font_size(DRAWER_LINE_FONT_PX),
+                TextColor(theme::TEXT),
+                TextLayout {
+                    justify: Justify::Left,
+                    linebreak: LineBreak::WordBoundary,
+                },
+                Node {
+                    flex_grow: 1.0,
+                    ..default()
+                },
+            ));
+        });
+}
+
+fn spawn_drawer_flight_log_icon(
+    row: &mut ChildSpawnerCommands,
+    entry: &DrawerFlightLogEntry,
+    icon_kind: DrawerFlightLogIconKind,
+    accent: Color,
+    asset_server: Option<&AssetServer>,
+) {
+    let node = Node {
+        width: Val::Px(DRAWER_LOG_ICON_SIZE_PX),
+        height: Val::Px(DRAWER_LOG_ICON_SIZE_PX),
+        min_width: Val::Px(DRAWER_LOG_ICON_SIZE_PX),
+        border: UiRect::all(Val::Px(theme::BORDER_W)),
+        align_items: AlignItems::Center,
+        justify_content: JustifyContent::Center,
+        flex_shrink: 0.0,
+        ..default()
+    };
+    match (&entry.icon, icon_kind) {
+        (Some(icon), DrawerFlightLogIconKind::CommsAuthored) => {
+            row.spawn((
+                node,
+                ImageNode::new(
+                    asset_server
+                        .map(|server| icon.resolve(server))
+                        .unwrap_or_default(),
+                ),
+                BorderColor::all(accent),
+                BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.0)),
+            ));
+        }
+        _ => {
+            row.spawn((
+                node,
+                BorderColor::all(accent),
+                BackgroundColor(accent.with_alpha(0.16)),
+            ))
+            .with_children(|icon| {
+                icon.spawn((
+                    Text::new(match icon_kind {
+                        DrawerFlightLogIconKind::Objective => ">",
+                        DrawerFlightLogIconKind::CommsAuthored
+                        | DrawerFlightLogIconKind::Fallback => "#",
+                    }),
+                    TextFont::from_font_size(DRAWER_LINE_FONT_PX),
+                    TextColor(accent),
+                ));
+            });
+        }
+    }
+}
+
+fn drawer_flight_log_text(entry: &DrawerFlightLogEntry) -> String {
+    match entry.kind {
+        DrawerFlightLogEntryKind::Comms => format!(
+            "COMMS {} > {}",
+            entry.speaker.as_deref().unwrap_or("UNKNOWN").to_uppercase(),
+            entry.message
+        ),
+        DrawerFlightLogEntryKind::ObjectivePosted => format!("OBJ + {}", entry.message),
+        DrawerFlightLogEntryKind::ObjectiveCompleted => format!("OBJ x {}", entry.message),
+    }
 }
 
 /// Spawn the drawer shell (backdrop, sliding panel with sections, tab handle)
@@ -626,9 +849,9 @@ fn setup_drawer(
                 TextFont::from_font_size(DRAWER_TITLE_FONT_PX),
                 TextColor(theme::CYAN_BRIGHT),
             ));
-            // Placeholder section: the comms/flight-log content (task
-            // 20260724-102309) drops into this framework, mirroring the
-            // right panel's titled-block + list shape.
+            // Combined server-style stream: comms transcript rows and mission
+            // objective events interleave in the order the HUD observes them
+            // (task 20260724-102309).
             panel
                 .spawn(Node {
                     flex_direction: FlexDirection::Column,
@@ -642,9 +865,12 @@ fn setup_drawer(
                         TextColor(theme::TEXT_MUTED),
                     ));
                     section.spawn((
-                        Text::new("No messages yet."),
-                        TextFont::from_font_size(DRAWER_LINE_FONT_PX),
-                        TextColor(theme::TEXT_MUTED),
+                        DrawerFlightLogListMarker,
+                        Node {
+                            flex_direction: FlexDirection::Column,
+                            row_gap: Val::Px(3.0),
+                            ..default()
+                        },
                     ));
                 });
         });
@@ -654,11 +880,10 @@ fn setup_drawer(
 fn remove_drawer(
     _remove: On<Remove, PlayerSpaceshipMarker>,
     mut commands: Commands,
-    mut log: ResMut<DrawerObjectiveLog>,
+    mut log: ResMut<DrawerFlightLog>,
     q_parts: Query<Entity, Or<(With<DrawerRootMarker>, With<DrawerBackdropMarker>)>>,
 ) {
-    log.entries.clear();
-    log.previous_active.clear();
+    log.clear();
     for entity in &q_parts {
         commands.entity(entity).despawn();
     }
@@ -784,12 +1009,21 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
         app.init_resource::<GameObjectives>();
-        app.init_resource::<DrawerObjectiveLog>();
+        app.init_resource::<StoryFeed>();
+        app.init_resource::<DrawerFlightLog>();
         app.add_systems(
             Update,
-            (sync_drawer_objective_log, rebuild_drawer_objectives)
+            (
+                sync_drawer_logs,
+                rebuild_drawer_objectives,
+                rebuild_drawer_flight_log,
+            )
                 .chain()
-                .run_if(resource_changed::<GameObjectives>.or_else(list_just_spawned)),
+                .run_if(
+                    resource_changed::<GameObjectives>
+                        .or_else(resource_changed::<StoryFeed>)
+                        .or_else(drawer_lists_just_spawned),
+                ),
         );
         app
     }
@@ -807,8 +1041,33 @@ mod tests {
             .id()
     }
 
+    fn spawn_flight_log_list(app: &mut App) -> Entity {
+        app.world_mut()
+            .spawn((
+                DrawerFlightLogListMarker,
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    row_gap: Val::Px(3.0),
+                    ..default()
+                },
+            ))
+            .id()
+    }
+
     fn set_objectives(app: &mut App, objectives: Vec<Objective>) {
         app.world_mut().resource_mut::<GameObjectives>().objectives = objectives;
+    }
+
+    fn push_story_line(app: &mut App, speaker: &str, text: &str) {
+        app.world_mut()
+            .resource_mut::<StoryFeed>()
+            .0
+            .push(StoryLine {
+                speaker: speaker.to_string(),
+                text: text.to_string(),
+                dwell: None,
+                icon: None,
+            });
     }
 
     fn row_entities(app: &mut App) -> Vec<Entity> {
@@ -842,6 +1101,14 @@ mod tests {
         entity_ref
             .get::<Children>()
             .and_then(|children| children.iter().find_map(|child| text_in_tree(app, child)))
+    }
+
+    fn flight_log_texts(app: &mut App) -> Vec<String> {
+        app.world_mut()
+            .query_filtered::<&Text, With<DrawerFlightLogTextMarker>>()
+            .iter(app.world())
+            .map(|text| text.0.clone())
+            .collect()
     }
 
     #[test]
@@ -919,7 +1186,100 @@ mod tests {
     }
 
     #[test]
-    fn drawer_objectives_keep_completed_rows_with_strike() {
+    fn drawer_left_panel_has_combined_flight_log_stream() {
+        let mut app = objectives_app();
+        let list = spawn_flight_log_list(&mut app);
+        app.update();
+
+        assert!(
+            app.world().entity(list).get::<Children>().is_some(),
+            "the left panel owns one stream container with an empty row"
+        );
+        let empty = app
+            .world_mut()
+            .query_filtered::<Entity, With<DrawerFlightLogEmptyMarker>>()
+            .single(app.world())
+            .expect("combined log empty state");
+        assert!(
+            app.world().entity(empty).get::<BackgroundColor>().is_some(),
+            "combined log empty state carries drawer chrome fill"
+        );
+    }
+
+    #[test]
+    fn drawer_combined_log_renders_story_feed_rows() {
+        let mut app = objectives_app();
+        spawn_flight_log_list(&mut app);
+        app.update();
+
+        push_story_line(&mut app, "Okono", "Strip it clean.");
+        app.update();
+
+        assert_eq!(
+            flight_log_texts(&mut app),
+            vec!["COMMS OKONO > Strip it clean.".to_string()],
+            "story feed lines append as comms rows in the combined stream"
+        );
+        let icon = app
+            .world_mut()
+            .query_filtered::<&DrawerFlightLogIconMarker, With<DrawerFlightLogRowMarker>>()
+            .single(app.world())
+            .expect("comms row has an icon marker");
+        assert_eq!(icon.kind, DrawerFlightLogIconKind::Fallback);
+    }
+
+    #[test]
+    fn drawer_combined_log_records_objective_events_once() {
+        let mut app = objectives_app();
+        spawn_flight_log_list(&mut app);
+        app.update();
+
+        set_objectives(&mut app, vec![Objective::new("b1", "Burn for Beacon 1")]);
+        app.update();
+        set_objectives(&mut app, vec![Objective::new("b1", "Recovered: 1/3")]);
+        app.update();
+        set_objectives(&mut app, Vec::new());
+        app.update();
+
+        assert_eq!(
+            flight_log_texts(&mut app),
+            vec![
+                "OBJ + Recovered: 1/3".to_string(),
+                "OBJ x Recovered: 1/3".to_string(),
+            ],
+            "an objective text update edits the posted row rather than appending a duplicate"
+        );
+    }
+
+    #[test]
+    fn drawer_combined_log_interleaves_comms_and_objective_rows() {
+        let mut app = objectives_app();
+        spawn_flight_log_list(&mut app);
+        app.update();
+
+        push_story_line(&mut app, "Okono", "First transmission.");
+        app.update();
+        set_objectives(&mut app, vec![Objective::new("b1", "Burn for Beacon 1")]);
+        app.update();
+        push_story_line(&mut app, "Relay", "Telemetry locked.");
+        app.update();
+        set_objectives(&mut app, Vec::new());
+        app.update();
+
+        assert_eq!(
+            flight_log_texts(&mut app),
+            vec![
+                "COMMS OKONO > First transmission.".to_string(),
+                "OBJ + Burn for Beacon 1".to_string(),
+                "COMMS RELAY > Telemetry locked.".to_string(),
+                "OBJ x Burn for Beacon 1".to_string(),
+            ],
+            "comms and objective rows share one chronological stream"
+        );
+    }
+
+    #[test]
+    fn drawer_right_panel_shows_only_active_objectives() {
         let mut app = objectives_app();
         set_objectives(
             &mut app,
@@ -935,72 +1295,60 @@ mod tests {
         app.update();
 
         let rows = row_entities(&mut app);
-        assert_eq!(rows.len(), 2);
-        let completed = rows
-            .iter()
-            .copied()
-            .find(|&row| {
-                app.world()
-                    .entity(row)
-                    .get::<DrawerObjectiveId>()
-                    .unwrap()
-                    .0
-                    == "b1"
-            })
-            .expect("completed objective row stays in the log");
-        assert_eq!(
-            *app.world()
-                .entity(completed)
-                .get::<DrawerObjectiveRowStatus>()
-                .expect("row status"),
-            DrawerObjectiveRowStatus::Completed
-        );
-        assert_eq!(row_text(&app, completed), "Burn for Beacon 1");
-        assert!(
-            app.world_mut()
-                .query_filtered::<(), With<DrawerObjectiveStrikeMarker>>()
-                .iter(app.world())
-                .next()
-                .is_some(),
-            "completed rows get a line-through overlay"
-        );
-    }
-
-    #[test]
-    fn drawer_objectives_keep_final_completed_row_with_strike() {
-        let mut app = objectives_app();
-        set_objectives(&mut app, vec![Objective::new("b1", "Burn for Beacon 1")]);
-        spawn_objectives_list(&mut app);
-        app.update();
-
-        set_objectives(&mut app, Vec::new());
-        app.update();
-
-        let rows = row_entities(&mut app);
         assert_eq!(rows.len(), 1);
         assert_eq!(
             *app.world()
                 .entity(rows[0])
                 .get::<DrawerObjectiveRowStatus>()
                 .expect("row status"),
-            DrawerObjectiveRowStatus::Completed
+            DrawerObjectiveRowStatus::Active
         );
-        assert_eq!(row_text(&app, rows[0]), "Burn for Beacon 1");
+        assert_eq!(row_text(&app, rows[0]), "Dock at the relay");
         assert!(
             app.world_mut()
                 .query_filtered::<(), With<DrawerObjectiveStrikeMarker>>()
                 .iter(app.world())
                 .next()
-                .is_some(),
-            "the final completed row gets a line-through overlay"
+                .is_none(),
+            "completed objectives are not duplicated as struck-through right-panel rows"
         );
     }
 
     #[test]
-    fn drawer_objective_log_clears_on_drawer_teardown() {
+    fn drawer_final_objective_moves_to_flight_log_only() {
+        let mut app = objectives_app();
+        set_objectives(&mut app, vec![Objective::new("b1", "Burn for Beacon 1")]);
+        spawn_objectives_list(&mut app);
+        spawn_flight_log_list(&mut app);
+        app.update();
+
+        set_objectives(&mut app, Vec::new());
+        app.update();
+
+        assert!(row_entities(&mut app).is_empty());
+        assert!(
+            app.world_mut()
+                .query_filtered::<Entity, With<DrawerObjectiveEmptyMarker>>()
+                .iter(app.world())
+                .next()
+                .is_some(),
+            "the right panel returns to its no-active-objectives empty state"
+        );
+        assert_eq!(
+            flight_log_texts(&mut app),
+            vec![
+                "OBJ + Burn for Beacon 1".to_string(),
+                "OBJ x Burn for Beacon 1".to_string(),
+            ],
+            "the completed objective remains only in the left Flight Log"
+        );
+    }
+
+    #[test]
+    fn drawer_flight_log_clears_on_drawer_teardown() {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
-        app.init_resource::<DrawerObjectiveLog>();
+        app.init_resource::<DrawerFlightLog>();
         app.add_observer(setup_drawer);
         app.add_observer(remove_drawer);
 
@@ -1009,25 +1357,28 @@ mod tests {
             .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
             .id();
         app.update();
-        app.world_mut().resource_mut::<DrawerObjectiveLog>().entries =
-            vec![DrawerObjectiveLogEntry {
-                id: "b1".to_string(),
+        {
+            let mut log = app.world_mut().resource_mut::<DrawerFlightLog>();
+            log.entries.push(DrawerFlightLogEntry {
+                kind: DrawerFlightLogEntryKind::ObjectiveCompleted,
+                objective_id: Some("b1".to_string()),
+                speaker: None,
                 message: "Burn for Beacon 1".to_string(),
-                status: DrawerObjectiveRowStatus::Completed,
-            }];
-        app.world_mut()
-            .resource_mut::<DrawerObjectiveLog>()
-            .previous_active = vec![Objective::new("b2", "Dock at the relay")];
+                icon: None,
+            });
+            log.previous_active = vec![Objective::new("b2", "Dock at the relay")];
+            log.seen_story = 1;
+        }
 
         app.world_mut()
             .entity_mut(player)
             .remove::<PlayerSpaceshipMarker>();
         app.update();
 
-        let log = app.world().resource::<DrawerObjectiveLog>();
+        let log = app.world().resource::<DrawerFlightLog>();
         assert!(
-            log.entries.is_empty() && log.previous_active.is_empty(),
-            "drawer teardown clears the retained objective log"
+            log.entries.is_empty() && log.previous_active.is_empty() && log.seen_story == 0,
+            "drawer teardown clears the retained left-panel log"
         );
     }
 

@@ -57,7 +57,7 @@ Scenarios talk to you through a **comms stack**: speaker-attributed story cards 
 
 ## The ship-computer drawer
 
-Press <kbd>Tab</kbd> (or click the right stick on a gamepad) to slide out the **ship-computer drawer** from the right edge. Opening it pauses the game and frees the mouse cursor, so you can read at your own pace; <kbd>Tab</kbd> again (or <kbd>Esc</kbd>) closes it and resumes. The drawer holds an objective log: active objectives stay bright, while completed ones remain as muted struck-through rows until the scenario clears. This is also where the comms log, a minimap and ship status will live as those sections land. The terse objective hint in the top-right corner is the in-flight cue that the drawer is there.
+Press <kbd>Tab</kbd> (or click the right stick on a gamepad) to slide out the **ship-computer drawer** from both edges. Opening it pauses the game and frees the mouse cursor, so you can read at your own pace; <kbd>Tab</kbd> again (or <kbd>Esc</kbd>) closes it and resumes. The left panel is a combined **Flight Log** stream: comms transcript rows and objective received/completed rows interleave like a compact terminal log. The right panel is current-state only: active objectives stay bright there, and completed objectives move into the Flight Log instead of duplicating as struck-through rows. A minimap and ship status will live in later drawer sections. The terse objective hint in the top-right corner is the in-flight cue that the drawer is there.
 
 ## The screen substrate
 
