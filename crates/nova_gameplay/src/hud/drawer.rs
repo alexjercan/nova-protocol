@@ -31,7 +31,7 @@
 //! `Res<Time>`).
 
 use bevy::prelude::*;
-use bevy_common_systems::prelude::GameObjectives;
+use bevy_common_systems::prelude::{GameObjectives, Objective};
 use nova_ui::theme;
 
 use super::NovaHudSystems;
@@ -51,6 +51,11 @@ const DRAWER_BACKDROP_ALPHA: f32 = 0.86;
 const DRAWER_TITLE_FONT_PX: f32 = 16.0;
 const DRAWER_SECTION_TITLE_FONT_PX: f32 = 12.0;
 const DRAWER_LINE_FONT_PX: f32 = 13.0;
+const DRAWER_ROW_GAP_PX: f32 = 6.0;
+const DRAWER_ROW_PADDING_X_PX: f32 = 8.0;
+const DRAWER_ROW_PADDING_Y_PX: f32 = 7.0;
+const DRAWER_OBJECTIVE_GLYPH_WIDTH_PX: f32 = 18.0;
+const DRAWER_STRIKE_HEIGHT_PX: f32 = 1.0;
 
 /// Top inset for BOTH panels, reserving the top status strip (`readout`) as a
 /// window-manager-style status bar: no drawer UI sits in it (task 20260724-134335).
@@ -94,11 +99,60 @@ struct DrawerBackdropMarker;
 #[derive(Component)]
 struct DrawerObjectivesListMarker;
 
+/// One objective row in the drawer's mission-log list.
+#[derive(Component)]
+struct DrawerObjectiveRowMarker;
+
+/// Objective id copied onto each drawer row for rebuild and tests.
+#[derive(Component, Clone, Debug, PartialEq, Eq)]
+struct DrawerObjectiveId(String);
+
+/// Whether a row is still active or retained as completed history.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+enum DrawerObjectiveRowStatus {
+    Active,
+    Completed,
+}
+
+/// The small status glyph at the start of a drawer objective row.
+#[derive(Component)]
+struct DrawerObjectiveGlyphMarker;
+
+/// The text entity for a drawer objective row.
+#[derive(Component)]
+struct DrawerObjectiveTextMarker;
+
+/// Thin overlay used as a completed row's line-through.
+#[derive(Component)]
+struct DrawerObjectiveStrikeMarker;
+
+/// Styled empty-state row for the objective list.
+#[derive(Component)]
+struct DrawerObjectiveEmptyMarker;
+
 /// Openness in `[0, 1]`: 0 fully closed (off-screen past the panel's edge), 1
 /// fully open (flush with that edge). Eased toward the state-driven target with
 /// real time so it keeps moving while the sim is frozen.
 #[derive(Component, Default)]
 struct DrawerOpenness(f32);
+
+/// Drawer-local mission log derived from the active [`GameObjectives`] list.
+///
+/// `GameObjectives` is deliberately the active-objective model. The drawer keeps
+/// the completed history it needs by diffing that active list, mirroring the
+/// completion semantics used by `objective_feedback`.
+#[derive(Resource, Default, Debug, Clone)]
+struct DrawerObjectiveLog {
+    entries: Vec<DrawerObjectiveLogEntry>,
+    previous_active: Vec<Objective>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct DrawerObjectiveLogEntry {
+    id: String,
+    message: String,
+    status: DrawerObjectiveRowStatus,
+}
 
 /// The reveal's tuck-target rect in logical pixels. This is task 20260721-211520's
 /// tween TARGET: the big cockpit objective animates INTO this rect. It is
@@ -120,6 +174,7 @@ pub struct NovaDrawerPlugin;
 impl Plugin for NovaDrawerPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DrawerTabAnchor>();
+        app.init_resource::<DrawerObjectiveLog>();
 
         // Tab toggles the drawer. Runs in all of Playing (NOT the
         // Unpaused-gated flight rig) so it can also CLOSE the drawer while the
@@ -133,7 +188,8 @@ impl Plugin for NovaDrawerPlugin {
             Update,
             (
                 drive_drawer_slide,
-                rebuild_drawer_objectives
+                (sync_drawer_objective_log, rebuild_drawer_objectives)
+                    .chain()
                     .run_if(resource_changed::<GameObjectives>.or_else(list_just_spawned)),
             )
                 .in_set(NovaHudSystems),
@@ -242,12 +298,63 @@ fn approach(current: f32, target: f32, step: f32) -> f32 {
     }
 }
 
-/// Rebuild the objectives-section lines from [`GameObjectives`]: despawn the
-/// old lines and spawn one text line per objective. Runs on an objectives
-/// change or the first frame the list container exists.
+/// Update the drawer's mission-log view from the active objectives list.
+fn sync_drawer_objective_log(objectives: Res<GameObjectives>, mut log: ResMut<DrawerObjectiveLog>) {
+    if objectives.objectives.is_empty() {
+        log.entries.clear();
+        log.previous_active.clear();
+        return;
+    }
+
+    let completed: Vec<Objective> = log
+        .previous_active
+        .iter()
+        .filter(|old| {
+            !objectives
+                .objectives
+                .iter()
+                .any(|current| current.id == old.id)
+        })
+        .cloned()
+        .collect();
+    for objective in completed {
+        upsert_drawer_log_entry(&mut log, &objective, DrawerObjectiveRowStatus::Completed);
+    }
+
+    for objective in &objectives.objectives {
+        upsert_drawer_log_entry(&mut log, objective, DrawerObjectiveRowStatus::Active);
+    }
+
+    log.previous_active = objectives.objectives.clone();
+}
+
+fn upsert_drawer_log_entry(
+    log: &mut DrawerObjectiveLog,
+    objective: &Objective,
+    status: DrawerObjectiveRowStatus,
+) {
+    match log
+        .entries
+        .iter_mut()
+        .find(|entry| entry.id == objective.id)
+    {
+        Some(entry) => {
+            entry.message = objective.message.clone();
+            entry.status = status;
+        }
+        None => log.entries.push(DrawerObjectiveLogEntry {
+            id: objective.id.clone(),
+            message: objective.message.clone(),
+            status,
+        }),
+    }
+}
+
+/// Rebuild the objectives-section rows from the drawer objective log. Runs on
+/// an objectives change or the first frame the list container exists.
 fn rebuild_drawer_objectives(
     mut commands: Commands,
-    objectives: Res<GameObjectives>,
+    log: Res<DrawerObjectiveLog>,
     q_list: Query<(Entity, Option<&Children>), With<DrawerObjectivesListMarker>>,
 ) {
     let Ok((list, children)) = q_list.single() else {
@@ -259,22 +366,132 @@ fn rebuild_drawer_objectives(
         }
     }
     commands.entity(list).with_children(|parent| {
-        if objectives.objectives.is_empty() {
-            parent.spawn((
+        if log.entries.is_empty() {
+            spawn_drawer_empty_objective_row(parent);
+            return;
+        }
+        for entry in &log.entries {
+            spawn_drawer_objective_row(parent, entry);
+        }
+    });
+}
+
+fn spawn_drawer_empty_objective_row(parent: &mut ChildSpawnerCommands) {
+    parent
+        .spawn((
+            Name::new("DrawerObjectiveEmpty"),
+            DrawerObjectiveEmptyMarker,
+            Node {
+                padding: UiRect::axes(
+                    Val::Px(DRAWER_ROW_PADDING_X_PX),
+                    Val::Px(DRAWER_ROW_PADDING_Y_PX),
+                ),
+                border: UiRect::all(Val::Px(theme::BORDER_W)),
+                ..default()
+            },
+            BorderColor::all(theme::BORDER),
+            BackgroundColor(theme::PANEL_RAISED.with_alpha(0.45)),
+        ))
+        .with_children(|row| {
+            row.spawn((
                 Text::new("No active objectives."),
                 TextFont::from_font_size(DRAWER_LINE_FONT_PX),
                 TextColor(theme::TEXT_MUTED),
             ));
-            return;
-        }
-        for objective in &objectives.objectives {
-            parent.spawn((
-                Text::new(objective.message.clone()),
+        });
+}
+
+fn spawn_drawer_objective_row(parent: &mut ChildSpawnerCommands, entry: &DrawerObjectiveLogEntry) {
+    let completed = entry.status == DrawerObjectiveRowStatus::Completed;
+    let text_color = if completed {
+        theme::TEXT_MUTED
+    } else {
+        theme::TEXT
+    };
+    let glyph_color = if completed {
+        theme::TEXT_MUTED
+    } else {
+        theme::semantic::OBJECTIVE
+    };
+    let border_color = if completed {
+        theme::BORDER
+    } else {
+        theme::BORDER_BRIGHT
+    };
+    let fill = if completed {
+        theme::PANEL.with_alpha(0.62)
+    } else {
+        theme::PANEL_RAISED
+    };
+    let glyph = if completed { "x" } else { ">" };
+
+    parent
+        .spawn((
+            Name::new(format!("DrawerObjective {}", entry.id)),
+            DrawerObjectiveRowMarker,
+            DrawerObjectiveId(entry.id.clone()),
+            entry.status,
+            Node {
+                min_height: Val::Px(34.0),
+                padding: UiRect::axes(
+                    Val::Px(DRAWER_ROW_PADDING_X_PX),
+                    Val::Px(DRAWER_ROW_PADDING_Y_PX),
+                ),
+                border: UiRect::all(Val::Px(theme::BORDER_W)),
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(DRAWER_ROW_GAP_PX),
+                ..default()
+            },
+            BorderColor::all(border_color),
+            BackgroundColor(fill),
+        ))
+        .with_children(|row| {
+            row.spawn((
+                DrawerObjectiveGlyphMarker,
+                Text::new(glyph),
                 TextFont::from_font_size(DRAWER_LINE_FONT_PX),
-                TextColor(theme::TEXT),
+                TextColor(glyph_color),
+                Node {
+                    width: Val::Px(DRAWER_OBJECTIVE_GLYPH_WIDTH_PX),
+                    flex_shrink: 0.0,
+                    ..default()
+                },
             ));
-        }
-    });
+            row.spawn(Node {
+                position_type: PositionType::Relative,
+                flex_grow: 1.0,
+                flex_direction: FlexDirection::Column,
+                justify_content: JustifyContent::Center,
+                ..default()
+            })
+            .with_children(|text_wrap| {
+                text_wrap.spawn((
+                    DrawerObjectiveTextMarker,
+                    Text::new(entry.message.clone()),
+                    TextFont::from_font_size(DRAWER_LINE_FONT_PX),
+                    TextLayout {
+                        justify: Justify::Left,
+                        linebreak: LineBreak::WordBoundary,
+                    },
+                    TextColor(text_color),
+                ));
+                if completed {
+                    text_wrap.spawn((
+                        DrawerObjectiveStrikeMarker,
+                        Node {
+                            position_type: PositionType::Absolute,
+                            left: Val::Px(0.0),
+                            right: Val::Px(0.0),
+                            top: Val::Percent(50.0),
+                            height: Val::Px(DRAWER_STRIKE_HEIGHT_PX),
+                            ..default()
+                        },
+                        BackgroundColor(theme::TEXT_MUTED.with_alpha(0.82)),
+                    ));
+                }
+            });
+        });
 }
 
 /// Spawn the drawer shell (backdrop, sliding panel with sections, tab handle)
@@ -557,41 +774,250 @@ mod tests {
     // `objective_hint_provides_the_drawer_anchor` - now that the hint is the
     // reveal's tuck-anchor source, task 20260724-134312.)
 
-    #[test]
-    fn drawer_objectives_section_lists_objectives() {
+    fn objectives_app() -> App {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
         app.init_resource::<GameObjectives>();
-        app.world_mut().resource_mut::<GameObjectives>().objectives = vec![
-            Objective::new("b1", "Burn for Beacon 1"),
-            Objective::new("b2", "Dock at the relay"),
-        ];
+        app.init_resource::<DrawerObjectiveLog>();
         app.add_systems(
             Update,
-            rebuild_drawer_objectives
+            (sync_drawer_objective_log, rebuild_drawer_objectives)
+                .chain()
                 .run_if(resource_changed::<GameObjectives>.or_else(list_just_spawned)),
         );
-        let list = app.world_mut().spawn(DrawerObjectivesListMarker).id();
+        app
+    }
+
+    fn spawn_objectives_list(app: &mut App) -> Entity {
+        app.world_mut()
+            .spawn((
+                DrawerObjectivesListMarker,
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    row_gap: Val::Px(3.0),
+                    ..default()
+                },
+            ))
+            .id()
+    }
+
+    fn set_objectives(app: &mut App, objectives: Vec<Objective>) {
+        app.world_mut().resource_mut::<GameObjectives>().objectives = objectives;
+    }
+
+    fn row_entities(app: &mut App) -> Vec<Entity> {
+        app.world_mut()
+            .query_filtered::<Entity, With<DrawerObjectiveRowMarker>>()
+            .iter(app.world())
+            .collect()
+    }
+
+    fn row_text(app: &App, row: Entity) -> String {
+        let mut text = None;
+        for child in app
+            .world()
+            .entity(row)
+            .get::<Children>()
+            .expect("row children")
+        {
+            if let Some(found) = text_in_tree(app, *child) {
+                text = Some(found);
+                break;
+            }
+        }
+        text.expect("row has objective text")
+    }
+
+    fn text_in_tree(app: &App, entity: Entity) -> Option<String> {
+        let entity_ref = app.world().entity(entity);
+        if entity_ref.contains::<DrawerObjectiveTextMarker>() {
+            return entity_ref.get::<Text>().map(|text| text.0.clone());
+        }
+        entity_ref
+            .get::<Children>()
+            .and_then(|children| children.iter().find_map(|child| text_in_tree(app, child)))
+    }
+
+    #[test]
+    fn drawer_objectives_section_uses_styled_rows() {
+        let mut app = objectives_app();
+        set_objectives(
+            &mut app,
+            vec![
+                Objective::new("b1", "Burn for Beacon 1"),
+                Objective::new("b2", "Dock at the relay"),
+            ],
+        );
+        let list = spawn_objectives_list(&mut app);
         app.update();
 
-        let children: Vec<Entity> = app
+        let rows = row_entities(&mut app);
+        let direct_text_children = app
             .world()
             .entity(list)
             .get::<Children>()
-            .map(|c| c.to_vec())
-            .expect("the list has lines");
-        let texts: Vec<String> = children
+            .expect("list children")
             .iter()
-            .filter_map(|&c| app.world().entity(c).get::<Text>().map(|t| t.0.clone()))
+            .filter(|child| app.world().entity(*child).contains::<Text>())
+            .count();
+        assert_eq!(
+            direct_text_children, 0,
+            "objectives render as row nodes, not direct bare Text children"
+        );
+        let row_ids: Vec<String> = rows
+            .iter()
+            .map(|&row| {
+                app.world()
+                    .entity(row)
+                    .get::<DrawerObjectiveId>()
+                    .expect("row id")
+                    .0
+                    .clone()
+            })
             .collect();
         assert_eq!(
-            texts,
-            vec![
-                "Burn for Beacon 1".to_string(),
-                "Dock at the relay".to_string()
-            ],
-            "the objectives section renders one line per objective"
+            row_ids,
+            vec!["b1".to_string(), "b2".to_string()],
+            "the objectives section renders one styled row per active objective"
         );
+        for &row in &rows {
+            assert_eq!(
+                *app.world()
+                    .entity(row)
+                    .get::<DrawerObjectiveRowStatus>()
+                    .expect("row status"),
+                DrawerObjectiveRowStatus::Active
+            );
+            assert!(
+                app.world().entity(row).get::<BackgroundColor>().is_some(),
+                "styled rows carry a fill"
+            );
+            assert!(
+                app.world().entity(row).get::<BorderColor>().is_some(),
+                "styled rows carry a border"
+            );
+            let has_glyph = app
+                .world()
+                .entity(row)
+                .get::<Children>()
+                .expect("row children")
+                .iter()
+                .any(|child| {
+                    app.world()
+                        .entity(child)
+                        .contains::<DrawerObjectiveGlyphMarker>()
+                });
+            assert!(has_glyph, "styled rows carry a status glyph");
+        }
+        assert_eq!(row_text(&app, rows[0]), "Burn for Beacon 1");
+    }
+
+    #[test]
+    fn drawer_objectives_keep_completed_rows_with_strike() {
+        let mut app = objectives_app();
+        set_objectives(
+            &mut app,
+            vec![
+                Objective::new("b1", "Burn for Beacon 1"),
+                Objective::new("b2", "Dock at the relay"),
+            ],
+        );
+        spawn_objectives_list(&mut app);
+        app.update();
+
+        set_objectives(&mut app, vec![Objective::new("b2", "Dock at the relay")]);
+        app.update();
+
+        let rows = row_entities(&mut app);
+        assert_eq!(rows.len(), 2);
+        let completed = rows
+            .iter()
+            .copied()
+            .find(|&row| {
+                app.world()
+                    .entity(row)
+                    .get::<DrawerObjectiveId>()
+                    .unwrap()
+                    .0
+                    == "b1"
+            })
+            .expect("completed objective row stays in the log");
+        assert_eq!(
+            *app.world()
+                .entity(completed)
+                .get::<DrawerObjectiveRowStatus>()
+                .expect("row status"),
+            DrawerObjectiveRowStatus::Completed
+        );
+        assert_eq!(row_text(&app, completed), "Burn for Beacon 1");
+        assert!(
+            app.world_mut()
+                .query_filtered::<(), With<DrawerObjectiveStrikeMarker>>()
+                .iter(app.world())
+                .next()
+                .is_some(),
+            "completed rows get a line-through overlay"
+        );
+    }
+
+    #[test]
+    fn drawer_objective_log_clears_on_teardown() {
+        let mut app = objectives_app();
+        set_objectives(&mut app, vec![Objective::new("b1", "Burn for Beacon 1")]);
+        spawn_objectives_list(&mut app);
+        app.update();
+
+        set_objectives(&mut app, Vec::new());
+        app.update();
+
+        assert!(
+            row_entities(&mut app).is_empty(),
+            "teardown clears the retained objective log"
+        );
+        assert_eq!(
+            app.world().resource::<DrawerObjectiveLog>().entries.len(),
+            0,
+            "derived history is cleared too"
+        );
+    }
+
+    #[test]
+    fn drawer_objectives_empty_state_is_styled() {
+        let mut app = objectives_app();
+        spawn_objectives_list(&mut app);
+        app.update();
+
+        let empty = app
+            .world_mut()
+            .query_filtered::<Entity, With<DrawerObjectiveEmptyMarker>>()
+            .single(app.world())
+            .expect("styled empty row");
+        assert!(
+            app.world().entity(empty).get::<BackgroundColor>().is_some(),
+            "empty state carries drawer chrome fill"
+        );
+        assert!(
+            app.world().entity(empty).get::<BorderColor>().is_some(),
+            "empty state carries drawer chrome border"
+        );
+    }
+
+    #[test]
+    fn drawer_objectives_rebuild_replaces_stale_rows() {
+        let mut app = objectives_app();
+        set_objectives(&mut app, vec![Objective::new("b1", "Burn")]);
+        spawn_objectives_list(&mut app);
+        app.update();
+        let first_rows = row_entities(&mut app);
+        assert_eq!(first_rows.len(), 1);
+
+        set_objectives(&mut app, vec![Objective::new("b1", "Recovered: 1/3")]);
+        app.update();
+
+        let rows = row_entities(&mut app);
+        assert_eq!(rows.len(), 1, "old row entity was replaced");
+        assert_ne!(rows[0], first_rows[0], "rebuild despawns stale rows");
+        assert_eq!(row_text(&app, rows[0]), "Recovered: 1/3");
     }
 
     /// The open drawer is a modal: its panel and backdrop must carry an explicit

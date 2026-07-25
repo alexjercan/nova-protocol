@@ -117,6 +117,10 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   review file is dropped AND lost with the worktree (an out-of-context
   reviewer that WRITES REVIEW.md is the classic trigger - commit it before
   landing). 20260718-231601, 20260722-092427.
+- `review-current-base-before-ooc` (x1): before spawning out-of-context review,
+  compare the branch against CURRENT local default and merge it if the diff
+  includes inherited base noise - stale comparisons waste review on unrelated
+  files. 20260724-134350.
 - `review-agent-needs-tatr-verdict-format` (x1): an out-of-context review
   subagent that WRITES REVIEW.md must be told the exact line format tatr checks
   (`- VERDICT: APPROVE|REQUEST_CHANGES`) - a bare `VERDICT: APPROVE` line fails
