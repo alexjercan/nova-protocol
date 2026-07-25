@@ -190,10 +190,10 @@ const VAR_SCAV_POSTED: &str = "scav_posted";
 // speed cap makes the ~40s drift diegetic: the ship idles out of the dock while
 // Capt. Halloran talks, and objective 1 posts only when she sends you off.
 const OPEN_1_AT: f64 = 2.0;
-const OPEN_2_AT: f64 = 11.0;
-const OPEN_3_AT: f64 = 20.0;
-const OPEN_4_AT: f64 = 29.0;
-const OPEN_5_AT: f64 = 38.0;
+const OPEN_2_AT: f64 = 5.0;
+const OPEN_3_AT: f64 = 8.0;
+const OPEN_4_AT: f64 = 11.0;
+const OPEN_5_AT: f64 = 14.0;
 // The gap between a beat transition and the objective it introduces, in seconds
 // of play time. The transition completes the previous objective and plays the
 // beat's comms line; the next objective (and its beacon) posts a gap LATER, not
