@@ -913,6 +913,10 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   `extract_uinode_borders` (which gates on non-zero computed border) draws
   nothing - set `box_sizing: ContentBox`. An instance of
   [[verify-engine-guarantees-in-source]]. 20260723-233446.
+- `bevy-ui-scroll-input-clamps-stored-offset` (domain, x1): when custom wheel
+  input writes `ScrollPosition`, clamp the STORED offset with Bevy UI's layout
+  max (`content_size - size + scrollbar_size`), not only the rendered position,
+  or invisible bottom overscroll accumulates. 20260725-171900.
 - `require-default-lands-after-root-add-observer` (domain, x1): a component
   supplied by `#[require]` on a marker (Allegiance/PlayerSpaceshipMarker on the
   controller markers) - or inserted by a deferred command inside another

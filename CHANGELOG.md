@@ -32,6 +32,10 @@ tagged **(breaking)**.
 - Tab drawer lists now scroll inside their side panels, so long Flight Log and Objectives runs stay bounded.
 - Allegiance markers: a small filled triangle floats above every ship, coloured by side (green ally, red threat, grey neutral) so a mixed brawl reads friend-from-foe at a glance; your own ship shows none, and a ship provoked mid-fight flips its marker red.
 
+### Fixes
+
+- Tab drawer scrolling now clamps at the content bottom, so wheel-up responds immediately after reaching the end.
+
 ## [0.8.1] - 2026-07-24
 
 ### Web & Platform

@@ -315,7 +315,10 @@ fn drawer_lists_just_spawned(
 
 fn scroll_drawer_panels(
     mut wheel: MessageReader<bevy::input::mouse::MouseWheel>,
-    mut q_panels: Query<(&mut ScrollPosition, Option<&Hovered>), With<DrawerScrollViewportMarker>>,
+    mut q_panels: Query<
+        (&mut ScrollPosition, Option<&Hovered>, Option<&ComputedNode>),
+        With<DrawerScrollViewportMarker>,
+    >,
 ) {
     use bevy::input::mouse::MouseScrollUnit;
 
@@ -332,14 +335,20 @@ fn scroll_drawer_panels(
 
     let any_hovered = q_panels
         .iter()
-        .any(|(_, hovered)| hovered.is_some_and(Hovered::get));
+        .any(|(_, hovered, _)| hovered.is_some_and(Hovered::get));
 
-    for (mut scroll, hovered) in &mut q_panels {
+    for (mut scroll, hovered, computed_node) in &mut q_panels {
         if any_hovered && !hovered.is_some_and(Hovered::get) {
             continue;
         }
-        scroll.0.y = (scroll.0.y - dy).max(0.0);
+        scroll.0.y = (scroll.0.y - dy).clamp(0.0, max_drawer_scroll_y(computed_node));
     }
+}
+
+fn max_drawer_scroll_y(computed_node: Option<&ComputedNode>) -> f32 {
+    computed_node
+        .map(|node| (node.content_size.y - node.size.y + node.scrollbar_size.y).max(0.0))
+        .unwrap_or(f32::MAX)
 }
 
 /// Ease [`DrawerOpenness`] toward the state-driven target (1 open, 0 closed)
@@ -1231,6 +1240,50 @@ mod tests {
             scroll_after(12.0, 1.0),
             0.0,
             "wheel up clamps at the top instead of going negative"
+        );
+    }
+
+    #[test]
+    fn drawer_wheel_scroll_clamps_at_content_bottom() {
+        use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.world_mut().init_resource::<Messages<MouseWheel>>();
+        let viewport = app
+            .world_mut()
+            .spawn((
+                DrawerScrollViewportMarker,
+                ScrollPosition(Vec2::new(0.0, 95.0)),
+                ComputedNode {
+                    size: Vec2::new(100.0, 100.0),
+                    content_size: Vec2::new(100.0, 200.0),
+                    scrollbar_size: Vec2::ZERO,
+                    ..default()
+                },
+            ))
+            .id();
+
+        app.world_mut().write_message(MouseWheel {
+            unit: MouseScrollUnit::Line,
+            x: 0.0,
+            y: -1.0,
+            window: Entity::PLACEHOLDER,
+            phase: TouchPhase::Moved,
+        });
+        app.world_mut()
+            .run_system_once(scroll_drawer_panels)
+            .expect("drawer scroll system runs");
+
+        assert_eq!(
+            app.world()
+                .entity(viewport)
+                .get::<ScrollPosition>()
+                .unwrap()
+                .0
+                .y,
+            100.0,
+            "stored drawer scroll offset clamps to the content bottom"
         );
     }
 
