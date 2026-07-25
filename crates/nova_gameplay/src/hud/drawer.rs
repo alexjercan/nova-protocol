@@ -30,7 +30,7 @@
 //! (`verify-engine-guarantees-in-source`: bcs `tween::advance_tweens` uses
 //! `Res<Time>`).
 
-use bevy::prelude::*;
+use bevy::{picking::hover::Hovered, prelude::*};
 use bevy_common_systems::prelude::{GameObjectives, Objective};
 use nova_ui::theme;
 
@@ -56,6 +56,7 @@ const DRAWER_ROW_PADDING_X_PX: f32 = 8.0;
 const DRAWER_ROW_PADDING_Y_PX: f32 = 7.0;
 const DRAWER_OBJECTIVE_GLYPH_WIDTH_PX: f32 = 18.0;
 const DRAWER_LOG_ICON_SIZE_PX: f32 = 20.0;
+const DRAWER_SCROLL_LINE_HEIGHT_PX: f32 = 20.0;
 
 /// Top inset for BOTH panels, reserving the top status strip (`readout`) as a
 /// window-manager-style status bar: no drawer UI sits in it (task 20260724-134335).
@@ -98,6 +99,10 @@ struct DrawerBackdropMarker;
 /// The container the objectives-section lines are (re)built into.
 #[derive(Component)]
 struct DrawerObjectivesListMarker;
+
+/// Scrollable viewport around a drawer row list.
+#[derive(Component)]
+struct DrawerScrollViewportMarker;
 
 /// One objective row in the drawer's mission-log list.
 #[derive(Component)]
@@ -259,6 +264,13 @@ impl Plugin for NovaDrawerPlugin {
             )
                 .in_set(NovaHudSystems),
         );
+        app.add_systems(
+            Update,
+            scroll_drawer_panels
+                .run_if(in_state(PauseStates::Drawer))
+                .run_if(resource_exists::<Messages<bevy::input::mouse::MouseWheel>>)
+                .in_set(NovaHudSystems),
+        );
 
         // The drawer is a flight surface: spawn/despawn it with the player ship,
         // like the rest of the HUD.
@@ -299,6 +311,35 @@ fn drawer_lists_just_spawned(
     q_log: Query<(), Added<DrawerFlightLogListMarker>>,
 ) -> bool {
     !q_objectives.is_empty() || !q_log.is_empty()
+}
+
+fn scroll_drawer_panels(
+    mut wheel: MessageReader<bevy::input::mouse::MouseWheel>,
+    mut q_panels: Query<(&mut ScrollPosition, Option<&Hovered>), With<DrawerScrollViewportMarker>>,
+) {
+    use bevy::input::mouse::MouseScrollUnit;
+
+    let dy: f32 = wheel
+        .read()
+        .map(|ev| match ev.unit {
+            MouseScrollUnit::Line => ev.y * DRAWER_SCROLL_LINE_HEIGHT_PX,
+            MouseScrollUnit::Pixel => ev.y,
+        })
+        .sum();
+    if dy == 0.0 {
+        return;
+    }
+
+    let any_hovered = q_panels
+        .iter()
+        .any(|(_, hovered)| hovered.is_some_and(Hovered::get));
+
+    for (mut scroll, hovered) in &mut q_panels {
+        if any_hovered && !hovered.is_some_and(Hovered::get) {
+            continue;
+        }
+        scroll.0.y = (scroll.0.y - dy).max(0.0);
+    }
 }
 
 /// Ease [`DrawerOpenness`] toward the state-driven target (1 open, 0 closed)
@@ -795,6 +836,8 @@ fn setup_drawer(
                 .spawn(Node {
                     flex_direction: FlexDirection::Column,
                     row_gap: Val::Px(4.0),
+                    flex_grow: 1.0,
+                    min_height: Val::Px(0.0),
                     ..default()
                 })
                 .with_children(|section| {
@@ -803,14 +846,29 @@ fn setup_drawer(
                         TextFont::from_font_size(DRAWER_SECTION_TITLE_FONT_PX),
                         TextColor(theme::TEXT_MUTED),
                     ));
-                    section.spawn((
-                        DrawerObjectivesListMarker,
-                        Node {
-                            flex_direction: FlexDirection::Column,
-                            row_gap: Val::Px(3.0),
-                            ..default()
-                        },
-                    ));
+                    section
+                        .spawn((
+                            DrawerScrollViewportMarker,
+                            ScrollPosition::default(),
+                            Hovered::default(),
+                            Node {
+                                flex_direction: FlexDirection::Column,
+                                flex_grow: 1.0,
+                                min_height: Val::Px(0.0),
+                                overflow: Overflow::scroll_y(),
+                                ..default()
+                            },
+                        ))
+                        .with_children(|viewport| {
+                            viewport.spawn((
+                                DrawerObjectivesListMarker,
+                                Node {
+                                    flex_direction: FlexDirection::Column,
+                                    row_gap: Val::Px(3.0),
+                                    ..default()
+                                },
+                            ));
+                        });
                 });
         });
 
@@ -856,6 +914,8 @@ fn setup_drawer(
                 .spawn(Node {
                     flex_direction: FlexDirection::Column,
                     row_gap: Val::Px(4.0),
+                    flex_grow: 1.0,
+                    min_height: Val::Px(0.0),
                     ..default()
                 })
                 .with_children(|section| {
@@ -864,14 +924,29 @@ fn setup_drawer(
                         TextFont::from_font_size(DRAWER_SECTION_TITLE_FONT_PX),
                         TextColor(theme::TEXT_MUTED),
                     ));
-                    section.spawn((
-                        DrawerFlightLogListMarker,
-                        Node {
-                            flex_direction: FlexDirection::Column,
-                            row_gap: Val::Px(3.0),
-                            ..default()
-                        },
-                    ));
+                    section
+                        .spawn((
+                            DrawerScrollViewportMarker,
+                            ScrollPosition::default(),
+                            Hovered::default(),
+                            Node {
+                                flex_direction: FlexDirection::Column,
+                                flex_grow: 1.0,
+                                min_height: Val::Px(0.0),
+                                overflow: Overflow::scroll_y(),
+                                ..default()
+                            },
+                        ))
+                        .with_children(|viewport| {
+                            viewport.spawn((
+                                DrawerFlightLogListMarker,
+                                Node {
+                                    flex_direction: FlexDirection::Column,
+                                    row_gap: Val::Px(3.0),
+                                    ..default()
+                                },
+                            ));
+                        });
                 });
         });
 }
@@ -891,7 +966,7 @@ fn remove_drawer(
 
 #[cfg(test)]
 mod tests {
-    use bevy::state::app::StatesPlugin;
+    use bevy::{ecs::system::RunSystemOnce, input::touch::TouchPhase, state::app::StatesPlugin};
     use bevy_common_systems::prelude::Objective;
 
     use super::*;
@@ -1052,6 +1127,170 @@ mod tests {
                 },
             ))
             .id()
+    }
+
+    fn spawn_drawer_shell(app: &mut App) {
+        app.add_observer(setup_drawer);
+        app.world_mut()
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker));
+        app.update();
+    }
+
+    fn parent_of(app: &App, entity: Entity) -> Entity {
+        app.world()
+            .entity(entity)
+            .get::<ChildOf>()
+            .expect("entity has parent")
+            .0
+    }
+
+    fn assert_scrollable_viewport(app: &App, viewport: Entity, label: &str) {
+        let node = app.world().entity(viewport).get::<Node>().expect(label);
+        assert_eq!(
+            node.overflow,
+            Overflow::scroll_y(),
+            "{label} clips overflowing rows on the y axis"
+        );
+        assert_eq!(
+            node.flex_grow, 1.0,
+            "{label} consumes the panel's remaining height instead of growing past it"
+        );
+        assert!(
+            app.world().entity(viewport).contains::<ScrollPosition>(),
+            "{label} carries ScrollPosition so wheel input can move it"
+        );
+    }
+
+    #[test]
+    fn drawer_left_flight_log_lives_in_scrollable_viewport() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        spawn_drawer_shell(&mut app);
+
+        let list = app
+            .world_mut()
+            .query_filtered::<Entity, With<DrawerFlightLogListMarker>>()
+            .single(app.world())
+            .expect("left flight-log inner list");
+        let viewport = parent_of(&app, list);
+
+        assert_scrollable_viewport(&app, viewport, "left flight-log viewport");
+    }
+
+    #[test]
+    fn drawer_right_objectives_live_in_scrollable_viewport() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        spawn_drawer_shell(&mut app);
+
+        let list = app
+            .world_mut()
+            .query_filtered::<Entity, With<DrawerObjectivesListMarker>>()
+            .single(app.world())
+            .expect("right objectives inner list");
+        let viewport = parent_of(&app, list);
+
+        assert_scrollable_viewport(&app, viewport, "right objectives viewport");
+    }
+
+    #[test]
+    fn drawer_wheel_scrolls_viewports_and_clamps_at_top() {
+        use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
+
+        let scroll_after = |start_y: f32, wheel_y: f32| -> f32 {
+            let mut app = App::new();
+            app.add_plugins(MinimalPlugins);
+            app.world_mut().init_resource::<Messages<MouseWheel>>();
+            app.world_mut().spawn((
+                DrawerScrollViewportMarker,
+                ScrollPosition(Vec2::new(0.0, start_y)),
+            ));
+            app.world_mut().write_message(MouseWheel {
+                unit: MouseScrollUnit::Line,
+                x: 0.0,
+                y: wheel_y,
+                window: Entity::PLACEHOLDER,
+                phase: TouchPhase::Moved,
+            });
+            app.world_mut()
+                .run_system_once(scroll_drawer_panels)
+                .expect("drawer scroll system runs");
+            app.world_mut()
+                .query::<&ScrollPosition>()
+                .single(app.world())
+                .expect("one scroll position")
+                .0
+                .y
+        };
+
+        assert!(
+            scroll_after(0.0, -1.0) > 0.0,
+            "wheel down from the top scrolls the drawer panel down"
+        );
+        assert_eq!(
+            scroll_after(12.0, 1.0),
+            0.0,
+            "wheel up clamps at the top instead of going negative"
+        );
+    }
+
+    #[test]
+    fn drawer_wheel_scrolls_only_hovered_viewport_when_one_is_hovered() {
+        use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.world_mut().init_resource::<Messages<MouseWheel>>();
+        let hovered = app
+            .world_mut()
+            .spawn((
+                DrawerScrollViewportMarker,
+                Hovered(true),
+                ScrollPosition(Vec2::ZERO),
+            ))
+            .id();
+        let not_hovered = app
+            .world_mut()
+            .spawn((
+                DrawerScrollViewportMarker,
+                Hovered(false),
+                ScrollPosition(Vec2::ZERO),
+            ))
+            .id();
+
+        app.world_mut().write_message(MouseWheel {
+            unit: MouseScrollUnit::Line,
+            x: 0.0,
+            y: -1.0,
+            window: Entity::PLACEHOLDER,
+            phase: TouchPhase::Moved,
+        });
+        app.world_mut()
+            .run_system_once(scroll_drawer_panels)
+            .expect("drawer scroll system runs");
+
+        let hovered_y = app
+            .world()
+            .entity(hovered)
+            .get::<ScrollPosition>()
+            .unwrap()
+            .0
+            .y;
+        let not_hovered_y = app
+            .world()
+            .entity(not_hovered)
+            .get::<ScrollPosition>()
+            .unwrap()
+            .0
+            .y;
+        assert!(
+            hovered_y > 0.0,
+            "the hovered viewport receives the wheel scroll"
+        );
+        assert_eq!(
+            not_hovered_y, 0.0,
+            "a non-hovered viewport does not scroll when another drawer viewport is hovered"
+        );
     }
 
     fn set_objectives(app: &mut App, objectives: Vec<Objective>) {

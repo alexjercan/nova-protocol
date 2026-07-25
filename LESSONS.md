@@ -129,6 +129,10 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   (`- VERDICT: APPROVE|REQUEST_CHANGES`) - a bare `VERDICT: APPROVE` line fails
   `closed-not-approved` and costs a fix-up round at the compound gate.
   20260724-074940.
+- `manual-acceptance-is-not-an-implementation-checkbox` (x1): split human visual
+  acceptance out of implementation checklists during planning - keep it as a
+  `manual:` DoD item so work close-out does not pretend to self-verify a human
+  check. 20260725-163835.
 - `rename-id-sweep-in-file` (x1): after renaming a content id, grep the WHOLE
   file for the old id - lint validates spawn/prototype/filter refs but not AI
   orbit/patrol targets. 20260716-215513.
