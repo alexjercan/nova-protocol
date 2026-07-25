@@ -12,3 +12,7 @@ adds to the download whether or not the game loads it.
 
 - `blender/` - the Blender sources (`.blend`) the runtime `assets/gltf/*.glb`
   models are exported from. `.blend1`/`.blend2` autosave backups are gitignored.
+- `kenney-space-kit/`
+    - URL: <https://kenney.nl/assets/space-kit>
+    - License: CC0 1.0 Universal (public domain)
+    - Version: 1.0.0 (2026-07-25)

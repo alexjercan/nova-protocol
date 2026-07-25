@@ -35,6 +35,9 @@ assets" below:
   released into the public domain under
   [The Unlicense](licenses/space-3d_Unlicense.md). No attribution is
   required; credited as a courtesy.
+- **Kenney Space Kit** (`art/kenney-space-kit/`) - [CC0 1.0
+  Universal](licenses/kenney-space-kit_CC0_1.0.md) (public domain). No
+  attribution is required; credited as a courtesy.
 
 ## Third-party code
 
