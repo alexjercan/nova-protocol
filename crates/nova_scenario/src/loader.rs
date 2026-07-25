@@ -1590,6 +1590,7 @@ mod tests {
                 speaker: "Okono".to_string(),
                 text: "alpha".to_string(),
                 dwell: None,
+                icon: None,
             });
         app.world_mut()
             .resource_mut::<StoryFeed>()
@@ -1598,6 +1599,7 @@ mod tests {
                 speaker: "Okono".to_string(),
                 text: "alpha".to_string(),
                 dwell: None,
+                icon: None,
             });
         app.insert_resource(CurrentScenario(Some(scenario_with("a", vec![]))));
         app.update();
@@ -1622,6 +1624,7 @@ mod tests {
                 speaker: "Vesh".to_string(),
                 text: "beta".to_string(),
                 dwell: None,
+                icon: None,
             });
         app.update();
         app.update();

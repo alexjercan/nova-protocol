@@ -348,7 +348,7 @@ fn collect_bare(value: &serde_json::Value, out: &mut Vec<String>) {
 #[cfg(test)]
 mod tests {
     use nova_gameplay::prelude::{AssetRef, SectionKind};
-    use nova_scenario::prelude::ScenarioConfig;
+    use nova_scenario::prelude::{EventActionConfig, ScenarioConfig};
 
     use super::*;
 
@@ -776,6 +776,89 @@ mod tests {
             cfg.cubemap.path(),
             Some("base/textures/cubemap.png"),
             "dep://base resolves against base's own folder",
+        );
+    }
+
+    #[test]
+    fn story_message_icon_refs_rewrite_and_validate_like_other_assets() {
+        let ron = r#"Scenario((
+            id: "comms_icons",
+            name: "Comms Icons",
+            description: "",
+            cubemap: "self://textures/sky.png",
+            events: [
+                ( name: OnStart, filters: [], actions: [
+                    StoryMessage((
+                        speaker: "Okono",
+                        text: "Own icon.",
+                        icon: Some("self://icons/okono.png"),
+                    )),
+                    StoryMessage((
+                        speaker: "Relay",
+                        text: "Shared icon.",
+                        icon: Some("dep://base/icons/comms.png"),
+                    )),
+                ]),
+            ],
+        ))"#;
+        let content: Content = ron::from_str(ron).expect("scenario content parses");
+        let declared: HashSet<String> = HashSet::new();
+        let self_resources = vec![
+            "textures/sky.png".to_string(),
+            "icons/okono.png".to_string(),
+        ];
+        let base_resources = vec!["icons/comms.png".to_string()];
+        let mut deps = HashMap::new();
+        deps.insert(
+            "base".to_string(),
+            DepRef {
+                base: Some("base"),
+                resources: Some(&base_resources),
+            },
+        );
+        let scope = RefScope {
+            self_base: "mods/comms",
+            self_resources: &self_resources,
+            declared_deps: &declared,
+            deps: &deps,
+        };
+        assert!(
+            resource_ref_violations(&content, &scope).is_empty(),
+            "StoryMessage icon refs use the normal resource-ref gate"
+        );
+
+        let Content::Scenario(cfg) = rewrite_refs(&content, &scope) else {
+            panic!("still a scenario");
+        };
+        let actions = &cfg.events[0].actions;
+        let EventActionConfig::StoryMessage(own) = &actions[0] else {
+            panic!("first action is StoryMessage");
+        };
+        let EventActionConfig::StoryMessage(shared) = &actions[1] else {
+            panic!("second action is StoryMessage");
+        };
+        assert_eq!(
+            own.icon.as_ref().and_then(|icon| icon.path()),
+            Some("mods/comms/icons/okono.png")
+        );
+        assert_eq!(
+            shared.icon.as_ref().and_then(|icon| icon.path()),
+            Some("base/icons/comms.png")
+        );
+
+        let missing_self = vec!["textures/sky.png".to_string()];
+        let missing_scope = RefScope {
+            self_base: "mods/comms",
+            self_resources: &missing_self,
+            declared_deps: &declared,
+            deps: &deps,
+        };
+        let violations = resource_ref_violations(&content, &missing_scope);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.contains("self://icons/okono.png")),
+            "missing icon resource is reported: {violations:?}"
         );
     }
 

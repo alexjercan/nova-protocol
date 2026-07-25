@@ -218,20 +218,29 @@ A scenario switch has three speeds (task 20260717-163050):
   stops virtual time, not the wall clock) - the player can still click
   sooner.
 
-### Story pacing (`StoryMessage` and the comms queue)
+### Story pacing (`StoryMessage` and the comms stack)
 
-Story lines display through a PACED queue (task 20260717-163033), not
-latest-wins: lines show in arrival order with a fade and a comms blip,
-each holds ~8s but yields to a waiting line after 4s; at most 4 lines
-wait (oldest dropped; the full log stays in the feed). Author an
-optional per-line hold with strict-RON `Some`:
+Story lines display through a bottom-left CHAT stack, not latest-wins:
+lines show in arrival order with a fade and a comms blip, newest at the
+bottom and older lines pushed upward. Each card holds ~8s before fading;
+at most 3 cards are visible and 4 more wait (oldest dropped; the full log
+stays in the feed). The player can dismiss the oldest visible card with
+<kbd>V</kbd> or skip queued backlog into view with <kbd>B</kbd>. Author an
+optional per-line hold and icon with strict-RON `Some`:
 
 ```ron
-StoryMessage((speaker: "Foreman Okono", text: "Read this slowly.", dwell: Some(15.0))),
+StoryMessage((
+    speaker: "Foreman Okono",
+    text: "Read this slowly.",
+    dwell: Some(15.0),
+    icon: Some("self://icons/okono.png"),
+)),
 ```
 
-`dwell` clamps to [3, 30] seconds (content lint warns outside it). The
-queue means a two-line beat is READ as two beats - but prefer one line
+`dwell` clamps to [3, 30] seconds (content lint warns outside it). Omit
+`icon` for the HUD fallback tile; authored icons are normal `AssetRef<Image>`
+paths, so use `self://` for files listed by the same bundle or `dep://` for a
+declared dependency. The stack means a burst is readable - but prefer one line
 per beat anyway (the beat-sheet convention); the queue is the safety
 net, not the style.
 

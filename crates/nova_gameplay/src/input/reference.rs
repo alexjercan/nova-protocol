@@ -9,9 +9,10 @@
 //! list. Full remapping + key icons stay backlog (task 20260710-231927); this
 //! is the read-only surface only.
 //!
-//! The camera-rig rows (aim / free-look / raise) and the pause row are static
-//! prose: they live in `camera_controller`/`nova_menu`, are far lower-churn,
-//! and the parity test covers the flight rig where the actual key churn is.
+//! The camera-rig rows (aim / free-look / raise), comms controls, and the
+//! pause row are static prose: they live outside the flight rig, are far
+//! lower-churn, and the parity test covers the flight rig where the actual key
+//! churn is.
 
 /// One row of the keybind reference: what the control does and how it is bound
 /// on keyboard/mouse and on a gamepad. All plain display strings - this is a
@@ -30,7 +31,8 @@ pub struct KeybindEntry {
 
 /// The canonical player controls, in reading order and grouped by section.
 /// Sourced from the flight rig (`super::player::flight_input_rig`), the
-/// targeting actions, the camera controller rig, and the pause toggle.
+/// targeting actions, the camera controller rig, comms panel keys, and the
+/// pause toggle.
 pub const KEYBINDS: &[KeybindEntry] = &[
     // FLIGHT - the flight rig in input/player.rs.
     KeybindEntry {
@@ -100,6 +102,19 @@ pub const KEYBINDS: &[KeybindEntry] = &[
         action: "Free Look",
         keyboard: "Left Alt",
         gamepad: "Left Trigger",
+    },
+    // COMMS - the HUD comms stack in hud/comms_panel.rs.
+    KeybindEntry {
+        section: "COMMS",
+        action: "Dismiss oldest visible card",
+        keyboard: "V",
+        gamepad: "Unbound",
+    },
+    KeybindEntry {
+        section: "COMMS",
+        action: "Skip queued backlog into view",
+        keyboard: "B",
+        gamepad: "Unbound",
     },
     // SYSTEM - the pause toggle in nova_menu.
     KeybindEntry {

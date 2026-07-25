@@ -85,6 +85,7 @@ impl EventWorld for NovaEventWorld {
                         speaker: m.speaker.clone(),
                         text: m.text.clone(),
                         dwell: m.dwell,
+                        icon: m.icon.clone(),
                     })
                     .collect();
             }
@@ -589,6 +590,7 @@ mod tests {
                 speaker: "Okono".to_string(),
                 text: "Strip it clean.".to_string(),
                 dwell: None,
+                icon: None,
             });
         for _ in 0..5 {
             app.update();
@@ -624,6 +626,7 @@ mod tests {
                 speaker: "Okono".to_string(),
                 text: "No HUD here.".to_string(),
                 dwell: None,
+                icon: None,
             });
         bare.update();
     }
@@ -643,6 +646,7 @@ mod tests {
                 speaker: "Okono".to_string(),
                 text: "Read this slowly.".to_string(),
                 dwell: Some(12.0),
+                icon: None,
             });
         for _ in 0..5 {
             app.update();
@@ -653,6 +657,36 @@ mod tests {
             feed.0[0].dwell,
             Some(12.0),
             "the sync must carry the authored hold to the panel"
+        );
+    }
+
+    /// The authored comms icon rides the sync into the HUD line (task
+    /// 20260721-211526), using the same `AssetRef<Image>` path object the
+    /// scenario action parsed.
+    #[test]
+    fn story_sync_carries_the_authored_icon() {
+        let mut app = App::new();
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.init_resource::<StoryFeed>();
+        app.add_systems(Update, NovaEventWorld::state_to_world_system);
+        app.world_mut()
+            .resource_mut::<NovaEventWorld>()
+            .push_story_message(StoryMessageActionConfig {
+                speaker: "Okono".to_string(),
+                text: "Look at me.".to_string(),
+                dwell: None,
+                icon: Some(AssetRef::from("self://icons/okono.png")),
+            });
+        for _ in 0..5 {
+            app.update();
+        }
+        let feed = app.world().resource::<StoryFeed>();
+        assert_eq!(feed.0.len(), 1);
+        assert_eq!(
+            feed.0[0].icon.as_ref().and_then(|icon| icon.path()),
+            Some("self://icons/okono.png"),
+            "the sync must carry the authored icon to the panel"
         );
     }
 

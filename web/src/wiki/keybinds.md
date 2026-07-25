@@ -233,6 +233,14 @@ Weapon sections are rebindable: in the editor, click a section to bind it to any
         </td>
     </tr>
     <tr>
+        <td>Dismiss oldest visible comms card</td>
+        <td><kbd>V</kbd></td>
+    </tr>
+    <tr>
+        <td>Skip queued comms backlog into view</td>
+        <td><kbd>B</kbd></td>
+    </tr>
+    <tr>
         <td>Pause menu</td>
         <td>
             <kbd>Esc</kbd> &nbsp;or&nbsp;

@@ -1470,6 +1470,7 @@ mod tests {
                 speaker: "Okono".to_string(),
                 text: text.to_string(),
                 dwell: None,
+                icon: None,
             })
         };
         let outcome = || {
@@ -1545,6 +1546,7 @@ mod tests {
                 speaker: "Okono".to_string(),
                 text: "test".to_string(),
                 dwell,
+                icon: None,
             })
         };
         // One line per handler so the beat-sheet arm stays out of frame.

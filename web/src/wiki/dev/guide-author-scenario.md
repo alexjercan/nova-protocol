@@ -430,16 +430,16 @@ player must defend). The Lifeline convoy is the shipped example.
 
 ### StoryMessage
 
-Speaker-attributed story text, rendered by the HUD comms panel
-(bottom-left) as `SPEAKER > text`. Lines QUEUE and display in arrival
-order with a fade and a soft blip (task 20260717-163033): each holds
-about eight seconds alone, yields to a waiting line after four, and an
-optional per-line hold is authored as strict-RON
-`dwell: Some(12.0)` (clamped to 3-30s; `content lint` warns outside it).
-At most four lines wait - older ones drop (the full log persists
-engine-side). Prefer one line per beat regardless; the queue is the
-safety net, not the style. This is the dialog surface for story
-content - objectives state goals, comms lines carry voice.
+Speaker-attributed story text, rendered by the HUD comms stack
+(bottom-left) as `SPEAKER > text`. Lines display in arrival order with a fade
+and a soft blip: several can be visible at once, newest at the bottom, older
+ones pushed upward and fading. Each holds about eight seconds before fading,
+and an optional per-line hold is authored as strict-RON `dwell: Some(12.0)`
+(clamped to 3-30s; `content lint` warns outside it). At most three cards are
+visible and four more wait - older pending lines drop (the full log persists
+engine-side). Prefer one line per beat regardless; the stack is the safety net,
+not the style. This is the dialog surface for story content - objectives state
+goals, comms lines carry voice.
 Scenario-scoped like every event-world effect: teardown clears the log
 AND the on-screen mirror, so lines never leak into the next scenario,
 the menu, or a retry of the same scenario.
@@ -448,8 +448,14 @@ the menu, or a retry of the same scenario.
 StoryMessage((
     speaker: "Foreman Okono",
     text: "Strip it clean, Kestrel. Quota's quota.",
+    icon: Some("self://icons/okono.png"),
 )),
 ```
+
+`icon` is optional; omit it or write `icon: None` for the cockpit placeholder.
+When present, it is an `AssetRef<Image>` path like any other scenario asset:
+`self://` names a file listed in this bundle's `resources`, `dep://base/` names
+a base asset, and `dep://<id>/` names a declared dependency's resource.
 
 ### HudReadout
 

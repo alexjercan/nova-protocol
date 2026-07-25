@@ -318,6 +318,7 @@ pub(crate) fn story(speaker: &str, text: &str) -> EventActionConfig {
         speaker: speaker.to_string(),
         text: text.to_string(),
         dwell: None,
+        icon: None,
     })
 }
 
