@@ -27,7 +27,7 @@ Verified facts:
 - Destroyed leaf (despawn) vs disabled (SectionInactiveMarker): both correctly resolve to "not working" (absent child -> `get` Err; disabled -> `!inactive` false).
 - `EventConfig` match is exhaustive with the new `OnNeutralized` arm (events.rs:51); prelude re-exports updated; all three wiki surfaces + CHANGELOG updated.
 
-VERDICT: APPROVE
+- VERDICT: APPROVE
 
 ## Round-1 resolution (author, post-approval hardening)
 

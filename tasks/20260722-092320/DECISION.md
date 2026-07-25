@@ -1,6 +1,6 @@
 # DECISION: critical-damage / neutralized-ship model
 
-- STATUS: ACCEPTED (2026-07-25, owner via flow plan gate)
+- STATUS: ACCEPTED
 
 ## Context
 
@@ -11,6 +11,8 @@ fires `OnDestroyedEvent` (`.../integrity/explode.rs:159-179`). This is the
 annoyance (absorbed sibling 20260722-092326). We add a "combat-dead" notion:
 a ship with no working weapons AND no working thrusters is out of the fight
 even with hull intact.
+
+Accepted by the owner via flow plan gate on 2026-07-25.
 
 Sections are child entities of the ship root, tagged Turret / Torpedo /
 Thruster / Controller / Hull; a section is "working" when its entity exists

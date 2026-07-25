@@ -117,6 +117,10 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   review file is dropped AND lost with the worktree (an out-of-context
   reviewer that WRITES REVIEW.md is the classic trigger - commit it before
   landing). 20260718-231601, 20260722-092427.
+- `classify-at-the-verifier-when-the-edit-site-cant` (x1): when a bulk content
+  edit needs a per-item property that is not visible at the edit site, either
+  make a robust superset edit whose extra items are harmless or hand the
+  classification to a verifier; do not eyeball it per item. 20260722-092320.
 - `log-ui-shape-before-plan` (x1): for log-style UI, decide whether the reader
   wants one chronological stream, grouped categories, or separate panes before
   mapping existing data sources into sections. 20260724-102309.
@@ -355,6 +359,10 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   `pad_toggles_drawer_state` in the same drawer family. 20260724-102304, 20260724-134312.
 - `observer-over-spawn-site` (x1): attach derived components via an
   `On<Add, Marker>` observer, not by hunting spawn sites. 20260712-203345.
+- `guard-timing-matches-observer-not-set` (x1): a Bevy `.after(SomeSet)` does
+  not order past state written by observers fired from that set's commands; make
+  predicates safe under one-frame-late observer output and document that
+  guarantee instead of assuming same-frame visibility. 20260722-092320.
 - `gate-producer-and-its-consumers` (x1): a flag that skips PRODUCING an
   entity sweeps its CONSUMERS too - each must tolerate the skip (early
   return, not error spam). 20260525-133013.
