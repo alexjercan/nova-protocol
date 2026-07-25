@@ -134,6 +134,7 @@ The event `name` is one of these kinds (`events.rs`):
 | `OnStart`      | once, right after the scenario loads |
 | `OnUpdate`     | every frame while the scenario is live and unpaused (frozen while paused) |
 | `OnDestroyed`  | an entity is destroyed |
+| `OnNeutralized` | an armed ship loses ALL working weapons AND thrusters (combat-dead, hull intact, not despawned) - use it beside `OnDestroyed` so a beaten ship counts as beaten |
 | `OnEnter`      | a body enters an area / zone / beacon / crate |
 | `OnExit`       | a body leaves an area |
 | `OnOrbit`      | a ship has held an autopilot ORBIT around a well for 5s (recurs every 5s) |

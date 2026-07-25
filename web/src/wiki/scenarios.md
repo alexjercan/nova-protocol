@@ -16,7 +16,7 @@ A scenario spawns a handful of object kinds:
 
 Objectives are wired with a three-layer reactive system. An **event** fires under a named condition, a **filter** gates whether it applies, and an **action** runs when both match - all reading and writing typed **variables** (numbers, strings, booleans) with arithmetic and comparisons.
 
-- **Events**: OnStart, OnUpdate, OnDestroyed, OnEnter / OnExit (a trigger area), OnOrbit (an orbit held a few seconds), OnTravelLock / OnCombatLock (a [lock](../targeting-radar/) landed on an object).
+- **Events**: OnStart, OnUpdate, OnDestroyed, OnNeutralized (a ship is combat-dead - weapons and thrusters gone, hull intact), OnEnter / OnExit (a trigger area), OnOrbit (an orbit held a few seconds), OnTravelLock / OnCombatLock (a [lock](../targeting-radar/) landed on an object).
 - **Filters**: match by object id or type (asteroid / beacon / salvage crate), combine with not / or / and, or test a variable expression.
 - **Actions**: post or complete an objective, attach or detach the gold objective marker, emphasize a keybind hint, set a variable, spawn or despawn an object, install or lift a speed cap, grant or withhold a flight verb, create a trigger area, queue the next scenario, or declare the outcome - a victory or defeat screen with Continue/Retry and Main Menu that pauses the game behind it.
 

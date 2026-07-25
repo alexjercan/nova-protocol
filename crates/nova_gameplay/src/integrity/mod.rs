@@ -18,12 +18,13 @@ use bevy_common_systems::prelude::IntegrityPlugin;
 
 pub mod explode;
 pub mod glue;
+pub mod neutralize;
 #[cfg(test)]
 pub(crate) mod test_support;
 
 /// Glob-import surface: `use nova_gameplay::integrity::prelude::*` re-exports the public API of this module.
 pub mod prelude {
-    pub use super::{explode::prelude::*, NovaIntegrityPlugin};
+    pub use super::{explode::prelude::*, neutralize::prelude::*, NovaIntegrityPlugin};
 }
 
 /// Nova's integrity plugin: the generic `bevy_common_systems` destruction core plus nova's
@@ -42,5 +43,8 @@ impl Plugin for NovaIntegrityPlugin {
 
         // Nova's reaction to destruction: mesh slice, debris, OnDestroyedEvent.
         app.add_plugins(explode::ExplodablePlugin);
+
+        // Combat-death detection: weapons + thrusters all gone -> neutralized.
+        app.add_plugins(neutralize::NeutralizePlugin);
     }
 }

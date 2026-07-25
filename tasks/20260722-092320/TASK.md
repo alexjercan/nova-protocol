@@ -1,12 +1,12 @@
 # Backlog: critical-damage state - a ship is combat-dead when weapons+thrusters are destroyed
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: v0.9.0,gameplay,feature
 
 ## Flow State
 
-- FLOW STEP: PLANNED
+- FLOW STEP: DONE
 - PLAN STATUS: APPROVED
 
 ## Story
@@ -36,15 +36,15 @@ neutralized, only destroyed.
 
 ## Steps
 
-- [ ] Add `OnNeutralizedEvent` + `OnNeutralizedEventInfo { id, type_name }` in
+- [x] Add `OnNeutralizedEvent` + `OnNeutralizedEventInfo { id, type_name }` in
       `crates/nova_events/src/lib.rs` (mirror `OnDestroyedEvent` at
       `nova_events/src/lib.rs:75-90`, event_name `"onneutralized"`).
-- [ ] Add `EventConfig::OnNeutralized` -> `EventHandler::new::<OnNeutralizedEvent>()`
+- [x] Add `EventConfig::OnNeutralized` -> `EventHandler::new::<OnNeutralizedEvent>()`
       in `crates/nova_scenario/src/events.rs:17-52` (mirror `OnDestroyed` at
       `events.rs:21,45`). Confirm the existing `Entity` filter
       (`nova_scenario/src/filters.rs:38-133`) matches it by id/type_name
       unchanged.
-- [ ] Add a `NeutralizedMarker` component + neutralization system in
+- [x] Add a `NeutralizedMarker` component + neutralization system in
       `nova_gameplay` (new module under `src/integrity/`, registered next to
       the destroy pipeline in `explode.rs`). Each frame, for every
       `SpaceshipRootMarker` root that is armed-at-spawn, not already
@@ -57,15 +57,15 @@ neutralized, only destroyed.
       `NeutralizedMarker`, read `EntityId`/`EntityTypeName` and
       `commands.fire::<OnNeutralizedEvent>(...)` (mirror
       `explode.rs:159-179`).
-- [ ] Record "armed at spawn": stamp each root with a component/flag when it
+- [x] Record "armed at spawn": stamp each root with a component/flag when it
       first has >=1 Turret/Torpedo section (or read the spawn loadout), so an
       unarmed hull never satisfies the predicate. Cite the section-spawn site
       used.
-- [ ] On neutralize, take an AI ship out of the fight: insert `AINonCombatant`
+- [x] On neutralize, take an AI ship out of the fight: insert `AINonCombatant`
       (`nova_gameplay/src/input/ai.rs:129-142`) on the neutralized root so it
       stops being targeted/chased. Player ship keeps its marker; the Defeat
       comes from the scenario `OnNeutralized` handler (next step).
-- [ ] Wire scenario handlers (see DECISION.md audit). For each ARMED enemy
+- [x] Wire scenario handlers (see DECISION.md audit). For each ARMED enemy
       "destroy X" objective, add an `OnNeutralized` sibling mirroring its
       `OnDestroyed` objective actions (idempotent `VariableSet(=1)` +
       `ObjectiveMarkerDetach`, preserving any narrative guard). For each
@@ -74,15 +74,15 @@ neutralized, only destroyed.
       `NextScenario(retry)`. Confirm at edit time that each `hauler` /
       `derelict` / `hauler_queen` / `hauler_meridian` is actually unarmed
       (leave destroy-only) and mirror any that turn out armed.
-- [ ] Guard `outcome-is-last-write-wins-close-the-act`: the player-neutralized
+- [x] Guard `outcome-is-last-write-wins-close-the-act`: the player-neutralized
       Defeat path sets a terminal act exactly like player-death Defeat; sweep
       by class (every neutralize-driven outcome handler), not just the
       motivating scenario.
-- [ ] Harness coverage (see Definition of Done). Prefer the integrity
+- [x] Harness coverage (see Definition of Done). Prefer the integrity
       `test_support` app + a scenario-level test mirroring
       `crates/nova_assets/tests/broadside_assault.rs` (drive real sections /
       real scenario, not a hand-built stand-in - `review-rig-can-false-green`).
-- [ ] Docs sweep (`keep-docs-in-sync-with-code`): new event kind + new
+- [x] Docs sweep (`keep-docs-in-sync-with-code`): new event kind + new
       `EventConfig` are a doc surface - update the scenario-system / event
       enumerations in the dev wiki and any content-kind list, plus CHANGELOG.
       `grep -rn 'OnDestroyed' web/ README* AGENTS* CHANGELOG*` and add the

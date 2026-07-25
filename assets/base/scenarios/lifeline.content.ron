@@ -3120,7 +3120,41 @@
                 ],
             ),
             (
+                name: OnNeutralized,
+                filters: [
+                    Entity((
+                        id: Some("raider_1a"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "r1a_down",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "raider_1a",
+                    )),
+                ],
+            ),
+            (
                 name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("raider_1b"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "r1b_down",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "raider_1b",
+                    )),
+                ],
+            ),
+            (
+                name: OnNeutralized,
                 filters: [
                     Entity((
                         id: Some("raider_1b"),
@@ -4305,6 +4339,23 @@
                 ],
             ),
             (
+                name: OnNeutralized,
+                filters: [
+                    Entity((
+                        id: Some("raider_2a"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "r2a_down",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "raider_2a",
+                    )),
+                ],
+            ),
+            (
                 name: OnDestroyed,
                 filters: [
                     Entity((
@@ -4322,7 +4373,41 @@
                 ],
             ),
             (
+                name: OnNeutralized,
+                filters: [
+                    Entity((
+                        id: Some("raider_2b"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "r2b_down",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "raider_2b",
+                    )),
+                ],
+            ),
+            (
                 name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("raider_2c"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "r2c_down",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "raider_2c",
+                    )),
+                ],
+            ),
+            (
+                name: OnNeutralized,
                 filters: [
                     Entity((
                         id: Some("raider_2c"),
@@ -5108,7 +5193,41 @@
                 ],
             ),
             (
+                name: OnNeutralized,
+                filters: [
+                    Entity((
+                        id: Some("raider_3a"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "r3a_down",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "raider_3a",
+                    )),
+                ],
+            ),
+            (
                 name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("raider_3b"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "r3b_down",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "raider_3b",
+                    )),
+                ],
+            ),
+            (
+                name: OnNeutralized,
                 filters: [
                     Entity((
                         id: Some("raider_3b"),
@@ -5396,6 +5515,32 @@
                     Outcome((
                         outcome: Defeat,
                         message: Some("The convoy watches your wreck drift down the lane the raiders now own."),
+                    )),
+                    NextScenario((
+                        scenario_id: "lifeline",
+                        linger: true,
+                    )),
+                ],
+            ),
+            (
+                name: OnNeutralized,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(3.0)))),
+                    )),
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("Guns and thrusters gone - you drift down the lane the raiders now own."),
                     )),
                     NextScenario((
                         scenario_id: "lifeline",

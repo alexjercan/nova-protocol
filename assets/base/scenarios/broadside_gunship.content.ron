@@ -2111,6 +2111,84 @@
                 ],
             ),
             (
+                name: OnNeutralized,
+                filters: [
+                    Entity((
+                        id: Some("gunship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("hauler_lost"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(2.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "screen",
+                    )),
+                    ObjectiveComplete((
+                        id: "break",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "gunship",
+                    )),
+                    Outcome((
+                        outcome: Victory,
+                        message: Some("The Rust Tally hangs dead in the void, guns cold and engines dark - and the Ceres Queen is still whole to see it. But the deep scan does not go quiet: the gang\'s traffic keeps moving, and all of it is inbound to the freight lane."),
+                    )),
+                    NextScenario((
+                        scenario_id: "lifeline",
+                        linger: true,
+                    )),
+                ],
+            ),
+            (
+                name: OnNeutralized,
+                filters: [
+                    Entity((
+                        id: Some("gunship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("hauler_lost"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(2.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "screen",
+                    )),
+                    ObjectiveComplete((
+                        id: "break",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "gunship",
+                    )),
+                    Outcome((
+                        outcome: Victory,
+                        message: Some("The Rust Tally hangs dead in the void, guns cold and engines dark - too late for the Ceres Queen. And the deep scan does not go quiet: the gang\'s traffic keeps moving, and all of it is inbound to the freight lane."),
+                    )),
+                    NextScenario((
+                        scenario_id: "lifeline",
+                        linger: true,
+                    )),
+                ],
+            ),
+            (
                 name: OnDestroyed,
                 filters: [
                     Entity((
@@ -2154,6 +2232,32 @@
                     Outcome((
                         outcome: Defeat,
                         message: Some("The Rust Tally walks its torpedoes onto your wreck."),
+                    )),
+                    NextScenario((
+                        scenario_id: "broadside_gunship",
+                        linger: true,
+                    )),
+                ],
+            ),
+            (
+                name: OnNeutralized,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                    Expression((LessThan(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(3.0)))),
+                    )),
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("Guns and thrusters gone - the Rust Tally finishes you at leisure."),
                     )),
                     NextScenario((
                         scenario_id: "broadside_gunship",

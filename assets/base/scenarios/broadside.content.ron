@@ -2195,7 +2195,41 @@
                 ],
             ),
             (
+                name: OnNeutralized,
+                filters: [
+                    Entity((
+                        id: Some("corvette_a"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "corvette_a_down",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "corvette_a",
+                    )),
+                ],
+            ),
+            (
                 name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("corvette_b"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "corvette_b_down",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "corvette_b",
+                    )),
+                ],
+            ),
+            (
+                name: OnNeutralized,
                 filters: [
                     Entity((
                         id: Some("corvette_b"),
@@ -2375,6 +2409,32 @@
                     Outcome((
                         outcome: Defeat,
                         message: Some("The scavengers strip your wreck for parts."),
+                    )),
+                    NextScenario((
+                        scenario_id: "broadside",
+                        linger: true,
+                    )),
+                ],
+            ),
+            (
+                name: OnNeutralized,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                    Expression((LessThan(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(3.0)))),
+                    )),
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("Guns and thrusters gone - you drift, and the scavengers close in."),
                     )),
                     NextScenario((
                         scenario_id: "broadside",

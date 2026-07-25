@@ -18,10 +18,10 @@ pub mod prelude {
     pub use super::{
         EntityId, EntityTypeName, OnCombatLockEvent, OnCombatLockEventInfo, OnDestroyedEvent,
         OnDestroyedEventInfo, OnEnterEvent, OnEnterEventInfo, OnExitEvent, OnExitEventInfo,
-        OnOrbitEvent, OnOrbitEventInfo, OnStartEvent, OnStartEventInfo, OnTravelLockEvent,
-        OnTravelLockEventInfo, OnUpdateEvent, OnUpdateEventInfo, ENTITY_ID_COMPONENT_NAME,
-        ENTITY_OTHER_ID_COMPONENT_NAME, ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME,
-        ENTITY_TYPE_NAME_COMPONENT_NAME,
+        OnNeutralizedEvent, OnNeutralizedEventInfo, OnOrbitEvent, OnOrbitEventInfo, OnStartEvent,
+        OnStartEventInfo, OnTravelLockEvent, OnTravelLockEventInfo, OnUpdateEvent,
+        OnUpdateEventInfo, ENTITY_ID_COMPONENT_NAME, ENTITY_OTHER_ID_COMPONENT_NAME,
+        ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME, ENTITY_TYPE_NAME_COMPONENT_NAME,
     };
 }
 
@@ -85,6 +85,28 @@ pub struct OnDestroyedEventInfo {
     #[serde(rename = "id")]
     pub id: String,
     /// Type name of the destroyed entity.
+    #[serde(rename = "type_name")]
+    pub type_name: String,
+}
+
+/// Event kind fired when a ship is NEUTRALIZED (`onneutralized`) - it was an
+/// armed combatant that has lost all working weapons AND all working thrusters,
+/// so it is out of the fight even though its hull may be intact and the ship is
+/// still present in the world. Distinct from [`OnDestroyedEvent`]: a neutralized
+/// ship is not despawned. Carries [`OnNeutralizedEventInfo`] naming the ship.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onneutralized")]
+#[event_info(OnNeutralizedEventInfo)]
+pub struct OnNeutralizedEvent;
+
+/// Payload for [`OnNeutralizedEvent`]: the neutralized ship's scenario id and
+/// type name (RON keys `id` / `type_name`), mirroring [`OnDestroyedEventInfo`].
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
+pub struct OnNeutralizedEventInfo {
+    /// Scenario id of the neutralized ship.
+    #[serde(rename = "id")]
+    pub id: String,
+    /// Type name of the neutralized ship.
     #[serde(rename = "type_name")]
     pub type_name: String,
 }

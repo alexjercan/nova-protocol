@@ -19,6 +19,11 @@ pub enum EventConfig {
     OnStart,
     /// Fires when an entity is destroyed.
     OnDestroyed,
+    /// Fires when a ship is NEUTRALIZED - an armed combatant that has lost all
+    /// working weapons AND all working thrusters, so it is out of the fight
+    /// even with hull intact and still present in the world. Distinct from
+    /// `OnDestroyed`; filters by ship id/type_name the same way.
+    OnNeutralized,
     /// Fires every frame while a scenario is live and unpaused.
     OnUpdate,
     /// Fires when a body enters an area/zone (`id` = the area, other = the body).
@@ -43,6 +48,7 @@ impl From<EventConfig> for EventHandler<NovaEventWorld> {
         match value {
             EventConfig::OnStart => EventHandler::new::<OnStartEvent>(),
             EventConfig::OnDestroyed => EventHandler::new::<OnDestroyedEvent>(),
+            EventConfig::OnNeutralized => EventHandler::new::<OnNeutralizedEvent>(),
             EventConfig::OnUpdate => EventHandler::new::<OnUpdateEvent>(),
             EventConfig::OnEnter => EventHandler::new::<OnEnterEvent>(),
             EventConfig::OnExit => EventHandler::new::<OnExitEvent>(),

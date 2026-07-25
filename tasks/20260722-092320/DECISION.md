@@ -69,12 +69,21 @@ should ALSO count a neutralize must get an explicit `OnNeutralized` sibling
 handler. Audited surface (armed combatants only; unarmed haulers/derelicts are
 never neutralized so are left untouched):
 
-- broadside: corvette_a, corvette_b (objective + narrative), player_spaceship
-- broadside_gunship: gunship (objective + narrative), player_spaceship
+- broadside: corvette_a, corvette_b, player_spaceship
+- broadside_gunship: gunship (both hauler-fate variants), player_spaceship
 - final_tally: picket_a, picket_b, flagship, player_spaceship
 - lifeline: raider_1a/1b/2a/2b/2c/3a/3b, player_spaceship
 - shakedown_run: pirate, player_spaceship
 - asteroid_field: player_spaceship only (the other handler is an asteroid)
+
+Implemented: 15 enemy siblings + 6 player siblings = 21 `OnNeutralized`
+handlers. Each mirrors its `OnDestroyed` counterpart's OBJECTIVE / terminal
+actions (the idempotent `VariableSet(=1)` + `ObjectiveMarkerDetach`, and the
+guarded act-advancing Victory/Defeat blocks) so the mission registers a beaten
+ship. Pure-flavour "first-one-down" comms handlers (the two broadside corvette
+StoryMessage-only lines) were deliberately NOT mirrored: a neutralize completes
+the objective but may skip that one voice beat, which is cosmetic and avoids a
+double-spoken line if the wreck is later destroyed.
 
 Unarmed targets left destroy-only by the arming guard: broadside `hauler`,
 broadside_gunship `hauler`, lifeline `hauler_queen` / `hauler_meridian`,

@@ -51,6 +51,7 @@ a scoped entity, (4) be a self-expiring `TempEntity`, or (5) be torn down by a
 | `OnStart`      | once, right after a scenario loads |
 | `OnUpdate`     | every frame while a scenario is live and unpaused (frozen behind the pause menu / outcome frame) |
 | `OnDestroyed`  | an entity is destroyed |
+| `OnNeutralized` | a ship that was armed loses ALL working weapons AND thrusters - combat-dead (out of the fight) even with its hull intact; the ship is NOT despawned |
 | `OnEnter`      | a body enters an area/zone |
 | `OnExit`       | a body leaves an area/zone |
 | `OnOrbit`      | a ship has held an engaged autopilot ORBIT around a well for the hold window (default 5s); re-fires every further window while the hold continues |

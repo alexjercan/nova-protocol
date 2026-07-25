@@ -17,6 +17,7 @@ tagged **(breaking)**.
 ### Scenarios & Objectives
 
 - Scenarios tab groups campaigns under collapsible `[-]`/`[+]` headers listing each campaign's ordered chapters - including hidden mid-story chapters - so any chapter is launchable directly for replay.
+- Ships are now combat-dead when out of the fight: an armed ship that loses ALL working weapons AND thrusters is NEUTRALIZED - a distinct drifting-wreck state (AI switched off, not despawned) that fires a new `OnNeutralized` scenario event, so a beaten enemy counts as beaten without grinding its hull to zero and the player loses when they can no longer fight. Shipped enemy kill-objectives and player-defeat handlers accept neutralize as well as destroy.
 
 ### Modding & Mod Portal
 
