@@ -305,6 +305,16 @@ const config = {
             patterns: [
                 { from: "src/assets", to: "assets" },
                 { from: "src/favicon.svg", to: "favicon.svg" },
+                // Easter egg: the self-contained NOVA OS terminal PoC lives in
+                // `examples/ui/` (its source of truth). Copy it verbatim into the
+                // build at the secret, unlinked `/nova-os/` route rather than
+                // committing a second copy under `src/`. It has no external or
+                // relative asset refs, so it renders as-is under any publicPath.
+                // Reached via the brand-click hotspot in src/site.ts.
+                {
+                    from: "../examples/ui/nova_os_terminal_poc.html",
+                    to: "nova-os/index.html",
+                },
             ],
         }),
         new HtmlPartialsPlugin({ basePath: publicPath }),
@@ -349,6 +359,9 @@ const config = {
         historyApiFallback: {
             rewrites: [
                 { from: /^\/tutorial/, to: "/tutorial/index.html" },
+                // Easter-egg route: resolve /nova-os (with or without a trailing
+                // slash) to the copied PoC during `webpack serve`.
+                { from: /^\/nova-os/, to: "/nova-os/index.html" },
                 ...WIKI_DOC_PAGES.map(({ slug }) => ({
                     from: new RegExp("^/wiki/" + slug),
                     to: "/wiki/" + slug + "/index.html",

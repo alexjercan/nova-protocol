@@ -747,6 +747,22 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   unpatched pin must also stay resolvable. Restore all five lines +
   bump the tag TOGETHER in the landing commit, after the upstream
   push+tag. 20260720-000609.
+- `redundant-param-enables-impossible-test` (x1): when a new fn needs a value an
+  already-computed local provides, pass that local - don't re-derive or
+  re-parameterize it. A redundant param widens the input space to unreachable
+  combos a test can then "pass" against (a separate `brandPath` equal to `root`
+  let the wiring test assert an armed `root=""`/`current="/home"` that cannot
+  occur); collapsing to one source of truth is what makes the test express only
+  reachable states. 20260726-210348.
+- `web-tests-need-node-from-flake` (x1, reference): the agent shell has no node
+  on PATH - use the flake's store bin (`nodejs_22`, e.g.
+  `/nix/store/*-nodejs-22.*/bin`) and symlink the main checkout's
+  `web/node_modules` into the sprout worktree to run `npm`, removing it before
+  commit (a bare `node_modules` symlink dodges the `node_modules/` gitignore).
+  `ts-node` fails under the `module: esnext` tsconfig, so run node tests by
+  compiling first: `tsc --module commonjs --target es2020 --lib es2020,dom
+  --outDir .test-out && node .test-out/...` (wired as `npm test`).
+  20260726-210348.
 
 ## Domain lessons (nova-protocol specific)
 

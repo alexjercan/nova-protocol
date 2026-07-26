@@ -32,6 +32,58 @@ function upgradeFigures(base: string): void {
     });
 }
 
+// Easter egg: the hidden NOVA OS terminal PoC (copied into the build at
+// `/nova-os/`, see webpack.config.js) is opened by clicking the site brand/logo
+// five times in quick succession. `registerHit` is the pure, testable core of
+// that gesture: it keeps a rolling window of click timestamps, drops any older
+// than `windowMs`, and reports `triggered` once `threshold` clicks land inside
+// the window. Kept side-effect-free (no DOM, no `window`) so it can be exercised
+// directly without a browser - the surrounding wiring in `initEasterEgg` is the
+// only part that needs a runtime check. Returns a fresh array so callers reassign
+// rather than mutate in place.
+export function registerHit(
+    hits: number[],
+    now: number,
+    windowMs: number,
+    threshold: number
+): { hits: number[]; triggered: boolean } {
+    const recent = hits.filter((t) => now - t < windowMs).concat(now);
+    if (recent.length >= threshold) return { hits: [], triggered: true };
+    return { hits: recent, triggered: false };
+}
+
+const EGG_ROUTE = "nova-os";
+const EGG_THRESHOLD = 5;
+const EGG_WINDOW_MS = 1500;
+
+// Wire the brand-click gesture. The brand is a link to the site root (`root`),
+// so this only ARMS when that root IS the current page - i.e. you are on the
+// landing page, where re-clicking "home" is an otherwise-useless self-reload.
+// There it swallows the click (preventDefault) and feeds it to `registerHit`;
+// the fifth click within the window navigates to the secret route. On every
+// other page the brand keeps its normal "go home" behavior untouched.
+export function initEasterEgg(
+    brand: HTMLAnchorElement | null,
+    current: string,
+    root: string
+): void {
+    if (!brand || root !== current) return;
+    let hits: number[] = [];
+    brand.addEventListener("click", (event: MouseEvent): void => {
+        event.preventDefault();
+        const result = registerHit(
+            hits,
+            event.timeStamp,
+            EGG_WINDOW_MS,
+            EGG_THRESHOLD
+        );
+        hits = result.hits;
+        if (result.triggered) {
+            window.location.href = `${root}/${EGG_ROUTE}/`;
+        }
+    });
+}
+
 // Shared page bootstrap. Marks the current top-level nav link as active so the
 // header reflects where you are, and upgrades figure placeholders to the real
 // screenshots where the asset exists. Runs on every page (see the per-page
@@ -53,6 +105,9 @@ export function initSite(): void {
 
     // Upgrade figures using the same basePath (trailing slash) the images need.
     upgradeFigures(root === "" ? "/" : root + "/");
+
+    // Arm the hidden NOVA OS terminal easter egg on the landing page.
+    initEasterEgg(brand, current, root);
 
     const links = document.querySelectorAll<HTMLAnchorElement>(".site-nav a");
     links.forEach((link) => {
