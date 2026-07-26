@@ -13,12 +13,24 @@
 - Added `Dim`, `Info` and `Warn` terminal row kinds so the welcome copy can match the HTML row hierarchy instead of rendering every boot line as the same green output.
 - Reduced the CRT material tint alpha, scanline strength, vignette strength and glow. Also reduced the fallback scanline/vignette UI node alphas so render-capable apps do not compound into the pale green film seen in the game screenshot.
 - Replaced startup scrollback with the HTML-style welcome block:
-  `NOVA OS 0.9.0-dev`, BIOS check, display check, and `Hint: type \`help\` and press Enter.`.
+  `NOVA OS v{APP_VERSION}`, BIOS check, display check, and `Hint: type \`help\` and press Enter.`.
 - Changed `clear` to restore the welcome block instead of leaving the terminal empty.
+
+## Feedback Round 2
+
+- Switched the NOVA OS terminal font to `assets/fonts/SGr-IosevkaTerm-Regular.ttc`, copied from `~/Downloads`, and registered a small `.ttc` loader because Bevy's built-in font loader only advertises `.ttf` and `.otf`.
+- Changed terminal version labels to use `nova_info::APP_VERSION`, the same build-version source used by the status bar.
+- Matched the HTML palette more closely: phosphor `#36ff79`, dim `#19a64f`, muted `#0d6e35`, amber `#ffb84a`, orange `#ff7b2d`, blue `#36a3ff`, with ordinary output rendered in the HTML's pale readable text color.
+- Tuned the CRT shader toward the web sample's rounded-screen feel: darker perimeter, lower whole-screen tint, soft center/edge glow and subtle scanlines.
+- Made the prompt row darker and rendered autocomplete as an inline ghost suffix, e.g. typing `he` shows `lp` after the cursor.
+- Forced terminal scrollback to jump to the bottom after rebuilds so command output remains visible when it overflows.
+- Removed `HudDrawerExempt` from the scenario readout strip so the top-center timer hides behind NOVA OS; only the actual status bar stays above the drawer.
+- Changed drawer close to an animated close request: Escape, Start and right-stick close keep `PauseStates::Drawer` active until the slide reaches zero, then unpause.
+- Upper-cased footer hints to better match the HTML PoC.
 
 ## Tradeoffs
 
-- The drawer still uses Bevy's default font for now, per the original scope. The stronger font size/color pass is the practical readability fix until a dedicated font asset task lands.
+- The Iosevka Term TTC is large, about 66 MB. It is used directly because the requested font was only available locally as a TTC collection; a future asset pass can subset or replace it with a smaller TTF/WOFF if needed.
 - The fallback scanline layer stays in place for headless/widget-tree coverage and non-material contexts, but its alpha is intentionally low because the shader now carries the real CRT treatment.
 - This task does not implement `log`, `objectives`, `ship`, `map`, app runtime or ship viewer output. The live backing state remains in `drawer.rs` for those future commands.
 
@@ -31,6 +43,8 @@
 
 - `nix develop --command cargo fmt --check`
 - `nix develop --command cargo test -p nova_gameplay drawer`
+- `nix develop --command cargo test -p nova_gameplay readout`
+- `nix develop --command cargo test -p nova_menu escape_does_not_menu_toggle_the_drawer`
 - `nix develop --command cargo check`
 - `cd web && npm run ci`
 - `tatr check --ledger LESSONS.md`

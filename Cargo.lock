@@ -4644,6 +4644,7 @@ dependencies = [
  "bevy_rand",
  "bevy_transform_interpolation",
  "nova_events",
+ "nova_info",
  "nova_ui",
  "rand 0.10.2",
  "ron",

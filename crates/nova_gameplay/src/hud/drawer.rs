@@ -31,6 +31,7 @@
 //! `Res<Time>`).
 
 use bevy::{
+    asset::{io::Reader, AssetApp, AssetLoader, LoadContext},
     input::{
         keyboard::{Key, KeyboardInput},
         ButtonState,
@@ -74,25 +75,27 @@ const NOVA_OS_SCREEN_PAD_PX: f32 = 18.0;
 const NOVA_OS_TERMINAL_PAD_X_PX: f32 = 16.0;
 const NOVA_OS_TERMINAL_PAD_Y_PX: f32 = 14.0;
 const NOVA_OS_PROMPT_ROW_HEIGHT_PX: f32 = 48.0;
+const NOVA_OS_FONT_PATH: &str = "fonts/SGr-IosevkaTerm-Regular.ttc";
 const NOVA_OS_BACKDROP: Color = Color::srgb_u8(0, 3, 6);
 const NOVA_OS_CASE: Color = Color::srgb_u8(5, 10, 15);
 const NOVA_OS_CASE_RAISED: Color = Color::srgb_u8(11, 21, 32);
 const NOVA_OS_CASE_EDGE: Color = Color::srgb_u8(37, 65, 86);
-const NOVA_OS_SCREEN: Color = Color::srgb_u8(0, 13, 4);
-const NOVA_OS_PHOSPHOR: Color = Color::srgb_u8(72, 255, 139);
-const NOVA_OS_PHOSPHOR_DIM: Color = Color::srgb_u8(44, 214, 100);
-const NOVA_OS_PHOSPHOR_MUTED: Color = Color::srgb_u8(22, 135, 66);
-const NOVA_OS_INFO: Color = Color::srgb_u8(71, 171, 255);
-const NOVA_OS_AMBER: Color = Color::srgb_u8(255, 198, 79);
-const NOVA_OS_ORANGE: Color = Color::srgb_u8(255, 142, 50);
+const NOVA_OS_SCREEN: Color = Color::srgb_u8(0, 16, 5);
+const NOVA_OS_PHOSPHOR: Color = Color::srgb_u8(54, 255, 121);
+const NOVA_OS_TEXT: Color = Color::srgb_u8(185, 255, 201);
+const NOVA_OS_PHOSPHOR_DIM: Color = Color::srgb_u8(25, 166, 79);
+const NOVA_OS_PHOSPHOR_MUTED: Color = Color::srgb_u8(13, 110, 53);
+const NOVA_OS_INFO: Color = Color::srgb_u8(54, 163, 255);
+const NOVA_OS_AMBER: Color = Color::srgb_u8(255, 184, 74);
+const NOVA_OS_ORANGE: Color = Color::srgb_u8(255, 123, 45);
 const NOVA_OS_CONTENT_Z: i32 = 0;
 const NOVA_OS_OVERLAY_Z: i32 = 1;
 const NOVA_OS_PROMPT_PREFIX: &str = "nova> ";
 
 /// Straight-alpha CRT overlay tint + scanline controls, passed to WGSL.
-const NOVA_OS_CRT_TINT: LinearRgba = LinearRgba::new(0.282, 1.0, 0.545, 0.14);
+const NOVA_OS_CRT_TINT: LinearRgba = LinearRgba::new(0.212, 1.0, 0.475, 0.10);
 const NOVA_OS_CRT_SCANLINE_STRENGTH: f32 = 0.07;
-const NOVA_OS_CRT_VIGNETTE_STRENGTH: f32 = 0.32;
+const NOVA_OS_CRT_VIGNETTE_STRENGTH: f32 = 0.50;
 
 /// Global stacking-context z for the OPEN drawer: it is a modal, so backdrop and
 /// panel rise above the flight HUD chrome (which carries no `GlobalZIndex` = 0).
@@ -162,6 +165,10 @@ struct NovaOsTerminalPromptMarker;
 /// Hint/status line owned by the terminal shell.
 #[derive(Component)]
 struct NovaOsTerminalHintMarker;
+
+/// Ghost completion suffix rendered inline beside the typed prompt.
+#[derive(Component)]
+struct NovaOsTerminalGhostMarker;
 
 /// Thin overlay rows that approximate CRT scanlines.
 #[derive(Component)]
@@ -261,6 +268,13 @@ enum DrawerFlightLogIconKind {
 #[derive(Component, Default)]
 struct DrawerOpenness(f32);
 
+/// True after the user requested close; gameplay remains paused until the
+/// real-time close animation reaches zero.
+#[derive(Resource, Default)]
+struct DrawerCloseTransition {
+    closing: bool,
+}
+
 /// Drawer-local combined flight log derived from [`StoryFeed`] and
 /// [`GameObjectives`].
 ///
@@ -359,6 +373,30 @@ struct NovaOsCrtUniform {
     glow_strength: f32,
 }
 
+#[derive(Default, TypePath)]
+struct NovaOsTtcFontLoader;
+
+impl AssetLoader for NovaOsTtcFontLoader {
+    type Asset = Font;
+    type Settings = ();
+    type Error = std::io::Error;
+
+    async fn load(
+        &self,
+        reader: &mut dyn Reader,
+        _settings: &Self::Settings,
+        _load_context: &mut LoadContext<'_>,
+    ) -> Result<Self::Asset, Self::Error> {
+        let mut bytes = Vec::new();
+        reader.read_to_end(&mut bytes).await?;
+        Ok(Font::from_bytes(bytes))
+    }
+
+    fn extensions(&self) -> &[&str] {
+        &["ttc"]
+    }
+}
+
 impl Default for NovaOsCrtMaterial {
     fn default() -> Self {
         Self {
@@ -366,7 +404,7 @@ impl Default for NovaOsCrtMaterial {
                 tint: NOVA_OS_CRT_TINT,
                 scanline_strength: NOVA_OS_CRT_SCANLINE_STRENGTH,
                 vignette_strength: NOVA_OS_CRT_VIGNETTE_STRENGTH,
-                glow_strength: 0.08,
+                glow_strength: 0.13,
             },
         }
     }
@@ -628,7 +666,7 @@ fn nova_os_welcome_rows() -> Vec<TerminalRow> {
     vec![
         TerminalRow {
             kind: TerminalRowKind::Info,
-            text: "NOVA OS 0.9.0-dev".to_string(),
+            text: format!("NOVA OS {}", nova_os_version_label()),
         },
         TerminalRow {
             kind: TerminalRowKind::Dim,
@@ -643,6 +681,10 @@ fn nova_os_welcome_rows() -> Vec<TerminalRow> {
             text: "Hint: type `help` and press Enter.".to_string(),
         },
     ]
+}
+
+fn nova_os_version_label() -> String {
+    format!("v{}", nova_info::APP_VERSION)
 }
 
 enum TerminalCommandResult {
@@ -769,11 +811,18 @@ impl Plugin for NovaDrawerPlugin {
         app.init_resource::<DrawerTabAnchor>();
         app.init_resource::<DrawerFlightLog>();
         app.init_resource::<NovaOsTerminal>();
+        app.init_resource::<DrawerCloseTransition>();
+        app.register_asset_loader(NovaOsTtcFontLoader);
         app.add_plugins(UiMaterialPlugin::<NovaOsCrtMaterial>::default());
 
         // Tab opens the drawer. It keeps running in all of Playing so an open
         // drawer can reserve Tab for terminal completion instead of closing.
-        app.add_systems(Update, toggle_drawer.run_if(in_state(GameStates::Playing)));
+        app.add_systems(
+            Update,
+            (toggle_drawer, close_drawer_from_menu_keys)
+                .chain()
+                .run_if(in_state(GameStates::Playing)),
+        );
 
         // Shell upkeep while the HUD is live: ease the slide and rebuild the
         // objectives section on change / first spawn. (The reveal's tuck anchor
@@ -832,6 +881,7 @@ fn toggle_drawer(
     gamepad: Option<Res<ButtonInput<GamepadButton>>>,
     current: Res<State<PauseStates>>,
     mut next: ResMut<NextState<PauseStates>>,
+    mut close: ResMut<DrawerCloseTransition>,
 ) {
     let pad = gamepad
         .map(|g| g.just_pressed(GamepadButton::RightThumb))
@@ -841,9 +891,31 @@ fn toggle_drawer(
         return;
     }
     match current.get() {
-        PauseStates::Unpaused => next.set(PauseStates::Drawer),
-        PauseStates::Drawer if pad && !tab => next.set(PauseStates::Unpaused),
+        PauseStates::Unpaused => {
+            close.closing = false;
+            next.set(PauseStates::Drawer);
+        }
+        PauseStates::Drawer if pad && !tab => {
+            close.closing = true;
+        }
         PauseStates::Drawer | PauseStates::Paused => {}
+    }
+}
+
+fn close_drawer_from_menu_keys(
+    keys: Res<ButtonInput<KeyCode>>,
+    gamepad: Option<Res<ButtonInput<GamepadButton>>>,
+    current: Res<State<PauseStates>>,
+    mut close: ResMut<DrawerCloseTransition>,
+) {
+    if *current.get() != PauseStates::Drawer {
+        return;
+    }
+    let start = gamepad
+        .map(|g| g.just_pressed(GamepadButton::Start))
+        .unwrap_or(false);
+    if keys.just_pressed(KeyCode::Escape) || start {
+        close.closing = true;
     }
 }
 
@@ -902,13 +974,19 @@ fn terminal_ui_just_spawned(
 fn rebuild_terminal_ui(
     mut commands: Commands,
     terminal: Res<NovaOsTerminal>,
-    q_scrollback: Query<(Entity, Option<&Children>), With<NovaOsTerminalScrollbackMarker>>,
+    asset_server: Option<Res<AssetServer>>,
+    mut q_scrollback: Query<
+        (Entity, Option<&Children>, &mut ScrollPosition),
+        With<NovaOsTerminalScrollbackMarker>,
+    >,
     mut text_targets: ParamSet<(
         Query<(&mut Text, &mut TextColor), With<NovaOsTerminalPromptMarker>>,
         Query<(&mut Text, &mut TextColor), With<NovaOsTerminalHintMarker>>,
+        Query<(&mut Text, &mut TextColor), With<NovaOsTerminalGhostMarker>>,
     )>,
 ) {
-    if let Ok((list, children)) = q_scrollback.single() {
+    let font = nova_os_font(asset_server.as_deref());
+    if let Ok((list, children, mut scroll)) = q_scrollback.single_mut() {
         if let Some(children) = children {
             for &child in children {
                 commands.entity(child).despawn();
@@ -916,9 +994,10 @@ fn rebuild_terminal_ui(
         }
         commands.entity(list).with_children(|parent| {
             for row in &terminal.scrollback {
-                spawn_terminal_row(parent, row);
+                spawn_terminal_row(parent, row, font.clone());
             }
         });
+        scroll.0.y = f32::MAX;
     }
 
     for (mut text, mut color) in &mut text_targets.p0() {
@@ -926,19 +1005,23 @@ fn rebuild_terminal_ui(
         color.0 = prompt_color(&terminal);
     }
     for (mut text, mut color) in &mut text_targets.p1() {
-        text.0 = terminal.completion_hint.clone().unwrap_or_default();
+        text.0 = prompt_hint_display(&terminal);
         color.0 = match terminal.parse_status {
             TerminalParseStatus::Invalid => theme::semantic::THREAT,
             TerminalParseStatus::ValidPrefix => NOVA_OS_PHOSPHOR_MUTED,
             TerminalParseStatus::Empty | TerminalParseStatus::Valid => NOVA_OS_PHOSPHOR_DIM,
         };
     }
+    for (mut text, mut color) in &mut text_targets.p2() {
+        text.0 = prompt_completion_ghost(&terminal);
+        color.0 = NOVA_OS_PHOSPHOR.with_alpha(0.35);
+    }
 }
 
-fn spawn_terminal_row(parent: &mut ChildSpawnerCommands, row: &TerminalRow) {
+fn spawn_terminal_row(parent: &mut ChildSpawnerCommands, row: &TerminalRow, font: Handle<Font>) {
     let color = match row.kind {
         TerminalRowKind::Input => NOVA_OS_AMBER,
-        TerminalRowKind::Output => NOVA_OS_PHOSPHOR,
+        TerminalRowKind::Output => NOVA_OS_TEXT,
         TerminalRowKind::Dim => NOVA_OS_PHOSPHOR_DIM,
         TerminalRowKind::Info => NOVA_OS_INFO,
         TerminalRowKind::Warn => NOVA_OS_AMBER,
@@ -946,8 +1029,9 @@ fn spawn_terminal_row(parent: &mut ChildSpawnerCommands, row: &TerminalRow) {
     };
     parent.spawn((
         Text::new(row.text.clone()),
-        TextFont::from_font_size(DRAWER_LINE_FONT_PX),
+        nova_os_text_font(DRAWER_LINE_FONT_PX, font),
         TextColor(color),
+        nova_os_text_shadow(color),
         TextLayout {
             justify: Justify::Left,
             linebreak: LineBreak::WordBoundary,
@@ -961,12 +1045,57 @@ fn prompt_display(terminal: &NovaOsTerminal) -> String {
     prompt
 }
 
+fn prompt_hint_display(terminal: &NovaOsTerminal) -> String {
+    if terminal.parse_status == TerminalParseStatus::Invalid {
+        terminal.completion_hint.clone().unwrap_or_default()
+    } else {
+        String::new()
+    }
+}
+
+fn prompt_completion_ghost(terminal: &NovaOsTerminal) -> String {
+    if terminal.parse_status != TerminalParseStatus::ValidPrefix {
+        return String::new();
+    }
+    let Some(prefix) = current_command_prefix(&terminal.prompt) else {
+        return String::new();
+    };
+    TERMINAL_COMMANDS
+        .iter()
+        .map(|command| command.name)
+        .find(|name| name.starts_with(prefix))
+        .and_then(|name| name.get(prefix.len()..))
+        .unwrap_or("")
+        .to_string()
+}
+
 fn prompt_color(terminal: &NovaOsTerminal) -> Color {
     match terminal.parse_status {
         TerminalParseStatus::Invalid => theme::semantic::THREAT,
         TerminalParseStatus::Empty
         | TerminalParseStatus::Valid
         | TerminalParseStatus::ValidPrefix => NOVA_OS_PHOSPHOR,
+    }
+}
+
+fn nova_os_font(asset_server: Option<&AssetServer>) -> Handle<Font> {
+    asset_server
+        .map(|server| server.load(NOVA_OS_FONT_PATH))
+        .unwrap_or_default()
+}
+
+fn nova_os_text_font(font_size: f32, font: Handle<Font>) -> TextFont {
+    TextFont {
+        font: FontSource::Handle(font),
+        font_size: FontSize::Px(font_size),
+        ..default()
+    }
+}
+
+fn nova_os_text_shadow(color: Color) -> TextShadow {
+    TextShadow {
+        offset: Vec2::splat(1.0),
+        color: color.with_alpha(0.28),
     }
 }
 
@@ -1015,6 +1144,8 @@ fn max_drawer_scroll_y(computed_node: Option<&ComputedNode>) -> f32 {
 fn drive_drawer_slide(
     time: Res<Time<Real>>,
     pause: Res<State<PauseStates>>,
+    mut next: ResMut<NextState<PauseStates>>,
+    mut close: ResMut<DrawerCloseTransition>,
     mut q_panel: Query<
         (&mut DrawerOpenness, &mut Visibility),
         (With<DrawerRootMarker>, Without<DrawerBackdropMarker>),
@@ -1024,7 +1155,11 @@ fn drive_drawer_slide(
         (With<DrawerBackdropMarker>, Without<DrawerRootMarker>),
     >,
 ) {
-    let target = if *pause.get() == PauseStates::Drawer {
+    let drawer_active = *pause.get() == PauseStates::Drawer;
+    if !drawer_active {
+        close.closing = false;
+    }
+    let target = if drawer_active && !close.closing {
         1.0
     } else {
         0.0
@@ -1044,6 +1179,11 @@ fn drive_drawer_slide(
     for (mut background, mut visibility) in &mut q_backdrop {
         background.0 = NOVA_OS_BACKDROP.with_alpha(DRAWER_BACKDROP_ALPHA * openness);
         *visibility = visibility_for(openness);
+    }
+
+    if drawer_active && close.closing && openness <= f32::EPSILON {
+        close.closing = false;
+        next.set(PauseStates::Unpaused);
     }
 }
 
@@ -1427,11 +1567,13 @@ fn setup_drawer(
     add: On<Add, PlayerSpaceshipMarker>,
     mut commands: Commands,
     mut crt_materials: Option<ResMut<Assets<NovaOsCrtMaterial>>>,
+    asset_server: Option<Res<AssetServer>>,
     q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
 ) {
     if q_spaceship.get(add.entity).is_err() {
         return;
     }
+    let font = nova_os_font(asset_server.as_deref());
 
     // Dim backdrop behind the panel (hidden until the drawer opens). NO
     // `HudTier`: the drawer is a modal overlay on its own axis, so the
@@ -1493,7 +1635,7 @@ fn setup_drawer(
                         flex_grow: 1.0,
                         min_height: Val::Px(0.0),
                         padding: UiRect::all(Val::Px(NOVA_OS_BEZEL_PAD_PX)),
-                        border: UiRect::all(Val::Px(2.0)),
+                        border: UiRect::all(Val::Px(1.0)),
                         flex_direction: FlexDirection::Column,
                         ..default()
                     },
@@ -1510,7 +1652,7 @@ fn setup_drawer(
                                 flex_grow: 1.0,
                                 min_height: Val::Px(0.0),
                                 padding: UiRect::all(Val::Px(NOVA_OS_SCREEN_PAD_PX)),
-                                border: UiRect::all(Val::Px(2.0)),
+                                border: UiRect::all(Val::Px(1.0)),
                                 flex_direction: FlexDirection::Column,
                                 row_gap: Val::Px(12.0),
                                 overflow: Overflow::clip(),
@@ -1520,7 +1662,7 @@ fn setup_drawer(
                             BackgroundColor(NOVA_OS_SCREEN),
                         ))
                         .with_children(|screen| {
-                            spawn_nova_os_terminal_content(screen);
+                            spawn_nova_os_terminal_content(screen, font.clone());
                             spawn_nova_os_screen_overlays(screen, crt_materials.as_deref_mut());
                         });
                 });
@@ -1614,7 +1756,7 @@ fn spawn_nova_os_screen_overlays(
     ));
 }
 
-fn spawn_nova_os_terminal_content(screen: &mut ChildSpawnerCommands) {
+fn spawn_nova_os_terminal_content(screen: &mut ChildSpawnerCommands, font: Handle<Font>) {
     screen
         .spawn((
             Name::new("NovaOsTerminalContent"),
@@ -1668,16 +1810,21 @@ fn spawn_nova_os_terminal_content(screen: &mut ChildSpawnerCommands) {
                                 BackgroundColor(NOVA_OS_PHOSPHOR),
                             ));
                             brand.spawn((
-                                Text::new("NOVA OS 0.9 / COCKPIT LINK"),
-                                TextFont::from_font_size(DRAWER_SECTION_TITLE_FONT_PX),
+                                Text::new(format!(
+                                    "NOVA OS {} / COCKPIT LINK",
+                                    nova_os_version_label()
+                                )),
+                                nova_os_text_font(DRAWER_SECTION_TITLE_FONT_PX, font.clone()),
                                 TextColor(NOVA_OS_PHOSPHOR),
+                                nova_os_text_shadow(NOVA_OS_PHOSPHOR),
                             ));
                         });
                     topbar.spawn((
                         NovaOsStatusMarker,
                         Text::new("DRAWER PAUSED     SHIP: CERES QUEEN     LINK: LOCAL"),
-                        TextFont::from_font_size(DRAWER_SECTION_TITLE_FONT_PX),
+                        nova_os_text_font(DRAWER_SECTION_TITLE_FONT_PX, font.clone()),
                         TextColor(NOVA_OS_PHOSPHOR_DIM),
+                        nova_os_text_shadow(NOVA_OS_PHOSPHOR_DIM),
                     ));
                 });
 
@@ -1692,7 +1839,7 @@ fn spawn_nova_os_terminal_content(screen: &mut ChildSpawnerCommands) {
                         ..default()
                     },
                     BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.36)),
-                    BackgroundColor(Color::srgba(0.0, 8.0 / 255.0, 3.0 / 255.0, 0.66)),
+                    BackgroundColor(Color::srgba(0.0, 12.0 / 255.0, 4.0 / 255.0, 0.4)),
                 ))
                 .with_children(|terminal_panel| {
                     terminal_panel
@@ -1716,7 +1863,7 @@ fn spawn_nova_os_terminal_content(screen: &mut ChildSpawnerCommands) {
                         ))
                         .with_children(|scrollback| {
                             for row in nova_os_welcome_rows() {
-                                spawn_terminal_row(scrollback, &row);
+                                spawn_terminal_row(scrollback, &row, font.clone());
                             }
                         });
                     terminal_panel
@@ -1735,31 +1882,44 @@ fn spawn_nova_os_terminal_content(screen: &mut ChildSpawnerCommands) {
                                 ..default()
                             },
                             BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.28)),
-                            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.28)),
+                            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.48)),
                         ))
                         .with_children(|prompt_row| {
                             prompt_row.spawn((
                                 NovaOsPromptPrefixMarker,
                                 Text::new("nova>"),
-                                TextFont::from_font_size(DRAWER_LINE_FONT_PX),
+                                nova_os_text_font(DRAWER_LINE_FONT_PX, font.clone()),
                                 TextColor(NOVA_OS_AMBER),
+                                nova_os_text_shadow(NOVA_OS_AMBER),
                             ));
                             prompt_row.spawn((
                                 NovaOsTerminalPromptMarker,
                                 Text::new("|"),
-                                TextFont::from_font_size(DRAWER_LINE_FONT_PX),
+                                nova_os_text_font(DRAWER_LINE_FONT_PX, font.clone()),
                                 TextColor(NOVA_OS_PHOSPHOR),
+                                nova_os_text_shadow(NOVA_OS_PHOSPHOR),
                                 Node {
-                                    flex_grow: 1.0,
+                                    min_width: Val::Px(0.0),
+                                    ..default()
+                                },
+                            ));
+                            prompt_row.spawn((
+                                NovaOsTerminalGhostMarker,
+                                Text::new(""),
+                                nova_os_text_font(DRAWER_LINE_FONT_PX, font.clone()),
+                                TextColor(NOVA_OS_PHOSPHOR.with_alpha(0.35)),
+                                nova_os_text_shadow(NOVA_OS_PHOSPHOR),
+                                Node {
                                     min_width: Val::Px(0.0),
                                     ..default()
                                 },
                             ));
                             prompt_row.spawn((
                                 NovaOsTerminalHintMarker,
-                                Text::new("type help"),
-                                TextFont::from_font_size(DRAWER_LINE_FONT_PX),
+                                Text::new(""),
+                                nova_os_text_font(DRAWER_LINE_FONT_PX, font.clone()),
                                 TextColor(NOVA_OS_PHOSPHOR_MUTED),
+                                nova_os_text_shadow(NOVA_OS_PHOSPHOR_MUTED),
                                 Node {
                                     flex_grow: 1.0,
                                     min_width: Val::Px(0.0),
@@ -1783,14 +1943,15 @@ fn spawn_nova_os_terminal_content(screen: &mut ChildSpawnerCommands) {
                 ))
                 .with_children(|footer| {
                     for hint in [
-                        "Tab: autocomplete in terminal",
-                        "Esc: close drawer",
-                        "help: list commands",
+                        "TAB: AUTOCOMPLETE IN TERMINAL",
+                        "ESC: CLOSE DRAWER",
+                        "HELP: LIST COMMANDS",
                     ] {
                         footer.spawn((
                             Text::new(hint),
-                            TextFont::from_font_size(11.0),
+                            nova_os_text_font(11.0, font.clone()),
                             TextColor(NOVA_OS_PHOSPHOR_MUTED),
+                            nova_os_text_shadow(NOVA_OS_PHOSPHOR_MUTED),
                         ));
                     }
                 });
@@ -1829,6 +1990,7 @@ mod tests {
         app.init_state::<GameStates>();
         app.init_state::<PauseStates>();
         app.init_resource::<ButtonInput<KeyCode>>();
+        app.init_resource::<DrawerCloseTransition>();
         app.add_systems(Update, toggle_drawer.run_if(in_state(GameStates::Playing)));
         // Enter Playing so the toggle runs.
         app.world_mut()
@@ -1994,6 +2156,21 @@ mod tests {
     }
 
     #[test]
+    fn nova_os_prompt_renders_fish_style_completion_ghost() {
+        let mut terminal = NovaOsTerminal::default();
+        type_text(&mut terminal, "he");
+
+        assert_eq!(terminal.parse_status, TerminalParseStatus::ValidPrefix);
+        assert_eq!(prompt_display(&terminal), "he|");
+        assert_eq!(prompt_completion_ghost(&terminal), "lp");
+        assert_eq!(prompt_hint_display(&terminal), "");
+
+        type_text(&mut terminal, "zz");
+        assert_eq!(prompt_completion_ghost(&terminal), "");
+        assert_eq!(prompt_hint_display(&terminal), "did you mean help?");
+    }
+
+    #[test]
     fn terminal_unknown_command_suggests_nearest_match() {
         let mut terminal = NovaOsTerminal::default();
         type_text(&mut terminal, "hlep");
@@ -2095,7 +2272,7 @@ mod tests {
     /// The gamepad right-stick click (`RightThumb`) opens the drawer too (task
     /// 20260724-134312). Narrowing the pad button away fails this.
     #[test]
-    fn pad_toggles_drawer_state() {
+    fn pad_opens_drawer_and_requests_animated_close() {
         let mut app = toggle_app();
         app.init_resource::<ButtonInput<GamepadButton>>();
         assert_eq!(pause_state(&app), PauseStates::Unpaused);
@@ -2109,8 +2286,12 @@ mod tests {
         press_pad(&mut app);
         assert_eq!(
             pause_state(&app),
-            PauseStates::Unpaused,
-            "the right-stick click closes it again"
+            PauseStates::Drawer,
+            "the right-stick click keeps gameplay paused while close animation runs"
+        );
+        assert!(
+            app.world().resource::<DrawerCloseTransition>().closing,
+            "the right-stick click requests the animated drawer close"
         );
     }
 
@@ -2191,6 +2372,7 @@ mod tests {
 
     fn spawn_drawer_shell_with_crt(app: &mut App) {
         app.init_asset::<NovaOsCrtMaterial>();
+        app.init_asset::<Font>();
         spawn_drawer_shell(app);
     }
 
@@ -2984,19 +3166,19 @@ mod tests {
 
         let texts = all_texts(&mut app);
         for expected in [
-            "NOVA OS 0.9 / COCKPIT LINK",
-            "DRAWER PAUSED     SHIP: CERES QUEEN     LINK: LOCAL",
-            "NOVA OS 0.9.0-dev",
-            "BIOS CHECK: flight computer / ok",
-            "DISPLAY: green phosphor crt / ok",
-            "Hint: type `help` and press Enter.",
-            "nova>",
-            "Tab: autocomplete in terminal",
-            "Esc: close drawer",
-            "help: list commands",
+            format!("NOVA OS {} / COCKPIT LINK", nova_os_version_label()),
+            "DRAWER PAUSED     SHIP: CERES QUEEN     LINK: LOCAL".to_string(),
+            format!("NOVA OS {}", nova_os_version_label()),
+            "BIOS CHECK: flight computer / ok".to_string(),
+            "DISPLAY: green phosphor crt / ok".to_string(),
+            "Hint: type `help` and press Enter.".to_string(),
+            "nova>".to_string(),
+            "TAB: AUTOCOMPLETE IN TERMINAL".to_string(),
+            "ESC: CLOSE DRAWER".to_string(),
+            "HELP: LIST COMMANDS".to_string(),
         ] {
             assert!(
-                texts.iter().any(|text| text == expected),
+                texts.iter().any(|text| text == &expected),
                 "missing PoC text: {expected}"
             );
         }
@@ -3077,6 +3259,7 @@ mod tests {
         app.insert_resource(Time::<Real>::default());
         app.add_plugins(StatesPlugin);
         app.init_state::<PauseStates>();
+        app.init_resource::<DrawerCloseTransition>();
         app.add_systems(Update, drive_drawer_slide);
 
         let backdrop = app
@@ -3118,6 +3301,27 @@ mod tests {
         assert_eq!(
             *app.world().get::<Visibility>(monitor).unwrap(),
             Visibility::Visible
+        );
+
+        app.world_mut()
+            .resource_mut::<DrawerCloseTransition>()
+            .closing = true;
+        for _ in 0..8 {
+            app.world_mut()
+                .resource_mut::<Time<Real>>()
+                .advance_by(Duration::from_millis(30));
+            app.update();
+        }
+        app.update();
+
+        assert_eq!(
+            pause_state(&app),
+            PauseStates::Unpaused,
+            "gameplay resumes only after the drawer close animation finishes"
+        );
+        assert_eq!(
+            *app.world().get::<Visibility>(monitor).unwrap(),
+            Visibility::Hidden
         );
     }
 }

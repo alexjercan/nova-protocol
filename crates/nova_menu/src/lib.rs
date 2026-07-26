@@ -326,13 +326,18 @@ fn toggle_pause(
         .map(|g| g.just_pressed(GamepadButton::Start))
         .unwrap_or(false);
     if keys.just_pressed(KeyCode::Escape) || pad {
-        next.set(match current.get() {
+        let destination = match current.get() {
             PauseStates::Unpaused => PauseStates::Paused,
             PauseStates::Paused => PauseStates::Unpaused,
-            // ESC while the Tab drawer is open closes it back to gameplay
-            // (task 20260724-102304) rather than stacking the pause menu.
-            PauseStates::Drawer => PauseStates::Unpaused,
-        });
+            // The Tab drawer owns its close animation. ESC/Start while Drawer
+            // is active is handled by nova_gameplay so clocks stay paused until
+            // the drawer has slid fully off screen.
+            PauseStates::Drawer => PauseStates::Drawer,
+        };
+        if destination == *current.get() {
+            return;
+        }
+        next.set(destination);
         // The overlay open/close toggle (task 20260714-090006): a soft UI blip
         // on both directions. The Resume/Exit buttons close it with their own
         // MenuSelect click, so only the ESC/pad toggle needs this.
@@ -4564,10 +4569,11 @@ mod tests {
         );
     }
 
-    /// ESC while the Tab drawer is open closes it back to gameplay (task
-    /// 20260724-102304) - not into the pause menu - and unfreezes the clocks.
+    /// ESC while the Tab drawer is open belongs to the drawer (task
+    /// 20260726-142635), not the pause menu, so the menu toggle does not
+    /// unpause or stack its own overlay.
     #[test]
-    fn escape_closes_the_drawer_to_unpaused() {
+    fn escape_does_not_menu_toggle_the_drawer() {
         let mut app = app();
         app.insert_resource(dummy_scenarios());
         enter_playing(&mut app);
@@ -4581,13 +4587,22 @@ mod tests {
         press_escape(&mut app);
         assert_eq!(
             pause_state(&app),
-            PauseStates::Unpaused,
-            "ESC closes the drawer straight back to gameplay, not into the pause menu"
+            PauseStates::Drawer,
+            "the drawer owns ESC so it can animate closed before gameplay resumes"
         );
         assert_eq!(
             clocks_paused(&app),
-            (false, false),
-            "closing the drawer unfreezes the clocks"
+            (true, true),
+            "the drawer remains frozen until its close animation completes"
+        );
+        let has_pause_overlay = app
+            .world_mut()
+            .query::<(&Name,)>()
+            .iter(app.world())
+            .any(|(n,)| n.as_str() == "Pause Overlay");
+        assert!(
+            !has_pause_overlay,
+            "ESC over the drawer must not spawn the pause menu overlay"
         );
     }
 
