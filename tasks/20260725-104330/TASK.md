@@ -1,45 +1,172 @@
-# user feedback session for v0.9.0
+# Epic: NOVA OS terminal drawer for v0.9.0
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.9.0,feedback,gameplay,ui,ux
+- TAGS: v0.9.0,feedback,gameplay,ui,ux,epic
 
-Feedback Ideas for the Game Nova Protocol
+## Context
 
-The Main Menu + UI elements in this scene
-- the UI feels a bit "washed" it has weak lines and it's definetly prototype phase
-- the font in the UI needs to be changed to something better - I would like a monospace terminal font
-- shade of blue for background doesn't look that good anymore in my opinion
-- I would like to have a more "terminal" "spaceship HUD" style to the UI elements
-- maybe even changing the color scheme a bit (both in app and in game)
-- the UI screens we open should have fixed sizing not chaning based on text
-- proper settings menu with multiple panels for each category + more settings for different things
-- mods lists and scenarios lists should be scrollable
-- scenario art to be used more as a background blurred on top image in the scenario picker
-- make the scenario picker (also the mod explorer) windows a bit smaller + more terminal TUI look to them
-- the Terminal TUI look might even include the classic "X" button at the top like Windows windows also borders
-- but I like square borders, not aero style, sharp style kind of - I am not that sold on the current color for the background
-- the Palette is configurable from what I can tell, maybe even modable (but let's not go that far yet) - the good thing is that colors are all in one place so it might be easy to test
-- Positive: I like how the "Nova Protocol - line - buttons" style looks like -> but again more towards a TUI style - but the layout is nice in that small UI menu - very minimalistic, if it also had a terminal TUI/kitty/bash CLI feeling to it, it would be perfect
+This task captures the v0.9.0 feedback pass that turned the Tab drawer from a
+simple information overlay into the candidate centerpiece for the release. The
+raw feedback started before the drawer existed, then sharpened after seeing the
+landed implementation in game. The durable design recommendation is in
+`SPIKE.md`; this file is the source context that explains why that spike exists.
 
-For the gameplay (it will include mainline suggestions only, mods are mods and they should work on themselves by themselves)
-- Chat Bubbles are very small - we should make some improvements there (I know we added "icons" but again, more terminal vibe is what I would like -> scp/curl/tcp transmission kind of -> plus you see it in the flight logs in "Tab" mode)
-- I think we might need a space station in the first scenario to fit with the chat conversation - we are leaving a spacestation
-- maybe we need a keybind to skip chat messages (like press Enter to skip or something so that you do not wait the full 5 seconds of them appearing)
-- the initial 5 messages in the game are pretty boring -> we can try to implement something that allows "cut scenes" to have the player spaceship do something (especially if we would have a station) like we de-dock (or how you say it)
-- maybe we even introduce the "SHIFT" RCS mechanic initially to let the player get out of the station - but not sold on it
-- but a docked ship with cinematic view (basically in docked mode I can say it's just like orbit mode you see the ship from a distance) would sound interesting + making the messages faster/skipable (faster based on length) + maybe a sound for them to at least have something (we have a beep, but some animation or something - if it's terminal style I can see an idea of having a typewriter effect)
-- and also while the convo is going it would be cool to have the ship "pupetted" to exit the docking area (not by player) but as a cutscene
-- picking up the salvage crates makes a sound but I feel like I need more feedback some kind of "+1 text" or somehow updating the objective
-- the big in the middle objective that appears when you get a new objective might be too big and in the middle, maybe it would fit better closer to the edge and staying on screen until you open tab "to move it in" - like accepting it or something like that, but it disapears if you complete it before you Tab
-- so the objective would have smaller size, but still have this kind of animation of tweening smaller and rotating from the sphere to the corner of the screen in top right + it should already be closer to the top right if not there already
-- tab drawer same as everything so far -> more terminal style + I think we might want a small padding between the edge of the tabs and the screen - right now it's right on the edge
-- also didn't mention it but overall text on the screen (when AUTO pilot is kind of too much I think - but really don't know what to do with it because it is useful and cool (the ETA xs | ym) and the (FLIP) and (GOTO | BURN) but not sure how to make it less, really needs it's own exploration phase
-- also the objective completed green text still appears that's a bug
-- I also think that we should have an edge to the map, something that if you go past you get some kind of screen like it's losing signal and you need to go back + maybe it even slows you down until you get to zero speed unless you go towards the map center + enemies that are damaged and go into the border get despawned for example, or things in general (shards + asteroids pieces)
-- Scenario 2: I feel like the two corvettes in the second scenario appear out of the blue + maybe we can have more asteroids in the scene and they are already spawned in but such that we cannot really see them + they activate in an ambush style so they wait for you to get close and they attack (maybe even marked as neutral until that point - so you don't really know they are enemies)
-- Scenario 3: feels good; just keeping the same scene style in + maybe we spawn near the ceres queen + the tally spawns further away (maybe where we spawn initially - like switch places because we already found and defended the ceres queen)
-- noticed issue with multiple objectives at the same time - they need to be away and appear in different places
-- Scenario 4: instead of beacons we might want to have actual space stations build by pieces and floating around that would be cool + maybe neutral / maybe friendly IDK, they won't have guns anyway
-- sometimes the combat radar loses focus randomly - not sure if it's gameplay or bug but it's annoying
-- Scenario 5: it's a bit weird you hold lock and instantly get a next convo that the tally is there, doesn't really make sense I would do it in another way: maybe more asteroids it's harder to navigate and you have to investigate something liek a ruined based or something and then enemies would come in a single wave from "a raid" like they are coming back home with suplies from a raid or something and you were investigating there and cought by surpise and have to fight them to escape -> but the ending is kind of meh then because you just escape not really finish them, but maybe that's the story IDK or maybe we will add another scenario or something like that
+The broad UI feedback is that Nova's current interface still reads like a
+prototype. The lines are weak, the color scheme feels washed out, and the current
+blue/cyan direction is too gray. The preferred direction is a sharper terminal
+spaceship UI: fixed-size windows, square borders, a good monospace terminal
+font, denser layouts, scrollable lists where needed, and a darker palette that
+can still keep Nova's blue-space identity. The visual PoC at
+`examples/ui/nova_os_terminal_poc.html` tightened that into a Nova-owned look:
+darker blue-black casing, green phosphor terminal screen, orange/yellow accents,
+CRT scanlines, a physical bezel, and a diagnostic FPS/version overlay. The
+current main menu, settings, mod explorer and scenario picker can inherit this
+direction later, but the drawer should prove it first.
+
+The gameplay feedback around comms and objectives points in the same direction.
+Comms cards should feel less like small chat bubbles and more like terminal/API
+traffic: clearer speaker treatment, useful log history, skip/dismiss behavior,
+sound/typing feedback, and a Flight Log that records the conversation plus
+important mission events. Objective presentation should move away from large
+center-screen interruption: new objectives should be readable, tucked toward the
+drawer affordance, and visible through the ship computer. Salvage pickup and
+objective completion need better feedback, and multiple simultaneous objectives
+need layout that does not collide.
+
+The initial drawer idea was two surfaces: a ship-computer terminal on one side,
+and a second screen that changes based on commands. After discussing it, the
+preferred direction changed to one screen. Opening Tab should feel like sitting
+at a cockpit computer: a single inset **NOVA OS** terminal monitor appears, boots
+or restores its last state, and owns the drawer. Commands such as `help`,
+`objectives`, `log` and `ship` can print directly in the terminal. Commands such
+as `map` or `ship viewer` can launch GUI apps that temporarily swallow that same
+monitor until the user exits the app. This avoids wasted side-panel space and
+lets the game grow both CLI-style and GUI-style interactions.
+
+The command UX should borrow from familiar shells. `help` should be suggested on
+first boot. Tab should become autocomplete while NOVA OS owns the keyboard, with
+colored hints for valid prefixes, invalid tokens, and likely completions. Typos
+should get friendly suggestions like a Git subcommand typo. Escape should remain
+the drawer close affordance; app exit needs its own control, probably explicit
+app chrome plus a terminal-like chord such as `Ctrl+C` or `Ctrl+[`. RMB should
+not be the default app-exit gesture because future GUI apps may need it.
+
+The first useful app candidates are `map` and `ship viewer`. The map can begin
+as the existing v0.9.0 minimap stretch idea, but launched from the terminal
+instead of permanently occupying drawer space. The ship viewer should eventually
+show the player's ship with labeled sections, HP and status, then allow actions
+on individual sections. A CLI version should exist too, starting with read-only
+`ship`; mutating commands such as `reload` or `repair` should be added only once
+their rules are clear. `reload` is likely safer than `repair`; `repair` touches
+resources, combat lockout, balance and scenario pacing.
+
+Separate gameplay ideas from the same feedback pass remain useful future
+context, but they are not the terminal drawer's first scope. The campaign could
+use a stronger opening with a space station, docking or undocking, shorter or
+skippable intro comms, typewriter-style delivery, and possibly puppeted cutscene
+movement. Some scenarios may need spatial/story polish: Scenario 2 enemies feel
+like they appear from nowhere, Scenario 3 may work better if spawn positions are
+swapped, Scenario 4 could use space-station structures instead of beacons, and
+Scenario 5 may need a slower investigation setup before the fight. Map-boundary
+feedback and occasional combat-radar focus loss are also separate follow-ups.
+
+## Epic notes
+
+- This task is the epic container for the post-playtest terminal drawer vision.
+  The researched direction lives in `SPIKE.md`; flow planning has now created
+  child tasks, but no implementation work starts until the owner approves this
+  gate.
+- Current recommendation in `SPIKE.md`: replace the landed two-panel drawer with
+  one inset **NOVA OS** terminal monitor. Commands either print inline terminal
+  output (`help`, `log`, `objectives`, `ship`) or launch apps that swallow the
+  same monitor until exited (`map`, later `ship viewer`).
+- Current visual direction in `SPIKE.md`: use the drawer as the first pass at a
+  stronger HUD style - darker Nova blue-black casing, green phosphor screen,
+  orange/yellow accents, CRT scanline/bezel treatment, ordinary flight HUD
+  hidden while open, and only diagnostic FPS/version allowed above it.
+- Visual PoC: `examples/ui/nova_os_terminal_poc.html` is the current visual
+  target for planning. It is a standalone HTML/CSS/JS mock of the one-screen
+  NOVA OS monitor with terminal commands, app takeover, mocked map and ship
+  viewer data, CRT scanlines, full-main monitor fill, and diagnostic
+  FPS/version.
+
+## Flow State
+
+- FLOW STEP: PLANNING
+- Gate status: awaiting owner review. Do not mark `PLAN STATUS: APPROVED`, cut a
+  worktree, or start implementation until the owner explicitly approves the
+  package below.
+
+## Epic
+
+Turn the v0.9.0 Tab drawer into one terminal-style **NOVA OS** cockpit monitor.
+The monitor replaces permanent left/right drawer panels with a single physical
+screen. In terminal mode, commands print useful information into scrollback. In
+app mode, commands launch a GUI surface that swallows the same screen and later
+returns to the terminal.
+
+The v0.9.0 core is the OS shell, terminal input, useful read-only output
+commands, and app runtime. `map` and `ship viewer` remain stretch apps after the
+core is usable.
+
+## Done Means
+
+- The old permanent side-panel drawer has been replaced by one inset NOVA OS
+  monitor that keeps the accepted `PauseStates::Drawer` freeze/cursor behavior.
+  (test/manual: drawer tests plus screenshot/run comparison against
+  `examples/ui/nova_os_terminal_poc.html`)
+- The terminal accepts typed commands, supports editing/history/autocomplete,
+  prints helpful errors and suggestions, and keeps Tab/Escape behavior
+  unambiguous. (test: terminal input state tests)
+- `help`, `log`, `objectives` and read-only `ship` provide useful output from
+  live game state without stale scenario leakage. (test: command output tests)
+- App takeover exists: a command can launch an app inside the same monitor, app
+  input is isolated, and app exit returns to the terminal. (test: app runtime
+  lifecycle tests)
+- Ordinary flight HUD/key hints are hidden while NOVA OS is open, with only
+  diagnostic screenshot chrome such as FPS/version intentionally allowed above
+  it. (test/manual: HUD suppression and screenshot review)
+- v0.9.0 tracker and stale drawer/minimap notes point at this one-screen NOVA OS
+  model, not multiple drawers or permanent side panels. (manual: task review)
+
+## Child Tasks
+
+- [ ] `20260726-115320` (p49) - NOVA OS monitor shell and visual treatment.
+- [ ] `20260726-115324` (p48) - NOVA OS terminal input and command shell.
+      Depends on `20260726-115320`.
+- [ ] `20260726-115330` (p47) - NOVA OS terminal output commands. Depends on
+      `20260726-115324`.
+- [ ] `20260726-115334` (p46) - NOVA OS app runtime. Depends on
+      `20260726-115324`.
+- [ ] `20260724-102320` (p30, stretch) - NOVA OS map app launched from the
+      terminal. Depends on `20260726-115334`.
+- [ ] `20260726-115339` (p29, stretch) - NOVA OS ship viewer app and safe
+      section actions. Depends on `20260726-115334`.
+
+## Decisions
+
+- `tasks/20260725-104330/DECISION.md` records the load-bearing layout decision:
+  NOVA OS is one monitor with app takeover, not permanent drawer panels.
+- `tasks/20260724-102304/DECISION.md` still stands for freeze/input state:
+  `PauseStates::Drawer` is the third variant on the existing pause axis.
+
+## Manual Acceptance
+
+Before implementation starts, the owner should confirm:
+
+- One-screen NOVA OS is the accepted v0.9.0 direction.
+- The core/stretches split is right: monitor shell, terminal input, read-only
+  commands and app runtime first; `map` and `ship viewer` as stretch.
+- Escape should remain drawer close, while apps return to terminal through app
+  chrome plus a terminal-like chord such as `Ctrl+C` or `Ctrl+[`.
+
+## Review notes
+
+- 2026-07-26 review pass: tightened the spike after the conversation moved from
+  "terminal plus separate screen" to "one terminal monitor that launches apps".
+  Resolved two UX contradictions: Tab opens the drawer from flight but becomes
+  autocomplete inside NOVA OS, and the old lower-left key hints should not remain
+  visible over the CRT computer screen.
+- Next session should plan from `SPIKE.md` rather than from the raw feedback
+  bullets above; the bullets remain source context, not the current design.

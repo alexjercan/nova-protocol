@@ -4,6 +4,18 @@
 - STATUS: RECOMMENDED
 - TAGS: spike, ui, hud, v0.9.0
 
+## Current status note
+
+This spike answered the first drawer question and remains the source for the
+accepted freeze/input decision: the drawer is a third `PauseStates::Drawer`
+variant on the single pause axis. Its content/layout recommendation is now
+historical. Post-playtest feedback in `tasks/20260725-104330/SPIKE.md`
+supersedes the permanent side-panel model with one inset NOVA OS terminal
+monitor. Existing objectives/log work becomes terminal output, and the 3D
+minimap remains v0.9.0 stretch as a terminal-launched `map` app, not a center
+drawer panel. Visual reference:
+`examples/ui/nova_os_terminal_poc.html`.
+
 ## Question
 
 The owner wants a "Tab" ship-computer DRAWER: a right-side surface that opens on

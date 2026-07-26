@@ -12,11 +12,16 @@ decisions, and the grooming history - the same shape as the v0.8.0 tracker
 - DATE: 2026-07-24
 - BASE: master at v0.8.0 (head 70587839)
 - THEME: **Cockpit & Command.** Turn the cockpit into a real ship-computer and
-  make combat legible. The headline is the Tab ship-computer drawer (objectives,
-  comms log, and whatever the spike settles) with its two diegetic feeders -
-  on-cockpit objectives and stacking comms - plus at-a-glance combat readability
-  (allegiance markers over ships) and better campaign/scenario browsing. Unlike
-  v0.8.0 (pure debt paydown, no new features), v0.9.0 is a features release.
+  make combat legible. The headline is now the one-screen **NOVA OS** Tab drawer:
+  an inset cockpit monitor where commands either print inline terminal output
+  (`help`, `log`, `objectives`, `ship`) or launch apps (`map`, later
+  `ship viewer`) that take over the same monitor until exited. The drawer also
+  becomes the first pass at the stronger HUD visual language: darker Nova
+  blue-black casing, green phosphor screen, orange/yellow accents, CRT scanlines
+  and diagnostic FPS/version chrome. This sits alongside at-a-glance combat
+  readability (allegiance markers over ships) and better campaign/scenario
+  browsing. Unlike v0.8.0 (pure debt paydown, no new features), v0.9.0 is a
+  features release.
 
 ## Why this scope
 
@@ -30,7 +35,9 @@ v0.8.0 base.
 The owner's stated focus for this release, in preference order:
 
 1. **Goal C - the cockpit ship-computer drawer (100% in, the headline).** The
-   Tab drawer and its two diegetic feeders. A spike fixes its contents first.
+   Tab drawer becomes NOVA OS: one terminal monitor, command output, launchable
+   apps, and the new CRT/green-phosphor visual direction. The feedback spike
+   `20260725-104330` is now the planning source for the remaining drawer work.
 2. **Goal D - improved scenario picker only (100% in).** Collapsible campaign
    headers + campaign->scenario mapping. NOT the per-scenario thumbnail art
    (stays backlog, 20260715-220011).
@@ -105,7 +112,11 @@ tasks (see the grooming-history block below for the full feedback):
 5. **20260724-134335** (p62, feature/ui/hud) Drawer open: HIDE the flight HUD +
    BLUR the gray background (a present-but-dimmed HUD hurts readability); keep the
    top status bar + the lower-left keybind hints visible; both side panels slide
-   in (right + left). NEW. The core interaction reshape.
+   in (right + left). **CLOSED / LANDED 2026-07-25.** This was the first
+   post-playtest readability reshape. Later feedback supersedes the permanent
+   two-panel model with the one-screen NOVA OS monitor; keep its useful behavior
+   (ordinary flight HUD yields to the drawer) but do not plan new work around
+   left/right/center drawer slots.
 6. **20260721-211526** (p55, feature/hud/ui) Comms messages: stacking, skip,
    speaker icons, dismiss. Grows 20260717-163033 (CLOSED). Its icons + StoryFeed
    feed the left panel below.
@@ -114,12 +125,20 @@ tasks (see the grooming-history block below for the full feedback):
 8. **20260724-102309** (p50, spike/feature/ui/hud) Drawer LEFT panel: comms/chat
    history + a curated flight-log EVENTS journal (nova_probe-style but in-game,
    important events only); slides from the left; must not overlap the lower-left
-   keys. RESCOPED from "comms-log section".
-9. **20260724-102320** (p30, STRETCH, spike/feature/ui/hud) Drawer CENTER 3D
-   minimap - THIS SPRINT a placeholder: a downsized 3D map view (render-to-texture)
-   with WASD camera + placeholder asteroid/ship/enemy markers; zoom + flight
-   planning are LATER. RESCOPED to the center placeholder. **Cut first if Strand C
-   runs long.** Depends on the shell (102304) + the drawer-open rework (134335).
+   keys. **CLOSED / LANDED 2026-07-25.** The data model remains useful, but the
+   terminal rework should render this as `log` command output in NOVA OS rather
+   than as a permanent left panel.
+9. **20260725-104330** (p0, feedback/ui/ux) Terminal drawer feedback epic +
+   SPIKE.md. **OPEN.** Supersedes the remaining drawer layout direction after
+   playtest: one inset NOVA OS monitor, terminal scrollback, app takeover,
+   CRT/green-phosphor visual target, and standalone visual PoC at
+   `examples/ui/nova_os_terminal_poc.html`. This is the planning source for the
+   next drawer chores/tasks.
+10. **20260724-102320** (p30, STRETCH, spike/feature/ui/hud) NOVA OS `map` app:
+   the 3D minimap still belongs in v0.9.0 as a stretch placeholder, but it is now
+   launched by the terminal and takes over the same monitor. No center panel and
+   no multiple drawers. **Cut first if Strand C runs long.** Depends on the NOVA
+   OS shell/runtime planning that follows 20260725-104330.
 
 ### Strand A - Combat readability
 
@@ -171,18 +190,23 @@ tasks (see the grooming-history block below for the full feedback):
   2026-07-21 questionnaire, was pulled INTO v0.9.0 as a stretch item - see Strand
   C item 6.)
 
-## Planning - next step (pending owner OK)
+## Planning - gate package (pending owner OK)
 
-This tracker + the tagged/estimated task set is the deliverable of the
-2026-07-24 grooming session. Still TODO, on the owner's go-ahead:
+This tracker started as the 2026-07-24 grooming deliverable, but the drawer
+direction changed after playtest and the feedback spike in `20260725-104330`.
+The flow planning split now exists and is waiting at the owner gate:
 
-- **Spike Goal C** (20260721-211512): settle the drawer's v0.9.0 contents and
-  interaction model. This is the gate for 211520 + 211526.
-- **Define per-task DoD + Steps** for every strand above via `/plan`, each DoD
-  item naming its proof (`test:` / `cmd:` / `manual:`), per repo AGENTS.md.
-- Decide Strand B's in/out call once Strand C's real size is known.
-- Then the flow gate: present the full package for an explicit "build this"
-  before any worktree is cut.
+- Core `20260726-115320`: one inset NOVA OS monitor shell and visual treatment.
+- Core `20260726-115324`: terminal input, prompt editing, autocomplete, history
+  and command registry plumbing.
+- Core `20260726-115330`: useful read-only terminal output commands.
+- Core `20260726-115334`: app runtime for terminal-launched GUI surfaces.
+- Stretch `20260724-102320`: `map` app. Cut first if the core needs to tighten.
+- Stretch `20260726-115339`: `ship viewer` app and safe section actions. Cut
+  before `map` if only one stretch app fits.
+
+No implementation work should start until `20260725-104330` is approved at the
+flow gate.
 
 Note: this project's release convention is a `v0.9.0, release, meta` tracker
 task (this file), NOT flow's GOAL.md - the v0.8.0 tracker set the precedent.
@@ -191,12 +215,16 @@ task (this file), NOT flow's GOAL.md - the v0.8.0 tracker set the precedent.
 
 To be authored in the planning pass. Skeleton:
 
-- The cockpit Tab drawer exists and shows the contents the spike fixed;
-  objectives present diegetically then tuck into the tab; comms stack, skip and
-  dismiss. (proofs per task DoD)
+- The cockpit Tab drawer becomes NOVA OS: one inset terminal monitor, command
+  scrollback, useful output commands, app takeover, CRT/green-phosphor visual
+  treatment, ordinary flight HUD hidden, and diagnostic FPS/version preserved.
+  Objectives and comms feed that computer rather than permanent side panels.
+  (proofs per task DoD)
 - Friendly/enemy allegiance is readable at a glance over ships in a busy scene.
 - The Scenarios tab groups scenarios under collapsible campaign headers.
 - (stretch) A ship with no weapons + no thrusters counts as combat-dead.
+- (stretch) `map` launches from NOVA OS as a placeholder 3D/schematic local map
+  app, not as a permanent center drawer panel.
 - Overall: the full check suite passes; gameplay-touching strands probed.
 
 ## Grooming history
@@ -224,6 +252,15 @@ To be authored in the planning pass. Skeleton:
   8. CENTER of the drawer = the 3D minimap; this sprint a placeholder: downsized 3D
      map view with WASD + placeholder markers; zoom/planning later. (102320,
      rescoped)
+- **2026-07-26 (terminal drawer feedback spike, 20260725-104330):** after seeing
+  the drawer family in game, owner re-cut the remaining direction. Supersedes
+  the permanent two-panel/center-slot model with one NOVA OS monitor. Tab opens
+  the drawer from flight, then becomes autocomplete inside the terminal; Escape
+  closes the drawer; apps use their own exit control/chord. Visual target is the
+  standalone PoC `examples/ui/nova_os_terminal_poc.html`: full-main monitor fill,
+  dark blue-black casing, green phosphor screen, orange/yellow accents, scanlines
+  and diagnostic FPS/version. The 3D minimap remains stretch as the `map` app,
+  launched from the terminal.
 - **2026-07-24 (Tab drawer spike, 20260721-211512 CLOSED):** SPIKE.md fixed the
   drawer's v0.9.0 contents to objectives + comms log (both render data that
   already exists: `GameObjectives`, `StoryFeed`), deferring the 3D minimap

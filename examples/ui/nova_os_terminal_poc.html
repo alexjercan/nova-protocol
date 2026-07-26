@@ -1,0 +1,921 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nova OS Terminal HUD PoC</title>
+  <style>
+    :root {
+      --space: #03060b;
+      --space-blue: #061221;
+      --case-0: #050a0f;
+      --case-1: #0b1520;
+      --case-2: #102232;
+      --case-edge: #254156;
+      --screen-0: #001807;
+      --screen-1: #003614;
+      --phosphor: #36ff79;
+      --phosphor-dim: #19a64f;
+      --phosphor-muted: #0d6e35;
+      --amber: #ffb84a;
+      --orange: #ff7b2d;
+      --red: #ff4e42;
+      --blue: #36a3ff;
+      --text: #b9ffc9;
+      --shadow: rgba(0, 0, 0, 0.72);
+      --mono: "JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      min-height: 100%;
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 18% 20%, rgba(54, 163, 255, 0.13), transparent 24%),
+        radial-gradient(circle at 78% 76%, rgba(54, 255, 121, 0.08), transparent 26%),
+        linear-gradient(135deg, #020408 0%, #06111d 48%, #020408 100%);
+      font-family: var(--mono);
+      overflow: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        radial-gradient(1px 1px at 12% 24%, rgba(230, 248, 255, 0.75), transparent),
+        radial-gradient(1px 1px at 26% 78%, rgba(230, 248, 255, 0.4), transparent),
+        radial-gradient(1px 1px at 44% 16%, rgba(230, 248, 255, 0.55), transparent),
+        radial-gradient(1px 1px at 71% 42%, rgba(230, 248, 255, 0.45), transparent),
+        radial-gradient(1px 1px at 88% 72%, rgba(230, 248, 255, 0.5), transparent);
+      opacity: 0.45;
+    }
+
+    .flight-readout {
+      position: fixed;
+      top: 10px;
+      right: 14px;
+      z-index: 5;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      padding: 5px 8px;
+      color: rgba(185, 255, 201, 0.82);
+      border: 1px solid rgba(54, 255, 121, 0.3);
+      background: rgba(0, 10, 6, 0.58);
+      font-size: 11px;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    .scene {
+      position: fixed;
+      inset: 0;
+      opacity: 0.42;
+      background:
+        linear-gradient(rgba(54, 255, 121, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(54, 255, 121, 0.05) 1px, transparent 1px);
+      background-size: 52px 52px;
+      transform: perspective(600px) rotateX(63deg) translateY(18vh) scale(1.24);
+      transform-origin: center bottom;
+      filter: blur(0.2px);
+    }
+
+    .hud {
+      position: fixed;
+      inset: clamp(14px, 3vw, 42px);
+      display: grid;
+      place-items: stretch;
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.05), transparent 18%),
+        linear-gradient(180deg, var(--case-2), var(--case-0));
+      border: 1px solid var(--case-edge);
+      box-shadow:
+        0 28px 90px var(--shadow),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.85);
+    }
+
+    .bezel {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      padding: clamp(18px, 2.6vw, 34px);
+      border: 2px solid #1b3345;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.22)),
+        radial-gradient(circle at 50% 0%, rgba(54, 255, 121, 0.18), transparent 24%),
+        var(--case-1);
+      box-shadow:
+        inset 0 0 0 8px rgba(0, 0, 0, 0.18),
+        inset 0 0 30px rgba(0, 0, 0, 0.7),
+        0 0 34px rgba(54, 255, 121, 0.16);
+    }
+
+    .bezel::before,
+    .bezel::after {
+      content: "";
+      position: absolute;
+      top: 16px;
+      bottom: 16px;
+      width: 9px;
+      border: 1px solid rgba(54, 255, 121, 0.25);
+      background: rgba(0, 0, 0, 0.32);
+    }
+
+    .bezel::before {
+      left: 12px;
+    }
+
+    .bezel::after {
+      right: 12px;
+    }
+
+    .screen {
+      position: relative;
+      height: 100%;
+      overflow: hidden;
+      border: 2px solid rgba(54, 255, 121, 0.52);
+      background:
+        radial-gradient(ellipse at center, rgba(54, 255, 121, 0.18) 0%, rgba(0, 24, 7, 0.94) 58%, #001005 100%),
+        linear-gradient(180deg, var(--screen-1), var(--screen-0));
+      box-shadow:
+        inset 0 0 45px rgba(54, 255, 121, 0.18),
+        inset 0 0 120px rgba(0, 0, 0, 0.78);
+    }
+
+    .screen::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      pointer-events: none;
+      background:
+        linear-gradient(rgba(255, 255, 255, 0.04) 50%, rgba(0, 0, 0, 0.18) 50%),
+        linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 90, 0.03), rgba(0, 120, 255, 0.03));
+      background-size: 100% 4px, 6px 100%;
+      mix-blend-mode: screen;
+      opacity: 0.72;
+    }
+
+    .screen::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 21;
+      pointer-events: none;
+      background:
+        radial-gradient(ellipse at center, transparent 56%, rgba(0, 0, 0, 0.42) 100%),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.06), transparent 18%, transparent 82%, rgba(0, 0, 0, 0.18));
+    }
+
+    .screen-inner {
+      position: relative;
+      z-index: 2;
+      height: 100%;
+      padding: clamp(16px, 2.2vw, 28px);
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 14px;
+      text-shadow: 0 0 7px rgba(54, 255, 121, 0.5);
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 32px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(54, 255, 121, 0.36);
+      color: var(--phosphor);
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .lamp {
+      width: 10px;
+      height: 10px;
+      border: 1px solid var(--phosphor);
+      background: var(--phosphor);
+      box-shadow: 0 0 14px var(--phosphor);
+    }
+
+    .status {
+      display: flex;
+      gap: 12px;
+      color: var(--phosphor-dim);
+      white-space: nowrap;
+    }
+
+    .terminal,
+    .app {
+      min-height: 0;
+      overflow: hidden;
+      border: 1px solid rgba(54, 255, 121, 0.28);
+      background: rgba(0, 12, 4, 0.4);
+    }
+
+    .terminal {
+      display: grid;
+      grid-template-rows: 1fr auto;
+    }
+
+    .scrollback {
+      min-height: 0;
+      overflow-y: auto;
+      padding: 14px 16px;
+      scrollbar-color: var(--phosphor-muted) rgba(0, 0, 0, 0.25);
+      scrollbar-width: thin;
+      font-size: clamp(12px, 1.45vw, 15px);
+      line-height: 1.48;
+    }
+
+    .line {
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin: 0 0 5px;
+    }
+
+    .line.dim {
+      color: var(--phosphor-dim);
+    }
+
+    .line.warn {
+      color: var(--amber);
+      text-shadow: 0 0 7px rgba(255, 184, 74, 0.4);
+    }
+
+    .line.error {
+      color: var(--red);
+      text-shadow: 0 0 7px rgba(255, 78, 66, 0.42);
+    }
+
+    .line.blue {
+      color: var(--blue);
+      text-shadow: 0 0 7px rgba(54, 163, 255, 0.32);
+    }
+
+    .prompt-row {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px;
+      align-items: center;
+      min-height: 42px;
+      padding: 8px 16px;
+      border-top: 1px solid rgba(54, 255, 121, 0.28);
+      background: rgba(0, 0, 0, 0.28);
+      font-size: clamp(13px, 1.6vw, 16px);
+    }
+
+    .prompt {
+      color: var(--amber);
+      text-shadow: 0 0 7px rgba(255, 184, 74, 0.44);
+    }
+
+    .input-wrap {
+      position: relative;
+      min-width: 0;
+    }
+
+    .ghost {
+      position: absolute;
+      inset: 0 auto auto 0;
+      color: rgba(54, 255, 121, 0.35);
+      pointer-events: none;
+      white-space: pre;
+    }
+
+    #cmd {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      padding: 0;
+      color: var(--phosphor);
+      caret-color: var(--amber);
+      background: transparent;
+      border: 0;
+      outline: 0;
+      font: inherit;
+      text-shadow: inherit;
+    }
+
+    #cmd.invalid {
+      color: var(--red);
+      text-shadow: 0 0 7px rgba(255, 78, 66, 0.44);
+    }
+
+    .app {
+      display: none;
+      grid-template-rows: auto 1fr;
+      min-height: 0;
+    }
+
+    .app.active {
+      display: grid;
+    }
+
+    .terminal.hidden {
+      display: none;
+    }
+
+    .appbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(54, 255, 121, 0.3);
+      background: rgba(0, 0, 0, 0.24);
+      color: var(--phosphor);
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .appbar button,
+    .sleep button {
+      border: 1px solid rgba(54, 255, 121, 0.58);
+      background: rgba(0, 24, 7, 0.72);
+      color: var(--phosphor);
+      font: inherit;
+      padding: 6px 10px;
+      cursor: pointer;
+      text-transform: uppercase;
+      box-shadow: inset 0 0 12px rgba(54, 255, 121, 0.08);
+    }
+
+    .appbar button:hover,
+    .sleep button:hover {
+      border-color: var(--amber);
+      color: var(--amber);
+    }
+
+    .appbody {
+      min-height: 0;
+      overflow: auto;
+      padding: 16px;
+    }
+
+    .map-grid {
+      position: relative;
+      min-height: 420px;
+      height: 100%;
+      border: 1px solid rgba(54, 255, 121, 0.24);
+      background:
+        linear-gradient(rgba(54, 255, 121, 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(54, 255, 121, 0.08) 1px, transparent 1px),
+        radial-gradient(circle at center, rgba(54, 255, 121, 0.14), transparent 42%);
+      background-size: 44px 44px, 44px 44px, 100% 100%;
+      overflow: hidden;
+    }
+
+    .orbit {
+      position: absolute;
+      border: 1px solid rgba(54, 255, 121, 0.18);
+      transform: translate(-50%, -50%);
+    }
+
+    .blip {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      transform: translate(-50%, -50%);
+      border: 1px solid currentColor;
+      background: rgba(0, 0, 0, 0.4);
+      color: var(--phosphor);
+      box-shadow: 0 0 12px currentColor;
+    }
+
+    .blip.enemy {
+      color: var(--red);
+    }
+
+    .blip.ally {
+      color: var(--blue);
+    }
+
+    .blip.objective {
+      color: var(--amber);
+    }
+
+    .blip span {
+      position: absolute;
+      left: 16px;
+      top: -2px;
+      white-space: nowrap;
+      font-size: 11px;
+      color: currentColor;
+    }
+
+    .ship-layout {
+      display: grid;
+      grid-template-columns: 1fr minmax(220px, 320px);
+      gap: 16px;
+      min-height: 100%;
+    }
+
+    .ship-diagram {
+      position: relative;
+      min-height: 420px;
+      border: 1px solid rgba(54, 255, 121, 0.24);
+      background: radial-gradient(circle at center, rgba(54, 255, 121, 0.16), transparent 54%);
+    }
+
+    .section {
+      position: absolute;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(54, 255, 121, 0.65);
+      background: rgba(0, 40, 14, 0.72);
+      color: var(--phosphor);
+      cursor: pointer;
+      text-align: center;
+      font-size: 11px;
+      padding: 6px;
+    }
+
+    .section:hover,
+    .section.selected {
+      border-color: var(--amber);
+      color: var(--amber);
+      box-shadow: 0 0 18px rgba(255, 184, 74, 0.28);
+    }
+
+    .section.damaged {
+      border-color: var(--orange);
+      color: var(--orange);
+    }
+
+    .section.critical {
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    .inspector {
+      border: 1px solid rgba(54, 255, 121, 0.28);
+      padding: 12px;
+      background: rgba(0, 12, 4, 0.42);
+      min-height: 0;
+    }
+
+    .inspector h2 {
+      margin: 0 0 12px;
+      color: var(--amber);
+      font-size: 15px;
+      font-weight: 500;
+      text-transform: uppercase;
+    }
+
+    .meter {
+      height: 10px;
+      margin: 5px 0 12px;
+      border: 1px solid rgba(54, 255, 121, 0.32);
+      background: rgba(0, 0, 0, 0.4);
+    }
+
+    .meter > span {
+      display: block;
+      height: 100%;
+      background: linear-gradient(90deg, var(--phosphor-dim), var(--phosphor));
+    }
+
+    .action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .action-row button {
+      border: 1px solid rgba(255, 184, 74, 0.58);
+      background: rgba(255, 184, 74, 0.08);
+      color: var(--amber);
+      font: inherit;
+      font-size: 11px;
+      padding: 7px 9px;
+      cursor: pointer;
+    }
+
+    .footer-hints {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--phosphor-muted);
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+
+    .sleep {
+      position: absolute;
+      inset: 0;
+      z-index: 30;
+      display: none;
+      place-items: center;
+      background: rgba(0, 0, 0, 0.72);
+      text-align: center;
+    }
+
+    .sleep.active {
+      display: grid;
+    }
+
+    .sleep-panel {
+      width: min(420px, calc(100% - 40px));
+      padding: 22px;
+      border: 1px solid rgba(54, 255, 121, 0.5);
+      background: rgba(0, 24, 7, 0.88);
+      box-shadow: 0 0 34px rgba(54, 255, 121, 0.22);
+    }
+
+    .sleep h1 {
+      margin: 0 0 10px;
+      color: var(--phosphor);
+      font-size: 22px;
+      font-weight: 500;
+    }
+
+    @media (max-width: 760px) {
+      body {
+        overflow: auto;
+      }
+
+      .hud {
+        position: relative;
+        inset: auto;
+        min-height: 100vh;
+      }
+
+      .bezel {
+        height: 100%;
+        min-height: 680px;
+      }
+
+      .status {
+        display: none;
+      }
+
+      .ship-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .ship-diagram {
+        min-height: 360px;
+      }
+
+      .footer-hints {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="scene" aria-hidden="true"></div>
+  <div class="flight-readout" aria-label="diagnostic overlay">
+    <span>v0.9.0-dev</span>
+    <span id="fps">FPS 144</span>
+  </div>
+
+  <main class="hud">
+    <section class="bezel" aria-label="Nova OS cockpit monitor">
+      <div class="screen">
+        <div class="screen-inner">
+          <header class="topbar">
+            <div class="brand"><span class="lamp"></span><span>NOVA OS 0.9 / COCKPIT LINK</span></div>
+            <div class="status"><span>DRAWER PAUSED</span><span>SHIP: CERES QUEEN</span><span>LINK: LOCAL</span></div>
+          </header>
+
+          <section id="terminal" class="terminal" aria-label="Nova OS terminal">
+            <div id="scrollback" class="scrollback" aria-live="polite"></div>
+            <form id="promptForm" class="prompt-row" autocomplete="off">
+              <span class="prompt">nova&gt;</span>
+              <label class="input-wrap" aria-label="command line">
+                <span id="ghost" class="ghost"></span>
+                <input id="cmd" name="cmd" spellcheck="false" autofocus>
+              </label>
+            </form>
+          </section>
+
+          <section id="mapApp" class="app" aria-label="Map application">
+            <div class="appbar">
+              <span>APP / MAP / LOCAL SPACE</span>
+              <button type="button" data-close-app>Close App</button>
+            </div>
+            <div class="appbody">
+              <div class="map-grid" aria-label="mock tactical map">
+                <div class="orbit" style="left:50%;top:50%;width:72%;height:72%;"></div>
+                <div class="orbit" style="left:50%;top:50%;width:42%;height:42%;"></div>
+                <div class="blip ally" style="left:49%;top:52%;"><span>CERES QUEEN</span></div>
+                <div class="blip objective" style="left:62%;top:34%;"><span>SALVAGE FIELD</span></div>
+                <div class="blip enemy" style="left:73%;top:58%;"><span>RAIDER WING</span></div>
+                <div class="blip" style="left:34%;top:43%;"><span>ASTEROID CLUSTER</span></div>
+              </div>
+            </div>
+          </section>
+
+          <section id="shipApp" class="app" aria-label="Ship viewer application">
+            <div class="appbar">
+              <span>APP / SHIP VIEWER / CERES QUEEN</span>
+              <button type="button" data-close-app>Close App</button>
+            </div>
+            <div class="appbody">
+              <div class="ship-layout">
+                <div class="ship-diagram" aria-label="mock ship sections">
+                  <button class="section selected" data-section="Command" data-hp="100" data-status="Online" style="left:42%;top:8%;width:16%;height:14%;">CMD<br>100%</button>
+                  <button class="section" data-section="Port Hull" data-hp="86" data-status="Scored plating" style="left:18%;top:31%;width:22%;height:18%;">PORT<br>86%</button>
+                  <button class="section" data-section="Starboard Hull" data-hp="92" data-status="Online" style="left:60%;top:31%;width:22%;height:18%;">STBD<br>92%</button>
+                  <button class="section damaged" data-section="Main Thruster" data-hp="58" data-status="Damaged" style="left:40%;top:58%;width:20%;height:18%;">THR<br>58%</button>
+                  <button class="section critical" data-section="Torpedo Bay" data-hp="24" data-status="Critical ammo feed" style="left:42%;top:34%;width:16%;height:14%;">TRP<br>24%</button>
+                </div>
+                <aside class="inspector">
+                  <h2 id="sectionName">Command</h2>
+                  <div>HP</div>
+                  <div class="meter"><span id="sectionMeter" style="width:100%;"></span></div>
+                  <div id="sectionStatus">Status: Online</div>
+                  <div class="action-row">
+                    <button type="button">Reload</button>
+                    <button type="button">Repair</button>
+                    <button type="button">Isolate</button>
+                  </div>
+                  <p class="line dim">Mock data only. This app demonstrates a click-driven GUI tool launched from the same terminal screen.</p>
+                </aside>
+              </div>
+            </div>
+          </section>
+
+          <footer class="footer-hints">
+            <span>Tab: autocomplete in terminal</span>
+            <span>Esc: close drawer mock</span>
+            <span>Ctrl+C: return from app</span>
+          </footer>
+
+          <div id="sleep" class="sleep">
+            <div class="sleep-panel">
+              <h1>NOVA OS SUSPENDED</h1>
+              <p class="line dim">Flight HUD would be visible here. Diagnostic FPS/version stays on top.</p>
+              <button type="button" id="wake">Open With Tab</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const commands = ["help", "log", "objectives", "ship", "ship viewer", "map", "clear", "exit"];
+    const scrollback = document.querySelector("#scrollback");
+    const form = document.querySelector("#promptForm");
+    const input = document.querySelector("#cmd");
+    const ghost = document.querySelector("#ghost");
+    const terminal = document.querySelector("#terminal");
+    const mapApp = document.querySelector("#mapApp");
+    const shipApp = document.querySelector("#shipApp");
+    const sleep = document.querySelector("#sleep");
+    const wake = document.querySelector("#wake");
+    const fps = document.querySelector("#fps");
+    let history = [];
+    let historyIndex = 0;
+    let activeApp = null;
+    let frames = 144;
+
+    const output = [
+      ["blue", "NOVA OS 0.9.0-dev"],
+      ["dim", "BIOS CHECK: flight computer / ok"],
+      ["dim", "DISPLAY: green phosphor crt / ok"],
+      ["warn", "Hint: type `help` and press Enter."]
+    ];
+
+    const data = {
+      objectives: [
+        "OBJ + Strip 3 salvage crates from the wreck field.",
+        "OBJ + Keep the Ceres Queen within local comms range."
+      ],
+      log: [
+        "0001 COMMS OKONO > Ceres Queen, your telemetry is dirty but readable.",
+        "0002 COMMS TALLY > Salvage field is ahead. Stay sharp.",
+        "0003 OBJ + Strip 3 salvage crates from the wreck field.",
+        "0004 SYS > Port hull plating took minor debris impact.",
+        "0005 OBJ x Calibrate targeting on the derelict beacon."
+      ],
+      ship: [
+        "SHIP CERES QUEEN",
+        "COMMAND       100%  online",
+        "PORT HULL      86%  scored plating",
+        "STARBOARD      92%  online",
+        "MAIN THRUSTER  58%  damaged",
+        "TORPEDO BAY    24%  critical ammo feed"
+      ]
+    };
+
+    function boot() {
+      output.forEach(([kind, text]) => print(text, kind));
+      input.focus();
+    }
+
+    function print(text, kind = "") {
+      const line = document.createElement("div");
+      line.className = `line ${kind}`.trim();
+      line.textContent = text;
+      scrollback.appendChild(line);
+      scrollback.scrollTop = scrollback.scrollHeight;
+    }
+
+    function printBlock(lines, kind = "") {
+      lines.forEach((line) => print(line, kind));
+    }
+
+    function commandHelp() {
+      print("Available commands:", "blue");
+      print("  help          Show this command list");
+      print("  log           Print comms and mission events");
+      print("  objectives    Print active objectives");
+      print("  ship          Print ship status summary");
+      print("  map           Launch tactical map app");
+      print("  ship viewer   Launch section viewer app");
+      print("  clear         Clear terminal scrollback");
+      print("  exit          Suspend drawer mock", "dim");
+    }
+
+    function runCommand(raw) {
+      const value = raw.trim().toLowerCase();
+      if (!value) return;
+      history.push(raw);
+      historyIndex = history.length;
+      print(`nova> ${raw}`, "warn");
+
+      if (value === "help") commandHelp();
+      else if (value === "log") printBlock(data.log);
+      else if (value === "objectives") printBlock(data.objectives);
+      else if (value === "ship") printBlock(data.ship);
+      else if (value === "map") openApp("map");
+      else if (value === "ship viewer") openApp("ship");
+      else if (value === "clear") scrollback.textContent = "";
+      else if (value === "exit") closeDrawer();
+      else suggest(value);
+    }
+
+    function suggest(value) {
+      const match = nearest(value);
+      print(`command not found: ${value}`, "error");
+      if (match) print(`did you mean ${match}?`, "warn");
+    }
+
+    function nearest(value) {
+      let best = "";
+      let bestScore = 0;
+      for (const command of commands) {
+        let score = 0;
+        for (let i = 0; i < Math.min(value.length, command.length); i += 1) {
+          if (value[i] === command[i]) score += 1;
+        }
+        if (command.includes(value[0] || " ") && score >= bestScore) {
+          best = command;
+          bestScore = score;
+        }
+      }
+      return bestScore > 0 ? best : "";
+    }
+
+    function completion(value) {
+      if (!value) return "";
+      return commands.find((command) => command.startsWith(value.toLowerCase())) || "";
+    }
+
+    function updateGhost() {
+      const value = input.value;
+      const full = completion(value);
+      input.classList.toggle("invalid", value.length > 0 && !full);
+      ghost.textContent = full && full !== value.toLowerCase() ? value + full.slice(value.length) : "";
+    }
+
+    function completeInput() {
+      const full = completion(input.value);
+      if (full) {
+        input.value = full;
+        updateGhost();
+      }
+    }
+
+    function openApp(name) {
+      activeApp = name;
+      terminal.classList.add("hidden");
+      mapApp.classList.toggle("active", name === "map");
+      shipApp.classList.toggle("active", name === "ship");
+      print(`launching ${name} app...`, "dim");
+    }
+
+    function closeApp() {
+      if (!activeApp) return;
+      const name = activeApp;
+      activeApp = null;
+      mapApp.classList.remove("active");
+      shipApp.classList.remove("active");
+      terminal.classList.remove("hidden");
+      print(`returned from ${name} app`, "dim");
+      input.focus();
+    }
+
+    function closeDrawer() {
+      sleep.classList.add("active");
+      input.blur();
+    }
+
+    function openDrawer() {
+      sleep.classList.remove("active");
+      input.focus();
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const value = input.value;
+      input.value = "";
+      updateGhost();
+      runCommand(value);
+    });
+
+    input.addEventListener("input", updateGhost);
+
+    window.addEventListener("keydown", (event) => {
+      if (sleep.classList.contains("active")) {
+        if (event.key === "Tab") {
+          event.preventDefault();
+          openDrawer();
+        }
+        return;
+      }
+
+      if (event.ctrlKey && (event.key.toLowerCase() === "c" || event.key === "[")) {
+        event.preventDefault();
+        closeApp();
+        return;
+      }
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeDrawer();
+        return;
+      }
+
+      if (!activeApp && event.key === "Tab") {
+        event.preventDefault();
+        completeInput();
+        return;
+      }
+
+      if (!activeApp && event.key === "ArrowUp") {
+        event.preventDefault();
+        historyIndex = Math.max(0, historyIndex - 1);
+        input.value = history[historyIndex] || "";
+        updateGhost();
+        return;
+      }
+
+      if (!activeApp && event.key === "ArrowDown") {
+        event.preventDefault();
+        historyIndex = Math.min(history.length, historyIndex + 1);
+        input.value = history[historyIndex] || "";
+        updateGhost();
+      }
+    });
+
+    document.querySelectorAll("[data-close-app]").forEach((button) => {
+      button.addEventListener("click", closeApp);
+    });
+
+    wake.addEventListener("click", openDrawer);
+
+    document.querySelectorAll(".section").forEach((section) => {
+      section.addEventListener("click", () => {
+        document.querySelectorAll(".section").forEach((item) => item.classList.remove("selected"));
+        section.classList.add("selected");
+        document.querySelector("#sectionName").textContent = section.dataset.section;
+        document.querySelector("#sectionStatus").textContent = `Status: ${section.dataset.status}`;
+        document.querySelector("#sectionMeter").style.width = `${section.dataset.hp}%`;
+      });
+    });
+
+    setInterval(() => {
+      frames = frames === 144 ? 143 : 144;
+      fps.textContent = `FPS ${frames}`;
+    }, 900);
+
+    boot();
+  </script>
+</body>
+</html>
