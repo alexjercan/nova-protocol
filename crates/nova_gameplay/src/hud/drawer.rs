@@ -95,15 +95,20 @@ const NOVA_OS_ORANGE: Color = Color::srgb_u8(255, 123, 45);
 const NOVA_OS_CONTENT_Z: i32 = 0;
 const NOVA_OS_OVERLAY_Z: i32 = 1;
 const NOVA_OS_PROMPT_PREFIX: &str = "nova> ";
+/// Blink rate of the terminal caret, in full on/off cycles per second.
+const NOVA_OS_CARET_BLINK_HZ: f32 = 1.25;
 
 /// Straight-alpha CRT overlay tint + scanline controls, passed to WGSL. Kept
 /// deliberately faint so the overlay never films the text underneath: the tint
-/// is a whisper of green, the vignette darkens only the outer edges, and there
-/// is no centre glow (see `assets/shaders/nova_os_crt.wgsl`).
+/// is a whisper of green, the vignette darkens only the outer edges, and the
+/// centre glow is a low bulge that reads as volume rather than a wash (see
+/// `assets/shaders/nova_os_crt.wgsl`).
 const NOVA_OS_CRT_TINT: LinearRgba = LinearRgba::new(0.212, 1.0, 0.475, 0.03);
 const NOVA_OS_CRT_SCANLINE_STRENGTH: f32 = 0.06;
 const NOVA_OS_CRT_VIGNETTE_STRENGTH: f32 = 0.55;
-const NOVA_OS_CRT_GRAIN_STRENGTH: f32 = 0.01;
+/// Soft centre-peaked phosphor bulge that gives the flat panel its CRT volume.
+const NOVA_OS_CRT_GLOW_STRENGTH: f32 = 0.05;
+const NOVA_OS_CRT_GRAIN_STRENGTH: f32 = 0.03;
 
 /// Global stacking-context z for the OPEN drawer: it is a modal, so backdrop and
 /// panel rise above the flight HUD chrome (which carries no `GlobalZIndex` = 0).
@@ -404,6 +409,7 @@ struct NovaOsCrtUniform {
     tint: LinearRgba,
     scanline_strength: f32,
     vignette_strength: f32,
+    glow_strength: f32,
     grain_strength: f32,
 }
 
@@ -438,6 +444,7 @@ impl Default for NovaOsCrtMaterial {
                 tint: NOVA_OS_CRT_TINT,
                 scanline_strength: NOVA_OS_CRT_SCANLINE_STRENGTH,
                 vignette_strength: NOVA_OS_CRT_VIGNETTE_STRENGTH,
+                glow_strength: NOVA_OS_CRT_GLOW_STRENGTH,
                 grain_strength: NOVA_OS_CRT_GRAIN_STRENGTH,
             },
         }
@@ -868,19 +875,20 @@ fn terminal_log_rows(log: &DrawerFlightLog) -> Vec<TerminalRow> {
             text: "Flight log is empty.".to_string(),
         }];
     }
-    std::iter::once(TerminalRow {
-        kind: TerminalRowKind::Info,
-        text: "Flight log:".to_string(),
-    })
-    .chain(log.entries.iter().map(|entry| TerminalRow {
-        kind: match entry.kind {
-            DrawerFlightLogEntryKind::Comms => TerminalRowKind::Output,
-            DrawerFlightLogEntryKind::ObjectivePosted => TerminalRowKind::Warn,
-            DrawerFlightLogEntryKind::ObjectiveCompleted => TerminalRowKind::Info,
-        },
-        text: drawer_flight_log_text(entry),
-    }))
-    .collect()
+    // HTML-style log: each entry gets a 4-digit sequential index prefix
+    // (`0001 COMMS ... > ...`, `0003 OBJ + ...`) with no separate header.
+    log.entries
+        .iter()
+        .enumerate()
+        .map(|(index, entry)| TerminalRow {
+            kind: match entry.kind {
+                DrawerFlightLogEntryKind::Comms => TerminalRowKind::Output,
+                DrawerFlightLogEntryKind::ObjectivePosted => TerminalRowKind::Warn,
+                DrawerFlightLogEntryKind::ObjectiveCompleted => TerminalRowKind::Info,
+            },
+            text: format!("{:04} {}", index + 1, drawer_flight_log_text(entry)),
+        })
+        .collect()
 }
 
 fn terminal_objective_rows(objectives: &GameObjectives) -> Vec<TerminalRow> {
@@ -890,21 +898,15 @@ fn terminal_objective_rows(objectives: &GameObjectives) -> Vec<TerminalRow> {
             text: "No active objectives.".to_string(),
         }];
     }
-    std::iter::once(TerminalRow {
-        kind: TerminalRowKind::Info,
-        text: "Active objectives:".to_string(),
-    })
-    .chain(
-        objectives
-            .objectives
-            .iter()
-            .enumerate()
-            .map(|(index, objective)| TerminalRow {
-                kind: TerminalRowKind::Warn,
-                text: format!("{}. {} ({})", index + 1, objective.message, objective.id),
-            }),
-    )
-    .collect()
+    // HTML-style objectives: one `OBJ + <message>` row each, no header.
+    objectives
+        .objectives
+        .iter()
+        .map(|objective| TerminalRow {
+            kind: TerminalRowKind::Warn,
+            text: format!("OBJ + {}", objective.message),
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone)]
@@ -1145,6 +1147,13 @@ impl Plugin for NovaDrawerPlugin {
                     .run_if(resource_changed::<NovaOsTerminal>.or_else(terminal_ui_just_spawned)),
             )
                 .chain()
+                .in_set(NovaHudSystems),
+        );
+        // Blink the caret on real time (virtual time is paused while open).
+        app.add_systems(
+            Update,
+            blink_nova_os_caret
+                .run_if(in_state(PauseStates::Drawer))
                 .in_set(NovaHudSystems),
         );
 
@@ -1446,6 +1455,20 @@ fn rebuild_terminal_ui(
     }
 }
 
+/// Blink the terminal caret with a steady on/off cadence, driven by real time
+/// so it keeps blinking while the sim is frozen. The caret is a small amber
+/// block node, so the blink just toggles its background alpha.
+fn blink_nova_os_caret(
+    time: Res<Time<Real>>,
+    mut q_caret: Query<&mut BackgroundColor, With<NovaOsTerminalCaretMarker>>,
+) {
+    let on = (time.elapsed_secs() * NOVA_OS_CARET_BLINK_HZ).fract() < 0.5;
+    let color = NOVA_OS_AMBER.with_alpha(if on { 1.0 } else { 0.0 });
+    for mut background in &mut q_caret {
+        background.0 = color;
+    }
+}
+
 fn spawn_terminal_row(parent: &mut ChildSpawnerCommands, row: &TerminalRow, font: Handle<Font>) {
     let color = match row.kind {
         TerminalRowKind::Input => NOVA_OS_AMBER,
@@ -1537,10 +1560,13 @@ fn nova_os_prompt_text_layout() -> TextLayout {
     }
 }
 
+/// A zero-offset phosphor bloom behind each glyph. The alpha is pushed fairly
+/// high so the antialiased glyph edges pick up extra colour and the text reads
+/// as glowing neon phosphor rather than flat paint.
 fn nova_os_text_bloom(color: Color) -> TextShadow {
     TextShadow {
         offset: Vec2::ZERO,
-        color: color.with_alpha(0.30),
+        color: color.with_alpha(0.6),
     }
 }
 
@@ -2891,10 +2917,11 @@ mod tests {
             .iter()
             .map(|row| row.text.as_str())
             .collect();
-        assert!(printed.contains(&"Flight log:"));
-        assert!(printed.contains(&"COMMS CONTROL > Hold course."));
-        assert!(printed.contains(&"OBJ + Burn for Beacon 1"));
-        assert!(printed.contains(&"OBJ x Burn for Beacon 1"));
+        // HTML-style numbered rows, no header.
+        assert!(!printed.iter().any(|row| *row == "Flight log:"));
+        assert!(printed.contains(&"0001 COMMS CONTROL > Hold course."));
+        assert!(printed.contains(&"0002 OBJ + Burn for Beacon 1"));
+        assert!(printed.contains(&"0003 OBJ x Burn for Beacon 1"));
     }
 
     #[test]
@@ -2917,9 +2944,10 @@ mod tests {
             .iter()
             .map(|row| row.text.as_str())
             .collect();
-        assert!(printed.contains(&"Active objectives:"));
-        assert!(printed.contains(&"1. Recover the beacon (beacon)"));
-        assert!(printed.contains(&"2. Dock at the relay (dock)"));
+        // HTML-style `OBJ + <message>` rows, no header.
+        assert!(!printed.iter().any(|row| *row == "Active objectives:"));
+        assert!(printed.contains(&"OBJ + Recover the beacon"));
+        assert!(printed.contains(&"OBJ + Dock at the relay"));
 
         let empty_snapshot = terminal_snapshot_from_world(
             &DrawerFlightLog::default(),
@@ -2948,7 +2976,7 @@ mod tests {
         assert!(
             terminal_scrollback_texts(&app)
                 .iter()
-                .any(|row| row == "1. Recover the beacon (beacon)"),
+                .any(|row| row == "OBJ + Recover the beacon"),
             "first command submit reads the current objective resource"
         );
 
@@ -2957,9 +2985,7 @@ mod tests {
 
         let printed = terminal_scrollback_texts(&app);
         assert!(
-            printed
-                .iter()
-                .any(|row| row == "1. Dock at the relay (dock)"),
+            printed.iter().any(|row| row == "OBJ + Dock at the relay"),
             "second command submit reads the changed objective resource"
         );
     }
@@ -3180,7 +3206,7 @@ mod tests {
             "typed input must not collapse inside the prompt row"
         );
         assert!(
-            prompt_bloom.offset == Vec2::ZERO && prompt_bloom.color.alpha() <= 0.31,
+            prompt_bloom.offset == Vec2::ZERO && prompt_bloom.color.alpha() <= 0.61,
             "terminal prompt bloom must stay faint and non-directional"
         );
 
@@ -3200,7 +3226,7 @@ mod tests {
             "autocomplete ghost stays inline after the visible prompt text"
         );
         assert!(
-            ghost_bloom.offset == Vec2::ZERO && ghost_bloom.color.alpha() <= 0.31,
+            ghost_bloom.offset == Vec2::ZERO && ghost_bloom.color.alpha() <= 0.61,
             "autocomplete ghost bloom must stay faint and non-directional"
         );
 
@@ -3212,7 +3238,7 @@ mod tests {
         assert_eq!(prefix.0, "nova>");
         assert_eq!(prefix_color.0, NOVA_OS_AMBER);
         assert!(
-            prefix_bloom.offset == Vec2::ZERO && prefix_bloom.color.alpha() <= 0.31,
+            prefix_bloom.offset == Vec2::ZERO && prefix_bloom.color.alpha() <= 0.61,
             "prompt prefix bloom must stay faint and non-directional"
         );
 

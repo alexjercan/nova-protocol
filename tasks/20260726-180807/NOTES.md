@@ -111,6 +111,26 @@ rows use the HTML blue `#36a3ff`.
   that the dark box still reads as raised, and it keeps the HTML-faithful
   "overlays above content" ordering.
 
+## Feedback round (post-land, on master)
+
+User feedback after the first land, addressed directly on master in the same task:
+
+- Screen volume gradient + grain: the shader's centre glow (removed in the first
+  pass because the old 0.13 value washed the text) is back as a LOW `glow_strength`
+  0.05 bulge peaking at centre and fading by the edges, so the flat panel reads as
+  curved CRT glass; grain bumped 0.01 -> 0.03 with a brighter spark cell so the
+  screen texture looks alive. Verified on a fresh capture (`shots/nova-os-*.png`):
+  clear centre-to-edge gradient, visible grain, text still crisp.
+- More letter bloom: `nova_os_text_bloom` alpha 0.30 -> 0.6 (zero-offset), so glyph
+  edges pick up extra phosphor and read as neon glow.
+- Blinking caret: new `blink_nova_os_caret` system toggles the amber caret block's
+  background alpha on real time (`NOVA_OS_CARET_BLINK_HZ` 1.25 cycles/s), gated on
+  `PauseStates::Drawer`. Real time because virtual time is paused while open.
+- `log` / `objectives` output now match the HTML: `log` drops its header and
+  prefixes each row with a 4-digit sequential index (`0001 COMMS ... > ...`,
+  `0003 OBJ + ...`); `objectives` drops its header and prints `OBJ + <message>`
+  rows. Real data is kept; only the framing changed. Tests updated accordingly.
+
 ## Self-reflection
 
 The durable lesson from `142635`'s RETRO held: build the capture harness FIRST,
