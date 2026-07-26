@@ -992,6 +992,27 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   corrupts the whole uniform if it lands on a bad offset. Put a `vec2` right after
   a `vec4` (offset 16, 8-aligned, no padding hole) or pad explicitly; verify the
   two struct definitions line up field-for-field. 20260726-193155.
+- `bevy-ui-image-camera-is-pickable-via-forwarded-pointer` (domain, x1): bevy
+  0.19 `ui_picking` matches pointers to cameras by RENDER TARGET, not
+  window-ness, so UI rendered to a `RenderTarget::Image` via `UiTargetCamera` IS
+  hover/clickable - spawn a `PointerId::Custom` whose `PointerLocation.target` is
+  that image and drive it from the real cursor (map through the display rect +
+  inverse any warp). The "bevy_ui on an image camera is unclickable" lesson
+  ([[verify-interaction-not-just-rendering]]) is the LEGACY `ui_focus_system`
+  only; the modern picking backend does not have that limit. BUT
+  `bevy_picking::update_is_hovered` is hard-coded to `PointerId::Mouse`, so the
+  `Hovered` COMPONENT needs a manual mirror for the forwarded pointer - and that
+  mirror MUST be scoped to the through-image subtree (descendants of the content
+  root) or it force-writes `Hovered(false)` on window-space UI every frame,
+  fighting the real cursor. An instance of [[verify-engine-guarantees-in-source]].
+  20260726-193233.
+- `bevy-ui-render-ignores-renderlayers` (domain, x1): `bevy_ui_render` routes UI
+  purely by `ComputedUiTargetCamera` (`UiCameraMap`) and never reads
+  `RenderLayers`, while 2D sprites DO respect them. So a UI camera placed on a
+  dedicated `RenderLayers` layer still draws its `UiTargetCamera`-targeted UI AND
+  is isolated from stray world sprites (e.g. the render-scale upscale sprite on
+  the default layer) - the way to render a UI subtree to an image without the
+  camera also picking up scene 2D. 20260726-193233.
 
 ## Promoted (resolved 2026-07-21, task 20260720-220051)
 

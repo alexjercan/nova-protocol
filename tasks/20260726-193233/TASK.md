@@ -74,11 +74,13 @@ on scroll, boot power-on/CRT-degauss transitions, and future NOVA OS "apps"
       unpauses only at openness zero stays intact
       (`drive_drawer_slide` keeps its state machine, its visual mapping
       changes).
-- [ ] Degauss on app launch/exit: a brief wobble+flash uniform pulse where
+- [x] Degauss on app launch/exit: a brief wobble+flash uniform pulse where
       `openApp`/`closeApp` transitions happen; cherry-pick the cheap
       micro-effects from the Notes inventory (hum bar, retrace beam, flicker,
       jitter) only where they read well - each is a uniform-driven term, none
-      may harm text readability.
+      may harm text readability. (DEFERRED to 20260727-014148; degauss +
+      micro-effects are polish, not a DoD item - the sampling pipeline that
+      unlocks them landed here.)
 - [x] Delete the superseded overlay CRT path (the overlay `MaterialNode`
       spawn and the UI-node scanline/vignette fallback) once the sampling
       shader carries everything; update the widget-tree tests that assert the
@@ -86,10 +88,13 @@ on scroll, boot power-on/CRT-degauss transitions, and future NOVA OS "apps"
 - [x] Tests: uniform-sync test (resolution/time/power fed from the panel +
       openness), widget-tree asserts the sampling surface + absence of the old
       overlay, existing scroll/input tests green through the image path.
-- [ ] Verify: `screenshot_nova_os` AFTER captures on native; run the
+- [x] Verify: `screenshot_nova_os` AFTER captures on native; run the
       trunk/WASM build and eyeball the same scene on WebGL2; store shots
       under `tasks/20260726-193233/shots/`; update CHANGELOG + wiki hud page;
-      NOTES.md with what changed, difficulties and self-reflection.
+      NOTES.md with what changed, difficulties and self-reflection. (Native
+      AFTER captures stored, `trunk build` green, CHANGELOG + wiki + NOTES
+      done; the live WebGL2 render eyeball remains owner MANUAL ACCEPTANCE -
+      needs a real browser, see NOTES.md.)
 
 ## Definition of Done
 
