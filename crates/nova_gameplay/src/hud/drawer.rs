@@ -1269,8 +1269,16 @@ fn nova_os_ship_name(name: Option<&Name>) -> String {
         .unwrap_or_else(|| "UNKNOWN".to_string())
 }
 
-fn nova_os_status_text(ship_name: &str) -> String {
-    format!("SHIP: {ship_name}     LINK: LOCAL")
+/// The NOVA OS topbar status line: ship + link, plus a live FPS segment. The FPS
+/// is rehomed here from the flight status bar, which hides while the computer is
+/// open (task 20260727-014806); `fps` is the smoothed frame rate rounded to a
+/// whole number, or `None` before the diagnostic has a reading (shown as `--`).
+fn nova_os_status_text(ship_name: &str, fps: Option<u32>) -> String {
+    let fps = match fps {
+        Some(fps) => fps.to_string(),
+        None => "--".to_string(),
+    };
+    format!("SHIP: {ship_name}     LINK: LOCAL     FPS: {fps}")
 }
 
 fn terminal_help_rows(app_commands: &[NovaOsAppCommand]) -> Vec<TerminalRow> {
@@ -1662,12 +1670,13 @@ impl Plugin for NovaDrawerPlugin {
                 .chain()
                 .in_set(NovaHudSystems),
         );
-        // Blink the caret and shimmer the CRT grain on real time (virtual time is
-        // paused while the computer is open).
+        // Blink the caret, shimmer the CRT grain and refresh the topbar FPS on
+        // real time (virtual time is paused while the computer is open).
         app.add_systems(
             Update,
             (
                 blink_nova_os_caret,
+                drive_nova_os_topbar_fps,
                 animate_nova_os_crt.run_if(resource_exists::<Assets<NovaOsCrtMaterial>>),
             )
                 .run_if(in_state(PauseStates::Drawer))
@@ -2221,6 +2230,56 @@ fn blink_nova_os_caret(
     let color = NOVA_OS_AMBER.with_alpha(if on { 1.0 } else { 0.0 });
     for mut background in &mut q_caret {
         background.0 = color;
+    }
+}
+
+/// The separator that fronts the FPS segment in the topbar status line. The drive
+/// system rewrites everything from this marker on, leaving the `SHIP:`/`LINK:`
+/// head (which never changes after spawn) untouched.
+const NOVA_OS_TOPBAR_FPS_MARKER: &str = "     FPS: ";
+
+/// The smoothed frame rate rounded to a whole number, or `None` before the
+/// diagnostic has a reading. Reuses Bevy's `FrameTimeDiagnosticsPlugin::FPS`
+/// smoothed value - the exact source the flight status bar's FPS item read
+/// (bcs `status_fps_value_fn`) - so the number on the topbar matches the one the
+/// hidden status bar would show.
+fn nova_os_diagnostic_fps(diagnostics: &bevy::diagnostic::DiagnosticsStore) -> Option<u32> {
+    diagnostics
+        .get(&bevy::diagnostic::FrameTimeDiagnosticsPlugin::FPS)
+        .and_then(|fps| fps.smoothed())
+        .map(|fps| fps.round() as u32)
+}
+
+/// Rewrite only the `FPS: <n>` tail of a topbar status line, preserving the
+/// `SHIP:`/`LINK:` head. Falls back to appending the segment if a line somehow
+/// lacks it (e.g. an older spawn), so the FPS never silently goes missing.
+fn topbar_line_with_fps(current: &str, fps: Option<u32>) -> String {
+    let head = current
+        .split_once(NOVA_OS_TOPBAR_FPS_MARKER)
+        .map(|(head, _)| head)
+        .unwrap_or(current);
+    let fps = match fps {
+        Some(fps) => fps.to_string(),
+        None => "--".to_string(),
+    };
+    format!("{head}{NOVA_OS_TOPBAR_FPS_MARKER}{fps}")
+}
+
+/// Refresh the live `FPS: <n>` segment on the NOVA OS topbar each frame while the
+/// computer is open. The flight status bar (which normally carries the FPS item)
+/// is hidden in `PauseStates::Drawer`, so this is the only FPS readout on screen
+/// then. Runs on the real-time drawer group beside the caret blink because the
+/// virtual clock is frozen while the drawer is open.
+fn drive_nova_os_topbar_fps(
+    diagnostics: Res<bevy::diagnostic::DiagnosticsStore>,
+    mut q_status: Query<&mut Text, With<NovaOsStatusMarker>>,
+) {
+    let fps = nova_os_diagnostic_fps(&diagnostics);
+    for mut text in &mut q_status {
+        let next = topbar_line_with_fps(&text.0, fps);
+        if text.0 != next {
+            text.0 = next;
+        }
     }
 }
 
@@ -3529,7 +3588,7 @@ fn spawn_nova_os_terminal_content(
                         });
                     topbar.spawn((
                         NovaOsStatusMarker,
-                        Text::new(nova_os_status_text(ship_name)),
+                        Text::new(nova_os_status_text(ship_name, None)),
                         nova_os_text_font(DRAWER_SECTION_TITLE_FONT_PX, font.clone()),
                         TextColor(NOVA_OS_PHOSPHOR_DIM),
                     ));
@@ -5562,7 +5621,10 @@ mod tests {
         let texts = all_texts(&mut app);
         for expected in [
             format!("NOVA OS {} / COCKPIT LINK", nova_os_version_label()),
-            "SHIP: SURVEY CUTTER     LINK: LOCAL".to_string(),
+            // The topbar carries the ship/link head plus a live FPS segment; it
+            // spawns with a `--` placeholder before the diagnostic has a reading
+            // (task 20260727-014806).
+            "SHIP: SURVEY CUTTER     LINK: LOCAL     FPS: --".to_string(),
             format!("NOVA OS {}", nova_os_version_label()),
             "BIOS CHECK: flight computer / ok".to_string(),
             "DISPLAY: green phosphor crt / ok".to_string(),
@@ -5586,6 +5648,70 @@ mod tests {
                 .iter()
                 .any(|text| text == "FLIGHT LOG" || text == "OBJECTIVES"),
             "NOVA OS no longer renders permanent side-panel headings inside the screen"
+        );
+    }
+
+    #[test]
+    fn topbar_status_line_carries_a_live_fps_segment() {
+        // The pure line builder appends the FPS segment after the ship/link head,
+        // with a `--` placeholder until the diagnostic reads.
+        assert_eq!(
+            nova_os_status_text("CERES QUEEN", Some(60)),
+            "SHIP: CERES QUEEN     LINK: LOCAL     FPS: 60"
+        );
+        assert_eq!(
+            nova_os_status_text("CERES QUEEN", None),
+            "SHIP: CERES QUEEN     LINK: LOCAL     FPS: --"
+        );
+
+        // The live rewrite replaces only the FPS tail, preserving the head.
+        let spawned = nova_os_status_text("CERES QUEEN", None);
+        assert_eq!(
+            topbar_line_with_fps(&spawned, Some(144)),
+            "SHIP: CERES QUEEN     LINK: LOCAL     FPS: 144"
+        );
+        assert_eq!(
+            topbar_line_with_fps("SHIP: CERES QUEEN     LINK: LOCAL     FPS: 144", None),
+            "SHIP: CERES QUEEN     LINK: LOCAL     FPS: --"
+        );
+        // A line missing the marker (older spawn) still gets an FPS segment.
+        assert_eq!(
+            topbar_line_with_fps("SHIP: CERES QUEEN     LINK: LOCAL", Some(30)),
+            "SHIP: CERES QUEEN     LINK: LOCAL     FPS: 30"
+        );
+    }
+
+    #[test]
+    fn drive_topbar_fps_writes_the_smoothed_reading_onto_the_status_line() {
+        use bevy::diagnostic::{
+            Diagnostic, DiagnosticMeasurement, DiagnosticsStore, FrameTimeDiagnosticsPlugin,
+        };
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        spawn_drawer_shell(&mut app);
+
+        // Seed a DiagnosticsStore with an FPS reading, mirroring what
+        // FrameTimeDiagnosticsPlugin publishes in production.
+        let mut store = DiagnosticsStore::default();
+        let mut fps = Diagnostic::new(FrameTimeDiagnosticsPlugin::FPS);
+        fps.add_measurement(DiagnosticMeasurement {
+            time: std::time::Instant::now(),
+            value: 59.6,
+        });
+        store.add(fps);
+        app.insert_resource(store);
+
+        app.world_mut()
+            .run_system_once(drive_nova_os_topbar_fps)
+            .unwrap();
+
+        let texts = all_texts(&mut app);
+        assert!(
+            texts
+                .iter()
+                .any(|text| text == "SHIP: SURVEY CUTTER     LINK: LOCAL     FPS: 60"),
+            "the topbar shows the rounded smoothed FPS while the drawer is open; got {texts:?}"
         );
     }
 

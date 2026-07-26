@@ -296,15 +296,20 @@ pub fn assets_plugin() -> AssetPlugin {
 }
 
 fn setup_status_ui(mut commands: Commands, game_assets: Res<GameAssets>) {
-    // Status tier + drawer-exempt: the fps/version bar (and the objective count
-    // in it) is persistent reference chrome (task 20260724-171509). It stays at
-    // HudVisibility::Minimal and while the Tab drawer is open, and hides only at
-    // the cinematic `None` level (and in the main menu, which drives the level to
-    // None). HudDrawerExempt keeps it through the drawer and z-lifts it above the
-    // drawer backdrop; the base GlobalZIndex gives that lift a component to drive.
+    // Status tier: the fps/version bar (and the objective count in it) is
+    // persistent reference chrome (task 20260724-171509). It stays at
+    // HudVisibility::Minimal and hides only at the cinematic `None` level (and in
+    // the main menu, which drives the level to None).
+    //
+    // It is NOT drawer-exempt (task 20260727-014806): while the NOVA OS computer is
+    // open the whole flight status bar hides, and the one item that matters there -
+    // FPS - is rehomed onto the NOVA OS terminal topbar instead (see
+    // `drive_nova_os_topbar_fps` in nova_gameplay's hud/drawer.rs). Dropping
+    // HudDrawerExempt lets `apply_hud_visibility` hide the bar in
+    // `PauseStates::Drawer`; its pause-change restore branch un-hides it on close.
+    // The base GlobalZIndex is kept so the bar has a stable z at the HUD layer.
     commands.spawn((
         HudTier::Status,
-        HudDrawerExempt,
         GlobalZIndex::default(),
         status_bar(StatusBarRootConfig::default()),
     ));

@@ -1032,6 +1032,44 @@ mod tests {
         );
     }
 
+    /// The real flight status bar is `HudTier::Status` WITHOUT `HudDrawerExempt`
+    /// (task 20260727-014806): opening the NOVA OS computer hides the whole flight
+    /// status bar (its FPS item is rehomed onto the terminal topbar), and closing
+    /// the drawer restores it in the same frame via the pause-change restore branch.
+    #[test]
+    fn flight_status_bar_hides_while_the_drawer_is_open_and_returns_on_close() {
+        let mut app = app();
+        let status = app
+            .world_mut()
+            .spawn((HudTier::Status, Visibility::Inherited))
+            .id();
+        let vis = |app: &App, e| *app.world().get::<Visibility>(e).unwrap();
+
+        // Visible in normal flight (Minimal shows the Status tier).
+        app.update();
+        assert_eq!(
+            vis(&app, status),
+            Visibility::Inherited,
+            "the flight status bar is visible in normal flight"
+        );
+
+        // Opening the drawer hides it - it is no longer drawer-exempt.
+        set_pause(&mut app, crate::PauseStates::Drawer);
+        assert_eq!(
+            vis(&app, status),
+            Visibility::Hidden,
+            "the flight status bar hides while the NOVA OS computer is open"
+        );
+
+        // Closing the drawer restores it (pause change fires the restore branch).
+        set_pause(&mut app, crate::PauseStates::Unpaused);
+        assert_eq!(
+            vis(&app, status),
+            Visibility::Inherited,
+            "closing the drawer brings the flight status bar back"
+        );
+    }
+
     /// The objective count is a CHILD of the status bar root with no `HudTier` of
     /// its own, so it must INHERIT the bar's visibility (task 20260724-171509):
     /// `apply_hud_visibility` manages only the tiered PARENT and must leave the
