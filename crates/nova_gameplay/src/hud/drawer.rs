@@ -1,7 +1,7 @@
 //! The Tab ship-computer drawer: one inset NOVA OS cockpit monitor that opens
 //! on Tab, freezing the sim and freeing the cursor while active. The monitor
 //! replaces the old left/right panels with a physical terminal screen: dark
-//! casing, hard bezel, green phosphor display, accent slots and CRT overlays.
+//! casing, hard bezel, green phosphor display and CRT overlays.
 //! This module owns the shell, command prompt, scrollback, input handling and
 //! terminal content. The existing objectives and combined flight-log data feed
 //! read-only terminal commands, but they are no longer visible as permanent
@@ -67,10 +67,12 @@ const DRAWER_OBJECTIVE_GLYPH_WIDTH_PX: f32 = 18.0;
 const DRAWER_LOG_ICON_SIZE_PX: f32 = 20.0;
 const DRAWER_SCROLL_LINE_HEIGHT_PX: f32 = 20.0;
 
-/// Horizontal inset from the viewport edge to the physical monitor casing.
-const NOVA_OS_MONITOR_INSET_X_PX: f32 = 42.0;
+/// Horizontal inset from the viewport edge to the physical monitor casing. Kept
+/// small so the monitor sits almost at the screen edges (the top status-bar
+/// chrome may overlap it - that is intentional).
+const NOVA_OS_MONITOR_INSET_X_PX: f32 = 16.0;
 /// Vertical inset from the viewport edge to the physical monitor casing.
-const NOVA_OS_MONITOR_INSET_Y_PX: f32 = 52.0;
+const NOVA_OS_MONITOR_INSET_Y_PX: f32 = 14.0;
 const NOVA_OS_BEZEL_PAD_PX: f32 = 26.0;
 const NOVA_OS_SCREEN_PAD_PX: f32 = 18.0;
 /// Injection-moulded shell corners: a larger top radius and a tighter bottom,
@@ -89,9 +91,11 @@ const NOVA_OS_TERMINAL_PAD_Y_PX: f32 = 14.0;
 const NOVA_OS_PROMPT_ROW_HEIGHT_PX: f32 = 58.0;
 const NOVA_OS_FONT_PATH: &str = "fonts/SGr-IosevkaTerm-Regular.ttc";
 const NOVA_OS_BACKDROP: Color = Color::srgb_u8(0, 3, 6);
-const NOVA_OS_CASE: Color = Color::srgb_u8(5, 10, 15);
-const NOVA_OS_CASE_RAISED: Color = Color::srgb_u8(11, 21, 32);
-const NOVA_OS_CASE_EDGE: Color = Color::srgb_u8(37, 65, 86);
+// Dark-GRAY moulded plastic, matching the PoC `:root` `--case-*` (neutral, not
+// blue). `--case-0`, a mid raised body, and `--case-edge`.
+const NOVA_OS_CASE: Color = Color::srgb_u8(10, 13, 16);
+const NOVA_OS_CASE_RAISED: Color = Color::srgb_u8(16, 22, 27);
+const NOVA_OS_CASE_EDGE: Color = Color::srgb_u8(5, 7, 10);
 const NOVA_OS_SCREEN: Color = Color::srgb_u8(0, 4, 1);
 // Palette lifted from `nova_os_terminal_poc.html`: a hot neon phosphor for the
 // prompt, borders and headers; a pale mint for ordinary body text (the HTML
@@ -103,13 +107,13 @@ const NOVA_OS_PHOSPHOR_DIM: Color = Color::srgb_u8(95, 238, 137);
 const NOVA_OS_PHOSPHOR_MUTED: Color = Color::srgb_u8(70, 207, 118);
 const NOVA_OS_INFO: Color = Color::srgb_u8(54, 163, 255);
 const NOVA_OS_AMBER: Color = Color::srgb_u8(255, 184, 74);
-const NOVA_OS_ORANGE: Color = Color::srgb_u8(255, 123, 45);
 // Moulded-plastic depth palette (casing gradient stops, screws, seam catch).
 // The PoC `.case` body runs a 168deg gradient from a lit top (`--case-3`) down
-// through the mid body to an almost-black undercut; these are those stops.
-const NOVA_OS_CASE_LIT: Color = Color::srgb_u8(28, 44, 58);
-const NOVA_OS_CASE_MID: Color = Color::srgb_u8(14, 26, 38);
-const NOVA_OS_CASE_DEEP: Color = Color::srgb_u8(5, 8, 10);
+// through the mid body to an almost-black undercut; these are those `--case-*`
+// stops (dark GRAY, not blue).
+const NOVA_OS_CASE_LIT: Color = Color::srgb_u8(47, 56, 63);
+const NOVA_OS_CASE_MID: Color = Color::srgb_u8(22, 27, 32);
+const NOVA_OS_CASE_DEEP: Color = Color::srgb_u8(10, 13, 16);
 /// The 1px top light line that catches the moulding lip (PoC `inset 0 1px 0`).
 const NOVA_OS_CASE_HIGHLIGHT: Color = Color::srgba(1.0, 1.0, 1.0, 0.12);
 /// Screw head shading (PoC `.screw` radial gradient light -> dark).
@@ -242,10 +246,6 @@ struct NovaOsCrtMaterialMarker;
 /// The footer hint row from the PoC.
 #[derive(Component)]
 struct NovaOsFooterHintsMarker;
-
-/// Orange/yellow casing slots copied from the PoC's physical monitor language.
-#[derive(Component)]
-struct NovaOsAccentSlotMarker;
 
 /// One of the four moulded corner screws on the casing (PoC `.screw`).
 #[derive(Component)]
@@ -2582,7 +2582,6 @@ fn setup_drawer(
             nova_os_case_gradient(),
         ))
         .with_children(|monitor| {
-            spawn_nova_os_accent_slots(monitor);
             spawn_nova_os_moulding_seam(monitor);
             spawn_nova_os_casing_screws(monitor);
             spawn_nova_os_casing_vents(monitor);
@@ -2677,34 +2676,6 @@ fn nova_os_bezel_gradient() -> BackgroundGradient {
         ],
     )
     .into()])
-}
-
-fn spawn_nova_os_accent_slots(parent: &mut ChildSpawnerCommands) {
-    for (name, left, color) in [
-        ("NovaOsAccentLeft", Val::Px(16.0), NOVA_OS_AMBER),
-        ("NovaOsAccentRight", Val::Auto, NOVA_OS_ORANGE),
-    ] {
-        let mut node = Node {
-            position_type: PositionType::Absolute,
-            top: Val::Px(18.0),
-            width: Val::Px(8.0),
-            height: Val::Px(52.0),
-            border: UiRect::all(Val::Px(1.0)),
-            ..default()
-        };
-        if left == Val::Auto {
-            node.right = Val::Px(16.0);
-        } else {
-            node.left = left;
-        }
-        parent.spawn((
-            Name::new(name),
-            NovaOsAccentSlotMarker,
-            node,
-            BorderColor::all(color.with_alpha(0.7)),
-            BackgroundColor(color.with_alpha(0.18)),
-        ));
-    }
 }
 
 /// Four moulded corner screws (PoC `.screw`): a spherical head via a diagonal
@@ -2923,8 +2894,8 @@ fn spawn_nova_os_glass_sheen(screen: &mut ChildSpawnerCommands) {
                     UiPosition::CENTER,
                     RadialGradientShape::ClosestSide,
                     vec![
-                        ColorStop::percent(Color::srgba(0.82, 0.92, 1.0, 0.09), 0.0),
-                        ColorStop::percent(Color::srgba(0.82, 0.92, 1.0, 0.03), 55.0),
+                        ColorStop::percent(Color::srgba(0.82, 0.92, 1.0, 0.06), 0.0),
+                        ColorStop::percent(Color::srgba(0.82, 0.92, 1.0, 0.02), 55.0),
                         ColorStop::percent(Color::NONE, 100.0),
                     ],
                 ))]),
@@ -2949,9 +2920,11 @@ fn spawn_nova_os_chin(
             Node {
                 width: Val::Percent(100.0),
                 min_height: Val::Px(NOVA_OS_CHIN_HEIGHT_PX),
+                // Wide left/right padding so the plate + controls clear the
+                // bottom corner screws (screws inset ~15px, ~12px wide).
                 padding: UiRect {
-                    left: Val::Px(12.0),
-                    right: Val::Px(12.0),
+                    left: Val::Px(40.0),
+                    right: Val::Px(40.0),
                     top: Val::Px(11.0),
                     bottom: Val::Px(4.0),
                 },
@@ -2980,19 +2953,22 @@ fn spawn_nova_os_chin(
                     border_radius: BorderRadius::all(Val::Px(5.0)),
                     ..default()
                 },
-                // Recessed badge: dark top/left inner shadow, light lower catch.
+                // Recessed badge, matching the PoC `.plate`: a base DARKER than
+                // the surrounding case, really dark edges, and a top(dark) ->
+                // bottom(light-ish grey) gradient with a light lower catch, so it
+                // reads pressed a little INTO the plastic (a 3D inset).
                 BorderColor {
-                    top: Color::srgba(0.0, 0.0, 0.0, 0.6),
-                    left: Color::srgba(0.0, 0.0, 0.0, 0.4),
-                    bottom: Color::srgba(1.0, 1.0, 1.0, 0.06),
-                    right: Color::srgba(1.0, 1.0, 1.0, 0.04),
+                    top: Color::srgba(0.0, 0.0, 0.0, 0.8),
+                    left: Color::srgb_u8(3, 4, 6),
+                    right: Color::srgb_u8(3, 4, 6),
+                    bottom: Color::srgba(1.0, 1.0, 1.0, 0.11),
                 },
-                BackgroundColor(NOVA_OS_CASE_MID),
+                BackgroundColor(NOVA_OS_CASE_EDGE),
                 BackgroundGradient(vec![LinearGradient::degrees(
                     180.0,
                     vec![
-                        ColorStop::percent(Color::srgba(0.0, 0.0, 0.0, 0.34), 0.0),
-                        ColorStop::percent(Color::srgba(1.0, 1.0, 1.0, 0.035), 100.0),
+                        ColorStop::percent(Color::srgba(0.0, 0.0, 0.0, 0.45), 0.0),
+                        ColorStop::percent(Color::srgba(0.82, 0.86, 0.91, 0.16), 100.0),
                     ],
                 )
                 .into()]),
@@ -5028,14 +5004,6 @@ mod tests {
         assert!(
             overlay_zs.iter().all(|overlay_z| prompt_z > *overlay_z),
             "the prompt strip renders above CRT overlays so typed input remains visible"
-        );
-        assert!(
-            app.world_mut()
-                .query_filtered::<(), With<NovaOsAccentSlotMarker>>()
-                .iter(app.world())
-                .count()
-                >= 2,
-            "monitor casing has orange/yellow accent slots"
         );
     }
 

@@ -153,10 +153,10 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `git-mv-leaves-empty-parent` (x1): `git mv` out of a dir leaves the emptied
   dir on disk and filesystem-walking tools trip on it; `rm -rf` the old dir
   after a relocation. 20260716-215513.
-- `tatr-new-then-sprout-strands-the-task-file` (x2, PROMOTED 2026-07-19 ->
+- `tatr-new-then-sprout-strands-the-task-file` (x3, PROMOTED 2026-07-19 ->
   tatr + flow skills): sprout first and run `tatr new` inside the worktree;
   carry-and-clean a stub unavoidably born in the main checkout.
-  20260717-101414, 20260718-181305.
+  20260717-101414, 20260718-181305, 20260726-230237.
 - `flow-land-scope-when-user-says-branch` (x1, PROMOTED 2026-07-19 -> flow
   skill): when the ask mentions a branch AND /flow, confirm land-to-master vs
   stop-at-branch at the START. 20260718-181305.
