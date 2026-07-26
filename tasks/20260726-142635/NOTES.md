@@ -45,11 +45,20 @@
 - Added a faint zero-offset text bloom pass. This keeps the current sharp text shape and avoids the directional shadow that looked strange in the previous attempt.
 - Reworked `help` output so it is generated from the registered command metadata with computed column alignment. The executable command registry still contains only `help` and `clear`.
 
+## Feedback Round 5
+
+- Increased terminal text contrast: normal output now uses the same bright phosphor green as the screen border, and dim/muted text moved up so secondary copy remains readable on the darker screen.
+- Changed footer hints to current terminal-app keybinds: `TAB: AUTOCOMPLETE`, `ESC: CLOSE COMPUTER`, and `HINT: TYPE HELP`.
+- Fixed autocomplete overlap by making the ghost an absolute input-lane overlay with monospace leading spaces before the completion suffix. It no longer depends on Bevy assigning the typed prompt node a usable flex width.
+- Made CRT grain squares smaller and denser while reducing grain strength so the texture reads more like the HTML sample without lowering text contrast.
+- Started the rounded-screen darkness closer to the center and added a second soft glass falloff term, while preserving the near-black edges from the previous pass.
+
 ## Tradeoffs
 
 - The Iosevka Term TTC is large, about 66 MB. It is used directly because the requested font was only available locally as a TTC collection; a future asset pass can subset or replace it with a smaller TTF/WOFF if needed.
 - The fallback scanline layer stays in place for headless/widget-tree coverage and non-material contexts, but its alpha is intentionally low because the shader now carries the real CRT treatment.
 - The grain lives in the shader instead of hundreds of UI child nodes. That keeps the square texture cheap and keeps hit-testing/widget hierarchy focused on the terminal itself.
+- The ghost offset uses monospace spaces instead of per-character measurement. That is appropriate for the Iosevka terminal font and avoids adding a Bevy text-measurement dependency to the prompt hot path.
 - This task does not implement `log`, `objectives`, `ship`, `map`, app runtime or ship viewer output. The live backing state remains in `drawer.rs` for those future commands.
 
 ## Difficulties
@@ -85,6 +94,14 @@
 - `git diff --check`
 - `nix develop --command cargo check`
 - `cd web && npm run ci`
+- `tatr check --ledger LESSONS.md`
+
+## Feedback Round 5 Verification
+
+- `nix develop --command cargo fmt --check`
+- `nix develop --command cargo test -p nova_gameplay drawer`
+- `git diff --check`
+- `nix develop --command cargo check`
 - `tatr check --ledger LESSONS.md`
 
 ## Self-Reflection

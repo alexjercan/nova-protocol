@@ -58,3 +58,17 @@ Checked:
 - A keyboard-event regression proves typed input reaches the visible prompt text entity.
 - Text bloom is zero-offset and low-alpha, avoiding the old directional shadow.
 - Help output is generated from the command registry with computed alignment, while the registry still exposes only `help` and `clear`.
+
+## Round 5
+
+- VERDICT: APPROVE
+
+Findings: none.
+
+Checked:
+
+- Terminal output color now matches the bright phosphor border color for stronger contrast.
+- Footer hints use current terminal-app keybind language and say `Close Computer`.
+- Autocomplete ghost text is offset with monospace spacing and absolutely positioned behind the input lane, preventing overlap with typed input.
+- Grain cells are smaller and denser, with lower strength.
+- The CRT vignette starts closer to the center and adds a rounded glass falloff while keeping near-black edges.
