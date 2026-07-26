@@ -55,9 +55,9 @@ const DRAWER_SLIDE_SECS: f32 = 0.22;
 /// it doubles as the "you do not notice the old UI is gone" gray field. The
 /// owner chose a deeper gray over a real scene blur at the /flow gate (bevy
 /// 0.19 has no UI backdrop-filter; see this task's DECISION.md).
-const DRAWER_BACKDROP_ALPHA: f32 = 0.86;
-const DRAWER_SECTION_TITLE_FONT_PX: f32 = 12.0;
-const DRAWER_LINE_FONT_PX: f32 = 13.0;
+const DRAWER_BACKDROP_ALPHA: f32 = 0.94;
+const DRAWER_SECTION_TITLE_FONT_PX: f32 = 14.0;
+const DRAWER_LINE_FONT_PX: f32 = 16.0;
 const DRAWER_ROW_GAP_PX: f32 = 6.0;
 const DRAWER_ROW_PADDING_X_PX: f32 = 8.0;
 const DRAWER_ROW_PADDING_Y_PX: f32 = 7.0;
@@ -73,24 +73,26 @@ const NOVA_OS_BEZEL_PAD_PX: f32 = 26.0;
 const NOVA_OS_SCREEN_PAD_PX: f32 = 18.0;
 const NOVA_OS_TERMINAL_PAD_X_PX: f32 = 16.0;
 const NOVA_OS_TERMINAL_PAD_Y_PX: f32 = 14.0;
-const NOVA_OS_PROMPT_ROW_HEIGHT_PX: f32 = 42.0;
+const NOVA_OS_PROMPT_ROW_HEIGHT_PX: f32 = 48.0;
+const NOVA_OS_BACKDROP: Color = Color::srgb_u8(0, 3, 6);
 const NOVA_OS_CASE: Color = Color::srgb_u8(5, 10, 15);
 const NOVA_OS_CASE_RAISED: Color = Color::srgb_u8(11, 21, 32);
 const NOVA_OS_CASE_EDGE: Color = Color::srgb_u8(37, 65, 86);
-const NOVA_OS_SCREEN: Color = Color::srgb_u8(0, 24, 7);
-const NOVA_OS_PHOSPHOR: Color = Color::srgb_u8(54, 255, 121);
-const NOVA_OS_PHOSPHOR_DIM: Color = Color::srgb_u8(25, 166, 79);
-const NOVA_OS_PHOSPHOR_MUTED: Color = Color::srgb_u8(13, 110, 53);
-const NOVA_OS_AMBER: Color = Color::srgb_u8(255, 184, 74);
-const NOVA_OS_ORANGE: Color = Color::srgb_u8(255, 123, 45);
+const NOVA_OS_SCREEN: Color = Color::srgb_u8(0, 13, 4);
+const NOVA_OS_PHOSPHOR: Color = Color::srgb_u8(72, 255, 139);
+const NOVA_OS_PHOSPHOR_DIM: Color = Color::srgb_u8(44, 214, 100);
+const NOVA_OS_PHOSPHOR_MUTED: Color = Color::srgb_u8(22, 135, 66);
+const NOVA_OS_INFO: Color = Color::srgb_u8(71, 171, 255);
+const NOVA_OS_AMBER: Color = Color::srgb_u8(255, 198, 79);
+const NOVA_OS_ORANGE: Color = Color::srgb_u8(255, 142, 50);
 const NOVA_OS_CONTENT_Z: i32 = 0;
 const NOVA_OS_OVERLAY_Z: i32 = 1;
 const NOVA_OS_PROMPT_PREFIX: &str = "nova> ";
 
 /// Straight-alpha CRT overlay tint + scanline controls, passed to WGSL.
-const NOVA_OS_CRT_TINT: LinearRgba = LinearRgba::new(0.212, 1.0, 0.475, 0.44);
-const NOVA_OS_CRT_SCANLINE_STRENGTH: f32 = 0.18;
-const NOVA_OS_CRT_VIGNETTE_STRENGTH: f32 = 0.42;
+const NOVA_OS_CRT_TINT: LinearRgba = LinearRgba::new(0.282, 1.0, 0.545, 0.14);
+const NOVA_OS_CRT_SCANLINE_STRENGTH: f32 = 0.07;
+const NOVA_OS_CRT_VIGNETTE_STRENGTH: f32 = 0.32;
 
 /// Global stacking-context z for the OPEN drawer: it is a modal, so backdrop and
 /// panel rise above the flight HUD chrome (which carries no `GlobalZIndex` = 0).
@@ -318,6 +320,9 @@ struct TerminalRow {
 enum TerminalRowKind {
     Input,
     Output,
+    Dim,
+    Info,
+    Warn,
     Error,
 }
 
@@ -361,7 +366,7 @@ impl Default for NovaOsCrtMaterial {
                 tint: NOVA_OS_CRT_TINT,
                 scanline_strength: NOVA_OS_CRT_SCANLINE_STRENGTH,
                 vignette_strength: NOVA_OS_CRT_VIGNETTE_STRENGTH,
-                glow_strength: 0.16,
+                glow_strength: 0.08,
             },
         }
     }
@@ -389,16 +394,7 @@ impl Default for NovaOsTerminal {
         let mut terminal = Self {
             prompt: String::new(),
             cursor: 0,
-            scrollback: vec![
-                TerminalRow {
-                    kind: TerminalRowKind::Output,
-                    text: "NOVA OS READY".to_string(),
-                },
-                TerminalRow {
-                    kind: TerminalRowKind::Output,
-                    text: "type help".to_string(),
-                },
-            ],
+            scrollback: nova_os_welcome_rows(),
             history: Vec::new(),
             history_cursor: None,
             completion_hint: Some("type help".to_string()),
@@ -490,7 +486,7 @@ impl NovaOsTerminal {
                 }
             }
             TerminalCommandResult::Clear => {
-                self.scrollback.clear();
+                self.reset_scrollback_to_welcome();
             }
             TerminalCommandResult::UnexpectedArguments { command } => {
                 self.scrollback.push(TerminalRow {
@@ -608,6 +604,10 @@ impl NovaOsTerminal {
         self.refresh_parse();
     }
 
+    fn reset_scrollback_to_welcome(&mut self) {
+        self.scrollback = nova_os_welcome_rows();
+    }
+
     fn replace_current_command(&mut self, replacement: &str) {
         let old_len = current_command_prefix(&self.prompt)
             .map(str::len)
@@ -622,6 +622,27 @@ impl NovaOsTerminal {
         self.cursor = self.prompt.len();
         self.refresh_parse();
     }
+}
+
+fn nova_os_welcome_rows() -> Vec<TerminalRow> {
+    vec![
+        TerminalRow {
+            kind: TerminalRowKind::Info,
+            text: "NOVA OS 0.9.0-dev".to_string(),
+        },
+        TerminalRow {
+            kind: TerminalRowKind::Dim,
+            text: "BIOS CHECK: flight computer / ok".to_string(),
+        },
+        TerminalRow {
+            kind: TerminalRowKind::Dim,
+            text: "DISPLAY: green phosphor crt / ok".to_string(),
+        },
+        TerminalRow {
+            kind: TerminalRowKind::Warn,
+            text: "Hint: type `help` and press Enter.".to_string(),
+        },
+    ]
 }
 
 enum TerminalCommandResult {
@@ -918,6 +939,9 @@ fn spawn_terminal_row(parent: &mut ChildSpawnerCommands, row: &TerminalRow) {
     let color = match row.kind {
         TerminalRowKind::Input => NOVA_OS_AMBER,
         TerminalRowKind::Output => NOVA_OS_PHOSPHOR,
+        TerminalRowKind::Dim => NOVA_OS_PHOSPHOR_DIM,
+        TerminalRowKind::Info => NOVA_OS_INFO,
+        TerminalRowKind::Warn => NOVA_OS_AMBER,
         TerminalRowKind::Error => theme::semantic::THREAT,
     };
     parent.spawn((
@@ -942,7 +966,7 @@ fn prompt_color(terminal: &NovaOsTerminal) -> Color {
         TerminalParseStatus::Invalid => theme::semantic::THREAT,
         TerminalParseStatus::Empty
         | TerminalParseStatus::Valid
-        | TerminalParseStatus::ValidPrefix => NOVA_OS_AMBER,
+        | TerminalParseStatus::ValidPrefix => NOVA_OS_PHOSPHOR,
     }
 }
 
@@ -1018,7 +1042,7 @@ fn drive_drawer_slide(
     }
 
     for (mut background, mut visibility) in &mut q_backdrop {
-        background.0 = theme::semantic::BACKDROP.with_alpha(DRAWER_BACKDROP_ALPHA * openness);
+        background.0 = NOVA_OS_BACKDROP.with_alpha(DRAWER_BACKDROP_ALPHA * openness);
         *visibility = visibility_for(openness);
     }
 }
@@ -1428,7 +1452,7 @@ fn setup_drawer(
             bottom: Val::Px(0.0),
             ..default()
         },
-        BackgroundColor(theme::semantic::BACKDROP.with_alpha(0.0)),
+        BackgroundColor(NOVA_OS_BACKDROP.with_alpha(0.0)),
     ));
 
     // (The old flight-view tab handle was removed in task 20260724-134312; the
@@ -1566,8 +1590,8 @@ fn spawn_nova_os_screen_overlays(
             border: UiRect::vertical(Val::Px(1.0)),
             ..default()
         },
-        BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.18)),
-        BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.035)),
+        BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.055)),
+        BackgroundColor(NOVA_OS_PHOSPHOR.with_alpha(0.012)),
         ZIndex(NOVA_OS_OVERLAY_Z),
         Pickable::IGNORE,
     ));
@@ -1583,8 +1607,8 @@ fn spawn_nova_os_screen_overlays(
             border: UiRect::all(Val::Px(10.0)),
             ..default()
         },
-        BorderColor::all(Color::srgba(0.0, 0.0, 0.0, 0.24)),
-        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.08)),
+        BorderColor::all(Color::srgba(0.0, 0.0, 0.0, 0.18)),
+        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.045)),
         ZIndex(NOVA_OS_OVERLAY_Z),
         Pickable::IGNORE,
     ));
@@ -1667,8 +1691,8 @@ fn spawn_nova_os_terminal_content(screen: &mut ChildSpawnerCommands) {
                         border: UiRect::all(Val::Px(1.0)),
                         ..default()
                     },
-                    BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.28)),
-                    BackgroundColor(Color::srgba(0.0, 12.0 / 255.0, 4.0 / 255.0, 0.4)),
+                    BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.36)),
+                    BackgroundColor(Color::srgba(0.0, 8.0 / 255.0, 3.0 / 255.0, 0.66)),
                 ))
                 .with_children(|terminal_panel| {
                     terminal_panel
@@ -1691,16 +1715,9 @@ fn spawn_nova_os_terminal_content(screen: &mut ChildSpawnerCommands) {
                             },
                         ))
                         .with_children(|scrollback| {
-                            scrollback.spawn((
-                                Text::new("NOVA OS READY"),
-                                TextFont::from_font_size(DRAWER_LINE_FONT_PX),
-                                TextColor(NOVA_OS_PHOSPHOR),
-                            ));
-                            scrollback.spawn((
-                                Text::new("type help"),
-                                TextFont::from_font_size(DRAWER_LINE_FONT_PX),
-                                TextColor(NOVA_OS_PHOSPHOR),
-                            ));
+                            for row in nova_os_welcome_rows() {
+                                spawn_terminal_row(scrollback, &row);
+                            }
                         });
                     terminal_panel
                         .spawn((
@@ -1956,6 +1973,24 @@ mod tests {
         assert_eq!(terminal.prompt, "hear");
         terminal.history_next();
         assert_eq!(terminal.prompt, "clear");
+    }
+
+    #[test]
+    fn nova_os_clear_restores_welcome_block() {
+        let mut terminal = NovaOsTerminal::default();
+        type_text(&mut terminal, "help");
+        terminal.submit();
+        assert!(
+            terminal.scrollback.len() > nova_os_welcome_rows().len(),
+            "help adds rows after the welcome block"
+        );
+
+        type_text(&mut terminal, "clear");
+        terminal.submit();
+
+        assert_eq!(terminal.scrollback, nova_os_welcome_rows());
+        assert_eq!(terminal.prompt, "");
+        assert_eq!(terminal.completion_hint.as_deref(), Some("type help"));
     }
 
     #[test]
@@ -2951,6 +2986,10 @@ mod tests {
         for expected in [
             "NOVA OS 0.9 / COCKPIT LINK",
             "DRAWER PAUSED     SHIP: CERES QUEEN     LINK: LOCAL",
+            "NOVA OS 0.9.0-dev",
+            "BIOS CHECK: flight computer / ok",
+            "DISPLAY: green phosphor crt / ok",
+            "Hint: type `help` and press Enter.",
             "nova>",
             "Tab: autocomplete in terminal",
             "Esc: close drawer",
