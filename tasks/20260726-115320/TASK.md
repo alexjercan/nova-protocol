@@ -1,8 +1,8 @@
 # NOVA OS monitor shell and visual treatment
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 49
-- TAGS: v0.9.0,feature,ui,hud
+- TAGS: v0.9.0, feature, ui, hud
 
 ## Story
 
@@ -15,36 +15,36 @@ production code.
 
 ## Flow State
 
-- FLOW STEP: PLANNED
+- FLOW STEP: DONE
 - PLAN STATUS: APPROVED
 
 ## Steps
 
-- [ ] In `crates/nova_gameplay/src/hud/drawer.rs`, replace the two
+- [x] In `crates/nova_gameplay/src/hud/drawer.rs`, replace the two
       `DrawerRootMarker` side panels and `DrawerSide` slide model with one
       drawer-owned `NovaOsMonitor` root under the existing
       `PauseStates::Drawer` toggle.
-- [ ] Keep the accepted freeze/cursor behavior from
+- [x] Keep the accepted freeze/cursor behavior from
       `tasks/20260724-102304/DECISION.md`; do not introduce a second pause state,
       drawer state, or a new route around `PauseStates::Drawer`.
-- [ ] Rebuild the drawer child tree as a physical monitor: dark blue-black
+- [x] Rebuild the drawer child tree as a physical monitor: dark blue-black
       casing root, hard bezel, inset green phosphor screen, NOVA OS top bar,
       terminal-like scrollable body area, prompt/status row placeholder, and
       orange/yellow accent slots derived from the PoC.
-- [ ] Preserve the current `DrawerFlightLog` and objectives data plumbing as
+- [x] Preserve the current `DrawerFlightLog` and objectives data plumbing as
       internal content for the monitor placeholder, so later terminal-output
       tasks can reuse the live feed instead of re-deriving it.
-- [ ] Add scanline, vignette, and screen-glass layers using normal Bevy UI nodes
+- [x] Add scanline, vignette, and screen-glass layers using normal Bevy UI nodes
       and translucent backgrounds/borders. Record any shader deferral in
       `NOTES.md` if a custom material path is avoided.
-- [ ] Change drawer visibility and z-order tests so they assert one inset monitor
+- [x] Change drawer visibility and z-order tests so they assert one inset monitor
       above the backdrop and no permanent left/right panels.
-- [ ] Change HUD suppression in `crates/nova_gameplay/src/hud/mod.rs` so ordinary
+- [x] Change HUD suppression in `crates/nova_gameplay/src/hud/mod.rs` so ordinary
       flight HUD and lower-left key hints hide behind NOVA OS while diagnostic
       status chrome such as FPS/version remains visible by the chosen rule.
-- [ ] Update drawer-focused tests for monitor structure, monitor z-order, scroll
+- [x] Update drawer-focused tests for monitor structure, monitor z-order, scroll
       viewport behavior, freeze/cursor preservation, and HUD suppression.
-- [ ] Add/update `tasks/20260726-115320/NOTES.md` with what changed, why the PoC
+- [x] Add/update `tasks/20260726-115320/NOTES.md` with what changed, why the PoC
       was adapted this way, rendering difficulties, and self-reflection.
 
 ## Definition of Done
@@ -78,3 +78,24 @@ production code.
   `hud/mod.rs` hides tiered HUD while `PauseStates::Drawer` is active, but the
   current exemption includes the status strip and lower-left key hints. This
   task narrows that exemption so key hints no longer sit over NOVA OS.
+
+## Work Record
+
+- Replaced the two drawer side-panel roots with one `NovaOsMonitor` Bevy UI tree
+  under the existing `PauseStates::Drawer` toggle and real-time openness driver.
+- Adapted the PoC as normal Bevy UI nodes: casing, bezel, phosphor screen,
+  scanline layer, vignette/glass layer, accent slots, terminal top bar,
+  scrollable flight log, objectives block and prompt placeholder.
+- Kept `DrawerFlightLog`, objective rebuilding, wheel scrolling, Tab/gamepad
+  toggle, freeze/cursor behavior and drawer z-order on the existing state path.
+- Narrowed drawer chrome exemption so lower-left key hints hide with ordinary
+  flight HUD while diagnostic/status chrome can remain visible above NOVA OS.
+- Updated `CHANGELOG.md` and `web/src/wiki/hud.md` because player-facing drawer
+  behavior changed.
+- Verification:
+  `nix develop --command cargo test -p nova_gameplay drawer`;
+  `nix develop --command cargo test -p nova_gameplay nova_os_hides_flight_hud_but_keeps_diagnostics`;
+  `nix develop --command cargo check`;
+  `cd web && npm ci && npm run ci`.
+- Manual visual comparison against `examples/ui/nova_os_terminal_poc.html`
+  remains a human acceptance item.

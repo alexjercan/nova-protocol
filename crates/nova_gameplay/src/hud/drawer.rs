@@ -1,13 +1,9 @@
-//! The Tab ship-computer drawer (task 20260724-102304): two side panels that
-//! slide in on Tab - a right panel (objectives) and a left panel (comms/log) -
-//! freezing the sim and freeing the cursor while open. Opening the drawer also
-//! HIDES the flight HUD and deepens the backdrop into a gray field so the old UI
-//! does not fight the drawer for readability, keeping only the top status strip
-//! and the lower-left keybind hints (task 20260724-134335). This module owns the
-//! SHELL - the interaction model, the dual slide, the section framework -
-//! plus the right current-objectives section and the left combined flight-log
-//! stream. The minimap and ship-status sections (tasks 20260724-102320/102332)
-//! slot into the same section framework later.
+//! The Tab ship-computer drawer: one inset NOVA OS cockpit monitor that opens
+//! on Tab, freezing the sim and freeing the cursor while active. The monitor
+//! replaces the old left/right panels with a physical terminal screen: dark
+//! casing, hard bezel, green phosphor display, accent slots and CRT overlays.
+//! This module owns the shell plus the current placeholder terminal content fed
+//! by the existing objectives and combined flight-log data.
 //!
 //! # Interaction model
 //!
@@ -37,9 +33,7 @@ use nova_ui::theme;
 use super::NovaHudSystems;
 use crate::{prelude::*, GameStates, PauseStates};
 
-/// Panel width in logical pixels.
-const DRAWER_WIDTH_PX: f32 = 340.0;
-/// Seconds for the panel to slide fully open (or closed).
+/// Seconds for the monitor to fade/activate fully open (or closed).
 const DRAWER_SLIDE_SECS: f32 = 0.22;
 /// Backdrop dim at full open. Deepened from the original 0.55 (task
 /// 20260724-134335): with the flight HUD hidden while the drawer is open, the
@@ -58,13 +52,24 @@ const DRAWER_OBJECTIVE_GLYPH_WIDTH_PX: f32 = 18.0;
 const DRAWER_LOG_ICON_SIZE_PX: f32 = 20.0;
 const DRAWER_SCROLL_LINE_HEIGHT_PX: f32 = 20.0;
 
-/// Top inset for BOTH panels, reserving the top status strip (`readout`) as a
-/// window-manager-style status bar: no drawer UI sits in it (task 20260724-134335).
-const DRAWER_TOP_INSET_PX: f32 = 52.0;
-/// Bottom inset for the LEFT panel so it never covers the lower-left keybind
-/// hint cluster (`keybind_hints`, anchored at bottom:8 left:8). Sized to clear
-/// the cluster's seven rows (task 20260724-134335).
-const DRAWER_LEFT_BOTTOM_INSET_PX: f32 = 140.0;
+/// Horizontal inset from the viewport edge to the physical monitor casing.
+const NOVA_OS_MONITOR_INSET_X_PX: f32 = 42.0;
+/// Vertical inset from the viewport edge to the physical monitor casing.
+const NOVA_OS_MONITOR_INSET_Y_PX: f32 = 52.0;
+const NOVA_OS_BEZEL_PAD_PX: f32 = 26.0;
+const NOVA_OS_SCREEN_PAD_PX: f32 = 18.0;
+const NOVA_OS_CASE: Color = Color::srgb_u8(5, 10, 15);
+const NOVA_OS_CASE_RAISED: Color = Color::srgb_u8(11, 21, 32);
+const NOVA_OS_CASE_EDGE: Color = Color::srgb_u8(37, 65, 86);
+const NOVA_OS_SCREEN: Color = Color::srgb_u8(0, 24, 7);
+const NOVA_OS_SCREEN_RAISED: Color = Color::srgb_u8(0, 54, 20);
+const NOVA_OS_PHOSPHOR: Color = Color::srgb_u8(54, 255, 121);
+const NOVA_OS_PHOSPHOR_DIM: Color = Color::srgb_u8(25, 166, 79);
+const NOVA_OS_PHOSPHOR_MUTED: Color = Color::srgb_u8(13, 110, 53);
+const NOVA_OS_AMBER: Color = Color::srgb_u8(255, 184, 74);
+const NOVA_OS_ORANGE: Color = Color::srgb_u8(255, 123, 45);
+const NOVA_OS_CONTENT_Z: i32 = 0;
+const NOVA_OS_OVERLAY_Z: i32 = 1;
 
 /// Global stacking-context z for the OPEN drawer: it is a modal, so backdrop and
 /// panel rise above the flight HUD chrome (which carries no `GlobalZIndex` = 0).
@@ -73,24 +78,43 @@ const DRAWER_LEFT_BOTTOM_INSET_PX: f32 = 140.0;
 /// is fine. The tab handle stays at the HUD z (it is chrome). Task 20260724-121541.
 const DRAWER_BACKDROP_Z: i32 = 10;
 const DRAWER_PANEL_Z: i32 = 11;
-/// z for the drawer-exempt flight chrome (the status strip + keybind hints) that
-/// STAYS visible while the drawer is open: it must sit ABOVE the deepened
-/// backdrop so the gray field cannot dim it (task 20260724-134335). Read by
-/// `readout` and `keybind_hints` when they tag themselves [`super::HudDrawerExempt`].
+/// z for drawer-exempt diagnostic/status chrome that stays visible while the
+/// drawer is open: it must sit above the deepened backdrop so the gray field
+/// cannot dim it. Read by status widgets that tag themselves
+/// [`super::HudDrawerExempt`].
 pub(crate) const DRAWER_EXEMPT_Z: i32 = 12;
 
-/// The sliding panel root. Carries [`DrawerOpenness`] and a [`DrawerSide`].
+/// The drawer UI root whose visibility is driven by [`DrawerOpenness`].
 #[derive(Component)]
 struct DrawerRootMarker;
 
-/// Which edge a drawer panel slides in from. The right panel (objectives) and
-/// the left panel (comms/log placeholder, content in task 20260724-102309)
-/// share the shell, slide and openness; only the animated edge differs.
-#[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
-enum DrawerSide {
-    Left,
-    Right,
-}
+/// The single physical NOVA OS monitor root.
+#[derive(Component)]
+struct NovaOsMonitorMarker;
+
+/// The recessed physical bezel around the phosphor screen.
+#[derive(Component)]
+struct NovaOsBezelMarker;
+
+/// The active green phosphor screen surface.
+#[derive(Component)]
+struct NovaOsScreenMarker;
+
+/// The terminal placeholder content under the CRT overlay stack.
+#[derive(Component)]
+struct NovaOsTerminalContentMarker;
+
+/// Thin overlay rows that approximate CRT scanlines.
+#[derive(Component)]
+struct NovaOsScanlineMarker;
+
+/// Transparent edge-darkening/glass overlay on the screen.
+#[derive(Component)]
+struct NovaOsVignetteMarker;
+
+/// Orange/yellow casing slots copied from the PoC's physical monitor language.
+#[derive(Component)]
+struct NovaOsAccentSlotMarker;
 
 /// The dim full-screen backdrop behind the panel.
 #[derive(Component)]
@@ -173,10 +197,10 @@ struct DrawerOpenness(f32);
 /// Drawer-local combined flight log derived from [`StoryFeed`] and
 /// [`GameObjectives`].
 ///
-/// The right drawer panel is current-only. The left panel keeps the historical
-/// stream: comms rows plus objective posted/completed rows, in the order the HUD
-/// observes them. Objective text updates edit the open posted row rather than
-/// appending duplicate events.
+/// The monitor placeholder keeps the historical stream: comms rows plus
+/// objective posted/completed rows, in the order the HUD observes them.
+/// Objective text updates edit the open posted row rather than appending
+/// duplicate events.
 #[derive(Resource, Default, Debug, Clone)]
 struct DrawerFlightLog {
     entries: Vec<DrawerFlightLogEntry>,
@@ -359,7 +383,7 @@ fn drive_drawer_slide(
     time: Res<Time<Real>>,
     pause: Res<State<PauseStates>>,
     mut q_panel: Query<
-        (&mut DrawerOpenness, &mut Node, &mut Visibility, &DrawerSide),
+        (&mut DrawerOpenness, &mut Visibility),
         (With<DrawerRootMarker>, Without<DrawerBackdropMarker>),
     >,
     mut q_backdrop: Query<
@@ -378,15 +402,9 @@ fn drive_drawer_slide(
     // panel exists (headless rigs) so the two stay consistent. Both panels
     // share the same eased openness, so either one is a faithful source.
     let mut openness = target;
-    for (mut panel_openness, mut node, mut visibility, side) in &mut q_panel {
+    for (mut panel_openness, mut visibility) in &mut q_panel {
         panel_openness.0 = approach(panel_openness.0, target, step);
         openness = panel_openness.0;
-        // Closed -> off-screen past its edge; open -> flush (offset = 0).
-        let offset = Val::Px((panel_openness.0 - 1.0) * DRAWER_WIDTH_PX);
-        match side {
-            DrawerSide::Left => node.left = offset,
-            DrawerSide::Right => node.right = offset,
-        }
         *visibility = visibility_for(panel_openness.0);
     }
 
@@ -770,8 +788,8 @@ fn drawer_flight_log_text(entry: &DrawerFlightLogEntry) -> String {
     }
 }
 
-/// Spawn the drawer shell (backdrop, sliding panel with sections, tab handle)
-/// when the player ship appears - mirrors the other HUD widgets.
+/// Spawn the drawer shell (backdrop plus inset NOVA OS monitor) when the player
+/// ship appears - mirrors the other HUD widgets.
 fn setup_drawer(
     add: On<Add, PlayerSpaceshipMarker>,
     mut commands: Commands,
@@ -807,155 +825,304 @@ fn setup_drawer(
     // top-right objective hint is the drawer affordance + the reveal's tuck
     // anchor now.)
 
-    // The RIGHT sliding panel (objectives), starting closed (off-screen right).
-    // Top-inset below the status strip so the reserved top bar stays clear.
+    // One inset physical monitor. It is hidden until opened by the same
+    // real-time openness driver the old drawer panels used.
     commands
         .spawn((
-            Name::new("DrawerPanelRight"),
+            Name::new("NovaOsMonitor"),
             DrawerRootMarker,
-            DrawerSide::Right,
+            NovaOsMonitorMarker,
             DrawerOpenness(0.0),
             GlobalZIndex(DRAWER_PANEL_Z),
             Visibility::Hidden,
             Node {
                 position_type: PositionType::Absolute,
-                top: Val::Px(DRAWER_TOP_INSET_PX),
-                bottom: Val::Px(0.0),
-                right: Val::Px(-DRAWER_WIDTH_PX),
-                width: Val::Px(DRAWER_WIDTH_PX),
-                padding: UiRect::all(Val::Px(14.0)),
-                border: UiRect::left(Val::Px(1.0)),
+                top: Val::Px(NOVA_OS_MONITOR_INSET_Y_PX),
+                bottom: Val::Px(NOVA_OS_MONITOR_INSET_Y_PX),
+                left: Val::Px(NOVA_OS_MONITOR_INSET_X_PX),
+                right: Val::Px(NOVA_OS_MONITOR_INSET_X_PX),
+                padding: UiRect::all(Val::Px(10.0)),
+                border: UiRect::all(Val::Px(1.0)),
+                flex_direction: FlexDirection::Column,
+                ..default()
+            },
+            BorderColor::all(NOVA_OS_CASE_EDGE),
+            BackgroundColor(NOVA_OS_CASE),
+        ))
+        .with_children(|monitor| {
+            spawn_nova_os_accent_slots(monitor);
+            monitor
+                .spawn((
+                    Name::new("NovaOsBezel"),
+                    NovaOsBezelMarker,
+                    Node {
+                        flex_grow: 1.0,
+                        min_height: Val::Px(0.0),
+                        padding: UiRect::all(Val::Px(NOVA_OS_BEZEL_PAD_PX)),
+                        border: UiRect::all(Val::Px(2.0)),
+                        flex_direction: FlexDirection::Column,
+                        ..default()
+                    },
+                    BorderColor::all(NOVA_OS_CASE_EDGE),
+                    BackgroundColor(NOVA_OS_CASE_RAISED),
+                ))
+                .with_children(|bezel| {
+                    bezel
+                        .spawn((
+                            Name::new("NovaOsScreen"),
+                            NovaOsScreenMarker,
+                            Node {
+                                position_type: PositionType::Relative,
+                                flex_grow: 1.0,
+                                min_height: Val::Px(0.0),
+                                padding: UiRect::all(Val::Px(NOVA_OS_SCREEN_PAD_PX)),
+                                border: UiRect::all(Val::Px(2.0)),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(12.0),
+                                overflow: Overflow::clip(),
+                                ..default()
+                            },
+                            BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.52)),
+                            BackgroundColor(NOVA_OS_SCREEN),
+                        ))
+                        .with_children(|screen| {
+                            spawn_nova_os_terminal_content(screen);
+                            spawn_nova_os_screen_overlays(screen);
+                        });
+                });
+        });
+}
+
+fn spawn_nova_os_accent_slots(parent: &mut ChildSpawnerCommands) {
+    for (name, left, color) in [
+        ("NovaOsAccentLeft", Val::Px(16.0), NOVA_OS_AMBER),
+        ("NovaOsAccentRight", Val::Auto, NOVA_OS_ORANGE),
+    ] {
+        let mut node = Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(18.0),
+            width: Val::Px(8.0),
+            height: Val::Px(52.0),
+            border: UiRect::all(Val::Px(1.0)),
+            ..default()
+        };
+        if left == Val::Auto {
+            node.right = Val::Px(16.0);
+        } else {
+            node.left = left;
+        }
+        parent.spawn((
+            Name::new(name),
+            NovaOsAccentSlotMarker,
+            node,
+            BorderColor::all(color.with_alpha(0.7)),
+            BackgroundColor(color.with_alpha(0.18)),
+        ));
+    }
+}
+
+fn spawn_nova_os_screen_overlays(screen: &mut ChildSpawnerCommands) {
+    screen.spawn((
+        Name::new("NovaOsScanlines"),
+        NovaOsScanlineMarker,
+        Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(0.0),
+            bottom: Val::Px(0.0),
+            left: Val::Px(0.0),
+            right: Val::Px(0.0),
+            border: UiRect::vertical(Val::Px(1.0)),
+            ..default()
+        },
+        BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.18)),
+        BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.035)),
+        ZIndex(NOVA_OS_OVERLAY_Z),
+        Pickable::IGNORE,
+    ));
+    screen.spawn((
+        Name::new("NovaOsVignette"),
+        NovaOsVignetteMarker,
+        Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(0.0),
+            bottom: Val::Px(0.0),
+            left: Val::Px(0.0),
+            right: Val::Px(0.0),
+            border: UiRect::all(Val::Px(10.0)),
+            ..default()
+        },
+        BorderColor::all(Color::srgba(0.0, 0.0, 0.0, 0.24)),
+        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.08)),
+        ZIndex(NOVA_OS_OVERLAY_Z),
+        Pickable::IGNORE,
+    ));
+}
+
+fn spawn_nova_os_terminal_content(screen: &mut ChildSpawnerCommands) {
+    screen
+        .spawn((
+            Name::new("NovaOsTerminalContent"),
+            NovaOsTerminalContentMarker,
+            Node {
+                flex_grow: 1.0,
+                min_height: Val::Px(0.0),
                 flex_direction: FlexDirection::Column,
                 row_gap: Val::Px(12.0),
                 ..default()
             },
-            BorderColor::all(theme::BORDER_BRIGHT),
-            BackgroundColor(theme::PANEL),
+            ZIndex(NOVA_OS_CONTENT_Z),
+            Pickable::IGNORE,
         ))
-        .with_children(|panel| {
-            panel.spawn((
-                Text::new("SHIP COMPUTER"),
-                TextFont::from_font_size(DRAWER_TITLE_FONT_PX),
-                TextColor(theme::CYAN_BRIGHT),
-            ));
-            // Section: OBJECTIVES. The section framework is one titled block
-            // plus a list container; later sections (comms log, map, ship)
-            // follow the same shape.
-            panel
+        .with_children(|terminal| {
+            terminal
                 .spawn(Node {
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(4.0),
-                    flex_grow: 1.0,
-                    min_height: Val::Px(0.0),
+                    min_height: Val::Px(32.0),
+                    padding: UiRect::bottom(Val::Px(10.0)),
+                    border: UiRect::bottom(Val::Px(1.0)),
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::SpaceBetween,
+                    column_gap: Val::Px(12.0),
                     ..default()
                 })
-                .with_children(|section| {
-                    section.spawn((
-                        Text::new("OBJECTIVES"),
-                        TextFont::from_font_size(DRAWER_SECTION_TITLE_FONT_PX),
-                        TextColor(theme::TEXT_MUTED),
+                .with_children(|topbar| {
+                    topbar.spawn((
+                        Text::new("NOVA OS // MONITOR"),
+                        TextFont::from_font_size(DRAWER_TITLE_FONT_PX),
+                        TextColor(NOVA_OS_PHOSPHOR),
                     ));
-                    section
-                        .spawn((
-                            DrawerScrollViewportMarker,
-                            ScrollPosition::default(),
-                            Hovered::default(),
+                    topbar.spawn((
+                        Text::new("SYS READY"),
+                        TextFont::from_font_size(DRAWER_SECTION_TITLE_FONT_PX),
+                        TextColor(NOVA_OS_PHOSPHOR_DIM),
+                    ));
+                });
+
+            terminal
+                .spawn(Node {
+                    flex_direction: FlexDirection::Column,
+                    flex_grow: 1.0,
+                    min_height: Val::Px(0.0),
+                    border: UiRect::all(Val::Px(1.0)),
+                    padding: UiRect::all(Val::Px(12.0)),
+                    ..default()
+                })
+                .insert((
+                    BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.26)),
+                    BackgroundColor(NOVA_OS_SCREEN_RAISED.with_alpha(0.32)),
+                ))
+                .with_children(|body| {
+                    body.spawn((
+                        Text::new("FLIGHT LOG"),
+                        TextFont::from_font_size(DRAWER_SECTION_TITLE_FONT_PX),
+                        TextColor(NOVA_OS_AMBER),
+                    ));
+                    body.spawn((
+                        DrawerScrollViewportMarker,
+                        ScrollPosition::default(),
+                        Hovered::default(),
+                        Node {
+                            flex_direction: FlexDirection::Column,
+                            flex_grow: 1.0,
+                            min_height: Val::Px(0.0),
+                            overflow: Overflow::scroll_y(),
+                            ..default()
+                        },
+                    ))
+                    .with_children(|viewport| {
+                        viewport.spawn((
+                            DrawerFlightLogListMarker,
                             Node {
                                 flex_direction: FlexDirection::Column,
-                                flex_grow: 1.0,
-                                min_height: Val::Px(0.0),
-                                overflow: Overflow::scroll_y(),
+                                row_gap: Val::Px(3.0),
                                 ..default()
                             },
+                        ));
+                    });
+                });
+
+            terminal
+                .spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    column_gap: Val::Px(12.0),
+                    min_height: Val::Px(118.0),
+                    ..default()
+                })
+                .with_children(|lower| {
+                    spawn_nova_os_objectives_block(lower);
+                    lower
+                        .spawn((
+                            Node {
+                                width: Val::Percent(36.0),
+                                min_width: Val::Px(220.0),
+                                border: UiRect::all(Val::Px(1.0)),
+                                padding: UiRect::all(Val::Px(10.0)),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(6.0),
+                                ..default()
+                            },
+                            BorderColor::all(NOVA_OS_AMBER.with_alpha(0.38)),
+                            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.24)),
                         ))
-                        .with_children(|viewport| {
-                            viewport.spawn((
-                                DrawerObjectivesListMarker,
-                                Node {
-                                    flex_direction: FlexDirection::Column,
-                                    row_gap: Val::Px(3.0),
-                                    ..default()
-                                },
+                        .with_children(|prompt| {
+                            prompt.spawn((
+                                Text::new("nova> help"),
+                                TextFont::from_font_size(DRAWER_LINE_FONT_PX),
+                                TextColor(NOVA_OS_AMBER),
+                            ));
+                            prompt.spawn((
+                                Text::new("terminal input module pending"),
+                                TextFont::from_font_size(DRAWER_LINE_FONT_PX),
+                                TextColor(NOVA_OS_PHOSPHOR_MUTED),
                             ));
                         });
                 });
         });
+}
 
-    // The LEFT sliding panel (comms/flight-log), starting closed (off-screen
-    // left). This task builds the SHELL + a titled placeholder section; the
-    // comms/flight-log content lands in task 20260724-102309, which fills this
-    // panel. Top-inset below the status strip like the right panel, and
-    // bottom-inset above the lower-left keybind hint cluster so it never covers
-    // the keys (task 20260724-134335).
-    commands
+fn spawn_nova_os_objectives_block(parent: &mut ChildSpawnerCommands) {
+    parent
         .spawn((
-            Name::new("DrawerPanelLeft"),
-            DrawerRootMarker,
-            DrawerSide::Left,
-            DrawerOpenness(0.0),
-            GlobalZIndex(DRAWER_PANEL_Z),
-            Visibility::Hidden,
             Node {
-                position_type: PositionType::Absolute,
-                top: Val::Px(DRAWER_TOP_INSET_PX),
-                bottom: Val::Px(DRAWER_LEFT_BOTTOM_INSET_PX),
-                left: Val::Px(-DRAWER_WIDTH_PX),
-                width: Val::Px(DRAWER_WIDTH_PX),
-                padding: UiRect::all(Val::Px(14.0)),
-                border: UiRect::right(Val::Px(1.0)),
+                flex_grow: 1.0,
+                min_width: Val::Px(0.0),
+                border: UiRect::all(Val::Px(1.0)),
+                padding: UiRect::all(Val::Px(10.0)),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(12.0),
+                row_gap: Val::Px(6.0),
                 ..default()
             },
-            BorderColor::all(theme::BORDER_BRIGHT),
-            BackgroundColor(theme::PANEL),
+            BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.28)),
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.18)),
         ))
-        .with_children(|panel| {
-            panel.spawn((
-                Text::new("COMMS / LOG"),
-                TextFont::from_font_size(DRAWER_TITLE_FONT_PX),
-                TextColor(theme::CYAN_BRIGHT),
+        .with_children(|section| {
+            section.spawn((
+                Text::new("OBJECTIVES"),
+                TextFont::from_font_size(DRAWER_SECTION_TITLE_FONT_PX),
+                TextColor(NOVA_OS_AMBER),
             ));
-            // Combined server-style stream: comms transcript rows and mission
-            // objective events interleave in the order the HUD observes them
-            // (task 20260724-102309).
-            panel
-                .spawn(Node {
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(4.0),
-                    flex_grow: 1.0,
-                    min_height: Val::Px(0.0),
-                    ..default()
-                })
-                .with_children(|section| {
-                    section.spawn((
-                        Text::new("FLIGHT LOG"),
-                        TextFont::from_font_size(DRAWER_SECTION_TITLE_FONT_PX),
-                        TextColor(theme::TEXT_MUTED),
+            section
+                .spawn((
+                    DrawerScrollViewportMarker,
+                    ScrollPosition::default(),
+                    Hovered::default(),
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        flex_grow: 1.0,
+                        min_height: Val::Px(0.0),
+                        overflow: Overflow::scroll_y(),
+                        ..default()
+                    },
+                ))
+                .with_children(|viewport| {
+                    viewport.spawn((
+                        DrawerObjectivesListMarker,
+                        Node {
+                            flex_direction: FlexDirection::Column,
+                            row_gap: Val::Px(3.0),
+                            ..default()
+                        },
                     ));
-                    section
-                        .spawn((
-                            DrawerScrollViewportMarker,
-                            ScrollPosition::default(),
-                            Hovered::default(),
-                            Node {
-                                flex_direction: FlexDirection::Column,
-                                flex_grow: 1.0,
-                                min_height: Val::Px(0.0),
-                                overflow: Overflow::scroll_y(),
-                                ..default()
-                            },
-                        ))
-                        .with_children(|viewport| {
-                            viewport.spawn((
-                                DrawerFlightLogListMarker,
-                                Node {
-                                    flex_direction: FlexDirection::Column,
-                                    row_gap: Val::Px(3.0),
-                                    ..default()
-                                },
-                            ));
-                        });
                 });
         });
 }
@@ -1478,14 +1645,14 @@ mod tests {
     }
 
     #[test]
-    fn drawer_left_panel_has_combined_flight_log_stream() {
+    fn drawer_monitor_has_combined_flight_log_stream() {
         let mut app = objectives_app();
         let list = spawn_flight_log_list(&mut app);
         app.update();
 
         assert!(
             app.world().entity(list).get::<Children>().is_some(),
-            "the left panel owns one stream container with an empty row"
+            "the monitor owns one stream container with an empty row"
         );
         let empty = app
             .world_mut()
@@ -1571,7 +1738,7 @@ mod tests {
     }
 
     #[test]
-    fn drawer_right_panel_shows_only_active_objectives() {
+    fn drawer_monitor_shows_only_active_objectives() {
         let mut app = objectives_app();
         set_objectives(
             &mut app,
@@ -1624,7 +1791,7 @@ mod tests {
                 .iter(app.world())
                 .next()
                 .is_some(),
-            "the right panel returns to its no-active-objectives empty state"
+            "the monitor returns to its no-active-objectives empty state"
         );
         assert_eq!(
             flight_log_texts(&mut app),
@@ -1713,7 +1880,7 @@ mod tests {
         assert_eq!(row_text(&app, rows[0]), "Recovered: 1/3");
     }
 
-    /// The open drawer is a modal: its panel and backdrop must carry an explicit
+    /// The open drawer is a modal: its monitor and backdrop must carry an explicit
     /// `GlobalZIndex` above the HUD chrome (which carries none = 0), or the
     /// top-right objectives panel and other flight HUD draw over it. Mirrors
     /// nova_menu's overlay-z assertion. Fails before the fix (no `GlobalZIndex`).
@@ -1737,38 +1904,34 @@ mod tests {
             backdrop_z > 0,
             "the backdrop must stack above the HUD chrome (z = {backdrop_z})"
         );
-        // BOTH panels (left + right) sit at or above the backdrop.
-        let panel_zs: Vec<i32> = app
+        let monitor_zs: Vec<i32> = app
             .world_mut()
-            .query_filtered::<&GlobalZIndex, With<DrawerRootMarker>>()
+            .query_filtered::<&GlobalZIndex, With<NovaOsMonitorMarker>>()
             .iter(app.world())
             .map(|z| z.0)
             .collect();
         assert_eq!(
-            panel_zs.len(),
-            2,
-            "the shell spawns two panels (left + right)"
+            monitor_zs.len(),
+            1,
+            "the shell spawns one NOVA OS monitor, not left/right panels"
         );
-        for panel_z in panel_zs {
-            assert!(
-                panel_z >= backdrop_z,
-                "each panel sits at or above the backdrop (panel {panel_z}, backdrop {backdrop_z})"
-            );
-        }
-        // The drawer-exempt flight chrome (status strip + keys) must out-rank
-        // the backdrop so the deepened gray field cannot dim it.
+        assert!(
+            monitor_zs[0] >= backdrop_z,
+            "the monitor sits at or above the backdrop (monitor {}, backdrop {backdrop_z})",
+            monitor_zs[0]
+        );
+        // Diagnostic drawer-exempt chrome must out-rank the backdrop so the
+        // deepened gray field cannot dim it.
         assert!(
             DRAWER_EXEMPT_Z > backdrop_z,
             "exempt chrome z ({DRAWER_EXEMPT_Z}) must beat the backdrop ({backdrop_z})"
         );
     }
 
-    /// The shell builds BOTH sliding panels: a right panel that starts off the
-    /// right edge and a left panel that starts off the left edge, both inset
-    /// below the status strip, and the left one inset above the keybind cluster
-    /// so it never covers the keys (task 20260724-134335).
+    /// The shell builds one inset physical monitor with the CRT layers the
+    /// follow-up terminal tasks can fill, not two permanent side panels.
     #[test]
-    fn setup_spawns_both_sliding_panels() {
+    fn drawer_spawns_single_nova_os_monitor() {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
         app.add_observer(setup_drawer);
@@ -1776,35 +1939,90 @@ mod tests {
             .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker));
         app.update();
 
-        let mut panels: Vec<(DrawerSide, Node)> = app
+        let monitors: Vec<Node> = app
             .world_mut()
-            .query_filtered::<(&DrawerSide, &Node), With<DrawerRootMarker>>()
+            .query_filtered::<&Node, With<NovaOsMonitorMarker>>()
             .iter(app.world())
-            .map(|(side, node)| (*side, node.clone()))
+            .cloned()
             .collect();
-        assert_eq!(panels.len(), 2);
-        panels.sort_by_key(|(side, _)| *side == DrawerSide::Right);
-
-        let (left_side, left) = &panels[0];
-        let (right_side, right) = &panels[1];
-        assert_eq!(*left_side, DrawerSide::Left);
-        assert_eq!(*right_side, DrawerSide::Right);
-
-        // Closed: each panel parked off ITS edge.
-        assert_eq!(left.left, Val::Px(-DRAWER_WIDTH_PX));
-        assert_eq!(right.right, Val::Px(-DRAWER_WIDTH_PX));
-        // Top strip reserved on both.
-        assert_eq!(left.top, Val::Px(DRAWER_TOP_INSET_PX));
-        assert_eq!(right.top, Val::Px(DRAWER_TOP_INSET_PX));
-        // The left panel clears the lower-left keybind cluster.
-        assert_eq!(left.bottom, Val::Px(DRAWER_LEFT_BOTTOM_INSET_PX));
+        assert_eq!(monitors.len(), 1);
+        let monitor = &monitors[0];
+        assert_eq!(monitor.position_type, PositionType::Absolute);
+        assert_eq!(monitor.top, Val::Px(NOVA_OS_MONITOR_INSET_Y_PX));
+        assert_eq!(monitor.bottom, Val::Px(NOVA_OS_MONITOR_INSET_Y_PX));
+        assert_eq!(monitor.left, Val::Px(NOVA_OS_MONITOR_INSET_X_PX));
+        assert_eq!(monitor.right, Val::Px(NOVA_OS_MONITOR_INSET_X_PX));
+        let extra_roots = app
+            .world_mut()
+            .query_filtered::<(), (With<DrawerRootMarker>, Without<NovaOsMonitorMarker>)>()
+            .iter(app.world())
+            .count();
+        assert_eq!(extra_roots, 0, "there are no leftover side-panel roots");
+        assert!(
+            app.world_mut()
+                .query_filtered::<(), With<NovaOsBezelMarker>>()
+                .iter(app.world())
+                .next()
+                .is_some(),
+            "monitor has a physical bezel"
+        );
+        assert!(
+            app.world_mut()
+                .query_filtered::<(), With<NovaOsScreenMarker>>()
+                .iter(app.world())
+                .next()
+                .is_some(),
+            "monitor has an inset phosphor screen"
+        );
+        assert!(
+            app.world_mut()
+                .query_filtered::<(), With<NovaOsScanlineMarker>>()
+                .iter(app.world())
+                .next()
+                .is_some(),
+            "screen has a scanline layer"
+        );
+        assert!(
+            app.world_mut()
+                .query_filtered::<(), With<NovaOsVignetteMarker>>()
+                .iter(app.world())
+                .next()
+                .is_some(),
+            "screen has a vignette/glass layer"
+        );
+        let content_z = app
+            .world_mut()
+            .query_filtered::<&ZIndex, With<NovaOsTerminalContentMarker>>()
+            .single(app.world())
+            .expect("terminal content has local z")
+            .0;
+        let overlay_zs: Vec<i32> = app
+            .world_mut()
+            .query_filtered::<&ZIndex, Or<(With<NovaOsScanlineMarker>, With<NovaOsVignetteMarker>)>>()
+            .iter(app.world())
+            .map(|z| z.0)
+            .collect();
+        assert_eq!(overlay_zs.len(), 2);
+        for overlay_z in overlay_zs {
+            assert!(
+                overlay_z > content_z,
+                "CRT overlays render above terminal content (overlay {overlay_z}, content {content_z})"
+            );
+        }
+        assert!(
+            app.world_mut()
+                .query_filtered::<(), With<NovaOsAccentSlotMarker>>()
+                .iter(app.world())
+                .count()
+                >= 2,
+            "monitor casing has orange/yellow accent slots"
+        );
     }
 
-    /// `drive_drawer_slide` eases BOTH panels open from their own edges: the
-    /// left panel's `left` offset and the right panel's `right` offset both
-    /// advance toward 0 while the drawer is open (task 20260724-134335).
+    /// `drive_drawer_slide` now drives the single monitor's visibility and
+    /// openness while retaining the real-time transition used by the old panels.
     #[test]
-    fn slide_drives_both_panel_edges() {
+    fn slide_drives_single_monitor_openness() {
         use std::time::Duration;
 
         let mut app = App::new();
@@ -1826,34 +2044,17 @@ mod tests {
             ))
             .id();
         let _ = backdrop;
-        let left = app
+        let monitor = app
             .world_mut()
             .spawn((
                 DrawerRootMarker,
-                DrawerSide::Left,
+                NovaOsMonitorMarker,
                 DrawerOpenness(0.0),
                 Visibility::Hidden,
-                Node {
-                    left: Val::Px(-DRAWER_WIDTH_PX),
-                    ..default()
-                },
-            ))
-            .id();
-        let right = app
-            .world_mut()
-            .spawn((
-                DrawerRootMarker,
-                DrawerSide::Right,
-                DrawerOpenness(0.0),
-                Visibility::Hidden,
-                Node {
-                    right: Val::Px(-DRAWER_WIDTH_PX),
-                    ..default()
-                },
+                Node::default(),
             ))
             .id();
 
-        // Open the drawer, then advance real time and step the slide.
         app.world_mut()
             .resource_mut::<NextState<PauseStates>>()
             .set(PauseStates::Drawer);
@@ -1865,26 +2066,14 @@ mod tests {
             app.update();
         }
 
-        let left_off = px(app.world().get::<Node>(left).unwrap().left);
-        let right_off = px(app.world().get::<Node>(right).unwrap().right);
-        // Both moved in from -WIDTH toward 0 (flush at 0).
+        let openness = app.world().get::<DrawerOpenness>(monitor).unwrap().0;
         assert!(
-            left_off > -DRAWER_WIDTH_PX && left_off <= 0.0,
-            "left panel slid in from its edge (offset {left_off})"
+            openness > 0.0 && openness <= 1.0,
+            "monitor openness advances toward visible (openness {openness})"
         );
-        assert!(
-            right_off > -DRAWER_WIDTH_PX && right_off <= 0.0,
-            "right panel slid in from its edge (offset {right_off})"
+        assert_eq!(
+            *app.world().get::<Visibility>(monitor).unwrap(),
+            Visibility::Visible
         );
-        // They share the eased openness, so they track together.
-        assert!((left_off - right_off).abs() < f32::EPSILON);
-    }
-
-    /// Read a `Val::Px` back as an f32 for the slide assertions.
-    fn px(val: Val) -> f32 {
-        match val {
-            Val::Px(p) => p,
-            other => panic!("expected Val::Px, got {other:?}"),
-        }
     }
 }

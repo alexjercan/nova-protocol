@@ -128,13 +128,11 @@ pub enum HudTier {
 #[reflect(Component)]
 pub struct HudSelfDrivenVisibility;
 
-/// Flight chrome that STAYS visible while the Tab drawer is open (task
-/// 20260724-134335): the top status strip (`readout`) and the lower-left
-/// keybind hints. Opening the drawer hides the rest of the flight HUD so it
-/// does not fight the drawer for readability; widgets tagged with this marker
-/// are exempt from that drawer-scoped hide. They are still subject to the
-/// grave/tilde [`HudVisibility`] cycle - the exemption is ONLY about the
-/// drawer. Tag the widget's tiered root.
+/// Diagnostic/status chrome that stays visible while the Tab drawer is open.
+/// NOVA OS hides ordinary flight HUD and key hints so the cockpit monitor owns
+/// the screen; widgets tagged with this marker are exempt from that
+/// drawer-scoped hide and z-lift above the backdrop. They are still subject to
+/// the grave/tilde [`HudVisibility`] cycle. Tag the widget's tiered root.
 #[derive(Component, Clone, Copy, Debug, Reflect)]
 #[reflect(Component)]
 pub struct HudDrawerExempt;
@@ -217,7 +215,7 @@ impl Plugin for NovaHudPlugin {
         // no-ops when no objectives panel exists. The always-on compact
         // objectives panel was REMOVED from flight (task 20260724-134312):
         // objectives now surface via the diegetic reveal, the objective hint
-        // in the status bar (`objective_hint`) and the Tab drawer's right panel.
+        // in the status bar (`objective_hint`) and the NOVA OS monitor.
         app.add_plugins(ObjectivesPlugin);
         // bcs tween advancement for HUD fades (first Nova adoption, task
         // 20260717-163033); registered here once for every HUD widget.
@@ -282,7 +280,7 @@ impl Plugin for NovaHudPlugin {
 // style_objective_lines / setup_hud_objectives / remove_hud_objectives) was
 // REMOVED in task 20260724-134312; objectives now surface via the diegetic
 // reveal, the objective hint in the status bar (`objective_hint`) and the Tab
-// drawer's right panel.
+// drawer's NOVA OS monitor.
 
 /// Cycle the HUD level on grave/tilde (or the gamepad Select button).
 /// Press-to-cycle, no hold gesture (the spike's call: three states are at most
@@ -339,10 +337,10 @@ fn apply_hud_visibility(
     q_tiers: Query<&HudTier>,
 ) {
     // While the Tab drawer is open the flight HUD hides so it does not fight the
-    // drawer for readability (task 20260724-134335); widgets carrying
-    // `HudDrawerExempt` (the status strip + keybind hints) stay. The restore
-    // branch fires on a pause change too, so CLOSING the drawer un-hides in the
-    // same frame - not just on a grave/tilde level change.
+    // NOVA OS monitor; only diagnostic/status widgets carrying `HudDrawerExempt`
+    // stay. The restore branch fires on a pause change too, so CLOSING the
+    // drawer un-hides in the same frame - not just on a grave/tilde level
+    // change.
     let drawer_open = *pause.get() == crate::PauseStates::Drawer;
     let restore = level.is_changed() || pause.is_changed();
     for (tier, mut visibility, self_driven, exempt) in &mut q_roots {
@@ -367,12 +365,11 @@ fn apply_hud_visibility(
     }
 }
 
-/// Lift the drawer-exempt chrome (the status strip + keybind hints) above the
-/// drawer backdrop ONLY while the drawer is open (task 20260724-134335): the
-/// deepened backdrop would otherwise dim them. Their base z is 0, so when the
-/// drawer is closed - including while the PAUSE overlay owns the freeze, which
-/// sits at the same z as the drawer backdrop - the exempt chrome stays at the
-/// base HUD z and the pause overlay covers it normally.
+/// Lift drawer-exempt diagnostic/status chrome above the drawer backdrop only
+/// while the drawer is open. Its base z is 0, so when the drawer is closed -
+/// including while the pause overlay owns the freeze, which sits at the same z
+/// as the drawer backdrop - the exempt chrome stays at the base HUD z and the
+/// pause overlay covers it normally.
 fn lift_exempt_chrome_over_drawer(
     pause: Res<State<crate::PauseStates>>,
     mut q_exempt: Query<&mut GlobalZIndex, With<HudDrawerExempt>>,
@@ -523,16 +520,10 @@ fn setup_hud_flight_status(
     // The cluster and cues are global singletons, not ship-targeted
     // widgets: one player, one set (same guard as the flight input rig).
     if q_existing_cluster.is_empty() {
-        // The keybind hints stay visible while the drawer is open (exempt);
-        // `lift_exempt_chrome_over_drawer` raises this base z above the deepened
-        // backdrop only while the drawer is open (task 20260724-134335).
-        // verb_cues are flight cues - they hide with the HUD.
-        commands.spawn((
-            HudTier::Chrome,
-            HudDrawerExempt,
-            GlobalZIndex::default(),
-            keybind_hint_cluster_hud(),
-        ));
+        // Keybind hints are ordinary flight chrome. NOVA OS owns the monitor
+        // surface while the drawer is open, so only diagnostic/status chrome
+        // carries `HudDrawerExempt`.
+        commands.spawn((HudTier::Chrome, keybind_hint_cluster_hud()));
         commands.spawn((HudTier::Chrome, verb_cues_hud()));
     }
 }
@@ -1093,28 +1084,31 @@ mod tests {
         app.update();
     }
 
-    /// Opening the Tab drawer hides the flight HUD so it does not fight the
-    /// drawer for readability (task 20260724-134335): every tiered widget goes
-    /// Hidden EXCEPT those carrying `HudDrawerExempt` (the status strip + the
-    /// keybind hints), and closing the drawer restores them in one frame.
+    /// Opening NOVA OS hides ordinary flight HUD and key hints so they do not
+    /// float over the cockpit monitor. Diagnostic/status chrome tagged
+    /// `HudDrawerExempt` remains visible above the computer.
     #[test]
-    fn drawer_open_hides_flight_hud_except_exempt() {
+    fn nova_os_hides_flight_hud_but_keeps_diagnostics() {
         let mut app = app();
         let instrument = app
             .world_mut()
             .spawn((HudTier::Instrument, Visibility::Inherited))
             .id();
-        let exempt = app
+        let key_hints = app
             .world_mut()
-            .spawn((HudTier::Instrument, HudDrawerExempt, Visibility::Inherited))
+            .spawn((HudTier::Chrome, Visibility::Inherited))
+            .id();
+        let diagnostics = app
+            .world_mut()
+            .spawn((HudTier::Status, HudDrawerExempt, Visibility::Inherited))
             .id();
         let vis = |app: &App, e| *app.world().get::<Visibility>(e).unwrap();
 
         app.update();
         assert_eq!(vis(&app, instrument), Visibility::Inherited);
-        assert_eq!(vis(&app, exempt), Visibility::Inherited);
+        assert_eq!(vis(&app, key_hints), Visibility::Inherited);
+        assert_eq!(vis(&app, diagnostics), Visibility::Inherited);
 
-        // Open the drawer: the plain instrument hides, the exempt one stays.
         set_pause(&mut app, crate::PauseStates::Drawer);
         assert_eq!(
             vis(&app, instrument),
@@ -1122,23 +1116,27 @@ mod tests {
             "the flight HUD hides while the drawer is open"
         );
         assert_eq!(
-            vis(&app, exempt),
+            vis(&app, key_hints),
+            Visibility::Hidden,
+            "lower-left key hints are ordinary flight chrome, not diagnostics"
+        );
+        assert_eq!(
+            vis(&app, diagnostics),
             Visibility::Inherited,
-            "the status strip / keys stay visible while the drawer is open"
+            "diagnostic/status chrome remains visible while the drawer is open"
         );
 
-        // Close it: the hidden widget restores in the same frame the pause
-        // axis changes back (the restore branch keys on pause.is_changed()).
         set_pause(&mut app, crate::PauseStates::Unpaused);
         assert_eq!(
             vis(&app, instrument),
             Visibility::Inherited,
             "closing the drawer restores the flight HUD"
         );
-        assert_eq!(vis(&app, exempt), Visibility::Inherited);
+        assert_eq!(vis(&app, key_hints), Visibility::Inherited);
+        assert_eq!(vis(&app, diagnostics), Visibility::Inherited);
     }
 
-    /// The exempt chrome (status strip + keys) is lifted above the drawer
+    /// The exempt diagnostic/status chrome is lifted above the drawer
     /// backdrop ONLY while the drawer is open. When the PAUSE menu owns the
     /// freeze it drops back to the base HUD z, so the pause overlay (which sits
     /// at the same z as the drawer backdrop) still covers it - not the other way

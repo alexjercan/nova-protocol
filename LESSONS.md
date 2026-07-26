@@ -445,9 +445,9 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `roundtrip-hides-shared-bug` (x1): a round-trip test on a self-authored
   forward pass proves symmetry, not correctness; re-derive the reverse
   against the spec. 20260715-004216.
-- `one-cargo-test-filter` (x5, PROMOTED 2026-07-13 -> docs/development.md):
+- `one-cargo-test-filter` (x6, PROMOTED 2026-07-13 -> docs/development.md):
   one filter and one `-p` per cargo test invocation. 20260713-082324,
-  20260716-162701.
+  20260716-162701, 20260726-115320.
 - `check-all-targets-for-struct-field` (x6, PROMOTED 2026-07-19 -> work
   skill): a new non-Default field breaks builders, tests AND examples that
   plain `cargo check` never compiles; grep the repo for the literal and run
@@ -949,7 +949,7 @@ here (annotated) as the paid record.
 - `discharge-decision-caveat-first` (x1): when a task depends on a decision that carries a "verify X during work" caveat, discharge that check as the FIRST work step (a grep or a tiny probe), not after building - it either unblocks the build or triggers the stop-and-ask while it is still cheap (a "do the hidden members cold-launch?" grep of their OnStart player spawn retired the risk before the UI was written). 20260723-095951.
 - `authored-vs-derived-values` (x4, PROMOTED 2026-07-21 -> AGENTS.md Conventions): author content against measured runtime consts, and encode layout invariants as computed rig assertions. 20260716-124722, 20260717-112630.
 - `advertised-but-unwired` (x3, PROMOTED 2026-07-21 -> AGENTS.md Conventions): a config surface is not a capability until producer/consumer wiring and preconditions are verified in the new context. 20260712-093044.
-- `out-of-context-review-pass` (positive, x33, PROMOTED 2026-07-21 -> already /flow round-1 practice): a fresh-context review re-derives load-bearing claims and catches MAJORs shared-session eyes miss; verify the verifier's counterexamples too - it caught the drawer's audio-loop freeze gap the implementing session's own audit had missed, and re-derived the bcs Single-skips panel-removal safety from the LOCKED rev on the hint rework. 20260717-212219, 20260719-112011, 20260724-102304, 20260724-134312.
+- `out-of-context-review-pass` (positive, x34, PROMOTED 2026-07-21 -> already /flow round-1 practice): a fresh-context review re-derives load-bearing claims and catches MAJORs shared-session eyes miss; verify the verifier's counterexamples too - it caught the drawer's audio-loop freeze gap, overlay z order in the NOVA OS monitor, and re-derived the bcs Single-skips panel-removal safety from the LOCKED rev on the hint rework. 20260717-212219, 20260724-102304, 20260724-134312, 20260726-115320.
 
 ## Pending promotions (3+ occurrences, user decides)
 
