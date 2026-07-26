@@ -142,16 +142,18 @@
       position: relative;
       height: 100%;
       overflow: hidden;
-      /* Rounded CRT glass corners (more vertical than horizontal, like a tube). */
-      border-radius: 26px / 34px;
+      /* Strongly rounded CRT glass corners (more vertical than horizontal, like
+         a tube face), with a thin bright rim so the curved glass edge reads. */
+      border-radius: 44px / 66px;
       border: 2px solid rgba(54, 255, 121, 0.52);
       background:
         radial-gradient(ellipse at center, rgba(54, 255, 121, 0.24) 0%, rgba(0, 24, 7, 0.94) 55%, #000a04 100%),
         linear-gradient(180deg, var(--screen-1), var(--screen-0));
       box-shadow:
         inset 0 0 55px rgba(54, 255, 121, 0.22),
-        inset 0 0 160px rgba(0, 0, 0, 0.82),
-        inset 0 0 0 3px rgba(0, 0, 0, 0.5);
+        inset 0 0 170px rgba(0, 0, 0, 0.85),
+        inset 0 0 0 3px rgba(0, 0, 0, 0.5),
+        inset 0 0 2px rgba(54, 255, 121, 0.45);
     }
 
     .screen::before {
@@ -160,14 +162,14 @@
       inset: 0;
       z-index: 20;
       pointer-events: none;
-      /* Finer, softer scanlines that DARKEN alternate rows (multiply), plus a
-         faint RGB aperture-grille stripe. */
+      /* Subtle finer scanlines that gently darken alternate rows (multiply),
+         plus a whisper of RGB aperture-grille stripe. */
       background:
-        linear-gradient(rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.24) 50%),
-        linear-gradient(90deg, rgba(255, 0, 0, 0.05), rgba(0, 255, 90, 0.035), rgba(0, 120, 255, 0.05));
+        linear-gradient(rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.13) 50%),
+        linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 90, 0.02), rgba(0, 120, 255, 0.03));
       background-size: 100% 3px, 4px 100%;
       mix-blend-mode: multiply;
-      opacity: 0.55;
+      opacity: 0.32;
     }
 
     .screen::after {
@@ -176,13 +178,14 @@
       inset: 0;
       z-index: 21;
       pointer-events: none;
-      border-radius: 26px / 34px;
-      /* Stronger corner darkening reads as a curved tube, plus a soft curved
-         top sheen (the glass bulge catching light). */
+      border-radius: 44px / 66px;
+      /* Barrel-ish darkening that hugs the rounded corners, so the flat panel
+         reads as a curved tube face pulling away at the edges. No broad sheen
+         (it read as blur) - just the corner curve. */
       background:
-        radial-gradient(ellipse 76% 68% at center, transparent 50%, rgba(0, 0, 0, 0.62) 100%),
-        radial-gradient(ellipse 120% 80% at 50% -12%, rgba(255, 255, 255, 0.11), transparent 46%),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.05), transparent 16%, transparent 84%, rgba(0, 0, 0, 0.2));
+        radial-gradient(ellipse 82% 74% at center, transparent 46%, rgba(0, 0, 0, 0.72) 100%),
+        radial-gradient(circle at 50% 120%, rgba(0, 0, 0, 0.35), transparent 40%),
+        radial-gradient(circle at 50% -20%, rgba(0, 0, 0, 0.35), transparent 40%);
     }
 
     .screen-inner {
@@ -577,21 +580,6 @@
       filter: url(#crtGrain);
     }
 
-    /* A soft diagonal glass reflection over the top-left of the tube. */
-    .crt-glass {
-      position: absolute;
-      inset: 0;
-      z-index: 23;
-      pointer-events: none;
-      border-radius: 26px / 34px;
-      background: linear-gradient(
-        118deg,
-        rgba(255, 255, 255, 0.10) 0%,
-        rgba(255, 255, 255, 0.03) 12%,
-        transparent 32%
-      );
-    }
-
     /* A faint bright band slowly rolling down the screen (CRT "hum bar"). */
     .crt-hum {
       position: absolute;
@@ -682,7 +670,6 @@
       <div class="screen">
         <div class="crt-grain" aria-hidden="true"></div>
         <div class="crt-hum" aria-hidden="true"></div>
-        <div class="crt-glass" aria-hidden="true"></div>
         <div class="screen-inner">
           <header class="topbar">
             <div class="brand"><span class="lamp"></span><span>NOVA OS 0.9 / COCKPIT LINK</span></div>
