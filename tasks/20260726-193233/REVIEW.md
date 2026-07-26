@@ -190,4 +190,4 @@ now pinned.
 
 VERDICT: APPROVE (M1 resolved + pinned)
 
-VERDICT: APPROVE
+- VERDICT: APPROVE
