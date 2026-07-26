@@ -142,13 +142,16 @@
       position: relative;
       height: 100%;
       overflow: hidden;
+      /* Rounded CRT glass corners (more vertical than horizontal, like a tube). */
+      border-radius: 26px / 34px;
       border: 2px solid rgba(54, 255, 121, 0.52);
       background:
-        radial-gradient(ellipse at center, rgba(54, 255, 121, 0.18) 0%, rgba(0, 24, 7, 0.94) 58%, #001005 100%),
+        radial-gradient(ellipse at center, rgba(54, 255, 121, 0.24) 0%, rgba(0, 24, 7, 0.94) 55%, #000a04 100%),
         linear-gradient(180deg, var(--screen-1), var(--screen-0));
       box-shadow:
-        inset 0 0 45px rgba(54, 255, 121, 0.18),
-        inset 0 0 120px rgba(0, 0, 0, 0.78);
+        inset 0 0 55px rgba(54, 255, 121, 0.22),
+        inset 0 0 160px rgba(0, 0, 0, 0.82),
+        inset 0 0 0 3px rgba(0, 0, 0, 0.5);
     }
 
     .screen::before {
@@ -157,12 +160,14 @@
       inset: 0;
       z-index: 20;
       pointer-events: none;
+      /* Finer, softer scanlines that DARKEN alternate rows (multiply), plus a
+         faint RGB aperture-grille stripe. */
       background:
-        linear-gradient(rgba(255, 255, 255, 0.04) 50%, rgba(0, 0, 0, 0.18) 50%),
-        linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 90, 0.03), rgba(0, 120, 255, 0.03));
-      background-size: 100% 4px, 6px 100%;
-      mix-blend-mode: screen;
-      opacity: 0.72;
+        linear-gradient(rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.24) 50%),
+        linear-gradient(90deg, rgba(255, 0, 0, 0.05), rgba(0, 255, 90, 0.035), rgba(0, 120, 255, 0.05));
+      background-size: 100% 3px, 4px 100%;
+      mix-blend-mode: multiply;
+      opacity: 0.55;
     }
 
     .screen::after {
@@ -171,9 +176,13 @@
       inset: 0;
       z-index: 21;
       pointer-events: none;
+      border-radius: 26px / 34px;
+      /* Stronger corner darkening reads as a curved tube, plus a soft curved
+         top sheen (the glass bulge catching light). */
       background:
-        radial-gradient(ellipse at center, transparent 56%, rgba(0, 0, 0, 0.42) 100%),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.06), transparent 18%, transparent 82%, rgba(0, 0, 0, 0.18));
+        radial-gradient(ellipse 76% 68% at center, transparent 50%, rgba(0, 0, 0, 0.62) 100%),
+        radial-gradient(ellipse 120% 80% at 50% -12%, rgba(255, 255, 255, 0.11), transparent 46%),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.05), transparent 16%, transparent 84%, rgba(0, 0, 0, 0.2));
     }
 
     .screen-inner {
@@ -184,7 +193,13 @@
       display: grid;
       grid-template-rows: auto 1fr auto;
       gap: 14px;
-      text-shadow: 0 0 7px rgba(54, 255, 121, 0.5);
+      /* Multi-radius phosphor bloom so bright glyphs glow into a soft halo. */
+      text-shadow:
+        0 0 4px rgba(54, 255, 121, 0.75),
+        0 0 11px rgba(54, 255, 121, 0.45),
+        0 0 22px rgba(54, 255, 121, 0.25);
+      /* Very subtle CRT refresh flicker. */
+      animation: crt-flicker 4.5s steps(90) infinite;
     }
 
     .topbar {
@@ -551,6 +566,62 @@
       font-weight: 500;
     }
 
+    /* Animated green phosphor grain (SVG turbulence, seed animated below). */
+    .crt-grain {
+      position: absolute;
+      inset: -20%;
+      z-index: 22;
+      pointer-events: none;
+      opacity: 0.2;
+      mix-blend-mode: overlay;
+      filter: url(#crtGrain);
+    }
+
+    /* A soft diagonal glass reflection over the top-left of the tube. */
+    .crt-glass {
+      position: absolute;
+      inset: 0;
+      z-index: 23;
+      pointer-events: none;
+      border-radius: 26px / 34px;
+      background: linear-gradient(
+        118deg,
+        rgba(255, 255, 255, 0.10) 0%,
+        rgba(255, 255, 255, 0.03) 12%,
+        transparent 32%
+      );
+    }
+
+    /* A faint bright band slowly rolling down the screen (CRT "hum bar"). */
+    .crt-hum {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: -30%;
+      height: 26%;
+      z-index: 22;
+      pointer-events: none;
+      background: linear-gradient(rgba(255, 255, 255, 0.045), transparent);
+      mix-blend-mode: screen;
+      animation: crt-hum 7s linear infinite;
+    }
+
+    @keyframes crt-hum {
+      from { transform: translateY(0); }
+      to { transform: translateY(520%); }
+    }
+
+    @keyframes crt-flicker {
+      0%, 92%, 100% { opacity: 1; }
+      93% { opacity: 0.93; }
+      95% { opacity: 0.99; }
+      97% { opacity: 0.95; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .crt-grain, .crt-hum, .screen-inner { animation: none; }
+    }
+
     @media (max-width: 760px) {
       body {
         overflow: auto;
@@ -586,6 +657,20 @@
   </style>
 </head>
 <body>
+  <!-- Animated phosphor-grain filter: feTurbulence tinted green, its seed
+       stepped a few times a second so the static shimmers like a real CRT. -->
+  <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+    <filter id="crtGrain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="4" stitchTiles="stitch">
+        <animate attributeName="seed" values="1;5;9;3;12;7;2" dur="0.7s" repeatCount="indefinite" calcMode="discrete" />
+      </feTurbulence>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.13
+                                           0 0 0 0 0.90
+                                           0 0 0 0 0.36
+                                           0.7 0 0 0 -0.28" />
+    </filter>
+  </svg>
+
   <div class="scene" aria-hidden="true"></div>
   <div class="flight-readout" aria-label="diagnostic overlay">
     <span>v0.9.0-dev</span>
@@ -595,6 +680,9 @@
   <main class="hud">
     <section class="bezel" aria-label="Nova OS cockpit monitor">
       <div class="screen">
+        <div class="crt-grain" aria-hidden="true"></div>
+        <div class="crt-hum" aria-hidden="true"></div>
+        <div class="crt-glass" aria-hidden="true"></div>
         <div class="screen-inner">
           <header class="topbar">
             <div class="brand"><span class="lamp"></span><span>NOVA OS 0.9 / COCKPIT LINK</span></div>
