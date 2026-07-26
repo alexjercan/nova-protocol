@@ -104,16 +104,15 @@
       inset: 0;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: clamp(8px, 2vh, 24px);
+      align-items: stretch;
+      justify-content: stretch;
+      padding: clamp(4px, 0.8vh, 10px);
     }
 
     .crt {
       display: flex;
       flex-direction: column;
-      align-items: center;
-      width: min(1280px, 100%);
+      width: 100%;
       height: 100%;
       max-height: 100%;
     }
@@ -227,7 +226,7 @@
       position: absolute;
       inset: 0;
       z-index: 2;
-      padding: clamp(20px, 5.4%, 46px) clamp(24px, 5%, 58px);
+      padding: clamp(26px, 6.4vh, 62px) clamp(26px, 3.4vw, 64px);
       display: grid;
       grid-template-rows: auto 1fr auto;
       gap: 12px;
@@ -561,21 +560,6 @@
       overflow: hidden;
     }
 
-    /* Sweeping radar trace over the tactical map. */
-    .map-grid::after {
-      content: "";
-      position: absolute;
-      left: 49%;
-      top: 52%;
-      width: 90%;
-      height: 90%;
-      transform-origin: 0 0;
-      background: conic-gradient(from 0deg, rgba(54, 255, 121, 0.16), transparent 26%);
-      border-radius: 50%;
-      animation: sweep 6s linear infinite;
-      pointer-events: none;
-    }
-
     .orbit { position: absolute; border: 1px solid rgba(54, 255, 121, 0.18); transform: translate(-50%, -50%); border-radius: 50%; }
 
     .blip {
@@ -678,23 +662,54 @@
       align-items: center;
       justify-content: space-between;
       gap: 14px;
-      padding: 10px 12px 2px;
-      min-height: 46px;
+      padding: 11px 12px 4px;
+      min-height: 54px;
     }
 
+    /* Recessed badge moulded into the chin: glyphs sit below the surface, so
+       they get a dark face and a light catch along the lower edge. */
     .plate {
       display: flex;
-      align-items: baseline;
-      gap: 10px;
-      color: #7e8b94;
-      font-size: 11px;
-      letter-spacing: 0.26em;
-      text-transform: uppercase;
-      text-shadow: 0 1px 0 rgba(0, 0, 0, 0.9), 0 -1px 0 rgba(255, 255, 255, 0.07);
+      align-items: center;
+      gap: 11px;
+      padding: 7px 14px 7px 11px;
+      border-radius: 5px;
+      background: linear-gradient(180deg, rgba(0, 0, 0, 0.34), rgba(255, 255, 255, 0.035));
+      box-shadow:
+        inset 0 2px 4px rgba(0, 0, 0, 0.75),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.06),
+        0 1px 0 rgba(255, 255, 255, 0.06);
     }
 
-    .plate b { color: #a9b7c0; font-weight: 500; letter-spacing: 0.3em; }
-    .plate i { font-style: normal; color: #5d686f; letter-spacing: 0.16em; }
+    .mark {
+      display: block;
+      width: 22px;
+      height: 22px;
+      flex: 0 0 auto;
+      fill: #0c1013;
+      filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.11));
+    }
+
+    .plate-text { display: grid; gap: 3px; }
+
+    .wordmark {
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.34em;
+      text-transform: uppercase;
+      color: #0c1013;
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.12), 0 -1px 0 rgba(0, 0, 0, 0.55);
+    }
+
+    .wordmark em { font-style: normal; letter-spacing: 0.2em; color: #151c21; }
+
+    .spec {
+      font-size: 8px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: #10171b;
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.085);
+    }
 
     .controls { display: flex; align-items: center; gap: 14px; }
 
@@ -757,6 +772,11 @@
 
     .power-btn:active { box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.8); transform: translateY(1px); }
 
+    .spk { width: 13px; height: 13px; fill: #5d686f; transition: fill 0.2s; }
+    .power-btn.on .spk { fill: var(--phosphor); filter: drop-shadow(0 0 4px rgba(54, 255, 121, 0.7)); }
+    .spk .wave { opacity: 0; transition: opacity 0.2s; }
+    .power-btn.on .spk .wave { opacity: 1; }
+
     .led {
       width: 7px;
       height: 7px;
@@ -767,24 +787,6 @@
     }
 
     .led.standby { background: var(--amber); box-shadow: 0 0 9px var(--amber); animation: standby 2s ease-in-out infinite; }
-
-    .stand { display: flex; flex-direction: column; align-items: center; flex: 0 0 auto; }
-
-    .neck {
-      width: 130px;
-      height: 14px;
-      background: linear-gradient(180deg, #1d242a, #0b0e11);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 4px 10px rgba(0, 0, 0, 0.7);
-      clip-path: polygon(12% 0, 88% 0, 100% 100%, 0 100%);
-    }
-
-    .foot {
-      width: 250px;
-      height: 10px;
-      border-radius: 0 0 8px 8px;
-      background: linear-gradient(180deg, #232a31, #090c0e);
-      box-shadow: 0 14px 30px -8px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-    }
 
     /* ------------------------------ animations ----------------------------- */
 
@@ -812,7 +814,6 @@
     @keyframes blink { 0%, 49% { opacity: 0.85; } 50%, 100% { opacity: 0; } }
     @keyframes lamp { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
     @keyframes standby { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
-    @keyframes sweep { to { transform: rotate(360deg); } }
     @keyframes blip-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
     /* Degauss: the coil thump when the raster is re-drawn. */
@@ -874,7 +875,7 @@
     .raster.jitter { animation: jitter 0.18s steps(2); }
 
     @media (prefers-reduced-motion: reduce) {
-      .grain, .hum, .beam, .screen-inner, .lamp, .map-grid::after,
+      .grain, .hum, .beam, .screen-inner, .lamp,
       .blip.enemy, .section.critical, .caret, .raster { animation: none !important; }
     }
 
@@ -884,7 +885,7 @@
       .crt { height: auto; }
       .case { min-height: 640px; }
       .status { display: none; }
-      .plate i { display: none; }
+      .spec { display: none; }
       .ship-layout { grid-template-columns: 1fr; }
       .ship-diagram { min-height: 340px; }
       .footer-hints { flex-direction: column; gap: 3px; }
@@ -897,15 +898,15 @@
     <defs>
       <!-- Bulged tube face: every edge bows outward, corners pull back. -->
       <clipPath id="tubeFace" clipPathUnits="objectBoundingBox">
-        <path d="M0.100,0.048
-                 C0.350,0.008 0.650,0.008 0.900,0.048
-                 C0.955,0.062 0.985,0.120 0.990,0.190
-                 C1.000,0.400 1.000,0.600 0.990,0.810
-                 C0.985,0.880 0.955,0.938 0.900,0.952
-                 C0.650,0.992 0.350,0.992 0.100,0.952
-                 C0.045,0.938 0.015,0.880 0.010,0.810
-                 C0.000,0.600 0.000,0.400 0.010,0.190
-                 C0.015,0.120 0.045,0.062 0.100,0.048 Z" />
+        <path d="M0.035,0.032
+                 C0.320,0.004 0.680,0.004 0.965,0.032
+                 C0.984,0.044 0.994,0.100 0.996,0.170
+                 C1.000,0.400 1.000,0.600 0.996,0.830
+                 C0.994,0.900 0.984,0.956 0.965,0.968
+                 C0.680,0.996 0.320,0.996 0.035,0.968
+                 C0.016,0.956 0.006,0.900 0.004,0.830
+                 C0.000,0.600 0.000,0.400 0.004,0.170
+                 C0.006,0.100 0.016,0.044 0.035,0.032 Z" />
       </clipPath>
 
       <!-- Fine phosphor grain: seed stepped several times a second. -->
@@ -956,7 +957,7 @@
                 <div class="screen-inner">
                   <header class="topbar">
                     <div class="brand"><span class="lamp"></span><span id="brandLine">NOVA OS / COCKPIT LINK</span></div>
-                    <div class="status"><span>DRAWER PAUSED</span><span>SHIP: CERES QUEEN</span><span>LINK: LOCAL</span></div>
+                    <div class="status"><span>SHIP: CERES QUEEN</span><span>LINK: LOCAL</span></div>
                   </header>
 
                   <section id="terminal" class="terminal" aria-label="Nova OS terminal">
@@ -1048,9 +1049,9 @@
               <div class="curve" aria-hidden="true"></div>
 
               <svg class="rim" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">
-                <path class="rim-dark" d="M0.100,0.048 C0.350,0.008 0.650,0.008 0.900,0.048 C0.955,0.062 0.985,0.120 0.990,0.190 C1.000,0.400 1.000,0.600 0.990,0.810 C0.985,0.880 0.955,0.938 0.900,0.952 C0.650,0.992 0.350,0.992 0.100,0.952 C0.045,0.938 0.015,0.880 0.010,0.810 C0.000,0.600 0.000,0.400 0.010,0.190 C0.015,0.120 0.045,0.062 0.100,0.048 Z" />
-                <path class="rim-glow" d="M0.100,0.048 C0.350,0.008 0.650,0.008 0.900,0.048 C0.955,0.062 0.985,0.120 0.990,0.190 C1.000,0.400 1.000,0.600 0.990,0.810 C0.985,0.880 0.955,0.938 0.900,0.952 C0.650,0.992 0.350,0.992 0.100,0.952 C0.045,0.938 0.015,0.880 0.010,0.810 C0.000,0.600 0.000,0.400 0.010,0.190 C0.015,0.120 0.045,0.062 0.100,0.048 Z" />
-                <path class="rim-line" d="M0.100,0.048 C0.350,0.008 0.650,0.008 0.900,0.048 C0.955,0.062 0.985,0.120 0.990,0.190 C1.000,0.400 1.000,0.600 0.990,0.810 C0.985,0.880 0.955,0.938 0.900,0.952 C0.650,0.992 0.350,0.992 0.100,0.952 C0.045,0.938 0.015,0.880 0.010,0.810 C0.000,0.600 0.000,0.400 0.010,0.190 C0.015,0.120 0.045,0.062 0.100,0.048 Z" />
+                <path class="rim-dark" d="M0.035,0.032 C0.320,0.004 0.680,0.004 0.965,0.032 C0.984,0.044 0.994,0.100 0.996,0.170 C1.000,0.400 1.000,0.600 0.996,0.830 C0.994,0.900 0.984,0.956 0.965,0.968 C0.680,0.996 0.320,0.996 0.035,0.968 C0.016,0.956 0.006,0.900 0.004,0.830 C0.000,0.600 0.000,0.400 0.004,0.170 C0.006,0.100 0.016,0.044 0.035,0.032 Z" />
+                <path class="rim-glow" d="M0.035,0.032 C0.320,0.004 0.680,0.004 0.965,0.032 C0.984,0.044 0.994,0.100 0.996,0.170 C1.000,0.400 1.000,0.600 0.996,0.830 C0.994,0.900 0.984,0.956 0.965,0.968 C0.680,0.996 0.320,0.996 0.035,0.968 C0.016,0.956 0.006,0.900 0.004,0.830 C0.000,0.600 0.000,0.400 0.004,0.170 C0.006,0.100 0.016,0.044 0.035,0.032 Z" />
+                <path class="rim-line" d="M0.035,0.032 C0.320,0.004 0.680,0.004 0.965,0.032 C0.984,0.044 0.994,0.100 0.996,0.170 C1.000,0.400 1.000,0.600 0.996,0.830 C0.994,0.900 0.984,0.956 0.965,0.968 C0.680,0.996 0.320,0.996 0.035,0.968 C0.016,0.956 0.006,0.900 0.004,0.830 C0.000,0.600 0.000,0.400 0.004,0.170 C0.006,0.100 0.016,0.044 0.035,0.032 Z" />
               </svg>
             </div>
           </div>
@@ -1058,8 +1059,14 @@
 
         <div class="chin">
           <div class="plate">
-            <b>NOVA-CRT 9000</b>
-            <i>P22 GREEN PHOSPHOR &middot; 15 IN</i>
+            <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 1.4 13.9 8.4 20.6 5.9 16.6 12 20.6 18.1 13.9 15.6 12 22.6 10.1 15.6 3.4 18.1 7.4 12 3.4 5.9 10.1 8.4Z" />
+              <path d="M12 4.6A7.4 7.4 0 1 1 12 19.4 7.4 7.4 0 1 1 12 4.6Zm0 1.5A5.9 5.9 0 1 0 12 17.9 5.9 5.9 0 0 0 12 6.1Z" opacity="0.55" />
+            </svg>
+            <span class="plate-text">
+              <span class="wordmark">Nova<em>CRT</em> 9000</span>
+              <span class="spec">P22 green phosphor &middot; 15 in &middot; type CQ-4</span>
+            </span>
           </div>
           <div class="controls">
             <button class="knob" id="knobBright" type="button" aria-label="Brightness">
@@ -1068,16 +1075,18 @@
             <button class="knob" id="knobScan" type="button" aria-label="Scanline depth">
               <span class="dial"></span><span>SCAN</span>
             </button>
+            <button class="power-btn" id="soundBtn" type="button" aria-pressed="false" aria-label="Speaker">
+              <svg class="spk" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M8 2 4.4 5.2H1.8v5.6h2.6L8 14Z" />
+                <path class="wave" d="M10.4 5.4a3.6 3.6 0 0 1 0 5.2l1 1a5 5 0 0 0 0-7.2Z" />
+              </svg>
+              <span id="sndState">SND OFF</span>
+            </button>
             <button class="power-btn" id="powerBtn" type="button" aria-label="Power">
               <span class="led" id="led"></span>PWR
             </button>
           </div>
         </div>
-      </div>
-
-      <div class="stand" aria-hidden="true">
-        <div class="neck"></div>
-        <div class="foot"></div>
       </div>
     </div>
   </main>
@@ -1108,6 +1117,168 @@
     let historyIndex = 0;
     let activeApp = null;
     let frames = 144;
+
+    /* ------------------------------- audio --------------------------------- */
+    /* Everything below is synthesised at runtime - no sample files. The
+       context is only created once the user arms the speaker, which also
+       satisfies the browser gesture requirement for autoplay. */
+
+    const Sound = (() => {
+      let ctx = null;
+      let master = null;
+      let noiseBuf = null;
+      let bed = null;
+      let enabled = false;
+
+      function ensure() {
+        if (ctx) return true;
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return false;
+        ctx = new AC();
+        master = ctx.createGain();
+        master.gain.value = 0.3;
+        master.connect(ctx.destination);
+
+        const sampleCount = Math.floor(ctx.sampleRate * 0.5);
+        noiseBuf = ctx.createBuffer(1, sampleCount, ctx.sampleRate);
+        const channel = noiseBuf.getChannelData(0);
+        for (let i = 0; i < sampleCount; i += 1) channel[i] = Math.random() * 2 - 1;
+        return true;
+      }
+
+      /* Filtered noise burst - contacts, clicks, coil thumps. */
+      function noise(dur, freq, q, gain, type = "bandpass") {
+        if (!enabled || !ctx) return;
+        const src = ctx.createBufferSource();
+        src.buffer = noiseBuf;
+        src.loop = true;
+        const filter = ctx.createBiquadFilter();
+        filter.type = type;
+        filter.frequency.value = freq;
+        filter.Q.value = q;
+        const gainNode = ctx.createGain();
+        const t = ctx.currentTime;
+        gainNode.gain.setValueAtTime(0.0001, t);
+        gainNode.gain.exponentialRampToValueAtTime(gain, t + 0.004);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        src.connect(filter);
+        filter.connect(gainNode);
+        gainNode.connect(master);
+        src.start(t);
+        src.stop(t + dur + 0.02);
+      }
+
+      /* Single oscillator with an optional pitch slide. */
+      function tone(freq, dur, gain, type = "square", slideTo = 0, delay = 0) {
+        if (!enabled || !ctx) return;
+        const osc = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        const t = ctx.currentTime + delay;
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, t);
+        if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+        gainNode.gain.setValueAtTime(0.0001, t);
+        gainNode.gain.exponentialRampToValueAtTime(gain, t + 0.006);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        osc.connect(gainNode);
+        gainNode.connect(master);
+        osc.start(t);
+        osc.stop(t + dur + 0.02);
+      }
+
+      /* The bed a live tube actually makes: flyback whine plus mains hum. */
+      function startBed() {
+        if (!enabled || !ctx || bed) return;
+        const out = ctx.createGain();
+        out.gain.value = 0;
+        out.connect(master);
+
+        const whine = ctx.createOscillator();
+        whine.type = "sine";
+        whine.frequency.value = 7860;
+        const whineGain = ctx.createGain();
+        whineGain.gain.value = 0.014;
+        whine.connect(whineGain);
+        whineGain.connect(out);
+
+        const mains = ctx.createOscillator();
+        mains.type = "sawtooth";
+        mains.frequency.value = 50;
+        const mainsFilter = ctx.createBiquadFilter();
+        mainsFilter.type = "lowpass";
+        mainsFilter.frequency.value = 140;
+        const mainsGain = ctx.createGain();
+        mainsGain.gain.value = 0.05;
+        mains.connect(mainsFilter);
+        mainsFilter.connect(mainsGain);
+        mainsGain.connect(out);
+
+        whine.start();
+        mains.start();
+        out.gain.linearRampToValueAtTime(1, ctx.currentTime + 1.2);
+        bed = { out, nodes: [whine, mains] };
+      }
+
+      function stopBed() {
+        if (!bed || !ctx) return;
+        const { out, nodes } = bed;
+        bed = null;
+        const t = ctx.currentTime;
+        out.gain.cancelScheduledValues(t);
+        out.gain.setValueAtTime(out.gain.value, t);
+        out.gain.linearRampToValueAtTime(0, t + 0.35);
+        nodes.forEach((node) => node.stop(t + 0.4));
+      }
+
+      return {
+        get enabled() { return enabled; },
+
+        toggle() {
+          if (!enabled) {
+            if (!ensure()) return false;
+            enabled = true;
+            if (ctx.state === "suspended") ctx.resume();
+            noise(0.05, 900, 1.2, 0.3, "lowpass");
+            if (!sleep.classList.contains("active")) startBed();
+          } else {
+            stopBed();
+            enabled = false;
+          }
+          return enabled;
+        },
+
+        key() { noise(0.028, 2100, 1.4, 0.16); tone(160, 0.03, 0.05, "triangle"); },
+        back() { noise(0.03, 1500, 1.2, 0.15); },
+        enter() { noise(0.05, 900, 0.9, 0.24); tone(120, 0.06, 0.08, "triangle"); },
+        beep() { tone(1180, 0.05, 0.055, "square"); },
+        error() { tone(220, 0.09, 0.09, "square"); tone(165, 0.13, 0.09, "square", 0, 0.1); },
+        detent() { noise(0.02, 3200, 3, 0.2); },
+
+        /* Degauss coil: a thump modulated by the 50 Hz field as it decays. */
+        coil() {
+          tone(118, 0.55, 0.1, "sine", 42);
+          tone(59, 0.5, 0.07, "triangle", 30);
+          noise(0.25, 260, 0.7, 0.06, "lowpass");
+        },
+
+        up() {
+          noise(0.06, 700, 0.8, 0.3, "lowpass");
+          tone(90, 0.12, 0.1, "triangle", 0, 0.02);
+          tone(2400, 0.6, 0.05, "sine", 7860, 0.12);
+          noise(0.4, 3000, 0.6, 0.05, "highpass");
+          startBed();
+        },
+
+        down() {
+          stopBed();
+          tone(7860, 0.45, 0.06, "sine", 240);
+          noise(0.09, 520, 0.8, 0.28, "lowpass");
+          tone(70, 0.16, 0.1, "triangle", 0, 0.05);
+        },
+
+        wake() { if (enabled) startBed(); }
+      };
+    })();
 
     /* Version is written from one source, everywhere it appears. */
     document.querySelector("#buildTag").textContent = `v${VERSION}`;
@@ -1170,6 +1341,17 @@
       lines.forEach((line) => print(line, kind));
     }
 
+    /* The greeting a fresh shell draws: on boot, and again after `clear`. */
+    function printBanner(instant) {
+      if (instant) {
+        output.forEach(([kind, text]) => print(text, kind));
+        return;
+      }
+      output.forEach(([kind, text], i) => {
+        setTimeout(() => print(text, kind), 420 + i * 130);
+      });
+    }
+
     function commandHelp() {
       print("Available commands:", "blue");
       print("  help          Show this command list");
@@ -1195,12 +1377,13 @@
       else if (value === "ship") printBlock(data.ship);
       else if (value === "map") openApp("map");
       else if (value === "ship viewer") openApp("ship");
-      else if (value === "clear") scrollback.textContent = "";
+      else if (value === "clear") { scrollback.textContent = ""; printBanner(true); }
       else if (value === "exit") closeDrawer();
       else suggest(value);
     }
 
     function suggest(value) {
+      Sound.error();
       const match = nearest(value);
       print(`command not found: ${value}`, "error");
       if (match) print(`did you mean ${match}?`, "warn");
@@ -1257,6 +1440,7 @@
     /* ------------------------------ apps ----------------------------------- */
 
     function degauss() {
+      Sound.coil();
       if (reduceMotion) return;
       raster.classList.remove("degauss");
       flash.classList.remove("on");
@@ -1292,6 +1476,7 @@
     /* ----------------------------- power state ----------------------------- */
 
     function powerOff() {
+      Sound.down();
       raster.classList.remove("power-on");
       if (!reduceMotion) {
         void raster.offsetWidth;
@@ -1300,6 +1485,7 @@
     }
 
     function powerOn() {
+      Sound.up();
       raster.classList.remove("power-off");
       if (!reduceMotion) {
         void raster.offsetWidth;
@@ -1374,12 +1560,14 @@
     const knobScan = document.querySelector("#knobScan");
 
     knobBright.addEventListener("click", () => {
+      Sound.detent();
       brightIndex = (brightIndex + 1) % BRIGHT.length;
       document.documentElement.style.setProperty("--tube-bright", BRIGHT[brightIndex]);
       applyKnob(knobBright, brightIndex);
     });
 
     knobScan.addEventListener("click", () => {
+      Sound.detent();
       scanIndex = (scanIndex + 1) % SCAN.length;
       document.documentElement.style.setProperty("--scan-op", SCAN[scanIndex]);
       applyKnob(knobScan, scanIndex);
@@ -1388,7 +1576,18 @@
     applyKnob(knobBright, brightIndex);
     applyKnob(knobScan, scanIndex);
 
+    const soundBtn = document.querySelector("#soundBtn");
+    const sndState = document.querySelector("#sndState");
+
+    soundBtn.addEventListener("click", () => {
+      const on = Sound.toggle();
+      soundBtn.classList.toggle("on", on);
+      soundBtn.setAttribute("aria-pressed", String(on));
+      sndState.textContent = on ? "SND ON" : "SND OFF";
+    });
+
     document.querySelector("#powerBtn").addEventListener("click", () => {
+      Sound.detent();
       if (sleep.classList.contains("active")) openDrawer();
       else closeDrawer();
     });
@@ -1397,6 +1596,7 @@
 
     form.addEventListener("submit", (event) => {
       event.preventDefault();
+      Sound.enter();
       const value = input.value;
       input.value = "";
       updateGhost();
@@ -1409,6 +1609,15 @@
     input.addEventListener("click", updateCaret);
 
     window.addEventListener("keydown", (event) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) {
+        if (event.key.toLowerCase() === "c" || event.key === "[") Sound.beep();
+      } else if (event.key === "Backspace" || event.key === "Delete") {
+        Sound.back();
+      } else if (event.key.length === 1 || event.key === "Tab" || event.key === "Escape"
+                 || event.key === "ArrowUp" || event.key === "ArrowDown") {
+        Sound.key();
+      }
+
       if (sleep.classList.contains("active")) {
         if (event.key === "Tab") {
           event.preventDefault();
@@ -1459,6 +1668,7 @@
 
     document.querySelectorAll(".section").forEach((section) => {
       section.addEventListener("click", () => {
+        Sound.beep();
         document.querySelectorAll(".section").forEach((item) => item.classList.remove("selected"));
         section.classList.add("selected");
         document.querySelector("#sectionName").textContent = section.dataset.section;
@@ -1491,13 +1701,7 @@
       setHints("terminal");
       powerOn();
 
-      if (reduceMotion) {
-        output.forEach(([kind, text]) => print(text, kind));
-      } else {
-        output.forEach(([kind, text], i) => {
-          setTimeout(() => print(text, kind), 420 + i * 130);
-        });
-      }
+      printBanner(reduceMotion);
 
       input.focus();
       updateCaret();
