@@ -74,13 +74,13 @@ const NOVA_OS_BEZEL_PAD_PX: f32 = 26.0;
 const NOVA_OS_SCREEN_PAD_PX: f32 = 18.0;
 const NOVA_OS_TERMINAL_PAD_X_PX: f32 = 16.0;
 const NOVA_OS_TERMINAL_PAD_Y_PX: f32 = 14.0;
-const NOVA_OS_PROMPT_ROW_HEIGHT_PX: f32 = 48.0;
+const NOVA_OS_PROMPT_ROW_HEIGHT_PX: f32 = 58.0;
 const NOVA_OS_FONT_PATH: &str = "fonts/SGr-IosevkaTerm-Regular.ttc";
 const NOVA_OS_BACKDROP: Color = Color::srgb_u8(0, 3, 6);
 const NOVA_OS_CASE: Color = Color::srgb_u8(5, 10, 15);
 const NOVA_OS_CASE_RAISED: Color = Color::srgb_u8(11, 21, 32);
 const NOVA_OS_CASE_EDGE: Color = Color::srgb_u8(37, 65, 86);
-const NOVA_OS_SCREEN: Color = Color::srgb_u8(0, 7, 2);
+const NOVA_OS_SCREEN: Color = Color::srgb_u8(0, 4, 1);
 const NOVA_OS_PHOSPHOR: Color = Color::srgb_u8(54, 255, 121);
 const NOVA_OS_TEXT: Color = Color::srgb_u8(185, 255, 201);
 const NOVA_OS_PHOSPHOR_DIM: Color = Color::srgb_u8(25, 166, 79);
@@ -95,7 +95,8 @@ const NOVA_OS_PROMPT_PREFIX: &str = "nova> ";
 /// Straight-alpha CRT overlay tint + scanline controls, passed to WGSL.
 const NOVA_OS_CRT_TINT: LinearRgba = LinearRgba::new(0.212, 1.0, 0.475, 0.06);
 const NOVA_OS_CRT_SCANLINE_STRENGTH: f32 = 0.07;
-const NOVA_OS_CRT_VIGNETTE_STRENGTH: f32 = 0.82;
+const NOVA_OS_CRT_VIGNETTE_STRENGTH: f32 = 1.18;
+const NOVA_OS_CRT_GRAIN_STRENGTH: f32 = 0.024;
 
 /// Global stacking-context z for the OPEN drawer: it is a modal, so backdrop and
 /// panel rise above the flight HUD chrome (which carries no `GlobalZIndex` = 0).
@@ -154,9 +155,17 @@ struct NovaOsTerminalScrollbackMarker;
 #[derive(Component)]
 struct NovaOsPromptRowMarker;
 
+/// Horizontal command-entry line inside the prompt strip.
+#[derive(Component)]
+struct NovaOsPromptInputLineMarker;
+
 /// The fixed amber `nova>` prompt prefix.
 #[derive(Component)]
 struct NovaOsPromptPrefixMarker;
+
+/// Remaining-width input lane that owns typed prompt and ghost completion.
+#[derive(Component)]
+struct NovaOsPromptInputWrapMarker;
 
 /// Prompt text line owned by the terminal shell.
 #[derive(Component)]
@@ -356,7 +365,7 @@ enum TerminalMode {
 #[derive(Debug, Clone, Copy)]
 struct TerminalCommand {
     name: &'static str,
-    help: &'static str,
+    summary: &'static str,
 }
 
 #[derive(Asset, AsBindGroup, TypePath, Clone, Debug)]
@@ -371,6 +380,7 @@ struct NovaOsCrtUniform {
     scanline_strength: f32,
     vignette_strength: f32,
     glow_strength: f32,
+    grain_strength: f32,
 }
 
 #[derive(Default, TypePath)]
@@ -405,6 +415,7 @@ impl Default for NovaOsCrtMaterial {
                 scanline_strength: NOVA_OS_CRT_SCANLINE_STRENGTH,
                 vignette_strength: NOVA_OS_CRT_VIGNETTE_STRENGTH,
                 glow_strength: 0.13,
+                grain_strength: NOVA_OS_CRT_GRAIN_STRENGTH,
             },
         }
     }
@@ -419,11 +430,11 @@ impl UiMaterial for NovaOsCrtMaterial {
 const TERMINAL_COMMANDS: &[TerminalCommand] = &[
     TerminalCommand {
         name: "help",
-        help: "help  show available NOVA OS commands",
+        summary: "Show available NOVA OS commands",
     },
     TerminalCommand {
         name: "clear",
-        help: "clear  clear terminal scrollback",
+        summary: "Clear terminal scrollback",
     },
 ];
 
@@ -516,12 +527,7 @@ impl NovaOsTerminal {
 
         match parse_command(&command_line) {
             TerminalCommandResult::Help => {
-                for command in TERMINAL_COMMANDS {
-                    self.scrollback.push(TerminalRow {
-                        kind: TerminalRowKind::Output,
-                        text: command.help.to_string(),
-                    });
-                }
+                self.scrollback.extend(terminal_help_rows());
             }
             TerminalCommandResult::Clear => {
                 self.reset_scrollback_to_welcome();
@@ -694,6 +700,28 @@ fn nova_os_ship_name(name: Option<&Name>) -> String {
 
 fn nova_os_status_text(ship_name: &str) -> String {
     format!("SHIP: {ship_name}     LINK: LOCAL")
+}
+
+fn terminal_help_rows() -> Vec<TerminalRow> {
+    let command_width = TERMINAL_COMMANDS
+        .iter()
+        .map(|command| command.name.len())
+        .max()
+        .unwrap_or(0);
+    std::iter::once(TerminalRow {
+        kind: TerminalRowKind::Info,
+        text: "Available commands:".to_string(),
+    })
+    .chain(TERMINAL_COMMANDS.iter().map(move |command| TerminalRow {
+        kind: TerminalRowKind::Output,
+        text: format!(
+            "  {:width$}  {}",
+            command.name,
+            command.summary,
+            width = command_width
+        ),
+    }))
+    .collect()
 }
 
 enum TerminalCommandResult {
@@ -989,9 +1017,9 @@ fn rebuild_terminal_ui(
         With<NovaOsTerminalScrollbackMarker>,
     >,
     mut text_targets: ParamSet<(
-        Query<(&mut Text, &mut TextColor), With<NovaOsTerminalPromptMarker>>,
-        Query<(&mut Text, &mut TextColor), With<NovaOsTerminalHintMarker>>,
-        Query<(&mut Text, &mut TextColor), With<NovaOsTerminalGhostMarker>>,
+        Query<(&mut Text, &mut TextColor, &mut TextShadow), With<NovaOsTerminalPromptMarker>>,
+        Query<(&mut Text, &mut TextColor, &mut TextShadow), With<NovaOsTerminalHintMarker>>,
+        Query<(&mut Text, &mut TextColor, &mut TextShadow), With<NovaOsTerminalGhostMarker>>,
     )>,
 ) {
     let font = nova_os_font(asset_server.as_deref());
@@ -1009,21 +1037,27 @@ fn rebuild_terminal_ui(
         scroll.0.y = f32::MAX;
     }
 
-    for (mut text, mut color) in &mut text_targets.p0() {
+    for (mut text, mut color, mut bloom) in &mut text_targets.p0() {
         text.0 = prompt_display(&terminal);
-        color.0 = prompt_color(&terminal);
+        let prompt_color = prompt_color(&terminal);
+        color.0 = prompt_color;
+        *bloom = nova_os_text_bloom(prompt_color);
     }
-    for (mut text, mut color) in &mut text_targets.p1() {
+    for (mut text, mut color, mut bloom) in &mut text_targets.p1() {
         text.0 = prompt_hint_display(&terminal);
-        color.0 = match terminal.parse_status {
+        let hint_color = match terminal.parse_status {
             TerminalParseStatus::Invalid => theme::semantic::THREAT,
             TerminalParseStatus::ValidPrefix => NOVA_OS_PHOSPHOR_MUTED,
             TerminalParseStatus::Empty | TerminalParseStatus::Valid => NOVA_OS_PHOSPHOR_DIM,
         };
+        color.0 = hint_color;
+        *bloom = nova_os_text_bloom(hint_color);
     }
-    for (mut text, mut color) in &mut text_targets.p2() {
+    for (mut text, mut color, mut bloom) in &mut text_targets.p2() {
         text.0 = prompt_completion_ghost(&terminal);
-        color.0 = NOVA_OS_PHOSPHOR.with_alpha(0.35);
+        let ghost_color = NOVA_OS_PHOSPHOR.with_alpha(0.35);
+        color.0 = ghost_color;
+        *bloom = nova_os_text_bloom(ghost_color);
     }
 }
 
@@ -1040,6 +1074,7 @@ fn spawn_terminal_row(parent: &mut ChildSpawnerCommands, row: &TerminalRow, font
         Text::new(row.text.clone()),
         nova_os_text_font(DRAWER_LINE_FONT_PX, font),
         TextColor(color),
+        nova_os_text_bloom(color),
         TextLayout {
             justify: Justify::Left,
             linebreak: LineBreak::WordBoundary,
@@ -1097,6 +1132,13 @@ fn nova_os_text_font(font_size: f32, font: Handle<Font>) -> TextFont {
         font: FontSource::Handle(font),
         font_size: FontSize::Px(font_size),
         ..default()
+    }
+}
+
+fn nova_os_text_bloom(color: Color) -> TextShadow {
+    TextShadow {
+        offset: Vec2::ZERO,
+        color: color.with_alpha(0.14),
     }
 }
 
@@ -1825,6 +1867,7 @@ fn spawn_nova_os_terminal_content(
                                 )),
                                 nova_os_text_font(DRAWER_SECTION_TITLE_FONT_PX, font.clone()),
                                 TextColor(NOVA_OS_PHOSPHOR),
+                                nova_os_text_bloom(NOVA_OS_PHOSPHOR),
                             ));
                         });
                     topbar.spawn((
@@ -1832,6 +1875,7 @@ fn spawn_nova_os_terminal_content(
                         Text::new(nova_os_status_text(ship_name)),
                         nova_os_text_font(DRAWER_SECTION_TITLE_FONT_PX, font.clone()),
                         TextColor(NOVA_OS_PHOSPHOR_DIM),
+                        nova_os_text_bloom(NOVA_OS_PHOSPHOR_DIM),
                     ));
                 });
 
@@ -1880,53 +1924,100 @@ fn spawn_nova_os_terminal_content(
                                 min_height: Val::Px(NOVA_OS_PROMPT_ROW_HEIGHT_PX),
                                 padding: UiRect::axes(
                                     Val::Px(NOVA_OS_TERMINAL_PAD_X_PX),
-                                    Val::Px(8.0),
+                                    Val::Px(7.0),
                                 ),
                                 border: UiRect::top(Val::Px(1.0)),
-                                flex_direction: FlexDirection::Row,
-                                align_items: AlignItems::Center,
-                                column_gap: Val::Px(8.0),
+                                flex_direction: FlexDirection::Column,
+                                justify_content: JustifyContent::Center,
+                                row_gap: Val::Px(2.0),
                                 ..default()
                             },
                             BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.28)),
-                            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.48)),
+                            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.78)),
+                            ZIndex(NOVA_OS_OVERLAY_Z + 1),
                         ))
                         .with_children(|prompt_row| {
-                            prompt_row.spawn((
-                                NovaOsPromptPrefixMarker,
-                                Text::new("nova>"),
-                                nova_os_text_font(DRAWER_LINE_FONT_PX, font.clone()),
-                                TextColor(NOVA_OS_AMBER),
-                            ));
-                            prompt_row.spawn((
-                                NovaOsTerminalPromptMarker,
-                                Text::new("|"),
-                                nova_os_text_font(DRAWER_LINE_FONT_PX, font.clone()),
-                                TextColor(NOVA_OS_PHOSPHOR),
-                                Node {
-                                    min_width: Val::Px(0.0),
-                                    flex_shrink: 0.0,
-                                    ..default()
-                                },
-                            ));
-                            prompt_row.spawn((
-                                NovaOsTerminalGhostMarker,
-                                Text::new(""),
-                                nova_os_text_font(DRAWER_LINE_FONT_PX, font.clone()),
-                                TextColor(NOVA_OS_PHOSPHOR.with_alpha(0.35)),
-                                Node {
-                                    min_width: Val::Px(0.0),
-                                    flex_shrink: 0.0,
-                                    ..default()
-                                },
-                            ));
+                            prompt_row
+                                .spawn((
+                                    NovaOsPromptInputLineMarker,
+                                    Node {
+                                        width: Val::Percent(100.0),
+                                        min_height: Val::Px(24.0),
+                                        flex_direction: FlexDirection::Row,
+                                        align_items: AlignItems::Center,
+                                        column_gap: Val::Px(8.0),
+                                        min_width: Val::Px(0.0),
+                                        ..default()
+                                    },
+                                ))
+                                .with_children(|input_line| {
+                                    input_line.spawn((
+                                        NovaOsPromptPrefixMarker,
+                                        Text::new("nova>"),
+                                        nova_os_text_font(DRAWER_LINE_FONT_PX, font.clone()),
+                                        TextColor(NOVA_OS_AMBER),
+                                        nova_os_text_bloom(NOVA_OS_AMBER),
+                                        Node {
+                                            flex_shrink: 0.0,
+                                            ..default()
+                                        },
+                                    ));
+                                    input_line
+                                        .spawn((
+                                            NovaOsPromptInputWrapMarker,
+                                            Node {
+                                                flex_grow: 1.0,
+                                                min_width: Val::Px(0.0),
+                                                flex_direction: FlexDirection::Row,
+                                                align_items: AlignItems::Center,
+                                                overflow: Overflow::clip_x(),
+                                                ..default()
+                                            },
+                                        ))
+                                        .with_children(|input_wrap| {
+                                            input_wrap.spawn((
+                                                NovaOsTerminalPromptMarker,
+                                                Text::new("|"),
+                                                nova_os_text_font(
+                                                    DRAWER_LINE_FONT_PX,
+                                                    font.clone(),
+                                                ),
+                                                TextColor(NOVA_OS_PHOSPHOR),
+                                                nova_os_text_bloom(NOVA_OS_PHOSPHOR),
+                                                Node {
+                                                    min_width: Val::Px(1.0),
+                                                    flex_shrink: 0.0,
+                                                    ..default()
+                                                },
+                                            ));
+                                            input_wrap.spawn((
+                                                NovaOsTerminalGhostMarker,
+                                                Text::new(""),
+                                                nova_os_text_font(
+                                                    DRAWER_LINE_FONT_PX,
+                                                    font.clone(),
+                                                ),
+                                                TextColor(NOVA_OS_PHOSPHOR.with_alpha(0.35)),
+                                                nova_os_text_bloom(
+                                                    NOVA_OS_PHOSPHOR.with_alpha(0.35),
+                                                ),
+                                                Node {
+                                                    min_width: Val::Px(1.0),
+                                                    flex_shrink: 0.0,
+                                                    ..default()
+                                                },
+                                            ));
+                                        });
+                                });
                             prompt_row.spawn((
                                 NovaOsTerminalHintMarker,
                                 Text::new(""),
-                                nova_os_text_font(DRAWER_LINE_FONT_PX, font.clone()),
+                                nova_os_text_font(12.0, font.clone()),
                                 TextColor(NOVA_OS_PHOSPHOR_MUTED),
+                                nova_os_text_bloom(NOVA_OS_PHOSPHOR_MUTED),
                                 Node {
-                                    flex_grow: 1.0,
+                                    width: Val::Percent(100.0),
+                                    min_height: Val::Px(16.0),
                                     min_width: Val::Px(0.0),
                                     ..default()
                                 },
@@ -1956,6 +2047,7 @@ fn spawn_nova_os_terminal_content(
                             Text::new(hint),
                             nova_os_text_font(11.0, font.clone()),
                             TextColor(NOVA_OS_PHOSPHOR_MUTED),
+                            nova_os_text_bloom(NOVA_OS_PHOSPHOR_MUTED),
                         ));
                     }
                 });
@@ -2120,6 +2212,38 @@ mod tests {
     }
 
     #[test]
+    fn keyboard_input_updates_visible_prompt_text() {
+        let mut app = toggle_app();
+        app.init_resource::<NovaOsTerminal>();
+        app.world_mut().init_resource::<Messages<KeyboardInput>>();
+        app.add_systems(
+            Update,
+            (handle_terminal_keyboard, rebuild_terminal_ui)
+                .chain()
+                .run_if(in_state(GameStates::Playing)),
+        );
+        spawn_drawer_shell(&mut app);
+
+        press_tab(&mut app);
+        assert_eq!(pause_state(&app), PauseStates::Drawer);
+        press_text(&mut app, "he");
+
+        let prompt = app
+            .world_mut()
+            .query_filtered::<&Text, With<NovaOsTerminalPromptMarker>>()
+            .single(app.world())
+            .expect("one visible prompt text entity");
+        assert_eq!(prompt.0, "he|");
+
+        let ghost = app
+            .world_mut()
+            .query_filtered::<&Text, With<NovaOsTerminalGhostMarker>>()
+            .single(app.world())
+            .expect("one visible ghost text entity");
+        assert_eq!(ghost.0, "lp");
+    }
+
+    #[test]
     fn terminal_prompt_edits_and_navigates_history() {
         let mut terminal = NovaOsTerminal::default();
         type_text(&mut terminal, "help");
@@ -2157,6 +2281,32 @@ mod tests {
         assert_eq!(terminal.scrollback, nova_os_welcome_rows());
         assert_eq!(terminal.prompt, "");
         assert_eq!(terminal.completion_hint.as_deref(), Some("type help"));
+    }
+
+    #[test]
+    fn nova_os_help_rows_are_generated_from_registered_commands() {
+        let mut terminal = NovaOsTerminal::default();
+        type_text(&mut terminal, "help");
+        terminal.submit();
+
+        let help_rows = &terminal.scrollback[nova_os_welcome_rows().len() + 1..];
+        assert_eq!(
+            help_rows,
+            &[
+                TerminalRow {
+                    kind: TerminalRowKind::Info,
+                    text: "Available commands:".to_string()
+                },
+                TerminalRow {
+                    kind: TerminalRowKind::Output,
+                    text: "  help   Show available NOVA OS commands".to_string()
+                },
+                TerminalRow {
+                    kind: TerminalRowKind::Output,
+                    text: "  clear  Clear terminal scrollback".to_string()
+                }
+            ]
+        );
     }
 
     #[test]
@@ -2234,10 +2384,10 @@ mod tests {
             .run_system_once(rebuild_terminal_ui)
             .expect("terminal UI rebuild runs");
 
-        let (prompt, prompt_color, prompt_node, prompt_shadow) = app
+        let (prompt, prompt_color, prompt_node, prompt_bloom) = app
             .world_mut()
             .query_filtered::<
-                (&Text, &TextColor, &Node, Option<&TextShadow>),
+                (&Text, &TextColor, &Node, &TextShadow),
                 With<NovaOsTerminalPromptMarker>,
             >()
             .single(app.world())
@@ -2249,14 +2399,13 @@ mod tests {
             "typed input must not collapse inside the prompt row"
         );
         assert!(
-            prompt_shadow.is_none(),
-            "terminal prompt text should stay sharp without a shadow"
+            prompt_bloom.offset == Vec2::ZERO && prompt_bloom.color.alpha() <= 0.15,
+            "terminal prompt bloom must stay faint and non-directional"
         );
 
-        let (ghost, ghost_node, ghost_shadow) = app
+        let (ghost, ghost_node, ghost_bloom) = app
             .world_mut()
-            .query_filtered::<(&Text, &Node, Option<&TextShadow>), With<NovaOsTerminalGhostMarker>>(
-            )
+            .query_filtered::<(&Text, &Node, &TextShadow), With<NovaOsTerminalGhostMarker>>()
             .single(app.world())
             .expect("one terminal autocomplete ghost");
         assert_eq!(ghost.0, "");
@@ -2265,25 +2414,46 @@ mod tests {
             "autocomplete ghost must not collapse the typed input"
         );
         assert!(
-            ghost_shadow.is_none(),
-            "autocomplete ghost text should stay sharp without a shadow"
+            ghost_bloom.offset == Vec2::ZERO && ghost_bloom.color.alpha() <= 0.15,
+            "autocomplete ghost bloom must stay faint and non-directional"
         );
 
-        let (prefix, prefix_color) = app
+        let (prefix, prefix_color, prefix_bloom) = app
             .world_mut()
-            .query_filtered::<(&Text, &TextColor), With<NovaOsPromptPrefixMarker>>()
+            .query_filtered::<(&Text, &TextColor, &TextShadow), With<NovaOsPromptPrefixMarker>>()
             .single(app.world())
             .expect("one terminal prompt prefix");
         assert_eq!(prefix.0, "nova>");
         assert_eq!(prefix_color.0, NOVA_OS_AMBER);
+        assert!(
+            prefix_bloom.offset == Vec2::ZERO && prefix_bloom.color.alpha() <= 0.15,
+            "prompt prefix bloom must stay faint and non-directional"
+        );
 
-        let (hint, hint_color) = app
+        let (hint, hint_color, hint_node) = app
             .world_mut()
-            .query_filtered::<(&Text, &TextColor), With<NovaOsTerminalHintMarker>>()
+            .query_filtered::<(&Text, &TextColor, &Node), With<NovaOsTerminalHintMarker>>()
             .single(app.world())
             .expect("one terminal hint");
         assert_eq!(hint.0, "did you mean help?");
         assert_eq!(hint_color.0, theme::semantic::THREAT);
+        assert_eq!(
+            hint_node.width,
+            Val::Percent(100.0),
+            "invalid-command suggestions live below the input line instead of stealing prompt width"
+        );
+
+        let input_wrap = app
+            .world_mut()
+            .query_filtered::<&Node, With<NovaOsPromptInputWrapMarker>>()
+            .single(app.world())
+            .expect("one prompt input wrap");
+        assert_eq!(input_wrap.flex_grow, 1.0);
+        assert_eq!(
+            input_wrap.overflow,
+            Overflow::clip_x(),
+            "typed input owns the prompt lane and clips inside it"
+        );
     }
 
     /// One right-stick-click press: press + update (toggle sets NextState), then
@@ -3127,12 +3297,22 @@ mod tests {
             .map(|z| z.0)
             .collect();
         assert_eq!(overlay_zs.len(), 2);
-        for overlay_z in overlay_zs {
+        for overlay_z in &overlay_zs {
             assert!(
-                overlay_z > content_z,
+                *overlay_z > content_z,
                 "CRT overlays render above terminal content (overlay {overlay_z}, content {content_z})"
             );
         }
+        let prompt_z = app
+            .world_mut()
+            .query_filtered::<&ZIndex, With<NovaOsPromptRowMarker>>()
+            .single(app.world())
+            .expect("prompt strip has local z")
+            .0;
+        assert!(
+            overlay_zs.iter().all(|overlay_z| prompt_z > *overlay_z),
+            "the prompt strip renders above CRT overlays so typed input remains visible"
+        );
         assert!(
             app.world_mut()
                 .query_filtered::<(), With<NovaOsAccentSlotMarker>>()
@@ -3188,6 +3368,22 @@ mod tests {
                 .next()
                 .is_some(),
             "terminal surface has the PoC prompt row"
+        );
+        assert!(
+            app.world_mut()
+                .query_filtered::<(), With<NovaOsPromptInputLineMarker>>()
+                .iter(app.world())
+                .next()
+                .is_some(),
+            "prompt strip has a dedicated input line"
+        );
+        assert!(
+            app.world_mut()
+                .query_filtered::<(), With<NovaOsPromptInputWrapMarker>>()
+                .iter(app.world())
+                .next()
+                .is_some(),
+            "prompt strip has a full-width input wrap like the HTML PoC"
         );
         assert!(
             app.world_mut()
@@ -3247,6 +3443,21 @@ mod tests {
             app.world().resource::<Assets<NovaOsCrtMaterial>>().len(),
             1,
             "the CRT overlay owns one material asset"
+        );
+        let material = app
+            .world()
+            .resource::<Assets<NovaOsCrtMaterial>>()
+            .iter()
+            .next()
+            .expect("one CRT material")
+            .1;
+        assert_eq!(
+            material.data.vignette_strength, NOVA_OS_CRT_VIGNETTE_STRENGTH,
+            "CRT material carries the near-black corner pass"
+        );
+        assert_eq!(
+            material.data.grain_strength, NOVA_OS_CRT_GRAIN_STRENGTH,
+            "CRT material carries the subtle square grain pass"
         );
     }
 

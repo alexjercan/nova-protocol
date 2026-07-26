@@ -36,10 +36,20 @@
 - Fixed the invisible typed-input bug by preventing both the prompt text and autocomplete ghost text from flex-shrinking away inside the prompt row.
 - Removed NOVA OS text shadows so the terminal reads sharper and closer to the HTML sample.
 
+## Feedback Round 4
+
+- Pushed the CRT effect darker again: the screen base is closer to black, the vignette strength is high enough for almost-black corners, and the shader now uses a smooth corner falloff instead of an edge ring.
+- Added subtle square-cell phosphor grain to the CRT shader. It is sparse and low-alpha so it reads like the HTML surface texture without burying text.
+- Moved the command prompt into a dedicated full-width input lane, put the invalid-command hint on a separate line underneath, and lifted the prompt strip above the CRT overlay. This targets the remaining typed-text invisibility bug directly.
+- Darkened the prompt strip itself so it reads as an input box sitting on top of the CRT screen rather than another washed screen layer.
+- Added a faint zero-offset text bloom pass. This keeps the current sharp text shape and avoids the directional shadow that looked strange in the previous attempt.
+- Reworked `help` output so it is generated from the registered command metadata with computed column alignment. The executable command registry still contains only `help` and `clear`.
+
 ## Tradeoffs
 
 - The Iosevka Term TTC is large, about 66 MB. It is used directly because the requested font was only available locally as a TTC collection; a future asset pass can subset or replace it with a smaller TTF/WOFF if needed.
 - The fallback scanline layer stays in place for headless/widget-tree coverage and non-material contexts, but its alpha is intentionally low because the shader now carries the real CRT treatment.
+- The grain lives in the shader instead of hundreds of UI child nodes. That keeps the square texture cheap and keeps hit-testing/widget hierarchy focused on the terminal itself.
 - This task does not implement `log`, `objectives`, `ship`, `map`, app runtime or ship viewer output. The live backing state remains in `drawer.rs` for those future commands.
 
 ## Difficulties
@@ -47,6 +57,7 @@
 - The first implementation looked structurally close in tests but the screenshot showed the material and fallback overlays stacking too strongly. The fix was to treat the CRT effect as an accent layer, not a screen-wide tint layer.
 - Startup UI and terminal state had separate hardcoded boot rows. Changing the spawned scrollback to call the same welcome-row helper prevents another mismatch between initial render and rebuild.
 - The prompt visibility bug did not show up in command-model tests because it was a UI flex sizing problem. The prompt-row test now asserts the typed text and ghost completion keep `flex_shrink: 0`.
+- The follow-up prompt bug also needed a keyboard-path test. The new regression opens the drawer, sends real `KeyboardInput`, runs the terminal rebuild, and asserts the prompt and ghost `Text` entities show the typed command.
 
 ## Verification
 
@@ -59,6 +70,15 @@
 - `tatr check --ledger LESSONS.md`
 
 ## Feedback Round 3 Verification
+
+- `nix develop --command cargo fmt --check`
+- `nix develop --command cargo test -p nova_gameplay drawer`
+- `git diff --check`
+- `nix develop --command cargo check`
+- `cd web && npm run ci`
+- `tatr check --ledger LESSONS.md`
+
+## Feedback Round 4 Verification
 
 - `nix develop --command cargo fmt --check`
 - `nix develop --command cargo test -p nova_gameplay drawer`

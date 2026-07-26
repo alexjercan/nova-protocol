@@ -43,3 +43,18 @@ Checked:
 - The shader no longer produces a donut-like dark band; vignette strength increases smoothly toward the corners.
 - The prompt and autocomplete ghost cannot flex-shrink away, which pins the typed-input visibility bug.
 - NOVA OS terminal text no longer uses `TextShadow`.
+
+## Round 4
+
+- VERDICT: APPROVE
+
+Findings: none.
+
+Checked:
+
+- CRT corners are materially darker and the shader has subtle square-cell grain.
+- The prompt strip renders above the CRT overlays and uses a darker background.
+- The prompt input line owns the remaining row width; invalid-command hints render below the command instead of competing for the same row.
+- A keyboard-event regression proves typed input reaches the visible prompt text entity.
+- Text bloom is zero-offset and low-alpha, avoiding the old directional shadow.
+- Help output is generated from the command registry with computed alignment, while the registry still exposes only `help` and `clear`.
