@@ -81,22 +81,6 @@
       mix-blend-mode: screen;
     }
 
-    .flight-readout {
-      position: fixed;
-      top: 10px;
-      right: 14px;
-      z-index: 40;
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      padding: 5px 8px;
-      color: rgba(185, 255, 201, 0.82);
-      border: 1px solid rgba(54, 255, 121, 0.3);
-      background: rgba(0, 10, 6, 0.58);
-      font-size: 11px;
-      text-transform: uppercase;
-    }
-
     /* ---------------------------- the monitor ------------------------------ */
 
     .rig {
@@ -942,7 +926,7 @@
       .rig { position: relative; inset: auto; min-height: 100vh; }
       .crt { height: auto; }
       .case { min-height: 640px; }
-      .status { display: none; }
+      .status span:not(#fps) { display: none; }
       .spec { display: none; }
       .ship-layout { grid-template-columns: 1fr; }
       .ship-diagram { min-height: 340px; }
@@ -995,11 +979,6 @@
   <div class="floor" aria-hidden="true"></div>
   <div class="spill" aria-hidden="true"></div>
 
-  <div class="flight-readout" aria-label="diagnostic overlay">
-    <span id="buildTag">v0.9.0-dev</span>
-    <span id="fps">FPS 144</span>
-  </div>
-
   <main class="rig">
     <div class="crt">
       <div class="case">
@@ -1015,7 +994,7 @@
                 <div class="screen-inner">
                   <header class="topbar">
                     <div class="brand"><span class="lamp"></span><span id="brandLine">NOVA OS / COCKPIT LINK</span></div>
-                    <div class="status"><span>SHIP: CERES QUEEN</span><span>LINK: LOCAL</span></div>
+                    <div class="status"><span>SHIP: CERES QUEEN</span><span>LINK: LOCAL</span><span id="fps">FPS 144</span></div>
                   </header>
 
                   <section id="terminal" class="terminal" aria-label="Nova OS terminal">
@@ -1344,7 +1323,6 @@
     })();
 
     /* Version is written from one source, everywhere it appears. */
-    document.querySelector("#buildTag").textContent = `v${VERSION}`;
     document.querySelector("#brandLine").textContent = `NOVA OS v${VERSION} / COCKPIT LINK`;
 
     /* Footer shows the keys that work in whatever is on screen right now. */
