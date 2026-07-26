@@ -41,6 +41,28 @@ to plan flights, richer marker filters, route planning, map-boundary gameplay an
 ship commands that act from the map. The render mode stays a swappable back layer
 so a 2D top-down plot is a valid interim if the 3D view runs long.
 
+## PoC-derived requirements (2026-07-26 fidelity review)
+
+The in-game map will look different from the PoC mock, but these interaction
+patterns from `examples/ui/nova_os_terminal_poc.html` carry over and should be
+in the plan at pickup:
+
+- Contact inspection: selecting a contact (click, or a keyboard cycle) fills a
+  readout with kind / name / range / bearing plus a one-line flavor note (the
+  PoC `.contact-readout` + `contacts` table). Range/bearing come from live
+  world positions relative to the player ship.
+- Contact semantics + color language: OWN SHIP phosphor, HOSTILE red with a
+  pulse, ally/objective/terrain in the PoC's blue/amber/plain treatment -
+  consistent with the allegiance-marker palette from 20260723-233446.
+- App chrome parity: the appbar shows `APP / MAP / LOCAL SPACE`, the LATEST
+  flight-log line (the PoC `.applast` - the log stays glanceable while an app
+  covers the terminal), and the Close App control the runtime already ships.
+- Keyboard-first: the app is fully usable without the mouse mid-flight; footer
+  hints swap to the map's hint set while it is active (hint plumbing lands in
+  20260726-214708).
+- Launch degauss/transition + map-open sound land via 20260726-193233 /
+  20260726-214639; do not block on them.
+
 ## Notes
 
 - Original spike: `tasks/20260721-211512/SPIKE.md` (RECOMMENDED) captured the

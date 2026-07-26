@@ -42,6 +42,33 @@ not block the core terminal OS.
 - Touched drawer/app tests pass. (cmd:
   `nix develop --command cargo test -p nova_gameplay drawer terminal`)
 
+## PoC-derived requirements (2026-07-26 fidelity review)
+
+The in-game viewer will look different from the PoC mock, but these patterns
+from `examples/ui/nova_os_terminal_poc.html` should be in the plan at pickup:
+
+- Severity styling on sections: nominal phosphor, damaged orange, critical red
+  with a pulse, selected amber highlight (the PoC `.section` classes); the
+  section shows its integrity percentage inline.
+- Inspector parity: section name, integrity % + a meter bar, a status LINE in
+  words ("scored plating", "critical ammo feed"), and a resources block from
+  LIVE data (the PoC's KITS/TUBES/ORDNANCE maps to whatever the game actually
+  tracks - ammo per torpedo bay is live today).
+- Disabled actions explain WHY in a note line (the PoC `actionNote`: "ammo
+  feed is below tolerance...", "out of repair kits...") instead of only
+  greying out - this was one of the PoC's best UX details.
+- Number keys drive the action row (PoC 1/2/3) while the app owns input, so
+  the player never needs the mouse mid-flight; footer hints swap to the app's
+  set (plumbing in 20260726-214708).
+- Terminal parity: any action shipped in the app is ALSO a terminal command
+  (`reload`, later `repair <part>` - argument parsing lands in
+  20260726-214708), like the PoC where `repair thr` and the button do the
+  same thing through one code path.
+- Launch word: the PoC uses `ship view`; the runtime today is single-word ids
+  and the parser special-cases `ship viewer` as Unknown. Decide the real
+  launch word consciously (two-word support from 20260726-214708, or a
+  distinct single word) and remove the special-case.
+
 ## Notes
 
 - Depends on: `20260726-115334`.

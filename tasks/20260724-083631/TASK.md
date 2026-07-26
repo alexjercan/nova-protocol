@@ -140,6 +140,30 @@ tasks (see the grooming-history block below for the full feedback):
    no multiple drawers. **Cut first if Strand C runs long.** Depends on the NOVA
    OS shell/runtime planning that follows 20260725-104330.
 
+**Strand C fidelity passes (added 2026-07-26, PoC fidelity review)** - the core
+terminal (shell 115320, input 115324, output 115330, app runtime 115334, HTML
+fidelity 180807, scanline realism 193155) is CLOSED; these close the remaining
+gap to `examples/ui/nova_os_terminal_poc.html`:
+
+11. **20260726-193219** (p45, feature/ui/hud) CRT casing + glass depth pass -
+   rounded corners, glass sheen, bevels, screws/vents, PLUS the chin bar with
+   the recessed NovaCRT 9000 brand plate bottom-left (scope extended from the
+   PoC review). Was an unslotted p0 spike option; now a slotted release task.
+12. **20260726-214617** (p44, feature/ui/hud) Chin controls: working
+   BRIGHT/SCAN knobs + SND/PWR buttons. Depends on 193219 for geometry.
+13. **20260726-214639** (p43, feature/ui/hud/audio) NOVA OS sound: terminal
+   SFX (keys, enter, error, beeps, degauss, power sweeps) + the ambient CRT
+   bed, through the existing `UiSfx`/`NovaAudioPlugin` conventions.
+14. **20260726-214708** (p42, feature/ui/hud/input) Terminal UX parity:
+   staggered boot banner, unread-events line, Tab match cycling,
+   PageUp/PageDown paging, block caret, contextual footer hints, app-exit
+   chords (Ctrl+C / Shift+Esc), and parser support for arguments + multi-word
+   launch words (unblocks `repair <part>` / `ship view`).
+15. **20260726-193233** (p41, feature/ui/hud) CRT render-to-texture pipeline:
+   real text bloom + crisp tube curvature + the power-on/off, degauss and
+   micro-effect inventory. The load-bearing architecture change - slotted LAST
+   of the fidelity passes; the four above are cheap and independent of it.
+
 ### Strand A - Combat readability
 
 4. **20260723-233446** (p70, SIZE S, hud/gameplay) HUD allegiance marker over
@@ -229,6 +253,23 @@ To be authored in the planning pass. Skeleton:
 
 ## Grooming history
 
+- **2026-07-26 (PoC fidelity review):** owner asked for a review of the shipped
+  NOVA OS (`crates/nova_gameplay/src/hud/drawer.rs`) against
+  `examples/ui/nova_os_terminal_poc.html` and a task restructure so the PoC
+  actually makes it INTO the game. Gap found: the terminal core (commands,
+  input, palette, shader scanlines) is at parity, but the PHYSICAL layer is
+  not - no rounded/moulded casing or glass, no chin bar with the NovaCRT 9000
+  brand plate (logo bottom-left), no working BRIGHT/SCAN/SND/PWR controls, no
+  sound at all, and the shell lacks the PoC's feel details (staggered boot,
+  unread-events line, Tab match cycling, paging, block caret, contextual
+  hints, app-exit chords, argument parsing). Actions: re-slotted the two
+  unslotted p0 CRT passes (193219 -> p45 with chin/plate scope extension,
+  193233 -> p41 with the micro-effect inventory); NEW tasks 20260726-214617
+  (chin controls, p44), 20260726-214639 (sound, p43), 20260726-214708
+  (terminal UX parity, p42) - Strand C items 11-15 above; enriched the two
+  stretch apps (102320 map, 115339 ship viewer) with PoC-derived requirement
+  sections (contact readout, severity styling, disabled-action explanations,
+  number-key actions, applast chrome line, launch-word decision).
 - **2026-07-24 (drawer-family playtest REWORK):** owner played shell (102304) +
   reveal (211520) + z-order (121541) together and reshaped the drawer. Verdicts &
   requests, filed as tasks (Strand C items 4-9 above):

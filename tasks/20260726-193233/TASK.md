@@ -1,8 +1,8 @@
 # NOVA OS CRT: render-to-texture pipeline with real text bloom + curvature
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: v0.9.0,spike,feature,ui,hud
+- PRIORITY: 41
+- TAGS: v0.9.0, spike, feature, ui, hud
 
 ## Story
 
@@ -49,3 +49,16 @@ on scroll, boot power-on/CRT-degauss transitions, and future NOVA OS "apps"
   WebGL2; image-target resize sync without a stretched frame; scrollback
   wheel/picking still working when content renders through an image.
 - Verify with the `screenshot_nova_os` capture example.
+- PoC micro-effect inventory (2026-07-26 fidelity review) - candidate effects
+  this pipeline unlocks, cherry-pick what reads well: power-on raster bloom
+  from a single scan line + power-off collapse to a dying dot (`crt-on`/
+  `crt-off`), degauss wobble + flash on app switch, the slow mains-hum bar
+  drifting down the tube, the occasional fast retrace beam, the 4.5 s
+  brightness flicker, the rare vertical-hold jitter slip, and the
+  phosphor-strike flash on freshly printed lines. Pair the audible ones
+  (degauss coil, power sweeps) with task 20260726-214639.
+- Priority re-slotted 0 -> 41 in the 2026-07-26 PoC fidelity review: it lands
+  LAST of the fidelity passes - the casing (20260726-193219), chin controls
+  (20260726-214617), sound (20260726-214639) and shell UX (20260726-214708)
+  are cheaper and independent; this one is the load-bearing architecture
+  change.
