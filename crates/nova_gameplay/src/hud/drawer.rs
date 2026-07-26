@@ -31,15 +31,22 @@
 //! `Res<Time>`).
 
 use bevy::{
-    asset::{io::Reader, AssetApp, AssetLoader, LoadContext},
+    asset::{io::Reader, uuid::Uuid, AssetApp, AssetLoader, LoadContext},
+    camera::{visibility::RenderLayers, ImageRenderTarget, NormalizedRenderTarget, RenderTarget},
     input::{
         keyboard::{Key, KeyboardInput},
         ButtonState,
     },
-    picking::hover::Hovered,
+    picking::{
+        hover::{HoverMap, Hovered},
+        pointer::{
+            Location, PointerAction, PointerButton, PointerId, PointerInput, PointerLocation,
+        },
+    },
     prelude::*,
-    render::render_resource::{AsBindGroup, ShaderType},
+    render::render_resource::{AsBindGroup, ShaderType, TextureFormat},
     shader::ShaderRef,
+    ui::UiTargetCamera,
     ui_render::prelude::{MaterialNode, UiMaterial, UiMaterialPlugin},
     ui_widgets::{observe, Activate, Button},
 };
@@ -141,6 +148,11 @@ const NOVA_OS_CRT_VIGNETTE_STRENGTH: f32 = 0.55;
 /// clearly brighter middle (the HTML radial-gradient centre).
 const NOVA_OS_CRT_GLOW_STRENGTH: f32 = 0.07;
 const NOVA_OS_CRT_GRAIN_STRENGTH: f32 = 0.03;
+/// Barrel-warp amount for the sampling shader: a gentle bow that reads as a tube
+/// without pushing corner text past readability (curvature-vs-readability, tuned
+/// by playtest). Bloom is the soft green glyph halo.
+const NOVA_OS_CRT_WARP: f32 = 0.12;
+const NOVA_OS_CRT_BLOOM: f32 = 0.85;
 
 /// Global stacking-context z for the OPEN drawer: it is a modal, so backdrop and
 /// panel rise above the flight HUD chrome (which carries no `GlobalZIndex` = 0).
@@ -230,18 +242,6 @@ struct NovaOsTerminalHintMarker;
 /// Ghost completion suffix rendered inline beside the typed prompt.
 #[derive(Component)]
 struct NovaOsTerminalGhostMarker;
-
-/// Thin overlay rows that approximate CRT scanlines.
-#[derive(Component)]
-struct NovaOsScanlineMarker;
-
-/// Transparent edge-darkening/glass overlay on the screen.
-#[derive(Component)]
-struct NovaOsVignetteMarker;
-
-/// Shader-backed CRT overlay matching the HTML PoC's scanline/glass layer.
-#[derive(Component)]
-struct NovaOsCrtMaterialMarker;
 
 /// The footer hint row from the PoC.
 #[derive(Component)]
@@ -570,14 +570,20 @@ struct TerminalCommandSnapshot {
 struct NovaOsCrtMaterial {
     #[uniform(0)]
     data: NovaOsCrtUniform,
+    /// The offscreen image holding the rendered terminal content. The sampling
+    /// shader reads it to bloom the glyphs and barrel-warp the content. A default
+    /// (white 1x1) handle in headless rigs keeps the material valid.
+    #[texture(1)]
+    #[sampler(2)]
+    source: Handle<Image>,
 }
 
 #[derive(ShaderType, Clone, Debug)]
 struct NovaOsCrtUniform {
     tint: LinearRgba,
     /// The CRT panel's pixel size, updated each frame by [`animate_nova_os_crt`]
-    /// from the overlay node's [`ComputedNode`] so the scanlines/slot-mask track
-    /// the real screen size. Zero until the first layout pass feeds it.
+    /// from the screen node's [`ComputedNode`] so the scanlines/slot-mask + bloom
+    /// taps track the real screen size. Zero until the first layout pass feeds it.
     resolution: Vec2,
     scanline_strength: f32,
     vignette_strength: f32,
@@ -587,11 +593,20 @@ struct NovaOsCrtUniform {
     /// grain shimmers gently.
     time: f32,
     /// Rounded-corner radius in screen pixels. A UI `MaterialNode` is NOT
-    /// clipped by its node's [`BorderRadius`], so the overlay masks its own
-    /// corners in-shader to the screen's rounding (no green bleed past the
-    /// rounded phosphor edge). Zero disables the mask (headless/other rigs).
-    /// Appended last so the field order still matches the WGSL struct.
+    /// clipped by its node's [`BorderRadius`], so the shader masks its own
+    /// corners to the screen's rounding (no green bleed past the rounded edge).
+    /// Zero disables the mask (headless/other rigs).
     corner_radius: f32,
+    /// Barrel-distortion amount (0 = flat) - bows the sampled content.
+    warp: f32,
+    /// Bloom strength (halo of the bright green glyphs).
+    bloom: f32,
+    /// Power level 0..1 fed from [`DrawerOpenness`]: 1 full raster, 0 collapsed to
+    /// a dying line/dot. Drives the CRT power-on/off collapse.
+    power: f32,
+    /// Extra brightness multiply (1.0 neutral). Reserved for task 214617's BRIGHT
+    /// knob. Appended last so the field order still matches the WGSL struct.
+    brightness: f32,
 }
 
 #[derive(Default, TypePath)]
@@ -630,7 +645,13 @@ impl Default for NovaOsCrtMaterial {
                 grain_strength: NOVA_OS_CRT_GRAIN_STRENGTH,
                 time: 0.0,
                 corner_radius: NOVA_OS_SCREEN_RADIUS_PX,
+                warp: NOVA_OS_CRT_WARP,
+                bloom: NOVA_OS_CRT_BLOOM,
+                // Start collapsed; the openness driver blooms it on.
+                power: 0.0,
+                brightness: 1.0,
             },
+            source: Handle::default(),
         }
     }
 }
@@ -638,6 +659,262 @@ impl Default for NovaOsCrtMaterial {
 impl UiMaterial for NovaOsCrtMaterial {
     fn fragment_shader() -> ShaderRef {
         "shaders/nova_os_crt.wgsl".into()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Render-to-texture CRT pipeline (task 20260726-193233).
+//
+// The terminal-content subtree renders to an offscreen image via a dedicated UI
+// camera; the screen node then displays that image through the sampling
+// `NovaOsCrtMaterial` (bloom + barrel warp + the whole CRT treatment). Interaction
+// is preserved by FORWARDING a custom pointer whose location targets the image
+// (bevy 0.19 `ui_picking` matches pointers to cameras by render target), plus a
+// hover-mirror system because `bevy_picking::update_is_hovered` only tracks the
+// mouse pointer. See `tasks/20260726-193233/NOTES.md`.
+// ---------------------------------------------------------------------------
+
+/// The dedicated UI camera + content subtree live on this render layer so the
+/// image camera draws ONLY the terminal UI, never stray world 2D sprites (the
+/// render-scale upscale sprite sits on the default layer 0).
+const NOVA_OS_RTT_LAYER: usize = 20;
+/// Camera order for the offscreen pass: well before the window/UI cameras so the
+/// sampled image is ready when the screen surface reads it.
+const NOVA_OS_RTT_CAMERA_ORDER: isize = -20;
+
+#[derive(Component)]
+struct NovaOsImageCameraMarker;
+
+#[derive(Component)]
+struct NovaOsImageContentRootMarker;
+
+/// The screen-node surface that samples the offscreen image through the CRT shader.
+#[derive(Component)]
+struct NovaOsSamplingSurfaceMarker;
+
+#[derive(Component)]
+struct NovaOsForwardedPointerMarker;
+
+/// Handles/entities of the live drawer's RTT pipeline. Present only on
+/// render-capable builds (an `Assets<Image>` + `Assets<NovaOsCrtMaterial>` exist);
+/// absent headless, where the terminal renders directly on the screen node.
+#[derive(Resource)]
+struct NovaOsRtt {
+    image: Handle<Image>,
+    camera: Entity,
+    content_root: Entity,
+    pointer: Entity,
+}
+
+/// Stable id for the forwarded pointer (one drawer at a time).
+fn nova_os_pointer_id() -> PointerId {
+    PointerId::Custom(Uuid::from_u128(0x0BADC0DE_CAFE_1234_5678_9ABCDEF01234))
+}
+
+fn nova_os_image_target(image: &Handle<Image>) -> NormalizedRenderTarget {
+    NormalizedRenderTarget::Image(ImageRenderTarget {
+        handle: image.clone(),
+        scale_factor: 1.0,
+    })
+}
+
+fn nova_os_new_target_image(size: UVec2) -> Image {
+    Image::new_target_texture(
+        size.x.max(1),
+        size.y.max(1),
+        TextureFormat::Rgba8UnormSrgb,
+        None,
+    )
+}
+
+/// Keep the offscreen image sized to the screen node's physical pixels and the
+/// content root sized to match, so window resizes / relayouts never show a
+/// stretched frame (mirrors `render_scale.rs`). Deactivate the offscreen pass and
+/// hide the content while the drawer is fully closed so it costs nothing.
+#[allow(clippy::type_complexity)]
+fn reconcile_nova_os_target(
+    rtt: Option<Res<NovaOsRtt>>,
+    mut images: ResMut<Assets<Image>>,
+    q_screen: Query<&ComputedNode, With<NovaOsScreenMarker>>,
+    q_openness: Query<&DrawerOpenness, With<DrawerRootMarker>>,
+    mut q_camera: Query<(&mut Camera, &mut Projection), With<NovaOsImageCameraMarker>>,
+    mut q_root: Query<(&mut Node, &mut Visibility), With<NovaOsImageContentRootMarker>>,
+) {
+    let Some(rtt) = rtt else {
+        return;
+    };
+    let camera = rtt.camera;
+    let Ok(computed) = q_screen.single() else {
+        return;
+    };
+    // ComputedNode.size is physical pixels; the image target renders 1:1 at that
+    // size (scale_factor 1.0), so content laid out at the image logical size lines
+    // up with the sampled surface.
+    let desired = computed.size().round().as_uvec2().max(UVec2::ONE);
+    let open = q_openness.iter().next().map(|o| o.0).unwrap_or(0.0);
+
+    let needs_resize = images
+        .get(&rtt.image)
+        .map(|img| img.size() != desired)
+        .unwrap_or(true);
+    if needs_resize {
+        if let Some(mut img) = images.get_mut(&rtt.image) {
+            img.resize(bevy::render::render_resource::Extent3d {
+                width: desired.x,
+                height: desired.y,
+                depth_or_array_layers: 1,
+            });
+        }
+        // Force the camera to re-derive its target info after the swap
+        // (`bevy-camera-ignores-runtime-rendertarget-swap`).
+        if let Ok((_, mut projection)) = q_camera.get_mut(camera) {
+            projection.set_changed();
+        }
+    }
+
+    if let Ok((mut cam, _)) = q_camera.get_mut(camera) {
+        // No point rendering the offscreen pass when the drawer is fully closed.
+        cam.is_active = open > f32::EPSILON;
+    }
+    if let Ok((mut node, mut vis)) = q_root.single_mut() {
+        node.width = Val::Px(desired.x as f32);
+        node.height = Val::Px(desired.y as f32);
+        *vis = if open > f32::EPSILON {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
+    }
+}
+
+/// Forward the real mouse cursor onto the offscreen image so the terminal UI
+/// stays hoverable/clickable through the sampled surface: map the cursor into the
+/// screen node's rect, invert the barrel warp, scale into image pixels, write the
+/// custom pointer's location, and mirror mouse button presses as `PointerInput`.
+#[allow(clippy::type_complexity)]
+fn forward_nova_os_pointer(
+    rtt: Option<Res<NovaOsRtt>>,
+    windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
+    mut mouse_buttons: MessageReader<bevy::input::mouse::MouseButtonInput>,
+    q_surface: Query<(&ComputedNode, &UiGlobalTransform), With<NovaOsSamplingSurfaceMarker>>,
+    mut q_pointer: Query<&mut PointerLocation, With<NovaOsForwardedPointerMarker>>,
+    mut pointer_inputs: MessageWriter<PointerInput>,
+    images: Res<Assets<Image>>,
+) {
+    let Some(rtt) = rtt else {
+        return;
+    };
+    let Ok(mut loc) = q_pointer.get_mut(rtt.pointer) else {
+        return;
+    };
+    let image_size = images
+        .get(&rtt.image)
+        .map(|i| i.size().as_vec2())
+        .unwrap_or(Vec2::ONE);
+
+    let cursor = windows.single().ok().and_then(|w| w.cursor_position());
+    let surface = q_surface.single().ok();
+    let in_image = match (cursor, surface) {
+        (Some(cursor), Some((node, xf))) => {
+            let size = node.size();
+            let min = xf.translation - size * 0.5;
+            let local = (cursor - min) / size.max(Vec2::splat(1.0));
+            if local.x < 0.0 || local.x > 1.0 || local.y < 0.0 || local.y > 1.0 {
+                None
+            } else {
+                Some(nova_os_inverse_barrel(local, NOVA_OS_CRT_WARP) * image_size)
+            }
+        }
+        _ => None,
+    };
+
+    // Park off-image when the cursor is not over the panel so nothing is hovered.
+    let position = in_image.unwrap_or(Vec2::splat(-1000.0));
+    loc.location = Some(Location {
+        target: nova_os_image_target(&rtt.image),
+        position,
+    });
+
+    // Mirror mouse buttons onto the forwarded pointer (only meaningful over the
+    // panel; harmless otherwise since the position is parked off-image).
+    let id = nova_os_pointer_id();
+    for ev in mouse_buttons.read() {
+        let button = match ev.button {
+            MouseButton::Left => PointerButton::Primary,
+            MouseButton::Right => PointerButton::Secondary,
+            MouseButton::Middle => PointerButton::Middle,
+            _ => continue,
+        };
+        let action = match ev.state {
+            ButtonState::Pressed => PointerAction::Press(button),
+            ButtonState::Released => PointerAction::Release(button),
+        };
+        pointer_inputs.write(PointerInput::new(
+            id,
+            Location {
+                target: nova_os_image_target(&rtt.image),
+                position,
+            },
+            action,
+        ));
+    }
+}
+
+/// Inverse of the shader's forward barrel warp, so a hovered on-screen point maps
+/// back to the glyph actually under it.
+fn nova_os_inverse_barrel(uv: Vec2, amount: f32) -> Vec2 {
+    let c = uv - Vec2::splat(0.5);
+    let r2 = c.length_squared();
+    Vec2::splat(0.5) + c / (1.0 + amount * r2)
+}
+
+/// `bevy_picking::update_is_hovered` only mirrors the MOUSE pointer into `Hovered`
+/// components, so replicate its ancestor walk for our forwarded pointer - else the
+/// terminal's `Hovered`-gated wheel scroll would go dead through the image.
+///
+/// CRUCIALLY, this only manages `Hovered` on entities rendered THROUGH the image
+/// (descendants of the content root). Window-space UI - the chin knobs
+/// (task 214617), menus, any `Button` - keep the `Hovered` the MOUSE pointer's
+/// `update_is_hovered` owns; touching them here would force `Hovered(false)` every
+/// frame the drawer is open (the forwarded pointer's HoverMap targets the image,
+/// never the window), fighting the real cursor.
+fn mirror_nova_os_hover(
+    rtt: Option<Res<NovaOsRtt>>,
+    hover_map: Option<Res<HoverMap>>,
+    parents: Query<&ChildOf>,
+    mut hovers: Query<(Entity, &Hovered)>,
+    mut commands: Commands,
+) {
+    let Some(rtt) = rtt else {
+        return;
+    };
+    let Some(hover_map) = hover_map else {
+        return;
+    };
+    if hovers.is_empty() {
+        return;
+    }
+    let mut hovered_set = bevy::platform::collections::HashSet::new();
+    if let Some(hits) = hover_map.get(&nova_os_pointer_id()) {
+        for entity in hits.keys() {
+            hovered_set.insert(*entity);
+            hovered_set.extend(parents.iter_ancestors(*entity));
+        }
+    }
+    for (entity, hovered) in hovers.iter_mut() {
+        // Only entities under the offscreen content root are served by the
+        // forwarded pointer; never touch window-space `Hovered`.
+        let through_image = entity == rtt.content_root
+            || parents
+                .iter_ancestors(entity)
+                .any(|a| a == rtt.content_root);
+        if !through_image {
+            continue;
+        }
+        let is_hovering = hovered_set.contains(&entity);
+        if hovered.get() != is_hovering {
+            commands.entity(entity).insert(Hovered(is_hovering));
+        }
     }
 }
 
@@ -1397,6 +1674,27 @@ impl Plugin for NovaDrawerPlugin {
                 .in_set(NovaHudSystems),
         );
 
+        // Render-to-texture pipeline: keep the offscreen image sized to the screen
+        // (always, so it is ready when the drawer opens), and while the computer is
+        // open forward the pointer onto the image + mirror its hover so the
+        // terminal stays interactive through the sampled surface. `mirror` runs
+        // before the wheel scroll so its `Hovered` gate reads fresh state.
+        app.add_systems(
+            Update,
+            reconcile_nova_os_target
+                .run_if(resource_exists::<NovaOsRtt>)
+                .in_set(NovaHudSystems),
+        );
+        app.add_systems(
+            Update,
+            (forward_nova_os_pointer, mirror_nova_os_hover)
+                .chain()
+                .before(scroll_drawer_panels)
+                .run_if(in_state(PauseStates::Drawer))
+                .run_if(resource_exists::<NovaOsRtt>)
+                .in_set(NovaHudSystems),
+        );
+
         // The drawer is a flight surface: spawn/despawn it with the player ship,
         // like the rest of the HUD.
         app.add_observer(setup_drawer);
@@ -1625,6 +1923,7 @@ fn sync_nova_os_app_ui(
     terminal: Res<NovaOsTerminal>,
     registry: Res<NovaOsAppRegistry>,
     asset_server: Option<Res<AssetServer>>,
+    rtt: Option<Res<NovaOsRtt>>,
     q_screen: Query<Entity, With<NovaOsScreenMarker>>,
     q_app_root: Query<(Entity, &NovaOsAppRoot)>,
     mut q_content: Query<&mut Visibility, With<NovaOsTerminalContentMarker>>,
@@ -1651,15 +1950,21 @@ fn sync_nova_os_app_ui(
             Visibility::Inherited
         };
     }
-    let (Some(id), Ok(screen)) = (desired, q_screen.single()) else {
+    // Render-capable: the app surface joins the terminal in the offscreen content
+    // root (so it renders through the CRT shader). Headless: onto the screen node.
+    let target = match rtt.as_deref() {
+        Some(rtt) => Some(rtt.content_root),
+        None => q_screen.single().ok(),
+    };
+    let (Some(id), Some(target)) = (desired, target) else {
         return;
     };
     let Some(app) = registry.get(id) else {
         return;
     };
     let font = nova_os_font(asset_server.as_deref());
-    commands.entity(screen).with_children(|screen| {
-        spawn_nova_os_app(screen, app, font);
+    commands.entity(target).with_children(|parent| {
+        spawn_nova_os_app(parent, app, font);
     });
 }
 
@@ -1926,16 +2231,21 @@ fn blink_nova_os_caret(
 fn animate_nova_os_crt(
     time: Res<Time<Real>>,
     mut materials: ResMut<Assets<NovaOsCrtMaterial>>,
-    q_overlay: Query<
+    q_openness: Query<&DrawerOpenness, With<DrawerRootMarker>>,
+    q_surface: Query<
         (&MaterialNode<NovaOsCrtMaterial>, &ComputedNode),
-        With<NovaOsCrtMaterialMarker>,
+        With<NovaOsSamplingSurfaceMarker>,
     >,
 ) {
     let seconds = time.elapsed_secs();
-    for (node, computed) in &q_overlay {
+    // Feed the eased openness in as the CRT power level: the shader blooms the
+    // raster on from a line and collapses it to a dying dot on close.
+    let power = q_openness.iter().next().map(|o| o.0).unwrap_or(1.0);
+    for (node, computed) in &q_surface {
         if let Some(mut material) = materials.get_mut(&node.0) {
             material.data.time = seconds;
             material.data.resolution = computed.size;
+            material.data.power = power;
         }
     }
 }
@@ -2508,6 +2818,7 @@ fn setup_drawer(
     add: On<Add, PlayerSpaceshipMarker>,
     mut commands: Commands,
     mut crt_materials: Option<ResMut<Assets<NovaOsCrtMaterial>>>,
+    mut images: Option<ResMut<Assets<Image>>>,
     asset_server: Option<Res<AssetServer>>,
     q_spaceship: Query<
         (Entity, Option<&Name>),
@@ -2519,6 +2830,79 @@ fn setup_drawer(
     };
     let font = nova_os_font(asset_server.as_deref());
     let ship_name = nova_os_ship_name(ship_name);
+
+    // Render-to-texture pipeline: on render-capable builds route the terminal
+    // content to an offscreen image via a dedicated UI camera, so the screen node
+    // can sample it through the CRT shader (bloom + curvature). Headless rigs
+    // (no image/material assets) fall back to the terminal directly on the screen.
+    let rtt = match (crt_materials.as_deref_mut(), images.as_deref_mut()) {
+        (Some(_), Some(images)) => {
+            let image = images.add(nova_os_new_target_image(UVec2::new(2, 2)));
+            let camera = commands
+                .spawn((
+                    Name::new("NovaOsImageCamera"),
+                    NovaOsImageCameraMarker,
+                    Camera2d,
+                    Camera {
+                        order: NOVA_OS_RTT_CAMERA_ORDER,
+                        clear_color: ClearColorConfig::Custom(NOVA_OS_SCREEN),
+                        is_active: false,
+                        ..default()
+                    },
+                    RenderTarget::Image(ImageRenderTarget {
+                        handle: image.clone(),
+                        scale_factor: 1.0,
+                    }),
+                    // Draw ONLY the terminal UI, never stray world 2D sprites.
+                    RenderLayers::layer(NOVA_OS_RTT_LAYER),
+                ))
+                .id();
+            let content_root = commands
+                .spawn((
+                    Name::new("NovaOsImageContentRoot"),
+                    NovaOsImageContentRootMarker,
+                    Node {
+                        position_type: PositionType::Absolute,
+                        top: Val::Px(0.0),
+                        left: Val::Px(0.0),
+                        width: Val::Px(2.0),
+                        height: Val::Px(2.0),
+                        padding: UiRect::all(Val::Px(NOVA_OS_SCREEN_PAD_PX)),
+                        flex_direction: FlexDirection::Column,
+                        row_gap: Val::Px(12.0),
+                        overflow: Overflow::clip(),
+                        ..default()
+                    },
+                    BackgroundColor(NOVA_OS_SCREEN),
+                    UiTargetCamera(camera),
+                    RenderLayers::layer(NOVA_OS_RTT_LAYER),
+                    Visibility::Hidden,
+                ))
+                .id();
+            let pointer = commands
+                .spawn((
+                    Name::new("NovaOsForwardedPointer"),
+                    NovaOsForwardedPointerMarker,
+                    nova_os_pointer_id(),
+                    PointerLocation::new(Location {
+                        target: nova_os_image_target(&image),
+                        position: Vec2::splat(-1000.0),
+                    }),
+                ))
+                .id();
+            commands.insert_resource(NovaOsRtt {
+                image: image.clone(),
+                camera,
+                content_root,
+                pointer,
+            });
+            Some((content_root, image))
+        }
+        _ => {
+            commands.remove_resource::<NovaOsRtt>();
+            None
+        }
+    };
 
     // Dim backdrop behind the panel (hidden until the drawer opens). NO
     // `HudTier`: the drawer is a modal overlay on its own axis, so the
@@ -2629,14 +3013,53 @@ fn setup_drawer(
                             BackgroundColor(NOVA_OS_SCREEN),
                         ))
                         .with_children(|screen| {
-                            spawn_nova_os_terminal_content(screen, font.clone(), &ship_name);
-                            spawn_nova_os_screen_overlays(screen, crt_materials.as_deref_mut());
+                            match (&rtt, crt_materials.as_deref_mut()) {
+                                (Some((_, image)), Some(crt_materials)) => {
+                                    // Screen surface = the offscreen image sampled
+                                    // through the CRT shader. Terminal content is
+                                    // populated into the content root below.
+                                    let mut material = NovaOsCrtMaterial::default();
+                                    material.source = image.clone();
+                                    let handle = crt_materials.add(material);
+                                    screen.spawn((
+                                        Name::new("NovaOsCrtSurface"),
+                                        NovaOsSamplingSurfaceMarker,
+                                        Node {
+                                            position_type: PositionType::Absolute,
+                                            top: Val::Px(0.0),
+                                            bottom: Val::Px(0.0),
+                                            left: Val::Px(0.0),
+                                            right: Val::Px(0.0),
+                                            ..default()
+                                        },
+                                        MaterialNode(handle),
+                                        ZIndex(NOVA_OS_CONTENT_Z),
+                                        Pickable::IGNORE,
+                                    ));
+                                }
+                                _ => {
+                                    // Headless fallback: terminal directly on-screen.
+                                    spawn_nova_os_terminal_content(
+                                        screen,
+                                        font.clone(),
+                                        &ship_name,
+                                    );
+                                }
+                            }
                             spawn_nova_os_phosphor_rim(screen);
                             spawn_nova_os_glass_sheen(screen);
                         });
                 });
             spawn_nova_os_chin(monitor, font.clone(), asset_server.as_deref());
         });
+
+    // Render-capable: populate the offscreen content root with the terminal (its
+    // subtree renders through the image camera, not the window).
+    if let Some((content_root, _)) = &rtt {
+        commands.entity(*content_root).with_children(|root| {
+            spawn_nova_os_terminal_content(root, font.clone(), &ship_name);
+        });
+    }
 }
 
 /// The PoC `.case` body: a 168deg gradient from a lit top through the mid body to
@@ -3038,70 +3461,6 @@ fn spawn_nova_os_chin(
         });
 }
 
-fn spawn_nova_os_screen_overlays(
-    screen: &mut ChildSpawnerCommands,
-    crt_materials: Option<&mut Assets<NovaOsCrtMaterial>>,
-) {
-    // Render-capable apps get the single shader overlay, which carries the whole
-    // CRT treatment (faint tint, edge vignette, grain). Only headless/minimal
-    // rigs with no material assets fall back to the UI-node scanline + vignette,
-    // so the two never stack into the pale-green film the earlier build had.
-    if let Some(crt_materials) = crt_materials {
-        let material = crt_materials.add(NovaOsCrtMaterial::default());
-        screen.spawn((
-            Name::new("NovaOsCrtMaterialOverlay"),
-            NovaOsCrtMaterialMarker,
-            Node {
-                position_type: PositionType::Absolute,
-                top: Val::Px(0.0),
-                bottom: Val::Px(0.0),
-                left: Val::Px(0.0),
-                right: Val::Px(0.0),
-                ..default()
-            },
-            MaterialNode(material),
-            ZIndex(NOVA_OS_OVERLAY_Z),
-            Pickable::IGNORE,
-        ));
-        return;
-    }
-
-    screen.spawn((
-        Name::new("NovaOsScanlines"),
-        NovaOsScanlineMarker,
-        Node {
-            position_type: PositionType::Absolute,
-            top: Val::Px(0.0),
-            bottom: Val::Px(0.0),
-            left: Val::Px(0.0),
-            right: Val::Px(0.0),
-            border: UiRect::vertical(Val::Px(1.0)),
-            ..default()
-        },
-        BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.055)),
-        BackgroundColor(NOVA_OS_PHOSPHOR.with_alpha(0.012)),
-        ZIndex(NOVA_OS_OVERLAY_Z),
-        Pickable::IGNORE,
-    ));
-    screen.spawn((
-        Name::new("NovaOsVignette"),
-        NovaOsVignetteMarker,
-        Node {
-            position_type: PositionType::Absolute,
-            top: Val::Px(0.0),
-            bottom: Val::Px(0.0),
-            left: Val::Px(0.0),
-            right: Val::Px(0.0),
-            border: UiRect::all(Val::Px(10.0)),
-            ..default()
-        },
-        BorderColor::all(Color::srgba(0.0, 0.0, 0.0, 0.18)),
-        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.12)),
-        ZIndex(NOVA_OS_OVERLAY_Z),
-        Pickable::IGNORE,
-    ));
-}
-
 fn spawn_nova_os_terminal_content(
     screen: &mut ChildSpawnerCommands,
     font: Handle<Font>,
@@ -3379,18 +3738,29 @@ fn spawn_nova_os_terminal_content(
 }
 
 /// Despawn the drawer shell when the player ship goes away.
+#[allow(clippy::type_complexity)]
 fn remove_drawer(
     _remove: On<Remove, PlayerSpaceshipMarker>,
     mut commands: Commands,
     mut log: ResMut<DrawerFlightLog>,
     mut terminal: ResMut<NovaOsTerminal>,
-    q_parts: Query<Entity, Or<(With<DrawerRootMarker>, With<DrawerBackdropMarker>)>>,
+    q_parts: Query<
+        Entity,
+        Or<(
+            With<DrawerRootMarker>,
+            With<DrawerBackdropMarker>,
+            With<NovaOsImageCameraMarker>,
+            With<NovaOsImageContentRootMarker>,
+            With<NovaOsForwardedPointerMarker>,
+        )>,
+    >,
 ) {
     log.clear();
     terminal.reset_session();
     for entity in &q_parts {
         commands.entity(entity).despawn();
     }
+    commands.remove_resource::<NovaOsRtt>();
 }
 
 #[cfg(test)]
@@ -4960,50 +5330,18 @@ mod tests {
                 .is_some(),
             "monitor has an inset phosphor screen"
         );
+        // The CRT treatment is now the render-to-texture sampling shader, not the
+        // old overlay nodes (task 20260726-193233). Headless (no image/material
+        // assets) this rig falls back to the terminal directly on the screen with
+        // no sampling surface; the sampling surface is asserted by
+        // `drawer_screen_samples_offscreen_image` under the with-CRT harness.
         assert!(
             app.world_mut()
-                .query_filtered::<(), With<NovaOsScanlineMarker>>()
+                .query_filtered::<(), With<NovaOsTerminalContentMarker>>()
                 .iter(app.world())
                 .next()
                 .is_some(),
-            "screen has a scanline layer"
-        );
-        assert!(
-            app.world_mut()
-                .query_filtered::<(), With<NovaOsVignetteMarker>>()
-                .iter(app.world())
-                .next()
-                .is_some(),
-            "screen has a vignette/glass layer"
-        );
-        let content_z = app
-            .world_mut()
-            .query_filtered::<&ZIndex, With<NovaOsTerminalContentMarker>>()
-            .single(app.world())
-            .expect("terminal content has local z")
-            .0;
-        let overlay_zs: Vec<i32> = app
-            .world_mut()
-            .query_filtered::<&ZIndex, Or<(With<NovaOsScanlineMarker>, With<NovaOsVignetteMarker>)>>()
-            .iter(app.world())
-            .map(|z| z.0)
-            .collect();
-        assert_eq!(overlay_zs.len(), 2);
-        for overlay_z in &overlay_zs {
-            assert!(
-                *overlay_z > content_z,
-                "CRT overlays render above terminal content (overlay {overlay_z}, content {content_z})"
-            );
-        }
-        let prompt_z = app
-            .world_mut()
-            .query_filtered::<&ZIndex, With<NovaOsPromptRowMarker>>()
-            .single(app.world())
-            .expect("prompt strip has local z")
-            .0;
-        assert!(
-            overlay_zs.iter().all(|overlay_z| prompt_z > *overlay_z),
-            "the prompt strip renders above CRT overlays so typed input remains visible"
+            "headless fallback renders the terminal directly on the screen"
         );
     }
 
@@ -5252,25 +5590,46 @@ mod tests {
     }
 
     #[test]
-    fn drawer_uses_crt_material_overlay_when_assets_are_available() {
+    fn drawer_screen_samples_offscreen_image() {
+        // Render-capable: the screen node hosts ONE sampling surface bound to the
+        // offscreen image, the terminal content lives in the image-camera content
+        // root, and the old overlay path is gone (task 20260726-193233).
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         spawn_drawer_shell_with_crt(&mut app);
 
-        let material_nodes = app
+        let surfaces = app
             .world_mut()
-            .query_filtered::<&MaterialNode<NovaOsCrtMaterial>, With<NovaOsCrtMaterialMarker>>()
+            .query_filtered::<&MaterialNode<NovaOsCrtMaterial>, With<NovaOsSamplingSurfaceMarker>>()
             .iter(app.world())
             .count();
         assert_eq!(
-            material_nodes, 1,
-            "the drawer has one shader-backed CRT overlay in render-capable apps"
+            surfaces, 1,
+            "the screen has one shader-backed sampling surface in render-capable apps"
         );
+
+        let (rtt_content_root, rtt_image) = {
+            let rtt = app
+                .world()
+                .get_resource::<NovaOsRtt>()
+                .expect("render-capable build inserts the NovaOsRtt pipeline");
+            (rtt.content_root, rtt.image.clone())
+        };
+
+        // The terminal content renders through the image camera, i.e. under the
+        // content root, not directly under the screen node.
+        let content_parent = app
+            .world_mut()
+            .query_filtered::<&ChildOf, With<NovaOsTerminalContentMarker>>()
+            .single(app.world())
+            .expect("terminal content exists")
+            .parent();
         assert_eq!(
-            app.world().resource::<Assets<NovaOsCrtMaterial>>().len(),
-            1,
-            "the CRT overlay owns one material asset"
+            content_parent, rtt_content_root,
+            "terminal content is routed to the offscreen content root"
         );
+
+        // The sampling material binds the offscreen image (not the default handle).
         let material = app
             .world()
             .resource::<Assets<NovaOsCrtMaterial>>()
@@ -5279,36 +5638,36 @@ mod tests {
             .expect("one CRT material")
             .1;
         assert_eq!(
+            material.source, rtt_image,
+            "the sampling material binds the offscreen image target"
+        );
+        assert_eq!(
             material.data.vignette_strength, NOVA_OS_CRT_VIGNETTE_STRENGTH,
             "CRT material carries the near-black corner pass"
-        );
-        assert_eq!(
-            material.data.grain_strength, NOVA_OS_CRT_GRAIN_STRENGTH,
-            "CRT material carries the subtle square grain pass"
-        );
-        assert_eq!(
-            material.data.resolution,
-            Vec2::ZERO,
-            "resolution starts zero until a layout pass feeds it"
         );
     }
 
     #[test]
-    fn nova_os_crt_material_receives_resolution_and_time() {
-        // `animate_nova_os_crt` feeds the overlay node's ComputedNode size into
-        // the material's `resolution` uniform (and stamps `time`), so the shader
-        // scanlines/slot-mask are resolution-aware.
+    fn nova_os_crt_material_receives_resolution_time_and_power() {
+        // `animate_nova_os_crt` feeds the sampling surface's ComputedNode size into
+        // the material's `resolution` uniform (resolution-aware scanlines + bloom
+        // taps), stamps `time`, and pipes DrawerOpenness in as the `power` level
+        // (the raster power-on/off collapse).
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<NovaOsCrtMaterial>();
+        app.init_resource::<Time<Real>>();
         app.add_systems(Update, animate_nova_os_crt);
 
+        // The eased openness the shader reads as its power level.
+        app.world_mut()
+            .spawn((DrawerRootMarker, DrawerOpenness(0.5)));
         let handle = app
             .world_mut()
             .resource_mut::<Assets<NovaOsCrtMaterial>>()
             .add(NovaOsCrtMaterial::default());
         app.world_mut().spawn((
-            NovaOsCrtMaterialMarker,
+            NovaOsSamplingSurfaceMarker,
             MaterialNode(handle.clone()),
             ComputedNode {
                 size: Vec2::new(800.0, 600.0),
@@ -5326,11 +5685,78 @@ mod tests {
         assert_eq!(
             material.data.resolution,
             Vec2::new(800.0, 600.0),
-            "the overlay's panel pixel size is fed into the resolution uniform"
+            "the screen's panel pixel size is fed into the resolution uniform"
         );
         assert!(
             material.data.time.is_finite(),
             "the shimmer time uniform is stamped each frame"
+        );
+        assert_eq!(
+            material.data.power, 0.5,
+            "DrawerOpenness drives the CRT power collapse uniform"
+        );
+    }
+
+    #[test]
+    fn mirror_hover_serves_content_but_never_clobbers_window_ui() {
+        // `mirror_nova_os_hover` must feed `Hovered` for the forwarded pointer
+        // ONLY on entities rendered through the image (descendants of the content
+        // root). It must NOT touch window-space UI - otherwise it force-writes
+        // `Hovered(false)` on the real cursor's targets every frame (regressing the
+        // chin knobs, menus, any Button). Regression pin for review finding M1.
+        use bevy::{
+            ecs::entity::EntityHashMap, picking::backend::HitData, platform::collections::HashMap,
+        };
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_systems(Update, mirror_nova_os_hover);
+
+        let content_root = app.world_mut().spawn(Hovered::default()).id();
+        // A terminal node under the content root (served by the forwarded pointer).
+        let terminal_node = app
+            .world_mut()
+            .spawn((Hovered::default(), ChildOf(content_root)))
+            .id();
+        // A window-space node hovered by the REAL mouse pointer, NOT under the
+        // content root.
+        let window_node = app.world_mut().spawn(Hovered(true)).id();
+
+        // The NovaOsRtt pipeline (only content_root matters here).
+        app.insert_resource(NovaOsRtt {
+            image: Handle::default(),
+            camera: Entity::PLACEHOLDER,
+            content_root,
+            pointer: Entity::PLACEHOLDER,
+        });
+
+        // The forwarded pointer's HoverMap hits the terminal node.
+        let mut inner = EntityHashMap::default();
+        inner.insert(
+            terminal_node,
+            HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
+        );
+        let mut map: HashMap<PointerId, EntityHashMap<HitData>> = HashMap::default();
+        map.insert(nova_os_pointer_id(), inner);
+        app.insert_resource(HoverMap(map));
+
+        app.update();
+
+        assert!(
+            app.world()
+                .entity(terminal_node)
+                .get::<Hovered>()
+                .unwrap()
+                .get(),
+            "content-root node hit by the forwarded pointer is mirrored to Hovered(true)"
+        );
+        assert!(
+            app.world()
+                .entity(window_node)
+                .get::<Hovered>()
+                .unwrap()
+                .get(),
+            "window-space Hovered(true) is NOT clobbered by the forwarded-pointer mirror"
         );
     }
 

@@ -84,6 +84,10 @@ path = "examples/gameplay/lifeline.rs"
 
 # ui/ - staged UI flows with their own autopilot timelines.
 [[example]]
+name = "nova_os_rtt_poc"
+path = "examples/ui/nova_os_rtt_poc.rs"
+
+[[example]]
 name = "editor"
 path = "examples/ui/editor.rs"
 

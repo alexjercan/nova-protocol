@@ -1,125 +1,144 @@
-// NOVA OS CRT overlay: scanlines, phosphor tint and edge darkening for the
-// drawer's Bevy UI monitor. Kept derivative-free so it stays safe on WebGL2.
+// NOVA OS CRT: the SAMPLING shader (task 20260726-193233). Unlike the earlier
+// overlay film, this material SAMPLES the offscreen image that holds the rendered
+// terminal content, so it can do what an overlay never could: bloom the bright
+// green glyphs into a soft halo and barrel-warp the CONTENT itself. It also
+// carries the whole CRT treatment (soft resolution-aware scanlines + slot mask,
+// edge vignette, analog grain, rounded-corner mask) plus the power-on/off raster
+// collapse. Derivative-free and fixed-tap so it stays safe/cheap on WebGL2.
 
 #import bevy_ui::ui_vertex_output::UiVertexOutput
 
 struct NovaOsCrtMaterial {
-    // Straight-alpha phosphor tint.
+    // Straight phosphor tint. `a` scales the film strength.
     tint: vec4<f32>,
-    // The CRT panel's pixel size, fed each frame, so scanlines/slot-mask track
-    // the real screen size instead of a fixed line count. Zero before layout.
+    // Offscreen image pixel size, fed each frame (texel-sized bloom taps +
+    // resolution-aware scanlines). Zero before layout.
     resolution: vec2<f32>,
-    // Darkening applied by horizontal scanlines.
     scanline_strength: f32,
-    // Edge darkening toward the screen corners.
     vignette_strength: f32,
-    // Soft centre-peaked phosphor bulge that gives the screen its "volume".
     glow_strength: f32,
-    // Sparse square phosphor grain.
     grain_strength: f32,
-    // Real-time seconds, fed each frame so the grain shimmers gently.
+    // Real-time seconds (grain shimmer).
     time: f32,
-    // Rounded-corner radius in screen pixels. A UI MaterialNode is not clipped
-    // by its node's BorderRadius, so the overlay masks its own corners here to
-    // the screen's rounding. Zero disables the mask.
+    // Rounded-corner radius in screen pixels (0 disables the mask).
     corner_radius: f32,
+    // Barrel-distortion amount (0 = flat): warps the sample UV so the content bows.
+    warp: f32,
+    // Bloom strength (halo of the bright green glyphs).
+    bloom: f32,
+    // Power level 0..1 (from DrawerOpenness): 1 = full raster, 0 = collapsed to a
+    // dying line/dot. Drives the CRT on/off collapse.
+    power: f32,
+    // Extra brightness multiply (>1 blooms hotter). Reserved for task 214617's
+    // BRIGHT knob; 1.0 is neutral.
+    brightness: f32,
 }
 
-@group(1) @binding(0)
-var<uniform> material: NovaOsCrtMaterial;
-
-// A phosphor CRT overlay tuned to match `nova_os_terminal_poc.html`: a soft
-// green glow that peaks at the centre and fades out (the HTML
-// `radial-gradient(ellipse at center, rgba(54,255,121,0.18) ...)` volume) plus a
-// vignette that darkens the outer corners, together giving the flat panel a
-// bulged CRT feel, over a lively square-phosphor grain. The glow is kept LOW so
-// it reads as volume, not the pale wash the old 0.13 glow filmed over the text.
-fn hash21(p: vec2<f32>) -> f32 {
-    return fract(sin(dot(p, vec2<f32>(12.9898, 78.233))) * 43758.5453);
-}
+@group(1) @binding(0) var<uniform> material: NovaOsCrtMaterial;
+@group(1) @binding(1) var source_texture: texture_2d<f32>;
+@group(1) @binding(2) var source_sampler: sampler;
 
 const TWO_PI: f32 = 6.28318530718;
-// Device-pixel spacing of the scanlines and the aperture-grille slots.
 const SCANLINE_PITCH_PX: f32 = 3.0;
 const SLOT_PITCH_PX: f32 = 3.0;
 const SLOT_STRENGTH: f32 = 0.03;
 
+fn hash21(p: vec2<f32>) -> f32 {
+    return fract(sin(dot(p, vec2<f32>(12.9898, 78.233))) * 43758.5453);
+}
+
+// Barrel warp: push UVs outward from centre by r^2 so the middle stays put and
+// the edges bow.
+fn barrel(uv: vec2<f32>, amount: f32) -> vec2<f32> {
+    let centered = uv - vec2<f32>(0.5, 0.5);
+    let r2 = dot(centered, centered);
+    return vec2<f32>(0.5, 0.5) + centered * (1.0 + amount * r2);
+}
+
 @fragment
 fn fragment(in: UiVertexOutput) -> @location(0) vec4<f32> {
-    let uv = in.uv;
-    // Slightly elliptical distance so the vignette hugs the corners, not a circle.
-    let centered = (uv - vec2<f32>(0.5, 0.5)) * vec2<f32>(1.0, 0.82);
-    let dist = length(centered);
-
-    // Panel pixel size (fall back to a sane default before layout feeds it).
-    let res_y = select(720.0, material.resolution.y, material.resolution.y > 1.0);
     let res_x = select(1280.0, material.resolution.x, material.resolution.x > 1.0);
+    let res_y = select(720.0, material.resolution.y, material.resolution.y > 1.0);
+    let texel = vec2<f32>(1.0 / res_x, 1.0 / res_y);
 
-    // Soft, resolution-aware scanlines: a smooth cosine trough every few DEVICE
-    // pixels, so the line count tracks the real panel size and the soft profile
-    // never aliases/moires the way the old hard fixed-240 step did. A whisper of
-    // vertical aperture-grille slot-mask adds phosphor-stripe texture.
-    let scan_line = 0.5 - 0.5 * cos(uv.y * res_y / SCANLINE_PITCH_PX * TWO_PI);
-    let slot = 0.5 - 0.5 * cos(uv.x * res_x / SLOT_PITCH_PX * TWO_PI);
+    // Power-on/off raster collapse: as power falls to 0 the picture squeezes
+    // vertically toward the centre scan line, then to a dot. A brightness
+    // overshoot near the transition sells the phosphor kick.
+    let open_h = smoothstep(0.0, 0.65, material.power);
+    let open_w = smoothstep(0.0, 0.28, material.power);
+    var collapsed = 0.0;
+    // Remap the sample Y through the collapsing band; X pinches last (the dot).
+    let cy = (in.uv.y - 0.5) / max(open_h, 0.0008) + 0.5;
+    let cx = (in.uv.x - 0.5) / max(open_w, 0.0008) + 0.5;
+    if cy < 0.0 || cy > 1.0 || cx < 0.0 || cx > 1.0 {
+        collapsed = 1.0;
+    }
+    let sample_uv = vec2<f32>(cx, cy);
+
+    // Warp the (power-remapped) content. Anything outside the panel is tube-black.
+    let warped = barrel(sample_uv, material.warp);
+    let in_bounds = f32(warped.x >= 0.0 && warped.x <= 1.0 && warped.y >= 0.0 && warped.y <= 1.0);
+
+    var base = textureSample(source_texture, source_sampler, warped);
+
+    // Fixed-tap derivative-free bloom: a 12-tap Gaussian-ish gather of the source
+    // around the sample. The phosphor content is bright green on near-black, so
+    // adding it back as a halo blooms the glyphs.
+    let offs = array<vec2<f32>, 12>(
+        vec2<f32>(1.0, 0.0), vec2<f32>(-1.0, 0.0), vec2<f32>(0.0, 1.0), vec2<f32>(0.0, -1.0),
+        vec2<f32>(2.0, 0.0), vec2<f32>(-2.0, 0.0), vec2<f32>(0.0, 2.0), vec2<f32>(0.0, -2.0),
+        vec2<f32>(1.5, 1.5), vec2<f32>(-1.5, 1.5), vec2<f32>(1.5, -1.5), vec2<f32>(-1.5, -1.5),
+    );
+    let wts = array<f32, 12>(
+        0.12, 0.12, 0.12, 0.12,
+        0.06, 0.06, 0.06, 0.06,
+        0.05, 0.05, 0.05, 0.05,
+    );
+    var halo = vec3<f32>(0.0, 0.0, 0.0);
+    for (var i = 0; i < 12; i = i + 1) {
+        let s = textureSample(source_texture, source_sampler, warped + offs[i] * texel * 2.0);
+        halo = halo + s.rgb * wts[i];
+    }
+    base = vec4<f32>(base.rgb + halo * material.bloom, base.a);
+
+    // Soft resolution-aware scanlines + a whisper of aperture-grille slot mask.
+    let scan_line = 0.5 - 0.5 * cos(in.uv.y * res_y / SCANLINE_PITCH_PX * TWO_PI);
+    let slot = 0.5 - 0.5 * cos(in.uv.x * res_x / SLOT_PITCH_PX * TWO_PI);
     let scan = 1.0 - material.scanline_strength * scan_line - SLOT_STRENGTH * slot;
 
-    // Centre volume: a bright green bulge, brightest at the middle, fading to the
-    // edges. A soft inner core is added on top so the middle of the glass reads
-    // clearly brighter (the HTML radial-gradient centre), not just a gentle lift.
-    let bulge = (1.0 - smoothstep(0.0, 0.95, dist));
-    let core = (1.0 - smoothstep(0.0, 0.34, dist)) * 0.5;
-    let glow = (bulge + core) * material.glow_strength;
+    // Edge vignette (transparent through the readable centre, darkening to corners)
+    // plus the soft centre volume glow.
+    let centered = (in.uv - vec2<f32>(0.5, 0.5)) * vec2<f32>(1.0, 0.82);
+    let dist = length(centered);
+    let vignette = 1.0 - smoothstep(0.46, 0.98, dist) * material.vignette_strength;
+    let bulge = 1.0 - smoothstep(0.0, 0.95, dist);
+    let glow = bulge * material.glow_strength;
 
-    // Edge-only vignette: fully transparent through the readable centre, then
-    // darkening toward the corners.
-    let vignette = smoothstep(0.46, 0.98, dist) * material.vignette_strength;
-
-    // CRT phosphor grain: a fine per-cell green noise (two frequencies so it does
-    // not read as a regular checker) plus an occasional brighter spark cell, so
-    // the screen looks like lit phosphor dots rather than a flat film. The fine
-    // layer is INTERPOLATED between reseeds (~9/s) so the shimmer is analog, not
-    // a hard step; the coarse layer stays put as a stable structure underneath.
+    // Analog grain: fine layer interpolated between ~9 Hz reseeds, stronger in the
+    // darker regions.
     let anim = material.time * 9.0;
-    let step_lo = floor(anim);
-    let step_hi = step_lo + 1.0;
     let blend = fract(anim);
-    let cell = floor(uv * vec2<f32>(900.0, 520.0));
-    let fine_lo = hash21(cell + vec2<f32>(step_lo, step_lo * 1.7));
-    let fine_hi = hash21(cell + vec2<f32>(step_hi, step_hi * 1.7));
-    let fine = mix(fine_lo, fine_hi, blend);
-    let coarse = hash21(floor(uv * vec2<f32>(300.0, 174.0)));
-    let noise = (fine * 0.7 + coarse * 0.3) - 0.5;
-    // Grain sits more in the darker regions: quiet in the bright centre (where
-    // the text is), stronger toward the vignetted edges. (The overlay cannot
-    // sample the glyphs, so this weights by screen position, not text luminance.)
+    let cell = floor(in.uv * vec2<f32>(900.0, 520.0));
+    let fine = mix(hash21(cell + floor(anim)), hash21(cell + floor(anim) + 1.0), blend);
     let grain_weight = mix(0.55, 1.3, smoothstep(0.1, 0.9, dist));
-    let grain = noise * material.grain_strength * grain_weight;
-    let spark = step(0.992, fine) * material.grain_strength * 2.2 * grain_weight;
-    // Per-cell green shade: darker cells lean toward deep phosphor, lit cells
-    // toward bright green, so the noise carries colour, not just brightness.
-    let shade = mix(vec3<f32>(0.10, 0.62, 0.26), material.tint.rgb, clamp(fine + 0.25, 0.0, 1.0));
+    let grain = (fine - 0.5) * material.grain_strength * grain_weight;
 
-    // Phosphor film: uniform tint modulated by scanlines, plus the centre glow
-    // and the grain/spark texture.
-    let tint_alpha = material.tint.a * scan + glow + abs(grain) * 0.9 + spark;
-    let edge_alpha = clamp(vignette, 0.0, 0.9);
-    let rgb = shade * max(tint_alpha + spark, 0.0);
+    // Phosphor kick: a brightness overshoot while the raster is mid-collapse.
+    let kick = 1.0 + 2.2 * material.power * (1.0 - material.power);
 
-    // Rounded-corner mask: clip the overlay to the screen's rounded rectangle so
-    // the phosphor film does not bleed past the casing/glass depth-pass rounding
-    // (a UI MaterialNode ignores its node's BorderRadius). Rounded-rect SDF in
-    // device pixels; disabled when resolution/radius are unset. This carries
-    // into 193233's sampling shader.
+    var rgb = (base.rgb * scan * vignette + glow + grain) * material.brightness * kick;
+    rgb = rgb * in_bounds * (1.0 - collapsed);
+
+    // Rounded-corner mask in device pixels (a MaterialNode ignores BorderRadius).
     var corner_mask = 1.0;
     if material.resolution.x > 1.0 && material.resolution.y > 1.0 && material.corner_radius > 0.0 {
         let half = material.resolution * 0.5;
         let r = min(material.corner_radius, min(half.x, half.y));
-        let p = abs(uv * material.resolution - half);
+        let p = abs(in.uv * material.resolution - half);
         let q = p - (half - vec2<f32>(r, r));
         let sd = length(max(q, vec2<f32>(0.0, 0.0))) + min(max(q.x, q.y), 0.0) - r;
         corner_mask = 1.0 - smoothstep(-1.0, 1.0, sd);
     }
 
-    // Straight-alpha over the terminal content.
-    return vec4<f32>(rgb, clamp(tint_alpha + edge_alpha, 0.0, 0.92) * corner_mask);
+    return vec4<f32>(rgb, corner_mask);
 }
