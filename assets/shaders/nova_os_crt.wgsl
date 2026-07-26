@@ -6,6 +6,9 @@
 struct NovaOsCrtMaterial {
     // Straight-alpha phosphor tint.
     tint: vec4<f32>,
+    // The CRT panel's pixel size, fed each frame, so scanlines/slot-mask track
+    // the real screen size instead of a fixed line count. Zero before layout.
+    resolution: vec2<f32>,
     // Darkening applied by horizontal scanlines.
     scanline_strength: f32,
     // Edge darkening toward the screen corners.
@@ -31,6 +34,12 @@ fn hash21(p: vec2<f32>) -> f32 {
     return fract(sin(dot(p, vec2<f32>(12.9898, 78.233))) * 43758.5453);
 }
 
+const TWO_PI: f32 = 6.28318530718;
+// Device-pixel spacing of the scanlines and the aperture-grille slots.
+const SCANLINE_PITCH_PX: f32 = 3.0;
+const SLOT_PITCH_PX: f32 = 3.0;
+const SLOT_STRENGTH: f32 = 0.03;
+
 @fragment
 fn fragment(in: UiVertexOutput) -> @location(0) vec4<f32> {
     let uv = in.uv;
@@ -38,8 +47,17 @@ fn fragment(in: UiVertexOutput) -> @location(0) vec4<f32> {
     let centered = (uv - vec2<f32>(0.5, 0.5)) * vec2<f32>(1.0, 0.82);
     let dist = length(centered);
 
-    // Subtle horizontal scanlines.
-    let scan = select(1.0, 1.0 - material.scanline_strength, fract(uv.y * 240.0) < 0.5);
+    // Panel pixel size (fall back to a sane default before layout feeds it).
+    let res_y = select(720.0, material.resolution.y, material.resolution.y > 1.0);
+    let res_x = select(1280.0, material.resolution.x, material.resolution.x > 1.0);
+
+    // Soft, resolution-aware scanlines: a smooth cosine trough every few DEVICE
+    // pixels, so the line count tracks the real panel size and the soft profile
+    // never aliases/moires the way the old hard fixed-240 step did. A whisper of
+    // vertical aperture-grille slot-mask adds phosphor-stripe texture.
+    let scan_line = 0.5 - 0.5 * cos(uv.y * res_y / SCANLINE_PITCH_PX * TWO_PI);
+    let slot = 0.5 - 0.5 * cos(uv.x * res_x / SLOT_PITCH_PX * TWO_PI);
+    let scan = 1.0 - material.scanline_strength * scan_line - SLOT_STRENGTH * slot;
 
     // Centre volume: a bright green bulge, brightest at the middle, fading to the
     // edges. A soft inner core is added on top so the middle of the glass reads
@@ -54,17 +72,25 @@ fn fragment(in: UiVertexOutput) -> @location(0) vec4<f32> {
 
     // CRT phosphor grain: a fine per-cell green noise (two frequencies so it does
     // not read as a regular checker) plus an occasional brighter spark cell, so
-    // the screen looks like lit phosphor dots rather than a flat film. Both the
-    // alpha AND the green shade vary per cell, giving the "green shades" texture.
-    // The fine layer is reseeded a few times a second by `time` so it shimmers
-    // gently (a mild, non-distracting movement); the coarse layer stays put so
-    // the texture keeps a stable structure underneath the shimmer.
-    let step_t = floor(material.time * 9.0);
-    let fine = hash21(floor(uv * vec2<f32>(900.0, 520.0)) + vec2<f32>(step_t, step_t * 1.7));
+    // the screen looks like lit phosphor dots rather than a flat film. The fine
+    // layer is INTERPOLATED between reseeds (~9/s) so the shimmer is analog, not
+    // a hard step; the coarse layer stays put as a stable structure underneath.
+    let anim = material.time * 9.0;
+    let step_lo = floor(anim);
+    let step_hi = step_lo + 1.0;
+    let blend = fract(anim);
+    let cell = floor(uv * vec2<f32>(900.0, 520.0));
+    let fine_lo = hash21(cell + vec2<f32>(step_lo, step_lo * 1.7));
+    let fine_hi = hash21(cell + vec2<f32>(step_hi, step_hi * 1.7));
+    let fine = mix(fine_lo, fine_hi, blend);
     let coarse = hash21(floor(uv * vec2<f32>(300.0, 174.0)));
     let noise = (fine * 0.7 + coarse * 0.3) - 0.5;
-    let grain = noise * material.grain_strength;
-    let spark = step(0.992, fine) * material.grain_strength * 2.2;
+    // Grain sits more in the darker regions: quiet in the bright centre (where
+    // the text is), stronger toward the vignetted edges. (The overlay cannot
+    // sample the glyphs, so this weights by screen position, not text luminance.)
+    let grain_weight = mix(0.55, 1.3, smoothstep(0.1, 0.9, dist));
+    let grain = noise * material.grain_strength * grain_weight;
+    let spark = step(0.992, fine) * material.grain_strength * 2.2 * grain_weight;
     // Per-cell green shade: darker cells lean toward deep phosphor, lit cells
     // toward bright green, so the noise carries colour, not just brightness.
     let shade = mix(vec3<f32>(0.10, 0.62, 0.26), material.tint.rgb, clamp(fine + 0.25, 0.0, 1.0));

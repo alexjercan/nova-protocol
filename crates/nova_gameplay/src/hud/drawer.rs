@@ -408,6 +408,10 @@ struct NovaOsCrtMaterial {
 #[derive(ShaderType, Clone, Debug)]
 struct NovaOsCrtUniform {
     tint: LinearRgba,
+    /// The CRT panel's pixel size, updated each frame by [`animate_nova_os_crt`]
+    /// from the overlay node's [`ComputedNode`] so the scanlines/slot-mask track
+    /// the real screen size. Zero until the first layout pass feeds it.
+    resolution: Vec2,
     scanline_strength: f32,
     vignette_strength: f32,
     glow_strength: f32,
@@ -446,6 +450,7 @@ impl Default for NovaOsCrtMaterial {
         Self {
             data: NovaOsCrtUniform {
                 tint: NOVA_OS_CRT_TINT,
+                resolution: Vec2::ZERO,
                 scanline_strength: NOVA_OS_CRT_SCANLINE_STRENGTH,
                 vignette_strength: NOVA_OS_CRT_VIGNETTE_STRENGTH,
                 glow_strength: NOVA_OS_CRT_GLOW_STRENGTH,
@@ -1473,13 +1478,24 @@ fn blink_nova_os_caret(
     }
 }
 
-/// Feed real-time seconds into the CRT material each frame so its grain shimmers
-/// (the shader reseeds the fine grain layer from this). Real time because the
-/// sim clock is frozen while the computer is open.
-fn animate_nova_os_crt(time: Res<Time<Real>>, mut materials: ResMut<Assets<NovaOsCrtMaterial>>) {
+/// Feed real-time seconds and the panel pixel size into the CRT material each
+/// frame: `time` drives the grain shimmer and `resolution` (from the overlay
+/// node's [`ComputedNode`]) makes the scanlines/slot-mask resolution-aware. Real
+/// time because the sim clock is frozen while the computer is open.
+fn animate_nova_os_crt(
+    time: Res<Time<Real>>,
+    mut materials: ResMut<Assets<NovaOsCrtMaterial>>,
+    q_overlay: Query<
+        (&MaterialNode<NovaOsCrtMaterial>, &ComputedNode),
+        With<NovaOsCrtMaterialMarker>,
+    >,
+) {
     let seconds = time.elapsed_secs();
-    for (_, material) in materials.iter_mut() {
-        material.data.time = seconds;
+    for (node, computed) in &q_overlay {
+        if let Some(mut material) = materials.get_mut(&node.0) {
+            material.data.time = seconds;
+            material.data.resolution = computed.size;
+        }
     }
 }
 
@@ -4290,6 +4306,52 @@ mod tests {
         assert_eq!(
             material.data.grain_strength, NOVA_OS_CRT_GRAIN_STRENGTH,
             "CRT material carries the subtle square grain pass"
+        );
+        assert_eq!(
+            material.data.resolution,
+            Vec2::ZERO,
+            "resolution starts zero until a layout pass feeds it"
+        );
+    }
+
+    #[test]
+    fn nova_os_crt_material_receives_resolution_and_time() {
+        // `animate_nova_os_crt` feeds the overlay node's ComputedNode size into
+        // the material's `resolution` uniform (and stamps `time`), so the shader
+        // scanlines/slot-mask are resolution-aware.
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<NovaOsCrtMaterial>();
+        app.add_systems(Update, animate_nova_os_crt);
+
+        let handle = app
+            .world_mut()
+            .resource_mut::<Assets<NovaOsCrtMaterial>>()
+            .add(NovaOsCrtMaterial::default());
+        app.world_mut().spawn((
+            NovaOsCrtMaterialMarker,
+            MaterialNode(handle.clone()),
+            ComputedNode {
+                size: Vec2::new(800.0, 600.0),
+                ..default()
+            },
+        ));
+
+        app.update();
+
+        let material = app
+            .world()
+            .resource::<Assets<NovaOsCrtMaterial>>()
+            .get(&handle)
+            .expect("CRT material still present");
+        assert_eq!(
+            material.data.resolution,
+            Vec2::new(800.0, 600.0),
+            "the overlay's panel pixel size is fed into the resolution uniform"
+        );
+        assert!(
+            material.data.time.is_finite(),
+            "the shimmer time uniform is stamped each frame"
         );
     }
 

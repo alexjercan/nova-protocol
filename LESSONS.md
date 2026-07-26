@@ -946,6 +946,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   `Added<Sibling>` SYSTEM (which defers past the deferred-spawn flush), never an
   `Add<Sibling>` observer (which runs before your own deferred `commands.spawn`
   flushes, finding nothing to undo). 20260723-233446.
+- `shader-uniform-field-order-must-match-wgsl` (domain, x1): a Rust
+  `ShaderType`/encase uniform struct and its WGSL struct must have the SAME field
+  order AND compatible alignment - inserting a `vec2`/`vec3` mid-struct silently
+  corrupts the whole uniform if it lands on a bad offset. Put a `vec2` right after
+  a `vec4` (offset 16, 8-aligned, no padding hole) or pad explicitly; verify the
+  two struct definitions line up field-for-field. 20260726-193155.
 
 ## Promoted (resolved 2026-07-21, task 20260720-220051)
 
