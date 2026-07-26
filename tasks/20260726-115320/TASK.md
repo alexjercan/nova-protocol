@@ -13,24 +13,37 @@ from the feedback epic `20260725-104330`; use
 `examples/ui/nova_os_terminal_poc.html` as the visual reference, not as
 production code.
 
+## Flow State
+
+- FLOW STEP: PLANNED
+- PLAN STATUS: APPROVED
+
 ## Steps
 
-- [ ] Replace the current left/right drawer panel shell in
-      `crates/nova_gameplay/src/hud/drawer.rs` with a single full-main/inset
-      monitor surface that still lives under `PauseStates::Drawer`.
+- [ ] In `crates/nova_gameplay/src/hud/drawer.rs`, replace the two
+      `DrawerRootMarker` side panels and `DrawerSide` slide model with one
+      drawer-owned `NovaOsMonitor` root under the existing
+      `PauseStates::Drawer` toggle.
 - [ ] Keep the accepted freeze/cursor behavior from
-      `tasks/20260724-102304/DECISION.md`; do not introduce a second pause or
-      drawer state.
-- [ ] Port the PoC's visual structure into Bevy UI: dark blue-black outer casing,
-      physical bezel, inset green phosphor screen, orange/yellow accent slots,
-      and dense monospace terminal typography.
-- [ ] Add a scanline/vignette/screen-glass treatment using the simplest Bevy UI
-      path that renders reliably; defer a custom shader if the UI/render path is
-      not clean.
-- [ ] Hide ordinary flight HUD and key hints while NOVA OS is open, preserving
-      only diagnostic screenshot chrome such as FPS/version.
-- [ ] Update drawer-focused tests for the single monitor structure, z-order, and
-      HUD suppression behavior.
+      `tasks/20260724-102304/DECISION.md`; do not introduce a second pause state,
+      drawer state, or a new route around `PauseStates::Drawer`.
+- [ ] Rebuild the drawer child tree as a physical monitor: dark blue-black
+      casing root, hard bezel, inset green phosphor screen, NOVA OS top bar,
+      terminal-like scrollable body area, prompt/status row placeholder, and
+      orange/yellow accent slots derived from the PoC.
+- [ ] Preserve the current `DrawerFlightLog` and objectives data plumbing as
+      internal content for the monitor placeholder, so later terminal-output
+      tasks can reuse the live feed instead of re-deriving it.
+- [ ] Add scanline, vignette, and screen-glass layers using normal Bevy UI nodes
+      and translucent backgrounds/borders. Record any shader deferral in
+      `NOTES.md` if a custom material path is avoided.
+- [ ] Change drawer visibility and z-order tests so they assert one inset monitor
+      above the backdrop and no permanent left/right panels.
+- [ ] Change HUD suppression in `crates/nova_gameplay/src/hud/mod.rs` so ordinary
+      flight HUD and lower-left key hints hide behind NOVA OS while diagnostic
+      status chrome such as FPS/version remains visible by the chosen rule.
+- [ ] Update drawer-focused tests for monitor structure, monitor z-order, scroll
+      viewport behavior, freeze/cursor preservation, and HUD suppression.
 - [ ] Add/update `tasks/20260726-115320/NOTES.md` with what changed, why the PoC
       was adapted this way, rendering difficulties, and self-reflection.
 
@@ -54,5 +67,14 @@ production code.
 - Epic: `tasks/20260725-104330/TASK.md`.
 - Spike: `tasks/20260725-104330/SPIKE.md`.
 - Decision: `tasks/20260725-104330/DECISION.md`.
+- Local decision: `tasks/20260726-115320/DECISION.md`.
 - Visual reference: `examples/ui/nova_os_terminal_poc.html`.
 - This task unblocks the terminal input task `20260726-115324`.
+- Assumption for the plan gate: this task builds the concrete artifact as a
+  bespoke Bevy UI monitor tree owned by `hud/drawer.rs`, not as a shared status
+  bar item, not as reusable menu chrome, and not as two restyled side panels.
+- Current code facts: `hud/drawer.rs` owns the Tab toggle, backdrop, real-time
+  slide animation, `DrawerFlightLog`, objective rows, and scroll viewports.
+  `hud/mod.rs` hides tiered HUD while `PauseStates::Drawer` is active, but the
+  current exemption includes the status strip and lower-left key hints. This
+  task narrows that exemption so key hints no longer sit over NOVA OS.
