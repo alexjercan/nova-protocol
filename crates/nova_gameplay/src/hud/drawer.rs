@@ -106,8 +106,9 @@ const NOVA_OS_CARET_BLINK_HZ: f32 = 1.25;
 const NOVA_OS_CRT_TINT: LinearRgba = LinearRgba::new(0.212, 1.0, 0.475, 0.03);
 const NOVA_OS_CRT_SCANLINE_STRENGTH: f32 = 0.06;
 const NOVA_OS_CRT_VIGNETTE_STRENGTH: f32 = 0.55;
-/// Soft centre-peaked phosphor bulge that gives the flat panel its CRT volume.
-const NOVA_OS_CRT_GLOW_STRENGTH: f32 = 0.05;
+/// Centre-peaked phosphor bulge that gives the flat panel its CRT volume and a
+/// clearly brighter middle (the HTML radial-gradient centre).
+const NOVA_OS_CRT_GLOW_STRENGTH: f32 = 0.07;
 const NOVA_OS_CRT_GRAIN_STRENGTH: f32 = 0.03;
 
 /// Global stacking-context z for the OPEN drawer: it is a modal, so backdrop and
@@ -1560,13 +1561,17 @@ fn nova_os_prompt_text_layout() -> TextLayout {
     }
 }
 
-/// A zero-offset phosphor bloom behind each glyph. The alpha is pushed fairly
-/// high so the antialiased glyph edges pick up extra colour and the text reads
-/// as glowing neon phosphor rather than flat paint.
+/// Horizontal offset of the phosphor bleed shadow, in logical px.
+const NOVA_OS_TEXT_BLEED_PX: f32 = 1.4;
+
+/// A phosphor glow behind each glyph, offset a hair sideways so it reads as a
+/// horizontal CRT phosphor bleed/halo rather than flat paint (a zero-offset
+/// shadow is invisible - it sits exactly behind the glyph). This is what gives
+/// the text its glow.
 fn nova_os_text_bloom(color: Color) -> TextShadow {
     TextShadow {
-        offset: Vec2::ZERO,
-        color: color.with_alpha(0.6),
+        offset: Vec2::new(NOVA_OS_TEXT_BLEED_PX, 0.0),
+        color: color.with_alpha(0.7),
     }
 }
 
@@ -3206,8 +3211,9 @@ mod tests {
             "typed input must not collapse inside the prompt row"
         );
         assert!(
-            prompt_bloom.offset == Vec2::ZERO && prompt_bloom.color.alpha() <= 0.61,
-            "terminal prompt bloom must stay faint and non-directional"
+            prompt_bloom.offset == Vec2::new(NOVA_OS_TEXT_BLEED_PX, 0.0)
+                && prompt_bloom.color.alpha() <= 0.71,
+            "terminal prompt bloom is a small horizontal phosphor bleed"
         );
 
         let (ghost, ghost_node, ghost_bloom) = app
@@ -3226,8 +3232,9 @@ mod tests {
             "autocomplete ghost stays inline after the visible prompt text"
         );
         assert!(
-            ghost_bloom.offset == Vec2::ZERO && ghost_bloom.color.alpha() <= 0.61,
-            "autocomplete ghost bloom must stay faint and non-directional"
+            ghost_bloom.offset == Vec2::new(NOVA_OS_TEXT_BLEED_PX, 0.0)
+                && ghost_bloom.color.alpha() <= 0.71,
+            "autocomplete ghost bloom is a small horizontal phosphor bleed"
         );
 
         let (prefix, prefix_color, prefix_bloom) = app
@@ -3238,8 +3245,9 @@ mod tests {
         assert_eq!(prefix.0, "nova>");
         assert_eq!(prefix_color.0, NOVA_OS_AMBER);
         assert!(
-            prefix_bloom.offset == Vec2::ZERO && prefix_bloom.color.alpha() <= 0.61,
-            "prompt prefix bloom must stay faint and non-directional"
+            prefix_bloom.offset == Vec2::new(NOVA_OS_TEXT_BLEED_PX, 0.0)
+                && prefix_bloom.color.alpha() <= 0.71,
+            "prompt prefix bloom is a small horizontal phosphor bleed"
         );
 
         let (hint, hint_color, hint_node) = app

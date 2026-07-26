@@ -25,6 +25,10 @@ var<uniform> material: NovaOsCrtMaterial;
 // vignette that darkens the outer corners, together giving the flat panel a
 // bulged CRT feel, over a lively square-phosphor grain. The glow is kept LOW so
 // it reads as volume, not the pale wash the old 0.13 glow filmed over the text.
+fn hash21(p: vec2<f32>) -> f32 {
+    return fract(sin(dot(p, vec2<f32>(12.9898, 78.233))) * 43758.5453);
+}
+
 @fragment
 fn fragment(in: UiVertexOutput) -> @location(0) vec4<f32> {
     let uv = in.uv;
@@ -35,26 +39,35 @@ fn fragment(in: UiVertexOutput) -> @location(0) vec4<f32> {
     // Subtle horizontal scanlines.
     let scan = select(1.0, 1.0 - material.scanline_strength, fract(uv.y * 240.0) < 0.5);
 
-    // Centre volume: a soft green bulge, brightest at the middle, gone by the
-    // edges - this is the gradient that makes the glass look curved.
-    let glow = (1.0 - smoothstep(0.0, 0.85, dist)) * material.glow_strength;
+    // Centre volume: a bright green bulge, brightest at the middle, fading to the
+    // edges. A soft inner core is added on top so the middle of the glass reads
+    // clearly brighter (the HTML radial-gradient centre), not just a gentle lift.
+    let bulge = (1.0 - smoothstep(0.0, 0.95, dist));
+    let core = (1.0 - smoothstep(0.0, 0.34, dist)) * 0.5;
+    let glow = (bulge + core) * material.glow_strength;
 
     // Edge-only vignette: fully transparent through the readable centre, then
     // darkening toward the corners.
     let vignette = smoothstep(0.46, 0.98, dist) * material.vignette_strength;
 
-    // Sparse square phosphor grain, with the occasional brighter spark cell so
-    // the screen texture reads as "alive" rather than a flat film.
-    let grain_cell = floor(uv * vec2<f32>(420.0, 236.0));
-    let grain_hash = fract(sin(dot(grain_cell, vec2<f32>(12.9898, 78.233))) * 43758.5453);
-    let grain = (grain_hash - 0.5) * material.grain_strength;
-    let spark = step(0.986, grain_hash) * material.grain_strength * 1.6;
+    // CRT phosphor grain: a fine per-cell green noise (two frequencies so it does
+    // not read as a regular checker) plus an occasional brighter spark cell, so
+    // the screen looks like lit phosphor dots rather than a flat film. Both the
+    // alpha AND the green shade vary per cell, giving the "green shades" texture.
+    let fine = hash21(floor(uv * vec2<f32>(900.0, 520.0)));
+    let coarse = hash21(floor(uv * vec2<f32>(300.0, 174.0)));
+    let noise = (fine * 0.7 + coarse * 0.3) - 0.5;
+    let grain = noise * material.grain_strength;
+    let spark = step(0.992, fine) * material.grain_strength * 2.2;
+    // Per-cell green shade: darker cells lean toward deep phosphor, lit cells
+    // toward bright green, so the noise carries colour, not just brightness.
+    let shade = mix(vec3<f32>(0.10, 0.62, 0.26), material.tint.rgb, clamp(fine + 0.25, 0.0, 1.0));
 
     // Phosphor film: uniform tint modulated by scanlines, plus the centre glow
     // and the grain/spark texture.
-    let tint_alpha = material.tint.a * scan + glow + abs(grain) * 0.6 + spark;
+    let tint_alpha = material.tint.a * scan + glow + abs(grain) * 0.9 + spark;
     let edge_alpha = clamp(vignette, 0.0, 0.9);
-    let rgb = material.tint.rgb * max(tint_alpha + spark, 0.0);
+    let rgb = shade * max(tint_alpha + spark, 0.0);
     // Straight-alpha over the terminal content.
     return vec4<f32>(rgb, clamp(tint_alpha + edge_alpha, 0.0, 0.92));
 }

@@ -131,6 +131,22 @@ User feedback after the first land, addressed directly on master in the same tas
   `0003 OBJ + ...`); `objectives` drops its header and prints `OBJ + <message>`
   rows. Real data is kept; only the framing changed. Tests updated accordingly.
 
+## Feedback round 2 (post-land, on master)
+
+- Brighter centre: the shader glow now adds a soft inner `core` term on top of the
+  wide bulge and `glow_strength` went 0.05 -> 0.07, so the middle of the glass
+  reads clearly brighter (the HTML radial-gradient centre) without washing text.
+- Text glow: `nova_os_text_bloom` was a zero-offset shadow, which is invisible in
+  Bevy (it sits exactly behind the glyph). Changed it to a small horizontal
+  phosphor bleed (`offset.x = 1.4px`, alpha 0.7), which reads as an authentic CRT
+  glow/bleed. (A true blurred halo or HDR-bloom glow is not available: the UI
+  renders through the render-scale blit `Camera2d`, which has no HDR/Bloom, and
+  adding Bloom there would bloom the whole game view.)
+- Grain: reworked into a finer two-frequency green phosphor noise with per-cell
+  green-shade variation (dark cells lean deep phosphor, lit cells bright green)
+  plus sparse brighter spark cells, so it reads as lit CRT phosphor dots rather
+  than a flat film. Verified on a fresh capture.
+
 ## Self-reflection
 
 The durable lesson from `142635`'s RETRO held: build the capture harness FIRST,
