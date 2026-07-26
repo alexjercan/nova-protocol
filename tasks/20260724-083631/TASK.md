@@ -149,20 +149,25 @@ gap to `examples/ui/nova_os_terminal_poc.html`:
    rounded corners, glass sheen, bevels, screws/vents, PLUS the chin bar with
    the recessed NovaCRT 9000 brand plate bottom-left (scope extended from the
    PoC review). Was an unslotted p0 spike option; now a slotted release task.
-12. **20260726-214617** (p44, feature/ui/hud) Chin controls: working
-   BRIGHT/SCAN knobs + SND/PWR buttons. Depends on 193219 for geometry.
-13. **20260726-214639** (p43, feature/ui/hud/audio) NOVA OS sound: terminal
+   Pure chrome outside the tube - no interaction with the RTT pipeline.
+12. **20260726-193233** (p44, feature/ui/hud) CRT render-to-texture pipeline:
+   real text bloom + crisp tube curvature + the power-on/off, degauss and
+   micro-effect inventory. The load-bearing architecture change; it SUPERSEDES
+   the overlay CRT shader, so it runs BEFORE the chin controls wire any knob
+   to a shader uniform (re-slot rationale in the 2026-07-26 grooming entries).
+13. **20260726-214617** (p43, feature/ui/hud) Chin controls: working
+   BRIGHT/SCAN knobs + SND/PWR buttons. Depends on 193219 for geometry and
+   193233 for the sampling shader the BRIGHT/SCAN uniforms live on.
+14. **20260726-214639** (p42, feature/ui/hud/audio) NOVA OS sound: terminal
    SFX (keys, enter, error, beeps, degauss, power sweeps) + the ambient CRT
    bed, through the existing `UiSfx`/`NovaAudioPlugin` conventions.
-14. **20260726-214708** (p42, feature/ui/hud/input) Terminal UX parity:
+   Independent - can run in parallel with any of the above.
+15. **20260726-214708** (p41, feature/ui/hud/input) Terminal UX parity:
    staggered boot banner, unread-events line, Tab match cycling,
    PageUp/PageDown paging, block caret, contextual footer hints, app-exit
    chords (Ctrl+C / Shift+Esc), and parser support for arguments + multi-word
-   launch words (unblocks `repair <part>` / `ship view`).
-15. **20260726-193233** (p41, feature/ui/hud) CRT render-to-texture pipeline:
-   real text bloom + crisp tube curvature + the power-on/off, degauss and
-   micro-effect inventory. The load-bearing architecture change - slotted LAST
-   of the fidelity passes; the four above are cheap and independent of it.
+   launch words (unblocks `repair <part>` / `ship view`). Independent -
+   content-side shell work, unaffected by where the content renders.
 
 ### Strand A - Combat readability
 
@@ -253,6 +258,17 @@ To be authored in the planning pass. Skeleton:
 
 ## Grooming history
 
+- **2026-07-26 (RTT re-slot):** owner questioned the fidelity-pass ordering:
+  does the render-to-texture pipeline (193233) need to come FIRST to make the
+  PoC's CSS/HTML effects possible? Assessment: mostly no - casing/sound/UX are
+  UI-node and logic work independent of where the content renders - but 193233
+  SUPERSEDES the overlay CRT shader, so wiring the chin knobs (BRIGHT/SCAN) to
+  overlay uniforms first would be throwaway by design, and a true >1.0 BRIGHT
+  multiply is only exact against a sampled texture. Per the no-time-pressure
+  technical-decision rule, the well-designed order wins: 193233 re-slotted
+  p41 -> p44 (right after the casing chrome, before any shader-touching
+  control work); chin 214617 -> p43 (now also depends on 193233), sound
+  214639 -> p42, shell UX 214708 -> p41. Strand C items 11-15 renumbered.
 - **2026-07-26 (PoC fidelity review):** owner asked for a review of the shipped
   NOVA OS (`crates/nova_gameplay/src/hud/drawer.rs`) against
   `examples/ui/nova_os_terminal_poc.html` and a task restructure so the PoC
