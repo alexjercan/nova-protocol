@@ -44,7 +44,7 @@ ship viewer can use the same screen without permanent drawer panels.
 
 ## Notes
 
-- Depends on: `20260726-115324`.
+- Depends on: `20260726-134738` (and transitively `20260726-115324`).
 - Epic: `tasks/20260725-104330/TASK.md`.
 - Spike: `tasks/20260725-104330/SPIKE.md`.
 - This task unblocks the `map` app task `20260724-102320` and the stretch ship

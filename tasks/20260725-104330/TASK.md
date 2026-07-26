@@ -135,10 +135,13 @@ core is usable.
 - [ ] `20260726-115320` (p49) - NOVA OS monitor shell and visual treatment.
 - [ ] `20260726-115324` (p48) - NOVA OS terminal input and command shell.
       Depends on `20260726-115320`.
+- [ ] `20260726-134738` (p50) - Match NOVA OS drawer to terminal PoC. Depends
+      on `20260726-115320` and `20260726-115324`; blocks command/app tasks until
+      the UI no longer needs to be reshaped under them.
 - [ ] `20260726-115330` (p47) - NOVA OS terminal output commands. Depends on
-      `20260726-115324`.
+      `20260726-134738`.
 - [ ] `20260726-115334` (p46) - NOVA OS app runtime. Depends on
-      `20260726-115324`.
+      `20260726-134738`.
 - [ ] `20260724-102320` (p30, stretch) - NOVA OS map app launched from the
       terminal. Depends on `20260726-115334`.
 - [ ] `20260726-115339` (p29, stretch) - NOVA OS ship viewer app and safe
@@ -148,6 +151,8 @@ core is usable.
 
 - `tasks/20260725-104330/DECISION.md` records the load-bearing layout decision:
   NOVA OS is one monitor with app takeover, not permanent drawer panels.
+- `tasks/20260726-134738/DECISION.md` records the scope split for this follow-up:
+  match the PoC UI now while keeping only `help` and `clear` executable.
 - `tasks/20260724-102304/DECISION.md` still stands for freeze/input state:
   `PauseStates::Drawer` is the third variant on the existing pause axis.
 

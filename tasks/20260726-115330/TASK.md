@@ -42,7 +42,7 @@ objectives/log panels without losing their value.
 
 ## Notes
 
-- Depends on: `20260726-115324`.
+- Depends on: `20260726-134738` (and transitively `20260726-115324`).
 - Epic: `tasks/20260725-104330/TASK.md`.
 - Spike: `tasks/20260725-104330/SPIKE.md`.
 - Do not add `reload` or `repair` here; this task is read-only command output.
