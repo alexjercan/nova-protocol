@@ -41,6 +41,7 @@ use bevy::{
     render::render_resource::{AsBindGroup, ShaderType},
     shader::ShaderRef,
     ui_render::prelude::{MaterialNode, UiMaterial, UiMaterialPlugin},
+    ui_widgets::{observe, Activate, Button},
 };
 use bevy_common_systems::prelude::{GameObjectives, Objective};
 use nova_ui::theme;
@@ -220,6 +221,19 @@ struct NovaOsFooterHintsMarker;
 #[derive(Component)]
 struct NovaOsAccentSlotMarker;
 
+/// The root of the active NOVA OS app, spawned as a sibling of the terminal
+/// content while [`TerminalMode::App`] is active. Carries the running app's id so
+/// [`sync_nova_os_app_ui`] can tell a launch/exit/switch apart from a no-op.
+#[derive(Component)]
+struct NovaOsAppRoot {
+    id: &'static str,
+}
+
+/// The on-screen close control in an app's chrome bar; clicking it exits the app
+/// back to the terminal, mirroring the Escape route.
+#[derive(Component)]
+struct NovaOsAppCloseMarker;
+
 /// The dim full-screen backdrop behind the panel.
 #[derive(Component)]
 struct DrawerBackdropMarker;
@@ -352,6 +366,10 @@ struct NovaOsTerminal {
     completion_hint: Option<String>,
     parse_status: TerminalParseStatus,
     active_mode: TerminalMode,
+    /// Launch words mirrored from [`NovaOsAppRegistry`] so parsing/completion/help
+    /// know the registered apps. Empty until [`sync_nova_os_app_commands`] fills
+    /// it (and empty in the plain terminal-shell tests, which register no apps).
+    app_commands: Vec<NovaOsAppCommand>,
     /// Set by the `exit` command; the keyboard system consumes it to drive the
     /// animated close of the computer (mirrors the HTML PoC's `exit`).
     pending_close: bool,
@@ -381,9 +399,98 @@ enum TerminalParseStatus {
     Invalid,
 }
 
+/// Which surface the NOVA OS screen is showing. `Prompt` is the command
+/// terminal; `App` is a launched tool that has swallowed the terminal and owns
+/// input until the user exits back to the prompt. The app id is `&'static str`
+/// (an app's stable launch word) so the mode stays `Copy` and allocation-free;
+/// the terminal scrollback is never touched while an app is active, so exiting
+/// simply restores it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TerminalMode {
     Prompt,
+    App { id: &'static str },
+}
+
+/// A launchable app as the terminal sees it: the launch word plus a one-line
+/// summary for `help`/autocomplete. Mirrored from the [`NovaOsAppRegistry`] into
+/// [`NovaOsTerminal::app_commands`] so command parsing, completion and `help`
+/// treat app launch words as first-class commands without reaching into the
+/// registry from every terminal method.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct NovaOsAppCommand {
+    id: &'static str,
+    summary: &'static str,
+}
+
+/// A NOVA OS app: a full-screen tool launched from the terminal that swallows the
+/// terminal surface and owns input until the user exits back to the prompt.
+///
+/// This is the app-as-plugin seam (see `tasks/20260726-115334/DECISION.md`): each
+/// app is its own runtime object registered into [`NovaOsAppRegistry`]. The drawer
+/// owns the generic parts - the [`TerminalMode::App`] transition, input ownership,
+/// the chrome (title bar + close control) and the uniform exit (Escape / close
+/// control). An app only supplies its identity, its body UI, and its own key
+/// handling; the real `map`/`ship viewer` apps register their own runtime and
+/// spawn arbitrary UI into the body slot without editing this module.
+trait NovaOsAppRuntime: Send + Sync + 'static {
+    /// Stable id; also the launch word typed at the prompt (e.g. `map`).
+    fn id(&self) -> &'static str;
+    /// Title shown in the app's chrome bar.
+    fn title(&self) -> &'static str;
+    /// One-line summary for `help` and the completion hint.
+    fn summary(&self) -> &'static str;
+    /// Spawn the app's body under `body` (the chrome is spawned by the runtime).
+    /// `font` is the shared NOVA OS terminal font.
+    fn spawn_body(&self, body: &mut ChildSpawnerCommands, font: Handle<Font>);
+    /// React to a key press while the app owns input. The runtime handles the
+    /// universal exit (Escape / close control) itself, so this is for the app's
+    /// own keys. Default: swallow the key and stay open (input is owned even when
+    /// the app does nothing with it).
+    fn handle_key(&self, key: &Key) -> NovaOsAppInputOutcome {
+        let _ = key;
+        NovaOsAppInputOutcome::Continue
+    }
+}
+
+/// What an app wants after handling one key.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NovaOsAppInputOutcome {
+    /// Stay open (the key was consumed by the app or ignored).
+    Continue,
+    /// Exit back to the terminal (the app requested its own close).
+    Exit,
+}
+
+/// The set of registered NOVA OS apps. Apps register at plugin build; the
+/// terminal mirrors their launch words into [`NovaOsTerminal::app_commands`] and
+/// looks a runtime up by id when spawning/handling the active app.
+#[derive(Resource, Default)]
+struct NovaOsAppRegistry {
+    apps: Vec<Box<dyn NovaOsAppRuntime>>,
+}
+
+impl NovaOsAppRegistry {
+    /// The registration seam future apps plug into (the `map`/`ship viewer` tasks
+    /// and the lifecycle tests). No production app registers yet - this task ships
+    /// the runtime, not an app - so it is unused outside `#[cfg(test)]`.
+    #[allow(dead_code)]
+    fn register(&mut self, app: impl NovaOsAppRuntime) {
+        self.apps.push(Box::new(app));
+    }
+
+    fn get(&self, id: &str) -> Option<&dyn NovaOsAppRuntime> {
+        self.apps.iter().map(Box::as_ref).find(|app| app.id() == id)
+    }
+
+    fn commands(&self) -> Vec<NovaOsAppCommand> {
+        self.apps
+            .iter()
+            .map(|app| NovaOsAppCommand {
+                id: app.id(),
+                summary: app.summary(),
+            })
+            .collect()
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -507,6 +614,7 @@ impl Default for NovaOsTerminal {
             completion_hint: Some("type help".to_string()),
             parse_status: TerminalParseStatus::Empty,
             active_mode: TerminalMode::Prompt,
+            app_commands: Vec::new(),
             pending_close: false,
         };
         terminal.refresh_parse();
@@ -584,9 +692,32 @@ impl NovaOsTerminal {
         self.history.push(command_line.clone());
         self.history_cursor = None;
 
-        match parse_command(&command_line) {
+        // An app launch word is resolved before the static command table so a
+        // registered `map`/`ship viewer` launches instead of being reported as an
+        // unknown command. Launching leaves the scrollback untouched (exit
+        // restores it) and hands the screen to the app via `active_mode`.
+        let word = current_command_prefix(&command_line).unwrap_or("");
+        if let Some(app) = self.app_commands.iter().find(|app| app.id == word).copied() {
+            if command_has_arguments(&command_line) {
+                self.scrollback.push(TerminalRow {
+                    kind: TerminalRowKind::Error,
+                    text: format!("{} takes no arguments", app.id),
+                });
+            } else {
+                self.scrollback.push(TerminalRow {
+                    kind: TerminalRowKind::Info,
+                    text: format!("launching {} ...", app.id),
+                });
+                self.active_mode = TerminalMode::App { id: app.id };
+            }
+            self.reset_prompt();
+            return;
+        }
+
+        match parse_command(&command_line, &self.app_commands) {
             TerminalCommandResult::Help => {
-                self.scrollback.extend(terminal_help_rows());
+                self.scrollback
+                    .extend(terminal_help_rows(&self.app_commands));
             }
             TerminalCommandResult::Clear => {
                 self.reset_scrollback_to_welcome();
@@ -638,6 +769,7 @@ impl NovaOsTerminal {
         let matches: Vec<&str> = TERMINAL_COMMANDS
             .iter()
             .map(|command| command.name)
+            .chain(self.app_commands.iter().map(|app| app.id))
             .filter(|name| name.starts_with(prefix))
             .collect();
         let completion = match matches.as_slice() {
@@ -689,10 +821,15 @@ impl NovaOsTerminal {
             self.completion_hint = Some("type help".to_string());
             return;
         };
-        if TERMINAL_COMMANDS
-            .iter()
-            .any(|command| command.name == prefix)
-        {
+        // Built-in commands and registered app launch words are equally valid at
+        // the prompt.
+        let names = || {
+            TERMINAL_COMMANDS
+                .iter()
+                .map(|command| command.name)
+                .chain(self.app_commands.iter().map(|app| app.id))
+        };
+        if names().any(|name| name == prefix) {
             if command_has_arguments(trimmed) {
                 self.parse_status = TerminalParseStatus::Invalid;
                 self.completion_hint = Some(format!("{prefix} takes no arguments"));
@@ -702,17 +839,14 @@ impl NovaOsTerminal {
             self.completion_hint = None;
             return;
         }
-        if let Some(command) = TERMINAL_COMMANDS
-            .iter()
-            .find(|command| command.name.starts_with(prefix))
-        {
+        if let Some(name) = names().find(|name| name.starts_with(prefix)) {
             self.parse_status = TerminalParseStatus::ValidPrefix;
-            self.completion_hint = Some(command.name.to_string());
+            self.completion_hint = Some(name.to_string());
             return;
         }
         self.parse_status = TerminalParseStatus::Invalid;
-        self.completion_hint =
-            nearest_command(prefix).map(|suggestion| format!("did you mean {suggestion}?"));
+        self.completion_hint = nearest_command(prefix, &self.app_commands)
+            .map(|suggestion| format!("did you mean {suggestion}?"));
     }
 
     fn reset_prompt(&mut self) {
@@ -723,6 +857,16 @@ impl NovaOsTerminal {
 
     fn reset_scrollback_to_welcome(&mut self) {
         self.scrollback = nova_os_welcome_rows();
+    }
+
+    /// Return from an active app to the command terminal. The scrollback and
+    /// prompt are untouched while an app runs, so this just flips the mode back;
+    /// a no-op when already at the prompt. Drives both the Escape/close-control
+    /// route and an app's own [`NovaOsAppInputOutcome::Exit`].
+    fn exit_app(&mut self) {
+        if matches!(self.active_mode, TerminalMode::App { .. }) {
+            self.active_mode = TerminalMode::Prompt;
+        }
     }
 
     fn reset_session(&mut self) {
@@ -785,25 +929,30 @@ fn nova_os_status_text(ship_name: &str) -> String {
     format!("SHIP: {ship_name}     LINK: LOCAL")
 }
 
-fn terminal_help_rows() -> Vec<TerminalRow> {
+fn terminal_help_rows(app_commands: &[NovaOsAppCommand]) -> Vec<TerminalRow> {
+    // App launch words share the aligned command column with the built-ins.
     let command_width = TERMINAL_COMMANDS
         .iter()
         .map(|command| command.name.len())
+        .chain(app_commands.iter().map(|app| app.id.len()))
         .max()
         .unwrap_or(0);
+    let builtins = TERMINAL_COMMANDS
+        .iter()
+        .map(|command| (command.name, command.summary));
+    let apps = app_commands.iter().map(|app| (app.id, app.summary));
     std::iter::once(TerminalRow {
         kind: TerminalRowKind::Info,
         text: "Available commands:".to_string(),
     })
-    .chain(TERMINAL_COMMANDS.iter().map(move |command| TerminalRow {
-        kind: TerminalRowKind::Output,
-        text: format!(
-            "  {:width$}  {}",
-            command.name,
-            command.summary,
-            width = command_width
-        ),
-    }))
+    .chain(
+        builtins
+            .chain(apps)
+            .map(move |(name, summary)| TerminalRow {
+                kind: TerminalRowKind::Output,
+                text: format!("  {name:command_width$}  {summary}"),
+            }),
+    )
     .collect()
 }
 
@@ -832,7 +981,7 @@ impl DrawerFlightLog {
     }
 }
 
-fn parse_command(command_line: &str) -> TerminalCommandResult {
+fn parse_command(command_line: &str, app_commands: &[NovaOsAppCommand]) -> TerminalCommandResult {
     let command = current_command_prefix(command_line).unwrap_or("");
     let mut parts = command_line.split_whitespace();
     if matches!(
@@ -860,7 +1009,7 @@ fn parse_command(command_line: &str) -> TerminalCommandResult {
         "exit" => TerminalCommandResult::Exit,
         unknown => TerminalCommandResult::Unknown {
             command: unknown.to_string(),
-            suggestion: nearest_command(unknown),
+            suggestion: nearest_command(unknown, app_commands),
         },
     }
 }
@@ -1061,10 +1210,14 @@ fn common_prefix(names: &[&str]) -> Option<String> {
     }
 }
 
-fn nearest_command(input: &str) -> Option<&'static str> {
+fn nearest_command(input: &str, app_commands: &[NovaOsAppCommand]) -> Option<&'static str> {
+    // Typo suggestions cover app launch words too, so a mistyped `map` gets a
+    // did-you-mean the same way a mistyped builtin does.
     TERMINAL_COMMANDS
         .iter()
-        .map(|command| (command.name, levenshtein(input, command.name)))
+        .map(|command| command.name)
+        .chain(app_commands.iter().map(|app| app.id))
+        .map(|name| (name, levenshtein(input, name)))
         .filter(|(_, distance)| *distance <= 2)
         .min_by_key(|(_, distance)| *distance)
         .map(|(name, _)| name)
@@ -1108,6 +1261,7 @@ impl Plugin for NovaDrawerPlugin {
         app.init_resource::<DrawerTabAnchor>();
         app.init_resource::<DrawerFlightLog>();
         app.init_resource::<NovaOsTerminal>();
+        app.init_resource::<NovaOsAppRegistry>();
         app.init_resource::<DrawerCloseTransition>();
         app.register_asset_loader(NovaOsTtcFontLoader);
         app.add_plugins(UiMaterialPlugin::<NovaOsCrtMaterial>::default());
@@ -1152,9 +1306,14 @@ impl Plugin for NovaDrawerPlugin {
         app.add_systems(
             Update,
             (
+                sync_nova_os_app_commands.run_if(
+                    resource_changed::<NovaOsAppRegistry>.or_else(resource_added::<NovaOsTerminal>),
+                ),
                 handle_terminal_keyboard.run_if(in_state(GameStates::Playing)),
+                handle_nova_os_app_keyboard.run_if(in_state(GameStates::Playing)),
                 rebuild_terminal_ui
                     .run_if(resource_changed::<NovaOsTerminal>.or_else(terminal_ui_just_spawned)),
+                sync_nova_os_app_ui.run_if(in_state(PauseStates::Drawer)),
             )
                 .chain()
                 .in_set(NovaHudSystems),
@@ -1210,11 +1369,17 @@ fn toggle_drawer(
     }
 }
 
+/// Escape (and gamepad Start) is the single "back" gesture, interpreted here in
+/// one place so there is no cross-system race over the key: while an app owns the
+/// screen it exits the app back to the terminal; at the prompt it closes the whole
+/// computer. Reading `active_mode` (not consuming the key edge elsewhere) is what
+/// keeps the two routes from both firing on one press.
 fn close_drawer_from_menu_keys(
     keys: Res<ButtonInput<KeyCode>>,
     gamepad: Option<Res<ButtonInput<GamepadButton>>>,
     current: Res<State<PauseStates>>,
     mut close: ResMut<DrawerCloseTransition>,
+    mut terminal: ResMut<NovaOsTerminal>,
 ) {
     if *current.get() != PauseStates::Drawer {
         return;
@@ -1222,8 +1387,12 @@ fn close_drawer_from_menu_keys(
     let start = gamepad
         .map(|g| g.just_pressed(GamepadButton::Start))
         .unwrap_or(false);
-    if keys.just_pressed(KeyCode::Escape) || start {
-        close.closing = true;
+    if !(keys.just_pressed(KeyCode::Escape) || start) {
+        return;
+    }
+    match terminal.active_mode {
+        TerminalMode::App { .. } => terminal.exit_app(),
+        TerminalMode::Prompt => close.closing = true,
     }
 }
 
@@ -1299,6 +1468,211 @@ fn handle_terminal_keyboard(
         terminal.pending_close = false;
         close.closing = true;
     }
+}
+
+/// Mirror the registered apps' launch words into the terminal so parsing,
+/// completion and `help` treat them as commands. Reading `app_commands` through
+/// the `ResMut` `Deref` does not mark the terminal changed, so once mirrored this
+/// early-returns without thrashing `rebuild_terminal_ui`.
+fn sync_nova_os_app_commands(
+    registry: Res<NovaOsAppRegistry>,
+    mut terminal: ResMut<NovaOsTerminal>,
+) {
+    let up_to_date = terminal.app_commands.len() == registry.apps.len()
+        && terminal
+            .app_commands
+            .iter()
+            .map(|command| command.id)
+            .eq(registry.apps.iter().map(|app| app.id()));
+    if up_to_date {
+        return;
+    }
+    terminal.app_commands = registry.commands();
+    terminal.refresh_parse();
+}
+
+/// While an app owns the screen, keyboard input belongs to it: the terminal
+/// prompt handler is already inert in app mode, and this feeds each key to the
+/// app's own [`NovaOsAppRuntime::handle_key`]. Escape is skipped here because it
+/// is the runtime's back gesture (handled once in [`close_drawer_from_menu_keys`]
+/// so it cannot both exit the app and close the drawer on one press).
+///
+/// An app only receives events on frames where it was ALREADY the live app last
+/// frame (`last_app` tracks that). Any transition frame - the launch itself, an
+/// app switch, or a Tab that reopens the computer onto a persisted app - drops the
+/// event buffer, so the launching keystroke (e.g. the Enter that submitted `map`)
+/// never bleeds into the app it just opened.
+fn handle_nova_os_app_keyboard(
+    mut keyboard: MessageReader<KeyboardInput>,
+    pause: Res<State<PauseStates>>,
+    registry: Res<NovaOsAppRegistry>,
+    mut terminal: ResMut<NovaOsTerminal>,
+    mut last_app: Local<Option<&'static str>>,
+) {
+    let in_drawer = *pause.get() == PauseStates::Drawer;
+    let live = match terminal.active_mode {
+        TerminalMode::App { id } if in_drawer => Some(id),
+        _ => None,
+    };
+    // Only handle input when we were continuously in this same app; otherwise
+    // (transition or not-in-an-app) drop the buffer and re-sync.
+    let continuous = live.is_some() && live == *last_app;
+    *last_app = live;
+    if !continuous {
+        keyboard.clear();
+        return;
+    }
+    let Some(app) = live.and_then(|id| registry.get(id)) else {
+        keyboard.clear();
+        return;
+    };
+    let mut exit = false;
+    for event in keyboard.read() {
+        if event.state != ButtonState::Pressed || matches!(event.logical_key, Key::Escape) {
+            continue;
+        }
+        if app.handle_key(&event.logical_key) == NovaOsAppInputOutcome::Exit {
+            exit = true;
+            break;
+        }
+    }
+    if exit {
+        terminal.exit_app();
+    }
+}
+
+/// The app chrome's close control: clicking it returns to the terminal, the same
+/// route as Escape.
+fn on_nova_os_app_close(_activate: On<Activate>, mut terminal: ResMut<NovaOsTerminal>) {
+    terminal.exit_app();
+}
+
+/// Reconcile the on-screen app surface with [`NovaOsTerminal::active_mode`]:
+/// launch spawns the app root (chrome + body) and hides the terminal content;
+/// exit despawns the app root and reveals the terminal, whose scrollback was
+/// never touched. Runs while the computer is open and diff-guards itself, so a
+/// drawer reopened onto a persisted app rebuilds the app and a plain reopen keeps
+/// the terminal.
+fn sync_nova_os_app_ui(
+    mut commands: Commands,
+    terminal: Res<NovaOsTerminal>,
+    registry: Res<NovaOsAppRegistry>,
+    asset_server: Option<Res<AssetServer>>,
+    q_screen: Query<Entity, With<NovaOsScreenMarker>>,
+    q_app_root: Query<(Entity, &NovaOsAppRoot)>,
+    mut q_content: Query<&mut Visibility, With<NovaOsTerminalContentMarker>>,
+) {
+    let desired = match terminal.active_mode {
+        TerminalMode::App { id } => Some(id),
+        TerminalMode::Prompt => None,
+    };
+    let current = q_app_root
+        .iter()
+        .next()
+        .map(|(entity, root)| (entity, root.id));
+    if desired == current.map(|(_, id)| id) {
+        return;
+    }
+
+    if let Some((entity, _)) = current {
+        commands.entity(entity).despawn();
+    }
+    for mut visibility in &mut q_content {
+        *visibility = if desired.is_some() {
+            Visibility::Hidden
+        } else {
+            Visibility::Inherited
+        };
+    }
+    let (Some(id), Ok(screen)) = (desired, q_screen.single()) else {
+        return;
+    };
+    let Some(app) = registry.get(id) else {
+        return;
+    };
+    let font = nova_os_font(asset_server.as_deref());
+    commands.entity(screen).with_children(|screen| {
+        spawn_nova_os_app(screen, app, font);
+    });
+}
+
+/// Spawn one app surface: a chrome bar (title + close control) over the app's own
+/// body, filling the screen at content depth so the shared CRT overlay still sits
+/// on top exactly as it does over the terminal.
+fn spawn_nova_os_app(
+    screen: &mut ChildSpawnerCommands,
+    app: &dyn NovaOsAppRuntime,
+    font: Handle<Font>,
+) {
+    screen
+        .spawn((
+            Name::new(format!("NovaOsApp:{}", app.id())),
+            NovaOsAppRoot { id: app.id() },
+            Node {
+                position_type: PositionType::Absolute,
+                top: Val::Px(0.0),
+                bottom: Val::Px(0.0),
+                left: Val::Px(0.0),
+                right: Val::Px(0.0),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(12.0),
+                ..default()
+            },
+            BackgroundColor(NOVA_OS_SCREEN),
+            ZIndex(NOVA_OS_CONTENT_Z),
+        ))
+        .with_children(|app_root| {
+            app_root
+                .spawn((
+                    Node {
+                        min_height: Val::Px(32.0),
+                        padding: UiRect::bottom(Val::Px(10.0)),
+                        border: UiRect::bottom(Val::Px(1.0)),
+                        flex_direction: FlexDirection::Row,
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::SpaceBetween,
+                        column_gap: Val::Px(12.0),
+                        ..default()
+                    },
+                    BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.36)),
+                ))
+                .with_children(|chrome| {
+                    chrome.spawn((
+                        Text::new(app.title().to_uppercase()),
+                        nova_os_text_font(DRAWER_SECTION_TITLE_FONT_PX, font.clone()),
+                        TextColor(NOVA_OS_PHOSPHOR),
+                    ));
+                    chrome.spawn((
+                        NovaOsAppCloseMarker,
+                        Button,
+                        Node {
+                            padding: UiRect::axes(Val::Px(10.0), Val::Px(3.0)),
+                            border: UiRect::all(Val::Px(1.0)),
+                            ..default()
+                        },
+                        BorderColor::all(NOVA_OS_AMBER.with_alpha(0.7)),
+                        children![(
+                            Text::new("[ ESC ] CLOSE"),
+                            nova_os_text_font(11.0, font.clone()),
+                            TextColor(NOVA_OS_AMBER),
+                        )],
+                        observe(on_nova_os_app_close),
+                    ));
+                });
+            app_root
+                .spawn((
+                    Node {
+                        flex_grow: 1.0,
+                        min_height: Val::Px(0.0),
+                        flex_direction: FlexDirection::Column,
+                        ..default()
+                    },
+                    ZIndex(NOVA_OS_CONTENT_Z),
+                ))
+                .with_children(|body| {
+                    app.spawn_body(body, font.clone());
+                });
+        });
 }
 
 fn player_ship_snapshot(
@@ -1547,9 +1921,13 @@ fn prompt_completion_ghost(terminal: &NovaOsTerminal) -> String {
     let Some(prefix) = current_command_prefix(&terminal.prompt) else {
         return String::new();
     };
+    // Same builtin-then-app order as `refresh_parse`'s ValidPrefix hint, so the
+    // inline ghost matches the command the hint is pointing at (app launch words
+    // are first-class here too).
     TERMINAL_COMMANDS
         .iter()
         .map(|command| command.name)
+        .chain(terminal.app_commands.iter().map(|app| app.id))
         .find(|name| name.starts_with(prefix))
         .and_then(|name| name.get(prefix.len()..))
         .map(str::to_string)
@@ -4368,22 +4746,34 @@ mod tests {
             vec!["help", "log", "objectives", "ship", "clear", "exit"]
         );
 
-        assert!(matches!(parse_command("help"), TerminalCommandResult::Help));
         assert!(matches!(
-            parse_command("clear"),
+            parse_command("help", &[]),
+            TerminalCommandResult::Help
+        ));
+        assert!(matches!(
+            parse_command("clear", &[]),
             TerminalCommandResult::Clear
         ));
-        assert!(matches!(parse_command("log"), TerminalCommandResult::Log));
         assert!(matches!(
-            parse_command("objectives"),
+            parse_command("log", &[]),
+            TerminalCommandResult::Log
+        ));
+        assert!(matches!(
+            parse_command("objectives", &[]),
             TerminalCommandResult::Objectives
         ));
-        assert!(matches!(parse_command("ship"), TerminalCommandResult::Ship));
-        assert!(matches!(parse_command("exit"), TerminalCommandResult::Exit));
+        assert!(matches!(
+            parse_command("ship", &[]),
+            TerminalCommandResult::Ship
+        ));
+        assert!(matches!(
+            parse_command("exit", &[]),
+            TerminalCommandResult::Exit
+        ));
         for planned in ["map", "ship viewer", "reload", "repair"] {
             assert!(
                 matches!(
-                    parse_command(planned),
+                    parse_command(planned, &[]),
                     TerminalCommandResult::Unknown { .. }
                 ),
                 "{planned} stays deferred to its own task"
@@ -4509,6 +4899,399 @@ mod tests {
         assert_eq!(
             *app.world().get::<Visibility>(monitor).unwrap(),
             Visibility::Hidden
+        );
+    }
+
+    // --- NOVA OS app runtime lifecycle (task 20260726-115334) ---
+
+    /// A test-only sample app registered into the registry to exercise the app
+    /// runtime without waiting for the real `map` app. It renders one body row and
+    /// exits on its own `q` key, so a test can prove the app owns input.
+    struct SampleApp;
+
+    impl NovaOsAppRuntime for SampleApp {
+        fn id(&self) -> &'static str {
+            "sample"
+        }
+        fn title(&self) -> &'static str {
+            "Sample"
+        }
+        fn summary(&self) -> &'static str {
+            "Test-only lifecycle app"
+        }
+        fn spawn_body(&self, body: &mut ChildSpawnerCommands, font: Handle<Font>) {
+            body.spawn((
+                Text::new("SAMPLE APP BODY"),
+                nova_os_text_font(DRAWER_LINE_FONT_PX, font),
+                TextColor(NOVA_OS_TEXT),
+            ));
+        }
+        fn handle_key(&self, key: &Key) -> NovaOsAppInputOutcome {
+            match key {
+                Key::Character(c) if c.as_str() == "q" => NovaOsAppInputOutcome::Exit,
+                _ => NovaOsAppInputOutcome::Continue,
+            }
+        }
+    }
+
+    /// A second test-only app that exits on ENTER, used to prove the launching
+    /// Enter does not bleed into the app it just opened.
+    struct EnterExitApp;
+
+    impl NovaOsAppRuntime for EnterExitApp {
+        fn id(&self) -> &'static str {
+            "enterapp"
+        }
+        fn title(&self) -> &'static str {
+            "Enter"
+        }
+        fn summary(&self) -> &'static str {
+            "Test-only app that exits on Enter"
+        }
+        fn spawn_body(&self, _body: &mut ChildSpawnerCommands, _font: Handle<Font>) {}
+        fn handle_key(&self, key: &Key) -> NovaOsAppInputOutcome {
+            match key {
+                Key::Enter => NovaOsAppInputOutcome::Exit,
+                _ => NovaOsAppInputOutcome::Continue,
+            }
+        }
+    }
+
+    /// Escape via `ButtonInput`, mirroring `press_tab`: press, update, then release
+    /// and clear the just-pressed edge (no `InputPlugin` clears it here).
+    fn press_escape(app: &mut App) {
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::Escape);
+        app.update();
+        let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+        keys.release(KeyCode::Escape);
+        keys.clear();
+        app.update();
+    }
+
+    /// Headless rig with the drawer OPEN, the sample app registered, and the app
+    /// runtime input systems wired (state machine only, no UI). Mirrors
+    /// `terminal_command_app` plus the registry, app-command sync, app keyboard and
+    /// the context-sensitive Escape route.
+    fn app_runtime_app() -> App {
+        let mut app = toggle_app();
+        init_terminal_input_resources(&mut app);
+        let mut registry = NovaOsAppRegistry::default();
+        registry.register(SampleApp);
+        registry.register(EnterExitApp);
+        app.insert_resource(registry);
+        app.add_systems(
+            Update,
+            (
+                sync_nova_os_app_commands.run_if(
+                    resource_changed::<NovaOsAppRegistry>.or_else(resource_added::<NovaOsTerminal>),
+                ),
+                handle_terminal_keyboard.run_if(in_state(GameStates::Playing)),
+                handle_nova_os_app_keyboard.run_if(in_state(GameStates::Playing)),
+                close_drawer_from_menu_keys.run_if(in_state(GameStates::Playing)),
+            )
+                .chain(),
+        );
+        press_tab(&mut app);
+        assert_eq!(pause_state(&app), PauseStates::Drawer);
+        app.update();
+        assert!(
+            app.world()
+                .resource::<NovaOsTerminal>()
+                .app_commands
+                .iter()
+                .any(|command| command.id == "sample"),
+            "the registered sample app is mirrored into the terminal command set",
+        );
+        app
+    }
+
+    #[test]
+    fn terminal_command_launches_registered_app() {
+        let mut app = app_runtime_app();
+        submit_terminal_command(&mut app, "sample");
+
+        let terminal = app.world().resource::<NovaOsTerminal>();
+        assert_eq!(
+            terminal.active_mode,
+            TerminalMode::App { id: "sample" },
+            "submitting a registered app word enters app mode",
+        );
+        assert!(
+            terminal
+                .scrollback
+                .iter()
+                .any(|row| row.text.contains("launching sample")),
+            "launch prints a status row into the scrollback",
+        );
+        assert_eq!(
+            pause_state(&app),
+            PauseStates::Drawer,
+            "the computer stays open while an app runs",
+        );
+    }
+
+    #[test]
+    fn nova_os_typo_of_an_app_word_is_suggested() {
+        // Did-you-mean covers app launch words, not just builtins (finding 3).
+        let apps = [NovaOsAppCommand {
+            id: "sample",
+            summary: "",
+        }];
+        assert_eq!(
+            nearest_command("sanple", &apps),
+            Some("sample"),
+            "a typo of a registered app word suggests that app word",
+        );
+        assert_eq!(
+            nearest_command("sanple", &[]),
+            None,
+            "without the app registered there is no near builtin to suggest",
+        );
+    }
+
+    #[test]
+    fn nova_os_app_launch_word_rejects_arguments() {
+        let mut app = app_runtime_app();
+        submit_terminal_command(&mut app, "sample foo");
+
+        let terminal = app.world().resource::<NovaOsTerminal>();
+        assert_eq!(
+            terminal.active_mode,
+            TerminalMode::Prompt,
+            "an app word with arguments does not launch",
+        );
+        assert!(
+            terminal
+                .scrollback
+                .iter()
+                .any(|row| row.text == "sample takes no arguments"),
+            "the argument rejection is reported",
+        );
+    }
+
+    #[test]
+    fn nova_os_launch_keystroke_does_not_bleed_into_the_app() {
+        // The Enter that submits `enterapp` must not reach the app it launches -
+        // `EnterExitApp` exits on Enter, so a bleed would close it on the same
+        // frame it opened.
+        let mut app = app_runtime_app();
+        submit_terminal_command(&mut app, "enterapp");
+        assert_eq!(
+            app.world().resource::<NovaOsTerminal>().active_mode,
+            TerminalMode::App { id: "enterapp" },
+            "the launching Enter did not bleed through to exit the app",
+        );
+
+        // A SUBSEQUENT Enter does reach the app (it is genuinely Enter-sensitive).
+        press_key(&mut app, KeyCode::Enter, Key::Enter, None);
+        assert_eq!(
+            app.world().resource::<NovaOsTerminal>().active_mode,
+            TerminalMode::Prompt,
+            "a later Enter reaches the app and exits it",
+        );
+    }
+
+    #[test]
+    fn nova_os_app_close_restores_terminal_state() {
+        let mut app = app_runtime_app();
+        // Build some scrollback before launching so we can prove it survives.
+        submit_terminal_command(&mut app, "help");
+        let before = terminal_scrollback_texts(&app);
+        submit_terminal_command(&mut app, "sample");
+        assert!(matches!(
+            app.world().resource::<NovaOsTerminal>().active_mode,
+            TerminalMode::App { .. }
+        ));
+
+        // Escape exits the app back to the terminal, NOT the drawer.
+        press_escape(&mut app);
+
+        let terminal = app.world().resource::<NovaOsTerminal>();
+        assert_eq!(
+            terminal.active_mode,
+            TerminalMode::Prompt,
+            "Escape from app mode returns to the terminal",
+        );
+        assert!(
+            !app.world().resource::<DrawerCloseTransition>().closing,
+            "exiting the app does not request a computer close",
+        );
+        assert_eq!(
+            pause_state(&app),
+            PauseStates::Drawer,
+            "the computer stays open after the app exits",
+        );
+        assert_eq!(terminal.prompt, "", "the prompt is restored empty");
+        for row in &before {
+            assert!(
+                terminal.scrollback.iter().any(|r| &r.text == row),
+                "pre-app scrollback row preserved after the app: {row}",
+            );
+        }
+    }
+
+    #[test]
+    fn nova_os_app_mode_owns_input_and_escape_exits_app() {
+        let mut app = app_runtime_app();
+        submit_terminal_command(&mut app, "sample");
+        assert!(matches!(
+            app.world().resource::<NovaOsTerminal>().active_mode,
+            TerminalMode::App { .. }
+        ));
+
+        // Typing while the app owns the screen does not reach the terminal prompt.
+        press_text(&mut app, "x");
+        assert_eq!(
+            app.world().resource::<NovaOsTerminal>().prompt,
+            "",
+            "app mode owns input: typing does not edit the terminal prompt",
+        );
+
+        // The app's own key drives its exit back to the terminal.
+        press_key(
+            &mut app,
+            KeyCode::KeyQ,
+            Key::Character("q".into()),
+            Some("q"),
+        );
+        assert_eq!(
+            app.world().resource::<NovaOsTerminal>().active_mode,
+            TerminalMode::Prompt,
+            "an app-owned key exits the app",
+        );
+        assert_eq!(
+            pause_state(&app),
+            PauseStates::Drawer,
+            "exiting the app keeps the computer open",
+        );
+
+        // Back at the prompt, Escape now closes the whole computer.
+        press_escape(&mut app);
+        assert!(
+            app.world().resource::<DrawerCloseTransition>().closing,
+            "from terminal mode Escape requests the computer close",
+        );
+    }
+
+    #[test]
+    fn nova_os_app_state_resets_on_teardown() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.init_resource::<DrawerFlightLog>();
+        app.init_resource::<NovaOsTerminal>();
+        app.add_observer(setup_drawer);
+        app.add_observer(remove_drawer);
+
+        let player = app
+            .world_mut()
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
+            .id();
+        app.update();
+
+        // An app is running when the player ship goes away.
+        app.world_mut().resource_mut::<NovaOsTerminal>().active_mode =
+            TerminalMode::App { id: "sample" };
+
+        app.world_mut()
+            .entity_mut(player)
+            .remove::<PlayerSpaceshipMarker>();
+        app.update();
+
+        let terminal = app.world().resource::<NovaOsTerminal>();
+        assert_eq!(
+            terminal.active_mode,
+            TerminalMode::Prompt,
+            "teardown clears stale app state back to the terminal",
+        );
+        assert_eq!(
+            terminal.scrollback,
+            nova_os_welcome_rows(),
+            "teardown restores the welcome screen",
+        );
+    }
+
+    #[test]
+    fn nova_os_app_ui_spawns_chrome_and_close_button_exits() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(StatesPlugin);
+        app.init_state::<GameStates>();
+        app.init_state::<PauseStates>();
+        app.init_resource::<DrawerFlightLog>();
+        app.init_resource::<NovaOsTerminal>();
+        let mut registry = NovaOsAppRegistry::default();
+        registry.register(SampleApp);
+        app.insert_resource(registry);
+        app.add_observer(setup_drawer);
+        app.add_observer(remove_drawer);
+        app.add_systems(
+            Update,
+            sync_nova_os_app_ui.run_if(in_state(PauseStates::Drawer)),
+        );
+
+        app.world_mut()
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker));
+        app.world_mut()
+            .resource_mut::<NextState<PauseStates>>()
+            .set(PauseStates::Drawer);
+        app.update();
+
+        // Launch, then let the UI reconcile.
+        app.world_mut().resource_mut::<NovaOsTerminal>().active_mode =
+            TerminalMode::App { id: "sample" };
+        app.update();
+
+        let app_roots = app
+            .world_mut()
+            .query_filtered::<Entity, With<NovaOsAppRoot>>()
+            .iter(app.world())
+            .count();
+        assert_eq!(app_roots, 1, "launch spawns exactly one app root");
+        let close = app
+            .world_mut()
+            .query_filtered::<Entity, With<NovaOsAppCloseMarker>>()
+            .iter(app.world())
+            .next()
+            .expect("the app chrome has a close control");
+        let content_visibility = app
+            .world_mut()
+            .query_filtered::<&Visibility, With<NovaOsTerminalContentMarker>>()
+            .iter(app.world())
+            .next()
+            .copied();
+        assert_eq!(
+            content_visibility,
+            Some(Visibility::Hidden),
+            "the terminal content is hidden while an app owns the screen",
+        );
+
+        // The chrome close control returns to the terminal, the same route as Escape.
+        app.world_mut().trigger(Activate { entity: close });
+        app.update();
+
+        assert_eq!(
+            app.world().resource::<NovaOsTerminal>().active_mode,
+            TerminalMode::Prompt,
+            "the chrome close control exits the app",
+        );
+        let app_roots_after = app
+            .world_mut()
+            .query_filtered::<Entity, With<NovaOsAppRoot>>()
+            .iter(app.world())
+            .count();
+        assert_eq!(app_roots_after, 0, "exiting despawns the app root");
+        let content_after = app
+            .world_mut()
+            .query_filtered::<&Visibility, With<NovaOsTerminalContentMarker>>()
+            .iter(app.world())
+            .next()
+            .copied();
+        assert_eq!(
+            content_after,
+            Some(Visibility::Inherited),
+            "exiting reveals the terminal content again",
         );
     }
 }

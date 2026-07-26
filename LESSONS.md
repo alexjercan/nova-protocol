@@ -104,6 +104,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   bin). A leaf tool that is not a game dependency is ALREADY skipped by bare
   builds, so the key buys nothing and only adds an allowlist footgun - do not add
   it. 20260721-151934.
+- `validate-proof-command-shape-at-plan-time` (x1): a `cmd:` proof written into a
+  plan/DoD is unrun until verify, so a malformed one is a silent gate - check its
+  shape (arity, flags) when authoring. `cargo test <a> <b>` takes ONE positional
+  filter and REJECTS the second; use `cargo test -- <a> <b>` for libtest's
+  multi-filter. An epic-planned `cargo test -p nova_gameplay drawer terminal`
+  never ran until this task hit it. 20260726-115334.
 - `inseparable-seeded-tasks-remerge` (x1, PROMOTED 2026-07-19 -> flow skill):
   when seeded tasks prove architecturally inseparable, surface the re-cut and
   merge them instead of building shims. 20260717-215742.
@@ -357,6 +363,18 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   InputPlugin clears it, so a stale edge re-fires the toggle) - copy the sibling
   press-helper verbatim, do not hand-roll the cadence. Bit `press_tab` then
   `pad_toggles_drawer_state` in the same drawer family. 20260724-102304, 20260724-134312.
+- `context-key-handled-in-one-owner` (x1): a context-sensitive key (Escape exits
+  an app in app mode but closes the drawer at the prompt) must be interpreted in
+  ONE system branched on state, never two readers cooperating over the same
+  `ButtonInput`/event edge - a single read cannot race itself, whereas two systems
+  reading one Escape can both fire on one press (exit app AND close drawer). Same
+  family as the Tab-split. 20260726-115334.
+- `route-input-only-when-continuously-active` (x1): a system that owns input while
+  a mode is active will process the very keystroke that ENTERED the mode the same
+  frame (the Enter that launched an app bleeds into that app). Gate on "was this
+  same mode/app live LAST frame too" (a `Local`), dropping the event buffer on
+  every transition frame - and make the test fixture sensitive to the routed key
+  (an Enter-exit app), or the bleed test proves nothing. 20260726-115334.
 - `observer-over-spawn-site` (x1): attach derived components via an
   `On<Add, Marker>` observer, not by hunting spawn sites. 20260712-203345.
 - `guard-timing-matches-observer-not-set` (x1): a Bevy `.after(SomeSet)` does
