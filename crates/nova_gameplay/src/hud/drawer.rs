@@ -2,20 +2,23 @@
 //! on Tab, freezing the sim and freeing the cursor while active. The monitor
 //! replaces the old left/right panels with a physical terminal screen: dark
 //! casing, hard bezel, green phosphor display, accent slots and CRT overlays.
-//! This module owns the shell plus the current placeholder terminal content fed
-//! by the existing objectives and combined flight-log data.
+//! This module owns the shell, command prompt, scrollback, input handling and
+//! the current monitor content fed by the existing objectives and combined
+//! flight-log data.
 //!
 //! # Interaction model
 //!
-//! Tab toggles the drawer by driving the shared [`PauseStates`] axis
-//! (`Unpaused <-> Drawer`); the freeze + cursor-free are wired in `nova_menu`
-//! on `OnEnter/OnExit(PauseStates::Drawer)`, reusing the exact hooks the pause
-//! overlay uses (see this task's DECISION.md - the drawer is a THIRD variant of
-//! the one freeze axis, not a separate freeze). ESC while the drawer is open
-//! closes it (`nova_menu`'s `toggle_pause`). The drawer is inert while the
-//! pause menu owns the freeze (`PauseStates::Paused`), which also means a live
-//! outcome overlay - which forces `Paused` - implicitly blocks the drawer
-//! without this crate depending on `nova_scenario`'s `CurrentOutcome`.
+//! Tab opens the drawer by driving the shared [`PauseStates`] axis
+//! (`Unpaused -> Drawer`); once NOVA OS owns the keyboard, Tab completes the
+//! terminal prompt instead of closing the monitor. ESC closes the drawer
+//! (`nova_menu`'s `toggle_pause`). The freeze + cursor-free are wired in
+//! `nova_menu` on `OnEnter/OnExit(PauseStates::Drawer)`, reusing the exact
+//! hooks the pause overlay uses (see this task's DECISION.md - the drawer is a
+//! THIRD variant of the one freeze axis, not a separate freeze). The drawer is
+//! inert while the pause menu owns the freeze (`PauseStates::Paused`), which
+//! also means a live outcome overlay - which forces `Paused` - implicitly
+//! blocks the drawer without this crate depending on `nova_scenario`'s
+//! `CurrentOutcome`.
 //!
 //! # Animation clock
 //!
@@ -26,7 +29,14 @@
 //! (`verify-engine-guarantees-in-source`: bcs `tween::advance_tweens` uses
 //! `Res<Time>`).
 
-use bevy::{picking::hover::Hovered, prelude::*};
+use bevy::{
+    input::{
+        keyboard::{Key, KeyboardInput},
+        ButtonState,
+    },
+    picking::hover::Hovered,
+    prelude::*,
+};
 use bevy_common_systems::prelude::{GameObjectives, Objective};
 use nova_ui::theme;
 
@@ -70,6 +80,7 @@ const NOVA_OS_AMBER: Color = Color::srgb_u8(255, 184, 74);
 const NOVA_OS_ORANGE: Color = Color::srgb_u8(255, 123, 45);
 const NOVA_OS_CONTENT_Z: i32 = 0;
 const NOVA_OS_OVERLAY_Z: i32 = 1;
+const NOVA_OS_PROMPT_PREFIX: &str = "nova> ";
 
 /// Global stacking-context z for the OPEN drawer: it is a modal, so backdrop and
 /// panel rise above the flight HUD chrome (which carries no `GlobalZIndex` = 0).
@@ -103,6 +114,18 @@ struct NovaOsScreenMarker;
 /// The terminal placeholder content under the CRT overlay stack.
 #[derive(Component)]
 struct NovaOsTerminalContentMarker;
+
+/// Scrollback rows printed by the NOVA OS terminal shell.
+#[derive(Component)]
+struct NovaOsTerminalScrollbackMarker;
+
+/// Prompt text line owned by the terminal shell.
+#[derive(Component)]
+struct NovaOsTerminalPromptMarker;
+
+/// Hint/status line owned by the terminal shell.
+#[derive(Component)]
+struct NovaOsTerminalHintMarker;
 
 /// Thin overlay rows that approximate CRT scanlines.
 #[derive(Component)]
@@ -231,6 +254,313 @@ enum DrawerFlightLogEntryKind {
     ObjectiveCompleted,
 }
 
+#[derive(Resource, Debug, Clone)]
+struct NovaOsTerminal {
+    prompt: String,
+    cursor: usize,
+    scrollback: Vec<TerminalRow>,
+    history: Vec<String>,
+    history_cursor: Option<usize>,
+    completion_hint: Option<String>,
+    parse_status: TerminalParseStatus,
+    active_mode: TerminalMode,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TerminalRow {
+    kind: TerminalRowKind,
+    text: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TerminalRowKind {
+    Input,
+    Output,
+    Error,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TerminalParseStatus {
+    Empty,
+    Valid,
+    ValidPrefix,
+    Invalid,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TerminalMode {
+    Prompt,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct TerminalCommand {
+    name: &'static str,
+    help: &'static str,
+}
+
+const TERMINAL_COMMANDS: &[TerminalCommand] = &[
+    TerminalCommand {
+        name: "help",
+        help: "help  show available NOVA OS commands",
+    },
+    TerminalCommand {
+        name: "clear",
+        help: "clear  clear terminal scrollback",
+    },
+];
+
+impl Default for NovaOsTerminal {
+    fn default() -> Self {
+        let mut terminal = Self {
+            prompt: String::new(),
+            cursor: 0,
+            scrollback: vec![
+                TerminalRow {
+                    kind: TerminalRowKind::Output,
+                    text: "NOVA OS READY".to_string(),
+                },
+                TerminalRow {
+                    kind: TerminalRowKind::Output,
+                    text: "type help".to_string(),
+                },
+            ],
+            history: Vec::new(),
+            history_cursor: None,
+            completion_hint: Some("type help".to_string()),
+            parse_status: TerminalParseStatus::Empty,
+            active_mode: TerminalMode::Prompt,
+        };
+        terminal.refresh_parse();
+        terminal
+    }
+}
+
+impl NovaOsTerminal {
+    fn insert_text(&mut self, text: &str) {
+        for ch in text.chars().filter(|ch| !ch.is_control()) {
+            self.prompt.insert(self.cursor, ch);
+            self.cursor += ch.len_utf8();
+        }
+        self.history_cursor = None;
+        self.refresh_parse();
+    }
+
+    fn backspace(&mut self) {
+        if self.cursor == 0 {
+            return;
+        }
+        if let Some((idx, _)) = self.prompt[..self.cursor].char_indices().last() {
+            self.prompt.drain(idx..self.cursor);
+            self.cursor = idx;
+        }
+        self.history_cursor = None;
+        self.refresh_parse();
+    }
+
+    fn delete(&mut self) {
+        if self.cursor >= self.prompt.len() {
+            return;
+        }
+        let end = self.prompt[self.cursor..]
+            .char_indices()
+            .nth(1)
+            .map(|(offset, _)| self.cursor + offset)
+            .unwrap_or(self.prompt.len());
+        self.prompt.drain(self.cursor..end);
+        self.history_cursor = None;
+        self.refresh_parse();
+    }
+
+    fn move_cursor_left(&mut self) {
+        if self.cursor == 0 {
+            return;
+        }
+        if let Some((idx, _)) = self.prompt[..self.cursor].char_indices().last() {
+            self.cursor = idx;
+        }
+    }
+
+    fn move_cursor_right(&mut self) {
+        if self.cursor >= self.prompt.len() {
+            return;
+        }
+        self.cursor = self.prompt[self.cursor..]
+            .char_indices()
+            .nth(1)
+            .map(|(offset, _)| self.cursor + offset)
+            .unwrap_or(self.prompt.len());
+    }
+
+    fn submit(&mut self) {
+        let command_line = self.prompt.trim().to_string();
+        if command_line.is_empty() {
+            self.reset_prompt();
+            return;
+        }
+
+        self.scrollback.push(TerminalRow {
+            kind: TerminalRowKind::Input,
+            text: format!("{NOVA_OS_PROMPT_PREFIX}{command_line}"),
+        });
+        self.history.push(command_line.clone());
+        self.history_cursor = None;
+
+        match parse_command(&command_line) {
+            TerminalCommandResult::Help => {
+                for command in TERMINAL_COMMANDS {
+                    self.scrollback.push(TerminalRow {
+                        kind: TerminalRowKind::Output,
+                        text: command.help.to_string(),
+                    });
+                }
+            }
+            TerminalCommandResult::Clear => {
+                self.scrollback.clear();
+            }
+            TerminalCommandResult::UnexpectedArguments { command } => {
+                self.scrollback.push(TerminalRow {
+                    kind: TerminalRowKind::Error,
+                    text: format!("{command} takes no arguments"),
+                });
+            }
+            TerminalCommandResult::Unknown {
+                command,
+                suggestion,
+            } => {
+                let mut text = format!("unknown command: {command}");
+                if let Some(suggestion) = suggestion {
+                    text.push_str("; did you mean ");
+                    text.push_str(suggestion);
+                    text.push('?');
+                }
+                self.scrollback.push(TerminalRow {
+                    kind: TerminalRowKind::Error,
+                    text,
+                });
+            }
+        }
+
+        self.reset_prompt();
+    }
+
+    fn complete(&mut self) {
+        let Some(prefix) = current_command_prefix(&self.prompt) else {
+            return;
+        };
+        let matches: Vec<&str> = TERMINAL_COMMANDS
+            .iter()
+            .map(|command| command.name)
+            .filter(|name| name.starts_with(prefix))
+            .collect();
+        let completion = match matches.as_slice() {
+            [only] => Some((*only).to_string()),
+            [] => None,
+            many => common_prefix(many),
+        };
+        if let Some(completion) = completion {
+            self.replace_current_command(&completion);
+        }
+        self.refresh_parse();
+    }
+
+    fn history_previous(&mut self) {
+        if self.history.is_empty() {
+            return;
+        }
+        let next = match self.history_cursor {
+            Some(cursor) if cursor > 0 => cursor - 1,
+            Some(cursor) => cursor,
+            None => self.history.len() - 1,
+        };
+        self.set_history_cursor(next);
+    }
+
+    fn history_next(&mut self) {
+        let Some(cursor) = self.history_cursor else {
+            return;
+        };
+        if cursor + 1 >= self.history.len() {
+            self.history_cursor = None;
+            self.prompt.clear();
+            self.cursor = 0;
+            self.refresh_parse();
+            return;
+        }
+        self.set_history_cursor(cursor + 1);
+    }
+
+    fn refresh_parse(&mut self) {
+        let trimmed = self.prompt.trim();
+        if trimmed.is_empty() {
+            self.parse_status = TerminalParseStatus::Empty;
+            self.completion_hint = Some("type help".to_string());
+            return;
+        }
+        let Some(prefix) = current_command_prefix(trimmed) else {
+            self.parse_status = TerminalParseStatus::Empty;
+            self.completion_hint = Some("type help".to_string());
+            return;
+        };
+        if TERMINAL_COMMANDS
+            .iter()
+            .any(|command| command.name == prefix)
+        {
+            if command_has_arguments(trimmed) {
+                self.parse_status = TerminalParseStatus::Invalid;
+                self.completion_hint = Some(format!("{prefix} takes no arguments"));
+                return;
+            }
+            self.parse_status = TerminalParseStatus::Valid;
+            self.completion_hint = None;
+            return;
+        }
+        if let Some(command) = TERMINAL_COMMANDS
+            .iter()
+            .find(|command| command.name.starts_with(prefix))
+        {
+            self.parse_status = TerminalParseStatus::ValidPrefix;
+            self.completion_hint = Some(command.name.to_string());
+            return;
+        }
+        self.parse_status = TerminalParseStatus::Invalid;
+        self.completion_hint =
+            nearest_command(prefix).map(|suggestion| format!("did you mean {suggestion}?"));
+    }
+
+    fn reset_prompt(&mut self) {
+        self.prompt.clear();
+        self.cursor = 0;
+        self.refresh_parse();
+    }
+
+    fn replace_current_command(&mut self, replacement: &str) {
+        let old_len = current_command_prefix(&self.prompt)
+            .map(str::len)
+            .unwrap_or(0);
+        self.prompt.replace_range(0..old_len, replacement);
+        self.cursor = replacement.len();
+    }
+
+    fn set_history_cursor(&mut self, cursor: usize) {
+        self.history_cursor = Some(cursor);
+        self.prompt = self.history[cursor].clone();
+        self.cursor = self.prompt.len();
+        self.refresh_parse();
+    }
+}
+
+enum TerminalCommandResult {
+    Help,
+    Clear,
+    UnexpectedArguments {
+        command: String,
+    },
+    Unknown {
+        command: String,
+        suggestion: Option<&'static str>,
+    },
+}
+
 impl DrawerFlightLog {
     fn clear(&mut self) {
         self.entries.clear();
@@ -238,6 +568,87 @@ impl DrawerFlightLog {
         self.previous_active.clear();
         self.seen_story = 0;
     }
+}
+
+fn parse_command(command_line: &str) -> TerminalCommandResult {
+    let command = current_command_prefix(command_line).unwrap_or("");
+    match command {
+        "help" if command_has_arguments(command_line) => {
+            TerminalCommandResult::UnexpectedArguments {
+                command: command.to_string(),
+            }
+        }
+        "help" => TerminalCommandResult::Help,
+        "clear" if command_has_arguments(command_line) => {
+            TerminalCommandResult::UnexpectedArguments {
+                command: command.to_string(),
+            }
+        }
+        "clear" => TerminalCommandResult::Clear,
+        unknown => TerminalCommandResult::Unknown {
+            command: unknown.to_string(),
+            suggestion: nearest_command(unknown),
+        },
+    }
+}
+
+fn current_command_prefix(text: &str) -> Option<&str> {
+    text.split_whitespace().next()
+}
+
+fn command_has_arguments(text: &str) -> bool {
+    text.split_whitespace().nth(1).is_some()
+}
+
+fn common_prefix(names: &[&str]) -> Option<String> {
+    let first = *names.first()?;
+    let mut prefix_len = first.len();
+    for name in &names[1..] {
+        prefix_len = first
+            .char_indices()
+            .map(|(idx, _)| idx)
+            .chain(std::iter::once(first.len()))
+            .take_while(|idx| {
+                *idx <= name.len()
+                    && first[..*idx]
+                        .chars()
+                        .zip(name[..*idx].chars())
+                        .all(|(a, b)| a == b)
+            })
+            .last()
+            .unwrap_or(0)
+            .min(prefix_len);
+    }
+    if prefix_len == 0 {
+        None
+    } else {
+        Some(first[..prefix_len].to_string())
+    }
+}
+
+fn nearest_command(input: &str) -> Option<&'static str> {
+    TERMINAL_COMMANDS
+        .iter()
+        .map(|command| (command.name, levenshtein(input, command.name)))
+        .filter(|(_, distance)| *distance <= 2)
+        .min_by_key(|(_, distance)| *distance)
+        .map(|(name, _)| name)
+}
+
+fn levenshtein(a: &str, b: &str) -> usize {
+    let mut previous: Vec<usize> = (0..=b.chars().count()).collect();
+    let mut current = vec![0; previous.len()];
+    for (i, ca) in a.chars().enumerate() {
+        current[0] = i + 1;
+        for (j, cb) in b.chars().enumerate() {
+            let substitution = previous[j] + usize::from(ca != cb);
+            let insertion = current[j] + 1;
+            let deletion = previous[j + 1] + 1;
+            current[j + 1] = substitution.min(insertion).min(deletion);
+        }
+        std::mem::swap(&mut previous, &mut current);
+    }
+    previous[b.chars().count()]
 }
 
 /// The reveal's tuck-target rect in logical pixels. This is task 20260721-211520's
@@ -261,10 +672,10 @@ impl Plugin for NovaDrawerPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DrawerTabAnchor>();
         app.init_resource::<DrawerFlightLog>();
+        app.init_resource::<NovaOsTerminal>();
 
-        // Tab toggles the drawer. Runs in all of Playing (NOT the
-        // Unpaused-gated flight rig) so it can also CLOSE the drawer while the
-        // sim is frozen.
+        // Tab opens the drawer. It keeps running in all of Playing so an open
+        // drawer can reserve Tab for terminal completion instead of closing.
         app.add_systems(Update, toggle_drawer.run_if(in_state(GameStates::Playing)));
 
         // Shell upkeep while the HUD is live: ease the slide and rebuild the
@@ -295,6 +706,16 @@ impl Plugin for NovaDrawerPlugin {
                 .run_if(resource_exists::<Messages<bevy::input::mouse::MouseWheel>>)
                 .in_set(NovaHudSystems),
         );
+        app.add_systems(
+            Update,
+            (
+                handle_terminal_keyboard.run_if(in_state(GameStates::Playing)),
+                rebuild_terminal_ui
+                    .run_if(resource_changed::<NovaOsTerminal>.or_else(terminal_ui_just_spawned)),
+            )
+                .chain()
+                .in_set(NovaHudSystems),
+        );
 
         // The drawer is a flight surface: spawn/despawn it with the player ship,
         // like the rest of the HUD.
@@ -303,11 +724,12 @@ impl Plugin for NovaDrawerPlugin {
     }
 }
 
-/// Tab (or the gamepad right-stick click) drives the shared freeze axis.
-/// `Unpaused <-> Drawer`; inert while the pause menu owns the freeze (`Paused`) -
-/// which is also how a live outcome (it forces `Paused`) blocks the drawer
-/// without a cross-crate dependency. The pad button is `RightThumb`, the one free
-/// button (task 20260724-134312), mirroring `nova_menu`'s optional-gamepad guard.
+/// Tab opens the shared freeze axis and becomes autocomplete while open. The
+/// gamepad right-stick click still toggles `Unpaused <-> Drawer`; both inputs are
+/// inert while the pause menu owns the freeze (`Paused`) - which is also how a
+/// live outcome (it forces `Paused`) blocks the drawer without a cross-crate
+/// dependency. The pad button is `RightThumb`, the one free button (task
+/// 20260724-134312), mirroring `nova_menu`'s optional-gamepad guard.
 fn toggle_drawer(
     keys: Res<ButtonInput<KeyCode>>,
     gamepad: Option<Res<ButtonInput<GamepadButton>>>,
@@ -317,13 +739,49 @@ fn toggle_drawer(
     let pad = gamepad
         .map(|g| g.just_pressed(GamepadButton::RightThumb))
         .unwrap_or(false);
-    if !keys.just_pressed(KeyCode::Tab) && !pad {
+    let tab = keys.just_pressed(KeyCode::Tab);
+    if !tab && !pad {
         return;
     }
     match current.get() {
         PauseStates::Unpaused => next.set(PauseStates::Drawer),
-        PauseStates::Drawer => next.set(PauseStates::Unpaused),
-        PauseStates::Paused => {}
+        PauseStates::Drawer if pad && !tab => next.set(PauseStates::Unpaused),
+        PauseStates::Drawer | PauseStates::Paused => {}
+    }
+}
+
+fn handle_terminal_keyboard(
+    mut keyboard: MessageReader<KeyboardInput>,
+    pause: Res<State<PauseStates>>,
+    mut terminal: ResMut<NovaOsTerminal>,
+) {
+    let drawer_prompt_active =
+        *pause.get() == PauseStates::Drawer && terminal.active_mode == TerminalMode::Prompt;
+    for event in keyboard.read() {
+        if !drawer_prompt_active {
+            continue;
+        }
+        if event.state != ButtonState::Pressed {
+            continue;
+        }
+        match &event.logical_key {
+            Key::Enter => terminal.submit(),
+            Key::Tab => terminal.complete(),
+            Key::Backspace => terminal.backspace(),
+            Key::Delete => terminal.delete(),
+            Key::ArrowLeft => terminal.move_cursor_left(),
+            Key::ArrowRight => terminal.move_cursor_right(),
+            Key::ArrowUp => terminal.history_previous(),
+            Key::ArrowDown => terminal.history_next(),
+            Key::Character(_) | Key::Space => {
+                if let Some(text) = &event.text {
+                    terminal.insert_text(text);
+                } else if matches!(event.logical_key, Key::Space) {
+                    terminal.insert_text(" ");
+                }
+            }
+            _ => {}
+        }
     }
 }
 
@@ -335,6 +793,81 @@ fn drawer_lists_just_spawned(
     q_log: Query<(), Added<DrawerFlightLogListMarker>>,
 ) -> bool {
     !q_objectives.is_empty() || !q_log.is_empty()
+}
+
+fn terminal_ui_just_spawned(
+    q_prompt: Query<(), Added<NovaOsTerminalPromptMarker>>,
+    q_scrollback: Query<(), Added<NovaOsTerminalScrollbackMarker>>,
+) -> bool {
+    !q_prompt.is_empty() || !q_scrollback.is_empty()
+}
+
+fn rebuild_terminal_ui(
+    mut commands: Commands,
+    terminal: Res<NovaOsTerminal>,
+    q_scrollback: Query<(Entity, Option<&Children>), With<NovaOsTerminalScrollbackMarker>>,
+    mut text_targets: ParamSet<(
+        Query<(&mut Text, &mut TextColor), With<NovaOsTerminalPromptMarker>>,
+        Query<(&mut Text, &mut TextColor), With<NovaOsTerminalHintMarker>>,
+    )>,
+) {
+    if let Ok((list, children)) = q_scrollback.single() {
+        if let Some(children) = children {
+            for &child in children {
+                commands.entity(child).despawn();
+            }
+        }
+        commands.entity(list).with_children(|parent| {
+            for row in &terminal.scrollback {
+                spawn_terminal_row(parent, row);
+            }
+        });
+    }
+
+    for (mut text, mut color) in &mut text_targets.p0() {
+        text.0 = prompt_display(&terminal);
+        color.0 = prompt_color(&terminal);
+    }
+    for (mut text, mut color) in &mut text_targets.p1() {
+        text.0 = terminal.completion_hint.clone().unwrap_or_default();
+        color.0 = match terminal.parse_status {
+            TerminalParseStatus::Invalid => theme::semantic::THREAT,
+            TerminalParseStatus::ValidPrefix => NOVA_OS_PHOSPHOR_MUTED,
+            TerminalParseStatus::Empty | TerminalParseStatus::Valid => NOVA_OS_PHOSPHOR_DIM,
+        };
+    }
+}
+
+fn spawn_terminal_row(parent: &mut ChildSpawnerCommands, row: &TerminalRow) {
+    let color = match row.kind {
+        TerminalRowKind::Input => NOVA_OS_AMBER,
+        TerminalRowKind::Output => NOVA_OS_PHOSPHOR,
+        TerminalRowKind::Error => theme::semantic::THREAT,
+    };
+    parent.spawn((
+        Text::new(row.text.clone()),
+        TextFont::from_font_size(DRAWER_LINE_FONT_PX),
+        TextColor(color),
+        TextLayout {
+            justify: Justify::Left,
+            linebreak: LineBreak::WordBoundary,
+        },
+    ));
+}
+
+fn prompt_display(terminal: &NovaOsTerminal) -> String {
+    let mut prompt = terminal.prompt.clone();
+    prompt.insert(terminal.cursor, '|');
+    format!("{NOVA_OS_PROMPT_PREFIX}{prompt}")
+}
+
+fn prompt_color(terminal: &NovaOsTerminal) -> Color {
+    match terminal.parse_status {
+        TerminalParseStatus::Invalid => theme::semantic::THREAT,
+        TerminalParseStatus::Empty
+        | TerminalParseStatus::Valid
+        | TerminalParseStatus::ValidPrefix => NOVA_OS_AMBER,
+    }
 }
 
 fn scroll_drawer_panels(
@@ -1045,7 +1578,7 @@ fn spawn_nova_os_terminal_content(screen: &mut ChildSpawnerCommands) {
                 .spawn(Node {
                     flex_direction: FlexDirection::Row,
                     column_gap: Val::Px(12.0),
-                    min_height: Val::Px(118.0),
+                    min_height: Val::Px(156.0),
                     ..default()
                 })
                 .with_children(|lower| {
@@ -1064,14 +1597,45 @@ fn spawn_nova_os_terminal_content(screen: &mut ChildSpawnerCommands) {
                             BorderColor::all(NOVA_OS_AMBER.with_alpha(0.38)),
                             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.24)),
                         ))
-                        .with_children(|prompt| {
-                            prompt.spawn((
-                                Text::new("nova> help"),
+                        .with_children(|terminal_panel| {
+                            terminal_panel.spawn((
+                                Text::new("TERMINAL"),
+                                TextFont::from_font_size(DRAWER_SECTION_TITLE_FONT_PX),
+                                TextColor(NOVA_OS_AMBER),
+                            ));
+                            terminal_panel
+                                .spawn((
+                                    NovaOsTerminalScrollbackMarker,
+                                    Node {
+                                        flex_direction: FlexDirection::Column,
+                                        flex_grow: 1.0,
+                                        min_height: Val::Px(0.0),
+                                        overflow: Overflow::clip_y(),
+                                        row_gap: Val::Px(3.0),
+                                        ..default()
+                                    },
+                                ))
+                                .with_children(|scrollback| {
+                                    scrollback.spawn((
+                                        Text::new("NOVA OS READY"),
+                                        TextFont::from_font_size(DRAWER_LINE_FONT_PX),
+                                        TextColor(NOVA_OS_PHOSPHOR),
+                                    ));
+                                    scrollback.spawn((
+                                        Text::new("type help"),
+                                        TextFont::from_font_size(DRAWER_LINE_FONT_PX),
+                                        TextColor(NOVA_OS_PHOSPHOR),
+                                    ));
+                                });
+                            terminal_panel.spawn((
+                                NovaOsTerminalPromptMarker,
+                                Text::new("nova> |"),
                                 TextFont::from_font_size(DRAWER_LINE_FONT_PX),
                                 TextColor(NOVA_OS_AMBER),
                             ));
-                            prompt.spawn((
-                                Text::new("terminal input module pending"),
+                            terminal_panel.spawn((
+                                NovaOsTerminalHintMarker,
+                                Text::new("type help"),
                                 TextFont::from_font_size(DRAWER_LINE_FONT_PX),
                                 TextColor(NOVA_OS_PHOSPHOR_MUTED),
                             ));
@@ -1166,6 +1730,19 @@ mod tests {
     }
 
     fn press_tab(app: &mut App) {
+        if let Some(mut keyboard) = app
+            .world_mut()
+            .get_resource_mut::<Messages<KeyboardInput>>()
+        {
+            keyboard.write(KeyboardInput {
+                key_code: KeyCode::Tab,
+                logical_key: Key::Tab,
+                state: ButtonState::Pressed,
+                text: None,
+                repeat: false,
+                window: Entity::PLACEHOLDER,
+            });
+        }
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
             .press(KeyCode::Tab);
@@ -1177,6 +1754,26 @@ mod tests {
         keys.release(KeyCode::Tab);
         keys.clear();
         app.update();
+    }
+
+    fn press_key(app: &mut App, key_code: KeyCode, logical_key: Key, text: Option<&str>) {
+        app.world_mut().write_message(KeyboardInput {
+            key_code,
+            logical_key,
+            state: ButtonState::Pressed,
+            text: text.map(Into::into),
+            repeat: false,
+            window: Entity::PLACEHOLDER,
+        });
+        app.update();
+    }
+
+    fn press_text(app: &mut App, text: &str) {
+        press_key(app, KeyCode::KeyA, Key::Character(text.into()), Some(text));
+    }
+
+    fn type_text(terminal: &mut NovaOsTerminal, text: &str) {
+        terminal.insert_text(text);
     }
 
     fn pause_state(app: &App) -> PauseStates {
@@ -1196,9 +1793,154 @@ mod tests {
         press_tab(&mut app);
         assert_eq!(
             pause_state(&app),
-            PauseStates::Unpaused,
-            "Tab again closes the drawer"
+            PauseStates::Drawer,
+            "Tab inside the drawer stays with NOVA OS so the terminal can autocomplete"
         );
+    }
+
+    #[test]
+    fn tab_opens_drawer_then_completes_terminal_command() {
+        let mut app = toggle_app();
+        app.init_resource::<NovaOsTerminal>();
+        app.world_mut().init_resource::<Messages<KeyboardInput>>();
+        app.add_systems(
+            Update,
+            handle_terminal_keyboard.run_if(in_state(GameStates::Playing)),
+        );
+
+        press_tab(&mut app);
+        assert_eq!(pause_state(&app), PauseStates::Drawer);
+        press_text(&mut app, "he");
+        press_tab(&mut app);
+
+        let terminal = app.world().resource::<NovaOsTerminal>();
+        assert_eq!(terminal.prompt, "help");
+        assert_eq!(terminal.cursor, 4);
+    }
+
+    #[test]
+    fn terminal_ignores_text_typed_before_drawer_opens() {
+        let mut app = toggle_app();
+        app.init_resource::<NovaOsTerminal>();
+        app.world_mut().init_resource::<Messages<KeyboardInput>>();
+        app.add_systems(
+            Update,
+            handle_terminal_keyboard.run_if(in_state(GameStates::Playing)),
+        );
+
+        press_text(&mut app, "flight");
+        assert_eq!(
+            app.world().resource::<NovaOsTerminal>().prompt,
+            "",
+            "keyboard text typed during flight is drained but not inserted"
+        );
+
+        press_tab(&mut app);
+        assert_eq!(pause_state(&app), PauseStates::Drawer);
+        assert_eq!(
+            app.world().resource::<NovaOsTerminal>().prompt,
+            "",
+            "opening the drawer does not replay stale flight text into the prompt"
+        );
+    }
+
+    #[test]
+    fn terminal_prompt_edits_and_navigates_history() {
+        let mut terminal = NovaOsTerminal::default();
+        type_text(&mut terminal, "help");
+        terminal.move_cursor_left();
+        terminal.backspace();
+        type_text(&mut terminal, "ar");
+        terminal.delete();
+        assert_eq!(terminal.prompt, "hear");
+        assert_eq!(terminal.cursor, 4);
+
+        terminal.submit();
+        type_text(&mut terminal, "clear");
+        terminal.submit();
+        terminal.history_previous();
+        assert_eq!(terminal.prompt, "clear");
+        terminal.history_previous();
+        assert_eq!(terminal.prompt, "hear");
+        terminal.history_next();
+        assert_eq!(terminal.prompt, "clear");
+    }
+
+    #[test]
+    fn terminal_unknown_command_suggests_nearest_match() {
+        let mut terminal = NovaOsTerminal::default();
+        type_text(&mut terminal, "hlep");
+
+        assert_eq!(terminal.parse_status, TerminalParseStatus::Invalid);
+        assert_eq!(
+            terminal.completion_hint.as_deref(),
+            Some("did you mean help?")
+        );
+
+        terminal.submit();
+        let last = terminal.scrollback.last().expect("error row");
+        assert_eq!(last.kind, TerminalRowKind::Error);
+        assert!(last.text.contains("unknown command: hlep"));
+        assert!(last.text.contains("did you mean help?"));
+    }
+
+    #[test]
+    fn terminal_rejects_unexpected_command_arguments() {
+        let mut terminal = NovaOsTerminal::default();
+        type_text(&mut terminal, "help garbage");
+        assert_eq!(terminal.parse_status, TerminalParseStatus::Invalid);
+        assert_eq!(
+            terminal.completion_hint.as_deref(),
+            Some("help takes no arguments")
+        );
+        terminal.submit();
+        assert_eq!(
+            terminal.scrollback.last().map(|row| row.text.as_str()),
+            Some("help takes no arguments")
+        );
+
+        type_text(&mut terminal, "clear garbage");
+        terminal.submit();
+        assert!(
+            !terminal.scrollback.is_empty(),
+            "clear with unexpected arguments reports an error instead of clearing scrollback"
+        );
+        assert_eq!(
+            terminal.scrollback.last().map(|row| row.text.as_str()),
+            Some("clear takes no arguments")
+        );
+    }
+
+    #[test]
+    fn terminal_ui_renders_prompt_hint_and_invalid_coloring() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.init_resource::<NovaOsTerminal>();
+        spawn_drawer_shell(&mut app);
+        {
+            let mut terminal = app.world_mut().resource_mut::<NovaOsTerminal>();
+            terminal.insert_text("hlep");
+        }
+
+        app.world_mut()
+            .run_system_once(rebuild_terminal_ui)
+            .expect("terminal UI rebuild runs");
+
+        let (prompt, prompt_color) = app
+            .world_mut()
+            .query_filtered::<(&Text, &TextColor), With<NovaOsTerminalPromptMarker>>()
+            .single(app.world())
+            .expect("one terminal prompt");
+        assert_eq!(prompt.0, "nova> hlep|");
+        assert_eq!(prompt_color.0, theme::semantic::THREAT);
+
+        let (hint, hint_color) = app
+            .world_mut()
+            .query_filtered::<(&Text, &TextColor), With<NovaOsTerminalHintMarker>>()
+            .single(app.world())
+            .expect("one terminal hint");
+        assert_eq!(hint.0, "did you mean help?");
+        assert_eq!(hint_color.0, theme::semantic::THREAT);
     }
 
     /// One right-stick-click press: press + update (toggle sets NextState), then

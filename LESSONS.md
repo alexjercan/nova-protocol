@@ -822,6 +822,13 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `bevy-input-is-messages-in-tests` (x1): drive input tests with
   `World::write_message`; MouseWheel needs unit+x+y+window+PHASE.
   20260718-122912.
+- `message-reader-run-if-drain` (x1): a `MessageReader` behind a state
+  `run_if` does not advance while the system is skipped, so input events can
+  replay on mode entry - drain every relevant frame and process only in the
+  active mode. 20260726-115324.
+- `parse-full-command-line` (x1): command parsers that dispatch only on the
+  first token silently accept malformed valid verbs (`help garbage`) - test
+  valid verbs with unexpected tails, not only unknown verbs. 20260726-115324.
 - `changed-shared-observer-run-the-module-suites` (x4, PROMOTED 2026-07-19 ->
   work skill): a change to a shared observer/system runs the whole affected
   module suite - existing tests catch the silently broken consumers.

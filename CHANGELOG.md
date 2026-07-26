@@ -28,6 +28,7 @@ tagged **(breaking)**.
 
 - Comms panel becomes a bottom-left stacked chat surface with optional authored speaker icons, timeout/dismiss controls and skip-to-next backlog control.
 - Tab ship-computer drawer: one inset NOVA OS monitor opens on Tab (or the gamepad right-stick click), pauses the game and frees the cursor, with a green phosphor screen, flight log and objectives inside the same cockpit surface.
+- NOVA OS terminal prompt: Tab completes commands once the monitor is open, Esc closes it, and the first shell commands include `help` and `clear` with history, cursor editing and typo suggestions.
 - Diegetic objective reveal: a newly posted objective appears slightly rotated on the cockpit HUD, holds, then tucks up-and-right into the objective hint - replacing the small gold posting flash (completions still ghost green).
 - Flight objective surface: the always-on compact objectives panel is replaced by a minimalist top-right objective hint (glyph + count + a Tab affordance); the full list lives in the drawer.
 - NOVA OS monitor lists now scroll inside the screen, so long Flight Log and Objectives runs stay bounded.
