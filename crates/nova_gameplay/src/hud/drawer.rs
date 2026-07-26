@@ -81,11 +81,11 @@ const NOVA_OS_CASE: Color = Color::srgb_u8(5, 10, 15);
 const NOVA_OS_CASE_RAISED: Color = Color::srgb_u8(11, 21, 32);
 const NOVA_OS_CASE_EDGE: Color = Color::srgb_u8(37, 65, 86);
 const NOVA_OS_SCREEN: Color = Color::srgb_u8(0, 4, 1);
-const NOVA_OS_PHOSPHOR: Color = Color::srgb_u8(54, 255, 121);
-const NOVA_OS_TEXT: Color = Color::srgb_u8(54, 255, 121);
-const NOVA_OS_PHOSPHOR_DIM: Color = Color::srgb_u8(72, 224, 119);
-const NOVA_OS_PHOSPHOR_MUTED: Color = Color::srgb_u8(43, 174, 92);
-const NOVA_OS_INFO: Color = Color::srgb_u8(54, 163, 255);
+const NOVA_OS_PHOSPHOR: Color = Color::srgb_u8(112, 255, 153);
+const NOVA_OS_TEXT: Color = Color::srgb_u8(112, 255, 153);
+const NOVA_OS_PHOSPHOR_DIM: Color = Color::srgb_u8(95, 238, 137);
+const NOVA_OS_PHOSPHOR_MUTED: Color = Color::srgb_u8(70, 207, 118);
+const NOVA_OS_INFO: Color = Color::srgb_u8(92, 190, 255);
 const NOVA_OS_AMBER: Color = Color::srgb_u8(255, 184, 74);
 const NOVA_OS_ORANGE: Color = Color::srgb_u8(255, 123, 45);
 const NOVA_OS_CONTENT_Z: i32 = 0;
@@ -96,7 +96,7 @@ const NOVA_OS_PROMPT_PREFIX: &str = "nova> ";
 const NOVA_OS_CRT_TINT: LinearRgba = LinearRgba::new(0.212, 1.0, 0.475, 0.06);
 const NOVA_OS_CRT_SCANLINE_STRENGTH: f32 = 0.07;
 const NOVA_OS_CRT_VIGNETTE_STRENGTH: f32 = 1.28;
-const NOVA_OS_CRT_GRAIN_STRENGTH: f32 = 0.018;
+const NOVA_OS_CRT_GRAIN_STRENGTH: f32 = 0.014;
 
 /// Global stacking-context z for the OPEN drawer: it is a modal, so backdrop and
 /// panel rise above the flight HUD chrome (which carries no `GlobalZIndex` = 0).
@@ -1108,7 +1108,7 @@ fn prompt_completion_ghost(terminal: &NovaOsTerminal) -> String {
         .map(|command| command.name)
         .find(|name| name.starts_with(prefix))
         .and_then(|name| name.get(prefix.len()..))
-        .map(|suffix| format!("{}{suffix}", " ".repeat(terminal.cursor)))
+        .map(|suffix| format!(" {suffix}"))
         .unwrap_or_default()
 }
 
@@ -1138,7 +1138,7 @@ fn nova_os_text_font(font_size: f32, font: Handle<Font>) -> TextFont {
 fn nova_os_text_bloom(color: Color) -> TextShadow {
     TextShadow {
         offset: Vec2::ZERO,
-        color: color.with_alpha(0.20),
+        color: color.with_alpha(0.30),
     }
 }
 
@@ -2003,14 +2003,10 @@ fn spawn_nova_os_terminal_content(
                                                     NOVA_OS_PHOSPHOR.with_alpha(0.28),
                                                 ),
                                                 Node {
-                                                    position_type: PositionType::Absolute,
-                                                    left: Val::Px(0.0),
-                                                    top: Val::Px(0.0),
                                                     min_width: Val::Px(1.0),
                                                     flex_shrink: 0.0,
                                                     ..default()
                                                 },
-                                                ZIndex(0),
                                             ));
                                         });
                                 });
@@ -2245,7 +2241,7 @@ mod tests {
             .query_filtered::<&Text, With<NovaOsTerminalGhostMarker>>()
             .single(app.world())
             .expect("one visible ghost text entity");
-        assert_eq!(ghost.0, "  lp");
+        assert_eq!(ghost.0, " lp");
     }
 
     #[test]
@@ -2321,7 +2317,7 @@ mod tests {
 
         assert_eq!(terminal.parse_status, TerminalParseStatus::ValidPrefix);
         assert_eq!(prompt_display(&terminal), "he|");
-        assert_eq!(prompt_completion_ghost(&terminal), "  lp");
+        assert_eq!(prompt_completion_ghost(&terminal), " lp");
         assert_eq!(prompt_hint_display(&terminal), "");
 
         type_text(&mut terminal, "zz");
@@ -2404,7 +2400,7 @@ mod tests {
             "typed input must not collapse inside the prompt row"
         );
         assert!(
-            prompt_bloom.offset == Vec2::ZERO && prompt_bloom.color.alpha() <= 0.21,
+            prompt_bloom.offset == Vec2::ZERO && prompt_bloom.color.alpha() <= 0.31,
             "terminal prompt bloom must stay faint and non-directional"
         );
 
@@ -2420,11 +2416,11 @@ mod tests {
         );
         assert_eq!(
             ghost_node.position_type,
-            PositionType::Absolute,
-            "autocomplete ghost is positioned behind the input lane, not as competing flex text"
+            PositionType::Relative,
+            "autocomplete ghost stays inline after the visible prompt text"
         );
         assert!(
-            ghost_bloom.offset == Vec2::ZERO && ghost_bloom.color.alpha() <= 0.21,
+            ghost_bloom.offset == Vec2::ZERO && ghost_bloom.color.alpha() <= 0.31,
             "autocomplete ghost bloom must stay faint and non-directional"
         );
 
@@ -2436,7 +2432,7 @@ mod tests {
         assert_eq!(prefix.0, "nova>");
         assert_eq!(prefix_color.0, NOVA_OS_AMBER);
         assert!(
-            prefix_bloom.offset == Vec2::ZERO && prefix_bloom.color.alpha() <= 0.21,
+            prefix_bloom.offset == Vec2::ZERO && prefix_bloom.color.alpha() <= 0.31,
             "prompt prefix bloom must stay faint and non-directional"
         );
 

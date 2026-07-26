@@ -53,6 +53,14 @@
 - Made CRT grain squares smaller and denser while reducing grain strength so the texture reads more like the HTML sample without lowering text contrast.
 - Started the rounded-screen darkness closer to the center and added a second soft glass falloff term, while preserving the near-black edges from the previous pass.
 
+## Feedback Round 6
+
+- Brightened the terminal palette again: primary text and the screen border now use a hotter neon phosphor green, with dim and muted greens raised accordingly.
+- Strengthened the text bloom while keeping it zero-offset, so text reads as sharper neon instead of a directional shadow.
+- Reworked autocomplete back into the normal input flow. The ghost now renders inline after the typed prompt with a small leading space, avoiding the prior absolute overlay that could wrap below the input box.
+- Made CRT grain cells much smaller and denser again, then reduced grain strength so the extra texture does not bury text.
+- Added multiple circular darkening terms to the CRT shader: an early smooth falloff, a mid ring, an outer ring, and rounded-glass falloff. This gives the screen a more layered CRT gradient instead of one sudden dark band.
+
 ## Tradeoffs
 
 - The Iosevka Term TTC is large, about 66 MB. It is used directly because the requested font was only available locally as a TTC collection; a future asset pass can subset or replace it with a smaller TTF/WOFF if needed.
@@ -97,6 +105,14 @@
 - `tatr check --ledger LESSONS.md`
 
 ## Feedback Round 5 Verification
+
+- `nix develop --command cargo fmt --check`
+- `nix develop --command cargo test -p nova_gameplay drawer`
+- `git diff --check`
+- `nix develop --command cargo check`
+- `tatr check --ledger LESSONS.md`
+
+## Feedback Round 6 Verification
 
 - `nix develop --command cargo fmt --check`
 - `nix develop --command cargo test -p nova_gameplay drawer`

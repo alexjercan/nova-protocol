@@ -26,11 +26,13 @@ fn fragment(in: UiVertexOutput) -> @location(0) vec4<f32> {
     let dist = length(centered);
 
     let scan = select(1.0, 1.0 - material.scanline_strength, fract(uv.y * 240.0) < 0.5);
-    let corner_falloff = smoothstep(0.10, 0.70, dist);
-    let rounded_glass = smoothstep(0.24, 0.62, dist) * 0.22;
-    let vignette = (pow(corner_falloff, 1.08) + rounded_glass) * material.vignette_strength;
+    let corner_falloff = smoothstep(0.06, 0.74, dist);
+    let mid_ring = smoothstep(0.20, 0.46, dist) * 0.16;
+    let outer_ring = smoothstep(0.42, 0.70, dist) * 0.22;
+    let rounded_glass = smoothstep(0.12, 0.68, dist) * 0.18;
+    let vignette = (pow(corner_falloff, 1.18) + mid_ring + outer_ring + rounded_glass) * material.vignette_strength;
     let glow = (1.0 - smoothstep(0.0, 0.68, dist)) * material.glow_strength;
-    let grain_cell = floor(uv * vec2<f32>(220.0, 124.0));
+    let grain_cell = floor(uv * vec2<f32>(360.0, 204.0));
     let grain_hash = fract(sin(dot(grain_cell, vec2<f32>(12.9898, 78.233))) * 43758.5453);
     let grain = (grain_hash - 0.5) * material.grain_strength;
     let spark = step(0.985, grain_hash) * material.grain_strength * 0.95;

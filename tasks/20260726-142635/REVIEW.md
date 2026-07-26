@@ -72,3 +72,17 @@ Checked:
 - Autocomplete ghost text is offset with monospace spacing and absolutely positioned behind the input lane, preventing overlap with typed input.
 - Grain cells are smaller and denser, with lower strength.
 - The CRT vignette starts closer to the center and adds a rounded glass falloff while keeping near-black edges.
+
+## Round 6
+
+- VERDICT: APPROVE
+
+Findings: none.
+
+Checked:
+
+- Terminal text constants are brighter and closer to a neon phosphor edge color.
+- Text bloom is stronger but remains zero-offset.
+- Autocomplete ghost text is inline after the typed command again, with a small leading gap and no absolute overlay.
+- CRT grain cells are denser and smaller with lower strength.
+- The shader now has multiple circular falloff terms for layered CRT shading.
