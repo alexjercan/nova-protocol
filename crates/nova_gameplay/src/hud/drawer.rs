@@ -412,6 +412,9 @@ struct NovaOsCrtUniform {
     vignette_strength: f32,
     glow_strength: f32,
     grain_strength: f32,
+    /// Real-time seconds, updated each frame by [`animate_nova_os_crt`] so the
+    /// grain shimmers gently.
+    time: f32,
 }
 
 #[derive(Default, TypePath)]
@@ -447,6 +450,7 @@ impl Default for NovaOsCrtMaterial {
                 vignette_strength: NOVA_OS_CRT_VIGNETTE_STRENGTH,
                 glow_strength: NOVA_OS_CRT_GLOW_STRENGTH,
                 grain_strength: NOVA_OS_CRT_GRAIN_STRENGTH,
+                time: 0.0,
             },
         }
     }
@@ -1150,10 +1154,14 @@ impl Plugin for NovaDrawerPlugin {
                 .chain()
                 .in_set(NovaHudSystems),
         );
-        // Blink the caret on real time (virtual time is paused while open).
+        // Blink the caret and shimmer the CRT grain on real time (virtual time is
+        // paused while the computer is open).
         app.add_systems(
             Update,
-            blink_nova_os_caret
+            (
+                blink_nova_os_caret,
+                animate_nova_os_crt.run_if(resource_exists::<Assets<NovaOsCrtMaterial>>),
+            )
                 .run_if(in_state(PauseStates::Drawer))
                 .in_set(NovaHudSystems),
         );
@@ -1406,10 +1414,10 @@ fn rebuild_terminal_ui(
         With<NovaOsTerminalScrollbackMarker>,
     >,
     mut text_targets: ParamSet<(
-        Query<(&mut Text, &mut TextColor, &mut TextShadow), With<NovaOsTerminalPromptMarker>>,
-        Query<(&mut Text, &mut TextColor, &mut TextShadow), With<NovaOsTerminalPromptAfterMarker>>,
-        Query<(&mut Text, &mut TextColor, &mut TextShadow), With<NovaOsTerminalHintMarker>>,
-        Query<(&mut Text, &mut TextColor, &mut TextShadow), With<NovaOsTerminalGhostMarker>>,
+        Query<(&mut Text, &mut TextColor), With<NovaOsTerminalPromptMarker>>,
+        Query<(&mut Text, &mut TextColor), With<NovaOsTerminalPromptAfterMarker>>,
+        Query<(&mut Text, &mut TextColor), With<NovaOsTerminalHintMarker>>,
+        Query<(&mut Text, &mut TextColor), With<NovaOsTerminalGhostMarker>>,
     )>,
 ) {
     let font = nova_os_font(asset_server.as_deref());
@@ -1428,17 +1436,15 @@ fn rebuild_terminal_ui(
     }
 
     let prompt_color = prompt_color(&terminal);
-    for (mut text, mut color, mut bloom) in &mut text_targets.p0() {
+    for (mut text, mut color) in &mut text_targets.p0() {
         text.0 = prompt_before_cursor(&terminal);
         color.0 = prompt_color;
-        *bloom = nova_os_text_bloom(prompt_color);
     }
-    for (mut text, mut color, mut bloom) in &mut text_targets.p1() {
+    for (mut text, mut color) in &mut text_targets.p1() {
         text.0 = prompt_after_cursor(&terminal);
         color.0 = prompt_color;
-        *bloom = nova_os_text_bloom(prompt_color);
     }
-    for (mut text, mut color, mut bloom) in &mut text_targets.p2() {
+    for (mut text, mut color) in &mut text_targets.p2() {
         text.0 = prompt_hint_display(&terminal);
         let hint_color = match terminal.parse_status {
             TerminalParseStatus::Invalid => theme::semantic::THREAT,
@@ -1446,13 +1452,10 @@ fn rebuild_terminal_ui(
             TerminalParseStatus::Empty | TerminalParseStatus::Valid => NOVA_OS_PHOSPHOR_DIM,
         };
         color.0 = hint_color;
-        *bloom = nova_os_text_bloom(hint_color);
     }
-    for (mut text, mut color, mut bloom) in &mut text_targets.p3() {
+    for (mut text, mut color) in &mut text_targets.p3() {
         text.0 = prompt_completion_ghost(&terminal);
-        let ghost_color = NOVA_OS_TEXT.with_alpha(0.34);
-        color.0 = ghost_color;
-        *bloom = nova_os_text_bloom(ghost_color);
+        color.0 = NOVA_OS_TEXT.with_alpha(0.34);
     }
 }
 
@@ -1470,6 +1473,16 @@ fn blink_nova_os_caret(
     }
 }
 
+/// Feed real-time seconds into the CRT material each frame so its grain shimmers
+/// (the shader reseeds the fine grain layer from this). Real time because the
+/// sim clock is frozen while the computer is open.
+fn animate_nova_os_crt(time: Res<Time<Real>>, mut materials: ResMut<Assets<NovaOsCrtMaterial>>) {
+    let seconds = time.elapsed_secs();
+    for (_, material) in materials.iter_mut() {
+        material.data.time = seconds;
+    }
+}
+
 fn spawn_terminal_row(parent: &mut ChildSpawnerCommands, row: &TerminalRow, font: Handle<Font>) {
     let color = match row.kind {
         TerminalRowKind::Input => NOVA_OS_AMBER,
@@ -1483,7 +1496,6 @@ fn spawn_terminal_row(parent: &mut ChildSpawnerCommands, row: &TerminalRow, font
         Text::new(row.text.clone()),
         nova_os_text_font(DRAWER_LINE_FONT_PX, font),
         TextColor(color),
-        nova_os_text_bloom(color),
         TextLayout {
             justify: Justify::Left,
             linebreak: LineBreak::WordBoundary,
@@ -1561,19 +1573,11 @@ fn nova_os_prompt_text_layout() -> TextLayout {
     }
 }
 
-/// Horizontal offset of the phosphor bleed shadow, in logical px.
-const NOVA_OS_TEXT_BLEED_PX: f32 = 1.4;
-
-/// A phosphor glow behind each glyph, offset a hair sideways so it reads as a
-/// horizontal CRT phosphor bleed/halo rather than flat paint (a zero-offset
-/// shadow is invisible - it sits exactly behind the glyph). This is what gives
-/// the text its glow.
-fn nova_os_text_bloom(color: Color) -> TextShadow {
-    TextShadow {
-        offset: Vec2::new(NOVA_OS_TEXT_BLEED_PX, 0.0),
-        color: color.with_alpha(0.7),
-    }
-}
+// The terminal text is drawn crisp, with no per-glyph shadow: Bevy's `TextShadow`
+// has no blur, so a faked glow reads as a doubled/offset shadow rather than the
+// HTML's soft `text-shadow: 0 0 7px` halo. The screen's phosphor feel comes from
+// the CRT overlay (centre glow + grain) instead. A true blurred glow would need a
+// render-to-texture bloom pass over the terminal content, out of scope here.
 
 fn scroll_drawer_panels(
     mut wheel: MessageReader<bevy::input::mouse::MouseWheel>,
@@ -2305,7 +2309,6 @@ fn spawn_nova_os_terminal_content(
                                 )),
                                 nova_os_text_font(DRAWER_SECTION_TITLE_FONT_PX, font.clone()),
                                 TextColor(NOVA_OS_PHOSPHOR),
-                                nova_os_text_bloom(NOVA_OS_PHOSPHOR),
                             ));
                         });
                     topbar.spawn((
@@ -2313,7 +2316,6 @@ fn spawn_nova_os_terminal_content(
                         Text::new(nova_os_status_text(ship_name)),
                         nova_os_text_font(DRAWER_SECTION_TITLE_FONT_PX, font.clone()),
                         TextColor(NOVA_OS_PHOSPHOR_DIM),
-                        nova_os_text_bloom(NOVA_OS_PHOSPHOR_DIM),
                     ));
                 });
 
@@ -2396,7 +2398,6 @@ fn spawn_nova_os_terminal_content(
                                         Text::new("nova>"),
                                         nova_os_text_font(DRAWER_LINE_FONT_PX, font.clone()),
                                         TextColor(NOVA_OS_AMBER),
-                                        nova_os_text_bloom(NOVA_OS_AMBER),
                                         Node {
                                             flex_shrink: 0.0,
                                             ..default()
@@ -2428,7 +2429,6 @@ fn spawn_nova_os_terminal_content(
                                                     font.clone(),
                                                 ),
                                                 TextColor(NOVA_OS_PHOSPHOR),
-                                                nova_os_text_bloom(NOVA_OS_PHOSPHOR),
                                                 nova_os_prompt_text_layout(),
                                                 Node {
                                                     flex_shrink: 0.0,
@@ -2455,7 +2455,6 @@ fn spawn_nova_os_terminal_content(
                                                     font.clone(),
                                                 ),
                                                 TextColor(NOVA_OS_PHOSPHOR),
-                                                nova_os_text_bloom(NOVA_OS_PHOSPHOR),
                                                 nova_os_prompt_text_layout(),
                                                 Node {
                                                     flex_shrink: 0.0,
@@ -2471,7 +2470,6 @@ fn spawn_nova_os_terminal_content(
                                                     font.clone(),
                                                 ),
                                                 TextColor(NOVA_OS_TEXT.with_alpha(0.34)),
-                                                nova_os_text_bloom(NOVA_OS_TEXT.with_alpha(0.34)),
                                                 nova_os_prompt_text_layout(),
                                                 Node {
                                                     flex_shrink: 0.0,
@@ -2485,7 +2483,6 @@ fn spawn_nova_os_terminal_content(
                                 Text::new(""),
                                 nova_os_text_font(12.0, font.clone()),
                                 TextColor(NOVA_OS_PHOSPHOR_MUTED),
-                                nova_os_text_bloom(NOVA_OS_PHOSPHOR_MUTED),
                                 Node {
                                     width: Val::Percent(100.0),
                                     min_height: Val::Px(16.0),
@@ -2518,7 +2515,6 @@ fn spawn_nova_os_terminal_content(
                             Text::new(hint),
                             nova_os_text_font(11.0, font.clone()),
                             TextColor(NOVA_OS_PHOSPHOR_MUTED),
-                            nova_os_text_bloom(NOVA_OS_PHOSPHOR_MUTED),
                         ));
                     }
                 });
@@ -3196,12 +3192,9 @@ mod tests {
             .run_system_once(rebuild_terminal_ui)
             .expect("terminal UI rebuild runs");
 
-        let (prompt, prompt_color, prompt_node, prompt_bloom) = app
+        let (prompt, prompt_color, prompt_node) = app
             .world_mut()
-            .query_filtered::<
-                (&Text, &TextColor, &Node, &TextShadow),
-                With<NovaOsTerminalPromptMarker>,
-            >()
+            .query_filtered::<(&Text, &TextColor, &Node), With<NovaOsTerminalPromptMarker>>()
             .single(app.world())
             .expect("one terminal prompt");
         assert_eq!(prompt.0, "hlep");
@@ -3210,15 +3203,19 @@ mod tests {
             prompt_node.flex_shrink, 0.0,
             "typed input must not collapse inside the prompt row"
         );
+        // The terminal text carries no per-glyph shadow (crisp phosphor).
         assert!(
-            prompt_bloom.offset == Vec2::new(NOVA_OS_TEXT_BLEED_PX, 0.0)
-                && prompt_bloom.color.alpha() <= 0.71,
-            "terminal prompt bloom is a small horizontal phosphor bleed"
+            app.world_mut()
+                .query_filtered::<&TextShadow, With<NovaOsTerminalPromptMarker>>()
+                .iter(app.world())
+                .next()
+                .is_none(),
+            "terminal prompt text has no shadow/bloom glyph"
         );
 
-        let (ghost, ghost_node, ghost_bloom) = app
+        let (ghost, ghost_node) = app
             .world_mut()
-            .query_filtered::<(&Text, &Node, &TextShadow), With<NovaOsTerminalGhostMarker>>()
+            .query_filtered::<(&Text, &Node), With<NovaOsTerminalGhostMarker>>()
             .single(app.world())
             .expect("one terminal autocomplete ghost");
         assert_eq!(ghost.0, "");
@@ -3231,24 +3228,14 @@ mod tests {
             PositionType::Relative,
             "autocomplete ghost stays inline after the visible prompt text"
         );
-        assert!(
-            ghost_bloom.offset == Vec2::new(NOVA_OS_TEXT_BLEED_PX, 0.0)
-                && ghost_bloom.color.alpha() <= 0.71,
-            "autocomplete ghost bloom is a small horizontal phosphor bleed"
-        );
 
-        let (prefix, prefix_color, prefix_bloom) = app
+        let (prefix, prefix_color) = app
             .world_mut()
-            .query_filtered::<(&Text, &TextColor, &TextShadow), With<NovaOsPromptPrefixMarker>>()
+            .query_filtered::<(&Text, &TextColor), With<NovaOsPromptPrefixMarker>>()
             .single(app.world())
             .expect("one terminal prompt prefix");
         assert_eq!(prefix.0, "nova>");
         assert_eq!(prefix_color.0, NOVA_OS_AMBER);
-        assert!(
-            prefix_bloom.offset == Vec2::new(NOVA_OS_TEXT_BLEED_PX, 0.0)
-                && prefix_bloom.color.alpha() <= 0.71,
-            "prompt prefix bloom is a small horizontal phosphor bleed"
-        );
 
         let (hint, hint_color, hint_node) = app
             .world_mut()

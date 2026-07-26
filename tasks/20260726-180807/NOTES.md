@@ -147,6 +147,22 @@ User feedback after the first land, addressed directly on master in the same tas
   plus sparse brighter spark cells, so it reads as lit CRT phosphor dots rather
   than a flat film. Verified on a fresh capture.
 
+## Feedback round 3 (post-land, on master)
+
+- Text glow removed: the horizontal phosphor-bleed shadow read as doubled text,
+  not a glow. Bevy's `TextShadow` has no blur, and the overlay shader cannot
+  sample the text behind it, so a true HTML `text-shadow: 0 0 7px` halo is not
+  achievable without a render-to-texture bloom pass over the terminal content
+  (out of scope). Per the user's "I'd rather not add it than have the shadow",
+  the per-glyph shadow was removed entirely - `nova_os_text_bloom` and all its
+  call sites / `TextShadow` wiring are gone, so the text is crisp. The phosphor
+  feel now comes only from the CRT overlay (centre glow + grain).
+- Animated grain: the CRT is already a shader; added a `time` uniform fed each
+  frame by `animate_nova_os_crt` (real time, gated on `PauseStates::Drawer`), and
+  the shader reseeds the fine grain layer ~9x/sec (`floor(time*9)`) so it shimmers
+  gently. The coarse layer stays static so the texture keeps a stable structure
+  under the shimmer - mild, non-distracting movement.
+
 ## Self-reflection
 
 The durable lesson from `142635`'s RETRO held: build the capture harness FIRST,

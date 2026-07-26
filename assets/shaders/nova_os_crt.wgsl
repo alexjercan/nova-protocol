@@ -14,6 +14,8 @@ struct NovaOsCrtMaterial {
     glow_strength: f32,
     // Sparse square phosphor grain.
     grain_strength: f32,
+    // Real-time seconds, fed each frame so the grain shimmers gently.
+    time: f32,
 }
 
 @group(1) @binding(0)
@@ -54,7 +56,11 @@ fn fragment(in: UiVertexOutput) -> @location(0) vec4<f32> {
     // not read as a regular checker) plus an occasional brighter spark cell, so
     // the screen looks like lit phosphor dots rather than a flat film. Both the
     // alpha AND the green shade vary per cell, giving the "green shades" texture.
-    let fine = hash21(floor(uv * vec2<f32>(900.0, 520.0)));
+    // The fine layer is reseeded a few times a second by `time` so it shimmers
+    // gently (a mild, non-distracting movement); the coarse layer stays put so
+    // the texture keeps a stable structure underneath the shimmer.
+    let step_t = floor(material.time * 9.0);
+    let fine = hash21(floor(uv * vec2<f32>(900.0, 520.0)) + vec2<f32>(step_t, step_t * 1.7));
     let coarse = hash21(floor(uv * vec2<f32>(300.0, 174.0)));
     let noise = (fine * 0.7 + coarse * 0.3) - 0.5;
     let grain = noise * material.grain_strength;
