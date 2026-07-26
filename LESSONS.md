@@ -124,6 +124,10 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `log-ui-shape-before-plan` (x1): for log-style UI, decide whether the reader
   wants one chronological stream, grouped categories, or separate panes before
   mapping existing data sources into sections. 20260724-102309.
+- `live-command-tests-over-snapshot-tests` (x1): command output that promises
+  current ECS state needs at least one App-driven submit test that mutates the
+  source resource/component and proves the next command reflects it; formatting
+  a prebuilt snapshot only proves the renderer. 20260726-115330.
 - `review-current-base-before-ooc` (x1): before spawning out-of-context review,
   compare the branch against CURRENT local default and merge it if the diff
   includes inherited base noise - stale comparisons waste review on unrelated

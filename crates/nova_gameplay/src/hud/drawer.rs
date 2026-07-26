@@ -3,9 +3,9 @@
 //! replaces the old left/right panels with a physical terminal screen: dark
 //! casing, hard bezel, green phosphor display, accent slots and CRT overlays.
 //! This module owns the shell, command prompt, scrollback, input handling and
-//! terminal content. The existing objectives and combined flight-log data stay
-//! alive as backing state for later terminal commands, but they are no longer
-//! visible as permanent monitor panes.
+//! terminal content. The existing objectives and combined flight-log data feed
+//! read-only terminal commands, but they are no longer visible as permanent
+//! monitor panes.
 //!
 //! # Interaction model
 //!
@@ -368,6 +368,13 @@ struct TerminalCommand {
     summary: &'static str,
 }
 
+#[derive(Debug, Clone, Default)]
+struct TerminalCommandSnapshot {
+    log_rows: Vec<TerminalRow>,
+    objective_rows: Vec<TerminalRow>,
+    ship_rows: Vec<TerminalRow>,
+}
+
 #[derive(Asset, AsBindGroup, TypePath, Clone, Debug)]
 struct NovaOsCrtMaterial {
     #[uniform(0)]
@@ -435,6 +442,18 @@ const TERMINAL_COMMANDS: &[TerminalCommand] = &[
     TerminalCommand {
         name: "clear",
         summary: "Clear terminal scrollback",
+    },
+    TerminalCommand {
+        name: "log",
+        summary: "Print flight log and objective events",
+    },
+    TerminalCommand {
+        name: "objectives",
+        summary: "Print active mission objectives",
+    },
+    TerminalCommand {
+        name: "ship",
+        summary: "Print read-only player ship status",
     },
 ];
 
@@ -511,7 +530,7 @@ impl NovaOsTerminal {
             .unwrap_or(self.prompt.len());
     }
 
-    fn submit(&mut self) {
+    fn submit(&mut self, snapshot: &TerminalCommandSnapshot) {
         let command_line = self.prompt.trim().to_string();
         if command_line.is_empty() {
             self.reset_prompt();
@@ -531,6 +550,15 @@ impl NovaOsTerminal {
             }
             TerminalCommandResult::Clear => {
                 self.reset_scrollback_to_welcome();
+            }
+            TerminalCommandResult::Log => {
+                self.scrollback.extend(snapshot.log_rows.clone());
+            }
+            TerminalCommandResult::Objectives => {
+                self.scrollback.extend(snapshot.objective_rows.clone());
+            }
+            TerminalCommandResult::Ship => {
+                self.scrollback.extend(snapshot.ship_rows.clone());
             }
             TerminalCommandResult::UnexpectedArguments { command } => {
                 self.scrollback.push(TerminalRow {
@@ -652,6 +680,16 @@ impl NovaOsTerminal {
         self.scrollback = nova_os_welcome_rows();
     }
 
+    fn reset_session(&mut self) {
+        self.prompt.clear();
+        self.cursor = 0;
+        self.scrollback = nova_os_welcome_rows();
+        self.history.clear();
+        self.history_cursor = None;
+        self.active_mode = TerminalMode::Prompt;
+        self.refresh_parse();
+    }
+
     fn replace_current_command(&mut self, replacement: &str) {
         let old_len = current_command_prefix(&self.prompt)
             .map(str::len)
@@ -727,6 +765,9 @@ fn terminal_help_rows() -> Vec<TerminalRow> {
 enum TerminalCommandResult {
     Help,
     Clear,
+    Log,
+    Objectives,
+    Ship,
     UnexpectedArguments {
         command: String,
     },
@@ -747,23 +788,200 @@ impl DrawerFlightLog {
 
 fn parse_command(command_line: &str) -> TerminalCommandResult {
     let command = current_command_prefix(command_line).unwrap_or("");
+    let mut parts = command_line.split_whitespace();
+    if matches!(
+        (parts.next(), parts.next(), parts.next()),
+        (Some("ship"), Some("viewer"), None)
+    ) {
+        return TerminalCommandResult::Unknown {
+            command: "ship viewer".to_string(),
+            suggestion: None,
+        };
+    }
+    if TERMINAL_COMMANDS.iter().any(|known| known.name == command)
+        && command_has_arguments(command_line)
+    {
+        return TerminalCommandResult::UnexpectedArguments {
+            command: command.to_string(),
+        };
+    }
     match command {
-        "help" if command_has_arguments(command_line) => {
-            TerminalCommandResult::UnexpectedArguments {
-                command: command.to_string(),
-            }
-        }
         "help" => TerminalCommandResult::Help,
-        "clear" if command_has_arguments(command_line) => {
-            TerminalCommandResult::UnexpectedArguments {
-                command: command.to_string(),
-            }
-        }
         "clear" => TerminalCommandResult::Clear,
+        "log" => TerminalCommandResult::Log,
+        "objectives" => TerminalCommandResult::Objectives,
+        "ship" => TerminalCommandResult::Ship,
         unknown => TerminalCommandResult::Unknown {
             command: unknown.to_string(),
             suggestion: nearest_command(unknown),
         },
+    }
+}
+
+fn terminal_snapshot_from_world(
+    log: &DrawerFlightLog,
+    objectives: &GameObjectives,
+    ship_name: Option<&str>,
+    ship_sections: &[ShipSectionStatus],
+) -> TerminalCommandSnapshot {
+    TerminalCommandSnapshot {
+        log_rows: terminal_log_rows(log),
+        objective_rows: terminal_objective_rows(objectives),
+        ship_rows: terminal_ship_rows(ship_name, ship_sections),
+    }
+}
+
+fn terminal_log_rows(log: &DrawerFlightLog) -> Vec<TerminalRow> {
+    if log.entries.is_empty() {
+        return vec![TerminalRow {
+            kind: TerminalRowKind::Dim,
+            text: "Flight log is empty.".to_string(),
+        }];
+    }
+    std::iter::once(TerminalRow {
+        kind: TerminalRowKind::Info,
+        text: "Flight log:".to_string(),
+    })
+    .chain(log.entries.iter().map(|entry| TerminalRow {
+        kind: match entry.kind {
+            DrawerFlightLogEntryKind::Comms => TerminalRowKind::Output,
+            DrawerFlightLogEntryKind::ObjectivePosted => TerminalRowKind::Warn,
+            DrawerFlightLogEntryKind::ObjectiveCompleted => TerminalRowKind::Info,
+        },
+        text: drawer_flight_log_text(entry),
+    }))
+    .collect()
+}
+
+fn terminal_objective_rows(objectives: &GameObjectives) -> Vec<TerminalRow> {
+    if objectives.objectives.is_empty() {
+        return vec![TerminalRow {
+            kind: TerminalRowKind::Dim,
+            text: "No active objectives.".to_string(),
+        }];
+    }
+    std::iter::once(TerminalRow {
+        kind: TerminalRowKind::Info,
+        text: "Active objectives:".to_string(),
+    })
+    .chain(
+        objectives
+            .objectives
+            .iter()
+            .enumerate()
+            .map(|(index, objective)| TerminalRow {
+                kind: TerminalRowKind::Warn,
+                text: format!("{}. {} ({})", index + 1, objective.message, objective.id),
+            }),
+    )
+    .collect()
+}
+
+#[derive(Debug, Clone)]
+struct ShipSectionStatus {
+    name: String,
+    kind: SectionDamageClass,
+    health: Option<Health>,
+    inactive: bool,
+    zero_health: bool,
+    ammo: Option<SectionAmmo>,
+}
+
+fn terminal_ship_rows(ship_name: Option<&str>, sections: &[ShipSectionStatus]) -> Vec<TerminalRow> {
+    if sections.is_empty() {
+        return vec![
+            TerminalRow {
+                kind: TerminalRowKind::Info,
+                text: format!("Ship: {}", terminal_ship_name(ship_name)),
+            },
+            TerminalRow {
+                kind: TerminalRowKind::Dim,
+                text: "No live player ship sections detected.".to_string(),
+            },
+        ];
+    }
+
+    let mut rows = vec![
+        TerminalRow {
+            kind: TerminalRowKind::Info,
+            text: format!("Ship: {}", terminal_ship_name(ship_name)),
+        },
+        TerminalRow {
+            kind: TerminalRowKind::Dim,
+            text: format!("Sections: {}", sections.len()),
+        },
+    ];
+    for section in sections {
+        let status = section_status_label(section);
+        rows.push(TerminalRow {
+            kind: section_status_row_kind(section),
+            text: format!(
+                "{} {} - {}{}",
+                section_kind_label(section.kind),
+                section.name,
+                section_health_text(section.health.as_ref()),
+                section_ammo_suffix(section.ammo.as_ref())
+            ),
+        });
+        if status != "nominal" {
+            rows.push(TerminalRow {
+                kind: section_status_row_kind(section),
+                text: format!("  status: {status}"),
+            });
+        }
+    }
+    rows
+}
+
+fn terminal_ship_name(name: Option<&str>) -> String {
+    name.map(str::to_uppercase)
+        .unwrap_or_else(|| "UNKNOWN".to_string())
+}
+
+fn section_kind_label(kind: SectionDamageClass) -> &'static str {
+    match kind {
+        SectionDamageClass::Hull => "HULL",
+        SectionDamageClass::Thruster => "THRUSTER",
+        SectionDamageClass::Controller => "CONTROLLER",
+        SectionDamageClass::Turret => "TURRET",
+        SectionDamageClass::Torpedo => "TORPEDO",
+    }
+}
+
+fn section_health_text(health: Option<&Health>) -> String {
+    match health {
+        Some(health) if health.max > 0.0 => {
+            format!("{:.0}/{:.0} HP", health.current.max(0.0), health.max)
+        }
+        Some(health) => format!("{:.0} HP", health.current.max(0.0)),
+        None => "HP unknown".to_string(),
+    }
+}
+
+fn section_ammo_suffix(ammo: Option<&SectionAmmo>) -> String {
+    ammo.map(|ammo| format!("; ammo {}/{}", ammo.rounds, ammo.capacity))
+        .unwrap_or_default()
+}
+
+fn section_status_label(section: &ShipSectionStatus) -> &'static str {
+    if section.inactive || section.zero_health {
+        return "neutralized";
+    }
+    let Some(health) = section.health.as_ref() else {
+        return "nominal";
+    };
+    if health.max > 0.0 && health.current / health.max <= 0.25 {
+        "critical"
+    } else {
+        "nominal"
+    }
+}
+
+fn section_status_row_kind(section: &ShipSectionStatus) -> TerminalRowKind {
+    match section_status_label(section) {
+        "neutralized" => TerminalRowKind::Error,
+        "critical" => TerminalRowKind::Warn,
+        _ => TerminalRowKind::Output,
     }
 }
 
@@ -959,6 +1177,29 @@ fn close_drawer_from_menu_keys(
 fn handle_terminal_keyboard(
     mut keyboard: MessageReader<KeyboardInput>,
     pause: Res<State<PauseStates>>,
+    log: Res<DrawerFlightLog>,
+    objectives: Res<GameObjectives>,
+    q_player: Query<
+        (Entity, Option<&Name>),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
+    q_sections: Query<
+        (
+            &ChildOf,
+            Option<&Name>,
+            Option<&Health>,
+            Option<&SectionDamageClass>,
+            Has<SectionInactiveMarker>,
+            Has<HealthZeroMarker>,
+            Has<HullSectionMarker>,
+            Has<ControllerSectionMarker>,
+            Has<ThrusterSectionMarker>,
+            Has<TurretSectionMarker>,
+            Has<TorpedoSectionMarker>,
+            Option<&SectionAmmo>,
+        ),
+        With<SectionMarker>,
+    >,
     mut terminal: ResMut<NovaOsTerminal>,
 ) {
     let drawer_prompt_active =
@@ -971,7 +1212,16 @@ fn handle_terminal_keyboard(
             continue;
         }
         match &event.logical_key {
-            Key::Enter => terminal.submit(),
+            Key::Enter => {
+                let (ship_name, sections) = player_ship_snapshot(&q_player, &q_sections);
+                let snapshot = terminal_snapshot_from_world(
+                    &log,
+                    &objectives,
+                    ship_name.as_deref(),
+                    &sections,
+                );
+                terminal.submit(&snapshot);
+            }
             Key::Tab => terminal.complete(),
             Key::Backspace => terminal.backspace(),
             Key::Delete => terminal.delete(),
@@ -989,6 +1239,98 @@ fn handle_terminal_keyboard(
             _ => {}
         }
     }
+}
+
+fn player_ship_snapshot(
+    q_player: &Query<
+        (Entity, Option<&Name>),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
+    q_sections: &Query<
+        (
+            &ChildOf,
+            Option<&Name>,
+            Option<&Health>,
+            Option<&SectionDamageClass>,
+            Has<SectionInactiveMarker>,
+            Has<HealthZeroMarker>,
+            Has<HullSectionMarker>,
+            Has<ControllerSectionMarker>,
+            Has<ThrusterSectionMarker>,
+            Has<TurretSectionMarker>,
+            Has<TorpedoSectionMarker>,
+            Option<&SectionAmmo>,
+        ),
+        With<SectionMarker>,
+    >,
+) -> (Option<String>, Vec<ShipSectionStatus>) {
+    let Ok((ship, ship_name)) = q_player.single() else {
+        return (None, Vec::new());
+    };
+    let mut sections: Vec<ShipSectionStatus> = q_sections
+        .iter()
+        .filter(|(ChildOf(parent), ..)| *parent == ship)
+        .filter_map(
+            |(
+                _,
+                name,
+                health,
+                class,
+                inactive,
+                zero_health,
+                hull,
+                controller,
+                thruster,
+                turret,
+                torpedo,
+                ammo,
+            )| {
+                let kind =
+                    section_kind_from_markers(class, hull, controller, thruster, turret, torpedo)?;
+                Some(ShipSectionStatus {
+                    name: name
+                        .map(|name| name.as_str().to_string())
+                        .unwrap_or_else(|| section_kind_label(kind).to_ascii_lowercase()),
+                    kind,
+                    health: health.cloned(),
+                    inactive,
+                    zero_health,
+                    ammo: ammo.copied(),
+                })
+            },
+        )
+        .collect();
+    sections.sort_by(|a, b| {
+        section_kind_label(a.kind)
+            .cmp(section_kind_label(b.kind))
+            .then_with(|| a.name.cmp(&b.name))
+    });
+    (ship_name.map(|name| name.as_str().to_string()), sections)
+}
+
+fn section_kind_from_markers(
+    class: Option<&SectionDamageClass>,
+    hull: bool,
+    controller: bool,
+    thruster: bool,
+    turret: bool,
+    torpedo: bool,
+) -> Option<SectionDamageClass> {
+    class.copied().or_else(|| {
+        if hull {
+            Some(SectionDamageClass::Hull)
+        } else if controller {
+            Some(SectionDamageClass::Controller)
+        } else if thruster {
+            Some(SectionDamageClass::Thruster)
+        } else if turret {
+            Some(SectionDamageClass::Turret)
+        } else if torpedo {
+            Some(SectionDamageClass::Torpedo)
+        } else {
+            None
+        }
+    })
 }
 
 /// Run condition: the objectives list container was spawned this frame, so its
@@ -2060,9 +2402,11 @@ fn remove_drawer(
     _remove: On<Remove, PlayerSpaceshipMarker>,
     mut commands: Commands,
     mut log: ResMut<DrawerFlightLog>,
+    mut terminal: ResMut<NovaOsTerminal>,
     q_parts: Query<Entity, Or<(With<DrawerRootMarker>, With<DrawerBackdropMarker>)>>,
 ) {
     log.clear();
+    terminal.reset_session();
     for entity in &q_parts {
         commands.entity(entity).despawn();
     }
@@ -2144,6 +2488,40 @@ mod tests {
         terminal.insert_text(text);
     }
 
+    fn init_terminal_input_resources(app: &mut App) {
+        app.init_resource::<NovaOsTerminal>();
+        app.init_resource::<DrawerFlightLog>();
+        app.init_resource::<GameObjectives>();
+        app.world_mut().init_resource::<Messages<KeyboardInput>>();
+    }
+
+    fn terminal_command_app() -> App {
+        let mut app = toggle_app();
+        init_terminal_input_resources(&mut app);
+        app.add_systems(
+            Update,
+            handle_terminal_keyboard.run_if(in_state(GameStates::Playing)),
+        );
+        press_tab(&mut app);
+        assert_eq!(pause_state(&app), PauseStates::Drawer);
+        app
+    }
+
+    fn submit_terminal_command(app: &mut App, command: &str) {
+        press_text(app, command);
+        press_key(app, KeyCode::Enter, Key::Enter, None);
+        app.update();
+    }
+
+    fn terminal_scrollback_texts(app: &App) -> Vec<String> {
+        app.world()
+            .resource::<NovaOsTerminal>()
+            .scrollback
+            .iter()
+            .map(|row| row.text.clone())
+            .collect()
+    }
+
     fn pause_state(app: &App) -> PauseStates {
         app.world().resource::<State<PauseStates>>().get().clone()
     }
@@ -2169,8 +2547,7 @@ mod tests {
     #[test]
     fn tab_opens_drawer_then_completes_terminal_command() {
         let mut app = toggle_app();
-        app.init_resource::<NovaOsTerminal>();
-        app.world_mut().init_resource::<Messages<KeyboardInput>>();
+        init_terminal_input_resources(&mut app);
         app.add_systems(
             Update,
             handle_terminal_keyboard.run_if(in_state(GameStates::Playing)),
@@ -2189,8 +2566,7 @@ mod tests {
     #[test]
     fn terminal_ignores_text_typed_before_drawer_opens() {
         let mut app = toggle_app();
-        app.init_resource::<NovaOsTerminal>();
-        app.world_mut().init_resource::<Messages<KeyboardInput>>();
+        init_terminal_input_resources(&mut app);
         app.add_systems(
             Update,
             handle_terminal_keyboard.run_if(in_state(GameStates::Playing)),
@@ -2215,8 +2591,7 @@ mod tests {
     #[test]
     fn keyboard_input_updates_visible_prompt_text() {
         let mut app = toggle_app();
-        app.init_resource::<NovaOsTerminal>();
-        app.world_mut().init_resource::<Messages<KeyboardInput>>();
+        init_terminal_input_resources(&mut app);
         app.add_systems(
             Update,
             (handle_terminal_keyboard, rebuild_terminal_ui)
@@ -2255,9 +2630,9 @@ mod tests {
         assert_eq!(terminal.prompt, "hear");
         assert_eq!(terminal.cursor, 4);
 
-        terminal.submit();
+        terminal.submit(&TerminalCommandSnapshot::default());
         type_text(&mut terminal, "clear");
-        terminal.submit();
+        terminal.submit(&TerminalCommandSnapshot::default());
         terminal.history_previous();
         assert_eq!(terminal.prompt, "clear");
         terminal.history_previous();
@@ -2270,14 +2645,14 @@ mod tests {
     fn nova_os_clear_restores_welcome_block() {
         let mut terminal = NovaOsTerminal::default();
         type_text(&mut terminal, "help");
-        terminal.submit();
+        terminal.submit(&TerminalCommandSnapshot::default());
         assert!(
             terminal.scrollback.len() > nova_os_welcome_rows().len(),
             "help adds rows after the welcome block"
         );
 
         type_text(&mut terminal, "clear");
-        terminal.submit();
+        terminal.submit(&TerminalCommandSnapshot::default());
 
         assert_eq!(terminal.scrollback, nova_os_welcome_rows());
         assert_eq!(terminal.prompt, "");
@@ -2288,7 +2663,7 @@ mod tests {
     fn nova_os_help_rows_are_generated_from_registered_commands() {
         let mut terminal = NovaOsTerminal::default();
         type_text(&mut terminal, "help");
-        terminal.submit();
+        terminal.submit(&TerminalCommandSnapshot::default());
 
         let help_rows = &terminal.scrollback[nova_os_welcome_rows().len() + 1..];
         assert_eq!(
@@ -2300,13 +2675,254 @@ mod tests {
                 },
                 TerminalRow {
                     kind: TerminalRowKind::Output,
-                    text: "  help   Show available NOVA OS commands".to_string()
+                    text: "  help        Show available NOVA OS commands".to_string()
                 },
                 TerminalRow {
                     kind: TerminalRowKind::Output,
-                    text: "  clear  Clear terminal scrollback".to_string()
+                    text: "  clear       Clear terminal scrollback".to_string()
+                },
+                TerminalRow {
+                    kind: TerminalRowKind::Output,
+                    text: "  log         Print flight log and objective events".to_string()
+                },
+                TerminalRow {
+                    kind: TerminalRowKind::Output,
+                    text: "  objectives  Print active mission objectives".to_string()
+                },
+                TerminalRow {
+                    kind: TerminalRowKind::Output,
+                    text: "  ship        Print read-only player ship status".to_string()
                 }
             ]
+        );
+    }
+
+    #[test]
+    fn terminal_log_command_prints_flight_log_rows() {
+        let mut log = DrawerFlightLog::default();
+        log.entries.push(DrawerFlightLogEntry {
+            kind: DrawerFlightLogEntryKind::Comms,
+            objective_id: None,
+            speaker: Some("Control".to_string()),
+            message: "Hold course.".to_string(),
+            icon: None,
+        });
+        log.entries.push(DrawerFlightLogEntry {
+            kind: DrawerFlightLogEntryKind::ObjectivePosted,
+            objective_id: Some("burn".to_string()),
+            speaker: None,
+            message: "Burn for Beacon 1".to_string(),
+            icon: None,
+        });
+        log.entries.push(DrawerFlightLogEntry {
+            kind: DrawerFlightLogEntryKind::ObjectiveCompleted,
+            objective_id: Some("burn".to_string()),
+            speaker: None,
+            message: "Burn for Beacon 1".to_string(),
+            icon: None,
+        });
+        let snapshot = terminal_snapshot_from_world(&log, &GameObjectives::default(), None, &[]);
+        let mut terminal = NovaOsTerminal::default();
+
+        type_text(&mut terminal, "log");
+        terminal.submit(&snapshot);
+
+        let printed: Vec<&str> = terminal
+            .scrollback
+            .iter()
+            .map(|row| row.text.as_str())
+            .collect();
+        assert!(printed.contains(&"Flight log:"));
+        assert!(printed.contains(&"COMMS CONTROL > Hold course."));
+        assert!(printed.contains(&"OBJ + Burn for Beacon 1"));
+        assert!(printed.contains(&"OBJ x Burn for Beacon 1"));
+    }
+
+    #[test]
+    fn terminal_objectives_command_prints_active_objectives() {
+        let objectives = GameObjectives {
+            objectives: vec![
+                Objective::new("beacon", "Recover the beacon"),
+                Objective::new("dock", "Dock at the relay"),
+            ],
+        };
+        let snapshot =
+            terminal_snapshot_from_world(&DrawerFlightLog::default(), &objectives, None, &[]);
+        let mut terminal = NovaOsTerminal::default();
+
+        type_text(&mut terminal, "objectives");
+        terminal.submit(&snapshot);
+
+        let printed: Vec<&str> = terminal
+            .scrollback
+            .iter()
+            .map(|row| row.text.as_str())
+            .collect();
+        assert!(printed.contains(&"Active objectives:"));
+        assert!(printed.contains(&"1. Recover the beacon (beacon)"));
+        assert!(printed.contains(&"2. Dock at the relay (dock)"));
+
+        let empty_snapshot = terminal_snapshot_from_world(
+            &DrawerFlightLog::default(),
+            &GameObjectives::default(),
+            None,
+            &[],
+        );
+        let mut empty = NovaOsTerminal::default();
+        type_text(&mut empty, "objectives");
+        empty.submit(&empty_snapshot);
+        assert_eq!(
+            empty.scrollback.last().map(|row| row.text.as_str()),
+            Some("No active objectives.")
+        );
+    }
+
+    #[test]
+    fn terminal_objectives_command_reads_live_resource_updates() {
+        let mut app = terminal_command_app();
+        set_objectives(
+            &mut app,
+            vec![Objective::new("beacon", "Recover the beacon")],
+        );
+
+        submit_terminal_command(&mut app, "objectives");
+        assert!(
+            terminal_scrollback_texts(&app)
+                .iter()
+                .any(|row| row == "1. Recover the beacon (beacon)"),
+            "first command submit reads the current objective resource"
+        );
+
+        set_objectives(&mut app, vec![Objective::new("dock", "Dock at the relay")]);
+        submit_terminal_command(&mut app, "objectives");
+
+        let printed = terminal_scrollback_texts(&app);
+        assert!(
+            printed
+                .iter()
+                .any(|row| row == "1. Dock at the relay (dock)"),
+            "second command submit reads the changed objective resource"
+        );
+    }
+
+    #[test]
+    fn terminal_ship_command_prints_section_status() {
+        let ship_name = Name::new("Rust Tally");
+        let sections = vec![
+            ShipSectionStatus {
+                name: "Port engine".to_string(),
+                kind: SectionDamageClass::Thruster,
+                health: Some(Health {
+                    current: 18.0,
+                    max: 100.0,
+                }),
+                inactive: false,
+                zero_health: false,
+                ammo: None,
+            },
+            ShipSectionStatus {
+                name: "Bow gun".to_string(),
+                kind: SectionDamageClass::Turret,
+                health: Some(Health {
+                    current: 0.0,
+                    max: 60.0,
+                }),
+                inactive: true,
+                zero_health: true,
+                ammo: Some(SectionAmmo {
+                    rounds: 2,
+                    capacity: 6,
+                }),
+            },
+        ];
+        let snapshot = terminal_snapshot_from_world(
+            &DrawerFlightLog::default(),
+            &GameObjectives::default(),
+            Some(ship_name.as_str()),
+            &sections,
+        );
+        let mut terminal = NovaOsTerminal::default();
+
+        type_text(&mut terminal, "ship");
+        terminal.submit(&snapshot);
+
+        let printed: Vec<&str> = terminal
+            .scrollback
+            .iter()
+            .map(|row| row.text.as_str())
+            .collect();
+        assert!(printed.contains(&"Ship: RUST TALLY"));
+        assert!(printed.contains(&"THRUSTER Port engine - 18/100 HP"));
+        assert!(printed.contains(&"  status: critical"));
+        assert!(printed.contains(&"TURRET Bow gun - 0/60 HP; ammo 2/6"));
+        assert!(printed.contains(&"  status: neutralized"));
+    }
+
+    #[test]
+    fn terminal_ship_command_reads_live_player_sections() {
+        let mut app = terminal_command_app();
+        let ship = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Name::new("Rust Tally"),
+            ))
+            .id();
+        let thruster = app
+            .world_mut()
+            .spawn((
+                SectionMarker,
+                ThrusterSectionMarker,
+                SectionDamageClass::Thruster,
+                Health {
+                    current: 18.0,
+                    max: 100.0,
+                },
+                ChildOf(ship),
+                Name::new("Port engine"),
+            ))
+            .id();
+        app.world_mut().spawn((
+            SectionMarker,
+            TurretSectionMarker,
+            Health {
+                current: 0.0,
+                max: 60.0,
+            },
+            SectionInactiveMarker,
+            HealthZeroMarker,
+            SectionAmmo {
+                rounds: 2,
+                capacity: 6,
+            },
+            ChildOf(ship),
+            Name::new("Bow gun"),
+        ));
+
+        submit_terminal_command(&mut app, "ship");
+        let printed = terminal_scrollback_texts(&app);
+        assert!(printed.iter().any(|row| row == "Ship: RUST TALLY"));
+        assert!(printed
+            .iter()
+            .any(|row| row == "THRUSTER Port engine - 18/100 HP"));
+        assert!(
+            printed
+                .iter()
+                .any(|row| row == "TURRET Bow gun - 0/60 HP; ammo 2/6"),
+            "live snapshot classifies turret marker fallback without SectionDamageClass"
+        );
+
+        app.world_mut().entity_mut(thruster).insert(Health {
+            current: 80.0,
+            max: 100.0,
+        });
+        submit_terminal_command(&mut app, "ship");
+        assert!(
+            terminal_scrollback_texts(&app)
+                .iter()
+                .any(|row| row == "THRUSTER Port engine - 80/100 HP"),
+            "second command submit reads changed live section health"
         );
     }
 
@@ -2336,7 +2952,7 @@ mod tests {
             Some("did you mean help?")
         );
 
-        terminal.submit();
+        terminal.submit(&TerminalCommandSnapshot::default());
         let last = terminal.scrollback.last().expect("error row");
         assert_eq!(last.kind, TerminalRowKind::Error);
         assert!(last.text.contains("unknown command: hlep"));
@@ -2352,14 +2968,14 @@ mod tests {
             terminal.completion_hint.as_deref(),
             Some("help takes no arguments")
         );
-        terminal.submit();
+        terminal.submit(&TerminalCommandSnapshot::default());
         assert_eq!(
             terminal.scrollback.last().map(|row| row.text.as_str()),
             Some("help takes no arguments")
         );
 
         type_text(&mut terminal, "clear garbage");
-        terminal.submit();
+        terminal.submit(&TerminalCommandSnapshot::default());
         assert!(
             !terminal.scrollback.is_empty(),
             "clear with unexpected arguments reports an error instead of clearing scrollback"
@@ -2657,7 +3273,7 @@ mod tests {
                 "COMMS OKONO > Telemetry is dirty but readable.".to_string(),
                 "OBJ + Strip 3 salvage crates".to_string(),
             ],
-            "backing log/objective logic still derives rows for future commands"
+            "backing log/objective logic still derives rows for terminal commands"
         );
     }
 
@@ -3104,10 +3720,11 @@ mod tests {
     }
 
     #[test]
-    fn drawer_flight_log_clears_on_drawer_teardown() {
+    fn terminal_commands_clear_on_drawer_teardown() {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
         app.init_resource::<DrawerFlightLog>();
+        app.init_resource::<NovaOsTerminal>();
         app.add_observer(setup_drawer);
         app.add_observer(remove_drawer);
 
@@ -3128,6 +3745,25 @@ mod tests {
             log.previous_active = vec![Objective::new("b2", "Dock at the relay")];
             log.seen_story = 1;
         }
+        {
+            let mut terminal = app.world_mut().resource_mut::<NovaOsTerminal>();
+            type_text(&mut terminal, "log");
+            terminal.submit(&TerminalCommandSnapshot {
+                log_rows: vec![TerminalRow {
+                    kind: TerminalRowKind::Output,
+                    text: "OBJ x Burn for Beacon 1".to_string(),
+                }],
+                objective_rows: Vec::new(),
+                ship_rows: Vec::new(),
+            });
+            assert!(
+                terminal
+                    .scrollback
+                    .iter()
+                    .any(|row| row.text.contains("Burn for Beacon 1")),
+                "delivery guard: terminal contains scenario output before teardown"
+            );
+        }
 
         app.world_mut()
             .entity_mut(player)
@@ -3138,6 +3774,11 @@ mod tests {
         assert!(
             log.entries.is_empty() && log.previous_active.is_empty() && log.seen_story == 0,
             "drawer teardown clears the retained left-panel log"
+        );
+        assert_eq!(
+            app.world().resource::<NovaOsTerminal>().scrollback,
+            nova_os_welcome_rows(),
+            "drawer teardown clears printed command output before the next player ship"
         );
     }
 
@@ -3468,28 +4109,28 @@ mod tests {
     }
 
     #[test]
-    fn nova_os_only_help_and_clear_are_registered() {
+    fn nova_os_read_only_commands_are_registered() {
         let registered: Vec<&str> = TERMINAL_COMMANDS
             .iter()
             .map(|command| command.name)
             .collect();
-        assert_eq!(registered, vec!["help", "clear"]);
+        assert_eq!(
+            registered,
+            vec!["help", "clear", "log", "objectives", "ship"]
+        );
 
         assert!(matches!(parse_command("help"), TerminalCommandResult::Help));
         assert!(matches!(
             parse_command("clear"),
             TerminalCommandResult::Clear
         ));
-        for planned in [
-            "log",
-            "objectives",
-            "ship",
-            "map",
-            "ship viewer",
-            "exit",
-            "reload",
-            "repair",
-        ] {
+        assert!(matches!(parse_command("log"), TerminalCommandResult::Log));
+        assert!(matches!(
+            parse_command("objectives"),
+            TerminalCommandResult::Objectives
+        ));
+        assert!(matches!(parse_command("ship"), TerminalCommandResult::Ship));
+        for planned in ["map", "ship viewer", "exit", "reload", "repair"] {
             assert!(
                 matches!(
                     parse_command(planned),

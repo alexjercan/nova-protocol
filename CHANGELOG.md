@@ -29,10 +29,10 @@ tagged **(breaking)**.
 - Comms panel becomes a bottom-left stacked chat surface with optional authored speaker icons, timeout/dismiss controls and skip-to-next backlog control.
 - Tab ship-computer drawer: one inset NOVA OS monitor opens on Tab (or the gamepad right-stick click), pauses the game and frees the cursor, with a PoC-matched green phosphor terminal screen, topbar, footer hints and CRT treatment.
 - NOVA OS terminal readability pass: near-black CRT corners, subtle square grain, Iosevka terminal font, live ship-name status, visible inline ghost autocomplete, auto-scroll command output and an HTML-style welcome block that returns after `clear`.
-- NOVA OS terminal prompt: Tab completes commands once the monitor is open, Esc closes it, and the first shell commands include `help` and `clear` with history, cursor editing and typo suggestions.
+- NOVA OS terminal prompt: Tab completes commands once the monitor is open, Esc closes it, and shell commands include `help`, `clear`, `log`, `objectives` and read-only `ship` output with history, cursor editing and typo suggestions.
 - Diegetic objective reveal: a newly posted objective appears slightly rotated on the cockpit HUD, holds, then tucks up-and-right into the objective hint - replacing the small gold posting flash (completions still ghost green).
-- Flight objective surface: the always-on compact objectives panel is replaced by a minimalist top-right objective hint (glyph + count + a Tab affordance); detailed objective output is deferred to a future NOVA OS command/app surface.
-- NOVA OS keeps Flight Log and Objectives data behind the terminal for future commands, but no longer renders them as permanent drawer panes.
+- Flight objective surface: the always-on compact objectives panel is replaced by a minimalist top-right objective hint (glyph + count + a Tab affordance); detailed objective output now lives in the NOVA OS `objectives` command.
+- NOVA OS command output prints the combined Flight Log, active objectives and live player-ship section status without restoring permanent drawer panes.
 - Allegiance markers: a small filled triangle floats above every ship, coloured by side (green ally, red threat, grey neutral) so a mixed brawl reads friend-from-foe at a glance; your own ship shows none, and a ship provoked mid-fight flips its marker red.
 
 ### Fixes
