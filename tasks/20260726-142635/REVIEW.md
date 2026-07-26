@@ -29,3 +29,17 @@ Checked:
 - The close path remains paused through the drawer slide-out, then returns to `Unpaused`.
 - The command registry still remains limited to `help` and `clear`.
 - The new Iosevka asset is documented with its size tradeoff.
+
+## Round 3
+
+- VERDICT: APPROVE
+
+Findings: none.
+
+Checked:
+
+- The topbar no longer includes the low-value `DRAWER PAUSED` label.
+- The topbar ship label is sourced from the player ship root `Name`, with a stable no-name fallback.
+- The shader no longer produces a donut-like dark band; vignette strength increases smoothly toward the corners.
+- The prompt and autocomplete ghost cannot flex-shrink away, which pins the typed-input visibility bug.
+- NOVA OS terminal text no longer uses `TextShadow`.

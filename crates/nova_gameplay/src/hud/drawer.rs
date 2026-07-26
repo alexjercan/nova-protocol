@@ -11,15 +11,15 @@
 //!
 //! Tab opens the drawer by driving the shared [`PauseStates`] axis
 //! (`Unpaused -> Drawer`); once NOVA OS owns the keyboard, Tab completes the
-//! terminal prompt instead of closing the monitor. ESC closes the drawer
-//! (`nova_menu`'s `toggle_pause`). The freeze + cursor-free are wired in
-//! `nova_menu` on `OnEnter/OnExit(PauseStates::Drawer)`, reusing the exact
-//! hooks the pause overlay uses (see this task's DECISION.md - the drawer is a
-//! THIRD variant of the one freeze axis, not a separate freeze). The drawer is
-//! inert while the pause menu owns the freeze (`PauseStates::Paused`), which
-//! also means a live outcome overlay - which forces `Paused` - implicitly
-//! blocks the drawer without this crate depending on `nova_scenario`'s
-//! `CurrentOutcome`.
+//! terminal prompt instead of closing the monitor. ESC/Start/right-stick close
+//! requests are owned here so gameplay stays paused until the close animation
+//! reaches zero. The freeze + cursor-free are wired in `nova_menu` on
+//! `OnEnter/OnExit(PauseStates::Drawer)`, reusing the exact hooks the pause
+//! overlay uses (see this task's DECISION.md - the drawer is a THIRD variant of
+//! the one freeze axis, not a separate freeze). The drawer is inert while the
+//! pause menu owns the freeze (`PauseStates::Paused`), which also means a live
+//! outcome overlay - which forces `Paused` - implicitly blocks the drawer
+//! without this crate depending on `nova_scenario`'s `CurrentOutcome`.
 //!
 //! # Animation clock
 //!
@@ -80,7 +80,7 @@ const NOVA_OS_BACKDROP: Color = Color::srgb_u8(0, 3, 6);
 const NOVA_OS_CASE: Color = Color::srgb_u8(5, 10, 15);
 const NOVA_OS_CASE_RAISED: Color = Color::srgb_u8(11, 21, 32);
 const NOVA_OS_CASE_EDGE: Color = Color::srgb_u8(37, 65, 86);
-const NOVA_OS_SCREEN: Color = Color::srgb_u8(0, 16, 5);
+const NOVA_OS_SCREEN: Color = Color::srgb_u8(0, 7, 2);
 const NOVA_OS_PHOSPHOR: Color = Color::srgb_u8(54, 255, 121);
 const NOVA_OS_TEXT: Color = Color::srgb_u8(185, 255, 201);
 const NOVA_OS_PHOSPHOR_DIM: Color = Color::srgb_u8(25, 166, 79);
@@ -93,9 +93,9 @@ const NOVA_OS_OVERLAY_Z: i32 = 1;
 const NOVA_OS_PROMPT_PREFIX: &str = "nova> ";
 
 /// Straight-alpha CRT overlay tint + scanline controls, passed to WGSL.
-const NOVA_OS_CRT_TINT: LinearRgba = LinearRgba::new(0.212, 1.0, 0.475, 0.10);
+const NOVA_OS_CRT_TINT: LinearRgba = LinearRgba::new(0.212, 1.0, 0.475, 0.06);
 const NOVA_OS_CRT_SCANLINE_STRENGTH: f32 = 0.07;
-const NOVA_OS_CRT_VIGNETTE_STRENGTH: f32 = 0.50;
+const NOVA_OS_CRT_VIGNETTE_STRENGTH: f32 = 0.82;
 
 /// Global stacking-context z for the OPEN drawer: it is a modal, so backdrop and
 /// panel rise above the flight HUD chrome (which carries no `GlobalZIndex` = 0).
@@ -687,6 +687,15 @@ fn nova_os_version_label() -> String {
     format!("v{}", nova_info::APP_VERSION)
 }
 
+fn nova_os_ship_name(name: Option<&Name>) -> String {
+    name.map(|name| name.as_str().to_uppercase())
+        .unwrap_or_else(|| "UNKNOWN".to_string())
+}
+
+fn nova_os_status_text(ship_name: &str) -> String {
+    format!("SHIP: {ship_name}     LINK: LOCAL")
+}
+
 enum TerminalCommandResult {
     Help,
     Clear,
@@ -1031,7 +1040,6 @@ fn spawn_terminal_row(parent: &mut ChildSpawnerCommands, row: &TerminalRow, font
         Text::new(row.text.clone()),
         nova_os_text_font(DRAWER_LINE_FONT_PX, font),
         TextColor(color),
-        nova_os_text_shadow(color),
         TextLayout {
             justify: Justify::Left,
             linebreak: LineBreak::WordBoundary,
@@ -1089,13 +1097,6 @@ fn nova_os_text_font(font_size: f32, font: Handle<Font>) -> TextFont {
         font: FontSource::Handle(font),
         font_size: FontSize::Px(font_size),
         ..default()
-    }
-}
-
-fn nova_os_text_shadow(color: Color) -> TextShadow {
-    TextShadow {
-        offset: Vec2::splat(1.0),
-        color: color.with_alpha(0.28),
     }
 }
 
@@ -1568,12 +1569,16 @@ fn setup_drawer(
     mut commands: Commands,
     mut crt_materials: Option<ResMut<Assets<NovaOsCrtMaterial>>>,
     asset_server: Option<Res<AssetServer>>,
-    q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+    q_spaceship: Query<
+        (Entity, Option<&Name>),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
 ) {
-    if q_spaceship.get(add.entity).is_err() {
+    let Ok((_, ship_name)) = q_spaceship.get(add.entity) else {
         return;
-    }
+    };
     let font = nova_os_font(asset_server.as_deref());
+    let ship_name = nova_os_ship_name(ship_name);
 
     // Dim backdrop behind the panel (hidden until the drawer opens). NO
     // `HudTier`: the drawer is a modal overlay on its own axis, so the
@@ -1662,7 +1667,7 @@ fn setup_drawer(
                             BackgroundColor(NOVA_OS_SCREEN),
                         ))
                         .with_children(|screen| {
-                            spawn_nova_os_terminal_content(screen, font.clone());
+                            spawn_nova_os_terminal_content(screen, font.clone(), &ship_name);
                             spawn_nova_os_screen_overlays(screen, crt_materials.as_deref_mut());
                         });
                 });
@@ -1750,13 +1755,17 @@ fn spawn_nova_os_screen_overlays(
             ..default()
         },
         BorderColor::all(Color::srgba(0.0, 0.0, 0.0, 0.18)),
-        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.045)),
+        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.12)),
         ZIndex(NOVA_OS_OVERLAY_Z),
         Pickable::IGNORE,
     ));
 }
 
-fn spawn_nova_os_terminal_content(screen: &mut ChildSpawnerCommands, font: Handle<Font>) {
+fn spawn_nova_os_terminal_content(
+    screen: &mut ChildSpawnerCommands,
+    font: Handle<Font>,
+    ship_name: &str,
+) {
     screen
         .spawn((
             Name::new("NovaOsTerminalContent"),
@@ -1816,15 +1825,13 @@ fn spawn_nova_os_terminal_content(screen: &mut ChildSpawnerCommands, font: Handl
                                 )),
                                 nova_os_text_font(DRAWER_SECTION_TITLE_FONT_PX, font.clone()),
                                 TextColor(NOVA_OS_PHOSPHOR),
-                                nova_os_text_shadow(NOVA_OS_PHOSPHOR),
                             ));
                         });
                     topbar.spawn((
                         NovaOsStatusMarker,
-                        Text::new("DRAWER PAUSED     SHIP: CERES QUEEN     LINK: LOCAL"),
+                        Text::new(nova_os_status_text(ship_name)),
                         nova_os_text_font(DRAWER_SECTION_TITLE_FONT_PX, font.clone()),
                         TextColor(NOVA_OS_PHOSPHOR_DIM),
-                        nova_os_text_shadow(NOVA_OS_PHOSPHOR_DIM),
                     ));
                 });
 
@@ -1839,7 +1846,7 @@ fn spawn_nova_os_terminal_content(screen: &mut ChildSpawnerCommands, font: Handl
                         ..default()
                     },
                     BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.36)),
-                    BackgroundColor(Color::srgba(0.0, 12.0 / 255.0, 4.0 / 255.0, 0.4)),
+                    BackgroundColor(Color::srgba(0.0, 5.0 / 255.0, 2.0 / 255.0, 0.72)),
                 ))
                 .with_children(|terminal_panel| {
                     terminal_panel
@@ -1890,16 +1897,15 @@ fn spawn_nova_os_terminal_content(screen: &mut ChildSpawnerCommands, font: Handl
                                 Text::new("nova>"),
                                 nova_os_text_font(DRAWER_LINE_FONT_PX, font.clone()),
                                 TextColor(NOVA_OS_AMBER),
-                                nova_os_text_shadow(NOVA_OS_AMBER),
                             ));
                             prompt_row.spawn((
                                 NovaOsTerminalPromptMarker,
                                 Text::new("|"),
                                 nova_os_text_font(DRAWER_LINE_FONT_PX, font.clone()),
                                 TextColor(NOVA_OS_PHOSPHOR),
-                                nova_os_text_shadow(NOVA_OS_PHOSPHOR),
                                 Node {
                                     min_width: Val::Px(0.0),
+                                    flex_shrink: 0.0,
                                     ..default()
                                 },
                             ));
@@ -1908,9 +1914,9 @@ fn spawn_nova_os_terminal_content(screen: &mut ChildSpawnerCommands, font: Handl
                                 Text::new(""),
                                 nova_os_text_font(DRAWER_LINE_FONT_PX, font.clone()),
                                 TextColor(NOVA_OS_PHOSPHOR.with_alpha(0.35)),
-                                nova_os_text_shadow(NOVA_OS_PHOSPHOR),
                                 Node {
                                     min_width: Val::Px(0.0),
+                                    flex_shrink: 0.0,
                                     ..default()
                                 },
                             ));
@@ -1919,7 +1925,6 @@ fn spawn_nova_os_terminal_content(screen: &mut ChildSpawnerCommands, font: Handl
                                 Text::new(""),
                                 nova_os_text_font(DRAWER_LINE_FONT_PX, font.clone()),
                                 TextColor(NOVA_OS_PHOSPHOR_MUTED),
-                                nova_os_text_shadow(NOVA_OS_PHOSPHOR_MUTED),
                                 Node {
                                     flex_grow: 1.0,
                                     min_width: Val::Px(0.0),
@@ -1951,7 +1956,6 @@ fn spawn_nova_os_terminal_content(screen: &mut ChildSpawnerCommands, font: Handl
                             Text::new(hint),
                             nova_os_text_font(11.0, font.clone()),
                             TextColor(NOVA_OS_PHOSPHOR_MUTED),
-                            nova_os_text_shadow(NOVA_OS_PHOSPHOR_MUTED),
                         ));
                     }
                 });
@@ -2230,13 +2234,40 @@ mod tests {
             .run_system_once(rebuild_terminal_ui)
             .expect("terminal UI rebuild runs");
 
-        let (prompt, prompt_color) = app
+        let (prompt, prompt_color, prompt_node, prompt_shadow) = app
             .world_mut()
-            .query_filtered::<(&Text, &TextColor), With<NovaOsTerminalPromptMarker>>()
+            .query_filtered::<
+                (&Text, &TextColor, &Node, Option<&TextShadow>),
+                With<NovaOsTerminalPromptMarker>,
+            >()
             .single(app.world())
             .expect("one terminal prompt");
         assert_eq!(prompt.0, "hlep|");
         assert_eq!(prompt_color.0, theme::semantic::THREAT);
+        assert_eq!(
+            prompt_node.flex_shrink, 0.0,
+            "typed input must not collapse inside the prompt row"
+        );
+        assert!(
+            prompt_shadow.is_none(),
+            "terminal prompt text should stay sharp without a shadow"
+        );
+
+        let (ghost, ghost_node, ghost_shadow) = app
+            .world_mut()
+            .query_filtered::<(&Text, &Node, Option<&TextShadow>), With<NovaOsTerminalGhostMarker>>(
+            )
+            .single(app.world())
+            .expect("one terminal autocomplete ghost");
+        assert_eq!(ghost.0, "");
+        assert_eq!(
+            ghost_node.flex_shrink, 0.0,
+            "autocomplete ghost must not collapse the typed input"
+        );
+        assert!(
+            ghost_shadow.is_none(),
+            "autocomplete ghost text should stay sharp without a shadow"
+        );
 
         let (prefix, prefix_color) = app
             .world_mut()
@@ -2365,8 +2396,11 @@ mod tests {
 
     fn spawn_drawer_shell(app: &mut App) {
         app.add_observer(setup_drawer);
-        app.world_mut()
-            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker));
+        app.world_mut().spawn((
+            Name::new("Survey Cutter"),
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+        ));
         app.update();
     }
 
@@ -3167,7 +3201,7 @@ mod tests {
         let texts = all_texts(&mut app);
         for expected in [
             format!("NOVA OS {} / COCKPIT LINK", nova_os_version_label()),
-            "DRAWER PAUSED     SHIP: CERES QUEEN     LINK: LOCAL".to_string(),
+            "SHIP: SURVEY CUTTER     LINK: LOCAL".to_string(),
             format!("NOVA OS {}", nova_os_version_label()),
             "BIOS CHECK: flight computer / ok".to_string(),
             "DISPLAY: green phosphor crt / ok".to_string(),
@@ -3182,6 +3216,10 @@ mod tests {
                 "missing PoC text: {expected}"
             );
         }
+        assert!(
+            !texts.iter().any(|text| text.contains("DRAWER PAUSED")),
+            "the topbar should not repeat a useless paused label"
+        );
         assert!(
             !texts
                 .iter()

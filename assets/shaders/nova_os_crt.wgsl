@@ -24,13 +24,11 @@ fn fragment(in: UiVertexOutput) -> @location(0) vec4<f32> {
     let dist = length(centered);
 
     let scan = select(1.0, 1.0 - material.scanline_strength, fract(uv.y * 240.0) < 0.5);
-    let roundness = smoothstep(0.36, 0.76, dist);
-    let edge_band = smoothstep(0.46, 0.82, dist) - smoothstep(0.68, 0.96, dist);
-    let vignette = roundness * material.vignette_strength;
-    let glow = (1.0 - smoothstep(0.0, 0.74, dist)) * material.glow_strength;
-    let edge_glow = edge_band * material.glow_strength * 0.9;
+    let corner_falloff = smoothstep(0.28, 0.74, dist);
+    let vignette = pow(corner_falloff, 1.45) * material.vignette_strength;
+    let glow = (1.0 - smoothstep(0.0, 0.68, dist)) * material.glow_strength;
 
-    let tint_alpha = material.tint.a * scan + glow + edge_glow;
+    let tint_alpha = material.tint.a * scan + glow;
     let edge_alpha = vignette;
     let rgb = material.tint.rgb * max(tint_alpha, 0.0);
     return vec4<f32>(rgb * (1.0 - edge_alpha), clamp(tint_alpha + edge_alpha, 0.0, 0.82));

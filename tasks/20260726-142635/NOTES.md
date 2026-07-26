@@ -28,6 +28,14 @@
 - Changed drawer close to an animated close request: Escape, Start and right-stick close keep `PauseStates::Drawer` active until the slide reaches zero, then unpause.
 - Upper-cased footer hints to better match the HTML PoC.
 
+## Feedback Round 3
+
+- Removed the `DRAWER PAUSED` topbar label; the right side now shows only `SHIP: <NAME>     LINK: LOCAL`.
+- Read the ship name from the actual player ship root `Name` component, upper-cased for the NOVA OS topbar, with `UNKNOWN` as the no-name fallback.
+- Made the screen bolder and darker: black-green base, stronger terminal panel opacity, stronger vignette, and a shader falloff that darkens monotonically toward the corners instead of forming a visible ring.
+- Fixed the invisible typed-input bug by preventing both the prompt text and autocomplete ghost text from flex-shrinking away inside the prompt row.
+- Removed NOVA OS text shadows so the terminal reads sharper and closer to the HTML sample.
+
 ## Tradeoffs
 
 - The Iosevka Term TTC is large, about 66 MB. It is used directly because the requested font was only available locally as a TTC collection; a future asset pass can subset or replace it with a smaller TTF/WOFF if needed.
@@ -38,6 +46,7 @@
 
 - The first implementation looked structurally close in tests but the screenshot showed the material and fallback overlays stacking too strongly. The fix was to treat the CRT effect as an accent layer, not a screen-wide tint layer.
 - Startup UI and terminal state had separate hardcoded boot rows. Changing the spawned scrollback to call the same welcome-row helper prevents another mismatch between initial render and rebuild.
+- The prompt visibility bug did not show up in command-model tests because it was a UI flex sizing problem. The prompt-row test now asserts the typed text and ghost completion keep `flex_shrink: 0`.
 
 ## Verification
 
@@ -45,6 +54,15 @@
 - `nix develop --command cargo test -p nova_gameplay drawer`
 - `nix develop --command cargo test -p nova_gameplay readout`
 - `nix develop --command cargo test -p nova_menu escape_does_not_menu_toggle_the_drawer`
+- `nix develop --command cargo check`
+- `cd web && npm run ci`
+- `tatr check --ledger LESSONS.md`
+
+## Feedback Round 3 Verification
+
+- `nix develop --command cargo fmt --check`
+- `nix develop --command cargo test -p nova_gameplay drawer`
+- `git diff --check`
 - `nix develop --command cargo check`
 - `cd web && npm run ci`
 - `tatr check --ledger LESSONS.md`
