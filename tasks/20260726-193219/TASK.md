@@ -1,6 +1,6 @@
 # NOVA OS CRT: casing + glass depth pass
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.9.0, spike, feature, ui, hud
 
@@ -29,50 +29,51 @@ screen edge (the PoC `.rim` layer) and the moulding-seam inner outline
 
 ## Flow State
 
-- FLOW STEP: PLANNING
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Steps
 
-- [ ] Capture the BEFORE state first (`render-output-eyeball` lesson): run the
+- [x] Capture the BEFORE state first (`render-output-eyeball` lesson): run the
       `screenshot_nova_os` example and store the shots under
       `tasks/20260726-193219/shots/`.
-- [ ] Round the casing stack in `setup_drawer`
+- [x] Round the casing stack in `setup_drawer`
       (`crates/nova_gameplay/src/hud/drawer.rs`): `BorderRadius` on the monitor
       root (asymmetric like the PoC `.case`: larger top, smaller bottom), the
       bezel, and the screen. Give the CRT overlay `MaterialNode` matching
       rounding - verify whether `BorderRadius` clips a MaterialNode in bevy_ui
       0.19; if not, add a cheap corner mask to `nova_os_crt.wgsl` (it will
       carry over into 193233's sampling shader).
-- [ ] Add depth via bevy_ui gradients (`BackgroundGradient`/`LinearGradient`,
+- [x] Add depth via bevy_ui gradients (`BackgroundGradient`/`LinearGradient`,
       verified present in bevy_ui 0.19 `gradients.rs`): the PoC's 168deg
       case-body gradient with a 1px top highlight, bezel inset shading, and a
       recessed-plate gradient. Where a gradient fights a border, layer nodes
       instead.
-- [ ] Moulding seam: an inset 1px rounded-border node inside the casing (the
+- [x] Moulding seam: an inset 1px rounded-border node inside the casing (the
       PoC `.case::after`), light top / dark bottom.
-- [ ] Detailing: four corner screws (small full-radius nodes with a radial-look
+- [x] Detailing: four corner screws (small full-radius nodes with a radial-look
       gradient + a rotated slot line via `UiTransform`) and the top-center vent
       strip (a row of thin dark nodes; a tiny repeating-pattern image asset is
       the fallback). Watch the `bevy-css-border-triangle-needs-contentbox`
       lesson if any border trick is used on zero-content nodes.
-- [ ] Chin bar: a bottom casing strip below the bezel (PoC `.chin`, ~54px).
+- [x] Chin bar: a bottom casing strip below the bezel (PoC `.chin`, ~54px).
       LEFT: the recessed brand plate - logo mark + "NovaCRT 9000" wordmark +
       "P22 green phosphor . 15 in . type CQ-4" spec line, dark stamped-in
       glyphs (inset gradient + light catch on the lower edge). Ship the logo
       mark as a small PNG under `assets/icons/` rendered from the PoC's SVG
       path (bevy UI does not draw SVG). RIGHT: an empty, named controls-row
       container node reserved for 20260726-214617.
-- [ ] Glass: a diagonal white specular sheen over the screen
+- [x] Glass: a diagonal white specular sheen over the screen
       (`LinearGradient`, ~5% alpha fading to transparent, PoC `.glass`) plus
       one soft low-alpha highlight rectangle rotated via `UiTransform`; both
       `Pickable::IGNORE`, above content, below nothing interactive.
-- [ ] Phosphor rim: trace the screen edge with a thin bright phosphor border +
+- [x] Phosphor rim: trace the screen edge with a thin bright phosphor border +
       a wider low-alpha glow border (two nested rounded nodes approximating
       the PoC `.rim` line/glow pair).
-- [ ] Update the drawer widget-tree tests: chin bar + plate + reserved
+- [x] Update the drawer widget-tree tests: chin bar + plate + reserved
       controls slot exist, screw/vent nodes present, casing/bezel/screen carry
       the expected `BorderRadius`.
-- [ ] Capture AFTER shots, LOOK at them against
+- [x] Capture AFTER shots, LOOK at them against
       `tasks/20260726-180807/shots/reference-html.png`, iterate until the
       device reads as moulded plastic + glass; record what changed, tradeoffs
       and self-reflection in `tasks/20260726-193219/NOTES.md`.

@@ -73,6 +73,17 @@ const NOVA_OS_MONITOR_INSET_X_PX: f32 = 42.0;
 const NOVA_OS_MONITOR_INSET_Y_PX: f32 = 52.0;
 const NOVA_OS_BEZEL_PAD_PX: f32 = 26.0;
 const NOVA_OS_SCREEN_PAD_PX: f32 = 18.0;
+/// Injection-moulded shell corners: a larger top radius and a tighter bottom,
+/// like the PoC `.case` `border-radius: 22px 22px 14px 14px`, scaled up for the
+/// full-viewport monitor.
+const NOVA_OS_CASE_RADIUS_TOP_PX: f32 = 24.0;
+const NOVA_OS_CASE_RADIUS_BOTTOM_PX: f32 = 15.0;
+/// Recessed bezel + phosphor-screen corner radii (PoC `.bezel` 16px, screen 12).
+const NOVA_OS_BEZEL_RADIUS_PX: f32 = 16.0;
+const NOVA_OS_SCREEN_RADIUS_PX: f32 = 12.0;
+/// Bottom casing strip under the bezel (PoC `.chin`, ~54px) that carries the
+/// brand plate and the reserved controls row.
+const NOVA_OS_CHIN_HEIGHT_PX: f32 = 54.0;
 const NOVA_OS_TERMINAL_PAD_X_PX: f32 = 16.0;
 const NOVA_OS_TERMINAL_PAD_Y_PX: f32 = 14.0;
 const NOVA_OS_PROMPT_ROW_HEIGHT_PX: f32 = 58.0;
@@ -93,8 +104,23 @@ const NOVA_OS_PHOSPHOR_MUTED: Color = Color::srgb_u8(70, 207, 118);
 const NOVA_OS_INFO: Color = Color::srgb_u8(54, 163, 255);
 const NOVA_OS_AMBER: Color = Color::srgb_u8(255, 184, 74);
 const NOVA_OS_ORANGE: Color = Color::srgb_u8(255, 123, 45);
+// Moulded-plastic depth palette (casing gradient stops, screws, seam catch).
+// The PoC `.case` body runs a 168deg gradient from a lit top (`--case-3`) down
+// through the mid body to an almost-black undercut; these are those stops.
+const NOVA_OS_CASE_LIT: Color = Color::srgb_u8(28, 44, 58);
+const NOVA_OS_CASE_MID: Color = Color::srgb_u8(14, 26, 38);
+const NOVA_OS_CASE_DEEP: Color = Color::srgb_u8(5, 8, 10);
+/// The 1px top light line that catches the moulding lip (PoC `inset 0 1px 0`).
+const NOVA_OS_CASE_HIGHLIGHT: Color = Color::srgba(1.0, 1.0, 1.0, 0.12);
+/// Screw head shading (PoC `.screw` radial gradient light -> dark).
+const NOVA_OS_SCREW_LIT: Color = Color::srgb_u8(89, 101, 110);
+const NOVA_OS_SCREW_DARK: Color = Color::srgb_u8(10, 13, 16);
 const NOVA_OS_CONTENT_Z: i32 = 0;
 const NOVA_OS_OVERLAY_Z: i32 = 1;
+/// Phosphor rim traces the screen edge above the CRT overlay; the glass sheen is
+/// the frontmost surface layer over it.
+const NOVA_OS_RIM_Z: i32 = 2;
+const NOVA_OS_GLASS_Z: i32 = 3;
 const NOVA_OS_PROMPT_PREFIX: &str = "nova> ";
 /// Blink rate of the terminal caret, in full on/off cycles per second.
 const NOVA_OS_CARET_BLINK_HZ: f32 = 1.25;
@@ -220,6 +246,40 @@ struct NovaOsFooterHintsMarker;
 /// Orange/yellow casing slots copied from the PoC's physical monitor language.
 #[derive(Component)]
 struct NovaOsAccentSlotMarker;
+
+/// One of the four moulded corner screws on the casing (PoC `.screw`).
+#[derive(Component)]
+struct NovaOsScrewMarker;
+
+/// The top-centre vent strip on the casing (PoC `.vents`).
+#[derive(Component)]
+struct NovaOsVentMarker;
+
+/// The inset moulding-seam outline inside the casing (PoC `.case::after`).
+#[derive(Component)]
+struct NovaOsSeamMarker;
+
+/// The bottom casing chin strip below the bezel (PoC `.chin`).
+#[derive(Component)]
+struct NovaOsChinMarker;
+
+/// The recessed brand plate on the chin's left (PoC `.plate`).
+#[derive(Component)]
+struct NovaOsBrandPlateMarker;
+
+/// The reserved, initially empty controls row on the chin's right. Its
+/// functional knobs/buttons are task 20260726-214617, which depends on this
+/// geometry.
+#[derive(Component)]
+struct NovaOsControlsRowMarker;
+
+/// The bright phosphor rim tracing the screen edge (PoC `.rim` line/glow pair).
+#[derive(Component)]
+struct NovaOsPhosphorRimMarker;
+
+/// The glass specular sheen laid over the screen (PoC `.glass`).
+#[derive(Component)]
+struct NovaOsGlassMarker;
 
 /// The root of the active NOVA OS app, spawned as a sibling of the terminal
 /// content while [`TerminalMode::App`] is active. Carries the running app's id so
@@ -526,6 +586,12 @@ struct NovaOsCrtUniform {
     /// Real-time seconds, updated each frame by [`animate_nova_os_crt`] so the
     /// grain shimmers gently.
     time: f32,
+    /// Rounded-corner radius in screen pixels. A UI `MaterialNode` is NOT
+    /// clipped by its node's [`BorderRadius`], so the overlay masks its own
+    /// corners in-shader to the screen's rounding (no green bleed past the
+    /// rounded phosphor edge). Zero disables the mask (headless/other rigs).
+    /// Appended last so the field order still matches the WGSL struct.
+    corner_radius: f32,
 }
 
 #[derive(Default, TypePath)]
@@ -563,6 +629,7 @@ impl Default for NovaOsCrtMaterial {
                 glow_strength: NOVA_OS_CRT_GLOW_STRENGTH,
                 grain_strength: NOVA_OS_CRT_GRAIN_STRENGTH,
                 time: 0.0,
+                corner_radius: NOVA_OS_SCREEN_RADIUS_PX,
             },
         }
     }
@@ -2498,13 +2565,27 @@ fn setup_drawer(
                 padding: UiRect::all(Val::Px(10.0)),
                 border: UiRect::all(Val::Px(1.0)),
                 flex_direction: FlexDirection::Column,
+                // Injection-moulded shell: larger top radius, tighter bottom.
+                border_radius: BorderRadius {
+                    top_left: Val::Px(NOVA_OS_CASE_RADIUS_TOP_PX),
+                    top_right: Val::Px(NOVA_OS_CASE_RADIUS_TOP_PX),
+                    bottom_left: Val::Px(NOVA_OS_CASE_RADIUS_BOTTOM_PX),
+                    bottom_right: Val::Px(NOVA_OS_CASE_RADIUS_BOTTOM_PX),
+                },
                 ..default()
             },
             BorderColor::all(NOVA_OS_CASE_EDGE),
+            // Base fill under the gradient (headless/no-gradient fallback).
             BackgroundColor(NOVA_OS_CASE),
+            // Injection-moulded shell: a 168deg body gradient (lit top -> deep
+            // undercut) plus a 1px top highlight catching the moulding lip.
+            nova_os_case_gradient(),
         ))
         .with_children(|monitor| {
             spawn_nova_os_accent_slots(monitor);
+            spawn_nova_os_moulding_seam(monitor);
+            spawn_nova_os_casing_screws(monitor);
+            spawn_nova_os_casing_vents(monitor);
             monitor
                 .spawn((
                     Name::new("NovaOsBezel"),
@@ -2515,10 +2596,18 @@ fn setup_drawer(
                         padding: UiRect::all(Val::Px(NOVA_OS_BEZEL_PAD_PX)),
                         border: UiRect::all(Val::Px(1.0)),
                         flex_direction: FlexDirection::Column,
+                        border_radius: BorderRadius::all(Val::Px(NOVA_OS_BEZEL_RADIUS_PX)),
                         ..default()
                     },
-                    BorderColor::all(NOVA_OS_CASE_EDGE),
+                    // Recessed bezel lip: dark inner-top shadow, light lower edge.
+                    BorderColor {
+                        top: Color::srgba(0.0, 0.0, 0.0, 0.6),
+                        bottom: Color::srgba(1.0, 1.0, 1.0, 0.06),
+                        left: NOVA_OS_CASE_EDGE.with_alpha(0.5),
+                        right: NOVA_OS_CASE_EDGE.with_alpha(0.5),
+                    },
                     BackgroundColor(NOVA_OS_CASE_RAISED),
+                    nova_os_bezel_gradient(),
                 ))
                 .with_children(|bezel| {
                     bezel
@@ -2534,6 +2623,7 @@ fn setup_drawer(
                                 flex_direction: FlexDirection::Column,
                                 row_gap: Val::Px(12.0),
                                 overflow: Overflow::clip(),
+                                border_radius: BorderRadius::all(Val::Px(NOVA_OS_SCREEN_RADIUS_PX)),
                                 ..default()
                             },
                             BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.52)),
@@ -2542,9 +2632,51 @@ fn setup_drawer(
                         .with_children(|screen| {
                             spawn_nova_os_terminal_content(screen, font.clone(), &ship_name);
                             spawn_nova_os_screen_overlays(screen, crt_materials.as_deref_mut());
+                            spawn_nova_os_phosphor_rim(screen);
+                            spawn_nova_os_glass_sheen(screen);
                         });
                 });
+            spawn_nova_os_chin(monitor, font.clone(), asset_server.as_deref());
         });
+}
+
+/// The PoC `.case` body: a 168deg gradient from a lit top through the mid body to
+/// an almost-black undercut, with a 1px top highlight catching the moulding lip.
+fn nova_os_case_gradient() -> BackgroundGradient {
+    BackgroundGradient(vec![
+        LinearGradient::degrees(
+            168.0,
+            vec![
+                ColorStop::percent(NOVA_OS_CASE_LIT, 0.0),
+                ColorStop::percent(NOVA_OS_CASE_MID, 26.0),
+                ColorStop::percent(NOVA_OS_CASE_DEEP, 88.0),
+                ColorStop::percent(Color::srgb_u8(4, 6, 8), 100.0),
+            ],
+        )
+        .into(),
+        // 1px lit moulding lip along the very top edge.
+        LinearGradient::degrees(
+            180.0,
+            vec![
+                ColorStop::px(NOVA_OS_CASE_HIGHLIGHT, 0.0),
+                ColorStop::px(NOVA_OS_CASE_HIGHLIGHT, 1.0),
+                ColorStop::px(Color::NONE, 1.0),
+            ],
+        )
+        .into(),
+    ])
+}
+
+/// The PoC `.bezel`: a dark vertical gradient giving the recessed lip its depth.
+fn nova_os_bezel_gradient() -> BackgroundGradient {
+    BackgroundGradient(vec![LinearGradient::degrees(
+        180.0,
+        vec![
+            ColorStop::percent(Color::srgb_u8(18, 24, 29), 0.0),
+            ColorStop::percent(Color::srgb_u8(7, 10, 13), 100.0),
+        ],
+    )
+    .into()])
 }
 
 fn spawn_nova_os_accent_slots(parent: &mut ChildSpawnerCommands) {
@@ -2573,6 +2705,361 @@ fn spawn_nova_os_accent_slots(parent: &mut ChildSpawnerCommands) {
             BackgroundColor(color.with_alpha(0.18)),
         ));
     }
+}
+
+/// Four moulded corner screws (PoC `.screw`): a spherical head via a diagonal
+/// light -> dark gradient over a full-radius disc, with a rotated slot line. The
+/// slot is a FILLED bar, not a coloured border on a zero-content node, so it
+/// dodges the border-collapse trap in the ledger
+/// (`bevy-css-border-triangle-needs-contentbox`).
+fn spawn_nova_os_casing_screws(parent: &mut ChildSpawnerCommands) {
+    const DIAM_PX: f32 = 12.0;
+    const INSET_PX: f32 = 15.0;
+    for (name, left, top) in [
+        ("NovaOsScrewTL", true, true),
+        ("NovaOsScrewTR", false, true),
+        ("NovaOsScrewBL", true, false),
+        ("NovaOsScrewBR", false, false),
+    ] {
+        let mut node = Node {
+            position_type: PositionType::Absolute,
+            width: Val::Px(DIAM_PX),
+            height: Val::Px(DIAM_PX),
+            border: UiRect::all(Val::Px(1.0)),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            border_radius: BorderRadius::MAX,
+            ..default()
+        };
+        if left {
+            node.left = Val::Px(INSET_PX);
+        } else {
+            node.right = Val::Px(INSET_PX);
+        }
+        if top {
+            node.top = Val::Px(INSET_PX);
+        } else {
+            node.bottom = Val::Px(INSET_PX);
+        }
+        parent
+            .spawn((
+                Name::new(name),
+                NovaOsScrewMarker,
+                node,
+                BorderColor::all(Color::srgba(0.0, 0.0, 0.0, 0.7)),
+                BackgroundColor(NOVA_OS_SCREW_DARK),
+                BackgroundGradient(vec![LinearGradient::degrees(
+                    135.0,
+                    vec![
+                        ColorStop::percent(NOVA_OS_SCREW_LIT, 0.0),
+                        ColorStop::percent(Color::srgb_u8(27, 33, 38), 62.0),
+                        ColorStop::percent(NOVA_OS_SCREW_DARK, 100.0),
+                    ],
+                )
+                .into()]),
+                Pickable::IGNORE,
+            ))
+            .with_children(|screw| {
+                screw.spawn((
+                    Node {
+                        width: Val::Px(8.0),
+                        height: Val::Px(1.5),
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.75)),
+                    UiTransform::from_rotation(Rot2::degrees(38.0)),
+                    Pickable::IGNORE,
+                ));
+            });
+    }
+}
+
+/// The moulding seam running just inside the shell edge (PoC `.case::after`): a
+/// 1px rounded outline, light along the top/left, dark along the bottom/right,
+/// so the plastic reads as a moulded part with a parting line.
+fn spawn_nova_os_moulding_seam(parent: &mut ChildSpawnerCommands) {
+    parent.spawn((
+        Name::new("NovaOsMouldingSeam"),
+        NovaOsSeamMarker,
+        Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(5.0),
+            bottom: Val::Px(5.0),
+            left: Val::Px(5.0),
+            right: Val::Px(5.0),
+            border: UiRect::all(Val::Px(1.0)),
+            border_radius: BorderRadius {
+                top_left: Val::Px(NOVA_OS_CASE_RADIUS_TOP_PX - 4.0),
+                top_right: Val::Px(NOVA_OS_CASE_RADIUS_TOP_PX - 4.0),
+                bottom_left: Val::Px(NOVA_OS_CASE_RADIUS_BOTTOM_PX - 4.0),
+                bottom_right: Val::Px(NOVA_OS_CASE_RADIUS_BOTTOM_PX - 4.0),
+            },
+            ..default()
+        },
+        BorderColor {
+            top: Color::srgba(1.0, 1.0, 1.0, 0.05),
+            left: Color::srgba(1.0, 1.0, 1.0, 0.05),
+            bottom: Color::srgba(0.0, 0.0, 0.0, 0.5),
+            right: Color::srgba(0.0, 0.0, 0.0, 0.5),
+        },
+        Pickable::IGNORE,
+    ));
+}
+
+/// The top-centre vent grille (PoC `.vents`): a centred row of thin dark slats,
+/// the case gradient showing through the gaps.
+fn spawn_nova_os_casing_vents(parent: &mut ChildSpawnerCommands) {
+    parent
+        .spawn((
+            Name::new("NovaOsVents"),
+            NovaOsVentMarker,
+            Node {
+                align_self: AlignSelf::Center,
+                height: Val::Px(10.0),
+                margin: UiRect::bottom(Val::Px(8.0)),
+                flex_direction: FlexDirection::Row,
+                column_gap: Val::Px(4.0),
+                overflow: Overflow::clip(),
+                ..default()
+            },
+            Pickable::IGNORE,
+        ))
+        .with_children(|vents| {
+            for _ in 0..28 {
+                vents.spawn((
+                    Node {
+                        width: Val::Px(4.0),
+                        height: Val::Percent(100.0),
+                        border_radius: BorderRadius::all(Val::Px(1.0)),
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.75)),
+                    Pickable::IGNORE,
+                ));
+            }
+        });
+}
+
+/// The phosphor rim tracing the screen edge (PoC `.rim`): a wider low-alpha glow
+/// under a thin bright line, two nested rounded-border nodes at the screen
+/// rounding. Drawn above the CRT overlay, below the glass.
+fn spawn_nova_os_phosphor_rim(screen: &mut ChildSpawnerCommands) {
+    for (name, border_px, color) in [
+        (
+            "NovaOsPhosphorRimGlow",
+            3.0,
+            NOVA_OS_PHOSPHOR.with_alpha(0.18),
+        ),
+        (
+            "NovaOsPhosphorRimLine",
+            1.0,
+            NOVA_OS_PHOSPHOR.with_alpha(0.55),
+        ),
+    ] {
+        screen.spawn((
+            Name::new(name),
+            NovaOsPhosphorRimMarker,
+            Node {
+                position_type: PositionType::Absolute,
+                top: Val::Px(0.0),
+                bottom: Val::Px(0.0),
+                left: Val::Px(0.0),
+                right: Val::Px(0.0),
+                border: UiRect::all(Val::Px(border_px)),
+                border_radius: BorderRadius::all(Val::Px(NOVA_OS_SCREEN_RADIUS_PX)),
+                ..default()
+            },
+            BorderColor::all(color),
+            ZIndex(NOVA_OS_RIM_Z),
+            Pickable::IGNORE,
+        ));
+    }
+}
+
+/// The glass specular sheen over the screen (PoC `.glass`): a diagonal white
+/// gradient fading to clear, plus one soft angled highlight rectangle. The
+/// frontmost surface layer; ignores picking so it never eats terminal input.
+fn spawn_nova_os_glass_sheen(screen: &mut ChildSpawnerCommands) {
+    screen
+        .spawn((
+            Name::new("NovaOsGlass"),
+            NovaOsGlassMarker,
+            Node {
+                position_type: PositionType::Absolute,
+                top: Val::Px(0.0),
+                bottom: Val::Px(0.0),
+                left: Val::Px(0.0),
+                right: Val::Px(0.0),
+                overflow: Overflow::clip(),
+                border_radius: BorderRadius::all(Val::Px(NOVA_OS_SCREEN_RADIUS_PX)),
+                ..default()
+            },
+            BackgroundGradient(vec![LinearGradient::degrees(
+                118.0,
+                vec![
+                    ColorStop::percent(Color::srgba(1.0, 1.0, 1.0, 0.055), 0.0),
+                    ColorStop::percent(Color::srgba(1.0, 1.0, 1.0, 0.016), 17.0),
+                    ColorStop::percent(Color::NONE, 33.0),
+                ],
+            )
+            .into()]),
+            ZIndex(NOVA_OS_GLASS_Z),
+            Pickable::IGNORE,
+        ))
+        .with_children(|glass| {
+            // A soft upper-left reflection. A RADIAL gradient (not a solid fill)
+            // fades to transparent at the edges, so it reads as a soft glass
+            // catch instead of the hard-edged card a blur-less solid node gives.
+            glass.spawn((
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: Val::Percent(6.0),
+                    top: Val::Percent(7.0),
+                    width: Val::Percent(26.0),
+                    height: Val::Percent(40.0),
+                    ..default()
+                },
+                BackgroundGradient(vec![Gradient::from(RadialGradient::new(
+                    UiPosition::CENTER,
+                    RadialGradientShape::ClosestSide,
+                    vec![
+                        ColorStop::percent(Color::srgba(0.82, 0.92, 1.0, 0.09), 0.0),
+                        ColorStop::percent(Color::srgba(0.82, 0.92, 1.0, 0.03), 55.0),
+                        ColorStop::percent(Color::NONE, 100.0),
+                    ],
+                ))]),
+                UiTransform::from_rotation(Rot2::degrees(-14.0)),
+                Pickable::IGNORE,
+            ));
+        });
+}
+
+/// The bottom casing chin (PoC `.chin`): the recessed brand plate on the left
+/// and a reserved, initially empty controls row on the right (its functional
+/// knobs are task 20260726-214617, which depends on this geometry).
+fn spawn_nova_os_chin(
+    parent: &mut ChildSpawnerCommands,
+    font: Handle<Font>,
+    asset_server: Option<&AssetServer>,
+) {
+    parent
+        .spawn((
+            Name::new("NovaOsChin"),
+            NovaOsChinMarker,
+            Node {
+                width: Val::Percent(100.0),
+                min_height: Val::Px(NOVA_OS_CHIN_HEIGHT_PX),
+                padding: UiRect {
+                    left: Val::Px(12.0),
+                    right: Val::Px(12.0),
+                    top: Val::Px(11.0),
+                    bottom: Val::Px(4.0),
+                },
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                column_gap: Val::Px(14.0),
+                ..default()
+            },
+        ))
+        .with_children(|chin| {
+            chin.spawn((
+                Name::new("NovaOsBrandPlate"),
+                NovaOsBrandPlateMarker,
+                Node {
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(11.0),
+                    padding: UiRect {
+                        left: Val::Px(11.0),
+                        right: Val::Px(14.0),
+                        top: Val::Px(7.0),
+                        bottom: Val::Px(7.0),
+                    },
+                    border: UiRect::all(Val::Px(1.0)),
+                    border_radius: BorderRadius::all(Val::Px(5.0)),
+                    ..default()
+                },
+                // Recessed badge: dark top/left inner shadow, light lower catch.
+                BorderColor {
+                    top: Color::srgba(0.0, 0.0, 0.0, 0.6),
+                    left: Color::srgba(0.0, 0.0, 0.0, 0.4),
+                    bottom: Color::srgba(1.0, 1.0, 1.0, 0.06),
+                    right: Color::srgba(1.0, 1.0, 1.0, 0.04),
+                },
+                BackgroundColor(NOVA_OS_CASE_MID),
+                BackgroundGradient(vec![LinearGradient::degrees(
+                    180.0,
+                    vec![
+                        ColorStop::percent(Color::srgba(0.0, 0.0, 0.0, 0.34), 0.0),
+                        ColorStop::percent(Color::srgba(1.0, 1.0, 1.0, 0.035), 100.0),
+                    ],
+                )
+                .into()]),
+            ))
+            .with_children(|plate| {
+                // Logo mark: SVG rendered to a PNG asset (Bevy UI cannot draw SVG).
+                if let Some(asset_server) = asset_server {
+                    plate.spawn((
+                        Name::new("NovaOsBrandMark"),
+                        ImageNode::new(asset_server.load("icons/nova_crt_mark.png")),
+                        Node {
+                            width: Val::Px(22.0),
+                            height: Val::Px(22.0),
+                            ..default()
+                        },
+                    ));
+                }
+                plate
+                    .spawn((
+                        Name::new("NovaOsBrandText"),
+                        Node {
+                            flex_direction: FlexDirection::Column,
+                            row_gap: Val::Px(3.0),
+                            ..default()
+                        },
+                    ))
+                    .with_children(|text| {
+                        // Dark glyphs stamped INTO the plastic, with a light catch
+                        // along the lower edge (a hard 1px offset, no blur - the
+                        // pressed-in look, not the doubled text a blur would give).
+                        text.spawn((
+                            Name::new("NovaOsBrandWordmark"),
+                            Text::new("NOVACRT 9000"),
+                            nova_os_text_font(12.0, font.clone()),
+                            TextColor(Color::srgb_u8(12, 16, 19)),
+                            TextShadow {
+                                offset: Vec2::new(0.0, 1.0),
+                                color: Color::srgba(1.0, 1.0, 1.0, 0.12),
+                            },
+                        ));
+                        text.spawn((
+                            Name::new("NovaOsBrandSpec"),
+                            Text::new("P22 GREEN PHOSPHOR . 15 IN . TYPE CQ-4"),
+                            nova_os_text_font(8.0, font.clone()),
+                            TextColor(Color::srgb_u8(16, 23, 27)),
+                            TextShadow {
+                                offset: Vec2::new(0.0, 1.0),
+                                color: Color::srgba(1.0, 1.0, 1.0, 0.085),
+                            },
+                        ));
+                    });
+            });
+            // Reserved controls row - functional knobs land in task 214617.
+            chin.spawn((
+                Name::new("NovaOsControlsRow"),
+                NovaOsControlsRowMarker,
+                Node {
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::FlexEnd,
+                    column_gap: Val::Px(14.0),
+                    min_width: Val::Px(120.0),
+                    min_height: Val::Px(26.0),
+                    ..default()
+                },
+            ));
+        });
 }
 
 fn spawn_nova_os_screen_overlays(
@@ -3778,6 +4265,9 @@ mod tests {
     fn spawn_drawer_shell_with_crt(app: &mut App) {
         app.init_asset::<NovaOsCrtMaterial>();
         app.init_asset::<Font>();
+        // The chin's brand plate loads a logo image, so the render-capable rig
+        // must register the `Image` asset too (production has it via DefaultPlugins).
+        app.init_asset::<Image>();
         spawn_drawer_shell(app);
     }
 
@@ -4546,6 +5036,149 @@ mod tests {
                 .count()
                 >= 2,
             "monitor casing has orange/yellow accent slots"
+        );
+    }
+
+    /// The casing + glass depth pass (task 20260726-193219) gives the monitor its
+    /// physical details: rounded casing/bezel/screen, the moulding seam, four
+    /// corner screws, the vent strip, and the chin bar carrying the brand plate
+    /// and a reserved (empty) controls slot.
+    #[test]
+    fn drawer_monitor_has_physical_casing_details() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_observer(setup_drawer);
+        app.world_mut()
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker));
+        app.update();
+
+        // Rounded casing stack: asymmetric shell corners, rounded bezel + screen.
+        let monitor = app
+            .world_mut()
+            .query_filtered::<&Node, With<NovaOsMonitorMarker>>()
+            .single(app.world())
+            .expect("one monitor")
+            .clone();
+        assert_eq!(
+            monitor.border_radius.top_left,
+            Val::Px(NOVA_OS_CASE_RADIUS_TOP_PX),
+            "casing has the larger top corner radius"
+        );
+        assert_eq!(
+            monitor.border_radius.bottom_left,
+            Val::Px(NOVA_OS_CASE_RADIUS_BOTTOM_PX),
+            "casing has the tighter bottom corner radius"
+        );
+        let bezel = app
+            .world_mut()
+            .query_filtered::<&Node, With<NovaOsBezelMarker>>()
+            .single(app.world())
+            .expect("one bezel")
+            .clone();
+        assert_eq!(
+            bezel.border_radius.top_left,
+            Val::Px(NOVA_OS_BEZEL_RADIUS_PX)
+        );
+        let screen = app
+            .world_mut()
+            .query_filtered::<&Node, With<NovaOsScreenMarker>>()
+            .single(app.world())
+            .expect("one screen")
+            .clone();
+        assert_eq!(
+            screen.border_radius.top_left,
+            Val::Px(NOVA_OS_SCREEN_RADIUS_PX)
+        );
+
+        // Four moulded corner screws.
+        assert_eq!(
+            app.world_mut()
+                .query_filtered::<(), With<NovaOsScrewMarker>>()
+                .iter(app.world())
+                .count(),
+            4,
+            "four corner screws"
+        );
+
+        // Single-instance detail nodes: vent strip, moulding seam, chin, plate,
+        // and the reserved controls row.
+        for (count, expected, label) in [
+            (
+                app.world_mut()
+                    .query_filtered::<(), With<NovaOsVentMarker>>()
+                    .iter(app.world())
+                    .count(),
+                1,
+                "vent strip",
+            ),
+            (
+                app.world_mut()
+                    .query_filtered::<(), With<NovaOsSeamMarker>>()
+                    .iter(app.world())
+                    .count(),
+                1,
+                "moulding seam",
+            ),
+            (
+                app.world_mut()
+                    .query_filtered::<(), With<NovaOsChinMarker>>()
+                    .iter(app.world())
+                    .count(),
+                1,
+                "chin bar",
+            ),
+            (
+                app.world_mut()
+                    .query_filtered::<(), With<NovaOsBrandPlateMarker>>()
+                    .iter(app.world())
+                    .count(),
+                1,
+                "brand plate",
+            ),
+            (
+                app.world_mut()
+                    .query_filtered::<(), With<NovaOsControlsRowMarker>>()
+                    .iter(app.world())
+                    .count(),
+                1,
+                "reserved controls row",
+            ),
+        ] {
+            assert_eq!(count, expected, "monitor has exactly one {label}");
+        }
+
+        // The brand plate carries the stamped wordmark + spec line.
+        let plate_texts: Vec<String> = app
+            .world_mut()
+            .query::<&Text>()
+            .iter(app.world())
+            .map(|t| t.0.clone())
+            .collect();
+        assert!(
+            plate_texts.iter().any(|t| t.contains("NOVACRT 9000")),
+            "brand plate shows the NovaCRT 9000 wordmark"
+        );
+        assert!(
+            plate_texts.iter().any(|t| t.contains("P22 GREEN PHOSPHOR")),
+            "brand plate shows the phosphor spec line"
+        );
+
+        // The phosphor rim (glow + line) and the glass sheen trace the screen.
+        assert_eq!(
+            app.world_mut()
+                .query_filtered::<(), With<NovaOsPhosphorRimMarker>>()
+                .iter(app.world())
+                .count(),
+            2,
+            "phosphor rim has a glow + line pair"
+        );
+        assert!(
+            app.world_mut()
+                .query_filtered::<(), With<NovaOsGlassMarker>>()
+                .iter(app.world())
+                .next()
+                .is_some(),
+            "screen has a glass sheen layer"
         );
     }
 

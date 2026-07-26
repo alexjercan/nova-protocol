@@ -19,6 +19,10 @@ struct NovaOsCrtMaterial {
     grain_strength: f32,
     // Real-time seconds, fed each frame so the grain shimmers gently.
     time: f32,
+    // Rounded-corner radius in screen pixels. A UI MaterialNode is not clipped
+    // by its node's BorderRadius, so the overlay masks its own corners here to
+    // the screen's rounding. Zero disables the mask.
+    corner_radius: f32,
 }
 
 @group(1) @binding(0)
@@ -100,6 +104,22 @@ fn fragment(in: UiVertexOutput) -> @location(0) vec4<f32> {
     let tint_alpha = material.tint.a * scan + glow + abs(grain) * 0.9 + spark;
     let edge_alpha = clamp(vignette, 0.0, 0.9);
     let rgb = shade * max(tint_alpha + spark, 0.0);
+
+    // Rounded-corner mask: clip the overlay to the screen's rounded rectangle so
+    // the phosphor film does not bleed past the casing/glass depth-pass rounding
+    // (a UI MaterialNode ignores its node's BorderRadius). Rounded-rect SDF in
+    // device pixels; disabled when resolution/radius are unset. This carries
+    // into 193233's sampling shader.
+    var corner_mask = 1.0;
+    if material.resolution.x > 1.0 && material.resolution.y > 1.0 && material.corner_radius > 0.0 {
+        let half = material.resolution * 0.5;
+        let r = min(material.corner_radius, min(half.x, half.y));
+        let p = abs(uv * material.resolution - half);
+        let q = p - (half - vec2<f32>(r, r));
+        let sd = length(max(q, vec2<f32>(0.0, 0.0))) + min(max(q.x, q.y), 0.0) - r;
+        corner_mask = 1.0 - smoothstep(-1.0, 1.0, sd);
+    }
+
     // Straight-alpha over the terminal content.
-    return vec4<f32>(rgb, clamp(tint_alpha + edge_alpha, 0.0, 0.92));
+    return vec4<f32>(rgb, clamp(tint_alpha + edge_alpha, 0.0, 0.92) * corner_mask);
 }
