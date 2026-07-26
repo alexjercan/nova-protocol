@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: backlog,spike,feature,ui,hud
+- TAGS: v0.9.0,spike,feature,ui,hud
 
 ## Story
 
