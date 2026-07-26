@@ -623,6 +623,64 @@
       cursor: pointer;
     }
 
+    /* Latest log entry, kept visible while a GUI app covers the terminal. */
+    .applast {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      text-align: right;
+      color: var(--phosphor-muted);
+      font-size: 10px;
+    }
+
+    .applast b { color: var(--phosphor-dim); font-weight: 400; }
+
+    .contact-readout {
+      margin-top: 10px;
+      padding: 8px 10px;
+      border: 1px solid rgba(54, 255, 121, 0.24);
+      background: rgba(0, 0, 0, 0.28);
+      color: var(--phosphor-dim);
+      font-size: 12px;
+    }
+
+    .blip { padding: 0; font: inherit; cursor: pointer; }
+    .blip:hover, .blip.picked { background: currentColor; }
+    .blip.picked span { color: var(--amber); }
+
+    .section.isolated { border-style: dashed; opacity: 0.55; }
+    .section .pct { display: block; font-size: 10px; opacity: 0.85; }
+
+    .figure { float: right; color: var(--amber); }
+
+    .action-row button b {
+      display: inline-block;
+      margin-right: 5px;
+      padding: 0 3px;
+      border: 1px solid rgba(255, 184, 74, 0.4);
+      font-weight: 400;
+      opacity: 0.75;
+    }
+
+    .action-row button:disabled { opacity: 0.32; cursor: not-allowed; border-color: rgba(54, 255, 121, 0.25); color: var(--phosphor-muted); }
+    .action-row button:disabled b { border-color: rgba(54, 255, 121, 0.2); }
+
+    .resources {
+      margin-top: 14px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(54, 255, 121, 0.22);
+      display: grid;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--phosphor-muted);
+    }
+
+    .resources div { display: flex; justify-content: space-between; gap: 10px; }
+    .resources b { color: var(--phosphor); font-weight: 400; }
+    .resources b.spent { color: var(--red); }
+
     .footer-hints {
       display: flex;
       justify-content: space-between;
@@ -976,45 +1034,47 @@
                   <section id="mapApp" class="app" aria-label="Map application">
                     <div class="appbar">
                       <span>APP / MAP / LOCAL SPACE</span>
+                      <span class="applast">LAST <b data-last></b></span>
                       <button type="button" data-close-app>Close App</button>
                     </div>
                     <div class="appbody">
-                      <div class="map-grid" aria-label="mock tactical map">
+                      <div class="map-grid" aria-label="local space contacts">
                         <div class="orbit" style="left:50%;top:50%;width:72%;height:72%;"></div>
                         <div class="orbit" style="left:50%;top:50%;width:42%;height:42%;"></div>
-                        <div class="blip ally" style="left:49%;top:52%;"><span>CERES QUEEN</span></div>
-                        <div class="blip objective" style="left:62%;top:34%;"><span>SALVAGE FIELD</span></div>
-                        <div class="blip enemy" style="left:73%;top:58%;"><span>RAIDER WING</span></div>
-                        <div class="blip" style="left:34%;top:43%;"><span>ASTEROID CLUSTER</span></div>
+                        <button class="blip ally" data-contact="ceres" style="left:49%;top:52%;"><span>CERES QUEEN</span></button>
+                        <button class="blip objective" data-contact="salvage" style="left:62%;top:34%;"><span>SALVAGE FIELD</span></button>
+                        <button class="blip enemy" data-contact="raiders" style="left:73%;top:58%;"><span>RAIDER WING</span></button>
+                        <button class="blip" data-contact="rocks" style="left:34%;top:43%;"><span>ASTEROID CLUSTER</span></button>
                       </div>
+                      <div class="contact-readout" id="contactReadout">Select a contact for range and bearing.</div>
                     </div>
                   </section>
 
                   <section id="shipApp" class="app" aria-label="Ship viewer application">
                     <div class="appbar">
                       <span>APP / SHIP VIEWER / CERES QUEEN</span>
+                      <span class="applast">LAST <b data-last></b></span>
                       <button type="button" data-close-app>Close App</button>
                     </div>
                     <div class="appbody">
                       <div class="ship-layout">
-                        <div class="ship-diagram" aria-label="mock ship sections">
-                          <button class="section selected" data-section="Command" data-hp="100" data-status="Online" style="left:42%;top:8%;width:16%;height:14%;">CMD<br>100%</button>
-                          <button class="section" data-section="Port Hull" data-hp="86" data-status="Scored plating" style="left:18%;top:31%;width:22%;height:18%;">PORT<br>86%</button>
-                          <button class="section" data-section="Starboard Hull" data-hp="92" data-status="Online" style="left:60%;top:31%;width:22%;height:18%;">STBD<br>92%</button>
-                          <button class="section damaged" data-section="Main Thruster" data-hp="58" data-status="Damaged" style="left:40%;top:58%;width:20%;height:18%;">THR<br>58%</button>
-                          <button class="section critical" data-section="Torpedo Bay" data-hp="24" data-status="Critical ammo feed" style="left:42%;top:34%;width:16%;height:14%;">TRP<br>24%</button>
-                        </div>
+                        <div class="ship-diagram" id="shipDiagram" aria-label="ship sections"></div>
                         <aside class="inspector">
                           <h2 id="sectionName">Command</h2>
-                          <div>HP</div>
+                          <div>INTEGRITY <span id="sectionHp" class="figure">100%</span></div>
                           <div class="meter"><span id="sectionMeter" style="width:100%;"></span></div>
                           <div id="sectionStatus">Status: Online</div>
                           <div class="action-row">
-                            <button type="button">Reload</button>
-                            <button type="button">Repair</button>
-                            <button type="button">Isolate</button>
+                            <button type="button" id="btnRepair"><b>1</b> Repair</button>
+                            <button type="button" id="btnReload"><b>2</b> Reload</button>
+                            <button type="button" id="btnIsolate"><b>3</b> Isolate</button>
                           </div>
-                          <p class="line dim">Mock data only. This app demonstrates a click-driven GUI tool launched from the same terminal screen.</p>
+                          <div class="resources">
+                            <div><span>REPAIR KITS</span><b id="resKits">3</b></div>
+                            <div><span>TUBES LOADED</span><b id="resTubes">1 / 3</b></div>
+                            <div><span>ORDNANCE HELD</span><b id="resOrd">4</b></div>
+                          </div>
+                          <p class="line dim" id="actionNote">Repair burns a kit. The ammo feed has to hold before the tubes will take a load.</p>
                         </aside>
                       </div>
                     </div>
@@ -1094,7 +1154,7 @@
   <script>
     const VERSION = "0.9.0-dev";
 
-    const commands = ["help", "log", "objectives", "ship", "ship viewer", "map", "clear", "exit"];
+    const commands = ["help", "log", "objectives", "ship", "ship view", "map", "repair", "reload", "clear", "exit"];
     const scrollback = document.querySelector("#scrollback");
     const form = document.querySelector("#promptForm");
     const input = document.querySelector("#cmd");
@@ -1239,7 +1299,7 @@
             enabled = true;
             if (ctx.state === "suspended") ctx.resume();
             noise(0.05, 900, 1.2, 0.3, "lowpass");
-            if (!sleep.classList.contains("active")) startBed();
+            if (screenOn) startBed();
           } else {
             stopBed();
             enabled = false;
@@ -1253,6 +1313,9 @@
         beep() { tone(1180, 0.05, 0.055, "square"); },
         error() { tone(220, 0.09, 0.09, "square"); tone(165, 0.13, 0.09, "square", 0, 0.1); },
         detent() { noise(0.02, 3200, 3, 0.2); },
+        chime() { tone(880, 0.09, 0.05, "sine"); tone(1320, 0.16, 0.05, "sine", 0, 0.08); },
+        work() { noise(0.75, 420, 0.7, 0.05, "bandpass"); tone(58, 0.7, 0.035, "sawtooth"); },
+        load() { noise(0.07, 320, 1.1, 0.22, "lowpass"); tone(96, 0.14, 0.09, "triangle", 62, 0.05); },
 
         /* Degauss coil: a thump modulated by the 50 Hz field as it decays. */
         coil() {
@@ -1287,8 +1350,8 @@
     /* Footer shows the keys that work in whatever is on screen right now. */
     const HINTS = {
       terminal: ["TAB: AUTOCOMPLETE", "ESC: CLOSE COMPUTER", "HINT: TYPE HELP"],
-      map: ["ARROWS: PAN (MOCK)", "ESC: CLOSE COMPUTER", "CTRL+C: RETURN FROM APP"],
-      ship: ["CLICK: SELECT SECTION", "ESC: CLOSE COMPUTER", "CTRL+C: RETURN FROM APP"]
+      map: ["CLICK: INSPECT CONTACT", "ESC: BACK TO TERMINAL", "SHIFT+ESC: CLOSE COMPUTER"],
+      ship: ["1/2/3: REPAIR RELOAD ISOLATE", "ESC: BACK TO TERMINAL", "SHIFT+ESC: CLOSE COMPUTER"]
     };
 
     function setHints(context) {
@@ -1302,30 +1365,105 @@
       ["dim", "CORE ......... 64K static / ok"],
       ["dim", "DISPLAY ...... green phosphor crt / warm"],
       ["dim", "LINK ......... cockpit bus / local"],
-      ["warn", "Hint: type `help` and press Enter."]
+      ["warn", "Hint: type `help` and press Enter."],
+      ["dim", "4 unread events. Torpedo bay is down - try `ship`."]
     ];
 
-    const data = {
-      objectives: [
-        "OBJ + Strip 3 salvage crates from the wreck field.",
-        "OBJ + Keep the Ceres Queen within local comms range."
-      ],
-      log: [
-        "0001 COMMS OKONO > Ceres Queen, your telemetry is dirty but readable.",
-        "0002 COMMS TALLY > Salvage field is ahead. Stay sharp.",
-        "0003 OBJ + Strip 3 salvage crates from the wreck field.",
-        "0004 SYS > Port hull plating took minor debris impact.",
-        "0005 OBJ x Calibrate targeting on the derelict beacon."
-      ],
-      ship: [
-        "SHIP CERES QUEEN",
-        "COMMAND       100%  online",
-        "PORT HULL      86%  scored plating",
-        "STARBOARD      92%  online",
-        "MAIN THRUSTER  58%  damaged",
-        "TORPEDO BAY    24%  critical ammo feed"
+    /* ------------------------------- state --------------------------------- */
+    /* The terminal is a viewer onto this, not the owner of it. In-engine this
+       object is whatever the flight sim already tracks; here it stands in so
+       the panel has something real to read from and write back to. */
+
+    const ship = {
+      name: "CERES QUEEN",
+      kits: 3,
+      ordnance: 4,
+      tubes: 3,
+      loaded: 1,
+      sections: [
+        { code: "cmd",  label: "CMD",  name: "Command",         hp: 100, box: "left:42%;top:8%;width:16%;height:14%;" },
+        { code: "port", label: "PORT", name: "Port Hull",       hp: 86,  box: "left:18%;top:31%;width:22%;height:18%;" },
+        { code: "stbd", label: "STBD", name: "Starboard Hull",  hp: 92,  box: "left:60%;top:31%;width:22%;height:18%;" },
+        { code: "thr",  label: "THR",  name: "Main Thruster",   hp: 58,  box: "left:40%;top:58%;width:20%;height:18%;" },
+        { code: "trp",  label: "TRP",  name: "Torpedo Bay",     hp: 24,  box: "left:42%;top:34%;width:16%;height:14%;", magazine: true }
       ]
     };
+
+    const contacts = {
+      ceres:   { name: "Ceres Queen",      kind: "OWN SHIP",  range: "0 km",     bearing: "---",     note: "That is you." },
+      salvage: { name: "Salvage field",    kind: "OBJECTIVE", range: "4.2 km",   bearing: "041 mark 12", note: "Three crates still reading intact." },
+      raiders: { name: "Raider wing",      kind: "HOSTILE",   range: "11.8 km",  bearing: "118 mark -04", note: "Four light hulls, closing slowly." },
+      rocks:   { name: "Asteroid cluster", kind: "TERRAIN",   range: "6.7 km",   bearing: "294 mark 09", note: "Dense enough to break a lock." }
+    };
+
+    let selected = ship.sections[0];
+    let repairing = false;
+
+    function sectionBy(code) {
+      const key = code.toLowerCase();
+      return ship.sections.find((item) => item.code === key
+        || item.name.toLowerCase() === key
+        || item.name.toLowerCase().startsWith(key));
+    }
+
+    function statusOf(item) {
+      if (item.isolated) return "Isolated - no power";
+      if (item.hp >= 95) return "Online";
+      if (item.hp >= 70) return "Scored plating";
+      if (item.hp >= 40) return item.magazine ? "Ammo feed degraded" : "Degraded";
+      return item.magazine ? "Critical ammo feed" : "Critical";
+    }
+
+    function severityOf(item) {
+      if (item.isolated) return "isolated";
+      if (item.hp < 40) return "critical";
+      if (item.hp < 70) return "damaged";
+      return "";
+    }
+
+    /* ------------------------------- log ----------------------------------- */
+
+    const log = [];
+    let logSeq = 0;
+
+    function logEvent(text, kind = "") {
+      logSeq += 1;
+      const entry = { id: String(logSeq).padStart(4, "0"), text, kind };
+      log.push(entry);
+      if (log.length > 60) log.shift();
+      document.querySelectorAll("[data-last]").forEach((el) => { el.textContent = `${entry.id} ${text}`; });
+      return entry;
+    }
+
+    logEvent("COMMS OKONO > Ceres Queen, your telemetry is dirty but readable.");
+    logEvent("COMMS TALLY > Salvage field is ahead. Stay sharp.");
+    logEvent("SYS > Port hull plating took minor debris impact.", "warn");
+    logEvent("SYS > Torpedo bay ammo feed failed. Tubes will not accept a load.", "error");
+
+    /* ---------------------------- objectives -------------------------------- */
+
+    const objectives = [
+      { text: "Strip 3 salvage crates from the wreck field.", done: () => false },
+      { text: "Bring the torpedo bay back above 60%.",        done: () => sectionBy("trp").hp >= 60 },
+      { text: "Load all three tubes before the raiders close.", done: () => ship.loaded >= ship.tubes }
+    ];
+
+    /* Objectives announce themselves the moment they flip, so the player finds
+       out from the log rather than by going back to check. */
+    function checkObjectives() {
+      objectives.forEach((objective) => {
+        const done = objective.done();
+        if (done && !objective.flagged) {
+          objective.flagged = true;
+          logEvent(`OBJ x ${objective.text}`, "blue");
+          Sound.chime();
+        } else if (!done && objective.flagged) {
+          objective.flagged = false;
+        }
+      });
+    }
+
+    objectives.forEach((objective) => { objective.flagged = objective.done(); });
 
     /* ---------------------------- terminal core ---------------------------- */
 
@@ -1354,15 +1492,106 @@
 
     function commandHelp() {
       print("Available commands:", "blue");
-      print("  help          Show this command list");
-      print("  log           Print comms and mission events");
-      print("  objectives    Print active objectives");
-      print("  ship          Print ship status summary");
-      print("  map           Launch tactical map app");
-      print("  ship viewer   Launch section viewer app");
-      print("  clear         Clear terminal scrollback");
-      print("  exit          Suspend drawer mock", "dim");
+      print("  help            Show this command list");
+      print("  log             Print comms and mission events");
+      print("  objectives      Print active objectives");
+      print("  ship            Print ship status summary");
+      print("  ship view       Open the section viewer");
+      print("  map             Open local space");
+      print("  repair <part>   Spend a kit on a section - e.g. repair thr");
+      print("  reload          Load the torpedo tubes");
+      print("  clear           Clear terminal scrollback");
+      print("  exit            Close the computer", "dim");
     }
+
+    /* ------------------------------ readouts -------------------------------- */
+
+    function showLog() {
+      if (!log.length) { print("log empty", "dim"); return; }
+      log.forEach((entry) => print(`${entry.id} ${entry.text}`, entry.kind));
+    }
+
+    function showObjectives() {
+      objectives.forEach((objective) => {
+        const done = objective.done();
+        print(`OBJ ${done ? "x" : "+"} ${objective.text}`, done ? "dim" : "");
+      });
+    }
+
+    function showShip() {
+      print(`SHIP ${ship.name}`, "blue");
+      ship.sections.forEach((item) => {
+        const name = item.name.toUpperCase().padEnd(15, " ");
+        const hp = `${item.hp}%`.padStart(4, " ");
+        print(`${name}${hp}  ${statusOf(item).toLowerCase()}`, severityOf(item) === "critical" ? "error" : "");
+      });
+      print(`TUBES ${ship.loaded}/${ship.tubes} loaded  ORDNANCE ${ship.ordnance}  KITS ${ship.kits}`, "dim");
+    }
+
+    /* ------------------------------- actions -------------------------------- */
+    /* These are the only commands that change anything, which is the point:
+       the panel is worth opening because you leave it having done something. */
+
+    const REPAIR_STEP = 26;
+
+    function repairSection(code) {
+      if (repairing) { print("repair crew already working", "warn"); return; }
+      if (!code) { print("repair which section? try: repair thr", "warn"); return; }
+
+      const item = sectionBy(code);
+      if (!item) { print(`no section matching "${code}"`, "error"); Sound.error(); return; }
+      if (item.isolated) { print(`${item.name} is isolated - restore power first`, "error"); Sound.error(); return; }
+      if (item.hp >= 100) { print(`${item.name} is already at full integrity`, "dim"); return; }
+      if (ship.kits <= 0) { print("no repair kits left", "error"); Sound.error(); return; }
+
+      ship.kits -= 1;
+      repairing = true;
+      renderShip();
+      print(`patching ${item.name.toLowerCase()}...`, "dim");
+      Sound.work();
+
+      setTimeout(() => {
+        item.hp = Math.min(100, item.hp + REPAIR_STEP);
+        repairing = false;
+        logEvent(`CREW > ${item.name} patched to ${item.hp}%. ${ship.kits} kit${ship.kits === 1 ? "" : "s"} left.`);
+        print(`${item.name} now ${item.hp}% - ${statusOf(item).toLowerCase()}`, "blue");
+        Sound.beep();
+        renderShip();
+        checkObjectives();
+      }, 900);
+    }
+
+    function reloadTubes() {
+      const bay = sectionBy("trp");
+      if (bay.isolated) { print("torpedo bay is isolated", "error"); Sound.error(); return; }
+      if (bay.hp < 40) {
+        print("ammo feed will not hold - repair the torpedo bay first", "error");
+        Sound.error();
+        return;
+      }
+      if (ship.loaded >= ship.tubes) { print("all tubes already loaded", "dim"); return; }
+      if (ship.ordnance <= 0) { print("no ordnance left in the hold", "error"); Sound.error(); return; }
+
+      const moved = Math.min(ship.tubes - ship.loaded, ship.ordnance);
+      ship.loaded += moved;
+      ship.ordnance -= moved;
+      logEvent(`CREW > Loaded ${moved} torpedo${moved === 1 ? "" : "es"}. Tubes ${ship.loaded}/${ship.tubes}.`);
+      print(`tubes ${ship.loaded}/${ship.tubes}, ${ship.ordnance} left in the hold`, "blue");
+      Sound.load();
+      renderShip();
+      checkObjectives();
+    }
+
+    function toggleIsolate(item) {
+      item.isolated = !item.isolated;
+      logEvent(`SYS > ${item.name} ${item.isolated ? "isolated from the bus" : "restored to the bus"}.`, item.isolated ? "warn" : "");
+      print(`${item.name} ${item.isolated ? "isolated" : "back online"}`, "warn");
+      Sound.detent();
+      renderShip();
+      checkObjectives();
+    }
+
+    /* ------------------------------ dispatch -------------------------------- */
 
     function runCommand(raw) {
       const value = raw.trim().toLowerCase();
@@ -1371,49 +1600,74 @@
       historyIndex = history.length;
       print(`nova> ${raw}`, "warn");
 
-      if (value === "help") commandHelp();
-      else if (value === "log") printBlock(data.log);
-      else if (value === "objectives") printBlock(data.objectives);
-      else if (value === "ship") printBlock(data.ship);
-      else if (value === "map") openApp("map");
-      else if (value === "ship viewer") openApp("ship");
-      else if (value === "clear") { scrollback.textContent = ""; printBanner(true); }
-      else if (value === "exit") closeDrawer();
-      else suggest(value);
+      const parts = value.split(/\s+/);
+      const verb = parts[0];
+      const rest = parts.slice(1).join(" ");
+
+      if (verb === "help") commandHelp();
+      else if (verb === "log") showLog();
+      else if (verb === "objectives") showObjectives();
+      else if (verb === "ship" && (rest === "view" || rest === "viewer")) openApp("ship");
+      else if (verb === "ship" && !rest) showShip();
+      else if (verb === "map" && !rest) openApp("map");
+      else if (verb === "repair") repairSection(rest);
+      else if (verb === "reload" && !rest) reloadTubes();
+      else if (verb === "clear" && !rest) { scrollback.textContent = ""; printBanner(true); }
+      else if (verb === "exit" && !rest) closeDrawer();
+      else suggest(value, verb);
     }
 
-    function suggest(value) {
+    function suggest(value, verb) {
       Sound.error();
-      const match = nearest(value);
       print(`command not found: ${value}`, "error");
+      const match = nearest(verb);
       if (match) print(`did you mean ${match}?`, "warn");
+    }
+
+    /* Levenshtein, so a transposition still resolves - `raepir` finds repair,
+       which the old positional scorer could never do. */
+    function distance(a, b) {
+      const rows = [];
+      for (let i = 0; i <= b.length; i += 1) rows[i] = [i];
+      for (let j = 0; j <= a.length; j += 1) rows[0][j] = j;
+      for (let i = 1; i <= b.length; i += 1) {
+        for (let j = 1; j <= a.length; j += 1) {
+          rows[i][j] = b[i - 1] === a[j - 1]
+            ? rows[i - 1][j - 1]
+            : Math.min(rows[i - 1][j - 1], rows[i][j - 1], rows[i - 1][j]) + 1;
+        }
+      }
+      return rows[b.length][a.length];
     }
 
     function nearest(value) {
       let best = "";
-      let bestScore = 0;
-      for (const command of commands) {
-        let score = 0;
-        for (let i = 0; i < Math.min(value.length, command.length); i += 1) {
-          if (value[i] === command[i]) score += 1;
-        }
-        if (command.includes(value[0] || " ") && score >= bestScore) {
-          best = command;
-          bestScore = score;
-        }
-      }
-      return bestScore > 0 ? best : "";
+      let bestScore = Infinity;
+      commands.forEach((command) => {
+        const head = command.split(" ")[0];
+        const score = Math.min(distance(value, command), distance(value, head));
+        if (score < bestScore) { bestScore = score; best = command; }
+      });
+      return bestScore <= Math.max(2, Math.floor(value.length / 2)) ? best : "";
+    }
+
+    /* ---------------------------- autocomplete ------------------------------ */
+
+    function matches(value) {
+      const query = value.toLowerCase();
+      if (!query) return [];
+      return commands.filter((command) => command.startsWith(query));
     }
 
     function completion(value) {
-      if (!value) return "";
-      return commands.find((command) => command.startsWith(value.toLowerCase())) || "";
+      return matches(value)[0] || "";
     }
 
     function updateGhost() {
       const value = input.value;
       const full = completion(value);
-      input.classList.toggle("invalid", value.length > 0 && !full);
+      const known = full || commands.some((command) => value.toLowerCase().startsWith(command));
+      input.classList.toggle("invalid", value.length > 0 && !known);
       ghost.textContent = full && full !== value.toLowerCase() ? value + full.slice(value.length) : "";
       updateCaret();
     }
@@ -1429,28 +1683,135 @@
       input.style.caretColor = hide ? "var(--amber)" : "transparent";
     }
 
+    /* Tab cycles through every match instead of locking onto the first, so
+       `ship` and `ship view` are both reachable; a second Tab on an ambiguous
+       stem also lists them, the way a real shell does. */
+    let cycleStem = "";
+    let cycleIndex = -1;
+
     function completeInput() {
-      const full = completion(input.value);
-      if (full) {
-        input.value = full;
-        updateGhost();
-      }
+      const stem = cycleIndex === -1 ? input.value : cycleStem;
+      const found = matches(stem);
+      if (!found.length) { Sound.error(); return; }
+
+      if (found.length > 1 && cycleIndex === -1) print(found.join("   "), "dim");
+
+      cycleStem = stem;
+      cycleIndex = (cycleIndex + 1) % found.length;
+      input.value = found[cycleIndex];
+      updateGhost();
+      Sound.key();
     }
 
+    function resetCycle() {
+      cycleIndex = -1;
+      cycleStem = "";
+    }
+
+    /* ------------------------------ render ---------------------------------- */
+
+    const diagram = document.querySelector("#shipDiagram");
+    const btnRepair = document.querySelector("#btnRepair");
+    const btnReload = document.querySelector("#btnReload");
+    const btnIsolate = document.querySelector("#btnIsolate");
+
+    function renderShip() {
+      diagram.innerHTML = ship.sections.map((item) => {
+        const classes = ["section", severityOf(item), item === selected ? "selected" : ""].filter(Boolean).join(" ");
+        return `<button class="${classes}" type="button" data-code="${item.code}" style="${item.box}">`
+          + `${item.label}<span class="pct">${item.hp}%</span></button>`;
+      }).join("");
+
+      document.querySelector("#sectionName").textContent = selected.name;
+      document.querySelector("#sectionHp").textContent = `${selected.hp}%`;
+      document.querySelector("#sectionMeter").style.width = `${selected.hp}%`;
+      document.querySelector("#sectionStatus").textContent = `Status: ${statusOf(selected)}`;
+
+      const kits = document.querySelector("#resKits");
+      kits.textContent = ship.kits;
+      kits.classList.toggle("spent", ship.kits === 0);
+      document.querySelector("#resTubes").textContent = `${ship.loaded} / ${ship.tubes}`;
+      const ord = document.querySelector("#resOrd");
+      ord.textContent = ship.ordnance;
+      ord.classList.toggle("spent", ship.ordnance === 0);
+
+      const bay = sectionBy("trp");
+      btnRepair.disabled = repairing || ship.kits <= 0 || selected.hp >= 100 || !!selected.isolated;
+      btnReload.disabled = ship.loaded >= ship.tubes || ship.ordnance <= 0 || bay.hp < 40 || !!bay.isolated;
+      btnIsolate.textContent = "";
+      btnIsolate.insertAdjacentHTML("beforeend", `<b>3</b> ${selected.isolated ? "Restore" : "Isolate"}`);
+
+      /* The note explains why a control is dead, rather than leaving the
+         player to guess at a greyed-out button. */
+      const note = document.querySelector("#actionNote");
+      if (repairing) note.textContent = "Crew is working. One job at a time.";
+      else if (btnReload.disabled && bay.hp < 40) note.textContent = "Ammo feed is below tolerance. Repair the torpedo bay before the tubes will take a load.";
+      else if (ship.kits <= 0) note.textContent = "Out of repair kits. Salvage is the only way to restock.";
+      else if (selected.hp >= 100) note.textContent = `${selected.name} is intact. Pick a damaged section to spend a kit.`;
+      else note.textContent = "Repair burns one kit and takes a moment. Isolating a section drops it off the bus.";
+    }
+
+    diagram.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-code]");
+      if (!button) return;
+      selected = sectionBy(button.dataset.code);
+      Sound.beep();
+      renderShip();
+    });
+
+    btnRepair.addEventListener("click", () => repairSection(selected.code));
+    btnReload.addEventListener("click", reloadTubes);
+    btnIsolate.addEventListener("click", () => toggleIsolate(selected));
+
+    const contactReadout = document.querySelector("#contactReadout");
+
+    document.querySelectorAll("[data-contact]").forEach((blip) => {
+      blip.addEventListener("click", () => {
+        document.querySelectorAll("[data-contact]").forEach((item) => item.classList.remove("picked"));
+        blip.classList.add("picked");
+        const contact = contacts[blip.dataset.contact];
+        contactReadout.textContent = `${contact.kind} / ${contact.name} - range ${contact.range}, bearing ${contact.bearing}. ${contact.note}`;
+        Sound.beep();
+      });
+    });
+
     /* ------------------------------ apps ----------------------------------- */
+
+    /* Every raster effect writes the same CSS `animation` shorthand, so only
+       one may be on the element at a time. This is the single place that
+       swaps them: it clears the others, restarts the animation with a
+       reflow, and takes the class back off when the run is over. Transient
+       effects self-clean; `power-off` persists until the tube comes back. */
+    const FX = ["degauss", "jitter", "power-on", "power-off"];
+    let fxTimer = null;
+    let fxToken = 0;
+
+    function playFx(name, ms, persist) {
+      if (reduceMotion) return;
+      fxToken += 1;
+      const token = fxToken;
+      clearTimeout(fxTimer);
+      raster.classList.remove(...FX);
+      void raster.offsetWidth;
+      raster.classList.add(name);
+      if (persist) return;
+      fxTimer = setTimeout(() => {
+        if (token === fxToken) raster.classList.remove(name);
+      }, ms);
+    }
 
     function degauss() {
       Sound.coil();
       if (reduceMotion) return;
-      raster.classList.remove("degauss");
       flash.classList.remove("on");
-      void raster.offsetWidth;
-      raster.classList.add("degauss");
+      void flash.offsetWidth;
       flash.classList.add("on");
+      playFx("degauss", 600);
     }
 
     function openApp(name) {
       activeApp = name;
+      if (name === "ship") renderShip();
       terminal.classList.add("hidden");
       mapApp.classList.toggle("active", name === "map");
       shipApp.classList.toggle("active", name === "ship");
@@ -1475,37 +1836,31 @@
 
     /* ----------------------------- power state ----------------------------- */
 
-    function powerOff() {
-      Sound.down();
-      raster.classList.remove("power-on");
-      if (!reduceMotion) {
-        void raster.offsetWidth;
-        raster.classList.add("power-off");
-      }
-    }
-
-    function powerOn() {
-      Sound.up();
-      raster.classList.remove("power-off");
-      if (!reduceMotion) {
-        void raster.offsetWidth;
-        raster.classList.add("power-on");
-      }
-    }
+    /* `screenOn` is the truth, not the sleep overlay - the overlay lags the
+       collapse by the length of the animation, and keying off it let a fast
+       Esc/Tab land in that gap and desync the two. */
+    let screenOn = true;
+    let sleepTimer = null;
 
     function closeDrawer() {
-      if (sleep.classList.contains("active")) return;
-      powerOff();
+      if (!screenOn) return;
+      screenOn = false;
+      Sound.down();
+      playFx("power-off", 0, true);
       input.blur();
       led.classList.add("standby");
-      setTimeout(() => sleep.classList.add("active"), reduceMotion ? 0 : 420);
+      clearTimeout(sleepTimer);
+      sleepTimer = setTimeout(() => sleep.classList.add("active"), reduceMotion ? 0 : 440);
     }
 
     function openDrawer() {
-      if (!sleep.classList.contains("active")) return;
+      if (screenOn) return;
+      screenOn = true;
+      clearTimeout(sleepTimer);
       sleep.classList.remove("active");
       led.classList.remove("standby");
-      powerOn();
+      Sound.up();
+      playFx("power-on", 800);
       input.focus();
       updateCaret();
     }
@@ -1588,8 +1943,8 @@
 
     document.querySelector("#powerBtn").addEventListener("click", () => {
       Sound.detent();
-      if (sleep.classList.contains("active")) openDrawer();
-      else closeDrawer();
+      if (screenOn) closeDrawer();
+      else openDrawer();
     });
 
     /* ------------------------------- events -------------------------------- */
@@ -1599,11 +1954,12 @@
       Sound.enter();
       const value = input.value;
       input.value = "";
+      resetCycle();
       updateGhost();
       runCommand(value);
     });
 
-    input.addEventListener("input", updateGhost);
+    input.addEventListener("input", () => { resetCycle(); updateGhost(); });
     input.addEventListener("focus", updateCaret);
     input.addEventListener("blur", updateCaret);
     input.addEventListener("click", updateCaret);
@@ -1618,7 +1974,7 @@
         Sound.key();
       }
 
-      if (sleep.classList.contains("active")) {
+      if (!screenOn) {
         if (event.key === "Tab") {
           event.preventDefault();
           openDrawer();
@@ -1632,13 +1988,39 @@
         return;
       }
 
+      /* Esc backs out one level, which is what every player expects. Only
+         from the terminal - the top level - does it close the machine.
+         Shift+Esc is the escape hatch for closing from inside an app. */
       if (event.key === "Escape") {
         event.preventDefault();
-        closeDrawer();
+        if (activeApp && !event.shiftKey) closeApp();
+        else closeDrawer();
         return;
       }
 
-      if (!activeApp && event.key === "Tab") {
+      /* Number keys drive the ship viewer so you never have to reach for the
+         mouse mid-flight. */
+      if (activeApp === "ship" && ["1", "2", "3"].includes(event.key)) {
+        event.preventDefault();
+        if (event.key === "1" && !btnRepair.disabled) repairSection(selected.code);
+        else if (event.key === "2" && !btnReload.disabled) reloadTubes();
+        else if (event.key === "3") toggleIsolate(selected);
+        else Sound.error();
+        return;
+      }
+
+      /* Page the scrollback from the keyboard - a cockpit player may never
+         have a hand on the mouse. */
+      if (!activeApp && (event.key === "PageUp" || event.key === "PageDown")) {
+        event.preventDefault();
+        const step = scrollback.clientHeight * 0.8;
+        scrollback.scrollTop += event.key === "PageUp" ? -step : step;
+        return;
+      }
+
+      /* Tab completes only while the command line has focus, so the case
+         controls stay reachable by keyboard. */
+      if (!activeApp && event.key === "Tab" && document.activeElement === input) {
         event.preventDefault();
         completeInput();
         return;
@@ -1686,11 +2068,7 @@
     function scheduleGlitch() {
       const delay = 16000 + Math.random() * 26000;
       setTimeout(() => {
-        if (!reduceMotion && !sleep.classList.contains("active")) {
-          raster.classList.remove("jitter");
-          void raster.offsetWidth;
-          raster.classList.add("jitter");
-        }
+        if (screenOn) playFx("jitter", 220);
         scheduleGlitch();
       }, delay);
     }
@@ -1699,7 +2077,8 @@
 
     function boot() {
       setHints("terminal");
-      powerOn();
+      renderShip();
+      playFx("power-on", 800);
 
       printBanner(reduceMotion);
 
