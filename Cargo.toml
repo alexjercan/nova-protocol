@@ -109,6 +109,10 @@ name = "screenshot_combat"
 path = "examples/screenshots/screenshot_combat.rs"
 
 [[example]]
+name = "screenshot_nova_os"
+path = "examples/screenshots/screenshot_nova_os.rs"
+
+[[example]]
 name = "screenshot_sections"
 path = "examples/screenshots/screenshot_sections.rs"
 

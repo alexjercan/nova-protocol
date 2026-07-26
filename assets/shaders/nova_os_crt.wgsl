@@ -8,10 +8,8 @@ struct NovaOsCrtMaterial {
     tint: vec4<f32>,
     // Darkening applied by horizontal scanlines.
     scanline_strength: f32,
-    // Edge darkening at the screen corners.
+    // Edge darkening toward the screen corners.
     vignette_strength: f32,
-    // Subtle centre glow.
-    glow_strength: f32,
     // Sparse square phosphor grain.
     grain_strength: f32,
 }
@@ -19,26 +17,36 @@ struct NovaOsCrtMaterial {
 @group(1) @binding(0)
 var<uniform> material: NovaOsCrtMaterial;
 
+// A phosphor CRT overlay tuned to match `nova_os_terminal_poc.html`: the centre
+// stays almost fully transparent so the terminal text underneath reads crisp,
+// while a soft vignette darkens only the outer edges (like the HTML
+// `radial-gradient(ellipse at center, transparent 56%, rgba(0,0,0,0.42) 100%)`).
+// There is deliberately NO centre glow: the previous version added a
+// centre-peaked green haze over exactly where the text lives, washing it out.
 @fragment
 fn fragment(in: UiVertexOutput) -> @location(0) vec4<f32> {
     let uv = in.uv;
-    let centered = uv - vec2<f32>(0.5, 0.5);
+    // Slightly elliptical distance so the vignette hugs the corners, not a circle.
+    let centered = (uv - vec2<f32>(0.5, 0.5)) * vec2<f32>(1.0, 0.82);
     let dist = length(centered);
 
+    // Subtle horizontal scanlines.
     let scan = select(1.0, 1.0 - material.scanline_strength, fract(uv.y * 240.0) < 0.5);
-    let corner_falloff = smoothstep(0.06, 0.74, dist);
-    let mid_ring = smoothstep(0.20, 0.46, dist) * 0.16;
-    let outer_ring = smoothstep(0.42, 0.70, dist) * 0.22;
-    let rounded_glass = smoothstep(0.12, 0.68, dist) * 0.18;
-    let vignette = (pow(corner_falloff, 1.18) + mid_ring + outer_ring + rounded_glass) * material.vignette_strength;
-    let glow = (1.0 - smoothstep(0.0, 0.68, dist)) * material.glow_strength;
-    let grain_cell = floor(uv * vec2<f32>(360.0, 204.0));
+
+    // Edge-only vignette: fully transparent through the readable centre, then
+    // darkening toward the corners.
+    let vignette = smoothstep(0.46, 0.98, dist) * material.vignette_strength;
+
+    // Sparse, faint phosphor grain texture.
+    let grain_cell = floor(uv * vec2<f32>(480.0, 270.0));
     let grain_hash = fract(sin(dot(grain_cell, vec2<f32>(12.9898, 78.233))) * 43758.5453);
     let grain = (grain_hash - 0.5) * material.grain_strength;
-    let spark = step(0.985, grain_hash) * material.grain_strength * 0.95;
 
-    let tint_alpha = material.tint.a * scan + glow + abs(grain) * 0.32 + spark * 0.55;
-    let edge_alpha = clamp(vignette, 0.0, 0.96);
-    let rgb = material.tint.rgb * max(tint_alpha + grain + spark, 0.0);
-    return vec4<f32>(rgb * (1.0 - edge_alpha), clamp(tint_alpha + edge_alpha, 0.0, 0.96));
+    // Faint uniform phosphor film, modulated by the scanlines.
+    let tint_alpha = material.tint.a * scan + abs(grain) * 0.3;
+    let edge_alpha = clamp(vignette, 0.0, 0.9);
+    let rgb = material.tint.rgb * tint_alpha;
+    // Straight-alpha over the terminal content: near-transparent green in the
+    // centre, near-black in the corners.
+    return vec4<f32>(rgb, clamp(tint_alpha + edge_alpha, 0.0, 0.92));
 }

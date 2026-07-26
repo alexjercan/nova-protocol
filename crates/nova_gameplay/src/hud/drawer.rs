@@ -81,22 +81,29 @@ const NOVA_OS_CASE: Color = Color::srgb_u8(5, 10, 15);
 const NOVA_OS_CASE_RAISED: Color = Color::srgb_u8(11, 21, 32);
 const NOVA_OS_CASE_EDGE: Color = Color::srgb_u8(37, 65, 86);
 const NOVA_OS_SCREEN: Color = Color::srgb_u8(0, 4, 1);
-const NOVA_OS_PHOSPHOR: Color = Color::srgb_u8(112, 255, 153);
-const NOVA_OS_TEXT: Color = Color::srgb_u8(112, 255, 153);
+// Palette lifted from `nova_os_terminal_poc.html`: a hot neon phosphor for the
+// prompt, borders and headers; a pale mint for ordinary body text (the HTML
+// `--text`), which reads brighter and higher-contrast on the near-black screen
+// than the old all-one-green treatment.
+const NOVA_OS_PHOSPHOR: Color = Color::srgb_u8(54, 255, 121);
+const NOVA_OS_TEXT: Color = Color::srgb_u8(185, 255, 201);
 const NOVA_OS_PHOSPHOR_DIM: Color = Color::srgb_u8(95, 238, 137);
 const NOVA_OS_PHOSPHOR_MUTED: Color = Color::srgb_u8(70, 207, 118);
-const NOVA_OS_INFO: Color = Color::srgb_u8(92, 190, 255);
+const NOVA_OS_INFO: Color = Color::srgb_u8(54, 163, 255);
 const NOVA_OS_AMBER: Color = Color::srgb_u8(255, 184, 74);
 const NOVA_OS_ORANGE: Color = Color::srgb_u8(255, 123, 45);
 const NOVA_OS_CONTENT_Z: i32 = 0;
 const NOVA_OS_OVERLAY_Z: i32 = 1;
 const NOVA_OS_PROMPT_PREFIX: &str = "nova> ";
 
-/// Straight-alpha CRT overlay tint + scanline controls, passed to WGSL.
-const NOVA_OS_CRT_TINT: LinearRgba = LinearRgba::new(0.212, 1.0, 0.475, 0.06);
-const NOVA_OS_CRT_SCANLINE_STRENGTH: f32 = 0.07;
-const NOVA_OS_CRT_VIGNETTE_STRENGTH: f32 = 1.28;
-const NOVA_OS_CRT_GRAIN_STRENGTH: f32 = 0.014;
+/// Straight-alpha CRT overlay tint + scanline controls, passed to WGSL. Kept
+/// deliberately faint so the overlay never films the text underneath: the tint
+/// is a whisper of green, the vignette darkens only the outer edges, and there
+/// is no centre glow (see `assets/shaders/nova_os_crt.wgsl`).
+const NOVA_OS_CRT_TINT: LinearRgba = LinearRgba::new(0.212, 1.0, 0.475, 0.03);
+const NOVA_OS_CRT_SCANLINE_STRENGTH: f32 = 0.06;
+const NOVA_OS_CRT_VIGNETTE_STRENGTH: f32 = 0.55;
+const NOVA_OS_CRT_GRAIN_STRENGTH: f32 = 0.01;
 
 /// Global stacking-context z for the OPEN drawer: it is a modal, so backdrop and
 /// panel rise above the flight HUD chrome (which carries no `GlobalZIndex` = 0).
@@ -167,9 +174,17 @@ struct NovaOsPromptPrefixMarker;
 #[derive(Component)]
 struct NovaOsPromptInputWrapMarker;
 
-/// Prompt text line owned by the terminal shell.
+/// Typed prompt text LEFT of the caret, owned by the terminal shell.
 #[derive(Component)]
 struct NovaOsTerminalPromptMarker;
+
+/// Typed prompt text RIGHT of the caret (empty when the caret is at the end).
+#[derive(Component)]
+struct NovaOsTerminalPromptAfterMarker;
+
+/// The block caret rendered between the before/after prompt text.
+#[derive(Component)]
+struct NovaOsTerminalCaretMarker;
 
 /// Hint/status line owned by the terminal shell.
 #[derive(Component)]
@@ -331,6 +346,9 @@ struct NovaOsTerminal {
     completion_hint: Option<String>,
     parse_status: TerminalParseStatus,
     active_mode: TerminalMode,
+    /// Set by the `exit` command; the keyboard system consumes it to drive the
+    /// animated close of the computer (mirrors the HTML PoC's `exit`).
+    pending_close: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -386,7 +404,6 @@ struct NovaOsCrtUniform {
     tint: LinearRgba,
     scanline_strength: f32,
     vignette_strength: f32,
-    glow_strength: f32,
     grain_strength: f32,
 }
 
@@ -421,7 +438,6 @@ impl Default for NovaOsCrtMaterial {
                 tint: NOVA_OS_CRT_TINT,
                 scanline_strength: NOVA_OS_CRT_SCANLINE_STRENGTH,
                 vignette_strength: NOVA_OS_CRT_VIGNETTE_STRENGTH,
-                glow_strength: 0.13,
                 grain_strength: NOVA_OS_CRT_GRAIN_STRENGTH,
             },
         }
@@ -434,26 +450,32 @@ impl UiMaterial for NovaOsCrtMaterial {
     }
 }
 
+// Order and summaries mirror `nova_os_terminal_poc.html`'s command list. `map`
+// and `ship viewer` from the PoC stay out until their stretch app tasks land.
 const TERMINAL_COMMANDS: &[TerminalCommand] = &[
     TerminalCommand {
         name: "help",
-        summary: "Show available NOVA OS commands",
+        summary: "Show this command list",
+    },
+    TerminalCommand {
+        name: "log",
+        summary: "Print comms and mission events",
+    },
+    TerminalCommand {
+        name: "objectives",
+        summary: "Print active objectives",
+    },
+    TerminalCommand {
+        name: "ship",
+        summary: "Print ship status summary",
     },
     TerminalCommand {
         name: "clear",
         summary: "Clear terminal scrollback",
     },
     TerminalCommand {
-        name: "log",
-        summary: "Print flight log and objective events",
-    },
-    TerminalCommand {
-        name: "objectives",
-        summary: "Print active mission objectives",
-    },
-    TerminalCommand {
-        name: "ship",
-        summary: "Print read-only player ship status",
+        name: "exit",
+        summary: "Suspend the NOVA OS computer",
     },
 ];
 
@@ -468,6 +490,7 @@ impl Default for NovaOsTerminal {
             completion_hint: Some("type help".to_string()),
             parse_status: TerminalParseStatus::Empty,
             active_mode: TerminalMode::Prompt,
+            pending_close: false,
         };
         terminal.refresh_parse();
         terminal
@@ -560,6 +583,9 @@ impl NovaOsTerminal {
             TerminalCommandResult::Ship => {
                 self.scrollback.extend(snapshot.ship_rows.clone());
             }
+            TerminalCommandResult::Exit => {
+                self.pending_close = true;
+            }
             TerminalCommandResult::UnexpectedArguments { command } => {
                 self.scrollback.push(TerminalRow {
                     kind: TerminalRowKind::Error,
@@ -570,16 +596,18 @@ impl NovaOsTerminal {
                 command,
                 suggestion,
             } => {
-                let mut text = format!("unknown command: {command}");
-                if let Some(suggestion) = suggestion {
-                    text.push_str("; did you mean ");
-                    text.push_str(suggestion);
-                    text.push('?');
-                }
+                // Two rows, matching the HTML PoC's `command not found` +
+                // `did you mean ...?` wording.
                 self.scrollback.push(TerminalRow {
                     kind: TerminalRowKind::Error,
-                    text,
+                    text: format!("command not found: {command}"),
                 });
+                if let Some(suggestion) = suggestion {
+                    self.scrollback.push(TerminalRow {
+                        kind: TerminalRowKind::Warn,
+                        text: format!("did you mean {suggestion}?"),
+                    });
+                }
             }
         }
 
@@ -768,6 +796,7 @@ enum TerminalCommandResult {
     Log,
     Objectives,
     Ship,
+    Exit,
     UnexpectedArguments {
         command: String,
     },
@@ -811,6 +840,7 @@ fn parse_command(command_line: &str) -> TerminalCommandResult {
         "log" => TerminalCommandResult::Log,
         "objectives" => TerminalCommandResult::Objectives,
         "ship" => TerminalCommandResult::Ship,
+        "exit" => TerminalCommandResult::Exit,
         unknown => TerminalCommandResult::Unknown {
             command: unknown.to_string(),
             suggestion: nearest_command(unknown),
@@ -892,7 +922,7 @@ fn terminal_ship_rows(ship_name: Option<&str>, sections: &[ShipSectionStatus]) -
         return vec![
             TerminalRow {
                 kind: TerminalRowKind::Info,
-                text: format!("Ship: {}", terminal_ship_name(ship_name)),
+                text: format!("SHIP {}", terminal_ship_name(ship_name)),
             },
             TerminalRow {
                 kind: TerminalRowKind::Dim,
@@ -904,7 +934,7 @@ fn terminal_ship_rows(ship_name: Option<&str>, sections: &[ShipSectionStatus]) -
     let mut rows = vec![
         TerminalRow {
             kind: TerminalRowKind::Info,
-            text: format!("Ship: {}", terminal_ship_name(ship_name)),
+            text: format!("SHIP {}", terminal_ship_name(ship_name)),
         },
         TerminalRow {
             kind: TerminalRowKind::Dim,
@@ -1201,6 +1231,7 @@ fn handle_terminal_keyboard(
         With<SectionMarker>,
     >,
     mut terminal: ResMut<NovaOsTerminal>,
+    mut close: ResMut<DrawerCloseTransition>,
 ) {
     let drawer_prompt_active =
         *pause.get() == PauseStates::Drawer && terminal.active_mode == TerminalMode::Prompt;
@@ -1238,6 +1269,12 @@ fn handle_terminal_keyboard(
             }
             _ => {}
         }
+    }
+
+    // The `exit` command requests the same animated close as Esc/Start.
+    if terminal.pending_close {
+        terminal.pending_close = false;
+        close.closing = true;
     }
 }
 
@@ -1360,6 +1397,7 @@ fn rebuild_terminal_ui(
     >,
     mut text_targets: ParamSet<(
         Query<(&mut Text, &mut TextColor, &mut TextShadow), With<NovaOsTerminalPromptMarker>>,
+        Query<(&mut Text, &mut TextColor, &mut TextShadow), With<NovaOsTerminalPromptAfterMarker>>,
         Query<(&mut Text, &mut TextColor, &mut TextShadow), With<NovaOsTerminalHintMarker>>,
         Query<(&mut Text, &mut TextColor, &mut TextShadow), With<NovaOsTerminalGhostMarker>>,
     )>,
@@ -1379,13 +1417,18 @@ fn rebuild_terminal_ui(
         scroll.0.y = f32::MAX;
     }
 
+    let prompt_color = prompt_color(&terminal);
     for (mut text, mut color, mut bloom) in &mut text_targets.p0() {
-        text.0 = prompt_display(&terminal);
-        let prompt_color = prompt_color(&terminal);
+        text.0 = prompt_before_cursor(&terminal);
         color.0 = prompt_color;
         *bloom = nova_os_text_bloom(prompt_color);
     }
     for (mut text, mut color, mut bloom) in &mut text_targets.p1() {
+        text.0 = prompt_after_cursor(&terminal);
+        color.0 = prompt_color;
+        *bloom = nova_os_text_bloom(prompt_color);
+    }
+    for (mut text, mut color, mut bloom) in &mut text_targets.p2() {
         text.0 = prompt_hint_display(&terminal);
         let hint_color = match terminal.parse_status {
             TerminalParseStatus::Invalid => theme::semantic::THREAT,
@@ -1395,9 +1438,9 @@ fn rebuild_terminal_ui(
         color.0 = hint_color;
         *bloom = nova_os_text_bloom(hint_color);
     }
-    for (mut text, mut color, mut bloom) in &mut text_targets.p2() {
+    for (mut text, mut color, mut bloom) in &mut text_targets.p3() {
         text.0 = prompt_completion_ghost(&terminal);
-        let ghost_color = NOVA_OS_PHOSPHOR.with_alpha(0.28);
+        let ghost_color = NOVA_OS_TEXT.with_alpha(0.34);
         color.0 = ghost_color;
         *bloom = nova_os_text_bloom(ghost_color);
     }
@@ -1424,10 +1467,17 @@ fn spawn_terminal_row(parent: &mut ChildSpawnerCommands, row: &TerminalRow, font
     ));
 }
 
-fn prompt_display(terminal: &NovaOsTerminal) -> String {
-    let mut prompt = terminal.prompt.clone();
-    prompt.insert(terminal.cursor, '|');
-    prompt
+/// The typed text left of the caret. The prompt line is rendered as three
+/// inline pieces - `before` | caret | `after` - plus the dim ghost, so the fish
+/// completion continues on the SAME line right after the typed text with a real
+/// caret between them (no `|` glyph baked into the text, no leading space).
+fn prompt_before_cursor(terminal: &NovaOsTerminal) -> String {
+    terminal.prompt[..terminal.cursor].to_string()
+}
+
+/// The typed text right of the caret (empty when the caret sits at the end).
+fn prompt_after_cursor(terminal: &NovaOsTerminal) -> String {
+    terminal.prompt[terminal.cursor..].to_string()
 }
 
 fn prompt_hint_display(terminal: &NovaOsTerminal) -> String {
@@ -1450,7 +1500,7 @@ fn prompt_completion_ghost(terminal: &NovaOsTerminal) -> String {
         .map(|command| command.name)
         .find(|name| name.starts_with(prefix))
         .and_then(|name| name.get(prefix.len()..))
-        .map(|suffix| format!(" {suffix}"))
+        .map(str::to_string)
         .unwrap_or_default()
 }
 
@@ -1474,6 +1524,16 @@ fn nova_os_text_font(font_size: f32, font: Handle<Font>) -> TextFont {
         font: FontSource::Handle(font),
         font_size: FontSize::Px(font_size),
         ..default()
+    }
+}
+
+/// The prompt/ghost pieces must never wrap: a wrapped ghost is exactly the
+/// "completion appears below the line" bug. `NoWrap` keeps every piece on the
+/// single input line and lets the wrap node clip horizontally instead.
+fn nova_os_prompt_text_layout() -> TextLayout {
+    TextLayout {
+        justify: Justify::Left,
+        linebreak: LineBreak::NoWrap,
     }
 }
 
@@ -2090,6 +2150,10 @@ fn spawn_nova_os_screen_overlays(
     screen: &mut ChildSpawnerCommands,
     crt_materials: Option<&mut Assets<NovaOsCrtMaterial>>,
 ) {
+    // Render-capable apps get the single shader overlay, which carries the whole
+    // CRT treatment (faint tint, edge vignette, grain). Only headless/minimal
+    // rigs with no material assets fall back to the UI-node scanline + vignette,
+    // so the two never stack into the pale-green film the earlier build had.
     if let Some(crt_materials) = crt_materials {
         let material = crt_materials.add(NovaOsCrtMaterial::default());
         screen.spawn((
@@ -2107,6 +2171,7 @@ fn spawn_nova_os_screen_overlays(
             ZIndex(NOVA_OS_OVERLAY_Z),
             Pickable::IGNORE,
         ));
+        return;
     }
 
     screen.spawn((
@@ -2274,8 +2339,10 @@ fn spawn_nova_os_terminal_content(
                                 row_gap: Val::Px(2.0),
                                 ..default()
                             },
-                            BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.28)),
-                            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.78)),
+                            BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.45)),
+                            // Near-opaque black-green so the input reads as a
+                            // dark box sitting ABOVE the screen (HTML `.prompt-row`).
+                            BackgroundColor(Color::srgba(0.0, 0.016, 0.008, 0.97)),
                             ZIndex(NOVA_OS_OVERLAY_Z + 1),
                         ))
                         .with_children(|prompt_row| {
@@ -2317,17 +2384,49 @@ fn spawn_nova_os_terminal_content(
                                             },
                                         ))
                                         .with_children(|input_wrap| {
+                                            // Fish-style inline input: typed text
+                                            // left of the caret, a block caret,
+                                            // typed text right of it, then the dim
+                                            // completion ghost - all NoWrap so the
+                                            // completion continues on the SAME line.
                                             input_wrap.spawn((
                                                 NovaOsTerminalPromptMarker,
-                                                Text::new("|"),
+                                                Text::new(""),
                                                 nova_os_text_font(
                                                     DRAWER_LINE_FONT_PX,
                                                     font.clone(),
                                                 ),
                                                 TextColor(NOVA_OS_PHOSPHOR),
                                                 nova_os_text_bloom(NOVA_OS_PHOSPHOR),
+                                                nova_os_prompt_text_layout(),
                                                 Node {
-                                                    min_width: Val::Px(1.0),
+                                                    flex_shrink: 0.0,
+                                                    ..default()
+                                                },
+                                                ZIndex(1),
+                                            ));
+                                            input_wrap.spawn((
+                                                NovaOsTerminalCaretMarker,
+                                                Node {
+                                                    width: Val::Px(2.0),
+                                                    height: Val::Px(DRAWER_LINE_FONT_PX + 2.0),
+                                                    flex_shrink: 0.0,
+                                                    ..default()
+                                                },
+                                                BackgroundColor(NOVA_OS_AMBER),
+                                                ZIndex(2),
+                                            ));
+                                            input_wrap.spawn((
+                                                NovaOsTerminalPromptAfterMarker,
+                                                Text::new(""),
+                                                nova_os_text_font(
+                                                    DRAWER_LINE_FONT_PX,
+                                                    font.clone(),
+                                                ),
+                                                TextColor(NOVA_OS_PHOSPHOR),
+                                                nova_os_text_bloom(NOVA_OS_PHOSPHOR),
+                                                nova_os_prompt_text_layout(),
+                                                Node {
                                                     flex_shrink: 0.0,
                                                     ..default()
                                                 },
@@ -2340,12 +2439,10 @@ fn spawn_nova_os_terminal_content(
                                                     DRAWER_LINE_FONT_PX,
                                                     font.clone(),
                                                 ),
-                                                TextColor(NOVA_OS_PHOSPHOR.with_alpha(0.28)),
-                                                nova_os_text_bloom(
-                                                    NOVA_OS_PHOSPHOR.with_alpha(0.28),
-                                                ),
+                                                TextColor(NOVA_OS_TEXT.with_alpha(0.34)),
+                                                nova_os_text_bloom(NOVA_OS_TEXT.with_alpha(0.34)),
+                                                nova_os_prompt_text_layout(),
                                                 Node {
-                                                    min_width: Val::Px(1.0),
                                                     flex_shrink: 0.0,
                                                     ..default()
                                                 },
@@ -2609,14 +2706,72 @@ mod tests {
             .query_filtered::<&Text, With<NovaOsTerminalPromptMarker>>()
             .single(app.world())
             .expect("one visible prompt text entity");
-        assert_eq!(prompt.0, "he|");
+        assert_eq!(
+            prompt.0, "he",
+            "typed text left of the caret, no baked-in `|`"
+        );
 
         let ghost = app
             .world_mut()
             .query_filtered::<&Text, With<NovaOsTerminalGhostMarker>>()
             .single(app.world())
             .expect("one visible ghost text entity");
-        assert_eq!(ghost.0, " lp");
+        assert_eq!(
+            ghost.0, "lp",
+            "completion continues inline with no leading space (fish-style)"
+        );
+    }
+
+    #[test]
+    fn nova_os_inline_completion_is_same_line_continuation() {
+        // The ghost, the before-cursor and after-cursor prompt pieces must all
+        // render with `NoWrap` so a completion never wraps below the input line
+        // (the reported "completion appears below the line" bug).
+        let mut terminal = NovaOsTerminal::default();
+        type_text(&mut terminal, "hel");
+        assert_eq!(prompt_before_cursor(&terminal), "hel");
+        assert_eq!(prompt_after_cursor(&terminal), "");
+        assert_eq!(
+            prompt_completion_ghost(&terminal),
+            "p",
+            "ghost is the raw suffix, no leading space"
+        );
+
+        // With the caret moved into the middle, the block caret splits the typed
+        // text: `he` renders left of it, `lp` (from a full `help`) to its right.
+        type_text(&mut terminal, "p");
+        terminal.move_cursor_left();
+        terminal.move_cursor_left();
+        assert_eq!(prompt_before_cursor(&terminal), "he");
+        assert_eq!(prompt_after_cursor(&terminal), "lp");
+
+        let mut app = toggle_app();
+        init_terminal_input_resources(&mut app);
+        app.add_systems(
+            Update,
+            (handle_terminal_keyboard, rebuild_terminal_ui)
+                .chain()
+                .run_if(in_state(GameStates::Playing)),
+        );
+        spawn_drawer_shell(&mut app);
+        press_tab(&mut app);
+        press_text(&mut app, "hel");
+
+        for marker_layout in app
+            .world_mut()
+            .query_filtered::<&TextLayout, Or<(
+                With<NovaOsTerminalPromptMarker>,
+                With<NovaOsTerminalPromptAfterMarker>,
+                With<NovaOsTerminalGhostMarker>,
+            )>>()
+            .iter(app.world())
+        {
+            assert_eq!(
+                marker_layout.linebreak,
+                LineBreak::NoWrap,
+                "prompt/ghost pieces must not wrap to a line below the input"
+            );
+        }
     }
 
     #[test]
@@ -2675,7 +2830,19 @@ mod tests {
                 },
                 TerminalRow {
                     kind: TerminalRowKind::Output,
-                    text: "  help        Show available NOVA OS commands".to_string()
+                    text: "  help        Show this command list".to_string()
+                },
+                TerminalRow {
+                    kind: TerminalRowKind::Output,
+                    text: "  log         Print comms and mission events".to_string()
+                },
+                TerminalRow {
+                    kind: TerminalRowKind::Output,
+                    text: "  objectives  Print active objectives".to_string()
+                },
+                TerminalRow {
+                    kind: TerminalRowKind::Output,
+                    text: "  ship        Print ship status summary".to_string()
                 },
                 TerminalRow {
                     kind: TerminalRowKind::Output,
@@ -2683,15 +2850,7 @@ mod tests {
                 },
                 TerminalRow {
                     kind: TerminalRowKind::Output,
-                    text: "  log         Print flight log and objective events".to_string()
-                },
-                TerminalRow {
-                    kind: TerminalRowKind::Output,
-                    text: "  objectives  Print active mission objectives".to_string()
-                },
-                TerminalRow {
-                    kind: TerminalRowKind::Output,
-                    text: "  ship        Print read-only player ship status".to_string()
+                    text: "  exit        Suspend the NOVA OS computer".to_string()
                 }
             ]
         );
@@ -2851,7 +3010,7 @@ mod tests {
             .iter()
             .map(|row| row.text.as_str())
             .collect();
-        assert!(printed.contains(&"Ship: RUST TALLY"));
+        assert!(printed.contains(&"SHIP RUST TALLY"));
         assert!(printed.contains(&"THRUSTER Port engine - 18/100 HP"));
         assert!(printed.contains(&"  status: critical"));
         assert!(printed.contains(&"TURRET Bow gun - 0/60 HP; ammo 2/6"));
@@ -2902,7 +3061,7 @@ mod tests {
 
         submit_terminal_command(&mut app, "ship");
         let printed = terminal_scrollback_texts(&app);
-        assert!(printed.iter().any(|row| row == "Ship: RUST TALLY"));
+        assert!(printed.iter().any(|row| row == "SHIP RUST TALLY"));
         assert!(printed
             .iter()
             .any(|row| row == "THRUSTER Port engine - 18/100 HP"));
@@ -2932,8 +3091,9 @@ mod tests {
         type_text(&mut terminal, "he");
 
         assert_eq!(terminal.parse_status, TerminalParseStatus::ValidPrefix);
-        assert_eq!(prompt_display(&terminal), "he|");
-        assert_eq!(prompt_completion_ghost(&terminal), " lp");
+        assert_eq!(prompt_before_cursor(&terminal), "he");
+        assert_eq!(prompt_after_cursor(&terminal), "");
+        assert_eq!(prompt_completion_ghost(&terminal), "lp");
         assert_eq!(prompt_hint_display(&terminal), "");
 
         type_text(&mut terminal, "zz");
@@ -2953,10 +3113,14 @@ mod tests {
         );
 
         terminal.submit(&TerminalCommandSnapshot::default());
-        let last = terminal.scrollback.last().expect("error row");
-        assert_eq!(last.kind, TerminalRowKind::Error);
-        assert!(last.text.contains("unknown command: hlep"));
-        assert!(last.text.contains("did you mean help?"));
+        // Two HTML-style rows: the error line then the suggestion line.
+        let rows: Vec<(TerminalRowKind, &str)> = terminal
+            .scrollback
+            .iter()
+            .map(|row| (row.kind, row.text.as_str()))
+            .collect();
+        assert!(rows.contains(&(TerminalRowKind::Error, "command not found: hlep")));
+        assert!(rows.contains(&(TerminalRowKind::Warn, "did you mean help?")));
     }
 
     #[test]
@@ -3009,7 +3173,7 @@ mod tests {
             >()
             .single(app.world())
             .expect("one terminal prompt");
-        assert_eq!(prompt.0, "hlep|");
+        assert_eq!(prompt.0, "hlep");
         assert_eq!(prompt_color.0, theme::semantic::THREAT);
         assert_eq!(
             prompt_node.flex_shrink, 0.0,
@@ -4109,14 +4273,16 @@ mod tests {
     }
 
     #[test]
-    fn nova_os_read_only_commands_are_registered() {
+    fn nova_os_registered_commands_match_html_set() {
+        // The executable set + order mirror the HTML PoC (minus the app-launch
+        // commands `map` / `ship viewer`, which stay in their stretch tasks).
         let registered: Vec<&str> = TERMINAL_COMMANDS
             .iter()
             .map(|command| command.name)
             .collect();
         assert_eq!(
             registered,
-            vec!["help", "clear", "log", "objectives", "ship"]
+            vec!["help", "log", "objectives", "ship", "clear", "exit"]
         );
 
         assert!(matches!(parse_command("help"), TerminalCommandResult::Help));
@@ -4130,7 +4296,8 @@ mod tests {
             TerminalCommandResult::Objectives
         ));
         assert!(matches!(parse_command("ship"), TerminalCommandResult::Ship));
-        for planned in ["map", "ship viewer", "exit", "reload", "repair"] {
+        assert!(matches!(parse_command("exit"), TerminalCommandResult::Exit));
+        for planned in ["map", "ship viewer", "reload", "repair"] {
             assert!(
                 matches!(
                     parse_command(planned),
@@ -4139,6 +4306,47 @@ mod tests {
                 "{planned} stays deferred to its own task"
             );
         }
+    }
+
+    #[test]
+    fn nova_os_help_lists_html_command_set() {
+        // `help` output lists exactly the executable set, in HTML order.
+        let mut terminal = NovaOsTerminal::default();
+        type_text(&mut terminal, "help");
+        terminal.submit(&TerminalCommandSnapshot::default());
+        let listed: Vec<String> = terminal
+            .scrollback
+            .iter()
+            .filter_map(|row| {
+                let trimmed = row.text.trim_start();
+                TERMINAL_COMMANDS
+                    .iter()
+                    .map(|command| command.name)
+                    .find(|name| trimmed.starts_with(name))
+                    .filter(|name| trimmed.starts_with(&format!("{name} ")))
+                    .map(str::to_string)
+            })
+            .collect();
+        assert_eq!(
+            listed,
+            vec!["help", "log", "objectives", "ship", "clear", "exit"]
+        );
+    }
+
+    #[test]
+    fn nova_os_exit_closes_computer() {
+        // `exit` requests the same animated close as Esc/Start: it flips the
+        // shared close transition (which `drive_drawer_slide` then eases shut).
+        let mut app = terminal_command_app();
+        assert_eq!(pause_state(&app), PauseStates::Drawer);
+        assert!(!app.world().resource::<DrawerCloseTransition>().closing);
+
+        submit_terminal_command(&mut app, "exit");
+
+        assert!(
+            app.world().resource::<DrawerCloseTransition>().closing,
+            "exit requests the animated close of the computer"
+        );
     }
 
     /// `drive_drawer_slide` now drives the single monitor's visibility and
