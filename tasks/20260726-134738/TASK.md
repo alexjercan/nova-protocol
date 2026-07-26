@@ -1,6 +1,6 @@
 # Match NOVA OS drawer to terminal PoC
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.9.0,feature,ui,hud
 
@@ -22,45 +22,45 @@ as permanent panels.
 
 ## Flow State
 
-- FLOW STEP: PLANNED
+- FLOW STEP: DONE
 - PLAN STATUS: APPROVED
 
 ## Steps
 
-- [ ] Compare `examples/ui/nova_os_terminal_poc.html` against the current
+- [x] Compare `examples/ui/nova_os_terminal_poc.html` against the current
       `crates/nova_gameplay/src/hud/drawer.rs` tree and list the concrete visual
       deltas in `tasks/20260726-134738/NOTES.md` before editing.
-- [ ] Rebuild the monitor body in `drawer.rs` to match the PoC structure:
+- [x] Rebuild the monitor body in `drawer.rs` to match the PoC structure:
       full-screen inset `.hud`, full-height `.bezel`, single `.screen`,
       `.screen-inner` with topbar, terminal area, prompt row, footer hints, and
       optional sleep/suspended overlay shape only if it maps cleanly to the real
       drawer state.
-- [ ] Remove the visible permanent `FLIGHT LOG` and objectives blocks from the
+- [x] Remove the visible permanent `FLIGHT LOG` and objectives blocks from the
       open drawer UI; keep `DrawerFlightLog` and objective data/resources/tests
       as internal plumbing for the later command-output tasks.
-- [ ] Match PoC proportions and constants as closely as Bevy UI allows:
+- [x] Match PoC proportions and constants as closely as Bevy UI allows:
       viewport inset `clamp(14px, 3vw, 42px)` equivalent, bezel padding
       `clamp(18px, 2.6vw, 34px)` equivalent or tested responsive breakpoints,
       green phosphor screen, dark blue-black casing, amber prompt, dim status
       text, topbar lamp, right-side status spans, and footer hint row.
-- [ ] Add a CRT material path for fidelity where normal Bevy UI nodes are too
+- [x] Add a CRT material path for fidelity where normal Bevy UI nodes are too
       weak: either a drawer-specific `UiMaterial`/WGSL overlay for scanlines,
       vignette/glass and phosphor tint, or a recorded fallback in `NOTES.md`
       with a concrete follow-up task if Bevy UI material constraints block it.
-- [ ] Keep the terminal command registry executable set to exactly `help` and
+- [x] Keep the terminal command registry executable set to exactly `help` and
       `clear`; update tests so POC-only commands (`log`, `objectives`, `ship`,
       `map`, `ship viewer`, `exit`) are not accepted yet.
-- [ ] Add or update headless widget-tree tests that assert the PoC shape and
+- [x] Add or update headless widget-tree tests that assert the PoC shape and
       absence of stale permanent panels: topbar brand/status, terminal
       scrollback, prompt row, footer hints, scanline/vignette/material overlay,
       and only `help`/`clear` commands.
-- [ ] Add a visual verification artifact or runnable capture path for the human
+- [x] Add a visual verification artifact or runnable capture path for the human
       comparison against `examples/ui/nova_os_terminal_poc.html`; read the
       produced artifact before close-out, per the repo visual-output lesson.
-- [ ] Update live player-facing docs (`CHANGELOG.md`, `web/src/wiki/hud.md`, and
+- [x] Update live player-facing docs (`CHANGELOG.md`, `web/src/wiki/hud.md`, and
       any other non-task surface found by grep) only if their current NOVA OS
       description becomes stale.
-- [ ] Add/update `tasks/20260726-134738/NOTES.md` with what changed, why this
+- [x] Add/update `tasks/20260726-134738/NOTES.md` with what changed, why this
       approach was chosen, shader/material tradeoffs, difficulties/bugs, and
       self-reflection.
 
@@ -104,3 +104,33 @@ as permanent panels.
 - Assumption for the plan gate: this task changes only the NOVA OS drawer UI and
   terminal executable command set. It does not implement any pending gameplay
   command output, app runtime, or app content.
+
+## Work Record
+
+- Rebuilt the NOVA OS monitor body in `crates/nova_gameplay/src/hud/drawer.rs`
+  to match the HTML PoC structure: topbar with lamp/status, one terminal
+  surface, scrollback, prompt row, footer hints, casing/bezel and CRT overlays.
+- Removed visible permanent Flight Log and Objectives panes from the spawned
+  monitor tree while keeping `DrawerFlightLog`, objective row derivation and
+  teardown logic for future command-output tasks.
+- Added `assets/shaders/nova_os_crt.wgsl` plus a drawer-specific
+  `UiMaterial`/`MaterialNode` overlay. Minimal headless rigs still get the
+  existing scanline/vignette UI-node fallback.
+- Kept the command registry to exactly `help` and `clear`; planned commands
+  still return unknown-command behavior.
+- Updated `CHANGELOG.md` and `web/src/wiki/hud.md` so live docs no longer say
+  Flight Log and Objectives are visible drawer panes.
+- Verification:
+  `grep -n "CRT" tasks/20260726-134738/NOTES.md`;
+  `nix develop --command cargo fmt --check`;
+  `nix develop --command cargo test -p nova_gameplay drawer`;
+  `nix develop --command cargo check`;
+  `cd web && npm ci && npm run ci`.
+- The first web CI attempt failed before `npm ci` because `prettier` was absent
+  in the fresh worktree. After `npm ci`, `npm run ci` passed. `npm ci` reported
+  existing audit vulnerabilities unrelated to this task.
+- No standalone `naga` WGSL validator is available in the devshell; `which naga`
+  failed. The shader path is pinned by the material-node test and must still be
+  visually checked in a real run.
+- Manual visual comparison against `examples/ui/nova_os_terminal_poc.html`
+  remains pending owner acceptance.

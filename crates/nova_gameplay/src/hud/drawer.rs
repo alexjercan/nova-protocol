@@ -3,8 +3,9 @@
 //! replaces the old left/right panels with a physical terminal screen: dark
 //! casing, hard bezel, green phosphor display, accent slots and CRT overlays.
 //! This module owns the shell, command prompt, scrollback, input handling and
-//! the current monitor content fed by the existing objectives and combined
-//! flight-log data.
+//! terminal content. The existing objectives and combined flight-log data stay
+//! alive as backing state for later terminal commands, but they are no longer
+//! visible as permanent monitor panes.
 //!
 //! # Interaction model
 //!
@@ -36,6 +37,9 @@ use bevy::{
     },
     picking::hover::Hovered,
     prelude::*,
+    render::render_resource::{AsBindGroup, ShaderType},
+    shader::ShaderRef,
+    ui_render::prelude::{MaterialNode, UiMaterial, UiMaterialPlugin},
 };
 use bevy_common_systems::prelude::{GameObjectives, Objective};
 use nova_ui::theme;
@@ -52,7 +56,6 @@ const DRAWER_SLIDE_SECS: f32 = 0.22;
 /// owner chose a deeper gray over a real scene blur at the /flow gate (bevy
 /// 0.19 has no UI backdrop-filter; see this task's DECISION.md).
 const DRAWER_BACKDROP_ALPHA: f32 = 0.86;
-const DRAWER_TITLE_FONT_PX: f32 = 16.0;
 const DRAWER_SECTION_TITLE_FONT_PX: f32 = 12.0;
 const DRAWER_LINE_FONT_PX: f32 = 13.0;
 const DRAWER_ROW_GAP_PX: f32 = 6.0;
@@ -68,11 +71,13 @@ const NOVA_OS_MONITOR_INSET_X_PX: f32 = 42.0;
 const NOVA_OS_MONITOR_INSET_Y_PX: f32 = 52.0;
 const NOVA_OS_BEZEL_PAD_PX: f32 = 26.0;
 const NOVA_OS_SCREEN_PAD_PX: f32 = 18.0;
+const NOVA_OS_TERMINAL_PAD_X_PX: f32 = 16.0;
+const NOVA_OS_TERMINAL_PAD_Y_PX: f32 = 14.0;
+const NOVA_OS_PROMPT_ROW_HEIGHT_PX: f32 = 42.0;
 const NOVA_OS_CASE: Color = Color::srgb_u8(5, 10, 15);
 const NOVA_OS_CASE_RAISED: Color = Color::srgb_u8(11, 21, 32);
 const NOVA_OS_CASE_EDGE: Color = Color::srgb_u8(37, 65, 86);
 const NOVA_OS_SCREEN: Color = Color::srgb_u8(0, 24, 7);
-const NOVA_OS_SCREEN_RAISED: Color = Color::srgb_u8(0, 54, 20);
 const NOVA_OS_PHOSPHOR: Color = Color::srgb_u8(54, 255, 121);
 const NOVA_OS_PHOSPHOR_DIM: Color = Color::srgb_u8(25, 166, 79);
 const NOVA_OS_PHOSPHOR_MUTED: Color = Color::srgb_u8(13, 110, 53);
@@ -81,6 +86,11 @@ const NOVA_OS_ORANGE: Color = Color::srgb_u8(255, 123, 45);
 const NOVA_OS_CONTENT_Z: i32 = 0;
 const NOVA_OS_OVERLAY_Z: i32 = 1;
 const NOVA_OS_PROMPT_PREFIX: &str = "nova> ";
+
+/// Straight-alpha CRT overlay tint + scanline controls, passed to WGSL.
+const NOVA_OS_CRT_TINT: LinearRgba = LinearRgba::new(0.212, 1.0, 0.475, 0.44);
+const NOVA_OS_CRT_SCANLINE_STRENGTH: f32 = 0.18;
+const NOVA_OS_CRT_VIGNETTE_STRENGTH: f32 = 0.42;
 
 /// Global stacking-context z for the OPEN drawer: it is a modal, so backdrop and
 /// panel rise above the flight HUD chrome (which carries no `GlobalZIndex` = 0).
@@ -115,9 +125,33 @@ struct NovaOsScreenMarker;
 #[derive(Component)]
 struct NovaOsTerminalContentMarker;
 
+/// The PoC top bar row inside the screen.
+#[derive(Component)]
+struct NovaOsTopbarMarker;
+
+/// The lit square lamp to the left of the NOVA OS brand.
+#[derive(Component)]
+struct NovaOsLampMarker;
+
+/// Right-side status text row in the PoC top bar.
+#[derive(Component)]
+struct NovaOsStatusMarker;
+
+/// The single terminal surface that fills the monitor screen.
+#[derive(Component)]
+struct NovaOsTerminalSurfaceMarker;
+
 /// Scrollback rows printed by the NOVA OS terminal shell.
 #[derive(Component)]
 struct NovaOsTerminalScrollbackMarker;
+
+/// Prompt row at the bottom of the terminal surface.
+#[derive(Component)]
+struct NovaOsPromptRowMarker;
+
+/// The fixed amber `nova>` prompt prefix.
+#[derive(Component)]
+struct NovaOsPromptPrefixMarker;
 
 /// Prompt text line owned by the terminal shell.
 #[derive(Component)]
@@ -134,6 +168,14 @@ struct NovaOsScanlineMarker;
 /// Transparent edge-darkening/glass overlay on the screen.
 #[derive(Component)]
 struct NovaOsVignetteMarker;
+
+/// Shader-backed CRT overlay matching the HTML PoC's scanline/glass layer.
+#[derive(Component)]
+struct NovaOsCrtMaterialMarker;
+
+/// The footer hint row from the PoC.
+#[derive(Component)]
+struct NovaOsFooterHintsMarker;
 
 /// Orange/yellow casing slots copied from the PoC's physical monitor language.
 #[derive(Component)]
@@ -296,6 +338,39 @@ enum TerminalMode {
 struct TerminalCommand {
     name: &'static str,
     help: &'static str,
+}
+
+#[derive(Asset, AsBindGroup, TypePath, Clone, Debug)]
+struct NovaOsCrtMaterial {
+    #[uniform(0)]
+    data: NovaOsCrtUniform,
+}
+
+#[derive(ShaderType, Clone, Debug)]
+struct NovaOsCrtUniform {
+    tint: LinearRgba,
+    scanline_strength: f32,
+    vignette_strength: f32,
+    glow_strength: f32,
+}
+
+impl Default for NovaOsCrtMaterial {
+    fn default() -> Self {
+        Self {
+            data: NovaOsCrtUniform {
+                tint: NOVA_OS_CRT_TINT,
+                scanline_strength: NOVA_OS_CRT_SCANLINE_STRENGTH,
+                vignette_strength: NOVA_OS_CRT_VIGNETTE_STRENGTH,
+                glow_strength: 0.16,
+            },
+        }
+    }
+}
+
+impl UiMaterial for NovaOsCrtMaterial {
+    fn fragment_shader() -> ShaderRef {
+        "shaders/nova_os_crt.wgsl".into()
+    }
 }
 
 const TERMINAL_COMMANDS: &[TerminalCommand] = &[
@@ -673,6 +748,7 @@ impl Plugin for NovaDrawerPlugin {
         app.init_resource::<DrawerTabAnchor>();
         app.init_resource::<DrawerFlightLog>();
         app.init_resource::<NovaOsTerminal>();
+        app.add_plugins(UiMaterialPlugin::<NovaOsCrtMaterial>::default());
 
         // Tab opens the drawer. It keeps running in all of Playing so an open
         // drawer can reserve Tab for terminal completion instead of closing.
@@ -858,7 +934,7 @@ fn spawn_terminal_row(parent: &mut ChildSpawnerCommands, row: &TerminalRow) {
 fn prompt_display(terminal: &NovaOsTerminal) -> String {
     let mut prompt = terminal.prompt.clone();
     prompt.insert(terminal.cursor, '|');
-    format!("{NOVA_OS_PROMPT_PREFIX}{prompt}")
+    prompt
 }
 
 fn prompt_color(terminal: &NovaOsTerminal) -> Color {
@@ -1326,6 +1402,7 @@ fn drawer_flight_log_text(entry: &DrawerFlightLogEntry) -> String {
 fn setup_drawer(
     add: On<Add, PlayerSpaceshipMarker>,
     mut commands: Commands,
+    mut crt_materials: Option<ResMut<Assets<NovaOsCrtMaterial>>>,
     q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
 ) {
     if q_spaceship.get(add.entity).is_err() {
@@ -1420,7 +1497,7 @@ fn setup_drawer(
                         ))
                         .with_children(|screen| {
                             spawn_nova_os_terminal_content(screen);
-                            spawn_nova_os_screen_overlays(screen);
+                            spawn_nova_os_screen_overlays(screen, crt_materials.as_deref_mut());
                         });
                 });
         });
@@ -1454,7 +1531,29 @@ fn spawn_nova_os_accent_slots(parent: &mut ChildSpawnerCommands) {
     }
 }
 
-fn spawn_nova_os_screen_overlays(screen: &mut ChildSpawnerCommands) {
+fn spawn_nova_os_screen_overlays(
+    screen: &mut ChildSpawnerCommands,
+    crt_materials: Option<&mut Assets<NovaOsCrtMaterial>>,
+) {
+    if let Some(crt_materials) = crt_materials {
+        let material = crt_materials.add(NovaOsCrtMaterial::default());
+        screen.spawn((
+            Name::new("NovaOsCrtMaterialOverlay"),
+            NovaOsCrtMaterialMarker,
+            Node {
+                position_type: PositionType::Absolute,
+                top: Val::Px(0.0),
+                bottom: Val::Px(0.0),
+                left: Val::Px(0.0),
+                right: Val::Px(0.0),
+                ..default()
+            },
+            MaterialNode(material),
+            ZIndex(NOVA_OS_OVERLAY_Z),
+            Pickable::IGNORE,
+        ));
+    }
+
     screen.spawn((
         Name::new("NovaOsScanlines"),
         NovaOsScanlineMarker,
@@ -1508,185 +1607,175 @@ fn spawn_nova_os_terminal_content(screen: &mut ChildSpawnerCommands) {
         ))
         .with_children(|terminal| {
             terminal
-                .spawn(Node {
-                    min_height: Val::Px(32.0),
-                    padding: UiRect::bottom(Val::Px(10.0)),
-                    border: UiRect::bottom(Val::Px(1.0)),
-                    flex_direction: FlexDirection::Row,
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    column_gap: Val::Px(12.0),
-                    ..default()
-                })
+                .spawn((
+                    NovaOsTopbarMarker,
+                    Node {
+                        min_height: Val::Px(32.0),
+                        padding: UiRect::bottom(Val::Px(10.0)),
+                        border: UiRect::bottom(Val::Px(1.0)),
+                        flex_direction: FlexDirection::Row,
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::SpaceBetween,
+                        column_gap: Val::Px(12.0),
+                        ..default()
+                    },
+                    BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.36)),
+                ))
                 .with_children(|topbar| {
+                    topbar
+                        .spawn(Node {
+                            flex_direction: FlexDirection::Row,
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(10.0),
+                            min_width: Val::Px(0.0),
+                            ..default()
+                        })
+                        .with_children(|brand| {
+                            brand.spawn((
+                                NovaOsLampMarker,
+                                Node {
+                                    width: Val::Px(10.0),
+                                    height: Val::Px(10.0),
+                                    border: UiRect::all(Val::Px(1.0)),
+                                    flex_shrink: 0.0,
+                                    ..default()
+                                },
+                                BorderColor::all(NOVA_OS_PHOSPHOR),
+                                BackgroundColor(NOVA_OS_PHOSPHOR),
+                            ));
+                            brand.spawn((
+                                Text::new("NOVA OS 0.9 / COCKPIT LINK"),
+                                TextFont::from_font_size(DRAWER_SECTION_TITLE_FONT_PX),
+                                TextColor(NOVA_OS_PHOSPHOR),
+                            ));
+                        });
                     topbar.spawn((
-                        Text::new("NOVA OS // MONITOR"),
-                        TextFont::from_font_size(DRAWER_TITLE_FONT_PX),
-                        TextColor(NOVA_OS_PHOSPHOR),
-                    ));
-                    topbar.spawn((
-                        Text::new("SYS READY"),
+                        NovaOsStatusMarker,
+                        Text::new("DRAWER PAUSED     SHIP: CERES QUEEN     LINK: LOCAL"),
                         TextFont::from_font_size(DRAWER_SECTION_TITLE_FONT_PX),
                         TextColor(NOVA_OS_PHOSPHOR_DIM),
                     ));
                 });
 
             terminal
-                .spawn(Node {
-                    flex_direction: FlexDirection::Column,
-                    flex_grow: 1.0,
-                    min_height: Val::Px(0.0),
-                    border: UiRect::all(Val::Px(1.0)),
-                    padding: UiRect::all(Val::Px(12.0)),
-                    ..default()
-                })
-                .insert((
-                    BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.26)),
-                    BackgroundColor(NOVA_OS_SCREEN_RAISED.with_alpha(0.32)),
-                ))
-                .with_children(|body| {
-                    body.spawn((
-                        Text::new("FLIGHT LOG"),
-                        TextFont::from_font_size(DRAWER_SECTION_TITLE_FONT_PX),
-                        TextColor(NOVA_OS_AMBER),
-                    ));
-                    body.spawn((
-                        DrawerScrollViewportMarker,
-                        ScrollPosition::default(),
-                        Hovered::default(),
-                        Node {
-                            flex_direction: FlexDirection::Column,
-                            flex_grow: 1.0,
-                            min_height: Val::Px(0.0),
-                            overflow: Overflow::scroll_y(),
-                            ..default()
-                        },
-                    ))
-                    .with_children(|viewport| {
-                        viewport.spawn((
-                            DrawerFlightLogListMarker,
-                            Node {
-                                flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(3.0),
-                                ..default()
-                            },
-                        ));
-                    });
-                });
-
-            terminal
-                .spawn(Node {
-                    flex_direction: FlexDirection::Row,
-                    column_gap: Val::Px(12.0),
-                    min_height: Val::Px(156.0),
-                    ..default()
-                })
-                .with_children(|lower| {
-                    spawn_nova_os_objectives_block(lower);
-                    lower
-                        .spawn((
-                            Node {
-                                width: Val::Percent(36.0),
-                                min_width: Val::Px(220.0),
-                                border: UiRect::all(Val::Px(1.0)),
-                                padding: UiRect::all(Val::Px(10.0)),
-                                flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(6.0),
-                                ..default()
-                            },
-                            BorderColor::all(NOVA_OS_AMBER.with_alpha(0.38)),
-                            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.24)),
-                        ))
-                        .with_children(|terminal_panel| {
-                            terminal_panel.spawn((
-                                Text::new("TERMINAL"),
-                                TextFont::from_font_size(DRAWER_SECTION_TITLE_FONT_PX),
-                                TextColor(NOVA_OS_AMBER),
-                            ));
-                            terminal_panel
-                                .spawn((
-                                    NovaOsTerminalScrollbackMarker,
-                                    Node {
-                                        flex_direction: FlexDirection::Column,
-                                        flex_grow: 1.0,
-                                        min_height: Val::Px(0.0),
-                                        overflow: Overflow::clip_y(),
-                                        row_gap: Val::Px(3.0),
-                                        ..default()
-                                    },
-                                ))
-                                .with_children(|scrollback| {
-                                    scrollback.spawn((
-                                        Text::new("NOVA OS READY"),
-                                        TextFont::from_font_size(DRAWER_LINE_FONT_PX),
-                                        TextColor(NOVA_OS_PHOSPHOR),
-                                    ));
-                                    scrollback.spawn((
-                                        Text::new("type help"),
-                                        TextFont::from_font_size(DRAWER_LINE_FONT_PX),
-                                        TextColor(NOVA_OS_PHOSPHOR),
-                                    ));
-                                });
-                            terminal_panel.spawn((
-                                NovaOsTerminalPromptMarker,
-                                Text::new("nova> |"),
-                                TextFont::from_font_size(DRAWER_LINE_FONT_PX),
-                                TextColor(NOVA_OS_AMBER),
-                            ));
-                            terminal_panel.spawn((
-                                NovaOsTerminalHintMarker,
-                                Text::new("type help"),
-                                TextFont::from_font_size(DRAWER_LINE_FONT_PX),
-                                TextColor(NOVA_OS_PHOSPHOR_MUTED),
-                            ));
-                        });
-                });
-        });
-}
-
-fn spawn_nova_os_objectives_block(parent: &mut ChildSpawnerCommands) {
-    parent
-        .spawn((
-            Node {
-                flex_grow: 1.0,
-                min_width: Val::Px(0.0),
-                border: UiRect::all(Val::Px(1.0)),
-                padding: UiRect::all(Val::Px(10.0)),
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(6.0),
-                ..default()
-            },
-            BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.28)),
-            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.18)),
-        ))
-        .with_children(|section| {
-            section.spawn((
-                Text::new("OBJECTIVES"),
-                TextFont::from_font_size(DRAWER_SECTION_TITLE_FONT_PX),
-                TextColor(NOVA_OS_AMBER),
-            ));
-            section
                 .spawn((
-                    DrawerScrollViewportMarker,
-                    ScrollPosition::default(),
-                    Hovered::default(),
+                    NovaOsTerminalSurfaceMarker,
                     Node {
                         flex_direction: FlexDirection::Column,
                         flex_grow: 1.0,
                         min_height: Val::Px(0.0),
-                        overflow: Overflow::scroll_y(),
+                        border: UiRect::all(Val::Px(1.0)),
+                        ..default()
+                    },
+                    BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.28)),
+                    BackgroundColor(Color::srgba(0.0, 12.0 / 255.0, 4.0 / 255.0, 0.4)),
+                ))
+                .with_children(|terminal_panel| {
+                    terminal_panel
+                        .spawn((
+                            NovaOsTerminalScrollbackMarker,
+                            DrawerScrollViewportMarker,
+                            ScrollPosition::default(),
+                            Hovered::default(),
+                            Node {
+                                flex_direction: FlexDirection::Column,
+                                flex_grow: 1.0,
+                                min_height: Val::Px(0.0),
+                                padding: UiRect::axes(
+                                    Val::Px(NOVA_OS_TERMINAL_PAD_X_PX),
+                                    Val::Px(NOVA_OS_TERMINAL_PAD_Y_PX),
+                                ),
+                                overflow: Overflow::scroll_y(),
+                                row_gap: Val::Px(5.0),
+                                ..default()
+                            },
+                        ))
+                        .with_children(|scrollback| {
+                            scrollback.spawn((
+                                Text::new("NOVA OS READY"),
+                                TextFont::from_font_size(DRAWER_LINE_FONT_PX),
+                                TextColor(NOVA_OS_PHOSPHOR),
+                            ));
+                            scrollback.spawn((
+                                Text::new("type help"),
+                                TextFont::from_font_size(DRAWER_LINE_FONT_PX),
+                                TextColor(NOVA_OS_PHOSPHOR),
+                            ));
+                        });
+                    terminal_panel
+                        .spawn((
+                            NovaOsPromptRowMarker,
+                            Node {
+                                min_height: Val::Px(NOVA_OS_PROMPT_ROW_HEIGHT_PX),
+                                padding: UiRect::axes(
+                                    Val::Px(NOVA_OS_TERMINAL_PAD_X_PX),
+                                    Val::Px(8.0),
+                                ),
+                                border: UiRect::top(Val::Px(1.0)),
+                                flex_direction: FlexDirection::Row,
+                                align_items: AlignItems::Center,
+                                column_gap: Val::Px(8.0),
+                                ..default()
+                            },
+                            BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.28)),
+                            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.28)),
+                        ))
+                        .with_children(|prompt_row| {
+                            prompt_row.spawn((
+                                NovaOsPromptPrefixMarker,
+                                Text::new("nova>"),
+                                TextFont::from_font_size(DRAWER_LINE_FONT_PX),
+                                TextColor(NOVA_OS_AMBER),
+                            ));
+                            prompt_row.spawn((
+                                NovaOsTerminalPromptMarker,
+                                Text::new("|"),
+                                TextFont::from_font_size(DRAWER_LINE_FONT_PX),
+                                TextColor(NOVA_OS_PHOSPHOR),
+                                Node {
+                                    flex_grow: 1.0,
+                                    min_width: Val::Px(0.0),
+                                    ..default()
+                                },
+                            ));
+                            prompt_row.spawn((
+                                NovaOsTerminalHintMarker,
+                                Text::new("type help"),
+                                TextFont::from_font_size(DRAWER_LINE_FONT_PX),
+                                TextColor(NOVA_OS_PHOSPHOR_MUTED),
+                                Node {
+                                    flex_grow: 1.0,
+                                    min_width: Val::Px(0.0),
+                                    ..default()
+                                },
+                            ));
+                        });
+                });
+
+            terminal
+                .spawn((
+                    NovaOsFooterHintsMarker,
+                    Node {
+                        min_height: Val::Px(18.0),
+                        flex_direction: FlexDirection::Row,
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::SpaceBetween,
+                        column_gap: Val::Px(12.0),
                         ..default()
                     },
                 ))
-                .with_children(|viewport| {
-                    viewport.spawn((
-                        DrawerObjectivesListMarker,
-                        Node {
-                            flex_direction: FlexDirection::Column,
-                            row_gap: Val::Px(3.0),
-                            ..default()
-                        },
-                    ));
+                .with_children(|footer| {
+                    for hint in [
+                        "Tab: autocomplete in terminal",
+                        "Esc: close drawer",
+                        "help: list commands",
+                    ] {
+                        footer.spawn((
+                            Text::new(hint),
+                            TextFont::from_font_size(11.0),
+                            TextColor(NOVA_OS_PHOSPHOR_MUTED),
+                        ));
+                    }
                 });
         });
 }
@@ -1706,7 +1795,10 @@ fn remove_drawer(
 
 #[cfg(test)]
 mod tests {
-    use bevy::{ecs::system::RunSystemOnce, input::touch::TouchPhase, state::app::StatesPlugin};
+    use bevy::{
+        asset::AssetPlugin, ecs::system::RunSystemOnce, input::touch::TouchPhase,
+        state::app::StatesPlugin,
+    };
     use bevy_common_systems::prelude::Objective;
 
     use super::*;
@@ -1931,8 +2023,16 @@ mod tests {
             .query_filtered::<(&Text, &TextColor), With<NovaOsTerminalPromptMarker>>()
             .single(app.world())
             .expect("one terminal prompt");
-        assert_eq!(prompt.0, "nova> hlep|");
+        assert_eq!(prompt.0, "hlep|");
         assert_eq!(prompt_color.0, theme::semantic::THREAT);
+
+        let (prefix, prefix_color) = app
+            .world_mut()
+            .query_filtered::<(&Text, &TextColor), With<NovaOsPromptPrefixMarker>>()
+            .single(app.world())
+            .expect("one terminal prompt prefix");
+        assert_eq!(prefix.0, "nova>");
+        assert_eq!(prefix_color.0, NOVA_OS_AMBER);
 
         let (hint, hint_color) = app
             .world_mut()
@@ -2054,12 +2154,9 @@ mod tests {
         app.update();
     }
 
-    fn parent_of(app: &App, entity: Entity) -> Entity {
-        app.world()
-            .entity(entity)
-            .get::<ChildOf>()
-            .expect("entity has parent")
-            .0
+    fn spawn_drawer_shell_with_crt(app: &mut App) {
+        app.init_asset::<NovaOsCrtMaterial>();
+        spawn_drawer_shell(app);
     }
 
     fn assert_scrollable_viewport(app: &App, viewport: Entity, label: &str) {
@@ -2080,35 +2177,61 @@ mod tests {
     }
 
     #[test]
-    fn drawer_left_flight_log_lives_in_scrollable_viewport() {
+    fn nova_os_terminal_scrollback_lives_in_scrollable_viewport() {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
         spawn_drawer_shell(&mut app);
 
         let list = app
             .world_mut()
-            .query_filtered::<Entity, With<DrawerFlightLogListMarker>>()
+            .query_filtered::<Entity, With<NovaOsTerminalScrollbackMarker>>()
             .single(app.world())
-            .expect("left flight-log inner list");
-        let viewport = parent_of(&app, list);
+            .expect("terminal scrollback viewport");
 
-        assert_scrollable_viewport(&app, viewport, "left flight-log viewport");
+        assert_scrollable_viewport(&app, list, "terminal scrollback viewport");
     }
 
     #[test]
-    fn drawer_right_objectives_live_in_scrollable_viewport() {
+    fn nova_os_keeps_log_objective_state_without_visible_panes() {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
         spawn_drawer_shell(&mut app);
 
-        let list = app
-            .world_mut()
-            .query_filtered::<Entity, With<DrawerObjectivesListMarker>>()
-            .single(app.world())
-            .expect("right objectives inner list");
-        let viewport = parent_of(&app, list);
+        assert_eq!(
+            app.world_mut()
+                .query_filtered::<Entity, With<DrawerFlightLogListMarker>>()
+                .iter(app.world())
+                .count(),
+            0,
+            "the PoC-style monitor does not show a permanent Flight Log pane"
+        );
+        assert_eq!(
+            app.world_mut()
+                .query_filtered::<Entity, With<DrawerObjectivesListMarker>>()
+                .iter(app.world())
+                .count(),
+            0,
+            "the PoC-style monitor does not show a permanent Objectives pane"
+        );
 
-        assert_scrollable_viewport(&app, viewport, "right objectives viewport");
+        let mut data_app = objectives_app();
+        spawn_flight_log_list(&mut data_app);
+        spawn_objectives_list(&mut data_app);
+        set_objectives(
+            &mut data_app,
+            vec![Objective::new("b1", "Strip 3 salvage crates")],
+        );
+        push_story_line(&mut data_app, "Okono", "Telemetry is dirty but readable.");
+        data_app.update();
+
+        assert_eq!(
+            flight_log_texts(&mut data_app),
+            vec![
+                "COMMS OKONO > Telemetry is dirty but readable.".to_string(),
+                "OBJ + Strip 3 salvage crates".to_string(),
+            ],
+            "backing log/objective logic still derives rows for future commands"
+        );
     }
 
     #[test]
@@ -2302,6 +2425,14 @@ mod tests {
         entity_ref
             .get::<Children>()
             .and_then(|children| children.iter().find_map(|child| text_in_tree(app, child)))
+    }
+
+    fn all_texts(app: &mut App) -> Vec<String> {
+        app.world_mut()
+            .query::<&Text>()
+            .iter(app.world())
+            .map(|text| text.0.clone())
+            .collect()
     }
 
     fn flight_log_texts(app: &mut App) -> Vec<String> {
@@ -2759,6 +2890,138 @@ mod tests {
                 >= 2,
             "monitor casing has orange/yellow accent slots"
         );
+    }
+
+    #[test]
+    fn drawer_matches_nova_os_terminal_poc_structure() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        spawn_drawer_shell(&mut app);
+
+        assert!(
+            app.world_mut()
+                .query_filtered::<(), With<NovaOsTopbarMarker>>()
+                .iter(app.world())
+                .next()
+                .is_some(),
+            "screen has the PoC topbar"
+        );
+        assert!(
+            app.world_mut()
+                .query_filtered::<(), With<NovaOsLampMarker>>()
+                .iter(app.world())
+                .next()
+                .is_some(),
+            "topbar has the lit status lamp"
+        );
+        assert!(
+            app.world_mut()
+                .query_filtered::<(), With<NovaOsStatusMarker>>()
+                .iter(app.world())
+                .next()
+                .is_some(),
+            "topbar has the right-side status text"
+        );
+        assert!(
+            app.world_mut()
+                .query_filtered::<(), With<NovaOsTerminalSurfaceMarker>>()
+                .iter(app.world())
+                .next()
+                .is_some(),
+            "screen has one terminal surface"
+        );
+        assert!(
+            app.world_mut()
+                .query_filtered::<(), With<NovaOsPromptRowMarker>>()
+                .iter(app.world())
+                .next()
+                .is_some(),
+            "terminal surface has the PoC prompt row"
+        );
+        assert!(
+            app.world_mut()
+                .query_filtered::<(), With<NovaOsFooterHintsMarker>>()
+                .iter(app.world())
+                .next()
+                .is_some(),
+            "screen has the PoC footer hint row"
+        );
+
+        let texts = all_texts(&mut app);
+        for expected in [
+            "NOVA OS 0.9 / COCKPIT LINK",
+            "DRAWER PAUSED     SHIP: CERES QUEEN     LINK: LOCAL",
+            "nova>",
+            "Tab: autocomplete in terminal",
+            "Esc: close drawer",
+            "help: list commands",
+        ] {
+            assert!(
+                texts.iter().any(|text| text == expected),
+                "missing PoC text: {expected}"
+            );
+        }
+        assert!(
+            !texts
+                .iter()
+                .any(|text| text == "FLIGHT LOG" || text == "OBJECTIVES"),
+            "NOVA OS no longer renders permanent side-panel headings inside the screen"
+        );
+    }
+
+    #[test]
+    fn drawer_uses_crt_material_overlay_when_assets_are_available() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        spawn_drawer_shell_with_crt(&mut app);
+
+        let material_nodes = app
+            .world_mut()
+            .query_filtered::<&MaterialNode<NovaOsCrtMaterial>, With<NovaOsCrtMaterialMarker>>()
+            .iter(app.world())
+            .count();
+        assert_eq!(
+            material_nodes, 1,
+            "the drawer has one shader-backed CRT overlay in render-capable apps"
+        );
+        assert_eq!(
+            app.world().resource::<Assets<NovaOsCrtMaterial>>().len(),
+            1,
+            "the CRT overlay owns one material asset"
+        );
+    }
+
+    #[test]
+    fn nova_os_only_help_and_clear_are_registered() {
+        let registered: Vec<&str> = TERMINAL_COMMANDS
+            .iter()
+            .map(|command| command.name)
+            .collect();
+        assert_eq!(registered, vec!["help", "clear"]);
+
+        assert!(matches!(parse_command("help"), TerminalCommandResult::Help));
+        assert!(matches!(
+            parse_command("clear"),
+            TerminalCommandResult::Clear
+        ));
+        for planned in [
+            "log",
+            "objectives",
+            "ship",
+            "map",
+            "ship viewer",
+            "exit",
+            "reload",
+            "repair",
+        ] {
+            assert!(
+                matches!(
+                    parse_command(planned),
+                    TerminalCommandResult::Unknown { .. }
+                ),
+                "{planned} stays deferred to its own task"
+            );
+        }
     }
 
     /// `drive_drawer_slide` now drives the single monitor's visibility and
