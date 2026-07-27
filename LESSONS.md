@@ -1034,6 +1034,25 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   is isolated from stray world sprites (e.g. the render-scale upscale sprite on
   the default layer) - the way to render a UI subtree to an image without the
   camera also picking up scene 2D. 20260726-193233.
+- `single-frame-shot-is-a-coinflip-for-animated-state` (domain, x1): a
+  time-driven blink/animation makes ONE screenshot an unreliable proof of a
+  static-visibility fix - the NOVA OS block caret blinks at 1.25 Hz (50% duty),
+  so the empty-prompt capture caught an OFF phase and showed no caret even though
+  the fix was correct (a later frame with typed text proved the caret renders).
+  For such proofs either add a capture mode that FREEZES the animation phase, or
+  accept the manual DoD and SAY the shot was phase-ambiguous - do not read a
+  blink-off as a regression. Pairs with [[widget-tree-eyeball-for-logical-layout]]
+  (prefer the deterministic widget-tree assert when the thing under test is
+  logical, not pixel). 20260727-162635.
+- `imagemagick-recolor-preserve-alpha` (domain, x1): to recolour a PNG's opaque
+  pixels to a flat colour while KEEPING its alpha shape, `-fill white -colorize
+  100%` is unreliable (it collapsed nova_crt_mark.png to gray+alpha with a broken
+  channel split). Instead extract the alpha and composite a solid-colour canvas
+  through it: `magick in.png -alpha extract a.png; magick -size WxH xc:white
+  a.png -alpha off -compose CopyOpacity -composite PNG32:out.png`. Verify with
+  `magick out.png -background black -alpha remove -alpha off -format
+  '%[fx:mean.r] %[fx:mean.g] %[fx:mean.b]' info:` - equal R=G=B means white where
+  opaque. (Fixed the black NOVA CRT star mark.) 20260727-162635.
 
 ## Promoted (resolved 2026-07-21, task 20260720-220051)
 
