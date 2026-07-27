@@ -231,6 +231,25 @@ fn nova_os_capture_script(world: &mut World, _elapsed: f32) {
             }
             state.wait = if capturing { 20 } else { 2 };
         }
+        // Flush the leftover `lo` prefix, then type `map`.
+        6 => {
+            press_enter(world);
+            type_word(world, "map");
+            state.wait = 6;
+        }
+        // Launch the `map` app (schematic 3D minimap) and let its scene settle.
+        7 => {
+            press_enter(world);
+            state.wait = settle;
+        }
+        // Capture the map app (schematic scene + projected contact blips).
+        8 => {
+            if capturing {
+                capture_window(world, "nova-os-map.png");
+                info!("nova os capture: nova-os-map.png");
+            }
+            state.wait = if capturing { 20 } else { 2 };
+        }
         _ => {
             world.write_message(AppExit::Success);
         }

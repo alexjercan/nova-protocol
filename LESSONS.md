@@ -1045,6 +1045,28 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   is isolated from stray world sprites (e.g. the render-scale upscale sprite on
   the default layer) - the way to render a UI subtree to an image without the
   camera also picking up scene 2D. 20260726-193233.
+- `rtt-ui-select-via-activate-not-interaction` (domain, x1): a `Button` inside a
+  forwarded-pointer RTT (the NOVA OS CRT composite) does NOT get its
+  `Interaction` component updated - polling `Changed<Interaction>` for clicks
+  silently does nothing. Use the `bevy_ui_widgets::Activate` observer
+  (`.observe(handler)`, read `activate.entity`), the same path the terminal's own
+  buttons use; it fires through the forwarded pointer. Sibling of
+  [[bevy-ui-image-camera-is-pickable-via-forwarded-pointer]]. 20260724-102320.
+- `verify-reused-driver-actually-moves` (x1): before building interaction on a
+  reused input/animation component, confirm the OUTPUT actually moves in THIS
+  context - do not trust that writing its input rotates/animates. The map camera
+  wrote `SphereOrbitInput` but the shared `SphereOrbit` plugin's smoothed path
+  never turned the RTT camera (only the direct `center` pan moved); owning the
+  spherical math in a bespoke `MapOrbit` fixed it at once. A passing arity/
+  lifecycle test proves the seam exists, not that the pixels respond. Kin of
+  [[verify-interaction-not-just-rendering]] and [[advertised-is-not-wired]].
+  20260724-102320.
+- `autoscroll-on-new-content-not-any-change` (x1): pinning a scroll view to the
+  bottom on every change of its backing resource defeats manual scroll (PageUp/
+  wheel) the moment that resource changes for an unrelated reason (prompt edits,
+  a mirrored command list). Gate the auto-scroll on the row COUNT increasing
+  (new output), not on `resource_changed`. The unit test forced overflow and
+  passed while the real view was un-scrollable. 20260724-102320.
 - `single-frame-shot-is-a-coinflip-for-animated-state` (domain, x1): a
   time-driven blink/animation makes ONE screenshot an unreliable proof of a
   static-visibility fix - the NOVA OS block caret blinks at 1.25 Hz (50% duty),

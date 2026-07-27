@@ -63,7 +63,12 @@ impl Plugin for SpaceshipCameraControllerPlugin {
             // the rig) AND after the input write, because its velocity lead
             // is expressed in this frame's anchor rotation frame.
             (
-                derive_control_mode_and_raised,
+                // Only derive the combat/free-look mode while gameplay is live:
+                // frozen behind the NOVA OS (or pause menu), RMB must NOT flip the
+                // ship into Turret/combat stance - it belongs to whatever app owns
+                // the screen (e.g. the map's orbit drag). Freezing the derivation
+                // holds the last mode; it re-reads held inputs on unpause.
+                derive_control_mode_and_raised.run_if(in_state(crate::PauseStates::Unpaused)),
                 update_chase_camera_input,
                 sync_spaceship_control_mode,
                 update_camera_rig,

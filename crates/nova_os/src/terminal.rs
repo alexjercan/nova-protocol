@@ -7,7 +7,10 @@ use bevy::prelude::*;
 
 use crate::{
     app::NovaOsAppCommand,
-    shell::{resolve_command, terminal_command_names, ResolvedCommand, TERMINAL_COMMANDS},
+    shell::{
+        command_meta, resolve_command, subcommands_of, terminal_command_names, CommandArity,
+        ResolvedCommand, TERMINAL_COMMANDS,
+    },
 };
 
 pub(crate) const NOVA_OS_PROMPT_PREFIX: &str = "nova> ";
@@ -125,6 +128,9 @@ pub struct TerminalCommandSnapshot {
     pub objective_rows: Vec<TerminalRow>,
     /// Rows for the `ship` command (section status summary).
     pub ship_rows: Vec<TerminalRow>,
+    /// Rows for the `map view` command (local-space contact list). Built by
+    /// `nova_gameplay` from the same contact model the `map` app renders.
+    pub map_rows: Vec<TerminalRow>,
     /// Flight-log entries appended since the NOVA OS last closed, for the boot
     /// banner's "N unread events" line (0 in the default snapshot).
     pub unread_events: usize,
@@ -368,6 +374,14 @@ impl NovaOsTerminal {
                     self.scrollback.extend(snapshot.ship_rows.clone());
                     TerminalSubmitOutcome::Ran
                 }
+                "map view" => {
+                    self.scrollback.extend(snapshot.map_rows.clone());
+                    TerminalSubmitOutcome::Ran
+                }
+                "version" => {
+                    self.scrollback.extend(nova_os_version_rows());
+                    TerminalSubmitOutcome::Ran
+                }
                 "exit" => {
                     self.pending_close = true;
                     TerminalSubmitOutcome::Ran
@@ -375,11 +389,30 @@ impl NovaOsTerminal {
                 // Every built-in name in TERMINAL_COMMANDS is handled above.
                 _ => TerminalSubmitOutcome::Ran,
             },
+            ResolvedCommand::Usage { name } => {
+                self.scrollback
+                    .extend(command_help_rows(name, &self.app_commands));
+                TerminalSubmitOutcome::Ran
+            }
+            ResolvedCommand::Version { .. } => {
+                self.scrollback.extend(nova_os_version_rows());
+                TerminalSubmitOutcome::Ran
+            }
             ResolvedCommand::UnexpectedArguments { command, arity } => {
+                // A bad argument shows WHY plus the command's usage, rather than a
+                // bare "takes no arguments" - and names the sub-commands when the
+                // command has them (e.g. `map v` -> `map view`).
+                let subs = subcommands_of(&command, &self.app_commands);
                 self.scrollback.push(TerminalRow {
                     kind: TerminalRowKind::Error,
-                    text: format!("{command} {}", arity.rejection()),
+                    text: if subs.is_empty() {
+                        format!("{command} {}", arity.rejection())
+                    } else {
+                        format!("{command}: unknown sub-command")
+                    },
                 });
+                self.scrollback
+                    .extend(command_help_rows(&command, &self.app_commands));
                 TerminalSubmitOutcome::Errored
             }
             ResolvedCommand::Unknown {
@@ -421,9 +454,7 @@ impl NovaOsTerminal {
             .cycle_stem
             .clone()
             .unwrap_or_else(|| self.prompt.clone());
-        let matches: Vec<&'static str> = terminal_command_names(&self.app_commands)
-            .filter(|name| name.starts_with(stem.as_str()))
-            .collect();
+        let matches = self.completion_matches(&stem);
         if matches.is_empty() {
             return false;
         }
@@ -442,10 +473,42 @@ impl NovaOsTerminal {
         };
         self.cycle_stem = Some(stem);
         self.cycle_index = index;
-        self.prompt = matches[index].to_string();
+        self.prompt = matches[index].clone();
         self.cursor = self.prompt.len();
         self.refresh_parse();
         true
+    }
+
+    /// Completion candidates for `stem`: every command name it prefixes, plus the
+    /// universal sub-verbs (`<command> help`, `<command> version`) once the player
+    /// is past the command name. Drives Tab completion and the inline ghost, so
+    /// both understand sub-commands (fish-style), not just top-level names.
+    fn completion_matches(&self, stem: &str) -> Vec<String> {
+        let mut matches: Vec<String> = terminal_command_names(&self.app_commands)
+            .filter(|name| name.starts_with(stem))
+            .map(|name| name.to_string())
+            .collect();
+        for name in terminal_command_names(&self.app_commands) {
+            // Only offer sub-verbs once the player is past this command's name
+            // (`<name> <partial>`), so top-level completion stays clean.
+            let Some(partial) = stem.strip_prefix(&format!("{name} ")) else {
+                continue;
+            };
+            // A leading `-` means the player is typing a flag, so complete the
+            // flag forms; otherwise complete the word forms + real sub-commands.
+            let verbs: &[&str] = if partial.starts_with('-') {
+                &["-h", "--help", "-v", "--version"]
+            } else {
+                &["help", "version"]
+            };
+            for verb in verbs {
+                let candidate = format!("{name} {verb}");
+                if candidate.starts_with(stem) {
+                    matches.push(candidate);
+                }
+            }
+        }
+        matches
     }
 
     /// Recall the previous command from history into the prompt.
@@ -486,8 +549,12 @@ impl NovaOsTerminal {
             return;
         }
         match resolve_command(trimmed, &self.app_commands) {
-            // A full, arity-valid command (built-in or app launch word).
-            ResolvedCommand::App { .. } | ResolvedCommand::Builtin { .. } => {
+            // A full, arity-valid command (built-in or app launch word), or a
+            // `<command> help` usage request - all valid input.
+            ResolvedCommand::App { .. }
+            | ResolvedCommand::Builtin { .. }
+            | ResolvedCommand::Usage { .. }
+            | ResolvedCommand::Version { .. } => {
                 self.parse_status = TerminalParseStatus::Valid;
                 self.completion_hint = None;
             }
@@ -520,9 +587,10 @@ impl NovaOsTerminal {
     /// The first command name (built-ins then app launch words) that has `stem` as
     /// a strict string prefix - the completion target while the player is still
     /// typing a command name.
-    fn command_name_starting_with(&self, stem: &str) -> Option<&'static str> {
-        terminal_command_names(&self.app_commands)
-            .find(|name| *name != stem && name.starts_with(stem))
+    fn command_name_starting_with(&self, stem: &str) -> Option<String> {
+        self.completion_matches(stem)
+            .into_iter()
+            .find(|name| name != stem)
     }
 
     /// Clear the prompt line and its completion cycle (leaving the scrollback and
@@ -684,6 +752,58 @@ pub fn terminal_help_rows(app_commands: &[NovaOsAppCommand]) -> Vec<TerminalRow>
     .collect()
 }
 
+/// Per-command help (`<command> help`): a one-line summary, the usage syntax, any
+/// sub-commands, and a version stamp - the shell-emulator touch. Works for every
+/// registered command, built-in or app.
+pub fn command_help_rows(name: &str, app_commands: &[NovaOsAppCommand]) -> Vec<TerminalRow> {
+    let Some((summary, arity)) = command_meta(name, app_commands) else {
+        return vec![TerminalRow {
+            kind: TerminalRowKind::Error,
+            text: format!("no help for '{name}'"),
+        }];
+    };
+    let mut rows = vec![TerminalRow {
+        kind: TerminalRowKind::Info,
+        text: format!("{name} - {summary}"),
+    }];
+    rows.push(TerminalRow {
+        kind: TerminalRowKind::Output,
+        text: match arity {
+            CommandArity::None => format!("usage: {name}"),
+            CommandArity::UpTo(_) => format!("usage: {name} <arg>"),
+        },
+    });
+    let subs = subcommands_of(name, app_commands);
+    if !subs.is_empty() {
+        rows.push(TerminalRow {
+            kind: TerminalRowKind::Output,
+            text: format!("subcommands: {}", subs.join(", ")),
+        });
+    }
+    rows.push(TerminalRow {
+        kind: TerminalRowKind::Dim,
+        text: format!(
+            "NOVA OS {} - try '{name} help' anytime",
+            nova_os_version_label()
+        ),
+    });
+    rows
+}
+
+/// The `version` command output: the version plus a little flavor.
+pub fn nova_os_version_rows() -> Vec<TerminalRow> {
+    vec![
+        TerminalRow {
+            kind: TerminalRowKind::Info,
+            text: format!("NOVA OS {}", nova_os_version_label()),
+        },
+        TerminalRow {
+            kind: TerminalRowKind::Dim,
+            text: "cockpit link nominal - (c) Nova Dynamics, all reactors reserved".to_string(),
+        },
+    ]
+}
+
 /// The semantic result of a [`NovaOsTerminal::submit`], so the bevy layer can
 /// pick the sound cue without the pure model knowing about audio (task
 /// 20260726-214639).
@@ -825,7 +945,15 @@ mod tests {
                 },
                 TerminalRow {
                     kind: TerminalRowKind::Output,
+                    text: "  map view    Print local-space contacts".to_string()
+                },
+                TerminalRow {
+                    kind: TerminalRowKind::Output,
                     text: "  clear       Clear terminal scrollback".to_string()
+                },
+                TerminalRow {
+                    kind: TerminalRowKind::Output,
+                    text: "  version     Print the NOVA OS version".to_string()
                 },
                 TerminalRow {
                     kind: TerminalRowKind::Output,
@@ -880,9 +1008,14 @@ mod tests {
             Some("help takes no arguments")
         );
         terminal.submit(&TerminalCommandSnapshot::default());
-        assert_eq!(
-            terminal.scrollback.last().map(|row| row.text.as_str()),
-            Some("help takes no arguments")
+        // The error line is printed, followed by the command's usage (so the
+        // player sees how to use it); assert the error is present.
+        assert!(
+            terminal
+                .scrollback
+                .iter()
+                .any(|row| row.text == "help takes no arguments"),
+            "the rejection names the command and reason",
         );
 
         type_text(&mut terminal, "clear garbage");
@@ -891,9 +1024,12 @@ mod tests {
             !terminal.scrollback.is_empty(),
             "clear with unexpected arguments reports an error instead of clearing scrollback"
         );
-        assert_eq!(
-            terminal.scrollback.last().map(|row| row.text.as_str()),
-            Some("clear takes no arguments")
+        assert!(
+            terminal
+                .scrollback
+                .iter()
+                .any(|row| row.text == "clear takes no arguments"),
+            "clear rejects its argument with a reason",
         );
     }
     #[test]
@@ -917,7 +1053,111 @@ mod tests {
             .collect();
         assert_eq!(
             listed,
-            vec!["help", "log", "objectives", "ship", "clear", "exit"]
+            vec![
+                "help",
+                "log",
+                "objectives",
+                "ship",
+                "map view",
+                "clear",
+                "version",
+                "exit"
+            ]
+        );
+    }
+    #[test]
+    fn nova_os_command_help_and_version() {
+        let mut terminal = NovaOsTerminal::default();
+        terminal.app_commands = vec![NovaOsAppCommand {
+            id: "map",
+            summary: "Open the local-space map",
+            arity: crate::shell::CommandArity::None,
+        }];
+
+        // `<command> help` prints the command's summary, usage and sub-commands.
+        type_text(&mut terminal, "map help");
+        terminal.submit(&TerminalCommandSnapshot::default());
+        let text = |t: &NovaOsTerminal| {
+            t.scrollback
+                .iter()
+                .map(|row| row.text.clone())
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+        let out = text(&terminal);
+        assert!(out.contains("map - Open the local-space map"), "{out}");
+        assert!(out.contains("usage: map"), "{out}");
+        assert!(out.contains("subcommands: map view"), "{out}");
+
+        // A bad sub-command is a named error + usage, not "takes no arguments".
+        type_text(&mut terminal, "map v");
+        terminal.submit(&TerminalCommandSnapshot::default());
+        assert!(
+            terminal
+                .scrollback
+                .iter()
+                .any(|row| row.text == "map: unknown sub-command"),
+            "map v names the bad sub-command",
+        );
+
+        // `version` prints the version banner.
+        type_text(&mut terminal, "version");
+        terminal.submit(&TerminalCommandSnapshot::default());
+        assert!(
+            terminal
+                .scrollback
+                .iter()
+                .any(|row| row.text.starts_with("NOVA OS v")),
+            "version prints the NOVA OS version",
+        );
+    }
+    #[test]
+    fn nova_os_subcommand_completion_and_ghost() {
+        let mut terminal = NovaOsTerminal::default();
+        terminal.app_commands = vec![NovaOsAppCommand {
+            id: "map",
+            summary: "Open the local-space map",
+            arity: crate::shell::CommandArity::None,
+        }];
+
+        // A sub-command prefix is a VALID PREFIX (not a red error) and ghosts its
+        // completion: `map h` -> `map help` (ghost `elp`), fish-style.
+        type_text(&mut terminal, "map h");
+        assert_eq!(terminal.parse_status, TerminalParseStatus::ValidPrefix);
+        assert_eq!(prompt_completion_ghost(&terminal), "elp");
+
+        // Tab completes sub-commands: `map v` completes to a `map v...` command.
+        terminal.reset_prompt();
+        type_text(&mut terminal, "map v");
+        assert!(terminal.complete(), "Tab completes a sub-command");
+        assert!(
+            terminal.prompt() == "map view" || terminal.prompt() == "map version",
+            "completed to a real sub-command: {}",
+            terminal.prompt(),
+        );
+
+        // A leading `-` completes the FLAG forms, not a red error: `map -` is a
+        // valid prefix that Tab-completes to a `map -...` flag.
+        terminal.reset_prompt();
+        type_text(&mut terminal, "map -");
+        assert_eq!(terminal.parse_status, TerminalParseStatus::ValidPrefix);
+        assert!(terminal.complete(), "Tab completes a flag");
+        assert!(
+            terminal.prompt().starts_with("map -"),
+            "completed to a flag form: {}",
+            terminal.prompt(),
+        );
+
+        // The universal `<command> version` sub-verb prints the version.
+        terminal.reset_prompt();
+        type_text(&mut terminal, "map version");
+        terminal.submit(&TerminalCommandSnapshot::default());
+        assert!(
+            terminal
+                .scrollback
+                .iter()
+                .any(|row| row.text.starts_with("NOVA OS v")),
+            "map version prints the NOVA OS version",
         );
     }
     /// Tab lists ambiguous matches on the first press and cycles through them on

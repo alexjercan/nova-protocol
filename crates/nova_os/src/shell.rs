@@ -71,9 +71,23 @@ pub(crate) const TERMINAL_COMMANDS: &[TerminalCommand] = &[
         summary: "Print ship status summary",
         arity: CommandArity::None,
     },
+    // `map view` is the CLI counterpart of the `map` app: a two-word built-in
+    // that prints the local-space contact list inline. It resolves ahead of the
+    // one-word `map` app launch word via the longest-prefix rule, exactly like
+    // `ship view` beats `ship`.
+    TerminalCommand {
+        name: "map view",
+        summary: "Print local-space contacts",
+        arity: CommandArity::None,
+    },
     TerminalCommand {
         name: "clear",
         summary: "Clear terminal scrollback",
+        arity: CommandArity::None,
+    },
+    TerminalCommand {
+        name: "version",
+        summary: "Print the NOVA OS version",
         arity: CommandArity::None,
     },
     TerminalCommand {
@@ -82,6 +96,48 @@ pub(crate) const TERMINAL_COMMANDS: &[TerminalCommand] = &[
         arity: CommandArity::None,
     },
 ];
+
+/// Whether a word is a help flag (`help`, `-h`, `--help`), so any command can be
+/// asked for its own usage with `<command> help`.
+pub(crate) fn is_help_flag(word: &str) -> bool {
+    matches!(word, "help" | "-h" | "--help")
+}
+
+/// Whether a word is a version flag (`version`, `-v`, `--version`), so any command
+/// answers `<command> version` - the universal sub-verb, next to `help`.
+pub(crate) fn is_version_flag(word: &str) -> bool {
+    matches!(word, "version" | "-v" | "--version")
+}
+
+/// The registered names that are sub-commands of `name` (its word sequence plus
+/// one more word), e.g. `map view` is a sub-command of `map`. Drives the
+/// did-you-mean on a bad argument and the `subcommands:` line in per-command help.
+pub(crate) fn subcommands_of<'a>(
+    name: &str,
+    app_commands: &'a [NovaOsAppCommand],
+) -> Vec<&'static str> {
+    let prefix = format!("{name} ");
+    terminal_command_names(app_commands)
+        .filter(|candidate| candidate.starts_with(&prefix))
+        .collect()
+}
+
+/// The `(summary, arity)` of a registered command name, built-in or app.
+pub(crate) fn command_meta(
+    name: &str,
+    app_commands: &[NovaOsAppCommand],
+) -> Option<(&'static str, CommandArity)> {
+    TERMINAL_COMMANDS
+        .iter()
+        .find(|command| command.name == name)
+        .map(|command| (command.summary, command.arity))
+        .or_else(|| {
+            app_commands
+                .iter()
+                .find(|app| app.id == name)
+                .map(|app| (app.summary, app.arity))
+        })
+}
 
 /// The outcome of matching a command line against the built-ins and registered
 /// apps. `App`/`Builtin` carry the matched (possibly multi-word) name; the two
@@ -92,6 +148,14 @@ pub(crate) enum ResolvedCommand {
         id: &'static str,
     },
     Builtin {
+        name: &'static str,
+    },
+    /// `<command> help` (or `-h`/`--help`): show that command's own usage.
+    Usage {
+        name: &'static str,
+    },
+    /// `<command> version` (or `-v`/`--version`): show the NOVA OS version.
+    Version {
         name: &'static str,
     },
     UnexpectedArguments {
@@ -165,6 +229,14 @@ pub(crate) fn resolve_command(
         };
     };
     let arg_count = words.len() - name_words;
+    // `<command> help` / `<command> version` are universal sub-verbs, resolved
+    // ahead of the arity check so they work even on a no-arg command.
+    if arg_count == 1 && is_help_flag(words[name_words]) {
+        return ResolvedCommand::Usage { name };
+    }
+    if arg_count == 1 && is_version_flag(words[name_words]) {
+        return ResolvedCommand::Version { name };
+    }
     if !arity.accepts(arg_count) {
         return ResolvedCommand::UnexpectedArguments {
             command: name.to_string(),
@@ -213,18 +285,37 @@ mod tests {
     use crate::app::NovaOsAppCommand;
     #[test]
     fn nova_os_registered_commands_match_html_set() {
-        // The executable set + order mirror the HTML PoC (minus the app-launch
-        // commands `map` / `ship viewer`, which stay in their stretch tasks).
+        // The executable set + order mirror the HTML PoC. `map view` is the one
+        // addition beyond the PoC set: the CLI counterpart of the `map` app (its
+        // own launch word `map` is registered by the app, not the built-in table).
         let registered: Vec<&str> = TERMINAL_COMMANDS
             .iter()
             .map(|command| command.name)
             .collect();
         assert_eq!(
             registered,
-            vec!["help", "log", "objectives", "ship", "clear", "exit"]
+            vec![
+                "help",
+                "log",
+                "objectives",
+                "ship",
+                "map view",
+                "clear",
+                "version",
+                "exit"
+            ]
         );
 
-        for name in ["help", "clear", "log", "objectives", "ship", "exit"] {
+        for name in [
+            "help",
+            "clear",
+            "log",
+            "objectives",
+            "ship",
+            "map view",
+            "version",
+            "exit",
+        ] {
             assert!(
                 matches!(
                     resolve_command(name, &[]),
@@ -233,8 +324,10 @@ mod tests {
                 "{name} resolves to its built-in",
             );
         }
-        // `map`, `reload`, `repair` are single unknown words until their own tasks
-        // register them.
+        // `reload`, `repair` are single unknown words until their own tasks
+        // register them. Bare `map` is also unknown UNTIL the `map` app registers
+        // its launch word (with no app registered here, `map` alone matches
+        // nothing - `map view` needs the second word).
         for planned in ["map", "reload", "repair"] {
             assert!(
                 matches!(
@@ -244,6 +337,38 @@ mod tests {
                 "{planned} stays deferred to its own task"
             );
         }
+        // With the `map` app registered, `map` resolves to the app while
+        // `map view` still resolves to the two-word built-in (longest-match).
+        let map_app = [NovaOsAppCommand {
+            id: "map",
+            summary: "",
+            arity: CommandArity::None,
+        }];
+        assert!(matches!(
+            resolve_command("map", &map_app),
+            ResolvedCommand::App { id: "map" }
+        ));
+        assert!(matches!(
+            resolve_command("map view", &map_app),
+            ResolvedCommand::Builtin { name: "map view" }
+        ));
+        // `<command> help` (and -h/--help) shows a command's own usage, for a
+        // built-in or an app, ahead of the arity check.
+        assert!(matches!(
+            resolve_command("ship help", &map_app),
+            ResolvedCommand::Usage { name: "ship" }
+        ));
+        assert!(matches!(
+            resolve_command("map -h", &map_app),
+            ResolvedCommand::Usage { name: "map" }
+        ));
+        // A non-help bad argument to a no-arg command still rejects (submit turns
+        // it into a usage hint that names the sub-commands, e.g. `map view`).
+        assert!(matches!(
+            resolve_command("map v", &map_app),
+            ResolvedCommand::UnexpectedArguments { command, .. } if command == "map"
+        ));
+        assert_eq!(subcommands_of("map", &map_app), vec!["map view"]);
         // `ship viewer` is no longer a hardcoded special-case: with no app
         // registered it is just the `ship` built-in with an unexpected argument.
         assert!(matches!(

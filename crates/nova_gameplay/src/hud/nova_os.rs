@@ -76,8 +76,8 @@ const DRAWER_SLIDE_SECS: f32 = 0.22;
 /// owner chose a deeper gray over a real scene blur at the /flow gate (bevy
 /// 0.19 has no UI backdrop-filter; see this task's DECISION.md).
 const DRAWER_BACKDROP_ALPHA: f32 = 0.94;
-const DRAWER_SECTION_TITLE_FONT_PX: f32 = 14.0;
-const DRAWER_LINE_FONT_PX: f32 = 16.0;
+pub(crate) const DRAWER_SECTION_TITLE_FONT_PX: f32 = 14.0;
+pub(crate) const DRAWER_LINE_FONT_PX: f32 = 16.0;
 /// The staggered boot banner reveals one row this far apart, on real time so it
 /// runs while virtual time is frozen (PoC `printBanner`'s ~130 ms cadence).
 const NOVA_OS_BOOT_ROW_INTERVAL: f32 = 0.13;
@@ -101,6 +101,20 @@ const NOVA_OS_MONITOR_INSET_X_PX: f32 = 16.0;
 const NOVA_OS_MONITOR_INSET_Y_PX: f32 = 14.0;
 const NOVA_OS_BEZEL_PAD_PX: f32 = 26.0;
 const NOVA_OS_SCREEN_PAD_PX: f32 = 18.0;
+/// Safe-area inset for the actual SCREEN CONTENT (terminal + apps), as a
+/// percentage of the content width per side, so it scales with resolution.
+/// The CRT shader overscans the warped picture by `NOVA_OS_OVERSCAN` (~3.5% of
+/// each edge is pushed under the bezel to hide the barrel-bowed corners), so a
+/// flat 18px inset let edge text tuck under the bezel (owner playtest: "text is
+/// not visible on the borders"). These clear the hidden band with a margin;
+/// most of the padding lands under the bezel, leaving a small visible margin.
+/// Horizontal and vertical differ because the hidden band is a fraction of each
+/// dimension but percentage padding is width-relative on both axes.
+const NOVA_OS_CONTENT_SAFE_X_PCT: f32 = 5.5;
+const NOVA_OS_CONTENT_SAFE_Y_PCT: f32 = 3.6;
+/// Space an app reserves at the bottom of its body so its content (e.g. the map
+/// readout) clears the persistent footer hint row instead of overlapping it.
+const NOVA_OS_FOOTER_RESERVE_PX: f32 = 30.0;
 /// Injection-moulded shell corners: a larger top radius and a tighter bottom,
 /// like the PoC `.case` `border-radius: 22px 22px 14px 14px`, scaled up for the
 /// full-viewport monitor.
@@ -140,17 +154,17 @@ const NOVA_OS_BACKDROP: Color = Color::srgb_u8(0, 3, 6);
 const NOVA_OS_CASE: Color = Color::srgb_u8(10, 13, 16);
 const NOVA_OS_CASE_RAISED: Color = Color::srgb_u8(16, 22, 27);
 const NOVA_OS_CASE_EDGE: Color = Color::srgb_u8(5, 7, 10);
-const NOVA_OS_SCREEN: Color = Color::srgb_u8(0, 4, 1);
+pub(crate) const NOVA_OS_SCREEN: Color = Color::srgb_u8(0, 4, 1);
 // Palette lifted from `nova_os_terminal_poc.html`: a hot neon phosphor for the
 // prompt, borders and headers; a pale mint for ordinary body text (the HTML
 // `--text`), which reads brighter and higher-contrast on the near-black screen
 // than the old all-one-green treatment.
-const NOVA_OS_PHOSPHOR: Color = Color::srgb_u8(54, 255, 121);
-const NOVA_OS_TEXT: Color = Color::srgb_u8(185, 255, 201);
-const NOVA_OS_PHOSPHOR_DIM: Color = Color::srgb_u8(95, 238, 137);
-const NOVA_OS_PHOSPHOR_MUTED: Color = Color::srgb_u8(70, 207, 118);
-const NOVA_OS_INFO: Color = Color::srgb_u8(54, 163, 255);
-const NOVA_OS_AMBER: Color = Color::srgb_u8(255, 184, 74);
+pub(crate) const NOVA_OS_PHOSPHOR: Color = Color::srgb_u8(54, 255, 121);
+pub(crate) const NOVA_OS_TEXT: Color = Color::srgb_u8(185, 255, 201);
+pub(crate) const NOVA_OS_PHOSPHOR_DIM: Color = Color::srgb_u8(95, 238, 137);
+pub(crate) const NOVA_OS_PHOSPHOR_MUTED: Color = Color::srgb_u8(70, 207, 118);
+pub(crate) const NOVA_OS_INFO: Color = Color::srgb_u8(54, 163, 255);
+pub(crate) const NOVA_OS_AMBER: Color = Color::srgb_u8(255, 184, 74);
 // Moulded-plastic depth palette (casing gradient stops, screws, seam catch).
 // The PoC `.case` body runs a 168deg gradient from a lit top (`--case-3`) down
 // through the mid body to an almost-black undercut; these are those `--case-*`
@@ -1014,6 +1028,9 @@ fn terminal_snapshot_from_world(
         log_rows: terminal_log_rows(log),
         objective_rows: terminal_objective_rows(objectives),
         ship_rows: terminal_ship_rows(ship_name, ship_sections),
+        // Populated by the caller (needs live contact queries the pure builder
+        // lacks); empty here so all other snapshot construction sites stay valid.
+        map_rows: Vec::new(),
         unread_events,
         unread_hook: nova_os_unread_hook(log, seen_events),
     }
@@ -1585,6 +1602,7 @@ fn handle_terminal_keyboard(
         (&mut ScrollPosition, Option<&ComputedNode>),
         With<NovaOsTerminalScrollbackMarker>,
     >,
+    map_contacts: crate::hud::nova_os_map::MapContacts,
 ) {
     let nova_os_prompt_active =
         *pause.get() == PauseStates::NovaOs && terminal.active_mode() == TerminalMode::Prompt;
@@ -1601,13 +1619,15 @@ fn handle_terminal_keyboard(
         match &event.logical_key {
             Key::Enter => {
                 let (ship_name, sections) = player_ship_snapshot(&q_player, &q_sections);
-                let snapshot = terminal_snapshot_from_world(
+                let mut snapshot = terminal_snapshot_from_world(
                     &log,
                     &objectives,
                     ship_name.as_deref(),
                     &sections,
                     terminal.seen_events(),
                 );
+                // The `map view` CLI rows come from the shared map contact model.
+                snapshot.map_rows = crate::hud::nova_os_map::terminal_map_rows(&map_contacts);
                 let outcome = terminal.submit(&snapshot);
                 if let Some(bank) = &bank {
                     // A bare Enter on an empty prompt stays silent (a deliberate
@@ -1990,6 +2010,14 @@ fn spawn_nova_os_app(
                 bottom: Val::Px(0.0),
                 left: Val::Px(0.0),
                 right: Val::Px(0.0),
+                // The app root is absolutely positioned, so `content_root`'s
+                // safe-area padding does NOT inset it (padding never insets
+                // absolute children). Carry the same safe area here so app content
+                // clears the CRT overscan band, exactly as the terminal does.
+                padding: UiRect::axes(
+                    Val::Percent(NOVA_OS_CONTENT_SAFE_X_PCT),
+                    Val::Percent(NOVA_OS_CONTENT_SAFE_Y_PCT),
+                ),
                 flex_direction: FlexDirection::Column,
                 row_gap: Val::Px(12.0),
                 ..default()
@@ -2041,6 +2069,9 @@ fn spawn_nova_os_app(
                         flex_grow: 1.0,
                         min_height: Val::Px(0.0),
                         flex_direction: FlexDirection::Column,
+                        // Reserve the footer row so app content never sits under
+                        // the persistent keybind footer.
+                        margin: UiRect::bottom(Val::Px(NOVA_OS_FOOTER_RESERVE_PX)),
                         ..default()
                     },
                     ZIndex(NOVA_OS_CONTENT_Z),
@@ -2254,6 +2285,12 @@ fn rebuild_terminal_ui(
         Query<(&mut Text, &mut TextColor), With<NovaOsTerminalHintMarker>>,
         Query<(&mut Text, &mut TextColor), With<NovaOsTerminalGhostMarker>>,
     )>,
+    // The scrollback length last time we rebuilt, so we only auto-scroll to the
+    // bottom when NEW output arrived. The terminal resource changes for many
+    // reasons (prompt edits, app-command mirroring, seen-events); pinning to the
+    // bottom on every one of those yanked a manual PageUp/wheel scroll straight
+    // back down (owner playtest).
+    mut last_len: Local<usize>,
 ) {
     let font = nova_os_font(asset_server.as_deref());
     if let Ok((list, children, mut scroll)) = q_scrollback.single_mut() {
@@ -2267,7 +2304,11 @@ fn rebuild_terminal_ui(
                 spawn_terminal_row(parent, row, font.clone());
             }
         });
-        scroll.0.y = f32::MAX;
+        let len = terminal.scrollback().len();
+        if len > *last_len {
+            scroll.0.y = f32::MAX;
+        }
+        *last_len = len;
     }
 
     let prompt_color = prompt_color(&terminal);
@@ -2449,13 +2490,13 @@ fn prompt_color(terminal: &NovaOsTerminal) -> Color {
     }
 }
 
-fn nova_os_font(asset_server: Option<&AssetServer>) -> Handle<Font> {
+pub(crate) fn nova_os_font(asset_server: Option<&AssetServer>) -> Handle<Font> {
     asset_server
         .map(|server| server.load(NOVA_OS_FONT_PATH))
         .unwrap_or_default()
 }
 
-fn nova_os_text_font(font_size: f32, font: Handle<Font>) -> TextFont {
+pub(crate) fn nova_os_text_font(font_size: f32, font: Handle<Font>) -> TextFont {
     TextFont {
         font: FontSource::Handle(font),
         font_size: FontSize::Px(font_size),
@@ -3037,7 +3078,12 @@ fn setup_nova_os(
                         left: Val::Px(0.0),
                         width: Val::Px(2.0),
                         height: Val::Px(2.0),
-                        padding: UiRect::all(Val::Px(NOVA_OS_SCREEN_PAD_PX)),
+                        // Safe-area inset so no content renders in the band the
+                        // CRT overscan pushes under the bezel (see the constants).
+                        padding: UiRect::axes(
+                            Val::Percent(NOVA_OS_CONTENT_SAFE_X_PCT),
+                            Val::Percent(NOVA_OS_CONTENT_SAFE_Y_PCT),
+                        ),
                         flex_direction: FlexDirection::Column,
                         row_gap: Val::Px(12.0),
                         overflow: Overflow::clip(),
@@ -3218,6 +3264,7 @@ fn setup_nova_os(
                                         font.clone(),
                                         &ship_name,
                                     );
+                                    spawn_nova_os_footer(screen, font.clone());
                                 }
                             }
                             spawn_nova_os_phosphor_rim(screen);
@@ -3232,6 +3279,9 @@ fn setup_nova_os(
     if let Some((content_root, _)) = &rtt {
         commands.entity(*content_root).with_children(|root| {
             spawn_nova_os_terminal_content(root, font.clone(), &ship_name);
+            // The footer is a SIBLING of the terminal content so it survives an
+            // app hiding the terminal, carrying that app's keybinds instead.
+            spawn_nova_os_footer(root, font.clone());
         });
     }
 }
@@ -4176,33 +4226,45 @@ fn spawn_nova_os_terminal_content(
                             ));
                         });
                 });
+        });
+}
 
-            terminal
-                .spawn((
-                    NovaOsFooterHintsMarker,
-                    Node {
-                        min_height: Val::Px(18.0),
-                        flex_direction: FlexDirection::Row,
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::SpaceBetween,
-                        // Wrap so the full keybind set never overflows the row on a
-                        // narrow screen; `rebuild_nova_os_footer_hints` refills these
-                        // from the same `NOVA_OS_TERMINAL_HINTS` on the first mode eval.
-                        flex_wrap: FlexWrap::Wrap,
-                        column_gap: Val::Px(12.0),
-                        row_gap: Val::Px(2.0),
-                        ..default()
-                    },
-                ))
-                .with_children(|footer| {
-                    for &hint in NOVA_OS_TERMINAL_HINTS {
-                        footer.spawn((
-                            Text::new(hint),
-                            nova_os_text_font(11.0, font.clone()),
-                            TextColor(NOVA_OS_PHOSPHOR_MUTED),
-                        ));
-                    }
-                });
+/// The footer hint row. Spawned as a SIBLING of the terminal content (not inside
+/// it) so it stays visible while an app hides the terminal content - the footer
+/// carries each app's own keybinds (`rebuild_nova_os_footer_hints` refills it per
+/// active surface). A higher `ZIndex` keeps it above the app overlay.
+fn spawn_nova_os_footer(parent: &mut ChildSpawnerCommands, font: Handle<Font>) {
+    parent
+        .spawn((
+            NovaOsFooterHintsMarker,
+            Node {
+                min_height: Val::Px(18.0),
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                // Wrap so the full keybind set never overflows the row on a
+                // narrow screen; `rebuild_nova_os_footer_hints` refills these
+                // from the surface's hint set on the first mode eval.
+                flex_wrap: FlexWrap::Wrap,
+                column_gap: Val::Px(12.0),
+                row_gap: Val::Px(2.0),
+                // A hairline top border + a little breathing room reads as a
+                // distinct footer bar, not loose text over the app.
+                border: UiRect::top(Val::Px(1.0)),
+                padding: UiRect::top(Val::Px(6.0)),
+                ..default()
+            },
+            BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.28)),
+            ZIndex(NOVA_OS_CONTENT_Z + 10),
+        ))
+        .with_children(|footer| {
+            for &hint in NOVA_OS_TERMINAL_HINTS {
+                footer.spawn((
+                    Text::new(hint),
+                    nova_os_text_font(11.0, font.clone()),
+                    TextColor(NOVA_OS_PHOSPHOR_MUTED),
+                ));
+            }
         });
 }
 
@@ -5755,6 +5817,7 @@ mod tests {
                 }],
                 objective_rows: Vec::new(),
                 ship_rows: Vec::new(),
+                map_rows: Vec::new(),
                 unread_events: 0,
                 unread_hook: None,
             });
