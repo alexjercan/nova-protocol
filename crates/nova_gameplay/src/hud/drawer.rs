@@ -77,6 +77,19 @@ const DRAWER_SLIDE_SECS: f32 = 0.22;
 const DRAWER_BACKDROP_ALPHA: f32 = 0.94;
 const DRAWER_SECTION_TITLE_FONT_PX: f32 = 14.0;
 const DRAWER_LINE_FONT_PX: f32 = 16.0;
+/// The staggered boot banner reveals one row this far apart, on real time so it
+/// runs while virtual time is frozen (PoC `printBanner`'s ~130 ms cadence).
+const NOVA_OS_BOOT_ROW_INTERVAL: f32 = 0.13;
+/// The block caret's width as a fraction of the monospace glyph advance (PoC
+/// `.caret` is 0.6em). Monospace, so `font_size * this` is exactly one cell.
+const NOVA_OS_CARET_WIDTH_FRACTION: f32 = 0.6;
+/// The terminal-surface footer hints (PoC `HINTS.terminal`). Apps override
+/// [`NovaOsAppRuntime::hints`] to swap these for their own set while active.
+const NOVA_OS_TERMINAL_HINTS: [&str; 3] = [
+    "TAB: AUTOCOMPLETE",
+    "ESC: CLOSE COMPUTER",
+    "HINT: TYPE HELP",
+];
 const DRAWER_ROW_GAP_PX: f32 = 6.0;
 const DRAWER_ROW_PADDING_X_PX: f32 = 8.0;
 const DRAWER_ROW_PADDING_Y_PX: f32 = 7.0;
@@ -553,6 +566,23 @@ struct NovaOsTerminal {
     /// Set by the `exit` command; the keyboard system consumes it to drive the
     /// animated close of the computer (mirrors the HTML PoC's `exit`).
     pending_close: bool,
+    /// Rows queued for the staggered boot banner, drained one-by-one by
+    /// [`drain_nova_os_boot`] on real time. Empty except during a boot reveal.
+    pending_rows: Vec<TerminalRow>,
+    /// Whether the staggered boot banner has already played this session. Set on
+    /// the first drawer open; reset by [`Self::reset_session`] on ship teardown so
+    /// a fresh ship re-boots.
+    booted: bool,
+    /// How many [`DrawerFlightLog`] entries had been seen the last time the drawer
+    /// closed. The boot banner's "N unread events" line counts entries appended
+    /// since (next to the log's own `seen_story` bookkeeping).
+    seen_events: usize,
+    /// The Tab-completion cycle stem: the text being completed. `None` when no
+    /// cycle is active; reset on any prompt edit (PoC `resetCycle`). While a cycle
+    /// runs, repeated Tab advances `cycle_index` through the matches for this stem.
+    cycle_stem: Option<String>,
+    /// The current index into the match list for the active [`Self::cycle_stem`].
+    cycle_index: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -600,6 +630,47 @@ enum TerminalMode {
 struct NovaOsAppCommand {
     id: &'static str,
     summary: &'static str,
+    /// How many argument words the launch word accepts. All current apps are
+    /// [`CommandArity::None`]; the parser supports arguments so an app task can
+    /// register an argument-taking launch word without reworking parsing.
+    arity: CommandArity,
+}
+
+/// How many whitespace-separated argument words a command accepts AFTER its
+/// (possibly multi-word) name. All current built-ins and apps are `None`; the
+/// parser carries the richer arity so the `map`/`ship viewer` app tasks can add
+/// argument-taking commands (e.g. `repair <part>`) without touching the matcher.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CommandArity {
+    /// Takes no arguments.
+    None,
+    /// Accepts `1..=max` argument words. No production command registers this
+    /// yet - this task ships the parser capability, the app tasks consume it - so
+    /// it is unused outside `#[cfg(test)]` (mirrors `NovaOsAppRegistry::register`).
+    #[allow(dead_code)]
+    UpTo(usize),
+}
+
+impl CommandArity {
+    /// Whether `count` argument words is acceptable for this arity.
+    fn accepts(self, count: usize) -> bool {
+        match self {
+            CommandArity::None => count == 0,
+            CommandArity::UpTo(max) => count <= max,
+        }
+    }
+
+    /// The message tail for an over-arity command: `takes no arguments` for
+    /// `None`, `takes at most N argument(s)` otherwise.
+    fn rejection(self) -> String {
+        match self {
+            CommandArity::None => "takes no arguments".to_string(),
+            CommandArity::UpTo(max) => {
+                let word = if max == 1 { "argument" } else { "arguments" };
+                format!("takes at most {max} {word}")
+            }
+        }
+    }
 }
 
 /// A NOVA OS app: a full-screen tool launched from the terminal that swallows the
@@ -629,6 +700,17 @@ trait NovaOsAppRuntime: Send + Sync + 'static {
     fn handle_key(&self, key: &Key) -> NovaOsAppInputOutcome {
         let _ = key;
         NovaOsAppInputOutcome::Continue
+    }
+    /// How many argument words this app's launch word accepts. Default: none, so
+    /// `map foo` is rejected the same way a built-in with arguments is.
+    fn arity(&self) -> CommandArity {
+        CommandArity::None
+    }
+    /// The footer hints shown while this app owns the screen (PoC `HINTS` map).
+    /// Default: the terminal hint set, so an app that does not care still shows a
+    /// sensible footer.
+    fn hints(&self) -> [&'static str; 3] {
+        NOVA_OS_TERMINAL_HINTS
     }
 }
 
@@ -668,6 +750,7 @@ impl NovaOsAppRegistry {
             .map(|app| NovaOsAppCommand {
                 id: app.id(),
                 summary: app.summary(),
+                arity: app.arity(),
             })
             .collect()
     }
@@ -675,8 +758,11 @@ impl NovaOsAppRegistry {
 
 #[derive(Debug, Clone, Copy)]
 struct TerminalCommand {
+    /// The command name, a word sequence (all current built-ins are single
+    /// words; the matcher supports multi-word names like `ship view`).
     name: &'static str,
     summary: &'static str,
+    arity: CommandArity,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -684,6 +770,11 @@ struct TerminalCommandSnapshot {
     log_rows: Vec<TerminalRow>,
     objective_rows: Vec<TerminalRow>,
     ship_rows: Vec<TerminalRow>,
+    /// Flight-log entries appended since the drawer last closed, for the boot
+    /// banner's "N unread events" line (0 in the default snapshot).
+    unread_events: usize,
+    /// A short hook for the most recent unread event, appended to that line.
+    unread_hook: Option<String>,
 }
 
 #[derive(Asset, AsBindGroup, TypePath, Clone, Debug)]
@@ -1044,26 +1135,32 @@ const TERMINAL_COMMANDS: &[TerminalCommand] = &[
     TerminalCommand {
         name: "help",
         summary: "Show this command list",
+        arity: CommandArity::None,
     },
     TerminalCommand {
         name: "log",
         summary: "Print comms and mission events",
+        arity: CommandArity::None,
     },
     TerminalCommand {
         name: "objectives",
         summary: "Print active objectives",
+        arity: CommandArity::None,
     },
     TerminalCommand {
         name: "ship",
         summary: "Print ship status summary",
+        arity: CommandArity::None,
     },
     TerminalCommand {
         name: "clear",
         summary: "Clear terminal scrollback",
+        arity: CommandArity::None,
     },
     TerminalCommand {
         name: "exit",
         summary: "Suspend the NOVA OS computer",
+        arity: CommandArity::None,
     },
 ];
 
@@ -1080,6 +1177,11 @@ impl Default for NovaOsTerminal {
             active_mode: TerminalMode::Prompt,
             app_commands: Vec::new(),
             pending_close: false,
+            pending_rows: Vec::new(),
+            booted: false,
+            seen_events: 0,
+            cycle_stem: None,
+            cycle_index: 0,
         };
         terminal.refresh_parse();
         terminal
@@ -1093,6 +1195,7 @@ impl NovaOsTerminal {
             self.cursor += ch.len_utf8();
         }
         self.history_cursor = None;
+        self.cycle_stem = None;
         self.refresh_parse();
     }
 
@@ -1105,6 +1208,7 @@ impl NovaOsTerminal {
             self.cursor = idx;
         }
         self.history_cursor = None;
+        self.cycle_stem = None;
         self.refresh_parse();
     }
 
@@ -1119,6 +1223,7 @@ impl NovaOsTerminal {
             .unwrap_or(self.prompt.len());
         self.prompt.drain(self.cursor..end);
         self.history_cursor = None;
+        self.cycle_stem = None;
         self.refresh_parse();
     }
 
@@ -1155,65 +1260,57 @@ impl NovaOsTerminal {
         });
         self.history.push(command_line.clone());
         self.history_cursor = None;
+        self.cycle_stem = None;
 
-        // An app launch word is resolved before the static command table so a
-        // registered `map`/`ship viewer` launches instead of being reported as an
-        // unknown command. Launching leaves the scrollback untouched (exit
-        // restores it) and hands the screen to the app via `active_mode`.
-        let word = current_command_prefix(&command_line).unwrap_or("");
-        if let Some(app) = self.app_commands.iter().find(|app| app.id == word).copied() {
-            let outcome = if command_has_arguments(&command_line) {
-                self.scrollback.push(TerminalRow {
-                    kind: TerminalRowKind::Error,
-                    text: format!("{} takes no arguments", app.id),
-                });
-                TerminalSubmitOutcome::Errored
-            } else {
+        // One matcher resolves built-ins AND registered app launch words as
+        // (possibly multi-word) names with per-command arity - a launch leaves the
+        // scrollback untouched (exit restores it) and hands the screen to the app.
+        let outcome = match resolve_command(&command_line, &self.app_commands) {
+            ResolvedCommand::App { id } => {
                 self.scrollback.push(TerminalRow {
                     kind: TerminalRowKind::Info,
-                    text: format!("launching {} ...", app.id),
+                    text: format!("launching {id} ..."),
                 });
-                self.active_mode = TerminalMode::App { id: app.id };
+                self.active_mode = TerminalMode::App { id };
                 TerminalSubmitOutcome::Launched
-            };
-            self.reset_prompt();
-            return outcome;
-        }
-
-        let outcome = match parse_command(&command_line, &self.app_commands) {
-            TerminalCommandResult::Help => {
-                self.scrollback
-                    .extend(terminal_help_rows(&self.app_commands));
-                TerminalSubmitOutcome::Ran
             }
-            TerminalCommandResult::Clear => {
-                self.reset_scrollback_to_welcome();
-                TerminalSubmitOutcome::Ran
-            }
-            TerminalCommandResult::Log => {
-                self.scrollback.extend(snapshot.log_rows.clone());
-                TerminalSubmitOutcome::Ran
-            }
-            TerminalCommandResult::Objectives => {
-                self.scrollback.extend(snapshot.objective_rows.clone());
-                TerminalSubmitOutcome::Ran
-            }
-            TerminalCommandResult::Ship => {
-                self.scrollback.extend(snapshot.ship_rows.clone());
-                TerminalSubmitOutcome::Ran
-            }
-            TerminalCommandResult::Exit => {
-                self.pending_close = true;
-                TerminalSubmitOutcome::Ran
-            }
-            TerminalCommandResult::UnexpectedArguments { command } => {
+            ResolvedCommand::Builtin { name } => match name {
+                "help" => {
+                    self.scrollback
+                        .extend(terminal_help_rows(&self.app_commands));
+                    TerminalSubmitOutcome::Ran
+                }
+                "clear" => {
+                    self.reset_scrollback_to_welcome(snapshot);
+                    TerminalSubmitOutcome::Ran
+                }
+                "log" => {
+                    self.scrollback.extend(snapshot.log_rows.clone());
+                    TerminalSubmitOutcome::Ran
+                }
+                "objectives" => {
+                    self.scrollback.extend(snapshot.objective_rows.clone());
+                    TerminalSubmitOutcome::Ran
+                }
+                "ship" => {
+                    self.scrollback.extend(snapshot.ship_rows.clone());
+                    TerminalSubmitOutcome::Ran
+                }
+                "exit" => {
+                    self.pending_close = true;
+                    TerminalSubmitOutcome::Ran
+                }
+                // Every built-in name in TERMINAL_COMMANDS is handled above.
+                _ => TerminalSubmitOutcome::Ran,
+            },
+            ResolvedCommand::UnexpectedArguments { command, arity } => {
                 self.scrollback.push(TerminalRow {
                     kind: TerminalRowKind::Error,
-                    text: format!("{command} takes no arguments"),
+                    text: format!("{command} {}", arity.rejection()),
                 });
                 TerminalSubmitOutcome::Errored
             }
-            TerminalCommandResult::Unknown {
+            ResolvedCommand::Unknown {
                 command,
                 suggestion,
             } => {
@@ -1237,29 +1334,46 @@ impl NovaOsTerminal {
         outcome
     }
 
-    /// Returns whether the completion actually advanced the prompt (so the caller
-    /// can play the autocomplete tick only when something happened).
+    /// Tab completion that CYCLES through the matches instead of locking onto the
+    /// common prefix (PoC `completeInput`): the first Tab on an ambiguous stem
+    /// lists the matches into the scrollback and jumps to the first, and repeat
+    /// presses cycle through them. The cycle is keyed on the original stem
+    /// ([`Self::cycle_stem`]) so it survives the prompt being rewritten to a match,
+    /// and is reset by any prompt edit. Returns whether a match was applied (so the
+    /// caller can play the autocomplete tick only when something happened).
     fn complete(&mut self) -> bool {
-        let Some(prefix) = current_command_prefix(&self.prompt) else {
-            return false;
-        };
-        let matches: Vec<&str> = TERMINAL_COMMANDS
-            .iter()
-            .map(|command| command.name)
-            .chain(self.app_commands.iter().map(|app| app.id))
-            .filter(|name| name.starts_with(prefix))
+        // The stem is the original typed text; while cycling it is preserved so
+        // each Tab re-matches against it rather than the completed value.
+        let cycling = self.cycle_stem.is_some();
+        let stem = self
+            .cycle_stem
+            .clone()
+            .unwrap_or_else(|| self.prompt.clone());
+        let matches: Vec<&'static str> = terminal_command_names(&self.app_commands)
+            .filter(|name| name.starts_with(stem.as_str()))
             .collect();
-        let completion = match matches.as_slice() {
-            [only] => Some((*only).to_string()),
-            [] => None,
-            many => common_prefix(many),
-        };
-        let before = self.prompt.clone();
-        if let Some(completion) = completion {
-            self.replace_current_command(&completion);
+        if matches.is_empty() {
+            return false;
         }
+        // The first Tab on an ambiguous stem lists the candidates (PoC prints the
+        // match row before jumping to the first match).
+        if matches.len() > 1 && !cycling {
+            self.scrollback.push(TerminalRow {
+                kind: TerminalRowKind::Dim,
+                text: matches.join("   "),
+            });
+        }
+        let index = if cycling {
+            (self.cycle_index + 1) % matches.len()
+        } else {
+            0
+        };
+        self.cycle_stem = Some(stem);
+        self.cycle_index = index;
+        self.prompt = matches[index].to_string();
+        self.cursor = self.prompt.len();
         self.refresh_parse();
-        self.prompt != before
+        true
     }
 
     fn history_previous(&mut self) {
@@ -1280,6 +1394,7 @@ impl NovaOsTerminal {
         };
         if cursor + 1 >= self.history.len() {
             self.history_cursor = None;
+            self.cycle_stem = None;
             self.prompt.clear();
             self.cursor = 0;
             self.refresh_parse();
@@ -1295,47 +1410,58 @@ impl NovaOsTerminal {
             self.completion_hint = Some("type help".to_string());
             return;
         }
-        let Some(prefix) = current_command_prefix(trimmed) else {
-            self.parse_status = TerminalParseStatus::Empty;
-            self.completion_hint = Some("type help".to_string());
-            return;
-        };
-        // Built-in commands and registered app launch words are equally valid at
-        // the prompt.
-        let names = || {
-            TERMINAL_COMMANDS
-                .iter()
-                .map(|command| command.name)
-                .chain(self.app_commands.iter().map(|app| app.id))
-        };
-        if names().any(|name| name == prefix) {
-            if command_has_arguments(trimmed) {
-                self.parse_status = TerminalParseStatus::Invalid;
-                self.completion_hint = Some(format!("{prefix} takes no arguments"));
-                return;
+        match resolve_command(trimmed, &self.app_commands) {
+            // A full, arity-valid command (built-in or app launch word).
+            ResolvedCommand::App { .. } | ResolvedCommand::Builtin { .. } => {
+                self.parse_status = TerminalParseStatus::Valid;
+                self.completion_hint = None;
             }
-            self.parse_status = TerminalParseStatus::Valid;
-            self.completion_hint = None;
-            return;
+            // Trailing words that overrun a command's arity - unless the whole
+            // input is still a prefix of a LONGER command name (e.g. `ship vi`
+            // toward `ship view`), in which case it is a valid prefix, not an
+            // error.
+            ResolvedCommand::UnexpectedArguments { command, arity } => {
+                if let Some(name) = self.command_name_starting_with(trimmed) {
+                    self.parse_status = TerminalParseStatus::ValidPrefix;
+                    self.completion_hint = Some(name.to_string());
+                } else {
+                    self.parse_status = TerminalParseStatus::Invalid;
+                    self.completion_hint = Some(format!("{command} {}", arity.rejection()));
+                }
+            }
+            ResolvedCommand::Unknown { suggestion, .. } => {
+                if let Some(name) = self.command_name_starting_with(trimmed) {
+                    self.parse_status = TerminalParseStatus::ValidPrefix;
+                    self.completion_hint = Some(name.to_string());
+                } else {
+                    self.parse_status = TerminalParseStatus::Invalid;
+                    self.completion_hint =
+                        suggestion.map(|suggestion| format!("did you mean {suggestion}?"));
+                }
+            }
         }
-        if let Some(name) = names().find(|name| name.starts_with(prefix)) {
-            self.parse_status = TerminalParseStatus::ValidPrefix;
-            self.completion_hint = Some(name.to_string());
-            return;
-        }
-        self.parse_status = TerminalParseStatus::Invalid;
-        self.completion_hint = nearest_command(prefix, &self.app_commands)
-            .map(|suggestion| format!("did you mean {suggestion}?"));
+    }
+
+    /// The first command name (built-ins then app launch words) that has `stem` as
+    /// a strict string prefix - the completion target while the player is still
+    /// typing a command name.
+    fn command_name_starting_with(&self, stem: &str) -> Option<&'static str> {
+        terminal_command_names(&self.app_commands)
+            .find(|name| *name != stem && name.starts_with(stem))
     }
 
     fn reset_prompt(&mut self) {
         self.prompt.clear();
         self.cursor = 0;
+        self.cycle_stem = None;
         self.refresh_parse();
     }
 
-    fn reset_scrollback_to_welcome(&mut self) {
-        self.scrollback = nova_os_welcome_rows();
+    /// Reprint the boot banner instantly (PoC `clear` -> `printBanner(true)`),
+    /// including the current unread-events line from `snapshot`.
+    fn reset_scrollback_to_welcome(&mut self, snapshot: &TerminalCommandSnapshot) {
+        self.scrollback =
+            nova_os_boot_banner_rows(snapshot.unread_events, snapshot.unread_hook.clone());
     }
 
     /// Return from an active app to the command terminal. The scrollback and
@@ -1359,26 +1485,28 @@ impl NovaOsTerminal {
         self.scrollback = nova_os_welcome_rows();
         self.history.clear();
         self.history_cursor = None;
+        self.cycle_stem = None;
         self.active_mode = TerminalMode::Prompt;
+        // A fresh ship is a fresh session: the next open re-runs the boot banner.
+        self.pending_rows.clear();
+        self.booted = false;
+        self.seen_events = 0;
         self.refresh_parse();
-    }
-
-    fn replace_current_command(&mut self, replacement: &str) {
-        let old_len = current_command_prefix(&self.prompt)
-            .map(str::len)
-            .unwrap_or(0);
-        self.prompt.replace_range(0..old_len, replacement);
-        self.cursor = replacement.len();
     }
 
     fn set_history_cursor(&mut self, cursor: usize) {
         self.history_cursor = Some(cursor);
+        self.cycle_stem = None;
         self.prompt = self.history[cursor].clone();
         self.cursor = self.prompt.len();
         self.refresh_parse();
     }
 }
 
+/// The static welcome block: the version line, the PoC's POST/CORE/DISPLAY/LINK
+/// diagnostic rows, then the help hint. The dynamic "N unread events" line is
+/// appended separately by [`nova_os_boot_banner_rows`] because it depends on the
+/// live flight log.
 fn nova_os_welcome_rows() -> Vec<TerminalRow> {
     vec![
         TerminalRow {
@@ -1387,17 +1515,52 @@ fn nova_os_welcome_rows() -> Vec<TerminalRow> {
         },
         TerminalRow {
             kind: TerminalRowKind::Dim,
-            text: "BIOS CHECK: flight computer / ok".to_string(),
+            text: "POST ......... flight computer / ok".to_string(),
         },
         TerminalRow {
             kind: TerminalRowKind::Dim,
-            text: "DISPLAY: green phosphor crt / ok".to_string(),
+            text: "CORE ......... 64K static / ok".to_string(),
+        },
+        TerminalRow {
+            kind: TerminalRowKind::Dim,
+            text: "DISPLAY ...... green phosphor crt / warm".to_string(),
+        },
+        TerminalRow {
+            kind: TerminalRowKind::Dim,
+            text: "LINK ......... cockpit bus / local".to_string(),
         },
         TerminalRow {
             kind: TerminalRowKind::Warn,
             text: "Hint: type `help` and press Enter.".to_string(),
         },
     ]
+}
+
+/// The full boot banner: the welcome block plus the "N unread events" line when
+/// there is anything unread (PoC's `output` array). This is what the staggered
+/// boot reveals row-by-row and what `clear` reprints instantly.
+fn nova_os_boot_banner_rows(unread: usize, hook: Option<String>) -> Vec<TerminalRow> {
+    let mut rows = nova_os_welcome_rows();
+    if unread > 0 {
+        rows.push(nova_os_unread_events_row(unread, hook));
+    }
+    rows
+}
+
+/// The unread-events hint line: "N unread events. <hook> - try `log`." (PoC's
+/// last banner row). `hook` is a short lead-in for the most recent unread event.
+fn nova_os_unread_events_row(unread: usize, hook: Option<String>) -> TerminalRow {
+    let noun = if unread == 1 { "event" } else { "events" };
+    let text = match hook {
+        Some(hook) if !hook.is_empty() => {
+            format!("{unread} unread {noun}. {hook} - try `log`.")
+        }
+        _ => format!("{unread} unread {noun} - try `log`."),
+    };
+    TerminalRow {
+        kind: TerminalRowKind::Dim,
+        text,
+    }
 }
 
 fn nova_os_version_label() -> String {
@@ -1463,15 +1626,20 @@ pub(crate) enum TerminalSubmitOutcome {
     Launched,
 }
 
-enum TerminalCommandResult {
-    Help,
-    Clear,
-    Log,
-    Objectives,
-    Ship,
-    Exit,
+/// The outcome of matching a command line against the built-ins and registered
+/// apps. `App`/`Builtin` carry the matched (possibly multi-word) name; the two
+/// error variants mirror the PoC's `takes no arguments` / `command not found`
+/// paths.
+enum ResolvedCommand {
+    App {
+        id: &'static str,
+    },
+    Builtin {
+        name: &'static str,
+    },
     UnexpectedArguments {
         command: String,
+        arity: CommandArity,
     },
     Unknown {
         command: String,
@@ -1488,36 +1656,74 @@ impl DrawerFlightLog {
     }
 }
 
-fn parse_command(command_line: &str, app_commands: &[NovaOsAppCommand]) -> TerminalCommandResult {
-    let command = current_command_prefix(command_line).unwrap_or("");
-    let mut parts = command_line.split_whitespace();
-    if matches!(
-        (parts.next(), parts.next(), parts.next()),
-        (Some("ship"), Some("viewer"), None)
-    ) {
-        return TerminalCommandResult::Unknown {
-            command: "ship viewer".to_string(),
+/// Every command name known at the prompt, built-ins first then app launch words,
+/// in the fixed order used for completion and did-you-mean.
+fn terminal_command_names(
+    app_commands: &[NovaOsAppCommand],
+) -> impl Iterator<Item = &'static str> + '_ {
+    TERMINAL_COMMANDS
+        .iter()
+        .map(|command| command.name)
+        .chain(app_commands.iter().map(|app| app.id))
+}
+
+/// Every command as `(name, arity, is_app)`, built-ins first then apps.
+fn terminal_command_specs(
+    app_commands: &[NovaOsAppCommand],
+) -> impl Iterator<Item = (&'static str, CommandArity, bool)> + '_ {
+    TERMINAL_COMMANDS
+        .iter()
+        .map(|command| (command.name, command.arity, false))
+        .chain(app_commands.iter().map(|app| (app.id, app.arity, true)))
+}
+
+/// Whether the words of `name` are a leading prefix of `input_words` (so
+/// `["ship", "view", "x"]` matches the name `"ship view"`).
+fn command_name_matches(input_words: &[&str], name: &str) -> Option<usize> {
+    let name_words: Vec<&str> = name.split_whitespace().collect();
+    let is_prefix = input_words.len() >= name_words.len()
+        && input_words
+            .iter()
+            .zip(&name_words)
+            .all(|(input, expected)| input == expected);
+    is_prefix.then_some(name_words.len())
+}
+
+/// Resolve a command line against the built-ins and registered apps. Matches the
+/// LONGEST command name that is a word-prefix of the input (so a multi-word
+/// launch word like `ship view` beats the `ship` built-in), then validates the
+/// trailing words against that command's arity. There is no per-command special
+/// case: multi-word names and argument-taking commands both fall out of this.
+fn resolve_command(command_line: &str, app_commands: &[NovaOsAppCommand]) -> ResolvedCommand {
+    let words: Vec<&str> = command_line.split_whitespace().collect();
+    let Some(&first) = words.first() else {
+        return ResolvedCommand::Unknown {
+            command: String::new(),
             suggestion: None,
         };
-    }
-    if TERMINAL_COMMANDS.iter().any(|known| known.name == command)
-        && command_has_arguments(command_line)
-    {
-        return TerminalCommandResult::UnexpectedArguments {
-            command: command.to_string(),
+    };
+    let best = terminal_command_specs(app_commands)
+        .filter_map(|(name, arity, is_app)| {
+            command_name_matches(&words, name).map(|name_words| (name, arity, is_app, name_words))
+        })
+        .max_by_key(|(_, _, _, name_words)| *name_words);
+    let Some((name, arity, is_app, name_words)) = best else {
+        return ResolvedCommand::Unknown {
+            command: first.to_string(),
+            suggestion: nearest_command(first, app_commands),
+        };
+    };
+    let arg_count = words.len() - name_words;
+    if !arity.accepts(arg_count) {
+        return ResolvedCommand::UnexpectedArguments {
+            command: name.to_string(),
+            arity,
         };
     }
-    match command {
-        "help" => TerminalCommandResult::Help,
-        "clear" => TerminalCommandResult::Clear,
-        "log" => TerminalCommandResult::Log,
-        "objectives" => TerminalCommandResult::Objectives,
-        "ship" => TerminalCommandResult::Ship,
-        "exit" => TerminalCommandResult::Exit,
-        unknown => TerminalCommandResult::Unknown {
-            command: unknown.to_string(),
-            suggestion: nearest_command(unknown, app_commands),
-        },
+    if is_app {
+        ResolvedCommand::App { id: name }
+    } else {
+        ResolvedCommand::Builtin { name }
     }
 }
 
@@ -1526,12 +1732,25 @@ fn terminal_snapshot_from_world(
     objectives: &GameObjectives,
     ship_name: Option<&str>,
     ship_sections: &[ShipSectionStatus],
+    seen_events: usize,
 ) -> TerminalCommandSnapshot {
+    let unread_events = log.entries.len().saturating_sub(seen_events);
     TerminalCommandSnapshot {
         log_rows: terminal_log_rows(log),
         objective_rows: terminal_objective_rows(objectives),
         ship_rows: terminal_ship_rows(ship_name, ship_sections),
+        unread_events,
+        unread_hook: nova_os_unread_hook(log, seen_events),
     }
+}
+
+/// A short lead-in for the most recent unread flight-log entry, used by the boot
+/// banner's unread-events line. `None` when nothing is unread.
+fn nova_os_unread_hook(log: &DrawerFlightLog, seen_events: usize) -> Option<String> {
+    log.entries
+        .get(seen_events..)
+        .and_then(|unread| unread.last())
+        .map(|entry| entry.message.clone())
 }
 
 fn terminal_log_rows(log: &DrawerFlightLog) -> Vec<TerminalRow> {
@@ -1683,40 +1902,6 @@ fn section_status_row_kind(section: &ShipSectionStatus) -> TerminalRowKind {
     }
 }
 
-fn current_command_prefix(text: &str) -> Option<&str> {
-    text.split_whitespace().next()
-}
-
-fn command_has_arguments(text: &str) -> bool {
-    text.split_whitespace().nth(1).is_some()
-}
-
-fn common_prefix(names: &[&str]) -> Option<String> {
-    let first = *names.first()?;
-    let mut prefix_len = first.len();
-    for name in &names[1..] {
-        prefix_len = first
-            .char_indices()
-            .map(|(idx, _)| idx)
-            .chain(std::iter::once(first.len()))
-            .take_while(|idx| {
-                *idx <= name.len()
-                    && first[..*idx]
-                        .chars()
-                        .zip(name[..*idx].chars())
-                        .all(|(a, b)| a == b)
-            })
-            .last()
-            .unwrap_or(0)
-            .min(prefix_len);
-    }
-    if prefix_len == 0 {
-        None
-    } else {
-        Some(first[..prefix_len].to_string())
-    }
-}
-
 fn nearest_command(input: &str, app_commands: &[NovaOsAppCommand]) -> Option<&'static str> {
     // Typo suggestions cover app launch words too, so a mistyped `map` gets a
     // did-you-mean the same way a mistyped builtin does.
@@ -1805,6 +1990,16 @@ impl Plugin for NovaDrawerPlugin {
             )
                 .in_set(NovaHudSystems),
         );
+        // Objective flips announce into the live terminal scrollback the moment
+        // they happen while the computer is open (PoC `checkObjectives`). Runs
+        // after `sync_drawer_logs` so it sees the freshly appended entries.
+        app.add_systems(
+            Update,
+            announce_objectives_in_terminal
+                .after(sync_drawer_logs)
+                .run_if(resource_changed::<GameObjectives>)
+                .in_set(NovaHudSystems),
+        );
         app.add_systems(
             Update,
             scroll_drawer_panels
@@ -1822,6 +2017,9 @@ impl Plugin for NovaDrawerPlugin {
                 handle_nova_os_app_keyboard.run_if(in_state(GameStates::Playing)),
                 rebuild_terminal_ui
                     .run_if(resource_changed::<NovaOsTerminal>.or_else(terminal_ui_just_spawned)),
+                rebuild_nova_os_footer_hints.run_if(
+                    resource_changed::<NovaOsTerminal>.or_else(nova_os_footer_just_spawned),
+                ),
                 sync_nova_os_app_ui.run_if(in_state(PauseStates::Drawer)),
             )
                 .chain()
@@ -1833,6 +2031,7 @@ impl Plugin for NovaDrawerPlugin {
             Update,
             (
                 blink_nova_os_caret,
+                drain_nova_os_boot,
                 drive_nova_os_topbar_fps,
                 animate_nova_os_crt.run_if(resource_exists::<Assets<NovaOsCrtMaterial>>),
                 sync_nova_os_monitor_controls.run_if(resource_changed::<NovaOsMonitorSettings>),
@@ -1846,9 +2045,17 @@ impl Plugin for NovaDrawerPlugin {
         );
 
         // Power-up sweep + ambient bed on open, bed teardown on close. Reuses the
-        // exact OnEnter/OnExit(Drawer) hooks the freeze axis uses.
-        app.add_systems(OnEnter(PauseStates::Drawer), start_nova_os_sound);
-        app.add_systems(OnExit(PauseStates::Drawer), stop_nova_os_bed);
+        // exact OnEnter/OnExit(Drawer) hooks the freeze axis uses. The first open
+        // also kicks off the staggered boot banner, and each close records how
+        // many flight-log events have been seen (for the unread-events count).
+        app.add_systems(
+            OnEnter(PauseStates::Drawer),
+            (start_nova_os_sound, begin_nova_os_boot),
+        );
+        app.add_systems(
+            OnExit(PauseStates::Drawer),
+            (stop_nova_os_bed, mark_nova_os_events_seen),
+        );
 
         // Render-to-texture pipeline: keep the offscreen image sized to the screen
         // (always, so it is ready when the drawer opens), and while the computer is
@@ -2044,28 +2251,50 @@ fn close_drawer_from_menu_keys(
     if *current.get() != PauseStates::Drawer {
         return;
     }
+    // This is the ONE owner of the back-out / app-exit gestures (per the
+    // `context-key-handled-in-one-owner` lesson): Escape, gamepad Start, and the
+    // Ctrl+C / Ctrl+[ app-exit chord are all branched on `active_mode` here, so a
+    // single press can never both exit an app and close the drawer.
     let start = gamepad
         .map(|g| g.just_pressed(GamepadButton::Start))
         .unwrap_or(false);
-    if !(keys.just_pressed(KeyCode::Escape) || start) {
+    let escape = keys.just_pressed(KeyCode::Escape) || start;
+    let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
+    let ctrl = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
+    // Ctrl+C / Ctrl+[ exit a running app back to the terminal (PoC's chord).
+    let ctrl_exit =
+        ctrl && (keys.just_pressed(KeyCode::KeyC) || keys.just_pressed(KeyCode::BracketLeft));
+    if !(escape || ctrl_exit) {
+        return;
+    }
+
+    let exit_app_with_coil = |terminal: &mut NovaOsTerminal, commands: &mut Commands| {
+        if terminal.exit_app() {
+            // The degauss coil is the app-exit twin of the launch coil.
+            if let Some(bank) = &bank {
+                play_nova_os_cue(
+                    commands,
+                    bank,
+                    &settings,
+                    UiSfx::NovaOsCoil,
+                    NOVA_OS_COIL_VOLUME,
+                );
+            }
+        }
+    };
+
+    // Shift+Esc is the escape hatch: close the whole computer even from inside an
+    // app (PoC's `Shift+Esc`). Plain Escape/Start backs out one level.
+    if escape && shift {
+        close.closing = true;
+        return;
+    }
+    if ctrl_exit {
+        exit_app_with_coil(&mut terminal, &mut commands);
         return;
     }
     match terminal.active_mode {
-        // Escape backing out of an app plays the degauss coil (the app-exit twin
-        // of the launch coil).
-        TerminalMode::App { .. } => {
-            if terminal.exit_app() {
-                if let Some(bank) = &bank {
-                    play_nova_os_cue(
-                        &mut commands,
-                        bank,
-                        &settings,
-                        UiSfx::NovaOsCoil,
-                        NOVA_OS_COIL_VOLUME,
-                    );
-                }
-            }
-        }
+        TerminalMode::App { .. } => exit_app_with_coil(&mut terminal, &mut commands),
         TerminalMode::Prompt => close.closing = true,
     }
 }
@@ -2103,6 +2332,10 @@ fn handle_terminal_keyboard(
     settings: Res<NovaOsMonitorSettings>,
     time: Res<Time<Real>>,
     mut last_key_click: Local<Option<f32>>,
+    mut q_scrollback: Query<
+        (&mut ScrollPosition, Option<&ComputedNode>),
+        With<NovaOsTerminalScrollbackMarker>,
+    >,
 ) {
     let drawer_prompt_active =
         *pause.get() == PauseStates::Drawer && terminal.active_mode == TerminalMode::Prompt;
@@ -2124,6 +2357,7 @@ fn handle_terminal_keyboard(
                     &objectives,
                     ship_name.as_deref(),
                     &sections,
+                    terminal.seen_events,
                 );
                 let outcome = terminal.submit(&snapshot);
                 if let Some(bank) = &bank {
@@ -2196,6 +2430,21 @@ fn handle_terminal_keyboard(
             Key::ArrowRight => terminal.move_cursor_right(),
             Key::ArrowUp => terminal.history_previous(),
             Key::ArrowDown => terminal.history_next(),
+            // Page the scrollback from the keyboard (PoC's PageUp/PageDown): a
+            // cockpit player may never have a hand on the mouse. ~0.8 of a
+            // viewport per press, clamped like `scroll_drawer_panels`.
+            key @ (Key::PageUp | Key::PageDown) => {
+                if let Ok((mut scroll, computed_node)) = q_scrollback.single_mut() {
+                    let page = computed_node.map(|node| node.size.y * 0.8).unwrap_or(0.0);
+                    let delta = if matches!(key, Key::PageUp) {
+                        -page
+                    } else {
+                        page
+                    };
+                    scroll.0.y =
+                        (scroll.0.y + delta).clamp(0.0, max_drawer_scroll_y(computed_node));
+                }
+            }
             Key::Character(_) | Key::Space => {
                 if let Some(text) = &event.text {
                     terminal.insert_text(text);
@@ -2256,7 +2505,9 @@ fn sync_nova_os_app_commands(
 /// prompt handler is already inert in app mode, and this feeds each key to the
 /// app's own [`NovaOsAppRuntime::handle_key`]. Escape is skipped here because it
 /// is the runtime's back gesture (handled once in [`close_drawer_from_menu_keys`]
-/// so it cannot both exit the app and close the drawer on one press).
+/// so it cannot both exit the app and close the drawer on one press); the same is
+/// true of the Ctrl+C / Ctrl+[ app-exit chord, so keys pressed while Control is
+/// held are skipped here and owned solely by [`close_drawer_from_menu_keys`].
 ///
 /// An app only receives events on frames where it was ALREADY the live app last
 /// frame (`last_app` tracks that). Any transition frame - the launch itself, an
@@ -2266,6 +2517,7 @@ fn sync_nova_os_app_commands(
 fn handle_nova_os_app_keyboard(
     mut keyboard: MessageReader<KeyboardInput>,
     pause: Res<State<PauseStates>>,
+    keys: Res<ButtonInput<KeyCode>>,
     registry: Res<NovaOsAppRegistry>,
     mut terminal: ResMut<NovaOsTerminal>,
     mut commands: Commands,
@@ -2274,6 +2526,12 @@ fn handle_nova_os_app_keyboard(
     mut last_app: Local<Option<&'static str>>,
 ) {
     let in_drawer = *pause.get() == PauseStates::Drawer;
+    // A held Control turns any key into the app-exit chord, owned by
+    // `close_drawer_from_menu_keys`; the app never sees those keys. This blocks
+    // ALL Ctrl+<key> presses from reaching apps, not just Ctrl+C/[; a future app
+    // wanting its own Ctrl shortcut must revisit this guard (and the owner) so the
+    // exit chord and the shortcut do not both fire on one press.
+    let ctrl_held = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
     let live = match terminal.active_mode {
         TerminalMode::App { id } if in_drawer => Some(id),
         _ => None,
@@ -2292,7 +2550,10 @@ fn handle_nova_os_app_keyboard(
     };
     let mut exit = false;
     for event in keyboard.read() {
-        if event.state != ButtonState::Pressed || matches!(event.logical_key, Key::Escape) {
+        if event.state != ButtonState::Pressed
+            || ctrl_held
+            || matches!(event.logical_key, Key::Escape)
+        {
             continue;
         }
         if app.handle_key(&event.logical_key) == NovaOsAppInputOutcome::Exit {
@@ -2633,6 +2894,104 @@ fn terminal_ui_just_spawned(
     !q_prompt.is_empty() || !q_scrollback.is_empty()
 }
 
+/// On the FIRST drawer open of a session, kick off the staggered boot banner:
+/// clear the scrollback and queue the welcome + unread-events rows for
+/// [`drain_nova_os_boot`] to reveal one-by-one (PoC `printBanner`). Subsequent
+/// opens keep the scrollback the player left behind.
+fn begin_nova_os_boot(mut terminal: ResMut<NovaOsTerminal>, log: Res<DrawerFlightLog>) {
+    if terminal.booted {
+        return;
+    }
+    terminal.booted = true;
+    let unread = log.entries.len().saturating_sub(terminal.seen_events);
+    let hook = nova_os_unread_hook(&log, terminal.seen_events);
+    let rows = nova_os_boot_banner_rows(unread, hook);
+    terminal.scrollback.clear();
+    terminal.pending_rows = rows;
+}
+
+/// When the computer closes, remember how many flight-log entries have been seen
+/// so a later boot's unread-events count only covers what arrived afterward.
+fn mark_nova_os_events_seen(mut terminal: ResMut<NovaOsTerminal>, log: Res<DrawerFlightLog>) {
+    terminal.seen_events = log.entries.len();
+}
+
+/// Reveal the queued boot-banner rows one-by-one on real time (PoC `printBanner`
+/// ~130 ms cadence; virtual time is frozen while the computer is open). Runs only
+/// while rows are pending, so once the banner finishes it stops touching the
+/// terminal's change detection.
+fn drain_nova_os_boot(
+    time: Res<Time<Real>>,
+    mut terminal: ResMut<NovaOsTerminal>,
+    mut elapsed: Local<f32>,
+) {
+    // Read through the immutable `Deref` so an empty queue does not mark the
+    // terminal changed (which would rebuild the UI every idle frame).
+    if terminal.pending_rows.is_empty() {
+        *elapsed = 0.0;
+        return;
+    }
+    *elapsed += time.delta_secs();
+    while *elapsed >= NOVA_OS_BOOT_ROW_INTERVAL && !terminal.pending_rows.is_empty() {
+        *elapsed -= NOVA_OS_BOOT_ROW_INTERVAL;
+        let row = terminal.pending_rows.remove(0);
+        terminal.scrollback.push(row);
+    }
+}
+
+fn nova_os_footer_just_spawned(q_footer: Query<(), Added<NovaOsFooterHintsMarker>>) -> bool {
+    !q_footer.is_empty()
+}
+
+/// The footer hint set for the active surface (PoC `HINTS` map): the terminal set
+/// at the prompt, or the running app's own [`NovaOsAppRuntime::hints`] while an
+/// app owns the screen.
+fn nova_os_footer_hints(mode: TerminalMode, registry: &NovaOsAppRegistry) -> [&'static str; 3] {
+    match mode {
+        TerminalMode::Prompt => NOVA_OS_TERMINAL_HINTS,
+        TerminalMode::App { id } => registry
+            .get(id)
+            .map(|app| app.hints())
+            .unwrap_or(NOVA_OS_TERMINAL_HINTS),
+    }
+}
+
+/// Rebuild the footer hint row whenever the active surface changes, so the hints
+/// swap per surface (terminal vs a running app). Keyed on `active_mode` via a
+/// `Local`, so ordinary prompt edits (which change the terminal resource but not
+/// the mode) do not thrash the footer.
+fn rebuild_nova_os_footer_hints(
+    terminal: Res<NovaOsTerminal>,
+    registry: Res<NovaOsAppRegistry>,
+    asset_server: Option<Res<AssetServer>>,
+    mut commands: Commands,
+    q_footer: Query<(Entity, Option<&Children>), With<NovaOsFooterHintsMarker>>,
+    mut last_mode: Local<Option<TerminalMode>>,
+) {
+    if *last_mode == Some(terminal.active_mode) {
+        return;
+    }
+    *last_mode = Some(terminal.active_mode);
+    let hints = nova_os_footer_hints(terminal.active_mode, &registry);
+    let font = nova_os_font(asset_server.as_deref());
+    for (footer, children) in &q_footer {
+        if let Some(children) = children {
+            for &child in children {
+                commands.entity(child).despawn();
+            }
+        }
+        commands.entity(footer).with_children(|footer| {
+            for hint in hints {
+                footer.spawn((
+                    Text::new(hint),
+                    nova_os_text_font(11.0, font.clone()),
+                    TextColor(NOVA_OS_PHOSPHOR_MUTED),
+                ));
+            }
+        });
+    }
+}
+
 fn rebuild_terminal_ui(
     mut commands: Commands,
     terminal: Res<NovaOsTerminal>,
@@ -2829,20 +3188,15 @@ fn prompt_completion_ghost(terminal: &NovaOsTerminal) -> String {
     if terminal.parse_status != TerminalParseStatus::ValidPrefix {
         return String::new();
     }
-    let Some(prefix) = current_command_prefix(&terminal.prompt) else {
-        return String::new();
-    };
-    // Same builtin-then-app order as `refresh_parse`'s ValidPrefix hint, so the
-    // inline ghost matches the command the hint is pointing at (app launch words
-    // are first-class here too).
-    TERMINAL_COMMANDS
-        .iter()
-        .map(|command| command.name)
-        .chain(terminal.app_commands.iter().map(|app| app.id))
-        .find(|name| name.starts_with(prefix))
-        .and_then(|name| name.get(prefix.len()..))
-        .map(str::to_string)
+    // On a valid prefix `completion_hint` holds the full command name the input is
+    // completing toward (built-in or app launch word, single- or multi-word); the
+    // ghost is the suffix past what has been typed.
+    terminal
+        .completion_hint
+        .as_deref()
+        .and_then(|name| name.strip_prefix(terminal.prompt.as_str()))
         .unwrap_or_default()
+        .to_string()
 }
 
 fn prompt_color(terminal: &NovaOsTerminal) -> Color {
@@ -3066,6 +3420,42 @@ fn sync_drawer_logs(
     }
 
     log.previous_active = objectives.objectives.clone();
+}
+
+/// Announce objective flips into the LIVE terminal scrollback while the computer
+/// is open at the prompt (PoC `checkObjectives` pushes an `OBJ x ...` line the
+/// moment an objective completes, so the player sees it without typing `log`).
+/// Only completions that happen while open are announced; ones that flipped while
+/// the computer was closed stay in the flight log (counted by the boot banner's
+/// unread-events line instead of dumping on open).
+fn announce_objectives_in_terminal(
+    log: Res<DrawerFlightLog>,
+    pause: Res<State<PauseStates>>,
+    mut terminal: ResMut<NovaOsTerminal>,
+    mut announced: Local<Option<usize>>,
+) {
+    let total = log.entries.len();
+    // `None` on the first run (and `min` if the log was cleared) means we start
+    // from "everything already seen" - nothing is announced retroactively.
+    let from = announced.unwrap_or(total).min(total);
+    let open = *pause.get() == PauseStates::Drawer && terminal.active_mode == TerminalMode::Prompt;
+    if open {
+        let fresh: Vec<TerminalRow> = log.entries[from..]
+            .iter()
+            .filter(|entry| entry.kind == DrawerFlightLogEntryKind::ObjectiveCompleted)
+            .map(|entry| TerminalRow {
+                kind: TerminalRowKind::Info,
+                text: drawer_flight_log_text(entry),
+            })
+            .collect();
+        // Only touch the scrollback (and so mark the terminal changed, forcing a
+        // rebuild that snaps the view to the bottom) when there is actually
+        // something to announce - most objective-change frames have no completion.
+        if !fresh.is_empty() {
+            terminal.scrollback.extend(fresh);
+        }
+    }
+    *announced = Some(total);
 }
 
 /// Rebuild the right objectives-section rows from the active objectives list.
@@ -4393,7 +4783,14 @@ fn spawn_nova_os_terminal_content(
                                             input_wrap.spawn((
                                                 NovaOsTerminalCaretMarker,
                                                 Node {
-                                                    width: Val::Px(2.0),
+                                                    // A filled block roughly one
+                                                    // glyph wide (PoC `.caret`,
+                                                    // 0.6em x 1.15em) instead of a
+                                                    // thin bar.
+                                                    width: Val::Px(
+                                                        DRAWER_LINE_FONT_PX
+                                                            * NOVA_OS_CARET_WIDTH_FRACTION,
+                                                    ),
                                                     height: Val::Px(DRAWER_LINE_FONT_PX + 2.0),
                                                     flex_shrink: 0.0,
                                                     ..default()
@@ -5063,7 +5460,7 @@ mod tests {
             message: "Burn for Beacon 1".to_string(),
             icon: None,
         });
-        let snapshot = terminal_snapshot_from_world(&log, &GameObjectives::default(), None, &[]);
+        let snapshot = terminal_snapshot_from_world(&log, &GameObjectives::default(), None, &[], 0);
         let mut terminal = NovaOsTerminal::default();
 
         type_text(&mut terminal, "log");
@@ -5090,7 +5487,7 @@ mod tests {
             ],
         };
         let snapshot =
-            terminal_snapshot_from_world(&DrawerFlightLog::default(), &objectives, None, &[]);
+            terminal_snapshot_from_world(&DrawerFlightLog::default(), &objectives, None, &[], 0);
         let mut terminal = NovaOsTerminal::default();
 
         type_text(&mut terminal, "objectives");
@@ -5111,6 +5508,7 @@ mod tests {
             &GameObjectives::default(),
             None,
             &[],
+            0,
         );
         let mut empty = NovaOsTerminal::default();
         type_text(&mut empty, "objectives");
@@ -5182,6 +5580,7 @@ mod tests {
             &GameObjectives::default(),
             Some(ship_name.as_str()),
             &sections,
+            0,
         );
         let mut terminal = NovaOsTerminal::default();
 
@@ -6099,6 +6498,8 @@ mod tests {
                 }],
                 objective_rows: Vec::new(),
                 ship_rows: Vec::new(),
+                unread_events: 0,
+                unread_hook: None,
             });
             assert!(
                 terminal
@@ -6496,8 +6897,10 @@ mod tests {
             // (task 20260727-014806).
             "SHIP: SURVEY CUTTER     LINK: LOCAL     FPS: --".to_string(),
             format!("NOVA OS {}", nova_os_version_label()),
-            "BIOS CHECK: flight computer / ok".to_string(),
-            "DISPLAY: green phosphor crt / ok".to_string(),
+            "POST ......... flight computer / ok".to_string(),
+            "CORE ......... 64K static / ok".to_string(),
+            "DISPLAY ...... green phosphor crt / warm".to_string(),
+            "LINK ......... cockpit bus / local".to_string(),
             "Hint: type `help` and press Enter.".to_string(),
             "nova>".to_string(),
             "TAB: AUTOCOMPLETE".to_string(),
@@ -6980,39 +7383,32 @@ mod tests {
             vec!["help", "log", "objectives", "ship", "clear", "exit"]
         );
 
-        assert!(matches!(
-            parse_command("help", &[]),
-            TerminalCommandResult::Help
-        ));
-        assert!(matches!(
-            parse_command("clear", &[]),
-            TerminalCommandResult::Clear
-        ));
-        assert!(matches!(
-            parse_command("log", &[]),
-            TerminalCommandResult::Log
-        ));
-        assert!(matches!(
-            parse_command("objectives", &[]),
-            TerminalCommandResult::Objectives
-        ));
-        assert!(matches!(
-            parse_command("ship", &[]),
-            TerminalCommandResult::Ship
-        ));
-        assert!(matches!(
-            parse_command("exit", &[]),
-            TerminalCommandResult::Exit
-        ));
-        for planned in ["map", "ship viewer", "reload", "repair"] {
+        for name in ["help", "clear", "log", "objectives", "ship", "exit"] {
             assert!(
                 matches!(
-                    parse_command(planned, &[]),
-                    TerminalCommandResult::Unknown { .. }
+                    resolve_command(name, &[]),
+                    ResolvedCommand::Builtin { name: matched } if matched == name
+                ),
+                "{name} resolves to its built-in",
+            );
+        }
+        // `map`, `reload`, `repair` are single unknown words until their own tasks
+        // register them.
+        for planned in ["map", "reload", "repair"] {
+            assert!(
+                matches!(
+                    resolve_command(planned, &[]),
+                    ResolvedCommand::Unknown { .. }
                 ),
                 "{planned} stays deferred to its own task"
             );
         }
+        // `ship viewer` is no longer a hardcoded special-case: with no app
+        // registered it is just the `ship` built-in with an unexpected argument.
+        assert!(matches!(
+            resolve_command("ship viewer", &[]),
+            ResolvedCommand::UnexpectedArguments { command, .. } if command == "ship"
+        ));
     }
 
     #[test]
@@ -7272,6 +7668,7 @@ mod tests {
         let apps = [NovaOsAppCommand {
             id: "sample",
             summary: "",
+            arity: CommandArity::None,
         }];
         assert_eq!(
             nearest_command("sanple", &apps),
@@ -7526,6 +7923,460 @@ mod tests {
             content_after,
             Some(Visibility::Inherited),
             "exiting reveals the terminal content again",
+        );
+    }
+
+    // --- NOVA OS terminal UX parity (task 20260726-214708) ---
+
+    /// The first open types the boot banner row-by-row on real time and reports
+    /// the unread-events count; `clear` reprints it instantly.
+    #[test]
+    fn nova_os_boot_banner_staggers_and_counts_unread() {
+        use std::time::Duration;
+
+        let mut app = App::new();
+        // Own the real clock so the staggered reveal is deterministic (same rig as
+        // `slide_drives_single_monitor_openness`).
+        app.add_plugins(MinimalPlugins.build().disable::<bevy::time::TimePlugin>());
+        app.insert_resource(Time::<Real>::default());
+        app.add_plugins(StatesPlugin);
+        app.init_state::<PauseStates>();
+        app.init_resource::<NovaOsTerminal>();
+
+        let mut log = DrawerFlightLog::default();
+        for i in 0..4 {
+            log.entries.push(DrawerFlightLogEntry {
+                kind: DrawerFlightLogEntryKind::Comms,
+                objective_id: None,
+                speaker: Some("SYS".to_string()),
+                message: format!("event {i}"),
+                icon: None,
+            });
+        }
+        app.insert_resource(log);
+        app.add_systems(OnEnter(PauseStates::Drawer), begin_nova_os_boot);
+        app.add_systems(Update, drain_nova_os_boot);
+
+        // Open the computer for the first time: the banner is QUEUED, not printed.
+        app.world_mut()
+            .resource_mut::<NextState<PauseStates>>()
+            .set(PauseStates::Drawer);
+        app.update();
+        let full = nova_os_boot_banner_rows(4, Some("event 3".to_string())).len();
+        assert!(
+            app.world()
+                .resource::<NovaOsTerminal>()
+                .scrollback
+                .is_empty(),
+            "the boot banner is staggered, not printed instantly",
+        );
+
+        // A few 130 ms ticks reveal a FEW rows, not all of them at once.
+        for _ in 0..3 {
+            app.world_mut()
+                .resource_mut::<Time<Real>>()
+                .advance_by(Duration::from_millis(130));
+            app.update();
+        }
+        let partway = app.world().resource::<NovaOsTerminal>().scrollback.len();
+        assert!(
+            partway >= 1 && partway < full,
+            "rows reveal gradually (revealed {partway} of {full})",
+        );
+
+        // Draining fully lands the whole banner including the unread-events line.
+        for _ in 0..12 {
+            app.world_mut()
+                .resource_mut::<Time<Real>>()
+                .advance_by(Duration::from_millis(130));
+            app.update();
+        }
+        let terminal = app.world().resource::<NovaOsTerminal>();
+        assert_eq!(terminal.scrollback.len(), full);
+        assert!(
+            terminal.pending_rows.is_empty(),
+            "the reveal queue drains dry"
+        );
+        assert!(
+            terminal
+                .scrollback
+                .iter()
+                .any(|row| row.text.contains("4 unread events")),
+            "the boot banner reports the unread-events count",
+        );
+
+        // `clear` reprints the banner instantly (no staggered queue), still with
+        // the current unread count from the snapshot.
+        let mut terminal = app.world_mut().resource_mut::<NovaOsTerminal>();
+        terminal.insert_text("clear");
+        terminal.submit(&TerminalCommandSnapshot {
+            unread_events: 2,
+            unread_hook: Some("Torpedo bay is down".to_string()),
+            ..Default::default()
+        });
+        assert!(
+            terminal.pending_rows.is_empty(),
+            "clear reprints instantly rather than re-staggering",
+        );
+        assert!(
+            terminal
+                .scrollback
+                .iter()
+                .any(|row| row.text.contains("2 unread events")),
+            "clear reprints the current unread-events line",
+        );
+    }
+
+    /// Tab lists ambiguous matches on the first press and cycles through them on
+    /// repeats, resetting the cycle on any edit.
+    #[test]
+    fn nova_os_tab_cycles_ambiguous_completions() {
+        let mut terminal = NovaOsTerminal::default();
+        // Two app words sharing the `sh` stem with the `ship` built-in make the
+        // stem ambiguous (three matches).
+        terminal.app_commands = vec![
+            NovaOsAppCommand {
+                id: "shield",
+                summary: "",
+                arity: CommandArity::None,
+            },
+            NovaOsAppCommand {
+                id: "shells",
+                summary: "",
+                arity: CommandArity::None,
+            },
+        ];
+        terminal.insert_text("sh");
+
+        // First Tab lists the matches and jumps to the first.
+        assert!(terminal.complete());
+        assert_eq!(
+            terminal.scrollback.last().map(|row| row.text.as_str()),
+            Some("ship   shield   shells"),
+            "the first Tab on an ambiguous stem lists the matches",
+        );
+        assert_eq!(terminal.prompt, "ship");
+
+        // Repeat presses cycle through the rest, then wrap.
+        terminal.complete();
+        assert_eq!(terminal.prompt, "shield");
+        terminal.complete();
+        assert_eq!(terminal.prompt, "shells");
+        terminal.complete();
+        assert_eq!(
+            terminal.prompt, "ship",
+            "cycling wraps back to the first match"
+        );
+
+        // The match list is printed once, not on every cycle press.
+        let listings = terminal
+            .scrollback
+            .iter()
+            .filter(|row| row.text == "ship   shield   shells")
+            .count();
+        assert_eq!(listings, 1);
+
+        // Any edit resets the cycle (PoC `resetCycle`).
+        terminal.insert_text("x");
+        assert!(terminal.cycle_stem.is_none(), "editing resets the cycle");
+    }
+
+    /// PageUp/PageDown page the scrollback viewport, clamped to its content.
+    #[test]
+    fn nova_os_page_keys_scroll_scrollback() {
+        let mut app = terminal_command_app();
+        let scrollback = app
+            .world_mut()
+            .spawn((
+                NovaOsTerminalScrollbackMarker,
+                ScrollPosition(Vec2::new(0.0, 100.0)),
+                ComputedNode {
+                    size: Vec2::new(100.0, 100.0),
+                    content_size: Vec2::new(100.0, 400.0),
+                    scrollbar_size: Vec2::ZERO,
+                    ..default()
+                },
+            ))
+            .id();
+
+        // PageUp pages toward the top.
+        press_key(&mut app, KeyCode::PageUp, Key::PageUp, None);
+        let after_up = app
+            .world()
+            .entity(scrollback)
+            .get::<ScrollPosition>()
+            .unwrap()
+            .0
+            .y;
+        assert!(
+            after_up < 100.0,
+            "PageUp pages the scrollback toward the top (y {after_up})",
+        );
+
+        // PageDown pages back toward the bottom.
+        press_key(&mut app, KeyCode::PageDown, Key::PageDown, None);
+        let after_down = app
+            .world()
+            .entity(scrollback)
+            .get::<ScrollPosition>()
+            .unwrap()
+            .0
+            .y;
+        assert!(
+            after_down > after_up,
+            "PageDown pages the scrollback toward the bottom (y {after_down})",
+        );
+        assert!(
+            after_down <= 300.0,
+            "the page offset clamps to the content bottom (max 300, got {after_down})",
+        );
+    }
+
+    /// The parser accepts an argument-taking command registration and a multi-word
+    /// launch word, without breaking the argument-free built-ins.
+    #[test]
+    fn nova_os_parser_supports_arguments_and_multiword() {
+        let apps = [
+            NovaOsAppCommand {
+                id: "ship view",
+                summary: "",
+                arity: CommandArity::None,
+            },
+            NovaOsAppCommand {
+                id: "repair",
+                summary: "",
+                arity: CommandArity::UpTo(1),
+            },
+        ];
+
+        // A multi-word launch word resolves as the app, its 2-word name beating the
+        // `ship` built-in on longest-match.
+        assert!(matches!(
+            resolve_command("ship view", &apps),
+            ResolvedCommand::App { id: "ship view" }
+        ));
+        // The `ship` built-in still resolves on its own.
+        assert!(matches!(
+            resolve_command("ship", &apps),
+            ResolvedCommand::Builtin { name: "ship" }
+        ));
+        // An argument-taking command accepts its argument...
+        assert!(matches!(
+            resolve_command("repair thruster", &apps),
+            ResolvedCommand::App { id: "repair" }
+        ));
+        // ...and rejects more than its arity.
+        assert!(matches!(
+            resolve_command("repair a b", &apps),
+            ResolvedCommand::UnexpectedArguments { command, .. } if command == "repair"
+        ));
+        // Argument-free built-ins are unaffected.
+        assert!(matches!(
+            resolve_command("help", &apps),
+            ResolvedCommand::Builtin { name: "help" }
+        ));
+        assert!(matches!(
+            resolve_command("help x", &apps),
+            ResolvedCommand::UnexpectedArguments { command, .. } if command == "help"
+        ));
+        // The multi-word launch word rejects a trailing argument (arity none).
+        assert!(matches!(
+            resolve_command("ship view x", &apps),
+            ResolvedCommand::UnexpectedArguments { command, .. } if command == "ship view"
+        ));
+    }
+
+    /// A test-only app that overrides `hints` to a distinct footer set.
+    struct HintsApp;
+
+    impl NovaOsAppRuntime for HintsApp {
+        fn id(&self) -> &'static str {
+            "hintsapp"
+        }
+        fn title(&self) -> &'static str {
+            "Hints"
+        }
+        fn summary(&self) -> &'static str {
+            "Test-only app with its own footer hints"
+        }
+        fn spawn_body(&self, _body: &mut ChildSpawnerCommands, _font: Handle<Font>) {}
+        fn hints(&self) -> [&'static str; 3] {
+            [
+                "1/2/3: DO A THING",
+                "ESC: BACK TO TERMINAL",
+                "SHIFT+ESC: CLOSE",
+            ]
+        }
+    }
+
+    fn footer_hint_texts(app: &App, footer: Entity) -> Vec<String> {
+        let mut out = Vec::new();
+        if let Some(children) = app.world().entity(footer).get::<Children>() {
+            for child in children {
+                if let Some(text) = app.world().entity(*child).get::<Text>() {
+                    out.push(text.0.clone());
+                }
+            }
+        }
+        out
+    }
+
+    /// The footer hint row swaps to the running app's hints while it owns the
+    /// screen, and back to the terminal set at the prompt.
+    #[test]
+    fn nova_os_footer_hints_follow_active_surface() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(StatesPlugin);
+        app.init_state::<PauseStates>();
+        app.init_resource::<NovaOsTerminal>();
+        let mut registry = NovaOsAppRegistry::default();
+        registry.register(HintsApp);
+        app.insert_resource(registry);
+        app.add_systems(Update, rebuild_nova_os_footer_hints);
+
+        let footer = app.world_mut().spawn(NovaOsFooterHintsMarker).id();
+
+        // At the prompt the footer shows the terminal hint set.
+        app.update();
+        assert_eq!(
+            footer_hint_texts(&app, footer),
+            NOVA_OS_TERMINAL_HINTS
+                .iter()
+                .map(|hint| hint.to_string())
+                .collect::<Vec<_>>(),
+            "the terminal surface shows the terminal hints",
+        );
+
+        // Entering the app swaps the footer to the app's own hints.
+        app.world_mut().resource_mut::<NovaOsTerminal>().active_mode =
+            TerminalMode::App { id: "hintsapp" };
+        app.update();
+        assert_eq!(
+            footer_hint_texts(&app, footer),
+            vec![
+                "1/2/3: DO A THING".to_string(),
+                "ESC: BACK TO TERMINAL".to_string(),
+                "SHIFT+ESC: CLOSE".to_string(),
+            ],
+            "an active app swaps the footer to its own hints",
+        );
+
+        // Backing out to the prompt restores the terminal hints.
+        app.world_mut().resource_mut::<NovaOsTerminal>().active_mode = TerminalMode::Prompt;
+        app.update();
+        assert_eq!(
+            footer_hint_texts(&app, footer),
+            NOVA_OS_TERMINAL_HINTS
+                .iter()
+                .map(|hint| hint.to_string())
+                .collect::<Vec<_>>(),
+            "returning to the prompt restores the terminal hints",
+        );
+    }
+
+    /// Press a `<modifier>+<key>` chord via `ButtonInput`, mirroring `press_tab`.
+    fn press_chord(app: &mut App, modifier: KeyCode, key: KeyCode) {
+        {
+            let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+            keys.press(modifier);
+            keys.press(key);
+        }
+        app.update();
+        let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+        keys.release(modifier);
+        keys.release(key);
+        keys.clear();
+        app.update();
+    }
+
+    /// Ctrl+C exits a running app back to the terminal; Shift+Esc closes the whole
+    /// computer from inside an app.
+    #[test]
+    fn nova_os_app_exit_chords() {
+        let mut app = app_runtime_app();
+        submit_terminal_command(&mut app, "sample");
+        assert!(matches!(
+            app.world().resource::<NovaOsTerminal>().active_mode,
+            TerminalMode::App { .. }
+        ));
+
+        // Ctrl+C backs out to the terminal without closing the computer.
+        press_chord(&mut app, KeyCode::ControlLeft, KeyCode::KeyC);
+        assert_eq!(
+            app.world().resource::<NovaOsTerminal>().active_mode,
+            TerminalMode::Prompt,
+            "Ctrl+C exits the app back to the terminal",
+        );
+        assert!(
+            !app.world().resource::<DrawerCloseTransition>().closing,
+            "Ctrl+C does not close the computer",
+        );
+        assert_eq!(pause_state(&app), PauseStates::Drawer);
+
+        // Relaunch, then Shift+Esc closes the computer from INSIDE the app.
+        submit_terminal_command(&mut app, "sample");
+        assert!(matches!(
+            app.world().resource::<NovaOsTerminal>().active_mode,
+            TerminalMode::App { .. }
+        ));
+        press_chord(&mut app, KeyCode::ShiftLeft, KeyCode::Escape);
+        assert!(
+            app.world().resource::<DrawerCloseTransition>().closing,
+            "Shift+Esc closes the computer from inside an app",
+        );
+    }
+
+    /// An objective flipping while the computer is open announces itself into the
+    /// live scrollback (PoC `checkObjectives`), without needing a `log` command.
+    #[test]
+    fn nova_os_objective_flip_announces_in_open_terminal() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(StatesPlugin);
+        app.init_state::<PauseStates>();
+        app.init_resource::<NovaOsTerminal>();
+        app.init_resource::<DrawerFlightLog>();
+        app.init_resource::<GameObjectives>();
+        app.init_resource::<StoryFeed>();
+        app.add_systems(
+            Update,
+            (sync_drawer_logs, announce_objectives_in_terminal)
+                .chain()
+                .run_if(resource_changed::<GameObjectives>),
+        );
+
+        // Open the computer and post an objective.
+        app.world_mut()
+            .resource_mut::<NextState<PauseStates>>()
+            .set(PauseStates::Drawer);
+        app.world_mut()
+            .resource_mut::<GameObjectives>()
+            .objectives
+            .push(Objective::new("burn", "Burn for Beacon 1"));
+        app.update();
+        assert!(
+            !app.world()
+                .resource::<NovaOsTerminal>()
+                .scrollback
+                .iter()
+                .any(|row| row.text.contains("OBJ x")),
+            "posting an objective does not yet announce a completion",
+        );
+
+        // Complete it: the OBJ x line lands in the live scrollback.
+        app.world_mut()
+            .resource_mut::<GameObjectives>()
+            .objectives
+            .clear();
+        app.update();
+        assert!(
+            app.world()
+                .resource::<NovaOsTerminal>()
+                .scrollback
+                .iter()
+                .any(|row| row.text == "OBJ x Burn for Beacon 1"),
+            "an objective completing while open announces into the scrollback",
         );
     }
 }

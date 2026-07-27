@@ -351,6 +351,10 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   register once and reuse the SystemId. 20260713-082330.
 - `run-system-once-always-changed` (x1): same trap on `Res::is_changed`; gate
   behavior needs an App-driven test across real frames. 20260712-093831.
+- `resmut-noop-deref-marks-changed` (x1): a system holding `ResMut<T>` marks `T`
+  changed on ANY `&mut` deref, even a no-op (`vec.extend(empty)`); a dependent
+  `run_if(resource_changed::<T>)` then thrashes - gate the mutation behind an
+  actual-change check (`if !fresh.is_empty()`). 20260726-214708.
 - `resource-changed-fires-on-init-frame` (x1): a `run_if(resource_changed::<T>)`
   system that ACTS on the DEFAULT/empty `T` (teardown-on-empty, reset-on-clear)
   fires on the resource's very first frame - `init_resource` marks it changed - so
