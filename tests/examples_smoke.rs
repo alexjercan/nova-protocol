@@ -55,6 +55,7 @@ const SCREENSHOTS: &[&str] = &[
     "screenshot_sections",
     "screenshot_juice",
     "screenshot_orbit",
+    "screenshot_nova_os",
 ];
 
 /// Cataloged examples deliberately NOT in any smoke list - each entry is a
@@ -65,7 +66,12 @@ const SCREENSHOTS: &[&str] = &[
 ///   verified by eyeballing the PNGs (task 20260718-004723).
 /// - perf_baseline: not harnessed - probe owns it (`probe run perf_baseline
 ///   --fps`), and a smoke pass would only measure noise.
-const NOT_SMOKED: &[&str] = &["render_scale_shot", "perf_baseline"];
+/// - nova_os_rtt_poc: a standalone render-to-texture FEASIBILITY prototype (task
+///   20260726-193233) - it runs its own `App` (not the game's AppBuilder /
+///   GameStates), prints its own `POC PICKING native: OK/FAIL` verdict and
+///   auto-exits, so it never reaches `GameStates::Playing` and the reach-Playing
+///   smoke would not apply.
+const NOT_SMOKED: &[&str] = &["render_scale_shot", "perf_baseline", "nova_os_rtt_poc"];
 
 #[test]
 fn sections_reach_playing_without_panic() {
