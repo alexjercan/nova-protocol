@@ -132,15 +132,15 @@ core is usable.
 
 ## Child Tasks
 
-- [ ] `20260726-115320` (p49) - NOVA OS monitor shell and visual treatment.
-- [ ] `20260726-115324` (p48) - NOVA OS terminal input and command shell.
+- [x] `20260726-115320` (p49) - NOVA OS monitor shell and visual treatment.
+- [x] `20260726-115324` (p48) - NOVA OS terminal input and command shell.
       Depends on `20260726-115320`.
-- [ ] `20260726-134738` (p50) - Match NOVA OS drawer to terminal PoC. Depends
+- [x] `20260726-134738` (p50) - Match NOVA OS drawer to terminal PoC. Depends
       on `20260726-115320` and `20260726-115324`; blocks command/app tasks until
       the UI no longer needs to be reshaped under them.
-- [ ] `20260726-115330` (p47) - NOVA OS terminal output commands. Depends on
+- [x] `20260726-115330` (p47) - NOVA OS terminal output commands. Depends on
       `20260726-134738`.
-- [ ] `20260726-115334` (p46) - NOVA OS app runtime. Depends on
+- [x] `20260726-115334` (p46) - NOVA OS app runtime. Depends on
       `20260726-134738`.
 - [ ] `20260724-102320` (p30, stretch) - NOVA OS map app launched from the
       terminal. Depends on `20260726-115334`.
