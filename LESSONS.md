@@ -973,6 +973,17 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   build time to avoid it. (Distilled from docs/design on the ephemeral-docs
   wipe; the read-the-source half is [[verify-engine-guarantees-in-source]].)
   20260718-175424.
+- `custom-asset-loader-needs-meta-gen-registration` (domain, x1): every CUSTOM
+  `AssetLoader` the game registers (e.g. `NovaOsTtcFontLoader` for the NOVA OS
+  `.ttc` font) must ALSO be registered in `nova_meta_gen`, or its assets ship
+  with no `.meta` and fail SILENTLY on web only - under `AssetMetaCheck::Always`
+  the 200-OK-HTML SPA fallback for the missing sidecar makes the load die, so
+  the NOVA OS text was invisible on web while native (real 404 -> default meta)
+  was fine. The generated meta names `L::type_path()`, so meta_gen must register
+  the SAME loader type the runtime does. Sibling of [[asset-meta-always-web-cost]];
+  symptom shape (non-text UI drew, only glyphs missing) ruled out a render-layer
+  cause before any code change. A future guard: assert meta_gen's loader set
+  covers every extension the game's registered loaders claim. 20260727-172205.
 - `bevy-css-border-triangle-needs-contentbox` (domain, x1): a filled UI
   triangle with no art asset is a zero-CONTENT node + coloured top border +
   transparent sides - Bevy's border shader (`nearest_border_active` in
