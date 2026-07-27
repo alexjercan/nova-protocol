@@ -6,11 +6,13 @@
 //! The hint is a BLOCK IN THE STATUS BAR (task 20260724-161545): it is parented
 //! into the bcs status-bar row (the fps/version bar) so it flows beside those
 //! items and can never overlap the version, instead of floating as its own
-//! top-right node (which collided with the version). It renders as plain text
-//! (no pill/glyph) to match the other bar items. It is parented as our OWN child
-//! of `StatusBarRootMarker` rather than a `status_bar_item`, because it needs its
-//! own node markers for the two behaviours below (the registry's auto-insert
-//! builds an unmarked text-only visual).
+//! top-right node (which collided with the version). It renders flat (no
+//! bordered pill) to match the other bar items, leading with the NOVA CRT star
+//! mark icon (the drawer's brand mark - it ties the TAB affordance to the NOVA
+//! OS computer it opens) followed by the count + "TAB". It is parented as our
+//! OWN child of `StatusBarRootMarker` rather than a `status_bar_item`, because
+//! it needs its own node markers for the behaviours below (the registry's
+//! auto-insert builds an unmarked text-only visual).
 //!
 //! It is also the source of the diegetic reveal's tuck anchor: the hint writes
 //! [`NovaOsTabAnchor`] from its own screen rect (the reveal, task 20260721-211520,
@@ -26,18 +28,26 @@ use crate::prelude::*;
 
 const HINT_FONT_PX: f32 = 14.0;
 const HINT_CHIP_FONT_PX: f32 = 11.0;
+/// The leading star mark icon size - matched to the count's cap height so it
+/// sits flush in the status-bar row.
+const HINT_ICON_PX: f32 = 15.0;
 /// Nominal hint size for the reveal's tuck rect (the exact width flexes with the
 /// count; the CENTRE is what the tuck aims at). Task 20260721-211520's target.
 const HINT_ANCHOR_SIZE: Vec2 = Vec2::new(120.0, 28.0);
 
-/// The hint block in the status bar (count + TAB, plain text). Also the tuck
-/// anchor source for the diegetic reveal.
+/// The hint block in the status bar (star mark icon + count + TAB). Also the
+/// tuck anchor source for the diegetic reveal.
 #[derive(Component)]
 struct ObjectiveHintMarker;
 
 /// The count text inside the hint.
 #[derive(Component)]
 struct ObjectiveHintCountMarker;
+
+/// The leading NOVA CRT star mark icon inside the hint (ties the TAB affordance
+/// to the NOVA OS computer it opens).
+#[derive(Component)]
+struct ObjectiveHintIconMarker;
 
 /// Wires the flight objective hint: spawn/despawn with the player ship, keep the
 /// count current, and publish the reveal's tuck anchor.
@@ -66,6 +76,7 @@ fn setup_hint(
     mut commands: Commands,
     q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
     q_bar: Query<Entity, With<StatusBarRootMarker>>,
+    asset_server: Option<Res<AssetServer>>,
 ) {
     if q_spaceship.get(add.entity).is_err() {
         return;
@@ -95,6 +106,22 @@ fn setup_hint(
             },
         ))
         .with_children(|hint| {
+            // Leading NOVA CRT star mark (the same brand mark the drawer plate
+            // uses), so the top-bar TAB affordance visually reads as "the NOVA OS
+            // computer". Native colours (like the plate); rendered from a PNG
+            // because Bevy UI cannot draw SVG. Guarded on the AssetServer so
+            // headless rigs without one still spawn the count + TAB.
+            if let Some(asset_server) = asset_server {
+                hint.spawn((
+                    ObjectiveHintIconMarker,
+                    ImageNode::new(asset_server.load("icons/nova_crt_mark.png")),
+                    Node {
+                        width: Val::Px(HINT_ICON_PX),
+                        height: Val::Px(HINT_ICON_PX),
+                        ..default()
+                    },
+                ));
+            }
             // Active-objective count (gold, the objective accent).
             hint.spawn((
                 ObjectiveHintCountMarker,
@@ -256,6 +283,48 @@ mod tests {
             Display::None,
             "no objectives -> the hint collapses out of the row"
         );
+    }
+
+    /// With an AssetServer present the hint leads with the NOVA CRT star mark
+    /// icon (the same brand mark the drawer plate uses), parented inside the hint
+    /// item beside the count + TAB.
+    #[test]
+    fn objective_hint_shows_the_nova_crt_star_icon() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        // AssetPlugin gives the AssetServer; the Image asset type must be
+        // registered or `load` of the PNG panics (mirrors the nova_os rigs).
+        app.add_plugins(AssetPlugin::default());
+        app.init_asset::<Image>();
+        app.init_resource::<GameObjectives>();
+        app.init_resource::<NovaOsTabAnchor>();
+        app.add_observer(setup_hint);
+        app.world_mut().spawn(StatusBarRootMarker);
+        app.world_mut()
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker));
+        app.update();
+
+        // Exactly one star icon, and it is an ImageNode parented under the hint.
+        let (icon, parent) = app
+            .world_mut()
+            .query_filtered::<(Entity, &ChildOf), (With<ObjectiveHintIconMarker>, With<ImageNode>)>(
+            )
+            .single(app.world())
+            .map(|(icon, child_of)| (icon, child_of.0))
+            .expect("the hint has exactly one star-mark ImageNode");
+        let hint = app
+            .world_mut()
+            .query_filtered::<Entity, With<ObjectiveHintMarker>>()
+            .single(app.world())
+            .expect("the hint spawned");
+        assert_eq!(parent, hint, "the star icon is a child of the hint item");
+        // It leads the row (spawned before the count + TAB).
+        let first_child = app
+            .world()
+            .entity(hint)
+            .get::<Children>()
+            .expect("the hint has children")[0];
+        assert_eq!(first_child, icon, "the star icon leads the count + TAB");
     }
 
     /// The hint is the reveal's tuck anchor: `update_tab_anchor` publishes the
