@@ -1024,16 +1024,17 @@ fn terminal_snapshot_from_world(
     seen_events: usize,
 ) -> TerminalCommandSnapshot {
     let unread_events = log.entries.len().saturating_sub(seen_events);
+    // Keyed by command name so `submit` can look each up generically. `map view`
+    // is filled by the caller (it needs live contact queries this pure builder
+    // lacks), so it is absent here and prints nothing until populated.
     TerminalCommandSnapshot {
-        log_rows: terminal_log_rows(log),
-        objective_rows: terminal_objective_rows(objectives),
-        ship_rows: terminal_ship_rows(ship_name, ship_sections),
-        // Populated by the caller (needs live contact queries the pure builder
-        // lacks); empty here so all other snapshot construction sites stay valid.
-        map_rows: Vec::new(),
         unread_events,
         unread_hook: nova_os_unread_hook(log, seen_events),
+        ..Default::default()
     }
+    .with_output("log", terminal_log_rows(log))
+    .with_output("objectives", terminal_objective_rows(objectives))
+    .with_output("ship", terminal_ship_rows(ship_name, ship_sections))
 }
 
 /// A short lead-in for the most recent unread flight-log entry, used by the boot
@@ -1216,7 +1217,7 @@ impl Plugin for NovaOsPlugin {
         app.init_resource::<NovaOsTabAnchor>();
         app.init_resource::<NovaOsFlightLog>();
         app.init_resource::<NovaOsTerminal>();
-        app.init_resource::<NovaOsAppRegistry>();
+        app.init_resource::<NovaOsCommandRegistry>();
         app.init_resource::<NovaOsCloseTransition>();
         app.init_resource::<NovaOsMonitorSettings>();
         app.init_resource::<NovaOsDegauss>();
@@ -1274,8 +1275,9 @@ impl Plugin for NovaOsPlugin {
         app.add_systems(
             Update,
             (
-                sync_nova_os_app_commands.run_if(
-                    resource_changed::<NovaOsAppRegistry>.or_else(resource_added::<NovaOsTerminal>),
+                sync_nova_os_commands.run_if(
+                    resource_changed::<NovaOsCommandRegistry>
+                        .or_else(resource_added::<NovaOsTerminal>),
                 ),
                 handle_terminal_keyboard.run_if(in_state(GameStates::Playing)),
                 handle_nova_os_app_keyboard.run_if(in_state(GameStates::Playing)),
@@ -1627,7 +1629,10 @@ fn handle_terminal_keyboard(
                     terminal.seen_events(),
                 );
                 // The `map view` CLI rows come from the shared map contact model.
-                snapshot.map_rows = crate::hud::nova_os_map::terminal_map_rows(&map_contacts);
+                snapshot = snapshot.with_output(
+                    "map view",
+                    crate::hud::nova_os_map::terminal_map_rows(&map_contacts),
+                );
                 let outcome = terminal.submit(&snapshot);
                 if let Some(bank) = &bank {
                     // A bare Enter on an empty prompt stays silent (a deliberate
@@ -1748,26 +1753,28 @@ fn handle_terminal_keyboard(
     }
 }
 
-/// Mirror the registered apps' launch words into the terminal so parsing,
-/// completion and `help` treat them as commands. Reading `app_commands` through
-/// the `ResMut` `Deref` does not mark the terminal changed, so once mirrored this
-/// early-returns without thrashing `rebuild_terminal_ui`.
-fn sync_nova_os_app_commands(
-    registry: Res<NovaOsAppRegistry>,
+/// Mirror the whole registered command set (core builtins plus registered apps
+/// and their subcommands) into the terminal so parsing, completion and `help`
+/// treat them uniformly. Reading `command_specs` through the `ResMut` `Deref` does
+/// not mark the terminal changed, so once mirrored this early-returns without
+/// thrashing `rebuild_terminal_ui`.
+fn sync_nova_os_commands(
+    registry: Res<NovaOsCommandRegistry>,
     mut terminal: ResMut<NovaOsTerminal>,
 ) {
+    let specs = registry.specs();
     // Compare through the immutable `Deref` so an up-to-date terminal is never
     // marked changed; only a real change takes the `&mut` path below.
-    let up_to_date = terminal.app_commands().len() == registry.len()
+    let up_to_date = terminal.command_specs().len() == specs.len()
         && terminal
-            .app_commands()
+            .command_specs()
             .iter()
-            .map(|command| command.id)
-            .eq(registry.ids());
+            .map(|command| command.name)
+            .eq(specs.iter().map(|command| command.name));
     if up_to_date {
         return;
     }
-    terminal.set_app_commands(registry.commands());
+    terminal.set_commands(specs);
 }
 
 /// While an app owns the screen, keyboard input belongs to it: the terminal
@@ -1787,7 +1794,7 @@ fn handle_nova_os_app_keyboard(
     mut keyboard: MessageReader<KeyboardInput>,
     pause: Res<State<PauseStates>>,
     keys: Res<ButtonInput<KeyCode>>,
-    registry: Res<NovaOsAppRegistry>,
+    registry: Res<NovaOsCommandRegistry>,
     mut terminal: ResMut<NovaOsTerminal>,
     mut commands: Commands,
     bank: Option<Res<SoundBank<UiSfx>>>,
@@ -1813,7 +1820,7 @@ fn handle_nova_os_app_keyboard(
         keyboard.clear();
         return;
     }
-    let Some(app) = live.and_then(|id| registry.get(id)) else {
+    let Some(app) = live.and_then(|id| registry.app_runtime(id)) else {
         keyboard.clear();
         return;
     };
@@ -1939,7 +1946,7 @@ fn drive_nova_os_power_led(
 fn sync_nova_os_app_ui(
     mut commands: Commands,
     terminal: Res<NovaOsTerminal>,
-    registry: Res<NovaOsAppRegistry>,
+    registry: Res<NovaOsCommandRegistry>,
     asset_server: Option<Res<AssetServer>>,
     rtt: Option<Res<NovaOsRtt>>,
     mut degauss: ResMut<NovaOsDegauss>,
@@ -1983,7 +1990,7 @@ fn sync_nova_os_app_ui(
     let (Some(id), Some(target)) = (desired, target) else {
         return;
     };
-    let Some(app) = registry.get(id) else {
+    let Some(app) = registry.app_runtime(id) else {
         return;
     };
     let font = nova_os_font(asset_server.as_deref());
@@ -2241,7 +2248,7 @@ fn nova_os_footer_just_spawned(q_footer: Query<(), Added<NovaOsFooterHintsMarker
 /// the mode) do not thrash the footer.
 fn rebuild_nova_os_footer_hints(
     terminal: Res<NovaOsTerminal>,
-    registry: Res<NovaOsAppRegistry>,
+    registry: Res<NovaOsCommandRegistry>,
     asset_server: Option<Res<AssetServer>>,
     mut commands: Commands,
     q_footer: Query<(Entity, Option<&Children>), With<NovaOsFooterHintsMarker>>,
@@ -5810,17 +5817,13 @@ mod tests {
         {
             let mut terminal = app.world_mut().resource_mut::<NovaOsTerminal>();
             type_text(&mut terminal, "log");
-            terminal.submit(&TerminalCommandSnapshot {
-                log_rows: vec![TerminalRow {
+            terminal.submit(&TerminalCommandSnapshot::default().with_output(
+                "log",
+                vec![TerminalRow {
                     kind: TerminalRowKind::Output,
                     text: "OBJ x Burn for Beacon 1".to_string(),
                 }],
-                objective_rows: Vec::new(),
-                ship_rows: Vec::new(),
-                map_rows: Vec::new(),
-                unread_events: 0,
-                unread_hook: None,
-            });
+            ));
             assert!(
                 terminal
                     .scrollback()
@@ -6476,8 +6479,12 @@ mod tests {
         app.init_resource::<NovaOsDegauss>();
         app.init_resource::<NovaOsFlightLog>();
         app.init_resource::<NovaOsTerminal>();
-        let mut registry = NovaOsAppRegistry::default();
-        registry.register(SampleApp);
+        let mut registry = NovaOsCommandRegistry::default();
+        registry.register(TerminalCommand::app(
+            "sample",
+            "Test-only lifecycle app",
+            SampleApp,
+        ));
         app.insert_resource(registry);
 
         app.world_mut()
@@ -6581,7 +6588,7 @@ mod tests {
         app.init_state::<PauseStates>();
         app.init_resource::<NovaOsFlightLog>();
         app.init_resource::<NovaOsTerminal>();
-        app.init_resource::<NovaOsAppRegistry>();
+        app.init_resource::<NovaOsCommandRegistry>();
         app.init_resource::<NovaOsCloseTransition>();
         app.init_resource::<NovaOsMonitorSettings>();
         app.init_resource::<NovaOsDegauss>();
@@ -7016,9 +7023,6 @@ mod tests {
         fn title(&self) -> &'static str {
             "Sample"
         }
-        fn summary(&self) -> &'static str {
-            "Test-only lifecycle app"
-        }
         fn spawn_body(&self, body: &mut ChildSpawnerCommands, font: Handle<Font>) {
             body.spawn((
                 Text::new("SAMPLE APP BODY"),
@@ -7044,9 +7048,6 @@ mod tests {
         }
         fn title(&self) -> &'static str {
             "Enter"
-        }
-        fn summary(&self) -> &'static str {
-            "Test-only app that exits on Enter"
         }
         fn spawn_body(&self, _body: &mut ChildSpawnerCommands, _font: Handle<Font>) {}
         fn handle_key(&self, key: &Key) -> NovaOsAppInputOutcome {
@@ -7077,15 +7078,24 @@ mod tests {
     fn app_runtime_app() -> App {
         let mut app = toggle_app();
         init_terminal_input_resources(&mut app);
-        let mut registry = NovaOsAppRegistry::default();
-        registry.register(SampleApp);
-        registry.register(EnterExitApp);
+        let mut registry = NovaOsCommandRegistry::default();
+        registry.register(TerminalCommand::app(
+            "sample",
+            "Test-only lifecycle app",
+            SampleApp,
+        ));
+        registry.register(TerminalCommand::app(
+            "enterapp",
+            "Test-only app that exits on Enter",
+            EnterExitApp,
+        ));
         app.insert_resource(registry);
         app.add_systems(
             Update,
             (
-                sync_nova_os_app_commands.run_if(
-                    resource_changed::<NovaOsAppRegistry>.or_else(resource_added::<NovaOsTerminal>),
+                sync_nova_os_commands.run_if(
+                    resource_changed::<NovaOsCommandRegistry>
+                        .or_else(resource_added::<NovaOsTerminal>),
                 ),
                 handle_terminal_keyboard.run_if(in_state(GameStates::Playing)),
                 handle_nova_os_app_keyboard.run_if(in_state(GameStates::Playing)),
@@ -7099,9 +7109,9 @@ mod tests {
         assert!(
             app.world()
                 .resource::<NovaOsTerminal>()
-                .app_commands()
+                .command_specs()
                 .iter()
-                .any(|command| command.id == "sample"),
+                .any(|command| command.name == "sample"),
             "the registered sample app is mirrored into the terminal command set",
         );
         app
@@ -7304,8 +7314,12 @@ mod tests {
         app.init_resource::<NovaOsFlightLog>();
         app.init_resource::<NovaOsTerminal>();
         app.init_resource::<NovaOsDegauss>();
-        let mut registry = NovaOsAppRegistry::default();
-        registry.register(SampleApp);
+        let mut registry = NovaOsCommandRegistry::default();
+        registry.register(TerminalCommand::app(
+            "sample",
+            "Test-only lifecycle app",
+            SampleApp,
+        ));
         app.insert_resource(registry);
         app.add_observer(setup_nova_os);
         app.add_observer(remove_nova_os);
@@ -7541,9 +7555,6 @@ mod tests {
         fn title(&self) -> &'static str {
             "Hints"
         }
-        fn summary(&self) -> &'static str {
-            "Test-only app with its own footer hints"
-        }
         fn spawn_body(&self, _body: &mut ChildSpawnerCommands, _font: Handle<Font>) {}
         fn hints(&self) -> &'static [&'static str] {
             &[
@@ -7575,8 +7586,12 @@ mod tests {
         app.add_plugins(StatesPlugin);
         app.init_state::<PauseStates>();
         app.init_resource::<NovaOsTerminal>();
-        let mut registry = NovaOsAppRegistry::default();
-        registry.register(HintsApp);
+        let mut registry = NovaOsCommandRegistry::default();
+        registry.register(TerminalCommand::app(
+            "hintsapp",
+            "Test-only app with its own footer hints",
+            HintsApp,
+        ));
         app.insert_resource(registry);
         app.add_systems(Update, rebuild_nova_os_footer_hints);
 

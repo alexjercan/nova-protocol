@@ -16,17 +16,16 @@
 #![warn(missing_docs)]
 
 pub mod app;
+pub mod command;
 pub mod shell;
 pub mod terminal;
 
 /// The public NOVA OS logic surface `nova_gameplay` imports as one glob.
 pub mod prelude {
     pub use crate::{
-        app::{
-            nova_os_footer_hints, NovaOsAppCommand, NovaOsAppInputOutcome, NovaOsAppRegistry,
-            NovaOsAppRuntime, NOVA_OS_TERMINAL_HINTS,
-        },
-        shell::CommandArity,
+        app::{NovaOsAppInputOutcome, NovaOsAppRuntime, NOVA_OS_TERMINAL_HINTS},
+        command::{nova_os_footer_hints, CommandBody, NovaOsCommandRegistry, TerminalCommand},
+        shell::{CliOutput, CommandArity},
         terminal::{
             nova_os_boot_banner_rows, nova_os_version_label, nova_os_welcome_rows,
             prompt_after_cursor, prompt_before_cursor, prompt_completion_ghost,

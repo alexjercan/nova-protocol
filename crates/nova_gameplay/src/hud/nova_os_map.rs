@@ -382,9 +382,6 @@ impl NovaOsAppRuntime for MapApp {
     fn title(&self) -> &'static str {
         "MAP / LOCAL SPACE"
     }
-    fn summary(&self) -> &'static str {
-        "Open the local-space map"
-    }
     fn hints(&self) -> &'static [&'static str] {
         MAP_HINTS
     }
@@ -499,12 +496,21 @@ pub struct NovaOsMapPlugin;
 impl Plugin for NovaOsMapPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MapRuntime>();
-        // Register into the NOVA OS app registry (created by NovaOsPlugin, added
-        // before this plugin). This mirrors `map` into the terminal's launch
-        // words via `sync_nova_os_app_commands`.
+        // Register the `map` command tree into the unified NOVA OS command
+        // registry (created by NovaOsPlugin, added before this plugin): the launch
+        // word `map` (which spawns the app), its `map view` CLI subcommand, and the
+        // `MapApp` runtime, all declared together. `sync_nova_os_commands` mirrors
+        // these into the terminal's command set.
         app.world_mut()
-            .resource_mut::<NovaOsAppRegistry>()
-            .register(MapApp);
+            .resource_mut::<NovaOsCommandRegistry>()
+            .register(
+                TerminalCommand::app(MAP_APP_ID, "Open the local-space map", MapApp)
+                    .with_subcommand(TerminalCommand::cli(
+                        "map view",
+                        "Print local-space contacts",
+                        CliOutput::Snapshot,
+                    )),
+            );
 
         // Scene lifecycle runs unconditionally so it can tear down when the
         // computer closes; the interactive systems gate on the map being active.

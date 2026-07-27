@@ -141,6 +141,13 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   current ECS state needs at least one App-driven submit test that mutates the
   source resource/component and proves the next command reflects it; formatting
   a prebuilt snapshot only proves the renderer. 20260726-115330.
+- `test-fixture-distances-computed-not-eyeballed` (x1): fixtures for
+  distance-based (Levenshtein/did-you-mean) or prefix-based (longest-match/
+  completion) logic must pick the collision/typo case by COMPUTING it against the
+  whole command set, not eyeballing a plausible string - two nova_os unit tests
+  failed first run because `mep` was distance-2 of `help` and `map` prefixed the
+  `map view` help row. The boundary IS the test, so the fixture has to sit on the
+  right side of it. 20260727-231546.
 - `review-current-base-before-ooc` (x1): before spawning out-of-context review,
   compare the branch against CURRENT local default and merge it if the diff
   includes inherited base noise - stale comparisons waste review on unrelated
