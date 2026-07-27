@@ -30,4 +30,4 @@ port = 8080
 #   python3 -m http.server -d /tmp/portal 8000
 # See web/src/wiki/dev/mod-portal.md, "Local development".
 [[proxy]]
-backend = "http://localhost:8000/mods"
+backend = "http://localhost:9000/mods"
