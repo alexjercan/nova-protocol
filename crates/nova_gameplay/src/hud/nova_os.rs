@@ -3139,7 +3139,11 @@ fn setup_nova_os(
                                 border_radius: BorderRadius::all(Val::Px(NOVA_OS_SCREEN_RADIUS_PX)),
                                 ..default()
                             },
-                            BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.52)),
+                            // A dark recess line, not a bright straight phosphor
+                            // frame: the glass sits recessed in the bezel and the
+                            // crisp glowing edge now comes from the shader's
+                            // barrel-bowed rim (see DECISION.md / feedback item 2).
+                            BorderColor::all(NOVA_OS_CASE_EDGE.with_alpha(0.85)),
                             BackgroundColor(NOVA_OS_SCREEN),
                         ))
                         .with_children(|screen| {
@@ -3364,20 +3368,23 @@ fn spawn_nova_os_casing_vents(parent: &mut ChildSpawnerCommands) {
         });
 }
 
-/// The phosphor rim tracing the screen edge (PoC `.rim`): a wider low-alpha glow
-/// under a thin bright line, two nested rounded-border nodes at the screen
-/// rounding. Drawn above the CRT overlay, below the glass.
+/// A faint phosphor halo tracing the screen edge (PoC `.rim`): a wider low-alpha
+/// glow under a thin line, two nested rounded-border nodes at the screen
+/// rounding. Drawn above the CRT overlay, below the glass. Kept deliberately
+/// faint - the crisp, tube-bowed screen edge is now the shader's barrel-warped
+/// rim (see DECISION.md); this is only the soft outer bloom, and the headless
+/// fallback's sole edge cue.
 fn spawn_nova_os_phosphor_rim(screen: &mut ChildSpawnerCommands) {
     for (name, border_px, color) in [
         (
             "NovaOsPhosphorRimGlow",
             3.0,
-            NOVA_OS_PHOSPHOR.with_alpha(0.18),
+            NOVA_OS_PHOSPHOR.with_alpha(0.09),
         ),
         (
             "NovaOsPhosphorRimLine",
             1.0,
-            NOVA_OS_PHOSPHOR.with_alpha(0.55),
+            NOVA_OS_PHOSPHOR.with_alpha(0.16),
         ),
     ] {
         screen.spawn((
@@ -5833,6 +5840,27 @@ mod tests {
         assert_eq!(
             screen.border_radius.top_left,
             Val::Px(NOVA_OS_SCREEN_RADIUS_PX)
+        );
+
+        // The screen edge is a dark recess line, NOT the old flat bright-phosphor
+        // frame: the crisp glowing edge now comes from the shader's barrel-bowed
+        // rim (feedback item 2 / DECISION.md). This pins the demotion so the flat
+        // straight frame cannot silently return.
+        let screen_border = app
+            .world_mut()
+            .query_filtered::<&BorderColor, With<NovaOsScreenMarker>>()
+            .single(app.world())
+            .expect("one screen")
+            .clone();
+        assert_eq!(
+            screen_border.top,
+            NOVA_OS_CASE_EDGE.with_alpha(0.85),
+            "the screen edge is a dark recess line"
+        );
+        assert_ne!(
+            screen_border.top,
+            NOVA_OS_PHOSPHOR.with_alpha(0.52),
+            "the flat bright-phosphor screen frame is gone"
         );
 
         // Four moulded corner screws.

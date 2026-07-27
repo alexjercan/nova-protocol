@@ -65,6 +65,18 @@ const RETRACE_SPEED: f32 = 3.0;       // tube-heights per second the beam falls
 const RETRACE_WIDTH: f32 = 0.012;     // gaussian half-width of the beam (uv)
 const RETRACE_STRENGTH: f32 = 0.09;   // green lift along the fast retrace beam
 
+// Phosphor grain tint: the analog grain is a green phosphor shimmer, not neutral
+// gray snow (owner playtest, feedback item 3). Scales the scalar grain into the
+// three channels so the noise reads green.
+const GRAIN_TINT: vec3<f32> = vec3<f32>(0.35, 1.0, 0.55);
+
+// Curved screen-edge rim (feedback item 2): a phosphor lip glowing at the panel
+// boundary, measured in BARREL-WARPED uv space so it bows with the tube instead
+// of sitting as a flat rectangle. RIM_WIDTH is the inward fade band (warped uv);
+// RIM_STRENGTH scales the phosphor lift.
+const RIM_WIDTH: f32 = 0.022;
+const RIM_STRENGTH: f32 = 0.5;
+
 fn hash21(p: vec2<f32>) -> f32 {
     return fract(sin(dot(p, vec2<f32>(12.9898, 78.233))) * 43758.5453);
 }
@@ -177,8 +189,17 @@ fn fragment(in: UiVertexOutput) -> @location(0) vec4<f32> {
     let flash = material.degauss * material.degauss * DEGAUSS_FLASH;
     let analog_add = (hum + retrace) * material.tint.rgb + vec3<f32>(flash, flash, flash);
 
-    var rgb = (base.rgb * scan * vignette + glow + grain) * material.brightness * kick * flicker;
-    rgb = (rgb + analog_add) * in_bounds * (1.0 - collapsed);
+    // Curved phosphor edge rim: distance to the nearest panel bound in WARPED uv
+    // space, so its iso-contour is the same barrel-bowed curve as the content
+    // edge. A green lip glows there, fading inward over RIM_WIDTH - the border
+    // now wraps the 3D tube instead of reading as a flat rectangle.
+    let edge = min(min(warped.x, 1.0 - warped.x), min(warped.y, 1.0 - warped.y));
+    let rim = (1.0 - smoothstep(0.0, RIM_WIDTH, edge)) * in_bounds;
+    let rim_add = rim * RIM_STRENGTH * material.tint.rgb;
+
+    // Grain is a green phosphor shimmer (GRAIN_TINT), not neutral gray snow.
+    var rgb = (base.rgb * scan * vignette + glow + grain * GRAIN_TINT) * material.brightness * kick * flicker;
+    rgb = (rgb + analog_add + rim_add) * in_bounds * (1.0 - collapsed);
 
     // Rounded-corner mask in device pixels (a MaterialNode ignores BorderRadius).
     var corner_mask = 1.0;

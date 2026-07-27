@@ -1007,6 +1007,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   corrupts the whole uniform if it lands on a bad offset. Put a `vec2` right after
   a `vec4` (offset 16, 8-aligned, no padding hole) or pad explicitly; verify the
   two struct definitions line up field-for-field. 20260726-193155.
+- `wgsl-not-covered-by-cargo-check` (domain, x1): `.wgsl` shaders load at
+  RUNTIME, so `cargo check`/tests never compile them - a syntax/type error only
+  surfaces as a wgpu/naga panic when the material first renders. Validate any
+  shader edit by RUNNING the app/example that renders it (here: `BCS_AUTOPILOT=1
+  cargo run --example screenshot_nova_os --features debug` opens the NOVA OS;
+  clean AppExit::Success = the shader compiled). 20260727-135204.
 - `bevy-ui-image-camera-is-pickable-via-forwarded-pointer` (domain, x1): bevy
   0.19 `ui_picking` matches pointers to cameras by RENDER TARGET, not
   window-ness, so UI rendered to a `RenderTarget::Image` via `UiTargetCamera` IS
