@@ -43,14 +43,14 @@ pub mod velocity;
 pub mod prelude {
     pub use super::{
         allegiance_markers::prelude::*, ammo_readout::prelude::*, beacon_chips::prelude::*,
-        comms_panel::prelude::*, component_lock::prelude::*, edge_indicators::prelude::*,
-        flight_status::prelude::*, holo_instruments::prelude::*, item_highlights::prelude::*,
-        keybind_hints::prelude::*, lock_crosshairs::prelude::*, lock_dwell_ring::prelude::*,
-        maneuver_instruments::prelude::*, objective_feedback::prelude::*,
-        objective_markers::prelude::*, readout::prelude::*, screen_indicator::prelude::*,
-        target_inset::prelude::*, torpedo_target::prelude::*, turret_lead::prelude::*,
-        velocity::prelude::*, HudDrawerExempt, HudSelfDrivenVisibility, HudTier, HudVisibility,
-        NovaHudAssets, NovaHudPlugin, NovaHudSystems,
+        comms_panel::prelude::*, component_lock::prelude::*, drawer::NovaOsMonitorSettings,
+        edge_indicators::prelude::*, flight_status::prelude::*, holo_instruments::prelude::*,
+        item_highlights::prelude::*, keybind_hints::prelude::*, lock_crosshairs::prelude::*,
+        lock_dwell_ring::prelude::*, maneuver_instruments::prelude::*,
+        objective_feedback::prelude::*, objective_markers::prelude::*, readout::prelude::*,
+        screen_indicator::prelude::*, target_inset::prelude::*, torpedo_target::prelude::*,
+        turret_lead::prelude::*, velocity::prelude::*, HudDrawerExempt, HudSelfDrivenVisibility,
+        HudTier, HudVisibility, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
     };
 }
 

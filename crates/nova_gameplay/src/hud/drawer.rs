@@ -93,6 +93,24 @@ const NOVA_OS_SCREEN_RADIUS_PX: f32 = 12.0;
 /// Bottom casing strip under the bezel (PoC `.chin`, ~54px) that carries the
 /// brand plate and the reserved controls row.
 const NOVA_OS_CHIN_HEIGHT_PX: f32 = 54.0;
+
+/// BRIGHT knob detents (task 20260726-214617): the extra brightness multiply fed
+/// to the CRT `brightness` uniform, mirroring the PoC `BRIGHT` array. Index
+/// [`NOVA_OS_BRIGHT_DEFAULT_DETENT`] (= 1.0) is the shipped neutral default.
+const NOVA_OS_BRIGHT_DETENTS: [f32; 4] = [0.8, 1.0, 1.15, 1.3];
+/// SCAN knob detents: the scanline-strength uniform. Index
+/// [`NOVA_OS_SCAN_DEFAULT_DETENT`] is [`NOVA_OS_CRT_SCANLINE_STRENGTH`], the
+/// shipped default look; 0 turns scanlines off, index 3 is a heavy, obviously
+/// aggressive raster (owner call 2026-07-27). (The PoC's [0, 0.18, 0.34, 0.52]
+/// were CSS-overlay opacities; the in-game shader's `scanline_strength` darkens
+/// far harder, so the range is scaled to it.)
+const NOVA_OS_SCAN_DETENTS: [f32; 4] = [0.0, 0.03, NOVA_OS_CRT_SCANLINE_STRENGTH, 0.20];
+/// Dial-pointer angle (degrees) per detent index, mirroring the PoC `ANGLES`.
+const NOVA_OS_KNOB_ANGLES: [f32; 4] = [-115.0, -38.0, 38.0, 115.0];
+/// Default BRIGHT detent index (PoC `brightIndex = 1`, = neutral 1.0).
+const NOVA_OS_BRIGHT_DEFAULT_DETENT: usize = 1;
+/// Default SCAN detent index (PoC `scanIndex = 2`, = the shipped scanline look).
+const NOVA_OS_SCAN_DEFAULT_DETENT: usize = 2;
 const NOVA_OS_TERMINAL_PAD_X_PX: f32 = 16.0;
 const NOVA_OS_TERMINAL_PAD_Y_PX: f32 = 14.0;
 const NOVA_OS_PROMPT_ROW_HEIGHT_PX: f32 = 58.0;
@@ -267,11 +285,103 @@ struct NovaOsChinMarker;
 #[derive(Component)]
 struct NovaOsBrandPlateMarker;
 
-/// The reserved, initially empty controls row on the chin's right. Its
-/// functional knobs/buttons are task 20260726-214617, which depends on this
-/// geometry.
+/// The controls row on the chin's right, carrying the BRIGHT/SCAN knobs and the
+/// SND/PWR buttons (task 20260726-214617).
 #[derive(Component)]
 struct NovaOsControlsRowMarker;
+
+/// Player-tunable NOVA OS monitor hardware state, driven by the physical chin
+/// controls (task 20260726-214617): the BRIGHT/SCAN knob detents and the SND
+/// speaker toggle. Persisted via the settings store (nova_menu) so the dial
+/// positions and mute survive a restart. Defaults mirror the PoC boot state:
+/// BRIGHT detent 1 (= neutral 1.0), SCAN detent 2 (the shipped scanline look),
+/// sound ON.
+#[derive(Resource, Clone, Copy, PartialEq, Debug, Reflect)]
+#[reflect(Resource)]
+pub struct NovaOsMonitorSettings {
+    /// BRIGHT knob detent, an index into [`NOVA_OS_BRIGHT_DETENTS`].
+    pub bright_detent: usize,
+    /// SCAN knob detent, an index into [`NOVA_OS_SCAN_DETENTS`].
+    pub scan_detent: usize,
+    /// Whether the monitor speaker is armed (the SND button; consumed by the
+    /// NOVA OS sound task 20260726-214639).
+    pub sound_enabled: bool,
+}
+
+impl Default for NovaOsMonitorSettings {
+    fn default() -> Self {
+        Self {
+            bright_detent: NOVA_OS_BRIGHT_DEFAULT_DETENT,
+            scan_detent: NOVA_OS_SCAN_DEFAULT_DETENT,
+            sound_enabled: true,
+        }
+    }
+}
+
+impl NovaOsMonitorSettings {
+    /// The brightness multiply for the current BRIGHT detent. Clamps a
+    /// possibly-corrupt persisted index into range.
+    pub fn brightness(&self) -> f32 {
+        NOVA_OS_BRIGHT_DETENTS[self.bright_detent.min(NOVA_OS_BRIGHT_DETENTS.len() - 1)]
+    }
+
+    /// The scanline strength for the current SCAN detent. Clamps a
+    /// possibly-corrupt persisted index into range.
+    pub fn scanline_strength(&self) -> f32 {
+        NOVA_OS_SCAN_DETENTS[self.scan_detent.min(NOVA_OS_SCAN_DETENTS.len() - 1)]
+    }
+
+    /// The dial-pointer angle for a knob's current detent.
+    fn dial_angle(&self, knob: NovaOsKnob) -> f32 {
+        let index = match knob {
+            NovaOsKnob::Bright => self.bright_detent,
+            NovaOsKnob::Scan => self.scan_detent,
+        };
+        NOVA_OS_KNOB_ANGLES[index.min(NOVA_OS_KNOB_ANGLES.len() - 1)]
+    }
+
+    /// Advance a knob to its next detent, wrapping (PoC `(index + 1) % len`).
+    fn cycle(&mut self, knob: NovaOsKnob) {
+        match knob {
+            NovaOsKnob::Bright => {
+                self.bright_detent = (self.bright_detent + 1) % NOVA_OS_BRIGHT_DETENTS.len();
+            }
+            NovaOsKnob::Scan => {
+                self.scan_detent = (self.scan_detent + 1) % NOVA_OS_SCAN_DETENTS.len();
+            }
+        }
+    }
+}
+
+/// Which chin knob a button/dial belongs to.
+#[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
+enum NovaOsKnob {
+    /// The BRIGHT knob (screen brightness multiply).
+    Bright,
+    /// The SCAN knob (scanline depth).
+    Scan,
+}
+
+/// The rotating dial pointer inside a knob (a child of the knob button). Carries
+/// the [`NovaOsKnob`] it belongs to so the sync system rotates the right one.
+#[derive(Component)]
+struct NovaOsKnobDialMarker;
+
+/// The SND speaker toggle button on the chin.
+#[derive(Component)]
+struct NovaOsSoundButtonMarker;
+
+/// The lit/unlit indicator square inside the SND button.
+#[derive(Component)]
+struct NovaOsSoundIndicatorMarker;
+
+/// The "SND ON"/"SND OFF" label text inside the SND button.
+#[derive(Component)]
+struct NovaOsSoundLabelMarker;
+
+/// The PWR button on the chin (the diegetic twin of the `exit` command).
+#[derive(Component)]
+struct NovaOsPowerButtonMarker;
 
 /// The bright phosphor rim tracing the screen edge (PoC `.rim` line/glow pair).
 #[derive(Component)]
@@ -1615,6 +1725,8 @@ impl Plugin for NovaDrawerPlugin {
         app.init_resource::<NovaOsTerminal>();
         app.init_resource::<NovaOsAppRegistry>();
         app.init_resource::<DrawerCloseTransition>();
+        app.init_resource::<NovaOsMonitorSettings>();
+        app.register_type::<NovaOsMonitorSettings>();
         app.register_asset_loader(NovaOsTtcFontLoader);
         app.add_plugins(UiMaterialPlugin::<NovaOsCrtMaterial>::default());
 
@@ -1678,6 +1790,7 @@ impl Plugin for NovaDrawerPlugin {
                 blink_nova_os_caret,
                 drive_nova_os_topbar_fps,
                 animate_nova_os_crt.run_if(resource_exists::<Assets<NovaOsCrtMaterial>>),
+                sync_nova_os_monitor_controls.run_if(resource_changed::<NovaOsMonitorSettings>),
             )
                 .run_if(in_state(PauseStates::Drawer))
                 .in_set(NovaHudSystems),
@@ -1919,6 +2032,59 @@ fn handle_nova_os_app_keyboard(
 /// route as Escape.
 fn on_nova_os_app_close(_activate: On<Activate>, mut terminal: ResMut<NovaOsTerminal>) {
     terminal.exit_app();
+}
+
+/// BRIGHT knob click: advance the brightness detent (the dial pointer and the
+/// CRT `brightness` uniform follow via [`sync_nova_os_monitor_controls`] /
+/// [`animate_nova_os_crt`]).
+fn on_nova_os_bright_knob(_activate: On<Activate>, mut settings: ResMut<NovaOsMonitorSettings>) {
+    settings.cycle(NovaOsKnob::Bright);
+}
+
+/// SCAN knob click: advance the scanline detent.
+fn on_nova_os_scan_knob(_activate: On<Activate>, mut settings: ResMut<NovaOsMonitorSettings>) {
+    settings.cycle(NovaOsKnob::Scan);
+}
+
+/// SND button click: toggle the monitor speaker flag (default ON). The NOVA OS
+/// sound task consumes the flag; with no audio wired this is a visible-state
+/// no-op (the indicator + label flip).
+fn on_nova_os_sound_button(_activate: On<Activate>, mut settings: ResMut<NovaOsMonitorSettings>) {
+    settings.sound_enabled = !settings.sound_enabled;
+}
+
+/// PWR button click: drive the existing animated close, the diegetic twin of the
+/// `exit` command. Always powers the monitor off (from an app or the prompt).
+fn on_nova_os_power_button(_activate: On<Activate>, mut close: ResMut<DrawerCloseTransition>) {
+    close.closing = true;
+}
+
+/// Reconcile the chin controls' look with [`NovaOsMonitorSettings`] after a knob
+/// turn or SND toggle: rotate each dial pointer to its detent angle, and light /
+/// dim + relabel the SND button. Spawn-time state is set directly in
+/// [`spawn_nova_os_knob`]/[`spawn_nova_os_sound_button`]; this handles live
+/// changes (gated on `resource_changed`, which also harmlessly re-applies the
+/// current state on the init frame).
+fn sync_nova_os_monitor_controls(
+    settings: Res<NovaOsMonitorSettings>,
+    mut q_dials: Query<(&NovaOsKnob, &mut UiTransform), With<NovaOsKnobDialMarker>>,
+    mut q_sound_label: Query<&mut Text, With<NovaOsSoundLabelMarker>>,
+    mut q_sound_indicator: Query<&mut BackgroundColor, With<NovaOsSoundIndicatorMarker>>,
+    mut q_sound_button: Query<&mut BorderColor, With<NovaOsSoundButtonMarker>>,
+) {
+    for (knob, mut transform) in &mut q_dials {
+        transform.rotation = Rot2::degrees(settings.dial_angle(*knob));
+    }
+    let lit = nova_os_lit_color(settings.sound_enabled);
+    for mut text in &mut q_sound_label {
+        *text = Text::new(nova_os_sound_label(settings.sound_enabled));
+    }
+    for mut color in &mut q_sound_indicator {
+        color.0 = lit;
+    }
+    for mut border in &mut q_sound_button {
+        *border = BorderColor::all(lit);
+    }
 }
 
 /// Reconcile the on-screen app surface with [`NovaOsTerminal::active_mode`]:
@@ -2289,6 +2455,7 @@ fn drive_nova_os_topbar_fps(
 /// time because the sim clock is frozen while the computer is open.
 fn animate_nova_os_crt(
     time: Res<Time<Real>>,
+    settings: Res<NovaOsMonitorSettings>,
     mut materials: ResMut<Assets<NovaOsCrtMaterial>>,
     q_openness: Query<&DrawerOpenness, With<DrawerRootMarker>>,
     q_surface: Query<
@@ -2300,11 +2467,17 @@ fn animate_nova_os_crt(
     // Feed the eased openness in as the CRT power level: the shader blooms the
     // raster on from a line and collapses it to a dying dot on close.
     let power = q_openness.iter().next().map(|o| o.0).unwrap_or(1.0);
+    // The BRIGHT/SCAN chin knobs drive the brightness multiply and scanline
+    // depth uniforms (task 20260726-214617).
+    let brightness = settings.brightness();
+    let scanline_strength = settings.scanline_strength();
     for (node, computed) in &q_surface {
         if let Some(mut material) = materials.get_mut(&node.0) {
             material.data.time = seconds;
             material.data.resolution = computed.size;
             material.data.power = power;
+            material.data.brightness = brightness;
+            material.data.scanline_strength = scanline_strength;
         }
     }
 }
@@ -2879,6 +3052,7 @@ fn setup_drawer(
     mut crt_materials: Option<ResMut<Assets<NovaOsCrtMaterial>>>,
     mut images: Option<ResMut<Assets<Image>>>,
     asset_server: Option<Res<AssetServer>>,
+    settings: Option<Res<NovaOsMonitorSettings>>,
     q_spaceship: Query<
         (Entity, Option<&Name>),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
@@ -2887,6 +3061,9 @@ fn setup_drawer(
     let Ok((_, ship_name)) = q_spaceship.get(add.entity) else {
         return;
     };
+    // The plugin always inits the resource; tolerate its absence so bare-app
+    // rigs that only exercise other parts of the shell still spawn.
+    let settings = settings.map(|s| *s).unwrap_or_default();
     let font = nova_os_font(asset_server.as_deref());
     let ship_name = nova_os_ship_name(ship_name);
 
@@ -3109,7 +3286,7 @@ fn setup_drawer(
                             spawn_nova_os_glass_sheen(screen);
                         });
                 });
-            spawn_nova_os_chin(monitor, font.clone(), asset_server.as_deref());
+            spawn_nova_os_chin(monitor, font.clone(), asset_server.as_deref(), &settings);
         });
 
     // Render-capable: populate the offscreen content root with the terminal (its
@@ -3394,6 +3571,7 @@ fn spawn_nova_os_chin(
     parent: &mut ChildSpawnerCommands,
     font: Handle<Font>,
     asset_server: Option<&AssetServer>,
+    settings: &NovaOsMonitorSettings,
 ) {
     parent
         .spawn((
@@ -3503,7 +3681,7 @@ fn spawn_nova_os_chin(
                         ));
                     });
             });
-            // Reserved controls row - functional knobs land in task 214617.
+            // Controls row: the working BRIGHT/SCAN knobs and SND/PWR buttons.
             chin.spawn((
                 Name::new("NovaOsControlsRow"),
                 NovaOsControlsRowMarker,
@@ -3516,8 +3694,207 @@ fn spawn_nova_os_chin(
                     min_height: Val::Px(26.0),
                     ..default()
                 },
-            ));
+            ))
+            .with_children(|controls| {
+                spawn_nova_os_knob(
+                    controls,
+                    font.clone(),
+                    settings,
+                    NovaOsKnob::Bright,
+                    "BRIGHT",
+                );
+                spawn_nova_os_knob(controls, font.clone(), settings, NovaOsKnob::Scan, "SCAN");
+                spawn_nova_os_sound_button(controls, font.clone(), settings);
+                spawn_nova_os_power_button(controls, font.clone());
+            });
         });
+}
+
+/// One rotary knob (BRIGHT or SCAN): a clickable dial that cycles its 4 detents
+/// on each press (PoC `.knob`), the pointer rotating to the detent angle, with a
+/// small caption beneath. Spawns with the dial already rotated to the current
+/// detent so a reopen shows the saved position; live turns are re-synced by
+/// [`sync_nova_os_monitor_controls`].
+fn spawn_nova_os_knob(
+    controls: &mut ChildSpawnerCommands,
+    font: Handle<Font>,
+    settings: &NovaOsMonitorSettings,
+    knob: NovaOsKnob,
+    caption: &str,
+) {
+    let mut knob_cmd = controls.spawn((
+        Name::new(format!("NovaOsKnob({caption})")),
+        knob,
+        Button,
+        Node {
+            flex_direction: FlexDirection::Column,
+            align_items: AlignItems::Center,
+            row_gap: Val::Px(3.0),
+            ..default()
+        },
+    ));
+    // Each knob cycles its own detent; the observer type differs per knob, so
+    // attach it via EntityCommands rather than a shared bundle.
+    match knob {
+        NovaOsKnob::Bright => knob_cmd.observe(on_nova_os_bright_knob),
+        NovaOsKnob::Scan => knob_cmd.observe(on_nova_os_scan_knob),
+    };
+    knob_cmd.with_children(|knob_node| {
+        // The dial face: a dark moulded disc with a raised rim.
+        knob_node
+            .spawn((
+                Name::new("NovaOsKnobDial"),
+                NovaOsKnobDialMarker,
+                knob,
+                Node {
+                    width: Val::Px(26.0),
+                    height: Val::Px(26.0),
+                    border: UiRect::all(Val::Px(1.0)),
+                    border_radius: BorderRadius::MAX,
+                    ..default()
+                },
+                BackgroundColor(NOVA_OS_CASE_MID),
+                BorderColor::all(NOVA_OS_CASE_LIT),
+                UiTransform::from_rotation(Rot2::degrees(settings.dial_angle(knob))),
+                // The knob click is owned by the parent Button; the dial and
+                // its pointer must not intercept the pick.
+                Pickable::IGNORE,
+            ))
+            .with_children(|dial| {
+                // Pointer: a bright phosphor tick near the top, sweeping as the
+                // dial rotates around its centre.
+                dial.spawn((
+                    Name::new("NovaOsKnobPointer"),
+                    Node {
+                        position_type: PositionType::Absolute,
+                        width: Val::Px(2.0),
+                        height: Val::Px(9.0),
+                        top: Val::Px(2.0),
+                        left: Val::Px(11.0),
+                        ..default()
+                    },
+                    BackgroundColor(NOVA_OS_PHOSPHOR),
+                    Pickable::IGNORE,
+                ));
+            });
+        knob_node.spawn((
+            Name::new("NovaOsKnobCaption"),
+            Text::new(caption),
+            nova_os_text_font(7.0, font),
+            TextColor(NOVA_OS_PHOSPHOR_MUTED),
+            Pickable::IGNORE,
+        ));
+    });
+}
+
+/// The SND speaker toggle (PoC `#soundBtn`): flips
+/// [`NovaOsMonitorSettings::sound_enabled`], its indicator lit when armed and the
+/// label reading "SND ON"/"SND OFF". Spawns matching the current state; live
+/// flips are re-synced by [`sync_nova_os_monitor_controls`].
+fn spawn_nova_os_sound_button(
+    controls: &mut ChildSpawnerCommands,
+    font: Handle<Font>,
+    settings: &NovaOsMonitorSettings,
+) {
+    let on = settings.sound_enabled;
+    controls.spawn((
+        Name::new("NovaOsSoundButton"),
+        NovaOsSoundButtonMarker,
+        Button,
+        nova_os_chin_button_node(),
+        BorderColor::all(nova_os_lit_color(on)),
+        BackgroundColor(NOVA_OS_CASE_MID),
+        observe(on_nova_os_sound_button),
+        children![
+            (
+                Name::new("NovaOsSoundIndicator"),
+                NovaOsSoundIndicatorMarker,
+                Node {
+                    width: Val::Px(7.0),
+                    height: Val::Px(7.0),
+                    border_radius: BorderRadius::MAX,
+                    ..default()
+                },
+                BackgroundColor(nova_os_lit_color(on)),
+                Pickable::IGNORE,
+            ),
+            (
+                Name::new("NovaOsSoundLabel"),
+                NovaOsSoundLabelMarker,
+                Text::new(nova_os_sound_label(on)),
+                nova_os_text_font(9.0, font),
+                TextColor(NOVA_OS_TEXT),
+                Pickable::IGNORE,
+            ),
+        ],
+    ));
+}
+
+/// The PWR button + green power LED (PoC `#powerBtn`): pressing it drives the
+/// existing animated close, the diegetic twin of the `exit` command.
+fn spawn_nova_os_power_button(controls: &mut ChildSpawnerCommands, font: Handle<Font>) {
+    controls.spawn((
+        Name::new("NovaOsPowerButton"),
+        NovaOsPowerButtonMarker,
+        Button,
+        nova_os_chin_button_node(),
+        BorderColor::all(NOVA_OS_CASE_LIT),
+        BackgroundColor(NOVA_OS_CASE_MID),
+        observe(on_nova_os_power_button),
+        children![
+            (
+                Name::new("NovaOsPowerLed"),
+                Node {
+                    width: Val::Px(7.0),
+                    height: Val::Px(7.0),
+                    border_radius: BorderRadius::MAX,
+                    ..default()
+                },
+                // Lit green: the tube is powered while the chin is on screen.
+                BackgroundColor(NOVA_OS_PHOSPHOR),
+                Pickable::IGNORE,
+            ),
+            (
+                Name::new("NovaOsPowerLabel"),
+                Text::new("PWR"),
+                nova_os_text_font(9.0, font),
+                TextColor(NOVA_OS_TEXT),
+                Pickable::IGNORE,
+            ),
+        ],
+    ));
+}
+
+/// Shared node style for the SND/PWR chin buttons (PoC `.power-btn`): a small
+/// pill with an indicator glyph beside a caption.
+fn nova_os_chin_button_node() -> Node {
+    Node {
+        flex_direction: FlexDirection::Row,
+        align_items: AlignItems::Center,
+        column_gap: Val::Px(6.0),
+        padding: UiRect::axes(Val::Px(8.0), Val::Px(5.0)),
+        border: UiRect::all(Val::Px(1.0)),
+        border_radius: BorderRadius::all(Val::Px(4.0)),
+        ..default()
+    }
+}
+
+/// SND label text for the armed/muted state.
+fn nova_os_sound_label(on: bool) -> String {
+    if on {
+        "SND ON".into()
+    } else {
+        "SND OFF".into()
+    }
+}
+
+/// Lit phosphor vs muted grey for an armed/unarmed control.
+fn nova_os_lit_color(on: bool) -> Color {
+    if on {
+        NOVA_OS_PHOSPHOR
+    } else {
+        NOVA_OS_CASE_LIT
+    }
 }
 
 fn spawn_nova_os_terminal_content(
@@ -5783,6 +6160,7 @@ mod tests {
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<NovaOsCrtMaterial>();
         app.init_resource::<Time<Real>>();
+        app.init_resource::<NovaOsMonitorSettings>();
         app.add_systems(Update, animate_nova_os_crt);
 
         // The eased openness the shader reads as its power level.
@@ -5820,6 +6198,216 @@ mod tests {
         assert_eq!(
             material.data.power, 0.5,
             "DrawerOpenness drives the CRT power collapse uniform"
+        );
+    }
+
+    /// A headless app with the NOVA OS chin controls spawned and the computer
+    /// open, mirroring `nova_os_app_ui_spawns_chrome_and_close_button_exits`'s
+    /// rig (task 20260726-214617).
+    fn chin_controls_app() -> App {
+        let mut app = App::new();
+        // AssetPlugin so `init_asset` works and the AssetServer can hand back
+        // (asynchronously-failing) handles for the font/logo loads; the Font +
+        // Image asset types must be registered or those loads panic. This
+        // mirrors `spawn_drawer_shell_with_crt`'s callers.
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.add_plugins(StatesPlugin);
+        app.init_state::<GameStates>();
+        app.init_state::<PauseStates>();
+        app.init_resource::<DrawerFlightLog>();
+        app.init_resource::<NovaOsTerminal>();
+        app.init_resource::<NovaOsAppRegistry>();
+        app.init_resource::<DrawerCloseTransition>();
+        app.init_resource::<NovaOsMonitorSettings>();
+        app.init_resource::<Time<Real>>();
+        app.init_asset::<Font>();
+        app.init_asset::<Image>();
+        app.init_asset::<NovaOsCrtMaterial>();
+        app.add_observer(setup_drawer);
+        app.add_systems(
+            Update,
+            (animate_nova_os_crt, sync_nova_os_monitor_controls)
+                .run_if(in_state(PauseStates::Drawer)),
+        );
+        app.world_mut()
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker));
+        app.world_mut()
+            .resource_mut::<NextState<PauseStates>>()
+            .set(PauseStates::Drawer);
+        app.update();
+        app
+    }
+
+    /// The `Button` entity (not the dial) for a chin knob.
+    fn knob_button(app: &mut App, which: NovaOsKnob) -> Entity {
+        app.world_mut()
+            .query_filtered::<(Entity, &NovaOsKnob), With<Button>>()
+            .iter(app.world())
+            .find(|(_, knob)| **knob == which)
+            .map(|(entity, _)| entity)
+            .expect("the knob button spawned")
+    }
+
+    /// A knob's dial-pointer rotation, in radians.
+    fn dial_rotation(app: &mut App, which: NovaOsKnob) -> f32 {
+        app.world_mut()
+            .query_filtered::<(&NovaOsKnob, &UiTransform), With<NovaOsKnobDialMarker>>()
+            .iter(app.world())
+            .find(|(knob, _)| **knob == which)
+            .map(|(_, transform)| transform.rotation.as_radians())
+            .expect("the dial spawned")
+    }
+
+    #[test]
+    fn nova_os_chin_knobs_cycle_detents() {
+        let mut app = chin_controls_app();
+
+        // A sampling surface + material gives `animate_nova_os_crt` a uniform
+        // target (the render-capable RTT path is not built headless).
+        let handle = app
+            .world_mut()
+            .resource_mut::<Assets<NovaOsCrtMaterial>>()
+            .add(NovaOsCrtMaterial::default());
+        app.world_mut().spawn((
+            NovaOsSamplingSurfaceMarker,
+            MaterialNode(handle.clone()),
+            ComputedNode {
+                size: Vec2::new(800.0, 600.0),
+                ..default()
+            },
+        ));
+
+        let bright = knob_button(&mut app, NovaOsKnob::Bright);
+        assert_eq!(
+            app.world()
+                .resource::<NovaOsMonitorSettings>()
+                .bright_detent,
+            NOVA_OS_BRIGHT_DEFAULT_DETENT,
+            "BRIGHT boots at the neutral detent"
+        );
+
+        // One click advances the detent, rotates the dial and drives the
+        // brightness uniform.
+        app.world_mut().trigger(Activate { entity: bright });
+        app.update();
+        assert_eq!(
+            app.world()
+                .resource::<NovaOsMonitorSettings>()
+                .bright_detent,
+            2,
+            "a BRIGHT click advances one detent"
+        );
+        assert!(
+            (dial_rotation(&mut app, NovaOsKnob::Bright) - NOVA_OS_KNOB_ANGLES[2].to_radians())
+                .abs()
+                < 1e-3,
+            "the dial pointer rotates to the new detent angle"
+        );
+        let brightness = app
+            .world()
+            .resource::<Assets<NovaOsCrtMaterial>>()
+            .get(&handle)
+            .unwrap()
+            .data
+            .brightness;
+        assert_eq!(
+            brightness, NOVA_OS_BRIGHT_DETENTS[2],
+            "the CRT brightness uniform follows the BRIGHT detent"
+        );
+
+        // Four detents wrap back to the start.
+        for _ in 0..3 {
+            app.world_mut().trigger(Activate { entity: bright });
+        }
+        app.update();
+        assert_eq!(
+            app.world()
+                .resource::<NovaOsMonitorSettings>()
+                .bright_detent,
+            NOVA_OS_BRIGHT_DEFAULT_DETENT,
+            "the 4 BRIGHT detents cycle and wrap"
+        );
+
+        // SCAN cycles independently and drives the scanline uniform.
+        let scan = knob_button(&mut app, NovaOsKnob::Scan);
+        app.world_mut().trigger(Activate { entity: scan });
+        app.update();
+        assert_eq!(
+            app.world().resource::<NovaOsMonitorSettings>().scan_detent,
+            3,
+            "a SCAN click advances one detent, independent of BRIGHT"
+        );
+        let scanline = app
+            .world()
+            .resource::<Assets<NovaOsCrtMaterial>>()
+            .get(&handle)
+            .unwrap()
+            .data
+            .scanline_strength;
+        assert_eq!(
+            scanline, NOVA_OS_SCAN_DETENTS[3],
+            "the CRT scanline uniform follows the SCAN detent"
+        );
+    }
+
+    #[test]
+    fn nova_os_snd_toggles_sound_resource() {
+        let mut app = chin_controls_app();
+        assert!(
+            app.world()
+                .resource::<NovaOsMonitorSettings>()
+                .sound_enabled,
+            "the monitor speaker defaults ON"
+        );
+        let snd = app
+            .world_mut()
+            .query_filtered::<Entity, With<NovaOsSoundButtonMarker>>()
+            .iter(app.world())
+            .next()
+            .expect("the SND button spawned");
+
+        app.world_mut().trigger(Activate { entity: snd });
+        app.update();
+        assert!(
+            !app.world()
+                .resource::<NovaOsMonitorSettings>()
+                .sound_enabled,
+            "a SND click mutes the monitor"
+        );
+        assert!(
+            all_texts(&mut app).iter().any(|text| text == "SND OFF"),
+            "the SND label reflects the muted state"
+        );
+
+        app.world_mut().trigger(Activate { entity: snd });
+        app.update();
+        assert!(
+            app.world()
+                .resource::<NovaOsMonitorSettings>()
+                .sound_enabled,
+            "a second SND click re-arms the monitor"
+        );
+    }
+
+    #[test]
+    fn nova_os_pwr_drives_close_transition() {
+        let mut app = chin_controls_app();
+        assert!(
+            !app.world().resource::<DrawerCloseTransition>().closing,
+            "the computer is open, not closing"
+        );
+        let pwr = app
+            .world_mut()
+            .query_filtered::<Entity, With<NovaOsPowerButtonMarker>>()
+            .iter(app.world())
+            .next()
+            .expect("the PWR button spawned");
+
+        app.world_mut().trigger(Activate { entity: pwr });
+        app.update();
+        assert!(
+            app.world().resource::<DrawerCloseTransition>().closing,
+            "PWR drives the existing animated close"
         );
     }
 

@@ -13,7 +13,7 @@
 //! 0.19 is bleeding-edge and a third-party settings crate would be a
 //! version-compat liability for a UI feature.
 
-use nova_gameplay::prelude::{GraphicsQuality, MasterVolume};
+use nova_gameplay::prelude::{GraphicsQuality, MasterVolume, NovaOsMonitorSettings};
 use serde::{Deserialize, Serialize};
 
 /// The persisted form of the settings: plain, versionable data decoupled from
@@ -27,27 +27,68 @@ pub struct PersistedSettings {
     /// The graphics-quality preset.
     #[serde(default)]
     pub graphics_quality: GraphicsQuality,
+    /// NOVA OS BRIGHT knob detent (task 20260726-214617).
+    #[serde(default = "default_bright_detent")]
+    pub nova_os_bright_detent: usize,
+    /// NOVA OS SCAN knob detent.
+    #[serde(default = "default_scan_detent")]
+    pub nova_os_scan_detent: usize,
+    /// NOVA OS SND speaker toggle (default ON).
+    #[serde(default = "default_sound_enabled")]
+    pub nova_os_sound_enabled: bool,
 }
 
 fn default_volume() -> f32 {
     MasterVolume::default().0
 }
 
+fn default_bright_detent() -> usize {
+    NovaOsMonitorSettings::default().bright_detent
+}
+
+fn default_scan_detent() -> usize {
+    NovaOsMonitorSettings::default().scan_detent
+}
+
+fn default_sound_enabled() -> bool {
+    NovaOsMonitorSettings::default().sound_enabled
+}
+
 impl Default for PersistedSettings {
     fn default() -> Self {
+        let monitor = NovaOsMonitorSettings::default();
         Self {
             master_volume: MasterVolume::default().0,
             graphics_quality: GraphicsQuality::default(),
+            nova_os_bright_detent: monitor.bright_detent,
+            nova_os_scan_detent: monitor.scan_detent,
+            nova_os_sound_enabled: monitor.sound_enabled,
         }
     }
 }
 
 impl PersistedSettings {
     /// Snapshot the live resources into a persistable value.
-    pub fn from_resources(volume: MasterVolume, quality: GraphicsQuality) -> Self {
+    pub fn from_resources(
+        volume: MasterVolume,
+        quality: GraphicsQuality,
+        monitor: NovaOsMonitorSettings,
+    ) -> Self {
         Self {
             master_volume: volume.factor(),
             graphics_quality: quality,
+            nova_os_bright_detent: monitor.bright_detent,
+            nova_os_scan_detent: monitor.scan_detent,
+            nova_os_sound_enabled: monitor.sound_enabled,
+        }
+    }
+
+    /// The persisted NOVA OS monitor settings as the live resource.
+    pub fn nova_os_monitor(&self) -> NovaOsMonitorSettings {
+        NovaOsMonitorSettings {
+            bright_detent: self.nova_os_bright_detent,
+            scan_detent: self.nova_os_scan_detent,
+            sound_enabled: self.nova_os_sound_enabled,
         }
     }
 }
@@ -157,7 +198,7 @@ mod backend {
 // the web-sys 0.3 API is the guard. Keep it a minimal mirror of the native one.
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
-    use nova_gameplay::prelude::GraphicsQuality;
+    use nova_gameplay::prelude::{GraphicsQuality, NovaOsMonitorSettings};
 
     use super::{
         backend::{load_from, save_to},
@@ -173,9 +214,14 @@ mod tests {
         let path = temp_path("round_trip");
         let _ = std::fs::remove_dir_all(path.parent().unwrap());
 
+        // Non-default monitor detents + SND off, so the round-trip proves the
+        // NOVA OS chin fields persist (task 20260726-214617).
         let settings = PersistedSettings {
             master_volume: 0.4,
             graphics_quality: GraphicsQuality::Low,
+            nova_os_bright_detent: 3,
+            nova_os_scan_detent: 0,
+            nova_os_sound_enabled: false,
         };
         save_to(&path, &settings);
         assert!(
@@ -186,6 +232,15 @@ mod tests {
             load_from(&path),
             Some(settings),
             "settings round-trip through RON"
+        );
+        assert_eq!(
+            load_from(&path).unwrap().nova_os_monitor(),
+            NovaOsMonitorSettings {
+                bright_detent: 3,
+                scan_detent: 0,
+                sound_enabled: false,
+            },
+            "the persisted NOVA OS fields rebuild the live monitor resource"
         );
 
         let _ = std::fs::remove_dir_all(path.parent().unwrap());
@@ -229,6 +284,9 @@ mod tests {
             Some(PersistedSettings {
                 master_volume: 0.5,
                 graphics_quality: GraphicsQuality::default(),
+                nova_os_bright_detent: NovaOsMonitorSettings::default().bright_detent,
+                nova_os_scan_detent: NovaOsMonitorSettings::default().scan_detent,
+                nova_os_sound_enabled: NovaOsMonitorSettings::default().sound_enabled,
             }),
             "a missing field falls back to its serde default"
         );

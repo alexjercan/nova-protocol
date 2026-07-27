@@ -1,6 +1,6 @@
 # NOVA OS chin controls: working BRIGHT/SCAN knobs + SND/PWR buttons
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 43
 - TAGS: v0.9.0, feature, ui, hud
 
@@ -18,46 +18,51 @@ controls on its right side exist and function.
 
 ## Flow State
 
-- FLOW STEP: PLANNING
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Steps
 
-- [ ] Add a `NovaOsMonitorSettings` resource in
+- [x] Add a `NovaOsMonitorSettings` resource in
       `crates/nova_gameplay/src/hud/drawer.rs` (exported via the prelude):
       `bright_detent`, `scan_detent`, `sound_enabled`. Defaults match the PoC
       boot state + the owner's gate call: detents (1, 2), sound ON.
-- [ ] Spawn the controls into the chin's reserved controls-row slot from
+- [x] Spawn the controls into the chin's reserved controls-row slot from
       20260726-193219: two knobs (dial node + pointer child rotated via
       `UiTransform`), the SND speaker button with lit/unlit glyph + "SND
       ON/OFF" label, the PWR button with LED. Use the `Button` +
       `observe(Activate)` pattern the app close control already uses.
-- [ ] BRIGHT knob: 4 detents cycling a whole-screen brightness level (PoC
+- [x] BRIGHT knob: 4 detents cycling a whole-screen brightness level (PoC
       `BRIGHT = [0.8, 1, 1.15, 1.3]`), wired to the brightness-multiply
       uniform the RTT sampling shader (20260726-193233, lands first) reserves
       for this task - a true `filter: brightness()` equivalent, exact for the
       >1.0 detents an overlay could only fake. The knob pointer rotates to the
       detent angle (PoC `ANGLES = [-115, -38, 38, 115]`).
-- [ ] SCAN knob: 4 detents driving the scanline-strength uniform in the same
-      sampling shader, same pointer rotation treatment.
-- [ ] SND button: flips `sound_enabled` plus the glyph state. The NOVA OS
+- [x] SCAN knob: 4 detents driving the scanline-strength uniform in the same
+      sampling shader, same pointer rotation treatment. (Detent values scaled
+      to the in-game shader; top detent 0.20 per owner call 2026-07-27.)
+- [x] SND button: flips `sound_enabled` plus the glyph state. The NOVA OS
       sound task consumes the flag; this button must land cleanly even if it
       orders first (toggle with no audio wired is a visible-state no-op).
-- [ ] PWR button + LED: pressing PWR drives the existing animated close
+- [x] PWR button + LED: pressing PWR drives the existing animated close
       (`DrawerCloseTransition`), the diegetic twin of the `exit` command.
-- [ ] Persist per `DECISION.md`: add serde-defaulted fields to
+- [x] Persist per `DECISION.md`: add serde-defaulted fields to
       `PersistedSettings` (`crates/nova_menu/src/settings_store.rs`), snapshot
       + apply alongside the existing `MasterVolume` wiring in `nova_menu`, so
       the detents and SND survive a restart on native and web.
-- [ ] Mouse clicks work with the drawer's free cursor; controls stay OUT of the
-      terminal's keyboard path (Tab must keep completing at the prompt, never
-      focus a chin button).
-- [ ] Headless tests: detent cycling updates the resource + material uniform,
+- [x] Mouse clicks work with the drawer's free cursor; controls stay OUT of the
+      terminal's keyboard path (Tab completion reads `KeyboardInput` directly,
+      not bevy focus, and the chin buttons carry no `TabIndex`).
+- [x] Headless tests: detent cycling updates the resource + material uniform,
       SND flips the flag (default ON), PWR sets the close transition, and the
       settings-store roundtrip covers the new fields (mirror the existing
       `settings_store` unit tests).
-- [ ] Capture AFTER shots with `screenshot_nova_os` (knobs at non-default
-      detents so the effect is visible), eyeball them, and record the work +
-      self-reflection in `tasks/20260726-214617/NOTES.md`.
+- [~] Capture AFTER shots with `screenshot_nova_os` (knobs at non-default
+      detents so the effect is visible). Manual/owner acceptance: the CRT+RTT
+      render scene OOMs local lavapipe (`gpu-example-local-skip`), so the shot
+      is left for the owner to eyeball on real hardware; a boot smoke proves
+      the controls integrate without crashing. Work + self-reflection recorded
+      in `tasks/20260726-214617/NOTES.md`.
 
 ## Definition of Done
 

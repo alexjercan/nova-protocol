@@ -134,6 +134,9 @@ impl Plugin for NovaMenuPlugin {
         // resource, moving the `Selected` highlight.
         app.init_resource::<MasterVolume>();
         app.init_resource::<GraphicsQuality>();
+        // The NOVA OS chin knobs write this (nova_gameplay owns it); mirror the
+        // MasterVolume defensive init so the persistence systems see it.
+        app.init_resource::<NovaOsMonitorSettings>();
         app.add_observer(slider_self_update);
         app.add_observer(on_volume_slider_change);
         app.add_observer(button_on_setting::<GraphicsQuality>);
@@ -2851,12 +2854,17 @@ fn build_settings_body(
 /// defaults). Runs before the first `Update`, so nova_gameplay's apply systems
 /// (gated on `resource_changed`) push the loaded values onto the engine on the
 /// first frame.
-fn load_persisted_settings(mut volume: ResMut<MasterVolume>, mut quality: ResMut<GraphicsQuality>) {
+fn load_persisted_settings(
+    mut volume: ResMut<MasterVolume>,
+    mut quality: ResMut<GraphicsQuality>,
+    mut monitor: ResMut<NovaOsMonitorSettings>,
+) {
     let Some(saved) = load_settings() else {
         return;
     };
     *volume = MasterVolume(saved.master_volume.clamp(0.0, 1.0));
     *quality = saved.graphics_quality;
+    *monitor = saved.nova_os_monitor();
 }
 
 /// Idle frames a settings value must hold steady before it is written to disk.
@@ -2875,10 +2883,12 @@ const SETTINGS_SAVE_DEBOUNCE_FRAMES: u32 = 15;
 fn persist_settings_on_change(
     volume: Res<MasterVolume>,
     quality: Res<GraphicsQuality>,
+    monitor: Res<NovaOsMonitorSettings>,
     mut idle_frames: Local<Option<u32>>,
 ) {
     let edited = (volume.is_changed() && !volume.is_added())
-        || (quality.is_changed() && !quality.is_added());
+        || (quality.is_changed() && !quality.is_added())
+        || (monitor.is_changed() && !monitor.is_added());
     if edited {
         // A fresh edit: (re)start the debounce, coalescing a drag's per-frame
         // changes into one pending save.
@@ -2887,7 +2897,9 @@ fn persist_settings_on_change(
     }
     if let Some(frames) = *idle_frames {
         if frames + 1 >= SETTINGS_SAVE_DEBOUNCE_FRAMES {
-            save_settings(&PersistedSettings::from_resources(*volume, *quality));
+            save_settings(&PersistedSettings::from_resources(
+                *volume, *quality, *monitor,
+            ));
             *idle_frames = None;
         } else {
             *idle_frames = Some(frames + 1);
