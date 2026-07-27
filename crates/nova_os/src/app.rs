@@ -6,12 +6,22 @@ use bevy::{input::keyboard::Key, prelude::*};
 
 use crate::{shell::CommandArity, terminal::TerminalMode};
 
-/// The terminal-surface footer hints (PoC `HINTS.terminal`). Apps override
-/// [`NovaOsAppRuntime::hints`] to swap these for their own set while active.
-pub const NOVA_OS_TERMINAL_HINTS: [&str; 3] = [
-    "TAB: AUTOCOMPLETE",
-    "ESC: CLOSE COMPUTER",
-    "HINT: TYPE HELP",
+/// The terminal-surface footer hints: the full set of keys that work at the
+/// prompt (owner playtest - the footer should list every current binding, not
+/// just three). Kept ASCII (no arrow glyphs) and terse so the row fits. Apps
+/// override [`NovaOsAppRuntime::hints`] to swap these for their own set while
+/// active. A slice, not a fixed array, so the terminal and each app can list a
+/// different number of keys.
+pub const NOVA_OS_TERMINAL_HINTS: &[&str] = &[
+    "TAB: COMPLETE",
+    "ENTER: RUN",
+    "UP/DN: HISTORY",
+    "PGUP/PGDN: SCROLL",
+    // Only Escape closes the computer AT THE PROMPT; Ctrl+C / Ctrl+[ is an
+    // app-exit chord (a no-op here), so it belongs on app hint sets, not this
+    // one (review R1.1 - do not advertise an unwired key on this surface).
+    "ESC: CLOSE",
+    "TYPE HELP",
 ];
 
 /// A launchable app as the terminal sees it: the launch word plus a one-line
@@ -67,7 +77,7 @@ pub trait NovaOsAppRuntime: Send + Sync + 'static {
     /// The footer hints shown while this app owns the screen (PoC `HINTS` map).
     /// Default: the terminal hint set, so an app that does not care still shows a
     /// sensible footer.
-    fn hints(&self) -> [&'static str; 3] {
+    fn hints(&self) -> &'static [&'static str] {
         NOVA_OS_TERMINAL_HINTS
     }
 }
@@ -134,7 +144,10 @@ impl NovaOsAppRegistry {
 /// The footer hint set for the active surface (PoC `HINTS` map): the terminal set
 /// at the prompt, or the running app's own [`NovaOsAppRuntime::hints`] while an
 /// app owns the screen.
-pub fn nova_os_footer_hints(mode: TerminalMode, registry: &NovaOsAppRegistry) -> [&'static str; 3] {
+pub fn nova_os_footer_hints(
+    mode: TerminalMode,
+    registry: &NovaOsAppRegistry,
+) -> &'static [&'static str] {
     match mode {
         TerminalMode::Prompt => NOVA_OS_TERMINAL_HINTS,
         TerminalMode::App { id } => registry

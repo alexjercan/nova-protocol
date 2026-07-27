@@ -965,15 +965,23 @@ fn nova_os_ship_name(name: Option<&Name>) -> String {
         .unwrap_or_else(|| "UNKNOWN".to_string())
 }
 
+/// The FPS number formatted to a FIXED width so the topbar does not reflow when
+/// the reading changes digit count (owner playtest: 100 -> 99 must not shift the
+/// layout). Right-aligned to 3 chars in the monospace topbar font, so ` 99` and
+/// `100` occupy the same width; `--` before the first reading pads the same way.
+fn nova_os_fps_segment(fps: Option<u32>) -> String {
+    match fps {
+        Some(fps) => format!("{fps:>3}"),
+        None => format!("{:>3}", "--"),
+    }
+}
+
 /// The NOVA OS topbar status line: ship + link, plus a live FPS segment. The FPS
 /// is rehomed here from the flight status bar, which hides while the computer is
 /// open (task 20260727-014806); `fps` is the smoothed frame rate rounded to a
 /// whole number, or `None` before the diagnostic has a reading (shown as `--`).
 fn nova_os_status_text(ship_name: &str, fps: Option<u32>) -> String {
-    let fps = match fps {
-        Some(fps) => fps.to_string(),
-        None => "--".to_string(),
-    };
+    let fps = nova_os_fps_segment(fps);
     format!("SHIP: {ship_name}     LINK: LOCAL     FPS: {fps}")
 }
 
@@ -2213,7 +2221,7 @@ fn rebuild_nova_os_footer_hints(
             }
         }
         commands.entity(footer).with_children(|footer| {
-            for hint in hints {
+            for &hint in hints {
                 footer.spawn((
                     Text::new(hint),
                     nova_os_text_font(11.0, font.clone()),
@@ -2341,10 +2349,7 @@ fn topbar_line_with_fps(current: &str, fps: Option<u32>) -> String {
         .split_once(NOVA_OS_TOPBAR_FPS_MARKER)
         .map(|(head, _)| head)
         .unwrap_or(current);
-    let fps = match fps {
-        Some(fps) => fps.to_string(),
-        None => "--".to_string(),
-    };
+    let fps = nova_os_fps_segment(fps);
     format!("{head}{NOVA_OS_TOPBAR_FPS_MARKER}{fps}")
 }
 
@@ -4157,16 +4162,17 @@ fn spawn_nova_os_terminal_content(
                         flex_direction: FlexDirection::Row,
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::SpaceBetween,
+                        // Wrap so the full keybind set never overflows the row on a
+                        // narrow screen; `rebuild_nova_os_footer_hints` refills these
+                        // from the same `NOVA_OS_TERMINAL_HINTS` on the first mode eval.
+                        flex_wrap: FlexWrap::Wrap,
                         column_gap: Val::Px(12.0),
+                        row_gap: Val::Px(2.0),
                         ..default()
                     },
                 ))
                 .with_children(|footer| {
-                    for hint in [
-                        "TAB: AUTOCOMPLETE",
-                        "ESC: CLOSE COMPUTER",
-                        "HINT: TYPE HELP",
-                    ] {
+                    for &hint in NOVA_OS_TERMINAL_HINTS {
                         footer.spawn((
                             Text::new(hint),
                             nova_os_text_font(11.0, font.clone()),
@@ -6142,9 +6148,9 @@ mod tests {
         for expected in [
             format!("NOVA OS {} / COCKPIT LINK", nova_os_version_label()),
             // The topbar carries the ship/link head plus a live FPS segment; it
-            // spawns with a `--` placeholder before the diagnostic has a reading
-            // (task 20260727-014806).
-            "SHIP: SURVEY CUTTER     LINK: LOCAL     FPS: --".to_string(),
+            // spawns with a fixed-width `--` placeholder before the diagnostic has
+            // a reading (task 20260727-014806; fixed width 20260727-135213).
+            "SHIP: SURVEY CUTTER     LINK: LOCAL     FPS:  --".to_string(),
             format!("NOVA OS {}", nova_os_version_label()),
             "POST ......... flight computer / ok".to_string(),
             "CORE ......... 64K static / ok".to_string(),
@@ -6152,9 +6158,11 @@ mod tests {
             "LINK ......... cockpit bus / local".to_string(),
             "Hint: type `help` and press Enter.".to_string(),
             "nova>".to_string(),
-            "TAB: AUTOCOMPLETE".to_string(),
-            "ESC: CLOSE COMPUTER".to_string(),
-            "HINT: TYPE HELP".to_string(),
+            // The footer lists the full current keybind set (task 20260727-135213).
+            "TAB: COMPLETE".to_string(),
+            "UP/DN: HISTORY".to_string(),
+            "PGUP/PGDN: SCROLL".to_string(),
+            "ESC: CLOSE".to_string(),
         ] {
             assert!(
                 texts.iter().any(|text| text == &expected),
@@ -6176,15 +6184,26 @@ mod tests {
     #[test]
     fn topbar_status_line_carries_a_live_fps_segment() {
         // The pure line builder appends the FPS segment after the ship/link head,
-        // with a `--` placeholder until the diagnostic reads.
+        // with a fixed-width `--` placeholder until the diagnostic reads. The FPS
+        // is right-aligned to 3 chars so the topbar never reflows as the reading
+        // changes digit count (owner playtest: 100 -> 99 must not shift).
         assert_eq!(
             nova_os_status_text("CERES QUEEN", Some(60)),
-            "SHIP: CERES QUEEN     LINK: LOCAL     FPS: 60"
+            "SHIP: CERES QUEEN     LINK: LOCAL     FPS:  60"
         );
         assert_eq!(
             nova_os_status_text("CERES QUEEN", None),
-            "SHIP: CERES QUEEN     LINK: LOCAL     FPS: --"
+            "SHIP: CERES QUEEN     LINK: LOCAL     FPS:  --"
         );
+
+        // Fixed width: the FPS segment is the SAME length across digit counts, so
+        // 100 -> 99 does not change the rendered width (the reported bug).
+        assert_eq!(nova_os_fps_segment(Some(100)).len(), 3);
+        assert_eq!(nova_os_fps_segment(Some(99)).len(), 3);
+        assert_eq!(nova_os_fps_segment(Some(9)).len(), 3);
+        assert_eq!(nova_os_fps_segment(None).len(), 3);
+        assert_eq!(nova_os_fps_segment(Some(99)), " 99");
+        assert_eq!(nova_os_fps_segment(Some(100)), "100");
 
         // The live rewrite replaces only the FPS tail, preserving the head.
         let spawned = nova_os_status_text("CERES QUEEN", None);
@@ -6194,12 +6213,12 @@ mod tests {
         );
         assert_eq!(
             topbar_line_with_fps("SHIP: CERES QUEEN     LINK: LOCAL     FPS: 144", None),
-            "SHIP: CERES QUEEN     LINK: LOCAL     FPS: --"
+            "SHIP: CERES QUEEN     LINK: LOCAL     FPS:  --"
         );
         // A line missing the marker (older spawn) still gets an FPS segment.
         assert_eq!(
             topbar_line_with_fps("SHIP: CERES QUEEN     LINK: LOCAL", Some(30)),
-            "SHIP: CERES QUEEN     LINK: LOCAL     FPS: 30"
+            "SHIP: CERES QUEEN     LINK: LOCAL     FPS:  30"
         );
     }
 
@@ -6232,8 +6251,8 @@ mod tests {
         assert!(
             texts
                 .iter()
-                .any(|text| text == "SHIP: SURVEY CUTTER     LINK: LOCAL     FPS: 60"),
-            "the topbar shows the rounded smoothed FPS while the NOVA OS is open; got {texts:?}"
+                .any(|text| text == "SHIP: SURVEY CUTTER     LINK: LOCAL     FPS:  60"),
+            "the topbar shows the rounded smoothed FPS (fixed 3-wide) while the NOVA OS is open; got {texts:?}"
         );
     }
 
@@ -7440,8 +7459,8 @@ mod tests {
             "Test-only app with its own footer hints"
         }
         fn spawn_body(&self, _body: &mut ChildSpawnerCommands, _font: Handle<Font>) {}
-        fn hints(&self) -> [&'static str; 3] {
-            [
+        fn hints(&self) -> &'static [&'static str] {
+            &[
                 "1/2/3: DO A THING",
                 "ESC: BACK TO TERMINAL",
                 "SHIFT+ESC: CLOSE",
