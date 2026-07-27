@@ -2023,13 +2023,13 @@ mod tests {
         );
     }
 
-    /// The Tab drawer freezes flight input exactly like the pause menu (task
+    /// The Tab NOVA OS freezes flight input exactly like the pause menu (task
     /// 20260724-102304): the burn observer self-guards on
-    /// `PauseStates::is_frozen()`, so a throttle press in `Drawer` must NOT
+    /// `PauseStates::is_frozen()`, so a throttle press in `NovaOs` must NOT
     /// move `FlightIntent`. This pins the guard-widen from `== Paused` to
     /// `!= Unpaused`; narrowing it back to `== Paused` fails this test.
     #[test]
-    fn flight_input_inert_while_drawer_open() {
+    fn flight_input_inert_while_nova_os_open() {
         use bevy::input::InputPlugin;
 
         let mut app = App::new();
@@ -2050,10 +2050,10 @@ mod tests {
         app.world_mut().spawn(flight_input_rig());
         app.update();
 
-        // Open the drawer, then press the throttle: intent stays put.
+        // Open the NOVA OS, then press the throttle: intent stays put.
         app.world_mut()
             .resource_mut::<NextState<crate::PauseStates>>()
-            .set(crate::PauseStates::Drawer);
+            .set(crate::PauseStates::NovaOs);
         app.update();
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
@@ -2063,10 +2063,10 @@ mod tests {
         assert_eq!(
             app.world().get::<FlightIntent>(ship).map(|i| i.burn),
             Some(0.0),
-            "a throttle press while the drawer is open must not move FlightIntent"
+            "a throttle press while the NOVA OS is open must not move FlightIntent"
         );
 
-        // Close the drawer (back to Unpaused) and press again: now it burns,
+        // Close the NOVA OS (back to Unpaused) and press again: now it burns,
         // proving the press itself is live and the freeze is what suppressed it.
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
@@ -2085,7 +2085,7 @@ mod tests {
             app.world()
                 .get::<FlightIntent>(ship)
                 .is_some_and(|i| i.burn > 0.0),
-            "the same press burns once the drawer is closed"
+            "the same press burns once the NOVA OS is closed"
         );
     }
 

@@ -1,0 +1,14 @@
+[package]
+name = "nova_os"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = false
+description = "NOVA OS logic: terminal model, shell command language and app runtime for the ship-computer"
+
+[dependencies]
+bevy = { version = "0.19.0" }
+nova_info = { path = "../nova_info" }
+
+[lints]
+workspace = true

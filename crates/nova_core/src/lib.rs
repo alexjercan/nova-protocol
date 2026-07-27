@@ -301,12 +301,12 @@ fn setup_status_ui(mut commands: Commands, game_assets: Res<GameAssets>) {
     // HudVisibility::Minimal and hides only at the cinematic `None` level (and in
     // the main menu, which drives the level to None).
     //
-    // It is NOT drawer-exempt (task 20260727-014806): while the NOVA OS computer is
+    // It is NOT NOVA OS-exempt (task 20260727-014806): while the NOVA OS computer is
     // open the whole flight status bar hides, and the one item that matters there -
     // FPS - is rehomed onto the NOVA OS terminal topbar instead (see
-    // `drive_nova_os_topbar_fps` in nova_gameplay's hud/drawer.rs). Dropping
-    // HudDrawerExempt lets `apply_hud_visibility` hide the bar in
-    // `PauseStates::Drawer`; its pause-change restore branch un-hides it on close.
+    // `drive_nova_os_topbar_fps` in nova_gameplay's hud/nova_os.rs). Dropping
+    // HudNovaOsExempt lets `apply_hud_visibility` hide the bar in
+    // `PauseStates::NovaOs`; its pause-change restore branch un-hides it on close.
     // The base GlobalZIndex is kept so the bar has a stable z at the HUD layer.
     commands.spawn((
         HudTier::Status,

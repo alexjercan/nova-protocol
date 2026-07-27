@@ -243,7 +243,7 @@ fn objective_change_feedback(
         }
     }
 
-    // Fresh postings get the big cockpit reveal that tucks into the Tab drawer's
+    // Fresh postings get the big cockpit reveal that tucks into the Tab NOVA OS's
     // handle (task 20260721-211520), replacing the old gold ghost line.
     for objective in &added_objectives {
         super::objective_reveal::spawn_objective_reveal(&mut commands, objective);

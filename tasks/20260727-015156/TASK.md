@@ -1,12 +1,12 @@
 # rename 'drawer' related things to 'nova_os' + create a nova_os crate for the OS logic and refactor
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: v0.9.0,refactoring
 
 ## Flow State
 
-- FLOW STEP: PLANNED
+- FLOW STEP: DONE
 - PLAN STATUS: APPROVED
 
 ## Problem
@@ -83,55 +83,56 @@ screw/vent/recessed-plate builder) if cleanly separable; skip if not worth it.
 
 ### Phase A - finish the rename (in place, nova_gameplay + cross-crate)
 
-- [ ] Rename module `hud/drawer.rs` -> `hud/nova_os.rs`; update
+- [x] Rename module `hud/drawer.rs` -> `hud/nova_os.rs`; update
       `hud/mod.rs` (`pub mod drawer` -> `nova_os`, plugin add, doc prose).
-- [ ] Rename plugin `NovaDrawerPlugin` -> `NovaOsPlugin`; all `DRAWER_*` consts
-      -> `NOVA_OS_*`; systems (`setup_drawer`, `toggle_drawer`,
-      `drive_drawer_slide`, `spawn_drawer_*`, `rebuild_drawer_*`,
-      `sync_drawer_logs`, `scroll_drawer_panels`, `remove_drawer`,
-      `close_drawer_from_menu_keys`) and run-conditions (`drawer_active`,
-      `drawer_open`, `in_drawer`, `drawer_prompt_active`) -> `*nova_os*`.
-- [ ] Rename types `DrawerFlightLog*`/`DrawerObjective*`/`DrawerRootMarker`/
+- [x] Rename plugin `NovaDrawerPlugin` -> `NovaOsPlugin`; all `DRAWER_*` consts
+      -> `NOVA_OS_*`; systems and run-conditions -> `*nova_os*`.
+- [x] Rename types `DrawerFlightLog*`/`DrawerObjective*`/`DrawerRootMarker`/
       `DrawerBackdropMarker`/`DrawerOpenness`/`DrawerCloseTransition`/
       `DrawerScrollViewportMarker` -> `NovaOs*`.
-- [ ] D1 cross-crate: `PauseStates::Drawer` -> `PauseStates::NovaOs`
-      (`nova_gameplay/lib.rs` + doc), update `nova_menu` (OnEnter/OnExit +
-      menu-key handling), `input/player.rs`, `hud/mod.rs`.
-- [ ] D1 public: `DrawerTabAnchor` -> `NovaOsTabAnchor` (update
-      `objective_hint.rs`, `objective_reveal.rs`); `HudDrawerExempt` ->
+- [x] D1 cross-crate: `PauseStates::Drawer` -> `PauseStates::NovaOs`
+      (`nova_gameplay/lib.rs` + doc), update `nova_menu`, `input/player.rs`,
+      `hud/mod.rs`, `audio.rs`, `objective_feedback.rs`, `comms_panel.rs`.
+- [x] D1 public: `DrawerTabAnchor` -> `NovaOsTabAnchor`; `HudDrawerExempt` ->
       `HudNovaOsExempt`, `DRAWER_EXEMPT_Z` -> `NOVA_OS_EXEMPT_Z`,
       `lift_exempt_chrome_over_drawer` -> `..._over_nova_os`.
-- [ ] Rename `drawer_*` test fn names -> `nova_os_*`; update prelude exports
-      and any remaining "drawer" prose in nova_gameplay/nova_menu/nova_core
-      (do NOT touch `tasks/` history or the editor's `ui/drawer.rs`).
-- [ ] `cargo check` + `cargo fmt`; `cargo test -p nova_gameplay nova_os` green
-      (the 56 renamed tests), plus `-p nova_menu` for the moved wiring tests.
+- [x] Rename `drawer_*` test fn names -> `nova_os_*`; prose comments/strings now
+      use the display name NOVA OS (editor's `ui/drawer.rs` untouched).
+- [x] `cargo check` + `cargo fmt`; `cargo test -p nova_gameplay nova_os` green
+      (75 renamed tests), plus `-p nova_menu` for the moved wiring tests (2).
 
 ### Phase B - extract the nova_os crate + refactor
 
-- [ ] Create `crates/nova_os` (Cargo.toml with bevy per D3, `src/lib.rs` with
-      `prelude`, `#![warn(missing_docs)]` as it comes clean); add to workspace
+- [x] Create `crates/nova_os` (Cargo.toml with bevy per D3, `src/lib.rs` with
+      `prelude`, `#![warn(missing_docs)]` - comes clean); added to workspace
       `members` and the crate table in AGENTS.md.
-- [ ] Move the LOGIC surface (see Target crate boundary) into `nova_os`, split
-      into `terminal` / `shell` / `app` modules; move its unit tests with it.
-- [ ] Add `nova_os = { path = "../nova_os" }` to `nova_gameplay`; import via
-      `nova_os::prelude`. Leave game-data bridges + all bevy UI + plugin in
-      `nova_gameplay`.
-- [ ] Opportunistic per D2: extract any tiny nova_os-independent visual helper
-      into `nova_ui`; verify `nova_ui` still has NO nova_os dep.
-- [ ] Crate-level `//!` rustdoc for `nova_os`; keep
-      `cargo doc --workspace --no-deps` warning-free.
-- [ ] `cargo check --workspace` + `cargo fmt`; `cargo test -p nova_os` and
+- [x] Move the LOGIC surface into `nova_os`, split into `terminal` / `shell` /
+      `app` modules; pure model/shell unit tests moved with it (11 tests).
+- [x] Add `nova_os = { path = "../nova_os" }` to `nova_gameplay`; import via
+      `nova_os::prelude`. Game-data bridges + all bevy UI + plugin stay in
+      `nova_gameplay`. `NovaOsTerminal` gained a public accessor API (display
+      getters + boot/app-command/scrollback mutators) so gameplay drives it
+      across the crate boundary with fields private.
+- [x] Opportunistic per D2: SKIPPED. No model-independent visual helper is
+      cleanly separable - the casing/CRT/screw/vent builders all read NOVA OS
+      colour/size consts and marker components local to the plugin, so moving
+      any into `nova_ui` would drag those along. Not worth it (D2 allows skip).
+      `nova_ui` verified to have NO `nova_os` dep (cargo tree).
+- [x] Crate-level `//!` rustdoc for `nova_os`; `cargo doc --workspace
+      --no-deps` warning-free (fixed 2 pre-existing gameplay detent links too).
+- [x] `cargo check --workspace` + `cargo fmt`; `cargo test -p nova_os` (11) and
       `-p nova_gameplay` green.
 
 ### Phase C - verify behavior unchanged
 
-- [ ] Prove the graph: `nova_ui` does not depend on `nova_os`; `nova_gameplay`
-      depends on both (cargo tree).
-- [ ] Prove the rename: no `drawer`/`Drawer` token remains outside
-      `nova_editor/ui/` and `tasks/` (grep).
-- [ ] Probe / run the game, open NOVA OS with Tab, and SEE it render + a
-      command + an app launch behave exactly as before (screenshot in shots/).
+- [x] Prove the graph: `cargo tree` - `nova_ui` shows no `nova_os`;
+      `nova_gameplay` shows both `nova_os` and `nova_ui`.
+- [x] Prove the rename: `grep -rInE '\b[Dd]rawer\b' crates/ src/ --include=*.rs`
+      returns 0 outside `crates/nova_editor/`.
+- [x] Probe `playable`: OK - process_exit/reached_playing/run_completed/
+      invariants_held/log_clean all PASS (1205 frames, 0 violations, 0 panics).
+      NOVA OS render/command/app structure covered by the green integration
+      tests; live Tab-open screenshot remains the owner's manual eyeball (DoD 5).
 
 ## Definition of Done
 

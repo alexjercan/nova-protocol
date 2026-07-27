@@ -171,7 +171,7 @@ const RADAR_RETARGET_VOLUME: f32 = 0.18;
 /// cue in the informational-tick band. Typing is the quietest and is throttled
 /// ([`NOVA_OS_KEY_MIN_INTERVAL`]) so a held key cannot machine-gun; the coil and
 /// power sweeps are the loudest "moment" cues. `pub(crate)` because the cues are
-/// fired from `hud::drawer`, keeping every cue volume defined in this module.
+/// fired from `hud::nova_os`, keeping every cue volume defined in this module.
 pub(crate) const NOVA_OS_KEY_VOLUME: f32 = 0.10;
 pub(crate) const NOVA_OS_BACK_VOLUME: f32 = 0.12;
 pub(crate) const NOVA_OS_ENTER_VOLUME: f32 = 0.18;
@@ -385,12 +385,12 @@ impl Plugin for NovaAudioPlugin {
         // Audio sinks do not follow Time<Virtual>: without this the thruster
         // hum keeps roaring at its last volume behind a frozen sim (review
         // R1.5). BOTH frozen overlays need it - the pause overlay and the Tab
-        // ship-computer drawer (task 20260724-102304), which freezes the same
+        // ship-computer NOVA OS (task 20260724-102304), which freezes the same
         // way (see PauseStates::is_frozen).
         app.add_systems(OnEnter(crate::PauseStates::Paused), pause_loops);
         app.add_systems(OnExit(crate::PauseStates::Paused), resume_loops);
-        app.add_systems(OnEnter(crate::PauseStates::Drawer), pause_loops);
-        app.add_systems(OnExit(crate::PauseStates::Drawer), resume_loops);
+        app.add_systems(OnEnter(crate::PauseStates::NovaOs), pause_loops);
+        app.add_systems(OnExit(crate::PauseStates::NovaOs), resume_loops);
 
         app.add_observer(on_destroyed_play_explosion);
         app.add_observer(on_damage_play_impact);
@@ -1115,7 +1115,7 @@ fn apply_rcs_loop_volume(
 }
 
 /// Silence the engine loop while the sim is frozen (the pause overlay OR the
-/// Tab drawer); one-shot SFX are naturally quiet then (no events fire in a
+/// Tab NOVA OS); one-shot SFX are naturally quiet then (no events fire in a
 /// frozen sim). Pause every looping SFX sink (thruster hum + RCS hiss) - audio
 /// sinks do not follow `Time<Virtual>`, so without this a loop keeps roaring at
 /// its last volume while the game is frozen.

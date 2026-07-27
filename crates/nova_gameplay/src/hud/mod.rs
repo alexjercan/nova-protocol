@@ -19,7 +19,6 @@ pub mod ammo_readout;
 pub mod beacon_chips;
 pub mod comms_panel;
 pub mod component_lock;
-pub mod drawer;
 pub mod edge_indicators;
 pub mod flight_status;
 pub mod holo_instruments;
@@ -28,6 +27,7 @@ pub mod keybind_hints;
 pub mod lock_crosshairs;
 pub mod lock_dwell_ring;
 pub mod maneuver_instruments;
+pub mod nova_os;
 pub mod objective_feedback;
 pub mod objective_hint;
 pub mod objective_markers;
@@ -43,13 +43,13 @@ pub mod velocity;
 pub mod prelude {
     pub use super::{
         allegiance_markers::prelude::*, ammo_readout::prelude::*, beacon_chips::prelude::*,
-        comms_panel::prelude::*, component_lock::prelude::*, drawer::NovaOsMonitorSettings,
-        edge_indicators::prelude::*, flight_status::prelude::*, holo_instruments::prelude::*,
-        item_highlights::prelude::*, keybind_hints::prelude::*, lock_crosshairs::prelude::*,
-        lock_dwell_ring::prelude::*, maneuver_instruments::prelude::*,
+        comms_panel::prelude::*, component_lock::prelude::*, edge_indicators::prelude::*,
+        flight_status::prelude::*, holo_instruments::prelude::*, item_highlights::prelude::*,
+        keybind_hints::prelude::*, lock_crosshairs::prelude::*, lock_dwell_ring::prelude::*,
+        maneuver_instruments::prelude::*, nova_os::NovaOsMonitorSettings,
         objective_feedback::prelude::*, objective_markers::prelude::*, readout::prelude::*,
         screen_indicator::prelude::*, target_inset::prelude::*, torpedo_target::prelude::*,
-        turret_lead::prelude::*, velocity::prelude::*, HudDrawerExempt, HudSelfDrivenVisibility,
+        turret_lead::prelude::*, velocity::prelude::*, HudNovaOsExempt, HudSelfDrivenVisibility,
         HudTier, HudVisibility, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
     };
 }
@@ -113,8 +113,8 @@ pub enum HudTier {
     /// objective count in it): visible at `All` and `Minimal` like an
     /// instrument, but hidden ONLY at the cinematic `None` level so screenshots
     /// stay clean (task 20260724-171509). Unlike flight chrome it is meant to
-    /// persist through the Tab drawer too - tag such a widget `HudDrawerExempt`
-    /// as well, which keeps it visible while the drawer is open and z-lifts it
+    /// persist through the Tab NOVA OS too - tag such a widget `HudNovaOsExempt`
+    /// as well, which keeps it visible while the NOVA OS is open and z-lifts it
     /// above the backdrop. "It is like the FPS overlay": it rides the whole
     /// session, not the moment-to-moment flight HUD.
     Status,
@@ -128,14 +128,14 @@ pub enum HudTier {
 #[reflect(Component)]
 pub struct HudSelfDrivenVisibility;
 
-/// Diagnostic/status chrome that stays visible while the Tab drawer is open.
+/// Diagnostic/status chrome that stays visible while the Tab NOVA OS is open.
 /// NOVA OS hides ordinary flight HUD and key hints so the cockpit monitor owns
 /// the screen; widgets tagged with this marker are exempt from that
-/// drawer-scoped hide and z-lift above the backdrop. They are still subject to
+/// NOVA OS-scoped hide and z-lift above the backdrop. They are still subject to
 /// the grave/tilde [`HudVisibility`] cycle. Tag the widget's tiered root.
 #[derive(Component, Clone, Copy, Debug, Reflect)]
 #[reflect(Component)]
-pub struct HudDrawerExempt;
+pub struct HudNovaOsExempt;
 
 /// Nav cyan, the family color of every flight-computer projection (the
 /// destination marker tint, the orbit cue, the maneuver chips, the holo
@@ -176,7 +176,7 @@ impl Plugin for NovaHudPlugin {
         app.init_resource::<HudVisibility>();
         app.register_type::<HudVisibility>();
         app.register_type::<HudTier>();
-        app.register_type::<HudDrawerExempt>();
+        app.register_type::<HudNovaOsExempt>();
         // The cycle key is gameplay-only (the menu drives the resource
         // itself); plain ButtonInput, same pattern as the debug F11 toggle.
         app.add_systems(
@@ -198,11 +198,11 @@ impl Plugin for NovaHudPlugin {
                 .after(ScreenIndicatorSystems)
                 .before(bevy::ui::UiSystems::Layout),
         );
-        // Lift the drawer-exempt chrome above the drawer backdrop only while the
-        // drawer is open (task 20260724-134335).
+        // Lift the NOVA OS-exempt chrome above the NOVA OS backdrop only while the
+        // NOVA OS is open (task 20260724-134335).
         app.add_systems(
             Update,
-            lift_exempt_chrome_over_drawer.in_set(NovaHudSystems),
+            lift_exempt_chrome_over_nova_os.in_set(NovaHudSystems),
         );
 
         app.add_plugins(velocity::VelocityHudPlugin);
@@ -211,7 +211,7 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(keybind_hints::KeybindHintsPlugin);
         app.add_plugins(holo_instruments::HoloInstrumentsPlugin);
         // The bcs ObjectivesPlugin owns the `GameObjectives` resource (the
-        // drawer + the diegetic reveal read it) and its `rebuild_lines`
+        // NOVA OS + the diegetic reveal read it) and its `rebuild_lines`
         // no-ops when no objectives panel exists. The always-on compact
         // objectives panel was REMOVED from flight (task 20260724-134312):
         // objectives now surface via the diegetic reveal, the objective hint
@@ -221,8 +221,8 @@ impl Plugin for NovaHudPlugin {
         // 20260717-163033); registered here once for every HUD widget.
         app.add_plugins(bevy_common_systems::prelude::TweenPlugin);
         app.add_plugins(comms_panel::CommsPanelPlugin);
-        // The Tab ship-computer drawer shell (task 20260724-102304).
-        app.add_plugins(drawer::NovaDrawerPlugin);
+        // The Tab ship-computer NOVA OS shell (task 20260724-102304).
+        app.add_plugins(nova_os::NovaOsPlugin);
         app.add_plugins(readout::HudReadoutPlugin);
         app.add_plugins(screen_indicator::ScreenIndicatorPlugin);
         app.add_plugins(torpedo_target::TorpedoTargetHudPlugin);
@@ -238,7 +238,7 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(objective_markers::ObjectiveMarkersHudPlugin);
         app.add_plugins(item_highlights::ItemHighlightsHudPlugin);
         app.add_plugins(objective_feedback::ObjectiveFeedbackPlugin);
-        // The big diegetic objective reveal that tucks into the drawer tab
+        // The big diegetic objective reveal that tucks into the NOVA OS tab
         // (task 20260721-211520); fed by objective_feedback's postings.
         app.add_plugins(objective_reveal::ObjectiveRevealPlugin);
         // The minimalist top-right flight objective hint (count + glyph + Tab),
@@ -280,7 +280,7 @@ impl Plugin for NovaHudPlugin {
 // style_objective_lines / setup_hud_objectives / remove_hud_objectives) was
 // REMOVED in task 20260724-134312; objectives now surface via the diegetic
 // reveal, the objective hint in the status bar (`objective_hint`) and the Tab
-// drawer's NOVA OS monitor.
+// NOVA OS's NOVA OS monitor.
 
 /// Cycle the HUD level on grave/tilde (or the gamepad Select button).
 /// Press-to-cycle, no hold gesture (the spike's call: three states are at most
@@ -320,7 +320,7 @@ fn apply_hud_visibility(
             &HudTier,
             &mut Visibility,
             Has<HudSelfDrivenVisibility>,
-            Has<HudDrawerExempt>,
+            Has<HudNovaOsExempt>,
         ),
         Without<ScreenIndicatorMarker>,
     >,
@@ -329,22 +329,22 @@ fn apply_hud_visibility(
             Entity,
             &mut Visibility,
             Option<&HudTier>,
-            Has<HudDrawerExempt>,
+            Has<HudNovaOsExempt>,
         ),
         With<ScreenIndicatorMarker>,
     >,
     q_parents: Query<&ChildOf>,
     q_tiers: Query<&HudTier>,
 ) {
-    // While the Tab drawer is open the flight HUD hides so it does not fight the
-    // NOVA OS monitor; only diagnostic/status widgets carrying `HudDrawerExempt`
+    // While the Tab NOVA OS is open the flight HUD hides so it does not fight the
+    // NOVA OS monitor; only diagnostic/status widgets carrying `HudNovaOsExempt`
     // stay. The restore branch fires on a pause change too, so CLOSING the
-    // drawer un-hides in the same frame - not just on a grave/tilde level
+    // NOVA OS un-hides in the same frame - not just on a grave/tilde level
     // change.
-    let drawer_open = *pause.get() == crate::PauseStates::Drawer;
+    let nova_os_open = *pause.get() == crate::PauseStates::NovaOs;
     let restore = level.is_changed() || pause.is_changed();
     for (tier, mut visibility, self_driven, exempt) in &mut q_roots {
-        let shown = level.shows(*tier) && (!drawer_open || exempt);
+        let shown = level.shows(*tier) && (!nova_os_open || exempt);
         if !shown {
             visibility.set_if_neq(Visibility::Hidden);
         } else if restore && !self_driven {
@@ -358,24 +358,24 @@ fn apply_hud_visibility(
         let Some(tier) = tier else {
             continue;
         };
-        let shown = level.shows(tier) && (!drawer_open || exempt);
+        let shown = level.shows(tier) && (!nova_os_open || exempt);
         if !shown {
             visibility.set_if_neq(Visibility::Hidden);
         }
     }
 }
 
-/// Lift drawer-exempt diagnostic/status chrome above the drawer backdrop only
-/// while the drawer is open. Its base z is 0, so when the drawer is closed -
+/// Lift NOVA OS-exempt diagnostic/status chrome above the NOVA OS backdrop only
+/// while the NOVA OS is open. Its base z is 0, so when the NOVA OS is closed -
 /// including while the pause overlay owns the freeze, which sits at the same z
-/// as the drawer backdrop - the exempt chrome stays at the base HUD z and the
+/// as the NOVA OS backdrop - the exempt chrome stays at the base HUD z and the
 /// pause overlay covers it normally.
-fn lift_exempt_chrome_over_drawer(
+fn lift_exempt_chrome_over_nova_os(
     pause: Res<State<crate::PauseStates>>,
-    mut q_exempt: Query<&mut GlobalZIndex, With<HudDrawerExempt>>,
+    mut q_exempt: Query<&mut GlobalZIndex, With<HudNovaOsExempt>>,
 ) {
-    let z = if *pause.get() == crate::PauseStates::Drawer {
-        drawer::DRAWER_EXEMPT_Z
+    let z = if *pause.get() == crate::PauseStates::NovaOs {
+        nova_os::DRAWER_EXEMPT_Z
     } else {
         0
     };
@@ -521,8 +521,8 @@ fn setup_hud_flight_status(
     // widgets: one player, one set (same guard as the flight input rig).
     if q_existing_cluster.is_empty() {
         // Keybind hints are ordinary flight chrome. NOVA OS owns the monitor
-        // surface while the drawer is open, so only diagnostic/status chrome
-        // carries `HudDrawerExempt`.
+        // surface while the NOVA OS is open, so only diagnostic/status chrome
+        // carries `HudNovaOsExempt`.
         commands.spawn((HudTier::Chrome, keybind_hint_cluster_hud()));
         commands.spawn((HudTier::Chrome, verb_cues_hud()));
     }
@@ -885,7 +885,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(StatesPlugin);
         app.init_state::<crate::GameStates>();
-        // apply_hud_visibility reads the drawer axis (task 20260724-134335).
+        // apply_hud_visibility reads the NOVA OS axis (task 20260724-134335).
         app.init_state::<crate::PauseStates>();
         app.init_resource::<HudVisibility>();
         app.init_resource::<ButtonInput<KeyCode>>();
@@ -1004,23 +1004,23 @@ mod tests {
         );
     }
 
-    /// A `Status` widget tagged `HudDrawerExempt` (the real status bar's config)
-    /// stays visible while the Tab drawer is open, but the cinematic `None` level
-    /// still clears it even mid-drawer (task 20260724-171509).
+    /// A `Status` widget tagged `HudNovaOsExempt` (the real status bar's config)
+    /// stays visible while the Tab NOVA OS is open, but the cinematic `None` level
+    /// still clears it even mid-NOVA OS (task 20260724-171509).
     #[test]
-    fn status_bar_persists_through_the_drawer_but_none_still_clears_it() {
+    fn status_bar_persists_through_the_nova_os_but_none_still_clears_it() {
         let mut app = app();
         let status = app
             .world_mut()
-            .spawn((HudTier::Status, HudDrawerExempt, Visibility::Inherited))
+            .spawn((HudTier::Status, HudNovaOsExempt, Visibility::Inherited))
             .id();
         let vis = |app: &App, e| *app.world().get::<Visibility>(e).unwrap();
 
-        set_pause(&mut app, crate::PauseStates::Drawer);
+        set_pause(&mut app, crate::PauseStates::NovaOs);
         assert_eq!(
             vis(&app, status),
             Visibility::Inherited,
-            "the status bar stays while the drawer is open"
+            "the status bar stays while the NOVA OS is open"
         );
 
         app.insert_resource(HudVisibility::None);
@@ -1028,16 +1028,16 @@ mod tests {
         assert_eq!(
             vis(&app, status),
             Visibility::Hidden,
-            "None clears the status bar even during the drawer"
+            "None clears the status bar even during the NOVA OS"
         );
     }
 
-    /// The real flight status bar is `HudTier::Status` WITHOUT `HudDrawerExempt`
+    /// The real flight status bar is `HudTier::Status` WITHOUT `HudNovaOsExempt`
     /// (task 20260727-014806): opening the NOVA OS computer hides the whole flight
     /// status bar (its FPS item is rehomed onto the terminal topbar), and closing
-    /// the drawer restores it in the same frame via the pause-change restore branch.
+    /// the NOVA OS restores it in the same frame via the pause-change restore branch.
     #[test]
-    fn flight_status_bar_hides_while_the_drawer_is_open_and_returns_on_close() {
+    fn flight_status_bar_hides_while_the_nova_os_is_open_and_returns_on_close() {
         let mut app = app();
         let status = app
             .world_mut()
@@ -1053,20 +1053,20 @@ mod tests {
             "the flight status bar is visible in normal flight"
         );
 
-        // Opening the drawer hides it - it is no longer drawer-exempt.
-        set_pause(&mut app, crate::PauseStates::Drawer);
+        // Opening the NOVA OS hides it - it is no longer NOVA OS-exempt.
+        set_pause(&mut app, crate::PauseStates::NovaOs);
         assert_eq!(
             vis(&app, status),
             Visibility::Hidden,
             "the flight status bar hides while the NOVA OS computer is open"
         );
 
-        // Closing the drawer restores it (pause change fires the restore branch).
+        // Closing the NOVA OS restores it (pause change fires the restore branch).
         set_pause(&mut app, crate::PauseStates::Unpaused);
         assert_eq!(
             vis(&app, status),
             Visibility::Inherited,
-            "closing the drawer brings the flight status bar back"
+            "closing the NOVA OS brings the flight status bar back"
         );
     }
 
@@ -1074,14 +1074,14 @@ mod tests {
     /// its own, so it must INHERIT the bar's visibility (task 20260724-171509):
     /// `apply_hud_visibility` manages only the tiered PARENT and must leave the
     /// child's `Visibility::Inherited` untouched, so Bevy propagation carries the
-    /// bar's state (persist through the drawer, clear at None) to the count. This
+    /// bar's state (persist through the NOVA OS, clear at None) to the count. This
     /// pins that we do NOT give the child its own tier/visibility management.
     #[test]
     fn childless_node_is_left_to_inherit_the_status_bar() {
         let mut app = app();
         let bar = app
             .world_mut()
-            .spawn((HudTier::Status, HudDrawerExempt, Visibility::Inherited))
+            .spawn((HudTier::Status, HudNovaOsExempt, Visibility::Inherited))
             .id();
         let child = app
             .world_mut()
@@ -1089,9 +1089,9 @@ mod tests {
             .id();
         let vis = |app: &App, e| *app.world().get::<Visibility>(e).unwrap();
 
-        // Drawer open: the bar persists; the child is never touched, so it is
+        // NovaOs open: the bar persists; the child is never touched, so it is
         // left Inherited to follow the (visible) bar.
-        set_pause(&mut app, crate::PauseStates::Drawer);
+        set_pause(&mut app, crate::PauseStates::NovaOs);
         assert_eq!(vis(&app, bar), Visibility::Inherited);
         assert_eq!(
             vis(&app, child),
@@ -1124,7 +1124,7 @@ mod tests {
 
     /// Opening NOVA OS hides ordinary flight HUD and key hints so they do not
     /// float over the cockpit monitor. Diagnostic/status chrome tagged
-    /// `HudDrawerExempt` remains visible above the computer.
+    /// `HudNovaOsExempt` remains visible above the computer.
     #[test]
     fn nova_os_hides_flight_hud_but_keeps_diagnostics() {
         let mut app = app();
@@ -1138,7 +1138,7 @@ mod tests {
             .id();
         let diagnostics = app
             .world_mut()
-            .spawn((HudTier::Status, HudDrawerExempt, Visibility::Inherited))
+            .spawn((HudTier::Status, HudNovaOsExempt, Visibility::Inherited))
             .id();
         let vis = |app: &App, e| *app.world().get::<Visibility>(e).unwrap();
 
@@ -1147,11 +1147,11 @@ mod tests {
         assert_eq!(vis(&app, key_hints), Visibility::Inherited);
         assert_eq!(vis(&app, diagnostics), Visibility::Inherited);
 
-        set_pause(&mut app, crate::PauseStates::Drawer);
+        set_pause(&mut app, crate::PauseStates::NovaOs);
         assert_eq!(
             vis(&app, instrument),
             Visibility::Hidden,
-            "the flight HUD hides while the drawer is open"
+            "the flight HUD hides while the NOVA OS is open"
         );
         assert_eq!(
             vis(&app, key_hints),
@@ -1161,34 +1161,34 @@ mod tests {
         assert_eq!(
             vis(&app, diagnostics),
             Visibility::Inherited,
-            "diagnostic/status chrome remains visible while the drawer is open"
+            "diagnostic/status chrome remains visible while the NOVA OS is open"
         );
 
         set_pause(&mut app, crate::PauseStates::Unpaused);
         assert_eq!(
             vis(&app, instrument),
             Visibility::Inherited,
-            "closing the drawer restores the flight HUD"
+            "closing the NOVA OS restores the flight HUD"
         );
         assert_eq!(vis(&app, key_hints), Visibility::Inherited);
         assert_eq!(vis(&app, diagnostics), Visibility::Inherited);
     }
 
-    /// The exempt diagnostic/status chrome is lifted above the drawer
-    /// backdrop ONLY while the drawer is open. When the PAUSE menu owns the
+    /// The exempt diagnostic/status chrome is lifted above the NOVA OS
+    /// backdrop ONLY while the NOVA OS is open. When the PAUSE menu owns the
     /// freeze it drops back to the base HUD z, so the pause overlay (which sits
-    /// at the same z as the drawer backdrop) still covers it - not the other way
+    /// at the same z as the NOVA OS backdrop) still covers it - not the other way
     /// round (task 20260724-134335). The bug this pins: a static high z made the
     /// status strip poke over the pause menu.
     #[test]
-    fn exempt_chrome_lifts_only_while_drawer_open() {
+    fn exempt_chrome_lifts_only_while_nova_os_open() {
         let mut app = App::new();
         app.add_plugins(StatesPlugin);
         app.init_state::<crate::PauseStates>();
-        app.add_systems(Update, lift_exempt_chrome_over_drawer);
+        app.add_systems(Update, lift_exempt_chrome_over_nova_os);
         let widget = app
             .world_mut()
-            .spawn((HudDrawerExempt, GlobalZIndex::default()))
+            .spawn((HudNovaOsExempt, GlobalZIndex::default()))
             .id();
         let z = |app: &App| app.world().get::<GlobalZIndex>(widget).unwrap().0;
 
@@ -1197,12 +1197,12 @@ mod tests {
 
         app.world_mut()
             .resource_mut::<NextState<crate::PauseStates>>()
-            .set(crate::PauseStates::Drawer);
+            .set(crate::PauseStates::NovaOs);
         app.update();
         assert_eq!(
             z(&app),
-            drawer::DRAWER_EXEMPT_Z,
-            "lifted above the backdrop while the drawer is open"
+            nova_os::DRAWER_EXEMPT_Z,
+            "lifted above the backdrop while the NOVA OS is open"
         );
 
         app.world_mut()
@@ -1212,7 +1212,7 @@ mod tests {
         assert_eq!(
             z(&app),
             0,
-            "dropped to base z when the pause menu - not the drawer - owns the freeze"
+            "dropped to base z when the pause menu - not the NOVA OS - owns the freeze"
         );
     }
 

@@ -253,6 +253,7 @@ members = [
   "crates/nova_menu",
   "crates/nova_mod_format",
   "crates/nova_modding",
+  "crates/nova_os",
   "crates/nova_probe",
   "crates/nova_scenario",
   "crates/nova_ui",

@@ -8,7 +8,7 @@
 //! the bottom, older cards pushed up and fading. Per-line dwell still defaults
 //! to [`COMMS_DWELL_SECS`] and clamps to
 //! [`COMMS_DWELL_MIN_SECS`]..[`COMMS_DWELL_MAX_SECS`]. Pending overflow drops
-//! oldest, but the full transcript stays in [`StoryFeed`] for the drawer log.
+//! oldest, but the full transcript stays in [`StoryFeed`] for the NOVA OS log.
 //!
 //! Scenario teardown clears the event world, the sync writes an empty feed,
 //! and the panel resets instantly - queue dropped, fades cancelled, hidden -

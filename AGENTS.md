@@ -18,7 +18,8 @@ Cargo workspace. The root crate is thin (`src/main.rs` is the CLI entry,
 | Crate | What it does |
 |-------|--------------|
 | `nova_core` | `AppBuilder`: assembles all plugins. Start here. |
-| `nova_gameplay` | Sections, integrity, input, HUD, targeting, flight/autopilot, AI, camera. Owns `GameStates`. |
+| `nova_gameplay` | Sections, integrity, input, HUD, targeting, flight/autopilot, AI, camera. Owns `GameStates`. Owns the NOVA OS ship-computer UI + game-data bridges (logic in `nova_os`). |
+| `nova_os` | NOVA OS logic: terminal model, shell command language, app runtime. UI stays in `nova_gameplay`; `nova_ui` must not depend on it. |
 | `nova_scenario` | Scenario/modding engine: actions, events, filters, variables, objects, the content lint. |
 | `nova_assets` | Asset loading; content builders and the `content` CLI (gen/lint; balance audit + input-overlap folded into lint). |
 | `nova_modding` | Mod loading/merging: bundles, installed catalog, portal client, downloads. |

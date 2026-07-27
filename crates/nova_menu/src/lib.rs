@@ -230,15 +230,15 @@ impl Plugin for NovaMenuPlugin {
             OnExit(PauseStates::Paused),
             (unpause_clocks, restore_cursor),
         );
-        // The Tab ship-computer drawer (task 20260724-102304) reuses the same
+        // The Tab ship-computer NOVA OS (task 20260724-102304) reuses the same
         // freeze + cursor-free as the pause overlay - it is a third
         // `PauseStates` variant on the SAME clock-freeze axis (see that task's
-        // DECISION.md) - but WITHOUT `setup_pause_ui`: the drawer draws its own
+        // DECISION.md) - but WITHOUT `setup_pause_ui`: the NOVA OS draws its own
         // surface in `nova_gameplay`'s HUD. Only ever entered from / exited to
         // `Unpaused`, so these never race the `Paused` hooks.
-        app.add_systems(OnEnter(PauseStates::Drawer), (pause_clocks, release_cursor));
+        app.add_systems(OnEnter(PauseStates::NovaOs), (pause_clocks, release_cursor));
         app.add_systems(
-            OnExit(PauseStates::Drawer),
+            OnExit(PauseStates::NovaOs),
             (unpause_clocks, restore_cursor),
         );
         // Leaving Playing while paused (Back to Main Menu) must not leave the
@@ -332,10 +332,10 @@ fn toggle_pause(
         let destination = match current.get() {
             PauseStates::Unpaused => PauseStates::Paused,
             PauseStates::Paused => PauseStates::Unpaused,
-            // The Tab drawer owns its close animation. ESC/Start while Drawer
+            // The Tab NOVA OS owns its close animation. ESC/Start while NovaOs
             // is active is handled by nova_gameplay so clocks stay paused until
-            // the drawer has slid fully off screen.
-            PauseStates::Drawer => PauseStates::Drawer,
+            // the NOVA OS has slid fully off screen.
+            PauseStates::NovaOs => PauseStates::NovaOs,
         };
         if destination == *current.get() {
             return;
@@ -4524,13 +4524,13 @@ mod tests {
         assert!(app.world().get_entity(back).is_err());
     }
 
-    /// Opening the Tab drawer (task 20260724-102304) reuses the pause freeze:
-    /// entering `PauseStates::Drawer` freezes both clocks and frees the cursor,
+    /// Opening the Tab NOVA OS (task 20260724-102304) reuses the pause freeze:
+    /// entering `PauseStates::NovaOs` freezes both clocks and frees the cursor,
     /// exactly like `Paused` - but WITHOUT spawning the pause menu. Deleting the
-    /// `OnEnter(Drawer)` wiring leaves the clocks running, so this fails without
+    /// `OnEnter(NovaOs)` wiring leaves the clocks running, so this fails without
     /// the mechanism (`would-it-fail-without-it`).
     #[test]
-    fn entering_drawer_freezes_clocks_frees_cursor_and_shows_no_pause_menu() {
+    fn entering_nova_os_freezes_clocks_frees_cursor_and_shows_no_pause_menu() {
         let mut app = app();
         app.insert_resource(dummy_scenarios());
         // A window whose cursor starts grabbed (flight state), so freeing it is
@@ -4550,62 +4550,62 @@ mod tests {
         enter_playing(&mut app);
         assert_eq!(clocks_paused(&app), (false, false));
 
-        // The drawer opens by driving the shared freeze axis to Drawer (what
-        // nova_gameplay's `toggle_drawer` does).
+        // The NOVA OS opens by driving the shared freeze axis to NovaOs (what
+        // nova_gameplay's `toggle_nova_os` does).
         app.world_mut()
             .resource_mut::<NextState<PauseStates>>()
-            .set(PauseStates::Drawer);
+            .set(PauseStates::NovaOs);
         app.update();
 
         assert_eq!(
             clocks_paused(&app),
             (true, true),
-            "opening the drawer freezes both clocks"
+            "opening the NOVA OS freezes both clocks"
         );
         let cursor = app.world().get::<CursorOptions>(window).unwrap();
         assert_eq!(
             cursor.grab_mode,
             CursorGrabMode::None,
-            "the drawer frees the cursor"
+            "the NOVA OS frees the cursor"
         );
-        assert!(cursor.visible, "the drawer shows the cursor");
+        assert!(cursor.visible, "the NOVA OS shows the cursor");
 
-        // The drawer is NOT the pause menu: no pause overlay spawns.
+        // The NOVA OS is NOT the pause menu: no pause overlay spawns.
         let mut q = app.world_mut().query::<(&Name,)>();
         let has_pause_overlay = q
             .iter(app.world())
             .any(|(n,)| n.as_str() == "Pause Overlay");
         assert!(
             !has_pause_overlay,
-            "opening the drawer must not spawn the pause menu overlay"
+            "opening the NOVA OS must not spawn the pause menu overlay"
         );
     }
 
-    /// ESC while the Tab drawer is open belongs to the drawer (task
+    /// ESC while the Tab NOVA OS is open belongs to the NOVA OS (task
     /// 20260726-142635), not the pause menu, so the menu toggle does not
     /// unpause or stack its own overlay.
     #[test]
-    fn escape_does_not_menu_toggle_the_drawer() {
+    fn escape_does_not_menu_toggle_the_nova_os() {
         let mut app = app();
         app.insert_resource(dummy_scenarios());
         enter_playing(&mut app);
         app.world_mut()
             .resource_mut::<NextState<PauseStates>>()
-            .set(PauseStates::Drawer);
+            .set(PauseStates::NovaOs);
         app.update();
-        assert_eq!(pause_state(&app), PauseStates::Drawer);
+        assert_eq!(pause_state(&app), PauseStates::NovaOs);
         assert_eq!(clocks_paused(&app), (true, true));
 
         press_escape(&mut app);
         assert_eq!(
             pause_state(&app),
-            PauseStates::Drawer,
-            "the drawer owns ESC so it can animate closed before gameplay resumes"
+            PauseStates::NovaOs,
+            "the NOVA OS owns ESC so it can animate closed before gameplay resumes"
         );
         assert_eq!(
             clocks_paused(&app),
             (true, true),
-            "the drawer remains frozen until its close animation completes"
+            "the NOVA OS remains frozen until its close animation completes"
         );
         let has_pause_overlay = app
             .world_mut()
@@ -4614,7 +4614,7 @@ mod tests {
             .any(|(n,)| n.as_str() == "Pause Overlay");
         assert!(
             !has_pause_overlay,
-            "ESC over the drawer must not spawn the pause menu overlay"
+            "ESC over the NOVA OS must not spawn the pause menu overlay"
         );
     }
 

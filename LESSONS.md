@@ -43,12 +43,19 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   its own `README.md` that is a player-facing doc surface, and a sweep scoped to
   the central docs called it "referenced nowhere" while a stale flat-picker
   instruction sat in the mod's README. 20260724-220842.
-- `rustdoc-no-public-to-private-intra-doc-link` (x1): a `pub` item's
-  rustdoc cannot `[intra-doc-link]` a PRIVATE symbol without a `cargo doc`
-  warning - use a plain code span for private references, reserve `[links]` for
-  items at least as public as the referrer. Keep `cargo doc -p <crate>
-  --no-deps` in the verify loop whenever a task adds rustdoc to public items
-  (it is the only check that catches this class). 20260723-143530.
+- `rustdoc-no-public-to-private-intra-doc-link` (x2): a `pub` item's
+  rustdoc cannot `[intra-doc-link]` a PRIVATE symbol (or a cross-module item not
+  in scope) without a `cargo doc` warning - plain code span for private refs,
+  full paths for cross-module refs; moving documented code across a module/crate
+  boundary reliably breaks these, so run `cargo doc -p <crate> --no-deps` as part
+  of the move. 20260723-143530, 20260727-015156.
+- `extract-type-grep-its-drive-sites-first` (x1): before extracting a
+  state-holding type into a new crate, grep every field/method access of it
+  across the whole crate FIRST - external systems often read PRIVATE fields
+  directly, so the real cost is designing a public accessor API (preserving
+  immutable-read-then-conditional-`&mut` change detection) and splitting the
+  test module, not moving the definition. Plan that surface, don't discover it
+  mid-build. 20260727-015156.
 - `ephemeral-news-draft-drifts-behind-content` (x1): the `docs/news-*.md`
   release drafts are ephemeral and easy to skip in a doc sweep, so they drift
   BEHIND the content they describe - when a feature/chapter changes, RE-READ

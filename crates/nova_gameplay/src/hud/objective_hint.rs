@@ -1,6 +1,6 @@
 //! The minimalist flight objective HINT (task 20260724-134312): the
 //! ACTIVE-objective COUNT + a "TAB" affordance (owner choice - the per-objective
-//! detail lives in the diegetic reveal and the Tab drawer, not here). It
+//! detail lives in the diegetic reveal and the Tab NOVA OS, not here). It
 //! collapses when there are no objectives.
 //!
 //! The hint is a BLOCK IN THE STATUS BAR (task 20260724-161545): it is parented
@@ -13,15 +13,15 @@
 //! builds an unmarked text-only visual).
 //!
 //! It is also the source of the diegetic reveal's tuck anchor: the hint writes
-//! [`DrawerTabAnchor`] from its own screen rect (the reveal, task 20260721-211520,
-//! tucks a newly posted objective INTO this hint), replacing the old drawer tab
+//! [`NovaOsTabAnchor`] from its own screen rect (the reveal, task 20260721-211520,
+//! tucks a newly posted objective INTO this hint), replacing the old NOVA OS tab
 //! handle as the tuck target.
 
 use bevy::prelude::*;
 use bevy_common_systems::prelude::{GameObjectives, StatusBarRootMarker};
 use nova_ui::theme;
 
-use super::{drawer::DrawerTabAnchor, NovaHudSystems};
+use super::{nova_os::NovaOsTabAnchor, NovaHudSystems};
 use crate::prelude::*;
 
 const HINT_FONT_PX: f32 = 14.0;
@@ -59,7 +59,7 @@ impl Plugin for ObjectiveHintPlugin {
 /// `update_hint` reveals it once there is an objective. Parenting it under
 /// [`StatusBarRootMarker`] is what puts it in the bar's flex row beside fps +
 /// version, so it can never overlap them. Visibility (the grave/tilde HUD cycle
-/// and the drawer hide) is INHERITED from the `Status`-tier bar root - the hint
+/// and the NOVA OS hide) is INHERITED from the `Status`-tier bar root - the hint
 /// carries no `HudTier` of its own.
 fn setup_hint(
     add: On<Add, PlayerSpaceshipMarker>,
@@ -127,7 +127,7 @@ fn remove_hint(
 /// Toggles `Display` (not `Visibility`): as a flex child of the status bar a
 /// hidden-but-laid-out node would leave a gap in the row, so `Display::None`
 /// removes it from layout entirely and the bar closes up. The grave/tilde HUD
-/// cycle and the drawer hide still work - they act on the `Status`-tier bar root,
+/// cycle and the NOVA OS hide still work - they act on the `Status`-tier bar root,
 /// whose computed visibility this child inherits.
 fn update_hint(
     objectives: Res<GameObjectives>,
@@ -153,13 +153,13 @@ fn update_hint(
     }
 }
 
-/// Publish the hint's screen rect as [`DrawerTabAnchor`] - the diegetic reveal's
-/// tuck target (task 20260721-211520). Mirrors the old drawer-tab-handle anchor;
+/// Publish the hint's screen rect as [`NovaOsTabAnchor`] - the diegetic reveal's
+/// tuck target (task 20260721-211520). Mirrors the old NOVA OS-tab-handle anchor;
 /// a fixed nominal size keeps the math unit-testable and the tuck aims at the
 /// hint's centre.
 fn update_tab_anchor(
     q_hint: Query<&GlobalTransform, With<ObjectiveHintMarker>>,
-    mut anchor: ResMut<DrawerTabAnchor>,
+    mut anchor: ResMut<NovaOsTabAnchor>,
 ) {
     let Ok(gt) = q_hint.single() else {
         return;
@@ -180,7 +180,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
         app.init_resource::<GameObjectives>();
-        app.init_resource::<DrawerTabAnchor>();
+        app.init_resource::<NovaOsTabAnchor>();
         app.add_observer(setup_hint);
         app.add_systems(Update, (update_hint, update_tab_anchor));
         // The hint lives in the status bar, so the bar root must exist first
@@ -259,13 +259,13 @@ mod tests {
     }
 
     /// The hint is the reveal's tuck anchor: `update_tab_anchor` publishes the
-    /// hint's screen rect into `DrawerTabAnchor`. Deleting the system leaves it
+    /// hint's screen rect into `NovaOsTabAnchor`. Deleting the system leaves it
     /// `None`.
     #[test]
-    fn objective_hint_provides_the_drawer_anchor() {
+    fn objective_hint_provides_the_nova_os_anchor() {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
-        app.init_resource::<DrawerTabAnchor>();
+        app.init_resource::<NovaOsTabAnchor>();
         app.add_systems(Update, update_tab_anchor);
         app.world_mut().spawn((
             ObjectiveHintMarker,
@@ -275,7 +275,7 @@ mod tests {
 
         let rect = app
             .world()
-            .resource::<DrawerTabAnchor>()
+            .resource::<NovaOsTabAnchor>()
             .rect
             .expect("the anchor is published from the hint");
         assert!(

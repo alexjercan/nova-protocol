@@ -4645,6 +4645,7 @@ dependencies = [
  "bevy_transform_interpolation",
  "nova_events",
  "nova_info",
+ "nova_os",
  "nova_ui",
  "rand 0.10.2",
  "ron",
@@ -4704,6 +4705,14 @@ dependencies = [
  "nova_scenario",
  "ron",
  "serde",
+]
+
+[[package]]
+name = "nova_os"
+version = "0.8.1"
+dependencies = [
+ "bevy",
+ "nova_info",
 ]
 
 [[package]]

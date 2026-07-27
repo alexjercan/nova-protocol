@@ -116,13 +116,13 @@ pub enum GameStates {
 
 /// Whether gameplay is frozen behind a modal overlay (task 20260711-185156).
 /// Owned UI-wise by `nova_menu` (ESC toggle + overlay) and `nova_gameplay`'s
-/// Tab ship-computer drawer; `nova_gameplay` gates the spaceship input/section
+/// Tab ship-computer NOVA OS; `nova_gameplay` gates the spaceship input/section
 /// system sets on `Unpaused`, and the clocks (`Time<Virtual>` +
 /// `Time<Physics>`) pause on entering any frozen variant. Init'd by
 /// `AppBuilder` next to [`GameStates`]. Only meaningful inside
 /// `GameStates::Playing`; leaving Playing must reset it.
 ///
-/// Both frozen variants ([`PauseStates::Paused`] and [`PauseStates::Drawer`])
+/// Both frozen variants ([`PauseStates::Paused`] and [`PauseStates::NovaOs`])
 /// are entered ONLY from [`PauseStates::Unpaused`] and exit back to it - never
 /// one directly into the other - so the freeze/cursor hooks never
 /// double-fire (task 20260724-102304, see its DECISION.md).
@@ -133,10 +133,10 @@ pub enum PauseStates {
     Unpaused,
     /// Gameplay is frozen behind the pause overlay; the clocks are stopped.
     Paused,
-    /// Gameplay is frozen behind the Tab ship-computer drawer; the clocks are
+    /// Gameplay is frozen behind the Tab ship-computer NOVA OS; the clocks are
     /// stopped and the cursor is freed, exactly like [`PauseStates::Paused`]
     /// but without the pause menu (task 20260724-102304).
-    Drawer,
+    NovaOs,
 }
 
 impl PauseStates {

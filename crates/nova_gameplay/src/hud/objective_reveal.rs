@@ -1,7 +1,7 @@
 //! Diegetic objective reveal (task 20260721-211520): when a new objective
 //! posts, a big, slightly-rotated card appears on the cockpit HUD, holds for a
-//! couple of seconds, then TUCKS into the Tab drawer's tab handle (the
-//! [`DrawerTabAnchor`]) and vanishes - the "big cockpit moment" the owner asked
+//! couple of seconds, then TUCKS into the Tab NOVA OS's tab handle (the
+//! [`NovaOsTabAnchor`]) and vanishes - the "big cockpit moment" the owner asked
 //! for. It supersedes the small gold ghost line that fresh postings used to get
 //! (task 20260717-163033); completions keep their green ghost line
 //! (`objective_feedback`). The spawn is triggered from `objective_feedback`'s
@@ -10,7 +10,7 @@
 //!
 //! Placement follows the `screen_indicator` pattern: the card's screen position
 //! is driven through `Node.left/top` in logical pixels, and `UiTransform` is used
-//! only for scale + rotation - so the tuck target ([`DrawerTabAnchor`], already
+//! only for scale + rotation - so the tuck target ([`NovaOsTabAnchor`], already
 //! in screen pixels) maps directly and there is no `GlobalTransform`-vs-
 //! `UiTransform` coordinate ambiguity. The reveal plays during normal flight
 //! (Unpaused), so the default `Res<Time>` clock is correct.
@@ -19,7 +19,7 @@ use bevy::{prelude::*, window::PrimaryWindow};
 use bevy_common_systems::prelude::Objective;
 use nova_ui::theme;
 
-use super::{drawer::DrawerTabAnchor, OBJECTIVE_GOLD};
+use super::{nova_os::NovaOsTabAnchor, OBJECTIVE_GOLD};
 use crate::prelude::*;
 
 /// Grow-in time (seconds).
@@ -91,7 +91,7 @@ pub fn spawn_objective_reveal(commands: &mut Commands, objective: &Objective) {
     // A deliberate top-level orphan node (no HUD-root parent): it is absolutely
     // positioned in screen pixels, transient (~3.2s then despawns, or cleared on
     // teardown), and must not inherit the HUD-visibility cycle - the big cockpit
-    // moment shows regardless of the flight HUD level, like the drawer.
+    // moment shows regardless of the flight HUD level, like the NOVA OS.
     commands
         .spawn((
             Name::new(format!("ObjectiveReveal {}", objective.id)),
@@ -131,12 +131,12 @@ pub fn spawn_objective_reveal(commands: &mut Commands, objective: &Objective) {
 }
 
 /// Advance every reveal card: grow in, hold big, then tuck into the tab handle
-/// (or fade in place if the drawer handle has not laid out yet), and despawn
+/// (or fade in place if the NOVA OS handle has not laid out yet), and despawn
 /// when spent. Position rides `Node.left/top` (px), scale + rotation ride
 /// `UiTransform` (the `screen_indicator` placement pattern).
 fn animate_objective_reveals(
     time: Res<Time>,
-    anchor: Res<DrawerTabAnchor>,
+    anchor: Res<NovaOsTabAnchor>,
     q_window: Query<&Window, With<PrimaryWindow>>,
     mut commands: Commands,
     mut q_reveal: Query<(
@@ -155,7 +155,7 @@ fn animate_objective_reveals(
         .map(|w| Vec2::new(w.width(), w.height()))
         .unwrap_or(FALLBACK_VIEWPORT);
     let base = viewport * REVEAL_BASE_FRAC;
-    // The tuck target is the drawer tab handle; before it has laid out
+    // The tuck target is the NOVA OS tab handle; before it has laid out
     // (anchor None) the card simply fades in place at `base`.
     let target = anchor.rect.map(|r| r.center()).unwrap_or(base);
 
@@ -237,7 +237,7 @@ mod tests {
             0.1,
         )));
         app.init_resource::<GameObjectives>();
-        app.init_resource::<DrawerTabAnchor>();
+        app.init_resource::<NovaOsTabAnchor>();
         app.add_systems(
             Update,
             (
@@ -284,7 +284,7 @@ mod tests {
         let mut app = reveal_app();
         // Anchor far to the right of the upper-centre base (1920*0.5 = 960),
         // so a rightward slide is unambiguous.
-        app.world_mut().resource_mut::<DrawerTabAnchor>().rect = Some(Rect::from_center_size(
+        app.world_mut().resource_mut::<NovaOsTabAnchor>().rect = Some(Rect::from_center_size(
             Vec2::new(1880.0, 300.0),
             Vec2::new(22.0, 96.0),
         ));
