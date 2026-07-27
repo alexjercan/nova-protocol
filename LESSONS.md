@@ -1053,11 +1053,19 @@ here (annotated) as the paid record.
   touched crates before trusting a workspace check". A tool guard is hard (the
   feature unification is per-crate), so a work-skill line is the realistic home.
   20260718-004834, 20260718-102022, 20260724-193830.
-- `reuse-known-good-stack` (x6, positive) -> work skill: scaffold a new test rig
+- `reuse-known-good-stack` (x7, positive) -> work skill: scaffold a new test rig
   by copying the nearest passing sibling rig verbatim, then mutate - do not
-  reconstruct it from the system's parameter signature. Prose target (the skill
-  already says "grep the module for an existing rig of the same kind first"; this
-  sharpens it to "copy it whole first"). 20260712-093048, 20260711-180511, 20260724-102304.
+  reconstruct it from the system's parameter signature (a hand-built CRT rig
+  omitted the sibling's `init_asset::<Font>/<Image>` and panicked in the
+  AssetServer on the app-launch font load). Prose target (the skill already says
+  "grep the module for an existing rig of the same kind first"; sharpens it to
+  "copy it whole first"). 20260712-093048, 20260711-180511, 20260724-102304, 20260727-014148.
+- `new-required-system-param-sweeps-all-rigs` (x1) -> work skill: when a
+  widely-run system gains a required `Res`/`ResMut`/param, grep every
+  `add_systems`/test rig that runs it and register the resource BEFORE running -
+  the compiler cannot catch a missing resource, only a run-time panic can (adding
+  `ResMut<NovaOsDegauss>` to two NOVA OS systems broke 5 partial-app rigs at
+  once). 20260727-014148.
 - `lint-gate-is-the-last-step` (x3): fmt/clippy/tests run AFTER the final edit;
   mirror remote CI locally before pushing - a post-final-edit prelude tweak
   landed an unformatted line that CI would have bounced (caught at flow Finish).

@@ -32,6 +32,11 @@ struct NovaOsCrtMaterial {
     // Extra brightness multiply (>1 blooms hotter). Reserved for task 214617's
     // BRIGHT knob; 1.0 is neutral.
     brightness: f32,
+    // Degauss envelope 0..1 (task 20260727-014148): pulsed to 1 on an app
+    // launch/exit/switch and decayed back to 0 by `animate_nova_os_crt`. Drives a
+    // brief horizontal wobble + white flash; every term it feeds is multiplied by
+    // it, so at 0 the degauss is an exact no-op (readability preserved).
+    degauss: f32,
 }
 
 @group(1) @binding(0) var<uniform> material: NovaOsCrtMaterial;
@@ -42,6 +47,23 @@ const TWO_PI: f32 = 6.28318530718;
 const SCANLINE_PITCH_PX: f32 = 3.0;
 const SLOT_PITCH_PX: f32 = 3.0;
 const SLOT_STRENGTH: f32 = 0.03;
+
+// Degauss (task 20260727-014148): the coil settling on an app launch/exit is a
+// decaying horizontal shear plus a brief white lift. Both scale with the
+// `degauss` envelope (envelope^2) so they vanish to an exact no-op at rest.
+const DEGAUSS_WOBBLE_PX: f32 = 6.0; // peak horizontal shear at full envelope
+const DEGAUSS_FLASH: f32 = 0.16;    // peak white lift at full envelope
+
+// Always-on analog micro-effects, each tiny enough that centre text stays crisp.
+const HUM_BAR_SPEED: f32 = 0.11;      // tube-heights per second the hum bar drifts
+const HUM_BAR_WIDTH: f32 = 0.11;      // gaussian half-width of the bar (uv)
+const HUM_BAR_STRENGTH: f32 = 0.03;   // green lift under the drifting bar
+const FLICKER_PERIOD: f32 = 4.5;      // seconds per mains-flicker cycle
+const FLICKER_STRENGTH: f32 = 0.012;  // brightness wobble amplitude (multiply)
+const RETRACE_PERIOD: f32 = 7.0;      // seconds between retrace beam sweeps
+const RETRACE_SPEED: f32 = 3.0;       // tube-heights per second the beam falls
+const RETRACE_WIDTH: f32 = 0.012;     // gaussian half-width of the beam (uv)
+const RETRACE_STRENGTH: f32 = 0.09;   // green lift along the fast retrace beam
 
 fn hash21(p: vec2<f32>) -> f32 {
     return fract(sin(dot(p, vec2<f32>(12.9898, 78.233))) * 43758.5453);
@@ -75,8 +97,16 @@ fn fragment(in: UiVertexOutput) -> @location(0) vec4<f32> {
     }
     let sample_uv = vec2<f32>(cx, cy);
 
+    // Degauss coil settle: a fast decaying horizontal shear that wobbles the
+    // raster sideways while the coil rings out. Envelope^2-scaled, so it is an
+    // exact no-op when idle and never touches steady-state readability.
+    let wobble = sin(in.uv.y * 18.0 + material.time * 90.0)
+        * material.degauss * material.degauss
+        * (DEGAUSS_WOBBLE_PX * texel.x);
+    let shaken_uv = vec2<f32>(sample_uv.x + wobble, sample_uv.y);
+
     // Warp the (power-remapped) content. Anything outside the panel is tube-black.
-    let warped = barrel(sample_uv, material.warp);
+    let warped = barrel(shaken_uv, material.warp);
     let in_bounds = f32(warped.x >= 0.0 && warped.x <= 1.0 && warped.y >= 0.0 && warped.y <= 1.0);
 
     var base = textureSample(source_texture, source_sampler, warped);
@@ -126,8 +156,29 @@ fn fragment(in: UiVertexOutput) -> @location(0) vec4<f32> {
     // Phosphor kick: a brightness overshoot while the raster is mid-collapse.
     let kick = 1.0 + 2.2 * material.power * (1.0 - material.power);
 
-    var rgb = (base.rgb * scan * vignette + glow + grain) * material.brightness * kick;
-    rgb = rgb * in_bounds * (1.0 - collapsed);
+    // Always-on analog micro-effects (task 20260727-014148). The mains-hum bar is
+    // a soft bright band drifting slowly down the tube; the retrace beam is a
+    // faster, rarer thin line falling once per period; the mains flicker is a
+    // gentle brightness breathing. Hum + retrace lift the green phosphor; the
+    // degauss flash lifts white. All are read against `in.uv` (the fixed screen
+    // face), not the warped content, so they sit on the glass.
+    let hum_pos = fract(material.time * HUM_BAR_SPEED);
+    var dhum = abs(in.uv.y - hum_pos);
+    dhum = min(dhum, 1.0 - dhum);
+    let hum = exp(-(dhum * dhum) / (HUM_BAR_WIDTH * HUM_BAR_WIDTH)) * HUM_BAR_STRENGTH;
+
+    let period_t = fract(material.time / RETRACE_PERIOD) * RETRACE_PERIOD;
+    let beam_y = period_t * RETRACE_SPEED;
+    let dbeam = abs(in.uv.y - beam_y);
+    let retrace = exp(-(dbeam * dbeam) / (RETRACE_WIDTH * RETRACE_WIDTH))
+        * step(beam_y, 1.0) * RETRACE_STRENGTH;
+
+    let flicker = 1.0 + sin(material.time / FLICKER_PERIOD * TWO_PI) * FLICKER_STRENGTH;
+    let flash = material.degauss * material.degauss * DEGAUSS_FLASH;
+    let analog_add = (hum + retrace) * material.tint.rgb + vec3<f32>(flash, flash, flash);
+
+    var rgb = (base.rgb * scan * vignette + glow + grain) * material.brightness * kick * flicker;
+    rgb = (rgb + analog_add) * in_bounds * (1.0 - collapsed);
 
     // Rounded-corner mask in device pixels (a MaterialNode ignores BorderRadius).
     var corner_mask = 1.0;

@@ -188,6 +188,12 @@ const NOVA_OS_CRT_GRAIN_STRENGTH: f32 = 0.03;
 const NOVA_OS_CRT_WARP: f32 = 0.12;
 const NOVA_OS_CRT_BLOOM: f32 = 0.85;
 
+/// Degauss pulse duration in seconds (task 20260727-014148): how long the coil
+/// wobble+flash rings out after an app launch/exit/switch. Short enough to feel
+/// like a physical coil settle, long enough to read. The envelope is
+/// `remaining / NOVA_OS_DEGAUSS_DURATION`, fed to the shader's `degauss` uniform.
+const NOVA_OS_DEGAUSS_DURATION: f32 = 0.45;
+
 /// Global stacking-context z for the OPEN NOVA OS: it is a modal, so backdrop and
 /// panel rise above the flight HUD chrome (which carries no `GlobalZIndex` = 0).
 /// Same modal tier the pause overlay uses (`nova_menu`); the NOVA OS and the
@@ -542,6 +548,30 @@ enum NovaOsFlightLogEntryKind {
     ObjectiveCompleted,
 }
 
+/// The live degauss pulse (task 20260727-014148). [`sync_nova_os_app_ui`] resets
+/// `remaining` to [`NOVA_OS_DEGAUSS_DURATION`] on every real app
+/// launch/exit/switch (the same transitions that play the `NovaOsCoil` coil
+/// sound, so the wobble+flash lands with the thump); [`animate_nova_os_crt`]
+/// bleeds it down by real time and feeds the `remaining / DURATION` envelope into
+/// the CRT `degauss` uniform. Real time because the sim clock is frozen while the
+/// computer is open.
+#[derive(Resource, Default, Debug)]
+struct NovaOsDegauss {
+    remaining: f32,
+}
+
+impl NovaOsDegauss {
+    /// Kick the coil: restart the full pulse.
+    fn pulse(&mut self) {
+        self.remaining = NOVA_OS_DEGAUSS_DURATION;
+    }
+
+    /// The 0..1 shader envelope for the current `remaining`.
+    fn envelope(&self) -> f32 {
+        (self.remaining / NOVA_OS_DEGAUSS_DURATION).clamp(0.0, 1.0)
+    }
+}
+
 #[derive(Asset, AsBindGroup, TypePath, Clone, Debug)]
 struct NovaOsCrtMaterial {
     #[uniform(0)]
@@ -583,6 +613,13 @@ struct NovaOsCrtUniform {
     /// Extra brightness multiply (1.0 neutral). Reserved for task 214617's BRIGHT
     /// knob. Appended last so the field order still matches the WGSL struct.
     brightness: f32,
+    /// Degauss envelope 0..1 (task 20260727-014148): pulsed to 1 on an app
+    /// launch/exit/switch by [`sync_nova_os_app_ui`] via [`NovaOsDegauss`] and
+    /// decayed back to 0 by [`animate_nova_os_crt`]. Drives the shader's wobble +
+    /// flash. Appended last so the field order still matches the WGSL struct
+    /// (trailing `f32` after `brightness` - no alignment hole,
+    /// `shader-uniform-field-order-must-match-wgsl`).
+    degauss: f32,
 }
 
 #[derive(Default, TypePath)]
@@ -626,6 +663,8 @@ impl Default for NovaOsCrtMaterial {
                 // Start collapsed; the openness driver blooms it on.
                 power: 0.0,
                 brightness: 1.0,
+                // Idle: no degauss until an app launch/exit pulses it.
+                degauss: 0.0,
             },
             source: Handle::default(),
         }
@@ -1123,6 +1162,7 @@ impl Plugin for NovaOsPlugin {
         app.init_resource::<NovaOsAppRegistry>();
         app.init_resource::<NovaOsCloseTransition>();
         app.init_resource::<NovaOsMonitorSettings>();
+        app.init_resource::<NovaOsDegauss>();
         app.register_type::<NovaOsMonitorSettings>();
         app.register_asset_loader(NovaOsTtcFontLoader);
         app.add_plugins(UiMaterialPlugin::<NovaOsCrtMaterial>::default());
@@ -1829,6 +1869,7 @@ fn sync_nova_os_app_ui(
     registry: Res<NovaOsAppRegistry>,
     asset_server: Option<Res<AssetServer>>,
     rtt: Option<Res<NovaOsRtt>>,
+    mut degauss: ResMut<NovaOsDegauss>,
     q_screen: Query<Entity, With<NovaOsScreenMarker>>,
     q_app_root: Query<(Entity, &NovaOsAppRoot)>,
     mut q_content: Query<&mut Visibility, With<NovaOsTerminalContentMarker>>,
@@ -1844,6 +1885,11 @@ fn sync_nova_os_app_ui(
     if desired == current.map(|(_, id)| id) {
         return;
     }
+
+    // A real launch/exit/switch got past the diff-guard: kick the degauss coil so
+    // the CRT wobble+flash lands with the `NovaOsCoil` thump the input handlers
+    // play on the same transitions (task 20260727-014148).
+    degauss.pulse();
 
     if let Some((entity, _)) = current {
         commands.entity(entity).despawn();
@@ -2266,6 +2312,7 @@ fn drive_nova_os_topbar_fps(
 fn animate_nova_os_crt(
     time: Res<Time<Real>>,
     settings: Res<NovaOsMonitorSettings>,
+    mut degauss: ResMut<NovaOsDegauss>,
     mut materials: ResMut<Assets<NovaOsCrtMaterial>>,
     q_openness: Query<&NovaOsOpenness, With<NovaOsRootMarker>>,
     q_surface: Query<
@@ -2274,6 +2321,12 @@ fn animate_nova_os_crt(
     >,
 ) {
     let seconds = time.elapsed_secs();
+    // Bleed the degauss pulse down by real time (the sim clock is frozen while the
+    // computer is open) and feed its 0..1 envelope to the shader.
+    if degauss.remaining > 0.0 {
+        degauss.remaining = (degauss.remaining - time.delta_secs()).max(0.0);
+    }
+    let degauss_env = degauss.envelope();
     // Feed the eased openness in as the CRT power level: the shader blooms the
     // raster on from a line and collapses it to a dying dot on close.
     let power = q_openness.iter().next().map(|o| o.0).unwrap_or(1.0);
@@ -2288,6 +2341,7 @@ fn animate_nova_os_crt(
             material.data.power = power;
             material.data.brightness = brightness;
             material.data.scanline_strength = scanline_strength;
+            material.data.degauss = degauss_env;
         }
     }
 }
@@ -6024,6 +6078,7 @@ mod tests {
         app.init_asset::<NovaOsCrtMaterial>();
         app.init_resource::<Time<Real>>();
         app.init_resource::<NovaOsMonitorSettings>();
+        app.init_resource::<NovaOsDegauss>();
         app.add_systems(Update, animate_nova_os_crt);
 
         // The eased openness the shader reads as its power level.
@@ -6064,6 +6119,120 @@ mod tests {
         );
     }
 
+    #[test]
+    fn nova_os_app_mode_change_pulses_and_decays_the_degauss_uniform() {
+        // Task 20260727-014148: a real app launch/exit/switch (a mode change that
+        // gets past `sync_nova_os_app_ui`'s diff-guard) kicks the degauss coil, and
+        // `animate_nova_os_crt` bleeds the 0..1 envelope back down over real time.
+        // Driven with `run_system_once` + a hand-advanced `Time<Real>` so the decay
+        // is deterministic rather than tied to the wall clock.
+        use std::time::Duration;
+
+        use bevy::ecs::system::RunSystemOnce;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<NovaOsCrtMaterial>();
+        // The app-launch spawn loads a font through the AssetServer this rig has
+        // (AssetPlugin), so the Font/Image asset types must be registered or the
+        // load panics (mirrors `chin_controls_app`).
+        app.init_asset::<Font>();
+        app.init_asset::<Image>();
+        app.init_resource::<Time<Real>>();
+        app.init_resource::<NovaOsMonitorSettings>();
+        app.init_resource::<NovaOsDegauss>();
+        app.init_resource::<NovaOsFlightLog>();
+        app.init_resource::<NovaOsTerminal>();
+        let mut registry = NovaOsAppRegistry::default();
+        registry.register(SampleApp);
+        app.insert_resource(registry);
+
+        app.world_mut()
+            .spawn((NovaOsRootMarker, NovaOsOpenness(1.0)));
+        // A screen entity so the launch actually spawns an app root - that is what
+        // makes the NEXT frame a no-op (current == desired) so the pulse fires once,
+        // not every frame.
+        app.world_mut().spawn(NovaOsScreenMarker);
+        let handle = app
+            .world_mut()
+            .resource_mut::<Assets<NovaOsCrtMaterial>>()
+            .add(NovaOsCrtMaterial::default());
+        app.world_mut().spawn((
+            NovaOsSamplingSurfaceMarker,
+            MaterialNode(handle.clone()),
+            ComputedNode {
+                size: Vec2::new(800.0, 600.0),
+                ..default()
+            },
+        ));
+
+        let degauss_uniform = |app: &App| {
+            app.world()
+                .resource::<Assets<NovaOsCrtMaterial>>()
+                .get(&handle)
+                .expect("CRT material still present")
+                .data
+                .degauss
+        };
+
+        // Idle: no pulse yet.
+        app.world_mut()
+            .run_system_once(animate_nova_os_crt)
+            .unwrap();
+        assert_eq!(
+            degauss_uniform(&app),
+            0.0,
+            "the CRT sits idle before any launch"
+        );
+
+        // Launch an app: the mode change pulses the coil, and the same frame's
+        // animate stamps the (near-full) envelope into the uniform.
+        app.world_mut()
+            .resource_mut::<NovaOsTerminal>()
+            .enter_app("sample");
+        app.world_mut()
+            .run_system_once(sync_nova_os_app_ui)
+            .unwrap();
+        app.world_mut()
+            .run_system_once(animate_nova_os_crt)
+            .unwrap();
+        let peak = degauss_uniform(&app);
+        assert!(
+            peak > 0.9,
+            "a launch kicks the degauss envelope to (near) full, got {peak}"
+        );
+
+        // Half the pulse duration later, with no new mode change, the envelope has
+        // bled partway down but is still lit.
+        app.world_mut()
+            .resource_mut::<Time<Real>>()
+            .advance_by(Duration::from_secs_f32(NOVA_OS_DEGAUSS_DURATION * 0.5));
+        app.world_mut()
+            .run_system_once(sync_nova_os_app_ui)
+            .unwrap();
+        app.world_mut()
+            .run_system_once(animate_nova_os_crt)
+            .unwrap();
+        let mid = degauss_uniform(&app);
+        assert!(
+            mid < peak && mid > 0.0,
+            "the envelope decays but is still lit mid-pulse, got {mid} (peak {peak})"
+        );
+
+        // Past the full duration it has settled back to an exact no-op.
+        app.world_mut()
+            .resource_mut::<Time<Real>>()
+            .advance_by(Duration::from_secs_f32(NOVA_OS_DEGAUSS_DURATION));
+        app.world_mut()
+            .run_system_once(animate_nova_os_crt)
+            .unwrap();
+        assert_eq!(
+            degauss_uniform(&app),
+            0.0,
+            "the degauss envelope settles back to zero (readability preserved at rest)"
+        );
+    }
+
     /// A headless app with the NOVA OS chin controls spawned and the computer
     /// open, mirroring `nova_os_app_ui_spawns_chrome_and_close_button_exits`'s
     /// rig (task 20260726-214617).
@@ -6082,6 +6251,7 @@ mod tests {
         app.init_resource::<NovaOsAppRegistry>();
         app.init_resource::<NovaOsCloseTransition>();
         app.init_resource::<NovaOsMonitorSettings>();
+        app.init_resource::<NovaOsDegauss>();
         app.init_resource::<Time<Real>>();
         app.init_asset::<Font>();
         app.init_asset::<Image>();
@@ -6734,6 +6904,7 @@ mod tests {
         app.init_state::<PauseStates>();
         app.init_resource::<NovaOsFlightLog>();
         app.init_resource::<NovaOsTerminal>();
+        app.init_resource::<NovaOsDegauss>();
         let mut registry = NovaOsAppRegistry::default();
         registry.register(SampleApp);
         app.insert_resource(registry);
