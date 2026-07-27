@@ -646,8 +646,16 @@ struct NovaOsCrtUniform {
     degauss: f32,
 }
 
+/// Loads the NOVA OS terminal font, a TrueType Collection (`.ttc`). Bevy's
+/// built-in `FontLoader` only advertises `ttf`/`otf`, so without this loader
+/// nothing claims the `ttc` extension and the font never loads. It is `pub` so
+/// the web `.meta` generator (`nova_meta_gen`) can register the SAME loader
+/// type and emit a `...ttc.meta` naming it - otherwise the font ships with no
+/// sidecar and, under `AssetMetaCheck::Always`, the web build fails the
+/// missing-meta fetch and renders every NOVA OS glyph invisible
+/// (task 20260727-172205).
 #[derive(Default, TypePath)]
-struct NovaOsTtcFontLoader;
+pub struct NovaOsTtcFontLoader;
 
 impl AssetLoader for NovaOsTtcFontLoader {
     type Asset = Font;

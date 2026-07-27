@@ -38,6 +38,12 @@ assets" below:
 - **Kenney Space Kit** (`art/kenney-space-kit/`) - [CC0 1.0
   Universal](licenses/kenney-space-kit_CC0_1.0.md) (public domain). No
   attribution is required; credited as a courtesy.
+- **Iosevka Term font** (`assets/fonts/SGr-IosevkaTerm-Regular.ttc`, the NOVA
+  OS terminal typeface) - a build of [Iosevka](https://typeof.net/Iosevka/) by
+  Renzhi Li (Belleve Invis), under the [SIL Open Font License
+  1.1](licenses/Iosevka_OFL-1.1.md). The OFL REQUIRES the copyright notice and
+  license text to ship with the font; both are in that license file, which is
+  bundled with every build.
 
 ## Third-party code
 

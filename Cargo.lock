@@ -4682,6 +4682,7 @@ version = "0.8.1"
 dependencies = [
  "bevy",
  "clap",
+ "nova_gameplay",
  "nova_modding",
  "tempfile",
 ]

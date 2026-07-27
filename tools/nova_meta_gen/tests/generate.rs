@@ -29,6 +29,12 @@ fn generates_default_metas_for_every_loader() {
         ("scenarios/level.content.ron", "[]"),
         ("mods/base.bundle.ron", "()"),
         ("mods.catalog.ron", "[]"),
+        // The NOVA OS terminal font is a `.ttc` claimed by the game's bespoke
+        // `NovaOsTtcFontLoader` (Bevy's built-in FontLoader only claims
+        // ttf/otf). It MUST get a sidecar too, or the web build serves the
+        // missing `...ttc.meta` as 200-OK HTML and the font never loads,
+        // leaving every NOVA OS glyph invisible (task 20260727-172205).
+        ("fonts/term.ttc", "not-a-real-ttc"),
         // No loader claims `.md`; must be skipped, not errored.
         ("wiki/page.md", "# hello"),
     ];
@@ -54,11 +60,11 @@ fn generates_default_metas_for_every_loader() {
     })
     .expect("generation should not error");
 
-    // 7 real assets get fresh metas; the .md is skipped; the skybox already has one.
+    // 8 real assets get fresh metas; the .md is skipped; the skybox already has one.
     assert_eq!(
         summary,
         Summary {
-            written: 7,
+            written: 8,
             already_exists: 1,
             no_loader: 1,
         },
@@ -74,6 +80,7 @@ fn generates_default_metas_for_every_loader() {
         ("scenarios/level.content.ron", "ContentAssetLoader"),
         ("mods/base.bundle.ron", "BundleAssetLoader"),
         ("mods.catalog.ron", "CatalogLoader"),
+        ("fonts/term.ttc", "NovaOsTtcFontLoader"),
     ];
     for (rel, loader) in cases {
         let meta = read_meta(root, rel);
@@ -105,7 +112,7 @@ fn generates_default_metas_for_every_loader() {
     let server2 = app2.world().resource::<AssetServer>().clone();
     let again = generate(&server2, dir, |_, _| {}).expect("second pass");
     assert_eq!(again.written, 0, "second pass must write nothing new");
-    assert_eq!(again.already_exists, 8, "all 8 real assets now have metas");
+    assert_eq!(again.already_exists, 9, "all 9 real assets now have metas");
 
     // Sanity: the generated pngs really are re-parseable as minimal meta (the
     // exact thing the web server would now serve instead of an HTML 404 page).

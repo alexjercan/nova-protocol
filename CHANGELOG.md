@@ -39,6 +39,11 @@ tagged **(breaking)**.
 ### Fixes
 
 - Tab drawer scrolling now clamps at the content bottom, so wheel-up responds immediately after reaching the end.
+- Web build: NOVA OS text is visible again. The terminal font is a `.ttc` loaded by a custom loader `nova_meta_gen` did not know about, so it shipped with no `.meta` sidecar; under `AssetMetaCheck::Always` the missing-meta fetch failed on the web and every NOVA OS glyph rendered invisible. The generator now registers the font loader and emits the sidecar.
+
+### Internals & Tooling
+
+- The Iosevka Term terminal font is now credited in `credits/` under its SIL Open Font License 1.1 (copyright and full license text bundled with every build, as the OFL requires).
 
 ## [0.8.1] - 2026-07-24
 
