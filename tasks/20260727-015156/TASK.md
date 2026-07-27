@@ -6,7 +6,8 @@
 
 ## Flow State
 
-- FLOW STEP: PLANNING
+- FLOW STEP: PLANNED
+- PLAN STATUS: APPROVED
 
 ## Problem
 
@@ -135,7 +136,8 @@ screw/vent/recessed-plate builder) if cleanly separable; skip if not worth it.
 ## Definition of Done
 
 1. Rename complete: `grep -rInE '\b[Dd]rawer\b' crates/ src/ --include=*.rs`
-   returns nothing outside `crates/nova_editor/src/ui/` (cmd).
+   returns nothing outside `crates/nova_editor/` (the editor's own component
+   "drawer" is a distinct build-UI concept, out of scope) (cmd).
 2. New crate builds standalone: `cargo check -p nova_os` (cmd).
 3. Topology holds: `cargo tree -p nova_ui` shows NO `nova_os`; `cargo tree -p
    nova_gameplay` shows both `nova_os` and `nova_ui` (cmd).
