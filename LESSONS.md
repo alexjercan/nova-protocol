@@ -111,12 +111,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   bin). A leaf tool that is not a game dependency is ALREADY skipped by bare
   builds, so the key buys nothing and only adds an allowlist footgun - do not add
   it. 20260721-151934.
-- `validate-proof-command-shape-at-plan-time` (x1): a `cmd:` proof written into a
-  plan/DoD is unrun until verify, so a malformed one is a silent gate - check its
-  shape (arity, flags) when authoring. `cargo test <a> <b>` takes ONE positional
-  filter and REJECTS the second; use `cargo test -- <a> <b>` for libtest's
-  multi-filter. An epic-planned `cargo test -p nova_gameplay drawer terminal`
-  never ran until this task hit it. 20260726-115334.
+- `validate-proof-command-shape-at-plan-time` (x2): a `cmd:` proof is unrun until
+  verify, so a malformed OR wrong-target one is a silent gate - at verify confirm
+  it runs the INTENDED tests: right arity/flags AND a NON-ZERO count of the named
+  tests (read "N passed", not just "ok"). `cargo test <a> <b>` rejects the 2nd
+  filter (use `-- <a> <b>`); a copied `-p nova_gameplay drawer` filter matched 0
+  tests ("685 filtered out") yet still reported ok. 20260726-115334, 20260727-135208.
 - `inseparable-seeded-tasks-remerge` (x1, PROMOTED 2026-07-19 -> flow skill):
   when seeded tasks prove architecturally inseparable, surface the re-cut and
   merge them instead of building shims. 20260717-215742.

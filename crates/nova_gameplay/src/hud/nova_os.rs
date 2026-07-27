@@ -161,6 +161,26 @@ const NOVA_OS_CASE_HIGHLIGHT: Color = Color::srgba(1.0, 1.0, 1.0, 0.12);
 /// Screw head shading (PoC `.screw` radial gradient light -> dark).
 const NOVA_OS_SCREW_LIT: Color = Color::srgb_u8(89, 101, 110);
 const NOVA_OS_SCREW_DARK: Color = Color::srgb_u8(10, 13, 16);
+/// Chin-button moulding (PoC `.power-btn` `linear-gradient(180deg,#333c44,#1a2026)`
+/// with a 1px inner top-highlight and a near-black outer border): a small raised
+/// pill of plastic, lighter than the surrounding case so it reads as a pressable
+/// key rather than a painted rectangle.
+const NOVA_OS_BUTTON_LIT: Color = Color::srgb_u8(51, 60, 68);
+const NOVA_OS_BUTTON_DEEP: Color = Color::srgb_u8(26, 32, 38);
+const NOVA_OS_BUTTON_BORDER: Color = Color::srgba(0.0, 0.0, 0.0, 0.75);
+/// Knob dial dome (PoC `.dial` `radial-gradient(circle at 34% 28%,#4a555d,#232a30
+/// 58%,#0d1114)`): an off-centre highlight over a dark disc gives the moulded
+/// rotary its rounded 3D body.
+const NOVA_OS_DIAL_LIT: Color = Color::srgb_u8(74, 85, 93);
+const NOVA_OS_DIAL_MID: Color = Color::srgb_u8(35, 42, 48);
+const NOVA_OS_DIAL_DARK: Color = Color::srgb_u8(13, 17, 20);
+/// The PWR button/LED flashes this warm orange while the monitor is powering
+/// down (owner playtest: "turn orange and then close"), before the raster
+/// collapse finishes the close.
+const NOVA_OS_ORANGE: Color = Color::srgb_u8(255, 120, 40);
+/// An unlit green bulb: the SND indicator dims to this dark phosphor when muted,
+/// so the bulb (not a text swap) carries the on/off state.
+const NOVA_OS_BULB_OFF: Color = Color::srgb_u8(18, 34, 22);
 const NOVA_OS_CONTENT_Z: i32 = 0;
 const NOVA_OS_OVERLAY_Z: i32 = 1;
 /// Phosphor rim traces the screen edge above the CRT overlay; the glass sheen is
@@ -393,13 +413,15 @@ struct NovaOsKnobDialMarker;
 #[derive(Component)]
 struct NovaOsSoundButtonMarker;
 
-/// The lit/unlit indicator square inside the SND button.
+/// The lit/unlit green bulb inside the SND button: its colour (not the label
+/// text) is the on/off state.
 #[derive(Component)]
 struct NovaOsSoundIndicatorMarker;
 
-/// The "SND ON"/"SND OFF" label text inside the SND button.
+/// The PWR power LED: green while the monitor is on, flashing orange while it
+/// powers down (driven by [`drive_nova_os_power_led`]).
 #[derive(Component)]
-struct NovaOsSoundLabelMarker;
+struct NovaOsPowerLedMarker;
 
 /// The PWR button on the chin (the diegetic twin of the `exit` command).
 #[derive(Component)]
@@ -1242,6 +1264,7 @@ impl Plugin for NovaOsPlugin {
                 drive_nova_os_topbar_fps,
                 animate_nova_os_crt.run_if(resource_exists::<Assets<NovaOsCrtMaterial>>),
                 sync_nova_os_monitor_controls.run_if(resource_changed::<NovaOsMonitorSettings>),
+                drive_nova_os_power_led,
                 // NOVA OS sound (task 20260726-214639): the power-down sweep on a
                 // requested close and the live bed volume / SND mute.
                 play_nova_os_power_down,
@@ -1817,8 +1840,8 @@ fn on_nova_os_scan_knob(_activate: On<Activate>, mut settings: ResMut<NovaOsMoni
 }
 
 /// SND button click: toggle the monitor speaker flag (default ON). The NOVA OS
-/// sound task consumes the flag; with no audio wired this is a visible-state
-/// no-op (the indicator + label flip).
+/// sound task consumes the flag to mute/unmute the bed + cues; the on-screen
+/// state reads off the bulb flipping (the label is now a fixed "SND" legend).
 fn on_nova_os_sound_button(_activate: On<Activate>, mut settings: ResMut<NovaOsMonitorSettings>) {
     settings.sound_enabled = !settings.sound_enabled;
 }
@@ -1831,29 +1854,40 @@ fn on_nova_os_power_button(_activate: On<Activate>, mut close: ResMut<NovaOsClos
 
 /// Reconcile the chin controls' look with [`NovaOsMonitorSettings`] after a knob
 /// turn or SND toggle: rotate each dial pointer to its detent angle, and light /
-/// dim + relabel the SND button. Spawn-time state is set directly in
+/// dim the SND bulb. Spawn-time state is set directly in
 /// [`spawn_nova_os_knob`]/[`spawn_nova_os_sound_button`]; this handles live
 /// changes (gated on `resource_changed`, which also harmlessly re-applies the
-/// current state on the init frame).
+/// current state on the init frame). The SND label no longer swaps text: the
+/// bulb colour is the only moving part reporting the mute state.
 fn sync_nova_os_monitor_controls(
     settings: Res<NovaOsMonitorSettings>,
     mut q_dials: Query<(&NovaOsKnob, &mut UiTransform), With<NovaOsKnobDialMarker>>,
-    mut q_sound_label: Query<&mut Text, With<NovaOsSoundLabelMarker>>,
     mut q_sound_indicator: Query<&mut BackgroundColor, With<NovaOsSoundIndicatorMarker>>,
-    mut q_sound_button: Query<&mut BorderColor, With<NovaOsSoundButtonMarker>>,
 ) {
     for (knob, mut transform) in &mut q_dials {
         transform.rotation = Rot2::degrees(settings.dial_angle(*knob));
     }
-    let lit = nova_os_lit_color(settings.sound_enabled);
-    for mut text in &mut q_sound_label {
-        *text = Text::new(nova_os_sound_label(settings.sound_enabled));
-    }
+    let bulb = nova_os_bulb_color(settings.sound_enabled);
     for mut color in &mut q_sound_indicator {
-        color.0 = lit;
+        color.0 = bulb;
     }
-    for mut border in &mut q_sound_button {
-        *border = BorderColor::all(lit);
+}
+
+/// Flash the PWR LED orange while the monitor is powering down, green otherwise
+/// (owner playtest: "turn orange and then close"). Runs every frame the NOVA OS
+/// is active - the closing flag flips outside `NovaOsMonitorSettings`, so this
+/// cannot ride `sync_nova_os_monitor_controls`' `resource_changed` gate.
+fn drive_nova_os_power_led(
+    close: Res<NovaOsCloseTransition>,
+    mut q_led: Query<&mut BackgroundColor, With<NovaOsPowerLedMarker>>,
+) {
+    let color = if close.closing {
+        NOVA_OS_ORANGE
+    } else {
+        NOVA_OS_PHOSPHOR
+    };
+    for mut background in &mut q_led {
+        background.0 = color;
     }
 }
 
@@ -3613,8 +3647,20 @@ fn spawn_nova_os_knob(
                     border_radius: BorderRadius::MAX,
                     ..default()
                 },
-                BackgroundColor(NOVA_OS_CASE_MID),
-                BorderColor::all(NOVA_OS_CASE_LIT),
+                BackgroundColor(NOVA_OS_DIAL_DARK),
+                // Domed knob body: an off-centre highlight (PoC `circle at 34% 28%`)
+                // falling to the dark disc rim reads as a rounded rotary.
+                BackgroundGradient(vec![Gradient::from(RadialGradient::new(
+                    UiPosition::anchor(Vec2::new(-0.16, -0.22)),
+                    RadialGradientShape::ClosestSide,
+                    vec![
+                        ColorStop::percent(NOVA_OS_DIAL_LIT, 0.0),
+                        ColorStop::percent(NOVA_OS_DIAL_MID, 58.0),
+                        ColorStop::percent(NOVA_OS_DIAL_DARK, 100.0),
+                    ],
+                ))]),
+                // A near-black inner rim (PoC `inset 0 0 0 1px rgba(0,0,0,0.8)`).
+                BorderColor::all(NOVA_OS_BUTTON_BORDER),
                 UiTransform::from_rotation(Rot2::degrees(settings.dial_angle(knob))),
                 // The knob click is owned by the parent Button; the dial and
                 // its pointer must not intercept the pick.
@@ -3662,26 +3708,26 @@ fn spawn_nova_os_sound_button(
         NovaOsSoundButtonMarker,
         Button,
         nova_os_chin_button_node(),
-        BorderColor::all(nova_os_lit_color(on)),
-        BackgroundColor(NOVA_OS_CASE_MID),
+        // The button chrome is static now; the bulb (below), not the border or
+        // the label, carries the on/off state (owner playtest).
+        BorderColor::all(NOVA_OS_BUTTON_BORDER),
+        BackgroundColor(NOVA_OS_BUTTON_DEEP),
+        nova_os_chin_button_gradient(),
         observe(on_nova_os_sound_button),
         children![
             (
                 Name::new("NovaOsSoundIndicator"),
                 NovaOsSoundIndicatorMarker,
-                Node {
-                    width: Val::Px(7.0),
-                    height: Val::Px(7.0),
-                    border_radius: BorderRadius::MAX,
-                    ..default()
-                },
-                BackgroundColor(nova_os_lit_color(on)),
+                nova_os_bulb_node(),
+                BackgroundColor(nova_os_bulb_color(on)),
+                nova_os_bulb_gradient(),
                 Pickable::IGNORE,
             ),
             (
+                // A fixed legend: it never swaps text, so the bulb is the only
+                // moving part reporting state.
                 Name::new("NovaOsSoundLabel"),
-                NovaOsSoundLabelMarker,
-                Text::new(nova_os_sound_label(on)),
+                Text::new("SND"),
                 nova_os_text_font(9.0, font),
                 TextColor(NOVA_OS_TEXT),
                 Pickable::IGNORE,
@@ -3698,20 +3744,19 @@ fn spawn_nova_os_power_button(controls: &mut ChildSpawnerCommands, font: Handle<
         NovaOsPowerButtonMarker,
         Button,
         nova_os_chin_button_node(),
-        BorderColor::all(NOVA_OS_CASE_LIT),
-        BackgroundColor(NOVA_OS_CASE_MID),
+        BorderColor::all(NOVA_OS_BUTTON_BORDER),
+        BackgroundColor(NOVA_OS_BUTTON_DEEP),
+        nova_os_chin_button_gradient(),
         observe(on_nova_os_power_button),
         children![
             (
                 Name::new("NovaOsPowerLed"),
-                Node {
-                    width: Val::Px(7.0),
-                    height: Val::Px(7.0),
-                    border_radius: BorderRadius::MAX,
-                    ..default()
-                },
-                // Lit green: the tube is powered while the chin is on screen.
+                NovaOsPowerLedMarker,
+                nova_os_bulb_node(),
+                // Lit green while powered; flashes orange during the power-down
+                // close (see `drive_nova_os_power_led`).
                 BackgroundColor(NOVA_OS_PHOSPHOR),
+                nova_os_bulb_gradient(),
                 Pickable::IGNORE,
             ),
             (
@@ -3739,21 +3784,64 @@ fn nova_os_chin_button_node() -> Node {
     }
 }
 
-/// SND label text for the armed/muted state.
-fn nova_os_sound_label(on: bool) -> String {
-    if on {
-        "SND ON".into()
-    } else {
-        "SND OFF".into()
+/// The moulded 3D fill of a chin button (PoC `.power-btn`): a top-lit vertical
+/// gradient over the dark base, plus a 1px inner top-highlight lip so the key
+/// catches the light like raised plastic.
+fn nova_os_chin_button_gradient() -> BackgroundGradient {
+    BackgroundGradient(vec![
+        LinearGradient::degrees(
+            180.0,
+            vec![
+                ColorStop::percent(NOVA_OS_BUTTON_LIT, 0.0),
+                ColorStop::percent(NOVA_OS_BUTTON_DEEP, 100.0),
+            ],
+        )
+        .into(),
+        // 1px lit lip along the top edge (PoC `inset 0 1px 0 rgba(255,255,255,.12)`).
+        LinearGradient::degrees(
+            180.0,
+            vec![
+                ColorStop::px(NOVA_OS_CASE_HIGHLIGHT, 0.0),
+                ColorStop::px(NOVA_OS_CASE_HIGHLIGHT, 1.0),
+                ColorStop::px(Color::NONE, 1.0),
+            ],
+        )
+        .into(),
+    ])
+}
+
+/// A 7px round indicator bulb inside a chin button (the SND / PWR LED). Its base
+/// colour reports state; the glassy cap is fixed by [`nova_os_bulb_gradient`].
+fn nova_os_bulb_node() -> Node {
+    Node {
+        width: Val::Px(7.0),
+        height: Val::Px(7.0),
+        border_radius: BorderRadius::MAX,
+        ..default()
     }
 }
 
-/// Lit phosphor vs muted grey for an armed/unarmed control.
-fn nova_os_lit_color(on: bool) -> Color {
+/// A fixed upper-left glassy highlight over an indicator bulb, so the lit and
+/// unlit states both read as a rounded glass LED rather than a flat dot.
+fn nova_os_bulb_gradient() -> BackgroundGradient {
+    BackgroundGradient(vec![Gradient::from(RadialGradient::new(
+        UiPosition::anchor(Vec2::new(-0.2, -0.25)),
+        RadialGradientShape::ClosestSide,
+        vec![
+            ColorStop::percent(Color::srgba(1.0, 1.0, 1.0, 0.5), 0.0),
+            ColorStop::percent(Color::srgba(1.0, 1.0, 1.0, 0.12), 45.0),
+            ColorStop::percent(Color::NONE, 100.0),
+        ],
+    ))])
+}
+
+/// Lit phosphor vs unlit dark-green for the SND bulb: the bulb going dark is how
+/// the muted state reads now that the label never changes.
+fn nova_os_bulb_color(on: bool) -> Color {
     if on {
         NOVA_OS_PHOSPHOR
     } else {
-        NOVA_OS_CASE_LIT
+        NOVA_OS_BULB_OFF
     }
 }
 
@@ -6291,6 +6379,17 @@ mod tests {
             .expect("the dial spawned")
     }
 
+    /// The base colour of a marked indicator bulb (the SND bulb or the PWR LED),
+    /// i.e. the state-reporting `BackgroundColor` under the fixed glassy cap.
+    fn bulb_color<M: Component>(app: &mut App) -> Color {
+        app.world_mut()
+            .query_filtered::<&BackgroundColor, With<M>>()
+            .iter(app.world())
+            .next()
+            .map(|background| background.0)
+            .expect("the bulb spawned")
+    }
+
     #[test]
     fn nova_os_chin_knobs_cycle_detents() {
         let mut app = chin_controls_app();
@@ -6399,6 +6498,21 @@ mod tests {
             .next()
             .expect("the SND button spawned");
 
+        // Armed: the bulb is lit phosphor and the label is the fixed legend.
+        assert_eq!(
+            bulb_color::<NovaOsSoundIndicatorMarker>(&mut app),
+            NOVA_OS_PHOSPHOR,
+            "the SND bulb is lit while the monitor is armed"
+        );
+        assert!(
+            all_texts(&mut app).iter().any(|text| text == "SND"),
+            "the SND label is a fixed legend"
+        );
+        assert!(
+            all_texts(&mut app).iter().all(|text| text != "SND ON"),
+            "the SND label no longer swaps to an ON/OFF state string"
+        );
+
         app.world_mut().trigger(Activate { entity: snd });
         app.update();
         assert!(
@@ -6407,9 +6521,15 @@ mod tests {
                 .sound_enabled,
             "a SND click mutes the monitor"
         );
+        // Muted: the state now reads off the bulb going dark, not a label swap.
+        assert_eq!(
+            bulb_color::<NovaOsSoundIndicatorMarker>(&mut app),
+            NOVA_OS_BULB_OFF,
+            "the SND bulb goes dark to report the muted state"
+        );
         assert!(
-            all_texts(&mut app).iter().any(|text| text == "SND OFF"),
-            "the SND label reflects the muted state"
+            all_texts(&mut app).iter().any(|text| text == "SND"),
+            "the SND label stays the fixed legend when muted"
         );
 
         app.world_mut().trigger(Activate { entity: snd });
@@ -6419,6 +6539,11 @@ mod tests {
                 .resource::<NovaOsMonitorSettings>()
                 .sound_enabled,
             "a second SND click re-arms the monitor"
+        );
+        assert_eq!(
+            bulb_color::<NovaOsSoundIndicatorMarker>(&mut app),
+            NOVA_OS_PHOSPHOR,
+            "re-arming re-lights the SND bulb"
         );
     }
 
@@ -6441,6 +6566,35 @@ mod tests {
         assert!(
             app.world().resource::<NovaOsCloseTransition>().closing,
             "PWR drives the existing animated close"
+        );
+    }
+
+    #[test]
+    fn nova_os_pwr_led_flashes_orange_while_closing() {
+        let mut app = chin_controls_app();
+
+        // Powered and idle: the LED sits at lit phosphor green.
+        app.world_mut()
+            .run_system_once(drive_nova_os_power_led)
+            .unwrap();
+        assert_eq!(
+            bulb_color::<NovaOsPowerLedMarker>(&mut app),
+            NOVA_OS_PHOSPHOR,
+            "the PWR LED is green while the monitor is powered"
+        );
+
+        // Powering down (the state PWR sets): the LED flashes orange before the
+        // raster collapse finishes the close.
+        app.world_mut()
+            .resource_mut::<NovaOsCloseTransition>()
+            .closing = true;
+        app.world_mut()
+            .run_system_once(drive_nova_os_power_led)
+            .unwrap();
+        assert_eq!(
+            bulb_color::<NovaOsPowerLedMarker>(&mut app),
+            NOVA_OS_ORANGE,
+            "the PWR LED turns orange while the monitor powers down"
         );
     }
 
