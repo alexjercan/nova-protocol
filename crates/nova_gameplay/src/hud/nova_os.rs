@@ -81,8 +81,10 @@ const DRAWER_LINE_FONT_PX: f32 = 16.0;
 /// The staggered boot banner reveals one row this far apart, on real time so it
 /// runs while virtual time is frozen (PoC `printBanner`'s ~130 ms cadence).
 const NOVA_OS_BOOT_ROW_INTERVAL: f32 = 0.13;
-/// The block caret's width as a fraction of the monospace glyph advance (PoC
-/// `.caret` is 0.6em). Monospace, so `font_size * this` is exactly one cell.
+/// The block caret's WIDTH as a fraction of the font size (PoC `.caret` is
+/// 0.6em). This is the cursor block's drawn width only - NOT the glyph advance,
+/// so it is not used to position the caret (that measures the real text width;
+/// see [`position_nova_os_block_caret`]).
 const NOVA_OS_CARET_WIDTH_FRACTION: f32 = 0.6;
 const DRAWER_ROW_GAP_PX: f32 = 6.0;
 const DRAWER_ROW_PADDING_X_PX: f32 = 8.0;
@@ -1260,6 +1262,7 @@ impl Plugin for NovaOsPlugin {
             Update,
             (
                 blink_nova_os_caret,
+                position_nova_os_block_caret,
                 drain_nova_os_boot,
                 drive_nova_os_topbar_fps,
                 animate_nova_os_crt.run_if(resource_exists::<Assets<NovaOsCrtMaterial>>),
@@ -2282,10 +2285,34 @@ fn blink_nova_os_caret(
     time: Res<Time<Real>>,
     mut q_caret: Query<&mut BackgroundColor, With<NovaOsTerminalCaretMarker>>,
 ) {
+    // On-phase alpha 0.85 (not 1.0): the caret now sits OVER the character at the
+    // cursor (the first completion letter), so a translucent block lets that
+    // letter read through instead of masking it (PoC `.caret` opacity 0.85).
     let on = (time.elapsed_secs() * NOVA_OS_CARET_BLINK_HZ).fract() < 0.5;
-    let color = NOVA_OS_AMBER.with_alpha(if on { 1.0 } else { 0.0 });
+    let color = NOVA_OS_AMBER.with_alpha(if on { 0.85 } else { 0.0 });
     for mut background in &mut q_caret {
         background.0 = color;
+    }
+}
+
+/// Position the absolute block caret at the MEASURED rendered width of the
+/// typed-before text, so it lands exactly on the cursor's character - the first
+/// after-cursor / completion-ghost glyph - regardless of the font's real glyph
+/// advance. This mirrors the web PoC, which sets `caret.left = measure.offsetWidth`
+/// rather than assuming a cell size; a hardcoded `chars * 0.6em` step would drift
+/// cumulatively because 0.6em is the caret BLOCK width, not the glyph advance.
+/// `ComputedNode::size` is physical px, so scale it back to the logical px that
+/// `Node::left` expects.
+fn position_nova_os_block_caret(
+    q_before: Query<&ComputedNode, With<NovaOsTerminalPromptMarker>>,
+    mut q_caret: Query<&mut Node, With<NovaOsTerminalCaretMarker>>,
+) {
+    let Ok(before) = q_before.single() else {
+        return;
+    };
+    let width = before.size().x * before.inverse_scale_factor();
+    for mut node in &mut q_caret {
+        node.left = Val::Px(width);
     }
 }
 
@@ -4046,19 +4073,34 @@ fn spawn_nova_os_terminal_content(
                                             input_wrap.spawn((
                                                 NovaOsTerminalCaretMarker,
                                                 Node {
-                                                    // A filled block roughly one
-                                                    // glyph wide (PoC `.caret`,
-                                                    // 0.6em x 1.15em) instead of a
-                                                    // thin bar.
+                                                    // ABSOLUTE so the block does
+                                                    // not advance the row: it sits
+                                                    // OVER the character at the
+                                                    // cursor - the first completion
+                                                    // ghost letter when the cursor
+                                                    // is at the end - instead of
+                                                    // pushing the ghost one cell to
+                                                    // the right (owner playtest).
+                                                    // `left` is set from the MEASURED
+                                                    // typed-text width by
+                                                    // `position_nova_os_block_caret`;
+                                                    // top + bottom stretch it to the
+                                                    // line height (PoC `.caret`, a
+                                                    // block one glyph wide).
+                                                    position_type: PositionType::Absolute,
+                                                    left: Val::Px(0.0),
+                                                    top: Val::Px(0.0),
+                                                    bottom: Val::Px(0.0),
                                                     width: Val::Px(
                                                         DRAWER_LINE_FONT_PX
                                                             * NOVA_OS_CARET_WIDTH_FRACTION,
                                                     ),
-                                                    height: Val::Px(DRAWER_LINE_FONT_PX + 2.0),
-                                                    flex_shrink: 0.0,
                                                     ..default()
                                                 },
-                                                BackgroundColor(NOVA_OS_AMBER),
+                                                // Slightly translucent so the letter
+                                                // under the block still reads (PoC
+                                                // `.caret` opacity 0.85).
+                                                BackgroundColor(NOVA_OS_AMBER.with_alpha(0.85)),
                                                 ZIndex(2),
                                             ));
                                             input_wrap.spawn((
@@ -4615,6 +4657,76 @@ mod tests {
                 "prompt/ghost pieces must not wrap to a line below the input"
             );
         }
+    }
+
+    #[test]
+    fn nova_os_block_caret_is_absolute_and_tracks_measured_text_width() {
+        // The block caret is ABSOLUTE (so it never advances the row and pushes the
+        // ghost a cell right) and is positioned at the MEASURED rendered width of
+        // the typed-before text - so it sits ON the first after-cursor /
+        // completion-ghost letter regardless of the font's glyph advance (owner
+        // playtest: "at the same position as the caret we have the first letter
+        // that can be used"). `position_nova_os_block_caret` copies the before-text
+        // node's `ComputedNode` width (converted to logical px) onto the caret.
+        let mut app = toggle_app();
+        init_terminal_input_resources(&mut app);
+        app.add_systems(
+            Update,
+            (handle_terminal_keyboard, rebuild_terminal_ui)
+                .chain()
+                .run_if(in_state(GameStates::Playing)),
+        );
+        spawn_nova_os_shell(&mut app);
+        press_tab(&mut app);
+        press_text(&mut app, "hel");
+
+        let (caret_entity, caret) = app
+            .world_mut()
+            .query_filtered::<(Entity, &Node), With<NovaOsTerminalCaretMarker>>()
+            .single(app.world())
+            .map(|(e, n)| (e, n.clone()))
+            .expect("one block caret");
+        assert_eq!(
+            caret.position_type,
+            PositionType::Absolute,
+            "the caret is absolute so it never advances the row (would push the ghost right)"
+        );
+
+        // MinimalPlugins runs no UI layout, so stamp a known rendered width on the
+        // before-text node (as the layout pass would) and a 2x scale factor to
+        // prove the physical->logical conversion. The caret must copy that width.
+        let before_entity = app
+            .world_mut()
+            .query_filtered::<Entity, With<NovaOsTerminalPromptMarker>>()
+            .single(app.world())
+            .expect("one before-cursor prompt text");
+        // A width deliberately NOT a multiple of the old `chars * 0.6em` cell
+        // (16 * 0.6 = 9.6px), so the asserted number itself proves the caret is
+        // measure-derived rather than char-derived (review R2.1).
+        app.world_mut()
+            .entity_mut(before_entity)
+            .insert(ComputedNode {
+                size: Vec2::new(50.0, 18.0),
+                inverse_scale_factor: 0.5,
+                ..ComputedNode::DEFAULT
+            });
+
+        app.world_mut()
+            .run_system_once(position_nova_os_block_caret)
+            .expect("caret positioner runs");
+
+        let caret_left = app
+            .world()
+            .entity(caret_entity)
+            .get::<Node>()
+            .expect("caret node")
+            .left;
+        assert_eq!(
+            caret_left,
+            Val::Px(25.0),
+            "the caret lands on the MEASURED typed-text width (50.0 physical * 0.5 \
+             scale = 25.0 logical px, not any `chars * 9.6` cell step)"
+        );
     }
 
     #[test]
