@@ -1,6 +1,9 @@
 # DECISION - NOVA OS rename + crate extraction shape
 
-STATUS: PROPOSED (awaiting /flow plan-gate approval)
+- STATUS: ACCEPTED
+
+Note: the task itself is still OPEN, awaiting its /flow plan-gate approval; this
+record documents the load-bearing forks already resolved for that plan.
 
 ## Context
 

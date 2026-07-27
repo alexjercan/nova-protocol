@@ -1,5 +1,7 @@
 # DECISION - NOVA OS sound asset route
 
+- STATUS: ACCEPTED
+
 ## Context
 
 The NOVA OS terminal needs a full voice (key clicks, backspace, enter, ok beep,
