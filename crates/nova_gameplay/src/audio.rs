@@ -78,19 +78,54 @@ pub enum UiSfx {
     /// A pause overlay open/close toggle via ESC - a soft two-state UI blip
     /// (task 20260714-090006).
     UiToggle,
+    // --- NOVA OS terminal cues (task 20260726-214639) ---
+    // The offline-rendered `nova_*.wav` family (`scripts/gen-nova-os-sfx.py`),
+    // mirroring the PoC's WebAudio recipes. Gated on
+    // `NovaOsMonitorSettings::sound_enabled` at each fire site.
+    /// A keystroke click while typing at the NOVA OS prompt.
+    NovaOsKey,
+    /// A backspace/delete tick at the NOVA OS prompt.
+    NovaOsBack,
+    /// The enter "thunk" when a NOVA OS command is submitted.
+    NovaOsEnter,
+    /// A NOVA OS command succeeded - a soft confirmation beep.
+    NovaOsOk,
+    /// A NOVA OS command errored (unknown / bad args) - an error buzz.
+    NovaOsError,
+    /// A NOVA OS Tab completion advanced the prompt - a short tick.
+    NovaOsTick,
+    /// The degauss coil thump on a NOVA OS app launch/exit.
+    NovaOsCoil,
+    /// The power-up sweep when the NOVA OS computer opens.
+    NovaOsPowerUp,
+    /// The power-down sweep when the NOVA OS computer closes.
+    NovaOsPowerDown,
+    /// The live-tube ambient bed loop while the NOVA OS computer is open.
+    NovaOsBed,
 }
 
 /// The `(key, base-filename)` pairs for the UI bank. Loaded by
 /// `nova_assets::register_sounds` via `SoundBank::load`, whose
 /// `sounds/<name>.wav` convention maps these to the root `assets/sounds/` -
 /// engine chrome, outside every mod.
-pub const UI_SFX_FILES: [(UiSfx, &str); 5] = [
+pub const UI_SFX_FILES: [(UiSfx, &str); 15] = [
     (UiSfx::ObjectiveNew, "objective_new"),
     (UiSfx::ObjectiveComplete, "objective_complete"),
     (UiSfx::MenuSelect, "menu_select"),
     (UiSfx::UiToggle, "ui_toggle"),
     // Placeholder file (see the key's doc): swap for real comms art.
     (UiSfx::CommsLine, "ui_toggle"),
+    // NOVA OS terminal cues (task 20260726-214639).
+    (UiSfx::NovaOsKey, "nova_key"),
+    (UiSfx::NovaOsBack, "nova_back"),
+    (UiSfx::NovaOsEnter, "nova_enter"),
+    (UiSfx::NovaOsOk, "nova_ok"),
+    (UiSfx::NovaOsError, "nova_error"),
+    (UiSfx::NovaOsTick, "nova_tick"),
+    (UiSfx::NovaOsCoil, "nova_coil"),
+    (UiSfx::NovaOsPowerUp, "nova_powerup"),
+    (UiSfx::NovaOsPowerDown, "nova_powerdown"),
+    (UiSfx::NovaOsBed, "nova_bed"),
 ];
 
 /// Per-cue *base* playback volumes (at point-blank; distance attenuation scales
@@ -130,6 +165,28 @@ pub const MENU_SELECT_VOLUME: f32 = 0.28;
 pub const UI_TOGGLE_VOLUME: f32 = 0.24;
 const DRY_FIRE_VOLUME: f32 = 0.22;
 const RADAR_RETARGET_VOLUME: f32 = 0.18;
+
+/// NOVA OS terminal cue volumes (task 20260726-214639). The `nova_*.wav` files
+/// are peak-normalized to -3 dBFS, so these linear factors are what place each
+/// cue in the informational-tick band. Typing is the quietest and is throttled
+/// ([`NOVA_OS_KEY_MIN_INTERVAL`]) so a held key cannot machine-gun; the coil and
+/// power sweeps are the loudest "moment" cues. `pub(crate)` because the cues are
+/// fired from `hud::drawer`, keeping every cue volume defined in this module.
+pub(crate) const NOVA_OS_KEY_VOLUME: f32 = 0.10;
+pub(crate) const NOVA_OS_BACK_VOLUME: f32 = 0.12;
+pub(crate) const NOVA_OS_ENTER_VOLUME: f32 = 0.18;
+pub(crate) const NOVA_OS_OK_VOLUME: f32 = 0.20;
+pub(crate) const NOVA_OS_ERROR_VOLUME: f32 = 0.22;
+pub(crate) const NOVA_OS_TICK_VOLUME: f32 = 0.12;
+pub(crate) const NOVA_OS_COIL_VOLUME: f32 = 0.26;
+pub(crate) const NOVA_OS_POWER_VOLUME: f32 = 0.30;
+/// Base volume of the ambient bed loop, before [`MasterVolume`]. The bed WAV is
+/// authored quiet (~-35 dBFS), so this sits it as a soft under-hum.
+pub(crate) const NOVA_OS_BED_VOLUME: f32 = 0.7;
+/// Minimum real seconds between successive typing clicks, so OS key-repeat on a
+/// held key does not spawn a storm of click one-shots (the `SfxThrottle`
+/// precedent, applied inline with a `Local` since this is one global stream).
+pub(crate) const NOVA_OS_KEY_MIN_INTERVAL: f32 = 0.03;
 
 /// Distance-attenuation rolloff for positional cues, in world units. A cue plays
 /// at full base volume within `SFX_NEAR_DISTANCE`, is inaudible beyond
@@ -1961,7 +2018,23 @@ mod tests {
     fn every_ui_sfx_key_has_a_file() {
         // Guards against adding a UiSfx variant without a placeholder asset.
         use UiSfx::*;
-        for key in [ObjectiveNew, ObjectiveComplete, MenuSelect, UiToggle] {
+        for key in [
+            ObjectiveNew,
+            ObjectiveComplete,
+            MenuSelect,
+            CommsLine,
+            UiToggle,
+            NovaOsKey,
+            NovaOsBack,
+            NovaOsEnter,
+            NovaOsOk,
+            NovaOsError,
+            NovaOsTick,
+            NovaOsCoil,
+            NovaOsPowerUp,
+            NovaOsPowerDown,
+            NovaOsBed,
+        ] {
             assert!(
                 UI_SFX_FILES.iter().any(|(k, _)| *k == key),
                 "UiSfx::{key:?} is missing from UI_SFX_FILES"

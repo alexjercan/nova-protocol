@@ -1,6 +1,6 @@
 # NOVA OS sound: terminal SFX + ambient CRT bed
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 42
 - TAGS: v0.9.0, feature, ui, hud, audio
 
@@ -16,56 +16,45 @@ engine-chrome bank under `assets/sounds/`).
 
 ## Flow State
 
-- FLOW STEP: PLANNING
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Steps
 
-- [ ] Record a short DECISION.md on the asset route: pre-rendered WAVs in
-      `assets/sounds/` (matches the `UiSfx` bank convention; can be synthesized
-      OFFLINE by a small script that mirrors the PoC's WebAudio recipes) vs
-      runtime synthesis (a bevy `Decodable` source). Prefer the WAV route
-      unless there is a strong reason - every existing UI cue ships that way,
-      and the hard web-parity requirement on this family (see
-      `tasks/20260726-193233/DECISION.md`) makes WASM-side `Decodable` an
-      extra risk the WAV route simply does not have.
-- [ ] Write the offline generator - `scripts/gen-nova-os-sfx.py` (numpy or
-      stdlib `wave`) - that renders each cue from the PoC's synth recipes
-      (filter type/frequency/Q, gain envelope, pitch slides) into
-      `assets/sounds/nova_*.wav`. Check IN both the script and the WAVs, so a
-      cue is retunable by editing recipe constants and re-running.
-- [ ] Extend `UiSfx` + `UI_SFX_FILES` in
-      `crates/nova_gameplay/src/audio.rs` with the new keys and their volume
-      constants: key click (typing), backspace, enter submit, command-ok beep,
-      error buzz, autocomplete tick, app-launch degauss coil, computer open
-      (power-up sweep), computer close (power-down sweep).
-- [ ] Fire the cues from the terminal seams in `drawer.rs`:
-      keystroke/backspace in `handle_terminal_keyboard`, ok/error on submit
-      (`TerminalCommandResult` branch), tick on completion, coil on app
-      launch/exit, sweeps on the open/close transitions - synced with
-      193233's power collapse so the sweep and the raster animation read as
-      one event.
-- [ ] Ambient bed: a quiet `nova_bed.wav` loop entity spawned on
-      `OnEnter(PauseStates::Drawer)`, despawned on exit, playing on the REAL
-      clock. Follow the `audit-state-gates-on-new-entry-path` lesson: grep the
-      freeze wiring (the thruster/RCS loop-freeze from 20260724-102304 R1.1)
-      and prove the bed is exempt from the loop-pause the way drawer UI is,
-      not silenced by it.
-- [ ] Objective-complete chime while the computer is open reuses
-      `UiSfx::ObjectiveComplete`; make sure it does not double-fire with the
-      existing HUD cue.
-- [ ] Gate every cue on `NovaOsMonitorSettings::sound_enabled` (default ON per
-      `tasks/20260726-214617/DECISION.md`) and the master-volume path; per the
-      owner's gate call this is the FULL PoC treatment - per-keystroke clicks
-      included - with the chin SND button and master volume as the opt-outs.
-- [ ] Volumes in the informational-tick band (see the volume constants in
-      `audio.rs`); typing clicks especially quiet and throttled (`SfxThrottle`
-      precedent) so held keys do not machine-gun.
-- [ ] Tests: cue fires on submit/error/open/close; bed entity exists only
-      while the drawer is open; SND=off silences everything; the generator
-      script is deterministic (same recipes -> same bytes) so CI can diff.
-- [ ] Verify on the web build too (the `wav` feature already ships the
-      decoder): a trunk run with an in-browser listen. Record the work +
-      self-reflection in `tasks/20260726-214639/NOTES.md`.
+- [x] Record a short DECISION.md on the asset route: pre-rendered WAVs (see
+      `DECISION.md`).
+- [x] Write the offline generator - `scripts/gen-nova-os-sfx.py` (stdlib `wave`,
+      deterministic seeded noise) - rendering each cue from the PoC recipes into
+      `assets/sounds/nova_*.wav`. Script + WAVs checked in; retunable via the
+      recipe constants at the top.
+- [x] Extend `UiSfx` + `UI_SFX_FILES` in `audio.rs` with the 10 new keys and
+      their volume constants (informational-tick band).
+- [x] Fire the cues from the terminal seams in `drawer.rs`:
+      keystroke/backspace in `handle_terminal_keyboard`, enter thunk +
+      ok/error/coil by submit outcome, tick on completion, coil on app
+      launch/exit, sweeps on open/close (power-down on the close-request rising
+      edge, synced with 193233's collapse).
+- [x] Ambient bed: `nova_bed.wav` loop entity spawned on `OnEnter(Drawer)`,
+      despawned on exit. Exempt from `pause_loops` BY CONSTRUCTION - that system
+      queries only `ThrusterLoopSfx`/`RcsLoopSfx`, and the bed carries its own
+      `NovaOsBedSfx` marker, so the freeze loop-pause never touches it
+      (`audit-state-gates-on-new-entry-path`).
+- [x] Objective-complete chime reuses `UiSfx::ObjectiveComplete`: NO duplicate
+      added here, so the HUD's existing global cue is the only one - no
+      double-fire.
+- [x] Gate every cue on `NovaOsMonitorSettings::sound_enabled` and the
+      master-volume path (one-shots via `SfxMasterVolume`; the bed via
+      `apply_nova_os_bed_volume`). FULL PoC treatment incl. per-keystroke clicks.
+- [x] Volumes in the informational-tick band; typing clicks quiet
+      (`NOVA_OS_KEY_VOLUME` 0.10) and throttled (`NOVA_OS_KEY_MIN_INTERVAL`).
+- [x] Tests: `nova_os_sound_cues_fire_on_terminal_events`,
+      `nova_os_ambient_bed_tracks_drawer_state`, `nova_os_snd_off_silences_cues`,
+      and `every_ui_sfx_key_has_a_file` (extended to the new cues). Generator
+      determinism verified by two runs -> byte-identical (recorded in NOTES).
+- [~] Verify on the web build (trunk + in-browser listen): MANUAL/owner
+      acceptance - a headless session cannot listen. The `wav` decoder already
+      ships on web and every cue rides the same path as existing UI SFX. Work +
+      self-reflection recorded in `tasks/20260726-214639/NOTES.md`.
 
 ## Definition of Done
 

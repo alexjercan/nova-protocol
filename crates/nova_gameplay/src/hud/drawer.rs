@@ -32,6 +32,7 @@
 
 use bevy::{
     asset::{io::Reader, uuid::Uuid, AssetApp, AssetLoader, LoadContext},
+    audio::Volume,
     camera::{visibility::RenderLayers, ImageRenderTarget, NormalizedRenderTarget, RenderTarget},
     input::{
         keyboard::{Key, KeyboardInput},
@@ -50,11 +51,20 @@ use bevy::{
     ui_render::prelude::{MaterialNode, UiMaterial, UiMaterialPlugin},
     ui_widgets::{observe, Activate, Button},
 };
-use bevy_common_systems::prelude::{GameObjectives, Objective};
+use bevy_common_systems::prelude::{GameObjectives, Objective, SfxCommandsExt, SoundBank};
 use nova_ui::theme;
 
 use super::NovaHudSystems;
-use crate::{prelude::*, GameStates, PauseStates};
+use crate::{
+    audio::{
+        UiSfx, NOVA_OS_BACK_VOLUME, NOVA_OS_BED_VOLUME, NOVA_OS_COIL_VOLUME, NOVA_OS_ENTER_VOLUME,
+        NOVA_OS_ERROR_VOLUME, NOVA_OS_KEY_MIN_INTERVAL, NOVA_OS_KEY_VOLUME, NOVA_OS_OK_VOLUME,
+        NOVA_OS_POWER_VOLUME, NOVA_OS_TICK_VOLUME,
+    },
+    prelude::*,
+    settings::{HarnessMute, MasterVolume},
+    GameStates, PauseStates,
+};
 
 /// Seconds for the monitor to fade/activate fully open (or closed).
 const DRAWER_SLIDE_SECS: f32 = 0.22;
@@ -1132,11 +1142,11 @@ impl NovaOsTerminal {
             .unwrap_or(self.prompt.len());
     }
 
-    fn submit(&mut self, snapshot: &TerminalCommandSnapshot) {
+    fn submit(&mut self, snapshot: &TerminalCommandSnapshot) -> TerminalSubmitOutcome {
         let command_line = self.prompt.trim().to_string();
         if command_line.is_empty() {
             self.reset_prompt();
-            return;
+            return TerminalSubmitOutcome::Empty;
         }
 
         self.scrollback.push(TerminalRow {
@@ -1152,47 +1162,56 @@ impl NovaOsTerminal {
         // restores it) and hands the screen to the app via `active_mode`.
         let word = current_command_prefix(&command_line).unwrap_or("");
         if let Some(app) = self.app_commands.iter().find(|app| app.id == word).copied() {
-            if command_has_arguments(&command_line) {
+            let outcome = if command_has_arguments(&command_line) {
                 self.scrollback.push(TerminalRow {
                     kind: TerminalRowKind::Error,
                     text: format!("{} takes no arguments", app.id),
                 });
+                TerminalSubmitOutcome::Errored
             } else {
                 self.scrollback.push(TerminalRow {
                     kind: TerminalRowKind::Info,
                     text: format!("launching {} ...", app.id),
                 });
                 self.active_mode = TerminalMode::App { id: app.id };
-            }
+                TerminalSubmitOutcome::Launched
+            };
             self.reset_prompt();
-            return;
+            return outcome;
         }
 
-        match parse_command(&command_line, &self.app_commands) {
+        let outcome = match parse_command(&command_line, &self.app_commands) {
             TerminalCommandResult::Help => {
                 self.scrollback
                     .extend(terminal_help_rows(&self.app_commands));
+                TerminalSubmitOutcome::Ran
             }
             TerminalCommandResult::Clear => {
                 self.reset_scrollback_to_welcome();
+                TerminalSubmitOutcome::Ran
             }
             TerminalCommandResult::Log => {
                 self.scrollback.extend(snapshot.log_rows.clone());
+                TerminalSubmitOutcome::Ran
             }
             TerminalCommandResult::Objectives => {
                 self.scrollback.extend(snapshot.objective_rows.clone());
+                TerminalSubmitOutcome::Ran
             }
             TerminalCommandResult::Ship => {
                 self.scrollback.extend(snapshot.ship_rows.clone());
+                TerminalSubmitOutcome::Ran
             }
             TerminalCommandResult::Exit => {
                 self.pending_close = true;
+                TerminalSubmitOutcome::Ran
             }
             TerminalCommandResult::UnexpectedArguments { command } => {
                 self.scrollback.push(TerminalRow {
                     kind: TerminalRowKind::Error,
                     text: format!("{command} takes no arguments"),
                 });
+                TerminalSubmitOutcome::Errored
             }
             TerminalCommandResult::Unknown {
                 command,
@@ -1210,15 +1229,19 @@ impl NovaOsTerminal {
                         text: format!("did you mean {suggestion}?"),
                     });
                 }
+                TerminalSubmitOutcome::Errored
             }
-        }
+        };
 
         self.reset_prompt();
+        outcome
     }
 
-    fn complete(&mut self) {
+    /// Returns whether the completion actually advanced the prompt (so the caller
+    /// can play the autocomplete tick only when something happened).
+    fn complete(&mut self) -> bool {
         let Some(prefix) = current_command_prefix(&self.prompt) else {
-            return;
+            return false;
         };
         let matches: Vec<&str> = TERMINAL_COMMANDS
             .iter()
@@ -1231,10 +1254,12 @@ impl NovaOsTerminal {
             [] => None,
             many => common_prefix(many),
         };
+        let before = self.prompt.clone();
         if let Some(completion) = completion {
             self.replace_current_command(&completion);
         }
         self.refresh_parse();
+        self.prompt != before
     }
 
     fn history_previous(&mut self) {
@@ -1317,9 +1342,14 @@ impl NovaOsTerminal {
     /// prompt are untouched while an app runs, so this just flips the mode back;
     /// a no-op when already at the prompt. Drives both the Escape/close-control
     /// route and an app's own [`NovaOsAppInputOutcome::Exit`].
-    fn exit_app(&mut self) {
+    /// Returns whether an app was actually exited (so the caller can play the
+    /// degauss coil only on a real app -> prompt transition).
+    fn exit_app(&mut self) -> bool {
         if matches!(self.active_mode, TerminalMode::App { .. }) {
             self.active_mode = TerminalMode::Prompt;
+            true
+        } else {
+            false
         }
     }
 
@@ -1416,6 +1446,21 @@ fn terminal_help_rows(app_commands: &[NovaOsAppCommand]) -> Vec<TerminalRow> {
             }),
     )
     .collect()
+}
+
+/// The semantic result of a [`NovaOsTerminal::submit`], so the bevy layer can
+/// pick the sound cue without the pure model knowing about audio (task
+/// 20260726-214639).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum TerminalSubmitOutcome {
+    /// An empty prompt line - no command, no cue.
+    Empty,
+    /// A command ran and produced output/state (help, clear, log, ...).
+    Ran,
+    /// A command failed (unknown, or arguments where none are allowed).
+    Errored,
+    /// An app launch word handed the screen to an app.
+    Launched,
 }
 
 enum TerminalCommandResult {
@@ -1791,10 +1836,19 @@ impl Plugin for NovaDrawerPlugin {
                 drive_nova_os_topbar_fps,
                 animate_nova_os_crt.run_if(resource_exists::<Assets<NovaOsCrtMaterial>>),
                 sync_nova_os_monitor_controls.run_if(resource_changed::<NovaOsMonitorSettings>),
+                // NOVA OS sound (task 20260726-214639): the power-down sweep on a
+                // requested close and the live bed volume / SND mute.
+                play_nova_os_power_down,
+                apply_nova_os_bed_volume,
             )
                 .run_if(in_state(PauseStates::Drawer))
                 .in_set(NovaHudSystems),
         );
+
+        // Power-up sweep + ambient bed on open, bed teardown on close. Reuses the
+        // exact OnEnter/OnExit(Drawer) hooks the freeze axis uses.
+        app.add_systems(OnEnter(PauseStates::Drawer), start_nova_os_sound);
+        app.add_systems(OnExit(PauseStates::Drawer), stop_nova_os_bed);
 
         // Render-to-texture pipeline: keep the offscreen image sized to the screen
         // (always, so it is ready when the drawer opens), and while the computer is
@@ -1861,12 +1915,131 @@ fn toggle_drawer(
 /// screen it exits the app back to the terminal; at the prompt it closes the whole
 /// computer. Reading `active_mode` (not consuming the key edge elsewhere) is what
 /// keeps the two routes from both firing on one press.
+/// The looping ambient CRT bed audio entity, spawned while the NOVA OS computer
+/// is open (task 20260726-214639). Its OWN marker keeps it out of
+/// [`super::super::audio`]'s `pause_loops` thruster/RCS queries, so the sim-freeze
+/// loop-pause on `OnEnter(Drawer)` never silences it - the bed is exempt by
+/// construction, not by a guard (`audit-state-gates-on-new-entry-path`). Volume
+/// (and the live SND mute) is applied by [`apply_nova_os_bed_volume`].
+#[derive(Component)]
+struct NovaOsBedSfx;
+
+/// Fire a one-shot NOVA OS terminal cue, honoring the SND toggle
+/// ([`NovaOsMonitorSettings::sound_enabled`]). Master volume is applied
+/// downstream by the SFX plugin's `SfxMasterVolume` path, like every other cue.
+fn play_nova_os_cue(
+    commands: &mut Commands,
+    bank: &SoundBank<UiSfx>,
+    settings: &NovaOsMonitorSettings,
+    cue: UiSfx,
+    volume: f32,
+) {
+    if !settings.sound_enabled {
+        return;
+    }
+    commands.play_sfx_volume(bank.get(cue), volume);
+}
+
+/// Power-up sweep + start the ambient bed when the computer opens
+/// (`OnEnter(Drawer)`). The bed spawns even when SND is off (silent) so toggling
+/// SND on mid-session brings the hum in without reopening.
+fn start_nova_os_sound(
+    mut commands: Commands,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    settings: Res<NovaOsMonitorSettings>,
+) {
+    let Some(bank) = bank else {
+        return;
+    };
+    play_nova_os_cue(
+        &mut commands,
+        &bank,
+        &settings,
+        UiSfx::NovaOsPowerUp,
+        NOVA_OS_POWER_VOLUME,
+    );
+    commands.spawn((
+        Name::new("NOVA OS Ambient Bed"),
+        NovaOsBedSfx,
+        AudioPlayer(bank.get(UiSfx::NovaOsBed)),
+        PlaybackSettings::LOOP.with_volume(Volume::Linear(0.0)),
+    ));
+}
+
+/// Despawn the ambient bed when the computer closes (`OnExit(Drawer)`, i.e. once
+/// the power-down collapse finishes).
+fn stop_nova_os_bed(mut commands: Commands, q_bed: Query<Entity, With<NovaOsBedSfx>>) {
+    for entity in &q_bed {
+        commands.entity(entity).despawn();
+    }
+}
+
+/// Play the power-down sweep the instant a close is REQUESTED (the rising edge of
+/// [`DrawerCloseTransition::closing`]), so the sweep syncs with the raster
+/// collapse that starts then - not `OnExit(Drawer)`, which fires only after the
+/// collapse animation completes.
+fn play_nova_os_power_down(
+    mut commands: Commands,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    settings: Res<NovaOsMonitorSettings>,
+    close: Res<DrawerCloseTransition>,
+    mut was_closing: Local<bool>,
+) {
+    if close.closing && !*was_closing {
+        if let Some(bank) = &bank {
+            play_nova_os_cue(
+                &mut commands,
+                bank,
+                &settings,
+                UiSfx::NovaOsPowerDown,
+                NOVA_OS_POWER_VOLUME,
+            );
+        }
+    }
+    *was_closing = close.closing;
+}
+
+/// Drive the ambient bed sink volume from [`MasterVolume`] and the SND toggle, so
+/// muting SND (or the master) silences the hum live without despawning the loop.
+/// Uses `output_gain(mute)` like the thruster/RCS loop sinks, so a `HarnessMute`d
+/// smoke/probe run silences the bed too (a per-frame sink write bypasses the
+/// `GlobalVolume` path that mute otherwise masks).
+fn apply_nova_os_bed_volume(
+    settings: Res<NovaOsMonitorSettings>,
+    master: Option<Res<MasterVolume>>,
+    mute: Option<Res<HarnessMute>>,
+    mut q_bed: Query<&mut AudioSink, With<NovaOsBedSfx>>,
+) {
+    let mute = mute.map(|m| *m).unwrap_or_default();
+    let master = master.map(|m| m.output_gain(mute)).unwrap_or(1.0);
+    let target = nova_os_bed_gain(settings.sound_enabled, master);
+    for mut sink in &mut q_bed {
+        sink.set_volume(Volume::Linear(target));
+    }
+}
+
+/// The ambient bed's target sink gain: the base volume scaled by the master
+/// output gain, or ZERO when SND is muted. Pure so the SND-off / master / mute
+/// silence logic is testable without an `AudioSink` (which needs an audio
+/// device). `master` is already the `output_gain(mute)`, so a harness-muted run
+/// (master 0) silences the bed too.
+fn nova_os_bed_gain(sound_enabled: bool, master: f32) -> f32 {
+    if sound_enabled {
+        NOVA_OS_BED_VOLUME * master
+    } else {
+        0.0
+    }
+}
+
 fn close_drawer_from_menu_keys(
     keys: Res<ButtonInput<KeyCode>>,
     gamepad: Option<Res<ButtonInput<GamepadButton>>>,
     current: Res<State<PauseStates>>,
     mut close: ResMut<DrawerCloseTransition>,
     mut terminal: ResMut<NovaOsTerminal>,
+    mut commands: Commands,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    settings: Res<NovaOsMonitorSettings>,
 ) {
     if *current.get() != PauseStates::Drawer {
         return;
@@ -1878,7 +2051,21 @@ fn close_drawer_from_menu_keys(
         return;
     }
     match terminal.active_mode {
-        TerminalMode::App { .. } => terminal.exit_app(),
+        // Escape backing out of an app plays the degauss coil (the app-exit twin
+        // of the launch coil).
+        TerminalMode::App { .. } => {
+            if terminal.exit_app() {
+                if let Some(bank) = &bank {
+                    play_nova_os_cue(
+                        &mut commands,
+                        bank,
+                        &settings,
+                        UiSfx::NovaOsCoil,
+                        NOVA_OS_COIL_VOLUME,
+                    );
+                }
+            }
+        }
         TerminalMode::Prompt => close.closing = true,
     }
 }
@@ -1911,9 +2098,17 @@ fn handle_terminal_keyboard(
     >,
     mut terminal: ResMut<NovaOsTerminal>,
     mut close: ResMut<DrawerCloseTransition>,
+    mut commands: Commands,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    settings: Res<NovaOsMonitorSettings>,
+    time: Res<Time<Real>>,
+    mut last_key_click: Local<Option<f32>>,
 ) {
     let drawer_prompt_active =
         *pause.get() == PauseStates::Drawer && terminal.active_mode == TerminalMode::Prompt;
+    // The `bank` is absent on rigs without the sound assets (headless), so each
+    // branch guards on it and cues are a no-op there.
+    let now = time.elapsed_secs();
     for event in keyboard.read() {
         if !drawer_prompt_active {
             continue;
@@ -1930,11 +2125,73 @@ fn handle_terminal_keyboard(
                     ship_name.as_deref(),
                     &sections,
                 );
-                terminal.submit(&snapshot);
+                let outcome = terminal.submit(&snapshot);
+                if let Some(bank) = &bank {
+                    // A bare Enter on an empty prompt stays silent (a deliberate
+                    // refinement over the PoC, which thunks on every submit).
+                    if outcome != TerminalSubmitOutcome::Empty {
+                        // The enter "thunk" fires on every real submit; the
+                        // outcome then layers ok/error/coil (the Story's cue set).
+                        play_nova_os_cue(
+                            &mut commands,
+                            bank,
+                            &settings,
+                            UiSfx::NovaOsEnter,
+                            NOVA_OS_ENTER_VOLUME,
+                        );
+                    }
+                    let (cue, volume) = match outcome {
+                        TerminalSubmitOutcome::Empty => (None, 0.0),
+                        TerminalSubmitOutcome::Ran => (Some(UiSfx::NovaOsOk), NOVA_OS_OK_VOLUME),
+                        TerminalSubmitOutcome::Errored => {
+                            (Some(UiSfx::NovaOsError), NOVA_OS_ERROR_VOLUME)
+                        }
+                        TerminalSubmitOutcome::Launched => {
+                            (Some(UiSfx::NovaOsCoil), NOVA_OS_COIL_VOLUME)
+                        }
+                    };
+                    if let Some(cue) = cue {
+                        play_nova_os_cue(&mut commands, bank, &settings, cue, volume);
+                    }
+                }
             }
-            Key::Tab => terminal.complete(),
-            Key::Backspace => terminal.backspace(),
-            Key::Delete => terminal.delete(),
+            Key::Tab => {
+                if terminal.complete() {
+                    if let Some(bank) = &bank {
+                        play_nova_os_cue(
+                            &mut commands,
+                            bank,
+                            &settings,
+                            UiSfx::NovaOsTick,
+                            NOVA_OS_TICK_VOLUME,
+                        );
+                    }
+                }
+            }
+            Key::Backspace => {
+                terminal.backspace();
+                if let Some(bank) = &bank {
+                    play_nova_os_cue(
+                        &mut commands,
+                        bank,
+                        &settings,
+                        UiSfx::NovaOsBack,
+                        NOVA_OS_BACK_VOLUME,
+                    );
+                }
+            }
+            Key::Delete => {
+                terminal.delete();
+                if let Some(bank) = &bank {
+                    play_nova_os_cue(
+                        &mut commands,
+                        bank,
+                        &settings,
+                        UiSfx::NovaOsBack,
+                        NOVA_OS_BACK_VOLUME,
+                    );
+                }
+            }
             Key::ArrowLeft => terminal.move_cursor_left(),
             Key::ArrowRight => terminal.move_cursor_right(),
             Key::ArrowUp => terminal.history_previous(),
@@ -1944,6 +2201,23 @@ fn handle_terminal_keyboard(
                     terminal.insert_text(text);
                 } else if matches!(event.logical_key, Key::Space) {
                     terminal.insert_text(" ");
+                }
+                // Typing click, throttled so OS key-repeat cannot machine-gun.
+                // The first click always fires (last is `None`).
+                if let Some(bank) = &bank {
+                    let due = last_key_click
+                        .map(|last| now - last >= NOVA_OS_KEY_MIN_INTERVAL)
+                        .unwrap_or(true);
+                    if due {
+                        *last_key_click = Some(now);
+                        play_nova_os_cue(
+                            &mut commands,
+                            bank,
+                            &settings,
+                            UiSfx::NovaOsKey,
+                            NOVA_OS_KEY_VOLUME,
+                        );
+                    }
                 }
             }
             _ => {}
@@ -1994,6 +2268,9 @@ fn handle_nova_os_app_keyboard(
     pause: Res<State<PauseStates>>,
     registry: Res<NovaOsAppRegistry>,
     mut terminal: ResMut<NovaOsTerminal>,
+    mut commands: Commands,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    settings: Option<Res<NovaOsMonitorSettings>>,
     mut last_app: Local<Option<&'static str>>,
 ) {
     let in_drawer = *pause.get() == PauseStates::Drawer;
@@ -2023,15 +2300,40 @@ fn handle_nova_os_app_keyboard(
             break;
         }
     }
-    if exit {
-        terminal.exit_app();
+    if exit && terminal.exit_app() {
+        // Same degauss coil as the Escape / close-control exit routes.
+        if let (Some(bank), Some(settings)) = (&bank, &settings) {
+            play_nova_os_cue(
+                &mut commands,
+                bank,
+                settings,
+                UiSfx::NovaOsCoil,
+                NOVA_OS_COIL_VOLUME,
+            );
+        }
     }
 }
 
 /// The app chrome's close control: clicking it returns to the terminal, the same
-/// route as Escape.
-fn on_nova_os_app_close(_activate: On<Activate>, mut terminal: ResMut<NovaOsTerminal>) {
-    terminal.exit_app();
+/// route as Escape, and plays the degauss coil on a real exit.
+fn on_nova_os_app_close(
+    _activate: On<Activate>,
+    mut terminal: ResMut<NovaOsTerminal>,
+    mut commands: Commands,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    settings: Option<Res<NovaOsMonitorSettings>>,
+) {
+    if terminal.exit_app() {
+        if let (Some(bank), Some(settings)) = (&bank, &settings) {
+            play_nova_os_cue(
+                &mut commands,
+                bank,
+                settings,
+                UiSfx::NovaOsCoil,
+                NOVA_OS_COIL_VOLUME,
+            );
+        }
+    }
 }
 
 /// BRIGHT knob click: advance the brightness detent (the dial pointer and the
@@ -4205,7 +4507,7 @@ mod tests {
         asset::AssetPlugin, ecs::system::RunSystemOnce, input::touch::TouchPhase,
         state::app::StatesPlugin,
     };
-    use bevy_common_systems::prelude::Objective;
+    use bevy_common_systems::prelude::{Objective, PlaySfx};
 
     use super::*;
 
@@ -4279,6 +4581,8 @@ mod tests {
         app.init_resource::<NovaOsTerminal>();
         app.init_resource::<DrawerFlightLog>();
         app.init_resource::<GameObjectives>();
+        // handle_terminal_keyboard reads the SND toggle (task 20260726-214639).
+        app.init_resource::<NovaOsMonitorSettings>();
         app.world_mut().init_resource::<Messages<KeyboardInput>>();
     }
 
@@ -4311,6 +4615,195 @@ mod tests {
 
     fn pause_state(app: &App) -> PauseStates {
         app.world().resource::<State<PauseStates>>().get().clone()
+    }
+
+    // --- NOVA OS sound (task 20260726-214639) ---
+
+    /// Records which NOVA OS cues were triggered (by handle identity), so tests
+    /// can assert WHICH sound played on each terminal event without an audio
+    /// device. Mirrors `objective_feedback`'s `sfx_app` capture.
+    #[derive(Resource, Default)]
+    struct SoundCapture(Vec<UiSfx>);
+
+    fn nova_os_sound_app() -> App {
+        let mut app = toggle_app();
+        init_terminal_input_resources(&mut app);
+        app.init_resource::<DrawerCloseTransition>();
+        app.add_plugins(bevy::asset::AssetPlugin::default());
+        app.init_asset::<AudioSource>();
+        let bank = SoundBank::load(
+            app.world().resource::<AssetServer>(),
+            crate::audio::UI_SFX_FILES,
+        );
+        app.insert_resource(bank);
+        app.init_resource::<SoundCapture>();
+        app.add_observer(
+            |sfx: On<PlaySfx>, bank: Res<SoundBank<UiSfx>>, mut cap: ResMut<SoundCapture>| {
+                for (key, _) in crate::audio::UI_SFX_FILES {
+                    if sfx.handle == bank.get(key) {
+                        cap.0.push(key);
+                        break;
+                    }
+                }
+            },
+        );
+        app.add_systems(
+            Update,
+            (
+                handle_terminal_keyboard,
+                play_nova_os_power_down.run_if(in_state(PauseStates::Drawer)),
+            )
+                .run_if(in_state(GameStates::Playing)),
+        );
+        app.add_systems(OnEnter(PauseStates::Drawer), start_nova_os_sound);
+        app.add_systems(OnExit(PauseStates::Drawer), stop_nova_os_bed);
+        app
+    }
+
+    fn open_nova_os(app: &mut App) {
+        app.world_mut()
+            .resource_mut::<NextState<PauseStates>>()
+            .set(PauseStates::Drawer);
+        app.update();
+    }
+
+    fn clear_capture(app: &mut App) {
+        app.world_mut().resource_mut::<SoundCapture>().0.clear();
+    }
+
+    fn fired(app: &App, cue: UiSfx) -> bool {
+        app.world().resource::<SoundCapture>().0.contains(&cue)
+    }
+
+    fn bed_count(app: &mut App) -> usize {
+        app.world_mut()
+            .query_filtered::<(), With<NovaOsBedSfx>>()
+            .iter(app.world())
+            .count()
+    }
+
+    fn set_prompt(app: &mut App, command: &str) {
+        let mut terminal = app.world_mut().resource_mut::<NovaOsTerminal>();
+        terminal.reset_prompt();
+        terminal.insert_text(command);
+    }
+
+    fn press_enter(app: &mut App) {
+        press_key(app, KeyCode::Enter, Key::Enter, None);
+    }
+
+    #[test]
+    fn nova_os_sound_cues_fire_on_terminal_events() {
+        let mut app = nova_os_sound_app();
+
+        // Open: the power-up sweep plays and the ambient bed spawns.
+        open_nova_os(&mut app);
+        assert!(
+            fired(&app, UiSfx::NovaOsPowerUp),
+            "opening the computer plays the power-up sweep"
+        );
+        assert_eq!(bed_count(&mut app), 1, "the ambient bed spawns on open");
+
+        // A keystroke plays the (throttled) typing click.
+        clear_capture(&mut app);
+        set_prompt(&mut app, "");
+        press_text(&mut app, "h");
+        assert!(fired(&app, UiSfx::NovaOsKey), "typing plays the key click");
+
+        // A valid command: the enter thunk plus the confirmation beep.
+        clear_capture(&mut app);
+        set_prompt(&mut app, "help");
+        press_enter(&mut app);
+        assert!(
+            fired(&app, UiSfx::NovaOsEnter),
+            "submitting plays the enter thunk"
+        );
+        assert!(
+            fired(&app, UiSfx::NovaOsOk),
+            "a valid command plays the ok beep"
+        );
+
+        // An unknown command: the error buzz.
+        clear_capture(&mut app);
+        set_prompt(&mut app, "zzz");
+        press_enter(&mut app);
+        assert!(
+            fired(&app, UiSfx::NovaOsError),
+            "an unknown command plays the error buzz"
+        );
+
+        // Requesting a close plays the power-down sweep.
+        clear_capture(&mut app);
+        app.world_mut()
+            .resource_mut::<DrawerCloseTransition>()
+            .closing = true;
+        app.update();
+        assert!(
+            fired(&app, UiSfx::NovaOsPowerDown),
+            "requesting a close plays the power-down sweep"
+        );
+    }
+
+    #[test]
+    fn nova_os_ambient_bed_tracks_drawer_state() {
+        let mut app = nova_os_sound_app();
+        assert_eq!(bed_count(&mut app), 0, "no bed before the computer opens");
+
+        open_nova_os(&mut app);
+        assert_eq!(bed_count(&mut app), 1, "one bed while the computer is open");
+
+        // Leaving the drawer despawns the bed. (The freeze loop-pause exemption
+        // is structural, not exercised here: `audio::pause_loops` queries only
+        // ThrusterLoopSfx/RcsLoopSfx, so NovaOsBedSfx is never paused - see the
+        // task note. Asserting the sink stays playing would need an audio
+        // device.)
+        app.world_mut()
+            .resource_mut::<NextState<PauseStates>>()
+            .set(PauseStates::Unpaused);
+        app.update();
+        assert_eq!(
+            bed_count(&mut app),
+            0,
+            "the bed despawns when the computer closes"
+        );
+    }
+
+    #[test]
+    fn nova_os_snd_off_silences_cues() {
+        let mut app = nova_os_sound_app();
+        app.world_mut()
+            .resource_mut::<NovaOsMonitorSettings>()
+            .sound_enabled = false;
+
+        // Open with SND off: no power-up cue (the bed still spawns, but silent -
+        // apply_nova_os_bed_volume drives it to 0).
+        open_nova_os(&mut app);
+        assert!(
+            !fired(&app, UiSfx::NovaOsPowerUp),
+            "SND off silences the power-up sweep"
+        );
+
+        // Typing and submitting are silent too.
+        set_prompt(&mut app, "help");
+        press_enter(&mut app);
+        assert!(
+            app.world().resource::<SoundCapture>().0.is_empty(),
+            "SND off silences every terminal cue, got {:?}",
+            app.world().resource::<SoundCapture>().0
+        );
+    }
+
+    #[test]
+    fn nova_os_bed_gain_respects_snd_and_master() {
+        // The bed's volume logic (the sink write needs an audio device, so the
+        // gain is factored out pure). SND on at full master -> the base volume.
+        assert_eq!(nova_os_bed_gain(true, 1.0), NOVA_OS_BED_VOLUME);
+        // SND off -> dead silent, whatever the master.
+        assert_eq!(nova_os_bed_gain(false, 1.0), 0.0);
+        // A zero master output gain (volume 0 OR a HarnessMute'd run) -> silent.
+        assert_eq!(nova_os_bed_gain(true, 0.0), 0.0);
+        // Half master scales the hum.
+        assert_eq!(nova_os_bed_gain(true, 0.5), NOVA_OS_BED_VOLUME * 0.5);
     }
 
     #[test]
