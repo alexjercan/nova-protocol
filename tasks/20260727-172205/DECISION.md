@@ -1,5 +1,7 @@
 # DECISION: how to give the `.ttc` font a `.meta` on the web
 
+- STATUS: ACCEPTED
+
 ## Context
 
 The web NOVA OS text bug is caused by the custom-loaded `.ttc` font having no

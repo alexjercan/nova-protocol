@@ -2,7 +2,7 @@
 
 ## Round 1 - out-of-context reviewer (commit c04ad340)
 
-Verdict: **APPROVE** (one minor, resolved below).
+- VERDICT: APPROVE (one MINOR raised, resolved with evidence below - no change)
 
 Verified against Bevy 0.19 source:
 
