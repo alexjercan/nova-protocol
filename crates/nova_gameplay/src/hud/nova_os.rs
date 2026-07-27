@@ -4048,6 +4048,21 @@ fn spawn_nova_os_terminal_content(
                                             Node {
                                                 flex_grow: 1.0,
                                                 min_width: Val::Px(0.0),
+                                                // Hold the wrap at a full text line
+                                                // box even when every piece is empty:
+                                                // the block caret is absolute with
+                                                // top:0/bottom:0, so it stretches to
+                                                // THIS node. With 0 chars typed all
+                                                // three text children are "" and the
+                                                // wrap would collapse to 0 height,
+                                                // hiding the caret (owner playtest:
+                                                // caret invisible before typing). 1.2
+                                                // is Bevy's default line-height factor
+                                                // (not an arbitrary pad), so this floor
+                                                // equals the line box the caret stretches
+                                                // to once text is present - empty and
+                                                // typed carets stay the same height.
+                                                min_height: Val::Px(DRAWER_LINE_FONT_PX * 1.2),
                                                 flex_direction: FlexDirection::Row,
                                                 align_items: AlignItems::Center,
                                                 overflow: Overflow::clip_x(),
