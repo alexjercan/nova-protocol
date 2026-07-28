@@ -110,5 +110,3 @@ Pure-formatting change plus a small wiring extension to carry the code:
 5. Check suite green. (cmd: `cargo check -p nova_gameplay`)
 6. Playtest: owner runs `ship view` and sees the aligned label table.
    (manual: owner confirms in a run)
-</content>
-</invoke>
