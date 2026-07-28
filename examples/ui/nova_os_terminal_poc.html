@@ -1820,6 +1820,19 @@
     let screenOn = true;
     let sleepTimer = null;
 
+    /* Easter-egg guarded return: ONLY when this PoC is opened with ?back=<route>
+       (the HUD PoC's NOVA OS button does this) does powering the screen off
+       navigate back, mirroring the game's Esc-closes-computer-resumes-flight.
+       Paramless use - the standalone reference and its existing /nova-os/ link -
+       reads no param and behaves exactly as before. */
+    const EGG_BACK = new URLSearchParams(location.search).get("back");
+    const onOsRoute = /\/nova-os(\/|$)/.test(location.pathname);
+    function eggReturnHref() {
+      if (EGG_BACK === "nova-hud") return onOsRoute ? "../nova-hud/" : "hud_rework_poc.html";
+      if (EGG_BACK === "nova-menu") return onOsRoute ? "../nova-menu/" : "nova_ui_rework_poc.html";
+      return null;
+    }
+
     function closeDrawer() {
       if (!screenOn) return;
       screenOn = false;
@@ -1829,6 +1842,8 @@
       led.classList.add("standby");
       clearTimeout(sleepTimer);
       sleepTimer = setTimeout(() => sleep.classList.add("active"), reduceMotion ? 0 : 440);
+      const back = eggReturnHref();
+      if (back) setTimeout(() => { location.href = back; }, reduceMotion ? 0 : 620);
     }
 
     function openDrawer() {

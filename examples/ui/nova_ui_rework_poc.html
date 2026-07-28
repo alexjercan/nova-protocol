@@ -341,6 +341,13 @@
     body[data-skin="phosphor"] .panel-head .rule { background: none; border-top: 1px dashed rgba(54,255,121,0.35); height: 0; }
     body[data-skin="phosphor"] .panel-head .tag { color: var(--phosphor); border-color: rgba(54,255,121,0.4); }
 
+    /* Deployed easter-egg route: drop the demo topbar so it is just the live
+       scene + corner menu. The in-repo file:// review copy keeps the topbar.
+       Collapse the app grid to a single row so the stage (and its corner menu)
+       fills the viewport instead of the now-empty topbar `auto` track. */
+    body.immersive .topbar { display: none; }
+    body.immersive .app { grid-template-rows: 1fr; }
+
     @media (max-width: 760px) { .two-pane { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -393,12 +400,12 @@
         <div class="corner-menu">
           <div class="title"><h1>NOVA PROTOCOL</h1><p>Orbital salvage // delta-9</p></div>
           <div class="panel"><div class="panel-body">
-            <button class="btn primary block">New Game</button>
-            <button class="btn block">Sandbox</button>
-            <button class="btn block">Scenarios</button>
-            <button class="btn block">Mods</button>
-            <button class="btn block">Settings</button>
-            <button class="btn danger block">Exit</button>
+            <button class="btn primary block" data-nav="play">New Game</button>
+            <button class="btn block" data-nav="play">Sandbox</button>
+            <button class="btn block" data-screen="scenarios">Scenarios</button>
+            <button class="btn block" data-screen="mods">Mods</button>
+            <button class="btn block" data-screen="settings">Settings</button>
+            <button class="btn danger block" data-nav="site">Exit</button>
             <div class="menu-foot"><span>v0.9.0</span><span>NOVA OS 9.0</span></div>
           </div></div>
         </div>
@@ -425,6 +432,10 @@
                 <div class="row"><div class="rtext"><b>Autopilot GOTO</b></div><span class="badge mute">G</span><span class="badge mute">A</span></div>
                 <div class="row"><div class="rtext"><b>HUD detail</b></div><span class="badge mute">~</span><span class="badge mute">Select</span></div>
               </div>
+
+              <div class="sep"></div>
+              <div class="section-head">Interface</div>
+              <div class="field"><label>UI skin</label><div class="segmented" id="skinSetting"><button data-skin="phosphor">Phosphor</button><button data-skin="hardware">Hardware</button></div><span class="val"></span></div>
             </div>
             <div class="modal-foot"><span class="muted note">Saved automatically</span><button class="btn wide" data-goto="menu">Back</button></div>
           </div>
@@ -570,12 +581,30 @@
     }
     tabs.addEventListener('click', e => { const b = e.target.closest('.screen-tab'); if (b) showScreen(b.dataset.screen); });
 
-    const skinSeg = document.getElementById('skinSeg');
-    skinSeg.addEventListener('click', e => {
-      const b = e.target.closest('button'); if (!b) return;
-      skinSeg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
-      document.body.dataset.skin = b.dataset.skin;
-    });
+    // Deployed easter-egg route (/nova-menu/) vs the in-repo file:// review copy.
+    // On a route the demo topbar is hidden and the corner buttons really navigate
+    // the chain; in review the sibling files are used so the chain still works.
+    const onRoute = /\/nova-menu(\/|$)/.test(location.pathname);
+    document.body.classList.toggle('immersive', onRoute);
+    function go(routeRel, sibling) { location.href = onRoute ? routeRel : sibling; }
+    const NAV = {
+      play: () => go('../nova-hud/', 'hud_rework_poc.html'),
+      site: () => go('../', '#'),
+    };
+
+    // UI skin: one setter, persisted to localStorage (shared across the same-origin
+    // /nova-menu, /nova-hud, /nova-os routes), syncing both skin controls.
+    const skinSeg = document.getElementById('skinSeg');          // topbar (review only)
+    const skinSetting = document.getElementById('skinSetting');  // Settings > Interface
+    function syncSeg(seg, skin) { if (seg) seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.skin === skin)); }
+    function setSkin(skin) {
+      if (skin !== 'phosphor' && skin !== 'hardware') return;
+      document.body.dataset.skin = skin;
+      try { localStorage.setItem('novaSkin', skin); } catch (e) { /* private mode */ }
+      syncSeg(skinSeg, skin); syncSeg(skinSetting, skin);
+    }
+    if (skinSeg) skinSeg.addEventListener('click', e => { const b = e.target.closest('button'); if (b) setSkin(b.dataset.skin); });
+    if (skinSetting) skinSetting.addEventListener('click', e => { const b = e.target.closest('button'); if (b) setSkin(b.dataset.skin); });
 
     document.querySelectorAll('.slider').forEach(s => {
       const v = parseFloat(s.dataset.v || '0.5');
@@ -584,8 +613,10 @@
     });
 
     document.addEventListener('click', e => {
+      const nav = e.target.closest('[data-nav]'); if (nav && NAV[nav.dataset.nav]) { NAV[nav.dataset.nav](); return; }
+      const cornerScreen = e.target.closest('.corner-menu [data-screen]'); if (cornerScreen) { showScreen(cornerScreen.dataset.screen); return; }
       const goto = e.target.closest('[data-goto]'); if (goto) showScreen(goto.dataset.goto);
-      const seg = e.target.closest('.segmented button'); if (seg && seg.parentElement !== skinSeg) seg.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === seg));
+      const seg = e.target.closest('.segmented button'); if (seg && seg.parentElement !== skinSeg && seg.parentElement !== skinSetting) seg.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === seg));
       const camp = e.target.closest('.camp');
       if (camp) {
         const body = document.querySelector('.camp-body[data-camp="' + camp.dataset.camp + '"]');
@@ -601,10 +632,14 @@
       }
     });
 
-    (function initHash() {
-      const [scr, skin] = location.hash.replace('#', '').split(',').map(s => s.trim());
+    (function init() {
+      let skin = 'phosphor';
+      try { skin = localStorage.getItem('novaSkin') || 'phosphor'; } catch (e) { /* private mode */ }
+      setSkin(skin);
+      // hash still drives the review copy (#screen,skin) for screenshots
+      const [scr, hashSkin] = location.hash.replace('#', '').split(',').map(s => s.trim());
       if (scr) showScreen(scr);
-      if (skin) { const b = skinSeg.querySelector('button[data-skin="' + skin + '"]'); if (b) { skinSeg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); document.body.dataset.skin = skin; } }
+      if (hashSkin) setSkin(hashSkin);
     })();
   </script>
 </body>

@@ -861,15 +861,15 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   let the wiring test assert an armed `root=""`/`current="/home"` that cannot
   occur); collapsing to one source of truth is what makes the test express only
   reachable states. 20260726-210348.
-- `web-tests-need-node-from-flake` (x1, reference): the agent shell has no node
-  on PATH - use the flake's store bin (`nodejs_22`, e.g.
-  `/nix/store/*-nodejs-22.*/bin`) and symlink the main checkout's
-  `web/node_modules` into the sprout worktree to run `npm`, removing it before
-  commit (a bare `node_modules` symlink dodges the `node_modules/` gitignore).
-  `ts-node` fails under the `module: esnext` tsconfig, so run node tests by
-  compiling first: `tsc --module commonjs --target es2020 --lib es2020,dom
-  --outDir .test-out && node .test-out/...` (wired as `npm test`).
-  20260726-210348.
+- `web-tests-need-node-from-flake` (x2, reference): the agent shell has no node
+  on PATH - use the flake's store bin (version floats, glob it:
+  `/nix/store/*-nodejs-*/bin` + the sibling `*-nodejs-*-npm/bin`) and symlink the
+  main checkout's `web/node_modules` into the sprout worktree to run `npm`,
+  removing it before commit (a bare `node_modules` symlink dodges the
+  `node_modules/` gitignore; it is NOT itself gitignored, so never `git add` it).
+  `npm test` already compiles first (`tsc --module commonjs ... --outDir
+  .test-out && node .test-out/...`); also rm `.test-out`/`dist` before commit.
+  20260726-210348, 20260728-185730.
 
 ## Domain lessons (nova-protocol specific)
 
@@ -1005,6 +1005,13 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `grid-flex-item-needs-min-width-0` (x1): a flex/grid item refuses to shrink
   below its widest child without `min-width: 0`; suspect the item before the
   child's wrapping on sideways scroll. 20260718-114128.
+- `display-none-grid-child-reflows-tracks` (x1): hiding one child of a CSS grid
+  with `display:none` REMOVES it from the grid, so the remaining items reflow up
+  into its track - a two-row `auto 1fr` grid with the header hidden dropped the
+  body into the collapsed `auto` row (0 height), hiding an absolutely-positioned
+  child that keyed off the body's height. Collapse the `grid-template` too
+  (`grid-template-rows: 1fr`), don't just hide the child. Caught by a chromium
+  eyeball, not the exit code. Pairs with [[render-output-eyeball]]. 20260728-185730.
 - `isolate-the-lever-before-measuring` (x1): a preset bundles levers; add an
   override to vary ONE knob in isolation before attributing a win.
   20260718-004723.

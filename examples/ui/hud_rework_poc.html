@@ -184,6 +184,19 @@
     .lvlseg button.on { background: var(--phosphor); color: #04140a; }
     .units-note { font-size: 10px; color: var(--phosphor-muted); }
 
+    /* NOVA OS + Menu affordances (bottom-right, always clear of the dock/ammo).
+       .hud is pointer-events:none, so this cluster re-enables clicks. */
+    .hud-nav { position: absolute; right: 16px; bottom: 16px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; pointer-events: auto; }
+    .navbtn { display: inline-flex; align-items: center; gap: 7px; font: inherit; font-size: 12px; letter-spacing: 0.04em; cursor: pointer; color: var(--phosphor);
+      background: rgba(2,14,8,0.72); border: 1px solid rgba(54,255,121,0.4); border-radius: 3px; padding: 6px 11px; text-shadow: 0 0 6px rgba(54,255,121,0.4); backdrop-filter: blur(2px); }
+    .navbtn:hover { background: rgba(54,255,121,0.14); border-color: var(--phosphor); }
+    .navbtn .ki { width: 20px; height: 20px; object-fit: contain; }
+    .navbtn.os { font-weight: 500; box-shadow: 0 0 14px rgba(54,255,121,0.22); }
+    .navbtn.small { font-size: 11px; color: var(--phosphor-dim); border-color: rgba(54,255,121,0.28); }
+
+    /* Deployed /nova-hud/ route: drop the demo POC tag (keep the situation deck). */
+    body.on-route .deck .tag { display: none; }
+
     /* HUD level: On = full contextual; Cinematic = clean screen (screenshots). */
     body[data-level="cinematic"] .hud { opacity: 0 !important; }
   </style>
@@ -242,6 +255,12 @@
       <span class="vchip" data-v="cancel"><img class="ki" src="assets/input-prompts/keyboard/Alt/T_X_Key_Alt.png" alt="X"> CANCEL</span>
       <span class="vchip avail" data-v="radar"><img class="ki" src="assets/input-prompts/keyboard/Alt/T_R_Key_Alt.png" alt="R"> RADAR</span>
       <span class="vchip" data-v="fire"><img class="ki" src="assets/input-prompts/keyboard/Alt/T_Space_Key_Alt.png" alt="Space"> FIRE</span>
+    </div>
+
+    <!-- open the ship computer (Tab, like the game) / return to the menu -->
+    <div class="hud-nav" id="hudNav">
+      <button class="navbtn os" data-nav="os"><img class="ki" src="assets/input-prompts/keyboard/Alt/T_Tab_Key_Alt.png" alt="Tab"> NOVA OS</button>
+      <button class="navbtn small" data-nav="menu">&#9668; Menu</button>
     </div>
   </div>
 
@@ -307,6 +326,19 @@
       document.querySelectorAll('#lvlSeg button').forEach(x => x.classList.toggle('on', x === b));
       body.dataset.level = b.dataset.level;
     }));
+
+    // Deployed easter-egg route (/nova-hud/) vs the in-repo file:// review copy.
+    // On a route the demo POC tag is hidden; the NOVA OS / Menu buttons navigate
+    // the chain (routes when deployed, sibling files in review so it still works).
+    const onRoute = /\/nova-hud(\/|$)/.test(location.pathname);
+    body.classList.toggle('on-route', onRoute);
+    function go(routeRel, sibling) { location.href = onRoute ? routeRel : sibling; }
+    document.getElementById('hudNav').addEventListener('click', e => {
+      const b = e.target.closest('[data-nav]'); if (!b) return;
+      // ?back tells the CRT its exit should return here (guarded; see nova_os PoC)
+      if (b.dataset.nav === 'os') go('../nova-os/?back=nova-hud', 'nova_os_terminal_poc.html?back=nova-hud');
+      else if (b.dataset.nav === 'menu') go('../nova-menu/', 'nova_ui_rework_poc.html');
+    });
 
     (function initHash() {
       const raw = location.hash.replace('#', ''); if (!raw) { reflect(); return; }

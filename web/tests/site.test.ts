@@ -107,7 +107,7 @@ withFakeWindow((location) => {
     for (let i = 0; i < 4; i++) brand.clickAt(i * 100);
     assert.equal(location.href, "", "four clicks do not navigate");
     brand.clickAt(400);
-    assert.equal(location.href, "/nova-os/", "fifth click opens the route");
+    assert.equal(location.href, "/nova-menu/", "fifth click opens the route");
     assert.equal(brand.prevented, 5, "every armed click is swallowed");
 });
 
@@ -122,7 +122,7 @@ withFakeWindow((location) => {
     for (let i = 0; i < 5; i++) brand.clickAt(i * 100);
     assert.equal(
         location.href,
-        "/nova-protocol/nova-os/",
+        "/nova-protocol/nova-menu/",
         "basePath is honored"
     );
 });

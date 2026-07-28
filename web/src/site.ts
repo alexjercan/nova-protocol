@@ -32,9 +32,12 @@ function upgradeFigures(base: string): void {
     });
 }
 
-// Easter egg: the hidden NOVA OS terminal PoC (copied into the build at
-// `/nova-os/`, see webpack.config.js) is opened by clicking the site brand/logo
-// five times in quick succession. `registerHit` is the pure, testable core of
+// Easter egg: the hidden UI-rework PoC chain (copied into the build at
+// `/nova-menu/` -> `/nova-hud/` -> `/nova-os/`, see webpack.config.js) is opened
+// by clicking the site brand/logo five times in quick succession; the click
+// lands on the reworked main menu, which chains onward like the game
+// (New Game -> HUD -> the NOVA OS button opens the CRT terminal).
+// `registerHit` is the pure, testable core of
 // that gesture: it keeps a rolling window of click timestamps, drops any older
 // than `windowMs`, and reports `triggered` once `threshold` clicks land inside
 // the window. Kept side-effect-free (no DOM, no `window`) so it can be exercised
@@ -52,7 +55,7 @@ export function registerHit(
     return { hits: recent, triggered: false };
 }
 
-const EGG_ROUTE = "nova-os";
+const EGG_ROUTE = "nova-menu";
 const EGG_THRESHOLD = 5;
 const EGG_WINDOW_MS = 1500;
 

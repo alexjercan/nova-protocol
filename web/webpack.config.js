@@ -305,12 +305,23 @@ const config = {
             patterns: [
                 { from: "src/assets", to: "assets" },
                 { from: "src/favicon.svg", to: "favicon.svg" },
-                // Easter egg: the self-contained NOVA OS terminal PoC lives in
-                // `examples/ui/` (its source of truth). Copy it verbatim into the
-                // build at the secret, unlinked `/nova-os/` route rather than
-                // committing a second copy under `src/`. It has no external or
-                // relative asset refs, so it renders as-is under any publicPath.
-                // Reached via the brand-click hotspot in src/site.ts.
+                // Easter egg: the self-contained UI-rework PoCs live in
+                // `examples/ui/` (their source of truth). Copy them verbatim into
+                // the build at secret, unlinked routes rather than committing a
+                // second copy under `src/`. The 5x brand-click (src/site.ts) opens
+                // `/nova-menu/`; New Game -> `/nova-hud/`; the HUD's NOVA OS button
+                // -> `/nova-os/`. The menu + CRT PoCs have no relative asset refs
+                // and render as-is under any publicPath; the HUD PoC references the
+                // input-prompt key glyphs, so its `assets/` folder is copied too.
+                {
+                    from: "../examples/ui/nova_ui_rework_poc.html",
+                    to: "nova-menu/index.html",
+                },
+                {
+                    from: "../examples/ui/hud_rework_poc.html",
+                    to: "nova-hud/index.html",
+                },
+                { from: "../examples/ui/assets", to: "nova-hud/assets" },
                 {
                     from: "../examples/ui/nova_os_terminal_poc.html",
                     to: "nova-os/index.html",
@@ -359,8 +370,11 @@ const config = {
         historyApiFallback: {
             rewrites: [
                 { from: /^\/tutorial/, to: "/tutorial/index.html" },
-                // Easter-egg route: resolve /nova-os (with or without a trailing
-                // slash) to the copied PoC during `webpack serve`.
+                // Easter-egg routes: resolve /nova-menu, /nova-hud and /nova-os
+                // (with or without a trailing slash) to the copied PoCs during
+                // `webpack serve`. Order before the broader rewrites below.
+                { from: /^\/nova-menu/, to: "/nova-menu/index.html" },
+                { from: /^\/nova-hud/, to: "/nova-hud/index.html" },
                 { from: /^\/nova-os/, to: "/nova-os/index.html" },
                 ...WIKI_DOC_PAGES.map(({ slug }) => ({
                     from: new RegExp("^/wiki/" + slug),
