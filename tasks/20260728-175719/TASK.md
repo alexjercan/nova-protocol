@@ -83,6 +83,7 @@ before Bevy work starts.
       assets/input-prompts/keyboard/Alt/, Dark/White dropped (2.4M->~800K),
       license absorbed into credits/CREDITS.md + credits/licenses/, webpack +
       HUD PoC repointed. Unblocks the HUD icon dock (175742).
+- [ ] 20260729-000956 (p50) Preload static assets via bevy_asset_loader + phosphor boot loading screen
 - [ ] 20260728-175734 (p40) nova_ui theme + widgets: NOVA OS palette + skin-aware widget set
 - [ ] 20260728-175738 (p38) Menus + editor adopt the reworked widget language
 - [ ] 20260728-175742 (p36) HUD restyle + on-screen text reduction (icon dock)
