@@ -111,10 +111,11 @@ that point instead of shipping shims.
 
 ## Notes
 
-Extra (owner request 2026-07-28, during the spike): 20260728-185730 wires the
-reworked main-menu PoC into the web app as a hidden easter egg (5 brand-clicks ->
-new main menu -> New Game -> NOVA OS CRT). Depends on the spike landing; wire-only,
-clean-immersive with a Phosphor/Hardware skin switch inside the PoC Settings menu;
+Extra (owner request 2026-07-28, during the spike): 20260728-185730 LANDED
+(80427d2d) - wires the reworked PoCs into the web app as a hidden easter egg
+chain (5 brand-clicks -> /nova-menu/ -> New Game -> /nova-hud/ -> NOVA OS button
+-> /nova-os/ CRT, close returns to the HUD). Wire-only, clean-immersive with a
+Phosphor/Hardware skin switch in the PoC Settings; owner deploys via /release.
 NOT part of this epic's Done Means.
 
 Related pre-existing tasks: backlog 20260710-231927 (keybind hint icons) folds
