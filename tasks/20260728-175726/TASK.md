@@ -54,6 +54,11 @@ browser-openable, cheap to iterate with owner feedback.
 4. The epic's remaining child tasks carry refined Steps/DoD sourced from the
    accepted SPIKE.md (cmd: `tatr check`).
 
+## Flow State
+
+- FLOW STEP: PLANNED
+- PLAN STATUS: APPROVED
+
 ## Notes
 
 Demo code is throwaway-quality but tracked under examples/ui/ like the NOVA OS

@@ -101,7 +101,8 @@ that point instead of shipping shims.
 
 ## Flow State
 
-- FLOW STEP: PLANNING
+- FLOW STEP: PLANNED
+- PLAN STATUS: APPROVED
 
 ## Notes
 
