@@ -372,6 +372,10 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   the sprout worktree - prefix `cd <worktree> &&` or pass absolute worktree
   paths, or a grep silently "verifies" stale code (caught by a grep/Read
   line-number mismatch). 20260728-160001.
+- `epic-parent-list-lags-child-close` (x1): closing a child task ticks its own
+  STATUS but nothing walks back to tick its box in the parent epic's Child Tasks
+  list - tick the parent list in the same close-out so the container never shows
+  landed work as still open. 20260725-104330.
 - `record-the-exact-rig` (x3, PROMOTED 2026-07-13 -> work skill): evidence
   notes record the rig (systems, command path, components) or they mislead.
   20260709-125640.

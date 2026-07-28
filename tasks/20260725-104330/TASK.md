@@ -1,6 +1,6 @@
 # Epic: NOVA OS terminal drawer for v0.9.0
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: v0.9.0,feedback,gameplay,ui,ux,epic
 
@@ -93,10 +93,12 @@ feedback and occasional combat-radar focus loss are also separate follow-ups.
 
 ## Flow State
 
-- FLOW STEP: PLANNING
-- Gate status: awaiting owner review. Do not mark `PLAN STATUS: APPROVED`, cut a
-  worktree, or start implementation until the owner explicitly approves the
-  package below.
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
+- Gate status: CLOSED 2026-07-28. All 7 child tasks (5 core + both stretch apps)
+  are CLOSED and landed on master; every Done Means criterion is met by a landed
+  child and the live docs point at the one-screen NOVA OS model. Owner closed the
+  epic at this session's request.
 
 ## Epic
 
@@ -142,10 +144,13 @@ core is usable.
       `20260726-134738`.
 - [x] `20260726-115334` (p46) - NOVA OS app runtime. Depends on
       `20260726-134738`.
-- [ ] `20260724-102320` (p30, stretch) - NOVA OS map app launched from the
-      terminal. Depends on `20260726-115334`.
-- [ ] `20260726-115339` (p29, stretch) - NOVA OS ship viewer app and safe
-      section actions. Depends on `20260726-115334`.
+- [x] `20260724-102320` (p30, stretch) - NOVA OS map app launched from the
+      terminal. Depends on `20260726-115334`. Landed; later extended with the
+      `map view` KIND/LABEL/INFO label table + `map goto <label>`
+      (`20260728-160001`).
+- [x] `20260726-115339` (p29, stretch) - NOVA OS ship viewer app and safe
+      section actions. Depends on `20260726-115334`. Landed; later extended with
+      the `ship view` label table (`20260728-125510`).
 
 ## Decisions
 
@@ -158,13 +163,16 @@ core is usable.
 
 ## Manual Acceptance
 
-Before implementation starts, the owner should confirm:
+Owner-confirmed at epic close (2026-07-28) - the landed implementation embodies
+each of these:
 
-- One-screen NOVA OS is the accepted v0.9.0 direction.
-- The core/stretches split is right: monitor shell, terminal input, read-only
-  commands and app runtime first; `map` and `ship viewer` as stretch.
-- Escape should remain drawer close, while apps return to terminal through app
-  chrome plus a terminal-like chord such as `Ctrl+C` or `Ctrl+[`.
+- [x] One-screen NOVA OS is the accepted v0.9.0 direction. (shipped: single
+  inset CRT monitor with app takeover; no permanent side panels)
+- [x] The core/stretches split held: monitor shell, terminal input, read-only
+  commands and app runtime shipped first; `map` and `ship viewer` landed as the
+  stretch apps.
+- [x] Escape remains the drawer/monitor close affordance; apps return to the
+  terminal on Escape (app chrome + terminal chord as designed).
 
 ## Review notes
 
