@@ -1,8 +1,11 @@
 # Decision: NOVA OS `map` app - concrete render + interaction shape
 
 - TASK: 20260724-102320
-- STATUS: ACCEPTED (via owner-delegated out-of-context plan review; see Flow note)
+- STATUS: ACCEPTED
 - DATE: 20260727
+
+Accepted via owner-delegated out-of-context plan review; see the Flow note in
+TASK.md for the approval path.
 
 ## Context
 
