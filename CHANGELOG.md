@@ -37,16 +37,18 @@ tagged **(breaking)**.
 - Flight objective surface: the always-on compact objectives panel is replaced by a minimalist top-right objective hint (glyph + count + a Tab affordance); detailed objective output now lives in the NOVA OS `objectives` command.
 - NOVA OS command output prints the combined Flight Log, active objectives and live player-ship section status without restoring permanent drawer panes.
 - Allegiance markers: a small filled triangle floats above every ship, coloured by side (green ally, red threat, grey neutral) so a mixed brawl reads friend-from-foe at a glance; your own ship shows none, and a ship provoked mid-fight flips its marker red.
+- Startup now shows a phosphor NOVA OS loading screen (near-black CRT screen, green "NOVA OS" mark and a "LOADING" line with an indeterminate blinking-cursor + marching-dots animation) while the game's assets preload, instead of a blank native window; it hands off to the menu once loading finishes.
 
 ### Fixes
 
 - Tab drawer scrolling now clamps at the content bottom, so wheel-up responds immediately after reaching the end.
-- Web build: NOVA OS text is visible again. The terminal font is a `.ttc` loaded by a custom loader `nova_meta_gen` did not know about, so it shipped with no `.meta` sidecar; under `AssetMetaCheck::Always` the missing-meta fetch failed on the web and every NOVA OS glyph rendered invisible. The generator now registers the font loader and emits the sidecar.
+- Web build: NOVA OS text is visible. The UI font shipped with no `.meta` sidecar, so under `AssetMetaCheck::Always` the missing-meta fetch failed on the web and every NOVA OS glyph rendered invisible; the `nova_meta_gen` sidecar generator now registers the font loader and emits the sidecar (the font is the built-in-loader `.ttf` per the preload change above).
 
 ### Internals & Tooling
 
 - The Iosevka Term terminal font is now credited in `credits/` under its SIL Open Font License 1.1 (copyright and full license text bundled with every build, as the OFL requires).
 - Input-prompt key glyphs (JulioCacko's FREE Input Prompts, CC0) move into the game asset tree at `assets/input-prompts/keyboard/Alt/` and are credited in `credits/`; only the Alt style ships and the unused Dark/White styles are dropped.
+- Static assets (UI font, shared HUD art, UI sound effects, textures and meshes) now preload through `bevy_asset_loader` collections and are load-gated before gameplay starts, instead of being fetched lazily at first use; scenario-authored `AssetRef`s and downloaded `mods://` bundles remain the dynamic exceptions. The UI font ships as the single Iosevka Term Regular face (`.ttf`, ~11 MB) extracted from the former 66 MB `.ttc`, so the bespoke `.ttc` font loader is retired for Bevy's built-in one (the web `.meta` generator follows suit) and the first NOVA OS open no longer triggers a 66 MB download on the web build.
 
 ## [0.8.1] - 2026-07-24
 

@@ -40,6 +40,7 @@ use bevy::{
 };
 use nova_events::prelude::EntityId;
 use nova_os::prelude::*;
+use nova_ui::font::UiFont;
 
 use crate::{
     hud::nova_os::{
@@ -1520,7 +1521,7 @@ fn update_ship_blocks(
 fn project_ship_blips(
     mut commands: Commands,
     mut runtime: ResMut<ShipRuntime>,
-    asset_server: Option<Res<AssetServer>>,
+    ui_font: Option<Res<UiFont>>,
     sections: ShipSections,
     q_camera: Query<(&Camera, &GlobalTransform), With<ShipCameraMarker>>,
     q_viewport: Query<(Entity, &ComputedNode), With<ShipViewportMarker>>,
@@ -1541,7 +1542,7 @@ fn project_ship_blips(
     };
     let size = computed.size();
     let list = sections.collect();
-    let font = nova_os_font(asset_server.as_deref());
+    let font = nova_os_font(ui_font.as_deref());
 
     let mut seen = bevy::platform::collections::HashSet::new();
     for view in &list {

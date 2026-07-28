@@ -30,6 +30,7 @@ use bevy::{
 };
 use nova_events::prelude::{EntityId, EntityTypeName};
 use nova_os::prelude::*;
+use nova_ui::font::UiFont;
 
 use crate::{
     hud::{
@@ -1222,7 +1223,7 @@ fn map_input(
 fn project_map_blips(
     mut commands: Commands,
     mut runtime: ResMut<MapRuntime>,
-    asset_server: Option<Res<AssetServer>>,
+    ui_font: Option<Res<UiFont>>,
     contacts: MapContacts,
     time: Res<Time>,
     q_camera: Query<(&Camera, &GlobalTransform), With<MapCameraMarker>>,
@@ -1243,7 +1244,7 @@ fn project_map_blips(
     };
     let size = computed.size();
     let list = contacts.collect();
-    let font = nova_os_font(asset_server.as_deref());
+    let font = nova_os_font(ui_font.as_deref());
     let pulse = 0.6 + 0.4 * (time.elapsed_secs() * 4.0).sin().abs();
 
     let mut seen = bevy::platform::collections::HashSet::new();

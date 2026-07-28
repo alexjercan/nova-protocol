@@ -17,6 +17,8 @@ nova_info = { path = "../nova_info" }
 nova_menu = { path = "../nova_menu" }
 nova_scenario = { path = "../nova_scenario" }
 nova_events = { path = "../nova_events" }
+# The boot loading screen reads the preloaded `UiFont` for its phosphor text.
+nova_ui = { path = "../nova_ui" }
 
 # The web build must use the WebGPU render backend, not the default WebGL2:
 # bevy_hanabi's particle effects run on compute shaders, which on wasm exist only

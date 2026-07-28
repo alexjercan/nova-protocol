@@ -30,8 +30,10 @@
 //! (`verify-engine-guarantees-in-source`: bcs `tween::advance_tweens` uses
 //! `Res<Time>`).
 
+#[cfg(test)]
+use bevy::asset::AssetApp;
 use bevy::{
-    asset::{io::Reader, uuid::Uuid, AssetApp, AssetLoader, LoadContext},
+    asset::uuid::Uuid,
     audio::Volume,
     camera::{visibility::RenderLayers, ImageRenderTarget, NormalizedRenderTarget, RenderTarget},
     input::{
@@ -53,9 +55,9 @@ use bevy::{
 };
 use bevy_common_systems::prelude::{GameObjectives, Objective, SfxCommandsExt, SoundBank};
 use nova_os::prelude::*;
-use nova_ui::theme;
+use nova_ui::{font::UiFont, theme};
 
-use super::NovaHudSystems;
+use super::{NovaHudAssets, NovaHudSystems};
 use crate::{
     audio::{
         UiSfx, NOVA_OS_BACK_VOLUME, NOVA_OS_BED_VOLUME, NOVA_OS_COIL_VOLUME, NOVA_OS_ENTER_VOLUME,
@@ -153,7 +155,6 @@ const NOVA_OS_SCAN_DEFAULT_DETENT: usize = 2;
 const NOVA_OS_TERMINAL_PAD_X_PX: f32 = 16.0;
 const NOVA_OS_TERMINAL_PAD_Y_PX: f32 = 14.0;
 const NOVA_OS_PROMPT_ROW_HEIGHT_PX: f32 = 58.0;
-const NOVA_OS_FONT_PATH: &str = "fonts/SGr-IosevkaTerm-Regular.ttc";
 const NOVA_OS_BACKDROP: Color = Color::srgb_u8(0, 3, 6);
 // Dark-GRAY moulded plastic, matching the PoC `:root` `--case-*` (neutral, not
 // blue). `--case-0`, a mid raised body, and `--case-edge`.
@@ -678,38 +679,6 @@ struct NovaOsCrtUniform {
     /// (trailing `f32` after `brightness` - no alignment hole,
     /// `shader-uniform-field-order-must-match-wgsl`).
     degauss: f32,
-}
-
-/// Loads the NOVA OS terminal font, a TrueType Collection (`.ttc`). Bevy's
-/// built-in `FontLoader` only advertises `ttf`/`otf`, so without this loader
-/// nothing claims the `ttc` extension and the font never loads. It is `pub` so
-/// the web `.meta` generator (`nova_meta_gen`) can register the SAME loader
-/// type and emit a `...ttc.meta` naming it - otherwise the font ships with no
-/// sidecar and, under `AssetMetaCheck::Always`, the web build fails the
-/// missing-meta fetch and renders every NOVA OS glyph invisible
-/// (task 20260727-172205).
-#[derive(Default, TypePath)]
-pub struct NovaOsTtcFontLoader;
-
-impl AssetLoader for NovaOsTtcFontLoader {
-    type Asset = Font;
-    type Settings = ();
-    type Error = std::io::Error;
-
-    async fn load(
-        &self,
-        reader: &mut dyn Reader,
-        _settings: &Self::Settings,
-        _load_context: &mut LoadContext<'_>,
-    ) -> Result<Self::Asset, Self::Error> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?;
-        Ok(Font::from_bytes(bytes))
-    }
-
-    fn extensions(&self) -> &[&str] {
-        &["ttc"]
-    }
 }
 
 impl Default for NovaOsCrtMaterial {
@@ -1285,7 +1254,6 @@ impl Plugin for NovaOsPlugin {
         app.init_resource::<NovaOsMonitorSettings>();
         app.init_resource::<NovaOsDegauss>();
         app.register_type::<NovaOsMonitorSettings>();
-        app.register_asset_loader(NovaOsTtcFontLoader);
         app.add_plugins(UiMaterialPlugin::<NovaOsCrtMaterial>::default());
 
         // Tab opens the NOVA OS. It keeps running in all of Playing so an open
@@ -2017,7 +1985,7 @@ fn sync_nova_os_app_ui(
     mut commands: Commands,
     terminal: Res<NovaOsTerminal>,
     registry: Res<NovaOsCommandRegistry>,
-    asset_server: Option<Res<AssetServer>>,
+    ui_font: Option<Res<UiFont>>,
     mut degauss: ResMut<NovaOsDegauss>,
     q_main: Query<Entity, With<NovaOsMainMarker>>,
     q_app_root: Query<(Entity, &NovaOsAppRoot)>,
@@ -2060,7 +2028,7 @@ fn sync_nova_os_app_ui(
     let Some(app) = registry.app_runtime(id) else {
         return;
     };
-    let font = nova_os_font(asset_server.as_deref());
+    let font = nova_os_font(ui_font.as_deref());
     commands.entity(target).with_children(|parent| {
         spawn_nova_os_app(parent, app, font);
     });
@@ -2299,7 +2267,7 @@ fn reconcile_nova_os_header(
 fn rebuild_nova_os_footer_hints(
     terminal: Res<NovaOsTerminal>,
     registry: Res<NovaOsCommandRegistry>,
-    asset_server: Option<Res<AssetServer>>,
+    ui_font: Option<Res<UiFont>>,
     mut commands: Commands,
     q_added: Query<(), Added<NovaOsFooterHintsMarker>>,
     q_footer: Query<(Entity, Option<&Children>), With<NovaOsFooterHintsMarker>>,
@@ -2310,7 +2278,7 @@ fn rebuild_nova_os_footer_hints(
     }
     *last_mode = Some(terminal.active_mode());
     let hints = nova_os_footer_hints(terminal.active_mode(), &registry);
-    let font = nova_os_font(asset_server.as_deref());
+    let font = nova_os_font(ui_font.as_deref());
     for (footer, children) in &q_footer {
         if let Some(children) = children {
             for &child in children {
@@ -2332,7 +2300,7 @@ fn rebuild_nova_os_footer_hints(
 fn rebuild_terminal_ui(
     mut commands: Commands,
     terminal: Res<NovaOsTerminal>,
-    asset_server: Option<Res<AssetServer>>,
+    ui_font: Option<Res<UiFont>>,
     mut q_scrollback: Query<
         (Entity, Option<&Children>, &mut ScrollPosition),
         With<NovaOsTerminalScrollbackMarker>,
@@ -2350,7 +2318,7 @@ fn rebuild_terminal_ui(
     // back down (owner playtest).
     mut last_len: Local<usize>,
 ) {
-    let font = nova_os_font(asset_server.as_deref());
+    let font = nova_os_font(ui_font.as_deref());
     if let Ok((list, children, mut scroll)) = q_scrollback.single_mut() {
         if let Some(children) = children {
             for &child in children {
@@ -2548,10 +2516,8 @@ fn prompt_color(terminal: &NovaOsTerminal) -> Color {
     }
 }
 
-pub(crate) fn nova_os_font(asset_server: Option<&AssetServer>) -> Handle<Font> {
-    asset_server
-        .map(|server| server.load(NOVA_OS_FONT_PATH))
-        .unwrap_or_default()
+pub(crate) fn nova_os_font(ui_font: Option<&UiFont>) -> Handle<Font> {
+    ui_font.map(UiFont::handle).unwrap_or_default()
 }
 
 pub(crate) fn nova_os_text_font(font_size: f32, font: Handle<Font>) -> TextFont {
@@ -3084,7 +3050,8 @@ fn setup_nova_os(
     mut commands: Commands,
     mut crt_materials: Option<ResMut<Assets<NovaOsCrtMaterial>>>,
     mut images: Option<ResMut<Assets<Image>>>,
-    asset_server: Option<Res<AssetServer>>,
+    ui_font: Option<Res<UiFont>>,
+    hud_assets: Option<Res<NovaHudAssets>>,
     settings: Option<Res<NovaOsMonitorSettings>>,
     q_spaceship: Query<
         (Entity, Option<&Name>),
@@ -3097,7 +3064,11 @@ fn setup_nova_os(
     // The plugin always inits the resource; tolerate its absence so bare-app
     // rigs that only exercise other parts of the shell still spawn.
     let settings = settings.map(|s| *s).unwrap_or_default();
-    let font = nova_os_font(asset_server.as_deref());
+    let font = nova_os_font(ui_font.as_deref());
+    // The brand-mark handle, preloaded into NovaHudAssets. Absent on bare-app
+    // rigs without the asset pipeline - the plate then spawns without the logo,
+    // as it did before when the AssetServer was missing.
+    let crt_mark = hud_assets.map(|a| a.nova_crt_mark.clone());
     let ship_name = nova_os_ship_name(ship_name);
 
     // Render-to-texture pipeline: on render-capable builds route the terminal
@@ -3325,7 +3296,7 @@ fn setup_nova_os(
                             spawn_nova_os_glass_sheen(screen);
                         });
                 });
-            spawn_nova_os_chin(monitor, font.clone(), asset_server.as_deref(), &settings);
+            spawn_nova_os_chin(monitor, font.clone(), crt_mark.clone(), &settings);
         });
 
     // Render-capable: populate the offscreen content root with the header + main
@@ -3612,7 +3583,7 @@ fn spawn_nova_os_glass_sheen(screen: &mut ChildSpawnerCommands) {
 fn spawn_nova_os_chin(
     parent: &mut ChildSpawnerCommands,
     font: Handle<Font>,
-    asset_server: Option<&AssetServer>,
+    crt_mark: Option<Handle<Image>>,
     settings: &NovaOsMonitorSettings,
 ) {
     parent
@@ -3677,10 +3648,11 @@ fn spawn_nova_os_chin(
             ))
             .with_children(|plate| {
                 // Logo mark: SVG rendered to a PNG asset (Bevy UI cannot draw SVG).
-                if let Some(asset_server) = asset_server {
+                // Preloaded into NovaHudAssets; absent only on bare-app rigs.
+                if let Some(crt_mark) = crt_mark {
                     plate.spawn((
                         Name::new("NovaOsBrandMark"),
-                        ImageNode::new(asset_server.load("icons/nova_crt_mark.png")),
+                        ImageNode::new(crt_mark),
                         Node {
                             width: Val::Px(22.0),
                             height: Val::Px(22.0),

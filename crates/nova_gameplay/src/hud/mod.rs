@@ -158,6 +158,8 @@ pub(crate) const OBJECTIVE_GOLD: Color = nova_ui::theme::semantic::OBJECTIVE;
 pub struct NovaHudAssets {
     /// The shared target-reticle sprite (lock crosshairs, torpedo reticle, destination marker).
     pub target_sprite: Handle<Image>,
+    /// The NOVA CRT brand mark (drawer plate logo + objective-hint TAB affordance).
+    pub nova_crt_mark: Handle<Image>,
 }
 
 /// The player HUD umbrella: adds every widget sub-plugin and the observers

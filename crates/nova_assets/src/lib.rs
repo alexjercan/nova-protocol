@@ -6,6 +6,15 @@
 //! builder, not the committed `*.content.ron`), and the crate also backs the
 //! `content` CLI (`gen`/`lint`; the balance audit and input-overlap check are
 //! folded into `lint`) that authors and validates that content.
+//!
+//! Static assets PRELOAD through `bevy_asset_loader` collections: the UI font in
+//! the `Boot` [`BootAssets`] collection (published as [`nova_ui::font::UiFont`]),
+//! and textures, meshes, the shared HUD art and the UI SFX in the `Loading`
+//! [`GameAssets`] collection - so everything is load-gated before gameplay
+//! starts rather than fetched lazily at first use. Scenario-authored `AssetRef`s
+//! and downloaded `mods://` bundles are the DYNAMIC exceptions: their paths vary
+//! at runtime, so they cannot sit behind a one-shot collection and stay on the
+//! asset server by design.
 #![warn(missing_docs)]
 
 use std::collections::{HashMap, HashSet};
@@ -20,6 +29,7 @@ use nova_modding::prelude::{
     BundleAsset, Content, ContentAsset, InstalledCatalog, ModEntry, ModMeta,
 };
 use nova_scenario::prelude::{GameCampaigns, GameScenarios, NewGameStart};
+use nova_ui::font::UiFont;
 
 pub mod content_report;
 pub mod mod_cache;
@@ -986,10 +996,22 @@ fn merge_content_item(
 }
 
 /// Game states for the asset loader.
+///
+/// Two `bevy_asset_loader` loading states chain across this enum: `Boot` loads
+/// the tiny [`BootAssets`] collection (just the UI font) so the boot loading
+/// screen can render themed text from its first frame, then continues to
+/// `Loading`, which loads the full [`GameAssets`] collection behind that
+/// screen. bevy_asset_loader keys its internal schedules per state VALUE, so
+/// two loading states on one enum chain cleanly (pinned by
+/// `boot_then_loading_collections_gate_in_sequence`).
 #[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
 pub enum GameAssetsStates {
-    /// Assets are still loading.
+    /// The first frame: load the boot collection ([`BootAssets`] - the UI font)
+    /// so the loading screen has a themed typeface before the bulk load starts.
     #[default]
+    Boot,
+    /// Boot assets ready; the full [`GameAssets`] collection is loading behind
+    /// the boot loading screen.
     Loading,
     /// Assets loaded; the content merge/registration is running.
     Processing,
@@ -1046,13 +1068,28 @@ impl Plugin for GameAssetsPlugin {
         // DownloadedMods-gated re-runs below.
         app.add_systems(Update, mark_downloaded_bundles_loaded);
 
-        // Setup the asset loader to load assets during the loading state.
+        // Setup the asset loader. Two chained loading states: Boot loads the
+        // tiny BootAssets (UI font) so the loading screen can render themed text
+        // from its first frame, then Loading loads the full GameAssets behind
+        // that screen. bevy_asset_loader keys its schedules per state VALUE, so
+        // two loading states on one enum chain cleanly.
         app.init_state::<GameAssetsStates>();
+        app.add_loading_state(
+            LoadingState::new(GameAssetsStates::Boot)
+                .continue_to_state(GameAssetsStates::Loading)
+                .load_collection::<BootAssets>(),
+        );
         app.add_loading_state(
             LoadingState::new(GameAssetsStates::Loading)
                 .continue_to_state(GameAssetsStates::Processing)
                 .load_collection::<GameAssets>(),
         );
+        // Publish the preloaded UI font once Boot resolves it. Filled at
+        // OnExit(Boot) - which runs BEFORE OnEnter(Loading) in the state
+        // transition - so `nova_core`'s loading screen, spawned at
+        // OnEnter(Loading), always sees UiFont already present and renders its
+        // text in the themed Iosevka face from the first frame.
+        app.add_systems(OnExit(GameAssetsStates::Boot), fill_ui_font);
 
         app.add_systems(
             OnEnter(GameAssetsStates::Processing),
@@ -1109,6 +1146,48 @@ impl Plugin for GameAssetsPlugin {
     }
 }
 
+/// The boot collection: the handful of assets the boot loading screen needs to
+/// render itself before the bulk [`GameAssets`] load starts. Loaded in the
+/// `Boot` state; today just the shared UI font, so the phosphor loading screen
+/// has its themed typeface from the first frame.
+#[derive(AssetCollection, Resource, Clone)]
+pub struct BootAssets {
+    /// The shared UI typeface, published as [`UiFont`] at `OnExit(Boot)`.
+    #[asset(path = "fonts/SGr-IosevkaTerm-Regular.ttf")]
+    pub ui_font: Handle<Font>,
+}
+
+/// Publish the preloaded UI font as the shared [`UiFont`] resource once the
+/// [`BootAssets`] collection has resolved (run at `OnExit(Boot)`).
+fn fill_ui_font(mut commands: Commands, boot: Res<BootAssets>) {
+    commands.insert_resource(UiFont(boot.ui_font.clone()));
+}
+
+/// The canonical UI-SFX asset paths held by the `GameAssets::ui_sfx` mapped
+/// collection - the single distinct file per entry in
+/// [`nova_gameplay::audio::UI_SFX_FILES`] (which has two keys sharing
+/// `ui_toggle`). The collection's `#[asset(paths(...))]` list MUST mirror this
+/// (kept adjacent so they move together); `ui_sfx_collection_matches_ui_sfx_files`
+/// pins that this set covers exactly the files `UI_SFX_FILES` references, and
+/// that each file exists on disk.
+#[cfg(test)]
+const UI_SFX_COLLECTION_PATHS: [&str; 14] = [
+    "sounds/objective_new.wav",
+    "sounds/objective_complete.wav",
+    "sounds/menu_select.wav",
+    "sounds/ui_toggle.wav",
+    "sounds/nova_key.wav",
+    "sounds/nova_back.wav",
+    "sounds/nova_enter.wav",
+    "sounds/nova_ok.wav",
+    "sounds/nova_error.wav",
+    "sounds/nova_tick.wav",
+    "sounds/nova_coil.wav",
+    "sounds/nova_powerup.wav",
+    "sounds/nova_powerdown.wav",
+    "sounds/nova_bed.wav",
+];
+
 /// The loaded base-game asset handles, collected by `bevy_asset_loader` and
 /// inserted as a [`Resource`] once every listed asset (and the installed-mods
 /// catalog) has loaded. Systems read these handles to build meshes/materials.
@@ -1141,6 +1220,38 @@ pub struct GameAssets {
     /// The lock-on target sprite.
     #[asset(path = "icons/target.png")]
     pub target_sprite: Handle<Image>,
+    /// The NOVA CRT brand mark, drawn by the NOVA OS drawer plate and the
+    /// objective-hint TAB affordance. Preloaded here so those sites read the
+    /// handle through [`NovaHudAssets`] instead of a lazy `asset_server.load`.
+    #[asset(path = "icons/nova_crt_mark.png")]
+    pub nova_crt_mark: Handle<Image>,
+    /// The UI sound-effect handles, keyed by file stem. Loaded and load-gated as
+    /// part of this collection so the WAVs are ready before `Processing`; the
+    /// `SoundBank<UiSfx>` built in `register_sounds` references these same
+    /// already-loaded assets (the AssetServer dedups by path). The explicit
+    /// `paths(...)` list is kept in sync with `nova_gameplay::audio::UI_SFX_FILES`
+    /// by `ui_sfx_collection_matches_ui_sfx_files`; a folder collection is not
+    /// used because folder collections do not work on wasm.
+    #[asset(
+        paths(
+            "sounds/objective_new.wav",
+            "sounds/objective_complete.wav",
+            "sounds/menu_select.wav",
+            "sounds/ui_toggle.wav",
+            "sounds/nova_key.wav",
+            "sounds/nova_back.wav",
+            "sounds/nova_enter.wav",
+            "sounds/nova_ok.wav",
+            "sounds/nova_error.wav",
+            "sounds/nova_tick.wav",
+            "sounds/nova_coil.wav",
+            "sounds/nova_powerup.wav",
+            "sounds/nova_powerdown.wav",
+            "sounds/nova_bed.wav",
+        ),
+        collection(mapped, typed)
+    )]
+    pub ui_sfx: bevy::platform::collections::HashMap<AssetFileStem, Handle<AudioSource>>,
     /// The installed-mods catalog (`assets/mods.catalog.ron`): every installed mod
     /// (base first, then mods) with metadata + a `BundleAsset` handle. The
     /// `InstalledCatalog` asset visits EVERY entry's bundle as a dependency, so
@@ -1213,6 +1324,7 @@ fn update_nova_hud_assets(
     game_assets: Res<GameAssets>,
 ) {
     nova_hud_assets.target_sprite = game_assets.target_sprite.clone();
+    nova_hud_assets.nova_crt_mark = game_assets.nova_crt_mark.clone();
 }
 
 #[cfg(test)]
@@ -1220,6 +1332,43 @@ mod tests {
     use nova_gameplay::prelude::{BaseSectionConfig, HullSectionConfig, SectionKind};
 
     use super::*;
+
+    /// The `GameAssets::ui_sfx` mapped collection must load-gate exactly the
+    /// files the UI `SoundBank<UiSfx>` plays: its path list
+    /// ([`UI_SFX_COLLECTION_PATHS`], mirrored into the `#[asset(paths(...))]`
+    /// attribute) must equal the distinct files
+    /// [`nova_gameplay::audio::UI_SFX_FILES`] references, and each must exist on
+    /// disk. A sound added to `UI_SFX_FILES` without a matching collection path
+    /// would load lazily (ungated) again; this pins them together.
+    #[test]
+    fn ui_sfx_collection_matches_ui_sfx_files() {
+        use std::collections::BTreeSet;
+
+        let bank_paths: BTreeSet<String> = UI_SFX_FILES
+            .iter()
+            .map(|(_, name)| format!("sounds/{name}.wav"))
+            .collect();
+        let collection_paths: BTreeSet<String> = UI_SFX_COLLECTION_PATHS
+            .iter()
+            .map(|p| (*p).to_string())
+            .collect();
+        assert_eq!(
+            collection_paths, bank_paths,
+            "GameAssets::ui_sfx collection paths must cover exactly the distinct \
+             files UI_SFX_FILES references"
+        );
+
+        // Every path resolves to a real file (tests run with the crate root as
+        // cwd; assets live at the workspace root, like the tests/ integration rigs).
+        for path in UI_SFX_COLLECTION_PATHS {
+            let full = std::path::Path::new("../../assets").join(path);
+            assert!(
+                full.exists(),
+                "UI SFX file missing on disk: {}",
+                full.display()
+            );
+        }
+    }
 
     /// The editor (and any other DIRECT `SkyboxConfig` insert on the preloaded
     /// `GameAssets` cubemap - `nova_editor::setup_editor_scene`) relies on
@@ -1251,6 +1400,8 @@ mod tests {
                 torpedo_bay_01: default(),
                 fps_icon: default(),
                 target_sprite: default(),
+                nova_crt_mark: default(),
+                ui_sfx: default(),
                 catalog: default(),
             }
         }

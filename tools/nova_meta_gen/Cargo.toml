@@ -16,13 +16,13 @@ clap = { version = "4.5.48", features = ["derive"] }
 # without wav and skip every `.wav` sidecar.
 bevy = { version = "0.19.0" }
 nova_modding = { path = "../../crates/nova_modding" }
-# The NOVA OS terminal font is a `.ttc` claimed only by nova_gameplay's bespoke
-# `NovaOsTtcFontLoader` (Bevy's FontLoader advertises just ttf/otf). We register
-# that SAME loader below so the font gets a `...ttc.meta` naming it; without it
-# the web build ships the font with no sidecar and all NOVA OS text is invisible
-# (task 20260727-172205). Already compiled here transitively (nova_modding ->
-# nova_gameplay), so this direct dep adds no meaningful build cost.
-nova_gameplay = { path = "../../crates/nova_gameplay" }
+# The UI/NOVA OS font is a `.ttf` (the single Iosevka Term Regular face, task
+# 20260729-000956), claimed by Bevy's built-in `bevy::text::FontLoader` - no
+# bespoke loader is needed anymore, so the direct nova_gameplay dep was dropped.
+# bevy's default features include `bevy_text`, which supplies that loader; the
+# generator registers it below so the font gets a `...ttf.meta` naming it.
+# Without a sidecar the web build (`AssetMetaCheck::Always`) fails the
+# missing-meta fetch and all NOVA OS text is invisible (task 20260727-172205).
 
 [dev-dependencies]
 tempfile = { version = "3" }

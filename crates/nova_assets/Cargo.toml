@@ -25,6 +25,9 @@ sha2 = { version = "0.10" }
 # subcommands with clap derive, like nova_meta_gen's generator CLI.
 clap = { version = "4.5.48", features = ["derive"] }
 nova_gameplay = { path = "../nova_gameplay" }
+# The shared `UiFont` resource this crate fills from `BootAssets` so UI text
+# sites read a preloaded handle instead of a per-spawn `asset_server.load`.
+nova_ui = { path = "../nova_ui" }
 nova_scenario = { path = "../nova_scenario" }
 nova_modding = { path = "../nova_modding" }
 # The portal wire schema (PortalCatalog et al) - engine-free, shared verbatim

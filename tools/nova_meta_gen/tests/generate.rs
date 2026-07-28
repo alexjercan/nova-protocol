@@ -29,12 +29,11 @@ fn generates_default_metas_for_every_loader() {
         ("scenarios/level.content.ron", "[]"),
         ("mods/base.bundle.ron", "()"),
         ("mods.catalog.ron", "[]"),
-        // The NOVA OS terminal font is a `.ttc` claimed by the game's bespoke
-        // `NovaOsTtcFontLoader` (Bevy's built-in FontLoader only claims
-        // ttf/otf). It MUST get a sidecar too, or the web build serves the
-        // missing `...ttc.meta` as 200-OK HTML and the font never loads,
+        // The UI/NOVA OS font is a `.ttf` claimed by Bevy's built-in
+        // `FontLoader`. It MUST get a sidecar too, or the web build serves the
+        // missing `...ttf.meta` as 200-OK HTML and the font never loads,
         // leaving every NOVA OS glyph invisible (task 20260727-172205).
-        ("fonts/term.ttc", "not-a-real-ttc"),
+        ("fonts/term.ttf", "not-a-real-ttf"),
         // No loader claims `.md`; must be skipped, not errored.
         ("wiki/page.md", "# hello"),
     ];
@@ -80,7 +79,7 @@ fn generates_default_metas_for_every_loader() {
         ("scenarios/level.content.ron", "ContentAssetLoader"),
         ("mods/base.bundle.ron", "BundleAssetLoader"),
         ("mods.catalog.ron", "CatalogLoader"),
-        ("fonts/term.ttc", "NovaOsTtcFontLoader"),
+        ("fonts/term.ttf", "FontLoader"),
     ];
     for (rel, loader) in cases {
         let meta = read_meta(root, rel);

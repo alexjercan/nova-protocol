@@ -3,11 +3,12 @@
 //! One source of truth for the in-game UI look (menu, editor, HUD chrome),
 //! mirroring the web app's palette. `theme` holds the palette + metrics;
 //! `units` holds the player-facing distance/speed formatting policy; `widget`
-//! holds the themed button + selection machinery and small layout helpers.
-//! Palette/metrics only - real web fonts are a separate concern.
+//! holds the themed button + selection machinery and small layout helpers;
+//! `font` holds the shared UI typeface handle preloaded at startup.
 
 #![warn(missing_docs)]
 
+pub mod font;
 pub mod theme;
 pub mod units;
 pub mod widget;
@@ -19,6 +20,7 @@ pub mod widget;
 /// into scope.
 pub mod prelude {
     pub use crate::{
+        font::UiFont,
         theme, units,
         widget::{
             button_on_setting, panel_header, register, separator, themed_button, ButtonValue,

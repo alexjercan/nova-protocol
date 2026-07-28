@@ -38,13 +38,22 @@ phosphor-only per the spike's per-surface table - no hardware variant here.
       top-LEFT; the game's status bar + objective hint live top-RIGHT -
       keep the game placement, adopt only the visual language (recorded
       here so review does not flag it).
-- [ ] Key-glyph mapping: a `KeyCode -> asset path` lookup for
+- [ ] Key-glyph mapping: a `KeyCode -> Handle<Image>` lookup for
       `assets/input-prompts/keyboard/Alt/` (from 20260728-233707), covering
       the live bindings: X stop, G goto, O orbit, Z cancel, Ctrl radar
       (file is `T_Crtl_Key_Alt.png`, upstream typo), `[`/`]` component
       (`T_Brackets_L/R_Key_Alt.png`), Shift RCS, Space burn, Tab NOVA OS,
-      Tilde HUD level. Fall back to a text chip for any unmapped key so a
-      rebind never breaks the dock.
+      Tilde HUD level. The glyph HANDLES come from a `collection(mapped, typed)`
+      glyph collection (keyed by `AssetFileStem`) added to a bevy_asset_loader
+      collection with an explicit `paths(...)` list of exactly the mapping
+      table's used glyphs - so the glyphs preload/load-gate like every other
+      static asset (task 20260729-000956 established this pattern; a FOLDER
+      collection is not usable because folder collections do not work on wasm).
+      The mapping table owns that path list. Fall back to a text chip for any
+      unmapped key so a rebind never breaks the dock; the remapping/gamepad
+      follow-up (20260710-231927) may `server.load` a glyph for an unmapped or
+      runtime-rebound key (the dynamic-content exception - it cannot sit behind
+      the one-shot collection).
 - [ ] Replace the 7-row cluster (keybind_hints.rs) with the icon-chip DOCK,
       bottom-center per demo 2: one chip per verb from `FlightVerbHints`
       (STOP GOTO ORBIT CANCEL RADAR COMPONENT RCS - the REAL set; demo's
@@ -80,7 +89,10 @@ phosphor-only per the spike's per-surface table - no hardware variant here.
    right glyph asset path + state marker (fails if the dock is a no-op).
 2. test: `every_bound_key_maps_to_an_existing_glyph_asset` - the mapping
    table resolves every live binding to a file that exists on disk under
-   `assets/input-prompts/keyboard/Alt/` (pins the Crtl/Brackets filenames).
+   `assets/input-prompts/keyboard/Alt/` (pins the Crtl/Brackets filenames),
+   AND every mapped glyph path appears in the glyph collection's explicit
+   `paths(...)` list (pins that every used glyph is actually preloaded/gated,
+   parallel to `ui_sfx_collection_matches_ui_sfx_files` in 20260729-000956).
 3. test: scenario emphasis still lands - HintEmphasisSet on a verb marks
    its dock chip emphasized (migrated from the row-based test).
 4. cmd: `grep -rn "hint_row\|\[KEY\]" crates/nova_gameplay/src/hud` prints 0
@@ -109,3 +121,12 @@ phosphor-only per the spike's per-surface table - no hardware variant here.
   format.
 - Depends on: 20260728-175734 (theme tokens), 20260728-233707 (glyphs in
   assets/). Lands before 20260728-175747.
+- 2026-07-29 alignment (20260729-000956, static-asset preload): the key-glyph
+  mapping resolves glyph HANDLES from a `collection(mapped, typed)` glyph
+  collection with an explicit `paths(...)` list (keyed by `AssetFileStem`), not
+  a lazy per-chip `server.load` - so the Alt glyphs preload/load-gate like the
+  UI font, crt mark and UI SFX now do. The CLOSED 20260728-233707's `server.load`
+  note stays as history; the correction lands here in the consumer plan. DoD
+  test 2 extended to assert every mapped path is in the collection. Runtime
+  rebinds/gamepad glyphs (20260710-231927) keep the `server.load` dynamic-content
+  exception.

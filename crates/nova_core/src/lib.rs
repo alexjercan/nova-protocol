@@ -29,6 +29,9 @@ use nova_menu::prelude::*;
 pub use nova_scenario;
 use nova_scenario::prelude::*;
 
+mod loading_screen;
+use loading_screen::LoadingScreenPlugin;
+
 /// Glob-import surface: `use nova_core::prelude::*` re-exports every subsystem
 /// crate's prelude plus [`AppBuilder`] and [`editor_app`], so a binary or
 /// example wires the whole stack from one import.
@@ -147,6 +150,9 @@ impl AppBuilder {
         self.app
             .add_plugins(bevy_enhanced_input::EnhancedInputPlugin);
         self.app.add_plugins(GameAssetsPlugin);
+        // The boot loading screen covers the native window during asset load
+        // (the web build has its own HTML spinner over the pre-wasm + Boot phase).
+        self.app.add_plugins(LoadingScreenPlugin);
         self.app.add_plugins(NovaGameplayPlugin {
             render: self.render,
         });

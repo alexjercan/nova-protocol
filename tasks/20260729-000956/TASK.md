@@ -1,6 +1,6 @@
 # Preload static assets via bevy_asset_loader + phosphor boot loading screen
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.9.0,ui,assets
 
@@ -44,7 +44,7 @@ Audit findings (2026-07-28 code map):
 
 ## Steps
 
-- [ ] Boot state: add `GameAssetsStates::Boot` as the new `#[default]`
+- [x] Boot state: add `GameAssetsStates::Boot` as the new `#[default]`
       variant before Loading in crates/nova_assets/src/lib.rs, with a
       second loading state
       (`LoadingState::new(Boot).continue_to_state(Loading)
@@ -57,7 +57,7 @@ Audit findings (2026-07-28 code map):
       three `not(in_state(Loading))` Update gates in nova_assets are safe:
       their `resource_exists::<GameAssets>` guard is false during Boot;
       examples/probe/debug harness all hook OnEnter(Loaded)).
-- [ ] Font payload: replace the 66 MB
+- [x] Font payload: replace the 66 MB
       assets/fonts/SGr-IosevkaTerm-Regular.ttc with the single Regular
       face as a .ttf. Primary route (offline, keeps the exact shipped
       version): extract with fonttools
@@ -67,12 +67,12 @@ Audit findings (2026-07-28 code map):
       Iosevka version. Update NOVA_OS_FONT_PATH (nova_os.rs:156),
       credits/CREDITS.md:41, and every other live .ttc reference
       (repo-wide grep, tasks/ excluded).
-- [ ] `UiFont` resource: new nova_ui resource holding the `Handle<Font>`;
+- [x] `UiFont` resource: new nova_ui resource holding the `Handle<Font>`;
       nova_assets fills it from `BootAssets` at OnEnter(Loading) (add the
       direct nova_ui dep if missing); nova_os.rs:2553 reads it instead of
       `server.load`. This pre-builds the "nova_ui font resource" that
       175734's typography step plans, so that step becomes a consumer edit.
-- [ ] Loading screen: new crates/nova_core/src/loading_screen.rs
+- [x] Loading screen: new crates/nova_core/src/loading_screen.rs
       (nova_core owns the Loaded handoff + status UI already; add its
       missing direct nova_ui dep). OnEnter(GameAssetsStates::Loading):
       spawn a 2D UI camera + full-screen phosphor panel - near-black
@@ -82,18 +82,18 @@ Audit findings (2026-07-28 code map):
       amber accent per examples/ui/nova_os_terminal_poc.html. Despawn
       screen + camera at OnEnter(GameAssetsStates::Loaded). Write the
       live-tree test FIRST (mode-keyed-reconciler lesson).
-- [ ] Align the crt mark: add `icons/nova_crt_mark.png` to `GameAssets`,
+- [x] Align the crt mark: add `icons/nova_crt_mark.png` to `GameAssets`,
       push the handle through `NovaHudAssets` in `update_nova_hud_assets`
       (nova_assets/src/lib.rs:1211), switch nova_os.rs:3683 +
       objective_hint.rs:117 to the resource.
-- [ ] Align the UI SFX: mapped audio collection on `GameAssets`
+- [x] Align the UI SFX: mapped audio collection on `GameAssets`
       (`collection(typed, mapped)`, explicit `paths(...)` over the 15
       `UI_SFX_FILES` paths, keyed by `AssetFileStem`) + a
       `SoundBank::from_handles` constructor; `register_sounds` builds the
       bank from the collection; parity test asserts collection paths ==
       `nova_gameplay::audio::UI_SFX_FILES` (the const is reachable -
       nova_assets already depends on nova_gameplay).
-- [ ] Re-point the open child plans (dated alignment notes + edits to the
+- [x] Re-point the open child plans (dated alignment notes + edits to the
       affected Steps/Notes lines, no history rewrites):
       175742 - the KeyCode mapping resolves HANDLES from a
       `collection(typed, mapped)` glyph collection with explicit
@@ -104,13 +104,13 @@ Audit findings (2026-07-28 code map):
       `server.load` for unmapped keys (dynamic-content exception).
       175734 - the typography step consumes `UiFont` from this task
       instead of loading the font itself.
-- [ ] Epic 20260728-175719 TASK.md: add a Decisions pointer to this
+- [x] Epic 20260728-175719 TASK.md: add a Decisions pointer to this
       task's DECISION.md (the Child Tasks row was added at plan time).
-- [ ] Docs + CHANGELOG: one line in the nova_assets crate docs (static
+- [x] Docs + CHANGELOG: one line in the nova_assets crate docs (static
       assets preload via collections; scenario AssetRefs and mods:// are
       the dynamic exceptions) and a CHANGELOG [Unreleased] line for the
       loading screen + font slimming.
-- [ ] Verify per DoD (screenshot eyeball for the screen; no probe run -
+- [x] Verify per DoD (screenshot eyeball for the screen; no probe run -
       startup-only change, no gameplay behavior touched).
 
 ## Definition of Done
@@ -164,4 +164,5 @@ Audit findings (2026-07-28 code map):
 
 ## Flow State
 
-- FLOW STEP: PLANNING
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED

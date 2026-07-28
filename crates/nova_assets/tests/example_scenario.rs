@@ -80,6 +80,8 @@ fn game_assets_with_catalog(catalog: Handle<InstalledCatalog>) -> GameAssets {
         torpedo_bay_01: Handle::default(),
         fps_icon: Handle::default(),
         target_sprite: Handle::default(),
+        nova_crt_mark: Handle::default(),
+        ui_sfx: Default::default(),
         catalog,
     }
 }

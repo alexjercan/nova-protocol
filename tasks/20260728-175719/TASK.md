@@ -107,6 +107,11 @@ scenarios scroll bug is a missing driver system for ScenariosList.
   contextual HUD ruleset, keybind-hint shape, m/km threshold) are DECIDED BY
   THE SPIKE demos with the owner and recorded in the spike's
   SPIKE.md/DECISION.md before implementation starts on the affected children.
+- 20260729-000956 DECISION.md: static assets preload via bevy_asset_loader
+  collections + a phosphor boot loading screen. Boot-state font gating (D1),
+  single-face .ttf extraction (D2), indeterminate CRT animation (D3), UI-SFX
+  load-gating without a bevy_common_systems release (D4), DoD-1 test scoped to
+  the chaining mechanism (D5). (ACCEPTED)
 
 ## Manual Acceptance
 

@@ -64,10 +64,12 @@ observers while touching the widget layer.
       list row (transparent, inset phosphor border, hover fill, inverted
       selection) with icon slot. Skip the toggle (no in-game consumer;
       note here if one appears).
-- [ ] Typography: load Iosevka Term (`assets/fonts/SGr-IosevkaTerm-Regular.ttc`,
-      already shipped for the NOVA OS) into a nova_ui font resource at
-      startup and route the widget factories' `TextFont` through it, with a
-      size scale taken from demo 1 (26 title / 16-13 body / 11-10 labels).
+- [ ] Typography: CONSUME the shared `nova_ui::font::UiFont` resource - the
+      `Handle<Font>` for Iosevka Term (`assets/fonts/SGr-IosevkaTerm-Regular.ttf`,
+      the single Regular face) preloaded via `BootAssets` and published at
+      startup by task 20260729-000956. This step no longer loads the font
+      itself; it routes the widget factories' `TextFont` through `UiFont`, with
+      a size scale taken from demo 1 (26 title / 16-13 body / 11-10 labels).
       This supersedes backlog 20260714-214329 (Rajdhani/Inter web fonts) -
       mono-first won.
 - [ ] Fold nova_menu's duplicate button system: delete `MenuButton` +
@@ -117,5 +119,12 @@ observers while touching the widget layer.
 - HUD chips are NOT this task: flight HUD chrome is phosphor-only per the
   spike's per-surface table and restyles in 20260728-175742 on top of these
   tokens.
-- Depends on: nothing in the epic; lands before 175738/175742 (they consume
-  the widgets).
+- Depends on: 20260729-000956 (which preloads Iosevka via `BootAssets` and
+  publishes the `nova_ui::font::UiFont` resource this task's typography step
+  consumes); lands before 175738/175742 (they consume the widgets).
+- 2026-07-29 alignment (20260729-000956, static-asset preload): the "nova_ui
+  font resource" this task planned already exists as `nova_ui::font::UiFont`,
+  filled from `BootAssets` at `OnExit(GameAssetsStates::Boot)`. The typography
+  step is now a CONSUMER edit (read `UiFont`, route `TextFont` through it), not
+  a font-loading step; the font is the slimmed single-face `.ttf`, not the
+  66 MB `.ttc`.

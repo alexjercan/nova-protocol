@@ -23,7 +23,7 @@ use bevy::prelude::*;
 use bevy_common_systems::prelude::{GameObjectives, StatusBarRootMarker};
 use nova_ui::theme;
 
-use super::{nova_os::NovaOsTabAnchor, NovaHudSystems};
+use super::{nova_os::NovaOsTabAnchor, NovaHudAssets, NovaHudSystems};
 use crate::prelude::*;
 
 const HINT_FONT_PX: f32 = 14.0;
@@ -76,7 +76,7 @@ fn setup_hint(
     mut commands: Commands,
     q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
     q_bar: Query<Entity, With<StatusBarRootMarker>>,
-    asset_server: Option<Res<AssetServer>>,
+    hud_assets: Option<Res<NovaHudAssets>>,
 ) {
     if q_spaceship.get(add.entity).is_err() {
         return;
@@ -109,12 +109,12 @@ fn setup_hint(
             // Leading NOVA CRT star mark (the same brand mark the drawer plate
             // uses), so the top-bar TAB affordance visually reads as "the NOVA OS
             // computer". Native colours (like the plate); rendered from a PNG
-            // because Bevy UI cannot draw SVG. Guarded on the AssetServer so
-            // headless rigs without one still spawn the count + TAB.
-            if let Some(asset_server) = asset_server {
+            // because Bevy UI cannot draw SVG. Guarded on NovaHudAssets so
+            // headless rigs without the asset pipeline still spawn the count + TAB.
+            if let Some(hud_assets) = hud_assets {
                 hint.spawn((
                     ObjectiveHintIconMarker,
-                    ImageNode::new(asset_server.load("icons/nova_crt_mark.png")),
+                    ImageNode::new(hud_assets.nova_crt_mark.clone()),
                     Node {
                         width: Val::Px(HINT_ICON_PX),
                         height: Val::Px(HINT_ICON_PX),
