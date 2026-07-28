@@ -1,5 +1,7 @@
 # DECISION: NOVA OS header/main/footer chrome
 
+- STATUS: ACCEPTED
+
 Load-bearing build-shape choices for the persistent header + main + footer
 refactor, confirmed with the owner before build.
 

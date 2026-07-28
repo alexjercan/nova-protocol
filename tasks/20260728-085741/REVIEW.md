@@ -1,5 +1,9 @@
 # Review: NOVA OS persistent header + main + footer
 
+- VERDICT: APPROVE
+
+Final verdict after round 2. The per-round verdicts are in each section below.
+
 ## Round 1 (out-of-context reviewer) - REQUEST_CHANGES
 
 Reviewed `git diff master...HEAD` (nova_os.rs, app.rs). check green, fmt clean,
