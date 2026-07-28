@@ -155,11 +155,20 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   an origin fixture proves almost nothing about placement (a ship-app blip
   projection used world space but the scene was local, invisible until an
   off-origin fixture). 20260726-115339.
-- `pin-each-caller-not-just-shared-core` (x1): a shared mutation helper covered by
+- `pin-each-caller-not-just-shared-core` (x2): a shared mutation helper covered by
   ONE caller's test does not cover the OTHER callers' wiring (target resolution,
-  message plumbing, side effects); pin each entry point. The ship app's in-app
-  action handler was untested because it shared `apply_action_to_section` with the
-  tested CLI path. Kin of [[advertised-is-not-wired]]. 20260726-115339.
+  message plumbing, side effects); pin each entry point - and when a change adds N
+  symmetric callers (e.g. Repair + Reload button observers), pin each in the SAME
+  pass, not after a reviewer points at the missing half. Kin of
+  [[advertised-is-not-wired]]. 20260726-115339, 20260728-115430.
+- `test-the-wiring-system-not-just-its-pure-helpers` (x1): a per-frame system that
+  maps pure helpers into the live UI tree AND caches state other code reads (e.g.
+  `update_ship_panel` writing panel text + caching the button-enabled flags the
+  observers read) is a seam that can silently no-op; the helper unit tests pass
+  with it reverted. Run the SYSTEM in a live-tree test - "would this pass if the
+  system were a no-op?" A Step that NAMES a system/live-tree test is not satisfied
+  by a nearby pure-helper test. Kin of [[pin-each-caller-not-just-shared-core]] and
+  [[advertised-is-not-wired]]. 20260728-115430.
 - `review-current-base-before-ooc` (x1): before spawning out-of-context review,
   compare the branch against CURRENT local default and merge it if the diff
   includes inherited base noise - stale comparisons waste review on unrelated

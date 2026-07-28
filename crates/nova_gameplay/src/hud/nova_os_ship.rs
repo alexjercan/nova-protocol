@@ -119,6 +119,17 @@ fn kind_glyph(kind: SectionDamageClass) -> &'static str {
     }
 }
 
+/// A one-line "what it does" for a section kind, shown in the inspector panel.
+fn kind_description(kind: SectionDamageClass) -> &'static str {
+    match kind {
+        SectionDamageClass::Hull => "Structural armour plating.",
+        SectionDamageClass::Thruster => "Main drive; provides thrust.",
+        SectionDamageClass::Controller => "Command core; runs the ship.",
+        SectionDamageClass::Turret => "Point-defence gun.",
+        SectionDamageClass::Torpedo => "Torpedo launch tube.",
+    }
+}
+
 /// A dense index for a section kind, for the per-kind next-index counters.
 fn kind_index(kind: SectionDamageClass) -> usize {
     match kind {
@@ -460,6 +471,75 @@ fn status_row_kind(status: &str) -> TerminalRowKind {
     }
 }
 
+/// The multi-line body of the inspector panel for one section: kind + what it
+/// does, integrity % + meter, HP text, status, and ammo for weapons.
+fn panel_detail_text(view: &ShipSectionView) -> String {
+    let mut text = format!(
+        "kind: {}\n{}\n\nintegrity: {} {}\n{}\nstatus: {}",
+        section_kind_label(view.kind).to_lowercase(),
+        kind_description(view.kind),
+        view.integrity_pct(),
+        view.meter(),
+        view.health_text(),
+        view.status(),
+    );
+    if let Some(ammo) = view.ammo.as_ref() {
+        text.push_str(&format!("\nammo: {}/{}", ammo.rounds, ammo.capacity));
+    }
+    text
+}
+
+/// Whether Repair / Reload are valid for a section, plus a reason for a disabled
+/// action. Derived from the SAME conditions [`apply_action_to_section`] enforces
+/// (Reload = a `Turret`/`Torpedo` with an ammo feed; Repair = `Health` with a
+/// positive max), so the panel buttons never disagree with the handler.
+struct PanelActions {
+    repair_enabled: bool,
+    reload_enabled: bool,
+    reason: Option<String>,
+}
+
+impl PanelActions {
+    /// The no-selection state: nothing actionable, no reason.
+    fn none() -> Self {
+        Self {
+            repair_enabled: false,
+            reload_enabled: false,
+            reason: None,
+        }
+    }
+}
+
+fn panel_action_state(view: &ShipSectionView) -> PanelActions {
+    let is_weapon = matches!(
+        view.kind,
+        SectionDamageClass::Turret | SectionDamageClass::Torpedo
+    );
+    let repair_enabled = view.health.as_ref().map(|h| h.max > 0.0).unwrap_or(false);
+    let reload_enabled = is_weapon && view.ammo.is_some();
+
+    // Surface why a disabled action is unavailable, mirroring the handler's text.
+    let reason = if !is_weapon {
+        Some(format!(
+            "reload: {} is a {} section, no ammo feed",
+            view.code,
+            section_kind_label(view.kind).to_lowercase()
+        ))
+    } else if view.ammo.is_none() {
+        Some(format!("reload: {} has unlimited ammo", view.code))
+    } else if !repair_enabled {
+        Some(format!("repair: {} has no integrity to restore", view.code))
+    } else {
+        None
+    };
+
+    PanelActions {
+        repair_enabled,
+        reload_enabled,
+        reason,
+    }
+}
+
 /// A "section not found" error row plus the list of valid codes.
 fn unknown_code_rows(code: &str, codes: &[String]) -> Vec<TerminalRow> {
     let mut rows = vec![TerminalRow {
@@ -572,32 +652,125 @@ impl NovaOsAppRuntime for ShipApp {
         SHIP_HINTS
     }
     fn spawn_body(&self, body: &mut ChildSpawnerCommands, font: Handle<Font>) {
-        body.spawn((
-            ShipViewportMarker,
-            Node {
-                flex_grow: 1.0,
-                min_height: Val::Px(0.0),
-                position_type: PositionType::Relative,
-                overflow: Overflow::clip(),
-                ..default()
-            },
-            ImageNode {
-                image: Handle::default(),
-                ..default()
-            },
-            BackgroundColor(SHIP_VIEW_BG),
-        ));
-        body.spawn((
-            ShipReadoutMarker,
-            Text::new("Select a section: click a block or press [ / ]."),
-            nova_os_text_font(DRAWER_LINE_FONT_PX, font),
-            TextColor(NOVA_OS_PHOSPHOR_MUTED),
-            Node {
-                min_height: Val::Px(26.0),
-                ..default()
-            },
-        ));
+        // The body is a Column; lay the viewport + inspector panel out as a Row
+        // that grows to fill it: [ 3D viewport (flex-grow) | fixed-width panel ].
+        body.spawn(Node {
+            flex_grow: 1.0,
+            min_height: Val::Px(0.0),
+            flex_direction: FlexDirection::Row,
+            column_gap: Val::Px(8.0),
+            ..default()
+        })
+        .with_children(|row| {
+            row.spawn((
+                ShipViewportMarker,
+                Node {
+                    flex_grow: 1.0,
+                    min_height: Val::Px(0.0),
+                    position_type: PositionType::Relative,
+                    overflow: Overflow::clip(),
+                    ..default()
+                },
+                ImageNode {
+                    image: Handle::default(),
+                    ..default()
+                },
+                BackgroundColor(SHIP_VIEW_BG),
+            ));
+            spawn_ship_panel(row, font.clone());
+        });
     }
+}
+
+/// Fixed width of the inspector panel column, in px.
+const SHIP_PANEL_PX: f32 = 232.0;
+
+/// Build the inspector-panel subtree (title, live detail, action row, note) as a
+/// bordered CRT column. The three info text nodes carry a [`ShipPanelField`] so
+/// one system can refresh them; the two buttons carry a [`ShipPanelButton`] and
+/// route through the [`ShipSectionCommand`] seam via `Activate` observers.
+fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, font: Handle<Font>) {
+    parent
+        .spawn((
+            ShipPanelMarker,
+            Node {
+                width: Val::Px(SHIP_PANEL_PX),
+                flex_shrink: 0.0,
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(6.0),
+                padding: UiRect::all(Val::Px(10.0)),
+                border: UiRect::all(Val::Px(1.0)),
+                ..default()
+            },
+            BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.36)),
+            BackgroundColor(NOVA_OS_SCREEN),
+        ))
+        .with_children(|panel| {
+            panel.spawn((
+                ShipPanelField::Title,
+                Text::new("INSPECTOR"),
+                nova_os_text_font(DRAWER_LINE_FONT_PX, font.clone()),
+                TextColor(NOVA_OS_PHOSPHOR),
+            ));
+            panel.spawn((
+                ShipPanelField::Detail,
+                Text::new("Select a section:\nclick a block or press [ / ]."),
+                nova_os_text_font(DRAWER_LINE_FONT_PX - 3.0, font.clone()),
+                TextColor(NOVA_OS_TEXT),
+            ));
+            // Action row: Repair + Reload buttons, each routed through the
+            // ShipSectionCommand seam by an `Activate` observer.
+            panel
+                .spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    column_gap: Val::Px(6.0),
+                    margin: UiRect::top(Val::Px(4.0)),
+                    ..default()
+                })
+                .with_children(|row| {
+                    row.spawn(panel_button_bundle(ShipPanelButton::Repair))
+                        .observe(on_ship_repair_button)
+                        .with_children(|b| {
+                            b.spawn(panel_button_label("P Repair", font.clone()));
+                        });
+                    row.spawn(panel_button_bundle(ShipPanelButton::Reload))
+                        .observe(on_ship_reload_button)
+                        .with_children(|b| {
+                            b.spawn(panel_button_label("L Reload", font.clone()));
+                        });
+                });
+            panel.spawn((
+                ShipPanelField::Note,
+                Text::new(String::new()),
+                nova_os_text_font(DRAWER_LINE_FONT_PX - 4.0, font),
+                TextColor(NOVA_OS_PHOSPHOR_MUTED),
+            ));
+        });
+}
+
+/// The bundle for a CRT action button (enabled styling; recoloured per frame in
+/// `update_ship_panel`). The `Activate` observer is attached by the caller.
+fn panel_button_bundle(kind: ShipPanelButton) -> impl Bundle {
+    (
+        kind,
+        Button,
+        Node {
+            padding: UiRect::axes(Val::Px(8.0), Val::Px(4.0)),
+            border: UiRect::all(Val::Px(1.0)),
+            ..default()
+        },
+        BorderColor::all(NOVA_OS_PHOSPHOR),
+        BackgroundColor(NOVA_OS_PHOSPHOR.with_alpha(0.14)),
+    )
+}
+
+/// The label bundle for a panel button.
+fn panel_button_label(label: &str, font: Handle<Font>) -> impl Bundle {
+    (
+        Text::new(label.to_string()),
+        nova_os_text_font(DRAWER_LINE_FONT_PX - 3.0, font),
+        TextColor(NOVA_OS_PHOSPHOR),
+    )
 }
 
 /// Dark fill behind the schematic image.
@@ -605,8 +778,22 @@ const SHIP_VIEW_BG: Color = Color::srgb_u8(0, 6, 3);
 
 #[derive(Component)]
 struct ShipViewportMarker;
+/// The inspector-panel container.
 #[derive(Component)]
-struct ShipReadoutMarker;
+struct ShipPanelMarker;
+/// Which live text line of the panel a node is, so one system refreshes all three.
+#[derive(Component, Clone, Copy, PartialEq, Eq)]
+enum ShipPanelField {
+    Title,
+    Detail,
+    Note,
+}
+/// Which action a panel button raises, for its per-frame enabled styling.
+#[derive(Component, Clone, Copy, PartialEq, Eq)]
+enum ShipPanelButton {
+    Repair,
+    Reload,
+}
 #[derive(Component)]
 struct ShipCameraMarker;
 #[derive(Component)]
@@ -676,8 +863,13 @@ struct ShipRuntime {
     /// The codes last pushed as arg-completions, so the terminal is only marked
     /// changed when the set changes.
     completion_codes: Vec<String>,
-    /// A transient note (e.g. an in-app action result) shown in the readout.
+    /// A transient note (e.g. an in-app action result) shown in the panel.
     note: Option<(String, f32)>,
+    /// Whether Repair / Reload are valid for the current selection, cached by
+    /// `update_ship_panel` so the button `Activate` observers can no-op on a
+    /// disabled action without re-deriving the section's validity.
+    panel_repair_enabled: bool,
+    panel_reload_enabled: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -713,7 +905,7 @@ impl Plugin for NovaOsShipPlugin {
                 drive_ship_camera,
                 update_ship_blocks,
                 project_ship_blips,
-                update_ship_readout,
+                update_ship_panel,
             )
                 .chain()
                 .in_set(NovaOsShipSystems),
@@ -912,8 +1104,8 @@ fn apply_ship_cli_commands(
     terminal.extend_scrollback(rows);
 }
 
-/// Apply in-app [`ShipSectionCommand`] messages (the `L`/`P` action keys), and
-/// flash the result in the app readout.
+/// Apply in-app [`ShipSectionCommand`] messages (the `L`/`P` action keys and the
+/// panel buttons), and flash the result on the panel note line.
 fn apply_ship_section_commands(
     mut messages: MessageReader<ShipSectionCommand>,
     mut runtime: ResMut<ShipRuntime>,
@@ -1100,7 +1292,7 @@ fn manage_ship_scene(
     }
 
     runtime.scene_root = Some(scene_root);
-    // Default the selection to the first section so the readout is useful at once.
+    // Default the selection to the first section so the panel is useful at once.
     runtime.selected = views.first().map(|v| v.entity);
 }
 
@@ -1229,7 +1421,7 @@ fn ship_input(
     }
 
     // Actions on the selected section: L reload, P repair. Route through the same
-    // message the readout reflects and the mutation handler applies.
+    // message the panel buttons raise and the mutation handler applies.
     if let Some(sel) = runtime.selected {
         if keys.just_pressed(KeyCode::KeyL) {
             commands.write(ShipSectionCommand {
@@ -1503,52 +1695,116 @@ fn on_ship_blip_click(
     }
 }
 
-/// Fill the readout from the current selection (or a transient action note).
-fn update_ship_readout(
+/// Raise a Repair on the selected section when the panel button is clicked, unless
+/// the panel marked repair disabled for it. Same seam as the `P` key and the CLI.
+fn on_ship_repair_button(
+    _activate: On<Activate>,
     runtime: Res<ShipRuntime>,
+    mut commands: MessageWriter<ShipSectionCommand>,
+) {
+    if !runtime.panel_repair_enabled {
+        return;
+    }
+    if let Some(target) = runtime.selected {
+        commands.write(ShipSectionCommand {
+            target,
+            action: ShipAction::Repair,
+        });
+    }
+}
+
+/// Raise a Reload on the selected section when the panel button is clicked, unless
+/// the panel marked reload disabled for it.
+fn on_ship_reload_button(
+    _activate: On<Activate>,
+    runtime: Res<ShipRuntime>,
+    mut commands: MessageWriter<ShipSectionCommand>,
+) {
+    if !runtime.panel_reload_enabled {
+        return;
+    }
+    if let Some(target) = runtime.selected {
+        commands.write(ShipSectionCommand {
+            target,
+            action: ShipAction::Reload,
+        });
+    }
+}
+
+/// Refresh the inspector panel from the current selection: title, live detail,
+/// button enabled-state, and the note line (a transient action result, or the
+/// reason a button is disabled). Caches the enabled flags for the observers.
+fn update_ship_panel(
+    mut runtime: ResMut<ShipRuntime>,
     sections: ShipSections,
-    mut q_readout: Query<(&mut Text, &mut TextColor), With<ShipReadoutMarker>>,
+    mut q_text: Query<(&ShipPanelField, &mut Text, &mut TextColor)>,
+    mut q_button: Query<(&ShipPanelButton, &mut BorderColor, &mut BackgroundColor)>,
 ) {
     if !runtime.active {
         return;
     }
-    let Ok((mut text, mut color)) = q_readout.single_mut() else {
-        return;
-    };
-    if let Some((note, _)) = &runtime.note {
-        text.0 = note.clone();
-        color.0 = NOVA_OS_AMBER;
-        return;
-    }
-    match runtime
+    let selected = runtime
         .selected
-        .and_then(|sel| sections.collect().into_iter().find(|v| v.entity == sel))
-    {
-        Some(view) => {
-            let ammo = view
-                .ammo
-                .as_ref()
-                .map(|a| format!("  ammo {}/{}", a.rounds, a.capacity))
-                .unwrap_or_default();
-            text.0 = format!(
-                "{} {}  {} {}  {}{}",
-                view.code,
-                section_kind_label(view.kind).to_lowercase(),
-                view.integrity_pct(),
-                view.meter(),
-                view.status(),
-                ammo,
-            );
-            color.0 = if view.status() == "nominal" {
+        .and_then(|sel| sections.collect().into_iter().find(|v| v.entity == sel));
+
+    let (title, detail, detail_color, actions) = match &selected {
+        Some(view) => (
+            format!("{}  {}", view.code, view.name),
+            panel_detail_text(view),
+            if view.status() == "nominal" {
                 NOVA_OS_TEXT
             } else {
                 NOVA_OS_AMBER
-            };
+            },
+            panel_action_state(view),
+        ),
+        None => (
+            "INSPECTOR".to_string(),
+            "Select a section:\nclick a block or press [ / ].".to_string(),
+            NOVA_OS_PHOSPHOR_MUTED,
+            PanelActions::none(),
+        ),
+    };
+
+    runtime.panel_repair_enabled = actions.repair_enabled;
+    runtime.panel_reload_enabled = actions.reload_enabled;
+
+    // Note line: a transient action result wins; else the disabled reason; else a
+    // key hint when a section is selected.
+    let (note, note_color) = if let Some((note, _)) = &runtime.note {
+        (note.clone(), NOVA_OS_AMBER)
+    } else if let Some(reason) = &actions.reason {
+        (reason.clone(), NOVA_OS_PHOSPHOR_MUTED)
+    } else if selected.is_some() {
+        ("P repair   L reload".to_string(), NOVA_OS_PHOSPHOR_MUTED)
+    } else {
+        (String::new(), NOVA_OS_PHOSPHOR_MUTED)
+    };
+
+    for (field, mut text, mut color) in &mut q_text {
+        let (value, tint) = match field {
+            ShipPanelField::Title => (&title, NOVA_OS_PHOSPHOR),
+            ShipPanelField::Detail => (&detail, detail_color),
+            ShipPanelField::Note => (&note, note_color),
+        };
+        if text.0 != *value {
+            text.0 = value.clone();
         }
-        None => {
-            text.0 = "Select a section: click a block or press [ / ].".to_string();
-            color.0 = NOVA_OS_PHOSPHOR_MUTED;
-        }
+        color.0 = tint;
+    }
+
+    for (button, mut border, mut background) in &mut q_button {
+        let enabled = match button {
+            ShipPanelButton::Repair => actions.repair_enabled,
+            ShipPanelButton::Reload => actions.reload_enabled,
+        };
+        let (border_color, background_color) = if enabled {
+            (NOVA_OS_PHOSPHOR, NOVA_OS_PHOSPHOR.with_alpha(0.14))
+        } else {
+            (NOVA_OS_PHOSPHOR_MUTED.with_alpha(0.35), NOVA_OS_SCREEN)
+        };
+        *border = BorderColor::all(border_color);
+        background.0 = background_color;
     }
 }
 
@@ -1854,7 +2110,7 @@ mod tests {
         assert!(
             note.map(|(text, _)| text.contains("repaired HULL-1"))
                 .unwrap_or(false),
-            "the handler flashes the result in the readout note",
+            "the handler flashes the result on the panel note line",
         );
 
         // Reload the turret through the message handler.
@@ -2253,5 +2509,233 @@ mod tests {
             .iter(app.world())
             .any(|(text, parent)| parent.0 == blip && text.0 == label);
         assert!(has_label, "the blip label reads '{label}'");
+    }
+
+    #[test]
+    fn panel_action_state_gates_repair_and_reload() {
+        // Hull: repairable, no ammo feed -> reload disabled with the handler's text.
+        let hull = view_fixture(
+            SectionDamageClass::Hull,
+            Some(Health {
+                current: 80.0,
+                max: 100.0,
+            }),
+            None,
+        );
+        let a = panel_action_state(&hull);
+        assert!(a.repair_enabled, "a hull with HP is repairable");
+        assert!(!a.reload_enabled, "a hull has no ammo feed");
+        assert!(
+            a.reason.as_deref().unwrap().contains("no ammo feed"),
+            "{:?}",
+            a.reason
+        );
+
+        // Armed turret with ammo + HP: both enabled, no reason.
+        let turret = view_fixture(
+            SectionDamageClass::Turret,
+            Some(Health {
+                current: 12.0,
+                max: 60.0,
+            }),
+            Some(SectionAmmo {
+                rounds: 2,
+                capacity: 6,
+            }),
+        );
+        let a = panel_action_state(&turret);
+        assert!(a.repair_enabled && a.reload_enabled, "armed turret: both");
+        assert!(a.reason.is_none(), "no disabled reason: {:?}", a.reason);
+
+        // Weapon with ammo but NO health: reload enabled, repair disabled w/ reason.
+        let ghost = view_fixture(
+            SectionDamageClass::Turret,
+            None,
+            Some(SectionAmmo {
+                rounds: 0,
+                capacity: 6,
+            }),
+        );
+        let a = panel_action_state(&ghost);
+        assert!(a.reload_enabled && !a.repair_enabled);
+        assert!(
+            a.reason
+                .as_deref()
+                .unwrap()
+                .contains("no integrity to restore"),
+            "{:?}",
+            a.reason
+        );
+    }
+
+    #[test]
+    fn panel_detail_text_covers_live_fields() {
+        let turret = view_fixture(
+            SectionDamageClass::Turret,
+            Some(Health {
+                current: 12.0,
+                max: 60.0,
+            }),
+            Some(SectionAmmo {
+                rounds: 2,
+                capacity: 6,
+            }),
+        );
+        let text = panel_detail_text(&turret);
+        assert!(text.contains("kind: turret"), "{text}");
+        assert!(
+            text.contains(kind_description(SectionDamageClass::Turret)),
+            "{text}"
+        );
+        assert!(text.contains("20%"), "12/60 -> 20%: {text}");
+        assert!(text.contains("status: critical"), "{text}");
+        assert!(text.contains("ammo: 2/6"), "{text}");
+    }
+
+    #[test]
+    fn panel_buttons_raise_ship_section_command() {
+        // Each button's `Activate` observer routes a ShipSectionCommand for the
+        // selected section - but only when the panel marked that action enabled.
+        // Pins BOTH button entry points at their own boundary
+        // (`pin-each-caller-not-just-shared-core`).
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.init_resource::<ShipRuntime>();
+        app.add_message::<ShipSectionCommand>();
+        let (_ship, hull, turret, _thruster) = spawn_scripted_ship(app.world_mut());
+        app.world_mut()
+            .run_system_once(assign_section_codes)
+            .unwrap();
+
+        // --- Reload button on the turret (starts at 2/6). ---
+        let reload = app
+            .world_mut()
+            .spawn(ShipPanelButton::Reload)
+            .observe(on_ship_reload_button)
+            .id();
+        app.world_mut().resource_mut::<ShipRuntime>().selected = Some(turret);
+
+        // Disabled: activating the button is a no-op (ammo unchanged at 2).
+        app.world_mut()
+            .resource_mut::<ShipRuntime>()
+            .panel_reload_enabled = false;
+        app.world_mut().trigger(Activate { entity: reload });
+        app.world_mut()
+            .run_system_once(apply_ship_section_commands)
+            .unwrap();
+        assert_eq!(
+            app.world().get::<SectionAmmo>(turret).unwrap().rounds,
+            2,
+            "a disabled reload button writes no command",
+        );
+
+        // Enabled: activating routes the command and refills ammo to capacity.
+        app.world_mut()
+            .resource_mut::<ShipRuntime>()
+            .panel_reload_enabled = true;
+        app.world_mut().trigger(Activate { entity: reload });
+        app.world_mut()
+            .run_system_once(apply_ship_section_commands)
+            .unwrap();
+        assert_eq!(
+            app.world().get::<SectionAmmo>(turret).unwrap().rounds,
+            6,
+            "an enabled reload button routes through the ShipSectionCommand seam",
+        );
+
+        // --- Repair button on the hull (starts at 80/100), the other caller. ---
+        let repair = app
+            .world_mut()
+            .spawn(ShipPanelButton::Repair)
+            .observe(on_ship_repair_button)
+            .id();
+        app.world_mut().resource_mut::<ShipRuntime>().selected = Some(hull);
+
+        app.world_mut()
+            .resource_mut::<ShipRuntime>()
+            .panel_repair_enabled = false;
+        app.world_mut().trigger(Activate { entity: repair });
+        app.world_mut()
+            .run_system_once(apply_ship_section_commands)
+            .unwrap();
+        assert_eq!(
+            app.world().get::<Health>(hull).unwrap().current,
+            80.0,
+            "a disabled repair button writes no command",
+        );
+
+        app.world_mut()
+            .resource_mut::<ShipRuntime>()
+            .panel_repair_enabled = true;
+        app.world_mut().trigger(Activate { entity: repair });
+        app.world_mut()
+            .run_system_once(apply_ship_section_commands)
+            .unwrap();
+        assert_eq!(
+            app.world().get::<Health>(hull).unwrap().current,
+            100.0,
+            "an enabled repair button routes through the ShipSectionCommand seam",
+        );
+    }
+
+    #[test]
+    fn update_ship_panel_reflects_selection() {
+        // The live refresh system wires the pure helpers into the panel tree and
+        // caches the button-enabled flags the observers read. Reverting it to a
+        // no-op must fail this (the detail text would stay the placeholder and the
+        // flags stay false).
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<Font>();
+        app.init_resource::<ShipRuntime>();
+        let (_ship, hull, _turret, _thruster) = spawn_scripted_ship(app.world_mut());
+        app.world_mut()
+            .run_system_once(assign_section_codes)
+            .unwrap();
+
+        // Build the panel subtree under a root, the way `spawn_body` does.
+        let root = app.world_mut().spawn_empty().id();
+        app.world_mut()
+            .run_system_once(move |mut commands: Commands| {
+                commands
+                    .entity(root)
+                    .with_children(|parent| spawn_ship_panel(parent, Handle::default()));
+            })
+            .unwrap();
+
+        {
+            let mut runtime = app.world_mut().resource_mut::<ShipRuntime>();
+            runtime.active = true;
+            runtime.selected = Some(hull);
+        }
+        app.world_mut().run_system_once(update_ship_panel).unwrap();
+
+        let field_text = |app: &mut App, want: ShipPanelField| -> String {
+            app.world_mut()
+                .query::<(&ShipPanelField, &Text)>()
+                .iter(app.world())
+                .find(|(field, _)| **field == want)
+                .map(|(_, text)| text.0.clone())
+                .expect("panel field text")
+        };
+        let detail = field_text(&mut app, ShipPanelField::Detail);
+        assert!(
+            detail.contains("kind: hull"),
+            "detail reflects kind: {detail}"
+        );
+        assert!(detail.contains("status:"), "detail has status: {detail}");
+        let title = field_text(&mut app, ShipPanelField::Title);
+        assert!(title.contains("HULL-1"), "title reflects the code: {title}");
+
+        // A hull caches reload DISABLED and repair ENABLED for the observers.
+        let runtime = app.world().resource::<ShipRuntime>();
+        assert!(
+            !runtime.panel_reload_enabled,
+            "a hull has no ammo feed -> reload disabled",
+        );
+        assert!(
+            runtime.panel_repair_enabled,
+            "a hull with HP is repairable -> repair enabled",
+        );
     }
 }
