@@ -601,6 +601,20 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `stemmed-compound-extension` (x2): custom-asset files need a stem so the
   full extension matches the registered loader (`<pack>.bundle.ron`, never a
   bare `bundle.ron`). 20260714-163342.
+- `asset-format-change-greps-extension-and-loader` (x1): changing an asset's
+  FORMAT (not just its path - e.g. `.ttc` -> `.ttf`) must grep the FORMAT
+  EXTENSION and the custom LOADER TYPES, not only the path const. A bespoke
+  `.ttc` `FontLoader` + its `nova_meta_gen` sidecar registration + a test were
+  invisible to a path-only sweep and would have re-broken the web build
+  (`AssetMetaCheck::Always` needs a `.meta`; wrong/absent loader = no sidecar =
+  invisible glyphs, the exact bug 20260727-172205 fixed). Switching to a
+  built-in-loader format retires the custom loader everywhere it was
+  registered. 20260729-000956.
+- `verify-plan-named-api-visibility` (x1): before implementing a plan step that
+  names a specific external API (`SoundBank::from_handles`), verify that API's
+  REAL visibility/availability first - a private method behind a tagged git dep
+  changes the whole approach (route around vs force a cross-repo release) and is
+  a load-bearing DECISION.md fork, not a detail. 20260729-000956.
 - `doc-sweep-grep-plus-reread` (x2): a reference sweep is grep PLUS a full
   re-read of each touched section - grep finds names, not meaning; two
   stale-in-meaning paragraphs survived a clean grep. Verify multi-edit
