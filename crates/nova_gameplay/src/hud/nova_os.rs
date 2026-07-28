@@ -1124,7 +1124,10 @@ fn terminal_objective_rows(objectives: &GameObjectives) -> Vec<TerminalRow> {
 
 #[derive(Debug, Clone)]
 struct ShipSectionStatus {
-    name: String,
+    /// The short section code (`HULL-1`, `PDC-1`, ...) - the LABEL shown in
+    /// `ship view` and the id the `ship <verb> <id>` commands take. Falls back to
+    /// the uppercase kind label when a section has no code minted yet.
+    code: String,
     kind: SectionDamageClass,
     health: Option<Health>,
     inactive: bool,
@@ -1156,24 +1159,49 @@ fn terminal_ship_rows(ship_name: Option<&str>, sections: &[ShipSectionStatus]) -
             text: format!("Sections: {}", sections.len()),
         },
     ];
+
+    // Column widths: pad KIND and LABEL to the widest cell (header included) so the
+    // monospace terminal lines the columns up. INFO is last, so it needs no pad.
+    const KIND_HEADER: &str = "KIND";
+    const LABEL_HEADER: &str = "LABEL";
+    const GUTTER: &str = "  ";
+    let w_kind = sections
+        .iter()
+        .map(|s| section_kind_label(s.kind).len())
+        .chain([KIND_HEADER.len()])
+        .max()
+        .unwrap_or(KIND_HEADER.len());
+    let w_label = sections
+        .iter()
+        .map(|s| s.code.len())
+        .chain([LABEL_HEADER.len()])
+        .max()
+        .unwrap_or(LABEL_HEADER.len());
+
+    rows.push(TerminalRow {
+        kind: TerminalRowKind::Dim,
+        text: format!("{KIND_HEADER:<w_kind$}{GUTTER}{LABEL_HEADER:<w_label$}{GUTTER}INFO"),
+    });
     for section in sections {
         let status = section_status_label(section);
+        // INFO = health + ammo, plus the status word when the section is not
+        // nominal (the separate status sub-row is gone - the word + row colour carry it).
+        let mut info = format!(
+            "{}{}",
+            section_health_text(section.health.as_ref()),
+            section_ammo_suffix(section.ammo.as_ref())
+        );
+        if status != "nominal" {
+            info.push_str(&format!("{GUTTER}[{status}]"));
+        }
         rows.push(TerminalRow {
             kind: section_status_row_kind(section),
             text: format!(
-                "{} {} - {}{}",
-                section_kind_label(section.kind),
-                section.name,
-                section_health_text(section.health.as_ref()),
-                section_ammo_suffix(section.ammo.as_ref())
+                "{kind:<w_kind$}{GUTTER}{label:<w_label$}{GUTTER}{info}",
+                kind = section_kind_label(section.kind),
+                label = section.code,
             ),
         });
-        if status != "nominal" {
-            rows.push(TerminalRow {
-                kind: section_status_row_kind(section),
-                text: format!("  status: {status}"),
-            });
-        }
     }
     rows
 }
@@ -1617,7 +1645,6 @@ fn handle_terminal_keyboard(
     q_sections: Query<
         (
             &ChildOf,
-            Option<&Name>,
             Option<&Health>,
             Option<&SectionDamageClass>,
             Has<SectionInactiveMarker>,
@@ -1628,6 +1655,7 @@ fn handle_terminal_keyboard(
             Has<TurretSectionMarker>,
             Has<TorpedoSectionMarker>,
             Option<&SectionAmmo>,
+            Option<&SectionCode>,
         ),
         With<SectionMarker>,
     >,
@@ -2079,7 +2107,6 @@ fn player_ship_snapshot(
     q_sections: &Query<
         (
             &ChildOf,
-            Option<&Name>,
             Option<&Health>,
             Option<&SectionDamageClass>,
             Has<SectionInactiveMarker>,
@@ -2090,6 +2117,7 @@ fn player_ship_snapshot(
             Has<TurretSectionMarker>,
             Has<TorpedoSectionMarker>,
             Option<&SectionAmmo>,
+            Option<&SectionCode>,
         ),
         With<SectionMarker>,
     >,
@@ -2103,7 +2131,6 @@ fn player_ship_snapshot(
         .filter_map(
             |(
                 _,
-                name,
                 health,
                 class,
                 inactive,
@@ -2114,13 +2141,16 @@ fn player_ship_snapshot(
                 turret,
                 torpedo,
                 ammo,
+                code,
             )| {
                 let kind =
                     section_kind_from_markers(class, hull, controller, thruster, turret, torpedo)?;
                 Some(ShipSectionStatus {
-                    name: name
-                        .map(|name| name.as_str().to_string())
-                        .unwrap_or_else(|| section_kind_label(kind).to_ascii_lowercase()),
+                    // The label shown in `ship view`; fall back to the kind label
+                    // (uppercase, matching the column style) when no code is minted.
+                    code: code
+                        .map(|code| code.0.clone())
+                        .unwrap_or_else(|| section_kind_label(kind).to_string()),
                     kind,
                     health: health.cloned(),
                     inactive,
@@ -2130,10 +2160,11 @@ fn player_ship_snapshot(
             },
         )
         .collect();
+    // Sort by the displayed columns: kind, then the code label.
     sections.sort_by(|a, b| {
         section_kind_label(a.kind)
             .cmp(section_kind_label(b.kind))
-            .then_with(|| a.name.cmp(&b.name))
+            .then_with(|| a.code.cmp(&b.code))
     });
     (ship_name.map(|name| name.as_str().to_string()), sections)
 }
@@ -5026,11 +5057,11 @@ mod tests {
 
     #[test]
     fn ship_view_rows_format_section_status() {
-        // `ship view` prints the status summary (the old bare-`ship` output; bare
-        // `ship` now launches the app). This exercises the row formatter directly.
+        // `ship view` prints a column-aligned table of section CODES (labels), not
+        // the freeform names. This exercises the row formatter directly.
         let sections = vec![
             ShipSectionStatus {
-                name: "Port engine".to_string(),
+                code: "THR-1".to_string(),
                 kind: SectionDamageClass::Thruster,
                 health: Some(Health {
                     current: 18.0,
@@ -5041,7 +5072,7 @@ mod tests {
                 ammo: None,
             },
             ShipSectionStatus {
-                name: "Bow gun".to_string(),
+                code: "PDC-1".to_string(),
                 kind: SectionDamageClass::Turret,
                 health: Some(Health {
                     current: 0.0,
@@ -5059,15 +5090,42 @@ mod tests {
             .into_iter()
             .map(|row| row.text)
             .collect();
+
+        // Preamble + header.
         assert!(printed.iter().any(|r| r == "SHIP RUST TALLY"));
-        assert!(printed
+        assert!(printed.iter().any(|r| r == "Sections: 2"));
+        let header = printed
             .iter()
-            .any(|r| r == "THRUSTER Port engine - 18/100 HP"));
-        assert!(printed.iter().any(|r| r == "  status: critical"));
-        assert!(printed
+            .find(|r| r.starts_with("KIND"))
+            .expect("a KIND/LABEL/INFO header row");
+        assert!(header.contains("LABEL") && header.contains("INFO"));
+
+        // Rows show the CODE label (kind column is padded to the widest, "THRUSTER").
+        let thruster = printed
             .iter()
-            .any(|r| r == "TURRET Bow gun - 0/60 HP; ammo 2/6"));
-        assert!(printed.iter().any(|r| r == "  status: neutralized"));
+            .find(|r| r.starts_with("THRUSTER"))
+            .expect("thruster row");
+        let turret = printed
+            .iter()
+            .find(|r| r.starts_with("TURRET"))
+            .expect("turret row");
+        assert_eq!(thruster, "THRUSTER  THR-1  18/100 HP  [critical]");
+        assert_eq!(turret, "TURRET    PDC-1  0/60 HP; ammo 2/6  [neutralized]");
+
+        // The freeform name is gone, and the separate `status:` sub-row is gone -
+        // the status now rides the INFO column.
+        assert!(!printed
+            .iter()
+            .any(|r| r.contains("engine") || r.contains("gun")));
+        assert!(!printed
+            .iter()
+            .any(|r| r.trim_start().starts_with("status:")));
+
+        // Columns line up: the LABEL token starts at the SAME character offset in
+        // the header and every data row (fails if the padding is wrong).
+        let label_col = header.find("LABEL").unwrap();
+        assert_eq!(thruster.find("THR-1"), Some(label_col));
+        assert_eq!(turret.find("PDC-1"), Some(label_col));
     }
 
     /// Register the `ship` app tree (launch word + `ship view` subcommand) into a
@@ -5114,6 +5172,9 @@ mod tests {
                 SectionMarker,
                 ThrusterSectionMarker,
                 SectionDamageClass::Thruster,
+                // The minted code is the LABEL the table must show - proving it is
+                // threaded from the ECS `SectionCode` component to the scrollback.
+                SectionCode("THR-1".to_string()),
                 Health {
                     current: 18.0,
                     max: 100.0,
@@ -5122,6 +5183,7 @@ mod tests {
                 Name::new("Port engine"),
             ))
             .id();
+        // The turret carries NO SectionCode, so its label falls back to the kind.
         app.world_mut().spawn((
             SectionMarker,
             TurretSectionMarker,
@@ -5142,15 +5204,38 @@ mod tests {
         submit_terminal_command(&mut app, "ship view");
         let printed = terminal_scrollback_texts(&app);
         assert!(printed.iter().any(|row| row == "SHIP RUST TALLY"));
-        assert!(printed
+        let header = printed
             .iter()
-            .any(|row| row == "THRUSTER Port engine - 18/100 HP"));
+            .find(|r| r.starts_with("KIND"))
+            .expect("a KIND/LABEL/INFO header row");
+
+        // WIRING: the thruster row shows the code from its `SectionCode` component,
+        // not the freeform name.
+        let thruster_row = printed
+            .iter()
+            .find(|r| r.starts_with("THRUSTER"))
+            .expect("thruster row");
         assert!(
-            printed
-                .iter()
-                .any(|row| row == "TURRET Bow gun - 0/60 HP; ammo 2/6"),
-            "live snapshot classifies turret marker fallback without SectionDamageClass"
+            thruster_row.contains("THR-1")
+                && thruster_row.contains("18/100 HP")
+                && thruster_row.contains("[critical]"),
+            "thruster row shows the live code label + status: {thruster_row:?}"
         );
+        // The codeless turret falls back to the kind label.
+        let turret_row = printed
+            .iter()
+            .find(|r| r.starts_with("TURRET"))
+            .expect("turret row");
+        assert!(
+            turret_row.contains("0/60 HP; ammo 2/6") && turret_row.contains("[neutralized]"),
+            "turret row: {turret_row:?}"
+        );
+        // Names are gone; columns line up under the header.
+        assert!(!printed
+            .iter()
+            .any(|r| r.contains("engine") || r.contains("gun")));
+        let label_col = header.find("LABEL").unwrap();
+        assert_eq!(thruster_row.find("THR-1"), Some(label_col));
 
         app.world_mut().entity_mut(thruster).insert(Health {
             current: 80.0,
@@ -5158,10 +5243,12 @@ mod tests {
         });
         submit_terminal_command(&mut app, "ship view");
         assert!(
-            terminal_scrollback_texts(&app)
-                .iter()
-                .any(|row| row == "THRUSTER Port engine - 80/100 HP"),
-            "second command submit reads changed live section health"
+            terminal_scrollback_texts(&app).iter().any(|row| {
+                row.starts_with("THRUSTER")
+                    && row.contains("80/100 HP")
+                    && !row.contains("[critical]")
+            }),
+            "second command submit reads changed live section health (now nominal)"
         );
     }
 

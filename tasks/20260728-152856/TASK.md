@@ -1,6 +1,6 @@
 # NOVA OS ship view: show section labels in a column-aligned table
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 27
 - TAGS: v0.9.0,feedback,feature,ui,hud
 
@@ -46,7 +46,7 @@ table) - maybe with a header Kind, Label, Info."
 
 ## Flow State
 
-- FLOW STEP: PLANNED
+- FLOW STEP: DONE
 - PLAN STATUS: APPROVED
 
 ## Decision
@@ -81,19 +81,19 @@ Pure-formatting change plus a small wiring extension to carry the code:
 
 ## Steps
 
-- [ ] Add `code: String` to `ShipSectionStatus`; fetch `Option<&SectionCode>` in
+- [x] Add `code: String` to `ShipSectionStatus`; fetch `Option<&SectionCode>` in
       `player_ship_snapshot` and populate `code` (fallback = uppercase kind label);
       import `SectionCode` into `nova_os.rs`.
-- [ ] Rewrite `terminal_ship_rows` to emit the padded `KIND/LABEL/INFO` table
+- [x] Rewrite `terminal_ship_rows` to emit the padded `KIND/LABEL/INFO` table
       (header row + per-section rows, status folded into INFO, row colour kept).
-- [ ] Update the existing `ship_view_rows_format_section_status` unit test to the
+- [x] Update the existing `ship_view_rows_format_section_status` unit test to the
       new table format (assert the header row, code shown, columns aligned, status
       in INFO, name absent).
-- [ ] Add/extend a LIVE `ship view` test that submits the command through the
+- [x] Add/extend a LIVE `ship view` test that submits the command through the
       terminal and asserts the scrollback contains the section CODE label (proves
       the code is threaded from the ECS query to the row, not just the pure
       formatter - `test-the-wiring-system-not-just-its-pure-helpers`).
-- [ ] Run the check suite.
+- [x] Run the check suite.
 
 ## Definition of Done
 
