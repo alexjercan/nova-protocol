@@ -1,12 +1,12 @@
 # Relocate input-prompt key glyphs to assets/ (Alt only) and credit them in credits/
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 41
 - TAGS: v0.9.0,ui,assets,web
 
 ## Flow State
 
-- FLOW STEP: PLANNED
+- FLOW STEP: DONE
 - PLAN STATUS: APPROVED
 
 ## Story
@@ -23,12 +23,12 @@ PoC's img paths must follow the move. This unblocks the HUD icon dock
 
 ## Steps
 
-- [ ] `git mv examples/ui/assets/input-prompts/keyboard/Alt
+- [x] `git mv examples/ui/assets/input-prompts/keyboard/Alt
       assets/input-prompts/keyboard/Alt` (99 files, pack filenames verbatim,
       including the pack's `T_Crtl_Key_Alt.png` upstream typo); `git rm -r`
       the unused `Dark/` and `White/` styles; remove the now-empty
       `examples/ui/assets/` tree.
-- [ ] Credits: add a "FREE Input Prompts" entry to `credits/CREDITS.md`
+- [x] Credits: add a "FREE Input Prompts" entry to `credits/CREDITS.md`
       Third-party assets (pack name, author JulioCacko, itch.io + fab.com
       source links, version 1.4, obtained 2026-07-25 / imported 2026-07-28,
       CC0 1.0, note that only the Keyboard_Mouse Alt style ships), absorbing
@@ -37,22 +37,22 @@ PoC's img paths must follow the move. This unblocks the HUD icon dock
       then delete NOTICE.md. Add
       `credits/licenses/FREE-Input-Prompts_CC0-1.0.md` with the CC0 1.0 text
       (mirror the shape of `space-3d_Unlicense.md`).
-- [ ] While in CREDITS.md: fix the broken Kenney license link
+- [x] While in CREDITS.md: fix the broken Kenney license link
       (`licenses/kenney-space-kit_CC0_1.0.md` -> the actual
       `licenses/Kenney_Space_Kit_License.txt`).
-- [ ] `web/webpack.config.js:324`: replace
+- [x] `web/webpack.config.js:324`: replace
       `{ from: "../examples/ui/assets", to: "nova-hud/assets" }` with
       `{ from: "../assets/input-prompts", to: "nova-hud/assets/input-prompts" }`.
-- [ ] `examples/ui/hud_rework_poc.html`: keep the deployed-shape
+- [x] `examples/ui/hud_rework_poc.html`: keep the deployed-shape
       `assets/input-prompts/...` img srcs, and in the existing onRoute
       script block rewrite the `img.ki`/`.navbtn img` srcs to
       `../../assets/input-prompts/...` when NOT on the `/nova-hud/` route,
       so the file:// review copy still renders glyphs.
-- [ ] Repo-wide path sweep (sweep-content-repo-wide-not-just-assets):
+- [x] Repo-wide path sweep (sweep-content-repo-wide-not-just-assets):
       `grep -rn "examples/ui/assets"` over code/docs/scripts/web (tasks/
       excluded, dated history stays) and fix every live hit. Add a
       CHANGELOG [Unreleased] credits line.
-- [ ] Verify per DoD: file counts, web build output, file:// eyeball.
+- [x] Verify per DoD: file counts, web build output, file:// eyeball.
 
 ## Definition of Done
 

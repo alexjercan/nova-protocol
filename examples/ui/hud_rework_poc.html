@@ -332,6 +332,16 @@
     // the chain (routes when deployed, sibling files in review so it still works).
     const onRoute = /\/nova-hud(\/|$)/.test(location.pathname);
     body.classList.toggle('on-route', onRoute);
+    // Key glyphs live in the game asset tree. The img srcs use the deployed
+    // shape (`assets/input-prompts/...`, served under /nova-hud/); when opened
+    // as an in-repo file:// review copy (examples/ui/), rewrite them to the
+    // real repo path (`../../assets/input-prompts/...`) so glyphs still render.
+    if (!onRoute) {
+      document.querySelectorAll('img.ki').forEach(img => {
+        const rel = img.getAttribute('src');
+        if (rel && rel.startsWith('assets/input-prompts/')) img.setAttribute('src', '../../' + rel);
+      });
+    }
     function go(routeRel, sibling) { location.href = onRoute ? routeRel : sibling; }
     document.getElementById('hudNav').addEventListener('click', e => {
       const b = e.target.closest('[data-nav]'); if (!b) return;

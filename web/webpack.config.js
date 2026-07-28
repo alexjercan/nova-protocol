@@ -312,7 +312,8 @@ const config = {
                 // `/nova-menu/`; New Game -> `/nova-hud/`; the HUD's NOVA OS button
                 // -> `/nova-os/`. The menu + CRT PoCs have no relative asset refs
                 // and render as-is under any publicPath; the HUD PoC references the
-                // input-prompt key glyphs, so its `assets/` folder is copied too.
+                // input-prompt key glyphs, which live in the game asset tree
+                // (`assets/input-prompts/`), so that folder is copied alongside.
                 {
                     from: "../examples/ui/nova_ui_rework_poc.html",
                     to: "nova-menu/index.html",
@@ -321,7 +322,10 @@ const config = {
                     from: "../examples/ui/hud_rework_poc.html",
                     to: "nova-hud/index.html",
                 },
-                { from: "../examples/ui/assets", to: "nova-hud/assets" },
+                {
+                    from: "../assets/input-prompts",
+                    to: "nova-hud/assets/input-prompts",
+                },
                 {
                     from: "../examples/ui/nova_os_terminal_poc.html",
                     to: "nova-os/index.html",

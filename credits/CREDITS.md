@@ -36,8 +36,20 @@ assets" below:
   [The Unlicense](licenses/space-3d_Unlicense.md). No attribution is
   required; credited as a courtesy.
 - **Kenney Space Kit** (`art/kenney-space-kit/`) - [CC0 1.0
-  Universal](licenses/kenney-space-kit_CC0_1.0.md) (public domain). No
+  Universal](licenses/Kenney_Space_Kit_License.txt) (public domain). No
   attribution is required; credited as a courtesy.
+- **FREE Input Prompts** (`assets/input-prompts/keyboard/Alt/`, the key glyphs
+  shown in the HUD and UI) - the "FREE Input Prompts Pack - Icons for PC and
+  Consoles" v1.4 by JulioCacko
+  ([itch.io](https://juliocacko.itch.io/free-input-prompts),
+  [Fab](https://fab.com/s/c8a60c1330f4)), released under [CC0 1.0
+  Universal](licenses/FREE-Input-Prompts_CC0-1.0.md) (public domain). Obtained
+  2026-07-25, imported 2026-07-28. No attribution is required; credited as a
+  courtesy. Only the Keyboard_Mouse `Alt` style ships; the pack's other styles
+  and the gamepad sets are not imported. CC0 waives copyright, not trademark:
+  these key/mouse glyphs carry no console-hardware trademarks (the
+  not-imported gamepad face-button sets would), and using a key glyph to tell a
+  player which key to press is ordinary functional use.
 - **Iosevka Term font** (`assets/fonts/SGr-IosevkaTerm-Regular.ttc`, the NOVA
   OS terminal typeface) - a build of [Iosevka](https://typeof.net/Iosevka/) by
   Renzhi Li (Belleve Invis), under the [SIL Open Font License

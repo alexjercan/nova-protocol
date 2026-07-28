@@ -46,6 +46,7 @@ tagged **(breaking)**.
 ### Internals & Tooling
 
 - The Iosevka Term terminal font is now credited in `credits/` under its SIL Open Font License 1.1 (copyright and full license text bundled with every build, as the OFL requires).
+- Input-prompt key glyphs (JulioCacko's FREE Input Prompts, CC0) move into the game asset tree at `assets/input-prompts/keyboard/Alt/` and are credited in `credits/`; only the Alt style ships and the unused Dark/White styles are dropped.
 
 ## [0.8.1] - 2026-07-24
 

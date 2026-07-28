@@ -78,7 +78,11 @@ before Bevy work starts.
 - [x] 20260728-175731 (p42) Units: display 1 u = 10 m everywhere (m/km, m/s)
       landed 93032f53; formatter nova_ui::units + 11 sites + docs sweep; sweep
       record in the task (DoD 3+4).
-- [ ] 20260728-233707 (p41) Relocate input-prompt key glyphs to assets/ (Alt only) + credits
+- [x] 20260728-233707 (p41) Relocate input-prompt key glyphs to assets/ (Alt only) + credits
+      landed; 1 review round (APPROVE, out-of-context). 99 Alt glyphs moved to
+      assets/input-prompts/keyboard/Alt/, Dark/White dropped (2.4M->~800K),
+      license absorbed into credits/CREDITS.md + credits/licenses/, webpack +
+      HUD PoC repointed. Unblocks the HUD icon dock (175742).
 - [ ] 20260728-175734 (p40) nova_ui theme + widgets: NOVA OS palette + skin-aware widget set
 - [ ] 20260728-175738 (p38) Menus + editor adopt the reworked widget language
 - [ ] 20260728-175742 (p36) HUD restyle + on-screen text reduction (icon dock)
