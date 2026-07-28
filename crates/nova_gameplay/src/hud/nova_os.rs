@@ -1067,7 +1067,9 @@ fn terminal_snapshot_from_world(
     }
     .with_output("log", terminal_log_rows(log))
     .with_output("objectives", terminal_objective_rows(objectives))
-    .with_output("ship", terminal_ship_rows(ship_name, ship_sections))
+    // `ship` is now an app (bare `ship` launches the schematic viewer); the status
+    // summary moved to the `ship view` CLI subcommand.
+    .with_output("ship view", terminal_ship_rows(ship_name, ship_sections))
 }
 
 /// A short lead-in for the most recent unread flight-log entry, used by the boot
@@ -1181,7 +1183,7 @@ fn terminal_ship_name(name: Option<&str>) -> String {
         .unwrap_or_else(|| "UNKNOWN".to_string())
 }
 
-fn section_kind_label(kind: SectionDamageClass) -> &'static str {
+pub(crate) fn section_kind_label(kind: SectionDamageClass) -> &'static str {
     match kind {
         SectionDamageClass::Hull => "HULL",
         SectionDamageClass::Thruster => "THRUSTER",
@@ -2136,7 +2138,7 @@ fn player_ship_snapshot(
     (ship_name.map(|name| name.as_str().to_string()), sections)
 }
 
-fn section_kind_from_markers(
+pub(crate) fn section_kind_from_markers(
     class: Option<&SectionDamageClass>,
     hull: bool,
     controller: bool,
@@ -5023,8 +5025,9 @@ mod tests {
     }
 
     #[test]
-    fn terminal_ship_command_prints_section_status() {
-        let ship_name = Name::new("Rust Tally");
+    fn ship_view_rows_format_section_status() {
+        // `ship view` prints the status summary (the old bare-`ship` output; bare
+        // `ship` now launches the app). This exercises the row formatter directly.
         let sections = vec![
             ShipSectionStatus {
                 name: "Port engine".to_string(),
@@ -5052,33 +5055,51 @@ mod tests {
                 }),
             },
         ];
-        let snapshot = terminal_snapshot_from_world(
-            &NovaOsFlightLog::default(),
-            &GameObjectives::default(),
-            Some(ship_name.as_str()),
-            &sections,
-            0,
-        );
-        let mut terminal = NovaOsTerminal::default();
-
-        type_text(&mut terminal, "ship");
-        terminal.submit(&snapshot);
-
-        let printed: Vec<&str> = terminal
-            .scrollback()
-            .iter()
-            .map(|row| row.text.as_str())
+        let printed: Vec<String> = terminal_ship_rows(Some("Rust Tally"), &sections)
+            .into_iter()
+            .map(|row| row.text)
             .collect();
-        assert!(printed.contains(&"SHIP RUST TALLY"));
-        assert!(printed.contains(&"THRUSTER Port engine - 18/100 HP"));
-        assert!(printed.contains(&"  status: critical"));
-        assert!(printed.contains(&"TURRET Bow gun - 0/60 HP; ammo 2/6"));
-        assert!(printed.contains(&"  status: neutralized"));
+        assert!(printed.iter().any(|r| r == "SHIP RUST TALLY"));
+        assert!(printed
+            .iter()
+            .any(|r| r == "THRUSTER Port engine - 18/100 HP"));
+        assert!(printed.iter().any(|r| r == "  status: critical"));
+        assert!(printed
+            .iter()
+            .any(|r| r == "TURRET Bow gun - 0/60 HP; ammo 2/6"));
+        assert!(printed.iter().any(|r| r == "  status: neutralized"));
+    }
+
+    /// Register the `ship` app tree (launch word + `ship view` subcommand) into a
+    /// terminal test harness so `ship view` resolves without the full ship plugin.
+    fn register_ship_view_command(app: &mut App) {
+        use nova_os::shell::{CliOutput, CommandArity, CommandDispatch, TerminalCommandSpec};
+        let mut specs = app
+            .world()
+            .resource::<NovaOsTerminal>()
+            .command_specs()
+            .to_vec();
+        specs.push(TerminalCommandSpec {
+            name: "ship",
+            summary: "Open the ship computer",
+            arity: CommandArity::None,
+            dispatch: CommandDispatch::App,
+        });
+        specs.push(TerminalCommandSpec {
+            name: "ship view",
+            summary: "Print ship status summary",
+            arity: CommandArity::None,
+            dispatch: CommandDispatch::Cli(CliOutput::Snapshot),
+        });
+        app.world_mut()
+            .resource_mut::<NovaOsTerminal>()
+            .set_commands(specs);
     }
 
     #[test]
     fn terminal_ship_command_reads_live_player_sections() {
         let mut app = terminal_command_app();
+        register_ship_view_command(&mut app);
         let ship = app
             .world_mut()
             .spawn((
@@ -5118,7 +5139,7 @@ mod tests {
             Name::new("Bow gun"),
         ));
 
-        submit_terminal_command(&mut app, "ship");
+        submit_terminal_command(&mut app, "ship view");
         let printed = terminal_scrollback_texts(&app);
         assert!(printed.iter().any(|row| row == "SHIP RUST TALLY"));
         assert!(printed
@@ -5135,7 +5156,7 @@ mod tests {
             current: 80.0,
             max: 100.0,
         });
-        submit_terminal_command(&mut app, "ship");
+        submit_terminal_command(&mut app, "ship view");
         assert!(
             terminal_scrollback_texts(&app)
                 .iter()

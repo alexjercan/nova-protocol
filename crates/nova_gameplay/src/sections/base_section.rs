@@ -44,7 +44,7 @@ pub mod prelude {
 /// DENSITY (`destructible_body(health, density)`), and avian derives real mass
 /// from `density * collider_volume`. A larger collider therefore makes a heavier
 /// section - intended, but worth knowing when tuning handling.
-#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
+#[derive(Component, Clone, Copy, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum SectionCollider {
     /// Axis-aligned box; `size` is the full side length on each axis.
@@ -312,10 +312,15 @@ impl GameSections {
 pub fn base_section(config: BaseSectionConfig) -> impl Bundle {
     debug!("base_section: config {:?}", config);
 
+    let collider = config.collider.unwrap_or_default();
     (
         Name::new(config.name.clone()),
         SectionMarker,
-        config.collider.unwrap_or_default().to_collider(),
+        collider.to_collider(),
+        // Keep the authored collider shape ON the section so the NOVA OS ship app
+        // can build its schematic blocks from exact authored extents
+        // (`aabb_half_extents`) without decoding the avian collider.
+        collider,
         destructible_body(config.health, config.mass),
         // bevy_common_systems' destructible_body is the generic Health + density + visibility
         // bundle; nova adds ExplodableEntity so the section enters the explode pipeline.

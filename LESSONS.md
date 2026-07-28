@@ -148,6 +148,18 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   failed first run because `mep` was distance-2 of `help` and `map` prefixed the
   `map view` help row. The boundary IS the test, so the fixture has to sit on the
   right side of it. 20260727-231546.
+- `spatial-fixture-off-the-trivial-point` (x1): a coordinate/transform bug hides
+  when every test + example fixture spawns the root at the world origin with
+  identity rotation - the one pose where world == local == identity. Put the root
+  off-origin (and rotated) so a world-vs-local frame mismatch actually surfaces;
+  an origin fixture proves almost nothing about placement (a ship-app blip
+  projection used world space but the scene was local, invisible until an
+  off-origin fixture). 20260726-115339.
+- `pin-each-caller-not-just-shared-core` (x1): a shared mutation helper covered by
+  ONE caller's test does not cover the OTHER callers' wiring (target resolution,
+  message plumbing, side effects); pin each entry point. The ship app's in-app
+  action handler was untested because it shared `apply_action_to_section` with the
+  tested CLI path. Kin of [[advertised-is-not-wired]]. 20260726-115339.
 - `review-current-base-before-ooc` (x1): before spawning out-of-context review,
   compare the branch against CURRENT local default and merge it if the diff
   includes inherited base noise - stale comparisons waste review on unrelated
@@ -1068,6 +1080,14 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   lifecycle test proves the seam exists, not that the pixels respond. Kin of
   [[verify-interaction-not-just-rendering]] and [[advertised-is-not-wired]].
   20260724-102320.
+- `reused-render-pattern-verify-coordinate-frame` (x1): when copying an RTT/
+  projection pattern between apps, re-check the COORDINATE FRAME it assumes, not
+  just the call shape - the map app projects blips from WORLD positions because
+  its scene is world-space; the ship app's scene is ship-LOCAL anchored at the
+  origin, so the copied `world_to_viewport(world_pos)` drifted blips off the
+  blocks whenever the ship flew off origin. Project in the scene's own frame.
+  Kin of [[verify-reused-driver-actually-moves]]; needs an
+  [[spatial-fixture-off-the-trivial-point]] to catch. 20260726-115339.
 - `autoscroll-on-new-content-not-any-change` (x1): pinning a scroll view to the
   bottom on every change of its backing resource defeats manual scroll (PageUp/
   wheel) the moment that resource changes for an unrelated reason (prompt edits,

@@ -1,78 +1,134 @@
-# NOVA OS ship viewer app and safe section actions
+# NOVA OS ship computer: 3D ship app + `ship` CLI verbs on section codes
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 29
 - TAGS: v0.9.0,stretch,feature,ui,hud,gameplay
 
+## Flow State
+
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
+
 ## Story
 
-As a player using NOVA OS, I want a `ship viewer` app that shows my ship's
-sections, HP and status with clickable section details, so that the terminal can
-grow into a useful ship-management computer. This is v0.9.0 stretch and should
-not block the core terminal OS.
+As a player using NOVA OS, I want `ship` to open an interactive ship computer
+that shows my ship as a 3D green-phosphor schematic with selectable, labelled
+sections, and a `ship` CLI with `view`/`section`/`reload`/`repair` verbs that
+target sections by a short code - so the terminal becomes a real
+ship-management computer. v0.9.0 stretch; must not block the core terminal OS.
+
+This is a re-scope of the original "ship viewer" task. The concrete build shape
+(command surface, 3D render approach, section-code IDs, and arcade-now /
+queued-later action semantics) is fixed in `DECISION.md` - read it first.
 
 ## Steps
 
-- [ ] Launch `ship viewer` through the NOVA OS app runtime, replacing terminal
-      scrollback in the same monitor until the app exits.
-- [ ] Render a schematic or simple spatial layout of the player's ship sections
-      with labels, HP/status coloring and selected-section details.
-- [ ] Reuse live section/status data from the player ship; do not invent a
-      parallel ship model for the app.
-- [ ] Add click selection for sections and a read-only inspector first.
-- [ ] Decide whether any action belongs in v0.9.0. Prefer `reload` over
-      `repair` if one action is included; leave `repair` deferred unless
-      resource, combat-lockout and balance rules are explicit.
-- [ ] Add tests for app launch, section rendering from live data, selection, and
-      any included safe action.
-- [ ] Add/update `tasks/20260726-115339/NOTES.md` with the data model, action
-      scope decision, and self-reflection.
+### A. Section codes (the human/CLI/label handle)
+
+- [x] Add a lightweight `SectionCode` component (e.g. `HULL-3`, `THR-1`,
+      `PDC-1`, `TRB-1`, `CTL-1`) and a gameplay system that assigns codes
+      stably per session to the live player-ship sections from their
+      `SectionKind` + a stable index. Underlying `EntityId` is unchanged.
+- [x] Expose a resolver from a typed code back to the section entity (used by
+      both the CLI handler and Tab completion). Case-insensitive input.
+
+### B. `ship` command surface (nova_os)
+
+- [x] Replace the builtin `ship` snapshot command: `ship` becomes an APP
+      command (launch word `ship`), and the status summary moves to a
+      `ship view` `CliOutput::Snapshot` subcommand. Register the app + subs via
+      the plugin, mirroring `map` / `map view`.
+- [x] Add `ship section <id>`, `ship reload <id>`, `ship repair <id>`
+      subcommands with `CommandArity::UpTo(1)`.
+- [x] Deliver parsed arguments to gameplay: add a command-invocation pathway so
+      an arg-bearing command yields a structured request the gameplay layer
+      handles (arg-bearing reads like `ship section <id>` produce their result
+      rows in gameplay; mutators raise a `ShipSectionCommand`). No inline
+      mutation or dynamic-row logic inside `nova_os`.
+- [x] Per-command dynamic Tab completion for the `<id>` argument: completing
+      `ship repair <stem>` offers the live `SectionCode` set (extends the
+      completion system, which today only completes command names + universal
+      verbs).
+
+### C. Deferred action handler (arcade now, queued-ready)
+
+- [x] A gameplay handler system drains `ShipSectionCommand { target, action }`
+      requests and applies them: `Reload` refills the target weapon section's
+      `SectionAmmo` to capacity; `Repair` restores the section `Health` to max.
+      Instant and free for now. Structure it as the seam a future queued/
+      resource-costed job will plug into (see DECISION follow-ups). Unknown or
+      inapplicable targets (e.g. `reload` on a hull) report a friendly error row.
+
+### D. 3D ship app (nova_gameplay), map-app pattern
+
+- [x] `ShipApp` `NovaOsAppRuntime` launched by `ship`, rendering into `<main>`
+      via a dedicated `Camera3d` + `RenderTarget::Image` on an isolated
+      `RenderLayers`, composited through the existing CRT shader (reuse the
+      `nova_os_map.rs` RTT/orbit scaffolding; factor shared helpers if clean).
+- [x] Build unlit green-phosphor proxy blocks from each live section's
+      `SectionCollider` + local `Transform`; orbit camera (drag / Q-E-R-F /
+      wheel-zoom / T-reset) matching the map app's controls and `hints()`.
+- [x] Projected UI blips: `world_to_viewport` each section to an
+      absolutely-positioned `Button` label showing its `SectionCode`; click or
+      cycle (`[`/`]`) to select. Selected block/blip highlights amber.
+- [x] Inspector readout for the selected section: code, kind, integrity % +
+      meter, a word status line (nominal/scored/degraded/critical/inactive),
+      and ammo for weapon sections - from live data.
+- [x] In-app actions on the selected section drive the SAME
+      `ShipSectionCommand` path as the CLI: a `reload` key (weapon sections)
+      and a `repair` key, with disabled actions explaining why in a note line.
+- [x] Destroyed sections: despawned leaf sections do not render; 0-HP
+      `SectionInactiveMarker` sections render dim/dashed and read "inactive".
+
+### E. Tests, example, notes
+
+- [x] Tests: app launch/exit; code assignment + resolver; `ship view` rows from
+      live data; `ship section <id>` detail; `reload`/`repair` mutate live
+      section state via the handler; id Tab completion; block build from
+      colliders; selection (click + cycle).
+- [x] Refresh the `screenshot_nova_os` example (or add a ship-app variant) so
+      the 3D schematic is exercised end to end and catalog smoke-list passes.
+- [x] Update `tasks/20260726-115339/NOTES.md`: final data model, the
+      command-invocation pathway, the queued/resource extension seam, and
+      self-reflection.
 
 ## Definition of Done
 
-- `ship viewer` launches as a NOVA OS app and exits back to terminal mode.
-  (test: `ship_viewer_app_launches_and_exits`)
-- The app renders player ship sections with labels, HP/status and selected
-  details from live data. (test: `ship_viewer_renders_live_section_status`)
-- Section clicks update the inspector without mutating gameplay state. (test:
-  `ship_viewer_selects_section_for_inspection`)
-- Any mutating action included in this task has explicit rules and test coverage;
-  otherwise the app remains read-only. (manual: owner confirms whether read-only
-  v0.9.0 stretch is enough)
-- Touched drawer/app tests pass. (cmd:
-  `nix develop --command cargo test -p nova_gameplay drawer terminal`)
+- `ship` launches the ship computer app and exits back to the terminal.
+  (test: `ship_app_launches_and_exits`)
+- Sections get stable short codes; a code resolves to the right section.
+  (test: `section_codes_assigned_and_resolve`)
+- `ship view` prints the live section status summary; `ship section <id>`
+  prints that section's detail from live data.
+  (test: `ship_view_and_section_detail_rows_from_live_data`)
+- The app renders proxy blocks from live section colliders and selects a
+  section by click and by cycle, updating the inspector without mutating
+  gameplay state. (test: `ship_app_renders_blocks_and_selects_section`)
+- `ship reload <id>` / `ship repair <id>` (and the in-app action keys) mutate
+  the target section's ammo / integrity through the `ShipSectionCommand`
+  handler; the pathway carries the parsed argument. (test:
+  `ship_reload_and_repair_apply_through_command_handler`)
+- Tab completing a `<id>` argument offers the live section codes. (test:
+  `ship_verb_id_tab_completion`)
+- Touched nova_os + nova_gameplay tests pass. (cmd:
+  `nix develop --command cargo test -p nova_os -p nova_gameplay ship nova_os`)
+- The ship 3D schematic is exercised by an example and the catalog smoke-list
+  passes. (manual: owner confirms the in-game look/feel of the 3D schematic and
+  actions)
 
-## PoC-derived requirements (2026-07-26 fidelity review)
+## Deferred to follow-up tasks (see DECISION.md)
 
-The in-game viewer will look different from the PoC mock, but these patterns
-from `examples/ui/nova_os_terminal_poc.html` should be in the plan at pickup:
-
-- Severity styling on sections: nominal phosphor, damaged orange, critical red
-  with a pulse, selected amber highlight (the PoC `.section` classes); the
-  section shows its integrity percentage inline.
-- Inspector parity: section name, integrity % + a meter bar, a status LINE in
-  words ("scored plating", "critical ammo feed"), and a resources block from
-  LIVE data (the PoC's KITS/TUBES/ORDNANCE maps to whatever the game actually
-  tracks - ammo per torpedo bay is live today).
-- Disabled actions explain WHY in a note line (the PoC `actionNote`: "ammo
-  feed is below tolerance...", "out of repair kits...") instead of only
-  greying out - this was one of the PoC's best UX details.
-- Number keys drive the action row (PoC 1/2/3) while the app owns input, so
-  the player never needs the mouse mid-flight; footer hints swap to the app's
-  set (plumbing in 20260726-214708).
-- Terminal parity: any action shipped in the app is ALSO a terminal command
-  (`reload`, later `repair <part>` - argument parsing lands in
-  20260726-214708), like the PoC where `repair thr` and the button do the
-  same thing through one code path.
-- Launch word: the PoC uses `ship view`; the runtime today is single-word ids
-  and the parser special-cases `ship viewer` as Unknown. Decide the real
-  launch word consciously (two-word support from 20260726-214708, or a
-  distinct single word) and remove the special-case.
+- Queued / over-time action execution while the drawer is closed.
+- Hull-stored resource model, action costs, combat lockout, "why disabled"
+  notes.
+- Ship inventory panel in the app.
 
 ## Notes
 
-- Depends on: `20260726-115334`.
-- Epic: `tasks/20260725-104330/TASK.md`.
-- Spike: `tasks/20260725-104330/SPIKE.md`.
-- Stretch. Cut before the core monitor/input/output/app-runtime tasks if v0.9.0
-  needs to tighten.
+- Depends on: `20260726-115334` (done), builds on the unified `TerminalCommand`
+  model (`20260727-231546`), the 3D `map` app (`20260724-102320`), and the
+  persistent layout (`20260728-085741`).
+- Epic: `tasks/20260725-104330/TASK.md`. Spike: same folder `SPIKE.md`.
+- Concrete build-shape forks fixed in `tasks/20260726-115339/DECISION.md`.
+- Stretch: cut before the core monitor/input/output/app-runtime tasks if
+  v0.9.0 needs to tighten.

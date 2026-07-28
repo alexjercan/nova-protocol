@@ -29,6 +29,7 @@ pub mod lock_dwell_ring;
 pub mod maneuver_instruments;
 pub mod nova_os;
 pub mod nova_os_map;
+pub mod nova_os_ship;
 pub mod objective_feedback;
 pub mod objective_hint;
 pub mod objective_markers;
@@ -48,10 +49,11 @@ pub mod prelude {
         flight_status::prelude::*, holo_instruments::prelude::*, item_highlights::prelude::*,
         keybind_hints::prelude::*, lock_crosshairs::prelude::*, lock_dwell_ring::prelude::*,
         maneuver_instruments::prelude::*, nova_os::NovaOsMonitorSettings, nova_os_map::prelude::*,
-        objective_feedback::prelude::*, objective_markers::prelude::*, readout::prelude::*,
-        screen_indicator::prelude::*, target_inset::prelude::*, torpedo_target::prelude::*,
-        turret_lead::prelude::*, velocity::prelude::*, HudNovaOsExempt, HudSelfDrivenVisibility,
-        HudTier, HudVisibility, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
+        nova_os_ship::prelude::*, objective_feedback::prelude::*, objective_markers::prelude::*,
+        readout::prelude::*, screen_indicator::prelude::*, target_inset::prelude::*,
+        torpedo_target::prelude::*, turret_lead::prelude::*, velocity::prelude::*, HudNovaOsExempt,
+        HudSelfDrivenVisibility, HudTier, HudVisibility, NovaHudAssets, NovaHudPlugin,
+        NovaHudSystems,
     };
 }
 
@@ -228,6 +230,11 @@ impl Plugin for NovaHudPlugin {
         // drives its schematic 3D scene, orbit camera, blips and GOTO. Added
         // AFTER NovaOsPlugin so the app registry it registers into exists.
         app.add_plugins(nova_os_map::NovaOsMapPlugin);
+        // The `ship` NOVA OS app (task 20260726-115339): registers the `ship` app
+        // + `view`/`section`/`reload`/`repair` verbs and drives the schematic 3D
+        // scene, orbit camera, blips and section actions. Added AFTER NovaOsPlugin
+        // so the command registry exists.
+        app.add_plugins(nova_os_ship::NovaOsShipPlugin);
         app.add_plugins(readout::HudReadoutPlugin);
         app.add_plugins(screen_indicator::ScreenIndicatorPlugin);
         app.add_plugins(torpedo_target::TorpedoTargetHudPlugin);

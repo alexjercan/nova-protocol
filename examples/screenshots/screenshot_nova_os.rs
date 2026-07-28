@@ -162,6 +162,16 @@ fn type_word(world: &mut World, word: &str) {
     }
 }
 
+/// Press Escape via the real `ButtonInput<KeyCode>` edge - in an app this returns
+/// to the prompt (the context-keyed Escape owner), so the script can move from one
+/// app to the next.
+#[cfg(feature = "debug")]
+fn press_escape(world: &mut World) {
+    if let Some(mut keys) = world.get_resource_mut::<ButtonInput<KeyCode>>() {
+        keys.press(KeyCode::Escape);
+    }
+}
+
 /// Press Enter to submit the current command line.
 #[cfg(feature = "debug")]
 fn press_enter(world: &mut World) {
@@ -207,14 +217,15 @@ fn nova_os_capture_script(world: &mut World, _elapsed: f32) {
             }
             state.wait = if capturing { 20 } else { 2 };
         }
-        // Run `help` then `ship` so command-output formatting is on screen.
+        // Run `help` then `ship view` so command-output formatting is on screen
+        // (bare `ship` now LAUNCHES the app; `ship view` is the CLI status print).
         2 => {
             type_word(world, "help");
             press_enter(world);
             state.wait = 6;
         }
         3 => {
-            type_word(world, "ship");
+            type_word(world, "ship view");
             press_enter(world);
             state.wait = 6;
         }
@@ -247,6 +258,26 @@ fn nova_os_capture_script(world: &mut World, _elapsed: f32) {
             if capturing {
                 capture_window(world, "nova-os-map.png");
                 info!("nova os capture: nova-os-map.png");
+            }
+            state.wait = if capturing { 20 } else { 2 };
+        }
+        // Leave the map app back to the prompt, then launch the `ship` app.
+        9 => {
+            press_escape(world);
+            type_word(world, "ship");
+            state.wait = 6;
+        }
+        // Launch the ship schematic app and let its RTT scene build/settle. This
+        // exercises the real render path (a wgsl/render panic would fail the run).
+        10 => {
+            press_enter(world);
+            state.wait = settle;
+        }
+        // Capture the ship app (green-phosphor section blocks + code blips).
+        11 => {
+            if capturing {
+                capture_window(world, "nova-os-ship.png");
+                info!("nova os capture: nova-os-ship.png");
             }
             state.wait = if capturing { 20 } else { 2 };
         }

@@ -29,8 +29,9 @@ pub mod prelude {
         terminal::{
             nova_os_boot_banner_rows, nova_os_version_label, nova_os_welcome_rows,
             prompt_after_cursor, prompt_before_cursor, prompt_completion_ghost,
-            prompt_hint_display, terminal_help_rows, NovaOsTerminal, TerminalCommandSnapshot,
-            TerminalMode, TerminalParseStatus, TerminalRow, TerminalRowKind, TerminalSubmitOutcome,
+            prompt_hint_display, terminal_help_rows, NovaOsCommandInvocation, NovaOsTerminal,
+            TerminalCommandSnapshot, TerminalMode, TerminalParseStatus, TerminalRow,
+            TerminalRowKind, TerminalSubmitOutcome,
         },
     };
 }

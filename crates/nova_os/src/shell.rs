@@ -16,10 +16,7 @@
 pub enum CommandArity {
     /// Takes no arguments.
     None,
-    /// Accepts `1..=max` argument words. No production command registers this
-    /// yet - the parser ships the capability, an app task consumes it - so it is
-    /// unused outside `#[cfg(test)]`.
-    #[allow(dead_code)]
+    /// Accepts `1..=max` argument words (e.g. `ship repair <id>` is `UpTo(1)`).
     UpTo(usize),
 }
 
@@ -60,7 +57,7 @@ pub enum CliOutput {
     /// Request the animated close of the computer.
     Exit,
     /// Extend the scrollback with the rows `nova_gameplay` placed in the snapshot
-    /// under this command's name (e.g. `log`, `ship`, `map view`).
+    /// under this command's name (e.g. `log`, `ship view`, `map view`).
     Snapshot,
 }
 
@@ -73,6 +70,14 @@ pub enum CommandDispatch {
     App,
     /// Print to the terminal (the CLI builtins and app subcommands like `map view`).
     Cli(CliOutput),
+    /// Hand the parsed invocation (name + argument words) to the gameplay layer,
+    /// which applies it against the live world and appends the result rows. The
+    /// pure terminal only records the invocation (it cannot reach the ECS itself)
+    /// - this is the seam the arg-bearing ship verbs (`ship section/reload/repair
+    /// <id>`) dispatch through, and the same seam a future queued/over-time,
+    /// resource-costed action model plugs into. See
+    /// [`crate::terminal::NovaOsTerminal::take_pending_invocation`].
+    Gameplay,
 }
 
 /// A command as the matcher and the pure terminal see it: the (possibly
@@ -129,10 +134,13 @@ pub(crate) fn command_meta(
 /// the two error variants mirror the PoC's `takes no arguments` / `command not
 /// found` paths.
 pub(crate) enum ResolvedCommand {
-    /// A resolved, arity-valid command: dispatch it by `dispatch`.
+    /// A resolved, arity-valid command: dispatch it by `dispatch`. `args` holds
+    /// the trailing argument words past the (possibly multi-word) command name -
+    /// empty for the no-arg commands, the `<id>` for an arg-bearing gameplay verb.
     Run {
         name: &'static str,
         dispatch: CommandDispatch,
+        args: Vec<String>,
     },
     /// `<command> help` (or `-h`/`--help`): show that command's own usage.
     Usage { name: &'static str },
@@ -215,6 +223,10 @@ pub(crate) fn resolve_command(
     ResolvedCommand::Run {
         name: spec.name,
         dispatch: spec.dispatch,
+        args: words[name_words..]
+            .iter()
+            .map(|word| word.to_string())
+            .collect(),
     }
 }
 
@@ -278,26 +290,10 @@ mod tests {
             .collect();
         assert_eq!(
             registered,
-            vec![
-                "help",
-                "log",
-                "objectives",
-                "ship",
-                "clear",
-                "version",
-                "exit"
-            ]
+            vec!["help", "log", "objectives", "clear", "version", "exit"]
         );
 
-        for name in [
-            "help",
-            "clear",
-            "log",
-            "objectives",
-            "ship",
-            "version",
-            "exit",
-        ] {
+        for name in ["help", "clear", "log", "objectives", "version", "exit"] {
             assert!(
                 matches!(
                     resolve_command(name, &core_command_specs()),
@@ -306,9 +302,9 @@ mod tests {
                 "{name} resolves to its core command",
             );
         }
-        // `map`, `map view`, `reload`, `repair` are unknown until their own command
-        // trees are registered.
-        for planned in ["map", "map view", "reload", "repair"] {
+        // `ship`/`ship view`, `map`/`map view` are unknown until their own app
+        // command trees are registered by the owning gameplay plugin.
+        for planned in ["map", "map view", "ship", "ship view"] {
             assert!(
                 matches!(
                     resolve_command(planned, &core_command_specs()),
@@ -328,21 +324,23 @@ mod tests {
             resolve_command("map", &specs),
             ResolvedCommand::Run {
                 name: "map",
-                dispatch: CommandDispatch::App
+                dispatch: CommandDispatch::App,
+                ..
             }
         ));
         assert!(matches!(
             resolve_command("map view", &specs),
             ResolvedCommand::Run {
                 name: "map view",
-                dispatch: CommandDispatch::Cli(CliOutput::Snapshot)
+                dispatch: CommandDispatch::Cli(CliOutput::Snapshot),
+                ..
             }
         ));
         // `<command> help` shows a command's own usage, for an app or a CLI
         // command, ahead of the arity check.
         assert!(matches!(
-            resolve_command("ship help", &specs),
-            ResolvedCommand::Usage { name: "ship" }
+            resolve_command("log help", &specs),
+            ResolvedCommand::Usage { name: "log" }
         ));
         assert!(matches!(
             resolve_command("map -h", &specs),
@@ -355,11 +353,11 @@ mod tests {
             ResolvedCommand::UnexpectedArguments { command, .. } if command == "map"
         ));
         assert_eq!(subcommands_of("map", &specs), vec!["map view"]);
-        // `ship viewer` is not a registered command: it is the `ship` command with
-        // an unexpected argument.
+        // `ship` left the core builtins to become a gameplay-registered app tree
+        // (like `map`), so it is Unknown against the bare core set.
         assert!(matches!(
-            resolve_command("ship viewer", &core_command_specs()),
-            ResolvedCommand::UnexpectedArguments { command, .. } if command == "ship"
+            resolve_command("ship", &core_command_specs()),
+            ResolvedCommand::Unknown { command, .. } if command == "ship"
         ));
     }
 
@@ -400,7 +398,7 @@ mod tests {
                 name: "repair",
                 summary: "",
                 arity: CommandArity::UpTo(1),
-                dispatch: CommandDispatch::App,
+                dispatch: CommandDispatch::Gameplay,
             },
             TerminalCommandSpec {
                 name: "help",
@@ -424,10 +422,15 @@ mod tests {
             resolve_command("ship", &specs),
             ResolvedCommand::Run { name: "ship", .. }
         ));
-        // An argument-taking command accepts its argument...
+        // An argument-taking command accepts its argument and CARRIES it out to
+        // the gameplay layer (the arg words past the command name).
         assert!(matches!(
             resolve_command("repair thruster", &specs),
-            ResolvedCommand::Run { name: "repair", .. }
+            ResolvedCommand::Run {
+                name: "repair",
+                dispatch: CommandDispatch::Gameplay,
+                args,
+            } if args == ["thruster"]
         ));
         // ...and rejects more than its arity.
         assert!(matches!(

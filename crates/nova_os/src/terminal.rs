@@ -57,6 +57,30 @@ pub struct NovaOsTerminal {
     cycle_stem: Option<String>,
     /// The current index into the match list for the active [`Self::cycle_stem`].
     cycle_index: usize,
+    /// An arg-bearing gameplay command ([`CommandDispatch::Gameplay`]) that
+    /// [`Self::submit`] resolved and is waiting for the gameplay layer to apply.
+    /// `nova_gameplay` drains it with [`Self::take_pending_invocation`], runs the
+    /// action against the live world, and appends the result rows. `None` except
+    /// in the frame a `ship section/reload/repair <id>` line was submitted.
+    pending_invocation: Option<NovaOsCommandInvocation>,
+    /// Completion candidates for the argument of an arg-bearing command, keyed by
+    /// command name (`"ship repair" -> ["HULL-1", "PDC-1", ...]`). The pure
+    /// terminal cannot enumerate live section codes, so `nova_gameplay` injects
+    /// them via [`Self::set_arg_completions`]; Tab and the ghost read them.
+    arg_completions: HashMap<&'static str, Vec<String>>,
+}
+
+/// A resolved arg-bearing gameplay command awaiting application by the gameplay
+/// layer: the matched (possibly multi-word) command name and the argument words
+/// the player typed after it. Produced by [`NovaOsTerminal::submit`] for a
+/// [`CommandDispatch::Gameplay`] command and drained with
+/// [`NovaOsTerminal::take_pending_invocation`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NovaOsCommandInvocation {
+    /// The resolved command name (`"ship reload"`, `"ship section"`).
+    pub name: &'static str,
+    /// The argument words past the command name (the `<id>`).
+    pub args: Vec<String>,
 }
 
 /// One rendered line of terminal scrollback: its semantic kind (which drives the
@@ -121,13 +145,13 @@ pub enum TerminalMode {
 
 /// Live game data resolved into terminal rows, passed into
 /// [`NovaOsTerminal::submit`] so the pure model can serve the snapshot-backed CLI
-/// commands (`log`/`objectives`/`ship`/`map view`/`clear`) without reaching into
+/// commands (`log`/`objectives`/`ship view`/`map view`/`clear`) without reaching into
 /// the bevy world itself. `nova_gameplay` builds this each submit from the flight
 /// log, objectives, ship state and contact model.
 #[derive(Debug, Clone, Default)]
 pub struct TerminalCommandSnapshot {
     /// Pre-built output rows keyed by command name, for every
-    /// [`CliOutput::Snapshot`] command (`"log"`, `"objectives"`, `"ship"`,
+    /// [`CliOutput::Snapshot`] command (`"log"`, `"objectives"`, `"ship view"`,
     /// `"map view"`). A command with no entry prints nothing.
     pub command_output: HashMap<&'static str, Vec<TerminalRow>>,
     /// Flight-log entries appended since the NOVA OS last closed, for the boot
@@ -172,6 +196,8 @@ impl Default for NovaOsTerminal {
             seen_events: 0,
             cycle_stem: None,
             cycle_index: 0,
+            pending_invocation: None,
+            arg_completions: HashMap::new(),
         };
         terminal.refresh_parse();
         terminal
@@ -227,6 +253,30 @@ impl NovaOsTerminal {
     pub fn set_commands(&mut self, commands: Vec<TerminalCommandSpec>) {
         self.commands = commands;
         self.refresh_parse();
+    }
+
+    /// The argument-completion candidates currently injected by the gameplay
+    /// layer, keyed by command name. The caller compares against this before
+    /// calling [`Self::set_arg_completions`] so it only marks the resource
+    /// changed when the live set actually changed.
+    pub fn arg_completions(&self) -> &HashMap<&'static str, Vec<String>> {
+        &self.arg_completions
+    }
+
+    /// Replace the argument-completion candidates (live section codes for the
+    /// ship verbs). The pure terminal has no way to enumerate them, so the
+    /// gameplay layer feeds them in for Tab completion and the inline ghost.
+    pub fn set_arg_completions(&mut self, completions: HashMap<&'static str, Vec<String>>) {
+        self.arg_completions = completions;
+        self.refresh_parse();
+    }
+
+    /// Take the arg-bearing gameplay invocation queued by the last
+    /// [`Self::submit`], if any. `nova_gameplay` calls this right after submit,
+    /// applies the action against the live world, and appends the result rows via
+    /// [`Self::extend_scrollback`].
+    pub fn take_pending_invocation(&mut self) -> Option<NovaOsCommandInvocation> {
+        self.pending_invocation.take()
     }
 
     /// Whether the `exit` command has requested an animated close, clearing the
@@ -367,6 +417,7 @@ impl NovaOsTerminal {
             ResolvedCommand::Run {
                 name,
                 dispatch: CommandDispatch::App,
+                ..
             } => {
                 self.scrollback.push(TerminalRow {
                     kind: TerminalRowKind::Info,
@@ -377,7 +428,19 @@ impl NovaOsTerminal {
             }
             ResolvedCommand::Run {
                 name,
+                dispatch: CommandDispatch::Gameplay,
+                args,
+            } => {
+                // The pure terminal cannot reach the ECS: record the invocation
+                // and let `nova_gameplay` apply it and append the result rows. The
+                // echo row is already printed, so the result reads under it.
+                self.pending_invocation = Some(NovaOsCommandInvocation { name, args });
+                TerminalSubmitOutcome::Ran
+            }
+            ResolvedCommand::Run {
+                name,
                 dispatch: CommandDispatch::Cli(output),
+                ..
             } => {
                 match output {
                     CliOutput::Help => self.scrollback.extend(terminal_help_rows(&self.commands)),
@@ -506,6 +569,21 @@ impl NovaOsTerminal {
                 let candidate = format!("{name} {verb}");
                 if candidate.starts_with(stem) {
                     matches.push(candidate);
+                }
+            }
+        }
+        // Injected argument candidates for the arg-bearing gameplay verbs: once
+        // the player is past the command name (`ship repair <partial>`), offer the
+        // live section codes whose start matches the partial (case-insensitive, so
+        // `hu` -> `HULL-3`).
+        for (name, candidates) in &self.arg_completions {
+            let Some(partial) = stem.strip_prefix(&format!("{name} ")) else {
+                continue;
+            };
+            let partial_lower = partial.to_ascii_lowercase();
+            for candidate in candidates {
+                if candidate.to_ascii_lowercase().starts_with(&partial_lower) {
+                    matches.push(format!("{name} {candidate}"));
                 }
             }
         }
@@ -883,6 +961,17 @@ mod tests {
         }
     }
 
+    /// An arg-bearing gameplay command spec named `name` taking one argument (an
+    /// arg-bearing ship verb like `ship repair`).
+    fn gameplay_spec(name: &'static str) -> TerminalCommandSpec {
+        TerminalCommandSpec {
+            name,
+            summary: "",
+            arity: CommandArity::UpTo(1),
+            dispatch: CommandDispatch::Gameplay,
+        }
+    }
+
     /// The core command set plus `extra`, as the terminal would see it once an app
     /// registered its tree.
     fn core_with(extra: impl IntoIterator<Item = TerminalCommandSpec>) -> Vec<TerminalCommandSpec> {
@@ -958,10 +1047,6 @@ mod tests {
                 },
                 TerminalRow {
                     kind: TerminalRowKind::Output,
-                    text: "  ship        Print ship status summary".to_string()
-                },
-                TerminalRow {
-                    kind: TerminalRowKind::Output,
                     text: "  clear       Clear terminal scrollback".to_string()
                 },
                 TerminalRow {
@@ -1009,7 +1094,6 @@ mod tests {
                 "help",
                 "log",
                 "objectives",
-                "ship",
                 "clear",
                 "version",
                 "exit",
@@ -1108,15 +1192,7 @@ mod tests {
             .collect();
         assert_eq!(
             listed,
-            vec![
-                "help",
-                "log",
-                "objectives",
-                "ship",
-                "clear",
-                "version",
-                "exit"
-            ]
+            vec!["help", "log", "objectives", "clear", "version", "exit"]
         );
     }
     #[test]
@@ -1212,14 +1288,83 @@ mod tests {
             "map version prints the NOVA OS version",
         );
     }
+    /// An arg-bearing gameplay verb (`ship repair <id>`) does not print in the
+    /// pure terminal: it queues an invocation carrying the parsed argument for the
+    /// gameplay layer to apply. The echo row is still printed above it.
+    #[test]
+    fn nova_os_gameplay_verb_queues_invocation_with_args() {
+        let mut terminal = NovaOsTerminal::default();
+        terminal.set_commands(core_with([
+            app_spec("ship", ""),
+            gameplay_spec("ship repair"),
+        ]));
+
+        type_text(&mut terminal, "ship repair HULL-3");
+        let outcome = terminal.submit(&TerminalCommandSnapshot::default());
+        assert_eq!(outcome, TerminalSubmitOutcome::Ran);
+
+        let invocation = terminal
+            .take_pending_invocation()
+            .expect("an arg-bearing gameplay verb queues an invocation");
+        assert_eq!(invocation.name, "ship repair");
+        assert_eq!(invocation.args, vec!["HULL-3".to_string()]);
+        // Draining it once empties the queue.
+        assert!(terminal.take_pending_invocation().is_none());
+        // The echoed command line is in the scrollback (the result rows are the
+        // gameplay layer's to append).
+        assert!(terminal
+            .scrollback
+            .iter()
+            .any(|row| row.text == "nova> ship repair HULL-3"));
+    }
+
+    /// Tab completion of an arg-bearing verb's argument expands the injected live
+    /// section codes, case-insensitively.
+    #[test]
+    fn nova_os_arg_completion_expands_injected_codes() {
+        let mut terminal = NovaOsTerminal::default();
+        terminal.set_commands(core_with([
+            app_spec("ship", ""),
+            gameplay_spec("ship repair"),
+        ]));
+        let mut completions = HashMap::new();
+        completions.insert(
+            "ship repair",
+            vec![
+                "HULL-1".to_string(),
+                "HULL-3".to_string(),
+                "PDC-1".to_string(),
+            ],
+        );
+        terminal.set_arg_completions(completions);
+
+        // A lowercase partial completes to the canonical code.
+        type_text(&mut terminal, "ship repair pd");
+        assert!(terminal.complete(), "Tab expands an injected section code");
+        assert_eq!(terminal.prompt, "ship repair PDC-1");
+
+        // An ambiguous partial lists its matches and jumps to the first.
+        terminal.reset_prompt();
+        type_text(&mut terminal, "ship repair hu");
+        assert!(terminal.complete());
+        assert!(
+            terminal.prompt.starts_with("ship repair HULL-"),
+            "completed to a HULL code: {}",
+            terminal.prompt,
+        );
+    }
+
     /// Tab lists ambiguous matches on the first press and cycles through them on
     /// repeats, resetting the cycle on any edit.
     #[test]
     fn nova_os_tab_cycles_ambiguous_completions() {
         let mut terminal = NovaOsTerminal::default();
-        // Two app words sharing the `sh` stem with the `ship` built-in make the
-        // stem ambiguous (three matches).
-        terminal.set_commands(core_with([app_spec("shield", ""), app_spec("shells", "")]));
+        // Three app words sharing the `sh` stem make the stem ambiguous.
+        terminal.set_commands(core_with([
+            app_spec("ship", ""),
+            app_spec("shield", ""),
+            app_spec("shells", ""),
+        ]));
         terminal.insert_text("sh");
 
         // First Tab lists the matches and jumps to the first.

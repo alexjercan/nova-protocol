@@ -26,6 +26,11 @@ pub enum CommandBody {
     /// An app command: running it hands the screen to this runtime, whose id is
     /// the command's name.
     App(Box<dyn NovaOsAppRuntime>),
+    /// A command handled by the gameplay layer: the terminal records the parsed
+    /// invocation and the gameplay layer applies it against the live world and
+    /// appends the result rows (`ship section/reload/repair <id>`). See
+    /// [`CommandDispatch::Gameplay`].
+    Gameplay,
 }
 
 impl CommandBody {
@@ -34,6 +39,7 @@ impl CommandBody {
         match self {
             CommandBody::Cli(output) => CommandDispatch::Cli(*output),
             CommandBody::App(_) => CommandDispatch::App,
+            CommandBody::Gameplay => CommandDispatch::Gameplay,
         }
     }
 }
@@ -76,6 +82,19 @@ impl TerminalCommand {
             summary,
             arity: CommandArity::None,
             body: CommandBody::App(Box::new(runtime)),
+            subcommands: Vec::new(),
+        }
+    }
+
+    /// A gameplay-handled command taking `arity` argument words with no
+    /// subcommands. The gameplay layer receives the parsed args and appends the
+    /// result rows (`ship reload <id>`); use it for the arg-bearing ship verbs.
+    pub fn gameplay(name: &'static str, summary: &'static str, arity: CommandArity) -> Self {
+        Self {
+            name,
+            summary,
+            arity,
+            body: CommandBody::Gameplay,
             subcommands: Vec::new(),
         }
     }
@@ -133,7 +152,6 @@ pub fn core_terminal_commands() -> Vec<TerminalCommand> {
         TerminalCommand::cli("help", "Show this command list", CliOutput::Help),
         TerminalCommand::cli("log", "Print comms and mission events", CliOutput::Snapshot),
         TerminalCommand::cli("objectives", "Print active objectives", CliOutput::Snapshot),
-        TerminalCommand::cli("ship", "Print ship status summary", CliOutput::Snapshot),
         TerminalCommand::cli("clear", "Clear terminal scrollback", CliOutput::Clear),
         TerminalCommand::cli("version", "Print the NOVA OS version", CliOutput::Version),
         TerminalCommand::cli("exit", "Suspend the NOVA OS computer", CliOutput::Exit),
@@ -252,7 +270,6 @@ mod tests {
                 "help",
                 "log",
                 "objectives",
-                "ship",
                 "clear",
                 "version",
                 "exit",
