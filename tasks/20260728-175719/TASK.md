@@ -71,7 +71,10 @@ before Bevy work starts.
 
 ## Child Tasks
 
-- [ ] 20260728-175726 (p44) Spike: HTML demos - menu widget language + contextual HUD behavior
+- [x] 20260728-175726 (p44) Spike: HTML demos - menu widget language + contextual HUD behavior
+      landed cc5be9bd; 1 review round (APPROVE, out-of-context); owner accepted both
+      PoCs. Directions in tasks/20260728-175726/SPIKE.md + DECISION.md (D1-D6);
+      children 175734/38/42/47 refined; follow-ups 185730 (web egg), 214929 (glyphs).
 - [ ] 20260728-175731 (p42) Units: display 1 u = 10 m everywhere (m/km, m/s)
 - [ ] 20260728-175734 (p40) nova_ui theme + widgets: NOVA OS palette + light-3D treatment
 - [ ] 20260728-175738 (p38) Menus + editor adopt the reworked widget language
@@ -95,7 +98,9 @@ that point instead of shipping shims.
 
 ## Manual Acceptance
 
-- (pending) owner reviews both HTML demos in a browser and accepts directions.
+- (done 2026-07-28) owner reviewed both HTML demos and accepted the directions
+  (spike 20260728-175726; phosphor-primary CLI widgets, corner menu, contextual
+  HUD ruleset, icon dock, On/Cinematic, 1u=10m).
 - (pending) owner eyeballs every restyled screen (menus, editor, HUD) in game.
 - (pending) owner playtest verdict on text density + contextual HUD feel.
 
