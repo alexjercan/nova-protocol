@@ -111,12 +111,15 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   bin). A leaf tool that is not a game dependency is ALREADY skipped by bare
   builds, so the key buys nothing and only adds an allowlist footgun - do not add
   it. 20260721-151934.
-- `validate-proof-command-shape-at-plan-time` (x2): a `cmd:` proof is unrun until
-  verify, so a malformed OR wrong-target one is a silent gate - at verify confirm
-  it runs the INTENDED tests: right arity/flags AND a NON-ZERO count of the named
-  tests (read "N passed", not just "ok"). `cargo test <a> <b>` rejects the 2nd
-  filter (use `-- <a> <b>`); a copied `-p nova_gameplay drawer` filter matched 0
-  tests ("685 filtered out") yet still reported ok. 20260726-115334, 20260727-135208.
+- `validate-proof-command-shape-at-plan-time` (x3 -> Pending promotions, work
+  skill): a `cmd:` proof is unrun until verify, so a malformed OR wrong-target
+  one is a silent gate - at verify confirm it runs the INTENDED tests: right
+  arity/flags AND a NON-ZERO count of the named tests (read "N passed" PER
+  intended module, not just "ok"). `cargo test <a> <b>` rejects the 2nd filter
+  (use `-- <a> <b>`); a copied `-p nova_gameplay drawer` filter matched 0 tests
+  ("685 filtered out") yet reported ok; `-- f1 f2 ... f8` with many positional
+  filters silently ran only SOME modules (grep each module in the output,
+  re-run any absent one alone). 20260726-115334, 20260727-135208, 20260728-175731.
 - `inseparable-seeded-tasks-remerge` (x1, PROMOTED 2026-07-19 -> flow skill):
   when seeded tasks prove architecturally inseparable, surface the re-cut and
   merge them instead of building shims. 20260717-215742.
@@ -141,6 +144,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   current ECS state needs at least one App-driven submit test that mutates the
   source resource/component and proves the next command reflects it; formatting
   a prebuilt snapshot only proves the renderer. 20260726-115330.
+- `display-threshold-switches-on-rounded-value` (x1): a value-display helper
+  with a unit/format switch (m -> km) must compare the ROUNDED number the
+  player sees, not the raw pre-format value, or rounding prints the very
+  string the switch avoids (`metres < 1000` let 999.6 m round to a four-digit
+  `1000 m`; `metres.round() < 1000` fixes it). Add a boundary test that the
+  switch never emits the other branch's string. 20260728-175731.
 - `test-fixture-distances-computed-not-eyeballed` (x1): fixtures for
   distance-based (Levenshtein/did-you-mean) or prefix-based (longest-match/
   completion) logic must pick the collision/typo case by COMPUTING it against the
@@ -202,10 +211,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `git-mv-leaves-empty-parent` (x1): `git mv` out of a dir leaves the emptied
   dir on disk and filesystem-walking tools trip on it; `rm -rf` the old dir
   after a relocation. 20260716-215513.
-- `tatr-new-then-sprout-strands-the-task-file` (x3, PROMOTED 2026-07-19 ->
-  tatr + flow skills): sprout first and run `tatr new` inside the worktree;
-  carry-and-clean a stub unavoidably born in the main checkout.
-  20260717-101414, 20260718-181305, 20260726-230237.
+- `tatr-new-then-sprout-strands-the-task-file` (x4, PROMOTED 2026-07-19 ->
+  tatr + flow skills): sprout first, then create OR edit the task file inside
+  the worktree; a stub `tatr new`d - or an existing task's Flow State /
+  PLANNED markers written at the gate - in the main checkout is orphaned by
+  the next sprout (branch cut from committed master). Carry-and-clean the
+  main-checkout edit onto the branch. 20260717-101414, 20260718-181305, 20260726-230237, 20260728-175731.
 - `flow-land-scope-when-user-says-branch` (x1, PROMOTED 2026-07-19 -> flow
   skill): when the ask mentions a branch AND /flow, confirm land-to-master vs
   stop-at-branch at the START. 20260718-181305.
@@ -1220,6 +1231,14 @@ here (annotated) as the paid record.
   unit-tested on the renderer with a synthetic spec; the reviewer had to point at
   the un-exercised `ship <section>` registration wiring.
   20260726-115339, 20260728-115430, 20260728-184502.
+- `validate-proof-command-shape-at-plan-time` (x3) -> work skill: at verify,
+  confirm a `cmd:`/test proof runs the INTENDED tests - right arity/flags AND a
+  NON-ZERO "N passed" PER named module, not a bare "ok". Failure modes seen:
+  `cargo test <a> <b>` rejects the 2nd filter; `-p <crate> <name>` matched 0
+  ("685 filtered out") yet reported ok; `-- f1 f2 ... f8` with many positional
+  filters silently ran only some modules. Prose target (verify step): "grep
+  each intended module/test name in the output; re-run any absent one alone".
+  20260726-115334, 20260727-135208, 20260728-175731.
 - `match-ci-feature-set-in-targeted-tests` (x3) -> work skill: a workspace
   `cargo check --all-targets` does not enable a crate's self dev-dep `serde`
   feature, so it silently skips serde-gated targets (a false green). Prose

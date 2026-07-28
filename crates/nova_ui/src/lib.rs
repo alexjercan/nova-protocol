@@ -2,21 +2,24 @@
 //!
 //! One source of truth for the in-game UI look (menu, editor, HUD chrome),
 //! mirroring the web app's palette. `theme` holds the palette + metrics;
-//! `widget` holds the themed button + selection machinery and small layout
-//! helpers. Palette/metrics only - real web fonts are a separate concern.
+//! `units` holds the player-facing distance/speed formatting policy; `widget`
+//! holds the themed button + selection machinery and small layout helpers.
+//! Palette/metrics only - real web fonts are a separate concern.
 
 #![warn(missing_docs)]
 
 pub mod theme;
+pub mod units;
 pub mod widget;
 
-/// Glob-import surface: `use nova_ui::prelude::*` brings the [`theme`] palette and
-/// the themed-button widgets ([`themed_button`](widget::themed_button),
+/// Glob-import surface: `use nova_ui::prelude::*` brings the [`theme`] palette,
+/// the [`units`] formatters and the themed-button widgets
+/// ([`themed_button`](widget::themed_button),
 /// [`ThemedButton`](widget::ThemedButton), [`Selected`](widget::Selected), ...)
 /// into scope.
 pub mod prelude {
     pub use crate::{
-        theme,
+        theme, units,
         widget::{
             button_on_setting, panel_header, register, separator, themed_button, ButtonValue,
             Selected, ThemedButton,

@@ -233,7 +233,7 @@ fn drive_speed_chip(
                 // Re-assert the anchor so a transient query miss cannot
                 // leave the chip dark while its text keeps updating.
                 **anchor = Some(ScreenIndicatorAnchorKind::Entity(**ship));
-                **text = format!("{:5.1} u/s", velocity.length());
+                **text = nova_ui::units::speed(velocity.length());
             }
             Err(_) => {
                 **anchor = None;
@@ -329,7 +329,10 @@ mod tests {
         );
 
         world.run_system_once(drive_speed_chip).unwrap();
-        assert_eq!(text_of(&world, speed), "  5.0 u/s");
+        // Ship velocity (3,0,4) has length 5.0 world u/s; at 1 u = 10 m the
+        // live chip must read 50.0 m/s (would fail if the system no-opped or
+        // skipped the x10 unit conversion).
+        assert_eq!(text_of(&world, speed), "50.0 m/s");
 
         // The ship dies a frame before the HUD observer sweeps the layer.
         world.despawn(ship);

@@ -362,7 +362,7 @@ fn update_edge_labels(
                 .get(**target)
                 .map(|transform| {
                     let distance = transform.translation().distance(player.translation());
-                    format!("{distance:.0}m")
+                    nova_ui::units::distance(distance)
                 })
                 .unwrap_or_default();
             if **text != next {
@@ -574,7 +574,8 @@ mod tests {
             *world.entity(label).get::<Visibility>().unwrap(),
             Visibility::Inherited
         );
-        assert_eq!(world.entity(label).get::<Text>().unwrap().0, "500m");
+        // 500 world units = 5000 m -> 5.00 km displayed.
+        assert_eq!(world.entity(label).get::<Text>().unwrap().0, "5.00 km");
 
         // The target moves: the text follows (the value is live, not a
         // spawn-time snapshot).
@@ -584,7 +585,8 @@ mod tests {
                 0.0, 0.0, -2400.0,
             )));
         world.run_system_once(update_edge_labels).unwrap();
-        assert_eq!(world.entity(label).get::<Text>().unwrap().0, "2400m");
+        // 2400 world units = 24000 m -> 24.00 km displayed.
+        assert_eq!(world.entity(label).get::<Text>().unwrap().0, "24.00 km");
 
         // Back on-screen: the widget hides the arrow, the label follows.
         *world.entity_mut(arrow).get_mut::<Visibility>().unwrap() = Visibility::Hidden;

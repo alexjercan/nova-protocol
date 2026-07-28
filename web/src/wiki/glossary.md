@@ -4,13 +4,13 @@ Short definitions for the terms and units that recur across the wiki.
 
 ## Units
 
-- **u** - the distance unit. All ranges and radii are in units, e.g. a standoff of about 50 u.
-- **u/s** - the speed unit, units per second. The speed chip beside the velocity sphere reads in `u/s`.
+- **m / km** - the distance units. Ranges and radii read in metres below a kilometre (e.g. a standoff of about 500 m) and in kilometres above it (e.g. `1.24 km`). Every distance readout on the HUD and in the NOVA OS map uses them.
+- **m/s** - the speed unit, metres per second. The speed chip beside the velocity sphere reads in `m/s`, and a target's closing speed reads as a signed `m/s`.
 
 ## Terms
 
 - **Prograde / retrograde** - prograde is the direction you are moving; retrograde is the opposite. STOP flips you to retrograde and burns to kill your speed.
-- **Standoff** - the resting distance GOTO stops at, just off a target (about 50 u plus the target's radius, measured from the surface) rather than ramming it.
+- **Standoff** - the resting distance GOTO stops at, just off a target (about 500 m plus the target's radius, measured from the surface) rather than ramming it.
 - **Sphere of influence** - the reach of a [gravity well](../gravity-wells/), about eight times the body's radius. Outside it the well does not pull on you; only the dominant well inside it matters.
 - **Hysteresis** - a bit of stickiness that stops a state from flickering at its edge. A lock, a fine-lock section, and the dominant well all hold a little past their switch point so they do not chatter.
 - **Fine-lock** - drilling a combat lock into one specific [section](../sections/) of an enemy hull, so turrets and the viewfinder focus that part.

@@ -83,9 +83,10 @@ pub struct TorpedoTargetReadoutMarker;
 /// gymnastics.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Reflect)]
 pub enum TorpedoTargetReadoutLine {
-    /// `DST {:5.0}m` - range to the locked target.
+    /// `DST <range>` - range to the locked target (m below 1 km, km above).
     Distance,
-    /// `CLS {:+5.1} u/s` - closing speed, positive when approaching.
+    /// `CLS <closing>` - signed closing speed in m/s, positive when
+    /// approaching.
     ClosingSpeed,
 }
 
@@ -280,17 +281,18 @@ fn closing_speed(
     Some(-(target_vel - ship_vel).dot(los_dir))
 }
 
-/// The `DST` line, formatted like the flight-status distances (`{:5.0}m`).
+/// The `DST` line, using the shared player-facing distance policy (metres
+/// below 1 km, kilometres above; 1 world unit = 10 m).
 fn distance_line(distance: f32) -> String {
-    format!("DST {distance:5.0}m")
+    format!("DST {}", nova_ui::units::distance(distance))
 }
 
-/// The `CLS` line, formatted like the flight-status speeds (`{:5.1} u/s`),
-/// with an explicit sign: positive closing, negative opening. `None` (no
-/// velocity data on either body) renders a placeholder.
+/// The `CLS` line, using the shared closing-speed policy (signed m/s, 1 world
+/// unit/s = 10 m/s), with an explicit sign: positive closing, negative
+/// opening. `None` (no velocity data on either body) renders a placeholder.
 fn closing_line(closing: Option<f32>) -> String {
     match closing {
-        Some(closing) => format!("CLS {closing:+5.1} u/s"),
+        Some(closing) => format!("CLS {}", nova_ui::units::closing_speed(closing)),
         None => "CLS   ---".to_string(),
     }
 }
@@ -536,11 +538,12 @@ mod tests {
     }
 
     #[test]
-    fn readout_lines_format_like_the_flight_status() {
-        assert_eq!(distance_line(150.4), "DST   150m");
-        assert_eq!(distance_line(1234.6), "DST  1235m");
-        assert_eq!(closing_line(Some(12.34)), "CLS +12.3 u/s");
-        assert_eq!(closing_line(Some(-3.21)), "CLS  -3.2 u/s");
+    fn readout_lines_use_the_shared_unit_policy() {
+        // 1 u = 10 m: 150.4 u = 1504 m -> km; 1234.6 u = 12346 m -> km.
+        assert_eq!(distance_line(150.4), "DST 1.50 km");
+        assert_eq!(distance_line(1234.6), "DST 12.35 km");
+        assert_eq!(closing_line(Some(12.34)), "CLS +123.4 m/s");
+        assert_eq!(closing_line(Some(-3.21)), "CLS -32.1 m/s");
         assert_eq!(closing_line(None), "CLS   ---");
     }
 
@@ -581,7 +584,8 @@ mod tests {
     fn readout_fills_from_the_locked_target() {
         let mut world = World::new();
         let player = spawn_readout_world(&mut world);
-        // 150 m dead ahead, flying toward the ship at 20 u/s, half health.
+        // 150 world units dead ahead (1.50 km displayed), flying toward the
+        // ship at 20 u/s (200.0 m/s closing), half health.
         let target = world
             .spawn((
                 GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -150.0)),
@@ -598,11 +602,11 @@ mod tests {
 
         assert_eq!(
             line_text(&mut world, TorpedoTargetReadoutLine::Distance),
-            "DST   150m"
+            "DST 1.50 km"
         );
         assert_eq!(
             line_text(&mut world, TorpedoTargetReadoutLine::ClosingSpeed),
-            "CLS +20.0 u/s"
+            "CLS +200.0 m/s"
         );
         let bar_visibility = *world
             .query_filtered::<&Visibility, With<TorpedoTargetHealthBarMarker>>()
@@ -623,6 +627,7 @@ mod tests {
         let mut world = World::new();
         let player = spawn_readout_world(&mut world);
         // A bare drifting body: transform only, no velocity, no health.
+        // 80 world units = 800 m, still below the 1 km threshold.
         let target = world
             .spawn(GlobalTransform::from_translation(Vec3::new(
                 0.0, 0.0, -80.0,
@@ -634,7 +639,7 @@ mod tests {
 
         assert_eq!(
             line_text(&mut world, TorpedoTargetReadoutLine::Distance),
-            "DST    80m"
+            "DST 800 m"
         );
         assert_eq!(
             line_text(&mut world, TorpedoTargetReadoutLine::ClosingSpeed),

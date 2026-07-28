@@ -29,7 +29,7 @@ A well accelerates you toward its center by an inverse-square law, `a = mu / r^2
 
 ## Sphere of influence
 
-Each well reaches out to a sphere of influence about eight times the body's radius - a 20 u rock pulls out to roughly 160 u. Outside it, the well does not exist as far as your ship is concerned.
+Each well reaches out to a sphere of influence about eight times the body's radius - a 200 m rock pulls out to roughly 1.6 km. Outside it, the well does not exist as far as your ship is concerned.
 
 ## The dominant well
 

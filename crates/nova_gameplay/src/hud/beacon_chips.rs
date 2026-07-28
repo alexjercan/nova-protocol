@@ -19,8 +19,9 @@ pub mod prelude {
     };
 }
 
-/// Chip footprint (px). Wide enough for "BEACON 1 1234m" on one line.
-const CHIP_SIZE: Vec2 = Vec2::new(140.0, 16.0);
+/// Chip footprint (px). Wide enough for "BEACON 1  12.34 km" (18 chars at
+/// ~9 px/char) on one line - the label is `NoWrap`, so it must fit or clip.
+const CHIP_SIZE: Vec2 = Vec2::new(168.0, 16.0);
 
 /// The chip floats above the beacon so the label never sits on the mesh.
 const CHIP_OFFSET: Vec2 = Vec2::new(0.0, -28.0);
@@ -188,7 +189,7 @@ fn remove_beacon_chip(
 }
 
 /// Label text: the beacon's name plus the live distance to the player ship
-/// ("BEACON 1  420m"). Without a player (menu ambience, death gap) the
+/// ("BEACON 1  4.20 km"). Without a player (menu ambience, death gap) the
 /// label alone shows - the chip is still a valid waypoint tag.
 fn update_beacon_chip_labels(
     q_chips: Query<&BeaconChipTargetEntity, With<BeaconChipHudMarker>>,
@@ -209,7 +210,7 @@ fn update_beacon_chip_labels(
                 let distance = player_transform
                     .translation()
                     .distance(beacon_transform.translation());
-                format!("{}  {:.0}m", **label, distance)
+                format!("{}  {}", **label, nova_ui::units::distance(distance))
             }
             None => (**label).clone(),
         };

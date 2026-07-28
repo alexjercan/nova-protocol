@@ -223,7 +223,7 @@ fn drive_destination_readout(
                 // shows the velocity, and two speed readouts in one glance
                 // was playtest-flagged redundancy (task 20260711-125226,
                 // same call as the orbit ring chip removal).
-                **text = format!("{eta}{:5.0}m", telemetry.distance);
+                **text = format!("{eta}{}", nova_ui::units::distance(telemetry.distance));
             }
             Err(_) => {
                 **anchor = None;
@@ -368,7 +368,10 @@ fn drive_radius_spoke_chip(
                 **anchor = Some(ScreenIndicatorAnchorKind::Point(
                     (well_position + ship_position) * 0.5,
                 ));
-                **text = format!("r {:4.0}", well_position.distance(ship_position));
+                **text = format!(
+                    "r {}",
+                    nova_ui::units::distance(well_position.distance(ship_position))
+                );
             }
             None => {
                 **anchor = None;
@@ -486,7 +489,8 @@ mod tests {
                 0.0, 0.0, -300.0
             )))
         );
-        assert_eq!(text_of(&world, readout), "ETA  18s |   300m");
+        // 300 world units to the destination = 3000 m -> 3.00 km displayed.
+        assert_eq!(text_of(&world, readout), "ETA  18s | 3.00 km");
         assert_eq!(
             anchor_of(&world, flip),
             Some(ScreenIndicatorAnchorKind::Point(Vec3::new(
@@ -646,7 +650,8 @@ mod tests {
             anchor_of(&world, chip),
             Some(ScreenIndicatorAnchorKind::Point(Vec3::new(30.0, 0.0, 0.0)))
         );
-        assert_eq!(text_of(&world, chip), "r   60");
+        // Orbit radius 60 world units = 600 m displayed.
+        assert_eq!(text_of(&world, chip), "r 600 m");
 
         // The ship spirals in: both ends of the spoke follow.
         world
@@ -660,7 +665,8 @@ mod tests {
             .expect("still one spoke");
         assert_eq!(transform.translation, Vec3::new(0.0, 0.0, 20.0));
         assert!((transform.scale.y - 40.0).abs() < 1e-4);
-        assert_eq!(text_of(&world, chip), "r   40");
+        // Radius shrinks to 40 world units = 400 m displayed.
+        assert_eq!(text_of(&world, chip), "r 400 m");
 
         // Breakout: the spoke and the chip die with the maneuver.
         world.entity_mut(ship).remove::<Autopilot>();

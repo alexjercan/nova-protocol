@@ -230,7 +230,7 @@ fn remove_objective_marker_chip(
 }
 
 /// Label text: the marker's label plus the live distance to the player ship
-/// ("BEACON 1  420m"). Without a player (death gap) the label alone shows.
+/// ("BEACON 1  4.20 km"). Without a player (death gap) the label alone shows.
 fn update_objective_marker_labels(
     q_chips: Query<&ObjectiveMarkerChipTargetEntity, With<ObjectiveMarkerChipHudMarker>>,
     mut q_labels: Query<(&mut Text, &ChildOf), With<ObjectiveMarkerChipLabelMarker>>,
@@ -250,7 +250,7 @@ fn update_objective_marker_labels(
                 let distance = player_transform
                     .translation()
                     .distance(target_transform.translation());
-                format!("{}  {:.0}m", marker.label, distance)
+                format!("{}  {}", marker.label, nova_ui::units::distance(distance))
             }
             None => marker.label.clone(),
         };
@@ -351,7 +351,7 @@ mod tests {
         );
     }
 
-    /// The label shows "LABEL  <distance>m" with a player present, label
+    /// The label shows "LABEL  <distance>" with a player present, label
     /// alone without one (death gap).
     #[test]
     fn labels_show_label_and_distance() {
@@ -386,7 +386,8 @@ mod tests {
         world
             .run_system_once(update_objective_marker_labels)
             .unwrap();
-        assert_eq!(label_text(&mut world), "BEACON 3  420m");
+        // 420 world units = 4200 m -> 4.20 km displayed.
+        assert_eq!(label_text(&mut world), "BEACON 3  4.20 km");
         let _ = target;
     }
 

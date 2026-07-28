@@ -21,7 +21,7 @@ Manual flight in Nova Protocol is fully **Newtonian**: momentum persists, nothin
 
 ## Manual flight
 
-You point the hull by mouse or stick - the controller section turns the ship toward your aim - and hold <kbd>W</kbd> (or the burn trigger) for an analog main-drive burn. The main drive is the sum of the thrusters that point forward; inputs spool up and down smoothly rather than snapping. A ship can carry an optional soft **speed cap** (used by training legs like the Shakedown's 25 u/s starter governor - `u/s` is units per second; see the [glossary](../glossary/)): the burn tapers to zero over the last stretch before the cap, along the burn axis only, so a held throttle levels off instead of accelerating forever. Turning and braking are never capped.
+You point the hull by mouse or stick - the controller section turns the ship toward your aim - and hold <kbd>W</kbd> (or the burn trigger) for an analog main-drive burn. The main drive is the sum of the thrusters that point forward; inputs spool up and down smoothly rather than snapping. A ship can carry an optional soft **speed cap** (used by training legs like the Shakedown's 250 m/s starter governor - `m/s` is metres per second; see the [glossary](../glossary/)): the burn tapers to zero over the last stretch before the cap, along the burn axis only, so a held throttle levels off instead of accelerating forever. Turning and braking are never capped.
 
 ## Balancing thrust through the hull
 
@@ -35,7 +35,7 @@ Turn rate is derived from the ship's torque budget and its live rotational inert
 
 The autopilot verbs are the assist. Each writes to the _same_ actuators you use - the controller's rotation command and the thrusters' throttle - so you watch the hull physically swing and the plume light up; there are no invisible forces. Any manual input (a thruster key, a burn, a rotation, or CANCEL) disengages it instantly and hands you back a ship that is already moving.
 
-- **GOTO** - burns toward your current nav lock, flips at the arrival curve, and decelerates to rest at a standoff (about 50 u plus the target's radius, measured from the surface, kept outside a torpedo's blast radius). It tracks a drifting target.
+- **GOTO** - burns toward your current nav lock, flips at the arrival curve, and decelerates to rest at a standoff (about 500 m plus the target's radius, measured from the surface, kept outside a torpedo's blast radius). It tracks a drifting target.
 - **ORBIT** - circularizes and station-keeps around the dominant [gravity well](../gravity-wells/), holding a stable ring at orbital speed (`v = sqrt(mu / r)`) with micro-burns. It never self-completes - it holds until you break away.
 - **STOP** - flips to retrograde and burns until you are at rest, budgeting for the local gravity pull along your velocity.
 
@@ -45,6 +45,6 @@ Because the autopilot flies through the real actuators, it is honest about the s
 
 For the last few meters of an approach - where a main-drive burn is too coarse - a ship can carry **RCS** (a reaction-control system): hold <kbd>Shift</kbd> and steer with the mouse (lateral and fore/aft) and the scroll wheel (up and down) to nudge the ship straight along its own axes, with **no rotation**. While you hold it the helm and camera hold still so you can concentrate on the translation, the [velocity sphere](../hud/) turns violet, and a soft burn loop plays.
 
-RCS is a **trim, not free thrust**: each ship-local axis caps at a gentle speed (about 2 u/s), so it eases you into position rather than replacing the main drive. Push an axis you are already coasting at the cap and nothing happens; the opposite direction still slows you. The autopilot uses the same thrusters under the hood - **GOTO** and **STOP** settle their arrival on RCS, braking with the fine jets in the last stretch so a ship eases to a stop instead of pulsing on the spot.
+RCS is a **trim, not free thrust**: each ship-local axis caps at a gentle speed (about 20 m/s), so it eases you into position rather than replacing the main drive. Push an axis you are already coasting at the cap and nothing happens; the opposite direction still slows you. The autopilot uses the same thrusters under the hood - **GOTO** and **STOP** settle their arrival on RCS, braking with the fine jets in the last stretch so a ship eases to a stop instead of pulsing on the spot.
 
 RCS is a controller verb granted per ship, like the autopilot verbs, and the mainline campaign flies with it **withheld** - the `[Shift] RCS` hint only appears when a scenario grants it, so you know when it is available.

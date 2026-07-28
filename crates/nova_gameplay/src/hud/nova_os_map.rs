@@ -178,8 +178,8 @@ struct MapContact {
     code: String,
     name: String,
     world_pos: Vec3,
-    /// Range from the player ship, world units (rendered as `u`, matching the
-    /// flight HUD's `u`/`u/s` convention).
+    /// Range from the player ship in world units. Rendered through the shared
+    /// player-facing distance policy (1 u = 10 m; metres/kilometres).
     range: f32,
     /// Bearing in the player's local frame: 0 dead ahead, +90 to starboard.
     bearing_deg: f32,
@@ -189,22 +189,25 @@ struct MapContact {
 
 impl MapContact {
     /// The PoC readout line: `KIND CODE / NAME - range X, bearing Y. note`.
+    /// Range uses the shared player-facing distance policy (1 world unit =
+    /// 10 m; metres below 1 km, kilometres above).
     fn readout(&self) -> String {
         if self.kind == MapContactKind::OwnShip {
             return format!(
-                "{} {} / {} - range 0 u, bearing ---. {}",
+                "{} {} / {} - range {}, bearing ---. {}",
                 self.kind.label(),
                 self.code,
                 self.name,
+                nova_ui::units::distance(0.0),
                 self.kind.note()
             );
         }
         format!(
-            "{} {} / {} - range {:.0} u, bearing {:03.0} mark {:+03.0}. {}",
+            "{} {} / {} - range {}, bearing {:03.0} mark {:+03.0}. {}",
             self.kind.label(),
             self.code,
             self.name,
-            self.range,
+            nova_ui::units::distance(self.range),
             self.bearing_deg,
             self.mark_deg,
             self.kind.note(),
@@ -212,14 +215,17 @@ impl MapContact {
     }
 
     /// The INFO cell for the `map view` table: range for the own ship, else
-    /// range + bearing/mark (carrying what the old RANGE/BEARING columns showed).
+    /// range + bearing/mark (carrying what the old RANGE/BEARING columns
+    /// showed). Range in the shared player-facing units (m/km).
     fn info_cell(&self) -> String {
         if self.kind == MapContactKind::OwnShip {
-            return "range 0 u".to_string();
+            return format!("range {}", nova_ui::units::distance(0.0));
         }
         format!(
-            "{:>3.0} u  {:03.0} mark {:+03.0}",
-            self.range, self.bearing_deg, self.mark_deg,
+            "{}  {:03.0} mark {:+03.0}",
+            nova_ui::units::distance(self.range),
+            self.bearing_deg,
+            self.mark_deg,
         )
     }
 }
@@ -627,8 +633,10 @@ fn apply_map_cli_commands(
             vec![TerminalRow {
                 kind: TerminalRowKind::Info,
                 text: format!(
-                    "goto {} ({}): autopilot engaged, range {:.0} u",
-                    contact.code, contact.name, contact.range,
+                    "goto {} ({}): autopilot engaged, range {}",
+                    contact.code,
+                    contact.name,
+                    nova_ui::units::distance(contact.range),
                 ),
             }]
         }
@@ -1419,6 +1427,54 @@ mod tests {
     use bevy::{ecs::system::RunSystemOnce, state::app::StatesPlugin};
 
     use super::*;
+
+    /// The map readout and INFO cell render range through the shared
+    /// player-facing distance policy (1 world unit = 10 m), not raw `u`.
+    #[test]
+    fn map_range_renders_in_metres_and_kilometres() {
+        let entity = Entity::PLACEHOLDER;
+        // 50 world units = 500 m (below the km threshold).
+        let near = MapContact {
+            entity,
+            kind: MapContactKind::Hostile,
+            code: "HOST-1".to_string(),
+            name: "RAIDER".to_string(),
+            world_pos: Vec3::ZERO,
+            range: 50.0,
+            bearing_deg: 0.0,
+            mark_deg: 0.0,
+        };
+        assert!(
+            near.readout().contains("range 500 m,"),
+            "near readout: {}",
+            near.readout()
+        );
+        assert!(
+            near.info_cell().starts_with("500 m  "),
+            "near info cell: {}",
+            near.info_cell()
+        );
+
+        // 150 world units = 1500 m -> 1.50 km.
+        let far = MapContact {
+            range: 150.0,
+            ..near.clone()
+        };
+        assert!(
+            far.readout().contains("range 1.50 km,"),
+            "far readout: {}",
+            far.readout()
+        );
+
+        // The own ship's zero-range placeholder also uses the new unit.
+        let own = MapContact {
+            kind: MapContactKind::OwnShip,
+            range: 0.0,
+            ..near
+        };
+        assert!(own.readout().contains("range 0 m,"), "{}", own.readout());
+        assert_eq!(own.info_cell(), "range 0 m");
+    }
 
     /// Spawn a scripted local-space scene: own ship at origin (facing -Z), a
     /// hostile dead ahead, an objective to starboard, an asteroid astern.

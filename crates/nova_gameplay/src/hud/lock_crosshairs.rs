@@ -292,9 +292,8 @@ fn drive_radar_candidate(
             .and_then(|target| {
                 let ship = player.map(|(ship, ..)| ship)?;
                 let position = q_positions.get(target).ok()?;
-                Some(format!(
-                    "{:.0}m",
-                    ship.translation().distance(position.translation())
+                Some(nova_ui::units::distance(
+                    ship.translation().distance(position.translation()),
                 ))
             })
             .unwrap_or_default();
@@ -529,8 +528,8 @@ mod tests {
         );
         assert_eq!(
             world.entity(label).get::<Text>().unwrap().0,
-            "100m",
-            "the sweep label is distance only"
+            "1.00 km",
+            "the sweep label is distance only (100 u = 1000 m -> 1.00 km)"
         );
 
         // Keep-last: the candidate drops over empty space but the lock
@@ -555,7 +554,7 @@ mod tests {
         );
         assert_eq!(
             world.entity(label).get::<Text>().unwrap().0,
-            "100m",
+            "1.00 km",
             "combat sweeps carry the same distance-only label"
         );
 
