@@ -92,6 +92,10 @@ pub struct TerminalCommandSpec {
     pub summary: &'static str,
     /// How many argument words the command accepts after its name.
     pub arity: CommandArity,
+    /// The placeholder shown for this command's argument in a usage line
+    /// (`"<label>"`, `"<section>"`), or `None` for a no-argument command or an
+    /// arg-bearing command that named no argument (renders a generic `<arg>`).
+    pub arg_hint: Option<&'static str>,
     /// Whether it launches an app or performs a CLI action.
     pub dispatch: CommandDispatch,
 }
@@ -118,15 +122,16 @@ pub(crate) fn subcommands_of(name: &str, commands: &[TerminalCommandSpec]) -> Ve
         .collect()
 }
 
-/// The `(summary, arity)` of a registered command name.
+/// The `(summary, arity, arg_hint)` of a registered command name - the fields the
+/// per-command usage block renders.
 pub(crate) fn command_meta(
     name: &str,
     commands: &[TerminalCommandSpec],
-) -> Option<(&'static str, CommandArity)> {
+) -> Option<(&'static str, CommandArity, Option<&'static str>)> {
     commands
         .iter()
         .find(|command| command.name == name)
-        .map(|command| (command.summary, command.arity))
+        .map(|command| (command.summary, command.arity, command.arg_hint))
 }
 
 /// The outcome of matching a command line against the registered commands.
@@ -149,6 +154,10 @@ pub(crate) enum ResolvedCommand {
     UnexpectedArguments {
         command: String,
         arity: CommandArity,
+        /// The trailing words past the command name that overran its arity - the
+        /// offending input, so the error can name it (`map: unknown subcommand
+        /// 'v'`).
+        args: Vec<String>,
     },
     Unknown {
         command: String,
@@ -218,6 +227,10 @@ pub(crate) fn resolve_command(
         return ResolvedCommand::UnexpectedArguments {
             command: spec.name.to_string(),
             arity: spec.arity,
+            args: words[name_words..]
+                .iter()
+                .map(|word| word.to_string())
+                .collect(),
         };
     }
     ResolvedCommand::Run {
@@ -268,12 +281,14 @@ mod tests {
             name: "map",
             summary: "Open the local-space map",
             arity: CommandArity::None,
+            arg_hint: None,
             dispatch: CommandDispatch::App,
         });
         specs.push(TerminalCommandSpec {
             name: "map view",
             summary: "Print local-space contacts",
             arity: CommandArity::None,
+            arg_hint: None,
             dispatch: CommandDispatch::Cli(CliOutput::Snapshot),
         });
         specs
@@ -386,24 +401,28 @@ mod tests {
                 name: "ship view",
                 summary: "",
                 arity: CommandArity::None,
+                arg_hint: None,
                 dispatch: CommandDispatch::App,
             },
             TerminalCommandSpec {
                 name: "ship",
                 summary: "",
                 arity: CommandArity::None,
+                arg_hint: None,
                 dispatch: CommandDispatch::Cli(CliOutput::Snapshot),
             },
             TerminalCommandSpec {
                 name: "repair",
                 summary: "",
                 arity: CommandArity::UpTo(1),
+                arg_hint: None,
                 dispatch: CommandDispatch::Gameplay,
             },
             TerminalCommandSpec {
                 name: "help",
                 summary: "",
                 arity: CommandArity::None,
+                arg_hint: None,
                 dispatch: CommandDispatch::Cli(CliOutput::Help),
             },
         ];

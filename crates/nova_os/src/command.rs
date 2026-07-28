@@ -56,6 +56,12 @@ pub struct TerminalCommand {
     pub summary: &'static str,
     /// How many argument words the command accepts after its name.
     pub arity: CommandArity,
+    /// The placeholder shown for this command's argument in a usage line
+    /// (`"<label>"`, `"<section>"`). `None` for a no-argument command, or for an
+    /// arg-bearing command that has not named its argument yet (the renderer then
+    /// falls back to a generic `<arg>`). Set at the registration site with
+    /// [`Self::with_arg_hint`].
+    pub arg_hint: Option<&'static str>,
     /// What running the command does.
     pub body: CommandBody,
     /// Nested subcommands, each carrying its own FULL name.
@@ -69,6 +75,7 @@ impl TerminalCommand {
             name,
             summary,
             arity: CommandArity::None,
+            arg_hint: None,
             body: CommandBody::Cli(output),
             subcommands: Vec::new(),
         }
@@ -81,6 +88,7 @@ impl TerminalCommand {
             name,
             summary,
             arity: CommandArity::None,
+            arg_hint: None,
             body: CommandBody::App(Box::new(runtime)),
             subcommands: Vec::new(),
         }
@@ -89,14 +97,25 @@ impl TerminalCommand {
     /// A gameplay-handled command taking `arity` argument words with no
     /// subcommands. The gameplay layer receives the parsed args and appends the
     /// result rows (`ship reload <id>`); use it for the arg-bearing ship verbs.
+    /// Name the argument for its usage line with [`Self::with_arg_hint`].
     pub fn gameplay(name: &'static str, summary: &'static str, arity: CommandArity) -> Self {
         Self {
             name,
             summary,
             arity,
+            arg_hint: None,
             body: CommandBody::Gameplay,
             subcommands: Vec::new(),
         }
+    }
+
+    /// Name the argument shown in this command's usage line (`"<label>"`,
+    /// `"<section>"`), returning `self` for builder-style chaining. The hint is
+    /// the placeholder a shell prints after the command name, e.g.
+    /// `Usage: map goto <label>`.
+    pub fn with_arg_hint(mut self, arg_hint: &'static str) -> Self {
+        self.arg_hint = Some(arg_hint);
+        self
     }
 
     /// Attach a subcommand, returning `self` for builder-style chaining. The
@@ -124,6 +143,7 @@ impl TerminalCommand {
             name: self.name,
             summary: self.summary,
             arity: self.arity,
+            arg_hint: self.arg_hint,
             dispatch: self.body.dispatch(),
         });
         for subcommand in &self.subcommands {

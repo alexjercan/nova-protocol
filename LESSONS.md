@@ -162,12 +162,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   rotation, so the "world" pose is just local shifted and the rotation is dead
   dressing that misleads a reader into thinking the frames are properly composed.
   Kin of [[spatial-fixture-off-the-trivial-point]]. 20260728-125510.
-- `pin-each-caller-not-just-shared-core` (x2): a shared mutation helper covered by
-  ONE caller's test does not cover the OTHER callers' wiring (target resolution,
-  message plumbing, side effects); pin each entry point - and when a change adds N
-  symmetric callers (e.g. Repair + Reload button observers), pin each in the SAME
-  pass, not after a reviewer points at the missing half. Kin of
-  [[advertised-is-not-wired]]. 20260726-115339, 20260728-115430.
+- `pin-each-caller-not-just-shared-core` (x3 -> Pending promotions, work skill): a
+  shared helper/renderer covered by ONE caller (or a synthetic spec) does not cover
+  the OTHER callers' wiring - target resolution, message plumbing, side effects, or
+  a data field set at N registration sites; pin each entry point end-to-end in the
+  SAME pass, not after a reviewer points at the missing half. Kin of
+  [[advertised-is-not-wired]]. 20260726-115339, 20260728-115430, 20260728-184502.
 - `deleting-a-test-salvage-live-assertions` (x1): a test slated for deletion because
   it exercised REMOVED code may also carry the only assertion pinning a still-live
   edge (here the deleted bar/pips test also pinned `integrity()`/`status()` "unknown
@@ -1195,6 +1195,15 @@ here (annotated) as the paid record.
 
 ## Pending promotions (3+ occurrences, user decides)
 
+- `pin-each-caller-not-just-shared-core` (x3) -> work/review skill: a shared
+  helper/renderer covered by ONE caller or a synthetic fixture does not prove the
+  OTHER callers' wiring - target resolution, plumbing, side effects, or a data
+  field set at N registration sites feeding a pure renderer. Prose target (work
+  verify step + review Tests dimension): "when a change adds N symmetric callers or
+  registration sites, pin each end-to-end in the SAME pass". Here `arg_hint` was
+  unit-tested on the renderer with a synthetic spec; the reviewer had to point at
+  the un-exercised `ship <section>` registration wiring.
+  20260726-115339, 20260728-115430, 20260728-184502.
 - `match-ci-feature-set-in-targeted-tests` (x3) -> work skill: a workspace
   `cargo check --all-targets` does not enable a crate's self dev-dep `serde`
   feature, so it silently skips serde-gated targets (a false green). Prose

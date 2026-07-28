@@ -916,21 +916,26 @@ fn ship_command_tree() -> TerminalCommand {
             "Print ship status summary",
             CliOutput::Snapshot,
         ))
-        .with_subcommand(TerminalCommand::gameplay(
-            "ship section",
-            "Show one section's detail",
-            CommandArity::UpTo(1),
-        ))
-        .with_subcommand(TerminalCommand::gameplay(
-            "ship reload",
-            "Reload a weapon section",
-            CommandArity::UpTo(1),
-        ))
-        .with_subcommand(TerminalCommand::gameplay(
-            "ship repair",
-            "Repair a section",
-            CommandArity::UpTo(1),
-        ))
+        .with_subcommand(
+            TerminalCommand::gameplay(
+                "ship section",
+                "Show one section's detail",
+                CommandArity::UpTo(1),
+            )
+            .with_arg_hint("<section>"),
+        )
+        .with_subcommand(
+            TerminalCommand::gameplay(
+                "ship reload",
+                "Reload a weapon section",
+                CommandArity::UpTo(1),
+            )
+            .with_arg_hint("<section>"),
+        )
+        .with_subcommand(
+            TerminalCommand::gameplay("ship repair", "Repair a section", CommandArity::UpTo(1))
+                .with_arg_hint("<section>"),
+        )
 }
 
 /// System set for the ship app's per-frame work.
@@ -1872,6 +1877,25 @@ mod tests {
         let mut terminal = NovaOsTerminal::default();
         terminal.set_commands(registry.specs());
         terminal
+    }
+
+    /// The arg-bearing ship verbs register their `<section>` argument hint, so
+    /// `<verb> help` renders a shell usage line naming the argument. Pins the
+    /// registration-site `.with_arg_hint("<section>")` wiring end to end (the
+    /// pure renderer is unit-tested in `nova_os`; this proves the ship tree
+    /// actually feeds it the hint).
+    #[test]
+    fn ship_verb_help_names_the_section_argument() {
+        for verb in ["ship section", "ship reload", "ship repair"] {
+            let mut terminal = ship_terminal();
+            terminal.insert_text(&format!("{verb} help"));
+            terminal.submit(&TerminalCommandSnapshot::default());
+            let want = format!("Usage: {verb} <section>");
+            assert!(
+                terminal.scrollback().iter().any(|row| row.text == want),
+                "{verb} help should render `{want}`",
+            );
+        }
     }
 
     /// Spawn a scripted player ship: a hull, a turret (with ammo, critically

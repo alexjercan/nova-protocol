@@ -486,17 +486,24 @@ impl NovaOsTerminal {
                 self.scrollback.extend(nova_os_version_rows());
                 TerminalSubmitOutcome::Ran
             }
-            ResolvedCommand::UnexpectedArguments { command, arity } => {
-                // A bad argument shows WHY plus the command's usage, rather than a
-                // bare "takes no arguments" - and names the sub-commands when the
-                // command has them (e.g. `map v` -> `map view`).
+            ResolvedCommand::UnexpectedArguments {
+                command,
+                arity,
+                args,
+            } => {
+                // A shell-style `command: reason` line, then the command's usage
+                // block so the player sees how to invoke it. When the command owns
+                // subcommands the first overrun word is a bad sub-command; name it
+                // (`map: unknown subcommand 'v'`). Otherwise it took an argument it
+                // does not accept (`help: takes no arguments`).
                 let subs = subcommands_of(&command, &self.commands);
                 self.scrollback.push(TerminalRow {
                     kind: TerminalRowKind::Error,
                     text: if subs.is_empty() {
-                        format!("{command} {}", arity.rejection())
+                        format!("{command}: {}", arity.rejection())
                     } else {
-                        format!("{command}: unknown sub-command")
+                        let bad = args.first().map(String::as_str).unwrap_or_default();
+                        format!("{command}: unknown subcommand '{bad}'")
                     },
                 });
                 self.scrollback
@@ -507,8 +514,8 @@ impl NovaOsTerminal {
                 command,
                 suggestion,
             } => {
-                // Two rows, matching the HTML PoC's `command not found` +
-                // `did you mean ...?` wording.
+                // Shell-style not-found: the error line, the optional did-you-mean,
+                // then a pointer back at `help` (a real shell points at its usage).
                 self.scrollback.push(TerminalRow {
                     kind: TerminalRowKind::Error,
                     text: format!("command not found: {command}"),
@@ -519,6 +526,10 @@ impl NovaOsTerminal {
                         text: format!("did you mean {suggestion}?"),
                     });
                 }
+                self.scrollback.push(TerminalRow {
+                    kind: TerminalRowKind::Dim,
+                    text: "Type 'help' for a list of commands.".to_string(),
+                });
                 TerminalSubmitOutcome::Errored
             }
         };
@@ -664,13 +675,13 @@ impl NovaOsTerminal {
             // input is still a prefix of a LONGER command name (e.g. `ship vi`
             // toward `ship view`), in which case it is a valid prefix, not an
             // error.
-            ResolvedCommand::UnexpectedArguments { command, arity } => {
+            ResolvedCommand::UnexpectedArguments { command, arity, .. } => {
                 if let Some(name) = self.command_name_starting_with(trimmed) {
                     self.parse_status = TerminalParseStatus::ValidPrefix;
                     self.completion_hint = Some(name.to_string());
                 } else {
                     self.parse_status = TerminalParseStatus::Invalid;
-                    self.completion_hint = Some(format!("{command} {}", arity.rejection()));
+                    self.completion_hint = Some(format!("{command}: {}", arity.rejection()));
                 }
             }
             ResolvedCommand::Unknown { suggestion, .. } => {
@@ -825,60 +836,95 @@ pub fn nova_os_version_label() -> String {
     format!("v{}", nova_info::APP_VERSION)
 }
 
-/// Build the `help` output: every registered command (core builtins, then apps
-/// and their subcommands), aligned in one column.
+/// Build the `help` output in a shell shape: a `Usage:` synopsis, a `Commands:`
+/// header, every registered command (core builtins, then apps and their
+/// subcommands) aligned in one column, and a pointer to per-command help.
 pub fn terminal_help_rows(commands: &[TerminalCommandSpec]) -> Vec<TerminalRow> {
     let command_width = commands
         .iter()
         .map(|command| command.name.len())
         .max()
         .unwrap_or(0);
-    std::iter::once(TerminalRow {
-        kind: TerminalRowKind::Info,
-        text: "Available commands:".to_string(),
-    })
-    .chain(commands.iter().map(move |command| TerminalRow {
+    let mut rows = vec![
+        TerminalRow {
+            kind: TerminalRowKind::Info,
+            text: "Usage: <command> [arguments]".to_string(),
+        },
+        TerminalRow {
+            kind: TerminalRowKind::Info,
+            text: "Commands:".to_string(),
+        },
+    ];
+    rows.extend(commands.iter().map(|command| TerminalRow {
         kind: TerminalRowKind::Output,
         text: format!("  {:command_width$}  {}", command.name, command.summary),
-    }))
-    .collect()
+    }));
+    rows.push(TerminalRow {
+        kind: TerminalRowKind::Dim,
+        text: "Type '<command> help' for details.".to_string(),
+    });
+    rows
 }
 
-/// Per-command help (`<command> help`): a one-line summary, the usage syntax, any
-/// sub-commands, and a version stamp - the shell-emulator touch. Works for every
-/// registered command, CLI or app.
+/// The argument fragment a usage line appends after the command name: nothing for
+/// a no-argument command, ` [subcommand]` when the command owns subcommands, or
+/// ` <hint>` for an argument-taking command (its named placeholder, falling back
+/// to `<arg>`).
+fn usage_arg_fragment(
+    arity: CommandArity,
+    arg_hint: Option<&str>,
+    has_subcommands: bool,
+) -> String {
+    if has_subcommands {
+        return " [subcommand]".to_string();
+    }
+    match arity {
+        CommandArity::None => String::new(),
+        CommandArity::UpTo(_) => format!(" {}", arg_hint.unwrap_or("<arg>")),
+    }
+}
+
+/// Per-command help (`<command> help`) in a shell shape: a `{name} - {summary}`
+/// title, a capital `Usage:` line naming the real argument (or `[subcommand]`),
+/// and an aligned `Subcommands:` section when the command owns any. Works for
+/// every registered command, CLI or app.
 pub fn command_help_rows(name: &str, commands: &[TerminalCommandSpec]) -> Vec<TerminalRow> {
-    let Some((summary, arity)) = command_meta(name, commands) else {
+    let Some((summary, arity, arg_hint)) = command_meta(name, commands) else {
         return vec![TerminalRow {
             kind: TerminalRowKind::Error,
             text: format!("no help for '{name}'"),
         }];
     };
-    let mut rows = vec![TerminalRow {
-        kind: TerminalRowKind::Info,
-        text: format!("{name} - {summary}"),
-    }];
-    rows.push(TerminalRow {
-        kind: TerminalRowKind::Output,
-        text: match arity {
-            CommandArity::None => format!("usage: {name}"),
-            CommandArity::UpTo(_) => format!("usage: {name} <arg>"),
-        },
-    });
     let subs = subcommands_of(name, commands);
+    let mut rows = vec![
+        TerminalRow {
+            kind: TerminalRowKind::Info,
+            text: format!("{name} - {summary}"),
+        },
+        TerminalRow {
+            kind: TerminalRowKind::Output,
+            text: format!(
+                "Usage: {name}{}",
+                usage_arg_fragment(arity, arg_hint, !subs.is_empty())
+            ),
+        },
+    ];
     if !subs.is_empty() {
         rows.push(TerminalRow {
             kind: TerminalRowKind::Output,
-            text: format!("subcommands: {}", subs.join(", ")),
+            text: "Subcommands:".to_string(),
         });
+        let sub_width = subs.iter().map(|sub| sub.len()).max().unwrap_or(0);
+        rows.extend(subs.iter().map(|sub| {
+            let summary = command_meta(sub, commands)
+                .map(|(summary, _, _)| summary)
+                .unwrap_or("");
+            TerminalRow {
+                kind: TerminalRowKind::Output,
+                text: format!("  {sub:sub_width$}  {summary}"),
+            }
+        }));
     }
-    rows.push(TerminalRow {
-        kind: TerminalRowKind::Dim,
-        text: format!(
-            "NOVA OS {} - try '{name} help' anytime",
-            nova_os_version_label()
-        ),
-    });
     rows
 }
 
@@ -971,6 +1017,7 @@ mod tests {
             name,
             summary,
             arity: CommandArity::None,
+            arg_hint: None,
             dispatch: CommandDispatch::Cli(CliOutput::Snapshot),
         }
     }
@@ -981,6 +1028,7 @@ mod tests {
             name,
             summary,
             arity: CommandArity::None,
+            arg_hint: None,
             dispatch: CommandDispatch::App,
         }
     }
@@ -992,6 +1040,7 @@ mod tests {
             name,
             summary: "",
             arity: CommandArity::UpTo(1),
+            arg_hint: None,
             dispatch: CommandDispatch::Gameplay,
         }
     }
@@ -1053,9 +1102,15 @@ mod tests {
         assert_eq!(
             help_rows,
             &[
+                // Shell shape: a Usage synopsis, a Commands header, the aligned
+                // command list, then a pointer to per-command help.
                 TerminalRow {
                     kind: TerminalRowKind::Info,
-                    text: "Available commands:".to_string()
+                    text: "Usage: <command> [arguments]".to_string()
+                },
+                TerminalRow {
+                    kind: TerminalRowKind::Info,
+                    text: "Commands:".to_string()
                 },
                 TerminalRow {
                     kind: TerminalRowKind::Output,
@@ -1080,6 +1135,10 @@ mod tests {
                 TerminalRow {
                     kind: TerminalRowKind::Output,
                     text: "  exit        Suspend the NOVA OS computer".to_string()
+                },
+                TerminalRow {
+                    kind: TerminalRowKind::Dim,
+                    text: "Type '<command> help' for details.".to_string()
                 }
             ]
         );
@@ -1153,7 +1212,7 @@ mod tests {
         );
 
         terminal.submit(&TerminalCommandSnapshot::default());
-        // Two HTML-style rows: the error line then the suggestion line.
+        // Shell-style rows: the error line, the suggestion, then a pointer at help.
         let rows: Vec<(TerminalRowKind, &str)> = terminal
             .scrollback
             .iter()
@@ -1161,6 +1220,29 @@ mod tests {
             .collect();
         assert!(rows.contains(&(TerminalRowKind::Error, "command not found: hlep")));
         assert!(rows.contains(&(TerminalRowKind::Warn, "did you mean help?")));
+        assert!(rows.contains(&(TerminalRowKind::Dim, "Type 'help' for a list of commands.")));
+    }
+
+    #[test]
+    fn terminal_unknown_command_without_suggestion_points_at_help() {
+        // A command far from every builtin gets no did-you-mean, but still the
+        // shell-style not-found line and the pointer at `help`.
+        let mut terminal = NovaOsTerminal::default();
+        type_text(&mut terminal, "xyzzy");
+        terminal.submit(&TerminalCommandSnapshot::default());
+        let rows: Vec<(TerminalRowKind, &str)> = terminal
+            .scrollback
+            .iter()
+            .map(|row| (row.kind, row.text.as_str()))
+            .collect();
+        assert!(rows.contains(&(TerminalRowKind::Error, "command not found: xyzzy")));
+        assert!(
+            !rows
+                .iter()
+                .any(|(_, text)| text.starts_with("did you mean")),
+            "xyzzy is too far from any command to suggest one",
+        );
+        assert!(rows.contains(&(TerminalRowKind::Dim, "Type 'help' for a list of commands.")));
     }
     #[test]
     fn terminal_rejects_unexpected_command_arguments() {
@@ -1169,17 +1251,24 @@ mod tests {
         assert_eq!(terminal.parse_status, TerminalParseStatus::Invalid);
         assert_eq!(
             terminal.completion_hint.as_deref(),
-            Some("help takes no arguments")
+            Some("help: takes no arguments")
         );
         terminal.submit(&TerminalCommandSnapshot::default());
-        // The error line is printed, followed by the command's usage (so the
-        // player sees how to use it); assert the error is present.
+        // A shell-style `command: reason` line, followed by the command's usage
+        // block (so the player sees how to use it).
         assert!(
             terminal
                 .scrollback
                 .iter()
-                .any(|row| row.text == "help takes no arguments"),
+                .any(|row| row.text == "help: takes no arguments"),
             "the rejection names the command and reason",
+        );
+        assert!(
+            terminal
+                .scrollback
+                .iter()
+                .any(|row| row.text == "Usage: help"),
+            "the rejection is followed by the command's usage",
         );
 
         type_text(&mut terminal, "clear garbage");
@@ -1192,7 +1281,7 @@ mod tests {
             terminal
                 .scrollback
                 .iter()
-                .any(|row| row.text == "clear takes no arguments"),
+                .any(|row| row.text == "clear: takes no arguments"),
             "clear rejects its argument with a reason",
         );
     }
@@ -1239,8 +1328,17 @@ mod tests {
         };
         let out = text(&terminal);
         assert!(out.contains("map - Open the local-space map"), "{out}");
-        assert!(out.contains("usage: map"), "{out}");
-        assert!(out.contains("subcommands: map view"), "{out}");
+        // Shell shape: a capital Usage line marking the subcommand slot, then an
+        // aligned Subcommands section carrying each child's summary.
+        assert!(out.contains("Usage: map [subcommand]"), "{out}");
+        assert!(out.contains("Subcommands:"), "{out}");
+        assert!(
+            terminal
+                .scrollback
+                .iter()
+                .any(|row| row.text == "  map view  Print local-space contacts"),
+            "{out}",
+        );
 
         // A bad sub-command is a named error + usage, not "takes no arguments".
         type_text(&mut terminal, "map v");
@@ -1249,7 +1347,7 @@ mod tests {
             terminal
                 .scrollback
                 .iter()
-                .any(|row| row.text == "map: unknown sub-command"),
+                .any(|row| row.text == "map: unknown subcommand 'v'"),
             "map v names the bad sub-command",
         );
 
@@ -1264,6 +1362,63 @@ mod tests {
             "version prints the NOVA OS version",
         );
     }
+
+    /// A command's usage line names its real argument from the registered
+    /// `arg_hint` (`map goto <label>`), and a no-argument command shows a bare
+    /// `Usage: <name>`. An arg-bearing command that named no hint falls back to a
+    /// generic `<arg>` so nothing regresses.
+    #[test]
+    fn nova_os_command_help_names_the_real_argument() {
+        let mut terminal = NovaOsTerminal::default();
+        // `map goto` names its argument; `map view` is a no-arg leaf; the bare
+        // `spin` gameplay verb declares an arity but no hint (fallback path).
+        let goto = TerminalCommandSpec {
+            name: "map goto",
+            summary: "Fly the ship to a contact label",
+            arity: CommandArity::UpTo(1),
+            arg_hint: Some("<label>"),
+            dispatch: CommandDispatch::Gameplay,
+        };
+        let spin = TerminalCommandSpec {
+            name: "spin",
+            summary: "Spin up a subsystem",
+            arity: CommandArity::UpTo(1),
+            arg_hint: None,
+            dispatch: CommandDispatch::Gameplay,
+        };
+        terminal.set_commands(core_with([
+            app_spec("map", "Open the local-space map"),
+            cli_spec("map view", "Print local-space contacts"),
+            goto,
+            spin,
+        ]));
+        let usage_of = |terminal: &mut NovaOsTerminal, line: &str| -> Vec<String> {
+            type_text(terminal, line);
+            terminal.submit(&TerminalCommandSnapshot::default());
+            let rows = terminal
+                .scrollback
+                .iter()
+                .map(|row| row.text.clone())
+                .collect::<Vec<_>>();
+            terminal.reset_scrollback_to_welcome(&TerminalCommandSnapshot::default());
+            rows
+        };
+
+        assert!(
+            usage_of(&mut terminal, "map goto help")
+                .contains(&"Usage: map goto <label>".to_string()),
+            "an arg-bearing command names its argument from the hint",
+        );
+        assert!(
+            usage_of(&mut terminal, "help help").contains(&"Usage: help".to_string()),
+            "a no-argument command shows a bare usage line",
+        );
+        assert!(
+            usage_of(&mut terminal, "spin help").contains(&"Usage: spin <arg>".to_string()),
+            "an arg command with no hint falls back to a generic <arg>",
+        );
+    }
+
     #[test]
     fn nova_os_subcommand_completion_and_ghost() {
         let mut terminal = NovaOsTerminal::default();

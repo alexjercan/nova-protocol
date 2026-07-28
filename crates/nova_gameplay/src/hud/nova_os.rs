@@ -5141,12 +5141,14 @@ mod tests {
             name: "ship",
             summary: "Open the ship computer",
             arity: CommandArity::None,
+            arg_hint: None,
             dispatch: CommandDispatch::App,
         });
         specs.push(TerminalCommandSpec {
             name: "ship view",
             summary: "Print ship status summary",
             arity: CommandArity::None,
+            arg_hint: None,
             dispatch: CommandDispatch::Cli(CliOutput::Snapshot),
         });
         app.world_mut()
@@ -7387,7 +7389,7 @@ mod tests {
             terminal
                 .scrollback()
                 .iter()
-                .any(|row| row.text == "sample takes no arguments"),
+                .any(|row| row.text == "sample: takes no arguments"),
             "the argument rejection is reported",
         );
     }

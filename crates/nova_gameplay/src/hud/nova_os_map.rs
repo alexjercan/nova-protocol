@@ -796,11 +796,14 @@ impl Plugin for NovaOsMapPlugin {
                         "Print local-space contacts",
                         CliOutput::Snapshot,
                     ))
-                    .with_subcommand(TerminalCommand::gameplay(
-                        "map goto",
-                        "Fly the ship to a contact label",
-                        CommandArity::UpTo(1),
-                    )),
+                    .with_subcommand(
+                        TerminalCommand::gameplay(
+                            "map goto",
+                            "Fly the ship to a contact label",
+                            CommandArity::UpTo(1),
+                        )
+                        .with_arg_hint("<label>"),
+                    ),
             );
 
         // Scene lifecycle runs unconditionally so it can tear down when the
@@ -1604,12 +1607,14 @@ mod tests {
             name: "map",
             summary: "Open the local-space map",
             arity: CommandArity::None,
+            arg_hint: None,
             dispatch: CommandDispatch::App,
         });
         specs.push(TerminalCommandSpec {
             name: "map goto",
             summary: "Fly the ship to a contact label",
             arity: CommandArity::UpTo(1),
+            arg_hint: Some("<label>"),
             dispatch: CommandDispatch::Gameplay,
         });
         terminal.set_commands(specs);
