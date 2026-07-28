@@ -1088,6 +1088,13 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   blocks whenever the ship flew off origin. Project in the scene's own frame.
   Kin of [[verify-reused-driver-actually-moves]]; needs an
   [[spatial-fixture-off-the-trivial-point]] to catch. 20260726-115339.
+- `new-render-primitive-verify-on-gpu` (x1): introducing a mesh-primitive/material
+  combo the repo has not used before (here `LineList` + unlit `StandardMaterial`
+  for box outlines) draws NOTHING until proven - a headless entity-tree test pins
+  the ECS wiring, not the pixels. Confirm on the real GPU (the `screenshot_*`
+  autopilot harness) as part of /work verify, and use a capture fixture holding
+  one of EVERY new visual variant (the ship range had no weapon, so the ammo pips
+  shipped pixel-unverified). Kin of [[verify-interaction-not-just-rendering]]. 20260728-115435.
 - `autoscroll-on-new-content-not-any-change` (x1): pinning a scroll view to the
   bottom on every change of its backing resource defeats manual scroll (PageUp/
   wheel) the moment that resource changes for an unrelated reason (prompt edits,

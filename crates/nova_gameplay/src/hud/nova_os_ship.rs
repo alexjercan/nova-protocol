@@ -10,13 +10,18 @@
 //! human/CLI/label handle (see `tasks/20260726-115339/DECISION.md`).
 //!
 //! The viewer follows the `map` app pattern: a dedicated [`Camera3d`] on its own
-//! [`RenderLayers`] renders unlit green-phosphor proxy BLOCKS (built from each
-//! section's authored [`SectionCollider`] + local transform) into an offscreen
-//! image shown in the app body; the interactive SECTIONS ride on top as projected
-//! clickable UI blips labelled with their code (a nested 3D mesh is not pickable
+//! [`RenderLayers`] renders proxy BLOCKS (built from each section's authored
+//! [`SectionCollider`] + local transform) into an offscreen image shown in the
+//! app body. Each block is a dim, uniform-green fill wrapped in a bright box
+//! outline (a `cuboid_edges` wireframe) with a gap, so adjacent sections read
+//! apart instead of merging into one green blob; the block colour does NOT encode
+//! status (see `tasks/20260728-115435/DECISION.md`). The interactive SECTIONS
+//! ride on top as projected clickable UI blips (a nested 3D mesh is not pickable
 //! through the CRT composite, but a UI button is - the same reason `map` uses
-//! blips). Orbit the camera with Q/E/R/F + drag + wheel; `[`/`]` cycle the
-//! selection; `L` reloads and `P` repairs the selected section.
+//! blips); each blip carries a per-kind glyph + its code, an integrity bar
+//! (width = HP, colour = status) and, for weapons, ammo pips - that is where a
+//! section's status now shows. Orbit the camera with Q/E/R/F + drag + wheel;
+//! `[`/`]` cycle the selection; `L` reloads and `P` repairs the selected section.
 //!
 //! Actions are instant and free for now, but they route through a single
 //! [`ShipSectionCommand`] seam (CLI verb -> [`NovaOsCommandInvocation`], in-app key
@@ -24,9 +29,11 @@
 //! handler without touching the callers (DECISION fork 4).
 
 use bevy::{
+    asset::RenderAssetUsages,
     camera::{visibility::RenderLayers, ImageRenderTarget, RenderTarget},
     ecs::system::SystemParam,
     input::mouse::{MouseMotion, MouseWheel},
+    mesh::PrimitiveTopology,
     prelude::*,
     render::render_resource::{Extent3d, TextureFormat},
     ui_widgets::{Activate, Button},
@@ -96,6 +103,19 @@ fn code_prefix(kind: SectionDamageClass) -> &'static str {
         SectionDamageClass::Controller => "CTL",
         SectionDamageClass::Turret => "PDC",
         SectionDamageClass::Torpedo => "TRB",
+    }
+}
+
+/// A small schematic glyph for a section kind, prepended to the blip label to
+/// reinforce the code prefix. Kept ASCII so the CRT font always renders it, and
+/// distinct per kind so the sections read apart at a glance without new hues.
+fn kind_glyph(kind: SectionDamageClass) -> &'static str {
+    match kind {
+        SectionDamageClass::Hull => "#",
+        SectionDamageClass::Thruster => ">",
+        SectionDamageClass::Controller => "@",
+        SectionDamageClass::Turret => "T",
+        SectionDamageClass::Torpedo => "^",
     }
 }
 
@@ -260,6 +280,24 @@ impl ShipSectionView {
         let filled = (self.integrity().unwrap_or(0.0) * 10.0).round() as usize;
         let filled = filled.min(10);
         format!("[{}{}]", "#".repeat(filled), "-".repeat(10 - filled))
+    }
+
+    /// The blip integrity-bar fill fraction in `0..=1`. A section with unknown
+    /// health reads full (its status is `nominal`), so the bar is never
+    /// misleadingly empty for a section that simply has no `Health`.
+    fn bar_fraction(&self) -> f32 {
+        self.integrity().unwrap_or(1.0)
+    }
+
+    /// The ammo pip line for a weapon section (`●●○○○○` - filled rounds, empty
+    /// remaining capacity), or `None` when the section carries no ammo feed. The
+    /// CRT font (Iosevka Term) renders the geometric pips.
+    fn ammo_pips(&self) -> Option<String> {
+        self.ammo.as_ref().map(|ammo| {
+            let filled = ammo.rounds.min(ammo.capacity) as usize;
+            let empty = ammo.capacity.saturating_sub(ammo.rounds) as usize;
+            format!("{}{}", "●".repeat(filled), "○".repeat(empty))
+        })
     }
 }
 
@@ -574,17 +612,31 @@ struct ShipCameraMarker;
 #[derive(Component)]
 struct ShipSceneRoot;
 
-/// A schematic block for one section (holds the section entity so its material
-/// can track live status).
+/// A schematic block for one section: a dim, uniform-green translucent fill. It
+/// no longer tracks status by colour (status now rides the blip integrity bar,
+/// see `tasks/20260728-115435/DECISION.md`); it stays green so the schematic
+/// reads as a labelled wireframe rather than one green blob.
 #[derive(Component)]
 struct ShipBlock {
     section: Entity,
 }
 
-/// A projected, clickable section blip over the viewport.
+/// The bright box outline riding on a [`ShipBlock`] (a `LineList` of the cuboid's
+/// 12 edges) - the separation cue that keeps adjacent sections from merging. Its
+/// material tints amber while its section is selected.
+#[derive(Component)]
+struct ShipBlockOutline {
+    section: Entity,
+}
+
+/// A projected, clickable section blip over the viewport. Holds the entities of
+/// its integrity-bar fill and (for weapons) its ammo-pip text so
+/// `project_ship_blips` can refresh them each frame.
 #[derive(Component)]
 struct ShipBlip {
     section: Entity,
+    bar_fill: Entity,
+    ammo: Option<Entity>,
 }
 
 /// The ship camera's orbit state (own spherical math, like `MapOrbit`, because
@@ -614,12 +666,13 @@ struct ShipRuntime {
     image: Option<Handle<Image>>,
     scene_root: Option<Entity>,
     blips: bevy::platform::collections::HashMap<Entity, Entity>,
-    /// Shared status-bucket materials for the blocks (nominal/critical/inactive),
-    /// so live damage/repair recolours blocks without spawning materials per frame.
-    mat_nominal: Option<Handle<StandardMaterial>>,
-    mat_degraded: Option<Handle<StandardMaterial>>,
-    mat_critical: Option<Handle<StandardMaterial>>,
-    mat_inactive: Option<Handle<StandardMaterial>>,
+    /// The uniform dim-green block fill, shared by every block (status no longer
+    /// recolours blocks - it rides the blip bar instead).
+    mat_fill: Option<Handle<StandardMaterial>>,
+    /// The bright phosphor box outline, and its amber variant for the selected
+    /// section; swapped per block in `update_ship_blocks`.
+    mat_outline: Option<Handle<StandardMaterial>>,
+    mat_outline_selected: Option<Handle<StandardMaterial>>,
     selected: Option<Entity>,
     /// The codes last pushed as arg-completions, so the terminal is only marked
     /// changed when the set changes.
@@ -964,12 +1017,12 @@ fn manage_ship_scene(
     let image = images.add(new_rtt_image(UVec2::splat(64)));
     runtime.image = Some(image.clone());
 
-    // Status-bucket materials, reused across blocks and swapped as sections take
-    // damage or are repaired (`update_ship_blocks`).
-    runtime.mat_nominal = Some(materials.add(unlit(NOVA_OS_PHOSPHOR.with_alpha(0.85))));
-    runtime.mat_degraded = Some(materials.add(unlit(NOVA_OS_PHOSPHOR_MUTED.with_alpha(0.85))));
-    runtime.mat_critical = Some(materials.add(unlit(NOVA_OS_AMBER.with_alpha(0.9))));
-    runtime.mat_inactive = Some(materials.add(unlit(NOVA_OS_PHOSPHOR_DIM.with_alpha(0.3))));
+    // A dim, uniform-green fill for every block (status rides the blip bar now),
+    // plus a bright edge outline and its amber selected variant. Shared handles,
+    // so selecting a section only swaps its outline material, never respawns.
+    runtime.mat_fill = Some(materials.add(unlit(NOVA_OS_PHOSPHOR.with_alpha(0.22))));
+    runtime.mat_outline = Some(materials.add(unlit(NOVA_OS_PHOSPHOR.with_alpha(0.95))));
+    runtime.mat_outline_selected = Some(materials.add(unlit(NOVA_OS_AMBER)));
 
     let scene_root = commands
         .spawn((
@@ -1008,26 +1061,45 @@ fn manage_ship_scene(
         ChildOf(scene_root),
     ));
 
-    // One unlit proxy block per section, at the section's local placement, sized
-    // from its authored collider extents.
-    let nominal = runtime.mat_nominal.clone().unwrap();
+    // One proxy per section: a dim uniform-green fill shrunk to leave a GAP to its
+    // neighbours, wrapped in a bright box OUTLINE at the full collider size. The
+    // gap + outline are the separation cue that breaks up the "green blob".
+    let fill_mat = runtime.mat_fill.clone().unwrap();
+    let outline_mat = runtime.mat_outline.clone().unwrap();
+    // One shared unit-cube edge mesh, scaled per block by the outline's transform.
+    let edge_mesh = meshes.add(cuboid_edges());
     for view in &views {
-        let size = (view.half_extents * 2.0).max(Vec3::splat(0.2));
-        let mesh = meshes.add(Cuboid::new(size.x, size.y, size.z));
-        commands.spawn((
-            ShipBlock {
-                section: view.entity,
-            },
-            Mesh3d(mesh),
-            MeshMaterial3d(nominal.clone()),
-            Transform {
-                translation: view.local.translation,
-                rotation: view.local.rotation,
-                scale: Vec3::ONE,
-            },
-            RenderLayers::layer(SHIP_LAYER),
-            ChildOf(scene_root),
-        ));
+        let full = (view.half_extents * 2.0).max(Vec3::splat(0.2));
+        let fill = full * SHIP_BLOCK_FILL_SCALE;
+        let mesh = meshes.add(Cuboid::new(fill.x, fill.y, fill.z));
+        commands
+            .spawn((
+                ShipBlock {
+                    section: view.entity,
+                },
+                Mesh3d(mesh),
+                MeshMaterial3d(fill_mat.clone()),
+                Transform {
+                    translation: view.local.translation,
+                    rotation: view.local.rotation,
+                    scale: Vec3::ONE,
+                },
+                RenderLayers::layer(SHIP_LAYER),
+                ChildOf(scene_root),
+            ))
+            .with_children(|block| {
+                block.spawn((
+                    ShipBlockOutline {
+                        section: view.entity,
+                    },
+                    Mesh3d(edge_mesh.clone()),
+                    MeshMaterial3d(outline_mat.clone()),
+                    // Unit edges scaled to the FULL collider size (the fill inside
+                    // is smaller, so the outline frames it with a visible gap).
+                    Transform::from_scale(full),
+                    RenderLayers::layer(SHIP_LAYER),
+                ));
+            });
     }
 
     runtime.scene_root = Some(scene_root);
@@ -1177,38 +1249,34 @@ fn ship_input(
     }
 }
 
-/// Recolour each block to its section's live status (so a repair/reload or damage
-/// is reflected), and tint the selected block toward amber.
+/// Tint the SELECTED section's box outline amber and leave every other block's
+/// outline phosphor. Blocks no longer recolour by status - the fill stays a
+/// uniform green and status rides the blip integrity bar (DECISION.md).
 fn update_ship_blocks(
     runtime: Res<ShipRuntime>,
-    sections: ShipSections,
-    mut q_block: Query<(&ShipBlock, &mut MeshMaterial3d<StandardMaterial>)>,
+    mut q_outline: Query<(&ShipBlockOutline, &mut MeshMaterial3d<StandardMaterial>)>,
 ) {
     if !runtime.active {
         return;
     }
-    let views = sections.collect();
-    for (block, mut material) in &mut q_block {
-        let Some(view) = views.iter().find(|v| v.entity == block.section) else {
-            continue;
+    let (Some(base), Some(selected)) = (&runtime.mat_outline, &runtime.mat_outline_selected) else {
+        return;
+    };
+    for (outline, mut material) in &mut q_outline {
+        let want = if runtime.selected == Some(outline.section) {
+            selected
+        } else {
+            base
         };
-        let handle = match view.status() {
-            "neutralized" => &runtime.mat_inactive,
-            "critical" => &runtime.mat_critical,
-            "degraded" => &runtime.mat_degraded,
-            _ => &runtime.mat_nominal,
-        };
-        if let Some(handle) = handle {
-            if material.0 != *handle {
-                material.0 = handle.clone();
-            }
+        if material.0 != *want {
+            material.0 = want.clone();
         }
     }
 }
 
 /// Project each section through the ship camera into the viewport and keep a
 /// clickable, labelled UI blip per section in sync.
-#[allow(clippy::type_complexity)]
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 fn project_ship_blips(
     mut commands: Commands,
     mut runtime: ResMut<ShipRuntime>,
@@ -1216,12 +1284,14 @@ fn project_ship_blips(
     sections: ShipSections,
     q_camera: Query<(&Camera, &GlobalTransform), With<ShipCameraMarker>>,
     q_viewport: Query<(Entity, &ComputedNode), With<ShipViewportMarker>>,
-    mut q_blip: Query<(
-        &mut Node,
-        &mut Visibility,
-        &mut BackgroundColor,
-        &mut BorderColor,
-    )>,
+    q_blip: Query<&ShipBlip>,
+    // Disjoint component queries (no two `&mut` of the same component), so the dot
+    // and its bar-fill / ammo children can all be updated by entity id.
+    mut q_node: Query<&mut Node>,
+    mut q_vis: Query<&mut Visibility>,
+    mut q_border: Query<&mut BorderColor>,
+    mut q_bg: Query<&mut BackgroundColor>,
+    mut q_text: Query<(&mut Text, &mut TextColor)>,
 ) {
     if !runtime.active {
         return;
@@ -1255,21 +1325,51 @@ fn project_ship_blips(
             runtime.blips.insert(view.entity, id);
             id
         };
-        if let Ok((mut node, mut vis, mut bg, mut border)) = q_blip.get_mut(blip) {
-            match projected {
-                Some(p) => {
-                    node.left = Val::Px(p.x - SHIP_BLIP_PX * 0.5);
-                    node.top = Val::Px(p.y - SHIP_BLIP_PX * 0.5);
-                    *vis = Visibility::Inherited;
-                }
-                None => *vis = Visibility::Hidden,
+        // Read the child handles (Copy) so the `&ShipBlip` borrow drops before the
+        // mutable node/text updates. A just-spawned blip is not queryable until the
+        // command flushes, so its updates simply wait a frame (the guards skip it).
+        let Ok(&ShipBlip { bar_fill, ammo, .. }) = q_blip.get(blip) else {
+            continue;
+        };
+
+        // The dot: position from the projection, amber border while selected. Its
+        // background stays a constant phosphor (status rides the bar, not the dot).
+        if let Ok(mut node) = q_node.get_mut(blip) {
+            if let Some(p) = projected {
+                node.left = Val::Px(p.x - SHIP_BLIP_PX * 0.5);
+                node.top = Val::Px(p.y - SHIP_BLIP_PX * 0.5);
             }
-            bg.0 = color;
+        }
+        if let Ok(mut vis) = q_vis.get_mut(blip) {
+            *vis = match projected {
+                Some(_) => Visibility::Inherited,
+                None => Visibility::Hidden,
+            };
+        }
+        if let Ok(mut border) = q_border.get_mut(blip) {
             *border = if selected {
                 BorderColor::all(NOVA_OS_AMBER)
             } else {
-                BorderColor::all(color.with_alpha(0.0))
+                BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.0))
             };
+        }
+
+        // The integrity bar: width = HP fraction, colour = status.
+        if let Ok(mut fill) = q_node.get_mut(bar_fill) {
+            fill.width = Val::Percent(view.bar_fraction() * 100.0);
+        }
+        if let Ok(mut bg) = q_bg.get_mut(bar_fill) {
+            bg.0 = color;
+        }
+
+        // The ammo pips (weapons only): refill/deplete and recolour by status.
+        if let (Some(ammo), Some(pips)) = (ammo, view.ammo_pips()) {
+            if let Ok((mut text, mut text_color)) = q_text.get_mut(ammo) {
+                if text.0 != pips {
+                    text.0 = pips;
+                }
+                text_color.0 = color;
+            }
         }
     }
 
@@ -1287,6 +1387,11 @@ fn project_ship_blips(
 }
 
 const SHIP_BLIP_PX: f32 = 12.0;
+/// Fraction of the collider a block's green body fills; the remainder is the gap
+/// to its neighbours that the bright outline frames.
+const SHIP_BLOCK_FILL_SCALE: f32 = 0.86;
+/// Width of a blip's integrity-bar track, in px.
+const SHIP_BAR_PX: f32 = 42.0;
 
 fn spawn_ship_blip(
     commands: &mut Commands,
@@ -1295,11 +1400,10 @@ fn spawn_ship_blip(
     font: Handle<Font>,
 ) -> Entity {
     let color = view.status_color();
-    let id = commands
+    // The clickable dot: a uniform phosphor marker; its amber border marks the
+    // selection. Status lives on the bar below, not on the dot colour.
+    let dot = commands
         .spawn((
-            ShipBlip {
-                section: view.entity,
-            },
             Button,
             Node {
                 position_type: PositionType::Absolute,
@@ -1309,27 +1413,82 @@ fn spawn_ship_blip(
                 border_radius: BorderRadius::MAX,
                 ..default()
             },
-            BorderColor::all(color.with_alpha(0.0)),
-            BackgroundColor(color),
+            BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.0)),
+            BackgroundColor(NOVA_OS_PHOSPHOR),
         ))
         // Selection through `Activate` (fires for the forwarded NOVA OS pointer),
         // not `Interaction` polling (`rtt-ui-select-via-activate-not-interaction`).
         .observe(on_ship_blip_click)
         .id();
+
+    // Label: the per-kind glyph + section code, to the right of the dot.
     commands.spawn((
-        Text::new(view.code.clone()),
-        nova_os_text_font(11.0, font),
-        TextColor(color),
+        Text::new(format!("{} {}", kind_glyph(view.kind), view.code)),
+        nova_os_text_font(11.0, font.clone()),
+        TextColor(NOVA_OS_PHOSPHOR),
         Node {
             position_type: PositionType::Absolute,
             left: Val::Px(14.0),
             top: Val::Px(-3.0),
             ..default()
         },
-        ChildOf(id),
+        ChildOf(dot),
     ));
-    commands.entity(viewport).add_child(id);
-    id
+
+    // Integrity bar: a dim track with a status-coloured fill sized to HP fraction.
+    let track = commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(14.0),
+                top: Val::Px(11.0),
+                width: Val::Px(SHIP_BAR_PX),
+                height: Val::Px(4.0),
+                border: UiRect::all(Val::Px(1.0)),
+                ..default()
+            },
+            BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.5)),
+            BackgroundColor(NOVA_OS_SCREEN),
+            ChildOf(dot),
+        ))
+        .id();
+    let bar_fill = commands
+        .spawn((
+            Node {
+                width: Val::Percent(view.bar_fraction() * 100.0),
+                height: Val::Percent(100.0),
+                ..default()
+            },
+            BackgroundColor(color),
+            ChildOf(track),
+        ))
+        .id();
+
+    // Ammo pips, weapon sections only.
+    let ammo = view.ammo_pips().map(|pips| {
+        commands
+            .spawn((
+                Text::new(pips),
+                nova_os_text_font(9.0, font),
+                TextColor(color),
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(14.0),
+                    top: Val::Px(18.0),
+                    ..default()
+                },
+                ChildOf(dot),
+            ))
+            .id()
+    });
+
+    commands.entity(dot).insert(ShipBlip {
+        section: view.entity,
+        bar_fill,
+        ammo,
+    });
+    commands.entity(viewport).add_child(dot);
+    dot
 }
 
 fn on_ship_blip_click(
@@ -1394,6 +1553,49 @@ fn update_ship_readout(
 // ---------------------------------------------------------------------------
 // Small render helpers
 // ---------------------------------------------------------------------------
+
+/// A `LineList` mesh of a unit cuboid's 12 edges (corners at +/-0.5, no face
+/// diagonals), so a block can carry a crisp box outline instead of merging into
+/// its neighbours. NORMAL and UV attributes are filled with placeholders: the
+/// outline material is `unlit` and ignores them, but the mesh pipeline still
+/// binds those vertex attributes.
+fn cuboid_edges() -> Mesh {
+    let c = 0.5;
+    let corners = [
+        Vec3::new(-c, -c, -c),
+        Vec3::new(c, -c, -c),
+        Vec3::new(c, c, -c),
+        Vec3::new(-c, c, -c),
+        Vec3::new(-c, -c, c),
+        Vec3::new(c, -c, c),
+        Vec3::new(c, c, c),
+        Vec3::new(-c, c, c),
+    ];
+    // Four edges per end face + four connectors = the 12 cuboid edges.
+    let edges = [
+        (0, 1),
+        (1, 2),
+        (2, 3),
+        (3, 0),
+        (4, 5),
+        (5, 6),
+        (6, 7),
+        (7, 4),
+        (0, 4),
+        (1, 5),
+        (2, 6),
+        (3, 7),
+    ];
+    let positions: Vec<[f32; 3]> = edges
+        .iter()
+        .flat_map(|&(a, b)| [corners[a].to_array(), corners[b].to_array()])
+        .collect();
+    let count = positions.len();
+    Mesh::new(PrimitiveTopology::LineList, RenderAssetUsages::default())
+        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 0.0, 1.0]; count])
+        .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0.0, 0.0]; count])
+}
 
 fn new_rtt_image(size: UVec2) -> Image {
     Image::new_target_texture(
@@ -1820,5 +2022,234 @@ mod tests {
         app.world_mut().run_system_once(ship_input).unwrap();
         let after = app.world().resource::<ShipRuntime>().selected;
         assert!(after.is_some() && after != before, "] cycles the selection");
+    }
+
+    /// A bare [`ShipSectionView`] for the pure-helper tests.
+    fn view_fixture(
+        kind: SectionDamageClass,
+        health: Option<Health>,
+        ammo: Option<SectionAmmo>,
+    ) -> ShipSectionView {
+        ShipSectionView {
+            entity: Entity::PLACEHOLDER,
+            code: "PDC-1".to_string(),
+            kind,
+            name: "Bow gun".to_string(),
+            local: Transform::default(),
+            half_extents: Vec3::ONE,
+            health,
+            ammo,
+            inactive: false,
+            zero_health: false,
+        }
+    }
+
+    #[test]
+    fn kind_glyph_distinct_per_kind() {
+        use bevy::platform::collections::HashSet;
+        let kinds = [
+            SectionDamageClass::Hull,
+            SectionDamageClass::Thruster,
+            SectionDamageClass::Controller,
+            SectionDamageClass::Turret,
+            SectionDamageClass::Torpedo,
+        ];
+        let glyphs: Vec<&str> = kinds.iter().map(|&k| kind_glyph(k)).collect();
+        assert!(
+            glyphs.iter().all(|g| !g.is_empty()),
+            "every kind has a glyph: {glyphs:?}"
+        );
+        let unique: HashSet<&&str> = glyphs.iter().collect();
+        assert_eq!(
+            unique.len(),
+            kinds.len(),
+            "each kind's glyph is distinct: {glyphs:?}"
+        );
+    }
+
+    #[test]
+    fn integrity_bar_and_ammo_pips_track_live_data() {
+        // Critical turret: 12/60 = 20% -> a short, amber bar.
+        let crit = view_fixture(
+            SectionDamageClass::Turret,
+            Some(Health {
+                current: 12.0,
+                max: 60.0,
+            }),
+            Some(SectionAmmo {
+                rounds: 2,
+                capacity: 6,
+            }),
+        );
+        assert!((crit.bar_fraction() - 0.2).abs() < 1e-6);
+        assert_eq!(crit.status(), "critical");
+        assert_eq!(crit.status_color(), NOVA_OS_AMBER);
+        // Filled rounds then empty remainder.
+        assert_eq!(crit.ammo_pips().as_deref(), Some("●●○○○○"));
+
+        // A full, healthy section: full green bar, no pips.
+        let full = view_fixture(
+            SectionDamageClass::Hull,
+            Some(Health {
+                current: 100.0,
+                max: 100.0,
+            }),
+            None,
+        );
+        assert!((full.bar_fraction() - 1.0).abs() < 1e-6);
+        assert_eq!(full.status_color(), NOVA_OS_PHOSPHOR);
+        assert_eq!(full.ammo_pips(), None);
+
+        // Unknown health reads FULL (nominal), never a misleading empty bar.
+        let unknown = view_fixture(SectionDamageClass::Thruster, None, None);
+        assert_eq!(unknown.bar_fraction(), 1.0);
+    }
+
+    #[test]
+    fn blocks_stay_uniform_green_regardless_of_status() {
+        // Regression pin on DECISION.md: the block FILL colour no longer encodes
+        // status, so a critically-damaged section and a healthy one share the same
+        // uniform-green fill material handle.
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, StatesPlugin, AssetPlugin::default()));
+        app.init_asset::<Image>();
+        app.init_asset::<Mesh>();
+        app.init_asset::<StandardMaterial>();
+        app.insert_state(PauseStates::NovaOs);
+        app.init_resource::<ShipRuntime>();
+        let mut terminal = ship_terminal();
+        terminal.enter_app(SHIP_APP_ID);
+        app.insert_resource(terminal);
+
+        // Off-origin root (spatial-fixture-off-the-trivial-point).
+        let ship_world = Vec3::new(500.0, -200.0, 900.0);
+        let ship = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::from_translation(ship_world),
+                GlobalTransform::from(Transform::from_translation(ship_world)),
+                Name::new("NOVA"),
+            ))
+            .id();
+        let section = |name: &str, id: &str, offset: Vec3| {
+            (
+                SectionMarker,
+                Name::new(name.to_string()),
+                EntityId::new(id.to_string()),
+                Transform::from_translation(offset),
+                GlobalTransform::from(Transform::from_translation(ship_world + offset)),
+                SectionCollider::Cuboid { size: Vec3::ONE },
+                ChildOf(ship),
+            )
+        };
+        let hull = app
+            .world_mut()
+            .spawn((
+                section("Block Hull", "cube_a", Vec3::ZERO),
+                HullSectionMarker,
+                SectionDamageClass::Hull,
+                Health {
+                    current: 100.0,
+                    max: 100.0,
+                },
+            ))
+            .id();
+        let turret = app
+            .world_mut()
+            .spawn((
+                section("Bow gun", "cube_b", Vec3::new(3.0, 0.0, 0.0)),
+                TurretSectionMarker,
+                SectionDamageClass::Turret,
+                // 12/60 = critical.
+                Health {
+                    current: 12.0,
+                    max: 60.0,
+                },
+                SectionAmmo {
+                    rounds: 2,
+                    capacity: 6,
+                },
+            ))
+            .id();
+        app.world_mut()
+            .run_system_once(assign_section_codes)
+            .unwrap();
+        app.world_mut().run_system_once(manage_ship_scene).unwrap();
+
+        let fill_of = |app: &mut App, sect: Entity| -> Handle<StandardMaterial> {
+            app.world_mut()
+                .query::<(&ShipBlock, &MeshMaterial3d<StandardMaterial>)>()
+                .iter(app.world())
+                .find(|(b, _)| b.section == sect)
+                .map(|(_, m)| m.0.clone())
+                .expect("block fill for section")
+        };
+        let hull_fill = fill_of(&mut app, hull);
+        let turret_fill = fill_of(&mut app, turret);
+        assert_eq!(
+            hull_fill, turret_fill,
+            "a critical section's fill uses the SAME uniform-green handle as a nominal one",
+        );
+    }
+
+    #[test]
+    fn blip_carries_kind_glyph_and_integrity_bar() {
+        // The blip tree carries the per-kind glyph on its label and an integrity
+        // bar fill sized to the section's HP fraction.
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<Font>();
+
+        let viewport = app.world_mut().spawn_empty().id();
+        // 12/60 = 20% -> bar fill width 20%.
+        let view = view_fixture(
+            SectionDamageClass::Turret,
+            Some(Health {
+                current: 12.0,
+                max: 60.0,
+            }),
+            Some(SectionAmmo {
+                rounds: 2,
+                capacity: 6,
+            }),
+        );
+        let blip = app
+            .world_mut()
+            .run_system_once(move |mut commands: Commands| {
+                spawn_ship_blip(&mut commands, viewport, &view, Handle::default())
+            })
+            .unwrap();
+
+        // The blip records its bar-fill and ammo child entities.
+        let (bar_fill, ammo) = {
+            let b = app.world().get::<ShipBlip>(blip).expect("ShipBlip");
+            (b.bar_fill, b.ammo)
+        };
+        assert!(ammo.is_some(), "a weapon blip has ammo pips");
+
+        // The bar fill is sized to the HP fraction (20%).
+        let width = app
+            .world()
+            .get::<Node>(bar_fill)
+            .expect("bar fill node")
+            .width;
+        let Val::Percent(pct) = width else {
+            panic!("bar fill width is a percent, got {width:?}");
+        };
+        assert!(
+            (pct - 20.0).abs() < 0.01,
+            "bar fill width == HP fraction (20%), got {pct}",
+        );
+
+        // Some descendant label carries the kind glyph + code ("T PDC-1").
+        let label = format!("{} {}", kind_glyph(SectionDamageClass::Turret), "PDC-1");
+        let has_label = app
+            .world_mut()
+            .query::<(&Text, &ChildOf)>()
+            .iter(app.world())
+            .any(|(text, parent)| parent.0 == blip && text.0 == label);
+        assert!(has_label, "the blip label reads '{label}'");
     }
 }
