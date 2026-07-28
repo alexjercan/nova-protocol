@@ -106,6 +106,12 @@ that point instead of shipping shims.
 
 ## Notes
 
+Extra (owner request 2026-07-28, during the spike): 20260728-185730 wires the
+reworked main-menu PoC into the web app as a hidden easter egg (5 brand-clicks ->
+new main menu -> New Game -> NOVA OS CRT). Depends on the spike landing; wire-only,
+clean-immersive with a Phosphor/Hardware skin switch inside the PoC Settings menu;
+NOT part of this epic's Done Means.
+
 Related pre-existing tasks: backlog 20260710-231927 (keybind hint icons) folds
 into the HUD text-reduction child; backlog 20260714-214329 (ship web fonts) is
 likely superseded by the mono-first direction (decide at spike close); backlog

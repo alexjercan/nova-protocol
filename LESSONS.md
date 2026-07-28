@@ -413,10 +413,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   changed on ANY `&mut` deref, even a no-op (`vec.extend(empty)`); a dependent
   `run_if(resource_changed::<T>)` then thrashes - gate the mutation behind an
   actual-change check (`if !fresh.is_empty()`). 20260726-214708.
-- `decision-status-enum` (x1): a DECISION.md STATUS must be a `- ` bullet with a
-  closed-enum value - `tatr check --ledger` accepts only `ACCEPTED` or
-  `SUPERSEDED by <ref>`; `PROPOSED`/`DRAFT` or an un-bulleted line fail
-  `bad-decision-status`. 20260727-112529.
+- `decision-status-enum` (x2 -> template candidate: seed DECISION.md with the
+  `- DATE/- STATUS/- TASK/- TAGS` frontmatter): a DECISION.md STATUS must be a
+  `- ` bullet with a closed-enum value - `tatr check --ledger` accepts only
+  `ACCEPTED` or `SUPERSEDED by <ref>`; `PROPOSED`/`DRAFT` or an un-bulleted prose
+  line fail `bad-decision-status`. Copy an existing passing DECISION.md's header
+  block rather than authoring the STATUS line freehand. 20260727-112529, 20260728-175726.
 - `resource-changed-fires-on-init-frame` (x1): a `run_if(resource_changed::<T>)`
   system that ACTS on the DEFAULT/empty `T` (teardown-on-empty, reset-on-clear)
   fires on the resource's very first frame - `init_resource` marks it changed - so
@@ -526,6 +528,13 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   against REAL API JSON, stub `document`/`fetch` for the apply loop, and
   chromium-screenshot the served build for layout. 20260713-225324,
   20260724-074940.
+- `absolute-child-needs-a-positioned-ancestor` (x1): an absolutely-positioned
+  child (reticle bracket corners) whose parent is NOT positioned resolves its
+  containing block against the viewport, so it flies to a screen corner; a
+  whole-scene screenshot can MASK it when a sibling (the DST/CLS chip) fills the
+  expected spot, so a composed-eyeball passed and the owner caught it. Give every
+  such container an explicit `position` and eyeball the SUB-element, not just the
+  scene. Sharpens [[render-output-eyeball]]. 20260728-175726.
 - `degrade-paths-need-a-forced-failure` (x1): a plan-claimed fallback ("skips
   gracefully when blocked") is untested until that failure is FORCED once -
   the samply perms case died under set -e and a user found it.

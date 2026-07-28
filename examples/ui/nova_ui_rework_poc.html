@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nova UI Rework PoC - widget language + real layouts</title>
+  <style>
+    /* Palette tokens carried verbatim from nova_os_terminal_poc.html so the
+       reworked chrome speaks the SAME material language as the monitor. */
+    :root {
+      --space: #03060b;
+      --case-0: #0a0d10;
+      --case-1: #161b20;
+      --case-2: #232a31;
+      --case-3: #2f383f;
+      --case-edge: #05070a;
+      --screen-0: #001304;
+      --screen-1: #002b0f;
+      --phosphor: #36ff79;
+      --phosphor-dim: #19a64f;
+      --phosphor-muted: #0d6e35;
+      --amber: #ffb84a;
+      --orange: #ff7b2d;
+      --red: #ff4e42;
+      --blue: #36a3ff;
+      --text: #b9ffc9;
+      --shadow: rgba(0, 0, 0, 0.78);
+      --mono: "JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+
+      /* Light-3D control vocabulary (hardware skin). */
+      --face: linear-gradient(180deg, var(--case-3) 0%, var(--case-1) 55%, var(--case-0) 100%);
+      --face-hot: linear-gradient(180deg, #3a444c 0%, #222a31 55%, #12171b 100%);
+      --rim: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+      --undercut: inset 0 -2px 5px rgba(0, 0, 0, 0.7);
+      --drop: 0 2px 4px rgba(0, 0, 0, 0.55), 0 6px 16px -6px rgba(0, 0, 0, 0.7);
+      --well: inset 0 2px 5px rgba(0, 0, 0, 0.85), inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+
+      --panel-radius: 10px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      height: 100%; margin: 0;
+      color: var(--text); font-family: var(--mono);
+      background: #010306; overflow: hidden;
+    }
+
+    /* =========================== LIVE SCENE ================================ */
+    /* Mirrors the real menu: a menu_backdrop scenario runs live behind the UI -
+       an AI ship orbits a gravity well under a cinematic camera. Rendered here
+       in CSS so the corner menu reads against real motion, not a still. */
+
+    .scene { position: fixed; inset: 0; overflow: hidden; z-index: 0; background:
+        radial-gradient(circle at 18% 22%, rgba(54, 163, 255, 0.10), transparent 34%),
+        radial-gradient(circle at 78% 74%, rgba(54, 255, 121, 0.06), transparent 36%),
+        linear-gradient(135deg, #010306 0%, #050f18 46%, #02060c 100%); }
+
+    .nebula { position: absolute; inset: -10%; pointer-events: none; opacity: 0.55; mix-blend-mode: screen;
+      background:
+        radial-gradient(ellipse 40% 30% at 30% 60%, rgba(54, 120, 255, 0.16), transparent 70%),
+        radial-gradient(ellipse 36% 26% at 72% 34%, rgba(120, 60, 200, 0.14), transparent 72%);
+      animation: drift 60s ease-in-out infinite alternate; }
+    @keyframes drift { to { transform: translate(3%, -2%) scale(1.05); } }
+
+    .stars { position: absolute; inset: -20%; pointer-events: none; }
+    .stars.a { opacity: 0.8; animation: pan 120s linear infinite; background-image:
+        radial-gradient(1.4px 1.4px at 12% 24%, #eaf6ff, transparent),
+        radial-gradient(1.4px 1.4px at 26% 78%, #cfe6ff, transparent),
+        radial-gradient(1.2px 1.2px at 44% 16%, #eaf6ff, transparent),
+        radial-gradient(1.6px 1.6px at 71% 42%, #fff, transparent),
+        radial-gradient(1.2px 1.2px at 88% 72%, #dff0ff, transparent),
+        radial-gradient(1.3px 1.3px at 59% 88%, #eaf6ff, transparent); }
+    .stars.b { opacity: 0.5; animation: pan 200s linear infinite reverse; background-image:
+        radial-gradient(1px 1px at 8% 62%, #9fc6ff, transparent),
+        radial-gradient(1px 1px at 33% 34%, #cfe6ff, transparent),
+        radial-gradient(1px 1px at 52% 12%, #bcd8ff, transparent),
+        radial-gradient(1px 1px at 79% 58%, #9fc6ff, transparent),
+        radial-gradient(1px 1px at 92% 28%, #cfe6ff, transparent); }
+    @keyframes pan { to { transform: translate(4%, 3%); } }
+
+    /* the gravity well the camera frames, lower-left */
+    .system { position: absolute; left: 26%; top: 60%; transform: translate(-50%, -50%);
+      animation: bob 18s ease-in-out infinite alternate; }
+    @keyframes bob { to { transform: translate(-50%, -54%); } }
+
+    .well { width: 240px; height: 240px; border-radius: 50%; position: relative;
+      background:
+        radial-gradient(circle at 36% 32%, #3a6b8f 0%, #1d3c56 34%, #0c1f30 62%, #060f19 100%);
+      box-shadow: 0 0 90px rgba(54, 163, 255, 0.28), inset -22px -16px 60px rgba(0,0,0,0.75),
+        inset 14px 12px 40px rgba(120, 190, 255, 0.16); }
+    .well::after { content: ""; position: absolute; inset: -8px; border-radius: 50%;
+      background: radial-gradient(circle, transparent 60%, rgba(54,163,255,0.18) 72%, transparent 78%); }
+
+    /* tilted orbital disk with a ring and one AI ship travelling it */
+    .disk { position: absolute; left: 50%; top: 50%; width: 620px; height: 620px;
+      transform: translate(-50%, -50%) rotateX(70deg); transform-style: preserve-3d; }
+    .ring { position: absolute; inset: 0; border-radius: 50%; border: 1px dashed rgba(54, 255, 121, 0.28); }
+    .ring.two { inset: 90px; border-color: rgba(54, 163, 255, 0.18); border-style: solid; }
+    .arm { position: absolute; inset: 0; animation: orbit 26s linear infinite; }
+    @keyframes orbit { to { transform: rotate(360deg); } }
+    .ship { position: absolute; left: 100%; top: 50%; transform: translate(-50%, -50%) rotateX(-70deg); }
+    .ship .hull { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent;
+      border-bottom: 18px solid #cfe9ff; filter: drop-shadow(0 0 6px rgba(54,163,255,0.8)); transform: rotate(90deg); }
+    .ship .thr { position: absolute; left: -10px; top: 50%; width: 12px; height: 4px; transform: translateY(-50%);
+      background: linear-gradient(90deg, transparent, var(--phosphor)); border-radius: 2px;
+      box-shadow: 0 0 8px var(--phosphor); animation: thr 0.5s ease-in-out infinite alternate; }
+    @keyframes thr { to { opacity: 0.4; width: 8px; } }
+
+    /* a slow derelict wreck drifting upper-right + salvage contacts */
+    .wreck { position: absolute; right: 16%; top: 24%; width: 90px; height: 30px; opacity: 0.8;
+      background: linear-gradient(100deg, #2a333a, #10161b); transform: rotate(-14deg) skewX(-8deg);
+      box-shadow: inset 0 0 0 1px rgba(120,150,170,0.25), 0 0 24px rgba(0,0,0,0.6);
+      animation: bob 22s ease-in-out infinite alternate; }
+    .wreck::before { content: ""; position: absolute; left: 20%; top: -6px; width: 40%; height: 6px; background: #1a2228; }
+    .contact { position: absolute; width: 8px; height: 8px; border: 1px solid var(--amber);
+      background: rgba(0,0,0,0.4); box-shadow: 0 0 10px var(--amber); animation: blip 1.6s ease-in-out infinite; }
+    .contact.c1 { right: 20%; top: 30%; } .contact.c2 { right: 30%; top: 40%; color: var(--phosphor); border-color: var(--phosphor); box-shadow: 0 0 10px var(--phosphor); }
+    @keyframes blip { 50% { opacity: 0.35; } }
+
+    .vignette { position: absolute; inset: 0; pointer-events: none;
+      background: radial-gradient(ellipse 90% 80% at 50% 46%, transparent 52%, rgba(0,0,0,0.6) 100%); }
+
+    /* =============================== APP CHROME =========================== */
+
+    .app { position: fixed; inset: 0; z-index: 2; display: grid; grid-template-rows: auto 1fr; pointer-events: none; }
+    .app > * { pointer-events: auto; }
+
+    .topbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      margin: 8px; padding: 7px 12px; border-radius: 10px;
+      background: linear-gradient(168deg, rgba(35,42,49,0.92), rgba(10,13,16,0.92)); backdrop-filter: blur(3px);
+      box-shadow: var(--rim), var(--undercut), var(--drop); }
+    .demo-tag { font-size: 9px; letter-spacing: 0.2em; color: var(--phosphor-muted); border: 1px solid rgba(54,255,121,0.3); padding: 2px 6px; border-radius: 3px; }
+    .brand { display: flex; align-items: center; gap: 9px; padding-right: 12px; margin-right: 2px; border-right: 1px solid rgba(255,255,255,0.06); }
+    .brand .glyph { width: 18px; height: 18px; border-radius: 5px; flex: 0 0 auto;
+      background: radial-gradient(circle at 34% 30%, var(--phosphor), var(--phosphor-muted) 60%, #04150a); box-shadow: 0 0 10px rgba(54,255,121,0.5); }
+    .brand b { font-weight: 500; letter-spacing: 0.14em; font-size: 12px; color: #d7e6dc; }
+    .spacer { flex: 1; }
+
+    .seg { display: inline-flex; }
+    .seg .screen-tab { font: inherit; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer;
+      color: #93a39a; padding: 6px 11px; border: 0; background: var(--face); box-shadow: var(--rim), var(--drop); border-right: 1px solid var(--case-edge); }
+    .seg .screen-tab:first-child { border-radius: 7px 0 0 7px; }
+    .seg .screen-tab:last-child { border-radius: 0 7px 7px 0; border-right: 0; }
+    .seg .screen-tab:hover { color: #d7e6dc; background: var(--face-hot); }
+    .seg .screen-tab.active { color: #06110a; background: linear-gradient(180deg, #ffd07a, var(--amber) 60%, #e6952f); box-shadow: var(--rim), 0 0 12px rgba(255,184,74,0.35); }
+
+    .intensity { display: inline-flex; align-items: center; gap: 8px; font-size: 10px; color: #8fa39a; letter-spacing: 0.1em; text-transform: uppercase; }
+
+    .stage { position: relative; min-height: 0; }
+    .screen { position: absolute; inset: 0; display: none; }
+    .screen.active { display: block; }
+
+    /* ============================ PANEL PRIMITIVE ========================= */
+
+    .panel { border-radius: var(--panel-radius);
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), transparent 40%), linear-gradient(168deg, var(--case-2) 0%, var(--case-0) 88%, #05080a 100%);
+      box-shadow: var(--rim), var(--undercut), var(--drop); }
+    body[data-skin="phosphor"] .panel {
+      background: radial-gradient(ellipse 70% 60% at 50% 0%, rgba(54,255,121,0.10), transparent 70%), linear-gradient(180deg, rgba(10,26,16,0.94), rgba(4,16,10,0.96) 80%, rgba(2,10,6,0.97) 100%);
+      box-shadow: inset 0 0 0 1px rgba(54,255,121,0.16), inset 0 2px 20px rgba(0,0,0,0.7), 0 0 26px rgba(54,255,121,0.08), var(--drop); }
+    body[data-skin="hardware"] .panel { background-color: rgba(20,24,28,0.96); }
+
+    .panel-head { display: flex; align-items: center; gap: 10px; padding: 11px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    body[data-skin="phosphor"] .panel-head { border-bottom-color: rgba(54,255,121,0.18); }
+    .panel-head h2 { margin: 0; font-size: 13px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: #d7e6dc; }
+    body[data-skin="phosphor"] .panel-head h2 { color: var(--phosphor); text-shadow: 0 0 8px rgba(54,255,121,0.5); }
+    .panel-head .rule { flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255,255,255,0.12), transparent); }
+    .panel-head .tag { font-size: 10px; letter-spacing: 0.14em; color: var(--phosphor-muted); border: 1px solid rgba(54,255,121,0.28); padding: 2px 7px; border-radius: 4px; }
+    .panel-body { padding: 15px; }
+    .section-head { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--phosphor-muted); margin: 4px 0 10px; display: flex; align-items: center; gap: 8px; }
+    .section-head::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(54,255,121,0.25), transparent); }
+    .sep { height: 1px; margin: 18px 0; background: linear-gradient(90deg, rgba(255,255,255,0.1), transparent); }
+    body[data-skin="phosphor"] .sep { background: none; border-top: 1px dashed rgba(54,255,121,0.3); }
+
+    /* ============================== BUTTONS =============================== */
+
+    .btn { font: inherit; font-size: 13px; letter-spacing: 0.04em; color: #dcefe0; cursor: pointer;
+      padding: 9px 16px; border: 0; border-radius: 7px; background: var(--face);
+      box-shadow: var(--rim), var(--undercut), var(--drop); transition: transform 0.04s ease, box-shadow 0.08s ease, background 0.08s ease; }
+    .btn:hover { background: var(--face-hot); color: #fff; }
+    .btn:active, .btn.is-pressed { transform: translateY(1px); background: linear-gradient(180deg, var(--case-0), var(--case-1)); box-shadow: var(--well); }
+    .btn.is-selected { color: #06110a; background: linear-gradient(180deg, #ffd07a, var(--amber) 58%, #e6952f); box-shadow: var(--rim), 0 0 16px rgba(255,184,74,0.4); }
+    .btn.is-disabled { opacity: 0.34; cursor: not-allowed; box-shadow: var(--rim), var(--drop); }
+    .btn.primary { color: #04140a; background: linear-gradient(180deg, #7dffab, var(--phosphor) 55%, #12b552); box-shadow: var(--rim), 0 0 18px rgba(54,255,121,0.4); }
+    .btn.danger { color: #ffd9d5; }
+    .btn.danger:hover { background: linear-gradient(180deg, #6b2a26, #3a1512); color: #fff; }
+    .btn.ghost { background: transparent; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12); }
+    .btn.ghost:hover { background: rgba(255,255,255,0.04); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.22); }
+    .btn.block { display: block; width: 100%; text-align: left; }
+    .btn.wide { min-width: 150px; text-align: center; }
+    .btn .key { display: inline-block; margin-left: 8px; padding: 0 5px; font-size: 11px; color: var(--amber); border: 1px solid rgba(255,184,74,0.42); border-radius: 3px; background: rgba(0,0,0,0.25); }
+
+    /* segmented / toggle / slider (hardware) */
+    .segmented { display: inline-flex; border-radius: 7px; box-shadow: var(--well); padding: 3px; background: rgba(0,0,0,0.4); }
+    .segmented button { font: inherit; font-size: 12px; color: #93a39a; cursor: pointer; padding: 6px 13px; border: 0; border-radius: 5px; background: transparent; }
+    .segmented button:hover { color: #d7e6dc; }
+    .segmented button.on { color: #06110a; background: linear-gradient(180deg, #ffd07a, var(--amber) 60%, #e6952f); box-shadow: var(--rim), var(--drop); }
+
+    .field { display: grid; grid-template-columns: 120px 1fr auto; align-items: center; gap: 14px; margin-bottom: 12px; }
+    .field > label { font-size: 12px; color: #a9bcb0; }
+    .field .val { font-size: 12px; color: var(--phosphor); min-width: 44px; text-align: right; }
+    .slider { position: relative; height: 10px; border-radius: 6px; cursor: pointer; background: linear-gradient(90deg, var(--phosphor-muted), var(--phosphor-dim)); box-shadow: var(--well); }
+    .slider .track-off { position: absolute; inset: 0; border-radius: 6px; background: rgba(0,0,0,0.55); }
+    .slider .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; background: linear-gradient(90deg, var(--phosphor-muted), var(--phosphor)); box-shadow: 0 0 10px rgba(54,255,121,0.5); }
+    .slider .knob { position: absolute; top: 50%; width: 18px; height: 18px; border-radius: 50%; transform: translate(-50%,-50%);
+      background: radial-gradient(circle at 34% 28%, #4a555d, #232a30 58%, #0d1114); box-shadow: var(--rim), 0 2px 4px rgba(0,0,0,0.6); }
+    .toggle { position: relative; width: 44px; height: 22px; border-radius: 12px; cursor: pointer; background: rgba(0,0,0,0.5); box-shadow: var(--well); }
+    .toggle .dot { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%;
+      background: radial-gradient(circle at 34% 28%, #55636c, #232a30 60%, #0d1114); box-shadow: 0 1px 3px rgba(0,0,0,0.6); transition: left 0.12s ease; }
+    .toggle.on { background: linear-gradient(90deg, var(--phosphor-muted), var(--phosphor-dim)); }
+    .toggle.on .dot { left: 24px; background: radial-gradient(circle at 34% 28%, #d6ffe4, var(--phosphor) 60%, #12b552); }
+
+    /* rows / badges / cards */
+    .rows { display: grid; gap: 6px; }
+    .row { display: flex; align-items: center; gap: 12px; padding: 10px 13px; border-radius: 7px; cursor: pointer;
+      background: linear-gradient(180deg, rgba(255,255,255,0.028), transparent); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05), var(--rim); }
+    .row:hover { background: linear-gradient(180deg, rgba(255,255,255,0.06), transparent); }
+    .row.sel { box-shadow: inset 0 0 0 1px rgba(255,184,74,0.5), 0 0 14px rgba(255,184,74,0.15); }
+    .row .ico { width: 28px; height: 28px; border-radius: 6px; flex: 0 0 auto; background: var(--face); box-shadow: var(--rim), var(--drop); display: grid; place-items: center; color: var(--phosphor); font-size: 13px; }
+    .row .rtext { flex: 1; display: grid; gap: 2px; min-width: 0; }
+    .row .rtext b { font-weight: 500; font-size: 13px; color: #dcefe0; }
+    .row .rtext span { font-size: 11px; color: #83978c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .check { width: 22px; height: 22px; border-radius: 5px; flex: 0 0 auto; display: grid; place-items: center; font-size: 13px; color: var(--phosphor);
+      background: rgba(0,0,0,0.4); box-shadow: var(--well); }
+    .check.on { color: #04140a; background: linear-gradient(180deg, #7dffab, var(--phosphor)); box-shadow: 0 0 10px rgba(54,255,121,0.5); }
+
+    .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; padding: 3px 8px; border-radius: 4px;
+      border: 1px solid rgba(54,255,121,0.3); color: var(--phosphor); background: rgba(54,255,121,0.06); }
+    .badge.amber { border-color: rgba(255,184,74,0.4); color: var(--amber); background: rgba(255,184,74,0.06); }
+    .badge.blue { border-color: rgba(54,163,255,0.4); color: var(--blue); background: rgba(54,163,255,0.06); }
+    .badge.red { border-color: rgba(255,78,66,0.4); color: var(--red); background: rgba(255,78,66,0.06); }
+    .badge.mute { border-color: rgba(255,255,255,0.14); color: #83978c; background: transparent; }
+
+    .note { font-size: 12px; color: #a9bcb0; line-height: 1.55; }
+    .muted { color: #6f8378; }
+    .flow { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .stack { display: grid; gap: 9px; }
+    h3.sub { margin: 20px 0 9px; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--phosphor-muted); }
+    h3.sub:first-child { margin-top: 2px; }
+
+    /* ============================ MAIN MENU =============================== */
+    /* Corner menu, bottom-right, mirroring the shipped layout. Non-modal: the
+       scene stays the focus; no dim, no full panel. */
+    .corner-menu { position: absolute; right: 34px; bottom: 34px; width: 272px; }
+    .corner-menu .title { padding: 4px 4px 12px; }
+    .corner-menu .title h1 { margin: 0; font-size: 26px; font-weight: 600; letter-spacing: 0.12em; color: #eafff0; text-shadow: 0 0 20px rgba(54,255,121,0.35); }
+    .corner-menu .title p { margin: 3px 0 0; font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--phosphor-muted); }
+    .corner-menu .panel-body { display: grid; gap: 7px; }
+    .corner-menu .btn { padding: 8px 14px; font-size: 13px; }
+    .menu-foot { display: flex; justify-content: space-between; margin-top: 8px; font-size: 10px; color: #5f7268; }
+
+    /* ============================== OVERLAYS ============================== */
+
+    .dim { position: absolute; inset: 0; background: rgba(2,6,11,0.6); backdrop-filter: blur(2px); display: grid; place-items: center; }
+    .modal-sm { width: min(300px, 92vw); }
+    .modal-set { width: min(460px, 94vw); max-height: 92%; display: flex; flex-direction: column; }
+    .modal-2 { width: min(1040px, 94vw); height: min(620px, 88%); display: flex; flex-direction: column; }
+
+    .two-pane { flex: 1; display: grid; grid-template-columns: 40% 1fr; min-height: 0; }
+    .pane-left { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid rgba(255,255,255,0.06); }
+    body[data-skin="phosphor"] .pane-left { border-right-color: rgba(54,255,121,0.18); }
+    .pane-tabs { display: flex; gap: 6px; padding: 12px 14px 0; }
+    .list-scroll { flex: 1; overflow-y: auto; padding: 12px 14px; }
+    .pane-right { display: flex; flex-direction: column; min-height: 0; }
+    .detail-scroll { flex: 1; overflow-y: auto; padding: 18px 20px; }
+    .modal-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.06); }
+    body[data-skin="phosphor"] .modal-foot { border-top-color: rgba(54,255,121,0.18); }
+
+    /* scrollbars styled to match */
+    .list-scroll::-webkit-scrollbar, .detail-scroll::-webkit-scrollbar { width: 8px; }
+    .list-scroll::-webkit-scrollbar-thumb, .detail-scroll::-webkit-scrollbar-thumb { background: rgba(54,255,121,0.28); border-radius: 4px; }
+
+    /* campaign header row in scenarios */
+    .camp { display: flex; align-items: center; gap: 8px; padding: 8px 6px; cursor: pointer; color: var(--blue); font-size: 13px; letter-spacing: 0.04em; }
+    .camp .mk { color: var(--phosphor-muted); width: 14px; }
+    .camp:hover { color: #7ec2ff; }
+    .indent { margin-left: 14px; }
+
+    .thumb16 { aspect-ratio: 16/9; width: 100%; max-width: 320px; border-radius: 6px; margin-bottom: 14px;
+      background: radial-gradient(circle at 30% 30%, rgba(54,255,121,0.18), transparent 60%), radial-gradient(circle at 75% 70%, rgba(54,163,255,0.16), transparent 55%), linear-gradient(160deg, #0b1a12, #050d0a);
+      display: grid; place-items: center; color: var(--phosphor-dim); font-size: 30px; box-shadow: inset 0 0 0 1px rgba(54,255,121,0.16); }
+
+    .detail-h { font-size: 19px; color: #eafff0; margin: 0 0 4px; font-weight: 500; }
+    body[data-skin="phosphor"] .detail-h { color: var(--phosphor); text-shadow: 0 0 10px rgba(54,255,121,0.4); }
+    .detail-sub { font-size: 12px; color: #83978c; margin: 0 0 12px; }
+
+    /* ============================ WIDGET ZOO ============================== */
+    .zoo-wrap { position: absolute; inset: 0; overflow: auto; padding: 16px; }
+    .zoo { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; max-width: 1100px; margin: 0 auto; }
+    .zoo-cell { padding: 15px; }
+
+    /* ================= PHOSPHOR TERMINAL SKIN: widgets ARE the screen ======
+       In phosphor mode a panel is a CRT surface, so its controls are text the
+       terminal drew: bevels/gradients/gloss stripped, each widget re-rendered as
+       a bordered/inverted CLI element, matching nova_os_terminal_poc.html. */
+
+    body[data-skin="phosphor"] .btn { background: rgba(54,255,121,0.05); color: var(--phosphor); border: 1px solid rgba(54,255,121,0.4); border-radius: 2px; box-shadow: none; text-shadow: 0 0 6px rgba(54,255,121,0.35); transition: none; }
+    body[data-skin="phosphor"] .btn.block::before { content: "> "; opacity: 0; }
+    body[data-skin="phosphor"] .btn.block:hover::before, body[data-skin="phosphor"] .btn.block.is-selected::before { opacity: 1; }
+    body[data-skin="phosphor"] .btn:hover { background: rgba(54,255,121,0.12); color: #d6ffe4; border-color: var(--phosphor); }
+    body[data-skin="phosphor"] .btn:active, body[data-skin="phosphor"] .btn.is-pressed { transform: none; background: rgba(54,255,121,0.2); box-shadow: none; }
+    body[data-skin="phosphor"] .btn.is-selected, body[data-skin="phosphor"] .btn.primary { background: var(--phosphor); color: #04140a; border-color: var(--phosphor); box-shadow: 0 0 14px rgba(54,255,121,0.5); text-shadow: none; }
+    body[data-skin="phosphor"] .btn.danger { color: var(--red); border-color: rgba(255,78,66,0.5); background: rgba(255,78,66,0.06); text-shadow: 0 0 6px rgba(255,78,66,0.35); }
+    body[data-skin="phosphor"] .btn.danger:hover { background: rgba(255,78,66,0.16); color: #ffd9d5; border-color: var(--red); }
+    body[data-skin="phosphor"] .btn.ghost { background: transparent; border-color: rgba(54,255,121,0.25); box-shadow: none; }
+    body[data-skin="phosphor"] .btn.is-disabled { opacity: 0.3; box-shadow: none; }
+    body[data-skin="phosphor"] .btn .key { color: var(--amber); border-color: rgba(255,184,74,0.5); background: rgba(0,0,0,0.3); }
+
+    body[data-skin="phosphor"] .segmented { background: rgba(0,0,0,0.35); box-shadow: inset 0 0 0 1px rgba(54,255,121,0.25); border-radius: 2px; }
+    body[data-skin="phosphor"] .segmented button { color: var(--phosphor-dim); border-radius: 2px; }
+    body[data-skin="phosphor"] .segmented button:hover { color: var(--phosphor); }
+    body[data-skin="phosphor"] .segmented button.on { background: var(--phosphor); color: #04140a; box-shadow: 0 0 10px rgba(54,255,121,0.4); }
+
+    body[data-skin="phosphor"] .toggle { background: rgba(0,0,0,0.4); border: 1px solid rgba(54,255,121,0.35); box-shadow: none; border-radius: 2px; }
+    body[data-skin="phosphor"] .toggle .dot { background: #0d6e35; border-radius: 1px; box-shadow: none; }
+    body[data-skin="phosphor"] .toggle.on { background: rgba(54,255,121,0.14); border-color: var(--phosphor); }
+    body[data-skin="phosphor"] .toggle.on .dot { background: var(--phosphor); box-shadow: 0 0 8px rgba(54,255,121,0.6); }
+
+    body[data-skin="phosphor"] .slider { height: 12px; background: rgba(0,0,0,0.5); border: 1px solid rgba(54,255,121,0.32); box-shadow: none; border-radius: 2px; }
+    body[data-skin="phosphor"] .slider .track-off { background: transparent; }
+    body[data-skin="phosphor"] .slider .fill { border-radius: 0; box-shadow: 0 0 10px rgba(54,255,121,0.4); background: repeating-linear-gradient(90deg, var(--phosphor) 0 6px, rgba(54,255,121,0.3) 6px 8px); }
+    body[data-skin="phosphor"] .slider .knob { display: none; }
+
+    body[data-skin="phosphor"] .row { background: transparent; box-shadow: inset 0 0 0 1px rgba(54,255,121,0.14); border-radius: 2px; color: var(--phosphor-dim); }
+    body[data-skin="phosphor"] .row:hover { background: rgba(54,255,121,0.06); }
+    body[data-skin="phosphor"] .row.sel { background: rgba(54,255,121,0.14); box-shadow: inset 0 0 0 1px var(--phosphor); }
+    body[data-skin="phosphor"] .row .ico { background: transparent; border: 1px solid rgba(54,255,121,0.3); box-shadow: none; color: var(--phosphor); border-radius: 2px; }
+    body[data-skin="phosphor"] .row .rtext b { color: var(--phosphor); }
+    body[data-skin="phosphor"] .check { background: transparent; border: 1px solid rgba(54,255,121,0.4); box-shadow: none; border-radius: 2px; color: var(--phosphor); }
+    body[data-skin="phosphor"] .check.on { background: var(--phosphor); color: #04140a; box-shadow: 0 0 8px rgba(54,255,121,0.5); }
+
+    body[data-skin="phosphor"] .badge { border-color: transparent; background: transparent; padding: 3px 2px; }
+    body[data-skin="phosphor"] .badge::before { content: "["; }
+    body[data-skin="phosphor"] .badge::after { content: "]"; }
+    body[data-skin="phosphor"] .badge.amber { color: var(--amber); }
+    body[data-skin="phosphor"] .badge.blue { color: var(--blue); }
+    body[data-skin="phosphor"] .badge.red { color: var(--red); }
+
+    body[data-skin="phosphor"] .thumb16 { box-shadow: inset 0 0 0 1px rgba(54,255,121,0.28); }
+    body[data-skin="phosphor"] .panel-head .rule { background: none; border-top: 1px dashed rgba(54,255,121,0.35); height: 0; }
+    body[data-skin="phosphor"] .panel-head .tag { color: var(--phosphor); border-color: rgba(54,255,121,0.4); }
+
+    @media (max-width: 760px) { .two-pane { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body data-skin="phosphor">
+
+  <!-- live gameplay backdrop (menu_backdrop scenario, mirrored in CSS) -->
+  <div class="scene">
+    <div class="nebula"></div>
+    <div class="stars b"></div>
+    <div class="stars a"></div>
+    <div class="system">
+      <div class="disk">
+        <div class="ring"></div>
+        <div class="ring two"></div>
+        <div class="arm"><div class="ship"><div class="hull"></div><div class="thr"></div></div></div>
+      </div>
+      <div class="well"></div>
+    </div>
+    <div class="wreck"></div>
+    <div class="contact c1"></div>
+    <div class="contact c2"></div>
+    <div class="vignette"></div>
+  </div>
+
+  <div class="app">
+    <header class="topbar">
+      <span class="demo-tag">POC 1</span>
+      <div class="brand"><span class="glyph"></span><b>UI REWORK</b></div>
+      <div class="seg" id="screenTabs">
+        <button class="screen-tab active" data-screen="menu">Main menu</button>
+        <button class="screen-tab" data-screen="settings">Settings</button>
+        <button class="screen-tab" data-screen="mods">Mods</button>
+        <button class="screen-tab" data-screen="scenarios">Scenarios</button>
+        <button class="screen-tab" data-screen="pause">Pause</button>
+        <button class="screen-tab" data-screen="zoo">Widget zoo</button>
+      </div>
+      <span class="spacer"></span>
+      <div class="intensity"><span>Panel skin</span>
+        <div class="segmented" id="skinSeg">
+          <button data-skin="hardware">Hardware</button>
+          <button class="on" data-skin="phosphor">Phosphor</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="stage">
+
+      <!-- =========================== MAIN MENU ======================== -->
+      <section class="screen active" data-screen="menu">
+        <div class="corner-menu">
+          <div class="title"><h1>NOVA PROTOCOL</h1><p>Orbital salvage // delta-9</p></div>
+          <div class="panel"><div class="panel-body">
+            <button class="btn primary block">New Game</button>
+            <button class="btn block">Sandbox</button>
+            <button class="btn block">Scenarios</button>
+            <button class="btn block">Mods</button>
+            <button class="btn block">Settings</button>
+            <button class="btn danger block">Exit</button>
+            <div class="menu-foot"><span>v0.9.0</span><span>NOVA OS 9.0</span></div>
+          </div></div>
+        </div>
+      </section>
+
+      <!-- ============================ SETTINGS ======================== -->
+      <section class="screen" data-screen="settings">
+        <div class="dim">
+          <div class="panel modal-set">
+            <div class="panel-head"><h2>Settings</h2><span class="rule"></span></div>
+            <div class="detail-scroll">
+              <div class="section-head">Audio</div>
+              <div class="field"><label>Volume</label><div class="slider" data-v="0.8"><div class="track-off"></div><div class="fill"></div><div class="knob"></div></div><span class="val">80%</span></div>
+
+              <div class="sep"></div>
+              <div class="section-head">Graphics</div>
+              <div class="field"><label>Quality</label><div class="segmented"><button>Low</button><button class="on">Medium</button><button>High</button><button>Ultra</button></div><span class="val"></span></div>
+
+              <div class="sep"></div>
+              <div class="section-head">Controls</div>
+              <div class="rows">
+                <div class="row"><div class="rtext"><b>Thrust forward</b></div><span class="badge mute">W</span><span class="badge mute">LS up</span></div>
+                <div class="row"><div class="rtext"><b>Fire weapons</b></div><span class="badge mute">Space</span><span class="badge mute">RT</span></div>
+                <div class="row"><div class="rtext"><b>Autopilot GOTO</b></div><span class="badge mute">G</span><span class="badge mute">A</span></div>
+                <div class="row"><div class="rtext"><b>HUD detail</b></div><span class="badge mute">~</span><span class="badge mute">Select</span></div>
+              </div>
+            </div>
+            <div class="modal-foot"><span class="muted note">Saved automatically</span><button class="btn wide" data-goto="menu">Back</button></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================== MODS ========================== -->
+      <section class="screen" data-screen="mods">
+        <div class="dim">
+          <div class="panel modal-2">
+            <div class="panel-head"><h2>Mods</h2><span class="rule"></span><span class="tag">DELTA-9</span></div>
+            <div class="two-pane">
+              <div class="pane-left">
+                <div class="pane-tabs"><button class="btn is-selected" style="padding:6px 12px;font-size:12px">Installed</button><button class="btn ghost" style="padding:6px 12px;font-size:12px">Explore online</button></div>
+                <div class="list-scroll rows" id="modList">
+                  <div class="row sel"><div class="rtext"><b>Core content</b><span>base // required</span></div><span class="badge mute">base</span></div>
+                  <div class="row"><div class="rtext"><b>Deep salvage</b><span>v1.2 // nova.labs</span></div><span class="check on">x</span></div>
+                  <div class="row"><div class="rtext"><b>Hard vacuum</b><span>v0.4 // driftco</span></div><span class="check">&nbsp;</span></div>
+                  <div class="row"><div class="rtext"><b>Neon cartography</b><span>v2.0 // gridworks</span></div><span class="check on">x</span></div>
+                  <div class="row"><div class="rtext"><b>Derelict fleets</b><span>v1.0 // nova.labs</span></div><span class="check">&nbsp;</span></div>
+                  <div class="row"><div class="rtext"><b>Ion storms</b><span>v0.9 // meteo</span></div><span class="check">&nbsp;</span></div>
+                  <div class="row"><div class="rtext"><b>Freight runs</b><span>v1.1 // haulage</span></div><span class="check on">x</span></div>
+                  <div class="row"><div class="rtext"><b>Beacon net</b><span>v0.6 // relay</span></div><span class="check">&nbsp;</span></div>
+                </div>
+              </div>
+              <div class="pane-right"><div class="detail-scroll">
+                <h3 class="detail-h">Core content</h3>
+                <p class="detail-sub">base // required</p>
+                <p class="note">The base game content for sector delta-9: hull kinds, hazards, scenarios and the NOVA OS command set. Always enabled - other mods build on it.</p>
+                <h3 class="sub">Dependencies</h3>
+                <div class="flow"><span class="badge">none</span></div>
+                <h3 class="sub">Adds</h3>
+                <div class="flow"><span class="badge">6 hull kinds</span><span class="badge">3 hazards</span><span class="badge amber">4 scenarios</span></div>
+                <h3 class="sub">Actions</h3>
+                <div class="flow"><span class="note muted">Enabled (base)</span></div>
+              </div></div>
+            </div>
+            <div class="modal-foot"><span class="muted note">3 of 8 enabled</span><button class="btn wide" data-goto="menu">Back</button></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =========================== SCENARIOS ======================== -->
+      <section class="screen" data-screen="scenarios">
+        <div class="dim">
+          <div class="panel modal-2">
+            <div class="panel-head"><h2>Scenarios</h2><span class="rule"></span></div>
+            <div class="two-pane">
+              <div class="pane-left">
+                <div style="padding:12px 14px 0"><p class="detail-sub" style="margin:0">Pick a scenario to play. New Game plays the main story.</p></div>
+                <div class="list-scroll" id="scnList">
+                  <div class="camp" data-camp="story"><span class="mk">[-]</span><b style="font-weight:500">Main story</b></div>
+                  <div class="rows camp-body" data-camp="story">
+                    <div class="row sel indent"><div class="rtext"><b>First light</b><span>Shakedown run - learn the ship.</span></div></div>
+                    <div class="row indent"><div class="rtext"><b>Debris harvest</b><span>Clear a decaying field in time.</span></div></div>
+                    <div class="row indent"><div class="rtext"><b>Silent running</b><span>Salvage past the defense grid.</span></div></div>
+                    <div class="row indent"><div class="rtext"><b>Gravity trap</b><span>Thread a line between two wells.</span></div></div>
+                  </div>
+                  <div class="camp" data-camp="chal"><span class="mk">[+]</span><b style="font-weight:500">Challenges</b></div>
+                  <div class="rows camp-body" data-camp="chal" hidden>
+                    <div class="row indent"><div class="rtext"><b>Fuel crisis</b><span>Reach the beacon on fumes.</span></div></div>
+                    <div class="row indent"><div class="rtext"><b>Swarm</b><span>Survive the derelict fleet.</span></div></div>
+                  </div>
+                  <div class="rows" style="margin-top:6px">
+                    <div class="row"><div class="rtext"><b>Free flight</b><span>No objective - explore delta-9.</span></div></div>
+                    <div class="row"><div class="rtext"><b>Target range</b><span>Weapons sandbox.</span></div></div>
+                  </div>
+                </div>
+              </div>
+              <div class="pane-right"><div class="detail-scroll">
+                <h3 class="detail-h">First light</h3>
+                <div class="thumb16">&#9673;</div>
+                <p class="note">A shakedown run through the delta-9 debris belt. Learn thrust, docking, autopilot GOTO and the NOVA OS computer while you clear a light salvage field. No hostiles.</p>
+                <div class="flow" style="margin-top:14px"><button class="btn primary wide">Play<span class="key">Enter</span></button><span class="badge">TUTORIAL</span></div>
+              </div></div>
+            </div>
+            <div class="modal-foot"><span class="muted note">10 scenarios // 2 campaigns</span><button class="btn wide" data-goto="menu">Back</button></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================== PAUSE ========================= -->
+      <section class="screen" data-screen="pause">
+        <div class="dim">
+          <div class="panel modal-sm">
+            <div class="panel-head"><h2>Paused</h2><span class="rule"></span></div>
+            <div class="panel-body stack">
+              <button class="btn primary block">Resume<span class="key">Esc</span></button>
+              <button class="btn block">Retry scenario</button>
+              <button class="btn block">Settings</button>
+              <button class="btn block">Back to Main Menu</button>
+              <button class="btn danger block">Exit</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================ WIDGET ZOO ====================== -->
+      <section class="screen" data-screen="zoo">
+        <div class="zoo-wrap"><div class="zoo">
+          <div class="panel zoo-cell">
+            <h3 class="sub">Button states</h3>
+            <div class="stack">
+              <div class="flow"><button class="btn">Idle</button><button class="btn is-pressed">Pressed</button><button class="btn is-selected">Selected</button><button class="btn is-disabled">Disabled</button></div>
+              <div class="note muted">Hover for the hover face. Pressed = recessed; selected = inverted (phosphor) / amber (hardware).</div>
+            </div>
+            <h3 class="sub">Emphasis</h3>
+            <div class="flow"><button class="btn primary">Primary</button><button class="btn">Default</button><button class="btn ghost">Ghost</button><button class="btn danger">Danger</button></div>
+          </div>
+          <div class="panel zoo-cell">
+            <h3 class="sub">Segmented</h3>
+            <div class="segmented"><button class="on">All</button><button>Minimal</button><button>None</button></div>
+            <h3 class="sub">Toggles</h3>
+            <div class="flow"><div class="toggle on"><div class="dot"></div></div><div class="toggle"><div class="dot"></div></div></div>
+            <h3 class="sub">Slider</h3>
+            <div class="field" style="grid-template-columns:1fr auto"><div class="slider" data-v="0.66"><div class="track-off"></div><div class="fill"></div><div class="knob"></div></div><span class="val">66%</span></div>
+          </div>
+          <div class="panel zoo-cell">
+            <h3 class="sub">List rows + checkbox</h3>
+            <div class="rows">
+              <div class="row sel"><div class="rtext"><b>Selected row</b><span>enabled</span></div><span class="check on">x</span></div>
+              <div class="row"><div class="rtext"><b>Idle row</b><span>disabled</span></div><span class="check">&nbsp;</span></div>
+            </div>
+          </div>
+          <div class="panel zoo-cell">
+            <h3 class="sub">Panel header</h3>
+            <div style="border-radius:7px;overflow:hidden;box-shadow:var(--well)"><div class="panel-head" style="padding:10px 13px"><h2>Header</h2><span class="rule"></span><span class="tag">TAG</span></div></div>
+            <h3 class="sub">Badges</h3>
+            <div class="flow"><span class="badge">ONLINE</span><span class="badge amber">WARN</span><span class="badge blue">INFO</span><span class="badge red">FAULT</span><span class="badge mute">IDLE</span></div>
+          </div>
+        </div></div>
+      </section>
+
+    </main>
+  </div>
+
+  <script>
+    const tabs = document.getElementById('screenTabs');
+    function showScreen(name) {
+      if (![...tabs.querySelectorAll('.screen-tab')].some(t => t.dataset.screen === name)) return;
+      tabs.querySelectorAll('.screen-tab').forEach(t => t.classList.toggle('active', t.dataset.screen === name));
+      document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.dataset.screen === name));
+    }
+    tabs.addEventListener('click', e => { const b = e.target.closest('.screen-tab'); if (b) showScreen(b.dataset.screen); });
+
+    const skinSeg = document.getElementById('skinSeg');
+    skinSeg.addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      skinSeg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+      document.body.dataset.skin = b.dataset.skin;
+    });
+
+    document.querySelectorAll('.slider').forEach(s => {
+      const v = parseFloat(s.dataset.v || '0.5');
+      s.querySelector('.fill').style.width = (v * 100) + '%';
+      s.querySelector('.knob').style.left = (v * 100) + '%';
+    });
+
+    document.addEventListener('click', e => {
+      const goto = e.target.closest('[data-goto]'); if (goto) showScreen(goto.dataset.goto);
+      const seg = e.target.closest('.segmented button'); if (seg && seg.parentElement !== skinSeg) seg.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === seg));
+      const camp = e.target.closest('.camp');
+      if (camp) {
+        const body = document.querySelector('.camp-body[data-camp="' + camp.dataset.camp + '"]');
+        const mk = camp.querySelector('.mk');
+        if (body) { body.hidden = !body.hidden; mk.textContent = body.hidden ? '[+]' : '[-]'; }
+      }
+      const chk = e.target.closest('.check');
+      if (chk) { chk.classList.toggle('on'); chk.innerHTML = chk.classList.contains('on') ? 'x' : '&nbsp;'; }
+      const row = e.target.closest('.row');
+      if (row && (row.closest('#modList') || row.closest('#scnList')) && !e.target.closest('.check')) {
+        const scope = row.closest('#modList') || row.closest('#scnList');
+        scope.querySelectorAll('.row').forEach(r => r.classList.toggle('sel', r === row));
+      }
+    });
+
+    (function initHash() {
+      const [scr, skin] = location.hash.replace('#', '').split(',').map(s => s.trim());
+      if (scr) showScreen(scr);
+      if (skin) { const b = skinSeg.querySelector('button[data-skin="' + skin + '"]'); if (b) { skinSeg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); document.body.dataset.skin = skin; } }
+    })();
+  </script>
+</body>
+</html>

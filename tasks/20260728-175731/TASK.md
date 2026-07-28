@@ -51,6 +51,9 @@ untouched.
 ## Notes
 
 The map app's bearing/mark format stays; only range units change. No authored
-content text mentions `u` (grepped assets/base 2026-07-28, zero hits). If the
-spike (20260728-175726) picks a different m/km threshold than the default, follow the
-spike.
+content text mentions `u` (grepped assets/base 2026-07-28, zero hits).
+
+Spike DECISION D6 (20260728-175726) pinned the policy: 1 u = 10 m; distance
+`< 1000 m` -> integer metres (`840 m`), `>= 1000 m` -> kilometres with 2
+decimals (`1.24 km`); speed `m/s`; closing speed signed `m/s`; orbit radius in
+metres. Follow that in the shared formatter.
