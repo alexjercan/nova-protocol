@@ -69,6 +69,9 @@ const SHIP_RADIUS_MIN: f32 = 3.0;
 const SHIP_RADIUS_MAX: f32 = 400.0;
 const SHIP_THETA_DEFAULT: f32 = 0.7;
 const SHIP_PHI_DEFAULT: f32 = 0.5;
+/// Exponential ease rate (1/s) for the orbit center chasing the selected
+/// section. Frame-rate independent via `1 - exp(-k*dt)`; higher = snappier.
+const SHIP_CENTER_EASE: f32 = 9.0;
 
 /// Footer hints while the ship app owns the screen.
 const SHIP_HINTS: &[&str] = &[
@@ -808,12 +811,22 @@ struct ShipBlip {
 /// The ship camera's orbit state (own spherical math, like `MapOrbit`, because
 /// the shared smoothed orbit does not drive an RTT camera -
 /// `verify-reused-driver-actually-moves`).
-#[derive(Component)]
+#[derive(Component, Clone, Copy)]
 struct ShipOrbit {
     theta: f32,
     phi: f32,
     radius: f32,
+    /// The eased orbit center the camera currently looks at and orbits around.
     center: Vec3,
+    /// Where `center` is easing toward - the selected section's local position,
+    /// or `center_home` after a `T` reset.
+    center_target: Vec3,
+    /// The whole-ship centroid; `T` re-frames the ship by retargeting here.
+    center_home: Vec3,
+    /// The selection `center_target` was last set for. The center only retargets
+    /// when `ShipRuntime.selected` diverges from this, so `T`'s home reframe is
+    /// not immediately chased back to the still-selected section.
+    centered_on: Option<Entity>,
 }
 
 fn orbit_eye(radius: f32, theta: f32, phi: f32) -> Vec3 {
@@ -1228,6 +1241,11 @@ fn manage_ship_scene(
             phi: SHIP_PHI_DEFAULT,
             radius,
             center: centroid,
+            center_target: centroid,
+            center_home: centroid,
+            // Treat the default selection as already centered at home, so the app
+            // OPENS framed on the whole ship instead of chasing section 0 on frame 1.
+            centered_on: views.first().map(|v| v.entity),
         },
         ChildOf(scene_root),
     ));
@@ -1314,10 +1332,18 @@ fn reconcile_ship_target(
 }
 
 /// Drive the ship camera transform from its orbit state.
-fn drive_ship_camera(mut q_camera: Query<(&mut Transform, &ShipOrbit), With<ShipCameraMarker>>) {
-    let Ok((mut transform, orbit)) = q_camera.single_mut() else {
+fn drive_ship_camera(
+    time: Res<Time>,
+    mut q_camera: Query<(&mut Transform, &mut ShipOrbit), With<ShipCameraMarker>>,
+) {
+    let Ok((mut transform, mut orbit)) = q_camera.single_mut() else {
         return;
     };
+    // Frame-rate-independent exponential ease of the center toward its target, so
+    // Q/E/R/F + drag orbit around the section being inspected.
+    let dt = time.delta_secs().max(1.0 / 240.0);
+    let alpha = 1.0 - (-SHIP_CENTER_EASE * dt).exp();
+    orbit.center = orbit.center.lerp(orbit.center_target, alpha);
     let eye = orbit.center + orbit_eye(orbit.radius, orbit.theta, orbit.phi);
     *transform = Transform::from_translation(eye).looking_at(orbit.center, Vec3::Y);
 }
@@ -1378,10 +1404,6 @@ fn ship_input(
             orbit.radius =
                 (orbit.radius * (1.0 - wheel_delta * 0.12)).clamp(SHIP_RADIUS_MIN, SHIP_RADIUS_MAX);
         }
-        if keys.just_pressed(KeyCode::KeyT) {
-            orbit.theta = SHIP_THETA_DEFAULT;
-            orbit.phi = SHIP_PHI_DEFAULT;
-        }
     }
 
     let list = sections.collect();
@@ -1402,6 +1424,32 @@ fn ship_input(
             None => 0,
         };
         runtime.selected = Some(list[next].entity);
+    }
+
+    // Reconcile the orbit center after any selection change this frame. This is
+    // the single funnel for `[`/`]`, blip clicks, and the default selection: each
+    // caller only sets `runtime.selected`, and the center chases it here.
+    if let Ok(mut orbit) = q_camera.single_mut() {
+        if keys.just_pressed(KeyCode::KeyT) {
+            // Reset re-frames the whole ship: restore the default angles and
+            // retarget the center home. Consuming the current selection
+            // (centered_on = selected) makes the reframe STICK - the change check
+            // below will not chase the still-selected section back (DECISION.md).
+            orbit.theta = SHIP_THETA_DEFAULT;
+            orbit.phi = SHIP_PHI_DEFAULT;
+            orbit.center_target = orbit.center_home;
+            orbit.centered_on = runtime.selected;
+        } else if runtime.selected != orbit.centered_on {
+            // Selection changed: ease the center onto the newly selected section's
+            // local position (same scene frame as the blips, so no reprojection).
+            if let Some(view) = runtime
+                .selected
+                .and_then(|sel| list.iter().find(|v| v.entity == sel))
+            {
+                orbit.center_target = view.local.translation;
+            }
+            orbit.centered_on = runtime.selected;
+        }
     }
 
     // Actions on the selected section: L reload, P repair. Route through the same
@@ -2280,6 +2328,261 @@ mod tests {
             orbit_angles(&mut app),
             before,
             "RMB drag must still orbit the ship camera"
+        );
+    }
+
+    /// Spawn a player ship whose root is OFF-origin and rotated, with each
+    /// section's world pose (`GlobalTransform`) deliberately DIFFERENT from its
+    /// local `Transform`. The orbit recenter reads the LOCAL frame (the scene is
+    /// built from `Transform`, like the blips), so a regression that read the
+    /// world frame would retarget to the wrong place - invisible at the origin
+    /// (`spatial-fixture-off-the-trivial-point`). Returns (hull, turret, thruster);
+    /// local translations are hull (3,2,-1), turret (9,2,-1), thruster (-3,2,-1),
+    /// so the centroid is (3,2,-1) and the turret is well off it.
+    fn spawn_offset_ship(world: &mut World) -> (Entity, Entity, Entity) {
+        let root_world = Transform::from_translation(Vec3::new(120.0, -40.0, 75.0))
+            .with_rotation(Quat::from_rotation_y(0.8));
+        let ship = world
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                root_world,
+                GlobalTransform::from(root_world),
+                Name::new("NOVA"),
+            ))
+            .id();
+        // Local Transform is the scene frame; GlobalTransform is the genuinely
+        // composed world pose (`root_world * local`), so the two frames are
+        // consistent AND clearly distinct - the recenter must read local.
+        let section = |name: &str, id: &str, local: Vec3| {
+            (
+                SectionMarker,
+                Name::new(name.to_string()),
+                EntityId::new(id.to_string()),
+                Transform::from_translation(local),
+                GlobalTransform::from(root_world.mul_transform(Transform::from_translation(local))),
+                SectionCollider::Cuboid { size: Vec3::ONE },
+                ChildOf(ship),
+            )
+        };
+        let hull = world
+            .spawn((
+                section("Block Hull", "cube_a", Vec3::new(3.0, 2.0, -1.0)),
+                HullSectionMarker,
+                SectionDamageClass::Hull,
+                Health {
+                    current: 80.0,
+                    max: 100.0,
+                },
+            ))
+            .id();
+        let turret = world
+            .spawn((
+                section("Bow gun", "cube_b", Vec3::new(9.0, 2.0, -1.0)),
+                TurretSectionMarker,
+                SectionDamageClass::Turret,
+                Health {
+                    current: 12.0,
+                    max: 60.0,
+                },
+                SectionAmmo {
+                    rounds: 2,
+                    capacity: 6,
+                },
+            ))
+            .id();
+        let thruster = world
+            .spawn((
+                section("Main drive", "cube_c", Vec3::new(-3.0, 2.0, -1.0)),
+                ThrusterSectionMarker,
+                SectionDamageClass::Thruster,
+                Health {
+                    current: 100.0,
+                    max: 100.0,
+                },
+            ))
+            .id();
+        (hull, turret, thruster)
+    }
+
+    /// A ship app fixture built from [`spawn_offset_ship`], with the scene already
+    /// managed. Returns the app plus (hull, turret, thruster).
+    fn offset_ship_app() -> (App, Entity, Entity, Entity) {
+        let mut app = App::new();
+        app.add_plugins((
+            MinimalPlugins,
+            StatesPlugin,
+            AssetPlugin::default(),
+            InputPlugin,
+        ));
+        app.init_asset::<Image>();
+        app.init_asset::<Mesh>();
+        app.init_asset::<StandardMaterial>();
+        app.insert_state(PauseStates::NovaOs);
+        app.init_resource::<ShipRuntime>();
+        app.add_message::<ShipSectionCommand>();
+
+        let mut terminal = ship_terminal();
+        terminal.enter_app(SHIP_APP_ID);
+        app.insert_resource(terminal);
+
+        let (hull, turret, thruster) = spawn_offset_ship(app.world_mut());
+        app.world_mut()
+            .run_system_once(assign_section_codes)
+            .unwrap();
+        app.world_mut().run_system_once(manage_ship_scene).unwrap();
+        (app, hull, turret, thruster)
+    }
+
+    fn ship_orbit(app: &mut App) -> ShipOrbit {
+        *app.world_mut()
+            .query_filtered::<&ShipOrbit, With<ShipCameraMarker>>()
+            .single(app.world())
+            .unwrap()
+    }
+
+    /// Advance the generic clock and drive the camera `frames` times, so the
+    /// exponential center ease actually integrates over simulated time.
+    fn drive_frames(app: &mut App, frames: usize, dt: f32) {
+        for _ in 0..frames {
+            app.world_mut()
+                .resource_mut::<Time>()
+                .advance_by(std::time::Duration::from_secs_f32(dt));
+            app.world_mut().run_system_once(drive_ship_camera).unwrap();
+        }
+    }
+
+    /// Selecting a non-default section retargets the orbit center to that section's
+    /// LOCAL position, and `drive_ship_camera` eases the live center onto it. The
+    /// app still OPENS framed on the whole-ship centroid. Fails if the ease is a
+    /// no-op (`test-the-wiring-system-not-just-its-pure-helpers`).
+    #[test]
+    fn ship_orbit_recenters_on_selected_section() {
+        let (mut app, _hull, turret, _thruster) = offset_ship_app();
+
+        let centroid = Vec3::new(3.0, 2.0, -1.0);
+        let orbit = ship_orbit(&mut app);
+        assert!(
+            orbit.center.abs_diff_eq(centroid, 1e-4)
+                && orbit.center_target.abs_diff_eq(centroid, 1e-4),
+            "app opens framed on the whole-ship centroid, not a section"
+        );
+
+        // Idling with no selection change must NOT drift off the whole-ship view
+        // (the default selection is treated as already centered at home).
+        app.world_mut().run_system_once(ship_input).unwrap();
+        drive_frames(&mut app, 30, 1.0 / 60.0);
+        let orbit = ship_orbit(&mut app);
+        assert!(
+            orbit.center.abs_diff_eq(centroid, 1e-3),
+            "no selection change keeps the center on the whole-ship centroid, got {:?}",
+            orbit.center
+        );
+
+        // Select the turret and reconcile: the center RETARGETS to the turret's
+        // LOCAL translation (9,2,-1), not its world pose.
+        let turret_local = Vec3::new(9.0, 2.0, -1.0);
+        app.world_mut().resource_mut::<ShipRuntime>().selected = Some(turret);
+        app.world_mut().run_system_once(ship_input).unwrap();
+        let orbit = ship_orbit(&mut app);
+        assert_eq!(
+            orbit.centered_on,
+            Some(turret),
+            "reconcile records the new selection"
+        );
+        assert!(
+            orbit.center_target.abs_diff_eq(turret_local, 1e-4),
+            "center_target follows the selected section's LOCAL position, got {:?}",
+            orbit.center_target
+        );
+        // The eased center has not jumped yet - it must be driven there over frames.
+        assert!(
+            orbit.center.abs_diff_eq(centroid, 1e-3),
+            "center does not snap on selection; it eases"
+        );
+
+        // Drive the camera: the live center converges onto the target and leaves
+        // the centroid behind. This is the assertion that fails if the ease no-ops.
+        drive_frames(&mut app, 60, 1.0 / 60.0);
+        let orbit = ship_orbit(&mut app);
+        assert!(
+            orbit.center.abs_diff_eq(turret_local, 1e-2),
+            "eased center reaches the selected section, got {:?}",
+            orbit.center
+        );
+        assert!(
+            orbit.center.distance(centroid) > 1.0,
+            "eased center actually moved off the centroid (ease is not a no-op)"
+        );
+    }
+
+    /// `T` re-frames the whole ship (center home + default angles) and the reframe
+    /// STICKS: the selection reconcile does not chase the still-selected section
+    /// back on the next frame (DECISION.md).
+    #[test]
+    fn ship_reset_reframes_whole_ship_and_sticks() {
+        let (mut app, _hull, turret, _thruster) = offset_ship_app();
+        let centroid = Vec3::new(3.0, 2.0, -1.0);
+        let turret_local = Vec3::new(9.0, 2.0, -1.0);
+
+        // Select the turret and ease the center onto it.
+        app.world_mut().resource_mut::<ShipRuntime>().selected = Some(turret);
+        app.world_mut().run_system_once(ship_input).unwrap();
+        drive_frames(&mut app, 60, 1.0 / 60.0);
+        assert!(
+            ship_orbit(&mut app).center.abs_diff_eq(turret_local, 1e-2),
+            "precondition: center is on the turret before reset"
+        );
+
+        // Nudge the angles off default so T's angle reset is observable too.
+        {
+            let mut orbit = app
+                .world_mut()
+                .query_filtered::<&mut ShipOrbit, With<ShipCameraMarker>>()
+                .single_mut(app.world_mut())
+                .unwrap();
+            orbit.theta += 0.5;
+            orbit.phi = 0.3;
+        }
+
+        // Press T: retarget home, reset angles, and consume the selection.
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyT);
+        app.world_mut().run_system_once(ship_input).unwrap();
+        let orbit = ship_orbit(&mut app);
+        assert!(
+            orbit.center_target.abs_diff_eq(centroid, 1e-4),
+            "T retargets the center to the whole-ship centroid, got {:?}",
+            orbit.center_target
+        );
+        assert_eq!(
+            orbit.centered_on,
+            Some(turret),
+            "T consumes the selection so the reframe is not chased back"
+        );
+        assert!(
+            (orbit.theta - SHIP_THETA_DEFAULT).abs() < 1e-4
+                && (orbit.phi - SHIP_PHI_DEFAULT).abs() < 1e-4,
+            "T restores the default orbit angles"
+        );
+
+        // Release T and reconcile again with the turret STILL selected: the center
+        // target must stay home, not snap back to the turret.
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .release(KeyCode::KeyT);
+        app.world_mut().run_system_once(ship_input).unwrap();
+        drive_frames(&mut app, 60, 1.0 / 60.0);
+        let orbit = ship_orbit(&mut app);
+        assert!(
+            orbit.center_target.abs_diff_eq(centroid, 1e-4),
+            "the whole-ship reframe STICKS while the section stays selected"
+        );
+        assert!(
+            orbit.center.abs_diff_eq(centroid, 1e-2),
+            "the eased center settles back on the centroid, got {:?}",
+            orbit.center
         );
     }
 

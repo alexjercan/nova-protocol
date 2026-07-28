@@ -1,6 +1,6 @@
 # NOVA OS ship app: recenter the orbit camera on the selected section
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 29
 - TAGS: v0.9.0,feedback,feature,ui,hud,gameplay
 
@@ -41,7 +41,7 @@ selected."
 
 ## Flow State
 
-- FLOW STEP: PLANNED
+- FLOW STEP: DONE
 - PLAN STATUS: APPROVED
 
 ## Design
@@ -71,17 +71,17 @@ reproject from `cam_gt` each frame - `reused-render-pattern-verify-coordinate-fr
 
 ## Steps
 
-- [ ] Add `center_target`, `center_home`, `centered_on` to `ShipOrbit`; init them
+- [x] Add `center_target`, `center_home`, `centered_on` to `ShipOrbit`; init them
       in `manage_ship_scene` (centers = centroid, `centered_on` = default selection).
-- [ ] Add a `SHIP_CENTER_EASE` constant and ease `orbit.center` toward
+- [x] Add a `SHIP_CENTER_EASE` constant and ease `orbit.center` toward
       `center_target` in `drive_ship_camera` (add `Res<Time>`, `&mut ShipOrbit`).
-- [ ] Reconcile `center_target`/`centered_on` from `runtime.selected` in
+- [x] Reconcile `center_target`/`centered_on` from `runtime.selected` in
       `ship_input`; make `T` retarget to `center_home` and consume the selection.
-- [ ] Live-tree tests (off-origin fixture): selecting a non-default section
+- [x] Live-tree tests (off-origin fixture): selecting a non-default section
       retargets `center_target` and, after N `drive_ship_camera` frames,
       `orbit.center` approaches it (fails if the ease is a no-op); `T` returns
       `center_target` to `center_home` and the reconcile does not snap it back.
-- [ ] Verify blips still line up (screenshot example AppExit::Success) and run
+- [x] Verify blips still line up (screenshot example AppExit::Success) and run
       the check suite.
 
 ## Definition of Done
