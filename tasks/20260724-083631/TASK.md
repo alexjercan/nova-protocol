@@ -348,3 +348,12 @@ To be authored in the planning pass. Skeleton:
   assertions 20260719-114931), 20260525-133031 (bcs public-API docs, wrong
   repo), and 20260723-233500 (restore bigger wells, premise removed - folds
   into a future campaign-polish pass).
+- **2026-07-28 (owner scope call, /flow):** v0.9.0 EXTENDED with the UI-rework
+  epic 20260728-175719 (Strand E: NOVA OS look everywhere - menus/editor/HUD
+  restyle with light-3D widgets, quieter contextual HUD, 1 u = 10 m metric
+  display; HTML-demo spike first). Owner chose extending this release over
+  opening v0.10.0; v0.9.0 tags only after the epic closes. Children:
+  20260728-175726 (spike, p44), 20260728-175731 (units, p42), 20260728-175734
+  (theme/widgets, p40), 20260728-175738 (menus+editor, p38), 20260728-175742
+  (HUD restyle/text, p36), 20260728-175747 (contextual HUD, p34). The epic
+  container holds the strand map and manual-acceptance batch.
