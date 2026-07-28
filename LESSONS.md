@@ -155,6 +155,13 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   an origin fixture proves almost nothing about placement (a ship-app blip
   projection used world space but the scene was local, invisible until an
   off-origin fixture). 20260726-115339.
+- `offorigin-fixture-compose-world-not-fake-it` (x1): when an off-origin fixture
+  spawns a root off-origin AND rotated to distinguish local from world, set each
+  child's `GlobalTransform` to the genuinely composed `root_world * local`, NOT
+  `local + constant_offset` - a hand-faked additive offset ignores the root
+  rotation, so the "world" pose is just local shifted and the rotation is dead
+  dressing that misleads a reader into thinking the frames are properly composed.
+  Kin of [[spatial-fixture-off-the-trivial-point]]. 20260728-125510.
 - `pin-each-caller-not-just-shared-core` (x2): a shared mutation helper covered by
   ONE caller's test does not cover the OTHER callers' wiring (target resolution,
   message plumbing, side effects); pin each entry point - and when a change adds N
@@ -747,6 +754,14 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   production-dead field that only a plain `cargo check` (non-test cfg) surfaces.
   Run `cargo check` (or `--all-targets` incl. the non-test build), not just
   `cargo test`, before declaring done. 20260728-124443 (from 20260728-115435).
+- `drop-the-field-the-change-orphans` (x1): when a display/format change stops
+  reading a struct field (here `ShipSectionStatus.name` after switching a
+  `ship view` row to the code label + sorting by code), the field AND its upstream
+  ECS query fetch (`Option<&Name>`) go dead in the SAME change - remove both in
+  that pass rather than leaving a `dead_code` warning or a wasted query column. A
+  plan step that says "keep the old field for now" deserves a "does anything still
+  read it after this change?" check. Kin of [[dead-code-hides-under-cfg-test-reader]].
+  20260728-152856.
 - `gpu-example-local-skip` (x2): heavy render examples are ~100x too slow
   under lavapipe AND OOM its software render device on combat scenes (identical
   wgpu OutOfMemory at the same frame across scenarios, with system RAM free);
