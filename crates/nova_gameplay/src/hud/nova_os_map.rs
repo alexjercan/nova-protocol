@@ -28,7 +28,7 @@ use bevy::{
     // pointer), matching the terminal's own buttons.
     ui_widgets::{Activate, Button},
 };
-use nova_events::prelude::EntityTypeName;
+use nova_events::prelude::{EntityId, EntityTypeName};
 use nova_os::prelude::*;
 
 use crate::{
@@ -44,7 +44,7 @@ use crate::{
 
 /// Glob-import surface: `use nova_gameplay::hud::nova_os_map::prelude::*`.
 pub mod prelude {
-    pub use super::NovaOsMapPlugin;
+    pub use super::{MapContactCode, NovaOsMapPlugin};
 }
 
 /// The launch word / stable id of the map app.
@@ -123,7 +123,49 @@ impl MapContactKind {
             MapContactKind::Terrain => "Asteroid mass.",
         }
     }
+
+    /// The code prefix for this kind (`SELF`, `ALLY`, `HOST`, `OBJ`, `AST`), the
+    /// stem of the unique per-contact [`MapContactCode`] labels.
+    fn code_prefix(self) -> &'static str {
+        match self {
+            MapContactKind::OwnShip => "SELF",
+            MapContactKind::Ally => "ALLY",
+            MapContactKind::Hostile => "HOST",
+            MapContactKind::Objective => "OBJ",
+            MapContactKind::Terrain => "AST",
+        }
+    }
+
+    /// A dense index for this kind, for the per-kind next-index counters used when
+    /// minting codes.
+    fn code_slot(self) -> usize {
+        match self {
+            MapContactKind::OwnShip => 0,
+            MapContactKind::Ally => 1,
+            MapContactKind::Hostile => 2,
+            MapContactKind::Objective => 3,
+            MapContactKind::Terrain => 4,
+        }
+    }
 }
+
+/// Classify a non-player ship by its allegiance, shared by the contact model and
+/// the code-minting pass so the two never disagree on a ship's kind.
+fn ship_contact_kind(allegiance: Option<&Allegiance>) -> MapContactKind {
+    match allegiance {
+        Some(Allegiance::Enemy) => MapContactKind::Hostile,
+        Some(Allegiance::Player) => MapContactKind::Ally,
+        _ => MapContactKind::Terrain,
+    }
+}
+
+/// A short, stable, human-typeable handle for a map contact (`SELF`, `HOST-1`,
+/// `AST-2`), the LABEL shown in `map view` and the id `map goto <label>` resolves.
+/// Minted once per entity per session by [`assign_map_contact_codes`] from the
+/// contact kind + a stable index; never reassigned. The own ship is always
+/// `SELF` (there is exactly one); every other kind gets a `PREFIX-n` code.
+#[derive(Component, Clone, Debug, PartialEq, Eq)]
+pub struct MapContactCode(pub String);
 
 /// One plotted contact: its live world position plus range/bearing relative to
 /// the player ship.
@@ -131,6 +173,9 @@ impl MapContactKind {
 struct MapContact {
     entity: Entity,
     kind: MapContactKind,
+    /// The unique, typeable label (`SELF`, `HOST-1`, ...). Falls back to the
+    /// uppercased name until [`assign_map_contact_codes`] mints the real code.
+    code: String,
     name: String,
     world_pos: Vec3,
     /// Range from the player ship, world units (rendered as `u`, matching the
@@ -143,19 +188,21 @@ struct MapContact {
 }
 
 impl MapContact {
-    /// The PoC readout line: `KIND / NAME - range X, bearing Y. note`.
+    /// The PoC readout line: `KIND CODE / NAME - range X, bearing Y. note`.
     fn readout(&self) -> String {
         if self.kind == MapContactKind::OwnShip {
             return format!(
-                "{} / {} - range 0 u, bearing ---. {}",
+                "{} {} / {} - range 0 u, bearing ---. {}",
                 self.kind.label(),
+                self.code,
                 self.name,
                 self.kind.note()
             );
         }
         format!(
-            "{} / {} - range {:.0} u, bearing {:03.0} mark {:+03.0}. {}",
+            "{} {} / {} - range {:.0} u, bearing {:03.0} mark {:+03.0}. {}",
             self.kind.label(),
+            self.code,
             self.name,
             self.range,
             self.bearing_deg,
@@ -164,18 +211,15 @@ impl MapContact {
         )
     }
 
-    /// The compact `map view` CLI row.
-    fn cli_row(&self) -> String {
+    /// The INFO cell for the `map view` table: range for the own ship, else
+    /// range + bearing/mark (carrying what the old RANGE/BEARING columns showed).
+    fn info_cell(&self) -> String {
         if self.kind == MapContactKind::OwnShip {
-            return format!("  {:<9} {:<18} ---", self.kind.label(), self.name);
+            return "range 0 u".to_string();
         }
         format!(
-            "  {:<9} {:<18} {:>5.0} u  {:03.0} mark {:+03.0}",
-            self.kind.label(),
-            self.name,
-            self.range,
-            self.bearing_deg,
-            self.mark_deg,
+            "{:>3.0} u  {:03.0} mark {:+03.0}",
+            self.range, self.bearing_deg, self.mark_deg,
         )
     }
 }
@@ -216,6 +260,12 @@ pub struct MapContacts<'w, 's> {
         (Entity, &'static GlobalTransform, &'static EntityTypeName),
         Without<SpaceshipRootMarker>,
     >,
+    /// The minted label of any contact that has one; read-only. Minting itself
+    /// happens in [`assign_map_contact_codes`] via `Commands`.
+    codes: Query<'w, 's, &'static MapContactCode>,
+    /// The stable authored id of any contact that has one, used as the
+    /// deterministic sort key when minting codes.
+    ids: Query<'w, 's, &'static EntityId>,
 }
 
 impl MapContacts<'_, '_> {
@@ -225,6 +275,76 @@ impl MapContacts<'_, '_> {
             let (_, rot, pos) = gt.to_scale_rotation_translation();
             (entity, pos, rot)
         })
+    }
+
+    /// The minted code for an entity, or a fallback derived from `kind`/`name`
+    /// for the one frame before [`assign_map_contact_codes`] mints it.
+    fn code_for(&self, entity: Entity, kind: MapContactKind, name: &str) -> String {
+        self.codes
+            .get(entity)
+            .ok()
+            .map(|c| c.0.clone())
+            .unwrap_or_else(|| {
+                if kind == MapContactKind::OwnShip {
+                    kind.code_prefix().to_string()
+                } else {
+                    name.to_uppercase()
+                }
+            })
+    }
+
+    /// A stable sort key for an entity: its authored [`EntityId`] when present,
+    /// else its bits, so minted indices are deterministic within a session.
+    fn sort_key(&self, entity: Entity) -> String {
+        self.ids
+            .get(entity)
+            .ok()
+            .map(|id| id.0.clone())
+            .unwrap_or_else(|| format!("{entity:?}"))
+    }
+
+    /// Every contact entity with its kind + stable sort key, for the code-minting
+    /// pass. Uses the SAME classification as [`Self::collect`] (via
+    /// [`ship_contact_kind`]) so labels never disagree with the rendered list.
+    fn classified(&self) -> Vec<(Entity, MapContactKind, String)> {
+        let mut out = Vec::new();
+        if let Some((player, _, _)) = self.player_frame() {
+            out.push((player, MapContactKind::OwnShip, self.sort_key(player)));
+        }
+        for (entity, _, _, allegiance) in &self.ships {
+            out.push((entity, ship_contact_kind(allegiance), self.sort_key(entity)));
+        }
+        for (entity, _, _) in &self.objectives {
+            out.push((entity, MapContactKind::Objective, self.sort_key(entity)));
+        }
+        for (entity, _, type_name) in &self.terrain {
+            if type_name.0 != "asteroid" {
+                continue;
+            }
+            out.push((entity, MapContactKind::Terrain, self.sort_key(entity)));
+        }
+        out
+    }
+
+    /// Resolve a typed label (case-insensitive) to its contact, for `map goto`.
+    fn resolve(&self, label: &str) -> Option<MapContact> {
+        let wanted = label.to_ascii_uppercase();
+        self.collect()
+            .into_iter()
+            .find(|c| c.code.eq_ignore_ascii_case(&wanted))
+    }
+
+    /// Every contact label, own ship first then ascending range, for Tab
+    /// completion of `map goto <label>`.
+    fn labels(&self) -> Vec<String> {
+        let mut list = self.collect();
+        list.sort_by(|a, b| {
+            let key = |c: &MapContact| (c.kind != MapContactKind::OwnShip, c.range);
+            key(a)
+                .partial_cmp(&key(b))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        list.into_iter().map(|c| c.code).collect()
     }
 
     /// The focus point the map orbits (the player, or the world origin).
@@ -257,12 +377,14 @@ impl MapContacts<'_, '_> {
 
         let mut contacts = Vec::new();
         if let Some((_, _, name)) = self.player.iter().next() {
+            let name = name
+                .map(|n| n.as_str().to_string())
+                .unwrap_or_else(|| "NOVA".to_string());
             contacts.push(MapContact {
                 entity: player_entity,
                 kind: MapContactKind::OwnShip,
-                name: name
-                    .map(|n| n.as_str().to_string())
-                    .unwrap_or_else(|| "NOVA".to_string()),
+                code: self.code_for(player_entity, MapContactKind::OwnShip, &name),
+                name,
                 world_pos: player_pos,
                 range: 0.0,
                 bearing_deg: 0.0,
@@ -272,17 +394,15 @@ impl MapContacts<'_, '_> {
         for (entity, gt, name, allegiance) in &self.ships {
             let world_pos = gt.translation();
             let (range, brg, mark) = bearing(world_pos);
-            let kind = match allegiance {
-                Some(Allegiance::Enemy) => MapContactKind::Hostile,
-                Some(Allegiance::Player) => MapContactKind::Ally,
-                _ => MapContactKind::Terrain,
-            };
+            let kind = ship_contact_kind(allegiance);
+            let name = name
+                .map(|n| n.as_str().to_string())
+                .unwrap_or_else(|| "CONTACT".to_string());
             contacts.push(MapContact {
                 entity,
                 kind,
-                name: name
-                    .map(|n| n.as_str().to_string())
-                    .unwrap_or_else(|| "CONTACT".to_string()),
+                code: self.code_for(entity, kind, &name),
+                name,
                 world_pos,
                 range,
                 bearing_deg: brg,
@@ -292,10 +412,12 @@ impl MapContacts<'_, '_> {
         for (entity, gt, marker) in &self.objectives {
             let world_pos = gt.translation();
             let (range, brg, mark) = bearing(world_pos);
+            let name = marker.label.to_uppercase();
             contacts.push(MapContact {
                 entity,
                 kind: MapContactKind::Objective,
-                name: marker.label.to_uppercase(),
+                code: self.code_for(entity, MapContactKind::Objective, &name),
+                name,
                 world_pos,
                 range,
                 bearing_deg: brg,
@@ -308,10 +430,12 @@ impl MapContacts<'_, '_> {
             }
             let world_pos = gt.translation();
             let (range, brg, mark) = bearing(world_pos);
+            let name = "ASTEROID".to_string();
             contacts.push(MapContact {
                 entity,
                 kind: MapContactKind::Terrain,
-                name: "ASTEROID".to_string(),
+                code: self.code_for(entity, MapContactKind::Terrain, &name),
+                name,
                 world_pos,
                 range,
                 bearing_deg: brg,
@@ -322,8 +446,53 @@ impl MapContacts<'_, '_> {
     }
 }
 
-/// Build the `map view` CLI rows from the contact model (own ship first, then
-/// nearest-first). A pure function so it is unit-testable off a fixed list.
+/// Mint a stable [`MapContactCode`] for every contact that lacks one. Runs as a
+/// system (like `assign_section_codes`) so it sees entities spawned this frame;
+/// existing codes are never reassigned, and a new contact takes the next free
+/// index for its kind. The own ship is always the bare `SELF` prefix (exactly
+/// one); every other kind gets `PREFIX-n`.
+fn assign_map_contact_codes(mut commands: Commands, contacts: MapContacts) {
+    // The highest index already handed out per kind, so new contacts continue the
+    // sequence rather than colliding.
+    let mut next: [u32; 5] = [0; 5];
+    let mut unassigned: Vec<(Entity, MapContactKind, String)> = Vec::new();
+    for (entity, kind, sort_key) in contacts.classified() {
+        if let Ok(existing) = contacts.codes.get(entity) {
+            if let Some(index) = existing
+                .0
+                .rsplit('-')
+                .next()
+                .and_then(|tail| tail.parse::<u32>().ok())
+            {
+                let slot = &mut next[kind.code_slot()];
+                *slot = (*slot).max(index);
+            }
+        } else {
+            unassigned.push((entity, kind, sort_key));
+        }
+    }
+    if unassigned.is_empty() {
+        return;
+    }
+    // Deterministic order: by the stable authored id, so indices match across runs.
+    unassigned.sort_by(|a, b| a.2.cmp(&b.2));
+    for (entity, kind, _) in unassigned {
+        let code = if kind == MapContactKind::OwnShip {
+            // Exactly one own ship: the bare prefix, no index.
+            kind.code_prefix().to_string()
+        } else {
+            let slot = &mut next[kind.code_slot()];
+            *slot += 1;
+            format!("{}-{}", kind.code_prefix(), *slot)
+        };
+        commands.entity(entity).insert(MapContactCode(code));
+    }
+}
+
+/// Build the `map view` CLI rows from the contact model as a fixed-width
+/// KIND/LABEL/INFO table (own ship first, then nearest-first) - the same shape
+/// `ship view` prints, so a label copies straight into `map goto <label>`. A pure
+/// function so it is unit-testable off a fixed list.
 fn map_rows_from_contacts(contacts: &[MapContact]) -> Vec<TerminalRow> {
     let mut rows = vec![
         TerminalRow {
@@ -331,19 +500,17 @@ fn map_rows_from_contacts(contacts: &[MapContact]) -> Vec<TerminalRow> {
             text: "LOCAL SPACE - contacts".to_string(),
         },
         TerminalRow {
-            kind: TerminalRowKind::Output,
-            text: format!(
-                "  {:<9} {:<18} {:>8}  {}",
-                "KIND", "NAME", "RANGE", "BEARING"
-            ),
+            kind: TerminalRowKind::Dim,
+            text: format!("Contacts: {}", contacts.len()),
         },
     ];
     if contacts.iter().all(|c| c.kind == MapContactKind::OwnShip) {
         rows.push(TerminalRow {
             kind: TerminalRowKind::Warn,
-            text: "  no contacts in local space".to_string(),
+            text: "no contacts in local space".to_string(),
         });
     }
+
     // Own ship first, then by ascending range.
     let mut ordered: Vec<&MapContact> = contacts.iter().collect();
     ordered.sort_by(|a, b| {
@@ -352,10 +519,39 @@ fn map_rows_from_contacts(contacts: &[MapContact]) -> Vec<TerminalRow> {
             .partial_cmp(&key(b))
             .unwrap_or(std::cmp::Ordering::Equal)
     });
+
+    // Column widths: pad KIND and LABEL to the widest cell (header included) so the
+    // monospace terminal lines the columns up. INFO is last, so it needs no pad.
+    // Identical mechanism to `terminal_ship_rows`.
+    const KIND_HEADER: &str = "KIND";
+    const LABEL_HEADER: &str = "LABEL";
+    const GUTTER: &str = "  ";
+    let w_kind = ordered
+        .iter()
+        .map(|c| c.kind.label().len())
+        .chain([KIND_HEADER.len()])
+        .max()
+        .unwrap_or(KIND_HEADER.len());
+    let w_label = ordered
+        .iter()
+        .map(|c| c.code.len())
+        .chain([LABEL_HEADER.len()])
+        .max()
+        .unwrap_or(LABEL_HEADER.len());
+
+    rows.push(TerminalRow {
+        kind: TerminalRowKind::Dim,
+        text: format!("{KIND_HEADER:<w_kind$}{GUTTER}{LABEL_HEADER:<w_label$}{GUTTER}INFO"),
+    });
     for contact in ordered {
         rows.push(TerminalRow {
             kind: TerminalRowKind::Output,
-            text: contact.cli_row(),
+            text: format!(
+                "{kind:<w_kind$}{GUTTER}{label:<w_label$}{GUTTER}{info}",
+                kind = contact.kind.label(),
+                label = contact.code,
+                info = contact.info_cell(),
+            ),
         });
     }
     rows
@@ -365,6 +561,93 @@ fn map_rows_from_contacts(contacts: &[MapContact]) -> Vec<TerminalRow> {
 /// handler when it builds a command snapshot.
 pub fn terminal_map_rows(contacts: &MapContacts) -> Vec<TerminalRow> {
     map_rows_from_contacts(&contacts.collect())
+}
+
+/// Keep the terminal's arg-completion set in sync with the live contact labels,
+/// so `map goto <TAB>` offers them. Only writes on a real change.
+fn sync_map_arg_completions(
+    contacts: MapContacts,
+    mut runtime: ResMut<MapRuntime>,
+    mut terminal: ResMut<NovaOsTerminal>,
+) {
+    let labels = contacts.labels();
+    if labels == runtime.completion_labels {
+        return;
+    }
+    runtime.completion_labels = labels.clone();
+    terminal.merge_arg_completions([("map goto", labels)]);
+}
+
+/// Drain the arg-bearing `map goto` verb the terminal queued on submit, resolve
+/// the label to a contact, and set a flight [`Autopilot`] GOTO on the player ship
+/// (the same seam the in-app `G` key uses). Peeks the shared pending slot first so
+/// it never swallows a `ship ...` verb.
+fn apply_map_cli_commands(
+    mut commands: Commands,
+    mut terminal: ResMut<NovaOsTerminal>,
+    contacts: MapContacts,
+) {
+    // Only consume an invocation this handler owns; leave `ship ...` for its system
+    // (`cross-app-invocation-peek-before-take`).
+    let owns = terminal
+        .peek_pending_invocation()
+        .is_some_and(|inv| inv.name == "map goto");
+    if !owns {
+        return;
+    }
+    let Some(invocation) = terminal.take_pending_invocation() else {
+        return;
+    };
+    let Some(label) = invocation.args.first() else {
+        terminal.extend_scrollback([TerminalRow {
+            kind: TerminalRowKind::Error,
+            text: format!("{}: expected a contact label", invocation.name),
+        }]);
+        return;
+    };
+    let Some((player, _, _)) = contacts.player_frame() else {
+        terminal.extend_scrollback([TerminalRow {
+            kind: TerminalRowKind::Error,
+            text: "no live player ship".to_string(),
+        }]);
+        return;
+    };
+
+    let rows = match contacts.resolve(label) {
+        Some(contact) if contact.kind == MapContactKind::OwnShip => vec![TerminalRow {
+            kind: TerminalRowKind::Dim,
+            text: format!("goto: {} is your own ship", contact.code),
+        }],
+        Some(contact) => {
+            commands
+                .entity(player)
+                .insert(Autopilot::engage(AutopilotAction::Goto {
+                    target: contact.entity,
+                }));
+            vec![TerminalRow {
+                kind: TerminalRowKind::Info,
+                text: format!(
+                    "goto {} ({}): autopilot engaged, range {:.0} u",
+                    contact.code, contact.name, contact.range,
+                ),
+            }]
+        }
+        None => {
+            let labels = contacts.labels();
+            let mut rows = vec![TerminalRow {
+                kind: TerminalRowKind::Error,
+                text: format!("no such contact: {label}"),
+            }];
+            if !labels.is_empty() {
+                rows.push(TerminalRow {
+                    kind: TerminalRowKind::Dim,
+                    text: format!("contacts: {}", labels.join("   ")),
+                });
+            }
+            rows
+        }
+    };
+    terminal.extend_scrollback(rows);
 }
 
 // ---------------------------------------------------------------------------
@@ -484,6 +767,9 @@ struct MapRuntime {
     focused_on: Option<Entity>,
     /// A transient "GOTO SET" note shown in the readout for a short time.
     goto_note: Option<(String, f32)>,
+    /// The labels last pushed as `map goto` arg-completions, so the terminal is
+    /// only marked changed when the set changes.
+    completion_labels: Vec<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -509,6 +795,11 @@ impl Plugin for NovaOsMapPlugin {
                         "map view",
                         "Print local-space contacts",
                         CliOutput::Snapshot,
+                    ))
+                    .with_subcommand(TerminalCommand::gameplay(
+                        "map goto",
+                        "Fly the ship to a contact label",
+                        CommandArity::UpTo(1),
                     )),
             );
 
@@ -517,6 +808,9 @@ impl Plugin for NovaOsMapPlugin {
         app.add_systems(
             Update,
             (
+                assign_map_contact_codes,
+                sync_map_arg_completions,
+                apply_map_cli_commands,
                 manage_map_scene,
                 reconcile_map_target,
                 map_input,
@@ -1028,7 +1322,9 @@ fn spawn_blip(
         .id();
     // The label rides beside the blip as a child node.
     commands.spawn((
-        Text::new(contact.name.clone()),
+        // The blip carries its unique CODE (the `map goto <label>` handle), not the
+        // freeform name, so the label you read is the label you type.
+        Text::new(contact.code.clone()),
         nova_os_text_font(11.0, font),
         TextColor(color),
         Node {
@@ -1203,6 +1499,195 @@ mod tests {
             .collect();
         let empty_rows = map_rows_from_contacts(&own_only);
         assert!(empty_rows.iter().any(|r| r.text.contains("no contacts")));
+    }
+
+    /// A denser world: two hostiles + two asteroids + one objective, so the
+    /// per-kind indices actually count up and can collide if minting is wrong.
+    fn crowded_world() -> World {
+        let mut world = World::new();
+        world.spawn((
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+            GlobalTransform::from(Transform::from_xyz(0.0, 0.0, 0.0)),
+            Name::new("NOVA"),
+        ));
+        for z in [-40.0, -80.0] {
+            world.spawn((
+                SpaceshipRootMarker,
+                Allegiance::Enemy,
+                GlobalTransform::from(Transform::from_xyz(0.0, 0.0, z)),
+                Name::new("RAIDER"),
+            ));
+        }
+        for x in [30.0, 70.0] {
+            world.spawn((
+                EntityTypeName::new("asteroid"),
+                GlobalTransform::from(Transform::from_xyz(x, 0.0, 0.0)),
+            ));
+        }
+        world.spawn((
+            ObjectiveMarkerTarget {
+                label: "salvage".to_string(),
+            },
+            GlobalTransform::from(Transform::from_xyz(0.0, 40.0, 0.0)),
+        ));
+        world
+    }
+
+    #[test]
+    fn map_contact_codes_are_unique_and_stable() {
+        let mut world = crowded_world();
+        // Mint codes, then read them back off the contact model.
+        world.run_system_once(assign_map_contact_codes).unwrap();
+        let contacts = world.run_system_once(|c: MapContacts| c.collect()).unwrap();
+
+        let codes: Vec<String> = contacts.iter().map(|c| c.code.clone()).collect();
+        let unique: std::collections::HashSet<&String> = codes.iter().collect();
+        assert_eq!(
+            unique.len(),
+            codes.len(),
+            "every contact code is unique: {codes:?}"
+        );
+
+        // The own ship is the bare SELF; each other kind counts from 1.
+        assert!(codes.contains(&"SELF".to_string()));
+        assert!(codes.contains(&"HOST-1".to_string()) && codes.contains(&"HOST-2".to_string()));
+        assert!(codes.contains(&"AST-1".to_string()) && codes.contains(&"AST-2".to_string()));
+        assert!(codes.contains(&"OBJ-1".to_string()));
+
+        // Re-running the pass must NOT reassign or add codes (stable per session).
+        world.run_system_once(assign_map_contact_codes).unwrap();
+        let again = world.run_system_once(|c: MapContacts| c.collect()).unwrap();
+        let mut before = codes;
+        let mut after: Vec<String> = again.iter().map(|c| c.code.clone()).collect();
+        before.sort();
+        after.sort();
+        assert_eq!(before, after, "codes are stable across minting passes");
+    }
+
+    #[test]
+    fn map_view_table_aligns_kind_label_info_columns() {
+        let mut world = crowded_world();
+        world.run_system_once(assign_map_contact_codes).unwrap();
+        let contacts = world.run_system_once(|c: MapContacts| c.collect()).unwrap();
+        let printed: Vec<String> = map_rows_from_contacts(&contacts)
+            .into_iter()
+            .map(|r| r.text)
+            .collect();
+
+        let header = printed
+            .iter()
+            .find(|r| r.starts_with("KIND"))
+            .expect("a KIND/LABEL/INFO header row");
+        assert!(header.contains("LABEL") && header.contains("INFO"));
+
+        // Columns line up: the LABEL token starts at the SAME offset in the header
+        // and in a data row (mirrors the `ship view` alignment assertion).
+        let label_col = header.find("LABEL").unwrap();
+        let hostile_row = printed
+            .iter()
+            .find(|r| r.starts_with("HOSTILE"))
+            .expect("a hostile data row");
+        assert!(
+            hostile_row[label_col..].starts_with("HOST-"),
+            "LABEL column is aligned: {hostile_row:?}",
+        );
+    }
+
+    /// Register the `map`/`map goto` command tree into a bare terminal so `submit`
+    /// queues the gameplay invocation the handler drains.
+    fn terminal_with_map_goto() -> NovaOsTerminal {
+        use nova_os::shell::{CommandArity, CommandDispatch, TerminalCommandSpec};
+        let mut terminal = NovaOsTerminal::default();
+        let mut specs = terminal.command_specs().to_vec();
+        specs.push(TerminalCommandSpec {
+            name: "map",
+            summary: "Open the local-space map",
+            arity: CommandArity::None,
+            dispatch: CommandDispatch::App,
+        });
+        specs.push(TerminalCommandSpec {
+            name: "map goto",
+            summary: "Fly the ship to a contact label",
+            arity: CommandArity::UpTo(1),
+            dispatch: CommandDispatch::Gameplay,
+        });
+        terminal.set_commands(specs);
+        terminal
+    }
+
+    #[test]
+    fn map_goto_engages_autopilot_and_rejects_self_and_unknown() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+
+        let player = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                GlobalTransform::from(Transform::from_xyz(0.0, 0.0, 0.0)),
+                Name::new("NOVA"),
+                MapContactCode("SELF".to_string()),
+            ))
+            .id();
+        let raider = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                Allegiance::Enemy,
+                GlobalTransform::from(Transform::from_xyz(0.0, 0.0, -50.0)),
+                Name::new("RAIDER"),
+                MapContactCode("HOST-1".to_string()),
+            ))
+            .id();
+
+        app.insert_resource(terminal_with_map_goto());
+
+        let submit = |app: &mut App, line: &str| {
+            let mut terminal = app.world_mut().resource_mut::<NovaOsTerminal>();
+            terminal.reset_prompt();
+            terminal.insert_text(line);
+            terminal.submit(&TerminalCommandSnapshot::default());
+            app.world_mut()
+                .run_system_once(apply_map_cli_commands)
+                .unwrap();
+        };
+
+        // A real contact (case-insensitive): the autopilot targets the raider.
+        submit(&mut app, "map goto host-1");
+        let autopilot = app
+            .world()
+            .get::<Autopilot>(player)
+            .expect("goto inserts an Autopilot on the player ship");
+        assert!(
+            matches!(autopilot.action, AutopilotAction::Goto { target } if target == raider),
+            "the autopilot targets the labelled contact",
+        );
+
+        // Own ship: rejected, no autopilot change. Clear the autopilot first so we
+        // can prove the SELF path does not set a new one.
+        app.world_mut().entity_mut(player).remove::<Autopilot>();
+        submit(&mut app, "map goto SELF");
+        assert!(
+            app.world().get::<Autopilot>(player).is_none(),
+            "goto SELF must not engage an autopilot",
+        );
+
+        // Unknown label: rejected with an error row, still no autopilot.
+        submit(&mut app, "map goto ZZZ");
+        assert!(app.world().get::<Autopilot>(player).is_none());
+        let printed: Vec<String> = app
+            .world()
+            .resource::<NovaOsTerminal>()
+            .scrollback()
+            .iter()
+            .map(|r| r.text.clone())
+            .collect();
+        assert!(
+            printed.iter().any(|r| r.contains("no such contact")),
+            "an unknown label prints a not-found row: {printed:?}",
+        );
     }
 
     /// The scene lifecycle tracks the active NOVA OS surface (headless: no

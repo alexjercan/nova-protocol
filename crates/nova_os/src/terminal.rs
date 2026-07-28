@@ -66,7 +66,7 @@ pub struct NovaOsTerminal {
     /// Completion candidates for the argument of an arg-bearing command, keyed by
     /// command name (`"ship repair" -> ["HULL-1", "PDC-1", ...]`). The pure
     /// terminal cannot enumerate live section codes, so `nova_gameplay` injects
-    /// them via [`Self::set_arg_completions`]; Tab and the ghost read them.
+    /// them via [`Self::merge_arg_completions`]; Tab and the ghost read them.
     arg_completions: HashMap<&'static str, Vec<String>>,
 }
 
@@ -257,18 +257,33 @@ impl NovaOsTerminal {
 
     /// The argument-completion candidates currently injected by the gameplay
     /// layer, keyed by command name. The caller compares against this before
-    /// calling [`Self::set_arg_completions`] so it only marks the resource
+    /// calling [`Self::merge_arg_completions`] so it only marks the resource
     /// changed when the live set actually changed.
     pub fn arg_completions(&self) -> &HashMap<&'static str, Vec<String>> {
         &self.arg_completions
     }
 
-    /// Replace the argument-completion candidates (live section codes for the
-    /// ship verbs). The pure terminal has no way to enumerate them, so the
-    /// gameplay layer feeds them in for Tab completion and the inline ghost.
-    pub fn set_arg_completions(&mut self, completions: HashMap<&'static str, Vec<String>>) {
-        self.arg_completions = completions;
-        self.refresh_parse();
+    /// Merge arg-completion candidates for the given verbs, leaving other verbs'
+    /// entries intact, so several gameplay-verb apps (`ship`, `map`) can each own
+    /// their own verbs without clobbering the shared map. Only re-parses when a
+    /// value actually changed.
+    pub fn merge_arg_completions(
+        &mut self,
+        entries: impl IntoIterator<Item = (&'static str, Vec<String>)>,
+    ) {
+        let mut changed = false;
+        for (name, candidates) in entries {
+            match self.arg_completions.get(name) {
+                Some(existing) if *existing == candidates => {}
+                _ => {
+                    self.arg_completions.insert(name, candidates);
+                    changed = true;
+                }
+            }
+        }
+        if changed {
+            self.refresh_parse();
+        }
     }
 
     /// Take the arg-bearing gameplay invocation queued by the last
@@ -277,6 +292,15 @@ impl NovaOsTerminal {
     /// [`Self::extend_scrollback`].
     pub fn take_pending_invocation(&mut self) -> Option<NovaOsCommandInvocation> {
         self.pending_invocation.take()
+    }
+
+    /// Peek at the queued gameplay invocation without consuming it. Handlers for
+    /// distinct verb families (`ship ...` vs `map ...`) share the single pending
+    /// slot, so each peeks first and only [`Self::take_pending_invocation`]s the
+    /// invocation whose name it owns - otherwise whichever handler runs first
+    /// would swallow (and mis-handle) another app's verb.
+    pub fn peek_pending_invocation(&self) -> Option<&NovaOsCommandInvocation> {
+        self.pending_invocation.as_ref()
     }
 
     /// Whether the `exit` command has requested an animated close, clearing the
@@ -1327,16 +1351,14 @@ mod tests {
             app_spec("ship", ""),
             gameplay_spec("ship repair"),
         ]));
-        let mut completions = HashMap::new();
-        completions.insert(
+        terminal.merge_arg_completions([(
             "ship repair",
             vec![
                 "HULL-1".to_string(),
                 "HULL-3".to_string(),
                 "PDC-1".to_string(),
             ],
-        );
-        terminal.set_arg_completions(completions);
+        )]);
 
         // A lowercase partial completes to the canonical code.
         type_text(&mut terminal, "ship repair pd");

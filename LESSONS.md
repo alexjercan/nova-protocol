@@ -367,6 +367,11 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   sprout/branch, `git diff master <branch> -- <the-real-file>` FIRST - an
   empty diff means the fix already landed (via PR) and the branch is just
   stale; close and clean up, do not re-do or re-review. 20260718-235837.
+- `worktree-cwd-resets-verify-absolute-path` (x1): the Bash cwd resets to the
+  MAIN checkout each call, so a bare `grep`/`rg` reads the unmodified tree, not
+  the sprout worktree - prefix `cd <worktree> &&` or pass absolute worktree
+  paths, or a grep silently "verifies" stale code (caught by a grep/Read
+  line-number mismatch). 20260728-160001.
 - `record-the-exact-rig` (x3, PROMOTED 2026-07-13 -> work skill): evidence
   notes record the rig (systems, command path, components) or they mislead.
   20260709-125640.

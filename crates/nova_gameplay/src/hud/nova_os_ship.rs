@@ -959,13 +959,13 @@ fn sync_ship_arg_completions(
         return;
     }
     runtime.completion_codes = codes.clone();
-    let mut map = bevy::platform::collections::HashMap::new();
-    for verb in ["ship section", "ship reload", "ship repair"] {
-        map.insert(verb, codes.clone());
-    }
-    // The `!=` gate above already ensured the set changed, so set unconditionally
-    // here (this is the only path that marks the terminal changed).
-    terminal.set_arg_completions(map.into_iter().collect());
+    // Merge (not replace) so the `map goto` completions the map app owns survive;
+    // the `!=` gate above already ensured this set changed.
+    terminal.merge_arg_completions(
+        ["ship section", "ship reload", "ship repair"]
+            .into_iter()
+            .map(|verb| (verb, codes.clone())),
+    );
 }
 
 /// Drain the arg-bearing `ship` CLI verb the terminal queued on submit, apply it
@@ -993,6 +993,15 @@ fn apply_ship_cli_commands(
     mut q_health: Query<&mut Health>,
     mut q_ammo: Query<&mut SectionAmmo>,
 ) {
+    // Peek first: the single pending slot is shared with the `map` gameplay verbs,
+    // so only consume an invocation this handler owns (leave `map ...` for its own
+    // system, `cross-app-invocation-peek-before-take`).
+    let owns = terminal
+        .peek_pending_invocation()
+        .is_some_and(|inv| matches!(inv.name, "ship section" | "ship reload" | "ship repair"));
+    if !owns {
+        return;
+    }
     let Some(invocation) = terminal.take_pending_invocation() else {
         return;
     };
