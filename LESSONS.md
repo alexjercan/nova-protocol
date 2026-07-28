@@ -1093,6 +1093,16 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   (`.observe(handler)`, read `activate.entity`), the same path the terminal's own
   buttons use; it fires through the forwarded pointer. Sibling of
   [[bevy-ui-image-camera-is-pickable-via-forwarded-pointer]]. 20260724-102320.
+- `one-pointer-button-cant-both-activate-a-widget-and-drag-the-world` (domain, x1):
+  binding the SAME mouse button to a `bevy_ui` `Button`/`Activate` selection AND to
+  a camera/world drag on the same viewport makes them fight - a click-with-a-few-px
+  of motion is read as a drag, moves the view, slides the widget out from under the
+  cursor, and the activation never lands ("it thinks you want to drag so it doesn't
+  select"). Reserve the widget's button (LMB/Primary) for the widget; put drag on
+  RMB (or gate it behind a modifier). Pin it at the input-system altitude: hold the
+  button + send a `MouseMotion`, assert the drag target did NOT move; hold the drag
+  button, assert it did. Sibling of [[rtt-ui-select-via-activate-not-interaction]].
+  20260728-143430.
 - `verify-reused-driver-actually-moves` (x1): before building interaction on a
   reused input/animation component, confirm the OUTPUT actually moves in THIS
   context - do not trust that writing its input rotates/animates. The map camera
