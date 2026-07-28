@@ -292,24 +292,6 @@ impl ShipSectionView {
         let filled = filled.min(10);
         format!("[{}{}]", "#".repeat(filled), "-".repeat(10 - filled))
     }
-
-    /// The blip integrity-bar fill fraction in `0..=1`. A section with unknown
-    /// health reads full (its status is `nominal`), so the bar is never
-    /// misleadingly empty for a section that simply has no `Health`.
-    fn bar_fraction(&self) -> f32 {
-        self.integrity().unwrap_or(1.0)
-    }
-
-    /// The ammo pip line for a weapon section (`●●○○○○` - filled rounds, empty
-    /// remaining capacity), or `None` when the section carries no ammo feed. The
-    /// CRT font (Iosevka Term) renders the geometric pips.
-    fn ammo_pips(&self) -> Option<String> {
-        self.ammo.as_ref().map(|ammo| {
-            let filled = ammo.rounds.min(ammo.capacity) as usize;
-            let empty = ammo.capacity.saturating_sub(ammo.rounds) as usize;
-            format!("{}{}", "●".repeat(filled), "○".repeat(empty))
-        })
-    }
 }
 
 /// System-param that enumerates the live player-ship sections into
@@ -815,14 +797,12 @@ struct ShipBlock {
 #[derive(Component)]
 struct ShipBlockOutline;
 
-/// A projected, clickable section blip over the viewport. Holds the entities of
-/// its integrity-bar fill and (for weapons) its ammo-pip text so
-/// `project_ship_blips` can refresh them each frame.
+/// A projected, clickable section blip over the viewport: a status-coloured dot
+/// plus a labelled marker. HP/ammo/status detail lives in the inspector panel now
+/// (see `tasks/20260728-125514/DECISION.md`), so the blip carries no bar or pips.
 #[derive(Component)]
 struct ShipBlip {
     section: Entity,
-    bar_fill: Entity,
-    ammo: Option<Entity>,
 }
 
 /// The ship camera's orbit state (own spherical math, like `MapOrbit`, because
@@ -1479,13 +1459,12 @@ fn project_ship_blips(
     q_camera: Query<(&Camera, &GlobalTransform), With<ShipCameraMarker>>,
     q_viewport: Query<(Entity, &ComputedNode), With<ShipViewportMarker>>,
     q_blip: Query<&ShipBlip>,
-    // Disjoint component queries (no two `&mut` of the same component), so the dot
-    // and its bar-fill / ammo children can all be updated by entity id.
+    // Disjoint component queries so the dot's node / visibility / border /
+    // background can each be updated by entity id without conflicting `&mut`.
     mut q_node: Query<&mut Node>,
     mut q_vis: Query<&mut Visibility>,
     mut q_border: Query<&mut BorderColor>,
     mut q_bg: Query<&mut BackgroundColor>,
-    mut q_text: Query<(&mut Text, &mut TextColor)>,
 ) {
     if !runtime.active {
         return;
@@ -1519,15 +1498,14 @@ fn project_ship_blips(
             runtime.blips.insert(view.entity, id);
             id
         };
-        // Read the child handles (Copy) so the `&ShipBlip` borrow drops before the
-        // mutable node/text updates. A just-spawned blip is not queryable until the
-        // command flushes, so its updates simply wait a frame (the guards skip it).
-        let Ok(&ShipBlip { bar_fill, ammo, .. }) = q_blip.get(blip) else {
+        // A just-spawned blip is not queryable until the command flush, so its
+        // updates simply wait a frame (the guards skip it).
+        if q_blip.get(blip).is_err() {
             continue;
-        };
+        }
 
-        // The dot: position from the projection, amber border while selected. Its
-        // background stays a constant phosphor (status rides the bar, not the dot).
+        // The dot: position from the projection, fill coloured by status (so a
+        // damaged section is spottable at a glance), amber border while selected.
         if let Ok(mut node) = q_node.get_mut(blip) {
             if let Some(p) = projected {
                 node.left = Val::Px(p.x - SHIP_BLIP_PX * 0.5);
@@ -1540,30 +1518,17 @@ fn project_ship_blips(
                 None => Visibility::Hidden,
             };
         }
+        if let Ok(mut bg) = q_bg.get_mut(blip) {
+            bg.0 = color;
+        }
         if let Ok(mut border) = q_border.get_mut(blip) {
             *border = if selected {
                 BorderColor::all(NOVA_OS_AMBER)
             } else {
-                BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.0))
+                // The same amber the spawn uses, just transparent (the border only
+                // reads when selected).
+                BorderColor::all(NOVA_OS_AMBER.with_alpha(0.0))
             };
-        }
-
-        // The integrity bar: width = HP fraction, colour = status.
-        if let Ok(mut fill) = q_node.get_mut(bar_fill) {
-            fill.width = Val::Percent(view.bar_fraction() * 100.0);
-        }
-        if let Ok(mut bg) = q_bg.get_mut(bar_fill) {
-            bg.0 = color;
-        }
-
-        // The ammo pips (weapons only): refill/deplete and recolour by status.
-        if let (Some(ammo), Some(pips)) = (ammo, view.ammo_pips()) {
-            if let Ok((mut text, mut text_color)) = q_text.get_mut(ammo) {
-                if text.0 != pips {
-                    text.0 = pips;
-                }
-                text_color.0 = color;
-            }
         }
     }
 
@@ -1584,8 +1549,6 @@ const SHIP_BLIP_PX: f32 = 12.0;
 /// Fraction of the collider a block's green body fills; the remainder is the gap
 /// to its neighbours that the bright outline frames.
 const SHIP_BLOCK_FILL_SCALE: f32 = 0.86;
-/// Width of a blip's integrity-bar track, in px.
-const SHIP_BAR_PX: f32 = 42.0;
 
 fn spawn_ship_blip(
     commands: &mut Commands,
@@ -1594,8 +1557,8 @@ fn spawn_ship_blip(
     font: Handle<Font>,
 ) -> Entity {
     let color = view.status_color();
-    // The clickable dot: a uniform phosphor marker; its amber border marks the
-    // selection. Status lives on the bar below, not on the dot colour.
+    // The clickable dot: fill coloured by status (recoloured each frame in
+    // `project_ship_blips`); its amber border marks the selection.
     let dot = commands
         .spawn((
             Button,
@@ -1607,79 +1570,40 @@ fn spawn_ship_blip(
                 border_radius: BorderRadius::MAX,
                 ..default()
             },
-            BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.0)),
-            BackgroundColor(NOVA_OS_PHOSPHOR),
+            BorderColor::all(NOVA_OS_AMBER.with_alpha(0.0)),
+            BackgroundColor(color),
         ))
         // Selection through `Activate` (fires for the forwarded NOVA OS pointer),
         // not `Interaction` polling (`rtt-ui-select-via-activate-not-interaction`).
         .observe(on_ship_blip_click)
         .id();
 
-    // Label: the per-kind glyph + section code, to the right of the dot.
-    commands.spawn((
-        Text::new(format!("{} {}", kind_glyph(view.kind), view.code)),
-        nova_os_text_font(11.0, font.clone()),
-        TextColor(NOVA_OS_PHOSPHOR),
-        Node {
-            position_type: PositionType::Absolute,
-            left: Val::Px(14.0),
-            top: Val::Px(-3.0),
-            ..default()
-        },
-        ChildOf(dot),
-    ));
-
-    // Integrity bar: a dim track with a status-coloured fill sized to HP fraction.
-    let track = commands
+    // Label: the per-kind glyph + section code, in a dark backing pill so it reads
+    // clearly against the phosphor scene instead of tiny green-on-green. Detail
+    // (HP/ammo/status) lives in the inspector panel now, not on the blip.
+    commands
         .spawn((
             Node {
                 position_type: PositionType::Absolute,
                 left: Val::Px(14.0),
-                top: Val::Px(11.0),
-                width: Val::Px(SHIP_BAR_PX),
-                height: Val::Px(4.0),
-                border: UiRect::all(Val::Px(1.0)),
+                top: Val::Px(-4.0),
+                padding: UiRect::axes(Val::Px(4.0), Val::Px(1.0)),
+                border_radius: BorderRadius::all(Val::Px(3.0)),
                 ..default()
             },
-            BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.5)),
-            BackgroundColor(NOVA_OS_SCREEN),
+            BackgroundColor(NOVA_OS_SCREEN.with_alpha(0.82)),
             ChildOf(dot),
         ))
-        .id();
-    let bar_fill = commands
-        .spawn((
-            Node {
-                width: Val::Percent(view.bar_fraction() * 100.0),
-                height: Val::Percent(100.0),
-                ..default()
-            },
-            BackgroundColor(color),
-            ChildOf(track),
-        ))
-        .id();
-
-    // Ammo pips, weapon sections only.
-    let ammo = view.ammo_pips().map(|pips| {
-        commands
-            .spawn((
-                Text::new(pips),
-                nova_os_text_font(9.0, font),
-                TextColor(color),
-                Node {
-                    position_type: PositionType::Absolute,
-                    left: Val::Px(14.0),
-                    top: Val::Px(18.0),
-                    ..default()
-                },
-                ChildOf(dot),
-            ))
-            .id()
-    });
+        .with_children(|pill| {
+            pill.spawn((
+                Text::new(format!("{} {}", kind_glyph(view.kind), view.code)),
+                nova_os_text_font(11.0, font),
+                TextColor(NOVA_OS_TEXT),
+            ));
+        });
 
     commands.entity(dot).insert(ShipBlip {
         section: view.entity,
-        bar_fill,
-        ammo,
     });
     commands.entity(viewport).add_child(dot);
     dot
@@ -2326,44 +2250,6 @@ mod tests {
     }
 
     #[test]
-    fn integrity_bar_and_ammo_pips_track_live_data() {
-        // Critical turret: 12/60 = 20% -> a short, amber bar.
-        let crit = view_fixture(
-            SectionDamageClass::Turret,
-            Some(Health {
-                current: 12.0,
-                max: 60.0,
-            }),
-            Some(SectionAmmo {
-                rounds: 2,
-                capacity: 6,
-            }),
-        );
-        assert!((crit.bar_fraction() - 0.2).abs() < 1e-6);
-        assert_eq!(crit.status(), "critical");
-        assert_eq!(crit.status_color(), NOVA_OS_AMBER);
-        // Filled rounds then empty remainder.
-        assert_eq!(crit.ammo_pips().as_deref(), Some("●●○○○○"));
-
-        // A full, healthy section: full green bar, no pips.
-        let full = view_fixture(
-            SectionDamageClass::Hull,
-            Some(Health {
-                current: 100.0,
-                max: 100.0,
-            }),
-            None,
-        );
-        assert!((full.bar_fraction() - 1.0).abs() < 1e-6);
-        assert_eq!(full.status_color(), NOVA_OS_PHOSPHOR);
-        assert_eq!(full.ammo_pips(), None);
-
-        // Unknown health reads FULL (nominal), never a misleading empty bar.
-        let unknown = view_fixture(SectionDamageClass::Thruster, None, None);
-        assert_eq!(unknown.bar_fraction(), 1.0);
-    }
-
-    #[test]
     fn blocks_stay_uniform_green_regardless_of_status() {
         // Regression pin on DECISION.md: the block FILL colour no longer encodes
         // status, so a critically-damaged section and a healthy one share the same
@@ -2453,15 +2339,16 @@ mod tests {
     }
 
     #[test]
-    fn blip_carries_kind_glyph_and_integrity_bar() {
-        // The blip tree carries the per-kind glyph on its label and an integrity
-        // bar fill sized to the section's HP fraction.
+    fn blip_is_status_dot_with_labelled_marker() {
+        // The blip is a status-coloured dot + a labelled marker; the integrity bar
+        // and ammo pips are gone (HP/ammo live in the inspector panel now). A
+        // critical turret's dot reads amber, and no ammo pips remain.
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<Font>();
 
         let viewport = app.world_mut().spawn_empty().id();
-        // 12/60 = 20% -> bar fill width 20%.
+        // 12/60 = 20% -> critical -> amber dot.
         let view = view_fixture(
             SectionDamageClass::Turret,
             Some(Health {
@@ -2480,35 +2367,44 @@ mod tests {
             })
             .unwrap();
 
-        // The blip records its bar-fill and ammo child entities.
-        let (bar_fill, ammo) = {
-            let b = app.world().get::<ShipBlip>(blip).expect("ShipBlip");
-            (b.bar_fill, b.ammo)
-        };
-        assert!(ammo.is_some(), "a weapon blip has ammo pips");
-
-        // The bar fill is sized to the HP fraction (20%).
-        let width = app
+        // The dot fill reflects status (critical -> amber).
+        let dot_bg = app
             .world()
-            .get::<Node>(bar_fill)
-            .expect("bar fill node")
-            .width;
-        let Val::Percent(pct) = width else {
-            panic!("bar fill width is a percent, got {width:?}");
-        };
-        assert!(
-            (pct - 20.0).abs() < 0.01,
-            "bar fill width == HP fraction (20%), got {pct}",
+            .get::<BackgroundColor>(blip)
+            .expect("dot background")
+            .0;
+        assert_eq!(
+            dot_bg, NOVA_OS_AMBER,
+            "a critical section's dot reads amber"
         );
 
-        // Some descendant label carries the kind glyph + code ("T PDC-1").
+        // Some descendant label carries the kind glyph + code, and no ammo pips
+        // survive anywhere on the blip.
         let label = format!("{} {}", kind_glyph(SectionDamageClass::Turret), "PDC-1");
-        let has_label = app
+        let texts: Vec<String> = app
             .world_mut()
-            .query::<(&Text, &ChildOf)>()
+            .query::<&Text>()
             .iter(app.world())
-            .any(|(text, parent)| parent.0 == blip && text.0 == label);
-        assert!(has_label, "the blip label reads '{label}'");
+            .map(|text| text.0.clone())
+            .collect();
+        assert!(
+            texts.iter().any(|t| *t == label),
+            "the blip label reads '{label}', got {texts:?}",
+        );
+        assert!(
+            !texts.iter().any(|t| t.contains('●') || t.contains('○')),
+            "no ammo pips remain on the blip: {texts:?}",
+        );
+    }
+
+    #[test]
+    fn unknown_health_reads_nominal() {
+        // A section with no `Health` reads nominal (green), never a misleading
+        // damaged state - the edge the deleted bar/pips test used to pin, kept
+        // because `status`/`status_color` now drive the blip dot and the panel.
+        let unknown = view_fixture(SectionDamageClass::Thruster, None, None);
+        assert_eq!(unknown.status(), "nominal");
+        assert_eq!(unknown.status_color(), NOVA_OS_PHOSPHOR);
     }
 
     #[test]

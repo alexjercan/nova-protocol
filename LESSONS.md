@@ -161,6 +161,13 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   symmetric callers (e.g. Repair + Reload button observers), pin each in the SAME
   pass, not after a reviewer points at the missing half. Kin of
   [[advertised-is-not-wired]]. 20260726-115339, 20260728-115430.
+- `deleting-a-test-salvage-live-assertions` (x1): a test slated for deletion because
+  it exercised REMOVED code may also carry the only assertion pinning a still-live
+  edge (here the deleted bar/pips test also pinned `integrity()`/`status()` "unknown
+  health reads nominal", which now drives the status dot + panel). Read each
+  assertion and re-home the survivors before deleting - a test is a bag of
+  assertions, not one unit tied to a symbol. Kin of
+  [[pin-each-caller-not-just-shared-core]]. 20260728-125514.
 - `test-the-wiring-system-not-just-its-pure-helpers` (x1): a per-frame system that
   maps pure helpers into the live UI tree AND caches state other code reads (e.g.
   `update_ship_panel` writing panel text + caching the button-enabled flags the

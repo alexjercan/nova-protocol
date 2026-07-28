@@ -1,6 +1,6 @@
 # NOVA OS ship app: minimize + make readable the blip overlay (tiny label, ammo as numbers, defer detail to side panel)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 28
 - TAGS: v0.9.0,feedback,ui,hud
 
@@ -39,6 +39,95 @@ Playtest verdict (2026-07-28) on the landed legibility change (`20260728-115435`
   the blip keeps once the panel exists.
 - Do NOT change the block rendering (fill + wireframe outline + gap) - that is the
   part the owner explicitly likes.
+
+## Approach
+
+Confirmed with the owner (see `DECISION.md`, which supersedes the blip-status part
+of `20260728-115435`): strip the per-blip integrity bar + ammo pips (the inspector
+panel from `20260728-115430` now holds HP/ammo/status detail, killing the "500
+circles"). Each blip becomes a minimal marker: a status-coloured DOT (green
+nominal -> amber critical, so damage is glanceable across the ship) plus a label
+(kind glyph + code) on EVERY blip, made readable with a dark backing pill + brighter
+text. Selection stays the amber border. Blocks/outlines are untouched (owner likes
+them).
+
+## Steps
+
+- [x] In `spawn_ship_blip` (`crates/nova_gameplay/src/hud/nova_os_ship.rs`): remove
+      the integrity-bar (track + fill) and ammo-pip children. Keep the dot; set its
+      background to `status_color()` and the amber border for selection. Wrap the
+      label in a dark backing pill (a `Node` with `BackgroundColor` ~
+      `NOVA_OS_SCREEN` alpha, small padding + `border_radius`) with brighter
+      (`NOVA_OS_TEXT`) glyph+code text for contrast.
+- [x] Shrink `ShipBlip` back to `{ section: Entity }` (drop `bar_fill` / `ammo`).
+- [x] In `project_ship_blips`: drop the bar-width / bar-colour / ammo-text updates;
+      update the dot's `BackgroundColor` to `status_color()` each frame (so damage
+      recolours it) and keep the position / visibility / selection-border logic.
+      Remove the query params that only served the bar/ammo.
+- [x] Remove the now-dead `ShipSectionView::bar_fraction` and `ammo_pips` helpers
+      (nothing uses them once the bar/pips are gone; the panel shows ammo as
+      `rounds/capacity`).
+- [x] Update tests: delete `integrity_bar_and_ammo_pips_track_live_data` (its
+      helpers are removed) and retarget `blip_carries_kind_glyph_and_integrity_bar`
+      -> `blip_is_status_dot_with_labelled_marker` (assert the dot's
+      `BackgroundColor` == `status_color()` for a critical section, the label reads
+      `"<glyph> CODE"`, and there is NO bar/ammo child).
+- [x] Verify with a NON-test `cargo check` (dead_code lint active - the removed
+      helpers/fields must leave nothing dangling), the ship tests, and a GPU
+      screenshot.
+
+## Definition of Done
+
+- The blip no longer renders an integrity bar or ammo pips; there is no per-round
+  pip rendering left (cmd: `grep -n "ammo_pips\|bar_fill\|bar_fraction" crates/nova_gameplay/src/hud/nova_os_ship.rs`
+  returns nothing; manual: no "500 circles").
+- Every blip shows a readable label (kind glyph + code) with a dark contrast
+  backing; the panel remains the home for HP/ammo/status detail
+  (test: `blip_is_status_dot_with_labelled_marker`; manual: labels readable, not
+  tiny green-on-green).
+- The dot colour reflects section status (nominal green -> critical amber) so a
+  damaged section is spottable without selecting it
+  (test: `blip_is_status_dot_with_labelled_marker` asserts dot bg == `status_color`;
+  manual: a critical section's dot reads amber).
+- No dead code from the removed helpers/fields; the palette stays phosphor/amber
+  (cmd: `cargo check -p nova_gameplay 2>&1 | grep -c "never read"` prints `0`;
+  cmd: `grep -c "srgb" crates/nova_gameplay/src/hud/nova_os_ship.rs` unchanged at 1).
+
+## Flow State
+
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
+
+## Work Log (close-out)
+
+**What changed** (`crates/nova_gameplay/src/hud/nova_os_ship.rs`, per `DECISION.md`
+which supersedes the blip-status part of `20260728-115435`):
+
+- `spawn_ship_blip`: removed the integrity-bar (track + fill) and ammo-pip
+  children. The dot's `BackgroundColor` is now the section's `status_color()`
+  (recoloured each frame), with the amber border for selection. The label (kind
+  glyph + code) sits in a dark backing pill (`NOVA_OS_SCREEN` alpha 0.82 + padding
+  + radius) with brighter `NOVA_OS_TEXT`, fixing the tiny green-on-green.
+- `ShipBlip` shrank to `{ section }` (dropped `bar_fill` / `ammo`).
+- `project_ship_blips`: dropped the bar-width / bar-colour / ammo-text updates and
+  the `q_text` param; now recolours the dot's `BackgroundColor` by status each
+  frame and keeps position / visibility / selection-border.
+- Removed the now-dead `ShipSectionView::bar_fraction` and `ammo_pips` helpers.
+- `SHIP_BAR_PX` const removed. Blocks/outlines untouched.
+
+**Tests.** Deleted `integrity_bar_and_ammo_pips_track_live_data` (its helpers are
+gone); retargeted the blip test to `blip_is_status_dot_with_labelled_marker`
+(asserts the dot bg == `status_color()` amber for a critical turret, the label
+reads `"<glyph> CODE"`, and NO `●`/`○` pips remain). 15 `nova_os_ship` tests pass.
+
+**Dead-code gate.** Applied last cycle's `dead-code-hides-under-cfg-test-reader`:
+ran a NON-test `cargo check -p nova_gameplay` (exit 0, 0 `never read`) so the
+removed helpers/fields left nothing dangling. `cargo fmt` clean.
+
+**Visual verification.** `screenshot_nova_os` (real GPU, exit 0): the blips are now
+status-coloured dots with `@ CTL-1`-style labels on dark backing pills (readable),
+no bars, no pips; the inspector panel is unchanged. Directly resolves the "500
+circles" + green-on-green playtest feedback.
 
 ## Notes
 

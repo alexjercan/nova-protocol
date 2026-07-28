@@ -1,7 +1,7 @@
 # Decision: Free the block-color channel from status; blocks stay uniform green, status moves to the blip integrity bar
 
 - DATE: 20260728-115435
-- STATUS: ACCEPTED
+- STATUS: ACCEPTED (the "status rides the blip integrity bar + ammo pips" part is SUPERSEDED by tasks/20260728-125514/DECISION.md; the uniform-green blocks, kind glyph, and outline separation still stand)
 - TASK: 20260728-115435
 - TAGS: decision, nova_os, ship, hud, ui
 
