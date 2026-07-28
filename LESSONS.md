@@ -725,6 +725,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   that a pipeline swallows; `which` host tools first. 20260711-183417.
 - `no-source-edits-during-inflight-builds` (x1): a tree edited mid-build
   yields an indeterminate evidence binary; quiesce for A/B runs. 20260711-183417.
+- `dead-code-hides-under-cfg-test-reader` (x1, -> work skill verify): a field/fn
+  read ONLY by `cfg(test)` code looks live under `cargo test`, so the `dead_code`
+  lint never fires there - a refactor that moves where a field is read can leave a
+  production-dead field that only a plain `cargo check` (non-test cfg) surfaces.
+  Run `cargo check` (or `--all-targets` incl. the non-test build), not just
+  `cargo test`, before declaring done. 20260728-124443 (from 20260728-115435).
 - `gpu-example-local-skip` (x2): heavy render examples are ~100x too slow
   under lavapipe AND OOM its software render device on combat scenes (identical
   wgpu OutOfMemory at the same frame across scenarios, with system RAM free);

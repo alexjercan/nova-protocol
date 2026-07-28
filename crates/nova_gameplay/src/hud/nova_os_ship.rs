@@ -623,11 +623,10 @@ struct ShipBlock {
 
 /// The bright box outline riding on a [`ShipBlock`] (a `LineList` of the cuboid's
 /// 12 edges) - the separation cue that keeps adjacent sections from merging. Its
-/// material tints amber while its section is selected.
+/// material tints amber while its section is selected; the section identity lives
+/// on the parent [`ShipBlock`], which the outline derives via [`ChildOf`].
 #[derive(Component)]
-struct ShipBlockOutline {
-    section: Entity,
-}
+struct ShipBlockOutline;
 
 /// A projected, clickable section blip over the viewport. Holds the entities of
 /// its integrity-bar fill and (for weapons) its ammo-pip text so
@@ -1089,9 +1088,7 @@ fn manage_ship_scene(
             ))
             .with_children(|block| {
                 block.spawn((
-                    ShipBlockOutline {
-                        section: view.entity,
-                    },
+                    ShipBlockOutline,
                     Mesh3d(edge_mesh.clone()),
                     MeshMaterial3d(outline_mat.clone()),
                     // Unit edges scaled to the FULL collider size (the fill inside
@@ -1254,7 +1251,8 @@ fn ship_input(
 /// uniform green and status rides the blip integrity bar (DECISION.md).
 fn update_ship_blocks(
     runtime: Res<ShipRuntime>,
-    mut q_outline: Query<(&ShipBlockOutline, &mut MeshMaterial3d<StandardMaterial>)>,
+    mut q_outline: Query<(&ChildOf, &mut MeshMaterial3d<StandardMaterial>), With<ShipBlockOutline>>,
+    q_block: Query<&ShipBlock>,
 ) {
     if !runtime.active {
         return;
@@ -1262,8 +1260,12 @@ fn update_ship_blocks(
     let (Some(base), Some(selected)) = (&runtime.mat_outline, &runtime.mat_outline_selected) else {
         return;
     };
-    for (outline, mut material) in &mut q_outline {
-        let want = if runtime.selected == Some(outline.section) {
+    for (parent, mut material) in &mut q_outline {
+        // The section identity lives on the parent block, not the outline.
+        let Ok(block) = q_block.get(parent.0) else {
+            continue;
+        };
+        let want = if runtime.selected == Some(block.section) {
             selected
         } else {
             base
