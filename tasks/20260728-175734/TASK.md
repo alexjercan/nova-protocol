@@ -1,58 +1,121 @@
-# nova_ui theme + widgets: NOVA OS palette + light-3D treatment
+# nova_ui theme + widgets: NOVA OS palette + skin-aware widget set
 
 - STATUS: OPEN
 - PRIORITY: 40
 - TAGS: v0.9.0,ui,refactor
 
+## Flow State
+
+- FLOW STEP: PLANNED
+- PLAN STATUS: APPROVED
+
 ## Story
 
 `nova_ui::theme` still carries the flat navy/cyan/amber language the owner
-called washed out; the NOVA OS monitor proved the replacement. Rework the
-shared theme + widget vocabulary to the accepted spike direction: NOVA
-OS-derived palette, mono-first typography (Iosevka Term is already shipped),
-and a light-3D "physical control" widget treatment (BackgroundGradient faces,
-BoxShadow bevels, lit top edge / deep bottom edge, pressed inset) as the
-shared building blocks every screen consumes. Unify nova_menu's duplicate
-MenuButton color system onto the shared observers while touching the widget
-layer.
+called washed out; the accepted spike direction (SPIKE.md D1, demo 1
+`examples/ui/nova_ui_rework_poc.html`) replaces it with the NOVA OS palette
+and a skin-aware widget set: **phosphor terminal** is the primary skin where
+every widget renders as a CLI-drawn element, and the **hardware casing**
+light-3D look is the secondary skin. IMPORTANT correction from the demo: the
+hardware skin is the CASE-GRADIENT + bevel look (case-0..3 tones, amber
+selection), NOT the old navy/cyan theme - the navy/cyan palette is retired
+entirely. Unify nova_menu's duplicate MenuButton color system onto the shared
+observers while touching the widget layer.
 
-## Steps (refined from SPIKE.md, 2026-07-28)
+## Steps (re-planned 2026-07-28 from the implemented demo 1)
 
-Accepted direction (SPIKE.md D1): phosphor terminal is the PRIMARY skin with
-CLI-rendered widgets; hardware casing is a SECONDARY alternative.
+- [ ] Rework `crates/nova_ui/src/theme.rs` to the NOVA OS token set carried
+      verbatim from the PoCs: space `#03060b`, case-0 `#0a0d10` / case-1
+      `#161b20` / case-2 `#232a31` / case-3 `#2f383f` / case-edge `#05070a`,
+      screen-0 `#001304` / screen-1 `#002b0f`, phosphor `#36ff79` / dim
+      `#19a64f` / muted `#0d6e35`, amber `#ffb84a`, orange `#ff7b2d`, red
+      `#ff4e42`, blue `#36a3ff`, text `#b9ffc9`. DELETE the navy/cyan
+      constants (BG/PANEL/PANEL_RAISED/BORDER/BORDER_BRIGHT/CYAN/
+      CYAN_BRIGHT/SELECTED_FILL...) and migrate the `semantic` HUD accents
+      onto the new base. Keep RADIUS small (phosphor uses 2px corners).
+- [ ] Add `UiSkin` to nova_ui: `enum UiSkin { Phosphor, Hardware }` as a
+      `Resource + Component + PartialEq + Clone` (ButtonValue-compatible),
+      `Default = Phosphor`. Widgets read it; the settings row + persistence
+      land in 20260728-175738 (settings_store.rs gains the field there).
+- [ ] Rework ThemedButton rendering per demo 1's widget zoo, both skins:
+      phosphor = flat fill `rgba(phosphor,0.05)`, 1px border
+      `rgba(phosphor,0.4)`, phosphor text; hover fill 0.12 + full-phosphor
+      border; pressed fill 0.2; selected/primary INVERTED (phosphor fill,
+      `#04140a` glyphs, glow); disabled ~0.3 alpha; danger = red family;
+      ghost = border-only; block buttons carry a `> ` cursor span shown on
+      hover/selected. hardware = BackgroundGradient face (case-3 -> case-1
+      -> case-0), BoxShadow rim + undercut + drop, pressed inset well,
+      selected amber gradient + dark glyphs. Include an optional trailing
+      key-chip span (amber bordered `Enter`/`Esc` text) per demo.
+- [ ] Skin switch restyles LIVE widgets: reconciler reacts to `UiSkin`
+      resource changes AND to newly spawned widgets (Added<marker> override
+      per lesson mode-keyed-reconciler-just-spawned-override; write the
+      live-tree test first).
+- [ ] Shared widget set consumed by the screens (demo 1 zoo, only widgets
+      with a real consumer): segmented control (phosphor: boxed row,
+      inverted `on`; hardware: recessed well, amber `on`), slider re-skin of
+      the existing bevy Slider row (phosphor: bordered track, segmented
+      block-meter fill, NO knob; hardware: gradient fill + round knob),
+      checkbox (22px square, inverted `x` when on), badges (phosphor:
+      bracketed `[TAG]` text spans in green/amber/blue/red/mute; hardware:
+      bordered chip), panel + panel-head (phosphor: dark screen surface,
+      inner phosphor border, glowing header text, dashed rule + `TAG` slot;
+      hardware: case gradient + bevels), separator (dashed in phosphor),
+      list row (transparent, inset phosphor border, hover fill, inverted
+      selection) with icon slot. Skip the toggle (no in-game consumer;
+      note here if one appears).
+- [ ] Typography: load Iosevka Term (`assets/fonts/SGr-IosevkaTerm-Regular.ttc`,
+      already shipped for the NOVA OS) into a nova_ui font resource at
+      startup and route the widget factories' `TextFont` through it, with a
+      size scale taken from demo 1 (26 title / 16-13 body / 11-10 labels).
+      This supersedes backlog 20260714-214329 (Rajdhani/Inter web fonts) -
+      mono-first won.
+- [ ] Fold nova_menu's duplicate button system: delete `MenuButton` +
+      `update_button_colors` polling (`crates/nova_menu/src/lib.rs:4143-4198`)
+      and route the menu `button()` factory through ThemedButton + the
+      nova_ui observers (keep the 40px/16px menu sizing as a factory
+      variant). One observer path for every button in the game.
+- [ ] Widget-zoo example: new `examples/ui/widget_zoo.rs` rendering the full
+      set in both skins (copy the `screenshot_ui.rs` autopilot + 
+      `capture_window` scaffold verbatim per reuse-known-good-stack; capture
+      one shot per skin via the skin resource between beats).
 
-- [ ] Swap `nova_ui::theme` to the NOVA OS phosphor tokens mirrored from
-      `nova_os_terminal_poc.html` (`--case-*`, `--phosphor(-dim/-muted)`,
-      `--amber`, `--orange`, `--screen-*`, `--mono`); keep the current
-      navy/cyan values only as the hardware-skin token set. Re-check semantic
-      HUD accents against the phosphor base.
-- [ ] Introduce a UI SKIN concept in nova_ui (Phosphor primary | Hardware): a
-      resource/component the widgets read, defaulting to Phosphor. (The web
-      easter egg 20260728-185730 exposes it as a Settings option; the game may
-      too - a Graphics/Interface setting.)
-- [ ] Rework ThemedButton to render BOTH skins: phosphor = flat 1px border +
-      `>` cursor marker + INVERTED selection (phosphor fill, dark glyphs);
-      hardware = light-3D bevel (gradient face, lit top edge, deep bottom,
-      pressed inset). States idle/hover/pressed/selected/disabled per demo 1's
-      widget zoo.
-- [ ] Add the shared widget set consumed by every screen: segmented control,
-      slider (ASCII-block meter in phosphor / bevelled track in hardware),
-      toggle, panel header + separator (dashed rule in phosphor), badges
-      (bracketed `[TAG]` in phosphor), list row, checkbox.
-- [ ] Typography: route the mono UI font (Iosevka Term, already shipped) as the
-      primary UI typeface per the demo; size scale from the demo.
-- [ ] Fold nova_menu's `MenuButton` + `update_button_colors` into the shared
-      nova_ui observer path so there is ONE observer/reconciler for buttons.
-- [ ] Ship a widget-zoo screenshot example that renders the full widget set in
-      both skins (the eyeball rig for this task).
+## Definition of Done (re-planned 2026-07-28)
 
-## Definition of Done (refined 2026-07-28)
+1. test: live-tree tests pin ThemedButton state rendering per skin and the
+   live-switch reconciliation (`phosphor_button_states_render_cli_markers`,
+   `hardware_button_states_render_bevel`,
+   `skin_switch_restyles_spawned_widgets` - the last must fail before the
+   Added-override wiring).
+2. example + render eyeball: `widget_zoo` captures reviewed in BOTH skins
+   (buttons/segmented/slider/checkbox/badges/rows/panel-head); phosphor
+   widgets read as CLI elements, not bevelled buttons on glass.
+3. cmd: `grep -rn "update_button_colors\|MenuButton" crates/nova_menu/src`
+   prints 0 hits (duplicate color system gone).
+4. cmd: `grep -rn "5cc8ff\|8fe0ff\|141a2e\|0b0f1c\|183a4e" crates/` prints 0
+   hits (navy/cyan palette retired from the game; web/src keeps its own CSS).
+5. manual: owner eyeballs the widget zoo in-engine in both skins; Phosphor
+   is the default.
 
-1. example + render eyeball: a widget-zoo example renders button / segmented /
-   slider / toggle / badge / row / header in both skins; screenshot reviewed.
-2. test: live-tree tests assert ThemedButton state reconciliation
-   (idle/hover/pressed/selected/disabled) drives the right markers in each skin.
-3. cmd: `grep -rn 'update_button_colors\|MenuButton' crates/nova_menu` shows the
-   duplicate colour system is gone (one shared observer path); recorded here.
-4. manual: owner eyeballs the widget zoo in-engine in both skins; phosphor is the
-   default and its widgets read as CLI elements, not bevelled buttons on glass.
+## Notes
+
+- Demo 1 (`examples/ui/nova_ui_rework_poc.html`) is the pixel reference;
+  its `:root` tokens and `body[data-skin=...]` rules are the spec for both
+  skins. `nova_os_terminal_poc.html` stays the canonical monitor reference.
+- Current state (mapped 2026-07-28): theme.rs = palette consts + semantic
+  module; widget.rs = ThemedButton observers (`button_on_interaction`,
+  `on_add/remove_selected`, `button_on_setting::<T>`) + `themed_button`/
+  `panel_header`/`separator` factories + `WidgetObserversRegistered` guard.
+  nova_menu duplicates: `MenuButton` (lib.rs:1056), `update_button_colors`
+  (lib.rs:4143), `button()` (lib.rs:4171). No skin machinery exists anywhere.
+- Bevy 0.19 BackgroundGradient + BoxShadow are already proven by the NOVA
+  OS casing (`crates/nova_gameplay/src/hud/nova_os.rs`) - no new engine
+  machinery for the hardware skin.
+- The phosphor block-meter slider must keep the existing bevy_ui_widgets
+  Slider behavior (SliderValue/SliderRange/TrackClick::Snap in
+  build_settings_body) - re-skin, not re-implement.
+- HUD chips are NOT this task: flight HUD chrome is phosphor-only per the
+  spike's per-surface table and restyles in 20260728-175742 on top of these
+  tokens.
+- Depends on: nothing in the epic; lands before 175738/175742 (they consume
+  the widgets).

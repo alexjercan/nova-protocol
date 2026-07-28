@@ -75,16 +75,23 @@ before Bevy work starts.
       landed cc5be9bd; 1 review round (APPROVE, out-of-context); owner accepted both
       PoCs. Directions in tasks/20260728-175726/SPIKE.md + DECISION.md (D1-D6);
       children 175734/38/42/47 refined; follow-ups 185730 (web egg), 214929 (glyphs).
-- [ ] 20260728-175731 (p42) Units: display 1 u = 10 m everywhere (m/km, m/s)
-- [ ] 20260728-175734 (p40) nova_ui theme + widgets: NOVA OS palette + light-3D treatment
+- [x] 20260728-175731 (p42) Units: display 1 u = 10 m everywhere (m/km, m/s)
+      landed 93032f53; formatter nova_ui::units + 11 sites + docs sweep; sweep
+      record in the task (DoD 3+4).
+- [ ] 20260728-233707 (p41) Relocate input-prompt key glyphs to assets/ (Alt only) + credits
+- [ ] 20260728-175734 (p40) nova_ui theme + widgets: NOVA OS palette + skin-aware widget set
 - [ ] 20260728-175738 (p38) Menus + editor adopt the reworked widget language
-- [ ] 20260728-175742 (p36) HUD restyle + on-screen text reduction
-- [ ] 20260728-175747 (p34) Contextual HUD: show-by-relevance + grow-in-use
+- [ ] 20260728-175742 (p36) HUD restyle + on-screen text reduction (icon dock)
+- [ ] 20260728-175747 (p34) Contextual HUD: show-by-relevance + grow-in-use + On/Cinematic
 
-Tasks p40..p34 are direction-level until the spike closes; the spike's accepted
-SPIKE.md is their planning source and their Steps/DoD are refined then (same
-model as the NOVA OS epic 20260725-104330). Inseparable pairs may re-merge at
-that point instead of shipping shims.
+Re-planned 2026-07-28 (post-spike, owner /flow directive): all remaining
+children now carry concrete Steps + DoD grounded in the implemented PoCs and
+the 2026-07-28 code maps (nova_ui/nova_menu/nova_editor/HUD/asset pipeline).
+Child 233707 was added for the owner's asset-structure directive (glyphs out
+of examples/, Alt only, license in credits/). Notable corrections baked in:
+the hardware skin is the case-gradient look, NOT the old navy/cyan (which
+retires entirely); the dock uses the real 7-verb set + live bindings; the
+scenarios scroll bug is a missing driver system for ScenariosList.
 
 ## Decisions
 
@@ -119,8 +126,13 @@ Phosphor/Hardware skin switch in the PoC Settings; owner deploys via /release.
 NOT part of this epic's Done Means.
 
 Related pre-existing tasks: backlog 20260710-231927 (keybind hint icons) folds
-into the HUD text-reduction child; backlog 20260714-214329 (ship web fonts) is
-likely superseded by the mono-first direction (decide at spike close); backlog
+its ICON half into the HUD text-reduction child 175742 (remapping + gamepad
+half stays in 231927); backlog 20260714-214329 (ship Rajdhani/Inter/JetBrains
+web fonts) is superseded by the accepted mono-first direction - 175734 routes
+Iosevka Term as the UI typeface - PROPOSED CLOSE at the 2026-07-28 re-plan
+gate (owner call); backlog 20260728-214929 (glyph adoption) had its canonical-
+home question answered by 233707's DECISION.md and keeps only the remaining
+surfaces (web key-UI, NOVA OS help, editor chips, gamepad); backlog
 20260726-193040 (NOVA OS CRT look spike) stays separate (monitor-internal
 polish). Wontdo 20260714-225524 (web cyan/amber alignment) is superseded by
 this direction change.

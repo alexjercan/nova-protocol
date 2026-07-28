@@ -19,8 +19,8 @@ sets were not imported.
 
 ## Candidate surfaces
 
-- Flight HUD keybind cluster / verb cues (the icon-chip dock the spike's HUD
-  child will build) - swap the text `[KEY] VERB` for the glyph.
+- DONE-BY-EPIC: flight HUD keybind cluster / verb cues -> the icon-chip dock
+  ships with 20260728-175742 (this task no longer owns that surface).
 - Editor: the "placed section shows its bound key as a chip" surface.
 - NOVA OS help / hint lines that name keys.
 - Web wiki keybinds page + tutorial (currently `<kbd>` text).
@@ -28,11 +28,13 @@ sets were not imported.
 
 ## Open questions to resolve first
 
-- Canonical asset home: game (`assets/` via nova_assets) vs web (`web/src/`) vs
-  the current `examples/ui/assets/`. Decide one source of truth + how each
-  consumer references it (Bevy image handles; webpack copy); dedupe the PoC copy.
-- Key-name -> glyph-file mapping table (a `KeyCode`/binding -> `T_<glyph>` lookup),
-  including gamepad if the gamepad sets get imported later.
+- RESOLVED 2026-07-28 (owner directive; tasks/20260728-233707/DECISION.md):
+  canonical home is `assets/input-prompts/keyboard/Alt/` (Alt only, license
+  in credits/), relocated by 20260728-233707; the KeyCode -> glyph mapping
+  table + the HUD dock adoption land with 20260728-175742. This task keeps
+  the REMAINING surfaces below.
+- Key-name -> glyph-file mapping for gamepad if the gamepad sets get
+  imported later (keyboard mapping ships with 175742).
 - Sizing/tint: the Alt glyphs are dark keycaps with a white letter; confirm they
   read on both the phosphor HUD and the light web pages, or pick per-surface style
   (Alt on dark, Dark/White where needed).
@@ -49,6 +51,7 @@ a render eyeball.
 ## Notes
 
 License is CC0 (public domain, attribution appreciated not required); provenance
-kept in `examples/ui/assets/input-prompts/NOTICE.md`. Depends on nothing hard, but
-best sequenced after the HUD restyle child (20260728-175742) so the HUD dock is
-the first real adopter.
+moves to `credits/CREDITS.md` + `credits/licenses/` with 20260728-233707 (the
+old `examples/ui/assets/input-prompts/NOTICE.md` is absorbed there). Depends on
+nothing hard, but best sequenced after the HUD restyle child (20260728-175742)
+so the HUD dock is the first real adopter.

@@ -4,45 +4,97 @@
 - PRIORITY: 38
 - TAGS: v0.9.0,ui,menu,editor
 
+## Flow State
+
+- FLOW STEP: PLANNED
+- PLAN STATUS: APPROVED
+
 ## Story
 
-With the shared theme/widgets reworked, every consuming screen gets brought to
-the accepted look: the main menu panel, settings body, mods two-pane browser,
-scenarios picker, pause/outcome overlays, and the editor rail + component
-cards + drawer + tooltip adopt the same language per the demo mockups.
+With the shared skin-aware widgets landed (20260728-175734), bring every
+consuming screen to the accepted look. Good news from the code map
+(2026-07-28): every LAYOUT already matches demo 1 - the main menu is already
+a bottom-right 280px corner panel with the exact button set, settings is
+already stacked AUDIO/GRAPHICS/CONTROLS, mods and scenarios are already
+two-pane 85% modals and campaigns already collapse via [+]/[-] headers. So
+this task is a restyle-in-place plus three real behavior changes: the new
+INTERFACE settings section (UI skin choice + persistence), the scenarios
+list scroll fix, and regenerated web screenshots.
 
-## Steps (refined from SPIKE.md, 2026-07-28)
+## Steps (re-planned 2026-07-28 from the implemented demo 1 + code map)
 
-Layouts mirror the shipped screens (SPIKE.md D2); demo 1
-(`nova_ui_rework_poc.html`) is the visual reference. Depends on 20260728-175734
-(shared widgets) landing first.
+- [ ] Main menu (`setup_menu_ui`, nova_menu lib.rs:1563-1635): corner panel
+      goes phosphor (panel treatment from 175734), New Game gets the
+      `primary` variant, Exit the `danger` variant; title block styled per
+      demo (glowing title over the live backdrop); add the demo's footer
+      line (version left / `NOVA OS` right, muted 10px) reading the real
+      version.
+- [ ] Settings (`build_settings_body`, lib.rs:2712-2850): restyle the three
+      existing sections with the new panel-head/slider/segmented/row
+      widgets, then ADD the `Interface` section: a `UI skin` segmented
+      control (Phosphor | Hardware) wired via `ButtonValue<UiSkin>` +
+      `Selected` exactly like the GraphicsQuality row. Persist it: new
+      `ui_skin` field on `PersistedSettings` (settings_store.rs, serde
+      default Phosphor) through the existing from_resources/load round-trip.
+- [ ] Mods modal (lib.rs:1701-1884): tabs, rows, enable checkboxes, badges
+      and the detail pane adopt the shared widgets (rows/checks/badges from
+      175734); footer Back button styled.
+- [ ] Scenarios modal (lib.rs:1886-2021): same widget adoption for campaign
+      headers ([+]/[-] markers stay text, phosphor-dim), rows, detail pane +
+      Play button (primary, with the `Enter` key chip per demo). FIX the
+      broken list scroll: `scroll_mods_panel` (lib.rs:4044-4060) only drives
+      `ModsList` - generalize it to a shared scrollable-list marker so
+      `ScenariosList` (lib.rs:1976) scrolls too, and clamp the STORED offset
+      against content height per lesson
+      bevy-ui-scroll-input-clamps-stored-offset (not just the top).
+- [ ] Pause + outcome + start-failure overlays (lib.rs:427-590, 668-803,
+      868+): panel + button variants (Resume primary with `Esc` key chip,
+      Exit danger); VICTORY/DEFEAT banner colors move to the new semantic
+      accents.
+- [ ] Editor chrome (nova_editor/src/ui/): rail (mod.rs:144-216), component
+      cards (card.rs:89-126), drawer (mod.rs:219-257), tooltip
+      (tooltip.rs:32-99) inherit the new widgets/theme automatically -
+      verify each in the phosphor palette and re-tune the hardcoded
+      section-kind tints (card.rs) so they read against the dark screen
+      surface; "soon" badges use the bracketed badge widget.
+- [ ] Screenshots: extend `ui_capture_script` (examples/ui/screenshot_ui.rs)
+      with mods + scenarios + settings beats (rig-first per
+      render-output-eyeball), regenerate the committed web captures via
+      `scripts/gen-web-screenshots.py`, and eyeball every capture.
+- [ ] Docs sweep (keep-docs-in-sync): regenerate/replace stale screenshots
+      referenced by web tutorial + index, CHANGELOG [Unreleased] line for
+      the restyle + skin setting, wiki pages that show old-theme menu
+      captures or describe settings sections.
 
-- [ ] Main menu: compact bottom-right corner panel over the live
-      `menu_backdrop` scene (stays non-modal so the scene is the focus);
-      buttons New Game / Sandbox / Scenarios / Mods / Settings / Exit in the
-      phosphor language.
-- [ ] Settings: single panel with stacked AUDIO / GRAPHICS / CONTROLS sections
-      (mirrors `build_settings_body`) using the reworked slider / segmented /
-      keybind-reference rows.
-- [ ] Mods: the two-pane modal (Installed / Explore-online tabs, scrollable
-      list with enable checkboxes, right detail pane = dependencies / adds /
-      actions) restyled to the new widgets.
-- [ ] Scenarios: the two-pane modal with collapsible campaigns ([+]/[-]) + flat
-      rows, right detail = thumbnail + description + Play; FIX the broken list
-      scroll.
-- [ ] Pause + outcome overlays: Resume / Retry / Settings / Back to Main Menu /
-      Exit in the new language.
-- [ ] Editor: rail + component cards + drawer + tooltip adopt the shared
-      widgets per demo 1.
+## Definition of Done (re-planned 2026-07-28)
 
-## Definition of Done (refined 2026-07-28)
+1. test: `scenarios_list_scrolls_on_wheel_and_clamps` - MouseWheel messages
+   move `ScrollPosition` on the scenarios list and the stored offset clamps
+   at both ends (fails before the wiring fix).
+2. test: `ui_skin_setting_persists_across_save_load` - settings_store
+   round-trip keeps a Hardware choice; and a live-tree test that pressing
+   the Hardware segmented button updates the `UiSkin` resource + `Selected`
+   marker (button_on_setting path).
+3. test: existing behavior pins stay green where touched - campaign
+   collapse/expand and mods enable-toggle drive the right tree after the
+   restyle.
+4. render eyeball: updated captures for menu / settings / mods / scenarios /
+   pause / editor reviewed; `scripts/gen-web-screenshots.py` output refreshed.
+5. manual: owner eyeballs every restyled screen in-engine in both skins - no
+   screen still shows the old flat navy/cyan theme.
 
-1. render eyeball: updated screenshot captures for each restyled screen
-   (`screenshot_ui`, `menu_newgame` families; add captures for mods/scenarios
-   if none exist - building the rig is step 1 per `render-output-eyeball`).
-2. test: live-tree tests where behaviour changed - scenario campaign
-   collapse/expand and the mods enable-toggle drive the right tree.
-3. cmd: scenarios list scroll verified (the reported broken scroll no longer
-   reproduces); note the check here.
-4. manual: owner eyeballs every restyled screen in-engine (menus, settings,
-   mods, scenarios, pause, editor) - no screen still shows the old flat theme.
+## Notes
+
+- Layouts are NOT changing; demo 1 mirrored the shipped screens on purpose
+  (spike D2). Only the widget language, the Interface section and the scroll
+  fix change behavior.
+- Settings body is shared by main menu and pause (one builder), so the
+  Interface section appears in both for free.
+- The `~` HUD-detail row in the CONTROLS reference will be renamed by
+  20260728-175747 (On/Cinematic); do not pre-rename it here.
+- Web screenshots are committed under `web/src/assets/` and validated by
+  `scripts/gen-web-screenshots.py` (staging via `NOVA_SHOT_DIR`); the
+  capture examples run with
+  `NOVA_SHOT_DIR=target/reel BCS_AUTOPILOT=1 BCS_REEL=1 cargo run --example
+  screenshot_ui --features debug` (BCS: never the full test suite).
+- Depends on: 20260728-175734 (shared widgets + UiSkin resource).
