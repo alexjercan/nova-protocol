@@ -290,7 +290,7 @@ break behavior or perf?" - is one command:
 cargo run -p nova_probe -- run playable            # clean pass -> report
 cargo run -p nova_probe -- run playable --profile  # + traced pass (top-N systems)
 cargo run -p nova_probe -- run playable --samply   # + named flamegraph
-cargo run -p nova_probe -- run playable --baseline probe-runs/before  # FPS deltas
+cargo run -p nova_probe -- run playable --baseline probe-runs  # FPS deltas vs nearest prior commit
 cargo run -p nova_probe -- run playable,scenario   # comma list -> aggregate index
 cargo run -p nova_probe -- run gameplay            # a whole category
 cargo run -p nova_probe -- run --all               # the fleet (minus NOT_PROBED)
@@ -298,33 +298,34 @@ cargo run -p nova_probe -- run --all               # the fleet (minus NOT_PROBED
 
 It runs the example headless (throwaway Xvfb; `--display :0` to reuse yours),
 captures the run timeline + continuous invariants + the log into
-`probe-runs/<example>/`, optionally adds the profiled and samply passes
-(separate builds - tracing overhead never touches the clean numbers), and
-renders `report.html` + `checks.json` with a provisional
-OK/WARN/FAIL/NO_DATA the reviewer confirms. Every run dir carries a
-`probe-run.json` manifest (identity, passes, outcomes); `probe report` only
-re-renders dirs that have one. Two verbs is the whole surface - `run` and
-`report`; the transitional `sweep|web|profile` aliases and the `trace`
-verb retired at the v0.8.0 cut (retired commands error with a pointer to
-the `run` form).
+`probe-runs/<short-commit>/<example>/` by default (or
+`<out-base>/<short-commit>/<example>/` with `--out <out-base>`), optionally
+adds the profiled and samply passes (separate builds - tracing overhead never
+touches the clean numbers), and renders `report.html` + `checks.json` with a
+provisional OK/WARN/FAIL/NO_DATA the reviewer confirms. Every run dir carries a
+`probe-run.json` manifest (identity, full git SHA, passes, outcomes); `probe
+report` only re-renders dirs that have one. The commit root also gets
+`index.html`, `index.json`, and `probe-all.json`, even when the spec names one
+example. Two verbs is the whole surface - `run` and `report`; the transitional
+`sweep|web|profile` aliases and the `trace` verb retired at the v0.8.0 cut
+(retired commands error with a pointer to the `run` form).
 
-Multi specs (comma list, category dir name, `--all`) resolve against the
-`[[example]]` catalog, run each example sequentially with
-continue-on-failure, and write an aggregated status index above the run
-dirs: `index.html` (one row per example - verdict, measured n/total, the
-six check statuses, duration, a link to its report), `index.json` (the
-machine mirror), and `probe-all.json` (the re-render gate). The aggregate
-verdict is the WORST row; the exit code mirrors it. `--all` skips the
-NOT_PROBED exclusions, which the report lists with their reasons - and a
-bare `probe run` errors with the catalog rather than starting a fleet
-sweep by accident. Categories take single-digit minutes warm; `--all` is
-the pre-release/nightly sweep (roughly half an hour). `--baseline` works
-across a group too: for a multi-spec it is a baseline ROOT (a prior group's
-out dir), and each example compares against `<root>/<example>/frametime.csv`
-when present, else that example skips the comparison (`fps_within_baseline`
-SKIPPED, not an error) - so `probe run --all --fps --baseline probe-runs/before`
-regression-checks the whole fleet against a previous `--all` run and quietly
-skips the examples that had no prior capture.
+Every run spec resolves to a list. A single example is just a one-item list;
+comma lists, category dir names, and `--all` expand against the `[[example]]`
+catalog and run sequentially with continue-on-failure. The status index lives
+above the example dirs: `index.html` (one row per example - verdict, measured
+n/total, the six check statuses, duration, a link to its report), `index.json`
+(the machine mirror), and `probe-all.json` (the re-render gate). The aggregate
+verdict is the WORST row; the exit code mirrors it. `--all` skips the NOT_PROBED
+exclusions, which the report lists with their reasons - and a bare `probe run`
+errors with the catalog rather than starting a fleet sweep by accident.
+Categories take single-digit minutes warm; `--all` is the pre-release/nightly
+sweep (roughly half an hour). `--baseline <base>` searches `<base>` for the
+nearest previous commit-hash directory in git history, ignoring compatibility
+folders such as `before`, then each example compares against
+`<base>/<previous-short-commit>/<example>/frametime.csv` when present. Without
+`--baseline`, probe searches the same base used by `--out`, defaulting to
+`probe-runs`.
 
 Under the hood: an env-gated capture plugin drives the real gameplay app to
 `Playing`, warms up, records the wall-clock delta of every frame for a fixed
@@ -412,7 +413,7 @@ optional) - into a self-contained `report.html` plus a machine-readable
 `checks.json`:
 
 ```sh
-cargo run -p nova_probe -- report <run-dir> [--baseline <old-run-dir>]
+cargo run -p nova_probe -- report <run-dir>... [--baseline <old-run-dir>]
 ```
 
 Auto checks produce a provisional OK/WARN/FAIL/NO_DATA (process exit from

@@ -77,8 +77,8 @@
 //! | `NOVA_PERF_HOST` / `host`     | `/etc/hostname` | Overrides the recorded host tag (`browser` on wasm). |
 #![warn(missing_docs)]
 
-// The aggregated multi-run report and the example catalog feed the probe
-// bin's multi-spec runs and the root package's drift test - host tooling,
+// The aggregated run report and the example catalog feed the probe bin's
+// spec resolution and the root package's drift test - host tooling,
 // native-only like the run report.
 #[cfg(not(target_arch = "wasm32"))]
 pub mod aggregate;

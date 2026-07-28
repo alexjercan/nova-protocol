@@ -56,6 +56,9 @@ pub struct RunManifest {
     pub started_unix: u64,
     /// Short git SHA, same resolver as the capture metadata.
     pub git_sha: String,
+    /// Full git SHA for mapping commit-keyed probe-runs folders back to the
+    /// exact code revision.
+    pub full_git_sha: String,
     /// The host the run executed on.
     pub host: String,
     /// Which capture surfaces probe armed (timeline/invariants always; fps
@@ -101,6 +104,7 @@ impl RunManifest {
             "example": self.example,
             "started_unix": self.started_unix,
             "git_sha": self.git_sha,
+            "full_git_sha": self.full_git_sha,
             "host": self.host,
             "armed": {
                 "timeline": self.armed_timeline,
@@ -150,6 +154,11 @@ impl RunManifest {
             example: s("example")?,
             started_unix: v.get("started_unix").and_then(|x| x.as_u64()).unwrap_or(0),
             git_sha: s("git_sha")?,
+            full_git_sha: v
+                .get("full_git_sha")
+                .and_then(|x| x.as_str())
+                .unwrap_or_else(|| v.get("git_sha").and_then(|x| x.as_str()).unwrap_or(""))
+                .to_string(),
             host: s("host")?,
             armed_timeline: armed("timeline"),
             armed_invariants: armed("invariants"),
@@ -1346,6 +1355,7 @@ mod tests {
             example: "playable".into(),
             started_unix: 1789000000,
             git_sha: "abc123".into(),
+            full_git_sha: "abc123def".into(),
             host: "devbox".into(),
             armed_timeline: true,
             armed_invariants: true,
@@ -1381,6 +1391,7 @@ mod tests {
             example: "playable".into(),
             started_unix: 1789000123,
             git_sha: "abc123".into(),
+            full_git_sha: "abc123def".into(),
             host: "devbox".into(),
             armed_timeline: true,
             armed_invariants: true,
@@ -1468,6 +1479,7 @@ mod tests {
             example: "controller_section".into(),
             started_unix: 1,
             git_sha: "abc".into(),
+            full_git_sha: "abcdef".into(),
             host: "h".into(),
             armed_timeline: true,
             armed_invariants: true,

@@ -1,10 +1,10 @@
-//! The aggregated multi-run report (task 20260719-210438): one row per
-//! probed example, an overall worst-of verdict, and the honesty rules
-//! carried up from the per-run report - a row's verdict is never shown
-//! without its `measured n/total`, and exclusions are IN the report with
-//! reasons (no silent caps).
+//! The aggregated run report (task 20260719-210438): one row per probed
+//! example, an overall worst-of verdict, and the honesty rules carried up
+//! from the per-run report - a row's verdict is never shown without its
+//! `measured n/total`, and exclusions are IN the report with reasons (no
+//! silent caps). A single-example probe still writes this one-row aggregate.
 //!
-//! Artifacts, written next to the per-example run dirs (`<base>/<example>/`):
+//! Artifacts, written next to the per-example run dirs:
 //! - `probe-all.json` - the aggregate manifest (spec, identity, per-row
 //!   outcome + duration + exclusions). The gate for `probe report <base>`.
 //! - `index.json` - the machine mirror agents read: verdict + measured +
@@ -36,7 +36,7 @@ pub struct AllRow {
     pub error: Option<String>,
 }
 
-/// The aggregate manifest - what `probe run <multi-spec>` recorded, and
+/// The aggregate manifest - what `probe run <spec>` recorded, and
 /// what gates + feeds a `probe report` re-render of the index.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AllManifest {
@@ -46,6 +46,8 @@ pub struct AllManifest {
     pub started_unix: u64,
     /// The git SHA the sweep ran against.
     pub git_sha: String,
+    /// The full git SHA the short output directory maps to.
+    pub full_git_sha: String,
     /// The host the sweep ran on.
     pub host: String,
     /// (example, reason) pairs deliberately not probed by --all/category
@@ -62,6 +64,7 @@ impl AllManifest {
             "spec": self.spec,
             "started_unix": self.started_unix,
             "git_sha": self.git_sha,
+            "full_git_sha": self.full_git_sha,
             "host": self.host,
             "excluded": self.excluded.iter().map(|(example, reason)| {
                 serde_json::json!({ "example": example, "reason": reason })
@@ -130,6 +133,11 @@ impl AllManifest {
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0),
             git_sha: str_field(value, "git_sha")?,
+            full_git_sha: value
+                .get("full_git_sha")
+                .and_then(|v| v.as_str())
+                .unwrap_or_else(|| value.get("git_sha").and_then(|v| v.as_str()).unwrap_or(""))
+                .to_string(),
             host: str_field(value, "host")?,
             excluded: value
                 .get("excluded")
@@ -349,6 +357,7 @@ mod tests {
             spec: "--all".into(),
             started_unix: 1_700_000_000,
             git_sha: "abc1234".into(),
+            full_git_sha: "abc1234def".into(),
             host: "workstation".into(),
             excluded: vec![("render_scale_shot".into(), "real-GPU capture".into())],
             rows: vec![AllRow {
@@ -366,6 +375,7 @@ mod tests {
             spec: "ui".into(),
             started_unix: 0,
             git_sha: "abc".into(),
+            full_git_sha: "abcdef".into(),
             host: "h".into(),
             excluded: vec![("render_scale_shot".into(), "needs a real GPU".into())],
             rows: vec![row("editor", "OK"), row("hud_range", "FAIL")],

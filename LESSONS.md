@@ -12,6 +12,9 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 
 ## Process lessons
 
+- `collapse-single-item-special-case` (x1): when an aggregate/list path already
+  exists, model the single item as a one-item list before preserving a separate
+  branch; dual paths make CLI semantics and docs drift. 20260729-003352.
 - `outcome-is-last-write-wins-close-the-act` (x1): CurrentOutcome overwrites,
   so EVERY outcome-declaring handler must set a terminal act itself - a
   single unguarded path (player death vs an every-pulse win gate) can

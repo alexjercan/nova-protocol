@@ -1,8 +1,8 @@
 //! `probe` - the run-harness front door (task 20260719-112317; spike
 //! tasks/20260719-112011/SPIKE.md; multi-run task 20260719-210438). One
 //! command runs autopilot examples through the harness passes and hands
-//! back the unified run report - or, for a multi spec, one report per
-//! example plus an aggregated status index:
+//! back per-example run reports plus an aggregated status index. A single
+//! example is the same aggregate shape with one row:
 //!
 //! ```text
 //! cargo run -p nova_probe -- run playable            # clean pass + report
@@ -17,7 +17,7 @@
 //! optionally the frame-time capture for wired examples), pass 2 PROFILED
 //! (`--profile`: separate trace build, its overhead never touches pass 1's
 //! numbers - the two-pass rule), optional `--samply` flamegraph run, then
-//! the run report in-process. Multi specs resolve against the Cargo.toml
+//! the run report in-process. Specs resolve against the Cargo.toml
 //! `[[example]]` catalog (the single source of truth - autoexamples is
 //! off), run sequentially with continue-on-failure, and write
 //! `index.html` + `index.json` + `probe-all.json` above the per-example
@@ -49,22 +49,21 @@ mod native {
     pub const USAGE: &str = "\
 usage: probe <subcommand>
   run <spec> [--all] [--out <dir>] [--profile] [--samply] [--fps]
-      [--baseline <run-dir>] [--timeout <secs>] [--display <:N>]
+      [--baseline <base-dir>] [--timeout <secs>] [--display <:N>]
       [--release] [--render gpu|sw] [--scenario <id>]... [--preset <p>]...
       [--platform native|web]
       the post-feature check and the perf sweep. <spec> is one example, a
       comma list (playable,scenario), or a category dir (sections|gameplay|
       ui|screenshots|perf); --all runs the whole catalog minus NOT_PROBED.
-      Multi specs run sequentially into <out|probe-runs>/<example>/ and
+      Runs write to <out|probe-runs>/<short-commit>/<example>/ and
       write an aggregated index.html/index.json + probe-all.json above
-      them. Matrix flags (--scenario/--preset, repeatable, with --fps) and
-      --platform web (positional = scenario id) are single-example concerns.
-      --baseline is one example's run dir for a single spec, or a baseline
-      ROOT for a group: each example compares against <root>/<example>/ when
-      it has a frametime.csv, else that example skips the comparison (baseline
-      an --all run against a previous --all out dir). Artifacts + report land
-      in the run dir.
-  report <run-dir> [--baseline <run-dir>]
+      them, even for one example. Matrix flags (--scenario/--preset,
+      repeatable, with --fps) and --platform web (positional = scenario id)
+      are single-example concerns. --baseline names a storage base; probe
+      searches it for the nearest previous commit dir and compares each
+      example against <base>/<commit>/<example>/ when it has a frametime.csv.
+      Without --baseline, probe searches the --out base, or probe-runs.
+  report <run-dir>... [--baseline <run-dir>]
       re-render the report (probe-run.json dirs) or the aggregate index
       (probe-all.json dirs); refuses dirs probe did not produce";
 
@@ -116,7 +115,7 @@ usage: probe <subcommand>
             base: RunOptions,
         },
         Report {
-            dir: PathBuf,
+            dirs: Vec<PathBuf>,
             baseline: Option<PathBuf>,
         },
     }
@@ -148,7 +147,7 @@ usage: probe <subcommand>
         match iter.next().map(String::as_str) {
             Some("run") => parse_run(iter.cloned().collect::<Vec<_>>()),
             Some("report") => {
-                let mut dir: Option<PathBuf> = None;
+                let mut dirs: Vec<PathBuf> = Vec::new();
                 let mut baseline: Option<PathBuf> = None;
                 while let Some(arg) = iter.next() {
                     match arg.as_str() {
@@ -161,16 +160,14 @@ usage: probe <subcommand>
                             return Err(format!("unknown flag {other}"));
                         }
                         other => {
-                            if dir.replace(PathBuf::from(other)).is_some() {
-                                return Err("only one run dir may be given".into());
-                            }
+                            dirs.push(PathBuf::from(other));
                         }
                     }
                 }
-                Ok(Cmd::Report {
-                    dir: dir.ok_or("report needs a run dir")?,
-                    baseline,
-                })
+                if dirs.is_empty() {
+                    return Err("report needs at least one run dir".into());
+                }
+                Ok(Cmd::Report { dirs, baseline })
             }
             // Retired verbs get a pointed error, not a generic one: the
             // muscle-memory commands should say where they went.
@@ -301,8 +298,8 @@ usage: probe <subcommand>
     pub struct Resolved {
         pub examples: Vec<String>,
         /// True when the spec EXPANDS (list, category, --all) - the multi
-        /// gates and the aggregate apply; a bare example name stays the
-        /// single-run path with today's semantics exactly.
+        /// gates apply; a bare example name stays eligible for single-example
+        /// matrix flags while still using the aggregate-shaped runner.
         pub multi: bool,
         /// The spec as given, for the aggregate manifest ("--all", "ui", ...).
         pub spec_display: String,
@@ -412,10 +409,9 @@ usage: probe <subcommand>
         help
     }
 
-    /// Dispatch a parsed run spec: resolve against the catalog, then either
-    /// the single-run path (semantics unchanged) or the sequential multi
-    /// driver with the aggregate. `--platform web` bypasses resolution -
-    /// its positional is a SCENARIO id, not an example.
+    /// Dispatch a parsed run spec: resolve against the catalog, then run the
+    /// resolved examples through the aggregate-shaped driver. `--platform web`
+    /// bypasses resolution - its positional is a SCENARIO id, not an example.
     fn run_spec(tokens: &[String], all: bool, mut base: RunOptions) -> Result<ExitCode, String> {
         if base.platform == Platform::Web {
             if all || tokens.len() != 1 {
@@ -431,49 +427,100 @@ usage: probe <subcommand>
         let root = repo_root();
         let catalog = nova_probe::load_example_catalog(&root)?;
         let resolved = resolve_spec(tokens, all, &catalog, NOT_PROBED)?;
-        if !resolved.multi {
-            base.example = resolved.examples[0].clone();
-            if let Some((_, reason)) = NOT_PROBED
-                .iter()
-                .find(|(name, _)| *name == base.example.as_str())
-            {
-                eprintln!(
-                    "probe: note: {} is excluded from --all/category runs: {reason}",
-                    base.example
-                );
-            }
-            return run(&base);
-        }
         // Multi gates: these flags are single-example concerns.
-        if !base.scenarios.is_empty() || !base.presets.is_empty() {
+        if resolved.multi && (!base.scenarios.is_empty() || !base.presets.is_empty()) {
             return Err(
                 "the --scenario/--preset matrix is a single-example perf sweep; \
                  give one example"
                     .into(),
             );
         }
-        // --baseline IS allowed for a group: it is the baseline ROOT (a prior
-        // probe-runs-shaped out dir), resolved per example in run_many -
-        // `<root>/<example>/frametime.csv` if present, else that example skips
-        // the comparison. (For a single example it is the run dir itself.)
+        for example in &resolved.examples {
+            if let Some((_, reason)) = NOT_PROBED.iter().find(|(name, _)| *name == example) {
+                eprintln!("probe: note: {example} is excluded from --all/category runs: {reason}");
+            }
+        }
         run_many(&resolved, &base, &catalog)
     }
 
-    /// Resolve a group example's baseline against a `--baseline` ROOT: the
-    /// per-example run dir `<root>/<example>` when it holds a `frametime.csv`,
-    /// else `None` (that example skips the comparison rather than erroring).
-    /// Mirrors the probe-runs layout a prior group run wrote, so `--all` is
-    /// baselined against a previous `--all` out dir.
-    fn group_baseline_for(root: &Path, example: &str) -> Option<PathBuf> {
+    /// Resolve an example's baseline against a baseline root: the old direct
+    /// run dir when it holds `frametime.csv`, or the new child run dir
+    /// `<root>/<example>` when that holds one. Missing examples skip the
+    /// comparison rather than erroring.
+    fn baseline_for(root: &Path, example: &str) -> Option<PathBuf> {
+        if root.join("frametime.csv").is_file() {
+            return Some(root.to_path_buf());
+        }
         let dir = root.join(example);
         dir.join("frametime.csv").is_file().then_some(dir)
     }
 
-    /// The sequential multi driver: each example through `run()` into
-    /// `<base>/<example>/` (today's per-example artifacts unchanged), a row
-    /// per example built from ITS checks.json (probe consumes its own agent
-    /// surface), continue-on-failure, then the aggregate index. ONE Xvfb is
-    /// shared across the whole sweep (task 20260719-224011): every run in
+    fn default_output_base(root: &Path, explicit: Option<PathBuf>) -> PathBuf {
+        explicit.unwrap_or_else(|| root.join("probe-runs"))
+    }
+
+    fn default_output_root(root: &Path, explicit: Option<PathBuf>, short_sha: &str) -> PathBuf {
+        default_output_base(root, explicit).join(short_sha)
+    }
+
+    fn is_hash_dir_name(name: &str) -> bool {
+        (7..=40).contains(&name.len()) && name.chars().all(|ch| ch.is_ascii_hexdigit())
+    }
+
+    fn discover_baseline_root(
+        base: &Path,
+        current_sha: &str,
+        history: &[String],
+    ) -> Option<PathBuf> {
+        for sha in history {
+            if sha == current_sha || !is_hash_dir_name(sha) {
+                continue;
+            }
+            let dir = base.join(sha);
+            if dir.is_dir() {
+                return Some(dir);
+            }
+        }
+        None
+    }
+
+    fn git_history_short(root: &Path) -> Vec<String> {
+        Command::new("git")
+            .current_dir(root)
+            .args(["rev-list", "--abbrev-commit", "--max-count=256", "HEAD"])
+            .output()
+            .ok()
+            .filter(|output| output.status.success())
+            .and_then(|output| String::from_utf8(output.stdout).ok())
+            .map(|stdout| {
+                stdout
+                    .lines()
+                    .map(str::trim)
+                    .filter(|line| !line.is_empty())
+                    .map(String::from)
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn resolve_baseline_root(
+        base: &Path,
+        current_sha: &str,
+        history: &[String],
+        allow_compat_root: bool,
+    ) -> Option<PathBuf> {
+        discover_baseline_root(base, current_sha, history).or_else(|| {
+            allow_compat_root
+                .then(|| base.to_path_buf())
+                .filter(|root| root.is_dir())
+        })
+    }
+
+    /// The sequential run driver: each spec item goes through `run()` into
+    /// `<out-base>/<short-sha>/<example>/`, then one row per example is built
+    /// from ITS checks.json (probe consumes its own agent surface),
+    /// continue-on-failure, then the aggregate index. ONE Xvfb is shared
+    /// across the whole sweep (task 20260719-224011): every run in
     /// this process derives the SAME pid-based display, so per-run
     /// spawn/kill raced the old server's lock teardown and Xvfb died
     /// "immediately - display in use" mid-fleet (found by the first user
@@ -485,17 +532,50 @@ usage: probe <subcommand>
         catalog: &[nova_probe::CatalogExample],
     ) -> Result<ExitCode, String> {
         let root = repo_root();
-        let out_base = base.out.clone().unwrap_or_else(|| root.join("probe-runs"));
-        std::fs::create_dir_all(&out_base).map_err(|e| format!("could not create out dir: {e}"))?;
+        let (git_sha, host) = run_identity();
+        let full_git_sha = resolve_full_git_sha(&root);
+        let out_base = default_output_base(&root, base.out.clone());
+        std::fs::create_dir_all(&out_base)
+            .map_err(|e| format!("could not create out base: {e}"))?;
         let out_base = out_base
             .canonicalize()
-            .map_err(|e| format!("could not resolve out dir: {e}"))?;
+            .map_err(|e| format!("could not resolve out base: {e}"))?;
+        let out_root = default_output_root(&root, Some(out_base.clone()), &git_sha);
+        std::fs::create_dir_all(&out_root)
+            .map_err(|e| format!("could not create out root: {e}"))?;
+        let out_root = out_root
+            .canonicalize()
+            .map_err(|e| format!("could not resolve out root: {e}"))?;
+        let baseline_base = base.baseline.clone().unwrap_or_else(|| out_base.clone());
+        let baseline_root = resolve_baseline_root(
+            &baseline_base,
+            &git_sha,
+            &git_history_short(&root),
+            base.baseline.is_some(),
+        );
+        match (&base.baseline, &baseline_root) {
+            (Some(base), Some(root)) => {
+                eprintln!("probe: baseline {} -> {}", base.display(), root.display())
+            }
+            (None, Some(root)) => eprintln!(
+                "probe: auto baseline in {} -> {}",
+                out_base.display(),
+                root.display()
+            ),
+            (Some(base), None) => eprintln!(
+                "probe: no baseline commit dir found in {}; skipping fps comparison",
+                base.display()
+            ),
+            (None, None) => eprintln!(
+                "probe: no previous baseline commit dir found in {}; skipping fps comparison",
+                out_base.display()
+            ),
+        }
         let (display, _xvfb) = ensure_display(base.display.as_deref())?;
         let started_unix = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
-        let (git_sha, host) = run_identity();
         let total = resolved.examples.len();
         let mut rows = Vec::new();
         let mut baseline_matches = 0usize;
@@ -503,27 +583,23 @@ usage: probe <subcommand>
             eprintln!("probe: ===== {example} [{}/{total}] =====", i + 1);
             let mut opts = base.clone();
             opts.example = example.clone();
-            opts.out = Some(out_base.join(example));
+            opts.out = Some(out_root.join(example));
             opts.display = Some(display.clone());
-            // Per-example baseline from the --baseline ROOT: use this example's
-            // prior run dir when present, otherwise SKIP its comparison (not an
-            // error) - a group baselines only the examples that have one.
-            opts.baseline =
-                base.baseline
-                    .as_ref()
-                    .and_then(|root| match group_baseline_for(root, example) {
-                        Some(dir) => {
-                            baseline_matches += 1;
-                            Some(dir)
-                        }
-                        None => {
-                            eprintln!(
-                                "probe: {example}: no baseline in {}, skipping fps comparison",
-                                root.display()
-                            );
-                            None
-                        }
-                    });
+            opts.baseline = baseline_root.as_ref().and_then(|root| {
+                baseline_for(root, example).map_or_else(
+                    || {
+                        eprintln!(
+                            "probe: {example}: no baseline in {}, skipping fps comparison",
+                            root.display()
+                        );
+                        None
+                    },
+                    |dir| {
+                        baseline_matches += 1;
+                        Some(dir)
+                    },
+                )
+            });
             let started = Instant::now();
             let run_error = match run(&opts) {
                 Ok(_) => None,
@@ -540,16 +616,16 @@ usage: probe <subcommand>
             rows.push(build_row(
                 example,
                 &category,
-                &out_base.join(example),
+                &out_root.join(example),
                 run_error,
                 started.elapsed().as_secs(),
             ));
         }
-        if let Some(root) = &base.baseline {
+        if let Some(root) = &baseline_root {
             if baseline_matches == 0 {
                 eprintln!(
-                    "probe: warning: --baseline {} matched none of the {total} example(s) - \
-                     expected <root>/<example>/frametime.csv (a prior group run's out dir)",
+                    "probe: warning: baseline {} matched none of the {total} example(s) - \
+                     expected <commit-root>/<example>/frametime.csv",
                     root.display()
                 );
             }
@@ -558,12 +634,13 @@ usage: probe <subcommand>
             spec: resolved.spec_display.clone(),
             started_unix,
             git_sha,
+            full_git_sha,
             host,
             excluded: resolved.excluded.clone(),
             rows,
         };
-        write_aggregate(&out_base, &manifest)?;
-        print_aggregate(&out_base, &manifest);
+        write_aggregate(&out_root, &manifest)?;
+        print_aggregate(&out_root, &manifest);
         Ok(aggregate_exit(&manifest))
     }
 
@@ -1059,10 +1136,10 @@ usage: probe <subcommand>
         // is configured fps-exempt (a narrative one-shot with no stable
         // window - runs correctness passes, skips the frame-time pass).
         let (category, fps_exempt) = example_fps_policy(&root, &opts.example);
-        let out = opts
-            .out
-            .clone()
-            .unwrap_or_else(|| root.join("probe-runs").join(&opts.example));
+        let out = opts.out.clone().unwrap_or_else(|| {
+            let (git_sha, _) = run_identity();
+            default_output_root(&root, None, &git_sha).join(&opts.example)
+        });
         std::fs::create_dir_all(&out).map_err(|e| format!("could not create out dir: {e}"))?;
         let out = out
             .canonicalize()
@@ -1587,10 +1664,12 @@ usage: probe <subcommand>
         fps_exempt: Option<String>,
     ) -> Result<ExitCode, String> {
         let (git_sha, host) = run_identity();
+        let full_git_sha = resolve_full_git_sha(&repo_root());
         let manifest = RunManifest {
             example: opts.example.clone(),
             started_unix,
             git_sha,
+            full_git_sha,
             host,
             armed_timeline: armed_native,
             armed_invariants: armed_native,
@@ -1639,6 +1718,19 @@ usage: probe <subcommand>
             + usize::from(opts.samply)
     }
 
+    fn resolve_full_git_sha(root: &Path) -> String {
+        Command::new("git")
+            .current_dir(root)
+            .args(["rev-parse", "HEAD"])
+            .output()
+            .ok()
+            .filter(|output| output.status.success())
+            .and_then(|output| String::from_utf8(output.stdout).ok())
+            .map(|stdout| stdout.trim().to_string())
+            .filter(|sha| !sha.is_empty())
+            .unwrap_or_else(|| "unknown".to_string())
+    }
+
     pub fn main() -> ExitCode {
         let args: Vec<String> = std::env::args().skip(1).collect();
         match parse(&args) {
@@ -1653,7 +1745,7 @@ usage: probe <subcommand>
                     ExitCode::FAILURE
                 }
             },
-            Ok(Cmd::Report { dir, baseline }) => match report(&dir, baseline.as_deref()) {
+            Ok(Cmd::Report { dirs, baseline }) => match report_many(&dirs, baseline.as_deref()) {
                 Ok(code) => code,
                 Err(message) => {
                     eprintln!("probe: {message}");
@@ -1670,6 +1762,17 @@ usage: probe <subcommand>
     /// re-renders the index instead: each row is re-read fresh from its
     /// run dir's checks.json (re-render a single example's report via
     /// `probe report <base>/<example>`).
+    fn report_many(dirs: &[PathBuf], baseline: Option<&Path>) -> Result<ExitCode, String> {
+        let mut worst = ExitCode::SUCCESS;
+        for dir in dirs {
+            let code = report(dir, baseline)?;
+            if code == ExitCode::FAILURE {
+                worst = ExitCode::FAILURE;
+            }
+        }
+        Ok(worst)
+    }
+
     fn report(dir: &Path, baseline: Option<&Path>) -> Result<ExitCode, String> {
         if dir.join("probe-all.json").exists() {
             if baseline.is_some() {
@@ -1752,8 +1855,8 @@ usage: probe <subcommand>
         }
 
         #[test]
-        fn group_baseline_for_resolves_present_and_skips_missing() {
-            // A --baseline ROOT resolves per example: the example's dir when it
+        fn baseline_for_resolves_present_and_skips_missing() {
+            // A baseline root resolves per example: the example's dir when it
             // holds a frametime.csv, else None (skip, not error).
             let base = std::env::temp_dir().join(format!("nova_probe_gb_{}", std::process::id()));
             let _ = std::fs::remove_dir_all(&base);
@@ -1762,12 +1865,134 @@ usage: probe <subcommand>
             // dir exists but no csv - still a miss.
             std::fs::create_dir_all(base.join("scenario")).unwrap();
 
+            assert_eq!(baseline_for(&base, "playable"), Some(base.join("playable")));
+            assert_eq!(baseline_for(&base, "scenario"), None);
+            assert_eq!(baseline_for(&base, "missing"), None);
+            let _ = std::fs::remove_dir_all(&base);
+        }
+
+        #[test]
+        fn default_output_root_is_keyed_by_short_commit() {
+            let root = Path::new("/repo");
             assert_eq!(
-                group_baseline_for(&base, "playable"),
-                Some(base.join("playable"))
+                default_output_root(root, None, "61675034"),
+                PathBuf::from("/repo/probe-runs/61675034")
             );
-            assert_eq!(group_baseline_for(&base, "scenario"), None);
-            assert_eq!(group_baseline_for(&base, "missing"), None);
+            assert_eq!(
+                default_output_root(root, Some(PathBuf::from("custom/out")), "61675034"),
+                PathBuf::from("custom/out/61675034"),
+                "explicit --out is the storage base, not the exact run dir"
+            );
+        }
+
+        #[test]
+        fn baseline_for_accepts_new_child_dirs_and_old_direct_dirs() {
+            let base = std::env::temp_dir()
+                .join(format!("nova_probe_baseline_shape_{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&base);
+            std::fs::create_dir_all(base.join("61675034").join("playable")).unwrap();
+            std::fs::write(
+                base.join("61675034").join("playable").join("frametime.csv"),
+                "x",
+            )
+            .unwrap();
+            std::fs::create_dir_all(base.join("old-direct")).unwrap();
+            std::fs::write(base.join("old-direct").join("frametime.csv"), "x").unwrap();
+
+            assert_eq!(
+                baseline_for(&base.join("61675034"), "playable"),
+                Some(base.join("61675034").join("playable"))
+            );
+            assert_eq!(
+                baseline_for(&base.join("old-direct"), "playable"),
+                Some(base.join("old-direct"))
+            );
+            let _ = std::fs::remove_dir_all(&base);
+        }
+
+        #[test]
+        fn baseline_discovery_picks_nearest_ancestor_and_ignores_compat_dirs() {
+            let base =
+                std::env::temp_dir().join(format!("nova_probe_baseline_{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&base);
+            std::fs::create_dir_all(base.join("before")).unwrap();
+            std::fs::create_dir_all(base.join("playable")).unwrap();
+            std::fs::create_dir_all(base.join("aaaa1111")).unwrap();
+            std::fs::create_dir_all(base.join("bbbb2222")).unwrap();
+            std::fs::create_dir_all(base.join("cccc3333")).unwrap();
+
+            let history = s(&["cccc3333", "bbbb2222", "aaaa1111"]);
+            assert_eq!(
+                discover_baseline_root(&base, "dddd4444", &history),
+                Some(base.join("cccc3333"))
+            );
+            let history = s(&["bbbb2222", "aaaa1111"]);
+            assert_eq!(
+                discover_baseline_root(&base, "dddd4444", &history),
+                Some(base.join("bbbb2222"))
+            );
+            let history = s(&["missing", "playable", "before"]);
+            assert_eq!(discover_baseline_root(&base, "dddd4444", &history), None);
+            let _ = std::fs::remove_dir_all(&base);
+        }
+
+        #[test]
+        fn report_many_rerenders_multiple_run_dirs() {
+            let base =
+                std::env::temp_dir().join(format!("nova_probe_report_many_{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&base);
+            for example in ["playable", "scenario"] {
+                let dir = base.join(example);
+                std::fs::create_dir_all(&dir).unwrap();
+                let manifest = RunManifest {
+                    example: example.to_string(),
+                    started_unix: 1,
+                    git_sha: "61675034".into(),
+                    full_git_sha: "61675034abcdef".into(),
+                    host: "host".into(),
+                    armed_timeline: false,
+                    armed_invariants: false,
+                    armed_fps: false,
+                    fps_exempt: None,
+                    passes: vec![PassRecord {
+                        name: "clean".into(),
+                        success: true,
+                        timed_out: false,
+                    }],
+                };
+                std::fs::write(
+                    dir.join("probe-run.json"),
+                    format!("{:#}\n", manifest.to_json()),
+                )
+                .unwrap();
+            }
+
+            let dirs = vec![base.join("playable"), base.join("scenario")];
+            assert_eq!(report_many(&dirs, None), Ok(ExitCode::SUCCESS));
+            assert!(base.join("playable").join("report.html").is_file());
+            assert!(base.join("scenario").join("checks.json").is_file());
+            let _ = std::fs::remove_dir_all(&base);
+        }
+
+        #[test]
+        fn explicit_baseline_can_fall_back_to_compat_root_but_auto_does_not() {
+            let base = std::env::temp_dir()
+                .join(format!("nova_probe_baseline_compat_{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&base);
+            std::fs::create_dir_all(base.join("playable")).unwrap();
+            std::fs::write(base.join("playable").join("frametime.csv"), "x").unwrap();
+            let history = s(&["61675034"]);
+
+            assert_eq!(
+                resolve_baseline_root(&base, "61675034", &history, true),
+                Some(base.clone()),
+                "explicit --baseline may name an old probe-runs-shaped root"
+            );
+            assert_eq!(
+                resolve_baseline_root(&base, "61675034", &history, false),
+                None,
+                "auto-discovery ignores non-hash compatibility roots"
+            );
             let _ = std::fs::remove_dir_all(&base);
         }
 
@@ -1994,12 +2219,16 @@ usage: probe <subcommand>
 
         #[test]
         fn new_verbs_and_flags_parse() {
-            let Ok(Cmd::Report { dir, baseline }) =
-                parse(&s(&["report", "runs/x", "--baseline", "runs/old"]))
-            else {
+            let Ok(Cmd::Report { dirs, baseline }) = parse(&s(&[
+                "report",
+                "runs/x",
+                "runs/y",
+                "--baseline",
+                "runs/old",
+            ])) else {
                 panic!("report parses");
             };
-            assert_eq!(dir, PathBuf::from("runs/x"));
+            assert_eq!(dirs, vec![PathBuf::from("runs/x"), PathBuf::from("runs/y")]);
             assert_eq!(baseline, Some(PathBuf::from("runs/old")));
 
             let Ok(Cmd::RunSpec { tokens, base, .. }) = parse(&s(&[
