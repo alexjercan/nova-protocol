@@ -32,18 +32,25 @@ pub const NOVA_OS_TERMINAL_HINTS: &[&str] = &[
 /// body of a [`crate::command::TerminalCommand`] registered into the
 /// [`crate::command::NovaOsCommandRegistry`]. The NOVA OS owns the generic parts -
 /// the [`crate::terminal::TerminalMode::App`] transition, input ownership, the
-/// chrome (title bar + close control) and the uniform exit (Escape / close
-/// control). An app only supplies its identity, its body UI, and its own key
-/// handling; the `map`/`ship viewer` apps register their own runtime and spawn
-/// arbitrary UI into the body slot without editing this module.
+/// persistent header (its breadcrumb + close control) and footer, and the uniform
+/// exit (Escape / close control). An app only supplies its identity, its body UI,
+/// and its own key handling; the `map`/`ship viewer` apps register their own
+/// runtime and spawn arbitrary UI into the body slot without editing this module.
 pub trait NovaOsAppRuntime: Send + Sync + 'static {
     /// Stable id; also the launch word typed at the prompt (e.g. `map`). Matches
-    /// the name of the [`crate::command::TerminalCommand`] whose body owns it.
+    /// the name of the [`crate::command::TerminalCommand`] whose body owns it. The
+    /// header breadcrumb shows this id upper-cased (`APPS / MAP`).
     fn id(&self) -> &'static str;
-    /// Title shown in the app's chrome bar.
-    fn title(&self) -> &'static str;
-    /// Spawn the app's body under `body` (the chrome is spawned by the runtime).
-    /// `font` is the shared NOVA OS terminal font.
+    /// Human-readable title for the app. Informational only: the shared header
+    /// shows the launch word (`id`) in its breadcrumb, not this string (which may
+    /// carry a `/`, e.g. the map's "MAP / LOCAL SPACE"). Defaults to the `id` so
+    /// apps need not supply one; an app may still override it for a friendlier
+    /// label used by future/debug surfaces.
+    fn title(&self) -> &'static str {
+        self.id()
+    }
+    /// Spawn the app's body under `body`; it absolute-fills the shared `<main>`
+    /// region. `font` is the shared NOVA OS terminal font.
     fn spawn_body(&self, body: &mut ChildSpawnerCommands, font: Handle<Font>);
     /// React to a key press while the app owns input. The runtime handles the
     /// universal exit (Escape / close control) itself, so this is for the app's

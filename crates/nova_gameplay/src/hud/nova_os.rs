@@ -112,9 +112,15 @@ const NOVA_OS_SCREEN_PAD_PX: f32 = 18.0;
 /// dimension but percentage padding is width-relative on both axes.
 const NOVA_OS_CONTENT_SAFE_X_PCT: f32 = 5.5;
 const NOVA_OS_CONTENT_SAFE_Y_PCT: f32 = 3.6;
-/// Space an app reserves at the bottom of its body so its content (e.g. the map
-/// readout) clears the persistent footer hint row instead of overlapping it.
-const NOVA_OS_FOOTER_RESERVE_PX: f32 = 30.0;
+/// Fixed height of the persistent NOVA OS header bar (`<header>`), so it never
+/// reflows when the middle `<main>` region swaps between the terminal and an
+/// app. Matches the old in-terminal topbar box: 32px content + 10px bottom pad
+/// + 1px bottom border.
+const NOVA_OS_HEADER_HEIGHT_PX: f32 = 43.0;
+/// Fixed height of the persistent NOVA OS footer bar (`<footer>`), so it stays
+/// constant next to the flexing main region. Matches the old footer box: 18px
+/// content + 6px top pad + 1px top border, rounded up for breathing room.
+const NOVA_OS_FOOTER_HEIGHT_PX: f32 = 26.0;
 /// Injection-moulded shell corners: a larger top radius and a tighter bottom,
 /// like the PoC `.case` `border-radius: 22px 22px 14px 14px`, scaled up for the
 /// full-viewport monitor.
@@ -263,15 +269,28 @@ struct NovaOsScreenMarker;
 #[derive(Component)]
 struct NovaOsTerminalContentMarker;
 
-/// The PoC top bar row inside the screen.
+/// The persistent header bar (`<header>`): brand/breadcrumb on the left, the
+/// close control + ship/FPS status on the right. Always on screen at a fixed
+/// height; the old name is kept so the topbar is still one queryable node.
 #[derive(Component)]
 struct NovaOsTopbarMarker;
+
+/// The persistent middle region (`<main>`) between the header and the footer.
+/// It swaps between the terminal surface and a launched app body; the app root
+/// is spawned as an absolute-fill child of this node.
+#[derive(Component)]
+struct NovaOsMainMarker;
 
 /// The lit square lamp to the left of the NOVA OS brand.
 #[derive(Component)]
 struct NovaOsLampMarker;
 
-/// Right-side status text row in the PoC top bar.
+/// The header brand/breadcrumb text (`NOVA OS <ver> // SHELL` at the prompt,
+/// `NOVA OS <ver> // APPS / <ID>` while an app owns the screen).
+#[derive(Component)]
+struct NovaOsBrandMarker;
+
+/// Right-side status text row in the header (`SHIP: .. LINK: .. FPS: ..`).
 #[derive(Component)]
 struct NovaOsStatusMarker;
 
@@ -459,8 +478,9 @@ struct NovaOsAppRoot {
     id: &'static str,
 }
 
-/// The on-screen close control in an app's chrome bar; clicking it exits the app
-/// back to the terminal, mirroring the Escape route.
+/// The `[ ESC ]` close control in the persistent header, shown only while an app
+/// owns the screen; clicking it exits the app back to the terminal, mirroring the
+/// Escape route.
 #[derive(Component)]
 struct NovaOsAppCloseMarker;
 
@@ -1007,6 +1027,19 @@ fn nova_os_status_text(ship_name: &str, fps: Option<u32>) -> String {
     format!("SHIP: {ship_name}     LINK: LOCAL     FPS: {fps}")
 }
 
+/// The header brand/breadcrumb line for the active surface. The terminal reads
+/// `NOVA OS <ver> // SHELL`; a launched app reads `NOVA OS <ver> // APPS / <ID>`
+/// where `<ID>` is the app's launch word upper-cased - NOT its `title()`, which
+/// may itself contain a `/` (the map's title is "MAP / LOCAL SPACE"). Wording
+/// is owner-confirmed in this task's DECISION.md.
+fn nova_os_header_breadcrumb(mode: TerminalMode) -> String {
+    let ver = nova_os_version_label();
+    match mode {
+        TerminalMode::Prompt => format!("NOVA OS {ver} // SHELL"),
+        TerminalMode::App { id } => format!("NOVA OS {ver} // APPS / {}", id.to_uppercase()),
+    }
+}
+
 impl NovaOsFlightLog {
     fn clear(&mut self) {
         self.entries.clear();
@@ -1285,6 +1318,9 @@ impl Plugin for NovaOsPlugin {
                     .run_if(resource_changed::<NovaOsTerminal>.or_else(terminal_ui_just_spawned)),
                 rebuild_nova_os_footer_hints.run_if(
                     resource_changed::<NovaOsTerminal>.or_else(nova_os_footer_just_spawned),
+                ),
+                reconcile_nova_os_header.run_if(
+                    resource_changed::<NovaOsTerminal>.or_else(nova_os_header_just_spawned),
                 ),
                 sync_nova_os_app_ui.run_if(in_state(PauseStates::NovaOs)),
             )
@@ -1851,8 +1887,9 @@ fn handle_nova_os_app_keyboard(
     }
 }
 
-/// The app chrome's close control: clicking it returns to the terminal, the same
-/// route as Escape, and plays the degauss coil on a real exit.
+/// The header's app close control: clicking it returns to the terminal, the same
+/// route as Escape, and plays the degauss coil on a real exit. Shown only while
+/// an app owns the screen (visibility toggled by [`reconcile_nova_os_header`]).
 fn on_nova_os_app_close(
     _activate: On<Activate>,
     mut terminal: ResMut<NovaOsTerminal>,
@@ -1938,19 +1975,21 @@ fn drive_nova_os_power_led(
 }
 
 /// Reconcile the on-screen app surface with [`NovaOsTerminal::active_mode`]:
-/// launch spawns the app root (chrome + body) and hides the terminal content;
-/// exit despawns the app root and reveals the terminal, whose scrollback was
-/// never touched. Runs while the computer is open and diff-guards itself, so a
-/// NOVA OS reopened onto a persisted app rebuilds the app and a plain reopen keeps
-/// the terminal.
+/// launch spawns the app root (body only) as an absolute-fill child of the
+/// persistent `<main>` region and hides the terminal surface; exit despawns the
+/// app root and reveals the terminal, whose scrollback was never touched. The
+/// header and footer are siblings of `<main>`, so they stay put across the swap
+/// (the header breadcrumb + close control are reconciled by
+/// [`reconcile_nova_os_header`]). Runs while the computer is open and
+/// diff-guards itself, so a NOVA OS reopened onto a persisted app rebuilds the
+/// app and a plain reopen keeps the terminal.
 fn sync_nova_os_app_ui(
     mut commands: Commands,
     terminal: Res<NovaOsTerminal>,
     registry: Res<NovaOsCommandRegistry>,
     asset_server: Option<Res<AssetServer>>,
-    rtt: Option<Res<NovaOsRtt>>,
     mut degauss: ResMut<NovaOsDegauss>,
-    q_screen: Query<Entity, With<NovaOsScreenMarker>>,
+    q_main: Query<Entity, With<NovaOsMainMarker>>,
     q_app_root: Query<(Entity, &NovaOsAppRoot)>,
     mut q_content: Query<&mut Visibility, With<NovaOsTerminalContentMarker>>,
 ) {
@@ -1981,12 +2020,10 @@ fn sync_nova_os_app_ui(
             Visibility::Inherited
         };
     }
-    // Render-capable: the app surface joins the terminal in the offscreen content
-    // root (so it renders through the CRT shader). Headless: onto the screen node.
-    let target = match rtt.as_deref() {
-        Some(rtt) => Some(rtt.content_root),
-        None => q_screen.single().ok(),
-    };
+    // The app body fills the persistent `<main>` region (an absolute-fill child),
+    // so it renders through the CRT shader exactly as the terminal does and never
+    // covers the header or footer. Same target render-capable or headless.
+    let target = q_main.single().ok();
     let (Some(id), Some(target)) = (desired, target) else {
         return;
     };
@@ -1999,94 +2036,37 @@ fn sync_nova_os_app_ui(
     });
 }
 
-/// Spawn one app surface: a chrome bar (title + close control) over the app's own
-/// body, filling the screen at content depth so the shared CRT overlay still sits
-/// on top exactly as it does over the terminal.
+/// Spawn one app surface: just the app's body, absolute-filling the persistent
+/// `<main>` region at content depth so the shared CRT overlay sits on top of it
+/// exactly as it does over the terminal. The app has no chrome bar of its own -
+/// the persistent header carries its breadcrumb + close control, and the footer
+/// carries its keybinds. `<main>` is already inset by the content root's
+/// safe-area padding and sits between the header and footer, so the app body
+/// needs no safe-area padding or footer-reserve margin of its own.
 fn spawn_nova_os_app(
-    screen: &mut ChildSpawnerCommands,
+    main: &mut ChildSpawnerCommands,
     app: &dyn NovaOsAppRuntime,
     font: Handle<Font>,
 ) {
-    screen
-        .spawn((
-            Name::new(format!("NovaOsApp:{}", app.id())),
-            NovaOsAppRoot { id: app.id() },
-            Node {
-                position_type: PositionType::Absolute,
-                top: Val::Px(0.0),
-                bottom: Val::Px(0.0),
-                left: Val::Px(0.0),
-                right: Val::Px(0.0),
-                // The app root is absolutely positioned, so `content_root`'s
-                // safe-area padding does NOT inset it (padding never insets
-                // absolute children). Carry the same safe area here so app content
-                // clears the CRT overscan band, exactly as the terminal does.
-                padding: UiRect::axes(
-                    Val::Percent(NOVA_OS_CONTENT_SAFE_X_PCT),
-                    Val::Percent(NOVA_OS_CONTENT_SAFE_Y_PCT),
-                ),
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(12.0),
-                ..default()
-            },
-            BackgroundColor(NOVA_OS_SCREEN),
-            ZIndex(NOVA_OS_CONTENT_Z),
-        ))
-        .with_children(|app_root| {
-            app_root
-                .spawn((
-                    Node {
-                        min_height: Val::Px(32.0),
-                        padding: UiRect::bottom(Val::Px(10.0)),
-                        border: UiRect::bottom(Val::Px(1.0)),
-                        flex_direction: FlexDirection::Row,
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::SpaceBetween,
-                        column_gap: Val::Px(12.0),
-                        ..default()
-                    },
-                    BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.36)),
-                ))
-                .with_children(|chrome| {
-                    chrome.spawn((
-                        Text::new(app.title().to_uppercase()),
-                        nova_os_text_font(DRAWER_SECTION_TITLE_FONT_PX, font.clone()),
-                        TextColor(NOVA_OS_PHOSPHOR),
-                    ));
-                    chrome.spawn((
-                        NovaOsAppCloseMarker,
-                        Button,
-                        Node {
-                            padding: UiRect::axes(Val::Px(10.0), Val::Px(3.0)),
-                            border: UiRect::all(Val::Px(1.0)),
-                            ..default()
-                        },
-                        BorderColor::all(NOVA_OS_AMBER.with_alpha(0.7)),
-                        children![(
-                            Text::new("[ ESC ] CLOSE"),
-                            nova_os_text_font(11.0, font.clone()),
-                            TextColor(NOVA_OS_AMBER),
-                        )],
-                        observe(on_nova_os_app_close),
-                    ));
-                });
-            app_root
-                .spawn((
-                    Node {
-                        flex_grow: 1.0,
-                        min_height: Val::Px(0.0),
-                        flex_direction: FlexDirection::Column,
-                        // Reserve the footer row so app content never sits under
-                        // the persistent keybind footer.
-                        margin: UiRect::bottom(Val::Px(NOVA_OS_FOOTER_RESERVE_PX)),
-                        ..default()
-                    },
-                    ZIndex(NOVA_OS_CONTENT_Z),
-                ))
-                .with_children(|body| {
-                    app.spawn_body(body, font.clone());
-                });
-        });
+    main.spawn((
+        Name::new(format!("NovaOsApp:{}", app.id())),
+        NovaOsAppRoot { id: app.id() },
+        Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(0.0),
+            bottom: Val::Px(0.0),
+            left: Val::Px(0.0),
+            right: Val::Px(0.0),
+            flex_direction: FlexDirection::Column,
+            min_height: Val::Px(0.0),
+            ..default()
+        },
+        BackgroundColor(NOVA_OS_SCREEN),
+        ZIndex(NOVA_OS_CONTENT_Z),
+    ))
+    .with_children(|body| {
+        app.spawn_body(body, font.clone());
+    });
 }
 
 fn player_ship_snapshot(
@@ -2242,19 +2222,57 @@ fn nova_os_footer_just_spawned(q_footer: Query<(), Added<NovaOsFooterHintsMarker
     !q_footer.is_empty()
 }
 
+fn nova_os_header_just_spawned(q_brand: Query<(), Added<NovaOsBrandMarker>>) -> bool {
+    !q_brand.is_empty()
+}
+
+/// Reconcile the persistent header with the active surface: the brand text swaps
+/// between the SHELL breadcrumb and the `APPS / <ID>` breadcrumb, and the header
+/// close control shows only while an app owns the screen. Keyed on `active_mode`
+/// (like [`rebuild_nova_os_footer_hints`]) so ordinary prompt edits do not
+/// rewrite the header; forced once when the header is freshly spawned so a reopen
+/// starts from the right state.
+fn reconcile_nova_os_header(
+    terminal: Res<NovaOsTerminal>,
+    q_added: Query<(), Added<NovaOsBrandMarker>>,
+    mut q_brand: Query<&mut Text, With<NovaOsBrandMarker>>,
+    mut q_close: Query<&mut Visibility, With<NovaOsAppCloseMarker>>,
+    mut last_mode: Local<Option<TerminalMode>>,
+) {
+    let mode = terminal.active_mode();
+    if q_added.is_empty() && *last_mode == Some(mode) {
+        return;
+    }
+    *last_mode = Some(mode);
+    for mut text in &mut q_brand {
+        text.0 = nova_os_header_breadcrumb(mode);
+    }
+    let close_visibility = match mode {
+        TerminalMode::App { .. } => Visibility::Inherited,
+        TerminalMode::Prompt => Visibility::Hidden,
+    };
+    for mut visibility in &mut q_close {
+        *visibility = close_visibility;
+    }
+}
+
 /// Rebuild the footer hint row whenever the active surface changes, so the hints
 /// swap per surface (terminal vs a running app). Keyed on `active_mode` via a
 /// `Local`, so ordinary prompt edits (which change the terminal resource but not
-/// the mode) do not thrash the footer.
+/// the mode) do not thrash the footer. Forced once when the footer is freshly
+/// spawned (the `Local` survives a shell teardown/respawn, so without this a
+/// respawn whose mode matches the stale `Local` would skip refilling the new
+/// footer), mirroring [`reconcile_nova_os_header`].
 fn rebuild_nova_os_footer_hints(
     terminal: Res<NovaOsTerminal>,
     registry: Res<NovaOsCommandRegistry>,
     asset_server: Option<Res<AssetServer>>,
     mut commands: Commands,
+    q_added: Query<(), Added<NovaOsFooterHintsMarker>>,
     q_footer: Query<(Entity, Option<&Children>), With<NovaOsFooterHintsMarker>>,
     mut last_mode: Local<Option<TerminalMode>>,
 ) {
-    if *last_mode == Some(terminal.active_mode()) {
+    if q_added.is_empty() && *last_mode == Some(terminal.active_mode()) {
         return;
     }
     *last_mode = Some(terminal.active_mode());
@@ -3265,13 +3283,9 @@ fn setup_nova_os(
                                     ));
                                 }
                                 _ => {
-                                    // Headless fallback: terminal directly on-screen.
-                                    spawn_nova_os_terminal_content(
-                                        screen,
-                                        font.clone(),
-                                        &ship_name,
-                                    );
-                                    spawn_nova_os_footer(screen, font.clone());
+                                    // Headless fallback: header + main + footer
+                                    // directly on-screen (no offscreen CRT pass).
+                                    spawn_nova_os_chrome(screen, font.clone(), &ship_name);
                                 }
                             }
                             spawn_nova_os_phosphor_rim(screen);
@@ -3281,14 +3295,11 @@ fn setup_nova_os(
             spawn_nova_os_chin(monitor, font.clone(), asset_server.as_deref(), &settings);
         });
 
-    // Render-capable: populate the offscreen content root with the terminal (its
-    // subtree renders through the image camera, not the window).
+    // Render-capable: populate the offscreen content root with the header + main
+    // + footer (the subtree renders through the image camera, not the window).
     if let Some((content_root, _)) = &rtt {
         commands.entity(*content_root).with_children(|root| {
-            spawn_nova_os_terminal_content(root, font.clone(), &ship_name);
-            // The footer is a SIBLING of the terminal content so it survives an
-            // app hiding the terminal, carrying that app's keybinds instead.
-            spawn_nova_os_footer(root, font.clone());
+            spawn_nova_os_chrome(root, font.clone(), &ship_name);
         });
     }
 }
@@ -3949,11 +3960,137 @@ fn nova_os_bulb_color(on: bool) -> Color {
     }
 }
 
-fn spawn_nova_os_terminal_content(
-    screen: &mut ChildSpawnerCommands,
-    font: Handle<Font>,
-    ship_name: &str,
-) {
+/// Spawn the three persistent NOVA OS regions into `parent` (the offscreen
+/// content root, or the screen node in the headless fallback): the fixed-height
+/// header, the flexing `<main>` (seeded with the terminal surface), and the
+/// fixed-height footer. The header and footer never move when `<main>` swaps
+/// between the terminal and an app.
+fn spawn_nova_os_chrome(parent: &mut ChildSpawnerCommands, font: Handle<Font>, ship_name: &str) {
+    spawn_nova_os_header(parent, font.clone(), ship_name);
+    spawn_nova_os_main(parent, font.clone());
+    // The footer is a SIBLING of `<main>` so it survives an app hiding the
+    // terminal surface, carrying that app's keybinds instead.
+    spawn_nova_os_footer(parent, font);
+}
+
+/// The persistent header bar (`<header>`): a lit lamp + the brand/breadcrumb on
+/// the left, and the app close control + ship/FPS status on the right. Fixed
+/// height so it never reflows when `<main>` swaps surfaces.
+fn spawn_nova_os_header(parent: &mut ChildSpawnerCommands, font: Handle<Font>, ship_name: &str) {
+    parent
+        .spawn((
+            NovaOsTopbarMarker,
+            Node {
+                height: Val::Px(NOVA_OS_HEADER_HEIGHT_PX),
+                flex_shrink: 0.0,
+                padding: UiRect::bottom(Val::Px(10.0)),
+                border: UiRect::bottom(Val::Px(1.0)),
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                column_gap: Val::Px(12.0),
+                ..default()
+            },
+            BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.36)),
+            ZIndex(NOVA_OS_CONTENT_Z),
+        ))
+        .with_children(|topbar| {
+            topbar
+                .spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(10.0),
+                    min_width: Val::Px(0.0),
+                    ..default()
+                })
+                .with_children(|brand| {
+                    brand.spawn((
+                        NovaOsLampMarker,
+                        Node {
+                            width: Val::Px(10.0),
+                            height: Val::Px(10.0),
+                            border: UiRect::all(Val::Px(1.0)),
+                            flex_shrink: 0.0,
+                            ..default()
+                        },
+                        BorderColor::all(NOVA_OS_PHOSPHOR),
+                        BackgroundColor(NOVA_OS_PHOSPHOR),
+                    ));
+                    brand.spawn((
+                        NovaOsBrandMarker,
+                        Text::new(nova_os_header_breadcrumb(TerminalMode::Prompt)),
+                        nova_os_text_font(DRAWER_SECTION_TITLE_FONT_PX, font.clone()),
+                        TextColor(NOVA_OS_PHOSPHOR),
+                    ));
+                });
+            topbar
+                .spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(12.0),
+                    flex_shrink: 0.0,
+                    ..default()
+                })
+                .with_children(|status| {
+                    // Clickable close, left of the status, shown only while an app
+                    // owns the screen (toggled by `reconcile_nova_os_header`). The
+                    // old per-app chrome bar is gone; this is the app's only
+                    // on-screen close affordance besides the ESC keybind.
+                    status.spawn((
+                        NovaOsAppCloseMarker,
+                        Button,
+                        Visibility::Hidden,
+                        Node {
+                            padding: UiRect::axes(Val::Px(10.0), Val::Px(3.0)),
+                            border: UiRect::all(Val::Px(1.0)),
+                            flex_shrink: 0.0,
+                            ..default()
+                        },
+                        BorderColor::all(NOVA_OS_AMBER.with_alpha(0.7)),
+                        children![(
+                            Text::new("[ ESC ]"),
+                            nova_os_text_font(11.0, font.clone()),
+                            TextColor(NOVA_OS_AMBER),
+                        )],
+                        observe(on_nova_os_app_close),
+                    ));
+                    status.spawn((
+                        NovaOsStatusMarker,
+                        Text::new(nova_os_status_text(ship_name, None)),
+                        nova_os_text_font(DRAWER_SECTION_TITLE_FONT_PX, font.clone()),
+                        TextColor(NOVA_OS_PHOSPHOR_DIM),
+                    ));
+                });
+        });
+}
+
+/// The persistent `<main>` region: flex-grows between the header and footer and
+/// carries the terminal surface. A launched app is spawned as an absolute-fill
+/// child of this node (see [`spawn_nova_os_app`]), so `position_type` is
+/// relative here to make it the app root's containing block.
+fn spawn_nova_os_main(parent: &mut ChildSpawnerCommands, font: Handle<Font>) {
+    parent
+        .spawn((
+            Name::new("NovaOsMain"),
+            NovaOsMainMarker,
+            Node {
+                position_type: PositionType::Relative,
+                flex_grow: 1.0,
+                min_height: Val::Px(0.0),
+                flex_direction: FlexDirection::Column,
+                ..default()
+            },
+            ZIndex(NOVA_OS_CONTENT_Z),
+        ))
+        .with_children(|main| {
+            spawn_nova_os_terminal_content(main, font);
+        });
+}
+
+/// The terminal surface (scrollback + prompt) that fills `<main>` in Prompt
+/// mode. Tagged [`NovaOsTerminalContentMarker`] so `sync_nova_os_app_ui` can hide
+/// it (and only it) while an app owns the screen.
+fn spawn_nova_os_terminal_content(screen: &mut ChildSpawnerCommands, font: Handle<Font>) {
     screen
         .spawn((
             Name::new("NovaOsTerminalContent"),
@@ -3962,67 +4099,12 @@ fn spawn_nova_os_terminal_content(
                 flex_grow: 1.0,
                 min_height: Val::Px(0.0),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(12.0),
                 ..default()
             },
             ZIndex(NOVA_OS_CONTENT_Z),
             Pickable::IGNORE,
         ))
         .with_children(|terminal| {
-            terminal
-                .spawn((
-                    NovaOsTopbarMarker,
-                    Node {
-                        min_height: Val::Px(32.0),
-                        padding: UiRect::bottom(Val::Px(10.0)),
-                        border: UiRect::bottom(Val::Px(1.0)),
-                        flex_direction: FlexDirection::Row,
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::SpaceBetween,
-                        column_gap: Val::Px(12.0),
-                        ..default()
-                    },
-                    BorderColor::all(NOVA_OS_PHOSPHOR.with_alpha(0.36)),
-                ))
-                .with_children(|topbar| {
-                    topbar
-                        .spawn(Node {
-                            flex_direction: FlexDirection::Row,
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(10.0),
-                            min_width: Val::Px(0.0),
-                            ..default()
-                        })
-                        .with_children(|brand| {
-                            brand.spawn((
-                                NovaOsLampMarker,
-                                Node {
-                                    width: Val::Px(10.0),
-                                    height: Val::Px(10.0),
-                                    border: UiRect::all(Val::Px(1.0)),
-                                    flex_shrink: 0.0,
-                                    ..default()
-                                },
-                                BorderColor::all(NOVA_OS_PHOSPHOR),
-                                BackgroundColor(NOVA_OS_PHOSPHOR),
-                            ));
-                            brand.spawn((
-                                Text::new(format!(
-                                    "NOVA OS {} / COCKPIT LINK",
-                                    nova_os_version_label()
-                                )),
-                                nova_os_text_font(DRAWER_SECTION_TITLE_FONT_PX, font.clone()),
-                                TextColor(NOVA_OS_PHOSPHOR),
-                            ));
-                        });
-                    topbar.spawn((
-                        NovaOsStatusMarker,
-                        Text::new(nova_os_status_text(ship_name, None)),
-                        nova_os_text_font(DRAWER_SECTION_TITLE_FONT_PX, font.clone()),
-                        TextColor(NOVA_OS_PHOSPHOR_DIM),
-                    ));
-                });
-
             terminal
                 .spawn((
                     NovaOsTerminalSurfaceMarker,
@@ -4245,14 +4327,18 @@ fn spawn_nova_os_footer(parent: &mut ChildSpawnerCommands, font: Handle<Font>) {
         .spawn((
             NovaOsFooterHintsMarker,
             Node {
-                min_height: Val::Px(18.0),
+                // Fixed height so the footer stays constant next to the flexing
+                // main region (owner: keep header + footer sizes constant).
+                height: Val::Px(NOVA_OS_FOOTER_HEIGHT_PX),
+                flex_shrink: 0.0,
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
-                // Wrap so the full keybind set never overflows the row on a
-                // narrow screen; `rebuild_nova_os_footer_hints` refills these
-                // from the surface's hint set on the first mode eval.
+                // Clip so a wrapped overflow row never grows the bar past its
+                // fixed height; the tuned hint sets fit one row on the near
+                // full-screen monitor.
                 flex_wrap: FlexWrap::Wrap,
+                overflow: Overflow::clip(),
                 column_gap: Val::Px(12.0),
                 row_gap: Val::Px(2.0),
                 // A hairline top border + a little breathing room reads as a
@@ -6235,8 +6321,10 @@ mod tests {
 
         let texts = all_texts(&mut app);
         for expected in [
-            format!("NOVA OS {} / COCKPIT LINK", nova_os_version_label()),
-            // The topbar carries the ship/link head plus a live FPS segment; it
+            // The header brand shows the SHELL breadcrumb at the prompt (this
+            // task); an open app swaps it for `APPS / <ID>`.
+            format!("NOVA OS {} // SHELL", nova_os_version_label()),
+            // The header carries the ship/link head plus a live FPS segment; it
             // spawns with a fixed-width `--` placeholder before the diagnostic has
             // a reading (task 20260727-014806; fixed width 20260727-135213).
             "SHIP: SURVEY CUTTER     LINK: LOCAL     FPS:  --".to_string(),
@@ -6312,6 +6400,28 @@ mod tests {
     }
 
     #[test]
+    fn nova_os_header_breadcrumb_tracks_the_active_surface() {
+        // The terminal surface reads `// SHELL`; a launched app reads
+        // `// APPS / <ID>` with the launch word upper-cased (owner-confirmed
+        // wording, this task's DECISION.md).
+        let ver = nova_os_version_label();
+        assert_eq!(
+            nova_os_header_breadcrumb(TerminalMode::Prompt),
+            format!("NOVA OS {ver} // SHELL"),
+        );
+        assert_eq!(
+            nova_os_header_breadcrumb(TerminalMode::App { id: "map" }),
+            format!("NOVA OS {ver} // APPS / MAP"),
+        );
+        // The breadcrumb uses the launch word, not `title()` - a multi-word id
+        // still upper-cases whole.
+        assert_eq!(
+            nova_os_header_breadcrumb(TerminalMode::App { id: "ship" }),
+            format!("NOVA OS {ver} // APPS / SHIP"),
+        );
+    }
+
+    #[test]
     fn drive_topbar_fps_writes_the_smoothed_reading_onto_the_status_line() {
         use bevy::diagnostic::{
             Diagnostic, DiagnosticMeasurement, DiagnosticsStore, FrameTimeDiagnosticsPlugin,
@@ -6372,8 +6482,20 @@ mod tests {
             (rtt.content_root, rtt.image.clone())
         };
 
-        // The terminal content renders through the image camera, i.e. under the
-        // content root, not directly under the screen node.
+        // The chrome (header + main + footer) renders through the image camera,
+        // i.e. under the content root, not directly under the screen node. The
+        // main region is a direct child of the content root; the terminal content
+        // now lives inside main.
+        let (main_entity, main_parent) = app
+            .world_mut()
+            .query_filtered::<(Entity, &ChildOf), With<NovaOsMainMarker>>()
+            .single(app.world())
+            .map(|(entity, parent)| (entity, parent.parent()))
+            .expect("main region exists");
+        assert_eq!(
+            main_parent, rtt_content_root,
+            "the main region is routed to the offscreen content root"
+        );
         let content_parent = app
             .world_mut()
             .query_filtered::<&ChildOf, With<NovaOsTerminalContentMarker>>()
@@ -6381,8 +6503,8 @@ mod tests {
             .expect("terminal content exists")
             .parent();
         assert_eq!(
-            content_parent, rtt_content_root,
-            "terminal content is routed to the offscreen content root"
+            content_parent, main_entity,
+            "the terminal content is nested inside the main region"
         );
 
         // The sampling material binds the offscreen image (not the default handle).
@@ -7352,7 +7474,7 @@ mod tests {
             .query_filtered::<Entity, With<NovaOsAppCloseMarker>>()
             .iter(app.world())
             .next()
-            .expect("the app chrome has a close control");
+            .expect("the header has a close control");
         let content_visibility = app
             .world_mut()
             .query_filtered::<&Visibility, With<NovaOsTerminalContentMarker>>()
@@ -7365,14 +7487,14 @@ mod tests {
             "the terminal content is hidden while an app owns the screen",
         );
 
-        // The chrome close control returns to the terminal, the same route as Escape.
+        // The header close control returns to the terminal, the same route as Escape.
         app.world_mut().trigger(Activate { entity: close });
         app.update();
 
         assert_eq!(
             app.world().resource::<NovaOsTerminal>().active_mode(),
             TerminalMode::Prompt,
-            "the chrome close control exits the app",
+            "the header close control exits the app",
         );
         let app_roots_after = app
             .world_mut()
@@ -7390,6 +7512,100 @@ mod tests {
             content_after,
             Some(Visibility::Inherited),
             "exiting reveals the terminal content again",
+        );
+    }
+
+    /// The persistent header tracks the active surface: `reconcile_nova_os_header`
+    /// swaps the brand breadcrumb (`// SHELL` <-> `// APPS / <ID>`) and shows the
+    /// close control only while an app owns the screen (DoD item 2 + 4).
+    #[test]
+    fn header_reconciles_breadcrumb_and_close_control_across_the_swap() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(StatesPlugin);
+        app.init_state::<GameStates>();
+        app.init_state::<PauseStates>();
+        app.init_resource::<NovaOsFlightLog>();
+        app.init_resource::<NovaOsTerminal>();
+        app.init_resource::<NovaOsDegauss>();
+        let mut registry = NovaOsCommandRegistry::default();
+        registry.register(TerminalCommand::app(
+            "sample",
+            "Test-only lifecycle app",
+            SampleApp,
+        ));
+        app.insert_resource(registry);
+        app.add_observer(setup_nova_os);
+        app.add_observer(remove_nova_os);
+        app.add_systems(
+            Update,
+            (
+                sync_nova_os_app_ui.run_if(in_state(PauseStates::NovaOs)),
+                reconcile_nova_os_header.run_if(
+                    resource_changed::<NovaOsTerminal>.or_else(nova_os_header_just_spawned),
+                ),
+            )
+                .chain(),
+        );
+
+        app.world_mut()
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker));
+        app.world_mut()
+            .resource_mut::<NextState<PauseStates>>()
+            .set(PauseStates::NovaOs);
+        app.update();
+
+        let ver = nova_os_version_label();
+        let brand_text = |app: &mut App| {
+            app.world_mut()
+                .query_filtered::<&Text, With<NovaOsBrandMarker>>()
+                .iter(app.world())
+                .next()
+                .map(|text| text.0.clone())
+        };
+        let close_visibility = |app: &mut App| {
+            app.world_mut()
+                .query_filtered::<&Visibility, With<NovaOsAppCloseMarker>>()
+                .iter(app.world())
+                .next()
+                .copied()
+        };
+
+        // At the prompt: SHELL breadcrumb, close control hidden.
+        assert_eq!(
+            brand_text(&mut app),
+            Some(format!("NOVA OS {ver} // SHELL"))
+        );
+        assert_eq!(close_visibility(&mut app), Some(Visibility::Hidden));
+
+        // Open the app: breadcrumb swaps to the APPS path, close control shows.
+        app.world_mut()
+            .resource_mut::<NovaOsTerminal>()
+            .enter_app("sample");
+        app.update();
+        assert_eq!(
+            brand_text(&mut app),
+            Some(format!("NOVA OS {ver} // APPS / SAMPLE")),
+            "opening an app swaps the header breadcrumb to its APPS path",
+        );
+        assert_eq!(
+            close_visibility(&mut app),
+            Some(Visibility::Inherited),
+            "the header close control shows while an app owns the screen",
+        );
+
+        // Exit back to the prompt: breadcrumb + close control revert.
+        assert!(app.world_mut().resource_mut::<NovaOsTerminal>().exit_app());
+        app.update();
+        assert_eq!(
+            brand_text(&mut app),
+            Some(format!("NOVA OS {ver} // SHELL")),
+            "exiting restores the SHELL breadcrumb",
+        );
+        assert_eq!(
+            close_visibility(&mut app),
+            Some(Visibility::Hidden),
+            "exiting hides the header close control again",
         );
     }
 
