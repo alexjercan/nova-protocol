@@ -98,3 +98,37 @@ list scroll fix, and regenerated web screenshots.
   `NOVA_SHOT_DIR=target/reel BCS_AUTOPILOT=1 BCS_REEL=1 cargo run --example
   screenshot_ui --features debug` (BCS: never the full test suite).
 - Depends on: 20260728-175734 (shared widgets + UiSkin resource).
+
+## 2026-07-29 update (post-175734 delivery, owner /flow)
+
+175734 landed the skin-aware widget layer but, per its DECISION.md (owner
+call), did NOT delete the legacy navy/cyan `theme.rs` consts - that migration
+is now this task's job for the editor + menu surfaces. Concretely, ADD to the
+scope:
+
+- Migrate every `theme::{BG,PANEL,PANEL_RAISED,BORDER,BORDER_BRIGHT,CYAN,
+  CYAN_BRIGHT,SELECTED_FILL}` reference in `crates/nova_menu/` and
+  `crates/nova_editor/` onto the NOVA OS tokens / the new skin-aware widgets
+  (~114 refs: editor 24, menu 90). `AMBER/TEXT/TEXT_MUTED` may map to
+  `AMBER_NOVA/SCREEN_TEXT/PHOSPHOR_MUTED` or stay if still apt.
+- Deletion ordering: the `LEGACY web palette (retiring)` block in `theme.rs` is
+  DELETED by whichever of THIS task and 20260728-175742 lands SECOND (the HUD
+  task owns the other 23 refs; deleting the block while the other still
+  references it breaks that build). If this task lands first, leave the block +
+  a one-line "175742 still references these" note; if second, delete it and
+  prove `grep -rn "theme::\(BG\|PANEL\|...\)" crates/` = 0.
+
+- UiSkin persistence + Settings row (already in the steps): `UiSkin` is
+  Resource-only, so `button_on_setting::<UiSkin>` works exactly like the shipped
+  `button_on_setting::<GraphicsQuality>` row - clone that pattern. `UiSkin` is
+  `Copy`, so the new `ui_skin` field on `PersistedSettings` (serde default =
+  Phosphor) fits its existing `#[derive(Copy)]` + from_resources round-trip.
+
+- LIVE-RESKIN DECISION (owner, 2026-07-29, KISS): only `ThemedButton`
+  live-restyles on a skin flip today; the non-button factories (`panel/
+  panel_head/segmented/slider_track/checkbox/list_row/badge`) read the skin at
+  spawn. Prefer a live in-place reskin of the OPEN screen IF it is cheap (a
+  small marker + a reconciler that rebuilds/recolours the non-button widgets on
+  `UiSkin` change); if that turns out non-trivial, fall back to rebuild-on-flip
+  (the skin change fully applies when the screen is next opened) and say so in
+  the RETRO. Do not gold-plate.

@@ -130,3 +130,21 @@ phosphor-only per the spike's per-surface table - no hardware variant here.
   test 2 extended to assert every mapped path is in the collection. Runtime
   rebinds/gamepad glyphs (20260710-231927) keep the `server.load` dynamic-content
   exception.
+
+## 2026-07-29 update (post-175734 delivery, owner /flow)
+
+175734 landed the NOVA OS tokens but KEPT the legacy navy/cyan `theme.rs`
+consts (per its DECISION.md, owner call) so the HUD/editor kept compiling. This
+task owns migrating the HUD-chrome surface off them:
+
+- Migrate the ~23 `theme::{BG,PANEL,PANEL_RAISED,BORDER,BORDER_BRIGHT,CYAN,
+  CYAN_BRIGHT,SELECTED_FILL}` references in `crates/nova_gameplay/src/hud/`
+  onto the NOVA OS tokens (HUD is phosphor-only, so no skin toggle here). The
+  `nova_ui::theme::semantic` accents (NAV/OBJECTIVE/THREAT/ALLY/...) are NOT
+  legacy and stay as-is.
+- Deletion ordering: the `LEGACY web palette (retiring)` block in `theme.rs` is
+  DELETED by whichever of THIS task and 20260728-175738 lands SECOND (that task
+  owns the editor + menu refs; deleting the block early breaks its build). If
+  this lands first, leave the block; if second, delete it and prove the legacy
+  consts are unreferenced (`grep -rn "theme::\(BG\|PANEL\|CYAN\|...\)" crates/`
+  = 0).

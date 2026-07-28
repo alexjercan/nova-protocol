@@ -4544,6 +4544,7 @@ dependencies = [
  "nova_core",
  "nova_modding",
  "nova_probe",
+ "nova_ui",
  "rand 0.10.2",
  "ron",
  "serde",

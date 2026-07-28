@@ -1,48 +1,122 @@
-//! The Nova Protocol UI theme, mirroring the web app's `/wiki/sections/` page
-//! (an "industrial HUD" look: deep navy panels, hard 1px borders, sharp 2px
-//! corners, cyan/amber accents, crisp hover with no glow). Palette values are the
-//! CSS variables from `web/src/style.css`.
+//! The Nova Protocol UI theme.
 //!
-//! This is the single source of truth for the whole game UI (menu, editor, HUD).
-//! Palette + metrics only - typography (real web fonts) is a separate concern.
+//! The primary palette is the **NOVA OS** language (green phosphor on a
+//! near-black screen inside a dark moulded casing), carried verbatim from the
+//! accepted PoC `examples/ui/nova_ui_rework_poc.html` (its `:root` tokens). The
+//! widget layer ([`crate::widget`]) renders every control from these tokens in
+//! one of two skins - the phosphor CLI look (default) and the light-3D hardware
+//! casing (see [`crate::skin::UiSkin`]).
+//!
+//! The `LEGACY web palette` block below is the retiring flat navy/cyan theme
+//! (mirrored from `web/src/style.css`). It is still consumed by the flight-HUD
+//! chrome and the editor, whose per-surface restyle onto the NOVA OS tokens is
+//! tracked in tasks 20260728-175742 (HUD) and 20260728-175738 (menus + editor);
+//! once those land, the legacy block is deleted. See this task's DECISION.md for
+//! why the deletion is deferred rather than done here.
+//!
+//! Palette + metrics only - typography routes through [`crate::font::UiFont`].
 
 use bevy::prelude::*;
 
-// -- Palette (web/src/style.css CSS variables) --
+// ===================== NOVA OS palette (the PoC :root tokens) ================
 
-/// Page background (`--space-1` #0b0f1c): the deep field behind everything.
+/// Deepest field behind everything (`--space`).
+pub const SPACE: Color = Color::srgb_u8(0x03, 0x06, 0x0b);
+
+/// Casing gradient tone 0 - the darkest case face (`--case-0`).
+pub const CASE_0: Color = Color::srgb_u8(0x0a, 0x0d, 0x10);
+/// Casing gradient tone 1 (`--case-1`).
+pub const CASE_1: Color = Color::srgb_u8(0x16, 0x1b, 0x20);
+/// Casing gradient tone 2 (`--case-2`).
+pub const CASE_2: Color = Color::srgb_u8(0x23, 0x2a, 0x31);
+/// Casing gradient tone 3 - the lightest, top of a moulded face (`--case-3`).
+pub const CASE_3: Color = Color::srgb_u8(0x2f, 0x38, 0x3f);
+/// The near-black seam between case pieces (`--case-edge`).
+pub const CASE_EDGE: Color = Color::srgb_u8(0x05, 0x07, 0x0a);
+
+/// Hover face top tone (`--face-hot` 0%).
+pub const CASE_HOT_HI: Color = Color::srgb_u8(0x3a, 0x44, 0x4c);
+/// Hover face mid tone (`--face-hot` 55%).
+pub const CASE_HOT_MID: Color = Color::srgb_u8(0x22, 0x2a, 0x31);
+/// Hover face bottom tone (`--face-hot` 100%).
+pub const CASE_HOT_LO: Color = Color::srgb_u8(0x12, 0x17, 0x1b);
+
+/// CRT screen surface, darkest (`--screen-0`).
+pub const SCREEN_0: Color = Color::srgb_u8(0x00, 0x13, 0x04);
+/// CRT screen surface, lifted (`--screen-1`).
+pub const SCREEN_1: Color = Color::srgb_u8(0x00, 0x2b, 0x0f);
+
+/// Primary phosphor green (`--phosphor`): live text, active borders, glyphs.
+pub const PHOSPHOR: Color = Color::srgb_u8(0x36, 0xff, 0x79);
+/// Dim phosphor (`--phosphor-dim`): secondary text, idle fills.
+pub const PHOSPHOR_DIM: Color = Color::srgb_u8(0x19, 0xa6, 0x4f);
+/// Muted phosphor (`--phosphor-muted`): labels, section heads, tags.
+pub const PHOSPHOR_MUTED: Color = Color::srgb_u8(0x0d, 0x6e, 0x35);
+/// Bright phosphor, top of the primary-button gradient (`#7dffab`).
+pub const PHOSPHOR_HI: Color = Color::srgb_u8(0x7d, 0xff, 0xab);
+/// Deep phosphor, bottom of the primary-button gradient (`#12b552`).
+pub const PHOSPHOR_LO: Color = Color::srgb_u8(0x12, 0xb5, 0x52);
+
+/// Amber accent (`--amber`): key-chips, hardware selection, warnings.
+pub const AMBER_NOVA: Color = Color::srgb_u8(0xff, 0xb8, 0x4a);
+/// Bright amber, top of the amber selection gradient (`#ffd07a`).
+pub const AMBER_HI: Color = Color::srgb_u8(0xff, 0xd0, 0x7a);
+/// Deep amber, bottom of the amber selection gradient (`#e6952f`).
+pub const AMBER_LO: Color = Color::srgb_u8(0xe6, 0x95, 0x2f);
+
+/// Orange accent (`--orange`).
+pub const ORANGE: Color = Color::srgb_u8(0xff, 0x7b, 0x2d);
+/// Red accent / danger family (`--red`).
+pub const RED: Color = Color::srgb_u8(0xff, 0x4e, 0x42);
+/// Blue accent / info (`--blue`).
+pub const BLUE: Color = Color::srgb_u8(0x36, 0xa3, 0xff);
+
+/// Phosphor body text (`--text` #b9ffc9): the greenish white of readable copy.
+pub const SCREEN_TEXT: Color = Color::srgb_u8(0xb9, 0xff, 0xc9);
+/// The dark ink of glyphs sitting on a bright (inverted phosphor / amber) fill.
+pub const INK: Color = Color::srgb_u8(0x04, 0x14, 0x0a);
+
+// -- Metrics --
+
+/// Sharp corner radius (phosphor uses 2px corners).
+pub const RADIUS: f32 = 2.0;
+/// Softer corner radius for the hardware skin's moulded controls (7px).
+pub const RADIUS_HW: f32 = 7.0;
+/// Panel corner radius (10px).
+pub const PANEL_RADIUS: f32 = 10.0;
+/// Hard 1px border width.
+pub const BORDER_W: f32 = 1.0;
+/// Placeholder/thumbnail icon size (the wiki `.wiki-child__icon` is 44x44).
+pub const ICON: f32 = 44.0;
+
+// ===================== LEGACY web palette (retiring) =========================
+// Still consumed by the flight-HUD chrome + editor; migrated onto the NOVA OS
+// tokens above by tasks 20260728-175742 / -175738, then deleted. See DECISION.md.
+
+/// Page background (LEGACY navy `--space-1`): the deep field behind everything.
 pub const BG: Color = Color::srgb_u8(11, 15, 28);
-/// Default panel/surface (`--panel` #141a2e): rails, cards, tooltips.
+/// Default panel/surface (LEGACY navy `--panel`): rails, cards, tooltips.
 pub const PANEL: Color = Color::srgb_u8(20, 26, 46);
-/// Raised/elevated surface (`--panel-2` #1a2138): hover fill.
+/// Raised/elevated surface (LEGACY navy `--panel-2`): hover fill.
 pub const PANEL_RAISED: Color = Color::srgb_u8(26, 33, 56);
-/// Standard 1px border (`--border` #233052).
+/// Standard 1px border (LEGACY navy `--border`).
 pub const BORDER: Color = Color::srgb_u8(35, 48, 82);
-/// Brightened border on hover/active (`--border-bright` #3a4d7a).
+/// Brightened border on hover/active (LEGACY navy `--border-bright`).
 pub const BORDER_BRIGHT: Color = Color::srgb_u8(58, 77, 122);
-/// Primary accent (`--cyan` #5cc8ff).
+/// Primary accent (LEGACY `--cyan`).
 pub const CYAN: Color = Color::srgb_u8(92, 200, 255);
-/// Highlight / active text (`--cyan-bright` #8fe0ff).
+/// Highlight / active text (LEGACY `--cyan-bright`).
 pub const CYAN_BRIGHT: Color = Color::srgb_u8(143, 224, 255);
-/// Secondary accent (`--amber` #ffb877): badges, HP figures, ammo.
+/// Secondary accent (LEGACY `--amber`): badges, HP figures, ammo.
 pub const AMBER: Color = Color::srgb_u8(255, 184, 119);
-/// Primary text (`--text` #e8eefc).
+/// Primary text (LEGACY `--text`).
 pub const TEXT: Color = Color::srgb_u8(232, 238, 252);
-/// Secondary/tertiary text (`--text-muted` #8b95b0).
+/// Secondary/tertiary text (LEGACY `--text-muted`).
 pub const TEXT_MUTED: Color = Color::srgb_u8(139, 149, 176);
 
 /// A cyan-tinted panel used as the SELECTED fill (there is no alpha compositing
 /// in a solid `BackgroundColor`, so this is a pre-mixed cyan-over-panel).
 pub const SELECTED_FILL: Color = Color::srgb_u8(24, 54, 78);
-
-// -- Metrics --
-
-/// Sharp corner radius (`--radius: 2px`).
-pub const RADIUS: f32 = 2.0;
-/// Hard 1px border width.
-pub const BORDER_W: f32 = 1.0;
-/// Placeholder/thumbnail icon size (the wiki `.wiki-child__icon` is 44x44).
-pub const ICON: f32 = 44.0;
 
 /// Semantic HUD accents: the meaning-carrying gameplay colours (threat, ally,
 /// nav, objective, ...), centralized here so the HUD has ONE palette source.

@@ -84,6 +84,10 @@ path = "examples/gameplay/lifeline.rs"
 
 # ui/ - staged UI flows with their own autopilot timelines.
 [[example]]
+name = "widget_zoo"
+path = "examples/ui/widget_zoo.rs"
+
+[[example]]
 name = "nova_os_rtt_poc"
 path = "examples/ui/nova_os_rtt_poc.rs"
 
@@ -154,6 +158,8 @@ bevy = { version = "0.19.0" }
 # run-harness dev tool, not shipped with the game binary). serde_json builds
 # the markers' payloads (the timeline speaks JSON).
 nova_probe = { path = "crates/nova_probe" }
+# widget_zoo example renders the nova_ui skin-aware widget set directly.
+nova_ui = { path = "crates/nova_ui" }
 serde_json = { version = "1" }
 bevy_rand = { version = "0.15.0", default-features = false, features = ["chacha20", "wyrand"] }
 rand = { version = "0.10.2" }

@@ -1,12 +1,12 @@
 # nova_ui theme + widgets: NOVA OS palette + skin-aware widget set
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: v0.9.0,ui,refactor
 
 ## Flow State
 
-- FLOW STEP: PLANNED
+- FLOW STEP: DONE
 - PLAN STATUS: APPROVED
 
 ## Story
@@ -24,7 +24,7 @@ observers while touching the widget layer.
 
 ## Steps (re-planned 2026-07-28 from the implemented demo 1)
 
-- [ ] Rework `crates/nova_ui/src/theme.rs` to the NOVA OS token set carried
+- [x] Rework `crates/nova_ui/src/theme.rs` to the NOVA OS token set carried
       verbatim from the PoCs: space `#03060b`, case-0 `#0a0d10` / case-1
       `#161b20` / case-2 `#232a31` / case-3 `#2f383f` / case-edge `#05070a`,
       screen-0 `#001304` / screen-1 `#002b0f`, phosphor `#36ff79` / dim
@@ -33,11 +33,11 @@ observers while touching the widget layer.
       constants (BG/PANEL/PANEL_RAISED/BORDER/BORDER_BRIGHT/CYAN/
       CYAN_BRIGHT/SELECTED_FILL...) and migrate the `semantic` HUD accents
       onto the new base. Keep RADIUS small (phosphor uses 2px corners).
-- [ ] Add `UiSkin` to nova_ui: `enum UiSkin { Phosphor, Hardware }` as a
+- [x] Add `UiSkin` to nova_ui: `enum UiSkin { Phosphor, Hardware }` as a
       `Resource + Component + PartialEq + Clone` (ButtonValue-compatible),
       `Default = Phosphor`. Widgets read it; the settings row + persistence
       land in 20260728-175738 (settings_store.rs gains the field there).
-- [ ] Rework ThemedButton rendering per demo 1's widget zoo, both skins:
+- [x] Rework ThemedButton rendering per demo 1's widget zoo, both skins:
       phosphor = flat fill `rgba(phosphor,0.05)`, 1px border
       `rgba(phosphor,0.4)`, phosphor text; hover fill 0.12 + full-phosphor
       border; pressed fill 0.2; selected/primary INVERTED (phosphor fill,
@@ -47,11 +47,11 @@ observers while touching the widget layer.
       -> case-0), BoxShadow rim + undercut + drop, pressed inset well,
       selected amber gradient + dark glyphs. Include an optional trailing
       key-chip span (amber bordered `Enter`/`Esc` text) per demo.
-- [ ] Skin switch restyles LIVE widgets: reconciler reacts to `UiSkin`
+- [x] Skin switch restyles LIVE widgets: reconciler reacts to `UiSkin`
       resource changes AND to newly spawned widgets (Added<marker> override
       per lesson mode-keyed-reconciler-just-spawned-override; write the
       live-tree test first).
-- [ ] Shared widget set consumed by the screens (demo 1 zoo, only widgets
+- [x] Shared widget set consumed by the screens (demo 1 zoo, only widgets
       with a real consumer): segmented control (phosphor: boxed row,
       inverted `on`; hardware: recessed well, amber `on`), slider re-skin of
       the existing bevy Slider row (phosphor: bordered track, segmented
@@ -64,7 +64,7 @@ observers while touching the widget layer.
       list row (transparent, inset phosphor border, hover fill, inverted
       selection) with icon slot. Skip the toggle (no in-game consumer;
       note here if one appears).
-- [ ] Typography: CONSUME the shared `nova_ui::font::UiFont` resource - the
+- [x] Typography: CONSUME the shared `nova_ui::font::UiFont` resource - the
       `Handle<Font>` for Iosevka Term (`assets/fonts/SGr-IosevkaTerm-Regular.ttf`,
       the single Regular face) preloaded via `BootAssets` and published at
       startup by task 20260729-000956. This step no longer loads the font
@@ -72,12 +72,12 @@ observers while touching the widget layer.
       a size scale taken from demo 1 (26 title / 16-13 body / 11-10 labels).
       This supersedes backlog 20260714-214329 (Rajdhani/Inter web fonts) -
       mono-first won.
-- [ ] Fold nova_menu's duplicate button system: delete `MenuButton` +
+- [x] Fold nova_menu's duplicate button system: delete `MenuButton` +
       `update_button_colors` polling (`crates/nova_menu/src/lib.rs:4143-4198`)
       and route the menu `button()` factory through ThemedButton + the
       nova_ui observers (keep the 40px/16px menu sizing as a factory
       variant). One observer path for every button in the game.
-- [ ] Widget-zoo example: new `examples/ui/widget_zoo.rs` rendering the full
+- [x] Widget-zoo example: new `examples/ui/widget_zoo.rs` rendering the full
       set in both skins (copy the `screenshot_ui.rs` autopilot + 
       `capture_window` scaffold verbatim per reuse-known-good-stack; capture
       one shot per skin via the skin resource between beats).
@@ -98,6 +98,47 @@ observers while touching the widget layer.
    hits (navy/cyan palette retired from the game; web/src keeps its own CSS).
 5. manual: owner eyeballs the widget zoo in-engine in both skins; Phosphor
    is the default.
+
+## Implementation (2026-07-29) - VERDICT
+
+Delivered on branch `refactor/nova-ui-skin-widgets`:
+
+- `theme.rs`: added the full NOVA OS token set (SPACE/CASE_0..3/CASE_EDGE/
+  CASE_HOT_*/SCREEN_0/1/PHOSPHOR/PHOSPHOR_DIM/MUTED/HI/LO/AMBER_NOVA/HI/LO/
+  ORANGE/RED/BLUE/SCREEN_TEXT/INK, RADIUS 2 / RADIUS_HW 7 / PANEL_RADIUS 10).
+  The legacy navy/cyan consts are KEPT (marked `LEGACY ... (retiring)`) - see
+  DECISION.md: deleting them was deferred to 175742 (HUD refs) + 175738
+  (editor/menu refs) rather than blast-migrating ~137 refs here.
+- `skin.rs`: `UiSkin` resource (Phosphor default | Hardware), Resource-only.
+- `widget.rs`: skin-aware `ButtonVariant` + paint model (both skins, all
+  variants/states), `reconcile_button_skins` (UiSkin change + `Added` override),
+  typography routed through `UiFont` via the `UiText` marker + `apply_ui_font`,
+  `ButtonSpec` builder + `menu_button`, and the shared factories
+  `panel/panel_head/badge/checkbox/list_row/slider_track/segmented`.
+- nova_menu fold: `MenuButton` + `update_button_colors` deleted; `button()` =
+  `menu_button(text)` + `MenuSfxButton` (click-cue marker only); the quiet mods
+  checkbox became a `ThemedButton`.
+- `examples/ui/widget_zoo.rs`: renders the full set in both skins (S toggles;
+  `NOVA_ZOO_CAPTURE=1` shoots one PNG per skin).
+
+DoD status:
+1. test: `phosphor_button_states_render_cli_markers`,
+   `hardware_button_states_render_bevel`, `skin_switch_restyles_spawned_widgets`
+   all PASS (`cargo test -p nova_ui --lib`); the third was PROVEN RED with the
+   Added-override disabled before wiring it (red -> green).
+2. example: `widget_zoo` compiles (`cargo check --example widget_zoo`); the
+   both-skin capture is the owner/CI GPU eyeball (DoD 5 below) - a local GPU
+   render was intentionally skipped (gpu-example-local-skip / owner call).
+3. cmd: PASS - `grep -rn "update_button_colors\|MenuButton" crates/nova_menu/src`
+   = 0.
+4. cmd: PASS - the hex grep = 0. NOTE the navy/cyan VALUES still live in the
+   kept `LEGACY` block (as `srgb_u8` decimals, which this grep does not match);
+   full retirement lands with 175742 + 175738 per DECISION.md.
+5. manual: PENDING owner eyeball of `widget_zoo` in both skins.
+
+Scope nuance carried forward: only `ThemedButton` live-restyles on a skin flip;
+the non-button factories read the skin at spawn. A live in-place reskin of those
+is a 175738 decision (KISS: live if cheap, else rebuild-on-flip).
 
 ## Notes
 

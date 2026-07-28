@@ -26,7 +26,6 @@ use bevy::{
     picking::hover::Hovered,
     platform::time::Instant,
     prelude::*,
-    ui::Pressed,
     ui_widgets::{
         observe, slider_self_update, Activate, Button, Slider, SliderRange, SliderStep,
         SliderThumb, SliderValue, TrackClick, ValueChange,
@@ -71,15 +70,16 @@ const MENU_PLANETOID_ID: &str = "menu_planetoid";
 const ORBIT_CLEARANCE: f32 = 40.0;
 
 // The whole game UI shares one theme (task 20260714-212139): the palette + metrics
-// live in `nova_ui::theme`. The menu keeps its own tiny polling colour system
-// (`update_button_colors`) for its plain `MenuButton`s, but the mods screen's
-// tabs/rows/action button are `ThemedButton`s coloured by nova_ui's observers
-// (`widget::register`, guarded against the editor registering them too).
+// live in `nova_ui::theme`. Every menu button is now a nova_ui `ThemedButton`
+// coloured by the shared observers + skin reconciler (`widget::register`,
+// guarded against the editor registering them too); the menu keeps only the
+// `MenuSfxButton` marker to scope its click cue (task 20260728-175734 folded the
+// menu's old per-frame colour-polling system away).
 use nova_ui::{
     theme,
     widget::{
-        button_on_setting, panel_header, separator, themed_button, ButtonValue, Selected,
-        ThemedButton,
+        button_on_setting, menu_button, panel_header, separator, themed_button, ButtonValue,
+        Selected, ThemedButton,
     },
 };
 
@@ -201,14 +201,13 @@ impl Plugin for NovaMenuPlugin {
                 .run_if(in_state(GameStates::MainMenu))
                 .run_if(resource_exists::<Messages<bevy::input::mouse::MouseWheel>>),
         );
-        // Button hover/press feedback serves both the main menu panel and the
-        // pause overlay; the query only matches MenuButton, so running it
-        // unconditionally is a no-op elsewhere.
-        app.add_systems(Update, update_button_colors);
-        // Menu-button press cue (task 20260714-090006): one global observer
-        // clicks for every MenuButton activation, so New Game / Sandbox /
-        // Settings / Exit and the pause/mods buttons all sound the same crisp
-        // click without touching each handler.
+        // Button hover/press/selection colour is now the shared nova_ui
+        // `ThemedButton` observers + skin reconciler (registered above); the
+        // menu's old per-frame colour-polling system was folded away
+        // (task 20260728-175734). Menu-button press cue (task 20260714-090006):
+        // one global observer clicks for every `MenuSfxButton` activation, so
+        // New Game / Sandbox / Settings / Exit and the pause/mods buttons all
+        // sound the same crisp click without touching each handler.
         app.add_observer(on_menu_button_activate);
         app.add_systems(
             OnEnter(GameStates::Playing),
@@ -286,14 +285,14 @@ impl Plugin for NovaMenuPlugin {
     }
 }
 
-/// Play the menu-button click for any [`MenuButton`] activation (task
+/// Play the menu-button click for any [`MenuSfxButton`] activation (task
 /// 20260714-090006). One global observer covers every menu and pause-overlay
-/// button - the `button()` helper always carries `MenuButton` - so presses that
+/// button - the `button()` helper always carries `MenuSfxButton` - so presses that
 /// were visual-only (hover/press colours) now also have a voice. A missing
 /// [`SoundBank`] (assets not loaded) is a graceful no-op.
 fn on_menu_button_activate(
     activate: On<Activate>,
-    q_button: Query<(), With<MenuButton>>,
+    q_button: Query<(), With<MenuSfxButton>>,
     bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,
 ) {
@@ -1053,9 +1052,11 @@ fn regrab_cursor_on_player_spawn(
     cursor.visible = false;
 }
 
-/// Marker for the menu's buttons, so the color feedback system only touches ours.
+/// Marks menu-family buttons (main menu, pause, outcome, mods checkbox) so the
+/// press-cue observer plays the click only for them, leaving the editor's
+/// `ThemedButton`s silent. Colour comes from the shared nova_ui observers.
 #[derive(Component)]
-struct MenuButton;
+struct MenuSfxButton;
 
 /// Marker for the main-menu Settings panel, toggled by the Settings button.
 #[derive(Component)]
@@ -2112,10 +2113,12 @@ fn spawn_mod_row(list: &mut ChildSpawnerCommands, m: &ModInfo, enabled: bool, se
                 TextColor(theme::TEXT_MUTED),
             ));
         } else {
-            // The quiet checkbox: a compact MenuButton (hover colours + click
-            // cue come from the existing MenuButton systems). Its click does
-            // not propagate to the row (ui_widgets Button stops it), so
-            // toggling never re-selects.
+            // The quiet checkbox: a compact `ThemedButton` (hover/press colour
+            // from the shared nova_ui observers) carrying `MenuSfxButton` for the
+            // click cue. Its click does not propagate to the row (ui_widgets
+            // Button stops it), so toggling never re-selects. Full checkbox
+            // restyle (inverted-on look) lands with the mods screen in
+            // task 20260728-175738.
             row.spawn((
                 Name::new("Mod Enable Checkbox"),
                 ModEnableCheckbox,
@@ -2133,7 +2136,8 @@ fn spawn_mod_row(list: &mut ChildSpawnerCommands, m: &ModInfo, enabled: bool, se
                     border_radius: BorderRadius::all(px(theme::RADIUS)),
                     ..default()
                 },
-                MenuButton,
+                ThemedButton,
+                MenuSfxButton,
                 Button,
                 Hovered::default(),
                 BorderColor::all(theme::BORDER),
@@ -4140,61 +4144,13 @@ fn start_new_game_scenario(
 /// Hover/press feedback for the menu buttons. The editor drives the same feedback
 /// through per-event observers; a single polling system is enough for four buttons
 /// and keeps the menu self-contained.
-fn update_button_colors(
-    mut buttons: Query<
-        (
-            &Hovered,
-            Has<Pressed>,
-            &mut BackgroundColor,
-            &mut BorderColor,
-        ),
-        (With<MenuButton>, With<Button>),
-    >,
-) {
-    for (hovered, pressed, mut color, mut border) in &mut buttons {
-        // Crisp instrument hover, matching the editor/web app: fill brightens and
-        // the border shifts to cyan on press, bright on hover.
-        let (fill, edge) = if pressed {
-            (theme::SELECTED_FILL, theme::CYAN)
-        } else if hovered.get() {
-            (theme::PANEL_RAISED, theme::BORDER_BRIGHT)
-        } else {
-            (theme::PANEL, theme::BORDER)
-        };
-        if color.0 != fill {
-            color.0 = fill;
-        }
-        border.set_all(edge);
-    }
-}
-
+/// The main-menu / pause / outcome button: the shared nova_ui [`menu_button`]
+/// (40px / 16px `ThemedButton`, coloured by the nova_ui observers + skin
+/// reconciler) plus the [`MenuSfxButton`] marker that scopes the click cue to
+/// menu-family buttons (the editor's `ThemedButton`s stay silent). One observer
+/// path for every button in the game (task 20260728-175734).
 fn button(text: &str) -> impl Bundle {
-    (
-        Node {
-            width: percent(100),
-            min_height: px(40),
-            margin: UiRect::all(px(8)),
-            justify_content: JustifyContent::Center,
-            align_items: AlignItems::Center,
-            border: UiRect::all(px(theme::BORDER_W)),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
-            ..default()
-        },
-        MenuButton,
-        Button,
-        Hovered::default(),
-        BorderColor::all(theme::BORDER),
-        BackgroundColor(theme::PANEL),
-        children![(
-            Text::new(text),
-            TextFont {
-                font_size: FontSize::Px(16.0),
-                ..default()
-            },
-            TextColor(theme::TEXT),
-            TextShadow::default(),
-        )],
-    )
+    (menu_button(text), MenuSfxButton)
 }
 
 #[cfg(test)]
@@ -4334,7 +4290,7 @@ mod tests {
     fn a_menu_button_activation_clicks_and_a_bare_activation_does_not() {
         let mut app = cue_app();
         app.add_observer(on_menu_button_activate);
-        // A real menu button (carries MenuButton via `button()`) and a bare
+        // A real menu button (carries MenuSfxButton via `button()`) and a bare
         // entity that merely gets Activate'd.
         let menu_button = app.world_mut().spawn(button("New Game")).id();
         let bare = app.world_mut().spawn_empty().id();
@@ -4345,7 +4301,7 @@ mod tests {
         assert_eq!(
             app.world().resource::<PlayedCues>().0,
             0,
-            "a non-MenuButton activation is silent"
+            "a non-MenuSfxButton activation is silent"
         );
 
         app.world_mut().trigger(Activate {
