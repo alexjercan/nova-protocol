@@ -1366,7 +1366,11 @@ fn ship_input(
         if keys.pressed(KeyCode::KeyF) {
             orbit.phi = (orbit.phi - turn).max(0.12);
         }
-        if mouse_buttons.pressed(MouseButton::Right) || mouse_buttons.pressed(MouseButton::Left) {
+        // Mouse drag orbits, RIGHT button ONLY. LMB is the blip-select click (the
+        // `Button` widget), so letting it orbit turned a small press-with-motion
+        // into a drag that slid the blip out from under the cursor and ate the
+        // selection.
+        if mouse_buttons.pressed(MouseButton::Right) {
             orbit.theta -= motion_delta.x * 0.0024;
             orbit.phi = (orbit.phi + motion_delta.y * 0.0024).clamp(0.12, 1.45);
         }
@@ -2204,6 +2208,79 @@ mod tests {
         app.world_mut().run_system_once(ship_input).unwrap();
         let after = app.world().resource::<ShipRuntime>().selected;
         assert!(after.is_some() && after != before, "] cycles the selection");
+    }
+
+    /// LMB is the blip-SELECT button (the `Button` widget's Primary activation),
+    /// so it must NOT orbit-drag the camera - a small press-with-motion has to
+    /// stay a click, not become a drag that slides the blip out from under the
+    /// cursor. RMB remains the orbit-drag button.
+    #[test]
+    fn ship_orbit_drag_is_rmb_only() {
+        use bevy::input::mouse::MouseMotion;
+
+        let mut app = App::new();
+        app.add_plugins((
+            MinimalPlugins,
+            StatesPlugin,
+            AssetPlugin::default(),
+            InputPlugin,
+        ));
+        app.init_asset::<Image>();
+        app.init_asset::<Mesh>();
+        app.init_asset::<StandardMaterial>();
+        app.insert_state(PauseStates::NovaOs);
+        app.init_resource::<ShipRuntime>();
+        app.add_message::<ShipSectionCommand>();
+
+        let mut terminal = ship_terminal();
+        terminal.enter_app(SHIP_APP_ID);
+        app.insert_resource(terminal);
+
+        spawn_scripted_ship(app.world_mut());
+        app.world_mut()
+            .run_system_once(assign_section_codes)
+            .unwrap();
+        app.world_mut().run_system_once(manage_ship_scene).unwrap();
+
+        let orbit_angles = |app: &mut App| {
+            app.world_mut()
+                .query_filtered::<&ShipOrbit, With<ShipCameraMarker>>()
+                .single(app.world())
+                .map(|o| (o.theta, o.phi))
+                .unwrap()
+        };
+        let before = orbit_angles(&mut app);
+
+        // Hold LMB and sweep the mouse: the camera must not orbit.
+        app.world_mut()
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .press(MouseButton::Left);
+        app.world_mut().write_message(MouseMotion {
+            delta: Vec2::new(60.0, 40.0),
+        });
+        app.world_mut().run_system_once(ship_input).unwrap();
+        assert_eq!(
+            orbit_angles(&mut app),
+            before,
+            "LMB drag must NOT orbit the ship camera (it selects blips)"
+        );
+
+        // Hold RMB and sweep the same delta: the camera must orbit.
+        app.world_mut()
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .release(MouseButton::Left);
+        app.world_mut()
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .press(MouseButton::Right);
+        app.world_mut().write_message(MouseMotion {
+            delta: Vec2::new(60.0, 40.0),
+        });
+        app.world_mut().run_system_once(ship_input).unwrap();
+        assert_ne!(
+            orbit_angles(&mut app),
+            before,
+            "RMB drag must still orbit the ship camera"
+        );
     }
 
     /// A bare [`ShipSectionView`] for the pure-helper tests.
