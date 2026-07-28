@@ -1,5 +1,7 @@
 # DECISION - Preload static assets + phosphor boot loading screen
 
+- STATUS: ACCEPTED
+
 Task 20260729-000956 (epic 20260728-175719). Owner approved building directly
 via /flow ("it's already planned so do work directly"), which accepts the three
 recommended forks below. Two further load-bearing choices surfaced mid-build and
