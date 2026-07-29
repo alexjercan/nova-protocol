@@ -28,8 +28,8 @@ pub mod prelude {
         theme, units,
         widget::{
             badge, button, button_on_setting, checkbox, list_row, menu_button, panel, panel_head,
-            panel_header, register, segmented, separator, slider_track, themed_button, BadgeKind,
-            ButtonSpec, ButtonValue, ButtonVariant, Selected, ThemedButton,
+            panel_header, register, segmented, separator, slider_track, themed_button, toggle,
+            BadgeKind, ButtonSpec, ButtonValue, ButtonVariant, Selected, ThemedButton,
         },
     };
 }

@@ -1153,7 +1153,7 @@ impl Plugin for GameAssetsPlugin {
 #[derive(AssetCollection, Resource, Clone)]
 pub struct BootAssets {
     /// The shared UI typeface, published as [`UiFont`] at `OnExit(Boot)`.
-    #[asset(path = "fonts/SGr-IosevkaTerm-Regular.ttf")]
+    #[asset(path = "fonts/SGr-IosevkaTerm-Medium.ttf")]
     pub ui_font: Handle<Font>,
 }
 

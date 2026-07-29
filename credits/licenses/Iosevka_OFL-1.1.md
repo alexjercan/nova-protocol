@@ -4,7 +4,7 @@ This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:
 https://openfontlicense.org
 
-The font shipped by Nova Protocol is `assets/fonts/SGr-IosevkaTerm-Regular.ttf`,
+The font shipped by Nova Protocol is `assets/fonts/SGr-IosevkaTerm-Medium.ttf`,
 the single Regular face extracted from a build of the Iosevka Term typeface
 (https://typeof.net/Iosevka/); the other faces of the original collection are
 not shipped.

@@ -992,7 +992,17 @@ pub fn panel(skin: UiSkin) -> impl Bundle {
             BorderColor::all(theme::PHOSPHOR.with_alpha(0.16)),
             BackgroundColor(theme::SCREEN_0),
             BoxShadow(vec![]),
-            BackgroundGradient(vec![]),
+            // PoC phosphor panel: a soft phosphor glow blooming down from the top
+            // edge (demo `radial-gradient(ellipse 70% 60% at 50% 0%, phosphor .10,
+            // transparent 70%)`).
+            BackgroundGradient(vec![Gradient::from(RadialGradient::new(
+                UiPosition::TOP,
+                RadialGradientShape::FarthestSide,
+                vec![
+                    ColorStop::percent(theme::PHOSPHOR.with_alpha(0.10), 0.0),
+                    ColorStop::percent(Color::NONE, 70.0),
+                ],
+            ))]),
         )
     } else {
         (
@@ -1012,6 +1022,80 @@ pub fn panel(skin: UiSkin) -> impl Bundle {
             .into()]),
         )
     }
+}
+
+/// A pill toggle switch (demo `.toggle`): a 44x22 track with a sliding dot.
+/// Off: the dot sits left, muted. On: the dot slides right and the track tints
+/// phosphor (phosphor skin) with a glowing dot. Phosphor uses 2px square-ish
+/// corners; hardware uses a rounded pill + a recessed well look. Not a
+/// `ThemedButton` - toggles carry their own click handler and re-spawn on flip.
+pub fn toggle(on: bool, skin: UiSkin) -> impl Bundle {
+    let phosphor = skin.is_phosphor();
+    let radius = if phosphor { theme::RADIUS } else { 11.0 };
+    let dot_radius = if phosphor { 1.0 } else { 9.0 };
+    let (bg, border) = if on {
+        (theme::PHOSPHOR.with_alpha(0.14), theme::PHOSPHOR)
+    } else if phosphor {
+        (
+            Color::srgba(0.0, 0.0, 0.0, 0.4),
+            theme::PHOSPHOR.with_alpha(0.35),
+        )
+    } else {
+        (Color::srgba(0.0, 0.0, 0.0, 0.5), theme::CASE_EDGE)
+    };
+    let dot = if on {
+        theme::PHOSPHOR
+    } else if phosphor {
+        theme::PHOSPHOR_MUTED
+    } else {
+        Color::srgb_u8(0x55, 0x63, 0x6c)
+    };
+    // The "on" dot glows (phosphor skin); the off dot is flat.
+    let dot_shadow = if on && phosphor {
+        Some(BoxShadow::new(
+            theme::PHOSPHOR.with_alpha(0.6),
+            Val::ZERO,
+            Val::ZERO,
+            Val::ZERO,
+            Val::Px(8.0),
+        ))
+    } else {
+        None
+    };
+    (
+        Node {
+            width: px(44),
+            height: px(22),
+            flex_shrink: 0.0,
+            border: UiRect::all(px(theme::BORDER_W)),
+            border_radius: BorderRadius::all(px(radius)),
+            // The dot slides right when on, left when off.
+            justify_content: if on {
+                JustifyContent::FlexEnd
+            } else {
+                JustifyContent::FlexStart
+            },
+            align_items: AlignItems::Center,
+            padding: UiRect::all(px(2)),
+            ..default()
+        },
+        BorderColor::all(border),
+        BackgroundColor(bg),
+        Children::spawn(SpawnWith(move |parent: &mut RelatedSpawner<ChildOf>| {
+            let mut dot_entity = parent.spawn((
+                Node {
+                    width: px(16),
+                    height: px(16),
+                    border_radius: BorderRadius::all(px(dot_radius)),
+                    ..default()
+                },
+                BackgroundColor(dot),
+            ));
+            if let Some(shadow) = dot_shadow {
+                dot_entity.insert(shadow);
+            }
+        })),
+    )
 }
 
 /// A panel header row: a glowing uppercase title, a rule that fills the row, and

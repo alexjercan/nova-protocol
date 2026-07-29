@@ -56,7 +56,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, skin: Res<UiSki
     commands.spawn(Camera2d);
     // Publish the shared UI font so `apply_ui_font` routes every UiText span.
     commands.insert_resource(UiFont(
-        asset_server.load("fonts/SGr-IosevkaTerm-Regular.ttf"),
+        asset_server.load("fonts/SGr-IosevkaTerm-Medium.ttf"),
     ));
     spawn_zoo(&mut commands, *skin);
 }
@@ -163,6 +163,26 @@ fn spawn_zoo(commands: &mut Commands, skin: UiSkin) {
                 ..default()
             },
             BackgroundColor(theme::SPACE),
+            // A pair of soft nebula glows behind the panels, mirroring the demo
+            // scene backdrop (blue upper-left, phosphor lower-right).
+            BackgroundGradient(vec![
+                Gradient::from(RadialGradient::new(
+                    UiPosition::TOP_LEFT,
+                    RadialGradientShape::FarthestSide,
+                    vec![
+                        ColorStop::percent(theme::BLUE.with_alpha(0.10), 0.0),
+                        ColorStop::percent(Color::NONE, 40.0),
+                    ],
+                )),
+                Gradient::from(RadialGradient::new(
+                    UiPosition::BOTTOM_RIGHT,
+                    RadialGradientShape::FarthestSide,
+                    vec![
+                        ColorStop::percent(theme::PHOSPHOR.with_alpha(0.06), 0.0),
+                        ColorStop::percent(Color::NONE, 42.0),
+                    ],
+                )),
+            ]),
         ))
         .with_children(|root| {
             button_states_cell(root, skin);
@@ -228,6 +248,8 @@ fn controls_cell(root: &mut ChildSpawnerCommands, skin: UiSkin) {
         body.spawn(row_wrap()).with_children(|r| {
             r.spawn(checkbox(true, skin));
             r.spawn(checkbox(false, skin));
+            r.spawn(toggle(true, skin));
+            r.spawn(toggle(false, skin));
         });
     });
 }

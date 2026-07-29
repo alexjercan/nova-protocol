@@ -50,7 +50,7 @@ assets" below:
   these key/mouse glyphs carry no console-hardware trademarks (the
   not-imported gamepad face-button sets would), and using a key glyph to tell a
   player which key to press is ordinary functional use.
-- **Iosevka Term font** (`assets/fonts/SGr-IosevkaTerm-Regular.ttf`, the NOVA
+- **Iosevka Term font** (`assets/fonts/SGr-IosevkaTerm-Medium.ttf`, the NOVA
   OS terminal typeface) - a build of [Iosevka](https://typeof.net/Iosevka/) by
   Renzhi Li (Belleve Invis), under the [SIL Open Font License
   1.1](licenses/Iosevka_OFL-1.1.md). The OFL REQUIRES the copyright notice and
