@@ -179,17 +179,13 @@ fn cell(
     title: &str,
     body: impl FnOnce(&mut ChildSpawnerCommands),
 ) {
-    root.spawn((
-        panel(skin),
-        Node {
-            width: px(300),
-            flex_direction: FlexDirection::Column,
-            ..default()
-        },
-    ))
-    .with_children(|cell| {
+    // `panel(skin)` already carries its own `Node` (border + radius live on it),
+    // so DON'T tuple a second `Node` here - that is a duplicate-component panic.
+    // Size the cell via its 300px body; the panel column shrinks to fit it.
+    root.spawn(panel(skin)).with_children(|cell| {
         cell.spawn((panel_head(title, None, skin),));
         cell.spawn(Node {
+            width: px(300),
             flex_direction: FlexDirection::Column,
             row_gap: px(10),
             padding: UiRect::all(px(15)),

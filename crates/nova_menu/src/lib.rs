@@ -2751,7 +2751,8 @@ fn segmented_button(text: &str) -> impl Bundle {
                 ..default()
             },
             TextColor(theme::PHOSPHOR),
-            TextShadow::default(),
+            // No TextShadow - it ghosts the label on the inverted (selected)
+            // fill (see nova_ui::widget::button).
         )],
     )
 }

@@ -777,7 +777,10 @@ pub fn button(spec: ButtonSpec) -> impl Bundle {
                     ..default()
                 },
                 TextColor(idle.text),
-                TextShadow::default(),
+                // No TextShadow: Bevy's `TextShadow` is a hard drop shadow (no
+                // blur), so its default 4px black offset ghosts the label on a
+                // bright/inverted fill instead of glowing. Crisp CLI text needs
+                // no shadow.
             ));
             if let Some(key) = key {
                 parent.spawn(key_chip(&key, font_size));
