@@ -135,7 +135,9 @@ single source of truth, listed in curriculum reading order:
   overlay, all staged on scenario state).
 - `ui/` - staged UI flows: `editor` (the shipped editor flow), `hud_range`
   (screen-projected HUD indicators, velocity sphere included),
-  `menu_newgame` (the shipped boot flow).
+  `menu_newgame` (the shipped boot flow) and `menu_scenarios` (drives the
+  Scenarios picker and logs its laid-out pane widths per selection, so a
+  layout regression that only real text measure can show is caught).
 - `screenshots/` - `screenshot_reel`, `screenshot_ui`, `screenshot_combat`,
   `screenshot_sections`, `screenshot_juice`, `screenshot_orbit` (drive the
   shipped scenes headless to capture the wiki and marketing frames), and

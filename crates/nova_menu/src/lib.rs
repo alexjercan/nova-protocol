@@ -1836,7 +1836,12 @@ fn setup_menu_ui(
                                         flex_direction: FlexDirection::Column,
                                         width: percent(40),
                                         min_height: px(0),
-                                        min_width: px(0),
+                                        // PINNED: the list pane keeps its 40%
+                                        // whatever the details pane holds. See
+                                        // the scenarios list pane below for the
+                                        // measured failure this prevents.
+                                        flex_grow: 0.0,
+                                        flex_shrink: 0.0,
                                         ..default()
                                     },
                                 ))
@@ -2021,7 +2026,20 @@ fn setup_menu_ui(
                                     flex_direction: FlexDirection::Column,
                                     width: percent(40),
                                     min_height: px(0),
-                                    min_width: px(0),
+                                    // PINNED (task 20260729-211150): a flex row
+                                    // shrinks EVERY shrinkable item, so with the
+                                    // default `flex_shrink: 1.0` this pane gave
+                                    // up width whenever the selected scenario's
+                                    // details pane wanted more - measured on the
+                                    // shipped set as a 141..331 px swing (a
+                                    // 190 px spread) purely from the selection.
+                                    // `flex_shrink: 0` makes the 40% split a
+                                    // property of the SCREEN, not of the
+                                    // selection; the details pane absorbs all
+                                    // slack (it grows, and its `min_width: 0`
+                                    // lets it shrink and wrap instead).
+                                    flex_grow: 0.0,
+                                    flex_shrink: 0.0,
                                     overflow: Overflow::scroll_y(),
                                     ..default()
                                 },
@@ -2352,6 +2370,11 @@ fn scenario_row_label(s: &ScenarioConfig) -> String {
     s.name.clone()
 }
 
+/// How far a campaign member row is inset under its [`CampaignHeader`]. Sized
+/// against the header's `[-] ` marker: the member rows start roughly where the
+/// campaign NAME does, so the column of names reads as the nesting cue.
+const CAMPAIGN_MEMBER_INDENT_PX: f32 = 24.0;
+
 /// Spawn one clickable campaign header row: an `[-]`/`[+]` collapse affordance
 /// and the campaign's display name. Clicking it toggles the campaign in
 /// [`CollapsedCampaigns`], expanding or collapsing its member rows.
@@ -2406,8 +2429,13 @@ fn spawn_scenario_row(
     indent: bool,
     skin: UiSkin,
 ) {
-    // The shared interactive `list_row` as a direct list child; campaign members
-    // read `[-]`-grouped under their header, so the row itself is un-indented.
+    // The shared interactive `list_row` as a direct list child. A campaign
+    // member is INDENTED under its header (owner feedback 2026-07-29: "the
+    // lists should be indented such that you can easily see which scenarios are
+    // part of a campaign") - the `[-]` header alone did not carry the grouping.
+    // The indent is a left MARGIN, so it eats into the row's own box rather than
+    // its padding: the row's border shifts right with the text, which is what
+    // reads as nesting.
     let mut row = list.spawn((
         Name::new(format!("Scenario Row: {}", s.id)),
         ScenarioRow { id: s.id.clone() },
@@ -2420,7 +2448,21 @@ fn spawn_scenario_row(
     if selected {
         row.insert(Selected);
     }
-    let _ = indent;
+    if indent {
+        // Written onto the spawned `list_row` Node rather than rebuilding it
+        // here, so the row keeps ONE definition of its box (padding, border,
+        // radius) and the indent is the only local difference.
+        row.entry::<Node>().and_modify(|mut node| {
+            node.margin.left = px(CAMPAIGN_MEMBER_INDENT_PX);
+            // The margin sits OUTSIDE the box, so a `list_row`'s `width:
+            // percent(100)` would make the indented row 100% + 24px wide: it
+            // would slide right, overhang the pane and cross the details
+            // divider (the list only clips on y). `Auto` lets the column's
+            // stretch alignment size it to the pane minus the margin, so the
+            // row is INSET rather than shifted.
+            node.width = Val::Auto;
+        });
+    }
     row.with_children(|row| {
         row.spawn(Node {
             flex_direction: FlexDirection::Column,
@@ -7042,6 +7084,100 @@ mod tests {
             ],
             "re-expanded: members return in order, marker [-]"
         );
+    }
+
+    /// DoD 2 (task 20260729-211150): a campaign MEMBER row is indented under its
+    /// header and an uncampaigned row is not, so the grouping reads at a glance
+    /// (owner feedback 2026-07-29). Reads the spawned `Node`, not a colour: the
+    /// indent is the row's left margin.
+    #[test]
+    fn campaign_member_rows_are_indented_under_their_header() {
+        let mut app = campaigns_app();
+
+        let row_node = |app: &mut App, id: &str| -> Node {
+            let row = scenario_row(app, id).expect("row exists");
+            app.world().get::<Node>(row).expect("row Node").clone()
+        };
+
+        for member in ["chap1", "chap2"] {
+            let node = row_node(&mut app, member);
+            assert_eq!(
+                node.margin.left,
+                px(CAMPAIGN_MEMBER_INDENT_PX),
+                "{member} is inset under its header (hidden chapters included)"
+            );
+            // INSET, not shifted: a `list_row`'s `percent(100)` plus an outside
+            // margin would make the row wider than the pane and overhang the
+            // details divider (review R1.1 - it did, visibly).
+            assert_eq!(
+                node.width,
+                Val::Auto,
+                "{member} sizes to the pane MINUS its indent, not 100% + indent"
+            );
+        }
+
+        let standalone = row_node(&mut app, "standalone");
+        assert_eq!(
+            standalone.margin.left,
+            px(0.0),
+            "an uncampaigned scenario stays flush with the headers"
+        );
+        assert_eq!(
+            standalone.width,
+            percent(100),
+            "an un-indented row keeps the shared list_row width"
+        );
+    }
+
+    /// DoD 1 (task 20260729-211150): the two-pane screens' LIST pane cannot give
+    /// up width to its sibling, so the split is a property of the screen and not
+    /// of the selection.
+    ///
+    /// The symptom this pins was measured in the real app, where text actually
+    /// measures: `cargo run --example menu_scenarios --features debug` walked the
+    /// shipped scenarios and logged a list pane swinging 141..331 px (a 190 px
+    /// spread) purely from which row was selected. A headless rig measures every
+    /// text node as zero-width and cannot reproduce that, so THIS test pins the
+    /// layout property that fixed it and the example rig stays the evidence.
+    #[test]
+    fn two_pane_list_panes_cannot_shrink() {
+        let mut app = campaigns_app();
+
+        let node_named = |app: &mut App, name: &str| -> Node {
+            let mut q = app.world_mut().query::<(&Name, &Node)>();
+            q.iter(app.world())
+                .find(|(n, _)| n.as_str() == name)
+                .map(|(_, node)| node.clone())
+                .unwrap_or_else(|| panic!("{name} exists"))
+        };
+
+        // The pin has TWO sides, and either one alone still overflows the panel:
+        // the list pane must not shrink, AND the details pane must absorb the
+        // slack it refuses (grow) and be allowed to fall below its content width
+        // (`min_width: 0`, so long text wraps instead of pushing the row wider).
+        for (list, details) in [
+            ("Scenarios List", "Scenario Details Panel"),
+            ("Mods Left Pane", "Mod Details Panel"),
+        ] {
+            let node = node_named(&mut app, list);
+            assert_eq!(
+                node.flex_shrink, 0.0,
+                "{list} must not shrink for its sibling details pane"
+            );
+            assert_eq!(
+                node.flex_grow, 0.0,
+                "{list} must not grow into slack either"
+            );
+            assert_eq!(node.width, percent(40), "{list} keeps its fixed share");
+
+            let node = node_named(&mut app, details);
+            assert_eq!(node.flex_grow, 1.0, "{details} absorbs the slack");
+            assert_eq!(
+                node.min_width,
+                px(0),
+                "{details} may shrink below its content and wrap"
+            );
+        }
     }
 
     /// A HIDDEN campaign member is directly selectable and launchable for replay:

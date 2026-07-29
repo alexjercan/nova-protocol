@@ -43,8 +43,8 @@ const SECTIONS: &[&str] = &[
 const GAMEPLAY: &[&str] = &["scenario", "playable", "broadside", "lifeline"];
 
 /// examples/ui/ - staged UI flows (editor via the preset; hud_range and
-/// menu_newgame drive their own `AutopilotPlugin` timelines).
-const UI: &[&str] = &["editor", "hud_range", "menu_newgame"];
+/// menu_newgame + menu_scenarios drive their own `AutopilotPlugin` timelines).
+const UI: &[&str] = &["editor", "hud_range", "menu_newgame", "menu_scenarios"];
 
 /// examples/screenshots/ - the capture producers still run a full harnessed
 /// cycle headless (capture is inert without `BCS_SHOT`), so they smoke too.
@@ -71,7 +71,16 @@ const SCREENSHOTS: &[&str] = &[
 ///   GameStates), prints its own `POC PICKING native: OK/FAIL` verdict and
 ///   auto-exits, so it never reaches `GameStates::Playing` and the reach-Playing
 ///   smoke would not apply.
-const NOT_SMOKED: &[&str] = &["render_scale_shot", "perf_baseline", "nova_os_rtt_poc"];
+/// - widget_zoo: the nova_ui widget-library showcase (task 20260728-175734)
+///   runs its own `App` with no `GameStates` at all - it is an interactive
+///   render eyeball (and a `NOVA_ZOO_CAPTURE` two-skin capture), so the
+///   reach-Playing smoke has nothing to assert on it.
+const NOT_SMOKED: &[&str] = &[
+    "render_scale_shot",
+    "perf_baseline",
+    "nova_os_rtt_poc",
+    "widget_zoo",
+];
 
 #[test]
 fn sections_reach_playing_without_panic() {

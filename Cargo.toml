@@ -103,6 +103,10 @@ path = "examples/ui/hud_range.rs"
 name = "menu_newgame"
 path = "examples/ui/menu_newgame.rs"
 
+[[example]]
+name = "menu_scenarios"
+path = "examples/ui/menu_scenarios.rs"
+
 # screenshots/ - capture producers for the website (gen-web-screenshots.py).
 [[example]]
 name = "screenshot_reel"
