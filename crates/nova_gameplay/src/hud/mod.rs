@@ -20,6 +20,7 @@ pub mod beacon_chips;
 pub mod comms_panel;
 pub mod component_lock;
 pub mod edge_indicators;
+pub mod emphasis;
 pub mod flight_status;
 pub mod holo_instruments;
 pub mod item_highlights;
@@ -37,6 +38,7 @@ pub mod objective_markers;
 pub mod objective_reveal;
 pub mod readout;
 pub mod screen_indicator;
+pub mod situation;
 pub mod target_inset;
 pub mod torpedo_target;
 pub mod turret_lead;
@@ -47,14 +49,15 @@ pub mod prelude {
     pub use super::{
         allegiance_markers::prelude::*, ammo_readout::prelude::*, beacon_chips::prelude::*,
         comms_panel::prelude::*, component_lock::prelude::*, edge_indicators::prelude::*,
-        flight_status::prelude::*, holo_instruments::prelude::*, item_highlights::prelude::*,
-        key_glyphs::prelude::*, keybind_dock::prelude::*, lock_crosshairs::prelude::*,
-        lock_dwell_ring::prelude::*, maneuver_instruments::prelude::*,
+        emphasis::prelude::*, flight_status::prelude::*, holo_instruments::prelude::*,
+        item_highlights::prelude::*, key_glyphs::prelude::*, keybind_dock::prelude::*,
+        lock_crosshairs::prelude::*, lock_dwell_ring::prelude::*, maneuver_instruments::prelude::*,
         nova_os::NovaOsMonitorSettings, nova_os_map::prelude::*, nova_os_ship::prelude::*,
         objective_feedback::prelude::*, objective_markers::prelude::*, readout::prelude::*,
-        screen_indicator::prelude::*, target_inset::prelude::*, torpedo_target::prelude::*,
-        turret_lead::prelude::*, velocity::prelude::*, HudNovaOsExempt, HudSelfDrivenVisibility,
-        HudTier, HudVisibility, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
+        screen_indicator::prelude::*, situation::prelude::*, target_inset::prelude::*,
+        torpedo_target::prelude::*, turret_lead::prelude::*, velocity::prelude::*, HudContextGate,
+        HudNovaOsExempt, HudSelfDrivenVisibility, HudSituationSensing, HudTier, HudVisibility,
+        NovaHudAssets, NovaHudPlugin, NovaHudSystems,
     };
 }
 
@@ -62,66 +65,103 @@ pub mod prelude {
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NovaHudSystems;
 
-/// Player-facing HUD visibility level, cycled with grave/tilde (task
-/// 20260711-180501): `All` shows everything, `Minimal` keeps the flight and
-/// combat instruments but drops the chrome, `None` clears the screen for
-/// cinematic shots. The menu (nova_menu) also drives this to `None` while the
-/// main menu is up.
+/// The contextual-situation sense, ordered before [`NovaHudSystems`] so every
+/// widget driver in that set reads the same frame's [`HudSituations`].
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct HudSituationSensing;
+
+/// Player-facing HUD level, cycled with grave/tilde (task 20260711-180501,
+/// recut to two levels by 20260728-175747): `On` is the full contextual HUD -
+/// which is already near-empty in idle cruise and surfaces each element while
+/// its situation is live - and `Cinematic` clears the screen entirely.
+///
+/// The old three-level `All`/`Minimal`/`None` triple existed because the HUD
+/// showed everything all the time, so "everything minus the chrome" was a
+/// useful middle. Contextual visibility IS that middle now, and a manual
+/// detail dial on top of it would just be a second, competing answer to the
+/// same question. The menu (nova_menu) also drives this to `Cinematic` while
+/// the main menu is up.
 #[derive(Resource, Clone, Copy, PartialEq, Eq, Debug, Hash, Default, Reflect)]
 #[reflect(Resource)]
 pub enum HudVisibility {
     #[default]
-    /// Everything: instruments plus chrome.
-    All,
-    /// Flight and combat instruments only; chrome drops away.
-    Minimal,
+    /// The full contextual HUD.
+    On,
     /// A clean screen for cinematic captures.
-    None,
+    Cinematic,
 }
 
 impl HudVisibility {
     /// The cycle order behind the grave/tilde key.
     pub fn next(self) -> Self {
         match self {
-            HudVisibility::All => HudVisibility::Minimal,
-            HudVisibility::Minimal => HudVisibility::None,
-            HudVisibility::None => HudVisibility::All,
+            HudVisibility::On => HudVisibility::Cinematic,
+            HudVisibility::Cinematic => HudVisibility::On,
         }
     }
 
-    /// Whether a widget of `tier` is visible at this level.
-    pub fn shows(self, tier: HudTier) -> bool {
-        matches!(
-            (self, tier),
-            (HudVisibility::All, _)
-                | (HudVisibility::Minimal, HudTier::Instrument)
-                | (HudVisibility::Minimal, HudTier::Status)
-        )
+    /// Whether HUD widgets are visible at this level. Every tier answers the
+    /// same at two levels (see [`HudTier`]), so the tier is not a parameter.
+    pub fn shows(self) -> bool {
+        matches!(self, HudVisibility::On)
     }
 }
 
-/// The visibility tier a HUD widget belongs to. Tag the widget's root where it
-/// spawns; screen-indicator nodes resolve their tier from the nearest tagged
-/// ancestor (or their own tag), so reconciled children (pips, brackets,
-/// arrows) inherit their module's tier automatically.
+/// The kind of HUD widget a layer is, and - the part the enforcement actually
+/// uses - the marker that says this subtree is HUD-MANAGED at all. Tag the
+/// widget's root where it spawns; screen-indicator nodes resolve their tier
+/// from the nearest tagged ancestor (or their own tag), so reconciled children
+/// (pips, brackets, arrows) inherit their module's tier automatically, and an
+/// untagged tree is left alone.
+///
+/// Since the level cycle collapsed to On/Cinematic (task 20260728-175747) the
+/// three variants no longer differ in what the LEVEL does to them - all show at
+/// `On`, all clear at `Cinematic`. They stay because they are the vocabulary
+/// the HUD is documented and reasoned in (the wiki's tier table, the NOVA OS
+/// exemption rules below), and because deciding a widget's kind at its spawn
+/// site is what keeps the marker honest. Whether an element is on screen RIGHT
+/// NOW is the contextual question, answered per widget by [`HudContextGate`].
 /// Deliberately untagged: the juice gizmo flashes (juice.rs) are combat FX,
 /// not HUD, and stay visible at every level.
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug, Reflect)]
 #[reflect(Component)]
 pub enum HudTier {
-    /// Flight/combat instruments: visible at `All` and `Minimal`.
+    /// Flight/combat instruments (velocity sphere, flight chips, reticles, the
+    /// target inset).
     Instrument,
-    /// Learning aids and secondary overlays: visible only at `All`.
+    /// Learning aids and secondary overlays (the keybind dock, verb cues, edge
+    /// indicators, objective markers).
     Chrome,
     /// Persistent status/reference chrome (the fps/version status bar and the
-    /// objective count in it): visible at `All` and `Minimal` like an
-    /// instrument, but hidden ONLY at the cinematic `None` level so screenshots
-    /// stay clean (task 20260724-171509). Unlike flight chrome it is meant to
-    /// persist through the Tab NOVA OS too - tag such a widget `HudNovaOsExempt`
-    /// as well, which keeps it visible while the NOVA OS is open and z-lifts it
-    /// above the backdrop. "It is like the FPS overlay": it rides the whole
-    /// session, not the moment-to-moment flight HUD.
+    /// objective hint in it): it rides the whole session rather than the
+    /// moment-to-moment flight HUD (task 20260724-171509), and the cinematic
+    /// level still clears it so screenshots stay clean. Meant to persist
+    /// through the Tab NOVA OS too - tag such a widget `HudNovaOsExempt` as
+    /// well, which keeps it visible while the NOVA OS is open and z-lifts it
+    /// above the backdrop.
     Status,
+}
+
+/// The contextual show rule on a HUD widget: `false` hides the widget (and its
+/// screen-indicator descendants) even at [`HudVisibility::On`], because its
+/// situation is not live (task 20260728-175747). Absent means "always on",
+/// which is what most widgets are - either they are unconditional (the velocity
+/// shader, the speed chip) or they already gate themselves by driving their own
+/// anchor/visibility (the mode chip, the reticle, the target inset).
+///
+/// Written by the widget's OWN driver from [`HudSituations`], enforced centrally
+/// in [`apply_hud_visibility`] - because a projected indicator re-asserts
+/// `Visibility::Visible` every frame downstream of any Update-schedule writer,
+/// exactly like the level enforcement it rides along with.
+#[derive(Component, Clone, Copy, PartialEq, Eq, Debug, Reflect)]
+#[reflect(Component)]
+pub struct HudContextGate(pub bool);
+
+impl Default for HudContextGate {
+    /// Open: a gate only ever narrows what the level already allows.
+    fn default() -> Self {
+        Self(true)
+    }
 }
 
 /// Opt-out for widgets that drive their own `Visibility` every frame (the
@@ -187,7 +227,28 @@ impl Plugin for NovaHudPlugin {
         app.init_resource::<HudVisibility>();
         app.register_type::<HudVisibility>();
         app.register_type::<HudTier>();
+        app.register_type::<HudContextGate>();
         app.register_type::<HudNovaOsExempt>();
+
+        // The contextual layer (task 20260728-175747), bounded on both sides of
+        // the widget drivers: the situations are sensed BEFORE
+        // [`NovaHudSystems`], so every driver in that set reads this frame's
+        // truth, and the shared emphasis is applied in PostUpdate, so a
+        // driver's `set_held`/`pop` lands in the SAME frame it is written
+        // rather than by schedule tie-break.
+        app.init_resource::<situation::HudSituations>();
+        app.register_type::<situation::HudSituations>();
+        app.register_type::<emphasis::HudEmphasis>();
+        app.add_systems(
+            Update,
+            situation::sense_hud_situations
+                .in_set(HudSituationSensing)
+                .before(NovaHudSystems),
+        );
+        app.add_systems(
+            PostUpdate,
+            emphasis::drive_hud_emphasis.before(bevy::ui::UiSystems::Layout),
+        );
         // The cycle key is gameplay-only (the menu drives the resource
         // itself); plain ButtonInput, same pattern as the debug F11 toggle.
         app.add_systems(
@@ -303,8 +364,7 @@ impl Plugin for NovaHudPlugin {
 // NOVA OS's NOVA OS monitor.
 
 /// Cycle the HUD level on grave/tilde (or the gamepad Select button).
-/// Press-to-cycle, no hold gesture (the spike's call: three states are at most
-/// two presses away).
+/// Press-to-cycle, no hold gesture: two states, so one press round-trips.
 fn cycle_hud_visibility(
     keys: Res<ButtonInput<KeyCode>>,
     gamepad: Option<Res<ButtonInput<GamepadButton>>>,
@@ -320,41 +380,41 @@ fn cycle_hud_visibility(
     }
 }
 
-/// Enforce the current [`HudVisibility`] level on every tagged widget.
+/// Enforce the current [`HudVisibility`] level and every [`HudContextGate`] on
+/// the tagged widgets.
 ///
 /// Two passes:
 /// - Tagged roots (and tagged world-space instruments like ribbon segments):
-///   hidden while their tier is off, restored to `Inherited` once when the
-///   level changes back. Self-driving widgets (the gravity sphere) re-assert
-///   their own state every frame, so the one-shot restore cannot wedge them.
+///   hidden while the level is cinematic or their own gate is shut, restored to
+///   `Inherited` once when either changes back. Self-driving widgets (the
+///   gravity sphere) re-assert their own state every frame, so the one-shot
+///   restore cannot wedge them.
 /// - Screen-indicator nodes: their projection re-writes `Visibility::Visible`
-///   every frame in this same schedule, so the tier-hidden ones are
-///   overwritten here (after the projection) every frame; no restore branch
-///   is needed because the widget re-drives them. Tier resolves from the node
-///   or its nearest tagged ancestor; untagged trees are not HUD-managed.
+///   every frame in this same schedule, so the hidden ones are overwritten here
+///   (after the projection) every frame; no restore branch is needed because
+///   the widget re-drives them. Tier and gate both resolve from the node or its
+///   nearest tagged ancestor; untagged trees are not HUD-managed.
 fn apply_hud_visibility(
     level: Res<HudVisibility>,
     pause: Res<State<crate::PauseStates>>,
+    // The tier tag is a FILTER here: at two levels it no longer selects a
+    // different answer, it only says "this root is HUD-managed".
     mut q_roots: Query<
         (
-            &HudTier,
+            Option<Ref<HudContextGate>>,
             &mut Visibility,
             Has<HudSelfDrivenVisibility>,
             Has<HudNovaOsExempt>,
         ),
-        Without<ScreenIndicatorMarker>,
+        (With<HudTier>, Without<ScreenIndicatorMarker>),
     >,
     mut q_indicators: Query<
-        (
-            Entity,
-            &mut Visibility,
-            Option<&HudTier>,
-            Has<HudNovaOsExempt>,
-        ),
+        (Entity, &mut Visibility, Has<HudNovaOsExempt>),
         With<ScreenIndicatorMarker>,
     >,
     q_parents: Query<&ChildOf>,
     q_tiers: Query<&HudTier>,
+    q_gates: Query<&HudContextGate>,
 ) {
     // While the Tab NOVA OS is open the flight HUD hides so it does not fight the
     // NOVA OS monitor; only diagnostic/status widgets carrying `HudNovaOsExempt`
@@ -362,23 +422,29 @@ fn apply_hud_visibility(
     // NOVA OS un-hides in the same frame - not just on a grave/tilde level
     // change.
     let nova_os_open = *pause.get() == crate::PauseStates::NovaOs;
-    let restore = level.is_changed() || pause.is_changed();
-    for (tier, mut visibility, self_driven, exempt) in &mut q_roots {
-        let shown = level.shows(*tier) && (!nova_os_open || exempt);
+    let level_restore = level.is_changed() || pause.is_changed();
+    for (gate, mut visibility, self_driven, exempt) in &mut q_roots {
+        let open = gate.as_ref().is_none_or(|gate| gate.0);
+        let shown = level.shows() && open && (!nova_os_open || exempt);
+        // A gate that just opened restores this widget even on a quiet level -
+        // that is the whole point of a contextual show.
+        let restore = level_restore || gate.is_some_and(|gate| gate.is_changed());
         if !shown {
             visibility.set_if_neq(Visibility::Hidden);
         } else if restore && !self_driven {
             visibility.set_if_neq(Visibility::Inherited);
         }
     }
-    for (entity, mut visibility, own_tier, exempt) in &mut q_indicators {
-        let tier = own_tier
-            .copied()
-            .or_else(|| ancestor_tier(entity, &q_parents, &q_tiers));
-        let Some(tier) = tier else {
+    for (entity, mut visibility, exempt) in &mut q_indicators {
+        // ONE walk answers both questions: is this subtree HUD-managed (does a
+        // tier tag sit on the node or above it - an untagged tree is somebody
+        // else's UI and is left alone), and is the nearest gate on that chain
+        // open.
+        let (managed, open) = resolve_chain(entity, &q_parents, &q_tiers, &q_gates);
+        if !managed {
             continue;
-        };
-        let shown = level.shows(tier) && (!nova_os_open || exempt);
+        }
+        let shown = level.shows() && open && (!nova_os_open || exempt);
         if !shown {
             visibility.set_if_neq(Visibility::Hidden);
         }
@@ -404,19 +470,32 @@ fn lift_exempt_chrome_over_nova_os(
     }
 }
 
-/// The nearest ancestor's [`HudTier`], if any.
-fn ancestor_tier(
+/// Walk from `entity` up its ancestors once, answering both questions the
+/// indicator pass needs: is a [`HudTier`] tag present anywhere on the chain (so
+/// the subtree is HUD-managed at all), and is the NEAREST [`HudContextGate`] on
+/// it open. No gate anywhere on the chain means always-on.
+fn resolve_chain(
     mut entity: Entity,
     parents: &Query<&ChildOf>,
     tiers: &Query<&HudTier>,
-) -> Option<HudTier> {
-    while let Ok(ChildOf(parent)) = parents.get(entity) {
-        if let Ok(tier) = tiers.get(*parent) {
-            return Some(*tier);
+    gates: &Query<&HudContextGate>,
+) -> (bool, bool) {
+    let mut managed = false;
+    let mut open = None;
+    loop {
+        managed |= tiers.contains(entity);
+        if open.is_none() {
+            if let Ok(gate) = gates.get(entity) {
+                open = Some(gate.0);
+            }
         }
+        // Keep walking even once the gate is known: the tier tag can sit above
+        // it (the ammo layer carries both, but a widget may split them).
+        let Ok(ChildOf(parent)) = parents.get(entity) else {
+            return (managed, open.unwrap_or(true));
+        };
         entity = *parent;
     }
-    None
 }
 
 /// Tag the spaceship chase camera as the projection camera for screen
@@ -946,81 +1025,151 @@ mod tests {
     }
 
     /// Delivery-guarded per step (LESSONS assert-each-gesture-step): the level
-    /// is asserted after every individual press, not just at the end.
+    /// is asserted after every individual press, not just at the end. Two
+    /// levels since task 20260728-175747, so one press round-trips.
     #[test]
-    fn backquote_cycles_all_minimal_none_all() {
+    fn backquote_cycles_on_cinematic() {
         let mut app = app();
-        assert_eq!(level(&app), HudVisibility::All);
+        assert_eq!(level(&app), HudVisibility::On);
         press_backquote(&mut app);
-        assert_eq!(level(&app), HudVisibility::Minimal);
+        assert_eq!(level(&app), HudVisibility::Cinematic);
         press_backquote(&mut app);
-        assert_eq!(level(&app), HudVisibility::None);
-        press_backquote(&mut app);
-        assert_eq!(level(&app), HudVisibility::All);
+        assert_eq!(level(&app), HudVisibility::On);
     }
 
+    /// Every tier answers the level the same way now: on at `On`, cleared at
+    /// `Cinematic`. What differs per widget is the CONTEXTUAL gate, pinned
+    /// separately below.
     #[test]
-    fn tiers_hide_and_restore_across_levels() {
+    fn every_tier_hides_at_cinematic_and_restores_at_on() {
         let mut app = app();
-        let instrument = app
-            .world_mut()
-            .spawn((HudTier::Instrument, Visibility::Inherited))
-            .id();
-        let chrome = app
-            .world_mut()
-            .spawn((HudTier::Chrome, Visibility::Inherited))
-            .id();
+        let spawn = |app: &mut App, tier: HudTier| {
+            app.world_mut().spawn((tier, Visibility::Inherited)).id()
+        };
+        let instrument = spawn(&mut app, HudTier::Instrument);
+        let chrome = spawn(&mut app, HudTier::Chrome);
+        let status = spawn(&mut app, HudTier::Status);
         let vis = |app: &App, e| *app.world().get::<Visibility>(e).unwrap();
 
         app.update();
-        assert_eq!(vis(&app, instrument), Visibility::Inherited);
-        assert_eq!(vis(&app, chrome), Visibility::Inherited);
+        for (entity, name) in [
+            (instrument, "instrument"),
+            (chrome, "chrome"),
+            (status, "status"),
+        ] {
+            assert_eq!(vis(&app, entity), Visibility::Inherited, "On shows {name}");
+        }
 
-        app.insert_resource(HudVisibility::Minimal);
+        app.insert_resource(HudVisibility::Cinematic);
         app.update();
-        assert_eq!(vis(&app, instrument), Visibility::Inherited);
-        assert_eq!(vis(&app, chrome), Visibility::Hidden);
+        for (entity, name) in [
+            (instrument, "instrument"),
+            (chrome, "chrome"),
+            (status, "status"),
+        ] {
+            assert_eq!(
+                vis(&app, entity),
+                Visibility::Hidden,
+                "Cinematic clears {name}"
+            );
+        }
 
-        app.insert_resource(HudVisibility::None);
+        app.insert_resource(HudVisibility::On);
         app.update();
-        assert_eq!(vis(&app, instrument), Visibility::Hidden);
-        assert_eq!(vis(&app, chrome), Visibility::Hidden);
-
-        app.insert_resource(HudVisibility::All);
-        app.update();
-        assert_eq!(vis(&app, instrument), Visibility::Inherited);
-        assert_eq!(vis(&app, chrome), Visibility::Inherited);
+        for (entity, name) in [
+            (instrument, "instrument"),
+            (chrome, "chrome"),
+            (status, "status"),
+        ] {
+            assert_eq!(
+                vis(&app, entity),
+                Visibility::Inherited,
+                "back On restores {name}"
+            );
+        }
     }
 
-    /// The `Status` tier (task 20260724-171509) is persistent reference chrome:
-    /// it survives `Minimal` like an instrument (unlike `Chrome`), but the
-    /// cinematic `None` level still clears it for a clean screenshot.
+    /// A shut [`HudContextGate`] hides its widget even at `On`, and opening it
+    /// brings the widget back without any level change - the contextual show
+    /// (task 20260728-175747).
     #[test]
-    fn status_tier_shows_through_minimal_and_hides_at_none() {
+    fn a_shut_context_gate_hides_the_widget_at_on() {
         let mut app = app();
-        let status = app
+        let gated = app
             .world_mut()
-            .spawn((HudTier::Status, Visibility::Inherited))
+            .spawn((
+                HudTier::Instrument,
+                HudContextGate(false),
+                Visibility::Inherited,
+            ))
             .id();
         let vis = |app: &App, e| *app.world().get::<Visibility>(e).unwrap();
 
-        app.update();
-        assert_eq!(vis(&app, status), Visibility::Inherited, "All shows Status");
-
-        app.insert_resource(HudVisibility::Minimal);
         app.update();
         assert_eq!(
-            vis(&app, status),
-            Visibility::Inherited,
-            "Minimal keeps the status bar (unlike Chrome, which drops here)"
+            vis(&app, gated),
+            Visibility::Hidden,
+            "the situation is not live, so the widget is off even at On"
         );
 
-        app.insert_resource(HudVisibility::None);
+        app.world_mut()
+            .entity_mut(gated)
+            .insert(HudContextGate(true));
         app.update();
         assert_eq!(
-            vis(&app, status),
+            vis(&app, gated),
+            Visibility::Inherited,
+            "the situation went live, so the widget comes back with no level change"
+        );
+
+        // ... and the level still wins over an open gate.
+        app.insert_resource(HudVisibility::Cinematic);
+        app.update();
+        assert_eq!(
+            vis(&app, gated),
             Visibility::Hidden,
-            "None clears the status bar for a cinematic capture"
+            "Cinematic clears the screen whatever the gates say"
+        );
+    }
+
+    /// A projected indicator resolves its gate from its ancestor layer, the same
+    /// walk the tier uses - so the ammo readouts (indicators under a gated
+    /// layer) are overwritten every frame downstream of their own projection.
+    #[test]
+    fn indicators_inherit_a_shut_gate_from_their_layer() {
+        let mut app = app();
+        let layer = app
+            .world_mut()
+            .spawn((
+                HudTier::Instrument,
+                HudContextGate(false),
+                Visibility::Inherited,
+            ))
+            .id();
+        let indicator = app
+            .world_mut()
+            .spawn((ScreenIndicatorMarker, Visibility::Inherited, ChildOf(layer)))
+            .id();
+        let vis = |app: &App, e| *app.world().get::<Visibility>(e).unwrap();
+
+        // fake_widget_drive writes Visible on the indicator every frame; the
+        // enforcement must still win.
+        app.update();
+        app.update();
+        assert_eq!(
+            vis(&app, indicator),
+            Visibility::Hidden,
+            "the shut gate beats the projection's every-frame Visible"
+        );
+
+        app.world_mut()
+            .entity_mut(layer)
+            .insert(HudContextGate(true));
+        app.update();
+        assert_eq!(
+            vis(&app, indicator),
+            Visibility::Visible,
+            "an open gate leaves the projection's own write alone"
         );
     }
 
@@ -1028,7 +1177,7 @@ mod tests {
     /// stays visible while the Tab NOVA OS is open, but the cinematic `None` level
     /// still clears it even mid-NOVA OS (task 20260724-171509).
     #[test]
-    fn status_bar_persists_through_the_nova_os_but_none_still_clears_it() {
+    fn status_bar_persists_through_the_nova_os_but_cinematic_still_clears_it() {
         let mut app = app();
         let status = app
             .world_mut()
@@ -1043,12 +1192,12 @@ mod tests {
             "the status bar stays while the NOVA OS is open"
         );
 
-        app.insert_resource(HudVisibility::None);
+        app.insert_resource(HudVisibility::Cinematic);
         app.update();
         assert_eq!(
             vis(&app, status),
             Visibility::Hidden,
-            "None clears the status bar even during the NOVA OS"
+            "Cinematic clears the status bar even during the NOVA OS"
         );
     }
 
@@ -1065,7 +1214,7 @@ mod tests {
             .id();
         let vis = |app: &App, e| *app.world().get::<Visibility>(e).unwrap();
 
-        // Visible in normal flight (Minimal shows the Status tier).
+        // Visible in normal flight.
         app.update();
         assert_eq!(
             vis(&app, status),
@@ -1119,14 +1268,14 @@ mod tests {
             "the child is not tier-managed - it inherits the bar"
         );
 
-        // Cinematic None: the bar hides; the child stays Inherited so propagation
+        // Cinematic: the bar hides; the child stays Inherited so propagation
         // hides it with the parent (rather than the child being independently set).
-        app.insert_resource(HudVisibility::None);
+        app.insert_resource(HudVisibility::Cinematic);
         app.update();
         assert_eq!(
             vis(&app, bar),
             Visibility::Hidden,
-            "None hides the bar root"
+            "Cinematic hides the bar root"
         );
         assert_eq!(
             vis(&app, child),
@@ -1250,7 +1399,7 @@ mod tests {
             .spawn((ScreenIndicatorMarker, Visibility::Visible, ChildOf(root)))
             .id();
 
-        app.insert_resource(HudVisibility::Minimal);
+        app.insert_resource(HudVisibility::Cinematic);
         app.update();
         assert_eq!(
             *app.world().get::<Visibility>(node).unwrap(),
@@ -1269,8 +1418,8 @@ mod tests {
             Visibility::Hidden
         );
 
-        // Back at All the enforcement stands down and the widget owns it.
-        app.insert_resource(HudVisibility::All);
+        // Back On the enforcement stands down and the widget owns it.
+        app.insert_resource(HudVisibility::On);
         app.update();
         assert_eq!(
             *app.world().get::<Visibility>(node).unwrap(),
@@ -1294,15 +1443,15 @@ mod tests {
             ))
             .id();
 
-        app.insert_resource(HudVisibility::None);
+        app.insert_resource(HudVisibility::Cinematic);
         app.update();
         assert_eq!(
             *app.world().get::<Visibility>(sphere).unwrap(),
             Visibility::Hidden
         );
 
-        // Restoring to All must NOT stomp the widget's own Hidden.
-        app.insert_resource(HudVisibility::All);
+        // Restoring to On must NOT stomp the widget's own Hidden.
+        app.insert_resource(HudVisibility::On);
         app.update();
         assert_eq!(
             *app.world().get::<Visibility>(sphere).unwrap(),

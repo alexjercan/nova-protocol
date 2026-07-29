@@ -9,7 +9,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use nova_ui::hud::{chip_node, chip_paint, ChipTone};
 
-use super::{screen_indicator::prelude::*, NAV_CYAN};
+use super::{emphasis::prelude::*, screen_indicator::prelude::*, situation::prelude::*, NAV_CYAN};
 use crate::flight::prelude::*;
 
 /// Glob-import surface: `use nova_gameplay::hud::flight_status::prelude::*` re-exports the public API of this module.
@@ -47,6 +47,10 @@ const SPEED_CHIP_OFFSET: Vec2 = Vec2::new(120.0, -90.0);
 /// The mode chip stacks one row above the speed chip (screen y grows
 /// downward), keeping the same 24 px gap after the lift above.
 const MODE_CHIP_OFFSET: Vec2 = Vec2::new(120.0, -114.0);
+
+/// Peak scale of the speed chip while the autopilot flies - demo 2's
+/// `.speed.emph`.
+const SPEED_CHIP_EMPHASIS: f32 = 1.14;
 
 /// Marker for the ship-status chip layer (speed chip + autopilot mode chip);
 /// spawned by [`flight_status_hud`] and carried by the layer the drive systems
@@ -118,6 +122,9 @@ pub fn flight_status_hud(config: FlightStatusHudConfig) -> impl Bundle {
                 },
                 chip_paint(ChipTone::Phosphor),
                 TextColor(ChipTone::Phosphor.text()),
+                // Grows while the autopilot is burning - the readout you are
+                // actually watching during a maneuver (demo 2's `.speed.emph`).
+                HudEmphasis::settle(SPEED_CHIP_EMPHASIS),
             ),
             (
                 Name::new("ModeChipUI"),
@@ -203,8 +210,8 @@ pub fn autopilot_destination_hud(config: AutopilotDestinationHudConfig) -> impl 
 
 /// Drives the diegetic flight readouts: the speed chip, the autopilot mode
 /// chip, and the destination marker anchor.
-/// Adds `drive_speed_chip`, `drive_mode_chip` and `drive_destination_anchor`
-/// in Update within [`super::NovaHudSystems`].
+/// Adds `drive_speed_chip`, `emphasize_speed_on_burn`, `drive_mode_chip` and
+/// `drive_destination_anchor` in Update within [`super::NovaHudSystems`].
 #[derive(Default)]
 pub struct FlightStatusHudPlugin;
 
@@ -214,7 +221,12 @@ impl Plugin for FlightStatusHudPlugin {
 
         app.add_systems(
             Update,
-            (drive_speed_chip, drive_mode_chip, drive_destination_anchor)
+            (
+                drive_speed_chip,
+                emphasize_speed_on_burn,
+                drive_mode_chip,
+                drive_destination_anchor,
+            )
                 .in_set(super::NovaHudSystems),
         );
     }
@@ -260,6 +272,18 @@ fn drive_speed_chip(
                 text.clear();
             }
         }
+    }
+}
+
+/// Emphasize the speed chip while a maneuver is engaged (task 20260728-175747):
+/// during an autopilot burn the speed is the number the player is watching, so
+/// it grows and settles back the moment the maneuver ends.
+fn emphasize_speed_on_burn(
+    situations: Res<HudSituations>,
+    mut q_ui: Query<&mut HudEmphasis, With<SpeedChipUIMarker>>,
+) {
+    for mut emphasis in &mut q_ui {
+        emphasis.set_held(situations.maneuver.is_some());
     }
 }
 
@@ -319,6 +343,7 @@ mod tests {
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
+    use crate::sections::controller_section::prelude::FlightVerb;
 
     fn spawn_status_hud(world: &mut World, ship: Entity) -> (Entity, Entity) {
         let layer = world
@@ -491,6 +516,38 @@ mod tests {
         assert_eq!(
             **world.entity(marker).get::<ScreenIndicatorAnchor>().unwrap(),
             None
+        );
+    }
+
+    /// The burn emphasis (task 20260728-175747): the speed chip is held large
+    /// while a maneuver flies and lets go the moment it ends. Asserted on the
+    /// HELD flag rather than the eased scale, so it pins the RULE; the easing
+    /// itself is pinned in `hud::emphasis`.
+    #[test]
+    fn the_speed_chip_is_emphasized_only_while_a_maneuver_is_engaged() {
+        let mut world = World::new();
+        world.init_resource::<HudSituations>();
+        let ship = world.spawn(LinearVelocity(Vec3::ZERO)).id();
+        let (speed, _) = spawn_status_hud(&mut world, ship);
+
+        world.run_system_once(emphasize_speed_on_burn).unwrap();
+        assert!(
+            !world.entity(speed).get::<HudEmphasis>().unwrap().held(),
+            "manual flight leaves the speed chip at rest"
+        );
+
+        world.resource_mut::<HudSituations>().maneuver = Some(FlightVerb::Goto);
+        world.run_system_once(emphasize_speed_on_burn).unwrap();
+        assert!(
+            world.entity(speed).get::<HudEmphasis>().unwrap().held(),
+            "a GOTO burn emphasizes the number you are flying by"
+        );
+
+        world.resource_mut::<HudSituations>().maneuver = None;
+        world.run_system_once(emphasize_speed_on_burn).unwrap();
+        assert!(
+            !world.entity(speed).get::<HudEmphasis>().unwrap().held(),
+            "disengaging settles it back"
         );
     }
 }

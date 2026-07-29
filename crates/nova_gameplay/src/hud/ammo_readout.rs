@@ -38,6 +38,13 @@
 //!
 //! Like the other combat overlays the layer is `HudTier::Instrument` and is
 //! spawned/despawned with the player ship by the hud/mod.rs observers.
+//!
+//! CONTEXTUAL (task 20260728-175747): the gauges are not on whenever a weapon
+//! has ammo - the layer carries a [`HudContextGate`] driven by
+//! [`sync_ammo_gate`], so they surface while the weapons are hot or a group is
+//! nearly dry, and stay out of the way in idle cruise. Low ammo forces them
+//! visible on its own, because a dry magazine is news before you pull the
+//! trigger, not after.
 
 use std::f32::consts::{FRAC_PI_2, TAU};
 
@@ -153,8 +160,25 @@ pub fn ammo_readout_hud() -> impl Bundle {
     (
         Name::new("AmmoReadoutHUD"),
         AmmoReadoutHudMarker,
+        // Contextual: shut until the weapons are hot or a group runs low. The
+        // readouts underneath are projected indicators, so the gate has to be
+        // enforced downstream of the projection - which is exactly where
+        // `apply_hud_visibility` reads it from this layer (task 20260728-175747).
+        HudContextGate(false),
         screen_indicator_layer(),
     )
+}
+
+/// Open the ammo layer's gate while the gauges are relevant. Separate from
+/// `drive_ammo_readouts` (which paints pips) because this decides whether the
+/// gauges are on screen AT ALL, and it must keep answering while they are off.
+fn sync_ammo_gate(
+    situations: Res<HudSituations>,
+    mut q_layer: Query<&mut HudContextGate, With<AmmoReadoutHudMarker>>,
+) {
+    for mut gate in &mut q_layer {
+        gate.set_if_neq(HudContextGate(situations.ammo_relevant()));
+    }
 }
 
 /// How many of a turret ring's [`RING_SEGMENTS`] pips are lit for the given
@@ -375,7 +399,7 @@ const RELOAD_ALPHA: f32 = 0.5;
 /// Whether a weapon group is nearly dry (see [`LOW_AMMO_FRACTION`]). A group at
 /// zero rounds counts as low too: an empty gauge with a dark track is easy to
 /// mistake for "no weapon", and the amber tells you it is a weapon out of ammo.
-fn is_low_ammo(ammo: &SectionAmmo) -> bool {
+pub(super) fn is_low_ammo(ammo: &SectionAmmo) -> bool {
     ammo.capacity > 0 && (ammo.rounds as f32) <= LOW_AMMO_FRACTION * ammo.capacity as f32
 }
 
@@ -549,6 +573,10 @@ impl Plugin for AmmoReadoutPlugin {
                 .chain()
                 .before(ScreenIndicatorSystems),
         );
+        // The contextual gate rides the normal HUD drivers: written in Update
+        // from this frame's situations, enforced in PostUpdate by
+        // `apply_hud_visibility` after the projection.
+        app.add_systems(Update, sync_ammo_gate.in_set(super::NovaHudSystems));
 
         // The numeric readout is debug-only (never compiled into release): its
         // resource, F11 toggle and driver all live behind the `debug` feature.
@@ -1169,6 +1197,53 @@ mod tests {
             reload_pip_count(&mut world, turret),
             0,
             "a rested reload sweeps nothing"
+        );
+    }
+
+    // -- contextual gate (task 20260728-175747) --
+
+    fn gate(world: &mut World) -> bool {
+        world
+            .query_filtered::<&HudContextGate, With<AmmoReadoutHudMarker>>()
+            .single(world)
+            .expect("one ammo layer")
+            .0
+    }
+
+    /// The situation drives the gate BOTH ways: gauges appear while the weapons
+    /// are hot and go away again when the safety goes back on.
+    #[test]
+    fn the_ammo_gate_opens_on_weapons_hot_and_shuts_again() {
+        let mut world = World::new();
+        world.init_resource::<HudSituations>();
+        world.spawn(ammo_readout_hud());
+        assert!(
+            !gate(&mut world),
+            "idle cruise keeps the gauges out of sight"
+        );
+
+        world.resource_mut::<HudSituations>().weapons_hot = true;
+        world.run_system_once(sync_ammo_gate).unwrap();
+        assert!(gate(&mut world), "weapons hot shows the gauges");
+
+        world.resource_mut::<HudSituations>().weapons_hot = false;
+        world.run_system_once(sync_ammo_gate).unwrap();
+        assert!(!gate(&mut world), "safety back on hides them again");
+    }
+
+    /// Low ammo forces the gauges up on its own: a dry magazine is news before
+    /// you pull the trigger, not after.
+    #[test]
+    fn low_ammo_alone_opens_the_ammo_gate() {
+        let mut world = World::new();
+        world.init_resource::<HudSituations>();
+        world.spawn(ammo_readout_hud());
+
+        world.resource_mut::<HudSituations>().low_ammo = true;
+        world.run_system_once(sync_ammo_gate).unwrap();
+        assert!(
+            gate(&mut world),
+            "a nearly-dry group shows the gauges even with the safety on"
         );
     }
 }

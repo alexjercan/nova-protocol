@@ -23,8 +23,11 @@
 use bevy::{platform::collections::HashSet, prelude::*};
 use nova_ui::hud as chip;
 
-use super::{screen_indicator::prelude::*, NovaHudAssets, OBJECTIVE_GOLD};
-use crate::input::prelude::*;
+use super::{
+    emphasis::prelude::*, screen_indicator::prelude::*, situation::prelude::*, NovaHudAssets,
+    OBJECTIVE_GOLD,
+};
+use crate::{input::prelude::*, sections::controller_section::prelude::FlightVerb};
 
 /// Glob-import surface: `use nova_gameplay::hud::keybind_dock::prelude::*` re-exports the public API of this module.
 pub mod prelude {
@@ -77,6 +80,11 @@ pub const DOCK_VERBS: [&str; 7] = [
 const EMPHASIS_PERIOD_SECS: f32 = 1.0;
 const EMPHASIS_ALPHA_AVAILABLE: (f32, f32) = (0.7, 1.0);
 const EMPHASIS_ALPHA_UNAVAILABLE: (f32, f32) = (0.3, 0.5);
+
+/// Peak scale of a HOT chip - demo 2's `.vchip.hot { transform: scale(1.08) }`.
+/// Small on purpose: the inversion already carries the state, the growth just
+/// pulls the eye.
+const HOT_CHIP_EMPHASIS: f32 = 1.08;
 
 /// Marker for the bottom-centre keybind dock root; spawned by
 /// [`keybind_dock_hud`].
@@ -225,6 +233,9 @@ pub fn keybind_dock_hud() -> impl Bundle {
         (
             DockChip(index),
             DockChipState::Dim,
+            // A hot chip grows a little as well as inverting (demo 2's
+            // `.vchip.hot`), driven by `grow_hot_chips` from the state above.
+            HudEmphasis::settle(HOT_CHIP_EMPHASIS),
             Node {
                 display: Display::None,
                 align_items: AlignItems::Center,
@@ -391,6 +402,8 @@ impl Plugin for KeybindDockPlugin {
                 // The pulse layers OVER the availability paint, so it must run
                 // downstream of the writer inside the frame.
                 pulse_emphasized_chips.after(update_dock),
+                // Same reason: it reads the state update_dock writes.
+                grow_hot_chips.after(update_dock),
                 (drive_orbit_cue, drive_goto_cue),
             )
                 .in_set(super::NovaHudSystems),
@@ -411,20 +424,34 @@ fn verb_hint(hints: &FlightVerbHints, index: usize) -> &VerbHint {
     }
 }
 
-/// The state chip `index` should render.
+/// The state chip `index` should render, from availability plus what the ship
+/// is actually doing right now (task 20260728-175747).
 ///
-/// `Hot` is deliberately thin here: the only live "the ship is doing this"
-/// truth the input layer publishes is `engaged`, which makes CANCEL hot while a
-/// maneuver runs. Task 20260728-175747 layers the situational emphasis (a hot
-/// chip the moment its verb becomes the thing to press) on top of this exact
-/// component - the look is wired and proven, the driving is that task's.
-fn chip_state(hints: &FlightVerbHints, index: usize) -> DockChipState {
+/// The `Hot` rules are the demo's, mapped onto the real verbs: the engaged
+/// maneuver's own chip is hot (GOTO while a GOTO burns, STOP while stopping,
+/// ORBIT while parking), CANCEL is hot whenever anything is engaged (it is the
+/// live way out), and RADAR is hot while a combat lock is held - the lock IS the
+/// radar's product, and it is the chip you press to change it.
+///
+/// `Hot` is checked BEFORE availability, because it means "this is what the
+/// ship is doing", not "press this": the ORBIT offer is retired the moment you
+/// are parked (`orbit.available` goes false), and that is precisely when the
+/// ORBIT chip should read as the live maneuver.
+fn chip_state(hints: &FlightVerbHints, situations: &HudSituations, index: usize) -> DockChipState {
     let hint = verb_hint(hints, index);
+    let hot = match DOCK_VERBS[index] {
+        "STOP" => situations.maneuver == Some(FlightVerb::Stop),
+        "GOTO" => situations.maneuver == Some(FlightVerb::Goto),
+        "ORBIT" => situations.maneuver == Some(FlightVerb::Orbit),
+        "CANCEL" => hints.engaged,
+        "RADAR" => situations.combat_lock,
+        _ => false,
+    };
+    if hot {
+        return DockChipState::Hot;
+    }
     if !hint.available {
         return DockChipState::Dim;
-    }
-    if DOCK_VERBS[index] == "CANCEL" && hints.engaged {
-        return DockChipState::Hot;
     }
     DockChipState::Available
 }
@@ -489,6 +516,7 @@ fn paint_key_visual<FG, FT>(
 #[expect(clippy::type_complexity, reason = "one query per chip part")]
 fn update_dock(
     hints: Res<FlightVerbHints>,
+    situations: Res<HudSituations>,
     assets: Option<Res<NovaHudAssets>>,
     mut q_chip: Query<(
         &DockChip,
@@ -510,7 +538,7 @@ fn update_dock(
     // may appear while the resource is unchanged), nor the frame the glyph
     // collection finishes loading (chips spawned before it must pick it up).
     let assets_changed = assets.as_ref().is_some_and(|a| a.is_changed());
-    if !hints.is_changed() && !assets_changed && q_added.is_empty() {
+    if !hints.is_changed() && !situations.is_changed() && !assets_changed && q_added.is_empty() {
         return;
     }
     let glyphs = assets.as_ref().map(|a| &a.key_glyphs);
@@ -522,7 +550,7 @@ fn update_dock(
         if node.display != display {
             node.display = display;
         }
-        let next = chip_state(&hints, **chip);
+        let next = chip_state(&hints, &situations, **chip);
         if !shown {
             // A hidden chip still tracks its state, so a pulse that was
             // running when the rig despawned restores the RIGHT base.
@@ -549,6 +577,15 @@ fn update_dock(
                 color.set_if_neq(TextColor(text_color));
             }
         }
+    }
+}
+
+/// Grow the chip whose verb the ship is currently doing (task 20260728-175747).
+/// Reads the state [`update_dock`] just wrote rather than re-deriving it, so the
+/// grown chip and the inverted chip can never be different chips.
+fn grow_hot_chips(mut q_chip: Query<(&DockChipState, &mut HudEmphasis), With<DockChip>>) {
+    for (state, mut emphasis) in &mut q_chip {
+        emphasis.set_held(*state == DockChipState::Hot);
     }
 }
 
@@ -773,6 +810,10 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<Image>();
+        // The dock reads the contextual situations for its Hot states (task
+        // 20260728-175747); idle-cruise defaults keep these rigs testing the
+        // availability paint they were written for.
+        app.init_resource::<HudSituations>();
         app
     }
 
@@ -889,6 +930,92 @@ mod tests {
                 .0,
             chip_paint(DockChipState::Available).0,
             "the hot chip is painted differently, not just marked"
+        );
+    }
+
+    /// The situational hot rules (task 20260728-175747): the engaged maneuver's
+    /// OWN chip inverts, and RADAR inverts while a combat lock is held. Each
+    /// situation is asserted on and then off again, so a chip that latched hot
+    /// would fail.
+    #[test]
+    fn the_dock_lights_the_verb_the_ship_is_doing() {
+        let mut app = glyph_app();
+        app.init_resource::<HintEmphasis>();
+        app.insert_resource(hints(true, true, None));
+        app.add_systems(Update, (update_dock, grow_hot_chips.after(update_dock)));
+        app.world_mut().spawn(keybind_dock_hud());
+        app.update();
+
+        let chips = chips(&app);
+        let state = |app: &App, index: usize| {
+            *app.world()
+                .entity(chips[index])
+                .get::<DockChipState>()
+                .unwrap()
+        };
+        let grown = |app: &App, index: usize| {
+            app.world()
+                .entity(chips[index])
+                .get::<HudEmphasis>()
+                .unwrap()
+                .held()
+        };
+
+        // GOTO: hot only while a GOTO is the engaged maneuver.
+        assert_eq!(state(&app, 1), DockChipState::Dim, "GOTO has no lock yet");
+        app.world_mut().resource_mut::<HudSituations>().maneuver = Some(FlightVerb::Goto);
+        app.update();
+        assert_eq!(
+            state(&app, 1),
+            DockChipState::Hot,
+            "the GOTO chip inverts while the GOTO burns"
+        );
+        assert!(grown(&app, 1), "and the hot chip grows");
+        assert_eq!(
+            state(&app, 4),
+            DockChipState::Available,
+            "RADAR is not hot without a lock"
+        );
+
+        // RADAR: hot while a combat lock is held; GOTO settles when the
+        // maneuver ends.
+        app.world_mut().resource_mut::<HudSituations>().maneuver = None;
+        app.world_mut().resource_mut::<HudSituations>().combat_lock = true;
+        app.update();
+        assert_eq!(
+            state(&app, 4),
+            DockChipState::Hot,
+            "RADAR inverts while the lock it produced is held"
+        );
+        assert_eq!(
+            state(&app, 1),
+            DockChipState::Dim,
+            "GOTO settles back when the maneuver ends"
+        );
+        assert!(!grown(&app, 1), "and stops growing with it");
+    }
+
+    /// `Hot` means "this is what the ship is doing", so it beats the
+    /// availability paint: the ORBIT offer is retired the moment you are
+    /// parked, and that is exactly when the chip must read as the live
+    /// maneuver rather than going dim.
+    #[test]
+    fn an_engaged_orbit_stays_hot_after_its_offer_is_retired() {
+        let mut app = glyph_app();
+        app.init_resource::<HintEmphasis>();
+        // orbit_available = false: the resolver has retired the offer because
+        // the ship is already parked.
+        app.insert_resource(hints(false, true, None));
+        app.add_systems(Update, update_dock);
+        app.world_mut().spawn(keybind_dock_hud());
+        app.world_mut().resource_mut::<HudSituations>().maneuver = Some(FlightVerb::Orbit);
+        app.update();
+
+        let chips = chips(&app);
+        assert_eq!(
+            *app.world().entity(chips[2]).get::<DockChipState>().unwrap(),
+            DockChipState::Hot,
+            "the parked ship's ORBIT chip reads as the live maneuver"
         );
     }
 

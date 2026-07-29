@@ -1560,16 +1560,16 @@ fn stage_menu_camera(
     }
 }
 
-/// The menu is a cinematic shot: drive the HUD level to None while it is up
-/// (this is the mechanism from task 20260711-180501; it owns the status bar
-/// and every tagged HUD widget). Restoring to All on exit intentionally
+/// The menu is a cinematic shot: drive the HUD level to `Cinematic` while it
+/// is up (this is the mechanism from task 20260711-180501; it owns the status
+/// bar and every tagged HUD widget). Restoring to `On` on exit intentionally
 /// resets any mid-game cycle the player had going - simple beats sticky.
 fn hide_hud_chrome(mut level: ResMut<HudVisibility>) {
-    *level = HudVisibility::None;
+    *level = HudVisibility::Cinematic;
 }
 
 fn restore_hud_chrome(mut level: ResMut<HudVisibility>) {
-    *level = HudVisibility::All;
+    *level = HudVisibility::On;
 }
 
 /// The menu panel: title on top, buttons below, anchored bottom-right per the
@@ -4514,7 +4514,7 @@ mod tests {
         assert_eq!(app.world().resource::<LoadedScenario>().0, None);
         assert!(app.world().resource::<Unloaded>().0);
         // Leaving the menu restores the HUD level.
-        assert_eq!(*app.world().resource::<HudVisibility>(), HudVisibility::All);
+        assert_eq!(*app.world().resource::<HudVisibility>(), HudVisibility::On);
     }
 
     /// Entering MainMenu loads the ambience backdrop through the real
@@ -4540,7 +4540,7 @@ mod tests {
         // (the absorbed status-bar hide, task 20260711-180501).
         assert_eq!(
             *app.world().resource::<HudVisibility>(),
-            HudVisibility::None
+            HudVisibility::Cinematic
         );
     }
 

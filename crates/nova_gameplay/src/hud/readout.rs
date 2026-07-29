@@ -12,7 +12,7 @@
 //! `mm:ss.s`, `Number` one decimal, `Integer` none.
 //!
 //! The strip is an [`HudTier::Instrument`] widget (a flight readout, shown with
-//! the velocity/speed chips even at the Minimal HUD level), positioned
+//! the velocity/speed chips whenever the HUD is on), positioned
 //! top-center. It freezes automatically on pause and behind the outcome overlay:
 //! `scenario_elapsed` freezes there (the clock stops ticking), so the last
 //! synced value simply holds - a time-trial's FINAL time stays on screen,

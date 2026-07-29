@@ -38,8 +38,10 @@
 //! ships never get a controller marker, so they keep the grey default unless
 //! they carry an authored allegiance.
 //!
-//! Instrument tier: combat-relevant, survives Minimal, clears at the
-//! cinematic `None` level.
+//! Instrument tier: combat-relevant, on with the HUD and cleared at the
+//! cinematic level. Deliberately NOT contextual (task 20260728-175747): the
+//! accepted ruleset does not cover always-on allegiance triangles either way,
+//! so they are left as they are pending the owner's playtest call.
 
 use bevy::prelude::*;
 

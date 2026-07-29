@@ -21,7 +21,7 @@ use bevy::prelude::*;
 use bevy_common_systems::prelude::{SfxCommandsExt, SoundBank};
 use nova_ui::{hud::ChipTone, theme};
 
-use super::{HudSelfDrivenVisibility, HudTier};
+use super::{emphasis::prelude::*, HudSelfDrivenVisibility, HudTier};
 use crate::{asset_ref::AssetRef, audio::UiSfx};
 
 /// Glob-import surface: `use nova_gameplay::hud::comms_panel::prelude::*` re-exports the public API of this module.
@@ -81,6 +81,19 @@ const COMMS_FADE_IN_SECS: f32 = 0.25;
 /// Fade-out duration (s) after a line's dwell elapses; the pacing layer adds
 /// this to the dwell so the objective posts as the line clears, not mid-fade.
 pub const COMMS_FADE_OUT_SECS: f32 = 0.4;
+/// Arrival emphasis (task 20260728-175747): a fresh card grows to this peak for
+/// this long, then settles - demo 2's comms flash.
+///
+/// The demo's 5 s auto-hide is deliberately NOT adopted: this panel already has
+/// a richer dwell model (a per-line authored hold clamped to
+/// [`COMMS_DWELL_MIN_SECS`]..[`COMMS_DWELL_MAX_SECS`], defaulting to
+/// [`COMMS_DWELL_SECS`], plus a floor while lines wait), and the scenario pacing
+/// layer derives its beat gaps from those constants - so retiming them to a POC
+/// number would silently re-pace every authored conversation. The demo's
+/// timings are the emphasis; the dwell stays ours.
+const COMMS_ARRIVAL_PEAK: f32 = 1.12;
+const COMMS_ARRIVAL_SECS: f32 = 0.9;
+
 /// Comms blip volume, under the objective cues (0.30/0.38) - chatter, not
 /// a milestone.
 const COMMS_BLIP_VOLUME: f32 = 0.22;
@@ -308,6 +321,11 @@ fn comms_card(line: &VisibleCommsLine, asset_server: Option<&AssetServer>) -> im
     let alpha = line.alpha();
     (
         CommsCardMarker,
+        // Arrival emphasis (task 20260728-175747): a fresh transmission grows
+        // for ~0.9 s and settles. Seeded from the line's AGE because the stack
+        // is rebuilt from `CommsQueue` every frame - the same reason the card's
+        // alpha is a function of age rather than retained state.
+        HudEmphasis::popped_at_age(COMMS_ARRIVAL_PEAK, COMMS_ARRIVAL_SECS, line.age_secs),
         Node {
             width: Val::Percent(100.0),
             min_height: Val::Px(46.0),
@@ -703,6 +721,53 @@ mod tests {
         assert!(
             app.world().resource::<CommsQueue>().visible.is_empty(),
             "teardown drops visible cards too"
+        );
+    }
+
+    /// The arrival emphasis (task 20260728-175747): a fresh card comes in
+    /// grown and is back at rest well before its dwell ends - so the emphasis
+    /// says "this is new", not "this is important", and the line stays readable
+    /// at normal size for the rest of its hold.
+    #[test]
+    fn a_fresh_comms_card_arrives_grown_and_settles_inside_its_dwell() {
+        let mut app = comms_app();
+        let card_scale = |app: &mut App| {
+            app.world_mut()
+                .query_filtered::<&HudEmphasis, With<CommsCardMarker>>()
+                .single(app.world())
+                .expect("one visible card")
+                .scale()
+        };
+
+        push_line(&mut app, "OKONO", "Strip it clean.", None);
+        // MEASURED cadence for this rig (manual-time-rig lesson): the first
+        // frame advances 0.0 and each later one 0.25 s (the max_delta clamp),
+        // so the card appears at age 0 - the pop GROWS in over its 0.2 s ease
+        // rather than snapping.
+        app.update();
+        assert_eq!(card_scale(&mut app), 1.0, "the pop starts from rest");
+
+        app.update();
+        assert_eq!(
+            card_scale(&mut app),
+            COMMS_ARRIVAL_PEAK,
+            "0.25 s in, the fresh card is at its arrival peak"
+        );
+
+        // Four more frames = age 1.25 s: past the 0.9 s pop plus its 0.2 s
+        // ease-out, still far inside the 8 s default dwell.
+        for _ in 0..4 {
+            app.update();
+        }
+        assert_eq!(
+            card_scale(&mut app),
+            1.0,
+            "the pop has settled while the card is still on screen"
+        );
+        assert_eq!(
+            visible_texts(&mut app).len(),
+            1,
+            "and the card is indeed still up (the pop is not the dwell)"
         );
     }
 }

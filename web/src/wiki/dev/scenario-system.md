@@ -180,7 +180,7 @@ flowchart LR
   variable thereafter. The value freezes on pause and behind the outcome overlay
   because the bound variable does (`scenario_elapsed` stops ticking there), so a
   time-trial's FINAL time simply holds on the HUD through the Victory banner. It
-  is an Instrument-tier widget (shown even at the Minimal HUD level) and clears
+  is an Instrument-tier widget (shown whenever the HUD is on) and clears
   at scenario teardown like the comms panel, so it cannot leak into the next
   scenario or the menu. RON:
   `HudReadout((slot: "run_timer", variable: "scenario_elapsed", format: Time, label: Some("TIME")))`;

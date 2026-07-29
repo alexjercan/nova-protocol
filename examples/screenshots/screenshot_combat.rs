@@ -6,9 +6,9 @@
 //! It performs the actual player gesture through the live input pipeline: raise
 //! weapons (RMB) + hold radar (CTRL); at the hold threshold the radar latches the
 //! combat slot on the target ahead, the lock goes live, and the reticle + inset
-//! come up. It captures with the HUD at its instrument tier
-//! ([`HudVisibility::Minimal`]) so the reticle/inset are in shot but the
-//! fps/version chrome is not.
+//! come up. It captures with the HUD on ([`HudVisibility::On`]): the contextual
+//! rules keep idle chrome out of the frame by themselves, and a live lock is
+//! exactly when the reticle + inset are up.
 //!
 //! Two run modes, both under the autopilot (`BCS_AUTOPILOT`):
 //! - `BCS_AUTOPILOT=1` alone: the smoke path - reach Playing, drive the lock,
@@ -209,11 +209,11 @@ fn target_root(world: &mut World) -> Option<Entity> {
         .next()
 }
 
-/// Set the HUD to its instrument tier (reticle/inset in shot, fps chrome out).
+/// Put the HUD on (the contextual rules decide what is actually in shot).
 #[cfg(feature = "debug")]
 fn hud_instrument(world: &mut World) {
     if let Some(mut hud) = world.get_resource_mut::<HudVisibility>() {
-        *hud = HudVisibility::Minimal;
+        *hud = HudVisibility::On;
     }
 }
 
@@ -331,10 +331,10 @@ fn combat_capture_script(world: &mut World, elapsed: f32) {
         return;
     }
     if t > 4.2 && !world.resource::<CombatScript>().shot_combat_lock {
-        // Full HUD tier so the target viewfinder inset is in shot (the tutorial
+        // HUD on so the target viewfinder inset is in shot (the tutorial
         // combat-lock is about the viewfinder + reticle together).
         if let Some(mut hud) = world.get_resource_mut::<HudVisibility>() {
-            *hud = HudVisibility::All;
+            *hud = HudVisibility::On;
         }
         if capturing {
             capture_window(world, "tutorial-combat-lock.png");
@@ -344,9 +344,9 @@ fn combat_capture_script(world: &mut World, elapsed: f32) {
         return;
     }
     if t > 4.4 && !world.resource::<CombatScript>().shot_viewfinder {
-        // Keep the full HUD (viewfinder) up for the viewfinder devlog shot.
+        // Keep the HUD on (viewfinder up) for the viewfinder devlog shot.
         if let Some(mut hud) = world.get_resource_mut::<HudVisibility>() {
-            *hud = HudVisibility::All;
+            *hud = HudVisibility::On;
         }
         if capturing {
             capture_window(world, "devlog5-target-viewfinder.png");
@@ -356,11 +356,11 @@ fn combat_capture_script(world: &mut World, elapsed: f32) {
         return;
     }
 
-    // --- Full HUD: the same locked frame at full chrome (every readout + the
-    // fps/version bar), the "HUD at full chrome" showcase. ---
+    // --- The same locked frame with the HUD on (every situational readout +
+    // the fps/version bar), the "HUD in combat" showcase. ---
     if t > 4.6 && !world.resource::<CombatScript>().shot_hud {
         if let Some(mut hud) = world.get_resource_mut::<HudVisibility>() {
-            *hud = HudVisibility::All;
+            *hud = HudVisibility::On;
         }
         if capturing {
             capture_window(world, "feature-hud.png");

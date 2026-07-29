@@ -406,7 +406,7 @@ pub fn hide_dev_overlays(
 /// HUD-showcase capture can keep the HUD up.
 fn reel_hide_hud(hud: Option<ResMut<HudVisibility>>) {
     if let Some(mut hud) = hud {
-        *hud = HudVisibility::None;
+        *hud = HudVisibility::Cinematic;
     }
 }
 

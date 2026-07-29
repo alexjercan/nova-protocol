@@ -211,7 +211,7 @@ Weapon sections are rebindable: in the editor, click a section to bind it to any
 
 <table class="controls">
     <tr>
-        <td>Cycle HUD (All / Minimal / None)</td>
+        <td>Cycle HUD (On / Cinematic)</td>
         <td>
             <kbd>`</kbd> (grave / tilde) &nbsp;or&nbsp;
             <span

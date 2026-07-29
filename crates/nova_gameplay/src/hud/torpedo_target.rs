@@ -29,6 +29,25 @@ const READOUT_FONT_PX: f32 = 14.0;
 /// Gap (px) between the reticle edge and the readout column.
 const READOUT_GAP_PX: f32 = 8.0;
 
+/// Peak scale of the lock readout while the weapons are hot - demo 2's
+/// `.lock-read.emph`.
+const LOCK_READOUT_EMPHASIS: f32 = 1.12;
+
+/// Peak scale and full cycle of the reticle's firing pulse - demo 2's
+/// `retpulse 0.28s ... alternate`, which is a 0.56 s there-and-back.
+const RETICLE_FIRING_PULSE: f32 = 1.12;
+const RETICLE_PULSE_PERIOD_SECS: f32 = 0.56;
+
+/// The two COMPOSE: the readout is a child of the reticle node, so with the
+/// safety off AND the trigger down it renders at
+/// `LOCK_READOUT_EMPHASIS * RETICLE_FIRING_PULSE` = 1.2544 at the pulse peak,
+/// not at 1.12. That is deliberate - the lock reads as one instrument reacting,
+/// rather than a readout sitting still on a breathing reticle - and it is the
+/// number to quote if the playtest calls the motion too busy (the fix would be
+/// dropping the readout's own hold while firing, not restructuring the tree).
+/// Pinned by `the_composed_peak_while_firing_is_the_product`.
+const LOCK_COMPOSED_FIRING_PEAK: f32 = LOCK_READOUT_EMPHASIS * RETICLE_FIRING_PULSE;
+
 /// Health bar size (px): a small underline below the text lines.
 const HEALTH_BAR_SIZE: Vec2 = Vec2::new(64.0, 6.0);
 
@@ -142,6 +161,11 @@ pub fn torpedo_target_hud(config: TorpedoTargetHudConfig) -> impl Bundle {
                 offscreen: ScreenIndicatorOffscreen::Hide,
             }),
             ImageNode::new(config.target_sprite.clone()).with_color(RETICLE_COMBAT_COLOR),
+            // Pulses while the trigger is down (demo 2's `retpulse`). The
+            // readout below is a CHILD of this node, so it breathes along with
+            // the reticle while firing - one instrument reacting, which is why
+            // its own emphasis is the smaller, steadier hold.
+            HudEmphasis::pulse(RETICLE_FIRING_PULSE, RETICLE_PULSE_PERIOD_SECS),
             children![
                 (
                     Name::new("TorpedoTargetFocusMeter"),
@@ -198,6 +222,10 @@ pub fn torpedo_target_hud(config: TorpedoTargetHudConfig) -> impl Bundle {
                     // (demo 2 `.lock-read`): a red-bordered slab so the numbers
                     // stay legible over a lit hull and never read as nav data.
                     chip_paint(ChipTone::Threat),
+                    // Grows while the weapons are hot: with the safety off,
+                    // range and closing speed are the numbers you are shooting
+                    // by (demo 2's `.lock-read.emph`).
+                    HudEmphasis::settle(LOCK_READOUT_EMPHASIS),
                     Pickable::IGNORE,
                     children![
                         (
@@ -256,8 +284,9 @@ pub fn torpedo_target_hud(config: TorpedoTargetHudConfig) -> impl Bundle {
 /// Drives the combat-lock reticle: anchors it to the current [`CombatLock`]
 /// target and updates its distance/closing-speed readout, health bar and focus
 /// meter.
-/// Adds `drive_reticle_anchor`, `update_target_readout` and
-/// `update_focus_meter` in Update within [`super::NovaHudSystems`].
+/// Adds `drive_reticle_anchor`, `update_target_readout`, `update_focus_meter`
+/// and `emphasize_lock_on_weapons_hot` in Update within
+/// [`super::NovaHudSystems`].
 #[derive(Default)]
 pub struct TorpedoTargetHudPlugin;
 
@@ -269,9 +298,34 @@ impl Plugin for TorpedoTargetHudPlugin {
                 drive_reticle_anchor,
                 update_target_readout,
                 update_focus_meter,
+                emphasize_lock_on_weapons_hot,
             )
                 .in_set(super::NovaHudSystems),
         );
+    }
+}
+
+/// The combat emphasis (task 20260728-175747): the lock readout grows while the
+/// weapons are hot, and the reticle pulses while the trigger is actually down.
+/// Two nodes, one situation source, so they cannot disagree about what "in
+/// combat" means.
+#[expect(clippy::type_complexity, reason = "the reticle and its readout")]
+fn emphasize_lock_on_weapons_hot(
+    situations: Res<HudSituations>,
+    mut q_readout: Query<&mut HudEmphasis, With<TorpedoTargetReadoutMarker>>,
+    mut q_reticle: Query<
+        &mut HudEmphasis,
+        (
+            With<TorpedoTargetReticleMarker>,
+            Without<TorpedoTargetReadoutMarker>,
+        ),
+    >,
+) {
+    for mut emphasis in &mut q_readout {
+        emphasis.set_held(situations.weapons_hot);
+    }
+    for mut emphasis in &mut q_reticle {
+        emphasis.set_held(situations.firing);
     }
 }
 
@@ -775,5 +829,97 @@ mod tests {
             .expect("reticle exists")
             .color;
         assert_eq!(color, RETICLE_COMBAT_COLOR);
+    }
+
+    /// The combat emphasis (task 20260728-175747): the readout grows with the
+    /// SAFETY (weapons hot) and the reticle pulses with the TRIGGER (firing).
+    /// Pinned as two different situations so the pair cannot be collapsed into
+    /// one flag by a later edit.
+    #[test]
+    fn the_readout_follows_the_safety_and_the_reticle_follows_the_trigger() {
+        let mut world = World::new();
+        world.init_resource::<HudSituations>();
+        world.spawn(torpedo_target_hud(TorpedoTargetHudConfig::default()));
+
+        let held = |world: &mut World, reticle: bool| {
+            let mut q = world.query::<(&HudEmphasis, Has<TorpedoTargetReticleMarker>)>();
+            q.iter(world)
+                .find(|(_, is_reticle)| *is_reticle == reticle)
+                .expect("the emphasis node exists")
+                .0
+                .held()
+        };
+
+        world
+            .run_system_once(emphasize_lock_on_weapons_hot)
+            .unwrap();
+        assert!(!held(&mut world, false), "safe: the readout is at rest");
+        assert!(!held(&mut world, true), "safe: the reticle is at rest");
+
+        world.resource_mut::<HudSituations>().weapons_hot = true;
+        world
+            .run_system_once(emphasize_lock_on_weapons_hot)
+            .unwrap();
+        assert!(held(&mut world, false), "hot: the readout grows");
+        assert!(
+            !held(&mut world, true),
+            "hot but not shooting: the reticle is still steady"
+        );
+
+        world.resource_mut::<HudSituations>().firing = true;
+        world
+            .run_system_once(emphasize_lock_on_weapons_hot)
+            .unwrap();
+        assert!(held(&mut world, true), "trigger down: the reticle pulses");
+
+        world.resource_mut::<HudSituations>().firing = false;
+        world.resource_mut::<HudSituations>().weapons_hot = false;
+        world
+            .run_system_once(emphasize_lock_on_weapons_hot)
+            .unwrap();
+        assert!(!held(&mut world, false), "safety back on: readout settles");
+        assert!(!held(&mut world, true), "trigger released: pulse stops");
+    }
+
+    /// The readout rides INSIDE the reticle, so the two emphases MULTIPLY
+    /// rather than the readout showing its own 1.12 while firing. Pinned so the
+    /// number a playtest complaint would be about is written down, and so a
+    /// later re-parent that changes it shows up here (review R1.3).
+    #[test]
+    fn the_composed_peak_while_firing_is_the_product() {
+        // The doc comment on LOCK_COMPOSED_FIRING_PEAK quotes 1.2544 as the
+        // number to take to a playtest; pin it to the constants so retuning
+        // either emphasis cannot leave that prose silently stale (review R2.1).
+        assert!(
+            (LOCK_COMPOSED_FIRING_PEAK - 1.2544).abs() < 1e-6,
+            "the documented composed peak is {LOCK_COMPOSED_FIRING_PEAK}, not 1.2544"
+        );
+
+        let mut world = World::new();
+        let layer = world
+            .spawn(torpedo_target_hud(TorpedoTargetHudConfig::default()))
+            .id();
+        let reticle = world.entity(layer).get::<Children>().unwrap()[0];
+        let readout = world
+            .entity(reticle)
+            .get::<Children>()
+            .unwrap()
+            .iter()
+            .find(|&child| {
+                world
+                    .entity(child)
+                    .get::<TorpedoTargetReadoutMarker>()
+                    .is_some()
+            })
+            .expect("the readout is a child of the reticle");
+
+        let peak =
+            |world: &World, entity: Entity| world.entity(entity).get::<HudEmphasis>().unwrap().peak;
+        let composed = peak(&world, readout) * peak(&world, reticle);
+        assert!(
+            (composed - LOCK_COMPOSED_FIRING_PEAK).abs() < 1e-6,
+            "hot AND firing renders the readout at {composed}, not at its own \
+             {LOCK_READOUT_EMPHASIS}"
+        );
     }
 }

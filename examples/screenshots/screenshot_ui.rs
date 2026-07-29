@@ -96,7 +96,7 @@ fn force_resolution(mut windows: Query<&mut Window, With<bevy::window::PrimaryWi
 #[cfg(feature = "debug")]
 fn hide_hud(world: &mut World) {
     if let Some(mut hud) = world.get_resource_mut::<HudVisibility>() {
-        *hud = HudVisibility::None;
+        *hud = HudVisibility::Cinematic;
     }
 }
 

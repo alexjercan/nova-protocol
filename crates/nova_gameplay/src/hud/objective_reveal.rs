@@ -68,12 +68,20 @@ pub struct ObjectiveRevealMarker {
 #[derive(Component)]
 struct ObjectiveRevealTextMarker;
 
+/// A reveal card just finished tucking INTO the objective hint - the handover
+/// point of the posting animation (task 20260728-175747). The hint pops on it
+/// so the card's arrival and the hint's reaction are one motion; nothing else
+/// listens, and a card cleared early by scenario teardown never sends it.
+#[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ObjectiveRevealTucked;
+
 /// Runs the diegetic objective reveal: the animation + teardown. Spawning is
 /// triggered from `objective_feedback` (the single `GameObjectives` diff).
 pub struct ObjectiveRevealPlugin;
 
 impl Plugin for ObjectiveRevealPlugin {
     fn build(&self, app: &mut App) {
+        app.add_message::<ObjectiveRevealTucked>();
         app.add_systems(
             Update,
             (
@@ -139,6 +147,7 @@ fn animate_objective_reveals(
     anchor: Res<NovaOsTabAnchor>,
     q_window: Query<&Window, With<PrimaryWindow>>,
     mut commands: Commands,
+    mut tucked: MessageWriter<ObjectiveRevealTucked>,
     mut q_reveal: Query<(
         Entity,
         &mut ObjectiveRevealMarker,
@@ -163,6 +172,10 @@ fn animate_objective_reveals(
         marker.elapsed += time.delta_secs();
         if marker.elapsed >= REVEAL_TOTAL_SECS {
             commands.entity(entity).despawn();
+            // The card has arrived IN the hint: that is the moment the hint
+            // pops (task 20260728-175747), so the posting reads as one
+            // continuous motion rather than two animations of the same news.
+            tucked.write(ObjectiveRevealTucked);
             continue;
         }
 
@@ -238,6 +251,8 @@ mod tests {
         )));
         app.init_resource::<GameObjectives>();
         app.init_resource::<NovaOsTabAnchor>();
+        // The tuck handover the objective hint pops on (task 20260728-175747).
+        app.add_message::<ObjectiveRevealTucked>();
         app.add_systems(
             Update,
             (

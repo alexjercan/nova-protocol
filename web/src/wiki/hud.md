@@ -1,6 +1,6 @@
 # HUD
 
-The heads-up display is diegetic - the instruments read the ship's real state, and every widget knows which visibility tier it belongs to so you can strip the screen down for a clean shot or a quiet cockpit.
+The heads-up display is diegetic - the instruments read the ship's real state - and contextual: elements surface while their situation is live and settle back when it passes, so a quiet cruise has a quiet screen without you managing it.
 
 <figure class="figure">
     <!-- Capture: assets/wiki-hud.png -->
@@ -20,15 +20,25 @@ The heads-up display is diegetic - the instruments read the ship's real state, a
     </div>
 </figure>
 
-## Visibility tiers
+## What is on screen, and when
 
-Grave / tilde (or the gamepad Select button) cycles the whole display through three levels, in order:
+The HUD is CONTEXTUAL: it shows you what the situation calls for and gets out of the way when it does not. Idle cruise is close to empty - the velocity sphere, your speed, the dimmed icon dock and the status bar - and everything else arrives with its moment:
 
-- **All** - everything: instruments plus chrome (the learning aids and secondary overlays).
-- **Minimal** - the flight and combat _instruments_ only; the chrome drops away.
-- **None** - a clean screen for cinematic captures.
+- **Autopilot burn** - the mode chip, the destination marker and its readout come up, the speed chip grows (it is the number you are flying by), and the dock lights the maneuver you are flying.
+- **Combat lock** - the red reticle, its DST/CLS readout and the target viewfinder come up, and the RADAR chip inverts because the lock is the thing you would change.
+- **Weapons hot** - the ammo gauges appear on your weapons and the lock readout grows. With the trigger down the reticle pulses.
+- **Low ammo** - a nearly-dry group pulses amber and forces the gauges up on its own, even with the safety on: a dry magazine is news before you pull the trigger.
+- **A posted objective** - the reveal card tucks into the top-right objective hint, which pops as it lands and then keeps a slow breath while the work is outstanding.
+- **An incoming transmission** - the comms card arrives grown and settles while it holds.
 
-Every widget carries a tier: **Instrument** (velocity sphere, flight chips, autopilot marker, maneuver instruments, lead pips, lock crosshairs, the target inset, allegiance markers - shown at All and Minimal) or **Chrome** (the keybind dock, verb cues, the component-lock panel, edge indicators, objective markers - shown only at All).
+Grave / tilde (or the gamepad Select button) toggles the whole display between two levels:
+
+- **On** - the contextual HUD above.
+- **Cinematic** - a clean screen for captures and quiet flying.
+
+There is no third "minimal" level any more: showing everything all the time is what made a manual detail dial useful, and the contextual rules do that job continuously instead.
+
+Every widget still declares its kind - **Instrument** (velocity sphere, flight chips, autopilot marker, maneuver instruments, lead pips, lock crosshairs, the target inset, allegiance markers), **Chrome** (the keybind dock, verb cues, the component-lock panel, edge indicators, objective markers) or **Status** (the fps/version bar and the objective hint in it) - and all of them clear at Cinematic.
 
 ## Flight readouts
 

@@ -23,7 +23,7 @@ use bevy::prelude::*;
 use bevy_common_systems::prelude::{GameObjectives, StatusBarRootMarker};
 use nova_ui::theme;
 
-use super::{nova_os::NovaOsTabAnchor, NovaHudAssets, NovaHudSystems};
+use super::{emphasis::prelude::*, nova_os::NovaOsTabAnchor, NovaHudAssets, NovaHudSystems};
 use crate::prelude::*;
 
 const HINT_FONT_PX: f32 = 14.0;
@@ -35,6 +35,17 @@ const HINT_ICON_PX: f32 = 15.0;
 /// The TAB keycap's on-screen size (px) in the top bar - a touch taller than
 /// the brand mark so the key reads as a key, still inside the 24 px bar.
 const HINT_TAB_GLYPH_PX: f32 = 18.0;
+
+/// The posting POP: peak scale and duration when a reveal card tucks into the
+/// hint - demo 2's `.obj.emph` (1.16) held for 1.2 s.
+const HINT_POP_SCALE: f32 = 1.16;
+const HINT_POP_SECS: f32 = 1.2;
+
+/// The slow BREATH the hint settles into while objectives are outstanding -
+/// demo 2's `@keyframes breathe` (2.4 s, down to 0.72 alpha). Quiet enough to
+/// ignore, alive enough to say "there is still work".
+const HINT_BREATH_PERIOD_SECS: f32 = 2.4;
+const HINT_BREATH_MIN_ALPHA: f32 = 0.72;
 /// Nominal hint size for the reveal's tuck rect (the exact width flexes with the
 /// count; the CENTRE is what the tuck aims at). Task 20260721-211520's target.
 const HINT_ANCHOR_SIZE: Vec2 = Vec2::new(120.0, 28.0);
@@ -47,6 +58,16 @@ struct ObjectiveHintMarker;
 /// The count text inside the hint.
 #[derive(Component)]
 struct ObjectiveHintCountMarker;
+
+/// A hint part that takes the slow breath, carrying the alpha it renders at
+/// rest. The parts do not share a base alpha (gold text at 1.0, the muted TAB
+/// fallback below it), and bevy_ui has no node-level opacity, so the breath is
+/// applied per part as `base * wave` - absolute, never multiplied onto the
+/// previous frame's value, so it cannot drift.
+#[derive(Component)]
+struct ObjectiveHintBreath {
+    base_alpha: f32,
+}
 
 /// The leading NOVA CRT star mark icon inside the hint (ties the TAB affordance
 /// to the NOVA OS computer it opens).
@@ -65,7 +86,15 @@ impl Plugin for ObjectiveHintPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (update_hint, update_tab_anchor).in_set(NovaHudSystems),
+            (
+                update_hint,
+                update_tab_anchor,
+                pop_hint_on_reveal_tuck,
+                // The breath asks whether the pop is still playing, so it must
+                // read the same frame's pop, not the previous one's.
+                breathe_hint.after(pop_hint_on_reveal_tuck),
+            )
+                .in_set(NovaHudSystems),
         );
         app.add_observer(setup_hint);
         app.add_observer(remove_hint);
@@ -99,6 +128,10 @@ fn setup_hint(
         bar.spawn((
             Name::new("ObjectiveHintItem"),
             ObjectiveHintMarker,
+            // The posting pop (task 20260728-175747). It fires when the reveal
+            // card finishes tucking in here, not when the objective posts, so
+            // the card's arrival and this reaction are one motion.
+            HudEmphasis::settle(HINT_POP_SCALE),
             Pickable::IGNORE,
             // Metrics match the bcs status-bar item so the block sits flush with
             // fps/version. Starts collapsed so an objective-less bar has no gap.
@@ -123,6 +156,7 @@ fn setup_hint(
                 hint.spawn((
                     ObjectiveHintIconMarker,
                     ImageNode::new(hud_assets.nova_crt_mark.clone()),
+                    ObjectiveHintBreath { base_alpha: 1.0 },
                     Node {
                         width: Val::Px(HINT_ICON_PX),
                         height: Val::Px(HINT_ICON_PX),
@@ -136,6 +170,9 @@ fn setup_hint(
                 Text::new("0"),
                 TextFont::from_font_size(HINT_FONT_PX),
                 TextColor(theme::semantic::OBJECTIVE),
+                ObjectiveHintBreath {
+                    base_alpha: theme::semantic::OBJECTIVE.alpha(),
+                },
             ));
             // The TAB affordance: the real keycap picture (task
             // 20260728-175742's key-glyph pipeline), so the top bar says
@@ -151,6 +188,7 @@ fn setup_hint(
                     hint.spawn((
                         ObjectiveHintTabGlyphMarker,
                         ImageNode::new(glyph),
+                        ObjectiveHintBreath { base_alpha: 1.0 },
                         Node {
                             width: Val::Px(HINT_TAB_GLYPH_PX),
                             height: Val::Px(HINT_TAB_GLYPH_PX),
@@ -163,6 +201,9 @@ fn setup_hint(
                         Text::new("TAB"),
                         TextFont::from_font_size(HINT_CHIP_FONT_PX),
                         TextColor(theme::PHOSPHOR_DIM),
+                        ObjectiveHintBreath {
+                            base_alpha: theme::PHOSPHOR_DIM.alpha(),
+                        },
                     ));
                 }
             }
@@ -207,6 +248,60 @@ fn update_hint(
         let s = count.to_string();
         if text.0 != s {
             text.0 = s;
+        }
+    }
+}
+
+/// Pop the hint when a reveal card lands in it (task 20260728-175747). The
+/// message is the handover point of the posting animation, so the pop cannot
+/// drift out of step with the card - and a card cleared early by scenario
+/// teardown never sends it, so a teardown does not pop a hint that is about to
+/// collapse.
+fn pop_hint_on_reveal_tuck(
+    mut tucked: MessageReader<super::objective_reveal::ObjectiveRevealTucked>,
+    mut q_hint: Query<&mut HudEmphasis, With<ObjectiveHintMarker>>,
+) {
+    if tucked.read().count() == 0 {
+        return;
+    }
+    for mut emphasis in &mut q_hint {
+        emphasis.pop(HINT_POP_SECS);
+    }
+}
+
+/// The slow breath while objectives are outstanding: once the pop has settled,
+/// the hint keeps a quiet ~2.4 s alpha breath so "there is work" stays present
+/// without a second animation competing with the pop. With no objectives (the
+/// hint is collapsed anyway) everything returns to its rest alpha, so nothing
+/// can be left mid-breath.
+fn breathe_hint(
+    time: Res<Time>,
+    objectives: Res<GameObjectives>,
+    q_hint: Query<&HudEmphasis, With<ObjectiveHintMarker>>,
+    mut q_parts: Query<(
+        &ObjectiveHintBreath,
+        Option<&mut TextColor>,
+        Option<&mut ImageNode>,
+    )>,
+) {
+    // While the pop is playing, the pop IS the emphasis - the breath resumes
+    // when it settles (demo 2: `.obj:not(.emph)` is what breathes).
+    let popping = q_hint.iter().any(|emphasis| emphasis.popping());
+    let wave = if objectives.objectives.is_empty() || popping {
+        1.0
+    } else {
+        let phase = time.elapsed_secs() * std::f32::consts::TAU / HINT_BREATH_PERIOD_SECS;
+        let up = 0.5 + 0.5 * phase.sin();
+        HINT_BREATH_MIN_ALPHA + (1.0 - HINT_BREATH_MIN_ALPHA) * up
+    };
+
+    for (breath, text, image) in &mut q_parts {
+        let alpha = breath.base_alpha * wave;
+        if let Some(mut text) = text {
+            text.0.set_alpha(alpha);
+        }
+        if let Some(mut image) = image {
+            image.color.set_alpha(alpha);
         }
     }
 }
@@ -407,6 +502,126 @@ mod tests {
         assert!(
             (rect.center() - Vec2::new(1850.0, 24.0)).length() < 0.01,
             "the anchor centres on the hint (top-right, so the reveal tucks up-right)"
+        );
+    }
+
+    // -- the posting pop + breath (task 20260728-175747) --
+
+    /// An App-driven pop: the reveal card's tuck pops the hint, the pop reaches
+    /// full scale, and it settles back to rest on its own as virtual time
+    /// advances. Drives the real message rather than calling `pop` directly, so
+    /// the HANDOVER is what is pinned.
+    #[test]
+    fn the_hint_pops_when_the_reveal_tucks_in_and_settles_back() {
+        use core::time::Duration;
+
+        use bevy::time::TimeUpdateStrategy;
+
+        let mut app = hint_app();
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            0.1,
+        )));
+        app.add_message::<super::super::objective_reveal::ObjectiveRevealTucked>();
+        app.add_systems(
+            Update,
+            (
+                pop_hint_on_reveal_tuck,
+                super::super::emphasis::drive_hud_emphasis.after(pop_hint_on_reveal_tuck),
+            ),
+        );
+
+        let scale = |app: &mut App| {
+            app.world_mut()
+                .query_filtered::<&UiTransform, With<ObjectiveHintMarker>>()
+                .single(app.world())
+                .expect("the hint spawned")
+                .scale
+                .x
+        };
+
+        app.update();
+        assert_eq!(scale(&mut app), 1.0, "the hint rests before any posting");
+
+        app.world_mut()
+            .write_message(super::super::objective_reveal::ObjectiveRevealTucked);
+        // 0.3s: past the 0.2s ease-in, well inside the 1.2s pop.
+        for _ in 0..3 {
+            app.update();
+        }
+        assert_eq!(
+            scale(&mut app),
+            HINT_POP_SCALE,
+            "the card landing pops the hint to full"
+        );
+
+        // Past the pop plus its ease-out.
+        for _ in 0..20 {
+            app.update();
+        }
+        assert_eq!(
+            scale(&mut app),
+            1.0,
+            "and the pop settles by itself - no second trigger needed"
+        );
+    }
+
+    /// The breath is the RESTING state while work is outstanding, and it stops
+    /// dead when there is none: an objective-less hint (which is collapsed
+    /// anyway) is never left mid-breath.
+    #[test]
+    fn the_hint_breathes_only_while_objectives_are_outstanding() {
+        use core::time::Duration;
+
+        use bevy::time::TimeUpdateStrategy;
+
+        let mut app = hint_app();
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            0.3,
+        )));
+        app.add_systems(Update, breathe_hint);
+
+        let count_alpha = |app: &mut App| {
+            app.world_mut()
+                .query_filtered::<&TextColor, With<ObjectiveHintCountMarker>>()
+                .single(app.world())
+                .expect("the count spawned")
+                .0
+                .alpha()
+        };
+
+        // The count's rest alpha is the theme's, not necessarily 1.0 - the
+        // breath is a FRACTION of whatever the part renders at rest.
+        let rest = theme::semantic::OBJECTIVE.alpha();
+
+        // No objectives: rest alpha, every frame.
+        for _ in 0..8 {
+            app.update();
+        }
+        assert_eq!(
+            count_alpha(&mut app),
+            rest,
+            "an objective-less hint does not breathe"
+        );
+
+        app.world_mut()
+            .resource_mut::<GameObjectives>()
+            .objectives
+            .push(Objective::new("survey", "Survey the wreck"));
+        let mut seen_dimmed = false;
+        let mut seen_bright = false;
+        for _ in 0..16 {
+            app.update();
+            let alpha = count_alpha(&mut app);
+            assert!(
+                (rest * HINT_BREATH_MIN_ALPHA..=rest).contains(&alpha),
+                "the breath stays inside its band (alpha {alpha})"
+            );
+            seen_dimmed |= alpha < rest * 0.95;
+            seen_bright |= alpha > rest * 0.98;
+        }
+        assert!(
+            seen_dimmed && seen_bright,
+            "an outstanding objective breathes both ways"
         );
     }
 }

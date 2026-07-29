@@ -912,11 +912,25 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   its keycaps by verb name, always missed, and nothing showed it). Assert the
   initializer's own output before the updater runs, or delete the redundancy.
   20260728-175742.
-- `sweep-a-rename-where-the-name-is-spoken` (x1): scope a rename sweep to every
-  place the symbol is NAMED, not to the crates whose code changed - a
-  cross-crate vocabulary (`ROW_VERBS` -> `DOCK_VERBS`, spoken by nova_scenario's
-  authoring rustdoc) survives a crate-local grep untouched. Sibling of
-  [[sweep-content-repo-wide-not-just-assets]]. 20260728-175742.
+- `sweep-a-rename-where-the-name-is-spoken` (x2): sweep for the CONCEPT, not
+  just the symbol - a cross-crate vocabulary survives a crate-local grep
+  (`ROW_VERBS` -> `DOCK_VERBS` in nova_scenario's rustdoc), and prose that
+  describes the thing without naming it survives a symbol grep entirely (the
+  landing page still sold "full chrome to instruments-only" after the HUD
+  levels collapsed to On/Cinematic; `web/src/index.html` + `tutorial.html` sell
+  features in words). Sibling of [[sweep-content-repo-wide-not-just-assets]].
+  20260728-175742, 20260728-175747.
+- `ui-node-rebuilt-per-frame-needs-age-seeded-state` (x1): a widget whose nodes
+  are DESPAWNED and respawned every frame from a queue (the comms stack) cannot
+  carry retained animation state - a freshly spawned tween restarts its ease
+  each frame and never leaves rest. Seed the component from the item's AGE (the
+  same pure function its alpha already uses), or reconcile instead of rebuild.
+  20260728-175747.
+- `put-the-playtest-number-in-the-code` (x1): when a deliberate decision yields
+  a NUMBER a playtest might complain about (here nested UI emphases composing
+  to 1.2544, not the 1.12 the spec named), name it as a constant with a test -
+  a future debugger reads the code, not the retro that explains it.
+  20260728-175747.
 - `stash-ab-before-blaming-your-diff` (x1, positive): on any red met mid-branch,
   `git stash && cargo test <that test>` FIRST - three failures in one task, two
   of them inherited from master (one filed as its own task), zero time spent

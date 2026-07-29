@@ -4,7 +4,7 @@
 //! It spawns a gravity planetoid and a player ship out at the ring radius, engages
 //! the ORBIT autopilot on the well with an explicit orbit plan, lets the ship
 //! settle onto the ring (the maneuver HUD draws the ring + radius spoke), and
-//! captures with the HUD at its instrument tier.
+//! captures with the HUD on.
 //!
 //! Capture (windowed, real GPU):
 //! ```text
@@ -198,10 +198,10 @@ fn orbit_capture_script(world: &mut World, elapsed: f32) {
     }
 
     // Let the ship settle onto the ring (the maneuver HUD draws the ring +
-    // radius spoke), then capture at the instrument HUD tier.
+    // radius spoke), then capture with the HUD on.
     if t > 6.0 && !world.resource::<OrbitScript>().captured {
         if let Some(mut hud) = world.get_resource_mut::<HudVisibility>() {
-            *hud = HudVisibility::Minimal;
+            *hud = HudVisibility::On;
         }
         if capturing {
             capture_window(world, "tutorial-orbit.png");

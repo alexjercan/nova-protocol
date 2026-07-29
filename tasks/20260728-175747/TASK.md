@@ -1,12 +1,12 @@
 # Contextual HUD: show-by-relevance + grow-in-use + On/Cinematic
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 34
 - TAGS: v0.9.0,ui,hud,gameplay
 
 ## Flow State
 
-- FLOW STEP: PLANNED
+- FLOW STEP: DONE
 - PLAN STATUS: APPROVED
 
 ## Story
@@ -22,7 +22,7 @@ gaps, adds the emphasis layer, and rewires the level control.
 
 ## Steps (re-planned 2026-07-28 from demo 2's reflect() ruleset + HUD map)
 
-- [ ] Encode the ruleset (demo 2 reflect(), mapped to real state sources):
+- [x] Encode the ruleset (demo 2 reflect(), mapped to real state sources):
       - idle cruise: velocity shader + speed chip + dim dock + status bar
         only. Gap to close: ammo gauges currently show whenever a weapon
         has `SectionAmmo` - gate them on weapons-hot OR any-group-low.
@@ -42,26 +42,26 @@ gaps, adds the emphasis layer, and rewires the level control.
         not a second animation.
       - comms (`StoryFeed` push): card emphasis on arrival (~0.9s), ~5s
         dwell, fade (comms_panel already fades; align dwell + cap).
-- [ ] Grow-in-use emphasis: one shared mechanism (component holding target
+- [x] Grow-in-use emphasis: one shared mechanism (component holding target
       scale + optional settle timer, one system driving Transform scale on
       UI nodes) with demo 2's values: speed 1.14, lock readout 1.12, dock
       hot chip 1.08, objective pop 1.16/1.2s, comms 0.9s. Continuous while
       the driving state holds; timer for one-shots.
-- [ ] `~` control: replace `HudVisibility { All, Minimal, None }` with
+- [x] `~` control: replace `HudVisibility { All, Minimal, None }` with
       `{ On, Cinematic }` (mod.rs): On = full contextual HUD, Cinematic =
       clean screen (old None). Keep the HudTier machinery (Status tier,
       HudNovaOsExempt and the every-frame indicator enforcement still
       carry the None-clearing + NOVA OS exemptions). Grep EVERY
       HudVisibility consumer and migrate each (new-entry-into-state rule);
       keyboard Backquote + gamepad Select cycle stays.
-- [ ] Migrate the mod.rs level tests (enumerated in the map:
+- [x] Migrate the mod.rs level tests (enumerated in the map:
       `backquote_cycles_all_minimal_none_all`,
       `tiers_hide_and_restore_across_levels`,
       `status_tier_shows_through_minimal_and_hides_at_none`, the NOVA OS
       exemption family) to the two-level model; rename per behavior.
-- [ ] Settings CONTROLS reference: the `HUD detail ~` row text updates to
+- [x] Settings CONTROLS reference: the `HUD detail ~` row text updates to
       On/Cinematic wording (build_settings_body keybind rows).
-- [ ] Docs sweep (keep-docs-in-sync): wiki hud.md (levels section rewritten
+- [x] Docs sweep (keep-docs-in-sync): wiki hud.md (levels section rewritten
       to On/Cinematic + contextual rules), getting-started / tutorial.html
       if they name the three levels, CHANGELOG [Unreleased].
 
@@ -97,3 +97,31 @@ gaps, adds the emphasis layer, and rewires the level control.
   scale system runs on the chip nodes, not the projected anchors; check
   ordering against `apply_hud_visibility` (PostUpdate) when wiring.
 - Depends on: 20260728-175742.
+
+## Implementation notes (2026-07-29)
+
+Full design record: `NOTES.md`. Deviations from the plan, recorded here so
+review reads them as decisions, not misses:
+
+- The CONTROLS reference had NO `HUD detail ~` row to reword - the HUD level
+  was never in `keybind_reference()`. Added a SYSTEM row
+  `HUD (On / Cinematic)` / `` ` `` / Select instead.
+- The comms DWELL was not retimed to the demo's 5 s (the panel's authored
+  per-line dwell drives nova_assets' scenario pacing); only the ~0.9 s arrival
+  emphasis was adopted. See NOTES.md.
+- `HudVisibility::shows()` dropped its `HudTier` parameter: at two levels every
+  tier answers the same. `HudTier` stays as the HUD-managed marker + vocabulary.
+- DoD 2 grep counts (2026-07-29):
+  `grep -rn "Minimal" crates/nova_gameplay/src/hud` = 60 hits, of which 59 are
+  `MinimalPlugins` (bevy test rigs) and 1 is the deliberate historical sentence
+  in `HudVisibility`'s doc explaining the recut. Zero HUD-level `Minimal`.
+  Repo-wide `HudVisibility::{All,Minimal,None}` outside `tasks/` = 0.
+- DoD 3: `cargo run -p nova_probe -- run playable` -> OK,
+  `probe-runs/ff59c72c/playable/report.html` (fps SKIPPED - no baseline).
+- Not visually verified: the ammo gauges APPEARING on weapons-hot - no
+  harnessed example fires the player's guns (all example ships are
+  `infinite_ammo: true`). The closed state WAS eyeballed on a finite-ammo ship
+  (shakedown_run). Covered by App-driven tests + the owner playtest.
+- Open for the playtest gate: allegiance triangles (left as-is per the plan),
+  and whether the lock readout inheriting the reticle's firing pulse reads as
+  too much motion.

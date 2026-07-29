@@ -10,9 +10,9 @@
 //! is the read-only surface only.
 //!
 //! The camera-rig rows (aim / free-look / raise), comms controls, and the
-//! pause row are static prose: they live outside the flight rig, are far
-//! lower-churn, and the parity test covers the flight rig where the actual key
-//! churn is.
+//! system rows (pause, HUD level) are static prose: they live outside the
+//! flight rig, are far lower-churn, and the parity test covers the flight rig
+//! where the actual key churn is.
 
 /// One row of the keybind reference: what the control does and how it is bound
 /// on keyboard/mouse and on a gamepad. All plain display strings - this is a
@@ -116,12 +116,19 @@ pub const KEYBINDS: &[KeybindEntry] = &[
         keyboard: "B",
         gamepad: "Unbound",
     },
-    // SYSTEM - the pause toggle in nova_menu.
+    // SYSTEM - the pause toggle in nova_menu, and the HUD level cycle in
+    // nova_gameplay's hud/mod.rs (`cycle_hud_visibility`).
     KeybindEntry {
         section: "SYSTEM",
         action: "Pause / Menu",
         keyboard: "Esc",
         gamepad: "Start",
+    },
+    KeybindEntry {
+        section: "SYSTEM",
+        action: "HUD (On / Cinematic)",
+        keyboard: "`",
+        gamepad: "Select",
     },
 ];
 

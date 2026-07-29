@@ -551,7 +551,7 @@ fn drive_inset_camera(
         ),
     >,
 ) {
-    let chrome = hud_visibility.shows(HudTier::Chrome);
+    let chrome = hud_visibility.shows();
     let lock = q_player
         .iter()
         .next()
@@ -855,7 +855,7 @@ mod tests {
     fn rig(n: usize) -> (World, Entity, Entity) {
         let mut world = World::new();
         world.insert_resource(Time::<()>::default());
-        world.insert_resource(super::super::HudVisibility::All);
+        world.insert_resource(super::super::HudVisibility::On);
         world.insert_resource(TargetInsetRenderTarget(Some(Handle::default())));
         world.spawn((Name::new("panel"), TargetInsetHudMarker, Visibility::Hidden));
         world.spawn((
@@ -991,10 +991,10 @@ mod tests {
     fn camera_absent_while_hud_chrome_is_hidden() {
         let (mut world, _player, _target) = rig(3);
 
-        // Focused, but the HUD is hiding chrome (Minimal drops Chrome; None
+        // Focused, but the HUD is cleared (the cinematic level
         // drops everything): the inset panel is tier-hidden, so the second
         // render must not run either.
-        world.insert_resource(super::super::HudVisibility::None);
+        world.insert_resource(super::super::HudVisibility::Cinematic);
         world.run_system_once(drive_inset_camera).unwrap();
         assert_eq!(
             camera_count(&mut world),
@@ -1005,7 +1005,7 @@ mod tests {
 
         // Delivery guard: showing chrome again brings the inset back, so the
         // assertion above is really gated on visibility.
-        world.insert_resource(super::super::HudVisibility::All);
+        world.insert_resource(super::super::HudVisibility::On);
         world.run_system_once(drive_inset_camera).unwrap();
         assert_eq!(camera_count(&mut world), 1);
         assert_eq!(panel_visibility(&mut world), Visibility::Visible);
@@ -1194,7 +1194,7 @@ mod tests {
             "delivery guard: the kill cam was running"
         );
 
-        world.insert_resource(super::super::HudVisibility::None);
+        world.insert_resource(super::super::HudVisibility::Cinematic);
         world.run_system_once(drive_inset_camera).unwrap();
         assert_eq!(panel_visibility(&mut world), Visibility::Hidden);
         assert_eq!(camera_count(&mut world), 0, "chrome-hide is immediate");

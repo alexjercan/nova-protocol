@@ -34,7 +34,7 @@ diegetic autopilot that flies on real thrusters.
 | STOP (retrograde burn to rest) | `X` |
 | Cancel autopilot | `Z` |
 | Fire turrets | Left mouse |
-| Cycle HUD (All / Minimal / None) | `` ` `` |
+| Cycle HUD (On / Cinematic) | `` ` `` |
 | Pause | `Esc` |
 
 Full controls are on the
