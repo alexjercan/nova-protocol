@@ -771,9 +771,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   deferring as legitimately as doing. 20260525-133014.
 - `verify-bevy-api-at-callsite` (x1): copy an existing in-repo callsite for
   unfamiliar Bevy API; 0.x churns. 20260712-131348.
-- `anchor-edits-in-the-right-scope` (x2): text anchors can land in the wrong
-  scope or steal the attribute block above a fn; anchor on block starts and
-  confirm the module boundary. 20260525-133017, 20260716-193949.
+- `anchor-edits-in-the-right-scope` (x3): text anchors can land in the wrong
+  scope or STEAL the doc/attribute block above a fn or const - inserting an item
+  anchored on the existing item's `#[test]`/`const` line lands between that item
+  and its doc, silently reassigning it (compiles and tests clean; only a reader
+  notices). Anchor on the DOC BLOCK start, not the attribute.
+  20260525-133017, 20260716-193949, 20260728-175742.
 - `spike-reuse-over-new-infra` (x1, positive): check whether an existing
   substrate covers the need before building infrastructure. 20260712-131348.
 - `trace-vehicle-timeline-first` (x1): pick an evidence rig by its script
@@ -898,6 +901,26 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   `npm test` already compiles first (`tsc --module commonjs ... --outDir
   .test-out && node .test-out/...`); also rm `.test-out`/`dist` before commit.
   20260726-210348, 20260728-185730.
+- `compare-crops-at-one-zoom` (x1): a before/after VISUAL comparison must be
+  rendered at identical crop and scale or the difference you see is the resize -
+  two eyeball crops at 150% and 200% "proved" a glyph-sizing fix that was
+  provably a no-op. When the claim is about an ASSET's shape, `magick identify`
+  it instead of eyeballing. 20260728-175742.
+- `outcome-test-hides-a-dead-redundant-path` (x1): when a value is written by
+  BOTH a spawn-time initializer and a per-frame updater, a test asserting the
+  final state passes with the initializer completely broken (a dock looked up
+  its keycaps by verb name, always missed, and nothing showed it). Assert the
+  initializer's own output before the updater runs, or delete the redundancy.
+  20260728-175742.
+- `sweep-a-rename-where-the-name-is-spoken` (x1): scope a rename sweep to every
+  place the symbol is NAMED, not to the crates whose code changed - a
+  cross-crate vocabulary (`ROW_VERBS` -> `DOCK_VERBS`, spoken by nova_scenario's
+  authoring rustdoc) survives a crate-local grep untouched. Sibling of
+  [[sweep-content-repo-wide-not-just-assets]]. 20260728-175742.
+- `stash-ab-before-blaming-your-diff` (x1, positive): on any red met mid-branch,
+  `git stash && cargo test <that test>` FIRST - three failures in one task, two
+  of them inherited from master (one filed as its own task), zero time spent
+  debugging someone else's bug. 20260728-175742.
 
 ## Domain lessons (nova-protocol specific)
 
