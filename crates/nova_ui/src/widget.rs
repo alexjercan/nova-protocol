@@ -428,21 +428,27 @@ fn apply_paint(
     border.set_all(paint.border);
     node.border_radius = BorderRadius::all(px(paint.radius));
 
+    // try_insert / try_remove, not insert / remove: a button can be despawned
+    // the SAME frame the reconciler paints it (a menu/state teardown despawns
+    // its buttons while this deferred command is still queued). The plain forms
+    // error via the fallback handler ("Entity despawned") - which the smoke
+    // examples promote to a panic; the try_ forms silently no-op on a dead
+    // entity. (Repo idiom, e.g. nova_gameplay integrity/glue.rs.)
     let mut ent = commands.entity(entity);
     match paint.gradient {
         Some(g) => {
-            ent.insert(g);
+            ent.try_insert(g);
         }
         None => {
-            ent.remove::<BackgroundGradient>();
+            ent.try_remove::<BackgroundGradient>();
         }
     }
     match paint.shadow {
         Some(s) => {
-            ent.insert(s);
+            ent.try_insert(s);
         }
         None => {
-            ent.remove::<BoxShadow>();
+            ent.try_remove::<BoxShadow>();
         }
     }
 

@@ -20,7 +20,8 @@ nova_mod_format = { path = "../nova_mod_format" }
 # (GraphicsQuality/MasterVolume) so the settings store can persist them.
 nova_gameplay = { path = "../nova_gameplay", features = ["serde"] }
 nova_scenario = { path = "../nova_scenario" }
-nova_ui = { path = "../nova_ui" }
+# `serde` enables Serialize/Deserialize on `UiSkin` for the persisted settings.
+nova_ui = { path = "../nova_ui", features = ["serde"] }
 # Cross-platform settings persistence (task 20260711-180511), mirroring the
 # mod-prefs store in nova_assets: RON serialization, native config-dir file /
 # web localStorage. serde derives the persisted struct.

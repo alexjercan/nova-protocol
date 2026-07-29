@@ -28,15 +28,15 @@ pub(crate) fn components_category() -> impl Bundle {
             border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
-        BorderColor::all(theme::BORDER),
-        BackgroundColor(theme::PANEL),
+        BorderColor::all(theme::PHOSPHOR_MUTED),
+        BackgroundColor(theme::SCREEN_0),
         children![(
             Text::new("Components"),
             TextFont {
                 font_size: FontSize::Px(13.0),
                 ..default()
             },
-            TextColor(theme::CYAN_BRIGHT),
+            TextColor(theme::PHOSPHOR),
         )],
     )
 }
@@ -59,8 +59,8 @@ pub(crate) fn coming_soon_category(label: &str) -> impl Bundle {
             border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
-        BorderColor::all(theme::BORDER),
-        BackgroundColor(theme::BG),
+        BorderColor::all(theme::PHOSPHOR_MUTED),
+        BackgroundColor(theme::SPACE),
         children![
             (
                 Text::new(label.to_string()),
@@ -68,7 +68,7 @@ pub(crate) fn coming_soon_category(label: &str) -> impl Bundle {
                     font_size: FontSize::Px(13.0),
                     ..default()
                 },
-                TextColor(theme::TEXT_MUTED),
+                TextColor(theme::PHOSPHOR_MUTED),
             ),
             soon_badge(),
         ],
@@ -85,14 +85,14 @@ fn soon_badge() -> impl Bundle {
             flex_shrink: 0.0,
             ..default()
         },
-        BorderColor::all(theme::AMBER),
+        BorderColor::all(theme::AMBER_NOVA),
         children![(
             Text::new("soon"),
             TextFont {
                 font_size: FontSize::Px(10.0),
                 ..default()
             },
-            TextColor(theme::AMBER),
+            TextColor(theme::AMBER_NOVA),
         )],
     )
 }

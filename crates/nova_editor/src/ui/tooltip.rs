@@ -67,8 +67,8 @@ fn show_component_tooltip(
             border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
-        BackgroundColor(theme::PANEL_RAISED),
-        BorderColor::all(theme::BORDER_BRIGHT),
+        BackgroundColor(theme::SCREEN_1),
+        BorderColor::all(theme::PHOSPHOR_DIM),
         children![
             (
                 Text::new(section.base.name.clone()),
@@ -76,7 +76,7 @@ fn show_component_tooltip(
                     font_size: FontSize::Px(15.0),
                     ..default()
                 },
-                TextColor(theme::CYAN_BRIGHT),
+                TextColor(theme::PHOSPHOR),
             ),
             (
                 Text::new(format!("HP {}", section.base.health)),
@@ -84,7 +84,7 @@ fn show_component_tooltip(
                     font_size: FontSize::Px(12.0),
                     ..default()
                 },
-                TextColor(theme::AMBER),
+                TextColor(theme::AMBER_NOVA),
             ),
             (
                 Text::new(section.base.description.clone()),
@@ -92,7 +92,7 @@ fn show_component_tooltip(
                     font_size: FontSize::Px(12.0),
                     ..default()
                 },
-                TextColor(theme::TEXT_MUTED),
+                TextColor(theme::PHOSPHOR_MUTED),
             ),
         ],
     ));

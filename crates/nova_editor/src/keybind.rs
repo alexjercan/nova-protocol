@@ -68,7 +68,7 @@ pub(crate) fn sync_section_keybind_labels(
                     font_size: FontSize::Px(16.0),
                     ..default()
                 },
-                TextColor(nova_ui::theme::AMBER),
+                TextColor(nova_ui::theme::AMBER_NOVA),
                 TextShadow::default(),
                 Node {
                     position_type: PositionType::Absolute,

@@ -152,8 +152,8 @@ pub(crate) fn setup_editor_scene(
                     border: UiRect::right(px(theme::BORDER_W)),
                     ..default()
                 },
-                BorderColor::all(theme::BORDER),
-                BackgroundColor(theme::PANEL),
+                BorderColor::all(theme::PHOSPHOR_MUTED),
+                BackgroundColor(theme::SCREEN_0),
             ))
             .with_children(|rail| {
                 rail.spawn((
@@ -163,7 +163,7 @@ pub(crate) fn setup_editor_scene(
                         font_size: FontSize::Px(20.0),
                         ..default()
                     },
-                    TextColor(theme::TEXT),
+                    TextColor(theme::SCREEN_TEXT),
                     Node {
                         margin: UiRect::bottom(px(8)),
                         ..default()
@@ -228,8 +228,8 @@ pub(crate) fn setup_editor_scene(
                     border: UiRect::right(px(theme::BORDER_W)),
                     ..default()
                 },
-                BorderColor::all(theme::BORDER),
-                BackgroundColor(theme::BG),
+                BorderColor::all(theme::PHOSPHOR_MUTED),
+                BackgroundColor(theme::SPACE),
             ))
             .with_children(|drawer| {
                 drawer.spawn(panel_header("Components"));

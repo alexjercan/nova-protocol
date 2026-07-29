@@ -76,10 +76,11 @@ const ORBIT_CLEARANCE: f32 = 40.0;
 // `MenuSfxButton` marker to scope its click cue (task 20260728-175734 folded the
 // menu's old per-frame colour-polling system away).
 use nova_ui::{
+    prelude::UiSkin,
     theme,
     widget::{
-        button_on_setting, menu_button, panel_header, separator, themed_button, ButtonValue,
-        Selected, ThemedButton,
+        button_on_setting, menu_button, panel_header, separator, themed_button, ButtonLabel,
+        ButtonSpec, ButtonValue, ButtonVariant, Selected, ThemedButton, UiText,
     },
 };
 
@@ -134,12 +135,19 @@ impl Plugin for NovaMenuPlugin {
         // resource, moving the `Selected` highlight.
         app.init_resource::<MasterVolume>();
         app.init_resource::<GraphicsQuality>();
+        // `UiSkin` is inited transitively by `register` above; init it here too
+        // so the invariant is local to this plugin and robust to a future
+        // reorder (idempotent). The Interface segmented row + persistence read it.
+        app.init_resource::<UiSkin>();
         // The NOVA OS chin knobs write this (nova_gameplay owns it); mirror the
         // MasterVolume defensive init so the persistence systems see it.
         app.init_resource::<NovaOsMonitorSettings>();
         app.add_observer(slider_self_update);
         app.add_observer(on_volume_slider_change);
         app.add_observer(button_on_setting::<GraphicsQuality>);
+        // The Interface > UI skin segmented row drives the shared `UiSkin`
+        // resource through the same path as GraphicsQuality (task 20260728-175738).
+        app.add_observer(button_on_setting::<UiSkin>);
         app.add_systems(Update, sync_volume_slider);
         // Persistence: load the saved settings once at startup, and write them
         // back whenever the player edits one (native RON file / web localStorage).
@@ -193,11 +201,11 @@ impl Plugin for NovaMenuPlugin {
                 .chain()
                 .run_if(in_state(GameStates::MainMenu)),
         );
-        // Wheel-scroll for the mods list: gated on the input message buffer existing
+        // Wheel-scroll for the mods + scenarios lists: gated on the input message buffer existing
         // (the real app's InputPlugin provides it; minimal headless test apps do not).
         app.add_systems(
             Update,
-            scroll_mods_panel
+            scroll_menu_lists
                 .run_if(in_state(GameStates::MainMenu))
                 .run_if(resource_exists::<Messages<bevy::input::mouse::MouseWheel>>),
         );
@@ -428,6 +436,7 @@ fn setup_pause_ui(
     current: Option<Res<CurrentScenario>>,
     volume: Res<MasterVolume>,
     quality: Res<GraphicsQuality>,
+    skin: Res<UiSkin>,
     outcome: Option<Res<CurrentOutcome>>,
 ) {
     // The outcome frame also enters `Paused` (`sync_outcome_pause`) to freeze
@@ -477,8 +486,8 @@ fn setup_pause_ui(
                         border_radius: BorderRadius::all(px(theme::RADIUS)),
                         ..default()
                     },
-                    BorderColor::all(theme::BORDER),
-                    BackgroundColor(theme::PANEL),
+                    BorderColor::all(theme::PHOSPHOR_MUTED),
+                    BackgroundColor(theme::SCREEN_0),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
@@ -488,11 +497,11 @@ fn setup_pause_ui(
                             font_size: FontSize::Px(24.0),
                             ..default()
                         },
-                        TextColor(theme::TEXT),
+                        TextColor(theme::SCREEN_TEXT),
                     ));
                     parent.spawn((
                         Name::new("Resume Button"),
-                        button("Resume"),
+                        button_variant("Resume", ButtonVariant::Primary, Some("Esc")),
                         observe(on_resume),
                     ));
                     if live {
@@ -517,7 +526,7 @@ fn setup_pause_ui(
                     #[cfg(not(target_arch = "wasm32"))]
                     parent.spawn((
                         Name::new("Pause Exit Button"),
-                        button("Exit"),
+                        button_variant("Exit", ButtonVariant::Danger, None),
                         observe(on_exit),
                     ));
                 });
@@ -561,8 +570,8 @@ fn setup_pause_ui(
                         border_radius: BorderRadius::all(px(theme::RADIUS)),
                         ..default()
                     },
-                    BorderColor::all(theme::BORDER),
-                    BackgroundColor(theme::PANEL),
+                    BorderColor::all(theme::PHOSPHOR_MUTED),
+                    BackgroundColor(theme::SCREEN_0),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
@@ -572,13 +581,13 @@ fn setup_pause_ui(
                             font_size: FontSize::Px(24.0),
                             ..default()
                         },
-                        TextColor(theme::TEXT),
+                        TextColor(theme::SCREEN_TEXT),
                         Node {
                             margin: UiRect::bottom(px(12)),
                             ..default()
                         },
                     ));
-                    build_settings_body(parent, *volume, *quality);
+                    build_settings_body(parent, *volume, *quality, *skin);
                     parent.spawn((
                         Name::new("Pause Settings Back Button"),
                         button("Back"),
@@ -737,8 +746,8 @@ fn sync_outcome_overlay(
                         border_radius: BorderRadius::all(px(theme::RADIUS)),
                         ..default()
                     },
-                    BorderColor::all(theme::BORDER),
-                    BackgroundColor(theme::PANEL),
+                    BorderColor::all(theme::PHOSPHOR_MUTED),
+                    BackgroundColor(theme::SCREEN_0),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
@@ -758,7 +767,7 @@ fn sync_outcome_overlay(
                                 font_size: FontSize::Px(16.0),
                                 ..default()
                             },
-                            TextColor(theme::TEXT),
+                            TextColor(theme::SCREEN_TEXT),
                             Node {
                                 margin: UiRect::top(px(8)),
                                 max_width: px(280),
@@ -791,7 +800,7 @@ fn sync_outcome_overlay(
                             font_size: FontSize::Px(12.0),
                             ..default()
                         },
-                        TextColor(theme::TEXT_MUTED),
+                        TextColor(theme::PHOSPHOR_MUTED),
                         Node {
                             margin: UiRect::top(px(4)),
                             ..default()
@@ -912,8 +921,8 @@ fn sync_start_failure_overlay(
                         border_radius: BorderRadius::all(px(theme::RADIUS)),
                         ..default()
                     },
-                    BorderColor::all(theme::BORDER),
-                    BackgroundColor(theme::PANEL),
+                    BorderColor::all(theme::PHOSPHOR_MUTED),
+                    BackgroundColor(theme::SCREEN_0),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
@@ -932,7 +941,7 @@ fn sync_start_failure_overlay(
                             font_size: FontSize::Px(16.0),
                             ..default()
                         },
-                        TextColor(theme::TEXT),
+                        TextColor(theme::SCREEN_TEXT),
                         Node {
                             margin: UiRect::top(px(8)),
                             max_width: px(340),
@@ -947,7 +956,7 @@ fn sync_start_failure_overlay(
                                 font_size: FontSize::Px(13.0),
                                 ..default()
                             },
-                            TextColor(theme::TEXT_MUTED),
+                            TextColor(theme::PHOSPHOR_MUTED),
                             Node {
                                 margin: UiRect::top(px(4)),
                                 max_width: px(340),
@@ -1097,10 +1106,15 @@ struct ModsActiveTab(ModsTabKind);
 struct SelectedModId(Option<String>);
 
 /// The scrollable container holding the mod rows (wheel-scrolled by
-/// `scroll_mods_panel`); `refresh_mods_list` swaps its children on tab or
+/// `scroll_menu_lists`); `refresh_mods_list` swaps its children on tab or
 /// catalog change.
 #[derive(Component)]
 struct ModsList;
+
+/// Shared marker for any wheel-scrollable menu list viewport (mods + scenarios),
+/// driven by `scroll_menu_lists`.
+#[derive(Component)]
+struct ScrollableList;
 
 /// One clickable installed-mod row: clicking it (anywhere but the checkbox,
 /// whose click does not propagate) selects the mod for the details pane.
@@ -1568,6 +1582,7 @@ fn setup_menu_ui(
     mut selected_scenario: ResMut<SelectedScenarioId>,
     volume: Res<MasterVolume>,
     quality: Res<GraphicsQuality>,
+    skin: Res<UiSkin>,
 ) {
     commands
         .spawn((
@@ -1586,18 +1601,24 @@ fn setup_menu_ui(
                 border_radius: BorderRadius::all(px(theme::RADIUS)),
                 ..default()
             },
-            BorderColor::all(theme::BORDER),
-            BackgroundColor(theme::PANEL),
+            BorderColor::all(theme::PHOSPHOR_MUTED),
+            BackgroundColor(theme::SCREEN_0),
         ))
         .with_children(|parent| {
             parent.spawn((
                 Name::new("Title"),
+                UiText,
                 Text::new("Nova Protocol"),
                 TextFont {
                     font_size: FontSize::Px(28.0),
                     ..default()
                 },
-                TextColor(theme::TEXT),
+                TextColor(theme::SCREEN_TEXT),
+                // Glowing title over the live backdrop (demo 1).
+                TextShadow {
+                    color: theme::PHOSPHOR.with_alpha(0.35),
+                    offset: Vec2::ZERO,
+                },
             ));
             parent.spawn((
                 Name::new("Title Separator"),
@@ -1607,11 +1628,11 @@ fn setup_menu_ui(
                     margin: UiRect::all(px(10)),
                     ..default()
                 },
-                BackgroundColor(theme::BORDER),
+                BackgroundColor(theme::PHOSPHOR_MUTED),
             ));
             parent.spawn((
                 Name::new("New Game Button"),
-                button("New Game"),
+                button_variant("New Game", ButtonVariant::Primary, None),
                 observe(on_new_game),
             ));
             parent.spawn((
@@ -1632,7 +1653,39 @@ fn setup_menu_ui(
             ));
             // No process to quit on wasm; the browser tab owns the lifecycle.
             #[cfg(not(target_arch = "wasm32"))]
-            parent.spawn((Name::new("Exit Button"), button("Exit"), observe(on_exit)));
+            parent.spawn((
+                Name::new("Exit Button"),
+                button_variant("Exit", ButtonVariant::Danger, None),
+                observe(on_exit),
+            ));
+            // Footer: version left / NOVA OS right, muted (demo 1).
+            parent
+                .spawn((
+                    Name::new("Menu Footer"),
+                    Node {
+                        width: percent(100),
+                        flex_direction: FlexDirection::Row,
+                        justify_content: JustifyContent::SpaceBetween,
+                        margin: UiRect::top(px(10)),
+                        ..default()
+                    },
+                ))
+                .with_children(|foot| {
+                    for text in [
+                        format!("v{}", env!("CARGO_PKG_VERSION")),
+                        "NOVA OS".to_string(),
+                    ] {
+                        foot.spawn((
+                            UiText,
+                            Text::new(text),
+                            TextFont {
+                                font_size: FontSize::Px(10.0),
+                                ..default()
+                            },
+                            TextColor(theme::PHOSPHOR_MUTED),
+                        ));
+                    }
+                });
         });
 
     // Settings placeholder: hidden until the Settings button toggles it. Real
@@ -1673,8 +1726,8 @@ fn setup_menu_ui(
                         border_radius: BorderRadius::all(px(theme::RADIUS)),
                         ..default()
                     },
-                    BorderColor::all(theme::BORDER),
-                    BackgroundColor(theme::PANEL),
+                    BorderColor::all(theme::PHOSPHOR_MUTED),
+                    BackgroundColor(theme::SCREEN_0),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
@@ -1684,13 +1737,13 @@ fn setup_menu_ui(
                             font_size: FontSize::Px(24.0),
                             ..default()
                         },
-                        TextColor(theme::TEXT),
+                        TextColor(theme::SCREEN_TEXT),
                         Node {
                             margin: UiRect::bottom(px(12)),
                             ..default()
                         },
                     ));
-                    build_settings_body(parent, *volume, *quality);
+                    build_settings_body(parent, *volume, *quality, *skin);
                     parent.spawn((
                         Name::new("Settings Back Button"),
                         button("Back"),
@@ -1745,8 +1798,8 @@ fn setup_menu_ui(
                         border_radius: BorderRadius::all(px(theme::RADIUS)),
                         ..default()
                     },
-                    BorderColor::all(theme::BORDER),
-                    BackgroundColor(theme::PANEL),
+                    BorderColor::all(theme::PHOSPHOR_MUTED),
+                    BackgroundColor(theme::SCREEN_0),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
@@ -1756,7 +1809,7 @@ fn setup_menu_ui(
                             font_size: FontSize::Px(24.0),
                             ..default()
                         },
-                        TextColor(theme::TEXT),
+                        TextColor(theme::SCREEN_TEXT),
                     ));
                     parent.spawn((
                         Name::new("Mods Subtitle"),
@@ -1765,7 +1818,7 @@ fn setup_menu_ui(
                             font_size: FontSize::Px(13.0),
                             ..default()
                         },
-                        TextColor(theme::TEXT_MUTED),
+                        TextColor(theme::PHOSPHOR_MUTED),
                     ));
 
                     // The two panes. min_height: 0 lets the list shrink below
@@ -1825,6 +1878,7 @@ fn setup_menu_ui(
                                     left.spawn((
                                         Name::new("Mods List"),
                                         ModsList,
+                                        ScrollableList,
                                         Node {
                                             flex_direction: FlexDirection::Column,
                                             align_self: AlignSelf::Stretch,
@@ -1848,7 +1902,7 @@ fn setup_menu_ui(
                                     border: UiRect::left(px(theme::BORDER_W)),
                                     ..default()
                                 },
-                                BorderColor::all(theme::BORDER),
+                                BorderColor::all(theme::PHOSPHOR_MUTED),
                             ));
                         });
 
@@ -1927,8 +1981,8 @@ fn setup_menu_ui(
                         border_radius: BorderRadius::all(px(theme::RADIUS)),
                         ..default()
                     },
-                    BorderColor::all(theme::BORDER),
-                    BackgroundColor(theme::PANEL),
+                    BorderColor::all(theme::PHOSPHOR_MUTED),
+                    BackgroundColor(theme::SCREEN_0),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
@@ -1938,7 +1992,7 @@ fn setup_menu_ui(
                             font_size: FontSize::Px(24.0),
                             ..default()
                         },
-                        TextColor(theme::TEXT),
+                        TextColor(theme::SCREEN_TEXT),
                     ));
                     parent.spawn((
                         Name::new("Scenarios Subtitle"),
@@ -1947,7 +2001,7 @@ fn setup_menu_ui(
                             font_size: FontSize::Px(13.0),
                             ..default()
                         },
-                        TextColor(theme::TEXT_MUTED),
+                        TextColor(theme::PHOSPHOR_MUTED),
                     ));
 
                     parent
@@ -1967,6 +2021,7 @@ fn setup_menu_ui(
                             content.spawn((
                                 Name::new("Scenarios List"),
                                 ScenariosList,
+                                ScrollableList,
                                 Node {
                                     flex_direction: FlexDirection::Column,
                                     width: percent(40),
@@ -1987,7 +2042,7 @@ fn setup_menu_ui(
                                     border: UiRect::left(px(theme::BORDER_W)),
                                     ..default()
                                 },
-                                BorderColor::all(theme::BORDER),
+                                BorderColor::all(theme::PHOSPHOR_MUTED),
                             ));
                         });
 
@@ -2063,8 +2118,8 @@ fn spawn_mod_row(list: &mut ChildSpawnerCommands, m: &ModInfo, enabled: bool, se
         ThemedButton,
         Button,
         Hovered::default(),
-        BorderColor::all(theme::BORDER),
-        BackgroundColor(theme::PANEL),
+        BorderColor::all(theme::PHOSPHOR_MUTED),
+        BackgroundColor(theme::SCREEN_0),
         observe(on_mod_row_select),
     ));
     if selected {
@@ -2087,7 +2142,7 @@ fn spawn_mod_row(list: &mut ChildSpawnerCommands, m: &ModInfo, enabled: bool, se
                     font_size: FontSize::Px(15.0),
                     ..default()
                 },
-                TextColor(theme::TEXT),
+                TextColor(theme::SCREEN_TEXT),
             ));
             let line = version_author_line(&m.meta);
             if !line.is_empty() {
@@ -2098,7 +2153,7 @@ fn spawn_mod_row(list: &mut ChildSpawnerCommands, m: &ModInfo, enabled: bool, se
                         font_size: FontSize::Px(12.0),
                         ..default()
                     },
-                    TextColor(theme::TEXT_MUTED),
+                    TextColor(theme::PHOSPHOR_MUTED),
                 ));
             }
         });
@@ -2110,7 +2165,7 @@ fn spawn_mod_row(list: &mut ChildSpawnerCommands, m: &ModInfo, enabled: bool, se
                     font_size: FontSize::Px(12.0),
                     ..default()
                 },
-                TextColor(theme::TEXT_MUTED),
+                TextColor(theme::PHOSPHOR_MUTED),
             ));
         } else {
             // The quiet checkbox: a compact `ThemedButton` (hover/press colour
@@ -2140,8 +2195,8 @@ fn spawn_mod_row(list: &mut ChildSpawnerCommands, m: &ModInfo, enabled: bool, se
                 MenuSfxButton,
                 Button,
                 Hovered::default(),
-                BorderColor::all(theme::BORDER),
-                BackgroundColor(theme::PANEL),
+                BorderColor::all(theme::PHOSPHOR_MUTED),
+                BackgroundColor(theme::SCREEN_0),
                 observe(on_mod_toggle),
                 children![(
                     Text::new(if enabled { "x" } else { "" }),
@@ -2150,9 +2205,9 @@ fn spawn_mod_row(list: &mut ChildSpawnerCommands, m: &ModInfo, enabled: bool, se
                         ..default()
                     },
                     TextColor(if enabled {
-                        theme::CYAN_BRIGHT
+                        theme::PHOSPHOR
                     } else {
-                        theme::TEXT
+                        theme::SCREEN_TEXT
                     }),
                 )],
             ));
@@ -2295,7 +2350,7 @@ fn refresh_scenarios_list(
                     font_size: FontSize::Px(13.0),
                     ..default()
                 },
-                TextColor(theme::TEXT_MUTED),
+                TextColor(theme::PHOSPHOR_MUTED),
             ));
         }
         for campaign in &ordered {
@@ -2357,8 +2412,8 @@ fn spawn_campaign_header(
         ThemedButton,
         Button,
         Hovered::default(),
-        BorderColor::all(theme::BORDER),
-        BackgroundColor(theme::PANEL),
+        BorderColor::all(theme::PHOSPHOR_MUTED),
+        BackgroundColor(theme::SCREEN_0),
         observe(on_campaign_header_toggle),
     ))
     .with_children(|header| {
@@ -2369,7 +2424,7 @@ fn spawn_campaign_header(
                 font_size: FontSize::Px(15.0),
                 ..default()
             },
-            TextColor(theme::CYAN),
+            TextColor(theme::PHOSPHOR),
         ));
     });
 }
@@ -2403,8 +2458,8 @@ fn spawn_scenario_row(
         ThemedButton,
         Button,
         Hovered::default(),
-        BorderColor::all(theme::BORDER),
-        BackgroundColor(theme::PANEL),
+        BorderColor::all(theme::PHOSPHOR_MUTED),
+        BackgroundColor(theme::SCREEN_0),
         observe(on_scenario_row_select),
     ));
     if selected {
@@ -2418,7 +2473,7 @@ fn spawn_scenario_row(
                 font_size: FontSize::Px(15.0),
                 ..default()
             },
-            TextColor(theme::TEXT),
+            TextColor(theme::SCREEN_TEXT),
         ));
         if !s.description.is_empty() {
             row.spawn((
@@ -2428,7 +2483,7 @@ fn spawn_scenario_row(
                     font_size: FontSize::Px(12.0),
                     ..default()
                 },
-                TextColor(theme::TEXT_MUTED),
+                TextColor(theme::PHOSPHOR_MUTED),
             ));
         }
     });
@@ -2468,7 +2523,7 @@ fn refresh_scenario_details(
                     font_size: FontSize::Px(14.0),
                     ..default()
                 },
-                TextColor(theme::TEXT_MUTED),
+                TextColor(theme::PHOSPHOR_MUTED),
             ));
             details.spawn((
                 Name::new("Scenario Details Actions"),
@@ -2486,7 +2541,7 @@ fn refresh_scenario_details(
                 font_size: FontSize::Px(20.0),
                 ..default()
             },
-            TextColor(theme::TEXT),
+            TextColor(theme::SCREEN_TEXT),
         ));
         details.spawn((Name::new("Scenario Details Separator"), separator()));
         // The thumbnail (authored + asset server present; headless test apps have
@@ -2519,7 +2574,7 @@ fn refresh_scenario_details(
                             border: UiRect::all(px(theme::BORDER_W)),
                             ..default()
                         },
-                        BorderColor::all(theme::BORDER),
+                        BorderColor::all(theme::PHOSPHOR_MUTED),
                     ));
                 } else {
                     warn!(
@@ -2541,7 +2596,7 @@ fn refresh_scenario_details(
                     font_size: FontSize::Px(14.0),
                     ..default()
                 },
-                TextColor(theme::TEXT),
+                TextColor(theme::SCREEN_TEXT),
                 Node {
                     margin: UiRect::bottom(px(8)),
                     ..default()
@@ -2680,17 +2735,22 @@ fn segmented_button(text: &str) -> impl Bundle {
             ..default()
         },
         ThemedButton,
+        ButtonVariant::Default,
         Button,
         Hovered::default(),
-        BorderColor::all(theme::BORDER),
-        BackgroundColor(theme::PANEL),
+        BorderColor::all(theme::PHOSPHOR.with_alpha(0.4)),
+        BackgroundColor(theme::PHOSPHOR.with_alpha(0.05)),
+        // ButtonLabel + UiText so the shared reconciler inverts the glyph on
+        // selection and the font router picks up Iosevka (task 20260728-175734).
         children![(
+            ButtonLabel,
+            UiText,
             Text::new(text),
             TextFont {
                 font_size: FontSize::Px(13.0),
                 ..default()
             },
-            TextColor(theme::TEXT),
+            TextColor(theme::PHOSPHOR),
             TextShadow::default(),
         )],
     )
@@ -2717,6 +2777,7 @@ fn build_settings_body(
     list: &mut ChildSpawnerCommands,
     volume: MasterVolume,
     quality: GraphicsQuality,
+    skin: UiSkin,
 ) {
     // AUDIO - master volume as a draggable slider (bevy's headless `Slider`;
     // drag handling comes from `UiWidgetsPlugins` in DefaultPlugins, the value
@@ -2742,7 +2803,7 @@ fn build_settings_body(
                 font_size: FontSize::Px(13.0),
                 ..default()
             },
-            TextColor(theme::TEXT),
+            TextColor(theme::SCREEN_TEXT),
             Node {
                 min_width: px(70),
                 ..default()
@@ -2768,8 +2829,8 @@ fn build_settings_body(
                 border_radius: BorderRadius::all(px(7)),
                 ..default()
             },
-            BorderColor::all(theme::BORDER),
-            BackgroundColor(theme::PANEL_RAISED),
+            BorderColor::all(theme::PHOSPHOR_MUTED),
+            BackgroundColor(theme::SCREEN_1),
         ))
         .with_children(|track| {
             // The thumb: absolutely positioned, its `left` driven from the
@@ -2789,7 +2850,7 @@ fn build_settings_body(
                     border_radius: BorderRadius::all(px(7)),
                     ..default()
                 },
-                BackgroundColor(theme::CYAN),
+                BackgroundColor(theme::PHOSPHOR),
             ));
         });
         row.spawn((
@@ -2800,7 +2861,7 @@ fn build_settings_body(
                 font_size: FontSize::Px(13.0),
                 ..default()
             },
-            TextColor(theme::CYAN),
+            TextColor(theme::PHOSPHOR),
             Node {
                 min_width: px(44),
                 ..default()
@@ -2842,7 +2903,7 @@ fn build_settings_body(
                     font_size: FontSize::Px(11.0),
                     ..default()
                 },
-                TextColor(theme::TEXT_MUTED),
+                TextColor(theme::PHOSPHOR_MUTED),
                 Node {
                     margin: UiRect::top(px(6)),
                     ..default()
@@ -2851,6 +2912,30 @@ fn build_settings_body(
         }
         spawn_keybind_row(list, entry);
     }
+
+    list.spawn(separator());
+
+    // INTERFACE - the UI skin choice. A segmented Phosphor|Hardware control
+    // wired through `ButtonValue<UiSkin>` + the app-global
+    // `button_on_setting::<UiSkin>` observer, exactly like GRAPHICS above.
+    list.spawn(panel_header("Interface"));
+    list.spawn((Name::new("UI Skin Row"), segmented_row()))
+        .with_children(|row| {
+            for option in [UiSkin::Phosphor, UiSkin::Hardware] {
+                let label = match option {
+                    UiSkin::Phosphor => "Phosphor",
+                    UiSkin::Hardware => "Hardware",
+                };
+                let mut button = row.spawn((
+                    Name::new(format!("UI Skin {label}")),
+                    segmented_button(label),
+                    ButtonValue(option),
+                ));
+                if option == skin {
+                    button.insert(Selected);
+                }
+            }
+        });
 }
 
 /// Load the persisted settings once at startup and write them into the live
@@ -2861,6 +2946,7 @@ fn build_settings_body(
 fn load_persisted_settings(
     mut volume: ResMut<MasterVolume>,
     mut quality: ResMut<GraphicsQuality>,
+    mut skin: ResMut<UiSkin>,
     mut monitor: ResMut<NovaOsMonitorSettings>,
 ) {
     let Some(saved) = load_settings() else {
@@ -2868,6 +2954,7 @@ fn load_persisted_settings(
     };
     *volume = MasterVolume(saved.master_volume.clamp(0.0, 1.0));
     *quality = saved.graphics_quality;
+    *skin = saved.ui_skin;
     *monitor = saved.nova_os_monitor();
 }
 
@@ -2887,11 +2974,13 @@ const SETTINGS_SAVE_DEBOUNCE_FRAMES: u32 = 15;
 fn persist_settings_on_change(
     volume: Res<MasterVolume>,
     quality: Res<GraphicsQuality>,
+    skin: Res<UiSkin>,
     monitor: Res<NovaOsMonitorSettings>,
     mut idle_frames: Local<Option<u32>>,
 ) {
     let edited = (volume.is_changed() && !volume.is_added())
         || (quality.is_changed() && !quality.is_added())
+        || (skin.is_changed() && !skin.is_added())
         || (monitor.is_changed() && !monitor.is_added());
     if edited {
         // A fresh edit: (re)start the debounce, coalescing a drag's per-frame
@@ -2902,7 +2991,7 @@ fn persist_settings_on_change(
     if let Some(frames) = *idle_frames {
         if frames + 1 >= SETTINGS_SAVE_DEBOUNCE_FRAMES {
             save_settings(&PersistedSettings::from_resources(
-                *volume, *quality, *monitor,
+                *volume, *quality, *skin, *monitor,
             ));
             *idle_frames = None;
         } else {
@@ -2971,7 +3060,7 @@ fn spawn_keybind_row(list: &mut ChildSpawnerCommands, entry: &KeybindEntry) {
                 font_size: FontSize::Px(13.0),
                 ..default()
             },
-            TextColor(theme::TEXT),
+            TextColor(theme::SCREEN_TEXT),
         ));
         row.spawn((
             Text::new(format!("{}   ·   {}", entry.keyboard, entry.gamepad)),
@@ -2979,7 +3068,7 @@ fn spawn_keybind_row(list: &mut ChildSpawnerCommands, entry: &KeybindEntry) {
                 font_size: FontSize::Px(13.0),
                 ..default()
             },
-            TextColor(theme::CYAN),
+            TextColor(theme::PHOSPHOR),
         ));
     });
 }
@@ -3222,15 +3311,15 @@ fn spawn_explore_note(list: &mut ChildSpawnerCommands, name: &'static str, text:
             border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
-        BorderColor::all(theme::BORDER),
-        BackgroundColor(theme::BG),
+        BorderColor::all(theme::PHOSPHOR_MUTED),
+        BackgroundColor(theme::SPACE),
         children![(
             Text::new(text.to_string()),
             TextFont {
                 font_size: FontSize::Px(13.0),
                 ..default()
             },
-            TextColor(theme::TEXT_MUTED),
+            TextColor(theme::PHOSPHOR_MUTED),
         )],
     ));
 }
@@ -3265,8 +3354,8 @@ fn spawn_explore_row(
         ThemedButton,
         Button,
         Hovered::default(),
-        BorderColor::all(theme::BORDER),
-        BackgroundColor(theme::PANEL),
+        BorderColor::all(theme::PHOSPHOR_MUTED),
+        BackgroundColor(theme::SCREEN_0),
         observe(on_mod_row_select),
     ));
     if selected {
@@ -3289,7 +3378,7 @@ fn spawn_explore_row(
                     font_size: FontSize::Px(15.0),
                     ..default()
                 },
-                TextColor(theme::TEXT),
+                TextColor(theme::SCREEN_TEXT),
             ));
             let line = portal_version_author_line(entry);
             if !line.is_empty() {
@@ -3300,7 +3389,7 @@ fn spawn_explore_row(
                         font_size: FontSize::Px(12.0),
                         ..default()
                     },
-                    TextColor(theme::TEXT_MUTED),
+                    TextColor(theme::PHOSPHOR_MUTED),
                 ));
             }
         });
@@ -3313,9 +3402,9 @@ fn spawn_explore_row(
                     ..default()
                 },
                 TextColor(if tag == "update" {
-                    theme::AMBER
+                    theme::AMBER_NOVA
                 } else {
-                    theme::TEXT_MUTED
+                    theme::PHOSPHOR_MUTED
                 }),
             ));
         }
@@ -3406,8 +3495,8 @@ fn refresh_mods_list(
                                 border_radius: BorderRadius::all(px(theme::RADIUS)),
                                 ..default()
                             },
-                            BorderColor::all(theme::BORDER),
-                            BackgroundColor(theme::BG),
+                            BorderColor::all(theme::PHOSPHOR_MUTED),
+                            BackgroundColor(theme::SPACE),
                         ))
                         .with_children(|row| {
                             row.spawn((
@@ -3417,7 +3506,7 @@ fn refresh_mods_list(
                                     font_size: FontSize::Px(13.0),
                                     ..default()
                                 },
-                                TextColor(theme::AMBER),
+                                TextColor(theme::AMBER_NOVA),
                             ));
                             row.spawn((
                                 Name::new("Portal Retry Slot"),
@@ -3464,7 +3553,7 @@ fn spawn_details_empty(details: &mut ChildSpawnerCommands) {
             font_size: FontSize::Px(14.0),
             ..default()
         },
-        TextColor(theme::TEXT_MUTED),
+        TextColor(theme::PHOSPHOR_MUTED),
     ));
     details.spawn((
         Name::new("Mod Details Actions"),
@@ -3513,7 +3602,7 @@ fn spawn_details_meta(
             font_size: FontSize::Px(20.0),
             ..default()
         },
-        TextColor(theme::TEXT),
+        TextColor(theme::SCREEN_TEXT),
     ));
     if !line.is_empty() {
         details.spawn((
@@ -3523,7 +3612,7 @@ fn spawn_details_meta(
                 font_size: FontSize::Px(13.0),
                 ..default()
             },
-            TextColor(theme::TEXT_MUTED),
+            TextColor(theme::PHOSPHOR_MUTED),
         ));
     }
     details.spawn((Name::new("Mod Details Separator"), separator()));
@@ -3535,7 +3624,7 @@ fn spawn_details_meta(
                 font_size: FontSize::Px(14.0),
                 ..default()
             },
-            TextColor(theme::TEXT),
+            TextColor(theme::SCREEN_TEXT),
             Node {
                 margin: UiRect::bottom(px(8)),
                 ..default()
@@ -3549,7 +3638,7 @@ fn spawn_details_meta(
             font_size: FontSize::Px(13.0),
             ..default()
         },
-        TextColor(theme::TEXT_MUTED),
+        TextColor(theme::PHOSPHOR_MUTED),
     ));
     if meta.dependencies.is_empty() {
         details.spawn((
@@ -3559,16 +3648,16 @@ fn spawn_details_meta(
                 font_size: FontSize::Px(13.0),
                 ..default()
             },
-            TextColor(theme::TEXT_MUTED),
+            TextColor(theme::PHOSPHOR_MUTED),
         ));
     } else {
         // One line per dep, coloured by whether it is enabled / installed / missing
         // so the player sees what enabling this mod will pull in.
         for dep in &meta.dependencies {
             let (suffix, color) = match dep_status(dep, catalog, enabled) {
-                DepStatus::Enabled => ("enabled", theme::CYAN_BRIGHT),
-                DepStatus::InstalledDisabled => ("installed, disabled", theme::TEXT_MUTED),
-                DepStatus::Missing => ("missing", theme::AMBER),
+                DepStatus::Enabled => ("enabled", theme::PHOSPHOR),
+                DepStatus::InstalledDisabled => ("installed, disabled", theme::PHOSPHOR_MUTED),
+                DepStatus::Missing => ("missing", theme::AMBER_NOVA),
             };
             details.spawn((
                 Name::new(format!("Mod Details Dependency: {dep}")),
@@ -3651,7 +3740,7 @@ fn spawn_portal_actions(
 ) {
     match job {
         Some(InstallStatus::Failed(reason)) => {
-            spawn_action_text(actions, "Mod Details Job Error", reason, theme::AMBER);
+            spawn_action_text(actions, "Mod Details Job Error", reason, theme::AMBER_NOVA);
             actions
                 .spawn((
                     Name::new("Mod Details Action Buttons"),
@@ -3688,14 +3777,14 @@ fn spawn_portal_actions(
                 // Handled by the arm above; keep the match total.
                 InstallStatus::Failed(reason) => reason,
             };
-            spawn_action_text(actions, "Mod Details Progress", text, theme::CYAN);
+            spawn_action_text(actions, "Mod Details Progress", text, theme::PHOSPHOR);
         }
         None if updating => {
             spawn_action_text(
                 actions,
                 "Mod Details Progress",
                 "Updating...".to_string(),
-                theme::CYAN,
+                theme::PHOSPHOR,
             );
         }
         None => {
@@ -3754,7 +3843,7 @@ fn spawn_portal_actions(
                     actions,
                     "Mod Details Offline Note",
                     "offline - reconnect to install or update".to_string(),
-                    theme::TEXT_MUTED,
+                    theme::PHOSPHOR_MUTED,
                 );
             }
         }
@@ -3836,7 +3925,7 @@ fn refresh_mod_details(
                                     font_size: FontSize::Px(14.0),
                                     ..default()
                                 },
-                                TextColor(theme::CYAN),
+                                TextColor(theme::PHOSPHOR),
                             ));
                         } else {
                             // Fixed-width slot: the percent-width themed
@@ -4029,7 +4118,11 @@ fn update_mod_checkbox_labels(
     for (toggle, children) in &checkboxes {
         let on = enabled.0.contains(&toggle.id);
         let label = if on { "x" } else { "" };
-        let color = if on { theme::CYAN_BRIGHT } else { theme::TEXT };
+        let color = if on {
+            theme::PHOSPHOR
+        } else {
+            theme::SCREEN_TEXT
+        };
         for child in children.iter() {
             if let Ok((mut text, mut text_color)) = texts.get_mut(child) {
                 if text.0 != label {
@@ -4045,9 +4138,23 @@ fn update_mod_checkbox_labels(
 
 /// Mouse-wheel scroll for the mods list (the editor's scroll pattern), so a long
 /// installed-mods list stays reachable.
-fn scroll_mods_panel(
+/// The max scroll offset for a viewport: how far its content overflows the box.
+/// Mirrors `max_nova_os_scroll_y` (nova_os drawer) - clamp the STORED offset,
+/// not just the top, so invisible bottom overscroll cannot accumulate (lesson
+/// bevy-ui-scroll-input-clamps-stored-offset). No `ComputedNode` yet (first
+/// frame) -> `f32::MAX`, i.e. do not clamp until layout runs.
+fn max_menu_scroll_y(computed_node: Option<&ComputedNode>) -> f32 {
+    computed_node
+        .map(|node| (node.content_size.y - node.size.y + node.scrollbar_size.y).max(0.0))
+        .unwrap_or(f32::MAX)
+}
+
+/// Wheel-scroll any [`ScrollableList`] viewport (the mods list AND the scenarios
+/// list), clamping the stored offset at both ends. Generalized from the
+/// mods-only version so `ScenariosList` scrolls too (task 20260728-175738).
+fn scroll_menu_lists(
     mut wheel: MessageReader<bevy::input::mouse::MouseWheel>,
-    mut panels: Query<&mut ScrollPosition, With<ModsList>>,
+    mut panels: Query<(&mut ScrollPosition, Option<&ComputedNode>), With<ScrollableList>>,
 ) {
     use bevy::input::mouse::MouseScrollUnit;
     let dy: f32 = wheel
@@ -4060,8 +4167,8 @@ fn scroll_mods_panel(
     if dy == 0.0 {
         return;
     }
-    for mut scroll in &mut panels {
-        scroll.0.y = (scroll.0.y - dy).max(0.0);
+    for (mut scroll, computed_node) in &mut panels {
+        scroll.0.y = (scroll.0.y - dy).clamp(0.0, max_menu_scroll_y(computed_node));
     }
 }
 
@@ -4153,11 +4260,120 @@ fn button(text: &str) -> impl Bundle {
     (menu_button(text), MenuSfxButton)
 }
 
+/// A menu button carrying an emphasis variant (primary call-to-action / danger)
+/// and an optional trailing key-chip - the shared nova_ui `ThemedButton` at the
+/// 40/16 menu sizing, plus the `MenuSfxButton` click cue.
+fn button_variant(text: &str, variant: ButtonVariant, key: Option<&str>) -> impl Bundle {
+    let mut spec = ButtonSpec::new(text).menu();
+    spec.variant = variant;
+    if let Some(key) = key {
+        spec = spec.key(key);
+    }
+    (nova_ui::widget::button(spec), MenuSfxButton)
+}
+
 #[cfg(test)]
 mod tests {
     use bevy::state::app::StatesPlugin;
 
     use super::*;
+
+    /// DoD 2 (task 20260728-175738): pressing a `UI skin` segmented button (a
+    /// `ThemedButton` carrying `ButtonValue<UiSkin>`) drives the shared `UiSkin`
+    /// resource + moves `Selected`, through the same `button_on_setting` path as
+    /// GraphicsQuality. Exercises the real `segmented_button` factory.
+    #[test]
+    fn ui_skin_button_sets_resource() {
+        let mut app = App::new();
+        app.insert_resource(UiSkin::Phosphor);
+        app.add_observer(button_on_setting::<UiSkin>);
+
+        let phosphor = app
+            .world_mut()
+            .spawn((
+                segmented_button("Phosphor"),
+                ButtonValue(UiSkin::Phosphor),
+                Selected,
+            ))
+            .id();
+        let hardware = app
+            .world_mut()
+            .spawn((segmented_button("Hardware"), ButtonValue(UiSkin::Hardware)))
+            .id();
+
+        // Press Hardware -> resource flips, selection moves off Phosphor.
+        app.world_mut()
+            .entity_mut(hardware)
+            .insert(bevy::ui::Pressed);
+        assert_eq!(*app.world().resource::<UiSkin>(), UiSkin::Hardware);
+        assert!(app.world().entity(hardware).contains::<Selected>());
+        assert!(
+            !app.world().entity(phosphor).contains::<Selected>(),
+            "the previous skin selection is cleared"
+        );
+    }
+
+    /// DoD 1 (task 20260728-175738): a `ScrollableList` (mods AND scenarios now
+    /// share the marker) moves its `ScrollPosition` on the wheel and CLAMPS the
+    /// stored offset at both ends against content height - not just the top
+    /// (lesson bevy-ui-scroll-input-clamps-stored-offset). Before the generalized
+    /// wiring, `ScenariosList` had no scroll driver, so this fails.
+    #[test]
+    fn scenarios_list_scrolls_on_wheel_and_clamps() {
+        use bevy::{
+            ecs::system::RunSystemOnce,
+            input::{
+                mouse::{MouseScrollUnit, MouseWheel},
+                touch::TouchPhase,
+            },
+        };
+
+        // content 180 in a 100-tall box -> max scroll offset 80.
+        let scroll_after = |start_y: f32, wheel_y: f32| -> f32 {
+            let mut app = App::new();
+            app.add_plugins(MinimalPlugins);
+            app.world_mut().init_resource::<Messages<MouseWheel>>();
+            app.world_mut().spawn((
+                ScenariosList,
+                ScrollableList,
+                ScrollPosition(Vec2::new(0.0, start_y)),
+                ComputedNode {
+                    size: Vec2::new(200.0, 100.0),
+                    content_size: Vec2::new(200.0, 180.0),
+                    ..default()
+                },
+            ));
+            app.world_mut().write_message(MouseWheel {
+                unit: MouseScrollUnit::Line,
+                x: 0.0,
+                y: wheel_y,
+                window: Entity::PLACEHOLDER,
+                phase: TouchPhase::Moved,
+            });
+            app.world_mut()
+                .run_system_once(scroll_menu_lists)
+                .expect("scroll system runs");
+            app.world_mut()
+                .query::<&ScrollPosition>()
+                .single(app.world())
+                .expect("one scroll position")
+                .0
+                .y
+        };
+
+        // A downward wheel (negative dy) scrolls down; a big one clamps at max.
+        assert!(
+            scroll_after(0.0, -1.0) > 0.0,
+            "wheel moves the scenarios list"
+        );
+        assert_eq!(
+            scroll_after(0.0, -100.0),
+            80.0,
+            "clamps at the bottom (content - box)"
+        );
+        // An upward wheel from a mid offset clamps at the top.
+        assert_eq!(scroll_after(40.0, 100.0), 0.0, "clamps at the top");
+    }
 
     /// A headless app with just enough for the menu's non-UI wiring: states, the
     /// mode resource, and the plugin itself. Tests that enter MainMenu also run

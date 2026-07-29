@@ -31,8 +31,8 @@ const IGNORE: Pickable = Pickable {
 fn kind_tint(kind: &SectionKind) -> Color {
     match kind {
         SectionKind::Hull(_) => Color::srgb_u8(90, 110, 150),
-        SectionKind::Thruster(_) => theme::AMBER,
-        SectionKind::Controller(_) => theme::CYAN,
+        SectionKind::Thruster(_) => theme::AMBER_NOVA,
+        SectionKind::Controller(_) => theme::PHOSPHOR,
         SectionKind::Turret(_) => Color::srgb_u8(220, 110, 90),
         SectionKind::Torpedo(_) => Color::srgb_u8(170, 120, 210),
     }
@@ -108,8 +108,8 @@ pub(crate) fn component_card(section: &SectionConfig) -> impl Bundle {
             border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
-        BorderColor::all(theme::BORDER),
-        BackgroundColor(theme::PANEL),
+        BorderColor::all(theme::PHOSPHOR_MUTED),
+        BackgroundColor(theme::SCREEN_0),
         children![
             component_icon(&section.kind),
             (
@@ -118,7 +118,7 @@ pub(crate) fn component_card(section: &SectionConfig) -> impl Bundle {
                     font_size: FontSize::Px(14.0),
                     ..default()
                 },
-                TextColor(theme::TEXT),
+                TextColor(theme::SCREEN_TEXT),
                 IGNORE,
             )
         ],

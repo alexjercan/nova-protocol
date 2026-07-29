@@ -24,6 +24,7 @@ use bevy::prelude::*;
 /// so a settings button can carry and set it exactly like the editor's
 /// `SectionChoice` (also Resource-only).
 #[derive(Resource, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum UiSkin {
     /// The phosphor terminal look - the primary, default skin.
     #[default]

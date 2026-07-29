@@ -14,6 +14,7 @@
 //! version-compat liability for a UI feature.
 
 use nova_gameplay::prelude::{GraphicsQuality, MasterVolume, NovaOsMonitorSettings};
+use nova_ui::prelude::UiSkin;
 use serde::{Deserialize, Serialize};
 
 /// The persisted form of the settings: plain, versionable data decoupled from
@@ -27,6 +28,9 @@ pub struct PersistedSettings {
     /// The graphics-quality preset.
     #[serde(default)]
     pub graphics_quality: GraphicsQuality,
+    /// The UI skin (phosphor terminal vs hardware casing).
+    #[serde(default)]
+    pub ui_skin: UiSkin,
     /// NOVA OS BRIGHT knob detent (task 20260726-214617).
     #[serde(default = "default_bright_detent")]
     pub nova_os_bright_detent: usize,
@@ -60,6 +64,7 @@ impl Default for PersistedSettings {
         Self {
             master_volume: MasterVolume::default().0,
             graphics_quality: GraphicsQuality::default(),
+            ui_skin: UiSkin::default(),
             nova_os_bright_detent: monitor.bright_detent,
             nova_os_scan_detent: monitor.scan_detent,
             nova_os_sound_enabled: monitor.sound_enabled,
@@ -72,11 +77,13 @@ impl PersistedSettings {
     pub fn from_resources(
         volume: MasterVolume,
         quality: GraphicsQuality,
+        skin: UiSkin,
         monitor: NovaOsMonitorSettings,
     ) -> Self {
         Self {
             master_volume: volume.factor(),
             graphics_quality: quality,
+            ui_skin: skin,
             nova_os_bright_detent: monitor.bright_detent,
             nova_os_scan_detent: monitor.scan_detent,
             nova_os_sound_enabled: monitor.sound_enabled,
@@ -199,6 +206,7 @@ mod backend {
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use nova_gameplay::prelude::{GraphicsQuality, NovaOsMonitorSettings};
+    use nova_ui::prelude::UiSkin;
 
     use super::{
         backend::{load_from, save_to},
@@ -219,6 +227,7 @@ mod tests {
         let settings = PersistedSettings {
             master_volume: 0.4,
             graphics_quality: GraphicsQuality::Low,
+            ui_skin: UiSkin::Hardware,
             nova_os_bright_detent: 3,
             nova_os_scan_detent: 0,
             nova_os_sound_enabled: false,
@@ -284,11 +293,40 @@ mod tests {
             Some(PersistedSettings {
                 master_volume: 0.5,
                 graphics_quality: GraphicsQuality::default(),
+                ui_skin: UiSkin::default(),
                 nova_os_bright_detent: NovaOsMonitorSettings::default().bright_detent,
                 nova_os_scan_detent: NovaOsMonitorSettings::default().scan_detent,
                 nova_os_sound_enabled: NovaOsMonitorSettings::default().sound_enabled,
             }),
             "a missing field falls back to its serde default"
+        );
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    /// The UI skin choice survives a save/load round-trip (DoD 2, task
+    /// 20260728-175738). Default is Phosphor, so a Hardware choice is the
+    /// non-default proof; and an older store lacking the field defaults to
+    /// Phosphor rather than failing to load.
+    #[test]
+    fn ui_skin_setting_persists_across_save_load() {
+        let path = temp_path("ui_skin");
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+
+        let mut settings = PersistedSettings::default();
+        settings.ui_skin = UiSkin::Hardware;
+        save_to(&path, &settings);
+        assert_eq!(
+            load_from(&path).map(|s| s.ui_skin),
+            Some(UiSkin::Hardware),
+            "the Hardware skin choice round-trips through the store"
+        );
+
+        // A pre-skin store still loads, defaulting the skin to Phosphor.
+        std::fs::write(&path, b"(master_volume: 0.5)").unwrap();
+        assert_eq!(
+            load_from(&path).map(|s| s.ui_skin),
+            Some(UiSkin::Phosphor),
+            "a store written before the ui_skin field defaults to Phosphor"
         );
         let _ = std::fs::remove_dir_all(path.parent().unwrap());
     }

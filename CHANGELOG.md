@@ -26,6 +26,7 @@ tagged **(breaking)**.
 
 ### Interface & HUD
 
+- The menus and editor chrome adopt the NOVA OS visual language: the flat navy/cyan theme is retired in favour of the green-phosphor terminal palette and skin-aware widgets (buttons, segmented controls, panels, badges, rows). Settings gains an `Interface` section with a `UI skin` choice - Phosphor (the default CLI-terminal look) or Hardware (the light-3D casing) - persisted across restarts. The main menu grows a primary New Game / danger Exit emphasis, a glowing title and a version footer; the scenarios list now scrolls.
 - Player-facing distances and speeds now read at 1 world unit = 10 m everywhere (metres below 1 km, kilometres above; speed and closing speed in `m/s`); the `u`/`u/s` unit retires from the HUD, the NOVA OS map and the wiki glossary. Display-only - physics, content and AI tuning are unchanged.
 - Comms panel becomes a bottom-left stacked chat surface with optional authored speaker icons, timeout/dismiss controls and skip-to-next backlog control.
 - Tab ship-computer drawer: one inset NOVA OS monitor opens on Tab (or the gamepad right-stick click), pauses the game and frees the cursor, with a PoC-matched green phosphor terminal screen, topbar, footer hints and CRT treatment.
