@@ -111,9 +111,17 @@ pub fn register(app: &mut App) {
         (
             reconcile_button_skins,
             reconcile_list_row_skins,
-            apply_ui_font,
+            reconcile_panel_skins,
             sync_slider_meters,
         ),
+    );
+    // Route the font BEFORE UI text is measured/laid out (PostUpdate, before
+    // `UiSystems::Content`), not in Update - a `UiText` spawned this frame would
+    // otherwise render one frame in the larger default face before Iosevka
+    // applies (the "text gets bigger for a split second" flash on any respawn).
+    app.add_systems(
+        PostUpdate,
+        apply_ui_font.before(bevy::ui::UiSystems::Content),
     );
 }
 
@@ -1013,10 +1021,24 @@ pub fn checkbox_glyph(on: bool) -> &'static str {
 /// width/height/padding Node that sets `border` + `border_radius`). Spawn
 /// children (a `panel_head`, rows, ...) into that node.
 pub fn panel(skin: UiSkin) -> impl Bundle {
+    let (border, bg, shadow, gradient) = panel_paint(skin);
+    (
+        BorderColor::all(border),
+        BackgroundColor(bg),
+        shadow,
+        gradient,
+        // So the panel reconciler restyles it live on a UiSkin flip.
+        PanelSkin,
+    )
+}
+
+/// The panel paint pieces for a skin: `(border, background, shadow, gradient)` -
+/// the single source [`panel`] and the [`PanelSkin`] reconciler both use.
+fn panel_paint(skin: UiSkin) -> (Color, Color, BoxShadow, BackgroundGradient) {
     if skin.is_phosphor() {
         (
-            BorderColor::all(theme::PHOSPHOR.with_alpha(0.16)),
-            BackgroundColor(theme::SCREEN_0),
+            theme::PHOSPHOR.with_alpha(0.16),
+            theme::SCREEN_0,
             BoxShadow(vec![]),
             // PoC phosphor panel: a soft phosphor glow blooming down from the top
             // edge (demo `radial-gradient(ellipse 70% 60% at 50% 0%, phosphor .10,
@@ -1032,8 +1054,8 @@ pub fn panel(skin: UiSkin) -> impl Bundle {
         )
     } else {
         (
-            BorderColor::all(theme::CASE_EDGE),
-            BackgroundColor(theme::CASE_1),
+            theme::CASE_EDGE,
+            theme::CASE_1,
             drop_shadow(),
             // PoC panel: linear-gradient(168deg, case-2 0%, case-0 88%, #05080a).
             BackgroundGradient(vec![LinearGradient::degrees(
@@ -1046,6 +1068,37 @@ pub fn panel(skin: UiSkin) -> impl Bundle {
             )
             .into()]),
         )
+    }
+}
+
+/// Marks a [`panel`] so the skin reconciler restyles its paint live when the
+/// `UiSkin` resource flips (mirrors the button/list-row reconcilers).
+#[derive(Component)]
+pub struct PanelSkin;
+
+/// Restyle LIVE panels on a `UiSkin` change (and paint just-spawned ones).
+#[allow(clippy::type_complexity)]
+fn reconcile_panel_skins(
+    skin: Res<UiSkin>,
+    mut commands: Commands,
+    mut q: Query<(Entity, &mut BackgroundColor, &mut BorderColor), With<PanelSkin>>,
+    added: Query<Entity, Added<PanelSkin>>,
+) {
+    let restyle_all = skin.is_changed();
+    let just_added: HashSet<Entity> = added.iter().collect();
+    if !restyle_all && just_added.is_empty() {
+        return;
+    }
+    let (border, bg, shadow, gradient) = panel_paint(*skin);
+    for (entity, mut bgc, mut border_color) in &mut q {
+        if !restyle_all && !just_added.contains(&entity) {
+            continue;
+        }
+        *bgc = bg.into();
+        border_color.set_all(border);
+        commands
+            .entity(entity)
+            .try_insert((shadow.clone(), gradient.clone()));
     }
 }
 
@@ -1553,6 +1606,28 @@ mod tests {
                 .iter()
                 .all(|c| *c == theme::PHOSPHOR),
             "every bar is lit at value 1.0"
+        );
+    }
+
+    /// DoD 4 (task 20260729-121847): a `panel` restyles its face LIVE when the
+    /// `UiSkin` resource flips - the reconciler that fixes "panels stay phosphor
+    /// on the hardware skin". Fails if `reconcile_panel_skins` is unregistered.
+    #[test]
+    fn panel_reskins_on_skin_change() {
+        let mut app = skin_app(UiSkin::Phosphor);
+        let panel_e = app
+            .world_mut()
+            .spawn((panel_node(), panel(UiSkin::Phosphor)))
+            .id();
+        app.update();
+        assert_eq!(bg(&app, panel_e), theme::SCREEN_0, "phosphor screen face");
+
+        *app.world_mut().resource_mut::<UiSkin>() = UiSkin::Hardware;
+        app.update();
+        assert_eq!(
+            bg(&app, panel_e),
+            theme::CASE_1,
+            "the panel reskinned to the hardware case face"
         );
     }
 

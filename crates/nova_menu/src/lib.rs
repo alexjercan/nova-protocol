@@ -1836,6 +1836,7 @@ fn setup_menu_ui(
                                         flex_direction: FlexDirection::Column,
                                         width: percent(40),
                                         min_height: px(0),
+                                        min_width: px(0),
                                         ..default()
                                     },
                                 ))
@@ -1876,6 +1877,7 @@ fn setup_menu_ui(
                                             align_self: AlignSelf::Stretch,
                                             flex_grow: 1.0,
                                             min_height: px(0),
+                                            min_width: px(0),
                                             overflow: Overflow::scroll_y(),
                                             margin: UiRect::top(px(8)),
                                             ..default()
@@ -1890,6 +1892,7 @@ fn setup_menu_ui(
                                     flex_direction: FlexDirection::Column,
                                     flex_grow: 1.0,
                                     min_height: px(0),
+                                    min_width: px(0),
                                     padding: UiRect::left(px(16)),
                                     border: UiRect::left(px(theme::BORDER_W)),
                                     ..default()
@@ -2003,6 +2006,7 @@ fn setup_menu_ui(
                                 align_self: AlignSelf::Stretch,
                                 flex_grow: 1.0,
                                 min_height: px(0),
+                                min_width: px(0),
                                 column_gap: px(16),
                                 margin: UiRect::vertical(px(10)),
                                 ..default()
@@ -2017,6 +2021,7 @@ fn setup_menu_ui(
                                     flex_direction: FlexDirection::Column,
                                     width: percent(40),
                                     min_height: px(0),
+                                    min_width: px(0),
                                     overflow: Overflow::scroll_y(),
                                     ..default()
                                 },
@@ -2029,6 +2034,7 @@ fn setup_menu_ui(
                                     flex_direction: FlexDirection::Column,
                                     flex_grow: 1.0,
                                     min_height: px(0),
+                                    min_width: px(0),
                                     padding: UiRect::left(px(16)),
                                     border: UiRect::left(px(theme::BORDER_W)),
                                     ..default()
@@ -2192,12 +2198,14 @@ fn listed_scenarios(scenarios: &GameScenarios) -> Vec<ScenarioConfig> {
 /// selection (default/repair) and the chained details refresh sees that write
 /// the same frame.
 fn scenarios_list_dirty(
+    skin: Res<UiSkin>,
     scenarios: Option<Res<GameScenarios>>,
     campaigns: Option<Res<GameCampaigns>>,
     collapsed: Res<CollapsedCampaigns>,
     selected: Res<SelectedScenarioId>,
 ) -> bool {
-    scenarios.is_some_and(|s| s.is_changed())
+    skin.is_changed()
+        || scenarios.is_some_and(|s| s.is_changed())
         || campaigns.is_some_and(|c| c.is_changed())
         || collapsed.is_changed()
         || selected.is_changed()
@@ -3092,11 +3100,15 @@ fn on_mod_row_select(
 /// downloaded set changed (the Explore rows' installed/update status tags).
 fn mods_list_dirty(
     active: Res<ModsActiveTab>,
+    skin: Res<UiSkin>,
     catalog: Option<Res<ModCatalog>>,
     remote: Option<Res<RemoteCatalog>>,
     downloaded: Option<Res<DownloadedMods>>,
 ) -> bool {
+    // `skin` too: a UiSkin flip rebuilds the rows so their shared widgets
+    // (list_row, checkbox, badge) re-spawn for the new skin.
     active.is_changed()
+        || skin.is_changed()
         || catalog.is_some_and(|c| c.is_changed())
         || remote.is_some_and(|r| r.is_changed())
         || downloaded.is_some_and(|d| d.is_changed())
