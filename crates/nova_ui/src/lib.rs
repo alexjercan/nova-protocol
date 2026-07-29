@@ -5,12 +5,14 @@
 //! holds the [`UiSkin`](skin::UiSkin) selector (phosphor terminal vs hardware
 //! casing); `units` holds the player-facing distance/speed formatting policy;
 //! `widget` holds the skin-aware themed button + selection machinery and small
-//! layout helpers; `font` holds the shared UI typeface handle preloaded at
-//! startup.
+//! layout helpers; `hud` holds the flight-HUD chip language (phosphor-only
+//! chrome projected over the world); `font` holds the shared UI typeface handle
+//! preloaded at startup.
 
 #![warn(missing_docs)]
 
 pub mod font;
+pub mod hud;
 pub mod skin;
 pub mod theme;
 pub mod units;
@@ -24,6 +26,7 @@ pub mod widget;
 pub mod prelude {
     pub use crate::{
         font::UiFont,
+        hud::{chip_node, chip_paint, quiet_chip, text_chip, ChipTone},
         skin::UiSkin,
         theme, units,
         widget::{

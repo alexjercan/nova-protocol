@@ -47,9 +47,9 @@ pub enum EventActionConfig {
     ObjectiveMarkerAttach(ObjectiveMarkerAttachActionConfig),
     /// Remove the objective marker chip from the scoped object by id.
     ObjectiveMarkerDetach(ObjectiveMarkerDetachActionConfig),
-    /// Pulse one keybind-hint row gold.
+    /// Pulse one keybind-dock chip gold.
     HintEmphasisSet(HintEmphasisSetActionConfig),
-    /// Clear a keybind-hint row's gold emphasis.
+    /// Clear a keybind-dock chip's gold emphasis.
     HintEmphasisClear(HintEmphasisClearActionConfig),
     /// Spawn a scenario object.
     SpawnScenarioObject(ScenarioObjectConfig),
@@ -947,15 +947,15 @@ impl EventAction<NovaEventWorld> for ObjectiveMarkerDetachActionConfig {
     }
 }
 
-/// Emphasize one keybind-hint row (task 20260712-093831): pushes `verb`
+/// Emphasize one keybind-dock chip (task 20260712-093831): pushes `verb`
 /// into nova_gameplay's [`HintEmphasis`] resource, so the cluster pulses
 /// that row toward objective gold until a `HintEmphasisClear` (or scenario
-/// teardown) drops it. Only `ROW_VERBS` names are valid; the resource
+/// teardown) drops it. Only `DOCK_VERBS` names are valid; the resource
 /// refuses unknown verbs with a warning.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HintEmphasisSetActionConfig {
-    /// The keybind-hint row to emphasize (one of `ROW_VERBS`).
+    /// The keybind-dock chip to emphasize (one of `DOCK_VERBS`).
     pub verb: String,
 }
 
@@ -988,11 +988,11 @@ impl EventAction<NovaEventWorld> for HintEmphasisSetActionConfig {
     }
 }
 
-/// Drop the emphasis on one keybind-hint row (see [`HintEmphasisSetActionConfig`]).
+/// Drop the emphasis on one keybind-dock chip (see [`HintEmphasisSetActionConfig`]).
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HintEmphasisClearActionConfig {
-    /// The keybind-hint row to clear (one of `ROW_VERBS`).
+    /// The keybind-dock chip to clear (one of `DOCK_VERBS`).
     pub verb: String,
 }
 

@@ -512,7 +512,7 @@ ObjectiveMarkerDetach((
 
 ### HintEmphasisSet / HintEmphasisClear
 
-Pulse one keybind-hint row gold. `verb` is a row name (the shakedown uses
+Pulse one keybind-dock chip gold. `verb` is a chip name (the shakedown uses
 `"RADAR"`, `"GOTO"`); an unknown verb warns and does nothing.
 
 ```ron

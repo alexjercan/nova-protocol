@@ -19,11 +19,11 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use nova_ui::hud::{chip_node, chip_paint, ChipTone};
 
 use super::{
     holo_instruments::{segment_transform, HoloAssets},
     screen_indicator::prelude::*,
-    NAV_CYAN,
 };
 use crate::{flight::prelude::*, gravity::prelude::*, input::prelude::*};
 
@@ -34,13 +34,6 @@ pub mod prelude {
         ManeuverInstrumentsPlugin, OrbitRingMarker, RadiusSpokeMarker,
     };
 }
-
-/// On-screen size of the small chips (px).
-const CHIP_SIZE: Vec2 = Vec2::new(120.0, 16.0);
-
-/// The destination readout line is ~28 chars at font 12 (~9 px/char);
-/// size the chip for it and forbid wrapping so it stays one line.
-const READOUT_SIZE: Vec2 = Vec2::new(260.0, 16.0);
 
 /// The destination readout sits this far below the destination marker (px).
 const READOUT_OFFSET: Vec2 = Vec2::new(0.0, 28.0);
@@ -104,13 +97,18 @@ pub struct ManeuverInstrumentsHudConfig {
 pub fn maneuver_instruments_hud(config: ManeuverInstrumentsHudConfig) -> impl Bundle {
     debug!("maneuver_instruments_hud: config {:?}", config);
 
-    let chip = |size: Vec2, offset: Vec2| {
-        screen_indicator(ScreenIndicatorConfig {
-            anchor: None,
-            size: ScreenIndicatorSize::Fixed(size),
-            offset,
-            offscreen: ScreenIndicatorOffscreen::Hide,
-        })
+    // Content-sized: the destination readout's text length swings with the
+    // target name and range, and a bordered chip must hug it.
+    let chip = |offset: Vec2| {
+        screen_indicator_node(
+            ScreenIndicatorConfig {
+                anchor: None,
+                size: ScreenIndicatorSize::Content,
+                offset,
+                offscreen: ScreenIndicatorOffscreen::Hide,
+            },
+            chip_node(),
+        )
     };
 
     (
@@ -122,30 +120,33 @@ pub fn maneuver_instruments_hud(config: ManeuverInstrumentsHudConfig) -> impl Bu
             (
                 Name::new("DestinationReadoutUI"),
                 DestinationReadoutUIMarker,
-                chip(READOUT_SIZE, READOUT_OFFSET),
+                chip(READOUT_OFFSET),
+                chip_paint(ChipTone::Phosphor),
                 Text::new(""),
                 TextFont::from_font_size(12.0),
                 TextLayout {
                     linebreak: LineBreak::NoWrap,
                     ..default()
                 },
-                TextColor(NAV_CYAN),
+                TextColor(ChipTone::Phosphor.text()),
             ),
             (
                 Name::new("FlipMarkerUI"),
                 FlipMarkerUIMarker,
-                chip(CHIP_SIZE, Vec2::ZERO),
+                chip(Vec2::ZERO),
+                chip_paint(ChipTone::Phosphor),
                 Text::new(""),
                 TextFont::from_font_size(12.0),
-                TextColor(NAV_CYAN),
+                TextColor(ChipTone::Phosphor.text()),
             ),
             (
                 Name::new("RadiusSpokeChipUI"),
                 RadiusSpokeChipUIMarker,
-                chip(CHIP_SIZE, Vec2::ZERO),
+                chip(Vec2::ZERO),
+                chip_paint(ChipTone::Phosphor),
                 Text::new(""),
                 TextFont::from_font_size(12.0),
-                TextColor(NAV_CYAN),
+                TextColor(ChipTone::Phosphor.text()),
             ),
         ],
     )

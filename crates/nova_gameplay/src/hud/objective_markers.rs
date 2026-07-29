@@ -11,6 +11,7 @@
 //! Chrome tier, like the beacon chips - the same nav-chip family.
 
 use bevy::prelude::*;
+use nova_ui::hud::{chip_node, chip_paint, ChipTone};
 
 use super::{screen_indicator::prelude::*, HudTier, OBJECTIVE_GOLD};
 use crate::prelude::*;
@@ -22,10 +23,6 @@ pub mod prelude {
         ObjectiveMarkerChipTargetEntity, ObjectiveMarkersHudPlugin,
     };
 }
-
-/// Chip footprint (px). Matches the beacon chip so the marker reads as the
-/// same chip "promoted" to gold.
-const CHIP_SIZE: Vec2 = Vec2::new(140.0, 16.0);
 
 /// The chip floats above its target so the label never sits on the mesh.
 const CHIP_OFFSET: Vec2 = Vec2::new(0.0, -28.0);
@@ -81,14 +78,22 @@ fn objective_marker_chip_hud(target: Entity) -> impl Bundle {
         children![(
             Name::new("ObjectiveMarkerChipUI"),
             ObjectiveMarkerChipLabelMarker,
-            screen_indicator(ScreenIndicatorConfig {
-                anchor: Some(ScreenIndicatorAnchorKind::Entity(target)),
-                size: ScreenIndicatorSize::Fixed(CHIP_SIZE),
-                offset: CHIP_OFFSET,
-                offscreen: ScreenIndicatorOffscreen::ClampToEdge {
-                    margin_px: EDGE_MARGIN_PX,
+            screen_indicator_node(
+                ScreenIndicatorConfig {
+                    anchor: Some(ScreenIndicatorAnchorKind::Entity(target)),
+                    // Hugs its text: the objective NAME varies in length and a
+                    // fixed slab would clip it now that the chip is bordered.
+                    size: ScreenIndicatorSize::Content,
+                    offset: CHIP_OFFSET,
+                    offscreen: ScreenIndicatorOffscreen::ClampToEdge {
+                        margin_px: EDGE_MARGIN_PX,
+                    },
                 },
-            }),
+                chip_node(),
+            ),
+            // The objective chip is the amber "do this now" member of the chip
+            // family (demo 2 `.obj`).
+            chip_paint(ChipTone::Amber),
             Text::new(""),
             TextFont::from_font_size(LABEL_FONT_PX),
             TextLayout {

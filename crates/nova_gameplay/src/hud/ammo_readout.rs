@@ -352,10 +352,39 @@ fn sync_ammo_readouts(
 /// old `LIT_COLOR`/`DIM_COLOR` were this alpha over the Kinetic amber).
 const LIT_ALPHA: f32 = 0.95;
 const DIM_ALPHA: f32 = 0.16;
+/// At or below this fraction of capacity a weapon group is NEARLY DRY and
+/// switches to the warn state: amber pips with a slow breath (demo 2
+/// `.grp.low`). A quarter magazine is the point where "top up before the next
+/// pass" stops being optional; above it the gauge stays in its damage-type hue
+/// so the normal readout never nags.
+const LOW_AMMO_FRACTION: f32 = 0.25;
+
+/// The warn breath: ~1.1 Hz, sweeping the lit alpha over this band. Slow enough
+/// to read as a state, not an alarm strobe - it shares the emphasis-pulse
+/// philosophy of the keybind dock (hue constant, alpha moves).
+const WARN_PERIOD_SECS: f32 = 0.9;
+// The band's floor stays ABOVE the lit/dim midpoint so a warning pip still
+// reads (and still counts) as LIT at every phase of the breath.
+const WARN_ALPHA: (f32, f32) = (0.62, LIT_ALPHA);
+
 /// Alpha of a pip the reload sweep has filled - between dim and lit, so a
 /// reloading track reads as "coming back" without being mistaken for live
 /// rounds. Task 20260716-123556.
 const RELOAD_ALPHA: f32 = 0.5;
+
+/// Whether a weapon group is nearly dry (see [`LOW_AMMO_FRACTION`]). A group at
+/// zero rounds counts as low too: an empty gauge with a dark track is easy to
+/// mistake for "no weapon", and the amber tells you it is a weapon out of ammo.
+fn is_low_ammo(ammo: &SectionAmmo) -> bool {
+    ammo.capacity > 0 && (ammo.rounds as f32) <= LOW_AMMO_FRACTION * ammo.capacity as f32
+}
+
+/// The warn breath's lit alpha at `elapsed` seconds.
+fn warn_alpha(elapsed: f32) -> f32 {
+    let (lo, hi) = WARN_ALPHA;
+    let wave = 0.5 + 0.5 * (elapsed * std::f32::consts::TAU / WARN_PERIOD_SECS).sin();
+    lo + (hi - lo) * wave
+}
 
 /// How many pips above the `steady_lit` level the reload sweep has filled, given
 /// the cycle `progress` (0..=1). The sweep fills the remaining track - from the
@@ -380,6 +409,7 @@ fn reload_fill_segments(segment_count: usize, steady_lit: usize, progress: f32) 
 /// This is the single point that reads ammo/reload state, so growing to
 /// per-bullet-type magazines later stays a local change.
 fn drive_ammo_readouts(
+    time: Res<Time>,
     q_readouts: Query<(&AmmoReadoutSection, &AmmoReadoutKind, &Children), With<AmmoReadoutMarker>>,
     q_ammo: Query<&SectionAmmo>,
     q_reload: Query<&SectionReload>,
@@ -418,8 +448,22 @@ fn drive_ammo_readouts(
             }
             _ => steady_lit,
         };
-        let hue = damage_type_color(damage_type);
-        let lit_color = hue.with_alpha(LIT_ALPHA);
+        // Nearly dry: the whole group goes amber and breathes, so a magazine
+        // about to run out is visible without reading a number (task
+        // 20260728-175742, demo 2 `.grp.low`). A group in a reload cycle is
+        // deliberately NOT warned - it is already coming back.
+        let low = is_low_ammo(ammo) && reload_end == steady_lit;
+        let hue = if low {
+            nova_ui::theme::AMBER_NOVA
+        } else {
+            damage_type_color(damage_type)
+        };
+        let lit_alpha = if low {
+            warn_alpha(time.elapsed_secs())
+        } else {
+            LIT_ALPHA
+        };
+        let lit_color = hue.with_alpha(lit_alpha);
         let reload_color = hue.with_alpha(RELOAD_ALPHA);
         let dim_color = hue.with_alpha(DIM_ALPHA);
         for &child in children {
@@ -586,6 +630,7 @@ mod tests {
     #[test]
     fn sync_spawns_one_readout_per_player_weapon_with_ammo() {
         let mut world = World::new();
+        world.init_resource::<Time>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(8)));
@@ -605,6 +650,7 @@ mod tests {
     #[test]
     fn sync_ignores_infinite_ammo_weapons() {
         let mut world = World::new();
+        world.init_resource::<Time>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         // No SectionAmmo == infinite ammo: no readout at all.
@@ -619,6 +665,7 @@ mod tests {
     #[test]
     fn sync_ignores_other_ships_weapons() {
         let mut world = World::new();
+        world.init_resource::<Time>();
         world.spawn(ammo_readout_hud());
         spawn_player(&mut world);
         let enemy = world.spawn(SpaceshipRootMarker).id();
@@ -632,6 +679,7 @@ mod tests {
     #[test]
     fn sync_despawns_readout_of_a_dead_weapon() {
         let mut world = World::new();
+        world.init_resource::<Time>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(8)));
@@ -647,6 +695,7 @@ mod tests {
     #[test]
     fn sync_despawns_readout_when_ammo_becomes_infinite() {
         let mut world = World::new();
+        world.init_resource::<Time>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(8)));
@@ -683,9 +732,29 @@ mod tests {
             .count()
     }
 
+    /// The colour of a LIT pip in `section`'s readout (the first one found).
+    fn lit_pip_color(world: &mut World, section: Entity) -> Option<Color> {
+        let readout = world
+            .query_filtered::<(Entity, &AmmoReadoutSection), With<AmmoReadoutMarker>>()
+            .iter(world)
+            .find(|(_, s)| ***s == section)
+            .map(|(entity, _)| entity)?;
+        let children: Vec<Entity> = world
+            .entity(readout)
+            .get::<Children>()
+            .map(|children| children.iter().collect())
+            .unwrap_or_default();
+        children
+            .into_iter()
+            .filter_map(|child| world.entity(child).get::<BackgroundColor>().copied())
+            .find(|color| color.0.alpha() > (LIT_ALPHA + DIM_ALPHA) / 2.0)
+            .map(|color| color.0)
+    }
+
     #[test]
     fn driver_lights_turret_chunks_by_fraction() {
         let mut world = World::new();
+        world.init_resource::<Time>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(8)));
@@ -717,6 +786,7 @@ mod tests {
     #[test]
     fn driver_lights_one_torpedo_pip_per_remaining_round() {
         let mut world = World::new();
+        world.init_resource::<Time>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let torpedo = spawn_torpedo(&mut world, player, Some(SectionAmmo::new(4)));
@@ -761,6 +831,7 @@ mod tests {
         // with EMP reads EMP-colored (differs from Kinetic amber), and a torpedo
         // reads Explosive.
         let mut world = World::new();
+        world.init_resource::<Time>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(8)));
@@ -938,6 +1009,7 @@ mod tests {
         // to cycle progress - no steady-lit rounds, half the ring in reload hue -
         // which is visibly different from a plain empty magazine (nothing lit).
         let mut world = World::new();
+        world.init_resource::<Time>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(8)));
@@ -974,6 +1046,7 @@ mod tests {
         // A bay with one live torpedo, continuously rearming: the live round stays
         // lit and the sweep lights the rounds coming back above it.
         let mut world = World::new();
+        world.init_resource::<Time>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let torpedo = spawn_torpedo(&mut world, player, Some(SectionAmmo::new(4)));
@@ -999,12 +1072,87 @@ mod tests {
         );
     }
 
+    /// A nearly-dry group goes AMBER and breathes (task 20260728-175742, demo 2
+    /// `.grp.low`), while a healthy group keeps its damage-type hue. Without
+    /// this the only "you are out" signal was counting dark pips.
+    #[test]
+    fn driver_warns_amber_on_a_nearly_dry_group() {
+        let mut world = World::new();
+        world.init_resource::<Time>();
+        world.spawn(ammo_readout_hud());
+        let player = spawn_player(&mut world);
+        let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(8)));
+        world.run_system_once(sync_ammo_readouts).unwrap();
+
+        // Healthy magazine: the damage-type hue, no warning.
+        world.run_system_once(drive_ammo_readouts).unwrap();
+        let healthy = lit_pip_color(&mut world, turret).expect("a lit pip");
+        assert_ne!(
+            healthy.to_srgba().to_vec3(),
+            nova_ui::theme::AMBER_NOVA.to_srgba().to_vec3(),
+            "a full magazine does not nag"
+        );
+
+        // Down to a quarter: amber.
+        world
+            .entity_mut(turret)
+            .get_mut::<SectionAmmo>()
+            .unwrap()
+            .rounds = 2;
+        world.run_system_once(drive_ammo_readouts).unwrap();
+        let low = lit_pip_color(&mut world, turret).expect("a lit pip");
+        assert_eq!(
+            low.to_srgba().to_vec3(),
+            nova_ui::theme::AMBER_NOVA.to_srgba().to_vec3(),
+            "a nearly-dry group warns in amber"
+        );
+        assert_eq!(
+            lit_pip_count(&mut world, turret),
+            2,
+            "the warn state does not change WHICH pips are lit"
+        );
+
+        // The warn state actually breathes: the alpha moves across the cycle
+        // (a flat pulse would be dead code), and never drops out of `lit`.
+        let alphas: Vec<f32> = (0..=8)
+            .map(|i| warn_alpha(i as f32 * WARN_PERIOD_SECS / 8.0))
+            .collect();
+        let (min, max) = alphas
+            .iter()
+            .fold((f32::MAX, f32::MIN), |(lo, hi), &a| (lo.min(a), hi.max(a)));
+        assert!(max - min > 0.2, "the warn breath sweeps its band");
+        assert!(
+            min > (LIT_ALPHA + DIM_ALPHA) / 2.0,
+            "a warning pip stays clearly lit at every phase"
+        );
+
+        // A group that is rearming is NOT warned - it is already coming back.
+        // (A torpedo bay: its reload is continuous, so a partly-full magazine
+        // is genuinely mid-cycle; a turret's discrete reload only runs empty.)
+        let torpedo = spawn_torpedo(&mut world, player, Some(SectionAmmo::new(4)));
+        world
+            .entity_mut(torpedo)
+            .get_mut::<SectionAmmo>()
+            .unwrap()
+            .rounds = 1;
+        world.entity_mut(torpedo).insert(reload_at(4.0, false, 0.5));
+        world.run_system_once(sync_ammo_readouts).unwrap();
+        world.run_system_once(drive_ammo_readouts).unwrap();
+        let reloading = lit_pip_color(&mut world, torpedo).expect("a lit pip");
+        assert_ne!(
+            reloading.to_srgba().to_vec3(),
+            nova_ui::theme::AMBER_NOVA.to_srgba().to_vec3(),
+            "a rearming group shows the sweep, not the warning"
+        );
+    }
+
     #[test]
     fn driver_at_rest_reload_is_identical_to_no_reload() {
         // A full magazine that carries a SectionReload is not reloading, so the
         // gauge is byte-identical to the shipped steady rendering (no regression
         // to loaded-type/count).
         let mut world = World::new();
+        world.init_resource::<Time>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(8)));

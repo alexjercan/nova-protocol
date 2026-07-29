@@ -13,7 +13,7 @@ The heads-up display is diegetic - the instruments read the ship's real state, a
         >
         <span class="figure__placeholder-note"
             >The full HUD in flight: velocity sphere, speed
-            + mode chips, keybind cluster, a lock reticle
+            + mode chips, the keybind icon dock, a lock reticle
             and the corner target inset, ideally lightly
             annotated.</span
         >
@@ -28,7 +28,7 @@ Grave / tilde (or the gamepad Select button) cycles the whole display through th
 - **Minimal** - the flight and combat _instruments_ only; the chrome drops away.
 - **None** - a clean screen for cinematic captures.
 
-Every widget carries a tier: **Instrument** (velocity sphere, flight chips, autopilot marker, maneuver instruments, lead pips, lock crosshairs, the target inset, allegiance markers - shown at All and Minimal) or **Chrome** (the keybind hint cluster, verb cues, the component-lock panel, edge indicators, objective markers - shown only at All).
+Every widget carries a tier: **Instrument** (velocity sphere, flight chips, autopilot marker, maneuver instruments, lead pips, lock crosshairs, the target inset, allegiance markers - shown at All and Minimal) or **Chrome** (the keybind dock, verb cues, the component-lock panel, edge indicators, objective markers - shown only at All).
 
 ## Flight readouts
 
@@ -37,7 +37,7 @@ The flight instruments sit around the ship, not in a status bar:
 - **Velocity sphere** - an orbiting cone and shaded sphere driven by your linear velocity; white and blue in manual flight, cyan when the autopilot is flying. A yellow variant shows the local gravity pull, hidden in flat space.
 - **Speed and mode chips** - a speed readout (`m/s`, metres per second; see the [glossary](../glossary/)) always beside the sphere, and a mode chip reading `AP GOTO - BURN` (verb and phase: STOP/GOTO/ORBIT and ALIGN/BURN/HOLD) only while the autopilot is engaged.
 - **ORBIT ring and radius spoke** - while you hold an orbit, a world-space ring marks the orbit plane and a thin spoke runs from the well to your ship with the current radius.
-- **Keybind hint cluster** - a lower-left column of verb rows (STOP, GOTO, ORBIT, CANCEL, RADAR, COMPONENT) that only shows a row while its verb can actually do something, and pulses gold when a scenario wants you to use it.
+- **Keybind dock** - a row of icon chips along the bottom of the screen, one per flight verb (STOP, GOTO, ORBIT, CANCEL, RADAR, COMPONENT, RCS). Each chip shows the real KEYCAP for the key that drives it plus the verb word, and reads in three states: dimmed when the verb cannot do anything right now, full phosphor when pressing the key would act, and inverted while the verb is what the ship is doing. A chip pulses gold when a scenario wants you to use it. The anchored **verb cues** are the same chip parked on the thing you would act on - the ORBIT keycap on a gravity well, the GOTO keycap on your aim lock.
 
 ## Locks and reticles
 

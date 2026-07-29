@@ -31,6 +31,10 @@ const HINT_CHIP_FONT_PX: f32 = 11.0;
 /// The leading star mark icon size - matched to the count's cap height so it
 /// sits flush in the status-bar row.
 const HINT_ICON_PX: f32 = 15.0;
+
+/// The TAB keycap's on-screen size (px) in the top bar - a touch taller than
+/// the brand mark so the key reads as a key, still inside the 24 px bar.
+const HINT_TAB_GLYPH_PX: f32 = 18.0;
 /// Nominal hint size for the reveal's tuck rect (the exact width flexes with the
 /// count; the CENTRE is what the tuck aims at). Task 20260721-211520's target.
 const HINT_ANCHOR_SIZE: Vec2 = Vec2::new(120.0, 28.0);
@@ -48,6 +52,10 @@ struct ObjectiveHintCountMarker;
 /// to the NOVA OS computer it opens).
 #[derive(Component)]
 struct ObjectiveHintIconMarker;
+
+/// Marker for the TAB keycap picture in the hint (absent on the text fallback).
+#[derive(Component, Debug, Clone, Reflect)]
+struct ObjectiveHintTabGlyphMarker;
 
 /// Wires the flight objective hint: spawn/despawn with the player ship, keep the
 /// count current, and publish the reveal's tuck anchor.
@@ -111,7 +119,7 @@ fn setup_hint(
             // computer". Native colours (like the plate); rendered from a PNG
             // because Bevy UI cannot draw SVG. Guarded on NovaHudAssets so
             // headless rigs without the asset pipeline still spawn the count + TAB.
-            if let Some(hud_assets) = hud_assets {
+            if let Some(hud_assets) = hud_assets.as_deref() {
                 hint.spawn((
                     ObjectiveHintIconMarker,
                     ImageNode::new(hud_assets.nova_crt_mark.clone()),
@@ -129,12 +137,35 @@ fn setup_hint(
                 TextFont::from_font_size(HINT_FONT_PX),
                 TextColor(theme::semantic::OBJECTIVE),
             ));
-            // The "TAB" affordance, plain muted text (no pill).
-            hint.spawn((
-                Text::new("TAB"),
-                TextFont::from_font_size(HINT_CHIP_FONT_PX),
-                TextColor(theme::PHOSPHOR_DIM),
-            ));
+            // The TAB affordance: the real keycap picture (task
+            // 20260728-175742's key-glyph pipeline), so the top bar says
+            // "press this key" in the same language as the dock and the
+            // anchored cues. Falls back to the plain muted word when the
+            // glyph is not loaded (headless rigs, an unmapped rebind) - the
+            // affordance must never vanish.
+            match hud_assets
+                .as_deref()
+                .and_then(|assets| assets.key_glyphs.get("Tab"))
+            {
+                Some(glyph) => {
+                    hint.spawn((
+                        ObjectiveHintTabGlyphMarker,
+                        ImageNode::new(glyph),
+                        Node {
+                            width: Val::Px(HINT_TAB_GLYPH_PX),
+                            height: Val::Px(HINT_TAB_GLYPH_PX),
+                            ..default()
+                        },
+                    ));
+                }
+                None => {
+                    hint.spawn((
+                        Text::new("TAB"),
+                        TextFont::from_font_size(HINT_CHIP_FONT_PX),
+                        TextColor(theme::PHOSPHOR_DIM),
+                    ));
+                }
+            }
         });
     });
 }
@@ -298,11 +329,37 @@ mod tests {
         app.init_asset::<Image>();
         app.init_resource::<GameObjectives>();
         app.init_resource::<NovaOsTabAnchor>();
+        // The brand mark and the TAB keycap come from NovaHudAssets, which
+        // `NovaHudPlugin` inits in production; this rig runs the observer alone,
+        // so it must supply the resource itself (without it the hint takes its
+        // no-assets fallback path and spawns neither picture).
+        let server = app.world().resource::<AssetServer>().clone();
+        app.insert_resource(NovaHudAssets {
+            nova_crt_mark: server.load("icons/nova_crt_mark.png"),
+            key_glyphs: crate::hud::key_glyphs::KeyGlyphs::from_stems(|stem| {
+                Some(server.load(format!(
+                    "{}/{stem}.png",
+                    crate::hud::key_glyphs::KEY_GLYPH_DIR
+                )))
+            }),
+            ..default()
+        });
         app.add_observer(setup_hint);
         app.world_mut().spawn(StatusBarRootMarker);
         app.world_mut()
             .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker));
         app.update();
+
+        // The TAB affordance is the real keycap picture now (task
+        // 20260728-175742), not the word.
+        assert_eq!(
+            app.world_mut()
+                .query_filtered::<Entity, With<ObjectiveHintTabGlyphMarker>>()
+                .iter(app.world())
+                .count(),
+            1,
+            "the hint shows the TAB keycap"
+        );
 
         // Exactly one star icon, and it is an ImageNode parented under the hint.
         let (icon, parent) = app

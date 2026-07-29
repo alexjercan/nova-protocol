@@ -7,6 +7,7 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use nova_ui::hud::{chip_node, chip_paint, ChipTone};
 
 use super::{screen_indicator::prelude::*, NAV_CYAN};
 use crate::flight::prelude::*;
@@ -25,18 +26,27 @@ pub mod prelude {
 /// silhouette.
 const DESTINATION_MARKER_PX: f32 = 24.0;
 
-/// On-screen size of the ship status chips (px).
-const CHIP_SIZE: Vec2 = Vec2::new(120.0, 16.0);
+/// The speed chip is the biggest readout on the flight HUD - it is the number
+/// you fly by (demo 2 `.speed`, 15 px against the family's 12).
+const SPEED_FONT_PX: f32 = 15.0;
+
+/// Every other chip's text size (px).
+const CHIP_FONT_PX: f32 = 12.0;
 
 /// The speed chip parks to the right of the ship, clear of the velocity
 /// sphere (world radius 5.6 u for the outer gravity shell) at typical
 /// chase-camera distance. Fixed px in v1; a projected-radius offset is the
 /// richer option if the fixed one misbehaves at extreme zooms.
-const SPEED_CHIP_OFFSET: Vec2 = Vec2::new(120.0, 0.0);
+/// Lifted clear of the bottom-centre keybind dock (task 20260728-175742): the
+/// ship sits low-centre under the chase camera, so a chip level with it landed
+/// on the dock's chips. This is the demo's `.speed` band (~120 px off the
+/// bottom) expressed as a ship-relative offset, so the readout stays parked on
+/// the ship rather than becoming screen furniture.
+const SPEED_CHIP_OFFSET: Vec2 = Vec2::new(120.0, -90.0);
 
 /// The mode chip stacks one row above the speed chip (screen y grows
-/// downward).
-const MODE_CHIP_OFFSET: Vec2 = Vec2::new(120.0, -18.0);
+/// downward), keeping the same 24 px gap after the lift above.
+const MODE_CHIP_OFFSET: Vec2 = Vec2::new(120.0, -114.0);
 
 /// Marker for the ship-status chip layer (speed chip + autopilot mode chip);
 /// spawned by [`flight_status_hud`] and carried by the layer the drive systems
@@ -72,13 +82,19 @@ pub struct FlightStatusHudConfig {
 pub fn flight_status_hud(config: FlightStatusHudConfig) -> impl Bundle {
     debug!("flight_status_hud: config {:?}", config);
 
+    // The chips hug their text (`Content`): a fixed box would either clip
+    // "1.24 km/s" or pad "0 m/s" into an empty slab now that the chip has a
+    // visible fill and border.
     let chip = |anchor: Option<ScreenIndicatorAnchorKind>, offset: Vec2| {
-        screen_indicator(ScreenIndicatorConfig {
-            anchor,
-            size: ScreenIndicatorSize::Fixed(CHIP_SIZE),
-            offset,
-            offscreen: ScreenIndicatorOffscreen::Hide,
-        })
+        screen_indicator_node(
+            ScreenIndicatorConfig {
+                anchor,
+                size: ScreenIndicatorSize::Content,
+                offset,
+                offscreen: ScreenIndicatorOffscreen::Hide,
+            },
+            chip_node(),
+        )
     };
 
     (
@@ -95,24 +111,28 @@ pub fn flight_status_hud(config: FlightStatusHudConfig) -> impl Bundle {
                     SPEED_CHIP_OFFSET,
                 ),
                 Text::new(""),
-                TextFont::from_font_size(12.0),
+                TextFont::from_font_size(SPEED_FONT_PX),
                 TextLayout {
                     linebreak: LineBreak::NoWrap,
                     ..default()
                 },
-                TextColor(NAV_CYAN),
+                chip_paint(ChipTone::Phosphor),
+                TextColor(ChipTone::Phosphor.text()),
             ),
             (
                 Name::new("ModeChipUI"),
                 ModeChipUIMarker,
                 chip(None, MODE_CHIP_OFFSET),
                 Text::new(""),
-                TextFont::from_font_size(12.0),
+                TextFont::from_font_size(CHIP_FONT_PX),
                 TextLayout {
                     linebreak: LineBreak::NoWrap,
                     ..default()
                 },
-                TextColor(NAV_CYAN),
+                // The autopilot mode is an amber "the computer is flying"
+                // statement, not a nav readout (demo 2 `.mode`).
+                chip_paint(ChipTone::Amber),
+                TextColor(ChipTone::Amber.text()),
             ),
         ],
     )

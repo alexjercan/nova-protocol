@@ -19,7 +19,7 @@ use std::collections::VecDeque;
 
 use bevy::prelude::*;
 use bevy_common_systems::prelude::{SfxCommandsExt, SoundBank};
-use nova_ui::theme;
+use nova_ui::{hud::ChipTone, theme};
 
 use super::{HudSelfDrivenVisibility, HudTier};
 use crate::{asset_ref::AssetRef, audio::UiSfx};
@@ -86,7 +86,14 @@ pub const COMMS_FADE_OUT_SECS: f32 = 0.4;
 const COMMS_BLIP_VOLUME: f32 = 0.22;
 /// Panel width: wide enough for a spoken line to wrap comfortably, narrow
 /// enough to stay a corner element (the objectives column is 280).
-const COMMS_PANEL_WIDTH_PX: f32 = 420.0;
+/// Capped tight per demo 2 (`.comms`, `max-width: 320px`): a comms card is a
+/// two-line transmission, not a paragraph, and a narrow card keeps the
+/// bottom-left corner free of the wall of text this HUD pass is retiring.
+const COMMS_PANEL_WIDTH_PX: f32 = 320.0;
+/// The comms body text - demo 2's `.msg` pale blue, legible against the blue
+/// chip without competing with the speaker accent.
+const COMMS_BODY: Color = Color::srgb_u8(0xcf, 0xe6, 0xff);
+
 /// Square speaker icon size inside a comms card.
 const COMMS_ICON_SIZE_PX: f32 = 30.0;
 /// Comms line font size (px), matching the objectives' body scale.
@@ -310,8 +317,19 @@ fn comms_card(line: &VisibleCommsLine, asset_server: Option<&AssetServer>) -> im
             align_items: AlignItems::FlexStart,
             ..default()
         },
-        BorderColor::all(theme::PHOSPHOR_MUTED.with_alpha(theme::PHOSPHOR_MUTED.alpha() * alpha)),
-        BackgroundColor(theme::SCREEN_0.with_alpha(theme::SCREEN_0.alpha() * alpha)),
+        // The card is the COMMS member of the HUD chip family: blue border and
+        // the family's translucent slab, so an incoming transmission is
+        // instantly distinguishable from a flight readout (demo 2 `.comms`).
+        BorderColor::all(
+            ChipTone::Comms
+                .border()
+                .with_alpha(ChipTone::Comms.border().alpha() * alpha),
+        ),
+        BackgroundColor(
+            ChipTone::Comms
+                .fill()
+                .with_alpha(ChipTone::Comms.fill().alpha() * alpha),
+        ),
         children![
             comms_icon(&line.line, alpha, asset_server),
             (
@@ -329,7 +347,7 @@ fn comms_card(line: &VisibleCommsLine, asset_server: Option<&AssetServer>) -> im
                         line.line.text
                     )),
                     TextFont::from_font_size(COMMS_FONT_SIZE_PX),
-                    TextColor(theme::SCREEN_TEXT.with_alpha(theme::SCREEN_TEXT.alpha() * alpha)),
+                    TextColor(COMMS_BODY.with_alpha(COMMS_BODY.alpha() * alpha)),
                     TextLayout {
                         linebreak: LineBreak::WordBoundary,
                         ..default()

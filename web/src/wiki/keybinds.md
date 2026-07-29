@@ -81,7 +81,7 @@ The full control reference. Thrust is analog on the gamepad and on/off on the ke
     </tr>
 </table>
 
-RCS is a docking aid, not standard flight: it appears only when a scenario grants it (a `[Shift] RCS` hint shows when it is available), and the mainline campaign flies without it. See [Flight & autopilot](../flight-autopilot/#rcs-fine-docking-thrusters).
+RCS is a docking aid, not standard flight: it appears only when a scenario grants it (the RCS chip lights in the keybind dock when it is available), and the mainline campaign flies without it. See [Flight & autopilot](../flight-autopilot/#rcs-fine-docking-thrusters).
 
 ## Targeting and camera
 

@@ -114,7 +114,7 @@ flowchart LR
 - `ObjectiveMarkerAttach` / `ObjectiveMarkerDetach` - add/remove the gold
   marker chip (label + distance) on the scoped object by id; a despawned
   target detaches implicitly.
-- `HintEmphasisSet` / `HintEmphasisClear` - pulse one keybind-hint row gold
+- `HintEmphasisSet` / `HintEmphasisClear` - pulse one keybind-dock chip gold
   (verbs: STOP, GOTO, ORBIT, CANCEL, RADAR, COMPONENT, RCS); availability never
   changes, and teardown clears all emphasis.
 - `SpawnScenarioObject(ScenarioObjectConfig)` - spawn an object (see below).

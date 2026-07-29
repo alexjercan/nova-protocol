@@ -1,12 +1,12 @@
 # HUD restyle + on-screen text reduction (icon dock)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 36
 - TAGS: v0.9.0,ui,hud
 
 ## Flow State
 
-- FLOW STEP: PLANNED
+- FLOW STEP: DONE
 - PLAN STATUS: APPROVED
 
 ## Story
@@ -23,7 +23,7 @@ phosphor-only per the spike's per-surface table - no hardware variant here.
 
 ## Steps (re-planned 2026-07-28 from the implemented demo 2 + HUD map)
 
-- [ ] Restyle the chip family to demo 2's base: dark translucent fill
+- [x] Restyle the chip family to demo 2's base: dark translucent fill
       `rgba(2,14,8,~0.6)`, 1px phosphor border ~0.34 alpha, phosphor text,
       dim unit suffixes; semantic variants keep their family (amber
       objective/mode, red lock/threat, blue comms). Sites (from the HUD
@@ -34,11 +34,11 @@ phosphor-only per the spike's per-surface table - no hardware variant here.
       stat grid (TARGET/HOSTILE header, DST/CLS/KIND/HULL cells, hp bar
       per demo). Keep the velocity-direction shader and the target inset
       as-is functionally (owner KEEPs).
-- [ ] Status bar: restyle in place. Conscious divergence: demo 2 drew it
+- [x] Status bar: restyle in place. Conscious divergence: demo 2 drew it
       top-LEFT; the game's status bar + objective hint live top-RIGHT -
       keep the game placement, adopt only the visual language (recorded
       here so review does not flag it).
-- [ ] Key-glyph mapping: a `KeyCode -> Handle<Image>` lookup for
+- [x] Key-glyph mapping: a `KeyCode -> Handle<Image>` lookup for
       `assets/input-prompts/keyboard/Alt/` (from 20260728-233707), covering
       the live bindings: X stop, G goto, O orbit, Z cancel, Ctrl radar
       (file is `T_Crtl_Key_Alt.png`, upstream typo), `[`/`]` component
@@ -54,7 +54,7 @@ phosphor-only per the spike's per-surface table - no hardware variant here.
       follow-up (20260710-231927) may `server.load` a glyph for an unmapped or
       runtime-rebound key (the dynamic-content exception - it cannot sit behind
       the one-shot collection).
-- [ ] Replace the 7-row cluster (keybind_hints.rs) with the icon-chip DOCK,
+- [x] Replace the 7-row cluster (keybind_hints.rs) with the icon-chip DOCK,
       bottom-center per demo 2: one chip per verb from `FlightVerbHints`
       (STOP GOTO ORBIT CANCEL RADAR COMPONENT RCS - the REAL set; demo's
       six were illustrative), each = glyph ImageNode + short verb label.
@@ -64,20 +64,20 @@ phosphor-only per the spike's per-surface table - no hardware variant here.
       it from live situations. PRESERVE the scenario HintEmphasis
       pulse machinery (HintEmphasisSet/Clear actions must still visibly
       pulse a dock chip; the tutorial scenarios depend on it).
-- [ ] Anchored cues: the projected `[O]` orbit / `[G]` goto cues
+- [x] Anchored cues: the projected `[O]` orbit / `[G]` goto cues
       (keybind_hints.rs) become glyph chips (demo 2 `.cue` shape); the
       objective hint's `TAB` text (objective_hint.rs:117 area) becomes the
       Tab glyph.
-- [ ] Text reduction: slim objective/beacon chips to glyph + name + range
+- [x] Text reduction: slim objective/beacon chips to glyph + name + range
       (drop any extra prose), comms cards capped tight per demo (~320px,
       speaker line + message only). Verify nothing on the flight screen
       duplicates NOVA OS detail (ship/objectives/map/log live in the
       computer; the map confirms this already holds - re-check after
       restyle).
-- [ ] Ammo readout: restyle pips to demo 2's group shape (label + pip row
+- [x] Ammo readout: restyle pips to demo 2's group shape (label + pip row
       per weapon - already per-weapon in ammo_readout.rs) and add the
       low-ammo state (amber pips + warn pulse on near-empty groups).
-- [ ] Docs sweep (keep-docs-in-sync): wiki hud.md (keybind cluster ->
+- [x] Docs sweep (keep-docs-in-sync): wiki hud.md (keybind cluster ->
       dock), targeting-radar.md / flight-autopilot.md if they show `[KEY]`
       hints, tutorial.html key mentions, CHANGELOG [Unreleased]; regenerate
       committed HUD captures (`scripts/gen-web-screenshots.py` set).
@@ -179,3 +179,122 @@ REMAINING (the bulk of this task's own DoD - NOT yet done, task stays OPEN):
 
 This remaining scope is a large, GPU-eyeball-dependent effort (a new asset
 pipeline + a full HUD component rewrite) best taken as its own focused cycle.
+
+## Delivery (2026-07-29) - the remaining scope, complete
+
+The chip family, the key-glyph pipeline, the icon dock, the cue/TAB keycaps,
+the text reduction and the ammo warn state all landed in one pass on
+`feat/hud-icon-dock`.
+
+### What was built
+
+- `nova_ui::hud` (NEW): the chip language in one place - `CHIP_FILL`,
+  `CHIP_RADIUS`, `ChipTone{Phosphor,Amber,Threat,Comms}` (text/unit/border/fill
+  per tone) and the `chip_node()`/`chip_paint()`/`text_chip()`/`quiet_chip()`
+  builders. Phosphor-only, no `UiSkin` toggle (per the spike's per-surface
+  table). 3 tests pin the family invariants.
+- `nova_gameplay::hud::key_glyphs` (NEW): the label -> keycap mapping
+  (`KEY_GLYPH_FILES`, 18 labels over 13 distinct files), `key_glyph_stem`,
+  `key_glyph_asset_paths()` and the `KeyGlyphs` label-keyed handle lookup
+  published on `NovaHudAssets`. Keyed by the DISPLAY LABEL the hints already
+  carry (`"X"`, `"CTRL"`, `"SCROLL"`), which is what `FlightVerbHints` gives -
+  a `KeyCode`-keyed table could not express the wheel/modifier pseudo-labels.
+- `nova_assets`: `GameAssets::key_glyphs`, a `collection(mapped, typed)` with
+  an explicit 13-path `paths(...)` list (no folder collection - they do not
+  work on wasm), fanned out to the label-keyed lookup in
+  `update_nova_hud_assets`. The glyphs now preload and load-gate like the UI
+  font, CRT mark and UI SFX.
+- `hud/keybind_dock.rs` (REPLACES `keybind_hints.rs`): the bottom-centre dock,
+  one chip per `DOCK_VERBS` entry = keycap `ImageNode` + verb word, three
+  states (`DockChipState::{Dim,Available,Hot}`) driven from availability. The
+  scenario `HintEmphasis` spotlight is UNCHANGED in name, API and verb
+  vocabulary (nova_scenario, the shipped scenario RON and the wiki all keep
+  working) - it now pulses a chip's border + label instead of a text row.
+  An unmapped key falls back to a text chip.
+- `screen_indicator`: new `ScreenIndicatorSize::Content` (position-only, hug
+  the laid-out box) and `screen_indicator_node(config, node)` for an indicator
+  that is ALSO a styled box - Bevy refuses two `Node`s in one bundle, which is
+  what a bordered chip on an indicator needs.
+- Restyled onto the family: flight_status speed (amber mode) chips,
+  torpedo_target lock readout (threat), maneuver destination/flip/radius,
+  beacon chips, objective marker chips (amber), readout strip rows, comms cards
+  (blue, capped 420 -> 320 px), target-inset frame + caption header.
+- objective_hint: the `TAB` word becomes the Tab keycap (text fallback kept).
+- ammo_readout: the low-ammo warn state - at or below 1/4 capacity a group goes
+  amber and breathes (~1.1 Hz), suppressed while it is mid-reload.
+
+### Conscious divergences from demo 2 (so review does not flag them)
+
+1. Status bar placement: the demo drew it top-LEFT; the game's bar + objective
+   hint live top-RIGHT and stay there (already recorded in Step 2).
+2. `edge_indicators` labels are NOT chipped. Demo 2's own `.edge` rule is
+   `border: 0; background: none` - an edge arrow is a pointer, not a readout -
+   and its label already carries the semantic (threat/nav) colour. Chipping it
+   would have ADDED chrome in a text-reduction pass.
+3. The target inset did NOT grow the demo's DST/CLS/KIND/HULL stat grid. That
+   data is already on screen at the reticle (`torpedo_target`'s lock readout,
+   demo 2's own `.lock-read`); duplicating it into the inset would have added
+   four lines of text in the pass whose GOAL is less text. The inset took the
+   frame + header-cell restyle only; the owner KEEP on its function holds.
+4. `SPEED_CHIP_OFFSET` moved from `(120, 0)` to `(120, -90)` (mode chip with
+   it). The render eyeball showed the ship-anchored speed chip sitting ON the
+   new bottom-centre dock - the chase camera parks the ship low-centre, which
+   is exactly where the dock is. This is demo 2's `.speed` band expressed as a
+   ship-relative offset.
+
+### DoD status
+
+1. `dock_renders_glyph_chip_per_verb_with_availability` - PASS (live-tree: one
+   chip per verb, each carrying the real keycap ASSET PATH its binding maps to,
+   plus per-verb state; engaging a maneuver flips CANCEL to `Hot` and repaints
+   it).
+2. `every_bound_key_maps_to_an_existing_glyph_asset` (nova_gameplay) - PASS,
+   walking the REAL `flight_rig_reserved_sources()` and pinning the upstream
+   `T_Crtl_Key_Alt` typo + `T_Brackets_L/R`; plus
+   `key_glyph_collection_matches_mapping_table` (nova_assets) - PASS, pinning
+   that every mapped path is in the preload collection (the
+   `ui_sfx_collection_matches_ui_sfx_files` parallel from 20260729-000956).
+3. `scenario_emphasis_marks_the_dock_chip` - PASS (migrated from the row test;
+   set -> gold chip, clear -> base restored, quiet frames hold), plus
+   `rig_despawn_mid_pulse_restores_the_base_paint`.
+4. `grep -rn "hint_row\|\[KEY\]" crates/nova_gameplay/src/hud` = **0 hits**
+   (was 38 across `hint_row|HintRow|ROW_VERBS|hint_cluster|[KEY]` at
+   implementation start). `grep -rn "keybind_hints" crates/` = 0.
+5. Render eyeball - DONE on the real GPU (Xvfb :99, `screenshot_combat`,
+   `screenshot_orbit`, `screenshot_reel` + `hud_range` PASS). Two defects were
+   found by the eyeball and fixed: the lock readout wrapped into ragged rows
+   inside its new chip (added `LineBreak::NoWrap`), and the ship-anchored speed
+   chip landed ON the new bottom-centre dock (see divergence 4). The committed
+   web captures were regenerated (`scripts/gen-web-screenshots.py`): 15 assets
+   updated.
+
+   Correction (review R1.3): a third "fix" in this pass - switching the keycap
+   box to height-only sizing so wide caps could keep their aspect - was a NO-OP
+   and its rationale was wrong. Every keycap PNG is a square 128x128 canvas
+   (`magick identify`), with the wide caps drawn smaller inside it; the apparent
+   improvement was a crop artifact (the two eyeball crops were resized 150% vs
+   200%). Reverted to an explicit square box, with the true reason recorded at
+   `GLYPH_PX`.
+6. Owner playtest verdict - PENDING (manual).
+
+### Inherited reds met on the way (both A/B-confirmed against master)
+
+- `examples/ui/hud_range.rs` asserted a raw-metre distance against a readout
+  that has printed `1.50 km` since the units task (20260728-175731). FIXED
+  here as merge integration: `readout_value` now reads the unit suffix and
+  converts back through `nova_ui::units::METRES_PER_UNIT`.
+- `objective_hint_shows_the_nova_crt_star_icon` had no `NovaHudAssets` in its
+  rig, so the hint took its no-assets fallback and spawned no icon. FIXED here
+  (the rig now supplies the resource) and extended to assert the new TAB
+  keycap.
+- `nova_assets` `an_early_derelict_kill_skips_to_the_fight` is red on master
+  and untouched by this work; filed as **20260729-140945**.
+
+### Test evidence
+
+nova_ui 15 passed; nova_gameplay --lib 729 passed (hud:: 258, keybind_dock 10,
+key_glyphs 3, ammo_readout 14); nova_scenario --lib 145 passed; nova_assets
+--lib 95 passed / 1 pre-existing failure (20260729-140945);
+`cargo test --test examples_smoke ui` 1 passed; `cargo check --workspace
+--all-targets` clean; `cargo fmt --check` clean. Full suite + clippy left to CI
+per AGENTS.md.

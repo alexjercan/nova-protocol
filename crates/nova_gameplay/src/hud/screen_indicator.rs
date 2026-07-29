@@ -26,10 +26,10 @@ use bevy_common_systems::prelude::ChaseCameraSystems;
 /// Glob-import surface: `use nova_gameplay::hud::screen_indicator::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
-        screen_indicator, screen_indicator_layer, ScreenIndicatorAnchor, ScreenIndicatorAnchorKind,
-        ScreenIndicatorArrowMarker, ScreenIndicatorCamera, ScreenIndicatorConfig,
-        ScreenIndicatorMarker, ScreenIndicatorOffscreen, ScreenIndicatorOffset,
-        ScreenIndicatorPlugin, ScreenIndicatorSize, ScreenIndicatorSystems,
+        screen_indicator, screen_indicator_layer, screen_indicator_node, ScreenIndicatorAnchor,
+        ScreenIndicatorAnchorKind, ScreenIndicatorArrowMarker, ScreenIndicatorCamera,
+        ScreenIndicatorConfig, ScreenIndicatorMarker, ScreenIndicatorOffscreen,
+        ScreenIndicatorOffset, ScreenIndicatorPlugin, ScreenIndicatorSize, ScreenIndicatorSystems,
     };
 }
 
@@ -58,6 +58,15 @@ pub struct ScreenIndicatorAnchor(pub Option<ScreenIndicatorAnchorKind>);
 pub enum ScreenIndicatorSize {
     /// A fixed on-screen size in logical pixels.
     Fixed(Vec2),
+    /// Hug the node's own laid-out content: the indicator writes only its
+    /// POSITION and leaves `width`/`height` to UI layout, centring on the size
+    /// bevy_ui computed for it. This is what a text chip needs - a fixed box
+    /// would either clip a long readout or pad a short one into a slab.
+    ///
+    /// Centring uses LAST frame's computed size (UI layout runs after this
+    /// system), so a chip whose text just changed length is centred one frame
+    /// late. That is invisible at readout cadence and is the price of hugging.
+    Content,
     /// Track the anchor entity's on-screen extent (from the union of the
     /// NON-SENSOR collider AABBs of its subtree - trigger volumes are
     /// invisible and do not count as apparent size), never shrinking
@@ -161,6 +170,27 @@ pub fn screen_indicator(config: ScreenIndicatorConfig) -> impl Bundle {
             position_type: PositionType::Absolute,
             ..default()
         },
+        Pickable::IGNORE,
+        Visibility::Hidden,
+    )
+}
+
+/// Like [`screen_indicator`], but for an indicator that is ALSO a styled box
+/// (a chip with a border, padding and children). Bevy refuses a bundle with two
+/// `Node`s, so a caller that needs its own layout cannot simply add one next to
+/// [`screen_indicator`]'s - it hands its node here instead and the projection
+/// fields are stamped onto it.
+pub fn screen_indicator_node(config: ScreenIndicatorConfig, mut node: Node) -> impl Bundle {
+    debug!("screen_indicator_node: config {:?}", config);
+
+    node.position_type = PositionType::Absolute;
+    (
+        ScreenIndicatorMarker,
+        ScreenIndicatorAnchor(config.anchor),
+        config.size,
+        ScreenIndicatorOffset(config.offset),
+        config.offscreen,
+        node,
         Pickable::IGNORE,
         Visibility::Hidden,
     )
@@ -352,6 +382,7 @@ pub(crate) fn target_world_aabb(
 /// did not project.
 #[allow(clippy::too_many_arguments)]
 fn indicator_size(
+    computed: &ComputedNode,
     size_mode: ScreenIndicatorSize,
     anchor_entity: Option<Entity>,
     anchor_pos: Vec3,
@@ -374,6 +405,8 @@ fn indicator_size(
 
     match size_mode {
         ScreenIndicatorSize::Fixed(size) => size,
+        // Logical px: `ComputedNode::size` is PHYSICAL, and left/top are Val::Px.
+        ScreenIndicatorSize::Content => computed.size() * computed.inverse_scale_factor(),
         ScreenIndicatorSize::ApparentSize { min_px, scale } => {
             let fallback = Vec2::splat(min_px);
             let (Some(entity), Some(center)) = (anchor_entity, projected) else {
@@ -408,6 +441,7 @@ fn update_screen_indicators(
             &ScreenIndicatorSize,
             &ScreenIndicatorOffset,
             &ScreenIndicatorOffscreen,
+            &ComputedNode,
             &mut Node,
             &mut Visibility,
         ),
@@ -445,7 +479,8 @@ fn update_screen_indicators(
         );
     }
 
-    for (entity, anchor, size_mode, offset, offscreen, mut node, mut visibility) in &mut q_indicator
+    for (entity, anchor, size_mode, offset, offscreen, computed, mut node, mut visibility) in
+        &mut q_indicator
     {
         let Some((camera_entity, camera)) = camera else {
             visibility.set_if_neq(Visibility::Hidden);
@@ -502,6 +537,7 @@ fn update_screen_indicators(
         };
 
         let size = indicator_size(
+            computed,
             *size_mode,
             anchor_entity,
             anchor_pos,
@@ -512,8 +548,12 @@ fn update_screen_indicators(
             &q_aabb,
         );
 
-        node.width = Val::Px(size.x);
-        node.height = Val::Px(size.y);
+        // `Content` leaves the box to UI layout - writing width/height would
+        // freeze the chip at last frame's size and it could never grow back.
+        if !matches!(size_mode, ScreenIndicatorSize::Content) {
+            node.width = Val::Px(size.x);
+            node.height = Val::Px(size.y);
+        }
         node.left = Val::Px(center.x - size.x / 2.0);
         node.top = Val::Px(center.y - size.y / 2.0);
         visibility.set_if_neq(Visibility::Visible);
@@ -861,6 +901,52 @@ mod tests {
         assert_eq!(
             *world.entity(indicator).get::<Visibility>().unwrap(),
             Visibility::Hidden
+        );
+    }
+
+    /// `Content` sizing leaves the BOX to UI layout and only positions it:
+    /// `width`/`height` stay untouched (a written `Val::Px` would freeze the
+    /// chip at one frame's size and it could never grow back), and the node is
+    /// centred on the size layout computed for it. Every restyled HUD chip
+    /// rides this - a regression here squashes all of them at once, and only a
+    /// screenshot would show it.
+    #[test]
+    fn content_sizing_positions_without_writing_the_box() {
+        let mut world = World::new();
+        spawn_camera(&mut world);
+        let indicator = world
+            .spawn((
+                screen_indicator_node(
+                    ScreenIndicatorConfig {
+                        anchor: Some(ScreenIndicatorAnchorKind::Point(Vec3::new(0.0, 0.0, -10.0))),
+                        size: ScreenIndicatorSize::Content,
+                        ..default()
+                    },
+                    Node::default(),
+                ),
+                // Stand in for what UI layout would have measured last frame.
+                ComputedNode {
+                    size: Vec2::new(60.0, 20.0),
+                    ..ComputedNode::DEFAULT
+                },
+            ))
+            .id();
+
+        world.run_system_once(update_screen_indicators).unwrap();
+
+        let node = world.entity(indicator).get::<Node>().unwrap();
+        assert_eq!(node.width, Val::Auto, "the box is UI layout's to decide");
+        assert_eq!(node.height, Val::Auto);
+        // Centred on the computed size: (400,300) - (60,20)/2.
+        let px = |val: Val| match val {
+            Val::Px(px) => px,
+            other => panic!("expected Val::Px, got {other:?}"),
+        };
+        assert!((px(node.left) - 370.0).abs() < 0.5, "left {:?}", node.left);
+        assert!((px(node.top) - 290.0).abs() < 0.5, "top {:?}", node.top);
+        assert_eq!(
+            *world.entity(indicator).get::<Visibility>().unwrap(),
+            Visibility::Visible
         );
     }
 

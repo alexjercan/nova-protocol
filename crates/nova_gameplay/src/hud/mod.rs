@@ -1,7 +1,7 @@
 //! The player's heads-up display: the diegetic instruments and overlays drawn
 //! for the player ship (velocity/flight status, lock crosshairs and dwell rings,
 //! turret lead and torpedo target reticles, ammo readouts, edge/threat
-//! indicators, objective markers, the comms panel and keybind hints). Each
+//! indicators, objective markers, the comms panel and the keybind dock). Each
 //! widget lives in its own submodule and is a [`HudTier`] layer spawned and
 //! despawned with the player ship.
 //!
@@ -23,7 +23,8 @@ pub mod edge_indicators;
 pub mod flight_status;
 pub mod holo_instruments;
 pub mod item_highlights;
-pub mod keybind_hints;
+pub mod key_glyphs;
+pub mod keybind_dock;
 pub mod lock_crosshairs;
 pub mod lock_dwell_ring;
 pub mod maneuver_instruments;
@@ -47,13 +48,13 @@ pub mod prelude {
         allegiance_markers::prelude::*, ammo_readout::prelude::*, beacon_chips::prelude::*,
         comms_panel::prelude::*, component_lock::prelude::*, edge_indicators::prelude::*,
         flight_status::prelude::*, holo_instruments::prelude::*, item_highlights::prelude::*,
-        keybind_hints::prelude::*, lock_crosshairs::prelude::*, lock_dwell_ring::prelude::*,
-        maneuver_instruments::prelude::*, nova_os::NovaOsMonitorSettings, nova_os_map::prelude::*,
-        nova_os_ship::prelude::*, objective_feedback::prelude::*, objective_markers::prelude::*,
-        readout::prelude::*, screen_indicator::prelude::*, target_inset::prelude::*,
-        torpedo_target::prelude::*, turret_lead::prelude::*, velocity::prelude::*, HudNovaOsExempt,
-        HudSelfDrivenVisibility, HudTier, HudVisibility, NovaHudAssets, NovaHudPlugin,
-        NovaHudSystems,
+        key_glyphs::prelude::*, keybind_dock::prelude::*, lock_crosshairs::prelude::*,
+        lock_dwell_ring::prelude::*, maneuver_instruments::prelude::*,
+        nova_os::NovaOsMonitorSettings, nova_os_map::prelude::*, nova_os_ship::prelude::*,
+        objective_feedback::prelude::*, objective_markers::prelude::*, readout::prelude::*,
+        screen_indicator::prelude::*, target_inset::prelude::*, torpedo_target::prelude::*,
+        turret_lead::prelude::*, velocity::prelude::*, HudNovaOsExempt, HudSelfDrivenVisibility,
+        HudTier, HudVisibility, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
     };
 }
 
@@ -160,6 +161,11 @@ pub struct NovaHudAssets {
     pub target_sprite: Handle<Image>,
     /// The NOVA CRT brand mark (drawer plate logo + objective-hint TAB affordance).
     pub nova_crt_mark: Handle<Image>,
+    /// The preloaded keycap glyphs, keyed by display label - the icon dock, the
+    /// anchored verb cues and the objective hint's Tab affordance draw from
+    /// here (see [`key_glyphs`]). Empty on bare-app rigs, which fall back to
+    /// text chips.
+    pub key_glyphs: key_glyphs::KeyGlyphs,
 }
 
 /// The player HUD umbrella: adds every widget sub-plugin and the observers
@@ -213,7 +219,7 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(velocity::VelocityHudPlugin);
         app.add_plugins(flight_status::FlightStatusHudPlugin);
         app.add_plugins(maneuver_instruments::ManeuverInstrumentsPlugin);
-        app.add_plugins(keybind_hints::KeybindHintsPlugin);
+        app.add_plugins(keybind_dock::KeybindDockPlugin);
         app.add_plugins(holo_instruments::HoloInstrumentsPlugin);
         // The bcs ObjectivesPlugin owns the `GameObjectives` resource (the
         // NOVA OS + the diegetic reveal read it) and its `rebuild_lines`
@@ -502,7 +508,7 @@ fn setup_hud_flight_status(
     add: On<Add, PlayerSpaceshipMarker>,
     mut commands: Commands,
     q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
-    q_existing_cluster: Query<(), With<KeybindHintClusterMarker>>,
+    q_existing_dock: Query<(), With<KeybindDockMarker>>,
     assets: Res<NovaHudAssets>,
 ) {
     let entity = add.entity;
@@ -531,13 +537,13 @@ fn setup_hud_flight_status(
         HudTier::Instrument,
         maneuver_instruments_hud(ManeuverInstrumentsHudConfig { ship: spaceship }),
     ));
-    // The cluster and cues are global singletons, not ship-targeted
-    // widgets: one player, one set (same guard as the flight input rig).
-    if q_existing_cluster.is_empty() {
+    // The dock and cues are global singletons, not ship-targeted widgets: one
+    // player, one set (same guard as the flight input rig).
+    if q_existing_dock.is_empty() {
         // Keybind hints are ordinary flight chrome. NOVA OS owns the monitor
         // surface while the NOVA OS is open, so only diagnostic/status chrome
         // carries `HudNovaOsExempt`.
-        commands.spawn((HudTier::Chrome, keybind_hint_cluster_hud()));
+        commands.spawn((HudTier::Chrome, keybind_dock_hud()));
         commands.spawn((HudTier::Chrome, verb_cues_hud()));
     }
 }
@@ -547,7 +553,7 @@ fn remove_hud_flight_status(
     mut commands: Commands,
     q_hud: Query<(Entity, &FlightStatusHudTargetEntity), With<FlightStatusHudMarker>>,
     q_destination: Query<Entity, With<AutopilotDestinationHudMarker>>,
-    q_cluster: Query<Entity, With<KeybindHintClusterMarker>>,
+    q_dock: Query<Entity, With<KeybindDockMarker>>,
     q_cues: Query<Entity, With<VerbCuesHudMarker>>,
     q_instruments: Query<Entity, With<ManeuverInstrumentsHudMarker>>,
     q_ring: Query<Entity, With<OrbitRingMarker>>,
@@ -566,7 +572,7 @@ fn remove_hud_flight_status(
     for hud_entity in &q_destination {
         commands.entity(hud_entity).despawn();
     }
-    for hud_entity in &q_cluster {
+    for hud_entity in &q_dock {
         commands.entity(hud_entity).despawn();
     }
     for hud_entity in &q_cues {

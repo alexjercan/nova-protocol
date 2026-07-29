@@ -8,6 +8,7 @@
 //! Chrome tier: beacons are guidance, not flight instruments.
 
 use bevy::prelude::*;
+use nova_ui::hud::{chip_node, chip_paint, ChipTone};
 
 use super::{screen_indicator::prelude::*, HudTier, NAV_CYAN};
 use crate::prelude::*;
@@ -19,9 +20,9 @@ pub mod prelude {
     };
 }
 
-/// Chip footprint (px). Wide enough for "BEACON 1  12.34 km" (18 chars at
-/// ~9 px/char) on one line - the label is `NoWrap`, so it must fit or clip.
-const CHIP_SIZE: Vec2 = Vec2::new(168.0, 16.0);
+/// The chip hugs its own text (`Content` sizing): with a visible fill and
+/// border a fixed footprint would either clip a long beacon name or hang an
+/// empty slab off a short one.
 
 /// The chip floats above the beacon so the label never sits on the mesh.
 const CHIP_OFFSET: Vec2 = Vec2::new(0.0, -28.0);
@@ -63,21 +64,25 @@ fn beacon_chip_hud(beacon: Entity, suppressed: bool) -> impl Bundle {
         children![(
             Name::new("BeaconChipUI"),
             BeaconChipLabelMarker,
-            screen_indicator(ScreenIndicatorConfig {
-                anchor: (!suppressed).then_some(ScreenIndicatorAnchorKind::Entity(beacon)),
-                size: ScreenIndicatorSize::Fixed(CHIP_SIZE),
-                offset: CHIP_OFFSET,
-                offscreen: ScreenIndicatorOffscreen::ClampToEdge {
-                    margin_px: EDGE_MARGIN_PX,
+            screen_indicator_node(
+                ScreenIndicatorConfig {
+                    anchor: (!suppressed).then_some(ScreenIndicatorAnchorKind::Entity(beacon)),
+                    size: ScreenIndicatorSize::Content,
+                    offset: CHIP_OFFSET,
+                    offscreen: ScreenIndicatorOffscreen::ClampToEdge {
+                        margin_px: EDGE_MARGIN_PX,
+                    },
                 },
-            }),
+                chip_node(),
+            ),
             Text::new(""),
             TextFont::from_font_size(LABEL_FONT_PX),
             TextLayout {
                 linebreak: LineBreak::NoWrap,
                 ..default()
             },
-            TextColor(NAV_CYAN),
+            chip_paint(ChipTone::Phosphor),
+            TextColor(ChipTone::Phosphor.text()),
             children![beacon_chip_arrow()],
         )],
     )

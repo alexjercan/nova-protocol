@@ -300,6 +300,9 @@ pub fn target_inset_hud(image: Handle<Image>) -> impl Bundle {
             width: Val::Px(INSET_PANEL_PX),
             height: Val::Px(INSET_PANEL_PX),
             border: UiRect::all(Val::Px(INSET_BORDER_PX)),
+            // Joins the chip family's cornering (demo 2 `.tgt-zoom` is a chip
+            // with a viewfinder in it, not a bare rectangle).
+            border_radius: BorderRadius::all(Val::Px(nova_ui::hud::CHIP_RADIUS)),
             ..default()
         },
         BorderColor::all(INSET_BORDER_SAFE_COLOR),
@@ -337,14 +340,20 @@ pub fn target_inset_hud(image: Handle<Image>) -> impl Bundle {
                 Name::new("InsetFactionLine"),
                 TargetInsetCaptionMarker,
                 Text::new(""),
-                TextFont::from_font_size(12.0),
+                TextFont::from_font_size(nova_ui::hud::CHIP_LABEL_FONT),
                 TextColor(INSET_BORDER_SAFE_COLOR),
                 Node {
                     position_type: PositionType::Absolute,
-                    left: Val::Px(6.0),
+                    left: Val::Px(4.0),
                     bottom: Val::Px(4.0),
+                    // The caption is the inset's header cell (demo 2 `.zh`):
+                    // a small-caps line on the family's slab, not loose text
+                    // burned into the viewfinder image.
+                    padding: UiRect::axes(Val::Px(5.0), Val::Px(2.0)),
+                    border_radius: BorderRadius::all(Val::Px(nova_ui::hud::CHIP_RADIUS)),
                     ..default()
                 },
+                BackgroundColor(nova_ui::hud::CHIP_FILL_QUIET),
             ),
             armed_tick(true, false, false),
             armed_tick(false, false, false),

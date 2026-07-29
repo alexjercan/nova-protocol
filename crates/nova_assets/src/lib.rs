@@ -1188,6 +1188,27 @@ const UI_SFX_COLLECTION_PATHS: [&str; 14] = [
     "sounds/nova_bed.wav",
 ];
 
+/// The keycap paths held by the `GameAssets::key_glyphs` mapped collection -
+/// a verbatim mirror of that `#[asset(paths(...))]` attribute (kept adjacent so
+/// they move together). `key_glyph_collection_matches_mapping_table` pins this
+/// against `nova_gameplay::hud::key_glyphs`'s mapping table, which OWNS the set.
+#[cfg(test)]
+const KEY_GLYPH_COLLECTION_PATHS: [&str; 13] = [
+    "input-prompts/keyboard/Alt/T_Brackets_L_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Brackets_R_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Crtl_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_G_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Mouse_Scroll_Key_Dark_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_O_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Shift_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Space_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Tab_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Tilde_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_W_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_X_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Z_Key_Alt.png",
+];
+
 /// The loaded base-game asset handles, collected by `bevy_asset_loader` and
 /// inserted as a [`Resource`] once every listed asset (and the installed-mods
 /// catalog) has loaded. Systems read these handles to build meshes/materials.
@@ -1268,6 +1289,33 @@ pub struct GameAssets {
     /// `mods.catalog.ron` resolves to `catalog.ron` and matches `CatalogLoader`.
     #[asset(path = "mods.catalog.ron")]
     pub catalog: Handle<InstalledCatalog>,
+    /// The keycap glyphs the HUD draws for bound keys, keyed by file stem. The
+    /// explicit `paths(...)` list mirrors
+    /// [`nova_gameplay::hud::key_glyphs::key_glyph_asset_paths`] (the mapping
+    /// table owns it); `key_glyph_collection_matches_mapping_table` pins them
+    /// together. Preloaded rather than lazily `server.load`ed per chip so the
+    /// keycaps load-gate like the UI font and the CRT mark (task
+    /// 20260729-000956); a folder collection is not used because folder
+    /// collections do not work on wasm.
+    #[asset(
+        paths(
+            "input-prompts/keyboard/Alt/T_Brackets_L_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Brackets_R_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Crtl_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_G_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Mouse_Scroll_Key_Dark_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_O_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Shift_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Space_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Tab_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Tilde_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_W_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_X_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Z_Key_Alt.png",
+        ),
+        collection(mapped, typed)
+    )]
+    pub key_glyphs: bevy::platform::collections::HashMap<AssetFileStem, Handle<Image>>,
 }
 
 /// Give the skybox cubemap its cube texture view.
@@ -1325,6 +1373,10 @@ fn update_nova_hud_assets(
 ) {
     nova_hud_assets.target_sprite = game_assets.target_sprite.clone();
     nova_hud_assets.nova_crt_mark = game_assets.nova_crt_mark.clone();
+    // Fan the stem-keyed collection out to the label-keyed lookup the HUD
+    // consumes (several labels share one keycap, e.g. both Control keys).
+    nova_hud_assets.key_glyphs =
+        KeyGlyphs::from_stems(|stem| game_assets.key_glyphs.get(stem).cloned());
 }
 
 #[cfg(test)]
@@ -1332,6 +1384,36 @@ mod tests {
     use nova_gameplay::prelude::{BaseSectionConfig, HullSectionConfig, SectionKind};
 
     use super::*;
+
+    /// DoD 2, half two (task 20260728-175742): every keycap the HUD mapping
+    /// table can resolve must appear in `GameAssets::key_glyphs`'s explicit
+    /// `paths(...)` list, or that glyph would load lazily and ungated again -
+    /// the exact regression task 20260729-000956 closed for the UI SFX. The
+    /// mapping table owns the list; this pins the attribute to it.
+    #[test]
+    fn key_glyph_collection_matches_mapping_table() {
+        use std::collections::BTreeSet;
+
+        let mapped: BTreeSet<String> = key_glyph_asset_paths().into_iter().collect();
+        let collection: BTreeSet<String> = KEY_GLYPH_COLLECTION_PATHS
+            .iter()
+            .map(|p| (*p).to_string())
+            .collect();
+        assert_eq!(
+            collection, mapped,
+            "GameAssets::key_glyphs must preload exactly the keycaps the HUD \
+             mapping table resolves"
+        );
+
+        for path in KEY_GLYPH_COLLECTION_PATHS {
+            let full = std::path::Path::new("../../assets").join(path);
+            assert!(
+                full.exists(),
+                "keycap glyph missing on disk: {}",
+                full.display()
+            );
+        }
+    }
 
     /// The `GameAssets::ui_sfx` mapped collection must load-gate exactly the
     /// files the UI `SoundBank<UiSfx>` plays: its path list
@@ -1403,6 +1485,7 @@ mod tests {
                 nova_crt_mark: default(),
                 ui_sfx: default(),
                 catalog: default(),
+                key_glyphs: default(),
             }
         }
 

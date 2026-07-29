@@ -151,7 +151,7 @@ fn cycle_label(label: &str, rig_exists: bool) -> String {
 
 /// A short chip label for a keyboard binding: `KeyX` -> `X`,
 /// `Digit1` -> `1`, everything else (Space, Enter, ...) as spelled.
-fn keyboard_label(key: KeyCode) -> String {
+pub(crate) fn keyboard_label(key: KeyCode) -> String {
     let name = format!("{key:?}");
     name.strip_prefix("Key")
         .or_else(|| name.strip_prefix("Digit"))

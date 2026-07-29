@@ -301,17 +301,30 @@ fn readout_line(world: &mut World, which: TorpedoTargetReadoutLine) -> String {
         .unwrap_or_else(|| panic!("hud range: readout line {which:?} not found"))
 }
 
-/// Parse the trailing number out of a readout line like `DST   150m` or
-/// `CLS +12.3 u/s`.
+/// Parse a readout line like `DST 1.50 km` or `CLS +12.3 m/s` back into BASE
+/// units (metres, metres per second) so it can be compared against the world.
+///
+/// The readouts route through `nova_ui::units` since task 20260728-175731, so
+/// they auto-scale to km / km/s: a unit-naive digit scrape reads `1.50 km` as
+/// `1.5` and every distance assertion below it becomes a lie. The suffix is
+/// part of the value - read it.
 #[cfg(feature = "debug")]
 fn readout_value(line: &str) -> f32 {
     let number: String = line
         .chars()
         .filter(|c| c.is_ascii_digit() || *c == '.' || *c == '-' || *c == '+')
         .collect();
-    number
+    let value: f32 = number
         .parse()
-        .unwrap_or_else(|_| panic!("hud range: no number in readout line '{line}'"))
+        .unwrap_or_else(|_| panic!("hud range: no number in readout line '{line}'"));
+    // `km` scales by 1000; plain `m`/`m/s` does not. Then back out of the
+    // player-facing metres into WORLD units, which is what the scene measures.
+    let metres = if line.contains("km") {
+        value * 1000.0
+    } else {
+        value
+    };
+    metres / nova_ui::units::METRES_PER_UNIT
 }
 
 /// Scripted headless run: assert the lock-driven reticle + readout, the

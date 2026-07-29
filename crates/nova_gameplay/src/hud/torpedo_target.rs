@@ -13,6 +13,7 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use nova_ui::hud::{self as chip, chip_paint, ChipTone};
 
 use crate::prelude::*;
 
@@ -186,9 +187,17 @@ pub fn torpedo_target_hud(config: TorpedoTargetHudConfig) -> impl Bundle {
                         top: Val::Px(0.0),
                         margin: UiRect::left(Val::Px(READOUT_GAP_PX)),
                         flex_direction: FlexDirection::Column,
+                        align_items: AlignItems::FlexStart,
                         row_gap: Val::Px(2.0),
+                        padding: UiRect::axes(Val::Px(9.0), Val::Px(4.0)),
+                        border: UiRect::all(Val::Px(1.0)),
+                        border_radius: BorderRadius::all(Val::Px(chip::CHIP_RADIUS)),
                         ..default()
                     },
+                    // The lock readout is the THREAT member of the chip family
+                    // (demo 2 `.lock-read`): a red-bordered slab so the numbers
+                    // stay legible over a lit hull and never read as nav data.
+                    chip_paint(ChipTone::Threat),
                     Pickable::IGNORE,
                     children![
                         (
@@ -196,6 +205,12 @@ pub fn torpedo_target_hud(config: TorpedoTargetHudConfig) -> impl Bundle {
                             TorpedoTargetReadoutLine::Distance,
                             Text::new(""),
                             TextFont::from_font_size(READOUT_FONT_PX),
+                            // The chip hugs its text, so a wrapping line would
+                            // fold "DST 1.50 km" into two ragged rows.
+                            TextLayout {
+                                linebreak: LineBreak::NoWrap,
+                                ..default()
+                            },
                             Pickable::IGNORE,
                         ),
                         (
@@ -203,6 +218,10 @@ pub fn torpedo_target_hud(config: TorpedoTargetHudConfig) -> impl Bundle {
                             TorpedoTargetReadoutLine::ClosingSpeed,
                             Text::new(""),
                             TextFont::from_font_size(READOUT_FONT_PX),
+                            TextLayout {
+                                linebreak: LineBreak::NoWrap,
+                                ..default()
+                            },
                             Pickable::IGNORE,
                         ),
                         (

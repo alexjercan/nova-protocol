@@ -72,6 +72,7 @@ fn game_assets_with_catalog(catalog: Handle<InstalledCatalog>) -> GameAssets {
         target_sprite: Handle::default(),
         nova_crt_mark: Handle::default(),
         ui_sfx: Default::default(),
+        key_glyphs: Default::default(),
         catalog,
     }
 }

@@ -24,7 +24,7 @@
 //! next scenario or the menu.
 
 use bevy::prelude::*;
-use nova_ui::theme;
+use nova_ui::hud::{chip_node, chip_paint, ChipTone};
 
 use super::HudTier;
 
@@ -191,7 +191,12 @@ fn sync_readout_rows(
                 },
                 Text::new(text),
                 TextFont::from_font_size(READOUT_FONT_SIZE_PX),
-                TextColor(theme::SCREEN_TEXT),
+                // Each row is a member of the HUD chip family (task
+                // 20260728-175742) - a scenario clock reads as an instrument
+                // readout, not as text floating over the starfield.
+                chip_node(),
+                chip_paint(ChipTone::Phosphor),
+                TextColor(ChipTone::Phosphor.text()),
             ));
         });
     }
