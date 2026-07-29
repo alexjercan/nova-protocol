@@ -4724,10 +4724,13 @@ version = "0.8.1"
 dependencies = [
  "avian3d",
  "bevy",
+ "dirs",
  "nova-protocol",
+ "nova_assets",
  "nova_gameplay",
  "nova_scenario",
  "serde_json",
+ "tempfile",
  "web-sys",
 ]
 

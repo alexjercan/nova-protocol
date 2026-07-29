@@ -86,6 +86,10 @@ pub mod capture;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod catalog;
 pub mod profile;
+// The child-run profile sandbox is host tooling: it builds the environment
+// probe spawns native runs with, so it is native-only like the runner.
+#[cfg(not(target_arch = "wasm32"))]
+pub mod profile_sandbox;
 // Continuous invariant checks ride the recorder's timeline sink, so they are
 // native-only with it (nothing wasm-side references them - the examples that
 // wire them never build for wasm).

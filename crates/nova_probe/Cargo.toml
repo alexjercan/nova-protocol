@@ -52,5 +52,14 @@ nova-protocol = { path = "../.." }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-sys = { version = "0.3", features = ["Window", "Location"] }
 
+# The profile-sandbox rig re-executes this test binary as a CHILD and has it
+# call the very stores a spawned run would read (`tests/profile_sandbox.rs`):
+# nova_assets for the mod cache + enabled-mods prefs, `dirs` for the data/config
+# dirs those stores (and nova_menu's private settings_store) resolve through.
+[dev-dependencies]
+dirs = "6"
+nova_assets = { path = "../nova_assets" }
+tempfile = "3"
+
 [lints]
 workspace = true

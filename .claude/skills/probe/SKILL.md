@@ -70,6 +70,14 @@ code mirrors the verdict (FAIL and NO_DATA = 1). It spawns its own Xvfb
 (`--timeout <s>`, default 180) - a timed-out run still produces a FAILing
 report.
 
+Runs are PROFILE-SANDBOXED: the child gets an empty, probe-owned profile under
+`<run-dir>/profile/` (`NOVA_MOD_CACHE_ROOT`, `XDG_DATA_HOME`,
+`XDG_CONFIG_HOME`), wiped each run, so your local mod cache,
+`installed.mods.ron`, `enabled_mods.ron` and `settings.ron` can never decide a
+result - shipped `assets/` content still loads normally. Export any of those
+three yourself to keep it (probe preserves what it finds set and says so),
+which is how you deliberately probe your real installed mods.
+
 ## Reading the verdict (the honesty rules)
 
 - `checks.json` is the agent-readable mirror - read it instead of parsing

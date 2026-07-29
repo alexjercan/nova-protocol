@@ -50,6 +50,7 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- `nova_probe` runs are profile-sandboxed: each native child run gets an empty, probe-owned profile under its run dir (`NOVA_MOD_CACHE_ROOT`, `XDG_DATA_HOME`, `XDG_CONFIG_HOME`), so a locally cached mod, saved enabled-mod set or saved settings can no longer decide a run's result; export any of the three to keep your own.
 - The Iosevka Term terminal font is now credited in `credits/` under its SIL Open Font License 1.1 (copyright and full license text bundled with every build, as the OFL requires).
 - Input-prompt key glyphs (JulioCacko's FREE Input Prompts, CC0) move into the game asset tree at `assets/input-prompts/keyboard/Alt/` and are credited in `credits/`; only the Alt style ships and the unused Dark/White styles are dropped.
 - Static assets (UI font, shared HUD art, UI sound effects, textures and meshes) now preload through `bevy_asset_loader` collections and are load-gated before gameplay starts, instead of being fetched lazily at first use; scenario-authored `AssetRef`s and downloaded `mods://` bundles remain the dynamic exceptions. The UI font ships as the single Iosevka Term Regular face (`.ttf`, ~11 MB) extracted from the former 66 MB `.ttc`, so the bespoke `.ttc` font loader is retired for Bevy's built-in one (the web `.meta` generator follows suit) and the first NOVA OS open no longer triggers a 66 MB download on the web build.

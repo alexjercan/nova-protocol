@@ -41,9 +41,12 @@ mod native {
         time::{Duration, Instant},
     };
 
-    use nova_probe::run_report::{
-        checks_json, evaluate_checks, overall_verdict, print_checks, render_run_report,
-        run_identity, PassRecord, RunArtifacts, RunManifest,
+    use nova_probe::{
+        profile_sandbox,
+        run_report::{
+            checks_json, evaluate_checks, overall_verdict, print_checks, render_run_report,
+            run_identity, PassRecord, RunArtifacts, RunManifest,
+        },
     };
 
     pub const USAGE: &str = "\
@@ -851,14 +854,17 @@ usage: probe <subcommand>
     /// Environment for the CLEAN pass: autopilot + recorder + invariants
     /// always; the frame-time capture only on request (`--fps`) since only
     /// the wired examples (perf_baseline) read it - elsewhere it is a
-    /// harmless no-op env.
+    /// harmless no-op env. Plus the profile sandbox, so the run cannot read
+    /// the operator's mod cache, enabled mods or settings
+    /// ([`nova_probe::profile_sandbox`]).
     pub fn clean_pass_env(
         root: &Path,
         out: &Path,
         display: &str,
         fps: bool,
     ) -> Vec<(String, String)> {
-        let mut env = vec![
+        let mut env = profile_sandbox::env(out);
+        env.extend(vec![
             ("BCS_AUTOPILOT".into(), "1".into()),
             ("BEVY_ASSET_ROOT".into(), root.display().to_string()),
             ("DISPLAY".into(), display.into()),
@@ -867,7 +873,7 @@ usage: probe <subcommand>
                 out.join("timeline.jsonl").display().to_string(),
             ),
             ("NOVA_PERF_INVARIANTS".into(), "1".into()),
-        ];
+        ]);
         if fps {
             env.push(("NOVA_PERF".into(), "1".into()));
             env.push(("NOVA_PERF_OUT".into(), out.display().to_string()));
@@ -927,13 +933,15 @@ usage: probe <subcommand>
     /// log filter sets bevy_ecs=warn, which silently kills them -
     /// env-filter-governs-spans). No recorder/invariants here: this pass
     /// exists for the trace only, and its numbers never feed the report's
-    /// correctness or FPS sections.
+    /// correctness or FPS sections. Profile-sandboxed like the clean pass:
+    /// every native child run gets the same empty, probe-owned profile.
     pub fn trace_pass_env(root: &Path, out: &Path, display: &str) -> Vec<(String, String)> {
         let rust_log = match std::env::var("RUST_LOG") {
             Ok(existing) if !existing.is_empty() => format!("{existing},bevy_ecs=info"),
             _ => "bevy_ecs=info".into(),
         };
-        vec![
+        let mut env = profile_sandbox::env(out);
+        env.extend(vec![
             ("BCS_AUTOPILOT".into(), "1".into()),
             ("BEVY_ASSET_ROOT".into(), root.display().to_string()),
             ("DISPLAY".into(), display.into()),
@@ -942,7 +950,24 @@ usage: probe <subcommand>
                 out.join("trace.json").display().to_string(),
             ),
             ("RUST_LOG".into(), rust_log),
-        ]
+        ]);
+        env
+    }
+
+    /// Environment for the SAMPLY pass: the sampled run drives the same
+    /// autopilot scene, so it carries the autopilot + asset root + display -
+    /// and the profile sandbox, like every other native child run (a pass
+    /// that spawns the example is a pass that must not read the operator's
+    /// mod cache, review R1.1). No recorder/capture: samply's own sampler is
+    /// the instrument here.
+    pub fn samply_pass_env(root: &Path, out: &Path, display: &str) -> Vec<(String, String)> {
+        let mut env = profile_sandbox::env(out);
+        env.extend(vec![
+            ("BCS_AUTOPILOT".to_string(), "1".to_string()),
+            ("BEVY_ASSET_ROOT".to_string(), root.display().to_string()),
+            ("DISPLAY".to_string(), display.to_string()),
+        ]);
+        env
     }
 
     /// Kill-by-recorded-PID guard for the throwaway Xvfb (never pkill).
@@ -1146,6 +1171,12 @@ usage: probe <subcommand>
             .map_err(|e| format!("could not resolve out dir: {e}"))?;
         // Nothing stale may survive into this run's report.
         clean_out_dir(&out)?;
+        // The child runs read their mod cache / enabled mods / settings from
+        // this run's own empty profile, never the operator's (task
+        // 20260729-015406). The env itself rides in clean_pass_env and
+        // trace_pass_env; this creates the dirs and reports any variable the
+        // operator kept for themselves.
+        profile_sandbox::prepare(&out);
         // A bad baseline path must fail BEFORE minutes of build+run
         // (finding 2c), and it must actually parse.
         if let Some(baseline) = &opts.baseline {
@@ -1343,11 +1374,7 @@ usage: probe <subcommand>
                 Err(e) => eprintln!("probe: samply build failed ({e}); flamegraph skipped"),
                 Ok(()) => {
                     let sbin = root.join("target/profiling/examples").join(&opts.example);
-                    let samply_env = vec![
-                        ("BCS_AUTOPILOT".to_string(), "1".to_string()),
-                        ("BEVY_ASSET_ROOT".to_string(), root.display().to_string()),
-                        ("DISPLAY".to_string(), display.clone()),
-                    ];
+                    let samply_env = samply_pass_env(&root, &out, &display);
                     let samply = Path::new("samply");
                     let profile_out = out.join("samply-profile.json.gz");
                     let outcome = run_supervised(
@@ -2368,6 +2395,45 @@ usage: probe <subcommand>
                 None,
                 "label rides with --fps only"
             );
+        }
+
+        #[test]
+        fn every_child_run_env_carries_the_profile_sandbox() {
+            let root = Path::new("/repo");
+            let out = Path::new("/repo/probe-runs/x");
+            // Expectations are COMPUTED from the sandbox itself: a variable
+            // the test host exports is one probe deliberately leaves to the
+            // operator (that policy is pinned in profile_sandbox's own
+            // tests). The guard keeps this from degrading into a test that
+            // asserts nothing on a host that exports all three (review R1.2).
+            let expected = profile_sandbox::env(out);
+            assert!(
+                !expected.is_empty(),
+                "this test needs a host that does not export all of {:?}; \
+                 it cannot prove the wiring when probe pushes nothing",
+                profile_sandbox::SANDBOXED_VARS
+            );
+            // EVERY builder that feeds run_supervised with a native example:
+            // clean (also the sweep + fps passes), profiled, samply.
+            for env in [
+                clean_pass_env(root, out, ":97", false),
+                clean_pass_env(root, out, ":97", true),
+                trace_pass_env(root, out, ":97"),
+                samply_pass_env(root, out, ":97"),
+            ] {
+                for (var, path) in &expected {
+                    let value = env
+                        .iter()
+                        .find(|(k, _)| k == var)
+                        .map(|(_, v)| v.clone())
+                        .unwrap_or_else(|| panic!("{var} missing: every child run is sandboxed"));
+                    assert_eq!(&value, path, "{var} must point at this run's own sandbox");
+                    assert!(
+                        value.starts_with("/repo/probe-runs/x/profile/"),
+                        "{var} must point inside the run dir, got {value}"
+                    );
+                }
+            }
         }
 
         #[test]

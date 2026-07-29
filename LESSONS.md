@@ -174,12 +174,19 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   rotation, so the "world" pose is just local shifted and the rotation is dead
   dressing that misleads a reader into thinking the frames are properly composed.
   Kin of [[spatial-fixture-off-the-trivial-point]]. 20260728-125510.
-- `pin-each-caller-not-just-shared-core` (x3 -> Pending promotions, work skill): a
+- `pin-each-caller-not-just-shared-core` (x4 -> Pending promotions, work skill): a
   shared helper/renderer covered by ONE caller (or a synthetic spec) does not cover
   the OTHER callers' wiring - target resolution, message plumbing, side effects, or
   a data field set at N registration sites; pin each entry point end-to-end in the
-  SAME pass, not after a reviewer points at the missing half. Kin of
-  [[advertised-is-not-wired]]. 20260726-115339, 20260728-115430, 20260728-184502.
+  SAME pass, not after a reviewer points at the missing half. Enumerate the CALL
+  sites (grep the spawn/dispatch fn), not the helper functions - a fourth probe
+  child built its env inline at the call site and shipped unsandboxed under a
+  builders-only sweep, docs already claiming "every". Kin of
+  [[advertised-is-not-wired]]. 20260726-115339, 20260728-115430, 20260728-184502, 20260729-015406.
+- `computed-expectations-need-a-nonempty-guard` (x1): a test whose expectation set
+  is COMPUTED (host env, config, a filtered list) silently asserts NOTHING when the
+  computation yields empty - guard with `assert!(!expected.is_empty(), <why>)` so the
+  degenerate case fails loudly instead of passing green. 20260729-015406.
 - `deleting-a-test-salvage-live-assertions` (x2): a test deleted with the module it
   exercised may carry the only assertion pinning a still-live edge - read each
   assertion and re-home the survivors, a test is a bag of assertions, not one unit
@@ -1295,15 +1302,16 @@ here (annotated) as the paid record.
   the work skill's edit guidance: "anchor an insert on the DOC BLOCK start, not
   the attribute, and re-read the produced text around both items".
   20260525-133017, 20260716-193949, 20260728-175742.
-- `pin-each-caller-not-just-shared-core` (x3) -> work/review skill: a shared
+- `pin-each-caller-not-just-shared-core` (x4) -> work/review skill: a shared
   helper/renderer covered by ONE caller or a synthetic fixture does not prove the
   OTHER callers' wiring - target resolution, plumbing, side effects, or a data
   field set at N registration sites feeding a pure renderer. Prose target (work
   verify step + review Tests dimension): "when a change adds N symmetric callers or
-  registration sites, pin each end-to-end in the SAME pass". Here `arg_hint` was
+  registration sites, pin each end-to-end in the SAME pass - enumerate the CALL
+  sites, not the helpers". Here `arg_hint` was
   unit-tested on the renderer with a synthetic spec; the reviewer had to point at
   the un-exercised `ship <section>` registration wiring.
-  20260726-115339, 20260728-115430, 20260728-184502.
+  20260726-115339, 20260728-115430, 20260728-184502, 20260729-015406.
 - `validate-proof-command-shape-at-plan-time` (x3) -> work skill: at verify,
   confirm a `cmd:`/test proof runs the INTENDED tests - right arity/flags AND a
   NON-ZERO "N passed" PER named module, not a bare "ok". Failure modes seen:
