@@ -167,14 +167,15 @@ fn drop_shadow() -> BoxShadow {
     )
 }
 
-/// A coloured glow drop shadow (selected/primary faces).
+/// A coloured glow drop shadow (selected/primary faces). Kept subtle so it
+/// reads as a lit element, not a blurry halo that fights the text.
 fn glow_shadow(color: Color) -> BoxShadow {
     BoxShadow::new(
-        color.with_alpha(0.4),
+        color.with_alpha(0.22),
         Val::ZERO,
         Val::ZERO,
         Val::ZERO,
-        Val::Px(14.0),
+        Val::Px(7.0),
     )
 }
 
@@ -827,7 +828,9 @@ pub fn menu_button(text: &str) -> impl Bundle {
 
 // ============================ layout helpers =================================
 
-/// A small uppercase section header (e.g. "COMPONENTS"), phosphor + glow.
+/// A small uppercase section header (e.g. "COMPONENTS"), flat phosphor. No
+/// TextShadow: a hard drop shadow makes the header feel floaty; a terminal
+/// header should read as imprinted on the screen.
 pub fn panel_header(text: &str) -> impl Bundle {
     (
         UiText,
@@ -837,7 +840,6 @@ pub fn panel_header(text: &str) -> impl Bundle {
             ..default()
         },
         TextColor(theme::PHOSPHOR),
-        TextShadow::default(),
         Node {
             margin: UiRect::bottom(px(8)),
             ..default()
@@ -999,7 +1001,7 @@ pub fn panel(skin: UiSkin) -> impl Bundle {
                 UiPosition::TOP,
                 RadialGradientShape::FarthestSide,
                 vec![
-                    ColorStop::percent(theme::PHOSPHOR.with_alpha(0.10), 0.0),
+                    ColorStop::percent(theme::PHOSPHOR.with_alpha(0.06), 0.0),
                     ColorStop::percent(Color::NONE, 70.0),
                 ],
             ))]),
@@ -1053,11 +1055,11 @@ pub fn toggle(on: bool, skin: UiSkin) -> impl Bundle {
     // The "on" dot glows (phosphor skin); the off dot is flat.
     let dot_shadow = if on && phosphor {
         Some(BoxShadow::new(
-            theme::PHOSPHOR.with_alpha(0.6),
+            theme::PHOSPHOR.with_alpha(0.35),
             Val::ZERO,
             Val::ZERO,
             Val::ZERO,
-            Val::Px(8.0),
+            Val::Px(5.0),
         ))
     } else {
         None
@@ -1122,7 +1124,7 @@ pub fn panel_head(title: &str, tag: Option<&str>, _skin: UiSkin) -> impl Bundle 
                     ..default()
                 },
                 TextColor(theme::PHOSPHOR),
-                TextShadow::default(),
+                // Flat, no drop shadow - imprinted on the screen, not floating.
             ));
             // The rule: a thin flex-filling phosphor-muted line.
             parent.spawn((
@@ -1183,20 +1185,40 @@ pub fn list_row(selected: bool, skin: UiSkin) -> impl Bundle {
     )
 }
 
+/// Number of segments in a phosphor slider's block-meter.
+pub const SLIDER_SEGMENTS: usize = 24;
+
+/// Marks one segment of a phosphor slider block-meter; the tuple is its index.
+/// A driver (e.g. a slider's value-change system) reads the index + the current
+/// fraction through [`slider_meter_color`] to light the bar up to the value.
+#[derive(Component)]
+pub struct SliderBlock(pub usize);
+
+/// The colour of block `index` for a slider at `fraction`: full phosphor if the
+/// bar is lit (below the value), dim phosphor otherwise.
+pub fn slider_meter_color(index: usize, fraction: f32) -> Color {
+    let lit = (fraction.clamp(0.0, 1.0) * SLIDER_SEGMENTS as f32).round() as usize;
+    if index < lit {
+        theme::PHOSPHOR
+    } else {
+        theme::PHOSPHOR.with_alpha(0.16)
+    }
+}
+
 /// A re-skin of the audio Slider's track (the existing `bevy_ui_widgets::Slider`
 /// keeps its value/range behaviour; this is the visual). Phosphor: a bordered
-/// track with a segmented block-meter fill and NO knob. Hardware: a gradient
-/// fill with a round knob. `fraction` in `[0, 1]`. Spawn as the slider's child.
+/// track filled with a segmented BLOCK-METER (a row of [`SliderBlock`] bars lit
+/// up to `fraction`, no knob), matching the demo's dotted fill. Hardware: a
+/// solid phosphor-dim fill. `fraction` in `[0, 1]`. Spawn as the slider's child.
 pub fn slider_track(fraction: f32, skin: UiSkin) -> impl Bundle {
     let phosphor = skin.is_phosphor();
     let fraction = fraction.clamp(0.0, 1.0);
-    let (height, radius, track_bg, track_border, fill) = if phosphor {
+    let (height, radius, track_bg, track_border) = if phosphor {
         (
-            12.0,
+            14.0,
             theme::RADIUS,
             Color::srgba(0.0, 0.0, 0.0, 0.5),
             theme::PHOSPHOR.with_alpha(0.32),
-            theme::PHOSPHOR,
         )
     } else {
         (
@@ -1204,7 +1226,6 @@ pub fn slider_track(fraction: f32, skin: UiSkin) -> impl Bundle {
             6.0,
             Color::srgba(0.0, 0.0, 0.0, 0.55),
             theme::CASE_EDGE,
-            theme::PHOSPHOR_DIM,
         )
     };
     (
@@ -1214,19 +1235,42 @@ pub fn slider_track(fraction: f32, skin: UiSkin) -> impl Bundle {
             border: UiRect::all(px(theme::BORDER_W)),
             border_radius: BorderRadius::all(px(radius)),
             align_items: AlignItems::Center,
+            padding: if phosphor {
+                UiRect::all(px(2))
+            } else {
+                UiRect::ZERO
+            },
+            column_gap: if phosphor { px(2) } else { px(0) },
             ..default()
         },
         BorderColor::all(track_border),
         BackgroundColor(track_bg),
-        children![(
-            Node {
-                width: percent(fraction * 100.0),
-                height: percent(100.0),
-                border_radius: BorderRadius::all(px(if phosphor { 0.0 } else { radius })),
-                ..default()
-            },
-            BackgroundColor(fill),
-        )],
+        Children::spawn(SpawnWith(move |parent: &mut RelatedSpawner<ChildOf>| {
+            if phosphor {
+                for i in 0..SLIDER_SEGMENTS {
+                    parent.spawn((
+                        SliderBlock(i),
+                        Node {
+                            flex_grow: 1.0,
+                            height: percent(100),
+                            border_radius: BorderRadius::all(px(1)),
+                            ..default()
+                        },
+                        BackgroundColor(slider_meter_color(i, fraction)),
+                    ));
+                }
+            } else {
+                parent.spawn((
+                    Node {
+                        width: percent(fraction * 100.0),
+                        height: percent(100.0),
+                        border_radius: BorderRadius::all(px(radius)),
+                        ..default()
+                    },
+                    BackgroundColor(theme::PHOSPHOR_DIM),
+                ));
+            }
+        })),
     )
 }
 
