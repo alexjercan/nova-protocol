@@ -7,12 +7,10 @@
 //! one of two skins - the phosphor CLI look (default) and the light-3D hardware
 //! casing (see [`crate::skin::UiSkin`]).
 //!
-//! The `LEGACY web palette` block below is the retiring flat navy/cyan theme
-//! (mirrored from `web/src/style.css`). It is still consumed by the flight-HUD
-//! chrome and the editor, whose per-surface restyle onto the NOVA OS tokens is
-//! tracked in tasks 20260728-175742 (HUD) and 20260728-175738 (menus + editor);
-//! once those land, the legacy block is deleted. See this task's DECISION.md for
-//! why the deletion is deferred rather than done here.
+//! The flat navy/cyan `web/src/style.css` palette that this theme used to mirror
+//! has been fully retired: its last consumers (menu + editor, HUD chrome) moved
+//! onto the NOVA OS tokens in tasks 20260728-175738 and -175742. The web app
+//! keeps its own CSS; this module is NOVA-OS-only now.
 //!
 //! Palette + metrics only - typography routes through [`crate::font::UiFont`].
 
@@ -89,34 +87,12 @@ pub const BORDER_W: f32 = 1.0;
 /// Placeholder/thumbnail icon size (the wiki `.wiki-child__icon` is 44x44).
 pub const ICON: f32 = 44.0;
 
-// ===================== LEGACY web palette (retiring) =========================
-// Still consumed by the flight-HUD chrome + editor; migrated onto the NOVA OS
-// tokens above by tasks 20260728-175742 / -175738, then deleted. See DECISION.md.
-
-/// Page background (LEGACY navy `--space-1`): the deep field behind everything.
-pub const BG: Color = Color::srgb_u8(11, 15, 28);
-/// Default panel/surface (LEGACY navy `--panel`): rails, cards, tooltips.
-pub const PANEL: Color = Color::srgb_u8(20, 26, 46);
-/// Raised/elevated surface (LEGACY navy `--panel-2`): hover fill.
-pub const PANEL_RAISED: Color = Color::srgb_u8(26, 33, 56);
-/// Standard 1px border (LEGACY navy `--border`).
-pub const BORDER: Color = Color::srgb_u8(35, 48, 82);
-/// Brightened border on hover/active (LEGACY navy `--border-bright`).
-pub const BORDER_BRIGHT: Color = Color::srgb_u8(58, 77, 122);
-/// Primary accent (LEGACY `--cyan`).
-pub const CYAN: Color = Color::srgb_u8(92, 200, 255);
-/// Highlight / active text (LEGACY `--cyan-bright`).
-pub const CYAN_BRIGHT: Color = Color::srgb_u8(143, 224, 255);
-/// Secondary accent (LEGACY `--amber`): badges, HP figures, ammo.
-pub const AMBER: Color = Color::srgb_u8(255, 184, 119);
-/// Primary text (LEGACY `--text`).
-pub const TEXT: Color = Color::srgb_u8(232, 238, 252);
-/// Secondary/tertiary text (LEGACY `--text-muted`).
-pub const TEXT_MUTED: Color = Color::srgb_u8(139, 149, 176);
-
-/// A cyan-tinted panel used as the SELECTED fill (there is no alpha compositing
-/// in a solid `BackgroundColor`, so this is a pre-mixed cyan-over-panel).
-pub const SELECTED_FILL: Color = Color::srgb_u8(24, 54, 78);
+// The LEGACY navy/cyan web palette (BG/PANEL/PANEL_RAISED/BORDER/BORDER_BRIGHT/
+// CYAN/CYAN_BRIGHT/AMBER/TEXT/TEXT_MUTED/SELECTED_FILL) was retired here once its
+// last consumers migrated onto the NOVA OS tokens above: the menu + editor in
+// task 20260728-175738 and the flight-HUD chrome in 20260728-175742 (this task,
+// landing second, deleted the block). See 175734's DECISION.md for the staged
+// retirement.
 
 /// Semantic HUD accents: the meaning-carrying gameplay colours (threat, ally,
 /// nav, objective, ...), centralized here so the HUD has ONE palette source.

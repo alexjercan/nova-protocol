@@ -2803,14 +2803,14 @@ fn spawn_nova_os_empty_objective_row(parent: &mut ChildSpawnerCommands) {
                 border: UiRect::all(Val::Px(theme::BORDER_W)),
                 ..default()
             },
-            BorderColor::all(theme::BORDER),
-            BackgroundColor(theme::PANEL_RAISED.with_alpha(0.45)),
+            BorderColor::all(theme::PHOSPHOR_MUTED),
+            BackgroundColor(theme::SCREEN_1.with_alpha(0.45)),
         ))
         .with_children(|row| {
             row.spawn((
                 Text::new("No active objectives."),
                 TextFont::from_font_size(DRAWER_LINE_FONT_PX),
-                TextColor(theme::TEXT_MUTED),
+                TextColor(theme::PHOSPHOR_DIM),
             ));
         });
 }
@@ -2834,8 +2834,8 @@ fn spawn_nova_os_objective_row(parent: &mut ChildSpawnerCommands, objective: &Ob
                 column_gap: Val::Px(DRAWER_ROW_GAP_PX),
                 ..default()
             },
-            BorderColor::all(theme::BORDER_BRIGHT),
-            BackgroundColor(theme::PANEL_RAISED),
+            BorderColor::all(theme::PHOSPHOR_DIM),
+            BackgroundColor(theme::SCREEN_1),
         ))
         .with_children(|row| {
             row.spawn((
@@ -2865,7 +2865,7 @@ fn spawn_nova_os_objective_row(parent: &mut ChildSpawnerCommands, objective: &Ob
                         justify: Justify::Left,
                         linebreak: LineBreak::WordBoundary,
                     },
-                    TextColor(theme::TEXT),
+                    TextColor(theme::SCREEN_TEXT),
                 ));
             });
         });
@@ -2910,14 +2910,14 @@ fn spawn_nova_os_empty_flight_log_row(parent: &mut ChildSpawnerCommands) {
                 border: UiRect::all(Val::Px(theme::BORDER_W)),
                 ..default()
             },
-            BorderColor::all(theme::BORDER),
-            BackgroundColor(theme::PANEL_RAISED.with_alpha(0.45)),
+            BorderColor::all(theme::PHOSPHOR_MUTED),
+            BackgroundColor(theme::SCREEN_1.with_alpha(0.45)),
         ))
         .with_children(|row| {
             row.spawn((
                 Text::new("No log entries."),
                 TextFont::from_font_size(DRAWER_LINE_FONT_PX),
-                TextColor(theme::TEXT_MUTED),
+                TextColor(theme::PHOSPHOR_DIM),
             ));
         });
 }
@@ -2936,7 +2936,7 @@ fn spawn_nova_os_flight_log_row(
         | NovaOsFlightLogEntryKind::ObjectiveCompleted => NovaOsFlightLogIconKind::Objective,
     };
     let accent = match entry.kind {
-        NovaOsFlightLogEntryKind::Comms => theme::CYAN,
+        NovaOsFlightLogEntryKind::Comms => theme::BLUE,
         NovaOsFlightLogEntryKind::ObjectivePosted => theme::semantic::OBJECTIVE,
         NovaOsFlightLogEntryKind::ObjectiveCompleted => theme::semantic::ALLY,
     };
@@ -2958,8 +2958,8 @@ fn spawn_nova_os_flight_log_row(
                 column_gap: Val::Px(DRAWER_ROW_GAP_PX),
                 ..default()
             },
-            BorderColor::all(theme::BORDER),
-            BackgroundColor(theme::PANEL_RAISED.with_alpha(0.58)),
+            BorderColor::all(theme::PHOSPHOR_MUTED),
+            BackgroundColor(theme::SCREEN_1.with_alpha(0.58)),
         ))
         .with_children(|row| {
             spawn_nova_os_flight_log_icon(row, entry, icon_kind, accent, asset_server);
@@ -2967,7 +2967,7 @@ fn spawn_nova_os_flight_log_row(
                 NovaOsFlightLogTextMarker,
                 Text::new(nova_os_flight_log_text(entry)),
                 TextFont::from_font_size(DRAWER_LINE_FONT_PX),
-                TextColor(theme::TEXT),
+                TextColor(theme::SCREEN_TEXT),
                 TextLayout {
                     justify: Justify::Left,
                     linebreak: LineBreak::WordBoundary,

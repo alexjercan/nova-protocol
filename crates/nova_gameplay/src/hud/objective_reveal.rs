@@ -110,7 +110,7 @@ pub fn spawn_objective_reveal(commands: &mut Commands, objective: &Objective) {
                 scale: Vec2::ZERO,
                 ..default()
             },
-            BackgroundColor(theme::PANEL.with_alpha(0.0)),
+            BackgroundColor(theme::SCREEN_0.with_alpha(0.0)),
             BorderColor::all(OBJECTIVE_GOLD.with_alpha(0.0)),
             // A cockpit flourish, never interactive.
             Pickable::IGNORE,
@@ -170,7 +170,7 @@ fn animate_objective_reveals(
         node.left = Val::Px(pos.x - REVEAL_WIDTH_PX / 2.0);
         node.top = Val::Px(pos.y - REVEAL_APPROX_HEIGHT_PX / 2.0);
         ui.scale = Vec2::splat(scale);
-        bg.0 = theme::PANEL.with_alpha(theme::PANEL.alpha() * alpha);
+        bg.0 = theme::SCREEN_0.with_alpha(theme::SCREEN_0.alpha() * alpha);
         *border = BorderColor::all(OBJECTIVE_GOLD.with_alpha(alpha));
         for &child in children {
             if let Ok(mut color) = q_text.get_mut(child) {

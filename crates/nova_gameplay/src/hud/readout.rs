@@ -191,7 +191,7 @@ fn sync_readout_rows(
                 },
                 Text::new(text),
                 TextFont::from_font_size(READOUT_FONT_SIZE_PX),
-                TextColor(theme::TEXT),
+                TextColor(theme::SCREEN_TEXT),
             ));
         });
     }

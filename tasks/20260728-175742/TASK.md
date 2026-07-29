@@ -148,3 +148,34 @@ task owns migrating the HUD-chrome surface off them:
   this lands first, leave the block; if second, delete it and prove the legacy
   consts are unreferenced (`grep -rn "theme::\(BG\|PANEL\|CYAN\|...\)" crates/`
   = 0).
+
+## Progress (2026-07-29) - PARTIAL
+
+Landed as a self-contained first commit (`refactor(hud): migrate HUD chrome off
+legacy palette; delete LEGACY theme block`):
+
+- DONE: migrated the 23 legacy navy/cyan `theme::*` refs in
+  `crates/nova_gameplay/src/hud/` onto the NOVA OS tokens (comms `CYAN -> BLUE`;
+  `TEXT_MUTED -> PHOSPHOR_DIM`). semantic accents untouched.
+- DONE: deleted the `LEGACY web palette` block from `nova_ui::theme` (this task
+  landed second after 175738, so nothing referenced it). Navy/cyan is now fully
+  retired from the game: `grep` for the legacy consts across `crates/` = 0. This
+  satisfies the epic's Done-Means-3 palette goal (menus/editor/HUD no longer show
+  the flat navy/cyan theme) at the token level. nova_ui + nova_gameplay compile;
+  nova_gameplay tests compile.
+
+REMAINING (the bulk of this task's own DoD - NOT yet done, task stays OPEN):
+
+- The phosphor CHIP-family restyle across the HUD sites (flight_status, target
+  readouts, edge/objective/beacon chips, target inset, status bar) - Step 1/2.
+- The key-glyph asset pipeline: a `collection(mapped, typed)` glyph collection
+  with an explicit `paths(...)` list + a `KeyCode -> Handle<Image>` mapping table
+  (Step 3), following the 20260729-000956 preload pattern.
+- The icon-chip DOCK replacing the 755-line `keybind_hints.rs` 7-row cluster,
+  with the 3 availability states + preserved `HintEmphasis` pulse (Step 4), the
+  anchored cue glyphs (Step 5), text reduction (Step 6), ammo low-state (Step 7).
+- DoD tests 1-3 (dock renders per verb, every-bound-key-maps-to-a-glyph,
+  emphasis-still-lands), the render eyeball (5) + docs/screenshots (Step 8).
+
+This remaining scope is a large, GPU-eyeball-dependent effort (a new asset
+pipeline + a full HUD component rewrite) best taken as its own focused cycle.

@@ -133,7 +133,7 @@ fn setup_hint(
             hint.spawn((
                 Text::new("TAB"),
                 TextFont::from_font_size(HINT_CHIP_FONT_PX),
-                TextColor(theme::TEXT_MUTED),
+                TextColor(theme::PHOSPHOR_DIM),
             ));
         });
     });

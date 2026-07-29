@@ -310,8 +310,8 @@ fn comms_card(line: &VisibleCommsLine, asset_server: Option<&AssetServer>) -> im
             align_items: AlignItems::FlexStart,
             ..default()
         },
-        BorderColor::all(theme::BORDER.with_alpha(theme::BORDER.alpha() * alpha)),
-        BackgroundColor(theme::PANEL.with_alpha(theme::PANEL.alpha() * alpha)),
+        BorderColor::all(theme::PHOSPHOR_MUTED.with_alpha(theme::PHOSPHOR_MUTED.alpha() * alpha)),
+        BackgroundColor(theme::SCREEN_0.with_alpha(theme::SCREEN_0.alpha() * alpha)),
         children![
             comms_icon(&line.line, alpha, asset_server),
             (
@@ -329,7 +329,7 @@ fn comms_card(line: &VisibleCommsLine, asset_server: Option<&AssetServer>) -> im
                         line.line.text
                     )),
                     TextFont::from_font_size(COMMS_FONT_SIZE_PX),
-                    TextColor(theme::TEXT.with_alpha(theme::TEXT.alpha() * alpha)),
+                    TextColor(theme::SCREEN_TEXT.with_alpha(theme::SCREEN_TEXT.alpha() * alpha)),
                     TextLayout {
                         linebreak: LineBreak::WordBoundary,
                         ..default()
@@ -362,7 +362,7 @@ fn comms_icon(line: &StoryLine, alpha: f32, asset_server: Option<&AssetServer>) 
                     .unwrap_or_default(),
             )
             .with_color(Color::WHITE.with_alpha(alpha)),
-            BorderColor::all(theme::CYAN.with_alpha(alpha)),
+            BorderColor::all(theme::BLUE.with_alpha(alpha)),
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.0)),
             children![],
         ),
@@ -372,8 +372,8 @@ fn comms_icon(line: &StoryLine, alpha: f32, asset_server: Option<&AssetServer>) 
             },
             node,
             ImageNode::default(),
-            BorderColor::all(theme::BORDER.with_alpha(alpha)),
-            BackgroundColor(theme::CYAN.with_alpha(0.18 * alpha)),
+            BorderColor::all(theme::PHOSPHOR_MUTED.with_alpha(alpha)),
+            BackgroundColor(theme::BLUE.with_alpha(0.18 * alpha)),
             children![],
         ),
     }
