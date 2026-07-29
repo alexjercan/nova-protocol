@@ -771,12 +771,6 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   deferring as legitimately as doing. 20260525-133014.
 - `verify-bevy-api-at-callsite` (x1): copy an existing in-repo callsite for
   unfamiliar Bevy API; 0.x churns. 20260712-131348.
-- `anchor-edits-in-the-right-scope` (x3): text anchors can land in the wrong
-  scope or STEAL the doc/attribute block above a fn or const - inserting an item
-  anchored on the existing item's `#[test]`/`const` line lands between that item
-  and its doc, silently reassigning it (compiles and tests clean; only a reader
-  notices). Anchor on the DOC BLOCK start, not the attribute.
-  20260525-133017, 20260716-193949, 20260728-175742.
 - `spike-reuse-over-new-infra` (x1, positive): check whether an existing
   substrate covers the need before building infrastructure. 20260712-131348.
 - `trace-vehicle-timeline-first` (x1): pick an evidence rig by its script
@@ -1276,6 +1270,14 @@ here (annotated) as the paid record.
 
 ## Pending promotions (3+ occurrences, user decides)
 
+- `anchor-edits-in-the-right-scope` (x3) -> work skill: an edit anchored on an
+  item's `#[test]`/`const`/attribute line inserts BETWEEN that item and its doc
+  block, silently reassigning the doc to the new item - compiles and tests
+  clean, only a reader notices. No tool or template can hold this (it is an
+  edit-anchor choice, not a checkable artifact state), so the target is prose in
+  the work skill's edit guidance: "anchor an insert on the DOC BLOCK start, not
+  the attribute, and re-read the produced text around both items".
+  20260525-133017, 20260716-193949, 20260728-175742.
 - `pin-each-caller-not-just-shared-core` (x3) -> work/review skill: a shared
   helper/renderer covered by ONE caller or a synthetic fixture does not prove the
   OTHER callers' wiring - target resolution, plumbing, side effects, or a data
