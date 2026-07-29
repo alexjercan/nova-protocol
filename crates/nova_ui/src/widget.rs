@@ -18,7 +18,7 @@ use bevy::{
     reflect::Is,
     text::FontSource,
     ui::{InteractionDisabled, Pressed},
-    ui_widgets::Button,
+    ui_widgets::{Button, SliderValue},
 };
 
 use crate::{font::UiFont, skin::UiSkin, theme};
@@ -101,7 +101,20 @@ pub fn register(app: &mut App) {
         .add_observer(button_on_interaction::<Add, Selected>)
         .add_observer(button_on_interaction::<Remove, Selected>);
 
-    app.add_systems(Update, (reconcile_button_skins, apply_ui_font));
+    // Interactive list rows (mods/scenarios): repaint on hover/selection.
+    app.add_observer(list_row_on_interaction::<Insert, Hovered>)
+        .add_observer(list_row_on_interaction::<Add, Selected>)
+        .add_observer(list_row_on_interaction::<Remove, Selected>);
+
+    app.add_systems(
+        Update,
+        (
+            reconcile_button_skins,
+            reconcile_list_row_skins,
+            apply_ui_font,
+            sync_slider_meters,
+        ),
+    );
 }
 
 // ============================ paint model ====================================
@@ -941,17 +954,7 @@ pub fn badge(kind: BadgeKind, text: &str, skin: UiSkin) -> impl Bundle {
 pub fn checkbox(on: bool, skin: UiSkin) -> impl Bundle {
     let phosphor = skin.is_phosphor();
     let radius = if phosphor { theme::RADIUS } else { 5.0 };
-    let (bg, border, glyph) = if on {
-        (theme::PHOSPHOR, theme::PHOSPHOR, theme::INK)
-    } else if phosphor {
-        (
-            Color::NONE,
-            theme::PHOSPHOR.with_alpha(0.4),
-            theme::PHOSPHOR,
-        )
-    } else {
-        (theme::CASE_0, theme::CASE_EDGE, theme::PHOSPHOR)
-    };
+    let (bg, border, glyph) = checkbox_colors(on, skin);
     (
         Node {
             width: px(22),
@@ -967,7 +970,7 @@ pub fn checkbox(on: bool, skin: UiSkin) -> impl Bundle {
         BackgroundColor(bg),
         children![(
             UiText,
-            Text::new(if on { "x" } else { " " }),
+            Text::new(checkbox_glyph(on)),
             TextFont {
                 font_size: FontSize::Px(13.0),
                 ..default()
@@ -977,20 +980,41 @@ pub fn checkbox(on: bool, skin: UiSkin) -> impl Bundle {
     )
 }
 
-/// The panel primitive: a bordered surface. Phosphor is a dark screen face with
-/// an inner phosphor border; hardware is a case gradient + drop shadow. Spawn
-/// children (a `panel_head`, rows, ...) into it.
-pub fn panel(skin: UiSkin) -> impl Bundle {
-    let phosphor = skin.is_phosphor();
-    let node = Node {
-        flex_direction: FlexDirection::Column,
-        border: UiRect::all(px(theme::BORDER_W)),
-        border_radius: BorderRadius::all(px(theme::PANEL_RADIUS)),
-        ..default()
-    };
-    if phosphor {
+/// The `(background, border, glyph)` colours of a checkbox in `(on, skin)` - the
+/// single source both [`checkbox`] and an in-place restyle (the mods screen's
+/// enable-checkbox sync) paint from.
+pub fn checkbox_colors(on: bool, skin: UiSkin) -> (Color, Color, Color) {
+    if on {
+        (theme::PHOSPHOR, theme::PHOSPHOR, theme::INK)
+    } else if skin.is_phosphor() {
         (
-            node,
+            Color::NONE,
+            theme::PHOSPHOR.with_alpha(0.4),
+            theme::PHOSPHOR,
+        )
+    } else {
+        (theme::CASE_0, theme::CASE_EDGE, theme::PHOSPHOR)
+    }
+}
+
+/// The checkbox glyph: `x` when checked, empty otherwise.
+pub fn checkbox_glyph(on: bool) -> &'static str {
+    if on {
+        "x"
+    } else {
+        ""
+    }
+}
+
+/// The panel PAINT: a bordered surface's colours - phosphor is a dark screen
+/// face with an inner phosphor border + top glow, hardware a case gradient +
+/// drop shadow. It carries NO `Node`, so add it to your own sized `Node` (use
+/// [`panel_node`] for a plain content-sized column, or a modal's own
+/// width/height/padding Node that sets `border` + `border_radius`). Spawn
+/// children (a `panel_head`, rows, ...) into that node.
+pub fn panel(skin: UiSkin) -> impl Bundle {
+    if skin.is_phosphor() {
+        (
             BorderColor::all(theme::PHOSPHOR.with_alpha(0.16)),
             BackgroundColor(theme::SCREEN_0),
             BoxShadow(vec![]),
@@ -1008,7 +1032,6 @@ pub fn panel(skin: UiSkin) -> impl Bundle {
         )
     } else {
         (
-            node,
             BorderColor::all(theme::CASE_EDGE),
             BackgroundColor(theme::CASE_1),
             drop_shadow(),
@@ -1023,6 +1046,19 @@ pub fn panel(skin: UiSkin) -> impl Bundle {
             )
             .into()]),
         )
+    }
+}
+
+/// A ready-made panel `Node` for a plain content-sized panel: a column with the
+/// panel border + [`theme::PANEL_RADIUS`] corners. Pair with [`panel`] for the
+/// paint. Sized panels (modals) supply their own `Node` (width/height/padding)
+/// with the same `border` + `border_radius` and add [`panel`].
+pub fn panel_node() -> Node {
+    Node {
+        flex_direction: FlexDirection::Column,
+        border: UiRect::all(px(theme::BORDER_W)),
+        border_radius: BorderRadius::all(px(theme::PANEL_RADIUS)),
+        ..default()
     }
 }
 
@@ -1163,26 +1199,113 @@ pub fn panel_head(title: &str, tag: Option<&str>, _skin: UiSkin) -> impl Bundle 
 /// Transparent with an inset border; selection tints amber (hardware) or inverts
 /// phosphor. Not a `ThemedButton` - rows carry their own click handlers.
 pub fn list_row(selected: bool, skin: UiSkin) -> impl Bundle {
-    let phosphor = skin.is_phosphor();
-    let (bg, border) = match (selected, phosphor) {
-        (true, true) => (theme::PHOSPHOR.with_alpha(0.14), theme::PHOSPHOR),
-        (true, false) => (theme::CASE_2, theme::AMBER_NOVA.with_alpha(0.5)),
-        (false, true) => (Color::NONE, theme::PHOSPHOR.with_alpha(0.14)),
-        (false, false) => (Color::WHITE.with_alpha(0.02), Color::WHITE.with_alpha(0.05)),
-    };
+    let (bg, border) = list_row_colors(selected, false, skin);
     (
         Node {
+            width: percent(100),
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
             column_gap: px(12),
             padding: UiRect::axes(px(13), px(10)),
             border: UiRect::all(px(theme::BORDER_W)),
-            border_radius: BorderRadius::all(px(if phosphor { theme::RADIUS } else { 7.0 })),
+            border_radius: BorderRadius::all(px(if skin.is_phosphor() {
+                theme::RADIUS
+            } else {
+                7.0
+            })),
             ..default()
         },
         BorderColor::all(border),
         BackgroundColor(bg),
     )
+}
+
+/// The `(background, border)` of a list row in a given `(selected, hovered,
+/// skin)` - the single source both [`list_row`] and the [`ListRow`] reconciler
+/// paint from.
+pub fn list_row_colors(selected: bool, hovered: bool, skin: UiSkin) -> (Color, Color) {
+    let phosphor = skin.is_phosphor();
+    match (selected, phosphor) {
+        (true, true) => (theme::PHOSPHOR.with_alpha(0.14), theme::PHOSPHOR),
+        (true, false) => (theme::CASE_2, theme::AMBER_NOVA.with_alpha(0.5)),
+        (false, true) if hovered => (
+            theme::PHOSPHOR.with_alpha(0.06),
+            theme::PHOSPHOR.with_alpha(0.2),
+        ),
+        (false, true) => (Color::NONE, theme::PHOSPHOR.with_alpha(0.14)),
+        (false, false) if hovered => (Color::WHITE.with_alpha(0.06), Color::WHITE.with_alpha(0.1)),
+        (false, false) => (Color::WHITE.with_alpha(0.02), Color::WHITE.with_alpha(0.05)),
+    }
+}
+
+/// Marks an INTERACTIVE list row (a `list_row` + `Button` + `Hovered`): the
+/// reconciler repaints it from its `Selected`/`Hovered` state + the skin, so
+/// clicking or hovering highlights it live (mods/scenarios rows). A plain
+/// `list_row` without this marker is a static display row (the widget_zoo).
+#[derive(Component)]
+pub struct ListRow;
+
+fn paint_list_row(
+    skin: UiSkin,
+    selected: bool,
+    hovered: bool,
+    bg: &mut BackgroundColor,
+    border: &mut BorderColor,
+) {
+    let (b, br) = list_row_colors(selected, hovered, skin);
+    *bg = b.into();
+    border.set_all(br);
+}
+
+/// Repaint one [`ListRow`] on a hover/selection change (the removed component
+/// still reads present in its own `Remove` observer, so it is forced false).
+fn list_row_on_interaction<E: EntityEvent, C: Component>(
+    event: On<E, C>,
+    skin: Res<UiSkin>,
+    mut q: Query<
+        (
+            &Hovered,
+            Has<Selected>,
+            &mut BackgroundColor,
+            &mut BorderColor,
+        ),
+        With<ListRow>,
+    >,
+) {
+    if let Ok((hovered, selected, mut bg, mut border)) = q.get_mut(event.event_target()) {
+        let selected = selected && !(E::is::<Remove>() && C::is::<Selected>());
+        paint_list_row(*skin, selected, hovered.get(), &mut bg, &mut border);
+    }
+}
+
+/// Restyle LIVE list rows on a `UiSkin` change, and paint just-spawned rows
+/// (`Added<ListRow>`) - the same override the button reconciler uses.
+#[allow(clippy::type_complexity)]
+fn reconcile_list_row_skins(
+    skin: Res<UiSkin>,
+    mut q: Query<
+        (
+            Entity,
+            &Hovered,
+            Has<Selected>,
+            &mut BackgroundColor,
+            &mut BorderColor,
+        ),
+        With<ListRow>,
+    >,
+    added: Query<Entity, Added<ListRow>>,
+) {
+    let restyle_all = skin.is_changed();
+    let just_added: HashSet<Entity> = added.iter().collect();
+    if !restyle_all && just_added.is_empty() {
+        return;
+    }
+    for (entity, hovered, selected, mut bg, mut border) in &mut q {
+        if !restyle_all && !just_added.contains(&entity) {
+            continue;
+        }
+        paint_list_row(*skin, selected, hovered.get(), &mut bg, &mut border);
+    }
 }
 
 /// Number of segments in a phosphor slider's block-meter.
@@ -1274,13 +1397,12 @@ pub fn slider_track(fraction: f32, skin: UiSkin) -> impl Bundle {
     )
 }
 
-/// A segmented control: a bordered/recessed row of small [`ButtonVariant::Ghost`]
-/// `ThemedButton`s where the active option carries [`Selected`] (inverted). Wire
-/// each option's `ButtonValue<T>` at the call site for a settings row. `active`
-/// is the index of the selected option.
-pub fn segmented(options: &[&str], active: usize, skin: UiSkin) -> impl Bundle {
+/// The bordered/recessed container of a segmented control. Spawn
+/// [`segmented_option`]s into it, pairing each with a `ButtonValue<T>` (and
+/// `Selected` on the active one) for a functional settings row, or use the
+/// display-only [`segmented`] convenience.
+pub fn segmented_container(skin: UiSkin) -> impl Bundle {
     let phosphor = skin.is_phosphor();
-    let options: Vec<String> = options.iter().map(|s| s.to_string()).collect();
     let (bg, border) = if phosphor {
         (
             Color::srgba(0.0, 0.0, 0.0, 0.35),
@@ -1301,19 +1423,55 @@ pub fn segmented(options: &[&str], active: usize, skin: UiSkin) -> impl Bundle {
         },
         BorderColor::all(border),
         BackgroundColor(bg),
+    )
+}
+
+/// One option of a segmented control: a segment-sized ghost `ThemedButton`. The
+/// caller adds a `ButtonValue<T>` (+ `Selected` on the active option) so the
+/// shared `button_on_setting::<T>` observer drives the setting on click.
+pub fn segmented_option(label: &str) -> impl Bundle {
+    let mut spec = ButtonSpec::new(label);
+    spec.variant = ButtonVariant::Ghost;
+    spec.min_height = 28.0;
+    spec.font_size = 12.0;
+    button(spec)
+}
+
+/// A display-only segmented control: a [`segmented_container`] of
+/// [`segmented_option`]s with `active` selected. For a FUNCTIONAL settings row,
+/// build the container yourself and add `ButtonValue<T>` to each option.
+pub fn segmented(options: &[&str], active: usize, skin: UiSkin) -> impl Bundle {
+    let options: Vec<String> = options.iter().map(|s| s.to_string()).collect();
+    (
+        segmented_container(skin),
         Children::spawn(SpawnWith(move |parent: &mut RelatedSpawner<ChildOf>| {
             for (i, opt) in options.iter().enumerate() {
-                let mut spec = ButtonSpec::new(opt.clone());
-                spec.variant = ButtonVariant::Ghost;
-                spec.min_height = 28.0;
-                spec.font_size = 12.0;
-                let mut ent = parent.spawn(button(spec));
+                let mut ent = parent.spawn(segmented_option(opt));
                 if i == active {
                     ent.insert(Selected);
                 }
             }
         })),
     )
+}
+
+/// Light the phosphor block-meter of any `Slider` wearing a [`slider_track`]:
+/// when a `SliderValue` changes, recolour its [`SliderBlock`] children to the
+/// new fraction. Registered by [`register`], so a `bevy_ui_widgets::Slider` +
+/// `slider_track` visual gets the reactive meter for free (settings volume, the
+/// widget_zoo). A slider whose track is the hardware solid fill has no
+/// `SliderBlock` children, so this is a no-op for it.
+fn sync_slider_meters(
+    changed: Query<(&Children, &SliderValue), Changed<SliderValue>>,
+    mut blocks: Query<(&SliderBlock, &mut BackgroundColor)>,
+) {
+    for (kids, value) in &changed {
+        for &child in kids {
+            if let Ok((block, mut bg)) = blocks.get_mut(child) {
+                *bg = slider_meter_color(block.0, value.0).into();
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1349,6 +1507,53 @@ mod tests {
 
     fn has_gradient(app: &App, entity: Entity) -> bool {
         app.world().entity(entity).contains::<BackgroundGradient>()
+    }
+
+    fn block_colors(app: &mut App, slider: Entity) -> Vec<Color> {
+        let kids: Vec<Entity> = app
+            .world()
+            .entity(slider)
+            .get::<Children>()
+            .unwrap()
+            .iter()
+            .collect();
+        let mut q = app
+            .world_mut()
+            .query_filtered::<&BackgroundColor, With<SliderBlock>>();
+        kids.into_iter()
+            .filter_map(|c| q.get(app.world(), c).ok().map(|bg| bg.0))
+            .collect()
+    }
+
+    /// DoD 1 (task 20260729-105359): `sync_slider_meters` lights a slider's
+    /// phosphor block-meter from its `SliderValue` - so a `Slider` wearing
+    /// `slider_track` reacts to drags with no per-site code. Fails if the system
+    /// is unregistered or the block recolour is wrong.
+    #[test]
+    fn sync_slider_meters_lights_blocks_from_value() {
+        let mut app = skin_app(UiSkin::Phosphor);
+        let slider = app
+            .world_mut()
+            .spawn((SliderValue(0.0), slider_track(0.0, UiSkin::Phosphor)))
+            .id();
+        app.update();
+        assert!(
+            block_colors(&mut app, slider)
+                .iter()
+                .all(|c| *c == theme::PHOSPHOR.with_alpha(0.16)),
+            "every bar is dim at value 0"
+        );
+
+        // Raise the value; `SliderValue` is immutable, so it is re-inserted (as
+        // the real widget does), which fires `Changed` and lights the bars.
+        app.world_mut().entity_mut(slider).insert(SliderValue(1.0));
+        app.update();
+        assert!(
+            block_colors(&mut app, slider)
+                .iter()
+                .all(|c| *c == theme::PHOSPHOR),
+            "every bar is lit at value 1.0"
+        );
     }
 
     fn label_color(app: &mut App, entity: Entity) -> Color {

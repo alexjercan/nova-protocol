@@ -4,7 +4,11 @@
 //! 20260714-081703).
 
 use bevy::{picking::hover::Hovered, prelude::*, ui_widgets::Button};
-use nova_ui::{prelude::ThemedButton, theme};
+use nova_ui::{
+    prelude::{ThemedButton, UiSkin},
+    theme,
+    widget::{badge, BadgeKind},
+};
 
 use crate::ui::drawer::toggle_drawer;
 
@@ -43,7 +47,7 @@ pub(crate) fn components_category() -> impl Bundle {
 
 /// A greyed, non-interactive coming-soon category row with an amber "soon"
 /// badge - the categories "the rest" will make real.
-pub(crate) fn coming_soon_category(label: &str) -> impl Bundle {
+pub(crate) fn coming_soon_category(label: &str, skin: UiSkin) -> impl Bundle {
     (
         Name::new(format!("{label} Category (soon)")),
         Node {
@@ -59,7 +63,7 @@ pub(crate) fn coming_soon_category(label: &str) -> impl Bundle {
             border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
-        BorderColor::all(theme::PHOSPHOR_MUTED),
+        BorderColor::all(theme::PHOSPHOR_MUTED.with_alpha(0.5)),
         BackgroundColor(theme::SPACE),
         children![
             (
@@ -70,29 +74,8 @@ pub(crate) fn coming_soon_category(label: &str) -> impl Bundle {
                 },
                 TextColor(theme::PHOSPHOR_MUTED),
             ),
-            soon_badge(),
+            // The shared badge widget (amber), matching the widget_zoo.
+            badge(BadgeKind::Amber, "soon", skin),
         ],
-    )
-}
-
-/// The small amber "soon" chip.
-fn soon_badge() -> impl Bundle {
-    (
-        Node {
-            padding: UiRect::axes(px(6), px(1)),
-            border: UiRect::all(px(theme::BORDER_W)),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
-            flex_shrink: 0.0,
-            ..default()
-        },
-        BorderColor::all(theme::AMBER_NOVA),
-        children![(
-            Text::new("soon"),
-            TextFont {
-                font_size: FontSize::Px(10.0),
-                ..default()
-            },
-            TextColor(theme::AMBER_NOVA),
-        )],
     )
 }

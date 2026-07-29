@@ -13,7 +13,7 @@ use bevy::{prelude::*, ui_widgets::observe};
 use nova_assets::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ui::{
-    prelude::{panel_header, separator, themed_button, ButtonValue},
+    prelude::{panel, panel_header, separator, themed_button, ButtonValue, UiSkin},
     theme,
 };
 
@@ -82,9 +82,11 @@ pub(crate) fn scroll_editor_panel(
 
 pub(crate) fn setup_editor_scene(
     mut commands: Commands,
+    skin: Res<UiSkin>,
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
 ) {
+    let skin = *skin;
     commands.spawn((
         DespawnOnExit(ExampleStates::Editor),
         DirectionalLight {
@@ -152,8 +154,7 @@ pub(crate) fn setup_editor_scene(
                     border: UiRect::right(px(theme::BORDER_W)),
                     ..default()
                 },
-                BorderColor::all(theme::PHOSPHOR_MUTED),
-                BackgroundColor(theme::SCREEN_0),
+                panel(skin),
             ))
             .with_children(|rail| {
                 rail.spawn((
@@ -172,10 +173,10 @@ pub(crate) fn setup_editor_scene(
 
                 rail.spawn(panel_header("Categories"));
                 rail.spawn(components_category());
-                rail.spawn(coming_soon_category("Ships"));
-                rail.spawn(coming_soon_category("Objects"));
-                rail.spawn(coming_soon_category("Events"));
-                rail.spawn(coming_soon_category("Objectives"));
+                rail.spawn(coming_soon_category("Ships", skin));
+                rail.spawn(coming_soon_category("Objects", skin));
+                rail.spawn(coming_soon_category("Events", skin));
+                rail.spawn(coming_soon_category("Objectives", skin));
 
                 rail.spawn(separator());
                 rail.spawn(panel_header("Ship"));

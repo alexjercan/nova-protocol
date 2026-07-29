@@ -28,7 +28,7 @@ use bevy::{
     prelude::*,
     ui_widgets::{
         observe, slider_self_update, Activate, Button, Slider, SliderRange, SliderStep,
-        SliderThumb, SliderValue, TrackClick, ValueChange,
+        SliderValue, TrackClick, ValueChange,
     },
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
@@ -79,8 +79,10 @@ use nova_ui::{
     prelude::UiSkin,
     theme,
     widget::{
-        button_on_setting, menu_button, panel_header, separator, themed_button, ButtonLabel,
-        ButtonSpec, ButtonValue, ButtonVariant, Selected, ThemedButton, UiText,
+        badge, button_on_setting, checkbox, checkbox_colors, checkbox_glyph, list_row, menu_button,
+        panel, panel_head, panel_header, segmented_container, segmented_option, separator,
+        slider_track, themed_button, BadgeKind, ButtonSpec, ButtonValue, ButtonVariant, ListRow,
+        Selected, ThemedButton, UiText,
     },
 };
 
@@ -169,7 +171,7 @@ impl Plugin for NovaMenuPlugin {
         );
         app.add_systems(
             Update,
-            (stage_menu_camera, update_mod_checkbox_labels).run_if(in_state(GameStates::MainMenu)),
+            (stage_menu_camera, sync_mod_checkboxes).run_if(in_state(GameStates::MainMenu)),
         );
         // The mods screen's dynamic content: the left list rebuilds on tab or
         // catalog change, the right details pane on selection/catalog/enabled
@@ -486,8 +488,7 @@ fn setup_pause_ui(
                         border_radius: BorderRadius::all(px(theme::RADIUS)),
                         ..default()
                     },
-                    BorderColor::all(theme::PHOSPHOR_MUTED),
-                    BackgroundColor(theme::SCREEN_0),
+                    panel(*skin),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
@@ -570,8 +571,7 @@ fn setup_pause_ui(
                         border_radius: BorderRadius::all(px(theme::RADIUS)),
                         ..default()
                     },
-                    BorderColor::all(theme::PHOSPHOR_MUTED),
-                    BackgroundColor(theme::SCREEN_0),
+                    panel(*skin),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
@@ -675,6 +675,7 @@ struct OutcomeOverlay {
 /// whichever comes first.
 fn sync_outcome_overlay(
     mut commands: Commands,
+    skin: Res<UiSkin>,
     outcome: Res<CurrentOutcome>,
     world: Option<Res<NovaEventWorld>>,
     q_existing: Query<(Entity, &OutcomeOverlay)>,
@@ -746,8 +747,7 @@ fn sync_outcome_overlay(
                         border_radius: BorderRadius::all(px(theme::RADIUS)),
                         ..default()
                     },
-                    BorderColor::all(theme::PHOSPHOR_MUTED),
-                    BackgroundColor(theme::SCREEN_0),
+                    panel(*skin),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
@@ -875,6 +875,7 @@ struct StartFailureOverlay;
 /// outcome overlay's modal shell.
 fn sync_start_failure_overlay(
     mut commands: Commands,
+    skin: Res<UiSkin>,
     failure: Res<ScenarioStartFailure>,
     q_existing: Query<Entity, With<StartFailureOverlay>>,
 ) {
@@ -921,8 +922,7 @@ fn sync_start_failure_overlay(
                         border_radius: BorderRadius::all(px(theme::RADIUS)),
                         ..default()
                     },
-                    BorderColor::all(theme::PHOSPHOR_MUTED),
-                    BackgroundColor(theme::SCREEN_0),
+                    panel(*skin),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
@@ -1601,8 +1601,7 @@ fn setup_menu_ui(
                 border_radius: BorderRadius::all(px(theme::RADIUS)),
                 ..default()
             },
-            BorderColor::all(theme::PHOSPHOR_MUTED),
-            BackgroundColor(theme::SCREEN_0),
+            panel(*skin),
         ))
         .with_children(|parent| {
             parent.spawn((
@@ -1726,8 +1725,7 @@ fn setup_menu_ui(
                         border_radius: BorderRadius::all(px(theme::RADIUS)),
                         ..default()
                     },
-                    BorderColor::all(theme::PHOSPHOR_MUTED),
-                    BackgroundColor(theme::SCREEN_0),
+                    panel(*skin),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
@@ -1795,21 +1793,15 @@ fn setup_menu_ui(
                         height: percent(85),
                         padding: UiRect::all(px(20)),
                         border: UiRect::all(px(theme::BORDER_W)),
-                        border_radius: BorderRadius::all(px(theme::RADIUS)),
+                        border_radius: BorderRadius::all(px(theme::PANEL_RADIUS)),
                         ..default()
                     },
-                    BorderColor::all(theme::PHOSPHOR_MUTED),
-                    BackgroundColor(theme::SCREEN_0),
+                    panel(*skin),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
                         Name::new("Mods Title"),
-                        Text::new("Mods"),
-                        TextFont {
-                            font_size: FontSize::Px(24.0),
-                            ..default()
-                        },
-                        TextColor(theme::SCREEN_TEXT),
+                        panel_head("Mods", Some("DELTA-9"), *skin),
                     ));
                     parent.spawn((
                         Name::new("Mods Subtitle"),
@@ -1981,8 +1973,7 @@ fn setup_menu_ui(
                         border_radius: BorderRadius::all(px(theme::RADIUS)),
                         ..default()
                     },
-                    BorderColor::all(theme::PHOSPHOR_MUTED),
-                    BackgroundColor(theme::SCREEN_0),
+                    panel(*skin),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
@@ -2099,27 +2090,22 @@ fn version_author_line(meta: &ModMeta) -> String {
 /// Spawn one installed-mod row: a clickable ThemedButton row (click selects the
 /// mod for the details pane) holding the name + muted version/author line and,
 /// right-aligned, either the quiet enable checkbox or the muted "base" tag.
-fn spawn_mod_row(list: &mut ChildSpawnerCommands, m: &ModInfo, enabled: bool, selected: bool) {
+fn spawn_mod_row(
+    list: &mut ChildSpawnerCommands,
+    m: &ModInfo,
+    enabled: bool,
+    selected: bool,
+    skin: UiSkin,
+) {
+    // The shared interactive `list_row`: `ListRow` + `Button` + `Hovered` so the
+    // nova_ui reconciler highlights it on hover/selection (matching the zoo).
     let mut row = list.spawn((
         Name::new(format!("Mod Row: {}", m.id)),
         ModRow { id: m.id.clone() },
-        Node {
-            flex_direction: FlexDirection::Row,
-            align_self: AlignSelf::Stretch,
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            column_gap: px(8),
-            padding: UiRect::all(px(8)),
-            margin: UiRect::bottom(px(4)),
-            border: UiRect::all(px(theme::BORDER_W)),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
-            ..default()
-        },
-        ThemedButton,
+        list_row(selected, skin),
+        ListRow,
         Button,
         Hovered::default(),
-        BorderColor::all(theme::PHOSPHOR_MUTED),
-        BackgroundColor(theme::SCREEN_0),
         observe(on_mod_row_select),
     ));
     if selected {
@@ -2137,6 +2123,7 @@ fn spawn_mod_row(list: &mut ChildSpawnerCommands, m: &ModInfo, enabled: bool, se
         .with_children(|info| {
             info.spawn((
                 Name::new("Mod Name"),
+                UiText,
                 Text::new(m.meta.name.clone()),
                 TextFont {
                     font_size: FontSize::Px(15.0),
@@ -2148,32 +2135,27 @@ fn spawn_mod_row(list: &mut ChildSpawnerCommands, m: &ModInfo, enabled: bool, se
             if !line.is_empty() {
                 info.spawn((
                     Name::new("Mod Version Author"),
+                    UiText,
                     Text::new(line),
                     TextFont {
                         font_size: FontSize::Px(12.0),
                         ..default()
                     },
-                    TextColor(theme::PHOSPHOR_MUTED),
+                    TextColor(theme::PHOSPHOR_DIM),
                 ));
             }
         });
         if m.base {
+            // The base pack cannot be disabled - a muted badge, not a checkbox.
             row.spawn((
-                Name::new("Mod Locked Tag"),
-                Text::new("base"),
-                TextFont {
-                    font_size: FontSize::Px(12.0),
-                    ..default()
-                },
-                TextColor(theme::PHOSPHOR_MUTED),
+                Name::new("Mod Base Badge"),
+                badge(BadgeKind::Mute, "base", skin),
             ));
         } else {
-            // The quiet checkbox: a compact `ThemedButton` (hover/press colour
-            // from the shared nova_ui observers) carrying `MenuSfxButton` for the
-            // click cue. Its click does not propagate to the row (ui_widgets
-            // Button stops it), so toggling never re-selects. Full checkbox
-            // restyle (inverted-on look) lands with the mods screen in
-            // task 20260728-175738.
+            // The shared `checkbox` widget; still a `Button` + `MenuSfxButton` so
+            // it clicks + sounds. Its click does not propagate to the row
+            // (ui_widgets Button stops it), so toggling never re-selects; the
+            // mods-list refresh re-renders it for the new state.
             row.spawn((
                 Name::new("Mod Enable Checkbox"),
                 ModEnableCheckbox,
@@ -2181,35 +2163,11 @@ fn spawn_mod_row(list: &mut ChildSpawnerCommands, m: &ModInfo, enabled: bool, se
                     id: m.id.clone(),
                     base: m.base,
                 },
-                Node {
-                    width: px(24),
-                    height: px(24),
-                    flex_shrink: 0.0,
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
-                    border: UiRect::all(px(theme::BORDER_W)),
-                    border_radius: BorderRadius::all(px(theme::RADIUS)),
-                    ..default()
-                },
-                ThemedButton,
+                checkbox(enabled, skin),
                 MenuSfxButton,
                 Button,
                 Hovered::default(),
-                BorderColor::all(theme::PHOSPHOR_MUTED),
-                BackgroundColor(theme::SCREEN_0),
                 observe(on_mod_toggle),
-                children![(
-                    Text::new(if enabled { "x" } else { "" }),
-                    TextFont {
-                        font_size: FontSize::Px(14.0),
-                        ..default()
-                    },
-                    TextColor(if enabled {
-                        theme::PHOSPHOR
-                    } else {
-                        theme::SCREEN_TEXT
-                    }),
-                )],
             ));
         }
     });
@@ -2302,6 +2260,7 @@ fn selectable_scenario_ids(
 /// selection keeps the details pane fed.
 fn refresh_scenarios_list(
     mut commands: Commands,
+    skin: Res<UiSkin>,
     scenarios: Option<Res<GameScenarios>>,
     campaigns: Option<Res<GameCampaigns>>,
     collapsed: Res<CollapsedCampaigns>,
@@ -2366,12 +2325,12 @@ fn refresh_scenarios_list(
                     continue;
                 };
                 let is_selected = selected.0.as_deref() == Some(member.id.as_str());
-                spawn_scenario_row(list, member, is_selected, true);
+                spawn_scenario_row(list, member, is_selected, true, *skin);
             }
         }
         for s in &uncampaigned {
             let is_selected = selected.0.as_deref() == Some(s.id.as_str());
-            spawn_scenario_row(list, s, is_selected, false);
+            spawn_scenario_row(list, s, is_selected, false, *skin);
         }
     });
 }
@@ -2437,55 +2396,54 @@ fn spawn_scenario_row(
     s: &ScenarioConfig,
     selected: bool,
     indent: bool,
+    skin: UiSkin,
 ) {
+    // The shared interactive `list_row` as a direct list child; campaign members
+    // read `[-]`-grouped under their header, so the row itself is un-indented.
     let mut row = list.spawn((
         Name::new(format!("Scenario Row: {}", s.id)),
         ScenarioRow { id: s.id.clone() },
-        Node {
-            flex_direction: FlexDirection::Column,
-            align_self: AlignSelf::Stretch,
-            row_gap: px(2),
-            padding: UiRect::all(px(8)),
-            margin: UiRect {
-                left: px(if indent { 16.0 } else { 0.0 }),
-                bottom: px(4.0),
-                ..default()
-            },
-            border: UiRect::all(px(theme::BORDER_W)),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
-            ..default()
-        },
-        ThemedButton,
+        list_row(selected, skin),
+        ListRow,
         Button,
         Hovered::default(),
-        BorderColor::all(theme::PHOSPHOR_MUTED),
-        BackgroundColor(theme::SCREEN_0),
         observe(on_scenario_row_select),
     ));
     if selected {
         row.insert(Selected);
     }
+    let _ = indent;
     row.with_children(|row| {
-        row.spawn((
-            Name::new("Scenario Name"),
-            Text::new(scenario_row_label(s)),
-            TextFont {
-                font_size: FontSize::Px(15.0),
-                ..default()
-            },
-            TextColor(theme::SCREEN_TEXT),
-        ));
-        if !s.description.is_empty() {
-            row.spawn((
-                Name::new("Scenario Row Blurb"),
-                Text::new(s.description.clone()),
+        row.spawn(Node {
+            flex_direction: FlexDirection::Column,
+            flex_grow: 1.0,
+            row_gap: px(2),
+            ..default()
+        })
+        .with_children(|col| {
+            col.spawn((
+                Name::new("Scenario Name"),
+                UiText,
+                Text::new(scenario_row_label(s)),
                 TextFont {
-                    font_size: FontSize::Px(12.0),
+                    font_size: FontSize::Px(15.0),
                     ..default()
                 },
-                TextColor(theme::PHOSPHOR_MUTED),
+                TextColor(theme::SCREEN_TEXT),
             ));
-        }
+            if !s.description.is_empty() {
+                col.spawn((
+                    Name::new("Scenario Row Blurb"),
+                    UiText,
+                    Text::new(s.description.clone()),
+                    TextFont {
+                        font_size: FontSize::Px(12.0),
+                        ..default()
+                    },
+                    TextColor(theme::PHOSPHOR_DIM),
+                ));
+            }
+        });
     });
 }
 
@@ -2702,11 +2660,6 @@ fn on_settings_back(
 #[derive(Component)]
 struct VolumeSlider;
 
-/// The draggable handle inside the volume slider (also carries bevy's
-/// [`SliderThumb`]); its horizontal position is driven from the `SliderValue`.
-#[derive(Component)]
-struct VolumeThumb;
-
 /// The "72%" readout beside the volume slider.
 #[derive(Component)]
 struct VolumeLabel;
@@ -2716,57 +2669,9 @@ fn volume_label(value: f32) -> String {
     format!("{}%", (value.clamp(0.0, 1.0) * 100.0).round() as i32)
 }
 
-/// A compact segmented-control button: a themed button that flexes to share a
-/// row instead of the full-width [`themed_button`]. Coloured by the same
-/// `nova_ui::widget` observers (it carries `ThemedButton`); the caller adds the
-/// `ButtonValue<T>` and optional `Selected` that `button_on_setting` drives.
-fn segmented_button(text: &str) -> impl Bundle {
-    (
-        Node {
-            flex_grow: 1.0,
-            flex_basis: px(0),
-            min_height: px(30),
-            margin: UiRect::horizontal(px(3)),
-            padding: UiRect::axes(px(6), px(5)),
-            border: UiRect::all(px(theme::BORDER_W)),
-            justify_content: JustifyContent::Center,
-            align_items: AlignItems::Center,
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
-            ..default()
-        },
-        ThemedButton,
-        ButtonVariant::Default,
-        Button,
-        Hovered::default(),
-        BorderColor::all(theme::PHOSPHOR.with_alpha(0.4)),
-        BackgroundColor(theme::PHOSPHOR.with_alpha(0.05)),
-        // ButtonLabel + UiText so the shared reconciler inverts the glyph on
-        // selection and the font router picks up Iosevka (task 20260728-175734).
-        children![(
-            ButtonLabel,
-            UiText,
-            Text::new(text),
-            TextFont {
-                font_size: FontSize::Px(13.0),
-                ..default()
-            },
-            TextColor(theme::PHOSPHOR),
-            // No TextShadow - it ghosts the label on the inverted (selected)
-            // fill (see nova_ui::widget::button).
-        )],
-    )
-}
-
-/// A full-width row Node that lays segmented buttons out horizontally.
-fn segmented_row() -> Node {
-    Node {
-        width: percent(100),
-        flex_direction: FlexDirection::Row,
-        justify_content: JustifyContent::Center,
-        margin: UiRect::vertical(px(4)),
-        ..default()
-    }
-}
+// The settings segmented rows use nova_ui's shared `segmented_container` +
+// `segmented_option` (the same helpers the widget_zoo uses); the caller adds the
+// `ButtonValue<T>` + `Selected` that `button_on_setting` drives.
 
 /// Build the shared settings body (audio volume, graphics preset, read-only
 /// keybind reference) under `list`. Used by BOTH the main-menu Settings overlay
@@ -2810,48 +2715,26 @@ fn build_settings_body(
                 ..default()
             },
         ));
-        // The slider track: the `Slider` widget with its value/range/step, laid
-        // out as a thin bar. `Snap` so a click on the track jumps to that spot.
-        row.spawn((
-            Name::new("Volume Slider Track"),
-            VolumeSlider,
-            Slider {
-                track_click: TrackClick::Snap,
-                ..default()
-            },
-            SliderValue(volume.factor()),
-            SliderRange::new(0.0, 1.0),
-            SliderStep(0.05),
-            Node {
-                flex_grow: 1.0,
-                height: px(14),
-                position_type: PositionType::Relative,
-                border: UiRect::all(px(theme::BORDER_W)),
-                border_radius: BorderRadius::all(px(7)),
-                ..default()
-            },
-            BorderColor::all(theme::PHOSPHOR_MUTED),
-            BackgroundColor(theme::SCREEN_1),
-        ))
-        .with_children(|track| {
-            // The thumb: absolutely positioned, its `left` driven from the
-            // value by `sync_volume_slider`. A half-width negative margin keeps
-            // it centred over the value point.
-            track.spawn((
-                Name::new("Volume Thumb"),
-                VolumeThumb,
-                SliderThumb,
-                Node {
-                    position_type: PositionType::Absolute,
-                    width: px(14),
-                    height: px(14),
-                    top: px(-1),
-                    left: percent(volume.factor() * 100.0),
-                    margin: UiRect::left(px(-7)),
-                    border_radius: BorderRadius::all(px(7)),
+        // The slider: a `bevy_ui_widgets::Slider` wearing the shared
+        // `slider_track` block-meter (lit by nova_ui's `sync_slider_meters`).
+        // Wrapped in a flex-grow cell so the 100%-wide track fills the row's
+        // middle. `Snap` so a click on the track jumps to that spot.
+        row.spawn(Node {
+            flex_grow: 1.0,
+            ..default()
+        })
+        .with_children(|cell| {
+            cell.spawn((
+                Name::new("Volume Slider Track"),
+                VolumeSlider,
+                Slider {
+                    track_click: TrackClick::Snap,
                     ..default()
                 },
-                BackgroundColor(theme::PHOSPHOR),
+                SliderValue(volume.factor()),
+                SliderRange::new(0.0, 1.0),
+                SliderStep(0.05),
+                slider_track(volume.factor(), skin),
             ));
         });
         row.spawn((
@@ -2875,12 +2758,12 @@ fn build_settings_body(
     // GRAPHICS - the quality preset. Each tier drives the combat juice today;
     // the low-end mode (20260525-133013) extends what Low/Medium skip.
     list.spawn(panel_header("Graphics"));
-    list.spawn((Name::new("Graphics Row"), segmented_row()))
+    list.spawn((Name::new("Graphics Row"), segmented_container(skin)))
         .with_children(|row| {
             for tier in GraphicsQuality::ALL {
                 let mut button = row.spawn((
                     Name::new(format!("Graphics {}", tier.label())),
-                    segmented_button(tier.label()),
+                    segmented_option(tier.label()),
                     ButtonValue(tier),
                 ));
                 if tier == quality {
@@ -2920,7 +2803,7 @@ fn build_settings_body(
     // wired through `ButtonValue<UiSkin>` + the app-global
     // `button_on_setting::<UiSkin>` observer, exactly like GRAPHICS above.
     list.spawn(panel_header("Interface"));
-    list.spawn((Name::new("UI Skin Row"), segmented_row()))
+    list.spawn((Name::new("UI Skin Row"), segmented_container(skin)))
         .with_children(|row| {
             for option in [UiSkin::Phosphor, UiSkin::Hardware] {
                 let label = match option {
@@ -2929,7 +2812,7 @@ fn build_settings_body(
                 };
                 let mut button = row.spawn((
                     Name::new(format!("UI Skin {label}")),
-                    segmented_button(label),
+                    segmented_option(label),
                     ButtonValue(option),
                 ));
                 if option == skin {
@@ -3017,22 +2900,16 @@ fn on_volume_slider_change(
     }
 }
 
-/// Keep the volume slider's thumb position and percent label in sync with its
-/// value (the headless slider does not move the thumb itself - that is the
-/// app's job). Runs every frame; there is at most one slider (main-menu or
-/// pause), and none while no settings panel is open.
+/// Keep the volume slider's percent label in sync with its value. The bar fill
+/// is the shared `slider_track` block-meter, lit by nova_ui's
+/// `sync_slider_meters` - so this only owns the `NN%` text. Runs every frame;
+/// there is at most one slider (main-menu or pause), and none while no settings
+/// panel is open.
 fn sync_volume_slider(
-    sliders: Query<(&SliderValue, &SliderRange), With<VolumeSlider>>,
-    mut thumbs: Query<(&ChildOf, &mut Node), With<VolumeThumb>>,
+    sliders: Query<&SliderValue, With<VolumeSlider>>,
     mut labels: Query<&mut Text, With<VolumeLabel>>,
 ) {
-    for (&ChildOf(slider), mut node) in &mut thumbs {
-        if let Ok((value, range)) = sliders.get(slider) {
-            let pos = range.thumb_position(value.0).clamp(0.0, 1.0);
-            node.left = percent(pos * 100.0);
-        }
-    }
-    if let Ok((value, _)) = sliders.single() {
+    if let Ok(value) = sliders.single() {
         for mut text in &mut labels {
             text.0 = volume_label(value.0);
         }
@@ -3421,6 +3298,7 @@ fn spawn_explore_row(
 /// against the VISIBLE remote entries exactly like the Installed branch.
 fn refresh_mods_list(
     mut commands: Commands,
+    skin: Res<UiSkin>,
     active: Res<ModsActiveTab>,
     catalog: Option<Res<ModCatalog>>,
     enabled: Option<Res<EnabledMods>>,
@@ -3449,7 +3327,7 @@ fn refresh_mods_list(
             commands.entity(list).with_children(|list| {
                 for m in &mods {
                     let is_selected = selected.0.as_deref() == Some(m.id.as_str());
-                    spawn_mod_row(list, m, is_enabled(&m.id), is_selected);
+                    spawn_mod_row(list, m, is_enabled(&m.id), is_selected, *skin);
                 }
             });
         }
@@ -4103,34 +3981,41 @@ fn on_mod_toggle(
     }
 }
 
-/// Keep each row checkbox's mark ("x" enabled, "" disabled) + colour in sync
-/// with [`EnabledMods`] (after a click, or a future persisted set). Rows are
-/// only rebuilt on tab/catalog change, so the checkbox state syncs here; the
-/// details pane's Enable/Disable button is excluded (its label is baked by
-/// `refresh_mod_details` on every EnabledMods change).
-fn update_mod_checkbox_labels(
+/// Keep each row's enable checkbox in sync with [`EnabledMods`] (after a click,
+/// or a future persisted set) IN PLACE - repaint the shared `checkbox` widget's
+/// fill/border/glyph for the new state without rebuilding the row (rows only
+/// rebuild on tab/catalog change). Uses nova_ui's `checkbox_colors`/
+/// `checkbox_glyph` so it stays identical to the `checkbox()` factory.
+fn sync_mod_checkboxes(
     enabled: Option<Res<EnabledMods>>,
-    checkboxes: Query<(&ModToggle, &Children), With<ModEnableCheckbox>>,
-    mut texts: Query<(&mut Text, &mut TextColor)>,
+    skin: Res<UiSkin>,
+    mut checkboxes: Query<
+        (
+            &ModToggle,
+            &Children,
+            &mut BackgroundColor,
+            &mut BorderColor,
+        ),
+        With<ModEnableCheckbox>,
+    >,
+    mut glyphs: Query<(&mut Text, &mut TextColor)>,
 ) {
     let Some(enabled) = enabled else {
         return;
     };
-    for (toggle, children) in &checkboxes {
+    for (toggle, children, mut bg, mut border) in &mut checkboxes {
         let on = enabled.0.contains(&toggle.id);
-        let label = if on { "x" } else { "" };
-        let color = if on {
-            theme::PHOSPHOR
-        } else {
-            theme::SCREEN_TEXT
-        };
-        for child in children.iter() {
-            if let Ok((mut text, mut text_color)) = texts.get_mut(child) {
-                if text.0 != label {
-                    text.0 = label.to_string();
+        let (fill, edge, glyph_color) = checkbox_colors(on, *skin);
+        *bg = fill.into();
+        border.set_all(edge);
+        for &child in children {
+            if let Ok((mut text, mut color)) = glyphs.get_mut(child) {
+                let mark = checkbox_glyph(on);
+                if text.0 != mark {
+                    text.0 = mark.to_string();
                 }
-                if text_color.0 != color {
-                    text_color.0 = color;
+                if color.0 != glyph_color {
+                    color.0 = glyph_color;
                 }
             }
         }
@@ -4292,14 +4177,14 @@ mod tests {
         let phosphor = app
             .world_mut()
             .spawn((
-                segmented_button("Phosphor"),
+                segmented_option("Phosphor"),
                 ButtonValue(UiSkin::Phosphor),
                 Selected,
             ))
             .id();
         let hardware = app
             .world_mut()
-            .spawn((segmented_button("Hardware"), ButtonValue(UiSkin::Hardware)))
+            .spawn((segmented_option("Hardware"), ButtonValue(UiSkin::Hardware)))
             .id();
 
         // Press Hardware -> resource flips, selection moves off Phosphor.
@@ -5569,14 +5454,24 @@ mod tests {
     }
 
     /// The single Text child's content (checkbox mark, themed button label).
+    /// The first `Text` in the subtree, in child order. Handles a direct text
+    /// child (checkbox glyph, campaign header) and a nested one (a `list_row`
+    /// whose name lives in an inner column). NOTE: assumes non-`.block()`
+    /// buttons - a block button's first child is the `> ` cursor span, so this
+    /// would return that, not the label. All buttons it inspects are plain.
     fn label_of(app: &App, entity: Entity) -> String {
-        let children = app.world().get::<Children>(entity).expect("has children");
-        let child = children.iter().next().expect("has a text child");
-        app.world()
-            .get::<Text>(child)
-            .expect("child is a Text")
-            .0
-            .clone()
+        fn first_text(app: &App, entity: Entity) -> Option<String> {
+            if let Some(text) = app.world().get::<Text>(entity) {
+                return Some(text.0.clone());
+            }
+            let kids: Vec<Entity> = app
+                .world()
+                .get::<Children>(entity)
+                .map(|c| c.iter().collect())
+                .unwrap_or_default();
+            kids.into_iter().find_map(|child| first_text(app, child))
+        }
+        first_text(app, entity).expect("a Text somewhere in the subtree")
     }
 
     fn selected_mod(app: &App) -> Option<String> {
@@ -5896,10 +5791,15 @@ mod tests {
             (0.0..=1.0).contains(&slider_value),
             "the volume slider is seeded in range (got {slider_value})"
         );
-        assert!(
-            entity_by_name(&mut app, "Volume Thumb").is_some(),
-            "the volume slider has a draggable thumb"
-        );
+        // The slider wears the shared `slider_track` block-meter (SliderBlock
+        // bars), not a bespoke thumb.
+        {
+            let mut q = app
+                .world_mut()
+                .query_filtered::<&Children, With<VolumeSlider>>();
+            let bars = q.single(app.world()).map(|c| c.len()).unwrap_or(0);
+            assert!(bars > 0, "the volume slider renders a block-meter");
+        }
         {
             let mut q = app.world_mut().query_filtered::<(), With<VolumeLabel>>();
             assert_eq!(q.iter(app.world()).count(), 1, "one volume percent label");

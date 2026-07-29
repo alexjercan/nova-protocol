@@ -25,7 +25,7 @@ use bevy::{
 };
 use nova_ui::{
     prelude::*,
-    widget::{register, ButtonSpec, SliderBlock, UiText},
+    widget::{register, ButtonSpec, UiText},
 };
 
 fn main() -> AppExit {
@@ -54,7 +54,6 @@ fn main() -> AppExit {
         Update,
         (
             rebuild_body.run_if(resource_changed::<UiSkin>.or_else(resource_changed::<ZooChecks>)),
-            sync_slider_meter,
             toggle_skin_key,
             drive_capture,
         ),
@@ -178,17 +177,18 @@ fn top_bar(root: &mut ChildSpawnerCommands) {
         ));
         // A functional segmented: each option carries `ButtonValue<UiSkin>`, so a
         // click drives the shared `UiSkin` resource (reskinning the whole zoo).
-        bar.spawn(segmented_group()).with_children(|seg| {
-            for (label, value) in [
-                ("Phosphor", UiSkin::Phosphor),
-                ("Hardware", UiSkin::Hardware),
-            ] {
-                let mut b = seg.spawn((seg_option(label), ButtonValue(value)));
-                if value == UiSkin::Phosphor {
-                    b.insert(Selected);
+        bar.spawn(segmented_container(UiSkin::Phosphor))
+            .with_children(|seg| {
+                for (label, value) in [
+                    ("Phosphor", UiSkin::Phosphor),
+                    ("Hardware", UiSkin::Hardware),
+                ] {
+                    let mut b = seg.spawn((segmented_option(label), ButtonValue(value)));
+                    if value == UiSkin::Phosphor {
+                        b.insert(Selected);
+                    }
                 }
-            }
-        });
+            });
     });
 }
 
@@ -243,17 +243,18 @@ fn panel_cell(
     tag: Option<&str>,
     build: impl FnOnce(&mut ChildSpawnerCommands),
 ) {
-    body.spawn(panel(skin)).with_children(|cell| {
-        cell.spawn((panel_head(title, tag, skin),));
-        cell.spawn(Node {
-            width: px(320),
-            flex_direction: FlexDirection::Column,
-            row_gap: px(10),
-            padding: UiRect::all(px(16)),
-            ..default()
-        })
-        .with_children(build);
-    });
+    body.spawn((panel_node(), panel(skin)))
+        .with_children(|cell| {
+            cell.spawn((panel_head(title, tag, skin),));
+            cell.spawn(Node {
+                width: px(320),
+                flex_direction: FlexDirection::Column,
+                row_gap: px(10),
+                padding: UiRect::all(px(16)),
+                ..default()
+            })
+            .with_children(build);
+        });
 }
 
 fn buttons_panel(body: &mut ChildSpawnerCommands, skin: UiSkin) {
@@ -290,13 +291,13 @@ fn controls_panel(body: &mut ChildSpawnerCommands, skin: UiSkin, checks: ZooChec
     panel_cell(body, skin, "Controls", None, |c| {
         sub_header(c, "Segmented (HUD detail)");
         // Functional: `ButtonValue<DemoLevel>` drives the DemoLevel resource.
-        c.spawn(segmented_group()).with_children(|seg| {
+        c.spawn(segmented_container(skin)).with_children(|seg| {
             for (label, level) in [
                 ("All", DemoLevel::All),
                 ("Minimal", DemoLevel::Minimal),
                 ("None", DemoLevel::None),
             ] {
-                let mut b = seg.spawn((seg_option(label), ButtonValue(level)));
+                let mut b = seg.spawn((segmented_option(label), ButtonValue(level)));
                 if level == DemoLevel::All {
                     b.insert(Selected);
                 }
@@ -407,41 +408,11 @@ fn on_check_click(activate: On<Activate>, q: Query<&CheckId>, mut checks: ResMut
     }
 }
 
-/// Commit a slider drag: store the value + light the block-meter to it. Does NOT
-/// touch a rebuild-triggering resource, so dragging is smooth (no respawn).
-fn on_slider_change(
-    change: On<ValueChange<f32>>,
-    mut value: ResMut<ZooSliderValue>,
-    children: Query<&Children>,
-    mut blocks: Query<(&SliderBlock, &mut BackgroundColor)>,
-) {
+/// Commit a slider drag: store the value so a body rebuild restores it. The
+/// block-meter itself is lit by nova_ui's shared `sync_slider_meters` (wired by
+/// `register`) reacting to the `SliderValue` change - no per-site recolour.
+fn on_slider_change(change: On<ValueChange<f32>>, mut value: ResMut<ZooSliderValue>) {
     value.0 = change.value.clamp(0.0, 1.0);
-    if let Ok(kids) = children.get(change.source) {
-        recolor_blocks(kids, value.0, &mut blocks);
-    }
-}
-
-/// Keep the block-meter in sync if `SliderValue` changes from elsewhere (e.g. a
-/// track-click, which snaps without a `ValueChange`).
-fn sync_slider_meter(
-    changed: Query<(&Children, &SliderValue), Changed<SliderValue>>,
-    mut blocks: Query<(&SliderBlock, &mut BackgroundColor)>,
-) {
-    for (kids, value) in &changed {
-        recolor_blocks(kids, value.0, &mut blocks);
-    }
-}
-
-fn recolor_blocks(
-    kids: &Children,
-    value: f32,
-    blocks: &mut Query<(&SliderBlock, &mut BackgroundColor)>,
-) {
-    for &child in kids {
-        if let Ok((block, mut bg)) = blocks.get_mut(child) {
-            *bg = slider_meter_color(block.0, value).into();
-        }
-    }
 }
 
 /// `S` flips the skin (the segmented control does the same via ButtonValue).
@@ -497,33 +468,8 @@ fn flow_row() -> Node {
     }
 }
 
-/// The bordered/recessed container of a segmented control (the options are
-/// spawned as `seg_option` children carrying a `ButtonValue<T>`).
-fn segmented_group() -> impl Bundle {
-    (
-        Node {
-            flex_direction: FlexDirection::Row,
-            column_gap: px(3),
-            padding: UiRect::all(px(3)),
-            border: UiRect::all(px(theme::BORDER_W)),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
-            align_self: AlignSelf::Start,
-            ..default()
-        },
-        BorderColor::all(theme::PHOSPHOR.with_alpha(0.25)),
-        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.35)),
-    )
-}
-
-/// One segmented option: a small ghost `ThemedButton` (the caller adds the
-/// `ButtonValue<T>` + `Selected` for the active one).
-fn seg_option(label: &str) -> impl Bundle {
-    let mut spec = ButtonSpec::new(label);
-    spec.variant = ButtonVariant::Ghost;
-    spec.min_height = 28.0;
-    spec.font_size = 12.0;
-    button(spec)
-}
+// The segmented container + option come from nova_ui (`segmented_container` /
+// `segmented_option`) - the same helpers the game's settings rows use.
 
 // ------------------------------- capture ------------------------------------
 
