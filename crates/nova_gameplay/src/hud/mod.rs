@@ -33,9 +33,9 @@ pub mod nova_os;
 pub mod nova_os_map;
 pub mod nova_os_ship;
 pub mod objective_feedback;
-pub mod objective_hint;
 pub mod objective_markers;
 pub mod objective_reveal;
+pub mod objective_stack;
 pub mod readout;
 pub mod screen_indicator;
 pub mod situation;
@@ -53,11 +53,11 @@ pub mod prelude {
         item_highlights::prelude::*, key_glyphs::prelude::*, keybind_dock::prelude::*,
         lock_crosshairs::prelude::*, lock_dwell_ring::prelude::*, maneuver_instruments::prelude::*,
         nova_os::NovaOsMonitorSettings, nova_os_map::prelude::*, nova_os_ship::prelude::*,
-        objective_feedback::prelude::*, objective_markers::prelude::*, readout::prelude::*,
-        screen_indicator::prelude::*, situation::prelude::*, target_inset::prelude::*,
-        torpedo_target::prelude::*, turret_lead::prelude::*, velocity::prelude::*, HudContextGate,
-        HudNovaOsExempt, HudSelfDrivenVisibility, HudSituationSensing, HudTier, HudVisibility,
-        NovaHudAssets, NovaHudPlugin, NovaHudSystems,
+        objective_feedback::prelude::*, objective_markers::prelude::*, objective_stack::prelude::*,
+        readout::prelude::*, screen_indicator::prelude::*, situation::prelude::*,
+        target_inset::prelude::*, torpedo_target::prelude::*, turret_lead::prelude::*,
+        velocity::prelude::*, HudContextGate, HudNovaOsExempt, HudSelfDrivenVisibility,
+        HudSituationSensing, HudTier, HudVisibility, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
     };
 }
 
@@ -132,8 +132,8 @@ pub enum HudTier {
     /// Learning aids and secondary overlays (the keybind dock, verb cues, edge
     /// indicators, objective markers).
     Chrome,
-    /// Persistent status/reference chrome (the fps/version status bar and the
-    /// objective hint in it): it rides the whole session rather than the
+    /// Persistent status/reference chrome (the fps/version status bar): it
+    /// rides the whole session rather than the
     /// moment-to-moment flight HUD (task 20260724-171509), and the cinematic
     /// level still clears it so screenshots stay clean. Meant to persist
     /// through the Tab NOVA OS too - tag such a widget `HudNovaOsExempt` as
@@ -199,10 +199,10 @@ pub(crate) const OBJECTIVE_GOLD: Color = nova_ui::theme::semantic::OBJECTIVE;
 pub struct NovaHudAssets {
     /// The shared target-reticle sprite (lock crosshairs, torpedo reticle, destination marker).
     pub target_sprite: Handle<Image>,
-    /// The NOVA CRT brand mark (drawer plate logo + objective-hint TAB affordance).
+    /// The NOVA CRT brand mark (the NOVA OS drawer plate logo).
     pub nova_crt_mark: Handle<Image>,
     /// The preloaded keycap glyphs, keyed by display label - the icon dock, the
-    /// anchored verb cues and the objective hint's Tab affordance draw from
+    /// anchored verb cues and the objective stack's Tab affordance draw from
     /// here (see [`key_glyphs`]). Empty on bare-app rigs, which fall back to
     /// text chips.
     pub key_glyphs: key_glyphs::KeyGlyphs,
@@ -286,8 +286,8 @@ impl Plugin for NovaHudPlugin {
         // NOVA OS + the diegetic reveal read it) and its `rebuild_lines`
         // no-ops when no objectives panel exists. The always-on compact
         // objectives panel was REMOVED from flight (task 20260724-134312):
-        // objectives now surface via the diegetic reveal, the objective hint
-        // in the status bar (`objective_hint`) and the NOVA OS monitor.
+        // objectives now surface via the diegetic reveal, the objective
+        // stack (`objective_stack`) and the NOVA OS monitor.
         app.add_plugins(ObjectivesPlugin);
         // bcs tween advancement for HUD fades (first Nova adoption, task
         // 20260717-163033); registered here once for every HUD widget.
@@ -322,10 +322,11 @@ impl Plugin for NovaHudPlugin {
         // The big diegetic objective reveal that tucks into the NOVA OS tab
         // (task 20260721-211520); fed by objective_feedback's postings.
         app.add_plugins(objective_reveal::ObjectiveRevealPlugin);
-        // The minimalist top-right flight objective hint (count + glyph + Tab),
-        // and the source of the diegetic reveal's tuck anchor (task
-        // 20260724-134312).
-        app.add_plugins(objective_hint::ObjectiveHintPlugin);
+        // The top-centre objective NOTIFICATION stack (task 20260729-163816):
+        // demo 2's objective chip, one per posting, read by its dwell or by
+        // opening NOVA OS. It replaced the top-right status-bar hint and
+        // inherited the diegetic reveal's tuck anchor from it.
+        app.add_plugins(objective_stack::ObjectiveStackPlugin);
 
         // Screen indicators project through the spaceship chase camera. The
         // widget is camera-agnostic (its own marker keeps it promotable), so
@@ -354,13 +355,15 @@ impl Plugin for NovaHudPlugin {
         app.add_observer(remove_hud_target_inset);
         app.add_observer(setup_hud_edge_indicators);
         app.add_observer(remove_hud_edge_indicators);
+        app.add_observer(objective_stack::setup_objective_stack);
+        app.add_observer(objective_stack::remove_objective_stack);
     }
 }
 
 // The always-on compact objectives panel (spawn_objectives_panel /
 // style_objective_lines / setup_hud_objectives / remove_hud_objectives) was
 // REMOVED in task 20260724-134312; objectives now surface via the diegetic
-// reveal, the objective hint in the status bar (`objective_hint`) and the Tab
+// reveal, the objective notification stack (`objective_stack`) and the Tab
 // NOVA OS's NOVA OS monitor.
 
 /// Cycle the HUD level on grave/tilde (or the gamepad Select button).
@@ -1239,7 +1242,7 @@ mod tests {
         );
     }
 
-    /// The objective count is a CHILD of the status bar root with no `HudTier` of
+    /// A childless status-bar item is a CHILD of the status bar root with no `HudTier` of
     /// its own, so it must INHERIT the bar's visibility (task 20260724-171509):
     /// `apply_hud_visibility` manages only the tiered PARENT and must leave the
     /// child's `Visibility::Inherited` untouched, so Bevy propagation carries the

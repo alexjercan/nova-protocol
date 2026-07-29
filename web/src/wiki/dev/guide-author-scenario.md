@@ -375,7 +375,7 @@ fight -> confirm -> breathe -> next.**
   posts a BEAT after the comms line that introduces it (owner playtest, task
   20260722-092421) - never in the same handler, and never at `OnStart` while a
   dispatch or conversation is still playing. No objective is posted through an
-  opening conversation (the objective hint stays hidden); the first goal appears
+  opening conversation (no objective chip posts); the first goal appears
   only when the conversation hands off. The mainline pins this with two invariants
   (`no_mainline_handler_posts_an_objective_alongside_a_conversation`,
   `no_mainline_scenario_posts_an_objective_at_onstart`).

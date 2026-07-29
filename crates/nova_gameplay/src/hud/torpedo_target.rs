@@ -45,7 +45,10 @@ const RETICLE_PULSE_PERIOD_SECS: f32 = 0.56;
 /// rather than a readout sitting still on a breathing reticle - and it is the
 /// number to quote if the playtest calls the motion too busy (the fix would be
 /// dropping the readout's own hold while firing, not restructuring the tree).
-/// Pinned by `the_composed_peak_while_firing_is_the_product`.
+/// Pinned by `the_composed_peak_while_firing_is_the_product`, which is its only
+/// consumer - hence `cfg(test)`: it documents a value the RENDERER derives from
+/// the two constants above, it does not feed it.
+#[cfg(test)]
 const LOCK_COMPOSED_FIRING_PEAK: f32 = LOCK_READOUT_EMPHASIS * RETICLE_FIRING_PULSE;
 
 /// Health bar size (px): a small underline below the text lines.

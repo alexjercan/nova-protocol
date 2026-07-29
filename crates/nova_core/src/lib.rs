@@ -302,10 +302,10 @@ pub fn assets_plugin() -> AssetPlugin {
 }
 
 fn setup_status_ui(mut commands: Commands, game_assets: Res<GameAssets>) {
-    // Status tier: the fps/version bar (and the objective count in it) is
-    // persistent reference chrome (task 20260724-171509). It is shown at
-    // HudVisibility::On and hides at the cinematic level (and in the main menu,
-    // which drives the level to Cinematic).
+    // Status tier: the fps/version bar is persistent reference chrome (task
+    // 20260724-171509). It is shown at HudVisibility::On and hides at the
+    // cinematic level (and in the main menu, which drives the level to
+    // Cinematic).
     //
     // It is NOT NOVA OS-exempt (task 20260727-014806): while the NOVA OS computer is
     // open the whole flight status bar hides, and the one item that matters there -

@@ -1241,9 +1241,9 @@ pub struct GameAssets {
     /// The lock-on target sprite.
     #[asset(path = "icons/target.png")]
     pub target_sprite: Handle<Image>,
-    /// The NOVA CRT brand mark, drawn by the NOVA OS drawer plate and the
-    /// objective-hint TAB affordance. Preloaded here so those sites read the
-    /// handle through [`NovaHudAssets`] instead of a lazy `asset_server.load`.
+    /// The NOVA CRT brand mark, drawn by the NOVA OS drawer plate. Preloaded
+    /// here so that site reads the handle through [`NovaHudAssets`] instead of
+    /// a lazy `asset_server.load`.
     #[asset(path = "icons/nova_crt_mark.png")]
     pub nova_crt_mark: Handle<Image>,
     /// The UI sound-effect handles, keyed by file stem. Loaded and load-gated as

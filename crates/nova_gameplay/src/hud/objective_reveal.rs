@@ -28,12 +28,15 @@ const REVEAL_APPEAR_SECS: f32 = 0.35;
 const REVEAL_HOLD_SECS: f32 = 2.3;
 /// Tuck-into-the-tab time (seconds).
 const REVEAL_TUCK_SECS: f32 = 0.55;
-/// Total lifetime; the card despawns after this.
-const REVEAL_TOTAL_SECS: f32 = REVEAL_APPEAR_SECS + REVEAL_HOLD_SECS + REVEAL_TUCK_SECS;
+/// Total lifetime; the card despawns after this. `pub(super)` so the
+/// objective stack can use it as its handover fallback: a posting with no card
+/// (a re-worded objective is not an "addition", so it gets none) still hands
+/// over to the chip after the time a card would have taken.
+pub(super) const REVEAL_TOTAL_SECS: f32 = REVEAL_APPEAR_SECS + REVEAL_HOLD_SECS + REVEAL_TUCK_SECS;
 
 /// Scale at full "big" reveal. Tuned smaller on the 2026-07-24 playtest (was
 /// 1.9 - the owner found it too big/centered); it now reads as a modest cockpit
-/// card that tucks up-and-right into the top-right objective hint (task
+/// card that tucks into the top-centre objective stack (task
 /// 20260724-134312).
 const REVEAL_BIG_SCALE: f32 = 1.35;
 /// Scale as it disappears into the hint.
@@ -62,18 +65,40 @@ const FALLBACK_VIEWPORT: Vec2 = Vec2::new(1920.0, 1080.0);
 pub struct ObjectiveRevealMarker {
     /// Seconds since the card was posted.
     pub elapsed: f32,
+    /// The id of the objective this card carries, so the tuck it emits can say
+    /// WHICH objective just landed (review R2.1 - a card can outlive its
+    /// notification, and an anonymous tuck then hands over the wrong one).
+    pub objective_id: String,
 }
 
 /// The reveal card's text child (alpha is faded on it each frame).
 #[derive(Component)]
 struct ObjectiveRevealTextMarker;
 
-/// A reveal card just finished tucking INTO the objective hint - the handover
-/// point of the posting animation (task 20260728-175747). The hint pops on it
-/// so the card's arrival and the hint's reaction are one motion; nothing else
-/// listens, and a card cleared early by scenario teardown never sends it.
-#[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ObjectiveRevealTucked;
+/// A reveal card just finished tucking INTO the objective stack - the handover
+/// point of the posting animation (task 20260728-175747), carrying the id of
+/// the objective that landed.
+///
+/// The id is load-bearing, not decoration (review R2.1): a card can outlive the
+/// notification it was spawned for (its objective completes early, or the
+/// player ship respawns), and the consumer runs in the same unordered set as
+/// the producer, so an ANONYMOUS tuck could hand over whichever notification
+/// happened to be waiting - a measured case handed a second objective over a
+/// full second before its own card landed. Matching on the id makes a stray
+/// tuck match nothing.
+///
+/// A card cleared early by scenario teardown never sends it.
+#[derive(Message, Debug, Clone, PartialEq, Eq)]
+pub struct ObjectiveRevealTucked(pub String);
+
+/// The card animation, so the objective stack can order itself after it and
+/// consume [`ObjectiveRevealTucked`] the frame the card writes it (review
+/// R2.1). A set rather than the system's name: it exposes one zero-sized
+/// marker instead of a system signature and the private component in its
+/// query, and it is the pattern the HUD already uses ([`super::NovaHudSystems`],
+/// [`super::HudSituationSensing`]).
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub(super) struct ObjectiveRevealAnimation;
 
 /// Runs the diegetic objective reveal: the animation + teardown. Spawning is
 /// triggered from `objective_feedback` (the single `GameObjectives` diff).
@@ -85,7 +110,7 @@ impl Plugin for ObjectiveRevealPlugin {
         app.add_systems(
             Update,
             (
-                animate_objective_reveals,
+                animate_objective_reveals.in_set(ObjectiveRevealAnimation),
                 clear_reveals_on_teardown.run_if(resource_changed::<GameObjectives>),
             )
                 .in_set(super::NovaHudSystems),
@@ -103,7 +128,10 @@ pub fn spawn_objective_reveal(commands: &mut Commands, objective: &Objective) {
     commands
         .spawn((
             Name::new(format!("ObjectiveReveal {}", objective.id)),
-            ObjectiveRevealMarker { elapsed: 0.0 },
+            ObjectiveRevealMarker {
+                elapsed: 0.0,
+                objective_id: objective.id.clone(),
+            },
             Node {
                 position_type: PositionType::Absolute,
                 width: Val::Px(REVEAL_WIDTH_PX),
@@ -172,10 +200,11 @@ fn animate_objective_reveals(
         marker.elapsed += time.delta_secs();
         if marker.elapsed >= REVEAL_TOTAL_SECS {
             commands.entity(entity).despawn();
-            // The card has arrived IN the hint: that is the moment the hint
-            // pops (task 20260728-175747), so the posting reads as one
-            // continuous motion rather than two animations of the same news.
-            tucked.write(ObjectiveRevealTucked);
+            // The card has arrived IN the stack: that is the moment its chip
+            // appears and pops (task 20260728-175747), so the posting reads as
+            // one continuous motion rather than two animations of the same
+            // news.
+            tucked.write(ObjectiveRevealTucked(marker.objective_id.clone()));
             continue;
         }
 
@@ -251,7 +280,7 @@ mod tests {
         )));
         app.init_resource::<GameObjectives>();
         app.init_resource::<NovaOsTabAnchor>();
-        // The tuck handover the objective hint pops on (task 20260728-175747).
+        // The tuck handover the objective stack pops on (task 20260728-175747).
         app.add_message::<ObjectiveRevealTucked>();
         app.add_systems(
             Update,

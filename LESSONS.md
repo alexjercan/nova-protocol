@@ -180,13 +180,27 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   a data field set at N registration sites; pin each entry point end-to-end in the
   SAME pass, not after a reviewer points at the missing half. Kin of
   [[advertised-is-not-wired]]. 20260726-115339, 20260728-115430, 20260728-184502.
-- `deleting-a-test-salvage-live-assertions` (x1): a test slated for deletion because
-  it exercised REMOVED code may also carry the only assertion pinning a still-live
-  edge (here the deleted bar/pips test also pinned `integrity()`/`status()` "unknown
-  health reads nominal", which now drives the status dot + panel). Read each
-  assertion and re-home the survivors before deleting - a test is a bag of
-  assertions, not one unit tied to a symbol. Kin of
-  [[pin-each-caller-not-just-shared-core]]. 20260728-125514.
+- `deleting-a-test-salvage-live-assertions` (x2): a test deleted with the module it
+  exercised may carry the only assertion pinning a still-live edge - read each
+  assertion and re-home the survivors, a test is a bag of assertions, not one unit
+  tied to a symbol. Twice now: a bar/pips test also pinned "unknown health reads
+  nominal"; deleting `objective_hint.rs` dropped the only pop/breath pins for
+  behaviour the REPLACEMENT widget inherited, and a dead pop shipped through the
+  hole. Kin of [[pin-each-caller-not-just-shared-core]].
+  20260728-125514, 20260729-163816.
+- `rebuilt-view-writes-go-to-state-not-the-entity` (x1): when a widget REBUILDS
+  its nodes every frame from a resource (the comms stack, the objective stack),
+  any system reaching in from outside must write the STATE, never the rebuilt
+  entity - a `pop()` written onto a chip is overwritten before it eases and the
+  animation silently never plays, while docs, tests and CHANGELOG all claim it
+  does. Decide this at the moment the rebuild model is chosen and say so at the
+  top of the module. 20260729-163816.
+- `identify-the-subject-in-the-event` (x1): an event that triggers work on a
+  specific subject must CARRY that subject's id; "find the one that must have
+  meant it" (the oldest waiting, the only one pending) is a guess that survives
+  exactly until two are in flight or the subject dies early - an anonymous
+  objective-card tuck handed the NEXT objective over a second before its own
+  card landed, decided by a schedule tie-break. 20260729-163816.
 - `test-the-wiring-system-not-just-its-pure-helpers` (x1): a per-frame system that
   maps pure helpers into the live UI tree AND caches state other code reads (e.g.
   `update_ship_panel` writing panel text + caching the button-enabled flags the
@@ -712,10 +726,13 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   observers; enumerate systems + observers + hooks - a new PauseStates variant
   had to widen ~14 observer self-guards the `in_state(Unpaused)` set-gate never
   covered. 20260711-185156, 20260724-102304.
-- `would-it-fail-without-it` (x6, PROMOTED 2026-07-13 -> work + review
+- `would-it-fail-without-it` (x7, PROMOTED 2026-07-13 -> work + review
   skills): a verification that cannot fail with the mechanism deleted proves
   nothing; a sabotage that will not go red refutes the assumed mechanism or
-  the test's shape. 20260711-180426, 20260717-163033.
+  the test's shape. Sharpened 20260729-163816: a REGRESSION test written after
+  the fix is the likeliest to pass under the bug it names - one tucked two
+  cards in posting order, which the positional bug also got right. Mutate
+  before believing it. 20260711-180426, 20260717-163033, 20260729-163816.
 - `required-component-in-shared-query` (x2): a required fetch narrows an
   existing query's membership; fetch `Option<&T>` or use a separate query.
   20260712-143832.

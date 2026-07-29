@@ -1229,18 +1229,21 @@ fn section_status_row_kind(section: &ShipSectionStatus) -> TerminalRowKind {
 
 /// The reveal's tuck-target rect in logical pixels. This is task 20260721-211520's
 /// tween TARGET: the big cockpit objective animates INTO this rect. It is
-/// published each frame by `objective_hint` (the minimalist top-right hint
-/// replaced the old NOVA OS tab handle as the anchor source - task
-/// 20260724-134312). `None` until the hint has laid out at least once (headless
-/// rigs without a UI layout pass leave it `None`).
+/// published each frame by `objective_stack`: the top-centre objective
+/// notification stack is what a posting tucks into (task 20260729-163816,
+/// inheriting the role from the retired status-bar hint of 20260724-134312,
+/// which in turn replaced the old NOVA OS tab handle). `None` until the stack
+/// has laid out at least once (headless rigs without a UI layout pass leave it
+/// `None`).
 #[derive(Resource, Default, Debug, Clone, Copy)]
 pub struct NovaOsTabAnchor {
-    /// The hint rect in logical window pixels, or `None` before first layout.
+    /// The tuck-target rect in logical window pixels, or `None` before first
+    /// layout.
     pub rect: Option<Rect>,
 }
 
 /// Wires the Tab NOVA OS shell: the toggle, the slide and the objectives section.
-/// The reveal's tuck anchor ([`NovaOsTabAnchor`]) is published by `objective_hint`.
+/// The reveal's tuck anchor ([`NovaOsTabAnchor`]) is published by `objective_stack`.
 /// Registered by [`super::NovaHudPlugin`].
 pub struct NovaOsPlugin;
 
@@ -1267,7 +1270,7 @@ impl Plugin for NovaOsPlugin {
 
         // Shell upkeep while the HUD is live: ease the slide and rebuild the
         // objectives section on change / first spawn. (The reveal's tuck anchor
-        // is published by `objective_hint`.)
+        // is published by `objective_stack`.)
         app.add_systems(
             Update,
             (
@@ -3172,7 +3175,7 @@ fn setup_nova_os(
     ));
 
     // (The old flight-view tab handle was removed in task 20260724-134312; the
-    // top-right objective hint is the NOVA OS affordance + the reveal's tuck
+    // top-centre objective stack is the NOVA OS affordance + the reveal's tuck
     // anchor now.)
 
     // One inset physical monitor. It is hidden until opened by the same
@@ -5367,8 +5370,8 @@ mod tests {
         );
     }
 
-    // (The tab-handle anchor test moved to `objective_hint` -
-    // `objective_hint_provides_the_nova_os_anchor` - now that the hint is the
+    // (The tab-handle anchor test moved to `objective_stack` -
+    // `the_stack_publishes_the_reveal_tuck_anchor` - now that the stack is the
     // reveal's tuck-anchor source, task 20260724-134312.)
 
     fn objectives_app() -> App {

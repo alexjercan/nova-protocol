@@ -1,7 +1,7 @@
 //! Key-glyph lookup for the HUD: which keycap picture stands for which binding.
 //!
 //! The HUD shows keys as PICTURES, not `[BRACKETED]` text - the icon dock, the
-//! anchored verb cues and the objective hint's NOVA OS affordance all draw a
+//! anchored verb cues and the objective stack's NOVA OS affordance all draw a
 //! keycap from `assets/input-prompts/keyboard/Alt/` (the dark keycaps with white
 //! glyphs, relocated into `assets/` by task 20260728-233707).
 //!
