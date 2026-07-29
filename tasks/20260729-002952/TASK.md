@@ -1,6 +1,6 @@
 # Investigate probe FPS regression from July 29 runs
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.9.0,bug,perf,probe
 
@@ -20,19 +20,23 @@ fix is the whole answer. It should use commit-keyed probe artifacts once task
 
 ## Steps
 
-- [ ] Record the current evidence in NOTES.md from the JSON/CSV/trace data, not
+- [x] Record the current evidence in NOTES.md from the JSON/CSV/trace data, not
       from the HTML reports: current/before git SHAs, affected examples,
       `frametime.csv` deltas, `checks.json` verdicts, and top trace deltas for
       render/extract/font loading.
-- [ ] Isolate the regression range with targeted probe runs or a small bisect
+- [x] Isolate the regression range with targeted probe runs or a small bisect
       across likely commits: at minimum `87600482` (Iosevka .ttc), `14aea590`
       (NOVA OS render-to-texture CRT), `dec4ee9f` (nova_os extraction + loader),
       and current HEAD. Keep the run artifacts reusable; prefer the commit-keyed
       layout from task 20260729-003352 if it is available.
-- [ ] Coordinate with task 20260729-000956: treat its preload/static-asset work
+      NOT NEEDED as a bisect: three commit-keyed run sets (`08420e2a`,
+      `82bc2dc9`, `a6d06220`) already bracket the window, and `git log -S ttc`
+      attributes the `.ttc` loader's removal to `c3ee1988` unambiguously.
+- [x] Coordinate with task 20260729-000956: treat its preload/static-asset work
       as a likely partial fix for the repeated font-load finding, but verify
       whether render extraction remains elevated after that task lands.
-- [ ] Run before/after probe checks and update NOTES.md
+      It was the WHOLE fix; render extraction is not elevated in the timed pass.
+- [x] Run before/after probe checks and update NOTES.md
       with the final interpretation: whether the FPS drop was removed, reduced,
       or still open for a follow-up optimization.
 
@@ -66,3 +70,28 @@ fix is the whole answer. It should use commit-keyed probe artifacts once task
 - Do not hand-edit historical probe artifacts as part of the investigation;
   new structure should coexist with old folders until there is a deliberate
   cleanup task.
+
+## Outcome (2026-07-29) - FIXED
+
+Closed as FIXED. Full evidence in NOTES.md; the short version:
+
+- The regression is GONE at `a6d06220`. Measured `mean_ms` vs the pre-regression
+  `08420e2a` baseline: `scenario` 18.44 vs 18.43, `playable` 17.11 vs 17.12,
+  `perf_baseline` 19.30 vs 21.04, `lifeline` 23.10 vs 28.28. Every scored
+  example's `fps_within_baseline` check reads PASS with a negative delta.
+- Cause and fix: the lazy `NovaOsTtcFontLoader` `.ttc` path. `c3ee1988` (task
+  20260729-000956) replaced it with a preloaded `.ttf` through Bevy's stock
+  `FontLoader`; the custom loader no longer exists in the tree or in the traces.
+- No residual render-side regression, so NO follow-up optimization task (DoD 3).
+- Task 20260729-003352's commit-keyed layout WAS available and is what made the
+  comparison possible without a bisect (DoD 4).
+- No bisect was run, per the owner's direction - the existing run sets and the
+  `git log -S ttc` attribution were sufficient.
+- Follow-up filed: backlog task `20260729-205957` makes an end-of-sprint probe
+  sweep a standing per-sprint check, so the next such regression is caught by
+  the sprint that ships it.
+
+## Flow State
+
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
