@@ -36,7 +36,9 @@ Hold a combat lock focused for about a second and a half and you can drill into 
 
 ## Clearing locks
 
-Tap <kbd>Ctrl</kbd> (a press under the hold threshold) to clear in stages: with weapons lowered it drops the combat lock first, then the travel lock (which also disengages GOTO); with weapons raised it only ever drops the combat lock. Locks also fall on their own when the target dies, leaves range, or turns non-hostile, and an idle combat lock times out after about thirty seconds.
+Tap <kbd>Ctrl</kbd> (a press under the hold threshold) to clear in stages: with weapons lowered it drops the combat lock first, then the travel lock (which also disengages GOTO); with weapons raised it only ever drops the combat lock. Locks also fall on their own when the target dies, leaves range, or turns non-hostile.
+
+An **idle** combat lock times out after about thirty seconds - "idle" meaning you are neither holding weapons raised nor firing, so a running fight never loses its lock no matter how long it lasts. You do not have to count: over the last few seconds of the window the red reticle dims and pulses faster and faster, and the moment anything you do counts as combat the reticle snaps back to full strength and the clock restarts.
 
 ## Lock ranges
 

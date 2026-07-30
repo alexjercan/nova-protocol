@@ -20,7 +20,11 @@
 //!   close-range signature auto-acquire are gone. Locks clear naturally on
 //!   death/despawn, out-of-range, a hostile target turning non-hostile, and
 //!   the combat lock decays after `COMBAT_DECAY_SECS` without combat
-//!   activity.
+//!   activity - where combat activity is the raised stance OR a held weapon
+//!   trigger. Every one of those drops names itself: a `debug!` line plus a
+//!   [`CombatLockDropped`] message carrying the [`CombatLockDrop`] branch, so
+//!   "why did my lock let go?" is answerable from a run rather than guessed
+//!   (investigation 20260730-123009).
 //!
 //! The scanner-wave RANGE model (LockSignature) survives as the radar
 //! picker's gate, and [`ThreatContacts`] keeps the ranked hostile set alive
@@ -38,10 +42,11 @@ use crate::prelude::*;
 /// Glob-import surface: `use nova_gameplay::input::targeting::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
-        targeting_state, CombatLock, ComponentLock, ComponentLockMode, LockClearedToast, LockFocus,
-        LockSignature, RadarDenied, RadarLockAcquired, RadarRetargeted, RadarSlot, RadarState,
-        SpaceshipTargetingPlugin, SpaceshipTargetingSystems, TargetingSettings, ThreatContacts,
-        TravelLock, WeaponsHot, RADAR_TAP_SECS,
+        targeting_state, CombatDecay, CombatLock, CombatLockDrop, CombatLockDropped, ComponentLock,
+        ComponentLockMode, LockClearedToast, LockFocus, LockSignature, RadarDenied,
+        RadarLockAcquired, RadarRetargeted, RadarSlot, RadarState, SpaceshipTargetingPlugin,
+        SpaceshipTargetingSystems, TargetingSettings, ThreatContacts, TravelLock, WeaponsHot,
+        COMBAT_DECAY_SECS, RADAR_TAP_SECS,
     };
 }
 
@@ -222,7 +227,7 @@ pub struct WeaponsHot(pub bool);
 
 /// Idle bookkeeping for the combat-lock decay (decision D4): seconds since
 /// the last combat activity while a combat lock exists. Reset by the raised
-/// stance (and by firing, once 20260713-082337 lands); at
+/// stance and by a held weapon trigger (task 20260730-123009); at
 /// `COMBAT_DECAY_SECS` the combat lock clears and the safety follows.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Default, Reflect)]
 #[reflect(Component)]
@@ -310,6 +315,42 @@ pub struct LockClearedToast {
 #[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RadarDenied;
 
+/// Why the per-frame upkeep let go of a combat lock (investigation
+/// 20260730-123009). The owner's report - "sometimes the ship loses radar
+/// focus on locked enemies" - could not be answered by INFERRING the branch
+/// from the world state after the fact, so the upkeep names the branch it
+/// took. The staged tap-clear is NOT here: that is a deliberate player
+/// gesture on its own path ([`LockClearedToast`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Reflect)]
+pub enum CombatLockDrop {
+    /// The target no longer exists, or stopped being a lockable body at all
+    /// (death, despawn, losing its dynamic body).
+    TargetGone,
+    /// The target is still a lockable body but no longer passes the
+    /// candidate gate - in practice its range gate, widened for the incumbent
+    /// by [`TargetingSettings::range_hysteresis`]. (The gate's other rejects
+    /// - the ship itself, an uncommitted torpedo - cannot hold a lock in the
+    /// first place, so they never reach this branch.)
+    OutOfRange,
+    /// A hostile target turned non-hostile - a scripted surrender must not
+    /// keep the guns hot.
+    AllegianceFlip,
+    /// The idle decay (D4): `COMBAT_DECAY_SECS` without combat activity.
+    IdleDecay,
+}
+
+/// The combat lock was dropped by the upkeep, with the branch that dropped
+/// it named ([`CombatLockDrop`]) and the idle clock as it stood.
+#[derive(Message, Debug, Clone, Copy, PartialEq)]
+pub struct CombatLockDropped {
+    /// The target the lock held.
+    pub target: Entity,
+    /// Which upkeep branch let go.
+    pub reason: CombatLockDrop,
+    /// Seconds on the [`CombatDecay`] clock at the drop.
+    pub idle_secs: f32,
+}
+
 /// System set for the lock update, so consumers (torpedo commit, turret
 /// feed) can order after it.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
@@ -339,6 +380,8 @@ impl Plugin for SpaceshipTargetingPlugin {
         app.add_message::<RadarLockAcquired>();
         app.add_message::<RadarRetargeted>();
         app.add_message::<RadarDenied>();
+        app.add_message::<CombatLockDropped>();
+        app.register_type::<CombatLockDrop>();
 
         // The state bundle rides the player marker wherever ships spawn
         // (observer-over-spawn-site).
@@ -396,10 +439,12 @@ const TARGETING_CONE_HALF_ANGLE_DEG: f32 = 18.0;
 /// the candidate and the release commits a coin flip.
 const RADAR_PICK_HYSTERESIS: f32 = 0.75;
 
-/// Seconds without combat activity (raised stance; firing joins in
-/// 20260713-082337) before a held combat lock decays and the weapons safety
-/// re-engages (decision D4, user-tuned). A const knob.
-const COMBAT_DECAY_SECS: f32 = 30.0;
+/// Seconds without combat activity (the raised stance or a held weapon
+/// trigger) before a held combat lock decays and the weapons safety
+/// re-engages (decision D4, user-tuned). A const knob; kept at 30 by the
+/// owner in task 20260730-123009, which made the wind-down VISIBLE instead
+/// of shortening or removing the rule.
+pub const COMBAT_DECAY_SECS: f32 = 30.0;
 
 /// Seconds of continuous lock on the same target before the component layer
 /// unlocks (the WoT-style aim-in dwell from the component-lock spike,
@@ -600,6 +645,17 @@ fn update_contacts_and_locks(
     q_candidates: LockableQuery,
     q_flipped: Query<(), Changed<Allegiance>>,
     q_allegiances: Query<&Allegiance>,
+    // Only WEAPON sections carry a trigger, so the filter skips hull,
+    // thrusters and controllers rather than walking every section.
+    q_triggers: Query<
+        (
+            &ChildOf,
+            Option<&TurretSectionInput>,
+            Option<&TorpedoSectionInput>,
+        ),
+        Or<(With<TurretSectionInput>, With<TorpedoSectionInput>)>,
+    >,
+    mut dropped: MessageWriter<CombatLockDropped>,
     mut spaceship: Query<
         (
             &Transform,
@@ -649,24 +705,69 @@ fn update_contacts_and_locks(
             travel.0 = travel_now;
         }
         let mut combat_now = still(combat.0);
+        // Name the branch that let go, rather than leaving the owner (and any
+        // future investigation) to infer it from the wreckage - task
+        // 20260730-123009. A target that vanished from the candidate set is
+        // either GONE (despawned, or no longer a lockable body at all) or
+        // merely OUT OF RANGE, and the query tells the two apart.
+        if let (Some(target), None) = (combat.0, combat_now) {
+            let reason = if q_candidates.get(target).is_ok() {
+                CombatLockDrop::OutOfRange
+            } else {
+                CombatLockDrop::TargetGone
+            };
+            report_combat_lock_drop(&mut dropped, target, reason, decay.0);
+        }
 
         // A hostile combat target FLIPPING to non-hostile clears the lock (a
         // scripted surrender must not keep the guns hot); a deliberate lock
         // on an always-neutral body is untouched - only a CHANGE trips this.
+        let before_flip = combat_now;
         combat_now = combat_now.filter(|target| {
             !(q_flipped.get(*target).is_ok()
                 && relation(ship_allegiance, q_allegiances.get(*target).ok()) != Relation::Hostile)
         });
+        if let (Some(target), None) = (before_flip, combat_now) {
+            report_combat_lock_drop(
+                &mut dropped,
+                target,
+                CombatLockDrop::AllegianceFlip,
+                decay.0,
+            );
+        }
 
-        // The idle decay (D4): combat activity (the raised stance; firing
-        // joins in 20260713-082337) resets the clock; at COMBAT_DECAY_SECS
-        // the lock lets go and the safety follows.
+        // The idle decay (D4): combat activity resets the clock; at
+        // COMBAT_DECAY_SECS the lock lets go and the safety follows. Combat
+        // activity is the raised stance OR a held trigger on one of this
+        // ship's own weapon sections - the stance is only raised while the
+        // combat button is HELD (`derive_control_mode_and_raised`), and
+        // `WeaponsHot` is `raised OR locked`, so a player who locks a hostile
+        // and fights with the stance lowered is unmistakably in combat. Until
+        // task 20260730-123009 firing did NOT count (the comments here
+        // promised it as part of 20260713-082337, which closed without the
+        // wiring) and the lock let go mid-fight at 30 s - the defect behind
+        // the owner's "sometimes the ship loses radar focus" report.
         if combat_now.is_some() {
-            if raised.is_some_and(|raised| raised.0) {
+            let firing = q_triggers
+                .iter()
+                .any(|(&ChildOf(parent), turret, torpedo)| {
+                    parent == ship
+                        && (turret.is_some_and(|turret| turret.0)
+                            || torpedo.is_some_and(|torpedo| torpedo.0))
+                });
+            if raised.is_some_and(|raised| raised.0) || firing {
                 decay.set_if_neq(CombatDecay(0.0));
             } else {
                 decay.0 += time.delta_secs();
                 if decay.0 >= COMBAT_DECAY_SECS {
+                    if let Some(target) = combat_now {
+                        report_combat_lock_drop(
+                            &mut dropped,
+                            target,
+                            CombatLockDrop::IdleDecay,
+                            decay.0,
+                        );
+                    }
                     combat_now = None;
                     decay.set_if_neq(CombatDecay(0.0));
                 }
@@ -696,6 +797,25 @@ fn update_contacts_and_locks(
             threats.entries = entries;
         }
     }
+}
+
+/// Announce a combat-lock drop: one `debug!` line naming the branch, and the
+/// [`CombatLockDropped`] message for any cue that wants to react. The log is
+/// the point - "why did my lock let go?" was unanswerable from a shipped run
+/// before task 20260730-123009, which is what made an intended 30 s decay
+/// read as a random bug.
+fn report_combat_lock_drop(
+    dropped: &mut MessageWriter<CombatLockDropped>,
+    target: Entity,
+    reason: CombatLockDrop,
+    idle_secs: f32,
+) {
+    debug!("combat lock dropped: target {target} - {reason:?} after {idle_secs:.2} s idle");
+    dropped.write(CombatLockDropped {
+        target,
+        reason,
+        idle_secs,
+    });
 }
 
 /// The radar search AND the live lock (spike 20260713-110039, strand A1):
@@ -1914,6 +2034,7 @@ mod tests {
         let mut world = World::new();
         world.insert_resource(Time::<()>::default());
         world.init_resource::<TargetingSettings>();
+        world.init_resource::<Messages<CombatLockDropped>>();
         let travel_target = world
             .spawn((
                 RigidBody::Static,
@@ -1956,6 +2077,273 @@ mod tests {
     fn upkeep(world: &mut World) {
         let id = world.resource::<UpkeepSystem>().0;
         world.run_system(id).unwrap();
+    }
+
+    /// Drain the drop messages the last upkeep wrote - the evidence rig's
+    /// readout (task 20260730-123009): the branch NAMES itself, so nothing
+    /// here has to infer the cause from the leftover world state.
+    fn drops(world: &mut World) -> Vec<CombatLockDropped> {
+        world
+            .resource_mut::<Messages<CombatLockDropped>>()
+            .drain()
+            .collect()
+    }
+
+    /// Hang a weapon section with a HELD trigger on `ship`, the way the
+    /// player's input observers latch one (`on_turret_input`).
+    fn hold_trigger(world: &mut World, ship: Entity) -> Entity {
+        world
+            .spawn((SectionMarker, TurretSectionInput(true), ChildOf(ship)))
+            .id()
+    }
+
+    /// THE EVIDENCE RIG (task 20260730-123009). The owner asked why the ship
+    /// "sometimes loses radar focus on locked enemies"; this walks each way
+    /// the upkeep can let go and records the branch BY NAME plus the elapsed
+    /// idle clock, so the answer is read off the run instead of guessed.
+    /// Numbers land in the task's NOTES.md.
+    #[test]
+    fn the_evidence_rig_names_every_branch_that_drops_the_combat_lock() {
+        // 1. Idle decay: nothing happens for 30 s with the stance lowered.
+        let (mut world, player, _travel, combat_target) = locked_world();
+        upkeep(&mut world);
+        assert!(drops(&mut world).is_empty(), "a healthy lock drops nothing");
+        world
+            .resource_mut::<Time>()
+            .advance_by(Duration::from_secs_f32(COMBAT_DECAY_SECS));
+        upkeep(&mut world);
+        let idle = drops(&mut world);
+        assert_eq!(
+            idle,
+            vec![CombatLockDropped {
+                target: combat_target,
+                reason: CombatLockDrop::IdleDecay,
+                idle_secs: COMBAT_DECAY_SECS,
+            }],
+            "the idle branch names itself with the clock it crossed"
+        );
+        assert_eq!(world.get::<CombatLock>(player).unwrap().0, None);
+
+        // 2. Out of range: the target exists and is still lockable, it is
+        //    simply too far - even past the incumbent's widened gate.
+        let (mut world, player, _travel, combat_target) = locked_world();
+        let past_gate = TARGETING_MAX_RANGE * 1.15 + 1.0;
+        world
+            .entity_mut(combat_target)
+            .insert(GlobalTransform::from_translation(Vec3::new(
+                0.0, 0.0, -past_gate,
+            )));
+        upkeep(&mut world);
+        assert_eq!(
+            drops(&mut world),
+            vec![CombatLockDropped {
+                target: combat_target,
+                reason: CombatLockDrop::OutOfRange,
+                idle_secs: 0.0,
+            }],
+            "a body still in the world but past its gate reads OutOfRange"
+        );
+        assert_eq!(world.get::<CombatLock>(player).unwrap().0, None);
+
+        // 3. Target gone: despawned outright.
+        let (mut world, player, _travel, combat_target) = locked_world();
+        world.despawn(combat_target);
+        upkeep(&mut world);
+        assert_eq!(
+            drops(&mut world),
+            vec![CombatLockDropped {
+                target: combat_target,
+                reason: CombatLockDrop::TargetGone,
+                idle_secs: 0.0,
+            }],
+            "a despawned target reads TargetGone, never OutOfRange"
+        );
+        assert_eq!(world.get::<CombatLock>(player).unwrap().0, None);
+
+        // 4. Allegiance flip: the scripted surrender.
+        let (mut world, player, _travel, combat_target) = locked_world();
+        upkeep(&mut world);
+        let _ = drops(&mut world);
+        world.entity_mut(combat_target).insert(Allegiance::Neutral);
+        upkeep(&mut world);
+        assert_eq!(
+            drops(&mut world),
+            vec![CombatLockDropped {
+                target: combat_target,
+                reason: CombatLockDrop::AllegianceFlip,
+                idle_secs: 0.0,
+            }],
+            "a surrender names itself, so it cannot be mistaken for decay"
+        );
+        assert_eq!(world.get::<CombatLock>(player).unwrap().0, None);
+    }
+
+    /// THE DEFECT (task 20260730-123009, fail-first): firing IS combat
+    /// activity. The stance is only raised while the combat button is HELD,
+    /// and `WeaponsHot` is `raised OR locked`, so a player can legitimately
+    /// fight with it lowered - and before this fix the lock let go at 30 s
+    /// mid-fight, with nothing on screen to explain it.
+    #[test]
+    fn a_held_trigger_resets_the_decay_so_the_lock_survives_a_long_fight() {
+        let (mut world, player, _travel, combat_target) = locked_world();
+        hold_trigger(&mut world, player);
+
+        // Two full decay windows of continuous firing, stance LOWERED.
+        for _ in 0..4 {
+            world
+                .resource_mut::<Time>()
+                .advance_by(Duration::from_secs_f32(COMBAT_DECAY_SECS * 0.5));
+            upkeep(&mut world);
+            assert_eq!(
+                world.get::<CombatDecay>(player).unwrap().0,
+                0.0,
+                "a held trigger resets the idle clock every frame"
+            );
+        }
+        assert_eq!(
+            world.get::<CombatLock>(player).unwrap().0,
+            Some(combat_target),
+            "firing at a locked hostile must not lose the lock mid-fight"
+        );
+        assert!(
+            drops(&mut world).is_empty(),
+            "and nothing reports a drop at all"
+        );
+    }
+
+    /// The other half of the same rule: releasing the trigger resumes the
+    /// clock from zero, so the decay still happens - the fix widens what
+    /// counts as combat, it does not disable the rule.
+    #[test]
+    fn releasing_the_trigger_resumes_the_decay_from_zero() {
+        let (mut world, player, _travel, combat_target) = locked_world();
+        let turret = hold_trigger(&mut world, player);
+        world
+            .resource_mut::<Time>()
+            .advance_by(Duration::from_secs_f32(COMBAT_DECAY_SECS - 1.0));
+        upkeep(&mut world);
+
+        world.entity_mut(turret).insert(TurretSectionInput(false));
+        world
+            .resource_mut::<Time>()
+            .advance_by(Duration::from_secs_f32(COMBAT_DECAY_SECS - 1.0));
+        upkeep(&mut world);
+        assert_eq!(
+            world.get::<CombatLock>(player).unwrap().0,
+            Some(combat_target),
+            "the clock restarts at the release, it does not resume mid-window"
+        );
+
+        world
+            .resource_mut::<Time>()
+            .advance_by(Duration::from_secs_f32(2.0));
+        upkeep(&mut world);
+        assert_eq!(
+            world.get::<CombatLock>(player).unwrap().0,
+            None,
+            "a genuinely idle lock still decays at {COMBAT_DECAY_SECS} s"
+        );
+    }
+
+    /// A trigger held on SOMEONE ELSE'S ship is not this player's combat
+    /// activity - the sibling-scope trap the `ChildOf` filter guards.
+    #[test]
+    fn another_ships_trigger_never_holds_the_players_lock_open() {
+        let (mut world, player, _travel, _combat_target) = locked_world();
+        let other = world.spawn((SpaceshipRootMarker, Transform::IDENTITY)).id();
+        hold_trigger(&mut world, other);
+
+        world
+            .resource_mut::<Time>()
+            .advance_by(Duration::from_secs_f32(COMBAT_DECAY_SECS));
+        upkeep(&mut world);
+        assert_eq!(
+            world.get::<CombatLock>(player).unwrap().0,
+            None,
+            "only the player's OWN sections count as their combat activity"
+        );
+    }
+
+    /// THE PIN of the ruled-out paths (task 20260730-123009): with the
+    /// target alive, in range, still hostile and no gesture, the lock does
+    /// NOT drop for any reason other than the idle clock - and while that
+    /// clock is held at zero it does not drop at all. This is what stops the
+    /// investigation's answer from silently rotting.
+    #[test]
+    fn a_live_in_range_hostile_lock_never_drops_for_any_other_reason() {
+        let (mut world, player, _travel, combat_target) = locked_world();
+        hold_trigger(&mut world, player);
+
+        // Ten minutes of firing at a target that drifts within its gate.
+        for step in 0..600 {
+            let distance = 400.0 + (step as f32) * 10.0;
+            world
+                .entity_mut(combat_target)
+                .insert(GlobalTransform::from_translation(Vec3::new(
+                    0.0, 0.0, -distance,
+                )));
+            world
+                .resource_mut::<Time>()
+                .advance_by(Duration::from_secs_f32(1.0));
+            upkeep(&mut world);
+            let dropped = drops(&mut world);
+            assert!(
+                dropped.is_empty(),
+                "step {step} at {distance} m dropped the lock: {dropped:?}"
+            );
+        }
+        assert_eq!(
+            world.get::<CombatLock>(player).unwrap().0,
+            Some(combat_target),
+            "6400 m and 600 s later the lock still holds"
+        );
+    }
+
+    /// "Focus" is ambiguous in the owner's report, so the two candidates are
+    /// pinned apart (task 20260730-123009): a [`LockFocus`] dwell RESET is
+    /// not a lock drop. Retargeting restarts the 1.5 s component dwell while
+    /// the combat lock stays firmly latched and nothing reports a drop.
+    #[test]
+    fn a_focus_dwell_reset_is_not_a_lock_drop() {
+        let (mut world, player, _travel, first) = locked_world();
+        let second = world
+            .spawn((
+                SpaceshipRootMarker,
+                AISpaceshipMarker,
+                RigidBody::Dynamic,
+                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -500.0)),
+            ))
+            .id();
+        hold_trigger(&mut world, player);
+
+        world
+            .resource_mut::<Time>()
+            .advance_by(Duration::from_secs_f32(FOCUS_TIME * 2.0));
+        upkeep(&mut world);
+        // The first tick ADOPTS the target (dwell zero); the next accumulates.
+        world.run_system_once(tick_lock_focus).unwrap();
+        world.run_system_once(tick_lock_focus).unwrap();
+        assert!(
+            world.get::<LockFocus>(player).unwrap().focused_on(first),
+            "the dwell completes on the first target"
+        );
+
+        // A retarget: same gesture, new body.
+        world.get_mut::<CombatLock>(player).unwrap().0 = Some(second);
+        world.run_system_once(tick_lock_focus).unwrap();
+        assert!(
+            !world.get::<LockFocus>(player).unwrap().focused_on(second),
+            "the dwell restarts on the new target"
+        );
+        assert_eq!(
+            world.get::<CombatLock>(player).unwrap().0,
+            Some(second),
+            "but the LOCK itself never let go"
+        );
+        assert!(
+            drops(&mut world).is_empty(),
+            "and no drop was reported - a dwell reset is a different event"
+        );
     }
 
     #[test]
@@ -2782,6 +3170,53 @@ mod tests {
             app.world().get::<CombatDecay>(ship).unwrap().0,
             0.0,
             "the engaged combat sweep resets the decay every frame"
+        );
+    }
+
+    /// THE TAP/HOLD BOUNDARY, measured (task 20260730-123009). Candidate
+    /// mechanism 5 was "a CTRL hold the player meant as a hold lands under
+    /// `RADAR_TAP_SECS` and clears the lock instead". The rig steps at 50 ms,
+    /// so this sweeps 1..=8 held frames (50..400 ms) across the 250 ms
+    /// threshold and records where the gesture flips from clear to commit.
+    /// The numbers go in the task's NOTES.md.
+    #[test]
+    fn the_tap_hold_boundary_sits_exactly_at_the_shared_threshold() {
+        const STEP_MS: u64 = 50;
+        let frames_to_threshold = (RADAR_TAP_SECS * 1000.0) as u64 / STEP_MS;
+        let mut outcomes = Vec::new();
+        for held in 1..=8u64 {
+            let (mut app, ship) = gesture_app();
+            let ahead = spawn_ship(&mut app, Vec3::new(0.0, 0.0, -100.0));
+            let enemy = spawn_ship(&mut app, Vec3::new(0.0, 200.0, 0.0));
+            app.world_mut()
+                .entity_mut(ship)
+                .insert((CombatLock(Some(enemy)), WeaponsRaised(true)));
+
+            press_ctrl(&mut app);
+            for _ in 0..held {
+                app.update();
+            }
+            release_ctrl(&mut app);
+            app.update();
+            outcomes.push((held * STEP_MS, combat_of(&app, ship) == Some(ahead)));
+        }
+
+        for &(ms, committed) in &outcomes {
+            let expected = ms >= (RADAR_TAP_SECS * 1000.0) as u64;
+            assert_eq!(
+                committed,
+                expected,
+                "a {ms} ms hold should {} - full curve: {outcomes:?}",
+                if expected {
+                    "COMMIT a lock"
+                } else {
+                    "tap-clear"
+                }
+            );
+        }
+        assert_eq!(
+            frames_to_threshold, 5,
+            "guard: the sweep really does straddle the threshold"
         );
     }
 

@@ -1068,7 +1068,27 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   sibling of [[sweep-a-rename-where-the-name-is-spoken]] (concept-level) and
   [[rename-id-sweep-in-file]] (content ids). 20260729-211155.
 
+- `comment-citing-a-task-is-not-the-wiring` (x1): a doc comment promising
+  behavior "once <task-id> lands" is a PROMISE, not evidence - grep for the code
+  that would WRITE that state before believing it ships. Three comments claimed
+  firing reset the combat-lock decay clock; the cited task closed without the
+  wiring, and the gap read as a gameplay bug for weeks until a
+  writers-of-this-component grep found the single writer. 20260730-123009.
+- `sample-the-regime-the-player-lives-in` (x1): a test for a time-driven visual
+  that only samples from t=0 tests the one regime a phase bug hides in - assert
+  the SAME output at a realistic session uptime (0 s vs 300 s) and at two frame
+  rates. Both cue tests were green while the shipped animation degraded into a
+  smooth slide at 60 s and frame-rate aliasing at 300 s. Kin of
+  [[sweep-full-scale-before-believing-a-win]]. 20260730-123009.
+
 ## Domain lessons (nova-protocol specific)
+
+- `swept-rate-needs-an-integrated-phase` (domain, x1): `phase = t * hz` is only
+  valid for a CONSTANT hz; sweep the frequency and the instantaneous rate
+  becomes `hz + t * dhz/dt`, so it grows with session uptime. Integrate the
+  chirp (`CALM*x + (URGENT-CALM)*x^2/(2*W)`, x measured from the effect's OWN
+  clock) and sanity-check `cycles(window)` against the mean-rate product.
+  20260730-123009.
 
 - `check-what-points-at-a-thing-before-hiding-it` (domain, x1): when a HUD
   surface gains a rule that REMOVES elements, first find what deliberately

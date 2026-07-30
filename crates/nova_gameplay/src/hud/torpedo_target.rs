@@ -78,6 +78,22 @@ const FOCUS_METER_COLOR: Color = Color::srgba(1.0, 0.4, 0.25, 0.9);
 /// table), and the raised-manual hot cue lives on the lead pips.
 const RETICLE_COMBAT_COLOR: Color = nova_ui::theme::semantic::THREAT;
 
+/// The LOCK WIND-DOWN cue (task 20260730-123009). The combat lock decays
+/// after `COMBAT_DECAY_SECS` without combat activity - an intended rule the
+/// owner kept, but with nothing on screen counting it down the lock simply
+/// vanished and read as a bug. Over the last `DECAY_WIND_DOWN_SECS` of the
+/// window the reticle dims toward `DECAY_MIN_ALPHA` and pulses ever faster
+/// (`DECAY_PULSE_HZ_CALM` -> `DECAY_PULSE_HZ_URGENT`, depth
+/// `DECAY_PULSE_DEPTH`), so the lock is SEEN losing its grip before the
+/// unlatch ghost pops it off. Deliberately the existing reticle rather than a
+/// new countdown widget (DECISION.md): no extra screen furniture for a state
+/// that only matters at the end.
+const DECAY_WIND_DOWN_SECS: f32 = 5.0;
+const DECAY_MIN_ALPHA: f32 = 0.25;
+const DECAY_PULSE_HZ_CALM: f32 = 1.5;
+const DECAY_PULSE_HZ_URGENT: f32 = 6.0;
+const DECAY_PULSE_DEPTH: f32 = 0.45;
+
 /// Glob-import surface: `use nova_gameplay::hud::torpedo_target::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
@@ -302,6 +318,7 @@ impl Plugin for TorpedoTargetHudPlugin {
                 update_target_readout,
                 update_focus_meter,
                 emphasize_lock_on_weapons_hot,
+                wind_down_reticle_on_decay,
             )
                 .in_set(super::NovaHudSystems),
         );
@@ -329,6 +346,60 @@ fn emphasize_lock_on_weapons_hot(
     }
     for mut emphasis in &mut q_reticle {
         emphasis.set_held(situations.firing);
+    }
+}
+
+/// The reticle alpha for an idle clock reading `idle_secs`. Full strength
+/// until the last [`DECAY_WIND_DOWN_SECS`] of the window, then a falling
+/// ceiling with a deepening, quickening pulse under it. Continuous at the
+/// boundary (at zero progress the ceiling IS the full alpha and the pulse has
+/// no depth), so the cue fades in without a step.
+///
+/// A function of the DECAY CLOCK alone - deliberately not of session time
+/// (review R1.1). Phase must be the INTEGRAL of a sweeping frequency: the
+/// first cut multiplied the render clock by the swept `hz`, which makes the
+/// instantaneous rate `hz + elapsed * d(hz)/dt` and so grows without bound
+/// with session uptime - measured at 29 pulses over the window at t=0, 10 at
+/// t=60 s and 118 (frame-rate aliasing, not a pulse) at t=300 s. Integrating
+/// the linear chirp instead gives the same cue every time, at any frame rate,
+/// whenever in the session the window opens.
+fn wind_down_alpha(idle_secs: f32) -> f32 {
+    let full = RETICLE_COMBAT_COLOR.alpha();
+    let remaining = (COMBAT_DECAY_SECS - idle_secs).max(0.0);
+    if remaining >= DECAY_WIND_DOWN_SECS {
+        return full;
+    }
+    let elapsed_in_window = DECAY_WIND_DOWN_SECS - remaining;
+    let progress = (elapsed_in_window / DECAY_WIND_DOWN_SECS).clamp(0.0, 1.0);
+    let ceiling = full + (DECAY_MIN_ALPHA - full) * progress;
+    // Integral of hz(x) = CALM + (URGENT - CALM) * x / WINDOW, so the pulse
+    // rate really does sweep CALM -> URGENT across the window.
+    let sweep = (DECAY_PULSE_HZ_URGENT - DECAY_PULSE_HZ_CALM) / (2.0 * DECAY_WIND_DOWN_SECS);
+    let cycles = DECAY_PULSE_HZ_CALM * elapsed_in_window + sweep * elapsed_in_window.powi(2);
+    // A cosine dip: zero at the window boundary, so the pulse fades IN.
+    let dip = 0.5 - 0.5 * (cycles * std::f32::consts::TAU).cos();
+    ceiling * (1.0 - DECAY_PULSE_DEPTH * progress * dip)
+}
+
+/// Drive the combat reticle's alpha from the player's [`CombatDecay`] clock,
+/// so an idling lock is SEEN winding down instead of vanishing (task
+/// 20260730-123009). No lock, or a clock held at zero by combat activity,
+/// renders the reticle at full strength.
+fn wind_down_reticle_on_decay(
+    q_player: Query<(&CombatLock, &CombatDecay), With<PlayerSpaceshipMarker>>,
+    mut q_reticle: Query<&mut ImageNode, With<TorpedoTargetReticleMarker>>,
+) {
+    let idle_secs = q_player
+        .iter()
+        .next()
+        .filter(|(lock, _)| lock.0.is_some())
+        .map_or(0.0, |(_, decay)| decay.0);
+    let alpha = wind_down_alpha(idle_secs);
+    for mut image in &mut q_reticle {
+        let wanted = RETICLE_COMBAT_COLOR.with_alpha(alpha);
+        if image.color != wanted {
+            image.color = wanted;
+        }
     }
 }
 
@@ -490,6 +561,8 @@ fn update_focus_meter(
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
@@ -820,9 +893,11 @@ mod tests {
     fn the_reticle_is_always_combat_red() {
         // The on-object lock language is slot-colored (user decision
         // 2026-07-13): red bracket = combat lock, white bracket = travel
-        // lock. No relation tint, no per-frame color system - the red is
-        // baked into the bundle; this pins the contract so a re-added tint
-        // system shows up as a failing diff here.
+        // lock. No relation tint - the red is baked into the bundle; this
+        // pins the contract so a re-added tint system shows up as a failing
+        // diff here. The one per-frame color system is the wind-down cue
+        // (task 20260730-123009), and it only ever moves the ALPHA of this
+        // same red - pinned by `the_wind_down_*` tests below.
         let mut world = World::new();
         world.spawn(torpedo_target_hud(TorpedoTargetHudConfig::default()));
         let color = world
@@ -832,6 +907,194 @@ mod tests {
             .expect("reticle exists")
             .color;
         assert_eq!(color, RETICLE_COMBAT_COLOR);
+    }
+
+    // -- the lock wind-down cue (task 20260730-123009) --
+
+    /// Sample the whole wind-down window at `sample_hz` frames per second,
+    /// from the moment it opens to the moment the lock clears.
+    fn wind_down_sweep(sample_hz: f32) -> Vec<f32> {
+        let frames = (DECAY_WIND_DOWN_SECS * sample_hz) as usize;
+        let start = COMBAT_DECAY_SECS - DECAY_WIND_DOWN_SECS;
+        (0..=frames)
+            .map(|frame| wind_down_alpha(start + frame as f32 / sample_hz))
+            .collect()
+    }
+
+    /// Local maxima of a sample sequence - the pulses a player would count.
+    fn pulse_count(samples: &[f32]) -> usize {
+        samples
+            .windows(3)
+            .filter(|window| window[1] > window[0] && window[1] >= window[2])
+            .count()
+    }
+
+    /// The cue's shape, asserted as PROPERTIES rather than by recomputing the
+    /// formula: full strength until the window opens, then an envelope that
+    /// genuinely falls, bounded below, and a pulse that actually pulses.
+    #[test]
+    fn the_wind_down_alpha_holds_full_then_falls_and_pulses() {
+        let full = RETICLE_COMBAT_COLOR.alpha();
+
+        // Outside the window: untouched.
+        for &idle in &[0.0, 1.0, COMBAT_DECAY_SECS - DECAY_WIND_DOWN_SECS] {
+            assert_eq!(
+                wind_down_alpha(idle),
+                full,
+                "idle {idle} s is outside the wind-down window"
+            );
+        }
+
+        // Inside: the ENVELOPE falls. Each successive pulse peak must be
+        // dimmer than the last, and none may fade to nothing.
+        let dense = wind_down_sweep(600.0);
+        let peaks: Vec<f32> = dense
+            .windows(3)
+            .filter(|window| window[1] > window[0] && window[1] >= window[2])
+            .map(|window| window[1])
+            .collect();
+        assert!(
+            peaks.len() > 4,
+            "expected several pulses, got {}",
+            peaks.len()
+        );
+        for pair in peaks.windows(2) {
+            assert!(
+                pair[1] < pair[0],
+                "the wind-down must keep dimming, peaks {peaks:?}"
+            );
+        }
+        let floor = dense.iter().copied().fold(f32::MAX, f32::min);
+        assert!(
+            floor >= DECAY_MIN_ALPHA * (1.0 - DECAY_PULSE_DEPTH) - f32::EPSILON,
+            "the reticle must stay visible, dimmest {floor}"
+        );
+        assert_eq!(dense[0], full, "the cue starts at full strength");
+        assert!(
+            *dense.last().unwrap() < full * 0.5,
+            "and ends deep in the fade"
+        );
+    }
+
+    /// THE R1.1 REGRESSION. The cue must be the SAME cue however long the
+    /// session has been running and whatever the frame rate. The first cut
+    /// multiplied the RENDER clock by a swept frequency, which makes the
+    /// instantaneous rate grow with uptime: 29 pulses over the window at
+    /// t=0, 10 at t=60 s, and 118 (frame-rate aliasing, not a pulse) at
+    /// t=300 s - so the cue that was described essentially never played.
+    /// Deriving the phase from the decay clock alone makes that
+    /// unrepresentable; this pins the rate the constants promise.
+    #[test]
+    fn the_wind_down_pulse_is_the_same_at_any_uptime_or_frame_rate() {
+        // 1.5 -> 6 Hz swept linearly over 5 s integrates to
+        // (1.5 + 6) / 2 * 5 = 18.75 cycles, so a player counts 18 or 19.
+        let expected =
+            ((DECAY_PULSE_HZ_CALM + DECAY_PULSE_HZ_URGENT) / 2.0 * DECAY_WIND_DOWN_SECS) as usize;
+        for &sample_hz in &[60.0, 144.0, 600.0] {
+            let count = pulse_count(&wind_down_sweep(sample_hz));
+            assert!(
+                count.abs_diff(expected) <= 1,
+                "at {sample_hz} fps the window showed {count} pulses, not the \
+                 ~{expected} the 1.5 -> 6 Hz sweep promises"
+            );
+        }
+
+        // And the pulse genuinely QUICKENS across the window.
+        let dense = wind_down_sweep(600.0);
+        let (early, late) = dense.split_at(dense.len() / 2);
+        assert!(
+            pulse_count(late) > pulse_count(early),
+            "the pulse must speed up: {} early vs {} late",
+            pulse_count(early),
+            pulse_count(late)
+        );
+    }
+
+    /// The WIRING, on the real HUD bundle: the cue reaches the reticle node
+    /// the player actually sees, and a lock whose clock is held at zero (the
+    /// player is fighting) stays solid.
+    #[test]
+    fn the_wind_down_cue_drives_the_live_reticle_node() {
+        let mut world = World::new();
+        world.insert_resource(Time::<()>::default());
+        world.spawn(torpedo_target_hud(TorpedoTargetHudConfig::default()));
+        let target = world.spawn_empty().id();
+        let player = world
+            .spawn((
+                PlayerSpaceshipMarker,
+                CombatLock(Some(target)),
+                CombatDecay(0.0),
+            ))
+            .id();
+
+        let alpha = |world: &mut World| {
+            world
+                .query_filtered::<&ImageNode, With<TorpedoTargetReticleMarker>>()
+                .iter(world)
+                .next()
+                .expect("reticle exists")
+                .color
+                .alpha()
+        };
+
+        world.run_system_once(wind_down_reticle_on_decay).unwrap();
+        assert_eq!(
+            alpha(&mut world),
+            RETICLE_COMBAT_COLOR.alpha(),
+            "a fresh lock is solid"
+        );
+
+        // Deep into the window: dimmer than solid.
+        world.get_mut::<CombatDecay>(player).unwrap().0 = COMBAT_DECAY_SECS - 0.5;
+        world.run_system_once(wind_down_reticle_on_decay).unwrap();
+        let winding = alpha(&mut world);
+        assert!(
+            winding < RETICLE_COMBAT_COLOR.alpha(),
+            "the lock must be SEEN letting go, got {winding}"
+        );
+
+        // The PULSE reaches the node too, and reads the same on a session
+        // that has been running for five minutes (review R1.1: the first cut
+        // read the render clock, so the same idle clock painted a different
+        // reticle depending on uptime). Walk the last second of the window a
+        // frame at a time and count what the player would see.
+        for uptime in [0.0, 300.0] {
+            world
+                .resource_mut::<Time<()>>()
+                .advance_by(Duration::from_secs_f32(uptime));
+            let mut samples = Vec::new();
+            for frame in 0..=60 {
+                world.get_mut::<CombatDecay>(player).unwrap().0 =
+                    COMBAT_DECAY_SECS - 1.0 + frame as f32 / 60.0;
+                world.run_system_once(wind_down_reticle_on_decay).unwrap();
+                samples.push(alpha(&mut world));
+            }
+            assert_eq!(
+                pulse_count(&samples),
+                5,
+                "the live node must pulse the same at {uptime} s uptime: {samples:?}"
+            );
+        }
+
+        // Combat activity resets the clock: solid again, same frame.
+        world.get_mut::<CombatDecay>(player).unwrap().0 = 0.0;
+        world.run_system_once(wind_down_reticle_on_decay).unwrap();
+        assert_eq!(
+            alpha(&mut world),
+            RETICLE_COMBAT_COLOR.alpha(),
+            "firing or raising restores the reticle immediately"
+        );
+
+        // No lock at all: the (hidden) reticle is left at full strength, so
+        // the next lock does not inherit a stale fade.
+        world.get_mut::<CombatLock>(player).unwrap().0 = None;
+        world.get_mut::<CombatDecay>(player).unwrap().0 = COMBAT_DECAY_SECS - 0.5;
+        world.run_system_once(wind_down_reticle_on_decay).unwrap();
+        assert_eq!(
+            alpha(&mut world),
+            RETICLE_COMBAT_COLOR.alpha(),
+            "no lock, no wind-down"
+        );
     }
 
     /// The combat emphasis (task 20260728-175747): the readout grows with the
