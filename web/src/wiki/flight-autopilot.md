@@ -47,4 +47,4 @@ For the last few meters of an approach - where a main-drive burn is too coarse -
 
 RCS is a **trim, not free thrust**: each ship-local axis caps at a gentle speed (about 20 m/s), so it eases you into position rather than replacing the main drive. Push an axis you are already coasting at the cap and nothing happens; the opposite direction still slows you. The autopilot uses the same thrusters under the hood - **GOTO** and **STOP** settle their arrival on RCS, braking with the fine jets in the last stretch so a ship eases to a stop instead of pulsing on the spot.
 
-RCS is a controller verb granted per ship, like the autopilot verbs, and the mainline campaign flies with it **withheld** - the RCS chip only lights in the keybind dock when a scenario grants it, so you know when it is available.
+RCS is a controller verb granted per ship, like the autopilot verbs, and the mainline campaign flies with it **withheld** - the RCS chip only appears in the keybind dock when a scenario grants it, so you know when it is available.

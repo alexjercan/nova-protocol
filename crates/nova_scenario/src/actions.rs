@@ -948,10 +948,15 @@ impl EventAction<NovaEventWorld> for ObjectiveMarkerDetachActionConfig {
 }
 
 /// Emphasize one keybind-dock chip (task 20260712-093831): pushes `verb`
-/// into nova_gameplay's [`HintEmphasis`] resource, so the cluster pulses
-/// that row toward objective gold until a `HintEmphasisClear` (or scenario
+/// into nova_gameplay's [`HintEmphasis`] resource, so the dock pulses that
+/// chip toward objective gold until a `HintEmphasisClear` (or scenario
 /// teardown) drops it. Only `DOCK_VERBS` names are valid; the resource
 /// refuses unknown verbs with a warning.
+///
+/// The dock hides verbs the player cannot use, so emphasizing an unavailable
+/// verb REVEALS its chip and pulses it in the dim band (task 20260730-122843) -
+/// that is how a tutorial points at a key before it lights up. Emphasis is
+/// still a spotlight, never a grant: it does not make the verb pressable.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HintEmphasisSetActionConfig {

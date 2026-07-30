@@ -513,7 +513,10 @@ ObjectiveMarkerDetach((
 ### HintEmphasisSet / HintEmphasisClear
 
 Pulse one keybind-dock chip gold. `verb` is a chip name (the shakedown uses
-`"RADAR"`, `"GOTO"`); an unknown verb warns and does nothing.
+`"RADAR"`, `"GOTO"`); an unknown verb warns and does nothing. The dock only
+shows verbs the player can use right now, so emphasizing one that is not
+available yet REVEALS its chip and pulses it in the dim band - point at a key
+before the player can press it, and it appears.
 
 ```ron
 HintEmphasisSet((

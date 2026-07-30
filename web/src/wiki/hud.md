@@ -22,7 +22,7 @@ The heads-up display is diegetic - the instruments read the ship's real state - 
 
 ## What is on screen, and when
 
-The HUD is CONTEXTUAL: it shows you what the situation calls for and gets out of the way when it does not. Idle cruise is close to empty - the velocity sphere, your speed, the dimmed icon dock and the status bar - and everything else arrives with its moment:
+The HUD is CONTEXTUAL: it shows you what the situation calls for and gets out of the way when it does not. Idle cruise is close to empty - the velocity sphere, your speed, the handful of verbs the icon dock can actually offer you and the status bar - and everything else arrives with its moment:
 
 - **Autopilot burn** - the mode chip, the destination marker and its readout come up, the speed chip grows (it is the number you are flying by), and the dock lights the maneuver you are flying.
 - **Combat lock** - the red reticle, its DST/CLS readout and the target viewfinder come up, and the RADAR chip inverts because the lock is the thing you would change.
@@ -47,7 +47,7 @@ The flight instruments sit around the ship, not in a status bar:
 - **Velocity sphere** - an orbiting cone and shaded sphere driven by your linear velocity; white and blue in manual flight, cyan when the autopilot is flying. A yellow variant shows the local gravity pull, hidden in flat space.
 - **Speed and mode chips** - a speed readout (`m/s`, metres per second; see the [glossary](../glossary/)) always beside the sphere, and a mode chip reading `AP GOTO - BURN` (verb and phase: STOP/GOTO/ORBIT and ALIGN/BURN/HOLD) only while the autopilot is engaged.
 - **ORBIT ring and radius spoke** - while you hold an orbit, a world-space ring marks the orbit plane and a thin spoke runs from the well to your ship with the current radius.
-- **Keybind dock** - a row of icon chips along the bottom of the screen, one per flight verb (STOP, GOTO, ORBIT, CANCEL, RADAR, COMPONENT, RCS). Each chip shows the real KEYCAP for the key that drives it plus the verb word, and reads in three states: dimmed when the verb cannot do anything right now, full phosphor when pressing the key would act, and inverted while the verb is what the ship is doing. A chip pulses gold when a scenario wants you to use it. The anchored **verb cues** are the same chip parked on the thing you would act on - the ORBIT keycap on a gravity well, the GOTO keycap on your aim lock.
+- **Keybind dock** - a row of icon chips along the bottom of the screen showing the flight verbs you can use RIGHT NOW, drawn from STOP, GOTO, ORBIT, CANCEL, RADAR, COMPONENT and RCS. A verb that would do nothing at this moment is not on the dock at all, so the row grows and shrinks with the situation instead of parking a wall of dead keys under your ship. Each chip shows the real KEYCAP for the key that drives it plus the verb word, in full phosphor - or inverted while that verb is what the ship is doing (an engaged ORBIT keeps its chip even though you can no longer start one). A chip pulses gold when a scenario wants you to use it, and a spotlight will show a chip that has not lit up yet - that is how a tutorial points at a key before you can press it. The anchored **verb cues** are the same chip parked on the thing you would act on - the ORBIT keycap on a gravity well, the GOTO keycap on your aim lock.
 
 ## Locks and reticles
 

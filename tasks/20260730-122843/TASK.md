@@ -1,6 +1,6 @@
 # Keybind dock shows only currently-available verbs again
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.9.0,ui,hud,feedback
 
@@ -50,29 +50,29 @@ Visibility rule, in one line:
 
 ## Steps
 
-- [ ] Write the failing rig first: a live-tree dock test asserting an
+- [x] Write the failing rig first: a live-tree dock test asserting an
       unavailable verb's chip is `Display::None` while an available one and a
       `Hot`-but-unavailable one are `Display::Flex`; plus one asserting an
       EMPHASIZED unavailable verb is visible and pulsing. Watch both fail.
-- [ ] Move the visibility decision into a single helper next to `chip_state` so
+- [x] Move the visibility decision into a single helper next to `chip_state` so
       the dock has exactly one place that answers "is this chip on screen".
-- [ ] Feed emphasis into `update_dock` (it does not read `HintEmphasis` today)
+- [x] Feed emphasis into `update_dock` (it does not read `HintEmphasis` today)
       and re-check visibility when emphasis changes - the existing early-out
       skips quiet frames on `hints`/`situations`/`assets`/`Added` only, so
       `HintEmphasis` must join that change gate or a spotlight set on an
       otherwise-quiet frame will not reveal the chip.
-- [ ] Keep `pulse_emphasized_chips`'s hidden-chip restore correct: a chip that
+- [x] Keep `pulse_emphasized_chips`'s hidden-chip restore correct: a chip that
       goes hidden mid-pulse must not keep its gold when it comes back.
-- [ ] Re-check the row's centring: the dock is `justify_content: Center`, so a
+- [x] Re-check the row's centring: the dock is `justify_content: Center`, so a
       shrinking set re-centres. Confirm that reads as intended and not as the
       row sliding under the eye; note the verdict in NOTES.md.
-- [ ] Update the module docs that assert the opposite rule (`update_dock`'s
+- [x] Update the module docs that assert the opposite rule (`update_dock`'s
       "a dim chip STAYS on screen" paragraph and the crate-level bullet listing
       the three states).
-- [ ] Doc-surface sweep: grep the live doc surfaces (`web/src/wiki/**`,
+- [x] Doc-surface sweep: grep the live doc surfaces (`web/src/wiki/**`,
       `web/src/tutorial.html`, `README.md`, `CHANGELOG.md`) for any claim that
       the dock shows all verbs / greys unavailable ones. Excludes `tasks/`.
-- [ ] Probe a gameplay run for evidence the dock still behaves in flight.
+- [x] Probe a gameplay run for evidence the dock still behaves in flight.
 
 ## Definition of Done
 
@@ -83,7 +83,12 @@ Visibility rule, in one line:
    emphasis-set-on-a-quiet-frame case).
 3. `DockChipState::Dim` no longer paints an on-screen chip in the normal path;
    no live doc surface still claims unavailable verbs are shown greyed
-   (cmd: `rg -n 'dim chip|greyed|all seven verbs' web/src README.md CHANGELOG.md crates`).
+   (cmd: `rg -n -i 'dim ?/ ?available|dimmed when the verb|dim chip STAYS|dimmed icon dock' web/src README.md CHANGELOG.md crates`).
+   The command shipped in the plan (`'dim chip|greyed|all seven verbs'`) was
+   flagged at the gate and replaced: it hit nova_editor's unrelated greyed rows
+   and the corrected CHANGELOG line's own "rather than shown greyed out", so it
+   could never reach zero. The replacement greps the four stale CLAIMS that were
+   really in the tree. See NOTES.md.
 4. A probe run of a flight example is OK/WARN with no new dock warnings
    (cmd: `cargo run -p nova_probe -- run playable`).
 5. Owner playtest: the dock reads as "these are your options right now"
@@ -96,4 +101,24 @@ epic's DoD 4 (text density) and DoD 5 (contextual HUD).
 
 ## Flow State
 
-- FLOW STEP: PLANNED
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
+
+## Outcome (2026-07-30)
+
+Visibility moved into `chip_visible`, the dock's single answer to "is this chip
+on screen": hidden when the state is `Dim` and the verb is not emphasized, or
+when the key is empty (no flight rig). `update_dock` now takes `HintEmphasis`
+and that resource joins the quiet-frame change gate - A/B-verified, removing
+just the `&& !emphasis.is_changed()` clause turns
+`an_emphasized_unavailable_verb_stays_on_screen` red on its own.
+
+The hidden-chip branch keeps forcing `Dim`. Writing the chip's true state was
+tried and reverted at review R1.1: `Dim` is the true state of every hidden chip
+that can actually occur (`Hot` and `Available` both keep a chip docked), and the
+one unreachable divergence - a keyless chip while `HudSituations` still reports
+a maneuver - would leave an off-screen chip marked `Hot` for `grow_hot_chips` to
+hold grown. `a_chip_that_leaves_the_dock_stops_being_hot` now pins that.
+
+Rendered evidence and the re-centring verdict: NOTES.md. DoD 5 (owner playtest)
+is the one item still open.

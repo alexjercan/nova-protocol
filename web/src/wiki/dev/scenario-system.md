@@ -116,7 +116,9 @@ flowchart LR
   target detaches implicitly.
 - `HintEmphasisSet` / `HintEmphasisClear` - pulse one keybind-dock chip gold
   (verbs: STOP, GOTO, ORBIT, CANCEL, RADAR, COMPONENT, RCS); availability never
-  changes, and teardown clears all emphasis.
+  changes, and teardown clears all emphasis. The dock hides verbs you cannot
+  use, so an emphasis on an unavailable verb REVEALS its chip (pulsing in the
+  dim band) - that is how a tutorial points at a key before it lights up.
 - `SpawnScenarioObject(ScenarioObjectConfig)` - spawn an object (see below).
 - `DespawnScenarioObject` - despawn the scoped object whose id matches
   (scoped-only lookup, so ship sections with colliding ids are safe).
