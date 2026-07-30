@@ -195,27 +195,33 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   behaviour the REPLACEMENT widget inherited, and a dead pop shipped through the
   hole. Kin of [[pin-each-caller-not-just-shared-core]].
   20260728-125514, 20260729-163816.
-- `rebuilt-view-writes-go-to-state-not-the-entity` (x1): when a widget REBUILDS
+- `rebuilt-view-writes-go-to-state-not-the-entity` (x2): when a widget REBUILDS
   its nodes every frame from a resource (the comms stack, the objective stack),
   any system reaching in from outside must write the STATE, never the rebuilt
   entity - a `pop()` written onto a chip is overwritten before it eases and the
   animation silently never plays, while docs, tests and CHANGELOG all claim it
   does. Decide this at the moment the rebuild model is chosen and say so at the
-  top of the module. 20260729-163816.
+  top of the module. Corollary, confirmed by a widget that rebuilds its children
+  on a skin flip: the surviving PARENT is the correct home for state the rebuild
+  must not lose (a slider track's remembered fraction), and reading it back off a
+  sibling component fails for the case that has none. 20260729-163816,
+  20260729-211155.
 - `identify-the-subject-in-the-event` (x1): an event that triggers work on a
   specific subject must CARRY that subject's id; "find the one that must have
   meant it" (the oldest waiting, the only one pending) is a guess that survives
   exactly until two are in flight or the subject dies early - an anonymous
   objective-card tuck handed the NEXT objective over a second before its own
   card landed, decided by a schedule tie-break. 20260729-163816.
-- `test-the-wiring-system-not-just-its-pure-helpers` (x1): a per-frame system that
+- `test-the-wiring-system-not-just-its-pure-helpers` (x2): a per-frame system that
   maps pure helpers into the live UI tree AND caches state other code reads (e.g.
   `update_ship_panel` writing panel text + caching the button-enabled flags the
   observers read) is a seam that can silently no-op; the helper unit tests pass
   with it reverted. Run the SYSTEM in a live-tree test - "would this pass if the
   system were a no-op?" A Step that NAMES a system/live-tree test is not satisfied
   by a nearby pure-helper test. Kin of [[pin-each-caller-not-just-shared-core]] and
-  [[advertised-is-not-wired]]. 20260728-115430.
+  [[advertised-is-not-wired]]. Run it as a ROUTINE gate, not a suspicion: applying
+  it to all 7 tests of one task caught three that proved nothing (two false pins
+  and a tautology). 20260728-115430, 20260729-211155.
 - `review-current-base-before-ooc` (x1): before spawning out-of-context review,
   compare the branch against CURRENT local default and merge it if the diff
   includes inherited base noise - stale comparisons waste review on unrelated
@@ -953,9 +959,53 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   `git stash && cargo test <that test>` FIRST - three failures in one task, two
   of them inherited from master (one filed as its own task), zero time spent
   debugging someone else's bug. 20260728-175742.
+- `verify-the-cause-not-just-the-symptom-before-writing-a-lesson` (x1): a ledger
+  entry is a claim future sessions ACT on without re-deriving, so reproducing the
+  symptom is not enough - the mechanism has to be tested, including the
+  counter-experiment that would disprove it. A retro here recorded "cargo check
+  --all-targets does not compile a lib's `#[cfg(test)]` tests", having watched a
+  broken test module stay green; the real cause was package SCOPE (see
+  [[bare-all-targets-only-covers-the-root-package]]), and the invented cause
+  would have taught future sessions to distrust a gate that works. Caught by
+  review, one round before the ledger. 20260729-211155.
+- `applied-fix-still-needs-its-own-test` (x1): a fix handed to you by a reviewer,
+  another agent or a plan is a hypothesis like any other and gets the same
+  red-first test as one you invented - the authority of the source is not
+  evidence. Here a well-argued review finding arrived WITH a patch, and the patch
+  did not address its own reported failure mode (it read `Option<&SliderValue>`
+  to fix a case defined by having no `SliderValue`); only the test written for
+  that mode exposed it. 20260729-211155.
+- `untestable-is-a-claim-not-a-conclusion` (x1): "this cannot be pinned", once
+  written into a doc comment, is trusted and stops being questioned - so before
+  writing it, name the specific mechanism that blocks the test and check whether
+  that mechanism is CONFIGURABLE. Two failed attempts made "impossible" feel
+  earned; the blocker was `auto_insert_apply_deferred`, a `ScheduleBuildSettings`
+  field you can switch off, and the test was then a few lines. Kin of
+  [[test-the-wiring-system-not-just-its-pure-helpers]]. 20260729-211155.
+- `grep-the-old-symbol-after-a-rename` (x1): renaming a function leaves its old
+  name in DOC PROSE that still compiles, so nothing fails - four stale
+  `sync_slider_meters` references survived a rename, two into review and a fourth
+  through three review rounds. Grep the old identifier across `crates/`,
+  `examples/`, `tests/` and docs as the LAST step of a rename. The symbol-level
+  sibling of [[sweep-a-rename-where-the-name-is-spoken]] (concept-level) and
+  [[rename-id-sweep-in-file]] (content ids). 20260729-211155.
 
 ## Domain lessons (nova-protocol specific)
 
+- `bare-all-targets-only-covers-the-root-package` (x1): this repo's root
+  Cargo.toml is a PACKAGE with deliberately no `default-members` (Cargo.toml:274,
+  see [[default-members-retargets-bare-cargo-run]]), so a BARE `cargo check
+  --all-targets` scopes to the root package and never builds MEMBER crates' test
+  targets - it green-lit a nova_menu test module that would not compile.
+  `--all-targets` reads `#[cfg(test)]` fine; the variable is scope. Use `cargo
+  check --workspace --all-targets` (what CI runs) plus `cargo test -p <crate>
+  --lib` for touched crates, and name that form in a DoD. 20260729-211155.
+- `guard-every-command-in-the-chain` (x1): silencing ONE call in a Bevy command
+  chain does not protect the others - `despawn_related().try_insert(..)` looks
+  guarded but only `try_insert` is; `despawn_related` queues through the default
+  handler, which the game escalates to a panic under `BCS_AUTOPILOT`. When the
+  guard matters, make the whole operation ONE `queue_silenced` entity command
+  instead of decorating the last call. 20260729-211155.
 - `neutralized-then-destroyed-counters` (x1): any objective counter mirrored
   from `OnDestroyed` to `OnNeutralized` needs an idempotence flag per target;
   a combat-dead ship can later be destroyed and fire both handlers, double
