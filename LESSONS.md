@@ -825,7 +825,7 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   security boundary name it and default to the safe path. 20260715-214540.
 - `nix-devshell-for-cargo` (x2): no cargo on PATH means prefix with
   `nix develop --command ...` from the repo. 20260715-140049.
-- `reuse-known-good-stack` (x6, positive -> Pending promotions): scaffold new
+- `reuse-known-good-stack` (x8, positive -> Pending promotions): scaffold new
   work - and TEST RIGS especially - by copying the nearest passing in-repo
   reference verbatim, THEN mutate; reconstructing from a signature cost build
   cycles repeatedly (a hand-rolled pad-toggle test re-hit the exact `press_tab`
@@ -835,7 +835,21 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   tests already had). Applies to PRODUCTION and FIXES too: copied
   `screen_indicator`'s node placement (coord rabbit hole avoided) and nova_menu's
   `GlobalZIndex` modal tier + overlay-z test shape (a UI-stacking fix made
-  mechanical). 20260712-093048, 20260711-180511, 20260724-102304, 20260721-211520, 20260724-121541.
+  mechanical). The nearest reference may live in the DEPENDENCY, not the repo:
+  a hand-derived bevy_ui layout rig cost three anonymous system-param panics
+  that bevy_ui's own `setup_ui_test_app` (`layout/mod.rs`) would have avoided.
+  20260712-093048, 20260711-180511, 20260724-102304, 20260721-211520, 20260724-121541, 20260730-122909.
+- `bulk-replace-edits-more-than-you-aimed-at` (x1): a scripted `str.replace`
+  (or `sed`) for a SINGLE-site source edit is replace-ALL by default - one meant
+  for a new capture beat also rewrote the scenario constant behind a published
+  screenshot. Use the Edit tool (which fails loudly on an ambiguous match) or
+  pass `count=1`, and read the resulting `git diff`, not just the artifact the
+  edit was supposed to produce. 20260730-122909.
+- `one-shot-guard-separate-from-its-state` (x1): an `Option` used as BOTH the
+  spawned-state handle and the "already ran" guard re-fires forever once the
+  teardown `take()`s it - a capture beat respawned its subjects every frame,
+  flooding the log and starving the rest of the script. Give the one-shot its
+  own `bool`. 20260730-122909.
 - `measure-before-writing-the-number` (x2): never write a quantity into a doc
   from a mental model; backfill from a run. 20260712-105505, 20260717-143806.
 - `manual-time-rig-measures-its-clock` (x2): `Time<Virtual>` clamps manual
@@ -1271,6 +1285,18 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   `extract_uinode_borders` (which gates on non-zero computed border) draws
   nothing - set `box_sizing: ContentBox`. An instance of
   [[verify-engine-guarantees-in-source]]. 20260723-233446.
+- `taffy-measures-leaf-nodes-only` (domain, x1): in bevy_ui a node carrying
+  `Text` AND `children!` is a CONTAINER, so its text measure is dropped and the
+  box collapses to its own padding+border while the glyphs still render at full
+  length (the HUD chips' fill became a 20x10 slab under a 58 px label). Text
+  goes on a LEAF child of any node that has children; pinned by
+  `hud::chip_layout_rig`, the repo's live `UiPlugin` layout rig. 20260730-122909.
+- `bevy-anonymous-system-param-panic-read-the-signature` (domain, x1): bevy's
+  "Parameter failed validation: Resource does not exist" names neither the
+  system nor the resource without bevy_ecs's `debug` feature - run with
+  `BEVY_BACKTRACE=full` and grep the backtrace for `run_unsafe<fn(`, whose
+  generic argument is the system's full parameter list. Named three missing
+  plugins/assets in one pass while building the UI layout rig. 20260730-122909.
 - `bevy-ui-property-is-node-field-not-component` (domain, x1): in bevy_ui 0.19
   several UI properties are FIELDS of `Node` (`Node.border_radius`), not
   standalone bundle components - spawning `BorderRadius` as a component fails
@@ -1449,13 +1475,14 @@ here (annotated) as the paid record.
   touched crates before trusting a workspace check". A tool guard is hard (the
   feature unification is per-crate), so a work-skill line is the realistic home.
   20260718-004834, 20260718-102022, 20260724-193830.
-- `reuse-known-good-stack` (x7, positive) -> work skill: scaffold a new test rig
+- `reuse-known-good-stack` (x8, positive) -> work skill: scaffold a new test rig
   by copying the nearest passing sibling rig verbatim, then mutate - do not
   reconstruct it from the system's parameter signature (a hand-built CRT rig
   omitted the sibling's `init_asset::<Font>/<Image>` and panicked in the
   AssetServer on the app-launch font load). Prose target (the skill already says
   "grep the module for an existing rig of the same kind first"; sharpens it to
-  "copy it whole first"). 20260712-093048, 20260711-180511, 20260724-102304, 20260727-014148.
+  "copy it whole first" - and to "the nearest rig may be the DEPENDENCY'S own,
+  e.g. bevy_ui's `setup_ui_test_app`"). 20260712-093048, 20260711-180511, 20260724-102304, 20260727-014148, 20260730-122909.
 - `new-required-system-param-sweeps-all-rigs` (x1) -> work skill: when a
   widely-run system gains a required `Res`/`ResMut`/param, grep every
   `add_systems`/test rig that runs it and register the resource BEFORE running -

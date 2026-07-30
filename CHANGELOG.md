@@ -45,6 +45,7 @@ tagged **(breaking)**.
 
 ### Fixes
 
+- World-anchored nav chips (the objective marker and the beacon chip) now show a full background: their fill and border wrap the whole label instead of collapsing to a slab in its top-left corner, and the objective chip's diamond rides inside the pill.
 - Tab drawer scrolling now clamps at the content bottom, so wheel-up responds immediately after reaching the end.
 - Web build: NOVA OS text is visible. The UI font shipped with no `.meta` sidecar, so under `AssetMetaCheck::Always` the missing-meta fetch failed on the web and every NOVA OS glyph rendered invisible; the `nova_meta_gen` sidecar generator now registers the font loader and emits the sidecar (the font is the built-in-loader `.ttf` per the preload change above).
 

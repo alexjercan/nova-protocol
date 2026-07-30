@@ -43,6 +43,11 @@ pub mod torpedo_target;
 pub mod turret_lead;
 pub mod velocity;
 
+/// Live-tree UI layout rig shared by the world-anchored chip tests
+/// (task 20260730-122909).
+#[cfg(test)]
+mod chip_layout_rig;
+
 /// Glob-import surface: `use nova_gameplay::hud::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{

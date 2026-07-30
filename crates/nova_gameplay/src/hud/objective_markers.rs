@@ -19,8 +19,8 @@ use crate::prelude::*;
 /// Glob-import surface: `use nova_gameplay::hud::objective_markers::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
-        ObjectiveMarkerChipHudMarker, ObjectiveMarkerChipLabelMarker,
-        ObjectiveMarkerChipTargetEntity, ObjectiveMarkersHudPlugin,
+        ObjectiveMarkerChipHudMarker, ObjectiveMarkerChipNodeMarker,
+        ObjectiveMarkerChipTargetEntity, ObjectiveMarkerChipTextMarker, ObjectiveMarkersHudPlugin,
     };
 }
 
@@ -57,9 +57,25 @@ pub struct ObjectiveMarkerChipHudMarker;
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 pub struct ObjectiveMarkerChipTargetEntity(pub Entity);
 
-/// Marker for the chip's text node.
+/// Marker for the chip node itself: the bordered pill that carries the
+/// screen-indicator anchor. The label text lives in a CHILD (see
+/// [`ObjectiveMarkerChipTextMarker`]), so this node stays the one thing the
+/// indicator widget positions and `chip_paint` paints.
 #[derive(Component, Debug, Clone, Reflect)]
-pub struct ObjectiveMarkerChipLabelMarker;
+pub struct ObjectiveMarkerChipNodeMarker;
+
+/// Marker for the chip's text node - a LEAF child of the chip.
+///
+/// The label cannot live on the chip entity itself: taffy only measures leaf
+/// nodes, so a `Text` node that also has children loses its measure and the
+/// pill collapses to its padding (task 20260730-122909).
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct ObjectiveMarkerChipTextMarker;
+
+/// Marker for the diamond identity glyph, so tests and future drivers can find
+/// it without matching on its display [`Name`].
+#[derive(Component, Debug, Clone, Reflect)]
+struct ObjectiveMarkerDiamondMarker;
 
 /// Marker for a node whose color breathes with the chip: the diamond
 /// border and the chevron strokes - NOT the label text, which stays at
@@ -77,7 +93,7 @@ fn objective_marker_chip_hud(target: Entity) -> impl Bundle {
         screen_indicator_layer(),
         children![(
             Name::new("ObjectiveMarkerChipUI"),
-            ObjectiveMarkerChipLabelMarker,
+            ObjectiveMarkerChipNodeMarker,
             screen_indicator_node(
                 ScreenIndicatorConfig {
                     anchor: Some(ScreenIndicatorAnchorKind::Entity(target)),
@@ -94,40 +110,61 @@ fn objective_marker_chip_hud(target: Entity) -> impl Bundle {
             // The objective chip is the amber "do this now" member of the chip
             // family (demo 2 `.obj`).
             chip_paint(ChipTone::Amber),
-            Text::new(""),
-            TextFont::from_font_size(LABEL_FONT_PX),
-            TextLayout {
-                linebreak: LineBreak::NoWrap,
-                ..default()
-            },
-            // The LABEL does not breathe: 12 px gold at 0.7 alpha over a
-            // bright planetoid was unreadable (playtest 2026-07-12, task
-            // 20260712-152340). Constant full gold + a tight dark shadow
-            // for contrast; the diamond and chevron carry the motion.
-            TextColor(OBJECTIVE_GOLD),
-            TextShadow {
-                offset: Vec2::splat(1.0),
-                color: Color::srgba(0.0, 0.0, 0.0, 0.9),
-            },
-            children![objective_marker_diamond(), objective_marker_arrow()],
+            // The chip is a pure CONTAINER: diamond and label are in-flow flex
+            // items it grows around, the chevron an absolute one it ignores.
+            // Putting the `Text` here instead would take this node off taffy's
+            // leaf path and collapse the pill (task 20260730-122909).
+            children![
+                objective_marker_diamond(),
+                objective_marker_label(),
+                objective_marker_arrow(),
+            ],
         )],
     )
 }
 
+/// The label text: a leaf `Text` child so taffy measures it and the pill grows
+/// to hold it.
+fn objective_marker_label() -> impl Bundle {
+    (
+        Name::new("ObjectiveMarkerLabel"),
+        ObjectiveMarkerChipTextMarker,
+        Text::new(""),
+        TextFont::from_font_size(LABEL_FONT_PX),
+        TextLayout {
+            linebreak: LineBreak::NoWrap,
+            ..default()
+        },
+        // The LABEL does not breathe: 12 px gold at 0.7 alpha over a bright
+        // planetoid was unreadable (playtest 2026-07-12, task 20260712-152340).
+        // Constant full gold + a tight dark shadow for contrast; the diamond and
+        // chevron carry the motion.
+        TextColor(OBJECTIVE_GOLD),
+        TextShadow {
+            offset: Vec2::splat(1.0),
+            color: Color::srgba(0.0, 0.0, 0.0, 0.9),
+        },
+        Pickable::IGNORE,
+    )
+}
+
 /// The diamond identity glyph: a hollow square border rotated 45 degrees
-/// (the same UiTransform trick as the chevron strokes), parked left of the
-/// label text.
+/// (the same UiTransform trick as the chevron strokes), riding INSIDE the pill
+/// as the first in-flow flex item - `chip_node`'s `column_gap` spaces it from
+/// the label and its `align_items: Center` centres it, so the same fill and
+/// border back the mark as back the text (owner decision, 2026-07-30 plan
+/// gate). It used to be an absolute glyph at `left: -14 px`, which read as
+/// "attached" only because the pill was a collapsed slab at the same origin.
 fn objective_marker_diamond() -> impl Bundle {
     (
         Name::new("ObjectiveMarkerDiamond"),
+        ObjectiveMarkerDiamondMarker,
         ObjectiveMarkerBreathMarker,
         Node {
-            position_type: PositionType::Absolute,
-            left: Val::Px(-(DIAMOND_PX + 6.0)),
-            top: Val::Px(LABEL_FONT_PX / 2.0 - DIAMOND_PX / 2.0 + 1.0),
             width: Val::Px(DIAMOND_PX),
             height: Val::Px(DIAMOND_PX),
             border: UiRect::all(Val::Px(DIAMOND_BORDER_PX)),
+            flex_shrink: 0.0,
             ..default()
         },
         UiTransform {
@@ -168,15 +205,19 @@ fn objective_marker_arrow() -> impl Bundle {
         ScreenIndicatorArrowMarker,
         Node {
             position_type: PositionType::Absolute,
-            // Park the chevron just above the label text, centered on the
-            // chip's anchor point.
-            left: Val::Px(-ARROW_PX / 2.0),
+            // Park the chevron just above the pill and centred on it. Half the
+            // chip's width, then back off half the chevron's own - a plain
+            // `-ARROW_PX / 2` sat near the origin, which only looked centred
+            // while the pill was a collapsed slab (task 20260730-122909).
+            // `update_arrows` writes only `.rotation`, so this translation
+            // survives every frame.
+            left: Val::Percent(50.0),
             top: Val::Px(-ARROW_PX - 2.0),
             width: Val::Px(ARROW_PX),
             height: Val::Px(ARROW_PX),
             ..default()
         },
-        UiTransform::default(),
+        UiTransform::from_translation(Val2::px(-ARROW_PX / 2.0, 0.0)),
         Visibility::Hidden,
         Pickable::IGNORE,
         children![
@@ -238,12 +279,18 @@ fn remove_objective_marker_chip(
 /// ("BEACON 1  4.20 km"). Without a player (death gap) the label alone shows.
 fn update_objective_marker_labels(
     q_chips: Query<&ObjectiveMarkerChipTargetEntity, With<ObjectiveMarkerChipHudMarker>>,
-    mut q_labels: Query<(&mut Text, &ChildOf), With<ObjectiveMarkerChipLabelMarker>>,
+    // Two hops now: the text is a leaf CHILD of the chip, which is itself a
+    // child of the layer that knows the target (task 20260730-122909).
+    mut q_labels: Query<(&mut Text, &ChildOf), With<ObjectiveMarkerChipTextMarker>>,
+    q_parents: Query<&ChildOf>,
     q_targets: Query<(&ObjectiveMarkerTarget, &GlobalTransform)>,
     q_player: Query<&GlobalTransform, With<PlayerSpaceshipMarker>>,
 ) {
     let player = q_player.iter().next();
-    for (mut text, ChildOf(layer)) in &mut q_labels {
+    for (mut text, ChildOf(chip)) in &mut q_labels {
+        let Ok(ChildOf(layer)) = q_parents.get(*chip) else {
+            continue;
+        };
         let Ok(target) = q_chips.get(*layer) else {
             continue;
         };
@@ -298,7 +345,13 @@ fn breathe_objective_markers(
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
 
-    use super::*;
+    use super::{
+        super::chip_layout_rig::{
+            assert_child_sits_in_the_pill, assert_chip_backs_its_label, chip_layout_app, measure,
+            only_descendant_with, settle,
+        },
+        *,
+    };
 
     fn world_with_observers() -> World {
         let mut world = World::new();
@@ -375,7 +428,7 @@ mod tests {
             .unwrap();
         let label_text = |world: &mut World| -> String {
             world
-                .query_filtered::<&Text, With<ObjectiveMarkerChipLabelMarker>>()
+                .query_filtered::<&Text, With<ObjectiveMarkerChipTextMarker>>()
                 .iter(world)
                 .next()
                 .unwrap()
@@ -415,7 +468,7 @@ mod tests {
         world.run_system_once(breathe_objective_markers).unwrap();
 
         let (label_color, has_shadow) = {
-            let mut q = world.query_filtered::<(&TextColor, Option<&TextShadow>), With<ObjectiveMarkerChipLabelMarker>>();
+            let mut q = world.query_filtered::<(&TextColor, Option<&TextShadow>), With<ObjectiveMarkerChipTextMarker>>();
             let (color, shadow) = q.iter(&world).next().expect("label exists");
             (color.0, shadow.is_some())
         };
@@ -439,6 +492,71 @@ mod tests {
         assert!(
             (diamond_alpha - OBJECTIVE_GOLD.alpha()).abs() > 1e-3,
             "the diamond's border alpha moved off the spawn value ({diamond_alpha})"
+        );
+    }
+
+    /// Build the real chip through the real spawn observer and lay it out with
+    /// the real taffy + text measurement, then hand back
+    /// (layer, chip node, label node).
+    fn laid_out_objective_chip(label: &str) -> (App, Entity, Entity, Entity) {
+        let mut app = chip_layout_app();
+        app.add_plugins(ObjectiveMarkersHudPlugin);
+        app.world_mut().spawn((
+            ObjectiveMarkerTarget::new(label),
+            GlobalTransform::default(),
+        ));
+        settle(&mut app);
+
+        let layer = app
+            .world_mut()
+            .query_filtered::<Entity, With<ObjectiveMarkerChipHudMarker>>()
+            .iter(app.world())
+            .next()
+            .expect("the marker grew a chip layer");
+        let chip = only_descendant_with::<ObjectiveMarkerChipNodeMarker>(&mut app, layer);
+        let text = only_descendant_with::<Text>(&mut app, layer);
+        (app, layer, chip, text)
+    }
+
+    /// The reported bug (owner playtest 2026-07-30): the chip's fill/border
+    /// covered only a corner of "BEACON 1" instead of the whole label. Asserted
+    /// against a live layout pass, comparing with an INDEPENDENT measurement of
+    /// the same string - see `chip_layout_rig`.
+    #[test]
+    fn the_objective_chip_backs_its_whole_label() {
+        let (mut app, _layer, chip, text) = laid_out_objective_chip("BEACON 1");
+        assert_chip_backs_its_label(
+            &mut app,
+            chip,
+            text,
+            "BEACON 1",
+            LABEL_FONT_PX,
+            "objective marker chip",
+        );
+    }
+
+    /// The diamond identity glyph rides INSIDE the pill (owner decision at the
+    /// 2026-07-30 plan gate, `DECISION.md`): an in-flow flex item the chip's
+    /// fill and border wrap, not an absolute glyph parked outside the box.
+    #[test]
+    fn the_objective_chips_diamond_sits_inside_the_pill() {
+        let (mut app, layer, chip, _text) = laid_out_objective_chip("BEACON 1");
+        let diamond = only_descendant_with::<ObjectiveMarkerDiamondMarker>(&mut app, layer);
+        assert_child_sits_in_the_pill(&app, chip, diamond, "objective marker chip");
+    }
+
+    /// The chevron parks centred over the pill. It used to be offset from a
+    /// collapsed 20x10 slab's origin; over a full-width pill that would hang it
+    /// off the left edge, so its `left` is a percentage of the real chip width.
+    #[test]
+    fn the_objective_chips_chevron_centres_over_the_pill() {
+        let (mut app, layer, chip, _text) = laid_out_objective_chip("BEACON 1");
+        let arrow = only_descendant_with::<ScreenIndicatorArrowMarker>(&mut app, layer);
+        let chip_centre = measure(&app, chip).rect.center();
+        let arrow_centre = measure(&app, arrow).rect.center();
+        assert!(
+            (arrow_centre.x - chip_centre.x).abs() <= 1.0,
+            "the chevron centre {arrow_centre:?} is not over the chip centre {chip_centre:?}"
         );
     }
 

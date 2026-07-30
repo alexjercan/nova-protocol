@@ -10,6 +10,11 @@
 //! rules keep idle chrome out of the frame by themselves, and a live lock is
 //! exactly when the reticle + inset are up.
 //!
+//! One beat of the reel is a verification shot rather than a web figure:
+//! `hud-nav-chips.png` frames a plain nav beacon (cyan chip) and a marked
+//! objective (gold chip) side by side, so the world-anchored chip family can be
+//! eyeballed in one frame (task 20260730-122909).
+//!
 //! Two run modes, both under the autopilot (`BCS_AUTOPILOT`):
 //! - `BCS_AUTOPILOT=1` alone: the smoke path - reach Playing, drive the lock,
 //!   exit clean, capturing nothing.
@@ -233,6 +238,10 @@ struct CombatScript {
     shot_combat_lock: bool,
     shot_viewfinder: bool,
     shot_hud: bool,
+    chip_subjects: Option<(Entity, Entity)>,
+    chips_spawned: bool,
+    shot_nav_chips: bool,
+    chips_gone: bool,
     goto: bool,
     shot_autopilot: bool,
     done: bool,
@@ -370,10 +379,71 @@ fn combat_capture_script(world: &mut World, elapsed: f32) {
         return;
     }
 
+    // --- The world-anchored nav chips, both members of the family in ONE
+    // frame: a plain beacon (cyan) and a marked objective (gold). One entity
+    // cannot show both - a marked beacon yields its chip to the gold marker -
+    // so this beat spawns two subjects side by side. It is the eyeball proof
+    // that each pill's fill and border back its WHOLE label (task
+    // 20260730-122909); the chips are torn down again right after the shot so
+    // no later capture inherits them. ---
+    if t > 4.65 && !world.resource::<CombatScript>().chips_spawned {
+        let nav = world
+            .spawn((
+                Name::new("ChipShotBeacon"),
+                // The scenario's OWN beacon bundle, so the chip is driven by
+                // exactly the components a scenario-spawned waypoint has (a
+                // bare `BeaconMarker` makes the render observer log an error
+                // and skip the orb).
+                beacon_scenario_object(BeaconConfig {
+                    label: "WAYPOINT".to_string(),
+                    // Small: the chip floats 28 px above its anchor, and a
+                    // range-2 orb at this distance would sit behind the pill
+                    // and wash the shot out.
+                    radius: 0.5,
+                    color: Color::srgb(0.4, 0.75, 1.0),
+                    area_radius: None,
+                    lock_signature: None,
+                }),
+                Transform::from_xyz(-11.0, 5.0, -38.0),
+                // The scenario's base object bundle supplies this; the orb
+                // child needs an inheritable parent visibility (B0004).
+                Visibility::default(),
+            ))
+            .id();
+        let objective = world
+            .spawn((
+                Name::new("ChipShotObjective"),
+                ObjectiveMarkerTarget::new("BEACON 1"),
+                Transform::from_xyz(11.0, 5.0, -38.0),
+            ))
+            .id();
+        let mut script = world.resource_mut::<CombatScript>();
+        script.chip_subjects = Some((nav, objective));
+        script.chips_spawned = true;
+        return;
+    }
+    if t > 4.85 && !world.resource::<CombatScript>().shot_nav_chips {
+        hud_instrument(world);
+        if capturing {
+            capture_window(world, "hud-nav-chips.png");
+            info!("combat capture: hud-nav-chips.png");
+        }
+        world.resource_mut::<CombatScript>().shot_nav_chips = true;
+        return;
+    }
+    if t > 4.95 && !world.resource::<CombatScript>().chips_gone {
+        world.resource_mut::<CombatScript>().chips_gone = true;
+        if let Some((nav, objective)) = world.resource_mut::<CombatScript>().chip_subjects.take() {
+            world.entity_mut(nav).despawn();
+            world.entity_mut(objective).despawn();
+        }
+        return;
+    }
+
     // --- GOTO maneuver: release the stance, stick the travel lock on the
     // target, and engage the GOTO autopilot. The hull swings onto the new
     // heading and the thruster plume lights. ---
-    if t > 4.9 && !world.resource::<CombatScript>().goto {
+    if t > 5.1 && !world.resource::<CombatScript>().goto {
         world.resource_mut::<CombatScript>().goto = true;
         world
             .resource_mut::<ButtonInput<KeyCode>>()
@@ -390,7 +460,7 @@ fn combat_capture_script(world: &mut World, elapsed: f32) {
                 .insert(Autopilot::engage(AutopilotAction::Goto { target }));
         }
     }
-    if t > 6.8 && !world.resource::<CombatScript>().shot_autopilot {
+    if t > 7.0 && !world.resource::<CombatScript>().shot_autopilot {
         hud_instrument(world);
         if capturing {
             capture_window(world, "feature-autopilot.png");
