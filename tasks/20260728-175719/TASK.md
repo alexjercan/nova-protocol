@@ -89,6 +89,18 @@ before Bevy work starts.
 - [ ] 20260728-175742 (p36) HUD restyle + on-screen text reduction (icon dock)
 - [ ] 20260728-175747 (p34) Contextual HUD: show-by-relevance + grow-in-use + On/Cinematic
 
+Owner playtest feedback wave 2026-07-30 (/flow) - direct verdicts on this
+epic's DoD 3/4/5, planned as three more children:
+
+- [ ] 20260730-122843 (p50) Keybind dock shows only currently-available verbs again
+- [ ] 20260730-122909 (p48) Floating chip background covers only a corner of its label
+- [ ] 20260730-122940 (p46) Wide keycaps (Tab/Shift/Space) render at their art aspect
+
+Two more items from the same playtest are NOT part of this epic (they touch
+targeting and the NOVA OS map, neither in the epic's Done Means) and run as
+standalone v0.9.0 tasks: 20260730-123009 (combat lock lets go) and
+20260730-123039 (map app clicks miss).
+
 Re-planned 2026-07-28 (post-spike, owner /flow directive): all remaining
 children now carry concrete Steps + DoD grounded in the implemented PoCs and
 the 2026-07-28 code maps (nova_ui/nova_menu/nova_editor/HUD/asset pipeline).
@@ -107,6 +119,9 @@ scenarios scroll bug is a missing driver system for ScenariosList.
   contextual HUD ruleset, keybind-hint shape, m/km threshold) are DECIDED BY
   THE SPIKE demos with the owner and recorded in the spike's
   SPIKE.md/DECISION.md before implementation starts on the affected children.
+- 20260730-122843 DECISION.md: an unavailable dock chip is hidden EXCEPT when a
+  scenario spotlights that verb, which forces it visible in the dim pulse band -
+  strict hiding and the tutorial spotlight cannot both hold. (ACCEPTED)
 - 20260729-000956 DECISION.md: static assets preload via bevy_asset_loader
   collections + a phosphor boot loading screen. Boot-state font gating (D1),
   single-face .ttf extraction (D2), indeterminate CRT animation (D3), UI-SFX
@@ -120,6 +135,11 @@ scenarios scroll bug is a missing driver system for ScenariosList.
   HUD ruleset, icon dock, On/Cinematic, 1u=10m).
 - (pending) owner eyeballs every restyled screen (menus, editor, HUD) in game.
 - (pending) owner playtest verdict on text density + contextual HUD feel.
+- (2026-07-30, interim) owner playtested the reworked HUD. Verdicts: the dock's
+  dim-chip rule is REJECTED (wants available-only back, 122843); the world-
+  anchored chip backgrounds are BROKEN (122909); the wide keycaps are
+  ILLEGIBLE (122940). No verdict yet on overall text density - it is re-asked
+  once these three land.
 
 ## Flow State
 
