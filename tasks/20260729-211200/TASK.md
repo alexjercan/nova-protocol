@@ -1,6 +1,6 @@
 # Retire the diegetic objective reveal card: the top-centre chip IS the posting
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 53
 - TAGS: v0.9.0,feedback,ui,hud
 
@@ -19,26 +19,26 @@ chip to BE the posting: a top-centre notification, no cockpit card.
 
 ## Steps
 
-- [ ] Retire the card: delete `hud/objective_reveal.rs`, its plugin
+- [x] Retire the card: delete `hud/objective_reveal.rs`, its plugin
       registration in `hud/mod.rs`, and its `spawn_objective_reveal` call in
       `objective_feedback.rs`. Record the removal in DECISION.md (it supersedes
       the presentation half of 20260721-211520, which stays CLOSED as history).
-- [ ] Post the chip immediately: drop the handover gate in `objective_stack.rs`
+- [x] Post the chip immediately: drop the handover gate in `objective_stack.rs`
       (`ObjectiveRevealTucked`, `pop_chip_on_reveal_tuck`, `hand_over` /
       `handed_over` / the `REVEAL_TOTAL_SECS` fallback) so a posting spawns its
       chip and starts its pop on the SAME frame, and the read dwell runs from
       the posting. Keep everything else the stack already does: newest-first
       stacking, pop then breath, read-by-dwell or by opening NOVA OS, the TAB
       keycap riding the stack, completion dropping the chip.
-- [ ] Remove what only the card used: `NovaOsTabAnchor` (defined in
+- [x] Remove what only the card used: `NovaOsTabAnchor` (defined in
       `hud/nova_os.rs`, published by the stack, consumed ONLY by the card) and
       the stack's `publish_*` anchor system - grep to prove no other consumer
       before deleting.
-- [ ] Fix the tests that encode the card: `objective_feedback`'s
+- [x] Fix the tests that encode the card: `objective_feedback`'s
       `ObjectiveRevealMarker` assertion, and the stack tests that advance by
       `REVEAL_TOTAL_SECS` - the chip must now be asserted present on the frame
       of the posting.
-- [ ] Doc sweep (keep-docs-in-sync): wiki `hud.md`, CHANGELOG [Unreleased]
+- [x] Doc sweep (keep-docs-in-sync): wiki `hud.md`, CHANGELOG [Unreleased]
       (three lines name the reveal card / "pops as the card tucks in" - rewrite
       them from the final diff), `web/src/index.html` if it says it. Leave
       dated history (tasks/, released CHANGELOG sections) alone.
@@ -53,7 +53,11 @@ chip to BE the posting: a top-centre notification, no cockpit card.
    re-worded objective re-posts unread.
 3. cmd: `grep -rn "objective_reveal\|NovaOsTabAnchor\|ObjectiveRevealTucked"
    crates/ examples/ tests/` returns nothing (task records excluded).
-4. cmd: `cargo run -p nova_probe -- run playable` passes.
+4. cmd: `cargo run -p nova_probe -- run playable` passes. Run 2026-07-30 on
+   this branch: verdict OK, 5/6 - process_exit, run_completed, reached_playing,
+   invariants_held (0 violations over 1382 frames) and log_clean (0 panic/ERROR
+   lines) all PASS; fps_within_baseline SKIPPED (no baseline capture, i.e. not
+   measured).
 5. manual: owner playtest - a posted objective shows ONLY as the top-centre
    chip, arriving like a chat notification, with no cockpit card first.
 
@@ -67,5 +71,5 @@ chip to BE the posting: a top-centre notification, no cockpit card.
 
 ## Flow State
 
-- FLOW STEP: PLANNED
+- FLOW STEP: DONE
 - PLAN STATUS: APPROVED

@@ -34,7 +34,6 @@ pub mod nova_os_map;
 pub mod nova_os_ship;
 pub mod objective_feedback;
 pub mod objective_markers;
-pub mod objective_reveal;
 pub mod objective_stack;
 pub mod readout;
 pub mod screen_indicator;
@@ -283,11 +282,11 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(keybind_dock::KeybindDockPlugin);
         app.add_plugins(holo_instruments::HoloInstrumentsPlugin);
         // The bcs ObjectivesPlugin owns the `GameObjectives` resource (the
-        // NOVA OS + the diegetic reveal read it) and its `rebuild_lines`
+        // NOVA OS + the objective stack read it) and its `rebuild_lines`
         // no-ops when no objectives panel exists. The always-on compact
         // objectives panel was REMOVED from flight (task 20260724-134312):
-        // objectives now surface via the diegetic reveal, the objective
-        // stack (`objective_stack`) and the NOVA OS monitor.
+        // objectives now surface via the objective stack (`objective_stack`)
+        // and the NOVA OS monitor.
         app.add_plugins(ObjectivesPlugin);
         // bcs tween advancement for HUD fades (first Nova adoption, task
         // 20260717-163033); registered here once for every HUD widget.
@@ -319,13 +318,11 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(objective_markers::ObjectiveMarkersHudPlugin);
         app.add_plugins(item_highlights::ItemHighlightsHudPlugin);
         app.add_plugins(objective_feedback::ObjectiveFeedbackPlugin);
-        // The big diegetic objective reveal that tucks into the NOVA OS tab
-        // (task 20260721-211520); fed by objective_feedback's postings.
-        app.add_plugins(objective_reveal::ObjectiveRevealPlugin);
         // The top-centre objective NOTIFICATION stack (task 20260729-163816):
         // demo 2's objective chip, one per posting, read by its dwell or by
-        // opening NOVA OS. It replaced the top-right status-bar hint and
-        // inherited the diegetic reveal's tuck anchor from it.
+        // opening NOVA OS. It IS the posting now (task 20260729-211200): the
+        // chip spawns and pops the frame the objective arrives, replacing both
+        // the top-right status-bar hint and the diegetic cockpit reveal card.
         app.add_plugins(objective_stack::ObjectiveStackPlugin);
 
         // Screen indicators project through the spaceship chase camera. The
@@ -362,9 +359,8 @@ impl Plugin for NovaHudPlugin {
 
 // The always-on compact objectives panel (spawn_objectives_panel /
 // style_objective_lines / setup_hud_objectives / remove_hud_objectives) was
-// REMOVED in task 20260724-134312; objectives now surface via the diegetic
-// reveal, the objective notification stack (`objective_stack`) and the Tab
-// NOVA OS's NOVA OS monitor.
+// REMOVED in task 20260724-134312; objectives now surface via the objective
+// notification stack (`objective_stack`) and the Tab NOVA OS's monitor.
 
 /// Cycle the HUD level on grave/tilde (or the gamepad Select button).
 /// Press-to-cycle, no hold gesture: two states, so one press round-trips.

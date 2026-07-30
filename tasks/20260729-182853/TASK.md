@@ -1,4 +1,4 @@
-# Screenshot beat for the objective card-to-chip handover (currently unseeable)
+# Screenshot beat for the objective chip posting (currently unseeable)
 
 - STATUS: OPEN
 - PRIORITY: 0
@@ -48,6 +48,14 @@ the whole motion deterministically, with no scenario logic involved.
 
 ## Notes
 
+- 2026-07-30 (task 20260729-211200): the reveal CARD is deleted - the chip is
+  the whole posting now, spawning and popping on the posting frame. The
+  card-to-chip handover this task was written to capture no longer exists, so
+  the Story above is history. What is still unseeable and still worth this
+  task: the chip's own arrival (pop -> settle -> breath) and a two-chip stack.
+  Re-scope before working it - the capture times collapse from ~2.0 s/4.0 s
+  (mid-card/post-tuck) to roughly the posting frame and ~1.5 s later, and DoD 2
+  must be rewritten (there is no "mid-card frame").
 - Discovered mid-flow during 20260729-163816; not folded into that branch to
   keep it to the feature (flow: new work becomes its own task).
 - Also the natural home for a future "two chips stacked" capture, which is

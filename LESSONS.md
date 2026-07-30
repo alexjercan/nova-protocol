@@ -24,7 +24,7 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   commit that TOUCHED the string, not what it did with it - open the commit's
   diff and quote what it DID before writing history into a Record (a misread
   pickaxe put a never-true chain into three surfaces). 20260721-160842.
-- `keep-docs-in-sync-with-code` (x8, enforced in AGENTS.md but STILL recurring
+- `keep-docs-in-sync-with-code` (x9, enforced in AGENTS.md but STILL recurring
   -> needs a tooling guard, not more prose): a code change is not done until
   every doc surface it invalidates (CHANGELOG, news, player + dev wiki, tutorial,
   per-mod READMEs, content-file headers, and the crate table which lives in
@@ -34,7 +34,19 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   READMEs + CHANGELOGs), fix every live-state hit and LEAVE dated history (root
   CHANGELOG, per-release news, tasks/) with a reason - never pre-narrow the grep
   to one subdir. A NEW content KIND is a doc surface too: sweep the content-kind
-  enumerations (modding-ron, guide-make-a-mod, scenario-system). 20260718-004723, 20260719-112231, 20260718-231555, 20260720-224236, 20260722-214119, 20260724-193830.
+  enumerations (modding-ron, guide-make-a-mod, scenario-system). The rule guards
+  the sweep's SCOPE; its QUERY is
+  [[sweep-docs-for-the-feature-description-not-just-its-symbols]].
+  20260718-004723, 20260719-112231, 20260718-231555, 20260720-224236, 20260722-214119, 20260724-193830, 20260729-211200.
+- `sweep-docs-for-the-feature-description-not-just-its-symbols` (x1): when
+  REMOVING something a player can see, the deleted identifiers do not define the
+  search space - the wiki describes what the player SEES, in the player's words,
+  and never names the module. Write down 3-5 phrases a writer would use for the
+  thing (its shape, its motion, its moment) and grep THOSE too before ticking the
+  doc step: a symbol-only sweep left a whole wiki sentence selling the deleted
+  objective card ("gets the cockpit moment ... appears slightly rotated ... tucks
+  into") because it never used the word "reveal". Query half of
+  [[keep-docs-in-sync-with-code]]. 20260729-211200.
 - `doc-sweep-covers-source-doc-comments` (x1): when RENAMING/REMOVING a
   command or symbol, `grep -rn '<oldname>' --include='*.rs'` the source
   `//!`/`///` doc comments too - a CLI surface is described in module/crate
@@ -187,14 +199,18 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   is COMPUTED (host env, config, a filtered list) silently asserts NOTHING when the
   computation yields empty - guard with `assert!(!expected.is_empty(), <why>)` so the
   degenerate case fails loudly instead of passing green. 20260729-015406.
-- `deleting-a-test-salvage-live-assertions` (x2): a test deleted with the module it
+- `deleting-a-test-salvage-live-assertions` (x3 -> Pending promotions, work
+  skill): a test deleted with the module it
   exercised may carry the only assertion pinning a still-live edge - read each
   assertion and re-home the survivors, a test is a bag of assertions, not one unit
   tied to a symbol. Twice now: a bar/pips test also pinned "unknown health reads
   nominal"; deleting `objective_hint.rs` dropped the only pop/breath pins for
   behaviour the REPLACEMENT widget inherited, and a dead pop shipped through the
-  hole. Kin of [[pin-each-caller-not-just-shared-core]].
-  20260728-125514, 20260729-163816.
+  hole. Third time it EARNED its keep rather than being learned the hard way:
+  deleting the objective reveal card took four tests, two of which were the only
+  pin on still-live stack behaviour. Kin of
+  [[pin-each-caller-not-just-shared-core]].
+  20260728-125514, 20260729-163816, 20260729-211200.
 - `rebuilt-view-writes-go-to-state-not-the-entity` (x2): when a widget REBUILDS
   its nodes every frame from a resource (the comms stack, the objective stack),
   any system reaching in from outside must write the STATE, never the rebuilt
@@ -1343,6 +1359,11 @@ here (annotated) as the paid record.
 - `out-of-context-review-pass` (positive, x35, PROMOTED 2026-07-21 -> already /flow round-1 practice): a fresh-context review re-derives load-bearing claims and catches MAJORs shared-session eyes miss; verify the verifier's counterexamples too - it caught the drawer's audio-loop freeze gap, overlay z order in the NOVA OS monitor, and unwired NOVA OS footer/doc promises. 20260717-212219, 20260724-102304, 20260724-134312, 20260726-115320, 20260726-134738.
 
 ## Pending promotions (3+ occurrences, user decides)
+
+- `deleting-a-test-salvage-live-assertions` (x3) -> work skill (verify step):
+  make "read each deleted test's ASSERTIONS and re-home the survivors" a
+  standing step of any diff that removes tests, not a lesson to remember.
+  20260728-125514, 20260729-163816, 20260729-211200.
 
 - `anchor-edits-in-the-right-scope` (x3) -> work skill: an edit anchored on an
   item's `#[test]`/`const`/attribute line inserts BETWEEN that item and its doc

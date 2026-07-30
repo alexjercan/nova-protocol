@@ -24,19 +24,20 @@
 //!
 //! This REPLACES the top-right status-bar hint (tasks 20260724-134312 /
 //! 20260724-161545): the count-plus-TAB block is gone from the bcs status bar,
-//! which is back to fps + version. Two things it owned moved here - the `TAB`
-//! affordance (it rides the stack and leaves with it) and [`NovaOsTabAnchor`],
-//! the tuck target the diegetic reveal card flies into, so the card still
-//! lands on the thing that then pops.
+//! which is back to fps + version. The `TAB` affordance it owned moved here and
+//! rides the stack, leaving with it.
+//!
+//! The chip IS the posting (task 20260729-211200): it spawns and pops on the
+//! frame the objective posts, arriving like a chat message. It used to wait
+//! ~3.2 s behind a diegetic cockpit reveal card that tucked into this stack;
+//! the owner retired that card, so the stack is the sole presentation of a
+//! posting and no handover gate stands between the two.
 
 use bevy::prelude::*;
 use bevy_common_systems::prelude::GameObjectives;
 use nova_ui::hud::{chip_node, ChipTone};
 
-use super::{
-    emphasis::prelude::*, nova_os::NovaOsTabAnchor, objective_reveal::ObjectiveRevealTucked,
-    HudTier, NovaHudAssets, NovaHudSystems,
-};
+use super::{emphasis::prelude::*, HudTier, NovaHudAssets, NovaHudSystems};
 use crate::prelude::*;
 
 /// Glob-import surface: `use nova_gameplay::hud::objective_stack::prelude::*` re-exports the public API of this module.
@@ -47,11 +48,10 @@ pub mod prelude {
     };
 }
 
-/// How long a posted objective stays on screen before it counts as read.
-/// Generous: the diegetic reveal card holds the objective for ~3.2 s before it
-/// even tucks into this stack, and the chip is the only place the text lives
-/// afterwards, so the dwell starts effectively when the card lands. Tunable at
-/// the playtest gate.
+/// How long a posted objective stays on screen before it counts as read,
+/// counted from the POSTING (the chip is on screen from that frame). Generous:
+/// the chip is the only place the objective's text lives while it is up.
+/// Tunable at the playtest gate.
 pub const OBJECTIVE_DWELL_SECS: f32 = 12.0;
 
 /// Fade-out once a chip is read, matching the comms card's tail so the two
@@ -92,11 +92,6 @@ const CHIP_FONT_PX: f32 = 13.0;
 const TAB_GLYPH_PX: f32 = 18.0;
 const TAB_FONT_PX: f32 = 11.0;
 
-/// Nominal size of the tuck rect published as [`NovaOsTabAnchor`] (the exact
-/// width flexes with the objective text; the CENTRE is what the reveal card
-/// aims at).
-const STACK_ANCHOR_SIZE: Vec2 = Vec2::new(220.0, 28.0);
-
 /// Marker for the top-centre stack root; spawned by [`objective_stack_hud`].
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct ObjectiveStackHudMarker;
@@ -117,11 +112,10 @@ struct ObjectiveStackDiamondMarker;
 
 /// One posted objective's notification state.
 ///
-/// Two clocks, because the chip's life does not start when the objective posts:
-/// the diegetic reveal card carries the text first and TUCKS into this stack,
-/// and only then does the chip appear and pop. `age_secs` runs from the
-/// posting (it drives the handover fallback); `pop_secs` runs from the
-/// handover and is what the chip is actually rendered and read from.
+/// ONE clock: the chip is on screen from the posting frame, so `age_secs`
+/// seeds the pop AND runs the read dwell. (It used to take two - the chip
+/// waited behind a diegetic reveal card and its pop/dwell ran from the card's
+/// tuck - until task 20260729-211200 retired the card.)
 #[derive(Clone, Debug, PartialEq)]
 struct ObjectiveNotification {
     /// The objective's id, the identity this is tracked by.
@@ -130,27 +124,11 @@ struct ObjectiveNotification {
     message: String,
     /// Seconds since it was posted (or re-posted).
     age_secs: f32,
-    /// Seconds since the reveal card handed over to this chip; `None` while the
-    /// card still owns the text, which is why the chip is not rendered yet.
-    pop_secs: Option<f32>,
     /// Seconds since it was read; `None` while it is still unread.
     read_secs: Option<f32>,
 }
 
 impl ObjectiveNotification {
-    /// Whether the reveal card has handed over, i.e. the chip is on screen.
-    fn handed_over(&self) -> bool {
-        self.pop_secs.is_some()
-    }
-
-    /// Take the handover: the card has landed (or the fallback elapsed), so the
-    /// chip appears and its pop - and its dwell - start now.
-    fn hand_over(&mut self) {
-        if self.pop_secs.is_none() {
-            self.pop_secs = Some(0.0);
-        }
-    }
-
     /// Alpha to render at: full while unread, fading out once read.
     fn alpha(&self) -> f32 {
         match self.read_secs {
@@ -227,11 +205,10 @@ pub fn objective_stack_hud() -> impl Bundle {
 }
 
 /// Drives the objective notification stack: posting detection, the read
-/// lifecycle, the rendered chips, and the reveal card's tuck anchor.
-/// Inits [`ObjectiveNotifications`]; runs `post_objective_notifications`,
-/// `age_objective_notifications`, `read_on_nova_os`, `sync_objective_chips`,
-/// `pop_chip_on_reveal_tuck`, `breathe_objective_chips` and
-/// `update_stack_anchor` in Update within [`NovaHudSystems`].
+/// lifecycle and the rendered chips. Inits [`ObjectiveNotifications`]; runs
+/// `post_objective_notifications`, `age_objective_notifications`,
+/// `read_on_nova_os`, `sync_objective_chips` and `breathe_objective_chips` in
+/// Update within [`NovaHudSystems`].
 pub struct ObjectiveStackPlugin;
 
 impl Plugin for ObjectiveStackPlugin {
@@ -245,26 +222,17 @@ impl Plugin for ObjectiveStackPlugin {
         app.add_systems(
             Update,
             (
-                // Order matters: post, then take any handover the reveal card
-                // just completed, THEN age (so the chip's clock starts on the
-                // handover frame), then the read sweeps, and only then render.
-                // Rendering before the handover would show every chip a frame
-                // late; ageing before it would start the dwell too early.
+                // Order matters: post FIRST, then age and the read sweeps, and
+                // only then render - so a posting's chip is on screen the same
+                // frame the objective arrives, not one frame late.
                 post_objective_notifications.run_if(resource_changed::<GameObjectives>),
-                pop_chip_on_reveal_tuck,
                 age_objective_notifications,
                 read_on_nova_os,
                 sync_objective_chips,
                 breathe_objective_chips,
-                update_stack_anchor,
             )
                 .chain()
-                .in_set(NovaHudSystems)
-                // Consume the tuck the frame the card writes it, rather than by
-                // schedule tie-break (review R2.1). The id match above makes a
-                // late read harmless, but a deterministic order is what keeps
-                // the handover frame-exact.
-                .after(super::objective_reveal::ObjectiveRevealAnimation),
+                .in_set(NovaHudSystems),
         );
     }
 }
@@ -313,7 +281,6 @@ fn post_objective_notifications(
             id: id.clone(),
             message: message.clone(),
             age_secs: 0.0,
-            pop_secs: None,
             read_secs: None,
         });
     }
@@ -336,24 +303,11 @@ fn age_objective_notifications(time: Res<Time>, mut notifications: ResMut<Object
     let delta = time.delta_secs();
     for shown in &mut notifications.shown {
         shown.age_secs += delta;
-        // Fallback handover: a RE-WORDED objective is not an "addition", so
-        // `objective_feedback` spawns it no reveal card and no tuck will ever
-        // arrive. Hand over after the time a card would have taken, so such a
-        // posting shows its chip instead of waiting forever.
-        if !shown.handed_over() && shown.age_secs >= super::objective_reveal::REVEAL_TOTAL_SECS {
-            shown.hand_over();
-        }
-        let Some(ref mut pop) = shown.pop_secs else {
-            continue;
-        };
-        *pop += delta;
-        // The dwell runs from the HANDOVER, not the posting: the chip is not on
-        // screen before that, and a dwell that started at the posting would
-        // spend its first ~3.2 s invisible behind the card.
-        let popped_for = *pop;
+        // The dwell runs from the POSTING: the chip is on screen from that
+        // frame, so age IS how long the player has had it to read.
         match shown.read_secs {
             Some(ref mut read) => *read += delta,
-            None if popped_for >= OBJECTIVE_DWELL_SECS => shown.mark_read(),
+            None if shown.age_secs >= OBJECTIVE_DWELL_SECS => shown.mark_read(),
             None => {}
         }
     }
@@ -363,13 +317,6 @@ fn age_objective_notifications(time: Res<Time>, mut notifications: ResMut<Object
 /// Opening the NOVA OS computer reads EVERY notification at once: the standing
 /// objective list is in there, so once you have opened it they have served
 /// their purpose.
-///
-/// That includes notifications still waiting behind their reveal card, which
-/// are therefore discarded UNSHOWN - an objective posted in the ~3.2 s before
-/// the player hits Tab never gets a chip (review R2.3). Deliberate: the player
-/// has just read that objective in the computer's own list. Note this EXTENDS
-/// the owner's model rather than reading it off: DECISION.md point 4 speaks to
-/// a chip that is up, not to a posting that never showed at all.
 fn read_on_nova_os(
     pause: Res<State<crate::PauseStates>>,
     mut notifications: ResMut<ObjectiveNotifications>,
@@ -399,7 +346,7 @@ fn sync_objective_chips(
         return;
     };
     commands.entity(stack).despawn_related::<Children>();
-    if !notifications.shown.iter().any(|shown| shown.handed_over()) {
+    if notifications.shown.is_empty() {
         return;
     }
 
@@ -408,12 +355,7 @@ fn sync_objective_chips(
         .and_then(|assets| assets.key_glyphs.get("Tab"));
     commands.entity(stack).with_children(|stack| {
         // Newest on top: the freshest posting is the one to read first.
-        for shown in notifications
-            .shown
-            .iter()
-            .rev()
-            .filter(|shown| shown.handed_over())
-        {
+        for shown in notifications.shown.iter().rev() {
             stack.spawn(objective_chip(shown));
         }
         // One TAB affordance for the whole stack, riding it: it says "the full
@@ -435,7 +377,7 @@ fn objective_chip(shown: &ObjectiveNotification) -> impl Bundle {
         ObjectiveStackChip(shown.id.clone()),
         // The posting pop, seeded from the chip's age so a rebuilt node keeps
         // playing the same one-shot.
-        HudEmphasis::popped_at_age(CHIP_POP_SCALE, CHIP_POP_SECS, shown.pop_secs.unwrap_or(0.0)),
+        HudEmphasis::popped_at_age(CHIP_POP_SCALE, CHIP_POP_SECS, shown.age_secs),
         chip_node(),
         // NOT `chip_paint(ChipTone::Amber)`: that bundle already carries a
         // BackgroundColor + BorderColor, and a second pair in the same bundle
@@ -546,32 +488,6 @@ fn tab_footer(glyph: Option<Handle<Image>>) -> impl Bundle {
     )
 }
 
-/// Take the handover when a reveal card finishes tucking into the stack: the
-/// chip APPEARS and pops now, so the card's arrival and the chip's reaction are
-/// one motion instead of the same sentence being on screen twice.
-///
-/// This writes the notification STATE, not the chip's `HudEmphasis`: the chips
-/// are rebuilt from that state every frame, so a pop written straight onto a
-/// chip entity is overwritten on the next frame and never plays (review R1.1 -
-/// it was, and the pop was invisible).
-fn pop_chip_on_reveal_tuck(
-    mut tucked: MessageReader<ObjectiveRevealTucked>,
-    mut notifications: ResMut<ObjectiveNotifications>,
-) {
-    for ObjectiveRevealTucked(id) in tucked.read() {
-        // Match on the ID, never positionally (review R2.1). A card can outlive
-        // the notification it was spawned for - its objective completes before
-        // the card lands, or the player ship respawns and resets the stack -
-        // and "the oldest one still waiting" then hands over a DIFFERENT
-        // objective, one whose own card is still in flight, putting its text on
-        // screen twice. A stray tuck now matches nothing, which is the correct
-        // amount of work to do for a card whose objective is gone.
-        if let Some(landed) = notifications.shown.iter_mut().find(|shown| &shown.id == id) {
-            landed.hand_over();
-        }
-    }
-}
-
 /// The slow breath an UNREAD chip settles into once its pop is done - demo 2's
 /// `.obj:not(.emph)` animation. A chip mid-pop or mid-fade is left alone: the
 /// pop is the emphasis while it plays, and the fade owns the alpha after.
@@ -609,27 +525,6 @@ fn breathe_objective_chips(
             }
         }
     }
-}
-
-/// Publish the stack's screen rect as [`NovaOsTabAnchor`] - the diegetic
-/// reveal's tuck target, inherited from the retired status-bar hint (task
-/// 20260724-134312). The card tucks into the stack, which then pops.
-fn update_stack_anchor(
-    q_stack: Query<&GlobalTransform, With<ObjectiveStackHudMarker>>,
-    mut anchor: ResMut<NovaOsTabAnchor>,
-) {
-    let Ok(transform) = q_stack.single() else {
-        return;
-    };
-    // The root spans the viewport width and its chips are centred in it, so x
-    // comes from the node and y from the constant we placed it at: the root's
-    // own centre drifts DOWN as chips stack, and the card should tuck into the
-    // top of the stack, where the newest chip is.
-    let translation = transform.translation();
-    anchor.rect = Some(Rect::from_center_size(
-        Vec2::new(translation.x, STACK_TOP_PX + STACK_ANCHOR_SIZE.y / 2.0),
-        STACK_ANCHOR_SIZE,
-    ));
 }
 
 /// Spawn the stack with the player ship, like the other HUD widgets.
@@ -694,18 +589,14 @@ mod tests {
         )));
         app.init_resource::<GameObjectives>();
         app.init_resource::<ObjectiveNotifications>();
-        app.init_resource::<NovaOsTabAnchor>();
-        app.add_message::<ObjectiveRevealTucked>();
         app.add_systems(
             Update,
             (
                 post_objective_notifications.run_if(resource_changed::<GameObjectives>),
-                pop_chip_on_reveal_tuck,
                 age_objective_notifications,
                 read_on_nova_os,
                 sync_objective_chips,
                 breathe_objective_chips,
-                update_stack_anchor,
             )
                 .chain(),
         );
@@ -717,12 +608,7 @@ mod tests {
         // driver would never see this frame's chips and every scale would read
         // the default 1.0.
         app.add_systems(PostUpdate, super::super::emphasis::drive_hud_emphasis);
-        // No UI layout in a MinimalPlugins rig, so the root needs its transform
-        // by hand - the same shape the retired hint's anchor test used.
-        app.world_mut().spawn((
-            objective_stack_hud(),
-            GlobalTransform::from_translation(Vec3::new(960.0, 58.0, 0.0)),
-        ));
+        app.world_mut().spawn(objective_stack_hud());
         app.update();
         app
     }
@@ -732,14 +618,6 @@ mod tests {
             .resource_mut::<GameObjectives>()
             .objectives
             .push(Objective::new(id, message));
-    }
-
-    /// Land the reveal card carrying `id`, which is what puts that posted
-    /// chip on screen.
-    fn tuck(app: &mut App, id: &str) {
-        app.world_mut()
-            .write_message(ObjectiveRevealTucked(id.to_string()));
-        app.update();
     }
 
     fn chip_scale(app: &mut App) -> Option<f32> {
@@ -784,7 +662,8 @@ mod tests {
     }
 
     /// A posting puts the objective's own TEXT on screen - the whole point of
-    /// the task (the retired hint showed a count).
+    /// the task (the retired hint showed a count) - on the SAME frame, like a
+    /// chat notification (task 20260729-211200).
     #[test]
     fn a_posting_shows_the_objective_text_not_a_count() {
         let mut app = stack_app();
@@ -792,11 +671,6 @@ mod tests {
 
         post(&mut app, "salvage", "Salvage the wreck");
         app.update();
-        assert!(
-            chip_ids(&mut app).is_empty(),
-            "the reveal card still owns the text; the chip waits for the handover"
-        );
-        tuck(&mut app, "salvage");
 
         assert_eq!(
             chip_labels(&mut app),
@@ -811,10 +685,8 @@ mod tests {
         let mut app = stack_app();
         post(&mut app, "first", "Scan the relay");
         app.update();
-        tuck(&mut app, "first");
         post(&mut app, "second", "Salvage the wreck");
         app.update();
-        tuck(&mut app, "second");
 
         assert_eq!(
             chip_ids(&mut app),
@@ -830,7 +702,6 @@ mod tests {
         let mut app = stack_app();
         post(&mut app, "salvage", "Salvage the wreck");
         app.update();
-        tuck(&mut app, "salvage");
         assert!(
             app.world()
                 .resource::<ObjectiveNotifications>()
@@ -861,8 +732,6 @@ mod tests {
         post(&mut app, "first", "Scan the relay");
         post(&mut app, "second", "Salvage the wreck");
         app.update();
-        tuck(&mut app, "first");
-        tuck(&mut app, "second");
         assert_eq!(chip_ids(&mut app).len(), 2, "two chips up");
 
         app.world_mut()
@@ -889,7 +758,6 @@ mod tests {
         let mut app = stack_app();
         post(&mut app, "salvage", "Salvage the wreck");
         app.update();
-        tuck(&mut app, "salvage");
         advance(&mut app, OBJECTIVE_DWELL_SECS + OBJECTIVE_FADE_SECS);
         assert!(chip_ids(&mut app).is_empty(), "read and gone");
 
@@ -924,8 +792,6 @@ mod tests {
         post(&mut app, "first", "Scan the relay");
         post(&mut app, "second", "Salvage the wreck");
         app.update();
-        tuck(&mut app, "first");
-        tuck(&mut app, "second");
 
         app.world_mut()
             .resource_mut::<GameObjectives>()
@@ -949,31 +815,31 @@ mod tests {
         );
     }
 
-    /// The POP is the point of the handover: the chip appears at the card's
-    /// landing already growing, reaches its peak, and settles back on its own.
+    /// The POP is the chip's arrival: it appears on the posting frame already
+    /// growing, reaches its peak, and settles back on its own.
     ///
-    /// This is the test whose absence let a DEAD pop ship (review R1.1): the
-    /// pop used to be written straight onto the chip entity, which
-    /// `sync_objective_chips` rebuilds every frame, so it was overwritten
-    /// before it could play. Assert the rendered SCALE, not the intent.
+    /// This is the test whose absence let a DEAD pop ship (review R1.1 of
+    /// 20260729-163816): the pop used to be written straight onto the chip
+    /// entity, which `sync_objective_chips` rebuilds every frame, so it was
+    /// overwritten before it could play. Assert the rendered SCALE, not the
+    /// intent.
     #[test]
-    fn the_chip_pops_when_the_card_lands_and_settles_back() {
+    fn the_chip_pops_on_the_posting_and_settles_back() {
         let mut app = stack_app();
+        assert_eq!(chip_scale(&mut app), None, "no chip before a posting");
+
         post(&mut app, "salvage", "Salvage the wreck");
         app.update();
-        assert_eq!(chip_scale(&mut app), None, "no chip before the handover");
-
-        tuck(&mut app, "salvage");
-        // One frame past the handover. NB this rig's 0.25 s frame is COARSER
+        // One frame past the posting. NB this rig's 0.25 s frame is COARSER
         // than the emphasis's 0.2 s ease, so the ease-in and ease-out each
         // collapse into a single frame here - the eased SHAPE is pinned in
         // `hud::emphasis`'s own tests; what this test pins is that the pop
-        // happens at all, and at the handover.
+        // happens at all, and at the posting.
         app.update();
         assert_eq!(
             chip_scale(&mut app),
             Some(CHIP_POP_SCALE),
-            "the landing card hands over to a chip at full pop"
+            "the posted chip arrives at full pop"
         );
 
         advance(&mut app, CHIP_POP_SECS);
@@ -984,65 +850,36 @@ mod tests {
         );
     }
 
-    /// Each card hands over its OWN objective (review R2.1), reproducing the
-    /// measured race: the FALLBACK hands the first posting over, and the first
-    /// card's tuck then arrives late. Matching positionally ("the oldest still
-    /// waiting") hands that stray tuck to the SECOND objective, whose own card
-    /// is still in flight - putting its sentence on the chip and on the card at
-    /// once. Matching on the id, it matches the already-handed-over first and
-    /// does nothing.
+    /// Postings that arrive on DIFFERENT frames each keep their own clock: the
+    /// older chip is further through its dwell than the younger one. (The two
+    /// retired handover tests pinned that each reveal card handed over its own
+    /// objective; with the card gone, the surviving edge is that two live
+    /// postings do not share one clock.)
     #[test]
-    fn a_late_tuck_does_not_hand_over_the_next_objective() {
+    fn each_posting_runs_its_own_dwell() {
         let mut app = stack_app();
         post(&mut app, "first", "Scan the relay");
         app.update();
-        // No tuck: let the fallback take the handover.
-        advance(&mut app, super::super::objective_reveal::REVEAL_TOTAL_SECS);
-        assert_eq!(chip_ids(&mut app), vec!["first".to_string()]);
+        advance(&mut app, OBJECTIVE_DWELL_SECS * 0.75);
 
         post(&mut app, "second", "Salvage the wreck");
         app.update();
-
-        // "first"'s card lands at last. It must not adopt "second".
-        tuck(&mut app, "first");
-        assert_eq!(
-            chip_ids(&mut app),
-            vec!["first".to_string()],
-            "the late tuck belongs to 'first', which is already up; 'second' \
-             stays behind its own card"
-        );
-
-        tuck(&mut app, "second");
         assert_eq!(
             chip_ids(&mut app),
             vec!["second".to_string(), "first".to_string()],
-            "and 'second' appears when its own card lands"
+            "both up, newest on top"
         );
-    }
 
-    /// A card that outlives its notification (its objective completed before
-    /// the card could land) hands over NOTHING - it must not adopt whichever
-    /// other posting happens to be waiting.
-    #[test]
-    fn a_stray_tuck_from_an_orphaned_card_hands_over_nothing() {
-        let mut app = stack_app();
-        post(&mut app, "doomed", "Hold the line");
-        app.update();
-        post(&mut app, "later", "Salvage the wreck");
-        app.update();
-
-        // "doomed" completes while its card is still flying.
-        app.world_mut()
-            .resource_mut::<GameObjectives>()
-            .objectives
-            .retain(|objective| objective.id != "doomed");
-        app.update();
-
-        // Its orphaned card lands anyway.
-        tuck(&mut app, "doomed");
+        // Enough for "first" to time out, not enough for "second".
+        advance(&mut app, OBJECTIVE_DWELL_SECS * 0.3);
+        let notifications = app.world().resource::<ObjectiveNotifications>();
         assert!(
-            chip_ids(&mut app).is_empty(),
-            "the stray tuck matched nothing; 'later' is still behind its own card"
+            !notifications.is_unread("first"),
+            "the older posting's dwell elapsed first"
+        );
+        assert!(
+            notifications.is_unread("second"),
+            "the younger posting is still being read"
         );
     }
 
@@ -1053,7 +890,6 @@ mod tests {
         let mut app = stack_app();
         post(&mut app, "salvage", "Salvage the wreck");
         app.update();
-        tuck(&mut app, "salvage");
         advance(&mut app, CHIP_POP_SECS);
 
         let rest = ChipTone::Amber.text().alpha();
@@ -1096,33 +932,25 @@ mod tests {
         );
     }
 
-    /// A re-worded objective gets no reveal card (it is not an "addition"), so
-    /// no tuck ever arrives - the fallback handover is what stops that chip
-    /// from waiting forever.
+    /// A RE-WORDED objective shows its chip on the same frame too. It used to
+    /// be the awkward case - `objective_feedback` spawned it no reveal card (it
+    /// is not an "addition"), so it waited out a timed fallback before showing
+    /// at all. Every posting is now the same posting.
     #[test]
-    fn a_posting_with_no_card_hands_over_on_the_fallback() {
+    fn a_re_worded_objective_shows_its_chip_on_the_same_frame() {
         let mut app = stack_app();
-        post(&mut app, "salvage", "Salvage the wreck");
+        post(&mut app, "salvage", "Crates: 0/3");
         app.update();
-        // Deliberately NO tuck.
-        assert!(chip_ids(&mut app).is_empty(), "waiting on the card");
+        advance(&mut app, OBJECTIVE_DWELL_SECS + OBJECTIVE_FADE_SECS);
+        assert!(chip_ids(&mut app).is_empty(), "read and gone");
 
-        advance(&mut app, super::super::objective_reveal::REVEAL_TOTAL_SECS);
+        app.world_mut().resource_mut::<GameObjectives>().objectives[0].message =
+            "Crates: 1/3".to_string();
+        app.update();
         assert_eq!(
-            chip_ids(&mut app),
-            vec!["salvage".to_string()],
-            "the fallback hands over once a card would have landed"
-        );
-    }
-
-    /// The stack is the reveal card's tuck target now that the hint is gone.
-    #[test]
-    fn the_stack_publishes_the_reveal_tuck_anchor() {
-        let mut app = stack_app();
-        app.update();
-        assert!(
-            app.world().resource::<NovaOsTabAnchor>().rect.is_some(),
-            "the reveal card has somewhere to tuck into"
+            chip_labels(&mut app),
+            vec!["CRATES: 1/3".to_string()],
+            "the re-worded posting is up immediately, with the new words"
         );
     }
 }

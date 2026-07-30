@@ -1227,29 +1227,12 @@ fn section_status_row_kind(section: &ShipSectionStatus) -> TerminalRowKind {
     }
 }
 
-/// The reveal's tuck-target rect in logical pixels. This is task 20260721-211520's
-/// tween TARGET: the big cockpit objective animates INTO this rect. It is
-/// published each frame by `objective_stack`: the top-centre objective
-/// notification stack is what a posting tucks into (task 20260729-163816,
-/// inheriting the role from the retired status-bar hint of 20260724-134312,
-/// which in turn replaced the old NOVA OS tab handle). `None` until the stack
-/// has laid out at least once (headless rigs without a UI layout pass leave it
-/// `None`).
-#[derive(Resource, Default, Debug, Clone, Copy)]
-pub struct NovaOsTabAnchor {
-    /// The tuck-target rect in logical window pixels, or `None` before first
-    /// layout.
-    pub rect: Option<Rect>,
-}
-
 /// Wires the Tab NOVA OS shell: the toggle, the slide and the objectives section.
-/// The reveal's tuck anchor ([`NovaOsTabAnchor`]) is published by `objective_stack`.
 /// Registered by [`super::NovaHudPlugin`].
 pub struct NovaOsPlugin;
 
 impl Plugin for NovaOsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<NovaOsTabAnchor>();
         app.init_resource::<NovaOsFlightLog>();
         app.init_resource::<NovaOsTerminal>();
         app.init_resource::<NovaOsCommandRegistry>();
@@ -1269,8 +1252,7 @@ impl Plugin for NovaOsPlugin {
         );
 
         // Shell upkeep while the HUD is live: ease the slide and rebuild the
-        // objectives section on change / first spawn. (The reveal's tuck anchor
-        // is published by `objective_stack`.)
+        // objectives section on change / first spawn.
         app.add_systems(
             Update,
             (
@@ -3175,8 +3157,8 @@ fn setup_nova_os(
     ));
 
     // (The old flight-view tab handle was removed in task 20260724-134312; the
-    // top-centre objective stack is the NOVA OS affordance + the reveal's tuck
-    // anchor now.)
+    // top-centre objective stack carries the NOVA OS affordance now - its TAB
+    // keycap footer.)
 
     // One inset physical monitor. It is hidden until opened by the same
     // real-time openness driver the old NOVA OS panels used.
@@ -5370,9 +5352,8 @@ mod tests {
         );
     }
 
-    // (The tab-handle anchor test moved to `objective_stack` -
-    // `the_stack_publishes_the_reveal_tuck_anchor` - now that the stack is the
-    // reveal's tuck-anchor source, task 20260724-134312.)
+    // (The tab handle's own tests went with it in task 20260724-134312; the
+    // stack that replaced its affordance is tested in `objective_stack`.)
 
     fn objectives_app() -> App {
         let mut app = App::new();

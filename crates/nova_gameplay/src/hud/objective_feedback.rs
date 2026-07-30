@@ -176,13 +176,14 @@ fn objective_change_feedback(
         .iter()
         .filter(|old| !objectives.objectives.iter().any(|new| new.id == old.id))
         .collect();
-    let added_objectives: Vec<Objective> = objectives
+    // A posting's VISUAL is the objective stack's chip (`objective_stack`);
+    // this module only owns the audio cue for it and the green completion
+    // ghost. It used to also spawn a diegetic cockpit reveal card, retired in
+    // task 20260729-211200.
+    let added = objectives
         .objectives
         .iter()
-        .filter(|new| !snapshot.iter().any(|old| old.id == new.id))
-        .cloned()
-        .collect();
-    let added = !added_objectives.is_empty();
+        .any(|new| !snapshot.iter().any(|old| old.id == new.id));
 
     if let Some(bank) = &bank {
         // One cue per change kind per frame: a complete+re-add tally swap
@@ -219,9 +220,10 @@ fn objective_change_feedback(
 
     if let Ok(stack) = q_stack.single() {
         // Completions fade green in the ghost column (the panel row itself
-        // rebuilds silently). Fresh postings no longer ghost here - they get
-        // the big diegetic reveal below (task 20260721-211520 supersedes the
-        // gold posting flash of task 20260717-163033).
+        // rebuilds silently). Fresh postings no longer ghost here - they are
+        // the objective stack's chip (task 20260721-211520 superseded the gold
+        // posting flash of task 20260717-163033; 20260729-211200 made the chip
+        // the whole posting).
         for objective in &completed {
             commands.entity(stack).with_children(|parent| {
                 parent.spawn((
@@ -241,12 +243,6 @@ fn objective_change_feedback(
                 ));
             });
         }
-    }
-
-    // Fresh postings get the big cockpit reveal that tucks into the Tab NOVA OS's
-    // handle (task 20260721-211520), replacing the old gold ghost line.
-    for objective in &added_objectives {
-        super::objective_reveal::spawn_objective_reveal(&mut commands, objective);
     }
 
     *snapshot = objectives.objectives.clone();
@@ -418,12 +414,12 @@ mod tests {
         app.update();
         app.update();
 
-        // Fresh postings now get the big diegetic reveal (task 20260721-211520),
-        // NOT a gold ghost line - so the ghost column stays empty on a posting.
+        // A fresh posting is the objective stack's chip, NOT a gold ghost line -
+        // so the ghost column stays empty on a posting.
         assert_eq!(
             ghosts_by(&mut app, super::super::OBJECTIVE_GOLD),
             0,
-            "postings no longer ghost gold - they reveal instead"
+            "postings no longer ghost gold - they post a chip instead"
         );
         assert_eq!(ghosts_by(&mut app, GHOST_COLOR), 0, "no completions yet");
 
@@ -493,10 +489,10 @@ mod tests {
             total(&mut app),
             0,
             "dying must not celebrate the failed objectives (postings no longer \
-             ghost - the reveal teardown is covered in objective_reveal)"
+             ghost - a posting is the objective stack's chip)"
         );
 
-        // The restarted run behaves normally: post one (reveal, no ghost),
+        // The restarted run behaves normally: post one (chip, no ghost),
         // complete it (green ghost).
         app.world_mut().resource_mut::<GameObjectives>().objectives =
             vec![Objective::new("b1", "Burn for Beacon 1")];
@@ -532,15 +528,9 @@ mod tests {
         assert_eq!(
             ghosts_by(&mut app, super::super::OBJECTIVE_GOLD),
             0,
-            "postings no longer make gold ghosts (they reveal)"
+            "postings no longer make gold ghosts (they post a chip)"
         );
-        // Only the ORIGINAL posting revealed; the same-id swap is not a fresh
-        // posting, so it added no second reveal.
-        let reveals = app
-            .world_mut()
-            .query_filtered::<(), With<super::super::objective_reveal::ObjectiveRevealMarker>>()
-            .iter(app.world())
-            .count();
-        assert_eq!(reveals, 1, "the swap added no second reveal");
+        // The same-id swap is not a fresh posting either way; the chip it
+        // re-posts is `objective_stack`'s business (and its own tests').
     }
 }
