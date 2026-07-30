@@ -1370,13 +1370,28 @@ fn register_sounds(mut commands: Commands, assets: Res<AssetServer>) {
 fn update_nova_hud_assets(
     mut nova_hud_assets: ResMut<NovaHudAssets>,
     game_assets: Res<GameAssets>,
+    images: Res<Assets<Image>>,
 ) {
     nova_hud_assets.target_sprite = game_assets.target_sprite.clone();
     nova_hud_assets.nova_crt_mark = game_assets.nova_crt_mark.clone();
     // Fan the stem-keyed collection out to the label-keyed lookup the HUD
     // consumes (several labels share one keycap, e.g. both Control keys).
-    nova_hud_assets.key_glyphs =
-        KeyGlyphs::from_stems(|stem| game_assets.key_glyphs.get(stem).cloned());
+    let mut key_glyphs = KeyGlyphs::from_stems(|stem| game_assets.key_glyphs.get(stem).cloned());
+    // Then measure each cap inside its (square) canvas, so the HUD can size
+    // from the ART: the wide caps are drawn wide and short, and a square box
+    // threw ~40% of their height away (task 20260730-122940). This runs in
+    // Processing, where the whole collection is loaded, and reads pixels the
+    // image loader keeps in the main world (`RenderAssetUsages::default()`).
+    let measured = key_glyphs.measure_caps(&images);
+    if measured < key_glyphs.len() {
+        warn!(
+            "update_nova_hud_assets: only {measured}/{} keycap LABELS resolved a \
+             cap rect (several labels share one image); the rest fall back to a \
+             square box",
+            key_glyphs.len()
+        );
+    }
+    nova_hud_assets.key_glyphs = key_glyphs;
 }
 
 #[cfg(test)]

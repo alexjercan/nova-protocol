@@ -26,11 +26,13 @@
 //! may `server.load` a glyph for a runtime-rebound key: that is dynamic content
 //! and cannot sit behind a one-shot preload collection.
 
-use bevy::platform::collections::HashMap;
+use bevy::{platform::collections::HashMap, prelude::*};
 
 /// Glob-import surface: `use nova_gameplay::hud::key_glyphs::prelude::*` re-exports the public API of this module.
 pub mod prelude {
-    pub use super::{key_glyph_asset_paths, key_glyph_stem, KeyGlyphs, KEY_GLYPH_DIR};
+    pub use super::{
+        key_glyph_asset_paths, key_glyph_stem, trimmed_cap, KeyCap, KeyGlyphs, KEY_GLYPH_DIR,
+    };
 }
 
 /// Where the keycap art lives, relative to `assets/`.
@@ -93,36 +95,177 @@ pub fn key_glyph_asset_paths() -> Vec<String> {
     paths
 }
 
-/// The preloaded keycap handles, keyed by display label - built by asset
-/// loading from the `GameAssets::key_glyphs` mapped collection and published on
+/// One preloaded keycap: the picture, plus the sub-rect the drawn cap actually
+/// occupies inside it.
+///
+/// Every file under [`KEY_GLYPH_DIR`] is a 128x128 canvas, but the caps are NOT
+/// square: a letter cap is drawn 96x104, the wide modifiers (Tab, Shift, Ctrl)
+/// 112x74, Space 128x68, and the mouse 76x128 - each centred in the canvas with
+/// transparent bands around it. Rendering that canvas into a square box throws
+/// the difference away, which cost the wide caps ~40% of their height and made
+/// their legends unreadable (owner playtest 2026-07-30, task 20260730-122940).
+///
+/// So a cap carries its own bounds, measured from the alpha channel at load
+/// ([`KeyGlyphs::measure_caps`]), and every HUD site sizes from them: HEIGHT is
+/// pinned to the site's constant, width follows the aspect. `cap` is `None`
+/// until the scan runs (and on bare rigs that never load pixels), where the
+/// whole canvas at a 1:1 box is the old, harmless behaviour.
+#[derive(Clone, Debug)]
+pub struct KeyCap {
+    image: Handle<Image>,
+    cap: Option<Rect>,
+}
+
+impl KeyCap {
+    /// The keycap picture.
+    pub fn image(&self) -> &Handle<Image> {
+        &self.image
+    }
+
+    /// The drawn cap's bounds inside the canvas, in texture pixels - `None`
+    /// while unmeasured.
+    pub fn cap(&self) -> Option<Rect> {
+        self.cap
+    }
+
+    /// The cap's width:height. 1.0 while unmeasured, which reproduces the
+    /// square box this type replaced.
+    pub fn aspect(&self) -> f32 {
+        self.cap
+            .filter(|cap| cap.height() > 0.0)
+            .map_or(1.0, |cap| cap.width() / cap.height())
+    }
+
+    /// The on-screen node box for this cap at `height_px` - THE sizing rule:
+    /// height is the site's constant, width follows the art.
+    pub fn node_size(&self, height_px: f32) -> Vec2 {
+        Vec2::new(height_px * self.aspect(), height_px)
+    }
+
+    /// Point an existing image node at this cap, sized for `height_px`. The one
+    /// path every keycap site goes through, whether it spawns the node
+    /// ([`KeyCap::node`]) or repaints it every frame.
+    pub fn apply(&self, height_px: f32, image: &mut ImageNode, node: &mut Node) {
+        if image.image != self.image {
+            image.image = self.image.clone();
+        }
+        if image.rect != self.cap {
+            image.rect = self.cap;
+        }
+        let size = self.node_size(height_px);
+        node.width = Val::Px(size.x);
+        node.height = Val::Px(size.y);
+    }
+
+    /// Whether `image`/`node` already draw this cap at `height_px` - the guard
+    /// a per-frame repainter needs so it does not dirty a `Node` (and with it a
+    /// UI relayout) on every quiet pass.
+    pub fn is_applied(&self, image: &ImageNode, node: &Node, height_px: f32) -> bool {
+        let size = self.node_size(height_px);
+        image.image == self.image
+            && image.rect == self.cap
+            && node.width == Val::Px(size.x)
+            && node.height == Val::Px(size.y)
+    }
+
+    /// The image node and `Node` for a cap drawn at `height_px`, for sites that
+    /// spawn their keycap rather than repainting it.
+    pub fn node(&self, height_px: f32) -> (ImageNode, Node) {
+        let mut image = ImageNode::default();
+        let mut node = Node::default();
+        self.apply(height_px, &mut image, &mut node);
+        (image, node)
+    }
+}
+
+/// The opaque bounds of `image`, in texture pixels, or `None` when the image
+/// carries no readable pixels (not loaded yet, or uploaded render-world-only)
+/// or is fully transparent.
+///
+/// One alpha scan per glyph over a 128x128 canvas, run once at load: cheap
+/// enough not to need caching beyond the [`KeyGlyphs`] map, and free of any
+/// filesystem or platform assumption, so it works identically on wasm.
+pub fn trimmed_cap(image: &Image) -> Option<Rect> {
+    let (width, height) = (image.width(), image.height());
+    let mut min = UVec2::new(width, height);
+    let mut max = UVec2::ZERO;
+    for y in 0..height {
+        for x in 0..width {
+            let opaque = image
+                .get_color_at(x, y)
+                .is_ok_and(|color| color.alpha() > 0.0);
+            if opaque {
+                min = min.min(UVec2::new(x, y));
+                max = max.max(UVec2::new(x + 1, y + 1));
+            }
+        }
+    }
+    (min.x < max.x && min.y < max.y)
+        .then(|| Rect::new(min.x as f32, min.y as f32, max.x as f32, max.y as f32))
+}
+
+/// The preloaded keycaps, keyed by display label - built by asset loading from
+/// the `GameAssets::key_glyphs` mapped collection and published on
 /// [`super::NovaHudAssets`]. Empty on bare-app rigs that never ran asset
 /// loading, which is exactly the text-chip fallback path.
 #[derive(Clone, Default, Debug)]
-pub struct KeyGlyphs(HashMap<&'static str, bevy::prelude::Handle<bevy::image::Image>>);
+pub struct KeyGlyphs(HashMap<&'static str, KeyCap>);
 
 impl KeyGlyphs {
-    /// Build the label->handle map from a stem-keyed collection (the caller
+    /// Build the label->keycap map from a stem-keyed collection (the caller
     /// resolves each stem in [`KEY_GLYPH_FILES`]); a stem the collection does
-    /// not carry is skipped, so a partial load degrades to text chips.
-    pub fn from_stems(
-        mut resolve: impl FnMut(&str) -> Option<bevy::prelude::Handle<bevy::image::Image>>,
-    ) -> Self {
+    /// not carry is skipped, so a partial load degrades to text chips. The caps
+    /// come out UNMEASURED - [`KeyGlyphs::measure_caps`] fills them in once the
+    /// pixels are there.
+    pub fn from_stems(mut resolve: impl FnMut(&str) -> Option<Handle<Image>>) -> Self {
         Self(
             KEY_GLYPH_FILES
                 .iter()
-                .filter_map(|(label, stem)| resolve(stem).map(|handle| (*label, handle)))
+                .filter_map(|(label, stem)| {
+                    resolve(stem).map(|image| (*label, KeyCap { image, cap: None }))
+                })
                 .collect(),
         )
     }
 
+    /// Scan every held glyph's alpha channel for the cap it draws, so the HUD
+    /// can size from the ART instead of from the canvas. Returns how many caps
+    /// resolved; a glyph whose pixels are not readable keeps its square
+    /// fallback rather than rendering a sliver.
+    pub fn measure_caps(&mut self, images: &Assets<Image>) -> usize {
+        // Several labels share one keycap (both Control keys, both Shifts), so
+        // scan each distinct IMAGE once and fan the answer out.
+        let mut scanned: Vec<(AssetId<Image>, Option<Rect>)> = Vec::new();
+        for cap in self.0.values_mut() {
+            let id = cap.image.id();
+            let measured = match scanned.iter().find(|(known, _)| *known == id) {
+                Some((_, rect)) => *rect,
+                None => {
+                    let rect = images.get(&cap.image).and_then(trimmed_cap);
+                    scanned.push((id, rect));
+                    rect
+                }
+            };
+            cap.cap = measured;
+        }
+        self.0.values().filter(|cap| cap.cap.is_some()).count()
+    }
+
     /// The keycap for `label`, or `None` (unmapped key, or assets not loaded).
-    pub fn get(&self, label: &str) -> Option<bevy::prelude::Handle<bevy::image::Image>> {
+    pub fn get(&self, label: &str) -> Option<KeyCap> {
         self.0.get(label).cloned()
     }
 
     /// Whether any glyph is loaded (bare-app rigs carry none).
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+
+    /// How many keycap LABELS are held - the denominator for "did every
+    /// preloaded glyph resolve a cap". Labels, not images: several labels share
+    /// one keycap, which [`KeyGlyphs::measure_caps`] scans once and fans out.
+    pub fn len(&self) -> usize {
+        self.0.len()
     }
 }
 

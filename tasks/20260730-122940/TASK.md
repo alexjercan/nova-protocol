@@ -1,6 +1,6 @@
 # Wide keycaps (Tab/Shift/Space) render at their art aspect, height-constrained
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 46
 - TAGS: v0.9.0,ui,hud,feedback
 
@@ -56,26 +56,53 @@ dependency, no filesystem access - the images are already loaded via
 
 ## Steps
 
-- [ ] Reproduce first: a rig asserting the rendered node for a WIDE key is
+- [x] Reproduce first: a rig asserting the rendered node for a WIDE key is
       wider than it is tall and that its cap fills the box height, alongside a
       near-square key that stays near-square. Watch it fail on today's square
       box; record the measured before-numbers in NOTES.md.
-- [ ] Compute the trimmed bbox + aspect per glyph once the glyph collection
+- [x] Compute the trimmed bbox + aspect per glyph once the glyph collection
       finishes loading, into a resource beside `NovaHudAssets::key_glyphs`.
       Handle the not-yet-loaded frame the same way the dock already handles it
       (`assets.is_changed()` re-paint).
-- [ ] Teach `paint_key_visual` to size from that resource: height pinned to the
+- [x] Teach `paint_key_visual` to size from that resource: height pinned to the
       site's constant, width derived, `ImageNode.rect` set to the cap bbox.
       Cover all three sites - dock chips, anchored cues, objective-stack TAB
       footer - rather than only the dock.
-- [ ] Re-check the chip layouts a wider keycap now sits in: the dock row's
+- [x] Re-check the chip layouts a wider keycap now sits in: the dock row's
       `column_gap`/centring, the cue chips over the world, and the TAB footer.
       Adjust the constants if a wide cap now crowds its verb word.
-- [ ] Correct the `GLYPH_PX` doc paragraph (it currently asserts the wide caps
+- [x] Correct the `GLYPH_PX` doc paragraph (it currently asserts the wide caps
       are small by construction and that this is not a squash).
-- [ ] Sweep for any other square-boxed key glyph site before closing.
-- [ ] Screenshot and LOOK at a dock with a wide cap in it (ledger: eyeball the
+- [x] Sweep for any other square-boxed key glyph site before closing.
+- [x] Screenshot and LOOK at a dock with a wide cap in it (ledger: eyeball the
       rendered output).
+
+## Close-out (2026-07-30)
+
+The cap's shape comes from an alpha TRIM at load, not a hand-maintained table,
+and every site pins the HEIGHT (DECISION.md). `KeyGlyphs` now holds `KeyCap`s
+instead of bare handles; `KeyCap::apply`/`node` is the single sizing path, and
+`nova_assets::update_nova_hud_assets` scans the caps in
+`OnEnter(GameAssetsStates::Processing)` where the collection is loaded.
+
+- Fail-first: `wide_keycaps_render_at_their_art_aspect` measured `Vec2(22.0,
+  22.0)` (aspect 1.000) against Tab/Ctrl's real 1.514 art; numbers and the
+  per-cap before/after table are in NOTES.md.
+- Layout re-check: no constant needed changing. The dock row is
+  `justify_content: Center` with a 7 px gap and the chips are content-sized, so
+  the wider caps just widen their own chips and the row re-centres; the cue
+  chips hug their content (`ScreenIndicatorSize::Content`) and the TAB footer is
+  a plain flex row. The eyeball crop confirms nothing crowds its verb word.
+- Sweep: `rg -n 'GLYPH_PX|CUE_GLYPH_PX' crates/nova_gameplay/src/hud` shows no
+  production site setting `width == height`; `rg -l 'key_glyphs|KEY_GLYPH_DIR'`
+  finds no fourth keycap site outside the three fixed here.
+- Eyeball: `shots/dock-before.png` vs `shots/dock-after.png`, same crop, same
+  zoom. `Ctrl`/`Shift` go from smudges to legible.
+- CHANGELOG's (unreleased) dock entry now states the art-proportion rule.
+  Backlog 20260728-214929 carries an interim note that it inherits `KeyCap`.
+- Inherited red, filed as 20260730-161545 and NOT caused here:
+  `nova_assets ... an_early_derelict_kill_skips_to_the_fight` fails on the base
+  commit too (verified by stashing).
 
 ## Definition of Done
 
@@ -101,4 +128,5 @@ inherits whatever sizing path this task lands - note it there when this closes.
 
 ## Flow State
 
-- FLOW STEP: PLANNED
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED

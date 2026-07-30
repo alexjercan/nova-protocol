@@ -30,8 +30,8 @@ use bevy::{platform::collections::HashSet, prelude::*};
 use nova_ui::hud as chip;
 
 use super::{
-    emphasis::prelude::*, screen_indicator::prelude::*, situation::prelude::*, NovaHudAssets,
-    OBJECTIVE_GOLD,
+    emphasis::prelude::*, key_glyphs::prelude::*, screen_indicator::prelude::*,
+    situation::prelude::*, NovaHudAssets, OBJECTIVE_GOLD,
 };
 use crate::{input::prelude::*, sections::controller_section::prelude::FlightVerb};
 
@@ -43,15 +43,14 @@ pub mod prelude {
     };
 }
 
-/// The keycap picture's on-screen size (px) inside a chip - demo 2's `.ki`.
-/// Square, because the ART is square: every PNG under
-/// `assets/input-prompts/keyboard/Alt/` is a 128x128 canvas, and the wide caps
-/// (Ctrl, Shift, Space) are drawn smaller INSIDE it rather than on a wider
-/// canvas. So a wide cap's legend is small at this size by construction - that
-/// is the art, not a squash, and the verb word beside it carries the meaning.
+/// The keycap picture's on-screen HEIGHT (px) inside a chip - demo 2's `.ki`.
+/// Height only: the PNGs share a square 128x128 canvas but the caps drawn in it
+/// do not (a letter cap is 96x104, Tab/Shift/Ctrl 112x74, Space 128x68), so the
+/// width follows each cap's own aspect and a wide cap draws WIDE at full legend
+/// size instead of being squeezed into a square. [`KeyCap`] owns that rule.
 const GLYPH_PX: f32 = 22.0;
 
-/// The (smaller) keycap size on an anchored cue, which sits over the world and
+/// The (smaller) keycap height on an anchored cue, which sits over the world and
 /// must not eclipse the thing it labels.
 const CUE_GLYPH_PX: f32 = 20.0;
 
@@ -262,10 +261,12 @@ pub fn keybind_dock_hud() -> impl Bundle {
                 (
                     ChipGlyph,
                     ImageNode::default(),
+                    // No size here: the keycap's box depends on WHICH cap the
+                    // live binding resolves to, and only `paint_key_visual`
+                    // knows that. A hand-set square here would be both dead and
+                    // wrong for every wide cap.
                     Node {
                         display: Display::None,
-                        width: Val::Px(GLYPH_PX),
-                        height: Val::Px(GLYPH_PX),
                         ..default()
                     },
                     Pickable::IGNORE,
@@ -348,10 +349,10 @@ pub fn verb_cues_hud() -> impl Bundle {
                 (
                     ChipGlyph,
                     ImageNode::default(),
+                    // Sized by `paint_key_visual` from the live binding's cap,
+                    // exactly like the dock's chips.
                     Node {
                         display: Display::None,
-                        width: Val::Px(CUE_GLYPH_PX),
-                        height: Val::Px(CUE_GLYPH_PX),
                         ..default()
                     },
                     Pickable::IGNORE,
@@ -510,10 +511,12 @@ fn dock_verb(index: usize) -> &'static str {
 ///
 /// Shared by the dock and the anchored cues (generic over their query filters,
 /// which differ only in the `Without` terms each system needs to stay disjoint
-/// from its own root query).
+/// from its own root query). `height_px` is the SITE's keycap height; the width
+/// comes from the cap's own aspect, via [`KeyCap::apply`].
 fn paint_key_visual<FG, FT>(
     key: &str,
-    glyph: Option<Handle<Image>>,
+    cap: Option<KeyCap>,
+    height_px: f32,
     tint: Color,
     children: &Children,
     q_glyph: &mut Query<(&mut ImageNode, &mut Node), FG>,
@@ -524,7 +527,7 @@ fn paint_key_visual<FG, FT>(
 {
     for &child in children {
         if let Ok((mut image, mut node)) = q_glyph.get_mut(child) {
-            let display = if glyph.is_some() {
+            let display = if cap.is_some() {
                 Display::Flex
             } else {
                 Display::None
@@ -532,15 +535,17 @@ fn paint_key_visual<FG, FT>(
             if node.display != display {
                 node.display = display;
             }
-            if let Some(handle) = glyph.clone() {
-                if image.image != handle {
-                    image.image = handle;
+            if let Some(cap) = cap.as_ref() {
+                // Guarded: `apply` writes the node's box, and dirtying a `Node`
+                // costs a UI relayout even when the numbers are unchanged.
+                if !cap.is_applied(&image, &node, height_px) {
+                    cap.apply(height_px, &mut image, &mut node);
                 }
             }
             image.color = tint;
         }
         if let Ok((mut text, mut node)) = q_key_text.get_mut(child) {
-            let display = if glyph.is_some() {
+            let display = if cap.is_some() {
                 Display::None
             } else {
                 Display::Flex
@@ -548,7 +553,7 @@ fn paint_key_visual<FG, FT>(
             if node.display != display {
                 node.display = display;
             }
-            if glyph.is_none() && **text != key {
+            if cap.is_none() && **text != key {
                 **text = key.to_string();
             }
         }
@@ -629,10 +634,11 @@ fn update_dock(
         fill.set_if_neq(BackgroundColor(fill_color));
         border.set_if_neq(BorderColor::all(border_color));
 
-        let glyph = glyphs.and_then(|glyphs| glyphs.get(&hint.key));
+        let cap = glyphs.and_then(|glyphs| glyphs.get(&hint.key));
         paint_key_visual(
             &hint.key,
-            glyph,
+            cap,
+            GLYPH_PX,
             glyph_tint(next),
             children,
             &mut q_glyph,
@@ -753,7 +759,7 @@ fn drive_orbit_cue(
     if !hints.is_changed() && !assets_changed && q_added.is_empty() {
         return;
     }
-    let glyph = assets
+    let cap = assets
         .as_ref()
         .and_then(|assets| assets.key_glyphs.get(&hints.orbit.key));
     for (mut anchor, mut node, children) in &mut q_ui {
@@ -772,7 +778,8 @@ fn drive_orbit_cue(
         // way).
         paint_key_visual(
             &hints.orbit.key,
-            glyph.clone(),
+            cap.clone(),
+            CUE_GLYPH_PX,
             Color::WHITE,
             children,
             &mut q_glyph,
@@ -803,7 +810,7 @@ fn drive_goto_cue(
     if !hints.is_changed() && !assets_changed && q_added.is_empty() {
         return;
     }
-    let glyph = assets
+    let cap = assets
         .as_ref()
         .and_then(|assets| assets.key_glyphs.get(&hints.goto.key));
     for (mut anchor, mut node, children) in &mut q_ui {
@@ -819,7 +826,8 @@ fn drive_goto_cue(
         }
         paint_key_visual(
             &hints.goto.key,
-            glyph.clone(),
+            cap.clone(),
+            CUE_GLYPH_PX,
             Color::WHITE,
             children,
             &mut q_glyph,
@@ -878,7 +886,7 @@ mod tests {
 
     /// Every verb bound AND actionable - the fixture for assertions about a
     /// FULL dock, now that the dock hides what you cannot press.
-    fn all_available_hints() -> FlightVerbHints {
+    pub(super) fn all_available_hints() -> FlightVerbHints {
         let mut resource = hints(true, false, None);
         for hint in [
             &mut resource.goto,
@@ -925,7 +933,7 @@ mod tests {
         })
     }
 
-    fn chips(app: &App) -> Vec<Entity> {
+    pub(super) fn chips(app: &App) -> Vec<Entity> {
         let dock = app
             .world()
             .iter_entities()
@@ -1648,5 +1656,258 @@ mod tests {
             KEY_GLYPH_FILES.len() >= DOCK_VERBS.len(),
             "delivery guard: the mapping table is populated"
         );
+    }
+}
+
+/// Live-tree keycap SIZING rig (task 20260730-122940).
+///
+/// The wide caps (Tab, Shift, Ctrl, Space) are drawn wide-and-short inside a
+/// square 128x128 canvas, so a `width == height` node threw ~40% of their
+/// height away and shrank the legend with it. These tests measure the real
+/// laid-out `ComputedNode` of a chip's keycap and check it against
+/// INDEPENDENTLY measured art bounds.
+#[cfg(test)]
+mod keycap_sizing_tests {
+    use bevy::ecs::system::RunSystemOnce;
+
+    use super::{
+        tests::{all_available_hints, chips},
+        *,
+    };
+    use crate::hud::{
+        chip_layout_rig::{chip_layout_app, load_png, measure, only_descendant_with, settle},
+        key_glyphs::{trimmed_cap, KeyGlyphs, KEY_GLYPH_DIR, KEY_GLYPH_FILES},
+    };
+
+    /// The opaque bounding box of each keycap inside its 128x128 canvas,
+    /// measured OUTSIDE this code base on 2026-07-30 with
+    /// `magick <file> -alpha extract -threshold 0 -format '%@' info:`
+    /// (`WxH+X+Y`), then written here as `[min_x, min_y, max_x, max_y]`.
+    ///
+    /// Independent by construction: nothing here re-runs the production trim,
+    /// so a trim that scans the wrong channel or the wrong axis fails instead
+    /// of agreeing with itself (LESSONS `test-must-not-reuse-the-formula-under-test`).
+    const MEASURED_CAPS: &[(&str, &str, [f32; 4])] = &[
+        // 96x104+16+16 - the near-square letter caps.
+        ("X", "T_X_Key_Alt", [16.0, 16.0, 112.0, 120.0]),
+        ("O", "T_O_Key_Alt", [16.0, 16.0, 112.0, 120.0]),
+        // 112x74+8+32 - the wide modifier caps.
+        ("CTRL", "T_Crtl_Key_Alt", [8.0, 32.0, 120.0, 106.0]),
+        ("SHIFT", "T_Shift_Key_Alt", [8.0, 32.0, 120.0, 106.0]),
+        ("Tab", "T_Tab_Key_Alt", [8.0, 32.0, 120.0, 106.0]),
+        // 128x68+0+32 - the widest cap of all, canvas-wide.
+        ("Space", "T_Space_Key_Alt", [0.0, 32.0, 128.0, 100.0]),
+        // 76x128+28+0 - the TALL odd one out: a mouse, not a keycap.
+        (
+            "SCROLL",
+            "T_Mouse_Scroll_Key_Dark_Key_Alt",
+            [28.0, 0.0, 104.0, 128.0],
+        ),
+    ];
+
+    /// The independently measured bounds of `label`'s cap.
+    fn measured_cap(label: &str) -> Rect {
+        let [min_x, min_y, max_x, max_y] = MEASURED_CAPS
+            .iter()
+            .find(|(key, _, _)| *key == label)
+            .unwrap_or_else(|| panic!("no hand-measured bounds recorded for '{label}'"))
+            .2;
+        Rect::new(min_x, min_y, max_x, max_y)
+    }
+
+    /// The REAL glyph lookup with REAL decoded pixels behind every handle -
+    /// what the game has once the preload collection lands, and the only shape
+    /// in which a trim scan has anything to scan.
+    fn loaded_glyphs(app: &mut App) -> KeyGlyphs {
+        let mut handles: Vec<(&'static str, Handle<Image>)> = Vec::new();
+        for (_, stem) in KEY_GLYPH_FILES {
+            if handles.iter().any(|(known, _)| known == stem) {
+                continue;
+            }
+            let handle = load_png(app, &format!("{KEY_GLYPH_DIR}/{stem}.png"));
+            handles.push((stem, handle));
+        }
+        assert!(
+            !handles.is_empty(),
+            "delivery guard: the mapping table names keycap files"
+        );
+        KeyGlyphs::from_stems(|stem| {
+            handles
+                .iter()
+                .find(|(known, _)| *known == stem)
+                .map(|(_, handle)| handle.clone())
+        })
+    }
+
+    /// A dock laid out for real, with every keycap decoded and the glyph
+    /// metrics scanned exactly as asset loading scans them.
+    fn dock_app() -> (App, Vec<Entity>) {
+        let mut app = chip_layout_app();
+        app.init_resource::<HudSituations>();
+        app.init_resource::<HintEmphasis>();
+        app.insert_resource(all_available_hints());
+        let mut glyphs = loaded_glyphs(&mut app);
+        glyphs.measure_caps(app.world().resource::<Assets<Image>>());
+        app.insert_resource(NovaHudAssets {
+            key_glyphs: glyphs,
+            ..default()
+        });
+        app.world_mut().spawn(keybind_dock_hud());
+        app.add_systems(Update, update_dock);
+        settle(&mut app);
+        let chips = chips(&app);
+        (app, chips)
+    }
+
+    /// The `ChipGlyph` node inside dock chip `index`.
+    fn chip_glyph(app: &mut App, chips: &[Entity], index: usize) -> Entity {
+        only_descendant_with::<ChipGlyph>(app, chips[index])
+    }
+
+    /// DoD 1: a wide cap renders at the aspect its ART carries, with the cap
+    /// filling the box height - and a near-square cap stays near-square.
+    ///
+    /// This is the failing-first rig for task 20260730-122940: on the square
+    /// `width == height` box every chip measured 22x22 regardless of its art.
+    #[test]
+    fn wide_keycaps_render_at_their_art_aspect() {
+        let (mut app, chips) = dock_app();
+
+        // Dock order is DOCK_VERBS; index 4 is RADAR, whose live key is CTRL
+        // (a WIDE cap), index 0 is STOP on X (a near-square cap).
+        for (index, label) in [(4usize, "CTRL"), (0, "X")] {
+            let cap = measured_cap(label);
+            let glyph = chip_glyph(&mut app, &chips, index);
+            let size = measure(&app, glyph).size;
+            let expected_width = GLYPH_PX * cap.width() / cap.height();
+
+            assert!(
+                (size.y - GLYPH_PX).abs() <= 0.5,
+                "{label}: the cap is pinned to the site's height ({GLYPH_PX}), got {size:?}"
+            );
+            // Within a pixel: bevy_ui rounds every computed node to whole
+            // PHYSICAL pixels, so an exact match is not on offer - and a pixel
+            // is far tighter than the ~11 px the square box was wrong by.
+            assert!(
+                (size.x - expected_width).abs() <= 1.0,
+                "{label}: the rendered box is {size:?}, but the art's opaque cap \
+                 is {cap:?} - at a pinned height of {GLYPH_PX} that is \
+                 {expected_width:.1} px wide"
+            );
+
+            let rect = app
+                .world()
+                .get::<ImageNode>(glyph)
+                .expect("the glyph node carries an ImageNode")
+                .rect;
+            assert_eq!(
+                rect,
+                Some(cap),
+                "{label}: the node must draw the CAP sub-rect, not the whole \
+                 canvas - otherwise the transparent bands eat the height again"
+            );
+        }
+    }
+
+    /// The anchored cues carry the SAME sizing path at their OWN height - the
+    /// site a fix aimed at the dock alone would miss (LESSONS
+    /// `pin-each-caller-not-just-shared-core`).
+    #[test]
+    fn the_anchored_cue_sizes_its_keycap_at_the_cue_height() {
+        let mut app = chip_layout_app();
+        let mut glyphs = loaded_glyphs(&mut app);
+        glyphs.measure_caps(app.world().resource::<Assets<Image>>());
+        app.insert_resource(NovaHudAssets {
+            key_glyphs: glyphs,
+            ..default()
+        });
+
+        let well = app.world_mut().spawn_empty().id();
+        let mut hints = all_available_hints();
+        hints.orbit.anchor = Some(well);
+        app.insert_resource(hints);
+
+        let layer = app.world_mut().spawn(verb_cues_hud()).id();
+        let orbit = app.world().entity(layer).get::<Children>().unwrap()[0];
+        app.world_mut().run_system_once(drive_orbit_cue).unwrap();
+        settle(&mut app);
+
+        // ORBIT is bound to O, a near-square cap: what this pins is that the
+        // cue's OWN height constant reaches the shared path, not the dock's.
+        let cap = measured_cap("O");
+        let glyph = only_descendant_with::<ChipGlyph>(&mut app, orbit);
+        let size = measure(&app, glyph).size;
+        assert!(
+            (size.y - CUE_GLYPH_PX).abs() <= 0.5,
+            "the cue's cap is pinned to CUE_GLYPH_PX ({CUE_GLYPH_PX}), got {size:?}"
+        );
+        let expected_width = CUE_GLYPH_PX * cap.width() / cap.height();
+        assert!(
+            (size.x - expected_width).abs() <= 1.0,
+            "the cue's cap measured {size:?}, but O's art is {cap:?} - at a \
+             pinned height of {CUE_GLYPH_PX} that is {expected_width:.1} px wide"
+        );
+        assert_eq!(
+            app.world().entity(glyph).get::<ImageNode>().unwrap().rect,
+            Some(cap),
+            "the cue draws the cap sub-rect too"
+        );
+    }
+
+    /// The trim itself, pinned against the hand-measured art: a scan that read
+    /// the wrong channel, transposed the axes or was off by a row would agree
+    /// with the production sizing and disagree here.
+    #[test]
+    fn the_trim_finds_the_hand_measured_cap_bounds() {
+        let mut app = chip_layout_app();
+        for (label, stem, _) in MEASURED_CAPS {
+            let handle = load_png(&mut app, &format!("{KEY_GLYPH_DIR}/{stem}.png"));
+            let images = app.world().resource::<Assets<Image>>();
+            let image = images.get(&handle).expect("the rig decoded the PNG");
+            assert_eq!(
+                (image.width(), image.height()),
+                (128, 128),
+                "{label}: the keycap art is a 128x128 canvas"
+            );
+            assert_eq!(
+                trimmed_cap(image),
+                Some(measured_cap(label)),
+                "{label}: the alpha trim disagrees with the art's measured bounds"
+            );
+        }
+    }
+
+    /// DoD 3: EVERY preloaded glyph resolves a cap, and a plausible one - a
+    /// future glyph on an unexpected canvas (or one the scan cannot read) must
+    /// fail loudly here instead of drawing a sliver in the dock.
+    #[test]
+    fn every_preloaded_glyph_resolves_a_plausible_cap() {
+        let mut app = chip_layout_app();
+        let mut glyphs = loaded_glyphs(&mut app);
+        let resolved = glyphs.measure_caps(app.world().resource::<Assets<Image>>());
+
+        assert!(!glyphs.is_empty(), "delivery guard: the rig loaded keycaps");
+        assert_eq!(
+            resolved,
+            glyphs.len(),
+            "every preloaded keycap must resolve a cap rect"
+        );
+
+        for (label, _) in KEY_GLYPH_FILES {
+            let cap = glyphs.get(label).expect("a mapped label resolves").cap();
+            let cap = cap.unwrap_or_else(|| panic!("{label}: no cap measured"));
+            assert!(
+                cap.min.x >= 0.0 && cap.min.y >= 0.0 && cap.max.x <= 128.0 && cap.max.y <= 128.0,
+                "{label}: the cap {cap:?} escapes the 128x128 canvas"
+            );
+            // Half the canvas in each axis: every cap in this set spans at
+            // least 68 of 128 px, so anything thinner is a glyph whose canvas
+            // or padding changed and whose sizing wants a fresh look.
+            assert!(
+                cap.width() >= 64.0 && cap.height() >= 64.0,
+                "{label}: the cap {cap:?} covers less than half the canvas - \
+                 has the art changed shape?"
+            );
+        }
     }
 }

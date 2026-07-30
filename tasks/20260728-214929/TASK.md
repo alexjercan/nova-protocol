@@ -55,3 +55,14 @@ moves to `credits/CREDITS.md` + `credits/licenses/` with 20260728-233707 (the
 old `examples/ui/assets/input-prompts/NOTICE.md` is absorbed there). Depends on
 nothing hard, but best sequenced after the HUD restyle child (20260728-175742)
 so the HUD dock is the first real adopter.
+
+## Interim note (2026-07-30, task 20260730-122940)
+
+The keycap SIZING path is settled and this task inherits it: every glyph is
+trimmed to the cap it actually paints (an alpha scan at load, in
+`nova_gameplay::hud::key_glyphs`), and a `KeyCap` sizes any site by pinning the
+HEIGHT and deriving the width from the art's aspect
+(`KeyCap::node`/`KeyCap::apply`). Every new surface adopted here - web key-UI,
+NOVA OS help, editor chips - goes through `KeyCap` rather than setting a square
+box; the "Sizing/tint" bullet above now only has the TINT half left to decide.
+Rationale in `tasks/20260730-122940/DECISION.md`.

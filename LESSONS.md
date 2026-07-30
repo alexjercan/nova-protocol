@@ -162,6 +162,13 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   the stage index answered in a single run what a frame-time argument had got
   backwards). Cheaper than the theory, and it settles rather than narrows.
   20260729-222131.
+- `public-surface-pass-before-review` (x1, -> work skill): when a diff adds
+  public API, read the new SURFACE once as API before handing it over - is every
+  new `pub` item exported the way the repo requires (nova-protocol: through the
+  module's `prelude`), and does clippy have an opinion about its signature
+  (`len() > 0` where the type has `is_empty`)? Both of a round's findings were
+  that pass never happening: the API grew incrementally while chasing behaviour,
+  and nothing forces a look at it as a whole. 20260730-122940.
 - `commit-review-retro-before-land` (x2, -> flow/review skills): commit
   REVIEW.md (and any retro/decision file) on the feature branch and confirm the
   worktree `git status` is clean BEFORE `sprout land` - the squash only takes
@@ -825,7 +832,7 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   security boundary name it and default to the safe path. 20260715-214540.
 - `nix-devshell-for-cargo` (x2): no cargo on PATH means prefix with
   `nix develop --command ...` from the repo. 20260715-140049.
-- `reuse-known-good-stack` (x8, positive -> Pending promotions): scaffold new
+- `reuse-known-good-stack` (x9, positive -> Pending promotions): scaffold new
   work - and TEST RIGS especially - by copying the nearest passing in-repo
   reference verbatim, THEN mutate; reconstructing from a signature cost build
   cycles repeatedly (a hand-rolled pad-toggle test re-hit the exact `press_tab`
@@ -838,7 +845,7 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   mechanical). The nearest reference may live in the DEPENDENCY, not the repo:
   a hand-derived bevy_ui layout rig cost three anonymous system-param panics
   that bevy_ui's own `setup_ui_test_app` (`layout/mod.rs`) would have avoided.
-  20260712-093048, 20260711-180511, 20260724-102304, 20260721-211520, 20260724-121541, 20260730-122909.
+  20260712-093048, 20260711-180511, 20260724-102304, 20260721-211520, 20260724-121541, 20260730-122909, 20260730-122940.
 - `bulk-replace-edits-more-than-you-aimed-at` (x1): a scripted `str.replace`
   (or `sed`) for a SINGLE-site source edit is replace-ALL by default - one meant
   for a new capture beat also rewrote the scenario constant behind a published
@@ -993,11 +1000,14 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   `npm test` already compiles first (`tsc --module commonjs ... --outDir
   .test-out && node .test-out/...`); also rm `.test-out`/`dist` before commit.
   20260726-210348, 20260728-185730.
-- `compare-crops-at-one-zoom` (x1): a before/after VISUAL comparison must be
+- `compare-crops-at-one-zoom` (x2): a before/after VISUAL comparison must be
   rendered at identical crop and scale or the difference you see is the resize -
-  two eyeball crops at 150% and 200% "proved" a glyph-sizing fix that was
-  provably a no-op. When the claim is about an ASSET's shape, `magick identify`
-  it instead of eyeballing. 20260728-175742.
+  two eyeball crops at 150% and 200% "proved" a glyph-sizing fix that was a
+  no-op. Capture the BEFORE while the tree is still unmodified (reverting for it
+  later costs a full rebuild), and when the claim is about an ASSET's shape
+  MEASURE it (`magick identify`, `-alpha extract -threshold 0 -format '%@'`)
+  instead of eyeballing - those numbers are also the independent expectation the
+  rig should assert against. 20260728-175742, 20260730-122940.
 - `outcome-test-hides-a-dead-redundant-path` (x1): when a value is written by
   BOTH a spawn-time initializer and a per-frame updater, a test asserting the
   final state passes with the initializer completely broken (a dock looked up
@@ -1475,7 +1485,7 @@ here (annotated) as the paid record.
   touched crates before trusting a workspace check". A tool guard is hard (the
   feature unification is per-crate), so a work-skill line is the realistic home.
   20260718-004834, 20260718-102022, 20260724-193830.
-- `reuse-known-good-stack` (x8, positive) -> work skill: scaffold a new test rig
+- `reuse-known-good-stack` (x9, positive) -> work skill: scaffold a new test rig
   by copying the nearest passing sibling rig verbatim, then mutate - do not
   reconstruct it from the system's parameter signature (a hand-built CRT rig
   omitted the sibling's `init_asset::<Font>/<Image>` and panicked in the

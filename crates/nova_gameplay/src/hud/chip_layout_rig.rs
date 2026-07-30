@@ -18,9 +18,9 @@
 //! in `LESSONS.md`.
 
 use bevy::{
-    asset::{AssetApp, AssetPlugin},
+    asset::{AssetApp, AssetPlugin, RenderAssetUsages},
     camera::{Camera, ComputedCameraValues, RenderTargetInfo},
-    image::{Image, TextureAtlasLayout},
+    image::{CompressedImageFormats, Image, ImageSampler, ImageType, TextureAtlasLayout},
     math::{Rect, UVec2},
     prelude::*,
     text::TextPlugin,
@@ -74,6 +74,32 @@ pub(super) fn chip_layout_app() -> App {
     ));
 
     app
+}
+
+/// Decode a real PNG from the repo's `assets/` tree straight into
+/// `Assets<Image>` and return its handle.
+///
+/// The asset SERVER cannot serve a rig: its loads are asynchronous and nothing
+/// here pumps the IO task pool, so a `server.load` handle never gains pixel
+/// data. Anything that reads image CONTENT (the keycap trim scan) therefore
+/// needs the bytes decoded synchronously, exactly as the runtime image loader
+/// would - same sRGB flag, same `RenderAssetUsages::default()` (`MAIN_WORLD |
+/// RENDER_WORLD`, which is what keeps the data readable in the main world at
+/// all).
+pub(super) fn load_png(app: &mut App, asset_path: &str) -> Handle<Image> {
+    let path = std::path::Path::new("../../assets").join(asset_path);
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|error| panic!("reading {}: {error}", path.display()));
+    let image = Image::from_buffer(
+        &bytes,
+        ImageType::Extension("png"),
+        CompressedImageFormats::NONE,
+        true,
+        ImageSampler::Default,
+        RenderAssetUsages::default(),
+    )
+    .unwrap_or_else(|error| panic!("decoding {}: {error}", path.display()));
+    app.world_mut().resource_mut::<Assets<Image>>().add(image)
 }
 
 /// Run enough frames for text measurement and layout to settle: measurement

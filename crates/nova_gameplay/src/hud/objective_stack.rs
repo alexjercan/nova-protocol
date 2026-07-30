@@ -88,7 +88,9 @@ const DIAMOND_PX: f32 = 7.0;
 const DIAMOND_BORDER_PX: f32 = 1.5;
 
 const CHIP_FONT_PX: f32 = 13.0;
-/// The TAB keycap on the stack's footer, sized like the dock's keycaps.
+/// The TAB keycap's HEIGHT on the stack's footer, sized like the dock's
+/// keycaps: the width follows the cap's own aspect (`KeyCap`), which matters
+/// here more than anywhere - Tab is one of the WIDE caps.
 const TAB_GLYPH_PX: f32 = 18.0;
 const TAB_FONT_PX: f32 = 11.0;
 
@@ -350,7 +352,7 @@ fn sync_objective_chips(
         return;
     }
 
-    let tab_glyph = assets
+    let tab_cap = assets
         .as_deref()
         .and_then(|assets| assets.key_glyphs.get("Tab"));
     commands.entity(stack).with_children(|stack| {
@@ -360,7 +362,7 @@ fn sync_objective_chips(
         }
         // One TAB affordance for the whole stack, riding it: it says "the full
         // list is in the computer", and it leaves when the last chip does.
-        stack.spawn(tab_footer(tab_glyph.clone()));
+        stack.spawn(tab_footer(tab_cap.clone()));
     });
 }
 
@@ -441,7 +443,7 @@ fn chip_alpha(factor: f32) -> Color {
 
 /// The stack's TAB footer: the keycap (or the word, on a rig with no glyphs)
 /// plus a muted hint that the full list lives in the computer.
-fn tab_footer(glyph: Option<Handle<Image>>) -> impl Bundle {
+fn tab_footer(cap: Option<KeyCap>) -> impl Bundle {
     (
         Name::new("ObjectiveStackTab"),
         ObjectiveStackTabMarker,
@@ -455,15 +457,10 @@ fn tab_footer(glyph: Option<Handle<Image>>) -> impl Bundle {
         children![
             (
                 Name::new("ObjectiveStackTabKey"),
-                match glyph {
-                    Some(glyph) => (
-                        ImageNode::new(glyph),
-                        Node {
-                            width: Val::Px(TAB_GLYPH_PX),
-                            height: Val::Px(TAB_GLYPH_PX),
-                            ..default()
-                        },
-                    ),
+                match cap {
+                    // One shared sizing path with the dock and the cues: the
+                    // cap decides its own box from TAB_GLYPH_PX.
+                    Some(cap) => cap.node(TAB_GLYPH_PX),
                     None => (
                         ImageNode::default(),
                         Node {
@@ -951,6 +948,104 @@ mod tests {
             chip_labels(&mut app),
             vec!["CRATES: 1/3".to_string()],
             "the re-worded posting is up immediately, with the new words"
+        );
+    }
+}
+
+/// The footer's TAB keycap, measured on a real layout pass (task
+/// 20260730-122940).
+///
+/// Tab is one of the WIDE caps (112x74 inside a 128x128 canvas), so this is the
+/// site where a square box hurt most: the same shared [`KeyCap`] sizing path the
+/// dock and the anchored cues use has to reach here too, or the affordance that
+/// tells the player where the objective list lives stays unreadable.
+#[cfg(test)]
+mod tab_footer_sizing_tests {
+    use bevy::ecs::system::RunSystemOnce;
+    use bevy_common_systems::prelude::Objective;
+
+    use super::*;
+    use crate::hud::{
+        chip_layout_rig::{chip_layout_app, load_png, measure, settle},
+        key_glyphs::{KeyGlyphs, KEY_GLYPH_DIR},
+    };
+
+    /// Tab's opaque bounds inside its canvas, measured OUTSIDE this code base
+    /// with `magick T_Tab_Key_Alt.png -alpha extract -threshold 0 -format '%@'
+    /// info:` -> `112x74+8+32`.
+    const MEASURED_TAB_CAP: [f32; 4] = [8.0, 32.0, 120.0, 106.0];
+
+    #[test]
+    fn the_footer_keycap_renders_at_tabs_art_aspect() {
+        let cap = Rect::new(
+            MEASURED_TAB_CAP[0],
+            MEASURED_TAB_CAP[1],
+            MEASURED_TAB_CAP[2],
+            MEASURED_TAB_CAP[3],
+        );
+
+        let mut app = chip_layout_app();
+        app.init_resource::<GameObjectives>();
+        app.init_resource::<ObjectiveNotifications>();
+
+        let tab = load_png(&mut app, &format!("{KEY_GLYPH_DIR}/T_Tab_Key_Alt.png"));
+        let mut key_glyphs =
+            KeyGlyphs::from_stems(|stem| (stem == "T_Tab_Key_Alt").then(|| tab.clone()));
+        key_glyphs.measure_caps(app.world().resource::<Assets<Image>>());
+        app.insert_resource(NovaHudAssets {
+            key_glyphs,
+            ..default()
+        });
+
+        app.world_mut().spawn(objective_stack_hud());
+        app.world_mut()
+            .resource_mut::<GameObjectives>()
+            .objectives
+            .push(Objective::new("salvage", "Salvage the wreck"));
+        // The production path: posting builds the notification, the sync
+        // rebuilds the chips and the footer under the stack root.
+        app.world_mut()
+            .run_system_once(post_objective_notifications)
+            .unwrap();
+        app.world_mut()
+            .run_system_once(sync_objective_chips)
+            .unwrap();
+        settle(&mut app);
+
+        let footer = app
+            .world_mut()
+            .query_filtered::<Entity, With<ObjectiveStackTabMarker>>()
+            .single(app.world())
+            .expect("the stack spawns exactly one TAB footer");
+        let children = app
+            .world()
+            .entity(footer)
+            .get::<Children>()
+            .unwrap()
+            .to_vec();
+        let key = children
+            .into_iter()
+            .find(|child| app.world().entity(*child).contains::<ImageNode>())
+            .expect("the footer carries a keycap node");
+
+        let size = measure(&app, key).size;
+        let expected_width = TAB_GLYPH_PX * cap.width() / cap.height();
+        assert!(
+            (size.y - TAB_GLYPH_PX).abs() <= 0.5,
+            "the footer cap is pinned to TAB_GLYPH_PX ({TAB_GLYPH_PX}), got {size:?}"
+        );
+        // Within a pixel: bevy_ui rounds computed nodes to whole physical
+        // pixels.
+        assert!(
+            (size.x - expected_width).abs() <= 1.0,
+            "the footer cap measured {size:?} but Tab's art is {cap:?} - at a \
+             pinned height of {TAB_GLYPH_PX} that is {expected_width:.1} px \
+             wide, so the footer is not on the shared KeyCap sizing path"
+        );
+        assert_eq!(
+            app.world().entity(key).get::<ImageNode>().unwrap().rect,
+            Some(cap),
+            "the footer draws the cap sub-rect, not the whole canvas"
         );
     }
 }
