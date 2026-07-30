@@ -132,7 +132,9 @@ single source of truth, listed in curriculum reading order:
   pipeline: lock, kill, GOTO, arrive - watched by its own handlers),
   `broadside` (the chapter-two scenario end to end through the Scenarios
   picker: defeat -> Retry reload -> the full act machine -> the Victory
-  overlay, all staged on scenario state).
+  overlay, all staged on scenario state) and `lifeline` (the same treatment
+  for chapter three: the convoy defense and the finale at the claim, defeat
+  and Retry included, in one run).
 - `ui/` - staged UI flows: `editor` (the shipped editor flow), `hud_range`
   (screen-projected HUD indicators, velocity sphere included),
   `menu_newgame` (the shipped boot flow) and `menu_scenarios` (drives the
@@ -140,7 +142,9 @@ single source of truth, listed in curriculum reading order:
   layout regression that only real text measure can show is caught).
 - `screenshots/` - `screenshot_reel`, `screenshot_ui`, `screenshot_combat`,
   `screenshot_sections`, `screenshot_juice`, `screenshot_orbit` (drive the
-  shipped scenes headless to capture the wiki and marketing frames), and
+  shipped scenes headless to capture the wiki and marketing frames),
+  `screenshot_nova_os` (the Tab ship-computer, captured for HTML fidelity
+  work against `examples/ui/nova_os_terminal_poc.html`), and
   `render_scale_shot` (a real-GPU window capture proving the render-scale
   lever draws a correct frame).
 - `perf/` - `perf_baseline` (the frame-time measurement scene the probe
@@ -162,8 +166,9 @@ each category headless as a regression suite, one test per category -
 additionally carry panic-on-failure behavior assertions with completion
 backstops (a stalled script fails instead of passing vacuously), except
 `torpedo_guidance` and `editor`, which assert at the scenario-load /
-reach-gameplay level; the screenshot examples drive the shipped scenes to
-capture frames. Disk, catalog and smoke lists cannot drift: the
+reach-gameplay level. The screenshot examples drive the shipped scenes to
+capture frames, and `screenshot_nova_os` self-ends behind the same
+backstop. Disk, catalog and smoke lists cannot drift: the
 display-free `catalog_matches_disk` test fails a bare `cargo test` when a
 new example misses its `[[example]]` block or its category's smoke list
 (`render_scale_shot` and `perf_baseline` are deliberately unsmoked; the
