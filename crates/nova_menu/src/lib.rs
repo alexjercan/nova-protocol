@@ -2766,7 +2766,8 @@ fn build_settings_body(
             },
         ));
         // The slider: a `bevy_ui_widgets::Slider` wearing the shared
-        // `slider_track` block-meter (lit by nova_ui's `sync_slider_meters`).
+        // `slider_track` (shown by nova_ui's `sync_slider_tracks`, which lights
+        // the phosphor block-meter and moves the hardware fill).
         // Wrapped in a flex-grow cell so the 100%-wide track fills the row's
         // middle. `Snap` so a click on the track jumps to that spot.
         row.spawn(Node {
@@ -2951,8 +2952,8 @@ fn on_volume_slider_change(
 }
 
 /// Keep the volume slider's percent label in sync with its value. The bar fill
-/// is the shared `slider_track` block-meter, lit by nova_ui's
-/// `sync_slider_meters` - so this only owns the `NN%` text. Runs every frame;
+/// is the shared `slider_track`, shown by nova_ui's `sync_slider_tracks` in
+/// either skin - so this only owns the `NN%` text. Runs every frame;
 /// there is at most one slider (main-menu or pause), and none while no settings
 /// panel is open.
 fn sync_volume_slider(
@@ -4215,6 +4216,9 @@ fn button_variant(text: &str, variant: ButtonVariant, key: Option<&str>) -> impl
 #[cfg(test)]
 mod tests {
     use bevy::state::app::StatesPlugin;
+    // The slider-track internals only the tests assert on (the two skins'
+    // distinguishing children); the module itself only spawns `slider_track`.
+    use nova_ui::widget::{SliderBlock, SliderFill, SLIDER_SEGMENTS};
 
     use super::*;
 
@@ -5896,6 +5900,77 @@ mod tests {
             (app.world().resource::<MasterVolume>().0 - 0.3).abs() < 1e-6,
             "the slider value is mirrored onto MasterVolume (got {})",
             app.world().resource::<MasterVolume>().0
+        );
+    }
+
+    /// DoD (task 20260729-211155) at the CALLER, not just the widget: the
+    /// SHIPPED settings volume slider - the one the owner played with - re-skins
+    /// live and shows its value in the new skin. A widget-level test proves the
+    /// factory; this proves the wiring (lesson
+    /// `pin-each-caller-not-just-shared-core`).
+    #[test]
+    fn the_settings_volume_slider_reskins_live() {
+        let mut app = mods_app();
+        let slider = entity_by_name(&mut app, "Volume Slider Track").expect("volume slider exists");
+
+        let child_kinds = |app: &mut App| -> (usize, usize) {
+            let kids: Vec<Entity> = app
+                .world()
+                .entity(slider)
+                .get::<Children>()
+                .map(|c| c.iter().collect())
+                .unwrap_or_default();
+            let mut blocks = app.world_mut().query_filtered::<(), With<SliderBlock>>();
+            let mut fills = app.world_mut().query_filtered::<(), With<SliderFill>>();
+            let b = kids
+                .iter()
+                .filter(|&&c| blocks.get(app.world(), c).is_ok())
+                .count();
+            let f = kids
+                .iter()
+                .filter(|&&c| fills.get(app.world(), c).is_ok())
+                .count();
+            (b, f)
+        };
+
+        assert_eq!(
+            child_kinds(&mut app),
+            (SLIDER_SEGMENTS, 0),
+            "phosphor: the segmented block-meter"
+        );
+
+        *app.world_mut().resource_mut::<UiSkin>() = UiSkin::Hardware;
+        app.update();
+        assert_eq!(
+            child_kinds(&mut app),
+            (0, 1),
+            "hardware: one solid fill, live - not on the next settings-open"
+        );
+
+        // And the rebuilt fill carries the CURRENT volume, not a default.
+        let value = {
+            let mut q = app
+                .world_mut()
+                .query_filtered::<&SliderValue, With<VolumeSlider>>();
+            q.single(app.world()).expect("one volume slider").0
+        };
+        let width = {
+            let kids: Vec<Entity> = app
+                .world()
+                .entity(slider)
+                .get::<Children>()
+                .unwrap()
+                .iter()
+                .collect();
+            let mut q = app.world_mut().query_filtered::<&Node, With<SliderFill>>();
+            kids.into_iter()
+                .find_map(|c| q.get(app.world(), c).ok().map(|n| n.width))
+                .expect("the fill exists")
+        };
+        assert_eq!(
+            width,
+            percent(value * 100.0),
+            "the reskinned fill shows the current volume"
         );
     }
 

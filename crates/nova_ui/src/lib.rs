@@ -34,7 +34,8 @@ pub mod prelude {
             list_row_colors, menu_button, panel, panel_head, panel_header, panel_node, register,
             segmented, segmented_container, segmented_option, separator, slider_meter_color,
             slider_track, themed_button, toggle, BadgeKind, ButtonSpec, ButtonValue, ButtonVariant,
-            ListRow, PanelSkin, Selected, SliderBlock, ThemedButton, SLIDER_SEGMENTS,
+            ListRow, PanelSkin, SegmentedSkin, Selected, SliderBlock, SliderFill, SliderTrackSkin,
+            ThemedButton, SLIDER_SEGMENTS,
         },
     };
 }

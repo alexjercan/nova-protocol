@@ -304,8 +304,10 @@ fn controls_panel(body: &mut ChildSpawnerCommands, skin: UiSkin, checks: ZooChec
             }
         });
         sub_header(c, "Slider (drag me)");
-        // A real draggable `bevy_ui_widgets::Slider` wearing the phosphor
-        // block-meter; `on_slider_change` lights the bars to the value.
+        // A real draggable `bevy_ui_widgets::Slider` wearing the shared track;
+        // `on_slider_change` writes the value, and nova_ui's
+        // `sync_slider_tracks` shows it - lighting the phosphor block-meter or
+        // moving the hardware fill.
         c.spawn((
             slider_track(value, skin),
             Slider {
@@ -409,8 +411,9 @@ fn on_check_click(activate: On<Activate>, q: Query<&CheckId>, mut checks: ResMut
 }
 
 /// Commit a slider drag: store the value so a body rebuild restores it. The
-/// block-meter itself is lit by nova_ui's shared `sync_slider_meters` (wired by
-/// `register`) reacting to the `SliderValue` change - no per-site recolour.
+/// track itself is shown by nova_ui's shared `sync_slider_tracks` (wired by
+/// `register`) reacting to the `SliderValue` change - it lights the phosphor
+/// block-meter and moves the hardware fill, so there is no per-site recolour.
 fn on_slider_change(change: On<ValueChange<f32>>, mut value: ResMut<ZooSliderValue>) {
     value.0 = change.value.clamp(0.0, 1.0);
 }
