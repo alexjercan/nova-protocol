@@ -126,15 +126,20 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   bin). A leaf tool that is not a game dependency is ALREADY skipped by bare
   builds, so the key buys nothing and only adds an allowlist footgun - do not add
   it. 20260721-151934.
-- `validate-proof-command-shape-at-plan-time` (x3 -> Pending promotions, work
+- `validate-proof-command-shape-at-plan-time` (x4 -> Pending promotions, work
   skill): a `cmd:` proof is unrun until verify, so a malformed OR wrong-target
   one is a silent gate - at verify confirm it runs the INTENDED tests: right
   arity/flags AND a NON-ZERO count of the named tests (read "N passed" PER
   intended module, not just "ok"). `cargo test <a> <b>` rejects the 2nd filter
   (use `-- <a> <b>`); a copied `-p nova_gameplay drawer` filter matched 0 tests
   ("685 filtered out") yet reported ok; `-- f1 f2 ... f8` with many positional
-  filters silently ran only SOME modules (grep each module in the output,
-  re-run any absent one alone). 20260726-115334, 20260727-135208, 20260728-175731.
+  filters silently ran only SOME modules. An ABSENCE grep fails differently:
+  one written from the WORDS of the stale claim (`dim chip|greyed`) can never
+  reach zero, because unrelated code uses the words and the CORRECTED prose
+  names what it corrects ("rather than shown greyed out") - grep the specific
+  phrases that were really in the tree, and check at plan time that the command
+  CAN return zero. 20260726-115334, 20260727-135208, 20260728-175731,
+  20260730-122843.
 - `inseparable-seeded-tasks-remerge` (x1, PROMOTED 2026-07-19 -> flow skill):
   when seeded tasks prove architecturally inseparable, surface the re-cut and
   merge them instead of building shims. 20260717-215742.
@@ -254,6 +259,16 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   [[advertised-is-not-wired]]. Run it as a ROUTINE gate, not a suspicion: applying
   it to all 7 tests of one task caught three that proved nothing (two false pins
   and a tautology). 20260728-115430, 20260729-211155.
+- `justify-a-deviation-with-a-test-not-a-paragraph` (x1): when the
+  implementation departs from the plan, the deviation needs its own fail-first
+  pin, not a note in TASK.md explaining why it is right - writing the
+  justification IS the signal that it is untested. A dock change swapped a
+  forced `Dim` for "the chip's true state", survived full-suite mutation
+  untouched, and in the single case where the two differed was the WORSE choice
+  (an off-screen chip left marked `Hot` for `grow_hot_chips` to hold grown); the
+  reviewer found it by mutation in one pass. Same question as
+  [[test-the-wiring-system-not-just-its-pure-helpers]] ("would this pass if I
+  reverted it?"), asked of a design choice rather than a system. 20260730-122843.
 - `review-current-base-before-ooc` (x1): before spawning out-of-context review,
   compare the branch against CURRENT local default and merge it if the diff
   includes inherited base noise - stale comparisons waste review on unrelated
@@ -1031,6 +1046,16 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 
 ## Domain lessons (nova-protocol specific)
 
+- `check-what-points-at-a-thing-before-hiding-it` (domain, x1): when a HUD
+  surface gains a rule that REMOVES elements, first find what deliberately
+  points AT those elements - the hide and the pointer are mutually exclusive on
+  the same element, and that incompatibility is a decision for the owner, not
+  something to resolve while coding. Hiding unavailable dock chips collided with
+  the scenario spotlight, whose dedicated `EMPHASIS_ALPHA_UNAVAILABLE` band was
+  the evidence that "spotlight a verb before it lights up" was a supported case
+  and not an accident (shakedown_run emphasizes GOTO while it is unavailable).
+  A dead-looking constant is sometimes a feature's only remaining trace.
+  20260730-122843.
 - `bare-all-targets-only-covers-the-root-package` (x1): this repo's root
   Cargo.toml is a PACKAGE with deliberately no `default-members` (Cargo.toml:274,
   see [[default-members-retargets-bare-cargo-run]]), so a BARE `cargo check
@@ -1406,14 +1431,17 @@ here (annotated) as the paid record.
   unit-tested on the renderer with a synthetic spec; the reviewer had to point at
   the un-exercised `ship <section>` registration wiring.
   20260726-115339, 20260728-115430, 20260728-184502, 20260729-015406.
-- `validate-proof-command-shape-at-plan-time` (x3) -> work skill: at verify,
+- `validate-proof-command-shape-at-plan-time` (x4) -> work skill: at verify,
   confirm a `cmd:`/test proof runs the INTENDED tests - right arity/flags AND a
   NON-ZERO "N passed" PER named module, not a bare "ok". Failure modes seen:
   `cargo test <a> <b>` rejects the 2nd filter; `-p <crate> <name>` matched 0
   ("685 filtered out") yet reported ok; `-- f1 f2 ... f8` with many positional
-  filters silently ran only some modules. Prose target (verify step): "grep
-  each intended module/test name in the output; re-run any absent one alone".
-  20260726-115334, 20260727-135208, 20260728-175731.
+  filters silently ran only some modules; and an ABSENCE grep built from the
+  WORDS of a stale claim that no correct tree can ever satisfy. Prose target
+  (verify step): "grep each intended module/test name in the output; re-run any
+  absent one alone - and for an absence proof, grep the CLAIMS that were really
+  in the tree, checking at plan time that zero is reachable".
+  20260726-115334, 20260727-135208, 20260728-175731, 20260730-122843.
 - `match-ci-feature-set-in-targeted-tests` (x3) -> work skill: a workspace
   `cargo check --all-targets` does not enable a crate's self dev-dep `serde`
   feature, so it silently skips serde-gated targets (a false green). Prose
