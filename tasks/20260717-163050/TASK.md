@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 37
 - TAGS: spike,v0.7.0,scenario,menu,lint
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Goal (USER DIRECTIVE 2026-07-17: "add to the pacing by doing linger
 false in some cases maybe with a time delay"): a middle gear between the

@@ -3,9 +3,7 @@
 - STATUS: CLOSED
 - PRIORITY: 38
 - TAGS: v0.9.0,ui,menu,editor
-
-## Flow State
-
+- KIND: TASK
 - FLOW STEP: DONE
 - PLAN STATUS: APPROVED
 

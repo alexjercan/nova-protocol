@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 46
 - TAGS: v0.7.0,modding,feature,assets,spike
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Steps
 

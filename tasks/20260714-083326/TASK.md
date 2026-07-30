@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 75
 - TAGS: v0.6.0, modding, scenario, foundation
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Spike: tasks/20260714-083224/SPIKE.md
 

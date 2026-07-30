@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 85
 - TAGS: v0.7.0, example, scenario
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Spike: tasks/20260708-203517/SPIKE.md
 

@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 28
 - TAGS: v0.9.0,feedback,ui,hud
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -92,11 +95,6 @@ them).
 - No dead code from the removed helpers/fields; the palette stays phosphor/amber
   (cmd: `cargo check -p nova_gameplay 2>&1 | grep -c "never read"` prints `0`;
   cmd: `grep -c "srgb" crates/nova_gameplay/src/hud/nova_os_ship.rs` unchanged at 1).
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Work Log (close-out)
 

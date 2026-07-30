@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: docs, web, modding
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal
 

@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: v0.5.0, hud, autopilot, spike
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Spike: tasks/20260710-174523/SPIKE.md
 Depends on: 20260709-103454 (the ORBIT holo ring must prove the world-space

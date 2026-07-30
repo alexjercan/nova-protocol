@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.5.0, hud, targeting, spike
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Outcome (CLOSED 2026-07-12)
 

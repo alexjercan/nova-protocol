@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.9.0,feature,hud,ui
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal
 
@@ -102,8 +105,3 @@ steps at pickup.
 - Rust formatting is clean (cmd: `nix develop --command cargo fmt --check`).
 - Player and author docs no longer describe comms as a one-line queue (cmd:
   `rg -n "shows ONE|single line|queue and display" web/src/wiki/hud.md web/src/wiki/dev/scenario-system.md web/src/wiki/dev/guide-author-scenario.md crates/nova_gameplay/src/hud/comms_panel.rs crates/nova_scenario/src/actions.rs crates/nova_scenario/src/lint.rs`).
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED

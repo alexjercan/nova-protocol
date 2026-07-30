@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 20
 - TAGS: backlog, chore, build, assets, licenses
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Goal: stop shipping non-runtime source assets, and tidy license/credits so the
 shipped build (web `dist/` via Trunk, and any native package) carries only what it

@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 38
 - TAGS: feature, web
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 User request: the wiki sidebar "drawer" resets to the top on every page
 navigation and refresh. Keep it scrolled where the reader left it.

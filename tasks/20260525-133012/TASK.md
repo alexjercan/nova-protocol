@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: wontdo,chore
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Already done historically, verify it's correctly wired. Legacy #132.
 

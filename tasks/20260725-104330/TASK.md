@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: v0.9.0,feedback,gameplay,ui,ux,epic
+- KIND: EPIC
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Context
 
@@ -93,8 +96,6 @@ feedback and occasional combat-radar focus loss are also separate follow-ups.
 
 ## Flow State
 
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 - Gate status: CLOSED 2026-07-28. All 7 child tasks (5 core + both stretch apps)
   are CLOSED and landed on master; every Done Means criterion is met by a landed
   child and the live docs point at the one-screen NOVA OS model. Owner closed the

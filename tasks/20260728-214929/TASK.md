@@ -3,6 +3,9 @@
 - STATUS: OPEN
 - PRIORITY: 0
 - TAGS: backlog,ui,assets
+- KIND: TASK
+- FLOW STEP: BACKLOG
+- PLAN STATUS: DRAFT
 
 ## Story
 

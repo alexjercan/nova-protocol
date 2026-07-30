@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 95
 - TAGS: v0.7.0, bug, integrity, scenario
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Report (user playtest, 2026-07-16, Broadside)
 

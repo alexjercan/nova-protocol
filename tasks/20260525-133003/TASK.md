@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 20
 - TAGS: v0.4.0, health
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Delay despawn so systems can react before the entity is gone. Legacy #129.
 

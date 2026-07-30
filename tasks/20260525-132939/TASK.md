@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.3.1, bug
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Full cleanup on scene transition; no leftover entities between scenarios. Legacy #102.
 

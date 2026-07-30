@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.4.0,handling,juice
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Spike: tasks/20260709-094731/SPIKE.md (design
 calls 4 and 5); re-scoped for the diegetic-autopilot rework

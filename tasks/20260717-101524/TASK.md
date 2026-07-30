@@ -3,4 +3,7 @@
 - STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: spike, v0.7.0, audio, modding
+- KIND: SPIKE
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 

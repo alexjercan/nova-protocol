@@ -3,6 +3,9 @@
 - STATUS: OPEN
 - PRIORITY: 0
 - TAGS: backlog, modding, scenario
+- KIND: TASK
+- FLOW STEP: BACKLOG
+- PLAN STATUS: DRAFT
 
 ## Story
 
@@ -34,7 +37,8 @@ more mods start using mid-scenario SetSkybox.
 
 - SetSkybox warns-and-skips on a missing AssetServer instead of panicking.
   (test: a nova_scenario unit test drives it headless without panic.)
-- cargo check + the SetSkybox tests green. (cmd.)
+- cargo check + the SetSkybox tests green
+  (cmd: `cargo check` and the SetSkybox tests).
 
 ## Notes
 

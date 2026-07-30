@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 99
 - TAGS: v0.5.0, bug, physics
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal
 

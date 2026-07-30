@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 39
 - TAGS: spike,v0.7.0,hud,scenario,gameplay
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Goal: kill the latest-wins story-line bug and make comms readable: queue
 StoryMessage lines and display them in arrival order with a minimum

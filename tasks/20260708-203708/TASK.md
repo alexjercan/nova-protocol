@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 62
 - TAGS: v0.4.0,factions,ai,hud
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Spike: tasks/20260708-203517/SPIKE.md
 

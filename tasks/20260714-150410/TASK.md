@@ -3,4 +3,7 @@
 - STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: spike, modding, scenario, bundle
+- KIND: SPIKE
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 

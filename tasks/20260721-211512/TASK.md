@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.9.0, spike, ui, hud
+- KIND: SPIKE
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal
 

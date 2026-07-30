@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 26
 - TAGS: v0.8.0, menu, scenario, ui
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 

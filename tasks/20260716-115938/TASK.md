@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 65
 - TAGS: docs,web,process
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Outcome
 

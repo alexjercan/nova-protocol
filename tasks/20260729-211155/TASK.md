@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 51
 - TAGS: v0.9.0,feedback,bug,ui
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -124,8 +127,3 @@ never builds member crates' test targets. `cargo check --workspace
 
 - Follow-up to 20260729-121847, which fixed panels/buttons/rows and explicitly
   parked the slider track + segmented container as the remaining gap.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED

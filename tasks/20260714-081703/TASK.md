@@ -3,6 +3,9 @@
 - STATUS: OPEN
 - PRIORITY: 0
 - TAGS: backlog,editor,scenario,modding,spike
+- KIND: TASK
+- FLOW STEP: BACKLOG
+- PLAN STATUS: DRAFT
 
 Spike: tasks/20260714-081636/SPIKE.md
 Spike: tasks/20260714-204059/SPIKE.md (editor UI rework - splits this into baseline + "the rest")

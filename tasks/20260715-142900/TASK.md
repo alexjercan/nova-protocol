@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 17
 - TAGS: modding,web
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Spike: tasks/20260714-202515/SPIKE.md (options D, H, J)
 Depends on: 20260715-142849 (bundle meta - the generator reads it).

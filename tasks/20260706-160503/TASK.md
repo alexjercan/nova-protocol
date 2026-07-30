@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 68
 - TAGS: v0.4.0, bug, crates
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Follow-up from task 20260525-132940. The mesh slicer (ExplodeMeshPlugin / ExplodeMesh)
 lives in the external bevy_common_systems crate, so guarding its internal edge cases

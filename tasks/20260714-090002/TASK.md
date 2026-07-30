@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 18
 - TAGS: v0.6.0, polish, audio, scenario
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Goal: make salvage pickups feel distinct. Today a crate pickup
 (`crates/nova_scenario/src/objects/salvage.rs:~61`) has visual feedback (highlight,

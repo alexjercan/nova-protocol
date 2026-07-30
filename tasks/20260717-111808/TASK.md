@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: spike, v0.7.0, scenario, balance
+- KIND: SPIKE
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Research spike, deliverable is SPIKE.md in this folder. Question: why do the
 second scenarios (broadside, ledger_ch2) overwhelm even a top-percentile

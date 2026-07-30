@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 41
 - TAGS: v0.9.0, feature, ui, hud, input
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -11,11 +14,6 @@ The in-game NOVA OS terminal has command parity with the PoC
 PoC nails. This task closes the interaction/flavor gap in
 `crates/nova_gameplay/src/hud/drawer.rs` - purely shell-side work, no new
 commands and no CRT/shader changes.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Steps
 

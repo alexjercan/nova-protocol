@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 42
 - TAGS: v0.9.0, feature, ui, hud
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Playtest feedback on the just-landed NOVA OS terminal UX. The completion
 "ghost" suffix currently renders AFTER the block caret, so the first usable
@@ -13,11 +16,6 @@ lines ~1005, `.ghost`/`.caret` CSS ~459-484). Rust code lives in
 `crates/nova_gameplay/src/hud/nova_os.rs`: input line + caret + ghost spawn
 ~3960-3997, ghost text update ~2238-2240; suffix comes from
 `prompt_completion_ghost()` in `crates/nova_os/src/terminal.rs:732`.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Story
 

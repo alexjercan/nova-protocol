@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 43
 - TAGS: feature, docs, web
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Part of the "unify the site on markdown" goal (with 20260715-205825). User wants
 future devlogs authorable in markdown. Depends on 20260715-205825 landing first

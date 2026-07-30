@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 65
 - TAGS: v0.7.0,ai,spike,health,wontdo
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Spike: tasks/20260709-225508/SPIKE.md (wave 3)
 

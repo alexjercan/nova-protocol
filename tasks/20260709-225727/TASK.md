@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 76
 - TAGS: v0.4.0,ai,spike,targeting
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 
 Spike: tasks/20260709-225508/SPIKE.md (wave 1)

@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.6.0,editor,ui,spike
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Spike: tasks/20260714-204059/SPIKE.md
 

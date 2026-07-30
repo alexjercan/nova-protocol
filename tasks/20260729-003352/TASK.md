@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 79
 - TAGS: v0.9.0,tooling,probe,performance
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -79,8 +82,3 @@ July 29 FPS regression is real or fixed; that investigation remains in task
 - Self-reflection: start by collapsing special cases when an existing aggregate
   path can naturally represent the one-item case; keeping the old branch split
   in the first draft created unnecessary design tension.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED

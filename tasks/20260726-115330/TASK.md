@@ -3,17 +3,15 @@
 - STATUS: CLOSED
 - PRIORITY: 47
 - TAGS: v0.9.0, feature, ui, hud, gameplay
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
 As a player using NOVA OS, I want the first useful commands to print real ship
 computer information into the terminal, so that the drawer replaces the old
 objectives/log panels without losing their value.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Steps
 

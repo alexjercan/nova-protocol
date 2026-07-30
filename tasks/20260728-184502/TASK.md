@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 20
 - TAGS: v0.9.0, nova_os, ui, ux, feedback
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Problem
 
@@ -112,8 +115,3 @@ behavior changes.
 - [x] Update every existing `nova_os`/`nova_gameplay` test asserting the old
       strings; run `cargo fmt`, `cargo check -p nova_os -p nova_gameplay`, and
       the new `nova_os` tests. Run the DoD-7 `rg` sweep.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED

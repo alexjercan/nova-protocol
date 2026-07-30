@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 85
 - TAGS: v0.4.0,torpedo,behavior
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Reported while testing the PN guidance (PR #31): fire a torpedo with no target,
 then shoot bullets - the loitering torpedo picks a bullet up as its target and

@@ -3,6 +3,9 @@
 - STATUS: OPEN
 - PRIORITY: 0
 - TAGS: backlog,example,screenshot,spike
+- KIND: TASK
+- FLOW STEP: BACKLOG
+- PLAN STATUS: DRAFT
 
 Spike: tasks/20260714-081636/SPIKE.md
 

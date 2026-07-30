@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.3.1, refactor
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Panic or warn early with a clear message if a required dependency plugin is missing. Legacy #126.
 

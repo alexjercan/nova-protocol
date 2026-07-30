@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 85
 - TAGS: v0.5.2,bug,flight,scenario
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Observed in the user's 2026-07-12 playtest log (pre-existing, not from
 the playtest-fixes branch): during scenario teardown (UnloadScenario

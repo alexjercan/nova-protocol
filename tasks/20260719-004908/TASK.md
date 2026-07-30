@@ -3,6 +3,9 @@
 - STATUS: OPEN
 - PRIORITY: 0
 - TAGS: backlog,ci,tooling
+- KIND: TASK
+- FLOW STEP: BACKLOG
+- PLAN STATUS: DRAFT
 
 
 ## Goal
@@ -24,8 +27,9 @@ zero code changes (exactly how that warning batch arrived).
 
 ## Definition of Done
 
-- The choice is recorded (here) and, if (a), CI fails on any new clippy
-  warning under the pinned toolchain.
+- The choice is recorded in this task and, if (a), CI fails on any new clippy
+  warning under the pinned toolchain (manual: read the recorded choice; for (a),
+  the CI clippy job goes red on a new warning).
 
 ## Notes
 

@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: spike, v0.4.0, crates, refactor
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Goal: the integrity destruction pipeline (`integrity/plugin.rs` + `components.rs` +
 `blast.rs`, and `integrity/explode.rs`) is game-agnostic enough to promote to

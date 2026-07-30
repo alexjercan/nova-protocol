@@ -3,4 +3,7 @@
 - STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.7.0, spike, story, scenario
+- KIND: SPIKE
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 

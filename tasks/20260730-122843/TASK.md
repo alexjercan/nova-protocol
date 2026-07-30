@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.9.0,ui,hud,feedback
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -98,11 +101,6 @@ Visibility rule, in one line:
 
 Sits under epic 20260728-175719 (UI rework); it is a direct verdict on that
 epic's DoD 4 (text density) and DoD 5 (contextual HUD).
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Outcome (2026-07-30)
 

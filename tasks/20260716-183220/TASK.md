@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 61
 - TAGS: v0.7.0, feature, scenario, modding, story
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal
 

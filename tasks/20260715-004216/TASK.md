@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 25
 - TAGS: v0.6.0, example, screenshot, web
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Follow-up from the screenshot-showcase pipeline (task 20260714-210131). 22 of the
 26 web-referenced screenshots are generated in-engine, packaged by

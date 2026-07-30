@@ -3,13 +3,11 @@
 - STATUS: CLOSED
 - PRIORITY: 44
 - TAGS: v0.9.0,feature,ui,hud
-
-Playtest feedback on the just-landed casing/glass pass (20260726-193219, commit 01cdd852).
-
-## Flow State
-
+- KIND: TASK
 - FLOW STEP: DONE
 - PLAN STATUS: APPROVED
+
+Playtest feedback on the just-landed casing/glass pass (20260726-193219, commit 01cdd852).
 
 ## Story
 

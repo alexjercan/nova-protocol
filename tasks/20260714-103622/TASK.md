@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 68
 - TAGS: v0.6.0, modding, scenario, spike
+- KIND: SPIKE
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Surfaced porting the built-ins to RON (133028): `menu_ambience` (14 rocks) and
 `asteroid_field` (20 rocks) scatter asteroids with runtime RNG at build time.

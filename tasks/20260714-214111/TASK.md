@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 65
 - TAGS: ui,v0.6.0
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Umbrella: task 20260714-212139 (unify the whole game UI to the web-app theme).
 

@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: goal, v0.8.0, content, scenario
+- KIND: EPIC
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 

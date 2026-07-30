@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, spike, tooling, testing
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Closed (2026-07-24, superseded)
 

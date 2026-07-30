@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 46
 - TAGS: v0.9.0,ui,hud,feedback
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -125,8 +128,3 @@ instead of bare handles; `KeyCap::apply`/`node` is the single sizing path, and
 Sits under epic 20260728-175719 (UI rework). Backlog 20260728-214929 (adopt the
 glyphs across the remaining surfaces: web key-UI, NOVA OS help, editor chips)
 inherits whatever sizing path this task lands - note it there when this closes.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED

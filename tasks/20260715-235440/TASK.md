@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: bug, docs, web
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## The bug (verified)
 

@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 63
 - TAGS: v0.8.0,bug,tooling
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 
 ## Close-out (2026-07-20, branch fix/loop-gate-readiness; bcs v0.19.5)

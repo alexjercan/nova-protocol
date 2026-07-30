@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 42
 - TAGS: v0.7.0, performance, web, settings
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal
 

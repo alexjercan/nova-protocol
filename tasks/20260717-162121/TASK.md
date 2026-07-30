@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: v0.7.0, scenario, tooling, lint
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Seeded by review R1.2 of 20260717-151214: the SECOND wrong-mount-roll bug
 in two days (the Auditor bay bottom-down at a side position, then all

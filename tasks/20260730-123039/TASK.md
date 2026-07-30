@@ -3,6 +3,9 @@
 - STATUS: OPEN
 - PRIORITY: 42
 - TAGS: v0.9.0,bug,ui,nova_os,feedback
+- KIND: TASK
+- FLOW STEP: PLANNED
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -87,7 +90,3 @@ Candidate differences, in rough order of suspicion:
 The four hypotheses above are LEADS, not a diagnosis. The reproduction comes
 first and the fix follows the evidence; if the rig shows the warp is fine, say
 so and chase the next one.
-
-## Flow State
-
-- FLOW STEP: PLANNED

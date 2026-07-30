@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 47
 - TAGS: v0.9.0,ui,hud,nova_os,refactor
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Refactor the NOVA OS screen into a persistent header + main + footer layout
 (HTML `<header>/<main>/<footer>` model). Today the "NOVA OS ... / COCKPIT LINK"
@@ -165,8 +168,3 @@ Confirmed decisions (see DECISION.md):
    (cmd: `cargo check -p nova_gameplay -p nova_os`)
 6. Any new/changed unit test for `nova_os_header_breadcrumb` passes.
    (cmd: `cargo test -p nova_gameplay nova_os_header`)
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED

@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 41
 - TAGS: spike,v0.7.0,scenario,gameplay,hud
+- KIND: SPIKE
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 User feedback (2026-07-17 playtest, verbatim intent): "the gameplay feels
 really rushed, each event happens immediately with no breaks and no space

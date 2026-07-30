@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.4.0, bug, turret, physics
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Playtest report (20260709, component-lock arc): lock, focus and component
 switching all work, but bullets do not hit the target.

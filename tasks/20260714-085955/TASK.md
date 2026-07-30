@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.6.0, wasm, polish, spike
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Supersedes 20260706-162908 (backlog "re-enable particle effects on wasm").
 

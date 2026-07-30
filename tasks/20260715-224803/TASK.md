@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: modding, scenario, gameplay, web
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal
 

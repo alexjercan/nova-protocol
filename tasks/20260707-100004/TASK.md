@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.4.0,bug,torpedo
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 `update_target_position` looks up the torpedo's target entity every frame and, if it
 is gone (target destroyed, scenario churn), immediately despawns the torpedo:

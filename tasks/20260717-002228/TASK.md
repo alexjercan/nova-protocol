@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 32
 - TAGS: v0.7.0, modding, audio, feature
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Context (from the base-as-normal-mod work, 2026-07-16)
 

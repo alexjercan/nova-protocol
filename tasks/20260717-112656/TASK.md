@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 49
 - TAGS: spike,v0.7.0,tooling,balance,testing
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Goal: balance is currently judged by feel, and the developer's skill is far
 above the average player's, so "feels hard to me" means "impossible for

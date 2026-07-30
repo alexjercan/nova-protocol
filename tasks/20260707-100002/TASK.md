@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 85
 - TAGS: v0.4.0, test, harness
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Infrastructure task that unblocks the "examples as tests" goal. bevy-common-systems
 ships env-gated developer plugins (`AutopilotPlugin<S>` behind `BCS_AUTOPILOT`,

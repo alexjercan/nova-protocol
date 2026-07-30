@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 52
 - TAGS: v0.5.0, spike, feel
+- KIND: SPIKE
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal
 

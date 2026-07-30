@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 70
 - TAGS: v0.4.0, hud, torpedo, spike
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal
 

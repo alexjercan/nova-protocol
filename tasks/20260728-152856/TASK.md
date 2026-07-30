@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 27
 - TAGS: v0.9.0,feedback,feature,ui,hud
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -43,11 +46,6 @@ table) - maybe with a header Kind, Label, Info."
 - Sibling of the just-landed ship-app terminal-polish tasks (`20260728-115430`
   side inspector, `20260728-125510` orbit recenter). Terminal is monospace, so
   space-padding aligns columns.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Decision
 

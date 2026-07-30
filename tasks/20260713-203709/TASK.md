@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.5.2,testing,harness
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal
 

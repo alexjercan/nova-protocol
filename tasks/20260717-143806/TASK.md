@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 44
 - TAGS: v0.7.0, scenario, content, balance
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Found by the balance audit rig (tasks/20260717-112656, spike
 tasks/20260717-111808/SPIKE.md) - the first content nobody had

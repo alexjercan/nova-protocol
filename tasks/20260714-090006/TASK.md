@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 12
 - TAGS: v0.6.0, polish, audio, ui
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Goal: add the missing feedback cues the audio audit found. All currently silent:
 

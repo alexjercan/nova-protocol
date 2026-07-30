@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 75
 - TAGS: web,docs,news
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Outcome
 

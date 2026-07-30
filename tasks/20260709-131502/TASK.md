@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 95
 - TAGS: v0.4.0,bug,torpedo
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Reported in play: torpedoes fired from the torpedo bay section immediately take
 damage or are destroyed at spawn. With the combat-juice work the damage is now

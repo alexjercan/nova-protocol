@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: v0.4.0, handling, physics
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Follow-up to the thrust-balancing task (20260709-155920,
 tasks/20260709-155920/NOTES.md). That task balances torque by differential

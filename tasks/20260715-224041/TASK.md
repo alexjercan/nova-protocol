@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 44
 - TAGS: docs,web,feature
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 From the docs review spike 20260715-223147 (developer persona). The dev wiki is
 accurate and the extension guides are excellent, but a newcomer lacks a hard

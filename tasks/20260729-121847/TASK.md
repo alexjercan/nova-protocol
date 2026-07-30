@@ -3,10 +3,7 @@
 - STATUS: CLOSED
 - PRIORITY: 39
 - TAGS: v0.9.0,ui,polish
-
-
-## Flow State
-
+- KIND: TASK
 - FLOW STEP: DONE
 - PLAN STATUS: APPROVED
 

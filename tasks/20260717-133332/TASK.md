@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.7.0,editor,rendering,bug
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Resolution (2026-07-17): FALSIFIED - the editor is already covered
 

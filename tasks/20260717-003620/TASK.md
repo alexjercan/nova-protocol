@@ -3,6 +3,9 @@
 - STATUS: OPEN
 - PRIORITY: 0
 - TAGS: backlog,hud,ui,spike
+- KIND: TASK
+- FLOW STEP: BACKLOG
+- PLAN STATUS: DRAFT
 
 Goal: keep an exact hull-integrity number available once the generic bar is
 gone, as a subordinate backstop to the diegetic mesh tint (20260717-003613).

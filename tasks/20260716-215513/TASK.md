@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 47
 - TAGS: v0.7.0,modding,example,content,docs
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Outcome (2026-07-16)
 

@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 84
 - TAGS: v0.4.0, bug, editor
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Surfaced while testing the editor-preview change (20260525-132950). In the editor,
 `bevy_common_systems::physics::pd_controller::update_controller_root_torque` logs

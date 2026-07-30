@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 43
 - TAGS: v0.9.0, feature, ui, hud
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Playtest feedback on the just-landed curved-CRT NOVA OS screen. Two screen-
 surface visual issues after the barrel/curve was added:
@@ -18,11 +21,6 @@ screen spawn ~3094-3109, `NOVA_OS_SCREEN` color ~141, grain strength ~183;
 CRT shader `assets/shaders/nova_os_crt.wgsl` (grain ~183-200, warp/vignette).
 Reference look: `examples/ui/nova_os_terminal_poc.html` tube clip-path
 ~941-951, `.tube`/`.grain` ~199/260-274, `.rim`/`.curve` overlays.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Story
 

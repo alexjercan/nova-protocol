@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 25
 - TAGS: v0.5.0, hud, polish
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal
 

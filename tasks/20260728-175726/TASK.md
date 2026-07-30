@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 44
 - TAGS: v0.9.0,spike,ui,hud
+- KIND: SPIKE
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -53,11 +56,6 @@ browser-openable, cheap to iterate with owner feedback.
 3. DECISION.md records the load-bearing forks with STATUS: ACCEPTED.
 4. The epic's remaining child tasks carry refined Steps/DoD sourced from the
    accepted SPIKE.md (cmd: `tatr check`).
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Notes
 

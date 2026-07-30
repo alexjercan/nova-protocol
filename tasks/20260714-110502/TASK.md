@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.6.0, modding, scenario, spike, refactor
+- KIND: SPIKE
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Spike only - do NOT implement. Follow-up to the RON format landing
 (133028, docs/modding-ron-format.md).

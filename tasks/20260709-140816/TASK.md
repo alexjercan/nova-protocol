@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 70
 - TAGS: v0.4.0,chore,ci
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 AGENTS.md ("Build, run, test") instructs agents to skip local cargo test and
 clippy because "both run in CI on every PR". Review R1.2 of task

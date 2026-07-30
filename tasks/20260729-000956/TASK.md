@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.9.0,ui,assets
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -161,8 +164,3 @@ Audit findings (2026-07-28 code map):
   so its CLOSED record keeps its server.load note as history.
 - Depends on: nothing open. Slots BEFORE 175734/175738/175742/175747
   (p50 vs p40/38/36/34) so the pattern exists before its consumers.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED

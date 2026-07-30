@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 56
 - TAGS: v0.4.0, targeting, gameplay, spike
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Spike: tasks/20260709-192358/SPIKE.md
 

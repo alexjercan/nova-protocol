@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 95
 - TAGS: v0.4.0,bug,torpedo
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Reported in play: firing a torpedo at a target that is already close makes the
 torpedo "spawn too close and just die" - it detonates on (or within a frame or two

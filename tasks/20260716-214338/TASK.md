@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 52
 - TAGS: v0.7.0, bug, hud, ui, objective
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Symptom
 

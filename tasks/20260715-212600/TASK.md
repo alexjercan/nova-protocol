@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: docs, web, modding
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 User feedback (2026-07-15): the "Author a scenario" guide (and the scenario docs
 generally) list the entity-filter fields `id, type_name, other_id,

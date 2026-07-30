@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 16
 - TAGS: bug,modding
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Found by the 142906 implementation (20260715): `cargo test -p nova_assets
 --test content_ron_parity` fails on `built_in_scenario_content_matches_

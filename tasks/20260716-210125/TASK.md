@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 34
 - TAGS: v0.7.0,feature,menu,ui,scenario
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Requested directly by the user: add the possibility to "retry" a level when
 pressing Esc. Pressing Esc in-game opens the pause menu; it should offer a

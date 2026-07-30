@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.9.0,feedback,feature,ui,hud,gameplay
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -110,11 +113,6 @@ selected-view + transient-note pattern.
   manual: keyboard-only still inspects + acts).
 - The CRT/phosphor palette is preserved: no new hue constants
   (cmd: `grep -n "srgb" crates/nova_gameplay/src/hud/nova_os_ship.rs`).
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Notes
 

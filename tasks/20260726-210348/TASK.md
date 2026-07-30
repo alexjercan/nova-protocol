@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 8
 - TAGS: v0.9.0,feature,web,ui
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -52,8 +55,3 @@ Decisions (see DECISION.md):
 3. Web CI is green (cmd: `cd web && npm run ci`).
 4. Clicking the brand 5x on the landing page opens `/nova-os/`; the brand still
    navigates home normally from other pages (manual: click-test in `npm run serve`).
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED

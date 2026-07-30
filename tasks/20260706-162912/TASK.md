@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 85
 - TAGS: v0.4.0, bug
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 From the TODO sweep (task 20260525-132954). A FIXME notes that an event (in the
 integrity/destruction path) is not fired consistently. Investigate why and make it

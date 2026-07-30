@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: ui, polish, v0.6.0
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal (user request, 20260714)
 

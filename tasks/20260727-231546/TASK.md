@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 47
 - TAGS: v0.9.0,refactoring,ui,hud,nova_os
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Unify the NOVA OS command surface so there is ONE command concept - a
 `TerminalCommand` - instead of today's split between the static
@@ -207,8 +210,3 @@ matcher and all its tests stay byte-for-byte behavioral while only the data
 source changed. Next time, when writing did-you-mean / longest-prefix test
 fixtures, pick the typo/collision cases by actually computing distances rather
 than eyeballing, to avoid the two self-inflicted test failures here.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED

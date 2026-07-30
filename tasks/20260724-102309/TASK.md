@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.9.0, spike, feature, ui, hud
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal
 
@@ -137,11 +140,6 @@ capture until a later task has clearer authoring and noise rules.
 - Owner adjustment 2026-07-25: the left panel should use one combined list, like
   server logs, with comms and objective journal rows interleaved rather than
   separate `COMMS` and `FLIGHT LOG` sections.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Close-out (2026-07-25)
 

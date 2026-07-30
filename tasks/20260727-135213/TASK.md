@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 41
 - TAGS: v0.9.0, feature, ui, hud
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Playtest feedback on the NOVA OS monitor chrome (the thin text rows at the top
 and bottom edges of the screen).
@@ -22,11 +25,6 @@ Code: `crates/nova_gameplay/src/hud/nova_os.rs` - FPS: status text
 `crates/nova_os/src/app.rs` `NOVA_OS_TERMINAL_HINTS` ~11-15 and
 `nova_os_footer_hints()` ~137-145. Keybind handling: PageUp/Down ~1640-1650,
 Ctrl+C ~1728-1732, Tab ~1295-1310.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Story
 

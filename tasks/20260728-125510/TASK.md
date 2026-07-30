@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 29
 - TAGS: v0.9.0,feedback,feature,ui,hud,gameplay
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -38,11 +41,6 @@ selected."
 - Follows `20260726-115339` / `20260728-115435`. Sibling of the blip-overlay
   minimize task (`20260728-125514`) and the side-inspector-panel task
   (`20260728-115430`).
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Design
 

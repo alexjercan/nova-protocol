@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.4.0, ai, docs
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 The AI combat wave (spike tasks/20260709-225508/SPIKE.md,
 tasks 20260709-225726..225734 as they land) has shipped several features

@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 75
 - TAGS: v0.4.0,audio,bug
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal
 

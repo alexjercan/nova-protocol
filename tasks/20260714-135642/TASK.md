@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 34
 - TAGS: v0.6.0, modding, refactor
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Spike: tasks/20260714-123535/SPIKE.md
 

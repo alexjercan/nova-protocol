@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.5.0, input, controller, verbs, spike
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Spike: tasks/20260712-143551/SPIKE.md
 

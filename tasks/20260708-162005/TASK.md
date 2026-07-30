@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 46
 - TAGS: v0.5.0, weapons
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Spike: tasks/20260708-161726/SPIKE.md (roadmap)
 

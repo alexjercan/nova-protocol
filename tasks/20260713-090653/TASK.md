@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.5.0, scenario, tutorial, polish
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Outcome (CLOSED 2026-07-13)
 

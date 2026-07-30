@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 22
 - TAGS: v0.6.0, modding, polish
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Expose cubemap swap as a modding hook. Legacy #130.
 

@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 49
 - TAGS: v0.8.0,content,scenario,playtest
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 

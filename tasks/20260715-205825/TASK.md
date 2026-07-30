@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: feature, docs, web
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 User request: unify the whole wiki on the markdown pipeline (from 20260715-195621)
 so the hand-authored player pages are markdown too, not HTML. Feasible - the

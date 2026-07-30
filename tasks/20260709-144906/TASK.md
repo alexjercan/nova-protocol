@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 75
 - TAGS: v0.4.0, bug, health
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Found while testing 20260709-140620: `HealthApplyDamage` propagates through
 `ChildOf`, so damage applied to a section ALSO applies its FULL amount to the

@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 100
 - TAGS: docs,planning
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Here we have the old tasks (all tasks with "Wishlist" status are not yet
 implemented). The current version of the game is `v0.3.0`. Version `v0.3.1`

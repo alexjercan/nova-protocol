@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 22
 - TAGS: v0.7.0, performance, chore
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Flag to skip particles/shaders for performance. Legacy #127.
 

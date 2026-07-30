@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 35
 - TAGS: v0.6.0,modding,perf,wontdo
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Spike: tasks/20260714-083224/SPIKE.md
 

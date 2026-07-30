@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 15
 - TAGS: v0.5.2, debug, egui, bcs, chore
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal
 

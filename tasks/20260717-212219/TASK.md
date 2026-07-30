@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 35
 - TAGS: v0.7.0, tooling, refactor, cli
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 User request: one CLI for content-related tasks with flags/subcommands
 instead of three separate bins. Scope FIXED by the user to the three

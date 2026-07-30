@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.9.0,feature,ui,hud
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -19,11 +22,6 @@ This task is a UI-only fidelity pass. It must not implement `log`,
 `20260726-115339` or their existing stretch tasks. Keep the existing objectives
 and flight-log data plumbing in place for future commands, but do not render it
 as permanent panels.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Steps
 

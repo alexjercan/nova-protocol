@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 4
 - TAGS: v0.7.0, spike, refactor, weapons, turret
+- KIND: SPIKE
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 This is a SPIKE, not shippable work. The output is a SPIKE.md documenting the
 chosen direction plus the concrete follow-up tatr tasks it seeds (data model,

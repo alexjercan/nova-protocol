@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.3.1, refactor
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Replace with direct LoadScenario by config. Menu enumerates ids and calls LoadScenario by config. Legacy #109.
 

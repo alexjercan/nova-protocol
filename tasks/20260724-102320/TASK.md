@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.9.0,stretch,spike,feature,ui,hud
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal
 
@@ -196,11 +199,6 @@ flight autopilot on the player ship.
    colors with labels; click or cycle selects and fills the readout; `G` sets a
    GOTO the ship then flies; `map view` prints the CLI list; Escape returns to
    the terminal. Screenshots attached. (manual: owner runs the game)
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 Gate note: the owner explicitly delegated the plan gate to an out-of-context
 plan-review loop ("review it instead of my input 'yes, build this' and loop

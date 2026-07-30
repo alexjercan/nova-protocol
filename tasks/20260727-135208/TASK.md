@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 44
 - TAGS: v0.9.0, feature, ui, hud
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Playtest feedback on the NOVA OS chin controls (the knobs + buttons on the
 case chin). They read flat/ugly next to the web PoC; make the whole control
@@ -16,11 +19,6 @@ Code: `crates/nova_gameplay/src/hud/nova_os.rs` - knob spawn
 handler ~1828-1833 (drives `NovaOsCloseTransition`). Reference look:
 `examples/ui/nova_os_terminal_poc.html` `.knob`/`.dial` ~758-796,
 `.power-btn` ~798-831.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Story
 

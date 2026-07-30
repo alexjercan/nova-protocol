@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 43
 - TAGS: v0.9.0, feature, ui, hud
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -15,11 +18,6 @@ BRIGHT knob, SCAN knob, SND speaker button, PWR button + LED).
 The chin bar itself (casing strip + recessed brand plate with the NovaCRT 9000
 logo bottom-left) is geometry owned by 20260726-193219; this task makes the
 controls on its right side exist and function.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Steps
 

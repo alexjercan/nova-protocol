@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.3.1, health, polish
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Follow-up from task 20260706-174738 (the section-destruction fix). Destroyed ship
 sections now despawn correctly, but they vanish silently instead of exploding - there is

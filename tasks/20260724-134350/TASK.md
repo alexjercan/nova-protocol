@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 54
 - TAGS: v0.9.0, feature, ui, hud
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal
 
@@ -22,11 +25,6 @@ Scope (direction-level; /plan breaks into steps at pickup):
 - Keep active objectives data-driven from bevy_common_systems GameObjectives
   (already synced), and derive completed objective history from that resource's
   removals so the drawer reads like a compact objective log.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Story
 

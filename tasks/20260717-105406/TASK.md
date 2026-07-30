@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 5
 - TAGS: v0.7.0, feature, input, flight
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Add an RCS (reaction control system) fine-adjustment mode to the ship
 controller for precise maneuvering, e.g. when docking.

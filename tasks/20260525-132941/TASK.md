@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.3.1, bug
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 When no spaceship is present, the camera should be WASD-controlled; with a spaceship it should be chase cam. Legacy #100.
 

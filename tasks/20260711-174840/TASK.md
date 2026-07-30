@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: hud, feedback
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 User feedback (20260711, playtest of 20260708-165704): "the side HUD
 indicator is kind of small it can be bigger maybe with some information on

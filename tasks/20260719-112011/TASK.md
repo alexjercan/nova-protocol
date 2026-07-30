@@ -3,4 +3,7 @@
 - STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: spike, v0.8.0, tooling, performance, testing
+- KIND: SPIKE
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 

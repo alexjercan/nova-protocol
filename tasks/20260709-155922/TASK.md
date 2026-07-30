@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.4.0, bug, handling
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Pre-existing hole surfaced by review R1.6 of the flight-feel retune
 (20260709-095043): `sync_controller_section_forces`

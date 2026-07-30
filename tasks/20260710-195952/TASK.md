@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 65
 - TAGS: v0.5.0, targeting, input, ux
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal
 

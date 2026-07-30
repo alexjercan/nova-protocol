@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.4.0, example, turret, bug
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Follow-up to the turret range sliders (20260707-150002). Reported after merge: dragging a
 tuning slider changes the value (the readout updates and the turret retunes) but the thumb does

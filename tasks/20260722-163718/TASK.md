@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 82
 - TAGS: v0.8.0, content, scenario, pacing, playtest
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Split the single mainline pacing gap into per-beat categories so an
 instructional objective lands mid-read while a reveal keeps the full absorb

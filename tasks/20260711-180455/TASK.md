@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 44
 - TAGS: v0.5.0,ui,menu,scenario,spike
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal
 

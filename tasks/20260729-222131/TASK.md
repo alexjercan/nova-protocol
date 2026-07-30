@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.9.0,bug,test,tooling
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -129,8 +132,3 @@ Skipped per AGENTS.md: the full `cargo test` / `cargo clippy` (CI runs both).
 - Related: task 20260727-143752 (smoke-listed this example), and the standing
   red tracked in 20260729-140945 (a different failure - the shakedown rehearsal
   guard, a `nova_assets` lib test outside this suite; still red, untouched).
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED

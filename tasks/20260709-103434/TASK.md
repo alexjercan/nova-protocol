@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 85
 - TAGS: v0.4.0, handling, autopilot, spike
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Spike: tasks/20260709-103324/SPIKE.md (design calls settled
 with the user; supersedes the velocity-servo model from

@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 46
 - TAGS: v0.9.0,feature,ui,hud
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -55,11 +58,6 @@ context-sensitive Escape as the app-exit key.
   Note: corrected from `... drawer terminal` (no `--`) during work - `cargo test`
   takes a single positional filter and rejects the second, so the two filters
   must be passed through to libtest after `--`.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Notes
 

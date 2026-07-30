@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.4.0,turret,bug
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Surfaced by the turret test range (task 20260707-095008, `examples/08_turret_range.rs`).
 The turret aims by slewing its yaw/pitch rotators toward the target's *current*

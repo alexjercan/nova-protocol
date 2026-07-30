@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 78
 - TAGS: v0.8.0, bug, gameplay, ai, gravity
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 

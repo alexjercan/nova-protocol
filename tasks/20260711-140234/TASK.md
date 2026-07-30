@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 58
 - TAGS: v0.5.0, bug, physics, flight, feel
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Steps
 

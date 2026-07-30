@@ -3,9 +3,7 @@
 - STATUS: CLOSED
 - PRIORITY: 36
 - TAGS: v0.9.0,ui,hud
-
-## Flow State
-
+- KIND: TASK
 - FLOW STEP: DONE
 - PLAN STATUS: APPROVED
 

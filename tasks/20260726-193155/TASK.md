@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: v0.9.0,spike,feature,ui,hud
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -16,11 +19,6 @@ more in the darker regions. Cheap, independent, reversible - improves feel even
 if the render-to-texture pipeline is never built.
 
 Keep it derivative-free (WebGL2-safe) and keep text readable.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Assumptions
 

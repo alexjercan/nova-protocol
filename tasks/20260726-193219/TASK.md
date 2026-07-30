@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.9.0, spike, feature, ui, hud
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -26,11 +29,6 @@ row; making those controls FUNCTIONAL is task 20260726-214617, which depends
 on this one for the geometry. Also add the phosphor rim glow tracing the
 screen edge (the PoC `.rim` layer) and the moulding-seam inner outline
 (`.case::after`) if they read well in Bevy UI.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Steps
 

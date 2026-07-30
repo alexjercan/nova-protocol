@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.9.0,bug,perf,probe
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -90,8 +93,3 @@ Closed as FIXED. Full evidence in NOTES.md; the short version:
 - Follow-up filed: backlog task `20260729-205957` makes an end-of-sprint probe
   sweep a standing per-sprint check, so the next such regression is caught by
   the sprint that ships it.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED

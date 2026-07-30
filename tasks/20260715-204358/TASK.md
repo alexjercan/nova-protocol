@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: feature, docs, web
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Follows spike 20260715-204133 (user picked Option A: intent-based regroup +
 guides, and all guides). Builds on the wiki pipeline from 20260715-195621.

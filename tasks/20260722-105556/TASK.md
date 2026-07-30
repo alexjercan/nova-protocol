@@ -3,6 +3,9 @@
 - STATUS: OPEN
 - PRIORITY: 0
 - TAGS: backlog
+- KIND: TASK
+- FLOW STEP: BACKLOG
+- PLAN STATUS: DRAFT
 
 ## Story
 
@@ -37,8 +40,9 @@ Deferred to the backlog - a hardening guard, no observed bug.
 ## Definition of Done
 
 - `content lint` flags an unpiloted ship parked inside a gravity well's SOI;
-  shipped scenarios lint clean.
-- Deferred: pull from backlog into a real vX.Y.Z tag before scheduling.
+  shipped scenarios lint clean (cmd: `content lint` over the shipped scenarios).
+- Deferred: pull from backlog into a real vX.Y.Z tag before scheduling
+  (manual: the user schedules it).
 
 ## Notes
 

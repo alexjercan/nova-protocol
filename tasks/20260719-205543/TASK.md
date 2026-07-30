@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 61
 - TAGS: v0.8.0,spike,tooling,testing,examples
+- KIND: SPIKE
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 
 ## Outcome (2026-07-19)

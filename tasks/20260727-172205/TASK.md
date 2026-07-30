@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.9.0,bug,web,assets
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Problem
 
@@ -123,8 +126,3 @@ meta_gen's build graph, so this is a `pub` on the loader type, a direct
 - The 66 MB `.ttc` download size is a separate perf concern (subset/convert to
   a single-face `.ttf`); not part of this text-visibility fix. File as a
   follow-up if desired.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED

@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 44
 - TAGS: v0.9.0,bug,gameplay,targeting,feedback
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -141,8 +144,3 @@ and carries no per-frame cost when nothing drops.
 A cycle that ends in a falsification is a legitimate outcome here: if the rig
 cannot make the lock drop for any reason the owner would call a bug, the
 deliverable is the evidence plus the pin.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED

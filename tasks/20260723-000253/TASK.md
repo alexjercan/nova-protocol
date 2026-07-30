@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 62
 - TAGS: v0.8.0, modding, scenario
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 

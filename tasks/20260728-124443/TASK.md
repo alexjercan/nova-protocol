@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 32
 - TAGS: v0.9.0,bug,ui,hud
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -39,11 +42,6 @@ field (it becomes a unit marker used only as a query filter). This makes
   `ShipBlock.section` (cmd: `cargo check -p nova_gameplay 2>&1 | grep -c "never read"` prints `0`).
 - The selected section's outline still tints amber and the ship tests still pass
   (test: `cargo test -p nova_gameplay --lib nova_os_ship`).
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Close-out
 

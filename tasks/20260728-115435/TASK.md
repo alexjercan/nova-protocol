@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 31
 - TAGS: v0.9.0,feedback,feature,ui,hud,gameplay
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -88,11 +91,6 @@ weapons). No new hues; the CRT/phosphor palette stays pure.
   no new hue constants are introduced
   (cmd: `grep -n "srgb" crates/nova_gameplay/src/hud/nova_os_ship.rs`;
   manual: clicking a block still selects its section).
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Notes
 

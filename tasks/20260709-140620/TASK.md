@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 85
 - TAGS: v0.4.0,bug,physics,handling
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Reported in play (2026-07-09): when a ship loses sections, its center of mass
 feels like it stays where it was with the full ship. Losing everything except a

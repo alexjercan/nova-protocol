@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 42
 - TAGS: feature, docs, web
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 User request: the dev categories (Get started / Understand / Extend the game)
 don't visibly signal they are developer material vs the player game-manual pages.

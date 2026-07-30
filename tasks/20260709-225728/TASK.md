@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 74
 - TAGS: v0.4.0,ai,spike,turret
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 
 Spike: tasks/20260709-225508/SPIKE.md (wave 1)

@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 49
 - TAGS: v0.9.0, feature, ui, hud
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -12,11 +15,6 @@ terminal screen rather than a floating UI overlay. This is the first build task
 from the feedback epic `20260725-104330`; use
 `examples/ui/nova_os_terminal_poc.html` as the visual reference, not as
 production code.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Steps
 

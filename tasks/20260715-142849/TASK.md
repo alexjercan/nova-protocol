@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 18
 - TAGS: modding
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Spike: tasks/20260714-202515/SPIKE.md (option A)
 Depends on: nothing (foundation for the portal + UI tasks).

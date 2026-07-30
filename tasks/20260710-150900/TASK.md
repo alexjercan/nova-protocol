@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 5
 - TAGS: ci, release, bug
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 The v0.4.0 release (run 29088287339) uploaded linux, web and windows
 assets, but `build-macOS` failed after ~60 min in the "Build release for

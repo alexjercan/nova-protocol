@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 88
 - TAGS: v0.4.0,polish,destruction
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Spike: tasks/20260708-161726/SPIKE.md (roadmap)
 

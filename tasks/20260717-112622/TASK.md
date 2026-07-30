@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 54
 - TAGS: spike,v0.7.0,ai,gameplay,balance
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Goal: make cover a real pressure-relief mechanic. AI turrets hold fire while
 a tangible (non-Sensor) blocker occludes the aim point, and the ship uses its

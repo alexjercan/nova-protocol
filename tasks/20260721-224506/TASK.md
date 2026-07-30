@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 91
 - TAGS: v0.8.0, bug, crash, gameplay
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 

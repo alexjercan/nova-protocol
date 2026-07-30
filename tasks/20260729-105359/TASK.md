@@ -3,9 +3,7 @@
 - STATUS: CLOSED
 - PRIORITY: 37
 - TAGS: v0.9.0,ui,refactor
-
-## Flow State
-
+- KIND: TASK
 - FLOW STEP: DONE
 - PLAN STATUS: APPROVED
 

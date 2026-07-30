@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 22
 - TAGS: v0.8.0, tooling, ci
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal
 

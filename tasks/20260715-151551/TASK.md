@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 18
 - TAGS: modding,examples
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 User request (20260715, mid-flow on 142849): the reel mod should not live in the
 mods folder or ship at all - bake it into the examples. The `hidden` catalog flag

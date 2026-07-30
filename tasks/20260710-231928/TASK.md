@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 82
 - TAGS: v0.5.0, hud, bug
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal
 

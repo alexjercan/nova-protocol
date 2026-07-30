@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 54
 - TAGS: modding, wasm
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Spike: tasks/20260714-174000/SPIKE.md
 Depends on: 20260714-174120 (EnabledMods resource) and 20260714-174126 (toggle UI).

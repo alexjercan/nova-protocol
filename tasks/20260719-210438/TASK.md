@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 59
 - TAGS: v0.8.0,tooling,testing,examples
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal
 

@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 100
 - TAGS: v0.3.1, bug, health
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Reported in play: when a spaceship takes damage, some sections (e.g. the controller)
 get *disabled* when their health hits zero, but they are never *destroyed* (not removed,

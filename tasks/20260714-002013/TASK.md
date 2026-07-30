@@ -3,4 +3,7 @@
 - STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: spike,web,wiki,content
+- KIND: SPIKE
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 

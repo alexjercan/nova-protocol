@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 59
 - TAGS: v0.7.0, content, scenario
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal
 

@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 44
 - TAGS: v0.9.0, spike, feature, ui, hud
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -30,11 +33,6 @@ per-content chromatic aberration at the edges, phosphor persistence/ghost trails
 on scroll, boot power-on/CRT-degauss transitions, and future NOVA OS "apps"
 (map/ship viewer) rendered through the same glass. It is the foundation for the
 "more cool things" the screen could do, not just a one-off effect.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Steps
 

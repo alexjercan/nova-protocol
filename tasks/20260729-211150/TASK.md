@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 52
 - TAGS: v0.9.0,feedback,bug,ui,menu
+- KIND: TASK
+- FLOW STEP: COMPOUNDING
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -68,11 +71,6 @@ Two defects on one screen (`nova_menu`'s Scenarios picker), one eyeball:
   `min_width: px(0)` fix was necessary but not sufficient.
 - Do not rewrite the campaign-header UI (20260723-095951's shape stands); this
   only adds the indent it deliberately skipped.
-
-## Flow State
-
-- FLOW STEP: COMPOUNDING
-- PLAN STATUS: APPROVED
 
 ## Implementation (2026-07-29)
 

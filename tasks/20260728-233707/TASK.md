@@ -3,9 +3,7 @@
 - STATUS: CLOSED
 - PRIORITY: 41
 - TAGS: v0.9.0,ui,assets,web
-
-## Flow State
-
+- KIND: TASK
 - FLOW STEP: DONE
 - PLAN STATUS: APPROVED
 

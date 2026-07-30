@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 62
 - TAGS: v0.8.0,refactor,testing,examples
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal
 

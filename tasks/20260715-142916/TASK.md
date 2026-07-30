@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 13
 - TAGS: modding, menu, wasm
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Spike: tasks/20260714-202515/SPIKE.md
 Depends on: 20260715-142906 (download runtime) and 20260715-142911 (two-pane

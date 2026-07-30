@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.4.0, example, editor, testing
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 The gameplay examples (03/06/07/08) are wired to the autopilot + screenshot harness and run in
 `examples_smoke`, but the editor - which is the default "game" the `nova_protocol` binary runs -

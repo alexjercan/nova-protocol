@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 48
 - TAGS: v0.4.0, torpedo
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Visual feedback when firing. Legacy #135.
 

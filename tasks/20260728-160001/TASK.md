@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 27
 - TAGS: v0.9.0,feature,ui,hud
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -104,8 +107,3 @@ ship.
    (cmd: existing `ship view` / `ship section` tests stay green).
 4. `cargo check` + `cargo fmt --check` clean; blip labels show the codes
    (manual: open the `map` app, confirm each blip reads its code).
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED

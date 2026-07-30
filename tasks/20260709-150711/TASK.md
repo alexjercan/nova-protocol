@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.4.0, bug, ai, turret
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Found during review of 20260709-140620 (chase camera phantom-pivot fix). The
 camera was moved to the live center of mass, but other consumers still target

@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.8.0, bug, examples, test
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 CI run 29658523978 (master, 2026-07-18): `harnessed_examples_reach_playing_without_panic`
 fails on `10_playable` with the backstop panic

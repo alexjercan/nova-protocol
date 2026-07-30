@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 43
 - TAGS: v0.7.0,scenario,content,bug
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 User report (2026-07-17 playtest): "the Auditor's torpedo bay is placed
 inside the ship, it should be on its side, it's clipping." The Auditor is

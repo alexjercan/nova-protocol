@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 81
 - TAGS: v0.9.0, bug, tooling, probe, modding
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -43,8 +46,3 @@ As a developer running `nova_probe` across older commits, I want harness runs to
 - Reproduction (cross-process, `crates/nova_probe/tests/profile_sandbox.rs`): a child spawned with a poisoned `HOME` and NO sandbox env prints `INDEX=Some([InstalledModRecord { id: "poison-mod-from-the-operator-profile", .. }])` and `ENABLED=Some(["poison-mod-from-the-operator-profile"])`. That is the bug: a run reading the operator's installed mods. With the sandbox env both read `None` and `DATA_DIR`/`CONFIG_DIR` sit under `<run-dir>/profile/`. An isolated-lever leg pins that `NOVA_MOD_CACHE_ROOT` alone moves the index while the config stores still read the poison.
 - End-to-end (`cargo run -p nova_probe -- run playable`, commit e109b5cf): verdict OK (process_exit / run_completed / reached_playing / invariants_held / log_clean PASS, fps SKIPPED - not measured), and probe printed `probe: profile sandbox: .../probe-runs/e109b5cf/playable/profile (mod cache, data, config)`. The live proof the wiring holds: the run WROTE its `enabled_mods.ron` into `probe-runs/e109b5cf/playable/profile/config/nova-protocol/` instead of the operator's `~/.config/nova-protocol/`.
 - Skipped locally per AGENTS.md: the full `cargo test` / `cargo clippy` suites (CI runs them). Run here: the new + touched tests (`--test profile_sandbox` 3 passed, `--lib profile_sandbox` 3 passed, `--bin probe` 26 passed), `cargo check --workspace --all-targets`, `cargo fmt`, and `cargo doc -p nova_probe --no-deps` (warning-free).
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED

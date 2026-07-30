@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 66
 - TAGS: v0.4.0, refactor, crates
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Follow-up from the nova_gameplay boundary audit (task 20260525-132936). These
 modules are game-agnostic enough to belong in the external bevy_common_systems crate,

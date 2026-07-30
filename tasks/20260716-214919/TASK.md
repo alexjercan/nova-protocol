@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 58
 - TAGS: v0.7.0, feature, ui, scenario
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Steps
 

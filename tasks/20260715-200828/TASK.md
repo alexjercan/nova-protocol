@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 12
 - TAGS: feature,menu,scenario
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 User request (20260715, on seeing the new mods screen): "the mods page looks
 really good! we should add a similar style page for playing custom scenarios

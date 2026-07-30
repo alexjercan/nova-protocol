@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 34
 - TAGS: spike, v0.7.0, audio, modding, refactor
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal
 

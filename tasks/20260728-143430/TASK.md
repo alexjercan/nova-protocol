@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 31
 - TAGS: v0.9.0,feedback,bug,ui,hud
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -64,8 +67,3 @@ Drop the `|| pressed(Left)` half in both, leaving RMB. Update the adjacent
 - `BCS_AUTOPILOT=1 cargo run --example screenshot_nova_os --features debug`:
   exit 0, harness reached `Playing` and shut down cleanly (AppExit::Success).
 - DoD #4 (playtest: LMB selects, RMB orbits) stays a manual owner check.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED

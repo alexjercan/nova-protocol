@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 48
 - TAGS: v0.9.0,bug,ui,hud,feedback
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -162,8 +165,3 @@ Reproduced, fixed and eyeballed; measured numbers in `NOTES.md`.
 
 Sits under epic 20260728-175719 (UI rework); a defect in the chip family that
 epic shipped.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED

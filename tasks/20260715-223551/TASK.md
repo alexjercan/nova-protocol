@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: bug,docs,web
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 From the docs review spike 20260715-223147. The creators front door
 (`web/src/wiki/modding.md`) advertises `web/src/wiki/dev/modding-ron.md` as "the

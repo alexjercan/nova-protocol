@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 8
 - TAGS: modding
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Spike: tasks/20260714-202515/SPIKE.md (option AC)
 Depends on: 20260715-142916 (Explore tab - install path exists). Backlog until

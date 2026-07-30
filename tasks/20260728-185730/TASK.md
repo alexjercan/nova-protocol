@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.9.0,ui,web,easter-egg
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -78,11 +81,6 @@ Depends on the UI-rework spike (20260728-175726) landing first so
    the deployed routes but present in the repo files; the Settings skin switch
    persists.
 4. Not pushed/deployed; owner runs the web deploy separately.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Verification (2026-07-28)
 

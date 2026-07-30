@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 53
 - TAGS: spike,v0.7.0,scenario,content,balance
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Goal: ledger_ch2_claim_jumpers currently opens with two better_turret
 magpies (800 dps combined, perfect lead) at ~175u in open void, chains two

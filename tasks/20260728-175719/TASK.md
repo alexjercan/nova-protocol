@@ -3,6 +3,9 @@
 - STATUS: OPEN
 - PRIORITY: 0
 - TAGS: v0.9.0,epic,ui,hud,feedback
+- KIND: EPIC
+- FLOW STEP: PLANNED
+- PLAN STATUS: APPROVED
 
 ## Context
 
@@ -140,11 +143,6 @@ scenarios scroll bug is a missing driver system for ScenariosList.
   anchored chip backgrounds are BROKEN (122909); the wide keycaps are
   ILLEGIBLE (122940). No verdict yet on overall text density - it is re-asked
   once these three land.
-
-## Flow State
-
-- FLOW STEP: PLANNED
-- PLAN STATUS: APPROVED
 
 ## Notes
 

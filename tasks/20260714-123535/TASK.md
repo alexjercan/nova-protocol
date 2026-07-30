@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.6.0, modding, refactor, spike
+- KIND: SPIKE
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Follow-up from 20260714-113411 (component-based section modifications). SPIKE first
 (feasibility + simpler?), then the refactor if RECOMMENDED. Do not implement before

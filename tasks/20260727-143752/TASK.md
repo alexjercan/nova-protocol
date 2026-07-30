@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.9.0, bug, test
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 `tests/examples_smoke.rs::catalog_matches_disk` fails on master: the
 `screenshot_nova_os` example is present in the Cargo.toml `[[example]]` catalog
@@ -14,11 +17,6 @@ catalog disagree".
 Introduced by commit a98de8ed (task 20260726-180807), which added
 `screenshot_nova_os` without listing it. Discovered mid-flow during task
 20260727-135204 (CRT frame polish).
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Steps
 

@@ -3,6 +3,9 @@
 - STATUS: OPEN
 - PRIORITY: 1
 - TAGS: v0.9.0,release,meta
+- KIND: TASK
+- FLOW STEP: BACKLOG
+- PLAN STATUS: DRAFT
 
 Release-level tracker for v0.9.0. Per-strand work lives in its own tatr task
 (tagged `v0.9.0`); this task carries the release theme, strand map, out-of-scope

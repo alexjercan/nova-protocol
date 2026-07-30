@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 5
 - TAGS: v0.7.0, feature, audio, flight
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal
 

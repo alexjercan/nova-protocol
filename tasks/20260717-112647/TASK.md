@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 51
 - TAGS: spike,v0.7.0,scenario,modding,feature
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Goal: the scenario engine has no notion of elapsed time - no delay action,
 no timer event (events.rs:13-30, actions.rs:28-55); pacing can only come

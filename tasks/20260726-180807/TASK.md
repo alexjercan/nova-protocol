@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 52
 - TAGS: v0.9.0,feature,ui,hud
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Work Record
 
@@ -67,11 +70,6 @@ against a real capture - not another blind number tweak.
 - `log` / `objectives` / `ship` keep pulling REAL game data, formatted to look
   like the HTML sample (spacing, casing, colour kinds).
 - Unknown-command + did-you-mean wording matches the HTML as close as practical.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Steps
 

@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 42
 - TAGS: v0.9.0, feature, ui, hud, audio
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -13,11 +16,6 @@ bed (a ~7.8 kHz flyback whine + 50 Hz mains hum) while the screen is on. The
 in-game NOVA OS is silent. Give the computer its voice through the existing
 audio conventions (`nova_gameplay::audio`, `NovaAudioPlugin`, the `UiSfx`
 engine-chrome bank under `assets/sounds/`).
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Steps
 

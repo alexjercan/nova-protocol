@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 66
 - TAGS: v0.8.0, spike, tooling, docs
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Goal
 

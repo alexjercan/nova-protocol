@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 15
 - TAGS: ui, backlog, wontdo
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Resolution: WONTDO (2026-07-15)
 

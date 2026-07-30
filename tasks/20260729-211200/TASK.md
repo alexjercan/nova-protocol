@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 53
 - TAGS: v0.9.0,feedback,ui,hud
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 ## Story
 
@@ -68,8 +71,3 @@ chip to BE the posting: a top-centre notification, no cockpit card.
   card that precedes it and the delay it imposed.
 - The completion green ghost (`objective_feedback`) and the world-anchored
   `objective_markers` chips are untouched.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED

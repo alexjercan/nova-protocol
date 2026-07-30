@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: v0.9.0, feature, ui, hud
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Playtest feedback: the main HUD status-bar item that advertises the Computer
 (the "TAB" affordance, which opens the NOVA OS drawer) should carry the NOVA
@@ -12,11 +15,6 @@ Code: `crates/nova_gameplay/src/hud/objective_hint.rs` - the status-bar item
 `ObjectiveHintItem` spawns a count + a plain "TAB" text (~99-111). The star
 mark asset already exists and is used on the drawer brand plate:
 `assets/icons/nova_crt_mark.png` (see `nova_os.rs:3501` ImageNode). Reuse it.
-
-## Flow State
-
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 
 ## Story
 

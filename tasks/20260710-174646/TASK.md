@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 65
 - TAGS: v0.5.0, hud, input, ux, spike
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Spike: tasks/20260710-174523/SPIKE.md
 Depends on: 20260709-103454 (maneuver instruments v1 - the hint cluster

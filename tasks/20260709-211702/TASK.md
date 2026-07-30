@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.4.0, input, targeting
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 Playtest request (20260709): besides `[`/`]` and dpad, bind the component
 cycle to the scroll wheel - up = next, down = prev.

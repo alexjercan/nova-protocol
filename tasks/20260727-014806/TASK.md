@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 5
 - TAGS: v0.9.0, feature, ui, hud
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 While the NOVA OS ship-computer drawer is open (game paused in `PauseStates::Drawer`,
 terminal/computer mode), hide the normal flight status bar entirely, and instead show a
@@ -53,8 +56,6 @@ bar returns to normal.
 
 ## Flow State
 
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
 - BRANCH: feature/nova-os-topbar-fps
 - TEST: cargo test -p nova_gameplay drawer -> 59 passed, 0 failed
 - HOLD: not landed (coordinated landing; another branch landing to master)

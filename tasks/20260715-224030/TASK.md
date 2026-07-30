@@ -3,6 +3,9 @@
 - STATUS: CLOSED
 - PRIORITY: 46
 - TAGS: docs,web,feature,modding
+- KIND: TASK
+- FLOW STEP: DONE
+- PLAN STATUS: APPROVED
 
 From the docs review spike 20260715-223147 (creator persona). A determined RON
 author can ship a mod, but the journey has gaps: only scenario fragments (no
