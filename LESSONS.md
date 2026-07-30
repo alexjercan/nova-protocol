@@ -38,15 +38,15 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   the sweep's SCOPE; its QUERY is
   [[sweep-docs-for-the-feature-description-not-just-its-symbols]].
   20260718-004723, 20260719-112231, 20260718-231555, 20260720-224236, 20260722-214119, 20260724-193830, 20260729-211200.
-- `sweep-docs-for-the-feature-description-not-just-its-symbols` (x1): when
-  REMOVING something a player can see, the deleted identifiers do not define the
-  search space - the wiki describes what the player SEES, in the player's words,
-  and never names the module. Write down 3-5 phrases a writer would use for the
-  thing (its shape, its motion, its moment) and grep THOSE too before ticking the
-  doc step: a symbol-only sweep left a whole wiki sentence selling the deleted
-  objective card ("gets the cockpit moment ... appears slightly rotated ... tucks
-  into") because it never used the word "reveal". Query half of
-  [[keep-docs-in-sync-with-code]]. 20260729-211200.
+- `sweep-docs-for-the-feature-description-not-just-its-symbols` (x2): the
+  changed identifiers do not define the search space - docs describe BEHAVIOR
+  (what the player sees, or which CATEGORY of thing does what) and often never
+  name the module. Write down 3-5 phrases a writer would use for the thing and
+  grep THOSE too before ticking the doc step: a symbol-only sweep left a wiki
+  sentence selling the deleted objective card (never used the word "reveal"),
+  and another left the wiki scoping completion backstops to "the sections,
+  gameplay and ui examples" after a screenshots example grew one. Query half of
+  [[keep-docs-in-sync-with-code]]. 20260729-211200, 20260729-222131.
 - `doc-sweep-covers-source-doc-comments` (x1): when RENAMING/REMOVING a
   command or symbol, `grep -rn '<oldname>' --include='*.rs'` the source
   `//!`/`///` doc comments too - a CLI surface is described in module/crate
@@ -141,6 +141,22 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `review-the-generated-artifact-too` (x1): after changing an authored or
   generated schema, READ the regenerated file with an author's eye - parity
   tests never check readability. 20260717-215742.
+- `comment-the-local-wiring-not-the-general-protocol` (x1): when a comment
+  explains WHY code follows a protocol, verify the protocol's preconditions
+  hold at THIS call site before writing the rationale - check the
+  registration/wiring, then write the reason. A new comment claimed reporting
+  completion protected a pending capture; `capture_window` spawns a bare
+  `Screenshot` and never calls `completion::register`, so the captures are not
+  collectors at all and survive on a frame settle. The general story was true
+  and locally irrelevant, in the file the next person copies the pattern from.
+  Prose-side sibling of [[advertised-but-unwired]]. 20260729-222131.
+- `absence-of-logging-is-not-a-measurement` (x1): a last-log-line timestamp is
+  not an exit time, a frame count or a duration - a run that logs nothing
+  between its beats LOOKS instantaneous. Before reasoning quantitatively about
+  something nothing logs, build the instrument (here: one guard panicking with
+  the stage index answered in a single run what a frame-time argument had got
+  backwards). Cheaper than the theory, and it settles rather than narrows.
+  20260729-222131.
 - `commit-review-retro-before-land` (x2, -> flow/review skills): commit
   REVIEW.md (and any retro/decision file) on the feature branch and confirm the
   worktree `git status` is clean BEFORE `sprout land` - the squash only takes
@@ -242,11 +258,18 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   compare the branch against CURRENT local default and merge it if the diff
   includes inherited base noise - stale comparisons waste review on unrelated
   files. 20260724-134350.
-- `review-agent-needs-tatr-verdict-format` (x1): an out-of-context review
-  subagent that WRITES REVIEW.md must be told the exact line format tatr checks
-  (`- VERDICT: APPROVE|REQUEST_CHANGES`) - a bare `VERDICT: APPROVE` line fails
-  `closed-not-approved` and costs a fix-up round at the compound gate.
-  20260724-074940.
+- `review-agent-needs-tatr-verdict-format` (x2): whoever WRITES REVIEW.md must
+  use the exact line format tatr checks (`- VERDICT: APPROVE|REQUEST_CHANGES`,
+  as a LIST item) - a bare `VERDICT: APPROVE`, or one qualified with the round
+  (`VERDICT (round 2, reviewer): APPROVE`), fails `closed-not-approved` and
+  costs a fix-up round at the compound gate. Put the attribution in the
+  section heading, never on the verdict line. 20260724-074940, 20260729-222131.
+- `the-reviewed-party-does-not-write-the-verdict` (x1): record a review verdict
+  only when it comes back FROM the reviewer, attributed to its round - never
+  pre-write the expected one. Pre-writing `VERDICT: APPROVE` before the
+  re-review ran happened to match, which is what makes it a habit rather than
+  an error: in the record it is indistinguishable from a real gate.
+  20260729-222131.
 - `manual-acceptance-is-not-an-implementation-checkbox` (x1): split human visual
   acceptance out of implementation checklists during planning - keep it as a
   `manual:` DoD item so work close-out does not pretend to self-verify a human
