@@ -185,8 +185,11 @@ opt-level = 1
 # that is ~70 GB of concurrent linkers against 31 GB of RAM - hence the
 # `jobs` cap in .cargo/config.toml, which is what actually bounds the peak.
 #
-# `unpacked` diverts ~12.9 GB of dependency DWARF into .dwo files that the
-# linker never reads - measured, and the reason it must NOT be set to "off".
+# `unpacked` diverts 9.6 GB of DWARF into .dwo files that the linker never
+# reads - measured (65,556 files: 6.96 GB first-party, 2.64 GB dependency),
+# and the reason it must NOT be set to "off". Re-derive that split on an
+# UNFIXED tree if you ever need it: with `package."*" debug = false` below in
+# place, dependencies emit no .dwo at all and the measurement reads backwards.
 # It cannot move line tables though (.debug_line/.debug_ranges stay in the .o),
 # so it does not compose with `line-tables-only`: ~274 MB of DWARF still lands
 # in every binary. That residue is what `[profile.test] debug = 0` below drops
