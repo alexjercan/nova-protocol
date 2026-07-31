@@ -1527,7 +1527,7 @@ here (annotated) as the paid record.
 
 ## Pending promotions (3+ occurrences, user decides)
 
-- `rustdoc-no-public-to-private-intra-doc-link` (x3) -> work skill (verify step):
+- `rustdoc-no-public-to-private-intra-doc-link` (x3, PROMOTE 2026-07-31 -> 20260731-202401) -> work skill (verify step):
   a `pub` item's rustdoc cannot `[intra-doc-link]` a PRIVATE symbol (or a
   cross-module item not in scope) without a `cargo doc` warning - plain code span
   for private refs, full paths for cross-module refs. Moving documented code
