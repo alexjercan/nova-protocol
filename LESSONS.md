@@ -836,7 +836,8 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   security boundary name it and default to the safe path. 20260715-214540.
 - `nix-devshell-for-cargo` (x2): no cargo on PATH means prefix with
   `nix develop --command ...` from the repo. 20260715-140049.
-- `reuse-known-good-stack` (x9, positive -> Pending promotions): scaffold new
+- `reuse-known-good-stack` (x9, PROMOTE 2026-07-31 -> 20260731-102037): a
+  POSITIVE lesson - scaffold new
   work - and TEST RIGS especially - by copying the nearest passing in-repo
   reference verbatim, THEN mutate; reconstructing from a signature cost build
   cycles repeatedly (a hand-rolled pad-toggle test re-hit the exact `press_tab`
@@ -1509,12 +1510,12 @@ here (annotated) as the paid record.
 
 ## Pending promotions (3+ occurrences, user decides)
 
-- `deleting-a-test-salvage-live-assertions` (x3) -> work skill (verify step):
+- `deleting-a-test-salvage-live-assertions` (x3, PROMOTE 2026-07-31 -> 20260731-102037) -> work skill (verify step):
   make "read each deleted test's ASSERTIONS and re-home the survivors" a
   standing step of any diff that removes tests, not a lesson to remember.
   20260728-125514, 20260729-163816, 20260729-211200.
 
-- `anchor-edits-in-the-right-scope` (x3) -> work skill: an edit anchored on an
+- `anchor-edits-in-the-right-scope` (x3, PROMOTE 2026-07-31 -> 20260731-102037) -> work skill: an edit anchored on an
   item's `#[test]`/`const`/attribute line inserts BETWEEN that item and its doc
   block, silently reassigning the doc to the new item - compiles and tests
   clean, only a reader notices. No tool or template can hold this (it is an
@@ -1522,7 +1523,7 @@ here (annotated) as the paid record.
   the work skill's edit guidance: "anchor an insert on the DOC BLOCK start, not
   the attribute, and re-read the produced text around both items".
   20260525-133017, 20260716-193949, 20260728-175742.
-- `pin-each-caller-not-just-shared-core` (x4) -> work/review skill: a shared
+- `pin-each-caller-not-just-shared-core` (x4, PROMOTE 2026-07-31 -> 20260731-102037) -> work/review skill: a shared
   helper/renderer covered by ONE caller or a synthetic fixture does not prove the
   OTHER callers' wiring - target resolution, plumbing, side effects, or a data
   field set at N registration sites feeding a pure renderer. Prose target (work
@@ -1532,7 +1533,7 @@ here (annotated) as the paid record.
   unit-tested on the renderer with a synthetic spec; the reviewer had to point at
   the un-exercised `ship <section>` registration wiring.
   20260726-115339, 20260728-115430, 20260728-184502, 20260729-015406.
-- `validate-proof-command-shape-at-plan-time` (x4) -> work skill: at verify,
+- `validate-proof-command-shape-at-plan-time` (x4, PROMOTE 2026-07-31 -> 20260731-102037) -> work skill: at verify,
   confirm a `cmd:`/test proof runs the INTENDED tests - right arity/flags AND a
   NON-ZERO "N passed" PER named module, not a bare "ok". Failure modes seen:
   `cargo test <a> <b>` rejects the 2nd filter; `-p <crate> <name>` matched 0
@@ -1543,14 +1544,14 @@ here (annotated) as the paid record.
   absent one alone - and for an absence proof, grep the CLAIMS that were really
   in the tree, checking at plan time that zero is reachable".
   20260726-115334, 20260727-135208, 20260728-175731, 20260730-122843.
-- `match-ci-feature-set-in-targeted-tests` (x3) -> work skill: a workspace
+- `match-ci-feature-set-in-targeted-tests` (x3, PROMOTE 2026-07-31 -> 20260731-102037) -> work skill: a workspace
   `cargo check --all-targets` does not enable a crate's self dev-dep `serde`
   feature, so it silently skips serde-gated targets (a false green). Prose
   target (verify step): "run per-crate `cargo test -p <crate> --no-run` on
   touched crates before trusting a workspace check". A tool guard is hard (the
   feature unification is per-crate), so a work-skill line is the realistic home.
   20260718-004834, 20260718-102022, 20260724-193830.
-- `reuse-known-good-stack` (x9, positive) -> work skill: scaffold a new test rig
+- `reuse-known-good-stack` (x9, PROMOTE 2026-07-31 -> 20260731-102037) -> work skill (a POSITIVE lesson): scaffold a new test rig
   by copying the nearest passing sibling rig verbatim, then mutate - do not
   reconstruct it from the system's parameter signature (a hand-built CRT rig
   omitted the sibling's `init_asset::<Font>/<Image>` and panicked in the
@@ -1558,13 +1559,13 @@ here (annotated) as the paid record.
   "grep the module for an existing rig of the same kind first"; sharpens it to
   "copy it whole first" - and to "the nearest rig may be the DEPENDENCY'S own,
   e.g. bevy_ui's `setup_ui_test_app`"). 20260712-093048, 20260711-180511, 20260724-102304, 20260727-014148, 20260730-122909.
-- `new-required-system-param-sweeps-all-rigs` (x1) -> work skill: when a
+- `new-required-system-param-sweeps-all-rigs` (x1, DEFER 2026-07-31 at x1: only x1 - it was filed under Pending promotions below the 3+ bar; revisit if it recurs) -> work skill: when a
   widely-run system gains a required `Res`/`ResMut`/param, grep every
   `add_systems`/test rig that runs it and register the resource BEFORE running -
   the compiler cannot catch a missing resource, only a run-time panic can (adding
   `ResMut<NovaOsDegauss>` to two NOVA OS systems broke 5 partial-app rigs at
   once). 20260727-014148.
-- `lint-gate-is-the-last-step` (x3): fmt/clippy/tests run AFTER the final edit;
+- `lint-gate-is-the-last-step` (x3, ABSORBED 2026-07-31 by .githooks/pre-commit (fmt gate, armed by scripts/setup-hooks.sh; shipped 20260722-183022)): fmt/clippy/tests run AFTER the final edit;
   mirror remote CI locally before pushing - a post-final-edit prelude tweak
   landed an unformatted line that CI would have bounced (caught at flow Finish).
   Promotion candidate (tool > prose): a pre-commit / pre-land `cargo fmt --check`
@@ -1575,7 +1576,7 @@ here (annotated) as the paid record.
   `scripts/setup-hooks.sh`, and it gates the `sprout land` commit too (sprout
   rolls back on hook failure). The "author remembering" failure mode is now a
   tool guard - the recurrence this entry tracked should stop.
-- `sweep-content-repo-wide-not-just-assets` (x3) -> work/review skills:
+- `sweep-content-repo-wide-not-just-assets` (x3, PROMOTE 2026-07-31 -> 20260731-102037) -> work/review skills:
   relocating/renaming an asset sweeps EVERY content-shaped file repo-wide
   (examples/, include_str!, test data); an "X holds everywhere" audit sweeps
   base + webmods + assets/mods + Rust-coded scenarios, re-derived in review.
