@@ -1,4 +1,15 @@
 [build]
+# Cap concurrent rust-lld jobs. This is the LOAD-BEARING fix for the OOMs: the
+# debuginfo knobs in ../Cargo.toml are worth ~30% each, this is worth ~6x.
+# Cargo's default -j is nproc; every test/example target links the whole
+# Bevy+avian graph, measured at 2.94 GB peak RSS for a test binary and 2.93 GiB
+# for an example (`time -v` at -j1). At -j24 that is ~70 GB against 31 GB of
+# RAM, which OOMs the box - CI only survives it because ubuntu-latest has 2
+# cores, below this cap, so the cap cannot slow CI down.
+# At 4, `cargo test --workspace --features debug` (the heaviest config here)
+# measures 8.19 GiB peak summed toolchain RSS. Raise only if you know the box
+# has the headroom. See the profile notes in ../Cargo.toml.
+jobs = 4
 
 [target.wasm32-unknown-unknown]
 rustflags = ["--cfg=web_sys_unstable_apis"]

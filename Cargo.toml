@@ -177,17 +177,61 @@ ron = { version = "0.12" }
 # Enable a small amount of optimization in debug mode
 [profile.dev]
 opt-level = 1
-# Keep `cargo test`/`--all-targets` peak RAM down: cargo links one Bevy+avian binary per
-# target (lib unittest + every example + doctests), and embedded DWARF makes each ~1.5 GB,
-# so parallel rust-lld jobs can peak near 40 GB and swap-thrash a 32 GB box. Leaving DWARF
-# in the .o files and keeping only line tables drops the peak to roughly half of RAM while
-# preserving panic backtraces. See ../bevy-common-systems/docs/2026-07-03-test-memory.md.
+# Keep `cargo test`/`--all-targets` peak RAM down: cargo links one Bevy+avian
+# binary per target (16 lib + 27 integration test + 26 example + 5 bin), and
+# rust-lld (the nightly default linker) peaks 2.94 GB on a 444 MB test binary
+# and 2.93 GiB on a 582 MB example (both `time -v` at -j1, unfixed profile).
+# Cargo's default -j is nproc, so on a 24-core box
+# that is ~70 GB of concurrent linkers against 31 GB of RAM - hence the
+# `jobs` cap in .cargo/config.toml, which is what actually bounds the peak.
+#
+# `unpacked` diverts ~12.9 GB of dependency DWARF into .dwo files that the
+# linker never reads - measured, and the reason it must NOT be set to "off".
+# It cannot move line tables though (.debug_line/.debug_ranges stay in the .o),
+# so it does not compose with `line-tables-only`: ~274 MB of DWARF still lands
+# in every binary. That residue is what `[profile.test] debug = 0` below drops
+# for test targets. Kept here for the game build, where `cargo run` panic
+# backtraces want the line numbers.
 split-debuginfo = "unpacked"
 debug = "line-tables-only"
 
-# Enable high optimizations for dependencies (incl. Bevy), but not for our code:
+# Enable high optimizations for dependencies (incl. Bevy), but not for our code.
+#
+# `debug = false` drops DEPENDENCY debuginfo at the source, including the line
+# tables that split-debuginfo cannot externalize. It only bites on DEV-profile
+# builds - `cargo build`/`cargo run`, including `--example` - because everything
+# `cargo test` links already goes through `[profile.test] debug = 0` below.
+# Measured on `cargo build --example thruster_section -j1`: peak RSS 2.93 ->
+# 2.16 GiB, binary 582 -> 369 MB, embedded DWARF 262.2 -> 49.0 MB. The same
+# measurement on the full `cargo test --workspace --features debug` suite moved
+# the peak 8.07 -> 8.19 GiB, i.e. nothing - do not expect this knob to help
+# there, it is not what it is for.
+# First-party frames keep file and line, since `[profile.dev]` above still
+# applies to our own crates; only dependency frames lose them.
 [profile.dev.package."*"]
 opt-level = 3
+debug = false
+
+# Test targets carry no debuginfo at all. Inheriting the dev profile leaves
+# ~274 MB of line tables in each of the ~43 lib+integration-test binaries for
+# rust-lld to merge. Measured on nova_core's test binary with
+# `time -v cargo test --lib -p nova_core --no-run -j1`: peak RSS 2.94 GB -> 1.68
+# GiB (-40%), binary 444 MB -> 158 MB, and `readelf -S` goes from 10 `.debug_*`
+# sections to none. -40%, not "half" - an earlier version of this comment
+# claimed a halving it never measured.
+# Not redundant with `package."*" debug = false` above: that knob alone leaves
+# 48 MB of first-party line tables and lands at 1.84 GiB; this one alone gets
+# 1.68 GiB, and both together 1.66 GiB. They cover different profiles, so keep
+# both - the pair is not additive and neither replaces the other.
+# The cost is line numbers in test panic backtraces - function names survive,
+# and a test worth debugging can be re-run under the dev-profile examples or
+# with this line commented out.
+# This DOES cover example targets: `cargo test` builds examples with the TEST
+# profile, and only `cargo build`/`cargo run --example` use the dev profile.
+# Measured on `thruster_section`: 582 MB / 262.2 MB DWARF under `cargo build
+# --example`, 352 MB / 0 MB when built by `cargo test`.
+[profile.test]
+debug = 0
 
 # This is used by trunk as it doesn't support custom profiles: https://github.com/trunk-rs/trunk/issues/605
 # xbuild also uses this profile for building android AABs because I couldn't find a configuration for it
