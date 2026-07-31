@@ -127,7 +127,7 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   bin). A leaf tool that is not a game dependency is ALREADY skipped by bare
   builds, so the key buys nothing and only adds an allowlist footgun - do not add
   it. 20260721-151934.
-- `validate-proof-command-shape-at-plan-time` (x4 -> Pending promotions, work
+- `validate-proof-command-shape-at-plan-time` (x5 -> Pending promotions, work
   skill): a `cmd:` proof is unrun until verify, so a malformed OR wrong-target
   one is a silent gate - at verify confirm it runs the INTENDED tests: right
   arity/flags AND a NON-ZERO count of the named tests (read "N passed" PER
@@ -135,12 +135,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   (use `-- <a> <b>`); a copied `-p nova_gameplay drawer` filter matched 0 tests
   ("685 filtered out") yet reported ok; `-- f1 f2 ... f8` with many positional
   filters silently ran only SOME modules. An ABSENCE grep fails differently:
-  one written from the WORDS of the stale claim (`dim chip|greyed`) can never
-  reach zero, because unrelated code uses the words and the CORRECTED prose
-  names what it corrects ("rather than shown greyed out") - grep the specific
-  phrases that were really in the tree, and check at plan time that the command
-  CAN return zero. 20260726-115334, 20260727-135208, 20260728-175731,
-  20260730-122843.
+  one written from the WORDS of the stale claim (`dim chip|greyed`), or whose
+  boundary a token the SAME change ADDS defeats (`--panel\b` also matches the new
+  `--panel-radius`), can never reach zero - grep the specific phrases really in
+  the tree, and check at plan time, against the tree the change will PRODUCE,
+  that the command can return zero. 20260726-115334, 20260727-135208,
+  20260728-175731, 20260730-122843, 20260731-143918.
 - `inseparable-seeded-tasks-remerge` (x1, PROMOTED 2026-07-19 -> flow skill):
   when seeded tasks prove architecturally inseparable, surface the re-cut and
   merge them instead of building shims. 20260717-215742.
@@ -448,13 +448,6 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   `[table]` or they fold into it silently. 20260715-110417.
 - `verify-tool-via-subcommand-not-which` (x1): check `cargo <sub> --version`,
   not `which` - ~/.cargo/bin may be off PATH. 20260715-110417.
-- `dod-command-unrun-is-not-a-proof` (x1): a proof command AUTHORED into a DoD is
-  unverified text until executed - a "no legacy token survives" grep used
-  `--panel\b`, which also matches the `--panel-radius` the same change
-  introduces, so it could never be clean. Run every DoD command against the
-  current tree while writing it, and re-run any pattern that names a token the
-  task is about to add. Sibling of [[inherited-cli-string-drifts]] (that one is
-  copied and stale; this one was wrong at birth). 20260731-143918.
 - `inherited-cli-string-drifts` (x2): a CLI invocation copied from a prior
   task's DoD/Steps can be stale against the current flags - run it (or `--help`)
   once before trusting it. Both ch3 tasks this cycle inherited `content lint
@@ -1554,7 +1547,7 @@ here (annotated) as the paid record.
   unit-tested on the renderer with a synthetic spec; the reviewer had to point at
   the un-exercised `ship <section>` registration wiring.
   20260726-115339, 20260728-115430, 20260728-184502, 20260729-015406.
-- `validate-proof-command-shape-at-plan-time` (x4, PROMOTE 2026-07-31 -> 20260731-102037) -> work skill: at verify,
+- `validate-proof-command-shape-at-plan-time` (x5, PROMOTE 2026-07-31 -> 20260731-102037) -> work skill: at verify,
   confirm a `cmd:`/test proof runs the INTENDED tests - right arity/flags AND a
   NON-ZERO "N passed" PER named module, not a bare "ok". Failure modes seen:
   `cargo test <a> <b>` rejects the 2nd filter; `-p <crate> <name>` matched 0
@@ -1563,8 +1556,9 @@ here (annotated) as the paid record.
   WORDS of a stale claim that no correct tree can ever satisfy. Prose target
   (verify step): "grep each intended module/test name in the output; re-run any
   absent one alone - and for an absence proof, grep the CLAIMS that were really
-  in the tree, checking at plan time that zero is reachable".
-  20260726-115334, 20260727-135208, 20260728-175731, 20260730-122843.
+  in the tree, checking at plan time - against the tree the change will PRODUCE -
+  that zero is reachable". 20260726-115334, 20260727-135208, 20260728-175731,
+  20260730-122843, 20260731-143918.
 - `match-ci-feature-set-in-targeted-tests` (x3, PROMOTE 2026-07-31 -> 20260731-102037) -> work skill: a workspace
   `cargo check --all-targets` does not enable a crate's self dev-dep `serde`
   feature, so it silently skips serde-gated targets (a false green). Prose

@@ -72,6 +72,9 @@
   pre-existing wiki-index card styling (whole-card underline, `.prose h3`
   outranking `.wiki-index__cardtitle`) is noted in NOTES.md and left alone
   deliberately; it predates this branch.
-- Ledger: bumped `pin-mirrored-list-against-source`; added
-  `capture-rig-succeeds-on-an-error-page`, `dod-command-unrun-is-not-a-proof`
-  and `assert-the-new-vocabulary-is-consumed`.
+- Ledger: bumped `pin-mirrored-list-against-source` (x2) and
+  `validate-proof-command-shape-at-plan-time` (x5 - the DoD-grep failure above is
+  a 5th occurrence of that already-promoted lesson, not a new one; the /lessons
+  pass caught that /compound had filed it as a duplicate slug and merged it).
+  Added `capture-rig-succeeds-on-an-error-page` and
+  `assert-the-new-vocabulary-is-consumed`.
