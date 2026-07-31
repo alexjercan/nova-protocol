@@ -1,10 +1,10 @@
 # Web: rework the site onto the PHOSPHOR skin only (drop the hardware material)
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 52
 - TAGS: v0.9.0, ui, web, feedback
 - KIND: TASK
-- FLOW STEP: COMPOUNDING
+- FLOW STEP: DONE
 - PLAN STATUS: APPROVED
 
 ## Story
