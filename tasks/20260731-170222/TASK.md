@@ -98,3 +98,10 @@ before the epic closes.
       suite locally exhausts this box's RAM (see 20260731-210651). CI runs it
       on the PR. Confirm that substitution is acceptable, or run it somewhere
       with headroom.
+- [ ] 20260731-170359 - skim the nova_menu split diff and agree no behavior
+      changed. Supporting evidence in that task's NOTES.md: `lib.rs` 7705 -> 219
+      lines with the `Plugin::build` body byte-identical apart from comments,
+      the 76 test names an identical multiset before and after (and all 76
+      passing locally - `cargo test -p nova_menu --lib` fits in RAM), and the
+      non-comment source text a pure move with 28 base-only lines, all import
+      fragments or rustfmt re-wraps.

@@ -1,17 +1,16 @@
-//! Cross-platform persistence of the player settings (task 20260711-180511).
+//! Cross-platform persistence of the player settings.
 //!
-//! The settings menu writes two Bevy resources - `MasterVolume` and
-//! `GraphicsQuality` (both in `nova_gameplay`) - and this module makes them
-//! survive a restart. It is a direct mirror of `nova_assets::mod_prefs`: a
-//! RON blob stored on native under the user config dir
-//! (`dirs::config_dir()/nova-protocol/settings.ron`) and on the web in
-//! `window.localStorage` under a namespaced key. Both are best-effort: a
-//! missing or corrupt store reads as `None` (fall back to defaults), and write
-//! failures are logged, never fatal.
+//! The settings menu writes two Bevy resources - `MasterVolume` and `GraphicsQuality`
+//! (both in `nova_gameplay`) - and this module makes them survive a restart. It is a
+//! direct mirror of `nova_assets::mod_prefs`: a RON blob stored on native under the
+//! user config dir (`dirs::config_dir()/nova-protocol/settings.ron`) and on the web in
+//! `window.localStorage` under a namespaced key. Both are best-effort: a missing or
+//! corrupt store reads as `None` (fall back to defaults), and write failures are
+//! logged, never fatal.
 //!
-//! A small hand-rolled store on purpose, for the same reason mod_prefs is: Bevy
-//! 0.19 is bleeding-edge and a third-party settings crate would be a
-//! version-compat liability for a UI feature.
+//! A small hand-rolled store on purpose, for the same reason mod_prefs is: Bevy 0.19 is
+//! bleeding-edge and a third-party settings crate would be a version-compat liability
+//! for a UI feature.
 
 use nova_gameplay::prelude::{GraphicsQuality, MasterVolume, NovaOsMonitorSettings};
 use nova_ui::prelude::UiSkin;
@@ -31,7 +30,7 @@ pub struct PersistedSettings {
     /// The UI skin (phosphor terminal vs hardware casing).
     #[serde(default)]
     pub ui_skin: UiSkin,
-    /// NOVA OS BRIGHT knob detent (task 20260726-214617).
+    /// NOVA OS BRIGHT knob detent.
     #[serde(default = "default_bright_detent")]
     pub nova_os_bright_detent: usize,
     /// NOVA OS SCAN knob detent.
@@ -222,8 +221,8 @@ mod tests {
         let path = temp_path("round_trip");
         let _ = std::fs::remove_dir_all(path.parent().unwrap());
 
-        // Non-default monitor detents + SND off, so the round-trip proves the
-        // NOVA OS chin fields persist (task 20260726-214617).
+        // Non-default monitor detents + SND off, so the round-trip proves the NOVA OS
+        // chin fields persist.
         let settings = PersistedSettings {
             master_volume: 0.4,
             graphics_quality: GraphicsQuality::Low,
@@ -303,10 +302,9 @@ mod tests {
         let _ = std::fs::remove_dir_all(path.parent().unwrap());
     }
 
-    /// The UI skin choice survives a save/load round-trip (DoD 2, task
-    /// 20260728-175738). Default is Phosphor, so a Hardware choice is the
-    /// non-default proof; and an older store lacking the field defaults to
-    /// Phosphor rather than failing to load.
+    /// The UI skin choice survives a save/load round-trip (DoD 2). Default is Phosphor,
+    /// so a Hardware choice is the non-default proof; and an older store lacking the
+    /// field defaults to Phosphor rather than failing to load.
     #[test]
     fn ui_skin_setting_persists_across_save_load() {
         let path = temp_path("ui_skin");

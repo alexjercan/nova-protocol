@@ -316,21 +316,14 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   '^warning'` read 2 against a true 14 and made an unchanged tree look like a
   regression; `git stash` -> touch the crate root -> rerun -> `stash pop`
   showed both sides at 14. 20260731-170329.
-- `doc-comment-rewrap-changes-the-render` (x2): deleting a mid-line clause from
-  a `//!`/`///` block can leave the next line starting with `-`, `#`, `>` or
-  `1.`, which CommonMark parses as a block construct - rustdoc renders a stray
-  list item while check and fmt stay green, so a "comments only, no behavior
-  change" pass silently changes output. A SCRIPTED substitution reproduces it
-  at scale; cheapest check is grepping the ADDED comment lines for over-fill
-  length and a leading `- `, before re-reading the touched blocks as markdown.
-  20260731-170329, 20260731-170335.
-- `re-measure-records-after-the-last-edit` (x1): a record holding measured
+- `doc-comment-rewrap-changes-the-render` (x3 -> Pending promotions): see below.
+- `re-measure-records-after-the-last-edit` (x2): a record holding measured
   numbers (line counts, `file:line` inventories, diff totals) goes stale the
   moment ANY later edit touches the measured files - a review-round rewrap
   shortened three files by one line and silently falsified three table rows
   and three marker line numbers. Re-measure after the round's LAST edit, not
   after the edit that motivated the measurement, and keep the producing
-  command next to the number. 20260731-170335.
+  command next to the number. 20260731-170335, 20260731-170359.
 - `provenance-vs-deferred-work-check-the-status` (x1): a task ID in a comment
   is provenance ("added by X") or a live pointer ("X will replace this"), and
   the two are textually identical - a bulk strip demoted an OPEN task's
@@ -399,9 +392,11 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `cross-boundary-attribution` (x1): per-part drafters attribute a neighbor's
   feature to their part; review asks "does vN claim anything of vN+1?".
   20260716-102954.
-- `conserve-on-regroup` (x1): mechanically regrouping a list-shaped doc needs
-  a conservation check - grep each source item's token into the new file and
-  reconcile counts (93 = 94 - 1). 20260716-102950.
+- `conserve-on-regroup` (x2): any MECHANICAL edit to prose or a list-shaped doc
+  needs a conservation check derived from the edit's invariant - multiset-diff
+  the tokens (items when regrouping, WORDS when stripping clauses in place) and
+  reconcile; a pattern hunt for imagined damage only finds damage of the shape
+  you guessed. 20260716-102950, 20260731-170359.
 - `authored-durations-clamp-trio` (x2): every authored duration/magnitude/
   vector gets finite-check + runtime-cap + lint-range AT BIRTH; the pattern
   does not transfer across crates by itself. 20260717-163050, 20260717-215920.
@@ -642,7 +637,7 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   `Some("x.png")`). 20260715-142849.
 - `declared-but-not-loaded` (x1): a resource named in config/markup is not
   wired; grep for where it is imported/served. 20260713-222025.
-- `generated-links-need-real-targets` (x3 -> Pending promotions): see below.
+- `generated-links-need-real-targets` (x4 -> Pending promotions): see below.
 - `enumerate-bins-via-cargo-metadata` (x1): to document or audit "every
   binary/target", enumerate with `cargo metadata --no-deps` (or find
   `src/bin/*.rs` + `src/main.rs`), never by grepping `[[bin]]` stanzas -
@@ -1556,7 +1551,18 @@ here (annotated) as the paid record.
 
 ## Pending promotions (3+ occurrences, user decides)
 
-- `generated-links-need-real-targets` (x3) -> tooling:
+- `doc-comment-rewrap-changes-the-render` (x3) -> tooling:
+  re-wrapping or deleting a mid-line clause in a `//!`/`///` block changes what
+  rustdoc RENDERS while check and fmt stay green - a following line starting
+  `-`/`#`/`>`/`1.` becomes a block construct, a wrapped `- ` list collapses into
+  one paragraph, and a hyphenated code span split across lines gains a space.
+  Three passes have now hit it, always from a SCRIPTED substitution. Proposed
+  target is a tool, not prose: diff `cargo doc` output (or the rendered comment
+  blocks) before and after a comment pass, run with the other checks - the
+  damage is mechanical and invisible to every check we currently run.
+  20260731-170329, 20260731-170335, 20260731-170359.
+
+- `generated-links-need-real-targets` (x4) -> tooling:
   manifest-rendered, authored, AND source-comment doc links gate on the target
   existing - a README banner went stale on a dir move; seven `docs/spikes/*.md`
   and `DECISION.md` pointers in nova_gameplay HUD comments outlived the files,
@@ -1564,7 +1570,9 @@ here (annotated) as the paid record.
   tool, not prose: a check that every filesystem-looking path in a comment or
   doc resolves, run with the other checks. It is mechanical, and a rotted
   pointer is the one thing in a comment pass that is checkable rather than a
-  judgment call. 20260713-225324, 20260718-152205, 20260731-170329.
+  judgment call. A fourth dead `docs/spikes/*.md` pointer surfaced in
+  nova_menu's crate doc. 20260713-225324, 20260718-152205, 20260731-170329,
+  20260731-170359.
 
 - `rustdoc-no-public-to-private-intra-doc-link` (x3, PROMOTE 2026-07-31 -> 20260731-202401) -> work skill (verify step):
   a `pub` item's rustdoc cannot `[intra-doc-link]` a PRIVATE symbol (or a
