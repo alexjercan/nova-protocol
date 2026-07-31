@@ -98,7 +98,7 @@ cd web
 npm install
 npm run serve   # dev server on :8090 (site only - see the note below)
 npm run build   # static bundle in web/dist/
-npm run ci      # format check + lint + build
+npm run ci      # format check + lint + test + build
 ```
 
 **The game is a separate build.** `npm run serve` on its own serves only the

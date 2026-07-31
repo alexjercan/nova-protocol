@@ -1,53 +1,79 @@
-/* Webfonts must load before @tailwind so the sharp technical display/mono faces
-   actually render (they were declared in the stack but never fetched, so the
-   site had been silently falling back to system fonts). Remote @import is kept
-   verbatim by css-loader. */
-@import url("https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+/* Webfonts must load before @tailwind so the terminal face actually renders (it
+   was declared in the stack but never fetched, so the site had been silently
+   falling back to system fonts). Remote @import is kept verbatim by css-loader.
+   Rajdhani + Inter were dropped when the site went terminal-first: all three
+   type slots are now the same mono stack. */
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* ---------------------------------------------------------------------------
-   Nova Protocol theme. Palette lifted from assets/banner.png: deep space-navy
-   field, neon-cyan "NOVA" glow, warm amber "PROTOCOL" and horizon glow.
+   Nova Protocol theme - NOVA OS.
 
-   Visual language: industrial HUD panels. Structure comes from hard 1px
-   borders and a shallow machined bevel, not from soft glow or blur; corners
-   are near-square; interactive states are crisp (border brighten, keycap
-   press) rather than floating. The palette is the only thing borrowed from the
-   old "floaty" look - everything else is sharpened.
+   The palette and the light-3D vocabulary below are carried VERBATIM from the
+   `:root` block of `examples/ui/nova_ui_rework_poc.html`, which is also what
+   `crates/nova_ui/src/theme.rs` mirrors. That file is the single source for
+   both surfaces; `web/tests/theme.test.ts` parses it and fails if this block
+   drifts. Change the PoC first, then both consumers.
+
+   Visual language: green phosphor on a near-black screen, inside a dark moulded
+   casing. Structure comes from MATERIAL, not from hairlines - a case face is a
+   vertical gradient with a lit top rim and a drop shadow; a recess is a well;
+   code is a CRT screen. Corners are 10px on panels, 2px on small controls.
+   Type is terminal-first: one mono face across display, body and code.
+
+   The previous navy/cyan industrial-HUD palette (lifted from assets/banner.png)
+   has been fully retired - it described a UI the game no longer has.
    --------------------------------------------------------------------------- */
 :root {
-    --space-0: #070a14; /* deepest background */
-    --space-1: #0b0f1c; /* page background */
-    --panel: #141a2e; /* card / surface */
-    --panel-2: #1a2138; /* raised surface */
-    --border: #233052; /* hairline borders */
-    --border-bright: #3a4d7a; /* lit / hover border */
+    /* -- palette (verbatim from the PoC) -- */
+    --space: #03060b;
+    --case-0: #0a0d10;
+    --case-1: #161b20;
+    --case-2: #232a31;
+    --case-3: #2f383f;
+    --case-edge: #05070a;
+    --screen-0: #001304;
+    --screen-1: #002b0f;
+    --phosphor: #36ff79;
+    --phosphor-dim: #19a64f;
+    --phosphor-muted: #0d6e35;
+    --amber: #ffb84a;
+    --orange: #ff7b2d;
+    --red: #ff4e42;
+    --blue: #36a3ff;
+    --text: #b9ffc9;
+    --shadow: rgba(0, 0, 0, 0.78);
 
-    --cyan: #5cc8ff; /* primary accent (NOVA) */
-    --cyan-bright: #8fe0ff; /* highlight */
-    --cyan-deep: #2a9fd6; /* pressed / deep */
+    /* -- light-3D control vocabulary, hardware skin (verbatim from the PoC) -- */
+    --face: linear-gradient(180deg, var(--case-3) 0%, var(--case-1) 55%, var(--case-0) 100%);
+    --face-hot: linear-gradient(180deg, #3a444c 0%, #222a31 55%, #12171b 100%);
+    --rim: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    --undercut: inset 0 -2px 5px rgba(0, 0, 0, 0.7);
+    --drop: 0 2px 4px rgba(0, 0, 0, 0.55), 0 6px 16px -6px rgba(0, 0, 0, 0.7);
+    --well: inset 0 2px 5px rgba(0, 0, 0, 0.85), inset 0 -1px 0 rgba(255, 255, 255, 0.05);
 
-    --amber: #ffb877; /* secondary accent (PROTOCOL) */
-    --amber-horizon: #ff7a3c; /* sunrise horizon glow */
+    --panel-radius: 10px;
 
-    --text: #e8eefc; /* primary text */
-    --text-muted: #8b95b0; /* secondary text */
-
-    --font-display: "Rajdhani", "Segoe UI", Tahoma, sans-serif;
-    --font-body:
-        "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
-
-    /* Sharp system: 2px corners, a machined raised bevel, a hard (blur-free)
-       drop shadow. No colored glow tokens. */
+    /* -- site-only additions (the PoC has no equivalent surface) -- */
+    /* Dark glyphs on a bright phosphor/amber fill. */
+    --ink: #03060b;
+    /* Small controls (chips, keycaps, tags, inputs) stay near-square; only
+       panels get the 10px moulded corner. */
     --radius: 2px;
-    --bevel:
-        inset 0 1px 0 rgba(255, 255, 255, 0.05),
-        inset 0 -1px 0 rgba(0, 0, 0, 0.4);
-    --shadow-hard: 0 2px 0 rgba(0, 0, 0, 0.45);
+    /* The phosphor screen surface, as a fill. */
+    --screen: linear-gradient(180deg, var(--screen-1) 0%, var(--screen-0) 100%);
+    /* The bright phosphor key face - the one fill brighter than the case. Kept
+       here rather than inline so the DoD colour grep and the parity test's
+       dangling-var() check can both see it. */
+    --key-face: linear-gradient(180deg, #7dffab 0%, #12b552 100%);
+    --key-face-hot: linear-gradient(180deg, #9dffbf 0%, #1ad061 100%);
+
+    --font-display: "JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+    --font-body: "JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+    --font-mono: "JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
 }
 
 * {
@@ -76,74 +102,82 @@ body {
     flex-direction: column;
     color: var(--text);
     font-family: var(--font-body);
-    line-height: 1.6;
-    background-color: var(--space-1);
-    /* Starfield: two layers of faint radial dots over the navy field. */
+    /* Mono sets a wider average glyph and a taller x-height than the retired
+       proportional body face, so the leading goes up to keep long prose open.
+       This (with the measures on .prose/.news__body) is the whole mitigation
+       for the denser mono reading accepted in DECISION.md. */
+    line-height: 1.7;
+    background-color: var(--space);
+    /* Starfield: two layers of faint phosphor dots over the deep-space field. */
     background-image:
         radial-gradient(
             1px 1px at 20% 30%,
-            rgba(232, 238, 252, 0.5),
+            rgba(185, 255, 201, 0.42),
             transparent
         ),
         radial-gradient(
             1px 1px at 75% 20%,
-            rgba(232, 238, 252, 0.35),
+            rgba(185, 255, 201, 0.3),
             transparent
         ),
         radial-gradient(
             1px 1px at 45% 65%,
-            rgba(232, 238, 252, 0.4),
+            rgba(185, 255, 201, 0.34),
             transparent
         ),
         radial-gradient(
             1.5px 1.5px at 85% 75%,
-            rgba(232, 238, 252, 0.3),
+            rgba(185, 255, 201, 0.26),
             transparent
         ),
         radial-gradient(
             1px 1px at 10% 85%,
-            rgba(232, 238, 252, 0.35),
+            rgba(185, 255, 201, 0.3),
             transparent
         );
     background-attachment: fixed;
 }
 
 /* ---- typography helpers -------------------------------------------------- */
+/* Mono caps are wide and flat-sided, so headings need more leading than the
+   condensed display face did, and no extra tracking. */
 h1,
 h2,
 h3 {
     font-family: var(--font-display);
     font-weight: 700;
-    letter-spacing: 0.01em;
-    line-height: 1.1;
+    letter-spacing: -0.01em;
+    line-height: 1.25;
     margin: 0 0 0.5em;
 }
 
 a {
-    color: var(--cyan);
+    color: var(--phosphor);
     text-decoration: none;
     transition: color 0.12s ease;
 }
 a:hover {
-    color: var(--cyan-bright);
+    color: var(--text);
 }
 
-/* Keyboard focus: a crisp cyan ring, offset off the sharpened surfaces. Only
-   for keyboard nav (:focus-visible), so mouse clicks stay clean. */
+/* Keyboard focus: a phosphor ring, offset off the moulded surfaces. Only for
+   keyboard nav (:focus-visible), so mouse clicks stay clean. */
 a:focus-visible,
 .btn:focus-visible,
 .site-nav a:focus-visible,
 .card--link:focus-visible {
-    outline: 2px solid var(--cyan);
+    outline: 2px solid var(--phosphor);
     outline-offset: 2px;
 }
 
 /* Brand accents keep a restrained glow - the one place haze is on-brand. */
-.glow-cyan {
-    color: var(--cyan-bright);
+.glow-phosphor {
+    color: var(--phosphor);
+    text-shadow: 0 0 12px rgba(54, 255, 121, 0.35);
 }
 .glow-amber {
     color: var(--amber);
+    text-shadow: 0 0 12px rgba(255, 184, 74, 0.3);
 }
 
 /* ---- header / nav -------------------------------------------------------- */
@@ -156,22 +190,24 @@ a:focus-visible,
     justify-content: space-between;
     gap: 16px;
     padding: 12px 24px;
-    /* Solid, opaque bar - no glassy blur. A cyan hairline sits on the strong
-       bottom border like an instrument rail. */
-    background: var(--space-0);
-    border-bottom: 1px solid var(--border);
-    box-shadow: 0 1px 0 rgba(92, 200, 255, 0.25);
+    /* The top rail of the casing: a moulded case face, lit along its top rim,
+       sitting proud of the page field. No glassy blur. */
+    background: var(--face);
+    border-bottom: 1px solid var(--case-edge);
+    box-shadow:
+        var(--rim),
+        var(--drop);
 }
 .site-header__brand {
     font-family: var(--font-display);
     font-weight: 700;
-    font-size: 1.15rem;
-    letter-spacing: 0.18em;
+    font-size: 1.05rem;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--text);
 }
 .site-header__brand b {
-    color: var(--cyan-bright);
+    color: var(--phosphor);
     font-weight: 700;
 }
 .site-nav {
@@ -183,30 +219,36 @@ a:focus-visible,
 .site-nav a {
     position: relative;
     padding: 8px 12px;
-    color: var(--text-muted);
+    color: var(--phosphor-dim);
     font-family: var(--font-mono);
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     font-weight: 500;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     border: 1px solid transparent;
+    border-radius: var(--radius);
 }
-/* Active/hover reads as an instrument tab: a cyan underline bar, not a pill. */
+/* Hover cuts a shallow recess into the case, the way a labelled key well does. */
 .site-nav a:hover {
     color: var(--text);
-    background: rgba(92, 200, 255, 0.06);
-    border-color: var(--border);
+    background: var(--case-0);
+    box-shadow: var(--well);
 }
 .site-nav a.is-cta {
-    color: var(--space-0);
-    background: var(--cyan);
-    border-color: var(--cyan-deep);
-    font-weight: 600;
-    box-shadow: var(--bevel);
+    color: var(--ink);
+    background: var(--key-face);
+    border-color: var(--case-edge);
+    font-weight: 700;
+    box-shadow:
+        var(--rim),
+        var(--drop);
 }
 .site-nav a.is-cta:hover {
-    color: var(--space-0);
-    background: var(--cyan-bright);
+    color: var(--ink);
+    background: var(--key-face-hot);
+    box-shadow:
+        var(--rim),
+        var(--drop);
 }
 
 /* ---- layout -------------------------------------------------------------- */
@@ -225,28 +267,30 @@ main {
 }
 .section__eyebrow {
     font-family: var(--font-mono);
-    font-size: 0.76rem;
-    letter-spacing: 0.26em;
+    font-size: 0.74rem;
+    letter-spacing: 0.24em;
     text-transform: uppercase;
-    color: var(--cyan);
+    /* -dim, not -muted: at this size -muted (#0d6e35) reads at 2.7:1 on the
+       page field, below AA. -muted is kept for pure ornament (the brackets). */
+    color: var(--phosphor-dim);
     margin-bottom: 12px;
     /* Bracketed technical label: [ eyebrow ] */
 }
 .section__eyebrow::before {
     content: "[ ";
-    color: var(--border-bright);
+    color: var(--phosphor-muted);
 }
 .section__eyebrow::after {
     content: " ]";
-    color: var(--border-bright);
+    color: var(--phosphor-muted);
 }
 .section__title {
-    font-size: 2rem;
+    font-size: 1.85rem;
     margin-bottom: 12px;
 }
 .section__lead {
-    color: var(--text-muted);
-    max-width: 60ch;
+    color: var(--phosphor-dim);
+    max-width: 62ch;
     margin: 0 0 32px;
 }
 
@@ -262,7 +306,7 @@ main {
     align-items: center;
     justify-content: center;
     padding: 88px 24px 96px;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--case-edge);
     scroll-snap-align: start;
     scroll-snap-stop: always;
 }
@@ -282,7 +326,7 @@ main {
     flex-direction: column;
     align-items: center;
     gap: 9px;
-    color: var(--text-muted);
+    color: var(--phosphor-dim);
     font-family: var(--font-mono);
     font-size: 0.68rem;
     letter-spacing: 0.24em;
@@ -290,7 +334,7 @@ main {
     z-index: 2;
 }
 .hero__scroll:hover {
-    color: var(--cyan);
+    color: var(--phosphor);
 }
 .hero__scroll-chevron {
     width: 11px;
@@ -315,8 +359,8 @@ main {
     }
 }
 .hero::after {
-    /* Restrained amber horizon wash, echoing the banner's sunrise arc. Kept
-       but pulled back so it reads as a horizon line, not a floaty haze. */
+    /* Horizon wash. The banner's sunrise arc survives the port as the new
+       --orange; it reads as a horizon line under the casing, not a floaty haze. */
     content: "";
     position: absolute;
     left: 50%;
@@ -326,8 +370,8 @@ main {
     transform: translateX(-50%);
     background: radial-gradient(
         ellipse at center,
-        rgba(255, 122, 60, 0.22) 0%,
-        rgba(255, 122, 60, 0.05) 38%,
+        rgba(255, 123, 45, 0.18) 0%,
+        rgba(255, 123, 45, 0.04) 38%,
         transparent 66%
     );
     pointer-events: none;
@@ -337,6 +381,7 @@ main {
     position: relative;
     z-index: 1;
 }
+/* The banner art sits in a moulded bezel, like a screen let into the case. */
 .hero__art {
     display: block;
     width: min(560px, 90%);
@@ -347,14 +392,16 @@ main {
     height: auto;
     aspect-ratio: 3 / 2;
     margin: 0 auto 28px;
-    border-radius: var(--radius);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow-hard);
+    border-radius: var(--panel-radius);
+    border: 1px solid var(--case-edge);
+    box-shadow:
+        var(--rim),
+        var(--drop);
 }
 .hero__tagline {
-    font-size: 1.2rem;
-    color: var(--text-muted);
-    max-width: 56ch;
+    font-size: 1.05rem;
+    color: var(--phosphor-dim);
+    max-width: 60ch;
     margin: 0 auto 32px;
 }
 .hero__cta {
@@ -367,9 +414,9 @@ main {
    WebGPU support the in-browser game needs. */
 .hero__cta-note {
     margin: 14px auto 0;
-    max-width: 48ch;
-    font-size: 0.95rem;
-    color: var(--text-muted);
+    max-width: 52ch;
+    font-size: 0.88rem;
+    color: var(--amber);
 }
 /* Native-build download row, sitting below the primary Play/How-to-play CTAs. */
 .hero__downloads {
@@ -380,9 +427,9 @@ main {
     gap: 10px;
 }
 .hero__downloads-label {
-    font-size: 0.9rem;
-    letter-spacing: 0.04em;
-    color: var(--text-muted);
+    font-size: 0.8rem;
+    letter-spacing: 0.1em;
+    color: var(--phosphor-dim);
     text-transform: uppercase;
 }
 .hero__downloads-btns {
@@ -393,77 +440,77 @@ main {
 }
 
 /* ---- buttons ------------------------------------------------------------- */
+/* Every button is a moulded physical control: a face with a lit top rim, a drop
+   shadow beneath it, and a press that sinks the face into an undercut. */
 .btn {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 12px 26px;
-    border-radius: var(--radius);
+    padding: 12px 24px;
+    border-radius: var(--panel-radius);
     font-family: var(--font-display);
     font-weight: 700;
-    font-size: 1.02rem;
+    font-size: 0.92rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     cursor: pointer;
-    border: 1px solid transparent;
+    border: 1px solid var(--case-edge);
     transition:
         background 0.12s ease,
-        border-color 0.12s ease,
-        box-shadow 0.05s ease;
+        box-shadow 0.05s ease,
+        transform 0.05s ease;
 }
-/* Keycap press: a hard bottom edge that compresses when pushed, instead of a
-   hover lift. */
+/* Primary: the bright phosphor key. Dark glyphs, because the fill is the
+   brightest thing on the page. */
 .btn--primary {
-    color: var(--space-0);
-    background: var(--cyan);
-    border-color: var(--cyan-deep);
+    color: var(--ink);
+    background: var(--key-face);
     box-shadow:
-        0 3px 0 var(--cyan-deep),
-        var(--bevel);
+        var(--rim),
+        var(--drop);
 }
 .btn--primary:hover {
-    color: var(--space-0);
-    background: var(--cyan-bright);
+    color: var(--ink);
+    background: var(--key-face-hot);
 }
 .btn--primary:active {
     transform: translateY(2px);
-    box-shadow:
-        0 1px 0 var(--cyan-deep),
-        var(--bevel);
+    box-shadow: var(--undercut);
 }
+/* Ghost: a plain case face wearing a phosphor label. */
 .btn--ghost {
-    color: var(--amber);
-    background: transparent;
-    border-color: rgba(255, 184, 119, 0.5);
-    box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35);
+    color: var(--phosphor);
+    background: var(--face);
+    box-shadow:
+        var(--rim),
+        var(--drop);
 }
 .btn--ghost:hover {
-    color: var(--amber);
-    background: rgba(255, 122, 60, 0.1);
-    border-color: var(--amber);
+    color: var(--phosphor);
+    background: var(--face-hot);
 }
 .btn--ghost:active {
     transform: translateY(2px);
-    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+    box-shadow: var(--undercut);
 }
-/* Tertiary download buttons: muted panel chips that read below the primary and
-   ghost CTAs, keeping the same keycap-press idiom. */
+/* Tertiary download keys: the same moulding, amber-labelled, one size down so
+   they read below the primary and ghost CTAs. */
 .btn--download {
-    color: var(--text-muted);
-    background: var(--panel);
-    border-color: var(--border);
-    box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35);
-    padding: 10px 20px;
-    font-size: 0.92rem;
+    color: var(--amber);
+    background: var(--face);
+    box-shadow:
+        var(--rim),
+        var(--drop);
+    padding: 9px 18px;
+    font-size: 0.8rem;
 }
 .btn--download:hover {
-    color: var(--text);
-    background: var(--panel-2);
-    border-color: var(--border-bright);
+    color: var(--amber);
+    background: var(--face-hot);
 }
 .btn--download:active {
     transform: translateY(2px);
-    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+    box-shadow: var(--undercut);
 }
 
 /* ---- cards / grids ------------------------------------------------------- */
@@ -472,44 +519,48 @@ main {
     gap: 16px;
 }
 .grid--3 {
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 .grid--2 {
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
 }
+/* A card is a case panel: moulded face, lit rim, dropped off the page field. */
 .card {
     position: relative;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
+    background: var(--face);
+    border: 1px solid var(--case-edge);
+    border-radius: var(--panel-radius);
     padding: 22px 22px 24px;
-    box-shadow: var(--bevel);
-    transition: border-color 0.12s ease;
+    box-shadow:
+        var(--rim),
+        var(--drop);
+    transition: background 0.12s ease;
 }
-/* A cyan rail lights the top edge on hover - a crisp instrument cue, no lift. */
+/* A phosphor rail lights the top edge on hover - an instrument cue, no lift. */
 .card::before {
     content: "";
     position: absolute;
-    left: -1px;
-    right: -1px;
+    left: 10%;
+    right: 10%;
     top: -1px;
     height: 2px;
+    border-radius: 2px;
     background: transparent;
     transition: background 0.12s ease;
 }
 .card:hover {
-    border-color: var(--border-bright);
+    background: var(--face-hot);
 }
 .card:hover::before {
-    background: var(--cyan);
+    background: var(--phosphor);
 }
 .card__num {
     display: block;
     font-family: var(--font-mono);
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     font-weight: 600;
     letter-spacing: 0.12em;
-    color: var(--cyan);
+    color: var(--phosphor);
     margin-bottom: 12px;
 }
 .card__num::after {
@@ -519,16 +570,16 @@ main {
     height: 1px;
     vertical-align: middle;
     margin-left: 10px;
-    background: var(--border-bright);
+    background: var(--phosphor-muted);
 }
 .card__title {
-    font-size: 1.18rem;
+    font-size: 1.05rem;
     margin-bottom: 6px;
     color: var(--text);
 }
 .card__body {
-    color: var(--text-muted);
-    font-size: 0.96rem;
+    color: var(--phosphor-dim);
+    font-size: 0.88rem;
     margin: 0;
 }
 .card--link {
@@ -536,7 +587,7 @@ main {
     color: inherit;
 }
 .card--link:hover .card__title {
-    color: var(--cyan-bright);
+    color: var(--phosphor);
 }
 
 /* ---- feature rows (bevy.org-style showcase) ------------------------------
@@ -562,10 +613,10 @@ main {
 .feature-row__num {
     display: block;
     font-family: var(--font-mono);
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     font-weight: 600;
     letter-spacing: 0.12em;
-    color: var(--cyan);
+    color: var(--phosphor);
     margin-bottom: 12px;
 }
 .feature-row__num::after {
@@ -575,20 +626,20 @@ main {
     height: 1px;
     vertical-align: middle;
     margin-left: 10px;
-    background: var(--border-bright);
+    background: var(--phosphor-muted);
 }
 .feature-row__title {
-    font-size: 1.7rem;
+    font-size: 1.4rem;
     margin-bottom: 12px;
     color: var(--text);
 }
 .feature-row__body {
-    color: var(--text-muted);
-    font-size: 1.02rem;
+    color: var(--phosphor-dim);
+    font-size: 0.92rem;
     margin: 0;
-    max-width: 46ch;
+    max-width: 50ch;
 }
-/* The media column reuses the sharp placeholder frame (see .figure__*). */
+/* The media column reuses the recessed placeholder frame (see .figure__*). */
 .feature-row__media {
     margin: 0;
 }
@@ -603,23 +654,29 @@ main {
 }
 
 /* ---- prose (content pages) ---------------------------------------------- */
+/* Measure is in `ch`, which under a mono face is EXACTLY that many characters -
+   so 68 sits inside the 60-75 char reading band rather than at its edge, where
+   the old 74ch landed once the proportional body face was dropped. */
 .prose {
-    max-width: 74ch;
+    max-width: 68ch;
     margin: 0 auto;
     padding: 56px 24px 72px;
+    font-size: 0.95rem;
+    line-height: 1.75;
 }
 .prose h1 {
-    font-size: 2.2rem;
+    font-size: 1.9rem;
+    line-height: 1.2;
 }
 .prose h2 {
-    font-size: 1.5rem;
+    font-size: 1.3rem;
     margin-top: 2em;
-    padding-top: 0.4em;
-    border-top: 1px solid var(--border);
-    color: var(--cyan-bright);
+    padding-top: 0.5em;
+    border-top: 1px solid var(--case-2);
+    color: var(--phosphor);
 }
 .prose h3 {
-    font-size: 1.15rem;
+    font-size: 1.05rem;
     margin-top: 1.6em;
     color: var(--amber);
 }
@@ -631,52 +688,58 @@ main {
     text-decoration: underline;
     text-underline-offset: 3px;
 }
+/* Inline code is a chip of live screen, so it reads as terminal output rather
+   than as a foreign editor's tint. */
 .prose code {
     font-family: var(--font-mono);
-    font-size: 0.88em;
-    background: var(--panel-2);
-    border: 1px solid var(--border);
+    font-size: 0.94em;
+    background: var(--screen-0);
+    border: 1px solid var(--case-edge);
     border-radius: var(--radius);
     padding: 1px 6px;
-    color: var(--cyan-bright);
+    color: var(--phosphor);
 }
+/* A keycap is a small moulded control, matching the buttons. */
 .prose kbd {
     font-family: var(--font-mono);
-    font-size: 0.82em;
-    background: var(--panel-2);
-    border: 1px solid var(--border);
-    border-bottom-width: 3px;
+    font-size: 0.85em;
+    background: var(--face);
+    border: 1px solid var(--case-edge);
     border-radius: var(--radius);
+    box-shadow:
+        var(--rim),
+        0 2px 0 var(--case-edge);
     padding: 2px 8px;
-    color: var(--text);
+    color: var(--amber);
     white-space: nowrap;
 }
 .prose blockquote {
     margin: 1.4em 0;
-    padding: 10px 18px;
-    border-left: 3px solid var(--cyan-deep);
-    color: var(--text-muted);
-    background: rgba(92, 200, 255, 0.05);
-    border-radius: 0;
+    padding: 12px 18px;
+    border-left: 3px solid var(--phosphor-dim);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    color: var(--phosphor-dim);
+    background: var(--case-0);
+    box-shadow: var(--well);
 }
 .prose__meta {
-    color: var(--text-muted);
+    color: var(--phosphor-dim);
     font-family: var(--font-mono);
-    font-size: 0.82rem;
+    font-size: 0.78rem;
     letter-spacing: 0.05em;
     margin-bottom: 1.5em;
 }
 
-/* Responsive 16:9 video embed (YouTube devlog players). */
+/* Responsive 16:9 video embed (YouTube devlog players), let into the case. */
 .video-embed {
     position: relative;
     width: 100%;
     aspect-ratio: 16 / 9;
     margin: 1.6em 0;
-    border-radius: var(--radius);
+    border-radius: var(--panel-radius);
     overflow: hidden;
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow-hard);
+    border: 1px solid var(--case-edge);
+    box-shadow: var(--drop);
 }
 .video-embed iframe {
     position: absolute;
@@ -689,9 +752,9 @@ main {
     display: block;
     margin-top: -0.6em;
     margin-bottom: 1.8em;
-    color: var(--text-muted);
+    color: var(--phosphor-dim);
     font-family: var(--font-mono);
-    font-size: 0.8rem;
+    font-size: 0.76rem;
     letter-spacing: 0.04em;
     text-align: center;
 }
@@ -709,14 +772,15 @@ main {
 .figure__placeholder {
     width: 100%;
     aspect-ratio: 16 / 9;
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-hard);
+    border-radius: var(--panel-radius);
 }
 .figure__img {
     display: block;
     object-fit: cover;
-    border: 1px solid var(--border);
+    border: 1px solid var(--case-edge);
+    box-shadow: var(--drop);
 }
+/* An empty slot is a recess in the case, not a raised panel. */
 .figure__placeholder {
     display: flex;
     flex-direction: column;
@@ -725,42 +789,42 @@ main {
     gap: 0.5em;
     padding: 1.5em;
     text-align: center;
-    border: 1px dashed var(--border-bright);
+    border: 1px dashed var(--phosphor-muted);
     background:
         repeating-linear-gradient(
             45deg,
-            rgba(92, 200, 255, 0.03) 0,
-            rgba(92, 200, 255, 0.03) 10px,
+            rgba(54, 255, 121, 0.035) 0,
+            rgba(54, 255, 121, 0.035) 10px,
             transparent 10px,
             transparent 20px
         ),
-        rgba(255, 255, 255, 0.015);
-    color: var(--text-muted);
+        var(--case-0);
+    box-shadow: var(--well);
+    color: var(--phosphor-dim);
     font-family: var(--font-mono);
 }
 .figure__placeholder-tag {
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: var(--cyan);
-    opacity: 0.85;
+    color: var(--phosphor);
 }
 .figure__placeholder-name {
-    font-size: 0.9rem;
+    font-size: 0.86rem;
     color: var(--text);
     word-break: break-all;
 }
 .figure__placeholder-note {
-    font-size: 0.8rem;
-    max-width: 48ch;
-    line-height: 1.5;
+    font-size: 0.76rem;
+    max-width: 52ch;
+    line-height: 1.6;
 }
 .figure__caption {
     display: block;
     margin-top: 0.7em;
-    color: var(--text-muted);
+    color: var(--phosphor-dim);
     font-family: var(--font-mono);
-    font-size: 0.8rem;
+    font-size: 0.76rem;
     letter-spacing: 0.04em;
     text-align: center;
 }
@@ -770,19 +834,19 @@ main {
 .post-footer {
     margin-top: 3em;
     padding-top: 1.6em;
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--case-2);
 }
 .post-footer__discuss {
     margin: 0 0 0.6em;
-    font-size: 1.02rem;
+    font-size: 0.98rem;
     color: var(--text);
 }
 .post-footer__nav {
     margin: 0;
     font-family: var(--font-mono);
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     letter-spacing: 0.04em;
-    color: var(--text-muted);
+    color: var(--phosphor-dim);
 }
 
 /* ---- PromptFont button glyphs -------------------------------------------
@@ -870,9 +934,10 @@ main {
 .pf-start::before {
     content: "\21F8";
 }
-/* In the keybind tables, tint and size the glyphs to sit with the text. */
+/* In the keybind tables the glyphs are physical controls, so they wear the same
+   amber as the keycaps beside them. */
 .controls .pf {
-    color: var(--cyan-bright);
+    color: var(--amber);
     font-size: 1.4em;
     vertical-align: -0.16em;
 }
@@ -880,19 +945,24 @@ main {
 /* ---- key/value control table -------------------------------------------- */
 .controls {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     margin: 1.2em 0;
-    border: 1px solid var(--border);
+    border: 1px solid var(--case-edge);
+    border-radius: var(--panel-radius);
+    overflow: hidden;
+    background: var(--case-0);
+    box-shadow: var(--well);
 }
 .controls td {
     padding: 9px 12px;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--case-2);
     vertical-align: top;
 }
 .controls td:first-child {
     width: 40%;
     white-space: nowrap;
-    background: rgba(255, 255, 255, 0.015);
+    background: var(--case-1);
 }
 .controls tr:last-child td {
     border-bottom: none;
@@ -901,7 +971,7 @@ main {
 /* ---- blog list (bevy.org/news-style stacked cards) ----------------------
    One post per row: a wide horizontal card with a 16:9 thumbnail beside the
    body (date // version, title, excerpt). The thumbnail is a real image - e.g.
-   the YouTube thumbnail for posts with a video - or the sharp placeholder
+   the YouTube thumbnail for posts with a video - or the recessed placeholder
    frame. Stacks the thumbnail above the body on narrow screens. */
 .post-grid {
     list-style: none;
@@ -913,30 +983,33 @@ main {
 }
 .post-card {
     position: relative;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--bevel);
+    background: var(--face);
+    border: 1px solid var(--case-edge);
+    border-radius: var(--panel-radius);
+    box-shadow:
+        var(--rim),
+        var(--drop);
     overflow: hidden;
-    transition: border-color 0.12s ease;
+    transition: background 0.12s ease;
 }
-/* Top cyan rail on hover, matching the feature cards. */
+/* Top phosphor rail on hover, matching the feature cards. */
 .post-card::before {
     content: "";
     position: absolute;
-    left: 0;
-    right: 0;
+    left: 10%;
+    right: 10%;
     top: 0;
     height: 2px;
+    border-radius: 2px;
     background: transparent;
     transition: background 0.12s ease;
     z-index: 1;
 }
 .post-card:hover {
-    border-color: var(--border-bright);
+    background: var(--face-hot);
 }
 .post-card:hover::before {
-    background: var(--cyan);
+    background: var(--phosphor);
 }
 .post-card__link {
     display: flex;
@@ -950,8 +1023,8 @@ main {
 .post-card__media {
     flex: 0 0 300px;
     aspect-ratio: 16 / 9;
-    border-right: 1px solid var(--border);
-    background: var(--space-0);
+    border-right: 1px solid var(--case-edge);
+    background: var(--case-0);
 }
 @media (max-width: 620px) {
     .post-card__link {
@@ -961,7 +1034,7 @@ main {
         flex-basis: auto;
         width: 100%;
         border-right: none;
-        border-bottom: 1px solid var(--border);
+        border-bottom: 1px solid var(--case-edge);
     }
 }
 .post-card__thumb {
@@ -971,7 +1044,7 @@ main {
     object-fit: cover;
 }
 /* In-card placeholder: the card already supplies the frame, so this is just
-   the hatched fill + the thumbnail file to capture. */
+   the hatched recess + the thumbnail file to capture. */
 .post-card__ph {
     display: flex;
     flex-direction: column;
@@ -985,23 +1058,24 @@ main {
     background:
         repeating-linear-gradient(
             45deg,
-            rgba(92, 200, 255, 0.03) 0,
-            rgba(92, 200, 255, 0.03) 10px,
+            rgba(54, 255, 121, 0.035) 0,
+            rgba(54, 255, 121, 0.035) 10px,
             transparent 10px,
             transparent 20px
         ),
-        rgba(255, 255, 255, 0.015);
-    color: var(--text-muted);
+        var(--case-0);
+    box-shadow: var(--well);
+    color: var(--phosphor-dim);
     font-family: var(--font-mono);
 }
 .post-card__ph-tag {
-    font-size: 0.66rem;
+    font-size: 0.64rem;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: var(--cyan);
+    color: var(--phosphor);
 }
 .post-card__ph-name {
-    font-size: 0.78rem;
+    font-size: 0.74rem;
     color: var(--text);
     word-break: break-all;
 }
@@ -1015,73 +1089,82 @@ main {
 }
 .post-card__meta {
     font-family: var(--font-mono);
-    font-size: 0.76rem;
+    font-size: 0.74rem;
     letter-spacing: 0.06em;
-    color: var(--cyan);
+    color: var(--phosphor);
 }
 .post-card__title {
-    font-size: 1.2rem;
+    font-size: 1.08rem;
     margin: 0;
     color: var(--text);
 }
 .post-card:hover .post-card__title {
-    color: var(--cyan-bright);
+    color: var(--phosphor);
 }
 .post-card__excerpt {
-    color: var(--text-muted);
-    font-size: 0.94rem;
+    color: var(--phosphor-dim);
+    font-size: 0.86rem;
     margin: 0;
 }
 
 /* ---- wiki (manifest-driven: sidebar + content) --------------------------
    Layout for the wiki index and every sub-page. The sidebar, search, tag chips
    and see-also are rendered by wiki.ts from wiki-pages.ts into placeholder
-   elements; these styles frame them in the sharp panel language. */
+   elements; these styles frame them in the case/screen material language. */
 .wiki {
     display: grid;
-    grid-template-columns: 232px 1fr;
+    grid-template-columns: 244px 1fr;
     gap: 40px;
     align-items: start;
     max-width: 1080px;
     margin: 0 auto;
     padding: 48px 24px 72px;
 }
+/* The sidebar is a case panel bolted beside the article. */
 .wiki__nav {
     position: sticky;
     top: 72px;
     display: flex;
     flex-direction: column;
     gap: 4px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--panel);
-    box-shadow: var(--bevel);
+    border: 1px solid var(--case-edge);
+    border-radius: var(--panel-radius);
+    background: var(--face);
+    box-shadow:
+        var(--rim),
+        var(--drop);
     padding: 14px;
     max-height: calc(100vh - 96px);
     overflow-y: auto;
 }
+/* The search field is a live screen let into that panel. */
 .wiki-search {
     width: 100%;
     margin-bottom: 8px;
     padding: 8px 10px;
-    background: var(--space-0);
-    border: 1px solid var(--border);
+    background: var(--screen);
+    border: 1px solid var(--case-edge);
     border-radius: var(--radius);
-    color: var(--text);
+    box-shadow: var(--well);
+    color: var(--phosphor);
     font-family: var(--font-mono);
-    font-size: 0.82rem;
+    font-size: 0.8rem;
+}
+.wiki-search::placeholder {
+    /* -dim, not -muted: this is readable text, and -muted lands at 3.0:1 on the
+       screen well - below AA. -muted is for ornament only. */
+    color: var(--phosphor-dim);
 }
 .wiki-search:focus-visible {
-    outline: 2px solid var(--cyan);
+    outline: 2px solid var(--phosphor);
     outline-offset: 1px;
-    border-color: var(--cyan-deep);
 }
 .wiki-nav__home {
     display: block;
     padding: 5px 8px;
-    color: var(--text-muted);
+    color: var(--phosphor-dim);
     font-family: var(--font-mono);
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     border-left: 2px solid transparent;
 }
 .wiki-nav__group {
@@ -1091,21 +1174,21 @@ main {
     margin: 0 0 4px;
     padding: 0 8px;
     font-family: var(--font-mono);
-    font-size: 0.68rem;
+    font-size: 0.66rem;
     letter-spacing: 0.16em;
     text-transform: uppercase;
-    color: var(--cyan);
+    color: var(--phosphor);
 }
 /* Audience band header (For players / creators / developers) - the top tier
-   above the category groups. Amber + a top rule set it apart from the cyan
+   above the category groups. Amber + a top rule set it apart from the phosphor
    category labels. */
 .wiki-nav__section {
     margin: 22px 0 8px;
     padding: 12px 8px 0;
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--case-2);
     font-family: var(--font-display);
     font-weight: 700;
-    font-size: 0.82rem;
+    font-size: 0.78rem;
     letter-spacing: 0.05em;
     text-transform: uppercase;
     color: var(--amber);
@@ -1121,19 +1204,20 @@ main {
     justify-content: space-between;
     gap: 6px;
     padding: 5px 8px;
-    color: var(--text-muted);
-    font-size: 0.9rem;
+    color: var(--phosphor-dim);
+    font-size: 0.82rem;
     border-left: 2px solid transparent;
+    border-radius: 0 var(--radius) var(--radius) 0;
 }
 .wiki-nav__link:hover {
     color: var(--text);
-    background: rgba(92, 200, 255, 0.06);
+    background: var(--case-0);
 }
 .wiki-nav__home.is-active,
 .wiki-nav__link.is-active {
-    color: var(--cyan-bright);
-    border-left-color: var(--cyan);
-    background: rgba(92, 200, 255, 0.06);
+    color: var(--phosphor);
+    border-left-color: var(--phosphor);
+    background: var(--screen-0);
 }
 .wiki-nav__link.is-soon {
     opacity: 0.7;
@@ -1143,28 +1227,28 @@ main {
     display: flex;
     flex-direction: column;
     margin: 2px 0 2px 8px;
-    border-left: 1px solid var(--border);
+    border-left: 1px solid var(--case-2);
 }
 .wiki-nav__child {
     padding-left: 12px;
-    font-size: 0.86rem;
+    font-size: 0.78rem;
 }
 .wiki-nav__soon,
 .wiki-index__soon {
     font-family: var(--font-mono);
-    font-size: 0.6rem;
+    font-size: 0.58rem;
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--amber);
-    border: 1px solid rgba(255, 184, 119, 0.4);
+    border: 1px solid var(--case-3);
     border-radius: var(--radius);
     padding: 0 4px;
 }
 .wiki-nav__empty {
     margin: 10px 8px 0;
-    color: var(--text-muted);
+    color: var(--phosphor-dim);
     font-family: var(--font-mono);
-    font-size: 0.8rem;
+    font-size: 0.78rem;
 }
 /* The article column: reuse .prose typography but drop its centering/width so
    it fills the grid column. min-width: 0 lets the 1fr grid track shrink below
@@ -1177,11 +1261,21 @@ main {
     margin: 0;
     padding: 0;
 }
+/* But the RUNNING TEXT inside it still gets a measure - without one, a wide
+   desktop column pushes mono prose well past a readable line length. Block-level
+   furniture (tables, pre, mermaid, the card grids) is deliberately exempt so it
+   still uses the full column. */
+.wiki__body.prose > p,
+.wiki__body.prose > ul,
+.wiki__body.prose > ol,
+.wiki__body.prose > blockquote {
+    max-width: 74ch;
+}
 .wiki__crumb {
     font-family: var(--font-mono);
-    font-size: 0.76rem;
+    font-size: 0.74rem;
     letter-spacing: 0.04em;
-    color: var(--text-muted);
+    color: var(--phosphor-dim);
     margin: 0 0 1em;
 }
 .wiki__tags {
@@ -1192,20 +1286,20 @@ main {
 }
 .wiki-tag {
     font-family: var(--font-mono);
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     letter-spacing: 0.06em;
-    color: var(--cyan);
-    background: rgba(92, 200, 255, 0.07);
-    border: 1px solid var(--border);
+    color: var(--phosphor);
+    background: var(--screen-0);
+    border: 1px solid var(--case-edge);
     border-radius: var(--radius);
     padding: 2px 8px;
 }
 .wiki-tag::before {
     content: "#";
-    opacity: 0.6;
+    color: var(--phosphor-muted);
 }
 .wiki-seealso__title {
-    font-size: 1.2rem;
+    font-size: 1.1rem;
 }
 .wiki-seealso__list {
     list-style: none;
@@ -1218,14 +1312,14 @@ main {
     color: var(--text);
 }
 .wiki-seealso__sum {
-    color: var(--text-muted);
-    font-size: 0.9rem;
+    color: var(--phosphor-dim);
+    font-size: 0.85rem;
 }
 /* Wiki index: category sections of cards. */
 /* Index band header (the audience tier), above its category subheadings. */
 .wiki-index__band {
     font-family: var(--font-display);
-    font-size: 1.7rem;
+    font-size: 1.4rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--amber);
@@ -1235,27 +1329,30 @@ main {
     margin-top: 0.5em;
 }
 .wiki-index__cat {
-    font-size: 1.1rem;
-    color: var(--cyan-bright);
+    font-size: 1.05rem;
+    color: var(--phosphor);
     padding-top: 0.3em;
     margin-top: 1.2em;
 }
 .wiki-index__grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
     gap: 14px;
 }
 .wiki-index__card {
     display: block;
     color: inherit;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--bevel);
+    background: var(--face);
+    border: 1px solid var(--case-edge);
+    border-radius: var(--panel-radius);
+    box-shadow:
+        var(--rim),
+        var(--drop);
     padding: 14px 16px;
+    transition: background 0.12s ease;
 }
 a.wiki-index__card:hover {
-    border-color: var(--border-bright);
+    background: var(--face-hot);
 }
 .wiki-index__card.is-soon {
     opacity: 0.72;
@@ -1267,23 +1364,23 @@ a.wiki-index__card:hover {
     margin-bottom: 4px;
 }
 .wiki-index__cardtitle {
-    font-size: 1.05rem;
+    font-size: 0.95rem;
     margin: 0;
     color: var(--text);
 }
 a.wiki-index__card:hover .wiki-index__cardtitle {
-    color: var(--cyan-bright);
+    color: var(--phosphor);
 }
 .wiki-index__cardsum {
     margin: 0;
-    color: var(--text-muted);
-    font-size: 0.9rem;
+    color: var(--phosphor-dim);
+    font-size: 0.82rem;
 }
 /* Parent overview: the child grid (icon + title + summary), e.g. the five ship
    sections on the Ship sections page. */
 .wiki-children {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
     gap: 14px;
     margin: 1.6em 0;
 }
@@ -1292,30 +1389,36 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     align-items: center;
     gap: 14px;
     color: inherit;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--bevel);
+    background: var(--face);
+    border: 1px solid var(--case-edge);
+    border-radius: var(--panel-radius);
+    box-shadow:
+        var(--rim),
+        var(--drop);
     padding: 14px;
+    transition: background 0.12s ease;
 }
 .wiki-child:hover {
-    border-color: var(--border-bright);
+    background: var(--face-hot);
 }
-/* Icon placeholder: a hatched square until the real icon is captured (the asset
+/* Icon placeholder: a hatched recess until the real icon is captured (the asset
    name is on the element's title attribute). */
 .wiki-child__icon {
     flex: 0 0 auto;
     width: 44px;
     height: 44px;
-    border: 1px dashed var(--border-bright);
+    border: 1px dashed var(--phosphor-muted);
     border-radius: var(--radius);
-    background: repeating-linear-gradient(
-        45deg,
-        rgba(92, 200, 255, 0.05) 0,
-        rgba(92, 200, 255, 0.05) 6px,
-        transparent 6px,
-        transparent 12px
-    );
+    box-shadow: var(--well);
+    background:
+        repeating-linear-gradient(
+            45deg,
+            rgba(54, 255, 121, 0.06) 0,
+            rgba(54, 255, 121, 0.06) 6px,
+            transparent 6px,
+            transparent 12px
+        ),
+        var(--case-0);
 }
 .wiki-child__body {
     display: flex;
@@ -1326,15 +1429,15 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
 .wiki-child__title {
     font-family: var(--font-display);
     font-weight: 700;
-    font-size: 1.05rem;
+    font-size: 0.95rem;
     color: var(--text);
 }
 .wiki-child:hover .wiki-child__title {
-    color: var(--cyan-bright);
+    color: var(--phosphor);
 }
 .wiki-child__sum {
-    color: var(--text-muted);
-    font-size: 0.84rem;
+    color: var(--phosphor-dim);
+    font-size: 0.78rem;
 }
 @media (max-width: 820px) {
     .wiki {
@@ -1353,19 +1456,20 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
    under .prose so it only touches article bodies, and built from the same
    palette variables as the rest of the wiki. */
 
-/* Fenced code blocks. Inline `.prose code` is already styled; reset it inside a
-   <pre> so the block owns the frame and the highlight spans set the colors. */
+/* Fenced code blocks are CRT screens let into the page: a phosphor-lit dark
+   green surface, sunk behind a well shadow. Inline `.prose code` is already
+   styled; reset it inside a <pre> so the block owns the frame and the highlight
+   spans set the colors. */
 .prose pre {
     margin: 1.5em 0;
     padding: 14px 16px;
     overflow-x: auto;
-    background: var(--panel-2);
-    border: 1px solid var(--border);
-    border-left: 3px solid var(--cyan-deep);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-hard);
-    font-size: 0.85rem;
-    line-height: 1.55;
+    background: var(--screen);
+    border: 1px solid var(--case-edge);
+    border-radius: var(--panel-radius);
+    box-shadow: var(--well);
+    font-size: 0.82rem;
+    line-height: 1.6;
 }
 .prose pre code {
     display: block;
@@ -1377,18 +1481,19 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     font-size: inherit;
 }
 
-/* A compact highlight.js theme in the site palette (highlight.js emits these
-   hljs-* classes at build time; see markdown.js). */
+/* A compact highlight.js theme in the NOVA OS palette, so a code block reads as
+   terminal output rather than as a foreign editor theme (highlight.js emits
+   these hljs-* classes at build time; see markdown.js). */
 .hljs-comment,
 .hljs-quote {
-    color: var(--text-muted);
+    color: var(--phosphor-dim);
     font-style: italic;
 }
 .hljs-keyword,
 .hljs-selector-tag,
 .hljs-literal,
 .hljs-meta {
-    color: var(--cyan);
+    color: var(--phosphor);
 }
 .hljs-string,
 .hljs-regexp,
@@ -1400,7 +1505,7 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
 .hljs-built_in,
 .hljs-type,
 .hljs-class .hljs-title {
-    color: var(--cyan-bright);
+    color: var(--blue);
 }
 .hljs-title,
 .hljs-title.function_,
@@ -1408,7 +1513,7 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
 .hljs-attribute,
 .hljs-attr,
 .hljs-property {
-    color: var(--amber-horizon);
+    color: var(--orange);
 }
 .hljs-variable,
 .hljs-template-variable,
@@ -1423,41 +1528,52 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     font-weight: 700;
 }
 
-/* Tables (the docs lean on them heavily: crate maps, event kinds, damage types). */
+/* Tables (the docs lean on them heavily: crate maps, event kinds, damage types).
+   The table itself is a recess in the case with a moulded header strip. */
 .prose table {
     width: 100%;
     margin: 1.5em 0;
-    border-collapse: collapse;
-    font-size: 0.9rem;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid var(--case-edge);
+    border-radius: var(--panel-radius);
+    overflow: hidden;
+    background: var(--case-0);
+    box-shadow: var(--well);
+    font-size: 0.82rem;
 }
 .prose th,
 .prose td {
     padding: 8px 12px;
-    border: 1px solid var(--border);
+    border-bottom: 1px solid var(--case-2);
     text-align: left;
     vertical-align: top;
 }
+.prose tbody tr:last-child td {
+    border-bottom: none;
+}
 .prose thead th {
-    background: var(--panel);
-    color: var(--cyan-bright);
+    background: var(--face);
+    box-shadow: var(--rim);
+    color: var(--phosphor);
     font-family: var(--font-display);
     letter-spacing: 0.02em;
 }
 .prose tbody tr:nth-child(even) {
-    background: rgba(92, 200, 255, 0.03);
+    background: var(--case-1);
 }
 
-/* Mermaid diagrams: framed as a figure, not a code block - reset the generic
-   `.prose pre` code frame (cyan left border, panel background, shadow). Until
-   mermaid.run replaces the <pre> with an <svg>, the raw source is hidden so
-   half-rendered diagram text never flashes; if rendering FAILS, wiki.ts adds
-   `.mermaid--failed` to reveal the source rather than leave it invisible. */
+/* Mermaid diagrams: framed as a recessed panel, not a code block - reset the
+   generic `.prose pre` screen frame. Until mermaid.run replaces the <pre> with
+   an <svg>, the raw source is hidden so half-rendered diagram text never
+   flashes; if rendering FAILS, wiki.ts adds `.mermaid--failed` to reveal the
+   source rather than leave it invisible. */
 .prose pre.mermaid {
     padding: 18px;
     overflow-x: auto;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    box-shadow: var(--bevel);
+    background: var(--case-0);
+    border: 1px solid var(--case-edge);
+    box-shadow: var(--well);
     text-align: center;
     color: transparent;
     user-select: none;
@@ -1486,11 +1602,12 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     flex-wrap: wrap;
     padding: 20px 24px;
     margin-top: 40px;
-    border-top: 1px solid var(--border);
-    background: var(--space-0);
-    color: var(--text-muted);
+    border-top: 1px solid var(--case-edge);
+    background: var(--face);
+    box-shadow: var(--rim);
+    color: var(--phosphor-dim);
     font-family: var(--font-mono);
-    font-size: 0.82rem;
+    font-size: 0.78rem;
     letter-spacing: 0.02em;
 }
 .site-footer nav {
@@ -1499,10 +1616,10 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     flex-wrap: wrap;
 }
 .site-footer a {
-    color: var(--text-muted);
+    color: var(--phosphor-dim);
 }
 .site-footer a:hover {
-    color: var(--cyan-bright);
+    color: var(--phosphor);
 }
 
 /* ---- responsive ---------------------------------------------------------- */
@@ -1511,45 +1628,67 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
         padding: 52px 0;
     }
     .section__title {
-        font-size: 1.6rem;
+        font-size: 1.45rem;
     }
     .hero {
         padding: 56px 20px 68px;
     }
+    .hero__tagline {
+        font-size: 0.95rem;
+    }
     .controls td:first-child {
         width: 45%;
+    }
+    /* Mono glyphs are wider, so the narrow viewport trims a step further:
+       smaller body copy and tighter gutters keep a usable line length instead
+       of 30-character ribbons. */
+    .prose {
+        font-size: 0.88rem;
+        padding: 40px 18px 56px;
+    }
+    .prose h1 {
+        font-size: 1.45rem;
+    }
+    .prose h2 {
+        font-size: 1.15rem;
+    }
+    .btn {
+        font-size: 0.84rem;
+        padding: 11px 18px;
     }
 }
 
 /* ---- changelog callout --------------------------------------------------- */
 /* An admonition block for release pages, chiefly the "Breaking changes /
    migrating your mods" note. Authored in a release .md as raw HTML (markdown-it
-   runs with html:true), so it needs no JS. The breaking variant wears the amber
-   accent; the plain variant the cyan one. */
+   runs with html:true), so it needs no JS. The breaking variant wears the red
+   fault accent; the plain variant the phosphor one. */
 .callout {
     margin: 1.6rem 0;
     padding: 1rem 1.2rem;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-left: 3px solid var(--cyan);
-    border-radius: var(--radius);
-    box-shadow: var(--bevel);
+    background: var(--face);
+    border: 1px solid var(--case-edge);
+    border-left: 3px solid var(--phosphor);
+    border-radius: var(--panel-radius);
+    box-shadow:
+        var(--rim),
+        var(--drop);
 }
 .callout__title {
     margin: 0 0 0.4rem;
     font-family: var(--font-display);
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 0.02em;
-    color: var(--cyan-bright);
+    color: var(--phosphor);
 }
 .callout > :last-child {
     margin-bottom: 0;
 }
 .callout--breaking {
-    border-left-color: var(--amber-horizon);
+    border-left-color: var(--red);
 }
 .callout--breaking .callout__title {
-    color: var(--amber);
+    color: var(--red);
 }
 
 /* ---- news post layout + section TOC sidebar ----------------------------- */
@@ -1560,7 +1699,7 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
    .prose article when a post has no sections. */
 .news {
     display: grid;
-    grid-template-columns: 232px 1fr;
+    grid-template-columns: 244px 1fr;
     gap: 40px;
     align-items: start;
     max-width: 1080px;
@@ -1569,54 +1708,59 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
 }
 .news__body {
     /* the .prose article sits inside the grid column: drop its own centering
-       and outer padding so the grid controls the gutters. */
-    max-width: 72ch;
+       and outer padding so the grid controls the gutters. The measure is a
+       character count under mono, so it is a touch under the .prose default to
+       account for the wider column. */
+    max-width: 70ch;
     margin: 0;
     padding: 0;
 }
+/* The TOC is a case panel, matching the wiki sidebar. */
 .news__toc {
     position: sticky;
     top: 72px;
     display: flex;
     flex-direction: column;
     gap: 1px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--panel);
-    box-shadow: var(--bevel);
+    border: 1px solid var(--case-edge);
+    border-radius: var(--panel-radius);
+    background: var(--face);
+    box-shadow:
+        var(--rim),
+        var(--drop);
     padding: 14px;
     max-height: calc(100vh - 96px);
     overflow-y: auto;
-    font-size: 0.9rem;
+    font-size: 0.82rem;
 }
 .news__toc-title {
     margin: 0 0 8px;
     font-family: var(--font-display);
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    font-size: 0.72rem;
-    color: var(--text-muted);
+    font-size: 0.68rem;
+    color: var(--phosphor-dim);
 }
 .news__toc-link {
     display: block;
     padding: 3px 8px;
     border-left: 2px solid transparent;
-    border-radius: var(--radius);
-    color: var(--text-muted);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    color: var(--phosphor-dim);
     text-decoration: none;
-    line-height: 1.3;
+    line-height: 1.4;
 }
 .news__toc-link:hover {
-    color: var(--cyan-bright);
+    color: var(--text);
 }
 .news__toc-link.is-active {
-    color: var(--cyan-bright);
-    border-left-color: var(--cyan);
-    background: rgba(92, 200, 255, 0.07);
+    color: var(--phosphor);
+    border-left-color: var(--phosphor);
+    background: var(--screen-0);
 }
 .news__toc-link--sub {
     padding-left: 20px;
-    font-size: 0.92em;
+    font-size: 0.94em;
 }
 @media (max-width: 860px) {
     .news {
@@ -1629,7 +1773,7 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
         max-height: none;
     }
     .news__body {
-        max-width: 72ch;
+        max-width: 70ch;
         margin: 0 auto;
     }
 }

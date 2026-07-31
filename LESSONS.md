@@ -83,10 +83,11 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   version bump, `grep -rn '"<old-version>"' crates/` in the same change. Bit the
   ch5 rig on 1.10->1.11 and the ch4 rig's sell-chain the cycle before.
   20260723-182855, 20260723-200643.
-- `pin-mirrored-list-against-source` (positive, x1): a lint/tool that hardcodes
-  a copy of runtime data (the flight rig's reserved keys) gets a test that
-  builds the REAL source and set-diffs both directions, so the copy
-  self-corrects on drift instead of rotting. 20260718-152240.
+- `pin-mirrored-list-against-source` (positive, x2): code that hardcodes a copy
+  of data owned elsewhere (a lint's reserved keys; the web theme's `:root`) gets
+  a test that READS the real source and diffs both directions, so the copy
+  self-corrects on drift instead of rotting. Two surfaces mirroring one origin is
+  fine; two hand-synced lists is not. 20260718-152240, 20260731-143918.
 - `verify-transparent-tool-is-active` (x1): for a transparent tool (compiler
   wrapper / cache), "the build was fast/passed" is not proof it works - a
   silently-inactive `RUSTC_WRAPPER` looks normal. Confirm it is ACTIVE via its
@@ -447,6 +448,13 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   `[table]` or they fold into it silently. 20260715-110417.
 - `verify-tool-via-subcommand-not-which` (x1): check `cargo <sub> --version`,
   not `which` - ~/.cargo/bin may be off PATH. 20260715-110417.
+- `dod-command-unrun-is-not-a-proof` (x1): a proof command AUTHORED into a DoD is
+  unverified text until executed - a "no legacy token survives" grep used
+  `--panel\b`, which also matches the `--panel-radius` the same change
+  introduces, so it could never be clean. Run every DoD command against the
+  current tree while writing it, and re-run any pattern that names a token the
+  task is about to add. Sibling of [[inherited-cli-string-drifts]] (that one is
+  copied and stale; this one was wrong at birth). 20260731-143918.
 - `inherited-cli-string-drifts` (x2): a CLI invocation copied from a prior
   task's DoD/Steps can be stale against the current flags - run it (or `--help`)
   once before trusting it. Both ch3 tasks this cycle inherited `content lint
@@ -959,6 +967,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `re-audit-consumers-on-input-model-change` (x1): discrete -> continuous
   control invalidates every policy written for the discrete model (per-drag
   writes need debouncing). 20260711-180511.
+- `assert-the-new-vocabulary-is-consumed` (x1): for a port/restyle, a test that
+  only checks the new tokens are DECLARED with the right values passes on exactly
+  the outcome the task rejected the cheap option for (a site that took the new
+  colours but kept the flat structure). Assert the main surfaces actually READ
+  the new vocabulary, and that every read resolves - that pair also catches a
+  rename that stopped halfway. 20260731-143918.
 - `parity-test-must-cross-link` (x1): a sync test derives the expected value
   from one side and asserts on the OTHER, never two hardcoded literals.
   20260711-180511.
@@ -1258,6 +1272,13 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   child that keyed off the body's height. Collapse the `grid-template` too
   (`grid-template-rows: 1fr`), don't just hide the child. Caught by a chromium
   eyeball, not the exit code. Pairs with [[render-output-eyeball]]. 20260728-185730.
+- `capture-rig-succeeds-on-an-error-page` (x1): `chromium --screenshot` exits 0
+  and writes a valid, non-empty PNG of a 404, so a rig guarded only by "the file
+  exists and is non-empty" reports a full green run over error pages - worst in a
+  rig that IS the `cmd:` proof for an eyeball DoD. Assert the HTTP STATUS before
+  capturing, fail the readiness wait instead of falling through, and force the
+  failure once. Pairs with [[render-output-eyeball]] and
+  [[degrade-paths-need-a-forced-failure]]. 20260731-143918.
 - `isolate-the-lever-before-measuring` (x1): a preset bundles levers; add an
   override to vary ONE knob in isolation before attributing a win.
   20260718-004723.

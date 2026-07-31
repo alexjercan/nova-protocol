@@ -339,13 +339,13 @@ async function initMermaid(): Promise<void> {
             theme: "dark",
             fontFamily: v("--font-mono", "monospace"),
             themeVariables: {
-                background: v("--panel", "#141a2e"),
-                primaryColor: v("--panel-2", "#0f1424"),
-                primaryBorderColor: v("--border-bright", "#3a4d7a"),
-                primaryTextColor: v("--text", "#e8eefc"),
-                lineColor: v("--cyan-deep", "#2a9fd6"),
-                secondaryColor: v("--panel", "#141a2e"),
-                tertiaryColor: v("--panel", "#141a2e"),
+                background: v("--case-0", "#0a0d10"),
+                primaryColor: v("--case-1", "#161b20"),
+                primaryBorderColor: v("--phosphor-dim", "#19a64f"),
+                primaryTextColor: v("--text", "#b9ffc9"),
+                lineColor: v("--phosphor-dim", "#19a64f"),
+                secondaryColor: v("--case-2", "#232a31"),
+                tertiaryColor: v("--case-1", "#161b20"),
             },
         });
         await mermaid.run({ querySelector: ".mermaid" });

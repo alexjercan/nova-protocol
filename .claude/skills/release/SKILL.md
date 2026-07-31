@@ -52,7 +52,7 @@ release". This skill is that checklist plus the guardrails learned in practice.
   that landed without a changelog line is the common gap.
 - **Docs/web current:** sweep the doc surfaces the shipped changes invalidate
   (`web/src/wiki/dev/keeping-docs-in-sync.md` is the map). Then validate the
-  site actually builds: `cd web && npm run ci` (format:check + lint + build) -
+  site actually builds: `cd web && npm run ci` (format:check + lint + test + build) -
   this also renders the News markdown, so it catches a malformed post.
 
 ### 2. Version bump + lock

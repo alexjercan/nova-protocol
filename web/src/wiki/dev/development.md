@@ -286,6 +286,33 @@ have no capture example yet. Commit the resulting PNGs (they are content, like
 `banner.png`). Run `python3 scripts/gen-web-screenshots.py --self-test` to check
 the PNG codec (decode/resize/compose) in isolation.
 
+### Eyeballing the site
+
+`npm run ci` proves the bundle compiles and the theme tokens are in sync; it
+proves nothing about how a page LOOKS. For any styling, layout or readability
+change, capture the pages and look at them:
+
+```sh
+nix develop -c scripts/shoot-web-pages.sh target/web-shots
+```
+
+It builds `web/`, serves `web/dist` on a free port and drives headless chromium
+over the six page kinds (landing, news index, a news post, tutorial, wiki index,
+a wiki dev page with code + a table + mermaid) at desktop and mobile widths,
+writing `<kind>-<width>.png` plus a `manifest.txt` naming the commit. For a
+before/after, run it once per commit into two dirs and compare the matching
+pairs at identical crop and scale - a comparison at two different zooms shows
+you the resize, not the change.
+
+### The theme is shared with the game
+
+`web/src/style.css` and `crates/nova_ui/src/theme.rs` both mirror the `:root`
+block of `examples/ui/nova_ui_rework_poc.html` - the NOVA OS palette and its
+light-3D material vocabulary. That PoC is the single source: change it first,
+then both consumers. `web/tests/theme.test.ts` (part of `npm test`, and so of
+`npm run ci`) parses the PoC and `style.css` and fails if the site's tokens go
+missing or drift in value.
+
 ## Performance and run verification
 
 `nova_probe` (`crates/nova_probe/`) is the run-harness: it drives an autopilot
@@ -573,7 +600,7 @@ Adding a post touches three places (mirror an existing post such as
    excerpt. For the thumbnail, use the YouTube thumbnail
    (`https://img.youtube.com/vi/<id>/hqdefault.jpg`) if the release has a video,
    otherwise the `.post-card__ph` placeholder naming `assets/thumb-news-<version>.png`.
-4. Rebuild and check it: `cd web && npm run ci` (format check, lint, build).
+4. Rebuild and check it: `cd web && npm run ci` (format check, lint, test, build).
 
 ## Contributing a change
 

@@ -43,6 +43,11 @@ tagged **(breaking)**.
 - Allegiance markers: a small filled triangle floats above every ship, coloured by side (green ally, red threat, grey neutral) so a mixed brawl reads friend-from-foe at a glance; your own ship shows none, and a ship provoked mid-fight flips its marker red.
 - Startup now shows a phosphor NOVA OS loading screen (near-black CRT screen, green "NOVA OS" mark and a "LOADING" line with an indeterminate blinking-cursor + marching-dots animation) while the game's assets preload, instead of a blank native window; it hands off to the menu once loading finishes.
 
+### Web & Platform
+
+- The website adopts NOVA OS, so it stops advertising a look the game no longer has: the navy/cyan industrial-HUD palette is retired for green phosphor on a near-black field, and the site takes the game's light-3D MATERIAL too - headers, cards, sidebars and buttons become moulded case faces with lit rims and drop shadows, code blocks and inline code become CRT screens, and search fields, tables and placeholders become recesses. Typography goes terminal-first: display, body and code all render in JetBrains Mono (Rajdhani and Inter are dropped), with the leading and measure retuned for a mono face. Site and game now mirror the SAME `:root` block (`examples/ui/nova_ui_rework_poc.html`), and `npm test` fails if the two drift.
+- New `scripts/shoot-web-pages.sh`: builds and serves the site, then headless-captures the six page kinds at desktop and mobile widths so a styling change can actually be looked at. `npm run ci` now runs `npm test` as well.
+
 ### Fixes
 
 - The combat lock no longer lets go mid-fight: FIRING now counts as combat activity for the 30 s idle decay, not just holding the weapons raised, so a player who locks a hostile and shoots it with the stance lowered keeps the lock however long the fight runs. The 30 s rule itself is unchanged but is now VISIBLE - over the last five seconds the red reticle dims and pulses faster, snapping back to full the instant anything counts as combat - and every automatic lock drop (idle decay, out of range, target gone, allegiance flip) now names its own cause.

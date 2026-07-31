@@ -9,8 +9,11 @@
 //!
 //! The flat navy/cyan `web/src/style.css` palette that this theme used to mirror
 //! has been fully retired: its last consumers (menu + editor, HUD chrome) moved
-//! onto the NOVA OS tokens in tasks 20260728-175738 and -175742. The web app
-//! keeps its own CSS; this module is NOVA-OS-only now.
+//! onto the NOVA OS tokens in tasks 20260728-175738 and -175742, and the landing
+//! site followed in 20260731-143918. Site and game are no longer two hand-synced
+//! lists: `web/src/style.css` now mirrors the SAME PoC `:root` block this module
+//! does, and `web/tests/theme.test.ts` parses both and fails on drift. Change the
+//! PoC first, then both consumers.
 //!
 //! Palette + metrics only - typography routes through [`crate::font::UiFont`].
 

@@ -12,8 +12,8 @@
         "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\" \"src/**/*.html\" *.config.js *.js *.mjs package.json tsconfig.json",
         "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\"",
         "lint:fix": "eslint \"src/**/*.ts\" \"tests/**/*.ts\" --fix",
-        "test": "tsc src/site.ts tests/site.test.ts --module commonjs --target es2020 --lib es2020,dom --types node --esModuleInterop --skipLibCheck --outDir .test-out && node .test-out/tests/site.test.js",
-        "ci": "npm run format:check && npm run lint && npm run build"
+        "test": "tsc src/site.ts tests/site.test.ts tests/theme.test.ts --module commonjs --target es2020 --lib es2020,dom --types node --esModuleInterop --skipLibCheck --outDir .test-out && node .test-out/tests/site.test.js && node .test-out/tests/theme.test.js",
+        "ci": "npm run format:check && npm run lint && npm run test && npm run build"
     },
     "keywords": [],
     "devDependencies": {
