@@ -800,13 +800,17 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   observers; enumerate systems + observers + hooks - a new PauseStates variant
   had to widen ~14 observer self-guards the `in_state(Unpaused)` set-gate never
   covered. 20260711-185156, 20260724-102304.
-- `would-it-fail-without-it` (x7, PROMOTED 2026-07-13 -> work + review
+- `would-it-fail-without-it` (x8, PROMOTED 2026-07-13 -> work + review
   skills): a verification that cannot fail with the mechanism deleted proves
   nothing; a sabotage that will not go red refutes the assumed mechanism or
   the test's shape. Sharpened 20260729-163816: a REGRESSION test written after
   the fix is the likeliest to pass under the bug it names - one tucked two
   cards in posting order, which the positional bug also got right. Mutate
-  before believing it. 20260711-180426, 20260717-163033, 20260729-163816.
+  before believing it. Sharpened 20260730-123039: a LATER fix can silently
+  disarm an earlier test - a bigger hit target absorbed the mis-mapping its own
+  corner-click test existed to catch - so sabotage each half of a two-part fix
+  SEPARATELY, not the change as a whole. 20260711-180426, 20260717-163033,
+  20260729-163816, 20260730-123039.
 - `required-component-in-shared-query` (x2): a required fetch narrows an
   existing query's membership; fetch `Option<&T>` or use a separate query.
   20260712-143832.
@@ -1396,6 +1400,26 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   button + send a `MouseMotion`, assert the drag target did NOT move; hold the drag
   button, assert it did. Sibling of [[rtt-ui-select-via-activate-not-interaction]].
   20260728-143430.
+- `absolute-child-left-is-from-the-padding-edge` (domain, x1): in bevy_ui (as in
+  CSS) an absolutely-positioned child's `left`/`top` is measured from its parent's
+  PADDING edge - already inside the parent's border - so a label meant to sit flush
+  against a bordered dot needs `left = SIZE - BORDER`, not `left = SIZE`. Both NOVA
+  OS blip labels overlooked it and carried 6 px (map) and 4 px (ship) of dead band
+  that selected nothing. Measure the gap on the LIVE tree (`ComputedNode` +
+  `UiGlobalTransform` rects) rather than reasoning about the offsets; and note that
+  bevy's `contains_point` excludes the exact shared edge from BOTH rects, so probe a
+  seam by sweeping pixel CENTRES across the band, never the boundary coordinate.
+  20260730-123039.
+- `forwarded-pointer-must-apply-the-composite-forward-map` (domain, x1): a pointer
+  forwarded onto an RTT that is displayed through a distorting shader must apply
+  the SHADER'S OWN screen->image map, not an inverse of it - the fragment already
+  computes "which texel is drawn at this screen uv", which is exactly the question
+  the pointer asks. Keep every constant of that map in the material UNIFORM (Rust
+  side) rather than as a WGSL `const`: a WGSL-local overscan was invisible to the
+  pointer and put NOVA OS clicks up to 27 px off at the screen corners. Mirror the
+  shader's output GATES too (`in_bounds`, raster `collapsed`), so nothing is
+  clickable where nothing is drawn. Sibling of
+  [[bevy-ui-image-camera-is-pickable-via-forwarded-pointer]]. 20260730-123039.
 - `verify-reused-driver-actually-moves` (x1): before building interaction on a
   reused input/animation component, confirm the OUTPUT actually moves in THIS
   context - do not trust that writing its input rotates/animates. The map camera
@@ -1457,7 +1481,28 @@ here (annotated) as the paid record.
 - `render-output-eyeball` (x7, PROMOTED 2026-07-21 -> AGENTS.md Conventions): a dimensionally-valid generated artifact can be empty/wrong while every exit code is green - open it; a layout/readability task is unverified until someone SEES it rendered, and if no capture rig exists for the surface, building it IS step 1 (a widget-tree test cannot stand in - two NOVA OS tasks landed 7 blind rounds without one). 20260718-122923, 20260719-112253, 20260726-180807, 20260726-193219.
 - `widget-tree-eyeball-for-logical-layout` (x2): for a text/list "layout", the eyeball is asserting the SPAWNED widget tree (Text/Node content in child/display order) through the real spawn path - it sees the rendered content deterministically and headlessly. Prefer it to a pixel screenshot for logical/text layouts; a pixel shot is flaky+expensive on a software GPU, so read the capture rig's window/settle/GPU limits BEFORE attempting one (a scenarios-picker capture overran the autopilot window on llvmpipe - a limit the rig's own comments documented). Also covers collapse/expand: drive the real toggle observer and assert the header marker + members appearing/vanishing. 20260723-095930, 20260723-095951.
 - `discharge-decision-caveat-first` (x1): when a task depends on a decision that carries a "verify X during work" caveat, discharge that check as the FIRST work step (a grep or a tiny probe), not after building - it either unblocks the build or triggers the stop-and-ask while it is still cheap (a "do the hidden members cold-launch?" grep of their OnStart player spawn retired the risk before the UI was written). 20260723-095951.
-- `test-must-not-reuse-the-formula-under-test` (x1): a test that recomputes the production formula proves only "the code runs its own arithmetic", not that the arithmetic is RIGHT - it is tautological on exactly the assumption that can be wrong. Assert against an INDEPENDENT value (a stamped `ComputedNode`, a real layout pass, a hand-figured constant). Sibling rule: for font/render-dependent layout, MEASURE (`ComputedNode.size * inverse_scale_factor`) instead of multiplying by an assumed em-fraction - a NOVA OS caret positioned at `chars * 0.6em` (the block WIDTH, not the glyph advance) would have drifted a full cell by ~6 chars, and the first test hid it by reusing the same 0.6. Caught by out-of-context review. 20260727-135200.
+- `test-must-not-reuse-the-formula-under-test` (x2): a test that recomputes the production formula proves only "the code runs its own arithmetic", not that the arithmetic is RIGHT - it is tautological on exactly the assumption that can be wrong. Assert against an INDEPENDENT value (a stamped `ComputedNode`, a real layout pass, a hand-figured constant). Sibling rule: for font/render-dependent layout, MEASURE (`ComputedNode.size * inverse_scale_factor`) instead of multiplying by an assumed em-fraction - a NOVA OS caret positioned at `chars * 0.6em` (the block WIDTH, not the glyph advance) would have drifted a full cell by ~6 chars, and the first test hid it by reusing the same 0.6. Caught by out-of-context review. Second form (20260730-123039): an independent
+  transcription is only independent for the part you actually transcribed -
+  copying a shader's sample-UV maths but writing its VISIBILITY rule from memory
+  left the reference disagreeing with correct production code, hidden only by a
+  grid too coarse to sample the band. 20260727-135200, 20260730-123039.
+- `diff-the-mirror-against-its-source` (x1): when OUR code claims to mirror an
+  external artifact (a shader, a wire format, a spec), read the artifact and COUNT
+  the operations on each side before trusting - or before theorising about - the
+  mirror; its own doc comment is folklore. `nova_os_inverse_barrel` was documented
+  as "inverse of the shader's forward barrel warp", and the shader in fact mapped
+  screen->image directly (so no inverse was wanted at all) in TWO steps, the second
+  a 0.93 overscan the Rust side could not even see. "Two operations there, one
+  here" IS the finding. Sibling of [[verify-engine-guarantees-in-source]] pointed
+  at our own tree. 20260730-123039.
+- `new-input-needs-a-new-test-axis` (x1): when a function gains a PARAMETER, extend
+  the test's sweep to vary it in the same edit and add a guard proving the new axis
+  is non-degenerate - a parameter that never varies across a run is untested. A
+  CRT-pointer mapping grew a power-collapse remap and its grid ran only at full
+  power, where that remap is exactly the identity, so flipping its divide to a
+  multiply passed all 785 tests. Derive the guard from the constants, not from
+  intuition ("power < 1 means collapsed" was wrong at 0.65, where the taller
+  smoothstep has already reached 1). 20260730-123039.
 - `authored-vs-derived-values` (x4, PROMOTED 2026-07-21 -> AGENTS.md Conventions): author content against measured runtime consts, and encode layout invariants as computed rig assertions. 20260716-124722, 20260717-112630.
 - `advertised-but-unwired` (x5, PROMOTED 2026-07-21 -> AGENTS.md Conventions): a config surface or UI hint is not a capability until producer/consumer wiring and preconditions are verified in the new context - and a keybind hint is per-SURFACE: `CTRL+C: CLOSE` in the terminal footer was inert at the prompt (Ctrl+C only exits an app), caught in review. 20260712-093044, 20260726-134738, 20260727-135213.
 - `out-of-context-review-pass` (positive, x35, PROMOTED 2026-07-21 -> already /flow round-1 practice): a fresh-context review re-derives load-bearing claims and catches MAJORs shared-session eyes miss; verify the verifier's counterexamples too - it caught the drawer's audio-loop freeze gap, overlay z order in the NOVA OS monitor, and unwired NOVA OS footer/doc promises. 20260717-212219, 20260724-102304, 20260724-134312, 20260726-115320, 20260726-134738.

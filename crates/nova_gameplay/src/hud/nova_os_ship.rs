@@ -1613,6 +1613,15 @@ fn project_ship_blips(
 }
 
 const SHIP_BLIP_PX: f32 = 12.0;
+const SHIP_BLIP_BORDER_PX: f32 = 2.0;
+
+/// Where the label pill starts, measured from the dot's PADDING edge - which is
+/// where an absolutely-positioned child's `left` is measured from, i.e. already
+/// inside the dot's border. Offsetting by the border width lands the pill exactly
+/// on the dot's outer right edge, so dot and label are one unbroken hit target
+/// (task 20260730-123039's sweep: `left: 14` left a 4 px dead band here, the same
+/// defect the map app had at 6 px).
+const SHIP_LABEL_LEFT_PX: f32 = SHIP_BLIP_PX - SHIP_BLIP_BORDER_PX;
 /// Fraction of the collider a block's green body fills; the remainder is the gap
 /// to its neighbours that the bright outline frames.
 const SHIP_BLOCK_FILL_SCALE: f32 = 0.86;
@@ -1633,7 +1642,7 @@ fn spawn_ship_blip(
                 position_type: PositionType::Absolute,
                 width: Val::Px(SHIP_BLIP_PX),
                 height: Val::Px(SHIP_BLIP_PX),
-                border: UiRect::all(Val::Px(2.0)),
+                border: UiRect::all(Val::Px(SHIP_BLIP_BORDER_PX)),
                 border_radius: BorderRadius::MAX,
                 ..default()
             },
@@ -1652,7 +1661,7 @@ fn spawn_ship_blip(
         .spawn((
             Node {
                 position_type: PositionType::Absolute,
-                left: Val::Px(14.0),
+                left: Val::Px(SHIP_LABEL_LEFT_PX),
                 top: Val::Px(-4.0),
                 padding: UiRect::axes(Val::Px(4.0), Val::Px(1.0)),
                 border_radius: BorderRadius::all(Val::Px(3.0)),
@@ -1866,9 +1875,18 @@ fn unlit(color: Color) -> StandardMaterial {
 
 #[cfg(test)]
 mod tests {
-    use bevy::{ecs::system::RunSystemOnce, input::InputPlugin, state::app::StatesPlugin};
+    use bevy::{
+        ecs::system::RunSystemOnce,
+        input::InputPlugin,
+        state::app::StatesPlugin,
+        ui::{ComputedNode, UiGlobalTransform},
+    };
 
     use super::*;
+    use crate::hud::nova_os_pointer_rig::{
+        click_at, glass_px, glass_uv_showing, image_px_shown_at, nova_os_pointer_rig,
+        pointer_image_px, settle, NovaOsPointerRig,
+    };
 
     /// A terminal with the `ship` command tree registered (so the arg-bearing
     /// verbs resolve and set a pending invocation on submit).
@@ -3046,6 +3064,145 @@ mod tests {
         assert!(
             runtime.panel_repair_enabled,
             "a hull with HP is repairable -> repair enabled",
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Clicking sections through the CRT composite (task 20260730-123039)
+    // -----------------------------------------------------------------------
+
+    /// The ship viewport, standing in the rig's through-image content root.
+    fn rig_ship_viewport(rig: &mut NovaOsPointerRig) -> Entity {
+        let viewport = rig
+            .app
+            .world_mut()
+            .spawn((
+                ShipViewportMarker,
+                Node {
+                    position_type: PositionType::Absolute,
+                    top: Val::Px(0.0),
+                    left: Val::Px(0.0),
+                    width: Val::Percent(100.0),
+                    height: Val::Percent(100.0),
+                    overflow: Overflow::clip(),
+                    ..default()
+                },
+            ))
+            .id();
+        rig.app
+            .world_mut()
+            .entity_mut(rig.content_root)
+            .add_child(viewport);
+        viewport
+    }
+
+    fn rig_section_view(entity: Entity, code: &str) -> ShipSectionView {
+        ShipSectionView {
+            entity,
+            code: code.to_string(),
+            kind: SectionDamageClass::Hull,
+            name: code.to_string(),
+            local: Transform::IDENTITY,
+            half_extents: Vec3::splat(0.5),
+            health: None,
+            ammo: None,
+            inactive: false,
+            zero_health: false,
+        }
+    }
+
+    /// The laid-out border box of a node in image space.
+    fn rig_rect(rig: &NovaOsPointerRig, entity: Entity) -> Rect {
+        let world = rig.app.world();
+        let node = world
+            .get::<ComputedNode>(entity)
+            .unwrap_or_else(|| panic!("{entity:?} never reached UI layout"));
+        let xf = world
+            .get::<UiGlobalTransform>(entity)
+            .unwrap_or_else(|| panic!("{entity:?} has no UI transform"));
+        Rect::from_center_size(xf.translation, node.size())
+    }
+
+    /// The `ship` app is the OTHER caller of this hit-target shape, so it is
+    /// pinned end to end here rather than left to the map's coverage
+    /// (`pin-each-caller-not-just-shared-core`). Same three checks: the pill
+    /// touches its dot, and dot / seam / label all select the section through the
+    /// real CRT composite.
+    #[test]
+    fn ship_section_label_and_dot_are_one_unbroken_target() {
+        let aim_uv = Vec2::new(0.3, 0.6);
+        let mut rig = nova_os_pointer_rig();
+        rig.app.init_resource::<ShipRuntime>();
+        let viewport = rig_ship_viewport(&mut rig);
+
+        let section = rig.app.world_mut().spawn_empty().id();
+        let view = rig_section_view(section, "HULL-1");
+        let image_px = image_px_shown_at(aim_uv);
+        let dot_entity = rig
+            .app
+            .world_mut()
+            .run_system_once_with(
+                |input: In<(Entity, ShipSectionView)>, mut commands: Commands| {
+                    let (viewport, view) = input.0;
+                    spawn_ship_blip(&mut commands, viewport, &view, Handle::default())
+                },
+                (viewport, view),
+            )
+            .expect("spawning a ship blip through the production path");
+        {
+            let mut node = rig
+                .app
+                .world_mut()
+                .get_mut::<Node>(dot_entity)
+                .expect("the blip has a Node");
+            node.left = Val::Px(image_px.x - SHIP_BLIP_PX * 0.5);
+            node.top = Val::Px(image_px.y - SHIP_BLIP_PX * 0.5);
+        }
+        settle(&mut rig.app);
+
+        let label = {
+            let children = rig
+                .app
+                .world()
+                .get::<Children>(dot_entity)
+                .expect("the blip has a label child");
+            assert_eq!(children.len(), 1, "the dot's only child is its label pill");
+            children[0]
+        };
+        let dot = rig_rect(&rig, dot_entity);
+        let pill = rig_rect(&rig, label);
+        assert!(
+            pill.min.x <= dot.max.x + 0.01,
+            "the label pill starts at x {} but the dot ends at x {} - {:.1} px of \
+             dead band between the two halves of one target",
+            pill.min.x,
+            dot.max.x,
+            pill.min.x - dot.max.x,
+        );
+
+        // The same seam sweep the map app gets, at pixel centres (the shared edge
+        // itself is a measure-zero boundary `contains_point` excludes).
+        let y = dot.center().y;
+        let mut x = dot.center().x + 0.5;
+        let last = pill.min.x + 6.0;
+        let mut probed = 0;
+        while x <= last {
+            let at = Vec2::new(x, y);
+            rig.app.world_mut().resource_mut::<ShipRuntime>().selected = None;
+            click_at(&mut rig, glass_px(glass_uv_showing(at)));
+            assert_eq!(
+                rig.app.world().resource::<ShipRuntime>().selected,
+                Some(section),
+                "clicking image px {at:?} - between the dot's centre and 6 px into \
+                 the pill - must select the section; the pointer landed on {:?}",
+                pointer_image_px(&rig),
+            );
+            probed += 1;
+            x += 1.0;
+        }
+        assert!(
+            probed >= 12,
+            "the sweep only probed {probed} points - it is not crossing the seam"
         );
     }
 }

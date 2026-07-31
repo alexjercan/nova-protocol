@@ -37,6 +37,12 @@ struct NovaOsCrtMaterial {
     // brief horizontal wobble + white flash; every term it feeds is multiplied by
     // it, so at 0 the degauss is an exact no-op (readability preserved).
     degauss: f32,
+    // Overscan: how far the barrel-warped sample UV is pulled back toward centre
+    // so the bowed corners land under the bezel instead of sampling past the
+    // picture (task 20260730-123039). A UNIFORM, not a WGSL constant, because the
+    // Rust side maps the forwarded mouse pointer through this same chain and a
+    // second definition here is exactly how clicks drifted off their targets.
+    overscan: f32,
 }
 
 @group(1) @binding(0) var<uniform> material: NovaOsCrtMaterial;
@@ -71,13 +77,13 @@ const RETRACE_STRENGTH: f32 = 0.09;   // green lift along the fast retrace beam
 // the scalar grain into the three channels so the noise reads green.
 const GRAIN_TINT: vec3<f32> = vec3<f32>(0.15, 1.0, 0.35);
 
-// CRT overscan (owner playtest: kill the black gaps). The barrel warp bows the
-// panel corners out by ~0.03 in uv past the [0,1] source at warp=0.12 (the
-// corner samples at -0.03 / 1.03), so the screen edges sample beyond the picture
-// and read as a tube-black margin inside the glass. Scaling the sampled UV in toward centre by this factor pulls the bowed
-// corners back inside [0,1] so the picture over-fills the quad and the bowed
-// edges land under the bezel - a real CRT's overscan. < 0.943 clears the corner.
-const NOVA_OS_OVERSCAN: f32 = 0.93;
+// CRT overscan (owner playtest: kill the black gaps) now arrives as
+// `material.overscan` - see the uniform struct above. The barrel warp bows the
+// panel corners out by ~0.03 in uv past the [0,1] source at warp=0.12 (the corner
+// samples at -0.03 / 1.03), so the screen edges sample beyond the picture and read
+// as a tube-black margin inside the glass. Scaling the sampled UV in toward centre
+// pulls the bowed corners back inside [0,1] so the picture over-fills the quad and
+// the bowed edges land under the bezel - a real CRT's overscan.
 
 // Curved screen-edge rim (feedback item 2): a phosphor lip glowing at the panel
 // boundary, measured in BARREL-WARPED uv space so it bows with the tube instead
@@ -132,7 +138,7 @@ fn fragment(in: UiVertexOutput) -> @location(0) vec4<f32> {
     // downstream (sample, bloom taps, in_bounds, rim) reads this overscanned
     // `warped`, so the whole treatment follows the enlarged picture.
     let warped_raw = barrel(shaken_uv, material.warp);
-    let warped = (warped_raw - vec2<f32>(0.5, 0.5)) * NOVA_OS_OVERSCAN + vec2<f32>(0.5, 0.5);
+    let warped = (warped_raw - vec2<f32>(0.5, 0.5)) * material.overscan + vec2<f32>(0.5, 0.5);
     let in_bounds = f32(warped.x >= 0.0 && warped.x <= 1.0 && warped.y >= 0.0 && warped.y <= 1.0);
 
     var base = textureSample(source_texture, source_sampler, warped);

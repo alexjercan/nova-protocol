@@ -228,8 +228,20 @@ const NOVA_OS_CRT_GRAIN_STRENGTH: f32 = 0.03;
 /// Barrel-warp amount for the sampling shader: a gentle bow that reads as a tube
 /// without pushing corner text past readability (curvature-vs-readability, tuned
 /// by playtest). Bloom is the soft green glyph halo.
-const NOVA_OS_CRT_WARP: f32 = 0.12;
+pub(super) const NOVA_OS_CRT_WARP: f32 = 0.12;
 const NOVA_OS_CRT_BLOOM: f32 = 0.85;
+
+/// CRT overscan: after the barrel warp bows the sampled UV outward, the shader
+/// pulls it back toward centre by this factor so the bowed corners land under the
+/// bezel instead of sampling past the picture and reading as a tube-black margin
+/// (a real CRT's overscan). `< 0.943` clears the corner at [`NOVA_OS_CRT_WARP`].
+///
+/// This lives HERE, in Rust, and is fed to the shader as a uniform: it is half of
+/// the screen->image mapping [`nova_os_crt_screen_to_image_uv`] performs for the
+/// forwarded pointer, and a WGSL-local copy is a second definition the pointer
+/// cannot see - which is exactly how task 20260730-123039's mis-click bug
+/// happened.
+pub(super) const NOVA_OS_CRT_OVERSCAN: f32 = 0.93;
 
 /// Degauss pulse duration in seconds (task 20260727-014148): how long the coil
 /// wobble+flash rings out after an app launch/exit/switch. Short enough to feel
@@ -252,7 +264,7 @@ pub(crate) const DRAWER_EXEMPT_Z: i32 = 12;
 
 /// The NOVA OS UI root whose visibility is driven by [`NovaOsOpenness`].
 #[derive(Component)]
-struct NovaOsRootMarker;
+pub(super) struct NovaOsRootMarker;
 
 /// The single physical NOVA OS monitor root.
 #[derive(Component)]
@@ -561,7 +573,7 @@ enum NovaOsFlightLogIconKind {
 /// fully open (flush with that edge). Eased toward the state-driven target with
 /// real time so it keeps moving while the sim is frozen.
 #[derive(Component, Default)]
-struct NovaOsOpenness(f32);
+pub(super) struct NovaOsOpenness(pub(super) f32);
 
 /// True after the user requested close; gameplay remains paused until the
 /// real-time close animation reaches zero.
@@ -679,6 +691,11 @@ struct NovaOsCrtUniform {
     /// (trailing `f32` after `brightness` - no alignment hole,
     /// `shader-uniform-field-order-must-match-wgsl`).
     degauss: f32,
+    /// Overscan pull applied AFTER the barrel warp, from [`NOVA_OS_CRT_OVERSCAN`]
+    /// (task 20260730-123039). Lives in the uniform rather than as a WGSL constant
+    /// so the shader and [`nova_os_crt_screen_to_image_uv`] share one definition.
+    /// Appended last so the field order still matches the WGSL struct.
+    overscan: f32,
 }
 
 impl Default for NovaOsCrtMaterial {
@@ -700,6 +717,7 @@ impl Default for NovaOsCrtMaterial {
                 brightness: 1.0,
                 // Idle: no degauss until an app launch/exit pulses it.
                 degauss: 0.0,
+                overscan: NOVA_OS_CRT_OVERSCAN,
             },
             source: Handle::default(),
         }
@@ -727,7 +745,7 @@ impl UiMaterial for NovaOsCrtMaterial {
 /// The dedicated UI camera + content subtree live on this render layer so the
 /// image camera draws ONLY the terminal UI, never stray world 2D sprites (the
 /// render-scale upscale sprite sits on the default layer 0).
-const NOVA_OS_RTT_LAYER: usize = 20;
+pub(super) const NOVA_OS_RTT_LAYER: usize = 20;
 /// Camera order for the offscreen pass: well before the window/UI cameras so the
 /// sampled image is ready when the screen surface reads it.
 const NOVA_OS_RTT_CAMERA_ORDER: isize = -20;
@@ -736,39 +754,39 @@ const NOVA_OS_RTT_CAMERA_ORDER: isize = -20;
 struct NovaOsImageCameraMarker;
 
 #[derive(Component)]
-struct NovaOsImageContentRootMarker;
+pub(super) struct NovaOsImageContentRootMarker;
 
 /// The screen-node surface that samples the offscreen image through the CRT shader.
 #[derive(Component)]
-struct NovaOsSamplingSurfaceMarker;
+pub(super) struct NovaOsSamplingSurfaceMarker;
 
 #[derive(Component)]
-struct NovaOsForwardedPointerMarker;
+pub(super) struct NovaOsForwardedPointerMarker;
 
 /// Handles/entities of the live NOVA OS's RTT pipeline. Present only on
 /// render-capable builds (an `Assets<Image>` + `Assets<NovaOsCrtMaterial>` exist);
 /// absent headless, where the terminal renders directly on the screen node.
 #[derive(Resource)]
-struct NovaOsRtt {
-    image: Handle<Image>,
-    camera: Entity,
-    content_root: Entity,
-    pointer: Entity,
+pub(super) struct NovaOsRtt {
+    pub(super) image: Handle<Image>,
+    pub(super) camera: Entity,
+    pub(super) content_root: Entity,
+    pub(super) pointer: Entity,
 }
 
 /// Stable id for the forwarded pointer (one NOVA OS at a time).
-fn nova_os_pointer_id() -> PointerId {
+pub(super) fn nova_os_pointer_id() -> PointerId {
     PointerId::Custom(Uuid::from_u128(0x0BADC0DE_CAFE_1234_5678_9ABCDEF01234))
 }
 
-fn nova_os_image_target(image: &Handle<Image>) -> NormalizedRenderTarget {
+pub(super) fn nova_os_image_target(image: &Handle<Image>) -> NormalizedRenderTarget {
     NormalizedRenderTarget::Image(ImageRenderTarget {
         handle: image.clone(),
         scale_factor: 1.0,
     })
 }
 
-fn nova_os_new_target_image(size: UVec2) -> Image {
+pub(super) fn nova_os_new_target_image(size: UVec2) -> Image {
     Image::new_target_texture(
         size.x.max(1),
         size.y.max(1),
@@ -839,14 +857,22 @@ fn reconcile_nova_os_target(
 
 /// Forward the real mouse cursor onto the offscreen image so the terminal UI
 /// stays hoverable/clickable through the sampled surface: map the cursor into the
-/// screen node's rect, invert the barrel warp, scale into image pixels, write the
-/// custom pointer's location, and mirror mouse button presses as `PointerInput`.
+/// screen node's rect, through the CRT composite's screen->image mapping and into
+/// image pixels, write the custom pointer's location, and mirror mouse button
+/// presses as `PointerInput`.
+///
+/// The mapping is [`nova_os_crt_screen_to_image_uv`], the SAME chain the shader
+/// displays with, fed the same uniforms - so the pointer lands on the thing the
+/// player sees under the cursor. Task 20260730-123039: it used to apply the
+/// barrel INVERSE and skip the overscan entirely, which put clicks up to 27 px
+/// from their target at the screen corners.
 #[allow(clippy::type_complexity)]
-fn forward_nova_os_pointer(
+pub(super) fn forward_nova_os_pointer(
     rtt: Option<Res<NovaOsRtt>>,
     windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
     mut mouse_buttons: MessageReader<bevy::input::mouse::MouseButtonInput>,
     q_surface: Query<(&ComputedNode, &UiGlobalTransform), With<NovaOsSamplingSurfaceMarker>>,
+    q_openness: Query<&NovaOsOpenness, With<NovaOsRootMarker>>,
     mut q_pointer: Query<&mut PointerLocation, With<NovaOsForwardedPointerMarker>>,
     mut pointer_inputs: MessageWriter<PointerInput>,
     images: Res<Assets<Image>>,
@@ -861,6 +887,13 @@ fn forward_nova_os_pointer(
         .get(&rtt.image)
         .map(|i| i.size().as_vec2())
         .unwrap_or(Vec2::ONE);
+    // The same openness `animate_nova_os_crt` feeds the shader's `power` uniform,
+    // so a half-collapsed raster is clicked where it is actually drawn. Read it
+    // exactly as that system does - `iter().next()`, not `single()`, which would
+    // fall back to a full raster on the very frame a second shell entity makes
+    // the shader pick the first one's openness (review R1.2). Absent on rigs
+    // without the shell entity: treat that as a full raster.
+    let power = q_openness.iter().next().map(|o| o.0).unwrap_or(1.0);
 
     let cursor = windows.single().ok().and_then(|w| w.cursor_position());
     let surface = q_surface.single().ok();
@@ -872,7 +905,8 @@ fn forward_nova_os_pointer(
             if local.x < 0.0 || local.x > 1.0 || local.y < 0.0 || local.y > 1.0 {
                 None
             } else {
-                Some(nova_os_inverse_barrel(local, NOVA_OS_CRT_WARP) * image_size)
+                nova_os_crt_screen_to_image_uv(local, NOVA_OS_CRT_WARP, NOVA_OS_CRT_OVERSCAN, power)
+                    .map(|uv| uv * image_size)
             }
         }
         _ => None,
@@ -910,13 +944,57 @@ fn forward_nova_os_pointer(
     }
 }
 
-/// Inverse of the shader's forward barrel warp, so a hovered on-screen point maps
-/// back to the glyph actually under it.
-fn nova_os_inverse_barrel(uv: Vec2, amount: f32) -> Vec2 {
-    let c = uv - Vec2::splat(0.5);
-    let r2 = c.length_squared();
-    Vec2::splat(0.5) + c / (1.0 + amount * r2)
+/// Where on the offscreen image the CRT composite DISPLAYS the content sitting
+/// under screen-local uv `uv` - the mapping the forwarded pointer must follow to
+/// land on the thing the player is actually looking at.
+///
+/// This is a mirror of the sample-UV chain in `assets/shaders/nova_os_crt.wgsl`'s
+/// fragment: the power-collapse remap, then `barrel()`, then the overscan pull
+/// back toward centre. Both `warp` and `overscan` are uniforms filled from
+/// [`NOVA_OS_CRT_WARP`] / [`NOVA_OS_CRT_OVERSCAN`], so there is ONE definition of
+/// each constant and the pointer cannot silently drift from the picture.
+///
+/// Not a mirror of the degauss shear: that is a sub-frame transient (a decaying
+/// horizontal wobble peaking at 6 px, pulsed only by an app launch/exit/switch and
+/// gone within [`NOVA_OS_DEGAUSS_DURATION`]), and chasing it would make the
+/// pointer jitter during the very moments the content is being replaced anyway.
+/// Returns `None` when the glass shows no picture at `uv` - the tube-black
+/// margin outside the collapsing raster while the CRT powers on or off. Nothing
+/// is displayed there, so nothing may be clicked there either.
+fn nova_os_crt_screen_to_image_uv(uv: Vec2, warp: f32, overscan: f32, power: f32) -> Option<Vec2> {
+    // Power-on/off raster collapse: the picture squeezes toward the centre scan
+    // line, so the glass shows a SMALLER window onto the same image.
+    let open_h = nova_os_smoothstep(NOVA_OS_CRT_POWER_OPEN_H, power);
+    let open_w = nova_os_smoothstep(NOVA_OS_CRT_POWER_OPEN_W, power);
+    let sample = Vec2::new(
+        (uv.x - 0.5) / open_w.max(NOVA_OS_CRT_POWER_EPSILON) + 0.5,
+        (uv.y - 0.5) / open_h.max(NOVA_OS_CRT_POWER_EPSILON) + 0.5,
+    );
+    if sample.cmplt(Vec2::ZERO).any() || sample.cmpgt(Vec2::ONE).any() {
+        return None;
+    }
+
+    // Barrel: push outward from centre by r^2, then overscan: pull the bowed
+    // result back in so it lands inside the picture.
+    let centred = sample - Vec2::splat(0.5);
+    let bowed = centred * (1.0 + warp * centred.length_squared());
+    let warped = bowed * overscan + Vec2::splat(0.5);
+    (!warped.cmplt(Vec2::ZERO).any() && !warped.cmpgt(Vec2::ONE).any()).then_some(warped)
 }
+
+/// The shader's `smoothstep(0.0, edge1, x)`.
+fn nova_os_smoothstep(edge1: f32, x: f32) -> f32 {
+    let t = (x / edge1).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+/// Power levels at which the raster collapse finishes opening vertically and
+/// horizontally, and the floor that keeps the divide finite - the shader's
+/// `smoothstep(0.0, 0.65, power)` / `smoothstep(0.0, 0.28, power)` / `max(_,
+/// 0.0008)`. Constants, not literals, because the mapping mirrors them.
+const NOVA_OS_CRT_POWER_OPEN_H: f32 = 0.65;
+const NOVA_OS_CRT_POWER_OPEN_W: f32 = 0.28;
+const NOVA_OS_CRT_POWER_EPSILON: f32 = 0.0008;
 
 /// `bevy_picking::update_is_hovered` only mirrors the MOUSE pointer into `Hovered`
 /// components, so replicate its ancestor walk for our forwarded pointer - else the
@@ -8021,5 +8099,176 @@ mod tests {
                 .any(|row| row.text == "OBJ x Burn for Beacon 1"),
             "an objective completing while open announces into the scrollback",
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // CRT screen->image mapping (task 20260730-123039)
+    //
+    // The math rig. `forward_nova_os_pointer` has to place the forwarded pointer
+    // on exactly the image texel the shader DISPLAYS under the cursor. The
+    // reference it is measured against is a hand transcription of the WGSL
+    // fragment's own sample-UV chain, living in `nova_os_pointer_rig` so the
+    // live-tree click tests measure against the same independent definition.
+    // -----------------------------------------------------------------------
+
+    /// The pointer's screen->image mapping IS the shader's, everywhere on the
+    /// screen - not an approximation of its inverse.
+    ///
+    /// This is the failing test the bug was found with: before the fix the
+    /// pointer applied `c / (1 + a*r^2)` (the barrel INVERSE, i.e. the wrong
+    /// direction) and ignored the shader's 0.93 overscan entirely, so on a
+    /// 1280x720 screen the worst-case miss was 27.1 px in x / 15.3 px in y at the
+    /// corners and still ~8 px only a tenth of the way out from centre - both far
+    /// wider than the 12 px blips, which is why map contacts spread across the
+    /// viewport were unclickable while the ship app's centre-clustered ones were
+    /// not.
+    ///
+    /// Swept at several power levels, not just a full raster (review R1.1): at a
+    /// settled raster the collapse remap is exactly the identity, so a grid run
+    /// only at full power leaves that whole half of the mapping unexercised - a
+    /// divide flipped to a multiply there passed the entire suite.
+    #[test]
+    fn nova_os_pointer_mapping_matches_the_crt_shader_across_the_screen() {
+        use crate::hud::nova_os_pointer_rig::{crt_uv_grid, shader_draws_at, CRT_MAP_BUDGET_PX};
+
+        let image = Vec2::new(1280.0, 720.0);
+        let mut powers_that_collapsed = 0;
+        // 1.0 and 0.65 are settled rasters (both smoothsteps have reached 1 by
+        // the taller edge); 0.35 is squeezed vertically only (`open_w` is already
+        // 1 past its 0.28 edge), 0.15 in both axes - so the sweep covers each
+        // branch of the collapse.
+        for power in [0.15, 0.35, 0.65, 1.0] {
+            let mut worst = Vec2::ZERO;
+            let mut worst_at = Vec2::ZERO;
+            let mut on_picture = 0;
+            let mut off_picture = 0;
+            for uv in crt_uv_grid() {
+                let ours = nova_os_crt_screen_to_image_uv(
+                    uv,
+                    NOVA_OS_CRT_WARP,
+                    NOVA_OS_CRT_OVERSCAN,
+                    power,
+                );
+                // `shader_draws_at` is the shader's WHOLE answer: the sample UV,
+                // gated by both the raster-collapse test and the in-bounds test
+                // its fragment multiplies the output by. The pointer must call a
+                // point clickable exactly when the shader draws something there.
+                let reference = shader_draws_at(uv, NOVA_OS_CRT_WARP, NOVA_OS_CRT_OVERSCAN, power);
+                assert_eq!(
+                    ours.is_some(),
+                    reference.is_some(),
+                    "at power {power}, screen uv {uv:?}: the pointer says {} but the \
+                     shader draws {}",
+                    if ours.is_some() {
+                        "on-picture"
+                    } else {
+                        "off-picture"
+                    },
+                    match reference {
+                        Some(at) => format!("image uv {at:?} there"),
+                        None => "nothing there".to_string(),
+                    },
+                );
+                match (ours, reference) {
+                    (Some(ours), Some(reference)) => {
+                        on_picture += 1;
+                        let error = ((ours - reference) * image).abs();
+                        if error.max_element() > worst.max_element() {
+                            worst = error;
+                            worst_at = uv;
+                        }
+                    }
+                    _ => off_picture += 1,
+                }
+            }
+            assert!(
+                worst.max_element() <= CRT_MAP_BUDGET_PX,
+                "at power {power} the forwarded pointer lands {worst:?} px from what \
+                 the CRT shader displays (worst at screen uv {worst_at:?}), budget \
+                 {CRT_MAP_BUDGET_PX} px",
+            );
+            // Guard the guard: a power that mapped NOTHING on-picture would
+            // satisfy the budget vacuously.
+            assert!(
+                on_picture > 0,
+                "power {power} put the whole grid off-picture - the budget above \
+                 asserted nothing"
+            );
+            // The raster is collapsed exactly while a smoothstep is still below
+            // 1, i.e. below the TALLER of the two edges. Derived from the
+            // constants rather than assumed from "power < 1", which is wrong at
+            // 0.65 (open_h has already reached 1 there).
+            let collapsed = power < NOVA_OS_CRT_POWER_OPEN_H.max(NOVA_OS_CRT_POWER_OPEN_W);
+            assert_eq!(
+                off_picture > 0,
+                collapsed,
+                "at power {power} the raster is {} yet {off_picture} of the grid \
+                 mapped off-picture",
+                if collapsed { "COLLAPSED" } else { "fully open" },
+            );
+            powers_that_collapsed += usize::from(collapsed);
+        }
+        // ...and the sweep as a whole must actually reach the collapsed regime,
+        // or the divide in the remap is still never exercised (review R1.1).
+        assert!(
+            powers_that_collapsed >= 2,
+            "only {powers_that_collapsed} of the swept powers collapsed the raster \
+             - the sweep is not covering the remap"
+        );
+    }
+
+    /// The shader and the pointer must not be able to drift apart: the WGSL reads
+    /// its warp AND its overscan from the uniform this crate fills, and the only
+    /// place the barrel algebra lives in WGSL is the `barrel()` helper the
+    /// reference above transcribes.
+    #[test]
+    fn nova_os_crt_shader_takes_its_warp_and_overscan_from_the_uniform() {
+        let source = std::fs::read_to_string("../../assets/shaders/nova_os_crt.wgsl")
+            .expect("the CRT shader source is readable from the crate dir");
+
+        assert!(
+            source.contains("return vec2<f32>(0.5, 0.5) + centered * (1.0 + amount * r2);"),
+            "the shader's barrel() is no longer the algebra the pointer mirrors - \
+             re-derive `nova_os_crt_screen_to_image_uv` from the new shader",
+        );
+        assert!(
+            source.contains("barrel(shaken_uv, material.warp)"),
+            "the shader must take its warp amount from the uniform this crate fills",
+        );
+        assert!(
+            source.contains("* material.overscan +"),
+            "the shader must take its overscan from the uniform this crate fills, \
+             not from a WGSL-local constant the Rust side cannot see",
+        );
+        assert!(
+            !source.contains("const NOVA_OS_OVERSCAN"),
+            "a WGSL-local overscan constant is a second definition of the mapping \
+             - the pointer cannot see it, which is exactly how this bug happened",
+        );
+
+        // The power-collapse remap stays a pair of literals on each side (it is
+        // shape, not a tunable knob), so pin the shader's against the Rust ones
+        // rather than leaving them free to drift.
+        for line in [
+            format!("smoothstep(0.0, {NOVA_OS_CRT_POWER_OPEN_H}, material.power)"),
+            format!("smoothstep(0.0, {NOVA_OS_CRT_POWER_OPEN_W}, material.power)"),
+            format!("max(open_h, {NOVA_OS_CRT_POWER_EPSILON})"),
+            format!("max(open_w, {NOVA_OS_CRT_POWER_EPSILON})"),
+        ] {
+            assert!(
+                source.contains(&line),
+                "the shader no longer contains `{line}` - the pointer's raster-collapse \
+                 remap has drifted from the picture's",
+            );
+        }
+    }
+
+    /// The uniform the shader reads carries the same constants the pointer maps
+    /// with, so `nova_os_crt_screen_to_image_uv` describes the live composite.
+    #[test]
+    fn nova_os_crt_material_publishes_the_mapping_constants() {
+        let material = NovaOsCrtMaterial::default();
+        assert_eq!(material.data.warp, NOVA_OS_CRT_WARP);
+        assert_eq!(material.data.overscan, NOVA_OS_CRT_OVERSCAN);
     }
 }

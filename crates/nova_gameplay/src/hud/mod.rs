@@ -48,6 +48,11 @@ pub mod velocity;
 #[cfg(test)]
 mod chip_layout_rig;
 
+/// Live-tree rig for the NOVA OS's forwarded pointer, shared by the CRT mapping
+/// and the map/ship blip click tests (task 20260730-123039).
+#[cfg(test)]
+mod nova_os_pointer_rig;
+
 /// Glob-import surface: `use nova_gameplay::hud::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
