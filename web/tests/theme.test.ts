@@ -5,9 +5,11 @@
 // than comparing against a constant copied in here. Run with `npm test`.
 //
 // It also guards the port itself: no legacy navy/cyan token survives, the type
-// stack is terminal-first, every `var()` read resolves, and the light-3D
-// vocabulary is actually CONSUMED by the main surfaces (declaring the tokens
-// without using them would leave a green-but-flat site - see DECISION.md).
+// stack is terminal-first, every `var()` read resolves, the PHOSPHOR skin
+// vocabulary is actually CONSUMED by the main surfaces, and the light-3D
+// HARDWARE vocabulary is consumed NOWHERE. The site wears one skin of the two
+// the PoC ships; the hardware tokens stay in `:root` only to keep the mirror in
+// check (a) exact.
 import { strict as assert } from "node:assert";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -171,38 +173,48 @@ const TOKEN_EXCEPTIONS = new Set(["--mono"]);
     );
 }
 
+/** Concatenate the bodies of every rule whose selector list matches. */
+function rulesFor(match: RegExp): string {
+    const text = stripComments(css);
+    let bodies = "";
+    // Rule bodies in this sheet contain no nested braces except inside
+    // @media/@keyframes wrappers, whose inner rules this same scan reaches.
+    for (const m of text.matchAll(/([^{}]+)\{([^{}]*)\}/g))
+        if (match.test(m[1])) bodies += m[2] + "\n";
+    return bodies;
+}
+
+/** A `var(--x)` READ of exactly this token, never of a longer name. */
+const readOf = (token: string): RegExp =>
+    new RegExp(`var\\(\\s*${token}(?![\\w-])`);
+
 // ---------------------------------------------------------------------------
-// (e) The light-3D vocabulary is CONSUMED, not merely declared: the main
-//     surfaces each read at least one material token.
+// (e) The PHOSPHOR vocabulary is CONSUMED, not merely declared: the main
+//     surfaces each read at least one terminal token. Declaring the tokens
+//     without using them would leave a green-but-styleless site.
 // ---------------------------------------------------------------------------
 {
-    const VOCABULARY = [
-        "--face",
-        "--face-hot",
-        "--case-0",
-        "--case-1",
-        "--case-2",
-        "--case-3",
-        "--case-edge",
-        "--screen-0",
-        "--screen-1",
-        "--rim",
-        "--undercut",
-        "--drop",
-        "--well",
-        "--panel-radius",
+    // CONSTRUCTION tokens only. `--phosphor`, `--screen*` and the rest of the
+    // palette are deliberately absent: the retired hardware sheet read those
+    // too, so including any of them makes this check pass on the very styling
+    // it exists to reject.
+    const PHOSPHOR = [
+        "--edge",
+        "--edge-soft",
+        "--edge-faint",
+        "--fill",
+        "--fill-hot",
+        "--fill-active",
+        "--fill-amber",
+        "--fill-amber-hot",
+        "--panel-face",
+        "--panel-face-hot",
+        "--panel-shadow",
+        "--recess",
+        "--glow-text",
+        "--glow-key",
+        "--glow-text-amber",
     ];
-
-    /** Concatenate the bodies of every rule whose selector list matches. */
-    function rulesFor(match: RegExp): string {
-        const text = stripComments(css);
-        let bodies = "";
-        // Rule bodies in this sheet contain no nested braces except inside
-        // @media/@keyframes wrappers, whose inner rules this same scan reaches.
-        for (const m of text.matchAll(/([^{}]+)\{([^{}]*)\}/g))
-            if (match.test(m[1])) bodies += m[2] + "\n";
-        return bodies;
-    }
 
     // `.btn` and its `--modifier` siblings, but never a different class.
     const family = (cls: string): RegExp =>
@@ -216,19 +228,62 @@ const TOKEN_EXCEPTIONS = new Set(["--mono"]);
         ["code blocks (.prose pre)", /\.prose\s+pre(?![\w-])/],
     ];
 
-    const flat: string[] = [];
+    const bare: string[] = [];
     for (const [label, selector] of SURFACES) {
         const bodies = rulesFor(selector);
         assert.ok(bodies.length > 0, `no rules matched for ${label}`);
-        const used = VOCABULARY.filter((t) =>
-            new RegExp(`var\\(\\s*${t}(?![\\w-])`).test(bodies)
-        );
-        if (used.length === 0) flat.push(label);
+        if (!PHOSPHOR.some((t) => readOf(t).test(bodies))) bare.push(label);
     }
     assert.deepEqual(
-        flat,
+        bare,
         [],
-        `these surfaces read no light-3D material token (still flat): ${flat.join(", ")}`
+        `these surfaces read no phosphor-skin token: ${bare.join(", ")}`
+    );
+}
+
+// ---------------------------------------------------------------------------
+// (f) The light-3D HARDWARE vocabulary is consumed NOWHERE. The PoC ships two
+//     skins and the site wears only the phosphor one; a bevelled face or a
+//     moulded well anywhere means the hardware skin has crept back in.
+//     `--drop` is exempt: the PoC's own PHOSPHOR panel reads it.
+// ---------------------------------------------------------------------------
+{
+    const HARDWARE = [
+        "--face",
+        "--face-hot",
+        "--rim",
+        "--undercut",
+        "--well",
+        "--case-0",
+        "--case-1",
+        "--case-2",
+        "--case-3",
+        "--case-edge",
+    ];
+    // Everything after the `:root` block: `--face` legitimately reads
+    // `--case-3` inside the mirrored definitions, so those are not rules.
+    const text = stripComments(css);
+    const afterRoot = text.slice(text.indexOf("}", text.indexOf(":root")) + 1);
+    const consumed = HARDWARE.filter((t) => readOf(t).test(afterRoot));
+    assert.deepEqual(
+        consumed,
+        [],
+        `hardware-skin material is consumed outside :root: ${consumed.join(", ")}`
+    );
+
+    // `:root` is skipped above, and check (d) forces every read to resolve to a
+    // `:root` definition - so `:root` is the one place an alias could smuggle
+    // the material back in (`--btn-face: var(--face)`). Catch a site token that
+    // both reads hardware AND is itself read by a rule.
+    const aliases = [...siteTokens]
+        .filter(([name]) => !HARDWARE.includes(name))
+        .filter(([, value]) => HARDWARE.some((t) => readOf(t).test(value)))
+        .filter(([name]) => readOf(name).test(afterRoot))
+        .map(([name, value]) => `${name}: ${value}`);
+    assert.deepEqual(
+        aliases,
+        [],
+        `:root aliases hardware material into a consumed token:\n  ${aliases.join("\n  ")}`
     );
 }
 

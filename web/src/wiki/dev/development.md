@@ -308,10 +308,21 @@ you the resize, not the change.
 
 `web/src/style.css` and `crates/nova_ui/src/theme.rs` both mirror the `:root`
 block of `examples/ui/nova_ui_rework_poc.html` - the NOVA OS palette and its
-light-3D material vocabulary. That PoC is the single source: change it first,
-then both consumers. `web/tests/theme.test.ts` (part of `npm test`, and so of
-`npm run ci`) parses the PoC and `style.css` and fails if the site's tokens go
-missing or drift in value.
+control vocabulary. That PoC is the single source: change it first, then both
+consumers.
+
+The PoC ships two skins and the site wears only one. Everything the site draws
+comes from the PHOSPHOR skin (the PoC's `body[data-skin="phosphor"]` widget
+zoo): flat translucent green fills, 1px phosphor hairlines, 2px corners on
+controls, glow instead of bevel, and a solid `--phosphor` inversion for the
+primary state. The light-3D HARDWARE vocabulary (`--face`, `--rim`,
+`--undercut`, `--well`) stays in `:root` only to keep the mirror exact - it must
+be consumed nowhere.
+
+`web/tests/theme.test.ts` (part of `npm test`, and so of `npm run ci`) parses
+the PoC and `style.css` and fails if the site's tokens go missing or drift in
+value, if the phosphor vocabulary stops being consumed, or if any hardware
+material token is read outside `:root`.
 
 ## Performance and run verification
 

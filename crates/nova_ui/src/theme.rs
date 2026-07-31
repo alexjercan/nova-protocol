@@ -15,6 +15,10 @@
 //! does, and `web/tests/theme.test.ts` parses both and fails on drift. Change the
 //! PoC first, then both consumers.
 //!
+//! The site is single-skin (20260731-154015): it draws only the PHOSPHOR look,
+//! and its test fails if any hardware-skin material token is consumed. The game
+//! keeps both skins - only here is [`crate::skin::UiSkin`] a user choice.
+//!
 //! Palette + metrics only - typography routes through [`crate::font::UiFont`].
 
 use bevy::prelude::*;

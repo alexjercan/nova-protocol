@@ -960,12 +960,16 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `re-audit-consumers-on-input-model-change` (x1): discrete -> continuous
   control invalidates every policy written for the discrete model (per-drag
   writes need debouncing). 20260711-180511.
-- `assert-the-new-vocabulary-is-consumed` (x1): for a port/restyle, a test that
-  only checks the new tokens are DECLARED with the right values passes on exactly
-  the outcome the task rejected the cheap option for (a site that took the new
-  colours but kept the flat structure). Assert the main surfaces actually READ
-  the new vocabulary, and that every read resolves - that pair also catches a
-  rename that stopped halfway. 20260731-143918.
+- `assert-the-new-vocabulary-is-consumed` (x2): for a port/restyle, assert the
+  main surfaces actually READ the new vocabulary and that every read resolves;
+  checking only that tokens are DECLARED passes on the outcome the task rejected.
+  Then RUN the check against the tree it is meant to reject - a list that slips
+  in a shared palette token passes there too, and proves nothing.
+  20260731-143918, 20260731-154015.
+- `name-the-variant-when-the-source-ships-several` (x1): when a shared source
+  defines more than one variant (skin, profile, preset), the plan names WHICH -
+  mirroring "the source" silently picks whatever sits at the top of the file,
+  and the top of the file is not neutral. 20260731-154015.
 - `parity-test-must-cross-link` (x1): a sync test derives the expected value
   from one side and asserts on the OTHER, never two hardcoded literals.
   20260711-180511.

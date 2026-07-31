@@ -339,13 +339,28 @@ async function initMermaid(): Promise<void> {
             theme: "dark",
             fontFamily: v("--font-mono", "monospace"),
             themeVariables: {
-                background: v("--case-0", "#0a0d10"),
-                primaryColor: v("--case-1", "#161b20"),
+                // Phosphor skin: a diagram is drawn ON the screen, so its nodes
+                // are green-tinted fills, not case-coloured boxes. Mermaid
+                // derives further shades from these by colour maths, which
+                // needs OPAQUE input - so these are the `--fill*` tints already
+                // composited over the recess, not the rgba() tokens themselves.
+                background: v("--screen-0", "#001304"),
+                primaryColor: "#0c1f13",
                 primaryBorderColor: v("--phosphor-dim", "#19a64f"),
                 primaryTextColor: v("--text", "#b9ffc9"),
                 lineColor: v("--phosphor-dim", "#19a64f"),
-                secondaryColor: v("--case-2", "#232a31"),
-                tertiaryColor: v("--case-1", "#161b20"),
+                secondaryColor: "#14301c",
+                tertiaryColor: "#1d4526",
+                // The `dark` base theme resolves flowchart node fill/stroke
+                // from these, NOT from primaryColor, so setting only the
+                // primaries above leaves the nodes grey.
+                mainBkg: "#0c1f13",
+                nodeBorder: v("--phosphor-dim", "#19a64f"),
+                clusterBkg: "#04140a",
+                clusterBorder: v("--phosphor-muted", "#0d6e35"),
+                textColor: v("--text", "#b9ffc9"),
+                nodeTextColor: v("--text", "#b9ffc9"),
+                edgeLabelBackground: "#04140a",
             },
         });
         await mermaid.run({ querySelector: ".mermaid" });

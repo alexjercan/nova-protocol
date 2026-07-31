@@ -12,16 +12,19 @@
 /* ---------------------------------------------------------------------------
    Nova Protocol theme - NOVA OS.
 
-   The palette and the light-3D vocabulary below are carried VERBATIM from the
-   `:root` block of `examples/ui/nova_ui_rework_poc.html`, which is also what
+   The `:root` block below is carried VERBATIM from the `:root` of
+   `examples/ui/nova_ui_rework_poc.html`, which is also what
    `crates/nova_ui/src/theme.rs` mirrors. That file is the single source for
    both surfaces; `web/tests/theme.test.ts` parses it and fails if this block
    drifts. Change the PoC first, then both consumers.
 
-   Visual language: green phosphor on a near-black screen, inside a dark moulded
-   casing. Structure comes from MATERIAL, not from hairlines - a case face is a
-   vertical gradient with a lit top rim and a drop shadow; a recess is a well;
-   code is a CRT screen. Corners are 10px on panels, 2px on small controls.
+   The PoC ships TWO skins. The site wears the PHOSPHOR one only: a panel is a
+   CRT surface, so every control on it is text the terminal drew. Structure
+   comes from a HAIRLINE and a GLOW, never from a bevel - flat translucent green
+   fills, 1px `--edge` borders, 2px corners on controls, and a solid `--phosphor`
+   inversion for the primary/selected state. The light-3D HARDWARE vocabulary
+   (`--face`, `--rim`, `--undercut`, `--well`) is mirrored here for parity but
+   is deliberately CONSUMED NOWHERE; check (f) of the parity test enforces that.
    Type is terminal-first: one mono face across display, body and code.
 
    The previous navy/cyan industrial-HUD palette (lifted from assets/banner.png)
@@ -57,19 +60,72 @@
 
     --panel-radius: 10px;
 
+    /* -- phosphor skin vocabulary --
+       Named here, but every value is lifted from the PoC's
+       `body[data-skin="phosphor"]` overrides (the widget zoo). The PoC repeats
+       the literal rgba()s inline per widget; the site hoists them so a drift is
+       one edit and the parity test can see the vocabulary is consumed. */
+    /* Hairlines. `--edge` is a control border, `--edge-soft` a quiet/ghost one,
+       `--edge-faint` the outline of a panel or a trough. */
+    --edge: rgba(54, 255, 121, 0.4);
+    --edge-soft: rgba(54, 255, 121, 0.25);
+    --edge-faint: rgba(54, 255, 121, 0.16);
+    /* Translucent green fills: rest, hover, pressed. */
+    --fill: rgba(54, 255, 121, 0.05);
+    --fill-hot: rgba(54, 255, 121, 0.12);
+    --fill-active: rgba(54, 255, 121, 0.2);
+    /* A panel is a lit CRT surface, not a case face. */
+    --panel-face:
+        radial-gradient(
+            ellipse 70% 60% at 50% 0%,
+            rgba(54, 255, 121, 0.1),
+            transparent 70%
+        ),
+        linear-gradient(
+            180deg,
+            rgba(10, 26, 16, 0.94),
+            rgba(4, 16, 10, 0.96) 80%,
+            rgba(2, 10, 6, 0.97) 100%
+        );
+    --panel-face-hot:
+        radial-gradient(
+            ellipse 70% 60% at 50% 0%,
+            rgba(54, 255, 121, 0.18),
+            transparent 70%
+        ),
+        linear-gradient(
+            180deg,
+            rgba(14, 34, 21, 0.96),
+            rgba(6, 20, 12, 0.97) 80%,
+            rgba(3, 12, 7, 0.98) 100%
+        );
+    /* Inner shade, phosphor bloom, drop. The 1px hairline is the panel's own
+       border, so it is not repeated here. */
+    --panel-shadow:
+        inset 0 2px 20px rgba(0, 0, 0, 0.7), 0 0 26px rgba(54, 255, 121, 0.08),
+        var(--drop);
+    /* A recess is unlit screen behind a hairline, not a moulded well. */
+    --recess: rgba(0, 0, 0, 0.4);
+    /* Glow replaces the bevel: on glyphs at rest, on an inverted fill. */
+    --glow-text: 0 0 6px rgba(54, 255, 121, 0.35);
+    --glow-key: 0 0 14px rgba(54, 255, 121, 0.5);
+    /* Amber is the same construction one hue over (PoC `.btn.danger` shape). */
+    --edge-amber: rgba(255, 184, 74, 0.5);
+    --fill-amber: rgba(255, 184, 74, 0.06);
+    --fill-amber-hot: rgba(255, 184, 74, 0.16);
+    --glow-text-amber: 0 0 6px rgba(255, 184, 74, 0.35);
+
     /* -- site-only additions (the PoC has no equivalent surface) -- */
-    /* Dark glyphs on a bright phosphor/amber fill. */
-    --ink: #03060b;
+    /* Dark glyphs on an inverted phosphor/amber fill (PoC: #04140a). */
+    --ink: #04140a;
+    /* The lit step above `--phosphor` (PoC hover). Used both as a glyph
+       colour and as the fill of an inverted control on hover. */
+    --phosphor-hot: #d6ffe4;
     /* Small controls (chips, keycaps, tags, inputs) stay near-square; only
-       panels get the 10px moulded corner. */
+       panels get the 10px corner. */
     --radius: 2px;
     /* The phosphor screen surface, as a fill. */
     --screen: linear-gradient(180deg, var(--screen-1) 0%, var(--screen-0) 100%);
-    /* The bright phosphor key face - the one fill brighter than the case. Kept
-       here rather than inline so the DoD colour grep and the parity test's
-       dangling-var() check can both see it. */
-    --key-face: linear-gradient(180deg, #7dffab 0%, #12b552 100%);
-    --key-face-hot: linear-gradient(180deg, #9dffbf 0%, #1ad061 100%);
 
     --font-display: "JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
     --font-body: "JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
@@ -190,13 +246,11 @@ a:focus-visible,
     justify-content: space-between;
     gap: 16px;
     padding: 12px 24px;
-    /* The top rail of the casing: a moulded case face, lit along its top rim,
-       sitting proud of the page field. No glassy blur. */
-    background: var(--face);
-    border-bottom: 1px solid var(--case-edge);
-    box-shadow:
-        var(--rim),
-        var(--drop);
+    /* The top rail of the terminal: a lit CRT surface parted from the page by a
+       phosphor hairline. No glassy blur, no moulding. */
+    background: var(--panel-face);
+    border-bottom: 1px solid var(--edge-faint);
+    box-shadow: var(--panel-shadow);
 }
 .site-header__brand {
     font-family: var(--font-display);
@@ -228,27 +282,24 @@ a:focus-visible,
     border: 1px solid transparent;
     border-radius: var(--radius);
 }
-/* Hover cuts a shallow recess into the case, the way a labelled key well does. */
+/* Hover lights the cell and draws its border, the way a focused CLI entry does. */
 .site-nav a:hover {
-    color: var(--text);
-    background: var(--case-0);
-    box-shadow: var(--well);
+    color: var(--phosphor-hot);
+    background: var(--fill-hot);
+    border-color: var(--edge);
 }
+/* The call to action is the one inverted cell in the rail. */
 .site-nav a.is-cta {
     color: var(--ink);
-    background: var(--key-face);
-    border-color: var(--case-edge);
+    background: var(--phosphor);
+    border-color: var(--phosphor);
     font-weight: 700;
-    box-shadow:
-        var(--rim),
-        var(--drop);
+    box-shadow: var(--glow-key);
 }
 .site-nav a.is-cta:hover {
     color: var(--ink);
-    background: var(--key-face-hot);
-    box-shadow:
-        var(--rim),
-        var(--drop);
+    background: var(--phosphor-hot);
+    border-color: var(--phosphor-hot);
 }
 
 /* ---- layout -------------------------------------------------------------- */
@@ -306,7 +357,7 @@ main {
     align-items: center;
     justify-content: center;
     padding: 88px 24px 96px;
-    border-bottom: 1px solid var(--case-edge);
+    border-bottom: 1px solid var(--edge-faint);
     scroll-snap-align: start;
     scroll-snap-stop: always;
 }
@@ -381,7 +432,7 @@ main {
     position: relative;
     z-index: 1;
 }
-/* The banner art sits in a moulded bezel, like a screen let into the case. */
+/* The banner art sits behind a phosphor hairline, like a framed screen region. */
 .hero__art {
     display: block;
     width: min(560px, 90%);
@@ -393,10 +444,8 @@ main {
     aspect-ratio: 3 / 2;
     margin: 0 auto 28px;
     border-radius: var(--panel-radius);
-    border: 1px solid var(--case-edge);
-    box-shadow:
-        var(--rim),
-        var(--drop);
+    border: 1px solid var(--edge-faint);
+    box-shadow: var(--drop);
 }
 .hero__tagline {
     font-size: 1.05rem;
@@ -440,77 +489,73 @@ main {
 }
 
 /* ---- buttons ------------------------------------------------------------- */
-/* Every button is a moulded physical control: a face with a lit top rim, a drop
-   shadow beneath it, and a press that sinks the face into an undercut. */
+/* A button is a bordered CLI element the terminal drew: flat translucent fill,
+   1px phosphor hairline, near-square corner, glowing label. Nothing moves on
+   press - the fill steps brighter instead (PoC: `transition: none`). */
 .btn {
     display: inline-flex;
     align-items: center;
     gap: 8px;
     padding: 12px 24px;
-    border-radius: var(--panel-radius);
+    border-radius: var(--radius);
     font-family: var(--font-display);
     font-weight: 700;
     font-size: 0.92rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     cursor: pointer;
-    border: 1px solid var(--case-edge);
-    transition:
-        background 0.12s ease,
-        box-shadow 0.05s ease,
-        transform 0.05s ease;
+    color: var(--phosphor);
+    background: var(--fill);
+    border: 1px solid var(--edge);
+    text-shadow: var(--glow-text);
 }
-/* Primary: the bright phosphor key. Dark glyphs, because the fill is the
-   brightest thing on the page. */
+.btn:hover {
+    color: var(--phosphor-hot);
+    background: var(--fill-hot);
+    border-color: var(--phosphor);
+}
+.btn:active {
+    background: var(--fill-active);
+}
+/* Primary: the selected state, inverted. Dark glyphs on solid phosphor - the
+   brightest thing on the page, and the only filled control. */
 .btn--primary {
     color: var(--ink);
-    background: var(--key-face);
-    box-shadow:
-        var(--rim),
-        var(--drop);
+    background: var(--phosphor);
+    border-color: var(--phosphor);
+    box-shadow: var(--glow-key);
+    text-shadow: none;
 }
 .btn--primary:hover {
     color: var(--ink);
-    background: var(--key-face-hot);
+    background: var(--phosphor-hot);
+    border-color: var(--phosphor-hot);
 }
 .btn--primary:active {
-    transform: translateY(2px);
-    box-shadow: var(--undercut);
+    background: var(--phosphor-dim);
 }
-/* Ghost: a plain case face wearing a phosphor label. */
+/* Ghost: the same element with its fill dropped and its hairline quieted. */
 .btn--ghost {
-    color: var(--phosphor);
-    background: var(--face);
-    box-shadow:
-        var(--rim),
-        var(--drop);
+    background: transparent;
+    border-color: var(--edge-soft);
 }
-.btn--ghost:hover {
-    color: var(--phosphor);
-    background: var(--face-hot);
-}
-.btn--ghost:active {
-    transform: translateY(2px);
-    box-shadow: var(--undercut);
-}
-/* Tertiary download keys: the same moulding, amber-labelled, one size down so
+/* Tertiary download keys: the same construction one hue over, one size down so
    they read below the primary and ghost CTAs. */
 .btn--download {
     color: var(--amber);
-    background: var(--face);
-    box-shadow:
-        var(--rim),
-        var(--drop);
+    background: var(--fill-amber);
+    border-color: var(--edge-amber);
+    text-shadow: var(--glow-text-amber);
     padding: 9px 18px;
     font-size: 0.8rem;
 }
 .btn--download:hover {
     color: var(--amber);
-    background: var(--face-hot);
+    background: var(--fill-amber-hot);
+    border-color: var(--amber);
 }
 .btn--download:active {
-    transform: translateY(2px);
-    box-shadow: var(--undercut);
+    background: var(--fill-amber-hot);
 }
 
 /* ---- cards / grids ------------------------------------------------------- */
@@ -524,16 +569,14 @@ main {
 .grid--2 {
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
 }
-/* A card is a case panel: moulded face, lit rim, dropped off the page field. */
+/* A card is a panel: a lit CRT surface outlined by a phosphor hairline. */
 .card {
     position: relative;
-    background: var(--face);
-    border: 1px solid var(--case-edge);
+    background: var(--panel-face);
+    border: 1px solid var(--edge-faint);
     border-radius: var(--panel-radius);
     padding: 22px 22px 24px;
-    box-shadow:
-        var(--rim),
-        var(--drop);
+    box-shadow: var(--panel-shadow);
     transition: background 0.12s ease;
 }
 /* A phosphor rail lights the top edge on hover - an instrument cue, no lift. */
@@ -549,7 +592,7 @@ main {
     transition: background 0.12s ease;
 }
 .card:hover {
-    background: var(--face-hot);
+    background: var(--panel-face-hot);
 }
 .card:hover::before {
     background: var(--phosphor);
@@ -672,7 +715,7 @@ main {
     font-size: 1.3rem;
     margin-top: 2em;
     padding-top: 0.5em;
-    border-top: 1px solid var(--case-2);
+    border-top: 1px solid var(--edge-faint);
     color: var(--phosphor);
 }
 .prose h3 {
@@ -694,23 +737,21 @@ main {
     font-family: var(--font-mono);
     font-size: 0.94em;
     background: var(--screen-0);
-    border: 1px solid var(--case-edge);
+    border: 1px solid var(--edge-faint);
     border-radius: var(--radius);
     padding: 1px 6px;
     color: var(--phosphor);
 }
-/* A keycap is a small moulded control, matching the buttons. */
+/* A keycap is the PoC's `.btn .key`: an amber-bordered token on a dark trough. */
 .prose kbd {
     font-family: var(--font-mono);
     font-size: 0.85em;
-    background: var(--face);
-    border: 1px solid var(--case-edge);
+    background: var(--recess);
+    border: 1px solid var(--edge-amber);
     border-radius: var(--radius);
-    box-shadow:
-        var(--rim),
-        0 2px 0 var(--case-edge);
     padding: 2px 8px;
     color: var(--amber);
+    text-shadow: var(--glow-text-amber);
     white-space: nowrap;
 }
 .prose blockquote {
@@ -719,8 +760,8 @@ main {
     border-left: 3px solid var(--phosphor-dim);
     border-radius: 0 var(--radius) var(--radius) 0;
     color: var(--phosphor-dim);
-    background: var(--case-0);
-    box-shadow: var(--well);
+    background: var(--recess);
+    box-shadow: inset 0 0 0 1px var(--edge-faint);
 }
 .prose__meta {
     color: var(--phosphor-dim);
@@ -738,7 +779,7 @@ main {
     margin: 1.6em 0;
     border-radius: var(--panel-radius);
     overflow: hidden;
-    border: 1px solid var(--case-edge);
+    border: 1px solid var(--edge-faint);
     box-shadow: var(--drop);
 }
 .video-embed iframe {
@@ -777,7 +818,7 @@ main {
 .figure__img {
     display: block;
     object-fit: cover;
-    border: 1px solid var(--case-edge);
+    border: 1px solid var(--edge-faint);
     box-shadow: var(--drop);
 }
 /* An empty slot is a recess in the case, not a raised panel. */
@@ -798,8 +839,7 @@ main {
             transparent 10px,
             transparent 20px
         ),
-        var(--case-0);
-    box-shadow: var(--well);
+        var(--recess);
     color: var(--phosphor-dim);
     font-family: var(--font-mono);
 }
@@ -834,7 +874,7 @@ main {
 .post-footer {
     margin-top: 3em;
     padding-top: 1.6em;
-    border-top: 1px solid var(--case-2);
+    border-top: 1px solid var(--edge-faint);
 }
 .post-footer__discuss {
     margin: 0 0 0.6em;
@@ -948,21 +988,20 @@ main {
     border-collapse: separate;
     border-spacing: 0;
     margin: 1.2em 0;
-    border: 1px solid var(--case-edge);
+    border: 1px solid var(--edge-faint);
     border-radius: var(--panel-radius);
     overflow: hidden;
-    background: var(--case-0);
-    box-shadow: var(--well);
+    background: var(--recess);
 }
 .controls td {
     padding: 9px 12px;
-    border-bottom: 1px solid var(--case-2);
+    border-bottom: 1px solid var(--edge-faint);
     vertical-align: top;
 }
 .controls td:first-child {
     width: 40%;
     white-space: nowrap;
-    background: var(--case-1);
+    background: var(--fill);
 }
 .controls tr:last-child td {
     border-bottom: none;
@@ -983,12 +1022,10 @@ main {
 }
 .post-card {
     position: relative;
-    background: var(--face);
-    border: 1px solid var(--case-edge);
+    background: var(--panel-face);
+    border: 1px solid var(--edge-faint);
     border-radius: var(--panel-radius);
-    box-shadow:
-        var(--rim),
-        var(--drop);
+    box-shadow: var(--panel-shadow);
     overflow: hidden;
     transition: background 0.12s ease;
 }
@@ -1006,7 +1043,7 @@ main {
     z-index: 1;
 }
 .post-card:hover {
-    background: var(--face-hot);
+    background: var(--panel-face-hot);
 }
 .post-card:hover::before {
     background: var(--phosphor);
@@ -1023,8 +1060,8 @@ main {
 .post-card__media {
     flex: 0 0 300px;
     aspect-ratio: 16 / 9;
-    border-right: 1px solid var(--case-edge);
-    background: var(--case-0);
+    border-right: 1px solid var(--edge-faint);
+    background: var(--recess);
 }
 @media (max-width: 620px) {
     .post-card__link {
@@ -1034,7 +1071,7 @@ main {
         flex-basis: auto;
         width: 100%;
         border-right: none;
-        border-bottom: 1px solid var(--case-edge);
+        border-bottom: 1px solid var(--edge-faint);
     }
 }
 .post-card__thumb {
@@ -1063,8 +1100,8 @@ main {
             transparent 10px,
             transparent 20px
         ),
-        var(--case-0);
-    box-shadow: var(--well);
+        var(--recess);
+    box-shadow: inset 0 0 0 1px var(--edge-faint);
     color: var(--phosphor-dim);
     font-family: var(--font-mono);
 }
@@ -1127,12 +1164,10 @@ main {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    border: 1px solid var(--case-edge);
+    border: 1px solid var(--edge-faint);
     border-radius: var(--panel-radius);
-    background: var(--face);
-    box-shadow:
-        var(--rim),
-        var(--drop);
+    background: var(--panel-face);
+    box-shadow: var(--panel-shadow);
     padding: 14px;
     max-height: calc(100vh - 96px);
     overflow-y: auto;
@@ -1143,9 +1178,8 @@ main {
     margin-bottom: 8px;
     padding: 8px 10px;
     background: var(--screen);
-    border: 1px solid var(--case-edge);
+    border: 1px solid var(--edge-faint);
     border-radius: var(--radius);
-    box-shadow: var(--well);
     color: var(--phosphor);
     font-family: var(--font-mono);
     font-size: 0.8rem;
@@ -1185,7 +1219,7 @@ main {
 .wiki-nav__section {
     margin: 22px 0 8px;
     padding: 12px 8px 0;
-    border-top: 1px solid var(--case-2);
+    border-top: 1px solid var(--edge-faint);
     font-family: var(--font-display);
     font-weight: 700;
     font-size: 0.78rem;
@@ -1210,8 +1244,8 @@ main {
     border-radius: 0 var(--radius) var(--radius) 0;
 }
 .wiki-nav__link:hover {
-    color: var(--text);
-    background: var(--case-0);
+    color: var(--phosphor-hot);
+    background: var(--fill-hot);
 }
 .wiki-nav__home.is-active,
 .wiki-nav__link.is-active {
@@ -1227,7 +1261,7 @@ main {
     display: flex;
     flex-direction: column;
     margin: 2px 0 2px 8px;
-    border-left: 1px solid var(--case-2);
+    border-left: 1px solid var(--edge-faint);
 }
 .wiki-nav__child {
     padding-left: 12px;
@@ -1240,7 +1274,7 @@ main {
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--amber);
-    border: 1px solid var(--case-3);
+    border: 1px solid var(--edge-amber);
     border-radius: var(--radius);
     padding: 0 4px;
 }
@@ -1290,7 +1324,7 @@ main {
     letter-spacing: 0.06em;
     color: var(--phosphor);
     background: var(--screen-0);
-    border: 1px solid var(--case-edge);
+    border: 1px solid var(--edge-faint);
     border-radius: var(--radius);
     padding: 2px 8px;
 }
@@ -1342,17 +1376,15 @@ main {
 .wiki-index__card {
     display: block;
     color: inherit;
-    background: var(--face);
-    border: 1px solid var(--case-edge);
+    background: var(--panel-face);
+    border: 1px solid var(--edge-faint);
     border-radius: var(--panel-radius);
-    box-shadow:
-        var(--rim),
-        var(--drop);
+    box-shadow: var(--panel-shadow);
     padding: 14px 16px;
     transition: background 0.12s ease;
 }
 a.wiki-index__card:hover {
-    background: var(--face-hot);
+    background: var(--panel-face-hot);
 }
 .wiki-index__card.is-soon {
     opacity: 0.72;
@@ -1389,17 +1421,15 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     align-items: center;
     gap: 14px;
     color: inherit;
-    background: var(--face);
-    border: 1px solid var(--case-edge);
+    background: var(--panel-face);
+    border: 1px solid var(--edge-faint);
     border-radius: var(--panel-radius);
-    box-shadow:
-        var(--rim),
-        var(--drop);
+    box-shadow: var(--panel-shadow);
     padding: 14px;
     transition: background 0.12s ease;
 }
 .wiki-child:hover {
-    background: var(--face-hot);
+    background: var(--panel-face-hot);
 }
 /* Icon placeholder: a hatched recess until the real icon is captured (the asset
    name is on the element's title attribute). */
@@ -1409,7 +1439,6 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     height: 44px;
     border: 1px dashed var(--phosphor-muted);
     border-radius: var(--radius);
-    box-shadow: var(--well);
     background:
         repeating-linear-gradient(
             45deg,
@@ -1418,7 +1447,7 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
             transparent 6px,
             transparent 12px
         ),
-        var(--case-0);
+        var(--recess);
 }
 .wiki-child__body {
     display: flex;
@@ -1465,9 +1494,8 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     padding: 14px 16px;
     overflow-x: auto;
     background: var(--screen);
-    border: 1px solid var(--case-edge);
+    border: 1px solid var(--edge-faint);
     border-radius: var(--panel-radius);
-    box-shadow: var(--well);
     font-size: 0.82rem;
     line-height: 1.6;
 }
@@ -1535,17 +1563,16 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     margin: 1.5em 0;
     border-collapse: separate;
     border-spacing: 0;
-    border: 1px solid var(--case-edge);
+    border: 1px solid var(--edge-faint);
     border-radius: var(--panel-radius);
     overflow: hidden;
-    background: var(--case-0);
-    box-shadow: var(--well);
+    background: var(--recess);
     font-size: 0.82rem;
 }
 .prose th,
 .prose td {
     padding: 8px 12px;
-    border-bottom: 1px solid var(--case-2);
+    border-bottom: 1px solid var(--edge-faint);
     text-align: left;
     vertical-align: top;
 }
@@ -1553,14 +1580,13 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     border-bottom: none;
 }
 .prose thead th {
-    background: var(--face);
-    box-shadow: var(--rim);
+    background: var(--fill-hot);
     color: var(--phosphor);
     font-family: var(--font-display);
     letter-spacing: 0.02em;
 }
 .prose tbody tr:nth-child(even) {
-    background: var(--case-1);
+    background: var(--fill);
 }
 
 /* Mermaid diagrams: framed as a recessed panel, not a code block - reset the
@@ -1571,9 +1597,8 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
 .prose pre.mermaid {
     padding: 18px;
     overflow-x: auto;
-    background: var(--case-0);
-    border: 1px solid var(--case-edge);
-    box-shadow: var(--well);
+    background: var(--recess);
+    border: 1px solid var(--edge-faint);
     text-align: center;
     color: transparent;
     user-select: none;
@@ -1602,9 +1627,9 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     flex-wrap: wrap;
     padding: 20px 24px;
     margin-top: 40px;
-    border-top: 1px solid var(--case-edge);
-    background: var(--face);
-    box-shadow: var(--rim);
+    border-top: 1px solid var(--edge-faint);
+    background: var(--panel-face);
+    box-shadow: var(--panel-shadow);
     color: var(--phosphor-dim);
     font-family: var(--font-mono);
     font-size: 0.78rem;
@@ -1666,13 +1691,11 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
 .callout {
     margin: 1.6rem 0;
     padding: 1rem 1.2rem;
-    background: var(--face);
-    border: 1px solid var(--case-edge);
+    background: var(--panel-face);
+    border: 1px solid var(--edge-faint);
     border-left: 3px solid var(--phosphor);
     border-radius: var(--panel-radius);
-    box-shadow:
-        var(--rim),
-        var(--drop);
+    box-shadow: var(--panel-shadow);
 }
 .callout__title {
     margin: 0 0 0.4rem;
@@ -1722,12 +1745,10 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     display: flex;
     flex-direction: column;
     gap: 1px;
-    border: 1px solid var(--case-edge);
+    border: 1px solid var(--edge-faint);
     border-radius: var(--panel-radius);
-    background: var(--face);
-    box-shadow:
-        var(--rim),
-        var(--drop);
+    background: var(--panel-face);
+    box-shadow: var(--panel-shadow);
     padding: 14px;
     max-height: calc(100vh - 96px);
     overflow-y: auto;
