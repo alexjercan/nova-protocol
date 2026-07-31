@@ -1,4 +1,4 @@
-//! Live-tree rig for the NOVA OS's forwarded pointer (task 20260730-123039).
+//! Live-tree rig for the NOVA OS's forwarded pointer.
 //!
 //! Test-only support module. It stands up the real RTT composite - an offscreen
 //! image, its dedicated UI camera, the content root that renders through it, and

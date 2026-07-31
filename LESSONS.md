@@ -58,12 +58,6 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   its own `README.md` that is a player-facing doc surface, and a sweep scoped to
   the central docs called it "referenced nowhere" while a stale flat-picker
   instruction sat in the mod's README. 20260724-220842.
-- `rustdoc-no-public-to-private-intra-doc-link` (x2): a `pub` item's
-  rustdoc cannot `[intra-doc-link]` a PRIVATE symbol (or a cross-module item not
-  in scope) without a `cargo doc` warning - plain code span for private refs,
-  full paths for cross-module refs; moving documented code across a module/crate
-  boundary reliably breaks these, so run `cargo doc -p <crate> --no-deps` as part
-  of the move. 20260723-143530, 20260727-015156.
 - `extract-type-grep-its-drive-sites-first` (x1): before extracting a
   state-holding type into a new crate, grep every field/method access of it
   across the whole crate FIRST - external systems often read PRIVATE fields
@@ -902,12 +896,17 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   that a pipeline swallows; `which` host tools first. 20260711-183417.
 - `no-source-edits-during-inflight-builds` (x1): a tree edited mid-build
   yields an indeterminate evidence binary; quiesce for A/B runs. 20260711-183417.
-- `dead-code-hides-under-cfg-test-reader` (x1, -> work skill verify): a field/fn
-  read ONLY by `cfg(test)` code looks live under `cargo test`, so the `dead_code`
-  lint never fires there - a refactor that moves where a field is read can leave a
-  production-dead field that only a plain `cargo check` (non-test cfg) surfaces.
-  Run `cargo check` (or `--all-targets` incl. the non-test build), not just
-  `cargo test`, before declaring done. 20260728-124443 (from 20260728-115435).
+- `dead-code-hides-under-cfg-test-reader` (x2, -> work skill verify): an item
+  read ONLY by `cfg(test)` code is invisible to the non-test build, and that cuts
+  BOTH ways. It looks live under `cargo test`, so `dead_code` never fires - a
+  refactor that moves where a field is read can leave a production-dead field
+  only a plain `cargo check` surfaces. And it looks DEAD to `cargo fix`, which
+  will happily delete a re-export a `#[cfg(test)]` module needs, breaking the
+  test build; an autofix that "will not stick" means the compiler is right about
+  a cfg the fix cannot see - gate such re-exports on `#[cfg(test)]` rather than
+  re-adding them. Run `cargo check --all-targets` (both cfgs) before declaring
+  done, and read a `cargo fix` diff instead of accepting it.
+  20260728-124443 (from 20260728-115435), 20260731-170322.
 - `drop-the-field-the-change-orphans` (x1): when a display/format change stops
   reading a struct field (here `ShipSectionStatus.name` after switching a
   `ship view` row to the code label + sorting by code), the field AND its upstream
@@ -1528,19 +1527,37 @@ here (annotated) as the paid record.
 
 ## Pending promotions (3+ occurrences, user decides)
 
+- `rustdoc-no-public-to-private-intra-doc-link` (x3) -> work skill (verify step):
+  a `pub` item's rustdoc cannot `[intra-doc-link]` a PRIVATE symbol (or a
+  cross-module item not in scope) without a `cargo doc` warning - plain code span
+  for private refs, full paths for cross-module refs. Moving documented code
+  across a module boundary reliably breaks these, and two of the breaks here were
+  silently WRONG rather than merely unresolved: `super::`-relative doc paths
+  still resolve after a move, just to a different module. Prose target (work
+  verify step): "when a change moves documented items across a module or crate
+  boundary, run `cargo doc -p <crate> --no-deps --document-private-items` and
+  diff the warning count against the BASE, not zero". The x3 occurrence had the
+  x2 lesson already written and did not apply it, which is the argument for
+  making it a step rather than a lesson.
+  20260723-143530, 20260727-015156, 20260731-170322.
+
 - `deleting-a-test-salvage-live-assertions` (x3, PROMOTE 2026-07-31 -> 20260731-102037) -> work skill (verify step):
   make "read each deleted test's ASSERTIONS and re-home the survivors" a
   standing step of any diff that removes tests, not a lesson to remember.
   20260728-125514, 20260729-163816, 20260729-211200.
 
-- `anchor-edits-in-the-right-scope` (x3, PROMOTE 2026-07-31 -> 20260731-102037) -> work skill: an edit anchored on an
-  item's `#[test]`/`const`/attribute line inserts BETWEEN that item and its doc
-  block, silently reassigning the doc to the new item - compiles and tests
-  clean, only a reader notices. No tool or template can hold this (it is an
-  edit-anchor choice, not a checkable artifact state), so the target is prose in
-  the work skill's edit guidance: "anchor an insert on the DOC BLOCK start, not
-  the attribute, and re-read the produced text around both items".
-  20260525-133017, 20260716-193949, 20260728-175742.
+- `anchor-edits-in-the-right-scope` (x4, PROMOTE 2026-07-31 -> 20260731-102037) -> work skill: any edit or
+  MECHANICAL SLICE anchored on an item's `#[test]`/`const`/attribute line cuts
+  BETWEEN that item and its doc block, silently reassigning the doc to the
+  neighbouring item - compiles and tests clean, only a reader notices. Splitting
+  a file by line range is the same defect at scale: it announces itself as
+  `expected item after doc comment` ONLY when the orphan lands at end-of-file,
+  so the mid-file cases need a deliberate audit. No tool or template can hold
+  this (it is a boundary choice, not a checkable artifact state), so the target
+  is prose in the work skill's edit guidance: "anchor an insert - or a slice
+  boundary - on the DOC BLOCK start, not the attribute, and re-read the produced
+  text around both items".
+  20260525-133017, 20260716-193949, 20260728-175742, 20260731-170322.
 - `pin-each-caller-not-just-shared-core` (x4, PROMOTE 2026-07-31 -> 20260731-102037) -> work/review skill: a shared
   helper/renderer covered by ONE caller or a synthetic fixture does not prove the
   OTHER callers' wiring - target resolution, plumbing, side effects, or a data

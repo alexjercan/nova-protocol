@@ -79,3 +79,13 @@ comments are fluff by default; the burden is on keeping them.
 ## Child Tasks
 
 Derive with `tatr frontier <epic-id>`.
+
+## Manual Acceptance
+
+Open `manual:` items inherited from landed children, for the owner to confirm
+before the epic closes.
+
+- [ ] 20260731-170322 - skim the NOVA OS HUD split diff and agree no behavior
+      changed. Supporting evidence in that task's REVIEW.md: item multisets
+      identical to the base, all three plugin `build` bodies byte-identical,
+      and the same 102 tests passing by name.
