@@ -43,13 +43,12 @@ pub mod torpedo_target;
 pub mod turret_lead;
 pub mod velocity;
 
-/// Live-tree UI layout rig shared by the world-anchored chip tests
-/// (task 20260730-122909).
+/// Live-tree UI layout rig shared by the world-anchored chip tests.
 #[cfg(test)]
 mod chip_layout_rig;
 
 /// Live-tree rig for the NOVA OS's forwarded pointer, shared by the CRT mapping
-/// and the map/ship blip click tests (task 20260730-123039).
+/// and the map/ship blip click tests.
 #[cfg(test)]
 mod nova_os_pointer_rig;
 
@@ -79,10 +78,10 @@ pub struct NovaHudSystems;
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct HudSituationSensing;
 
-/// Player-facing HUD level, cycled with grave/tilde (task 20260711-180501,
-/// recut to two levels by 20260728-175747): `On` is the full contextual HUD -
-/// which is already near-empty in idle cruise and surfaces each element while
-/// its situation is live - and `Cinematic` clears the screen entirely.
+/// Player-facing HUD level, cycled with grave/tilde: `On` is the full
+/// contextual HUD - which is already near-empty in idle cruise and surfaces
+/// each element while its situation is live - and `Cinematic` clears the
+/// screen entirely.
 ///
 /// The old three-level `All`/`Minimal`/`None` triple existed because the HUD
 /// showed everything all the time, so "everything minus the chrome" was a
@@ -123,8 +122,8 @@ impl HudVisibility {
 /// (pips, brackets, arrows) inherit their module's tier automatically, and an
 /// untagged tree is left alone.
 ///
-/// Since the level cycle collapsed to On/Cinematic (task 20260728-175747) the
-/// three variants no longer differ in what the LEVEL does to them - all show at
+/// Since the level cycle collapsed to On/Cinematic the three variants no
+/// longer differ in what the LEVEL does to them - all show at
 /// `On`, all clear at `Cinematic`. They stay because they are the vocabulary
 /// the HUD is documented and reasoned in (the wiki's tier table, the NOVA OS
 /// exemption rules below), and because deciding a widget's kind at its spawn
@@ -142,9 +141,9 @@ pub enum HudTier {
     /// indicators, objective markers).
     Chrome,
     /// Persistent status/reference chrome (the fps/version status bar): it
-    /// rides the whole session rather than the
-    /// moment-to-moment flight HUD (task 20260724-171509), and the cinematic
-    /// level still clears it so screenshots stay clean. Meant to persist
+    /// rides the whole session rather than the moment-to-moment flight HUD,
+    /// and the cinematic level still clears it so screenshots stay clean.
+    /// Meant to persist
     /// through the Tab NOVA OS too - tag such a widget `HudNovaOsExempt` as
     /// well, which keeps it visible while the NOVA OS is open and z-lifts it
     /// above the backdrop.
@@ -153,7 +152,7 @@ pub enum HudTier {
 
 /// The contextual show rule on a HUD widget: `false` hides the widget (and its
 /// screen-indicator descendants) even at [`HudVisibility::On`], because its
-/// situation is not live (task 20260728-175747). Absent means "always on",
+/// situation is not live. Absent means "always on",
 /// which is what most widgets are - either they are unconditional (the velocity
 /// shader, the speed chip) or they already gate themselves by driving their own
 /// anchor/visibility (the mode chip, the reticle, the target inset).
@@ -176,7 +175,7 @@ impl Default for HudContextGate {
 /// Opt-out for widgets that drive their own `Visibility` every frame (the
 /// gravity sphere hides itself in flat space): the level-change restore skips
 /// them so it cannot stomp their state for a frame; the Hidden enforcement
-/// still applies while their tier is off (review R1.2).
+/// still applies while their tier is off.
 #[derive(Component, Clone, Copy, Debug, Reflect)]
 #[reflect(Component)]
 pub struct HudSelfDrivenVisibility;
@@ -195,8 +194,8 @@ pub struct HudNovaOsExempt;
 /// ring).
 pub(crate) const NAV_CYAN: Color = nova_ui::theme::semantic::NAV;
 
-/// Objective gold, the "do this now" accent (task 20260712-093831): the
-/// objective marker chip and the hint-emphasis pulse draw from it. One hue
+/// Objective gold, the "do this now" accent: the objective marker chip and
+/// the hint-emphasis pulse draw from it. One hue
 /// per meaning - cyan is nav infrastructure, red is threat, green is
 /// own/done, gold is the current objective.
 pub(crate) const OBJECTIVE_GOLD: Color = nova_ui::theme::semantic::OBJECTIVE;
@@ -239,8 +238,8 @@ impl Plugin for NovaHudPlugin {
         app.register_type::<HudContextGate>();
         app.register_type::<HudNovaOsExempt>();
 
-        // The contextual layer (task 20260728-175747), bounded on both sides of
-        // the widget drivers: the situations are sensed BEFORE
+        // NOTE: the contextual layer is bounded on both sides of the widget
+        // drivers: the situations are sensed BEFORE
         // [`NovaHudSystems`], so every driver in that set reads this frame's
         // truth, and the shared emphasis is applied in PostUpdate, so a
         // driver's `set_held`/`pop` lands in the SAME frame it is written
@@ -264,23 +263,23 @@ impl Plugin for NovaHudPlugin {
             Update,
             cycle_hud_visibility.run_if(in_state(crate::GameStates::Playing)),
         );
-        // Visibility enforcement runs AFTER the screen-indicator projection:
-        // the widget writes Visibility::Visible on its nodes every frame in
+        // NOTE: visibility enforcement runs AFTER the screen-indicator
+        // projection: the widget writes Visibility::Visible on its nodes in
         // PostUpdate (ignoring hidden ancestors), so a tier-hidden node must
         // be overwritten downstream of that producer, not from Update.
         // Bounded on both sides: after the indicator projection (whose
         // Visible writes it must overrule) and before UI layout - which runs
         // upstream of transform + visibility propagation - so the writes land
         // in THIS frame's propagation deterministically instead of by
-        // schedule tie-break (review R1.1).
+        // schedule tie-break.
         app.add_systems(
             PostUpdate,
             apply_hud_visibility
                 .after(ScreenIndicatorSystems)
                 .before(bevy::ui::UiSystems::Layout),
         );
-        // Lift the NOVA OS-exempt chrome above the NOVA OS backdrop only while the
-        // NOVA OS is open (task 20260724-134335).
+        // Lift the NOVA OS-exempt chrome above the NOVA OS backdrop only while
+        // the NOVA OS is open.
         app.add_systems(
             Update,
             lift_exempt_chrome_over_nova_os.in_set(NovaHudSystems),
@@ -293,25 +292,24 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(holo_instruments::HoloInstrumentsPlugin);
         // The bcs ObjectivesPlugin owns the `GameObjectives` resource (the
         // NOVA OS + the objective stack read it) and its `rebuild_lines`
-        // no-ops when no objectives panel exists. The always-on compact
-        // objectives panel was REMOVED from flight (task 20260724-134312):
-        // objectives now surface via the objective stack (`objective_stack`)
-        // and the NOVA OS monitor.
+        // no-ops when no objectives panel exists. There is no always-on compact
+        // objectives panel any more: objectives surface via the objective stack
+        // (`objective_stack`) and the NOVA OS monitor.
         app.add_plugins(ObjectivesPlugin);
-        // bcs tween advancement for HUD fades (first Nova adoption, task
-        // 20260717-163033); registered here once for every HUD widget.
+        // bcs tween advancement for HUD fades; registered here once for every
+        // HUD widget.
         app.add_plugins(bevy_common_systems::prelude::TweenPlugin);
         app.add_plugins(comms_panel::CommsPanelPlugin);
-        // The Tab ship-computer NOVA OS shell (task 20260724-102304).
+        // The Tab ship-computer NOVA OS shell.
         app.add_plugins(nova_os::NovaOsPlugin);
-        // The `map` NOVA OS app (task 20260724-102320): registers the app +
-        // drives its schematic 3D scene, orbit camera, blips and GOTO. Added
-        // AFTER NovaOsPlugin so the app registry it registers into exists.
+        // The `map` NOVA OS app: registers the app + drives its schematic 3D
+        // scene, orbit camera, blips and GOTO. NOTE: added AFTER NovaOsPlugin
+        // so the app registry it registers into exists.
         app.add_plugins(nova_os_map::NovaOsMapPlugin);
-        // The `ship` NOVA OS app (task 20260726-115339): registers the `ship` app
-        // + `view`/`section`/`reload`/`repair` verbs and drives the schematic 3D
-        // scene, orbit camera, blips and section actions. Added AFTER NovaOsPlugin
-        // so the command registry exists.
+        // The `ship` NOVA OS app: registers the `ship` app +
+        // `view`/`section`/`reload`/`repair` verbs and drives the schematic 3D
+        // scene, orbit camera, blips and section actions. NOTE: added AFTER
+        // NovaOsPlugin so the command registry exists.
         app.add_plugins(nova_os_ship::NovaOsShipPlugin);
         app.add_plugins(readout::HudReadoutPlugin);
         app.add_plugins(screen_indicator::ScreenIndicatorPlugin);
@@ -328,11 +326,11 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(objective_markers::ObjectiveMarkersHudPlugin);
         app.add_plugins(item_highlights::ItemHighlightsHudPlugin);
         app.add_plugins(objective_feedback::ObjectiveFeedbackPlugin);
-        // The top-centre objective NOTIFICATION stack (task 20260729-163816):
-        // demo 2's objective chip, one per posting, read by its dwell or by
-        // opening NOVA OS. It IS the posting now (task 20260729-211200): the
-        // chip spawns and pops the frame the objective arrives, replacing both
-        // the top-right status-bar hint and the diegetic cockpit reveal card.
+        // The top-centre objective NOTIFICATION stack: demo 2's objective chip,
+        // one per posting, read by its dwell or by opening NOVA OS. The chip IS
+        // the posting - it spawns and pops the frame the objective arrives,
+        // replacing both the top-right status-bar hint and the diegetic
+        // cockpit reveal card.
         app.add_plugins(objective_stack::ObjectiveStackPlugin);
 
         // Screen indicators project through the spaceship chase camera. The
@@ -366,11 +364,6 @@ impl Plugin for NovaHudPlugin {
         app.add_observer(objective_stack::remove_objective_stack);
     }
 }
-
-// The always-on compact objectives panel (spawn_objectives_panel /
-// style_objective_lines / setup_hud_objectives / remove_hud_objectives) was
-// REMOVED in task 20260724-134312; objectives now surface via the objective
-// notification stack (`objective_stack`) and the Tab NOVA OS's monitor.
 
 /// Cycle the HUD level on grave/tilde (or the gamepad Select button).
 /// Press-to-cycle, no hold gesture: two states, so one press round-trips.
@@ -525,10 +518,9 @@ fn remove_screen_indicator_camera(
     mut commands: Commands,
 ) {
     debug!("remove_screen_indicator_camera: entity {:?}", remove.entity);
-    // try_remove, not remove: get_entity only proves the entity exists at
-    // QUEUE time - a scenario teardown despawns the camera in the same
-    // command flush, and the plain remove then warns "entity despawned"
-    // (playtest 2026-07-13, the asteroid_next transition).
+    // NOTE: try_remove, not remove: get_entity only proves the entity exists
+    // at QUEUE time - a scenario teardown despawns the camera in the same
+    // command flush, and the plain remove then warns "entity despawned".
     if let Ok(mut camera) = commands.get_entity(remove.entity) {
         camera.try_remove::<ScreenIndicatorCamera>();
     }
@@ -564,8 +556,8 @@ fn setup_hud_velocity(
     // the velocity sphere so the two shells never z-fight.
     commands.spawn((
         HudTier::Instrument,
-        // Hides itself in flat space; the level-change restore must not
-        // overrule that (review R1.2).
+        // NOTE: hides itself in flat space; the level-change restore must not
+        // overrule that.
         HudSelfDrivenVisibility,
         velocity_hud(VelocityHudConfig {
             radius: 5.6,
@@ -993,7 +985,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(StatesPlugin);
         app.init_state::<crate::GameStates>();
-        // apply_hud_visibility reads the NOVA OS axis (task 20260724-134335).
+        // apply_hud_visibility reads the NOVA OS axis.
         app.init_state::<crate::PauseStates>();
         app.init_resource::<HudVisibility>();
         app.init_resource::<ButtonInput<KeyCode>>();
@@ -1002,7 +994,7 @@ mod tests {
             cycle_hud_visibility.run_if(in_state(crate::GameStates::Playing)),
         );
         app.add_systems(PostUpdate, fake_widget_drive.in_set(ScreenIndicatorSystems));
-        // Same double-bounded registration as the plugin (review R1.1).
+        // Same double-bounded registration as the plugin.
         app.add_systems(
             PostUpdate,
             apply_hud_visibility
@@ -1035,7 +1027,7 @@ mod tests {
 
     /// Delivery-guarded per step (LESSONS assert-each-gesture-step): the level
     /// is asserted after every individual press, not just at the end. Two
-    /// levels since task 20260728-175747, so one press round-trips.
+    /// levels, so one press round-trips.
     #[test]
     fn backquote_cycles_on_cinematic() {
         let mut app = app();
@@ -1099,8 +1091,7 @@ mod tests {
     }
 
     /// A shut [`HudContextGate`] hides its widget even at `On`, and opening it
-    /// brings the widget back without any level change - the contextual show
-    /// (task 20260728-175747).
+    /// brings the widget back without any level change - the contextual show.
     #[test]
     fn a_shut_context_gate_hides_the_widget_at_on() {
         let mut app = app();
@@ -1183,8 +1174,8 @@ mod tests {
     }
 
     /// A `Status` widget tagged `HudNovaOsExempt` (the real status bar's config)
-    /// stays visible while the Tab NOVA OS is open, but the cinematic `None` level
-    /// still clears it even mid-NOVA OS (task 20260724-171509).
+    /// stays visible while the Tab NOVA OS is open, but the cinematic `None`
+    /// level still clears it even mid-NOVA OS.
     #[test]
     fn status_bar_persists_through_the_nova_os_but_cinematic_still_clears_it() {
         let mut app = app();
@@ -1210,10 +1201,11 @@ mod tests {
         );
     }
 
-    /// The real flight status bar is `HudTier::Status` WITHOUT `HudNovaOsExempt`
-    /// (task 20260727-014806): opening the NOVA OS computer hides the whole flight
-    /// status bar (its FPS item is rehomed onto the terminal topbar), and closing
-    /// the NOVA OS restores it in the same frame via the pause-change restore branch.
+    /// The real flight status bar is `HudTier::Status` WITHOUT
+    /// `HudNovaOsExempt`: opening the NOVA OS computer hides the whole flight
+    /// status bar (its FPS item is rehomed onto the terminal topbar), and
+    /// closing the NOVA OS restores it in the same frame via the pause-change
+    /// restore branch.
     #[test]
     fn flight_status_bar_hides_while_the_nova_os_is_open_and_returns_on_close() {
         let mut app = app();
@@ -1248,8 +1240,8 @@ mod tests {
         );
     }
 
-    /// A childless status-bar item is a CHILD of the status bar root with no `HudTier` of
-    /// its own, so it must INHERIT the bar's visibility (task 20260724-171509):
+    /// A childless status-bar item is a CHILD of the status bar root with no
+    /// `HudTier` of its own, so it must INHERIT the bar's visibility:
     /// `apply_hud_visibility` manages only the tiered PARENT and must leave the
     /// child's `Visibility::Inherited` untouched, so Bevy propagation carries the
     /// bar's state (persist through the NOVA OS, clear at None) to the count. This
@@ -1355,9 +1347,9 @@ mod tests {
     /// The exempt diagnostic/status chrome is lifted above the NOVA OS
     /// backdrop ONLY while the NOVA OS is open. When the PAUSE menu owns the
     /// freeze it drops back to the base HUD z, so the pause overlay (which sits
-    /// at the same z as the NOVA OS backdrop) still covers it - not the other way
-    /// round (task 20260724-134335). The bug this pins: a static high z made the
-    /// status strip poke over the pause menu.
+    /// at the same z as the NOVA OS backdrop) still covers it - not the other
+    /// way round. The bug this pins: a static high z made the status strip
+    /// poke over the pause menu.
     #[test]
     fn exempt_chrome_lifts_only_while_nova_os_open() {
         let mut app = App::new();
@@ -1418,7 +1410,7 @@ mod tests {
         // The in-schedule stand-in re-drives the node to Visible inside
         // ScreenIndicatorSystems every frame; enforcement must win the SAME
         // frame, every frame, even though the level did not change. This is
-        // the executable form of the ordering contract (review R1.3): moving
+        // the executable form of the ordering contract: moving
         // apply_hud_visibility before the set fails here.
         app.update();
         app.update();

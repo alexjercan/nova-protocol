@@ -1,6 +1,5 @@
-//! The objective NOTIFICATION stack (task 20260729-163816): demo 2's
-//! top-centre amber objective chip, one per posted objective, read like a
-//! notification.
+//! The objective NOTIFICATION stack: demo 2's top-centre amber objective
+//! chip, one per posted objective, read like a notification.
 //!
 //! Demo 2 (`examples/ui/hud_rework_poc.html`) puts the objective ITSELF on the
 //! flight HUD - `<div class="chip obj">&#9670; SALVAGE WRECK ...</div>`, a
@@ -16,18 +15,18 @@
 //!   list lives). Once read it does not come back; re-wording an objective
 //!   posts it again, unread.
 //!
-//! That read model is the owner's call (2026-07-29, see the task's
-//! DECISION.md): idle cruise has NO objective cue at all, on purpose. The
+//! That read model is the owner's call: idle cruise has NO objective cue at
+//! all, on purpose. The
 //! standing answers to "what am I doing" are the world-anchored objective
 //! marker chips ([`super::objective_markers`], which own the "go HERE" job and
 //! the live range) and the NOVA OS `objectives` command.
 //!
-//! This REPLACES the top-right status-bar hint (tasks 20260724-134312 /
-//! 20260724-161545): the count-plus-TAB block is gone from the bcs status bar,
+//! This REPLACES the top-right status-bar hint: the count-plus-TAB block is
+//! gone from the bcs status bar,
 //! which is back to fps + version. The `TAB` affordance it owned moved here and
 //! rides the stack, leaving with it.
 //!
-//! The chip IS the posting (task 20260729-211200): it spawns and pops on the
+//! The chip IS the posting: it spawns and pops on the
 //! frame the objective posts, arriving like a chat message. It used to wait
 //! ~3.2 s behind a diegetic cockpit reveal card that tucked into this stack;
 //! the owner retired that card, so the stack is the sole presentation of a
@@ -70,7 +69,7 @@ const CHIP_BREATH_MIN_ALPHA: f32 = 0.72;
 /// (`super::readout`) is a top-centre column at `top: 16px` that grows DOWNWARD,
 /// and one two-line readout (a time trial's `RELIEF 01:09.7`) already reaches
 /// ~65 px - so 58 puts an objective chip on top of the run timer. Measured on
-/// the lifeline walk 2026-07-29; 96 clears a one-readout strip with margin.
+/// the lifeline walk; 96 clears a one-readout strip with margin.
 ///
 /// KNOWN LIMIT: a scenario showing two or more readouts can still reach this
 /// far. The durable fix is one shared top-centre COLUMN that both the strip and
@@ -82,7 +81,7 @@ const STACK_TOP_PX: f32 = 96.0;
 /// The diamond that leads every objective chip - demo 2's `.di` glyph. Drawn
 /// as a rotated bordered SQUARE, not the `\u{25c6}` character: the shipped
 /// Iosevka font has no diamond glyph and renders it as tofu (seen on the
-/// lifeline walk, 2026-07-29). This is the same trick `objective_markers`
+/// lifeline walk). This is the same trick `objective_markers`
 /// already uses for the same mark.
 const DIAMOND_PX: f32 = 7.0;
 const DIAMOND_BORDER_PX: f32 = 1.5;
@@ -117,7 +116,7 @@ struct ObjectiveStackDiamondMarker;
 /// ONE clock: the chip is on screen from the posting frame, so `age_secs`
 /// seeds the pop AND runs the read dwell. (It used to take two - the chip
 /// waited behind a diegetic reveal card and its pop/dwell ran from the card's
-/// tuck - until task 20260729-211200 retired the card.)
+/// tuck - until that card was retired.)
 #[derive(Clone, Debug, PartialEq)]
 struct ObjectiveNotification {
     /// The objective's id, the identity this is tracked by.
@@ -431,7 +430,7 @@ fn objective_chip(shown: &ObjectiveNotification) -> impl Bundle {
 
 /// The chip's text/mark colour at `factor` of full opacity.
 ///
-/// ONE convention for both the read-fade and the breath (review R3.2): a
+/// NOTE: ONE convention for both the read-fade and the breath - a
 /// FRACTION of whatever the tone renders at rest, never an absolute alpha. The
 /// two paths agreed only because the amber tone happens to be fully opaque
 /// today - give it a sub-1.0 alpha and an absolute fade would render a read
@@ -599,7 +598,7 @@ mod tests {
         );
         // The shared emphasis driver, in PostUpdate exactly where the real
         // NovaHudPlugin puts it - its absence from this rig is what let a DEAD
-        // pop ship (review R1.1/R1.2). It must not go in the Update chain
+        // pop ship. NOTE: it must not go in the Update chain
         // above: the chips come from `sync_objective_chips`'s commands, which
         // are not applied until the schedule's next sync point, so an in-chain
         // driver would never see this frame's chips and every scale would read
@@ -660,7 +659,7 @@ mod tests {
 
     /// A posting puts the objective's own TEXT on screen - the whole point of
     /// the task (the retired hint showed a count) - on the SAME frame, like a
-    /// chat notification (task 20260729-211200).
+    /// chat notification.
     #[test]
     fn a_posting_shows_the_objective_text_not_a_count() {
         let mut app = stack_app();
@@ -815,8 +814,8 @@ mod tests {
     /// The POP is the chip's arrival: it appears on the posting frame already
     /// growing, reaches its peak, and settles back on its own.
     ///
-    /// This is the test whose absence let a DEAD pop ship (review R1.1 of
-    /// 20260729-163816): the pop used to be written straight onto the chip
+    /// This is the test whose absence let a DEAD pop ship: the pop used to be
+    /// written straight onto the chip
     /// entity, which `sync_objective_chips` rebuilds every frame, so it was
     /// overwritten before it could play. Assert the rendered SCALE, not the
     /// intent.
@@ -909,7 +908,7 @@ mod tests {
         // this rig's 0.25 s frame only a frame or two are observable, which is
         // not enough to be sure a breath would have been caught - the first cut
         // of this test sampled two frames and passed with the read-guard
-        // REMOVED (review R2.2).
+        // REMOVED.
         app.world_mut()
             .resource_mut::<NextState<crate::PauseStates>>()
             .set(crate::PauseStates::NovaOs);
@@ -952,8 +951,7 @@ mod tests {
     }
 }
 
-/// The footer's TAB keycap, measured on a real layout pass (task
-/// 20260730-122940).
+/// The footer's TAB keycap, measured on a real layout pass.
 ///
 /// Tab is one of the WIDE caps (112x74 inside a 128x128 canvas), so this is the
 /// site where a square box hurt most: the same shared [`KeyCap`] sizing path the

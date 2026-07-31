@@ -1,9 +1,9 @@
-//! Nav beacon HUD chips (task 20260712-093044): one screen-projected chip
-//! per [`BeaconMarker`] entity - the beacon's label plus live distance to
-//! the player ship - with the indicator widget's `ClampToEdge` path, so an
-//! off-screen beacon's chip pins to the viewport edge and its chevron
-//! points at it. The chip IS the game's direction-to-objective cue; the
-//! scenario only spawns a beacon and the HUD does the rest.
+//! Nav beacon HUD chips: one screen-projected chip per [`BeaconMarker`]
+//! entity - the beacon's label plus live distance to the player ship - with
+//! the indicator widget's `ClampToEdge` path, so an off-screen beacon's chip
+//! pins to the viewport edge and its chevron points at it. The chip IS the
+//! game's direction-to-objective cue; the scenario only spawns a beacon and
+//! the HUD does the rest.
 //!
 //! Chrome tier: beacons are guidance, not flight instruments.
 
@@ -57,14 +57,14 @@ pub struct BeaconChipNodeMarker;
 ///
 /// The label cannot live on the chip entity itself: taffy only measures leaf
 /// nodes, so a `Text` node that also has children loses its measure and the
-/// pill collapses to its padding (task 20260730-122909).
+/// pill collapses to its padding.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct BeaconChipTextMarker;
 
 /// UI bundle for one beacon's chip layer. `suppressed` spawns the chip
 /// already yielded (anchor None) for a beacon that carries an objective
 /// marker at chip-spawn time, so no ordering of marker-attach vs
-/// chip-spawn can leave two chips on one target (review R1.2).
+/// chip-spawn can leave two chips on one target.
 fn beacon_chip_hud(beacon: Entity, suppressed: bool) -> impl Bundle {
     (
         Name::new("BeaconChipHUD"),
@@ -90,7 +90,7 @@ fn beacon_chip_hud(beacon: Entity, suppressed: bool) -> impl Bundle {
             // The chip is a pure CONTAINER: the label is an in-flow leaf child
             // it grows around, the chevron an absolute one it ignores. Putting
             // the `Text` here instead would take this node off taffy's leaf
-            // path and collapse the pill (task 20260730-122909).
+            // path and collapse the pill.
             children![beacon_chip_label(), beacon_chip_arrow()],
         )],
     )
@@ -144,7 +144,7 @@ fn beacon_chip_arrow() -> impl Bundle {
             // Park the chevron just above the pill and centred on it. Half the
             // chip's width, then back off half the chevron's own - a plain
             // `-ARROW_PX / 2` sat near the origin, which only looked centred
-            // while the pill was a collapsed slab (task 20260730-122909).
+            // while the pill was a collapsed slab.
             // `update_arrows` writes only `.rotation`, so this translation
             // survives every frame.
             left: Val::Percent(50.0),
@@ -228,7 +228,7 @@ fn remove_beacon_chip(
 fn update_beacon_chip_labels(
     q_chips: Query<&BeaconChipTargetEntity, With<BeaconChipHudMarker>>,
     // Two hops now: the text is a leaf CHILD of the chip, which is itself a
-    // child of the layer that knows the beacon (task 20260730-122909).
+    // child of the layer that knows the beacon.
     mut q_labels: Query<(&mut Text, &ChildOf), With<BeaconChipTextMarker>>,
     q_parents: Query<&ChildOf>,
     q_beacons: Query<(&BeaconLabel, &GlobalTransform), With<BeaconMarker>>,
@@ -262,13 +262,13 @@ fn update_beacon_chip_labels(
 
 /// One entity, one chip: while a beacon carries [`ObjectiveMarkerTarget`]
 /// its gold marker chip supersedes the cyan beacon chip - two clamped chips
-/// on the same target would jitter over each other at the screen edge
-/// (task 20260712-093831). Suppression goes through the anchor (the
+/// on the same target would jitter over each other at the screen edge.
+/// Suppression goes through the anchor (the
 /// widget's established hide channel, same as the verb cues): None hides
 /// the chip, restoring the entity anchor revives it on detach. Observers,
 /// not a polled system, so the hand-off lands in the SAME command flush as
 /// the marker insert/removal - a polled pass left a schedule-tie-break
-/// frame with two chips (or none) at the edge (review R1.2).
+/// frame with two chips (or none) at the edge.
 fn set_beacon_chip_anchor(
     beacon: Entity,
     wanted: Option<ScreenIndicatorAnchorKind>,
@@ -420,8 +420,8 @@ mod tests {
         (app, layer, chip, text)
     }
 
-    /// The beacon chip is the second case of the same defect (owner playtest
-    /// 2026-07-30): its phosphor pill must back the whole label, asserted
+    /// The beacon chip is the second case of the same defect: its phosphor
+    /// pill must back the whole label, asserted
     /// through the SAME shared helper as the objective chip.
     #[test]
     fn the_beacon_chip_backs_its_whole_label() {

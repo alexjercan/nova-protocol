@@ -2,7 +2,7 @@
 //! shaded sphere driven by a world vector. Two sources ship today - the
 //! original velocity readout (white/blue) and the gravity indicator
 //! (yellow, pointing down the dominant well's pull, hidden in flat
-//! space; task 20260710-201514, replacing the SOI shell the user cut).
+//! space).
 //! The module keeps its historical name to avoid churn; a rename to
 //! direction_hud is fair game in a cleanup pass.
 
@@ -57,7 +57,7 @@ impl Default for VelocityHudPalette {
 }
 
 impl VelocityHudPalette {
-    /// Gravity yellow (user request 2026-07-10): same shader, different
+    /// Gravity yellow: same shader, different
     /// color, so pull and velocity never read as the same thing.
     pub const GRAVITY: Self = Self {
         indicator: Color::srgba(1.0, 0.9, 0.2, 1.0),
@@ -66,8 +66,8 @@ impl VelocityHudPalette {
 
     /// The velocity widget while the autopilot flies: the flight
     /// computer's nav-cyan family (NAV_CYAN's rgb), so an engaged ship
-    /// reads as computer-flown from the sphere alone (task
-    /// 20260710-234115). Values are a starting point for the by-eye pass.
+    /// reads as computer-flown from the sphere alone. Values are a starting
+    /// point for the by-eye pass.
     pub const ENGAGED: Self = Self {
         indicator: Color::srgba(0.3, 0.9, 1.0, 1.0),
         sphere: Color::srgba(0.3, 0.9, 1.0, 0.2),
@@ -75,8 +75,8 @@ impl VelocityHudPalette {
 
     /// The velocity widget while the pilot holds RCS fine-adjust (SHIFT): a
     /// violet distinct from manual blue, autopilot cyan, and gravity yellow, so
-    /// "I am nudging by hand under the cap" reads from the sphere alone (task
-    /// 20260718-122923). Starting values for the by-eye pass.
+    /// "I am nudging by hand under the cap" reads from the sphere alone.
+    /// Starting values for the by-eye pass.
     pub const RCS_ACTIVE: Self = Self {
         indicator: Color::srgba(0.72, 0.45, 1.0, 1.0),
         sphere: Color::srgba(0.72, 0.45, 1.0, 0.2),

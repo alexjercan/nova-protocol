@@ -1,7 +1,5 @@
-//! The maneuver instruments (task 20260709-103454, spike
-//! docs/spikes/20260710-174523-diegetic-instruments-keybind-hints.md):
-//! the engaged maneuver made visible in the hybrid language the spike
-//! decided - projected chips for numbers, world-space holo geometry for
+//! The maneuver instruments: the engaged maneuver made visible in a hybrid
+//! language - projected chips for numbers, world-space holo geometry for
 //! spatial facts.
 //!
 //! - **Destination readout**: a text chip below the GOTO destination
@@ -11,11 +9,9 @@
 //!   where the arrival rule says the flip-and-burn starts.
 //! - **ORBIT holo ring**: a world-space torus at the engaged orbit plan's
 //!   ring (velocity-sphere visual family).
-//! - **Radius spoke** (task 20260710-231926, spike
-//!   docs/spikes/20260710-234019-diegetic-flight-status.md): while ORBIT
-//!   is engaged, a thin holo line from the well center to the ship with
-//!   the current radius as a chip at its midpoint - the in-world home of
-//!   the old status line's `r` readout.
+//! - **Radius spoke**: while ORBIT is engaged, a thin holo line from the well
+//!   center to the ship with the current radius as a chip at its midpoint -
+//!   the in-world home of the old status line's `r` readout.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -222,8 +218,7 @@ fn drive_destination_readout(
                 };
                 // ETA and distance only: the ship's own speed chip already
                 // shows the velocity, and two speed readouts in one glance
-                // was playtest-flagged redundancy (task 20260711-125226,
-                // same call as the orbit ring chip removal).
+                // was playtest-flagged redundancy.
                 **text = format!("{eta}{}", nova_ui::units::distance(telemetry.distance));
             }
             Err(_) => {
@@ -346,7 +341,7 @@ fn drive_radius_spoke_chip(
     // Ship pose on the RENDER clock (eased root Transform), not raw avian
     // Position: the chip rides the midpoint of a line whose ship end the
     // player SEES, and at speed the raw pose leads the rendered hull by up
-    // to a tick (task 20260710-231928). Wells are static, so their raw
+    // to a tick. Wells are static, so their raw
     // Position is identical either way.
     q_ship: Query<(&Transform, &Autopilot)>,
     q_well: Query<&Position, With<GravityWell>>,

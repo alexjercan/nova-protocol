@@ -1,11 +1,11 @@
-//! The comms panel: the HUD surface for SPEAKER-ATTRIBUTED story text (task
-//! 20260716-183220) - the story-campaign vocabulary objectives cannot carry.
+//! The comms panel: the HUD surface for SPEAKER-ATTRIBUTED story text - the
+//! story-campaign vocabulary objectives cannot carry.
 //!
 //! Data path: a scenario's `StoryMessage` action appends to the event world's
 //! story log (nova_scenario), whose sync copies it into [`StoryFeed`] here
-//! (write-on-diff). Since task 20260721-211526 the panel presents that feed as
-//! a bottom-left chat stack: several lines can be visible at once, newest at
-//! the bottom, older cards pushed up and fading. Per-line dwell still defaults
+//! (write-on-diff). The panel presents that feed as a bottom-left chat stack:
+//! several lines can be visible at once, newest at the bottom, older cards
+//! pushed up and fading. Per-line dwell still defaults
 //! to [`COMMS_DWELL_SECS`] and clamps to
 //! [`COMMS_DWELL_MIN_SECS`]..[`COMMS_DWELL_MAX_SECS`]. Pending overflow drops
 //! oldest, but the full transcript stays in [`StoryFeed`] for the NOVA OS log.
@@ -57,13 +57,12 @@ pub struct StoryFeed(pub Vec<StoryLine>);
 /// Default on-screen hold when nothing waits behind the line. `pub` because the
 /// scenario pacing layer (nova_assets `pacing.rs`) derives the beat gap between
 /// a conversation line and the objective it introduces from this value - the
-/// objective must post as the line finishes, not before it (task
-/// 20260722-142341).
+/// objective must post as the line finishes, not before it.
 pub const COMMS_DWELL_SECS: f32 = 8.0;
 /// The floor a showing line holds even with lines waiting: readable, but a
 /// burst still flows. `pub` because the scenario pacing layer derives its
 /// mid-read INSTRUCTION gap from it - an instructional objective posts once the
-/// reader has had this floor with the coaching line (task 20260722-163718).
+/// reader has had this floor with the coaching line.
 pub const COMMS_MIN_SECS: f32 = 4.0;
 /// Authored per-line dwell clamp (documented author-facing; pub so
 /// content_lint warns against the same numbers it clamps to).
@@ -76,12 +75,12 @@ const COMMS_QUEUE_CAP: usize = 4;
 const COMMS_VISIBLE_CAP: usize = 3;
 /// Fade timings (s): quick in, gentler out. `COMMS_FADE_OUT_SECS` is `pub` so
 /// the scenario pacing layer can wait out the fade tail as well as the dwell
-/// before posting the next objective (task 20260722-142341).
+/// before posting the next objective.
 const COMMS_FADE_IN_SECS: f32 = 0.25;
 /// Fade-out duration (s) after a line's dwell elapses; the pacing layer adds
 /// this to the dwell so the objective posts as the line clears, not mid-fade.
 pub const COMMS_FADE_OUT_SECS: f32 = 0.4;
-/// Arrival emphasis (task 20260728-175747): a fresh card grows to this peak for
+/// Arrival emphasis: a fresh card grows to this peak for
 /// this long, then settles - demo 2's comms flash.
 ///
 /// The demo's 5 s auto-hide is deliberately NOT adopted: this panel already has
@@ -321,7 +320,7 @@ fn comms_card(line: &VisibleCommsLine, asset_server: Option<&AssetServer>) -> im
     let alpha = line.alpha();
     (
         CommsCardMarker,
-        // Arrival emphasis (task 20260728-175747): a fresh transmission grows
+        // Arrival emphasis: a fresh transmission grows
         // for ~0.9 s and settles. Seeded from the line's AGE because the stack
         // is rebuilt from `CommsQueue` every frame - the same reason the card's
         // alpha is a function of age rather than retained state.
@@ -724,7 +723,7 @@ mod tests {
         );
     }
 
-    /// The arrival emphasis (task 20260728-175747): a fresh card comes in
+    /// The arrival emphasis: a fresh card comes in
     /// grown and is back at rest well before its dwell ends - so the emphasis
     /// says "this is new", not "this is important", and the line stays readable
     /// at normal size for the rest of its hold.

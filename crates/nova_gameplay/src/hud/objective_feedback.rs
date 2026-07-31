@@ -1,7 +1,6 @@
-//! Objective change feedback (task 20260712-125342, playtest round 3
-//! finding 2): the objectives panel swaps text silently, so completions
-//! and new postings were easy to miss mid-flight. This module diffs
-//! [`GameObjectives`] by id each time it changes and answers with:
+//! Objective change feedback: the objectives panel swaps text silently, so
+//! completions and new postings were easy to miss mid-flight. This module
+//! diffs [`GameObjectives`] by id each time it changes and answers with:
 //!
 //! - a UI sound per change (UiSfx::ObjectiveComplete for removals,
 //!   UiSfx::ObjectiveNew for additions; non-positional one-shots), and
@@ -11,18 +10,16 @@
 //!   panel's whole child set on every change and would despawn a ghost
 //!   mid-fade - so ghosts stack in their own absolute node beside it.
 //!
-//! GameObjectives is write-on-diff (nova_scenario's state_to_world since
-//! review R1.1 of 20260711-180506), so `resource_changed` here means a
-//! REAL change, not the per-frame pulse.
+//! NOTE: GameObjectives is write-on-diff (nova_scenario's state_to_world), so
+//! `resource_changed` here means a REAL change, not the per-frame pulse.
 
 use bevy::prelude::*;
 
 use super::HudTier;
 use crate::prelude::*;
 
-/// Width of the completion-ghost column (top-right). Was shared with the removed
-/// compact objectives panel (task 20260724-134312); kept local since the green
-/// completion ghosts still stack in that column.
+/// Width of the completion-ghost column (top-right). Kept local since the
+/// green completion ghosts still stack in that column.
 const GHOST_COLUMN_WIDTH_PX: f32 = 280.0;
 
 /// Glob-import surface: `use nova_gameplay::hud::objective_feedback::prelude::*` re-exports the public API of this module.
@@ -31,13 +28,13 @@ pub mod prelude {
 }
 
 /// Feedback tunables, a resource for the inspector and a future settings
-/// screen (playtest round 4: "can be configured maybe").
+/// screen.
 #[derive(Resource, Clone, Debug, Reflect)]
 #[reflect(Resource)]
 pub struct ObjectiveFeedbackSettings {
     /// Seconds between a completion cue and the new-objective cue when
     /// both land in one change - the chime gets its moment before the
-    /// posting blip (playtest round 4). Pure additions stay immediate.
+    /// posting blip. Pure additions stay immediate.
     pub new_cue_delay_secs: f32,
 }
 
@@ -84,7 +81,7 @@ pub struct ObjectiveGhostLineMarker {
     /// Seconds since the line was posted; drives the alpha fade-out.
     pub age: f32,
     /// The line's full-alpha color; the fade only ramps alpha (green for
-    /// completions, objective gold for fresh postings - task 20260717-163033).
+    /// completions, objective gold for fresh postings).
     pub base: Color,
 }
 
@@ -157,7 +154,7 @@ fn objective_change_feedback(
     // A transition to an EMPTY list is scenario teardown (death restart,
     // quit to menu - NovaEventWorld.clear() empties the resource), not a
     // sweep of completions: dying must not play the success chime over
-    // green ghosts of the objectives you failed (review R1.1 MAJOR).
+    // green ghosts of the objectives you failed.
     // Mid-scenario the list never empties - shakedown's final handler
     // completes b5 and posts "done" in one action list.
     if objectives.objectives.is_empty() {
@@ -178,8 +175,7 @@ fn objective_change_feedback(
         .collect();
     // A posting's VISUAL is the objective stack's chip (`objective_stack`);
     // this module only owns the audio cue for it and the green completion
-    // ghost. It used to also spawn a diegetic cockpit reveal card, retired in
-    // task 20260729-211200.
+    // ghost.
     let added = objectives
         .objectives
         .iter()
@@ -196,7 +192,7 @@ fn objective_change_feedback(
             // A chime just played: restart any pending blip's clock, or a
             // completion-only change late in the window would land the
             // blip right on this chime's tail - the exact masking this
-            // delay exists to prevent (review R1.2).
+            // delay exists to prevent.
             if let Some(timer) = new_cue.pending.as_mut() {
                 timer.reset();
             }
@@ -208,8 +204,8 @@ fn objective_change_feedback(
                 commands.play_sfx_volume(bank.get(UiSfx::ObjectiveNew), OBJECTIVE_NEW_VOLUME);
             } else {
                 // The completion chime just played - hold the posting blip
-                // back so the two cues do not mask each other (playtest
-                // round 4). Latest change wins if one was already pending.
+                // back so the two cues do not mask each other. Latest change
+                // wins if one was already pending.
                 new_cue.pending = Some(Timer::from_seconds(
                     settings.new_cue_delay_secs.max(0.0),
                     TimerMode::Once,
@@ -221,9 +217,7 @@ fn objective_change_feedback(
     if let Ok(stack) = q_stack.single() {
         // Completions fade green in the ghost column (the panel row itself
         // rebuilds silently). Fresh postings no longer ghost here - they are
-        // the objective stack's chip (task 20260721-211520 superseded the gold
-        // posting flash of task 20260717-163033; 20260729-211200 made the chip
-        // the whole posting).
+        // the objective stack's chip.
         for objective in &completed {
             commands.entity(stack).with_children(|parent| {
                 parent.spawn((
@@ -342,7 +336,7 @@ mod tests {
     /// A completion and a posting in ONE change (every shakedown beat
     /// handler does exactly this): the chime plays immediately, the
     /// posting blip waits out the configured delay so the two cues do
-    /// not mask each other (playtest round 4). Delivery guards: the blip
+    /// not mask each other. Delivery guards: the blip
     /// has NOT played at half the delay, and a pure posting (no
     /// completion) stays immediate.
     #[test]

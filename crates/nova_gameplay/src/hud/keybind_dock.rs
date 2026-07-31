@@ -1,19 +1,19 @@
 //! The contextual keybind **dock** and the anchored verb cues.
 //!
 //! Nobody memorizes X/G/O/Z, and nobody reads a seven-row wall of
-//! bracketed-key-plus-verb text while flying either. Both surfaces render from the input
-//! layer's [`FlightVerbHints`] resource - availability and key labels are
-//! resolved where the verbs live, this module is a dumb view.
+//! bracketed-key-plus-verb text while flying either. Both surfaces render from
+//! the input layer's [`FlightVerbHints`] resource - availability and key labels
+//! are resolved where the verbs live, this module is a dumb view.
 //!
-//! - **Dock** (task 20260728-175742): a single row of icon chips docked
-//!   bottom-centre, one per AVAILABLE flight verb, each a real keycap PICTURE
-//!   (see [`super::key_glyphs`]) plus a short verb word. It replaces the
+//! - **Dock**: a single row of icon chips docked bottom-centre, one per
+//!   AVAILABLE flight verb, each a real keycap PICTURE (see
+//!   [`super::key_glyphs`]) plus a short verb word. It replaces the
 //!   lower-left text cluster, which carried the bulk of the HUD's on-screen
-//!   text. A verb you cannot press right now is not on screen at all
-//!   ([`chip_visible`], task 20260730-122843), so the dock reads as "these are
-//!   your options NOW". In normal play a docked chip reads in two states -
-//!   available (full phosphor) and hot (inverted, the verb is what the ship is
-//!   doing) - plus the dim band a scenario spotlight can reveal (below).
+//!   text. A verb you cannot press right now is not on screen at all (see
+//!   [`chip_visible`]), so the dock reads as "these are your options NOW".
+//!   In normal play a docked chip reads in two states - available (full
+//!   phosphor) and hot (inverted, the verb is what the ship is doing) - plus
+//!   the dim band a scenario spotlight can reveal (below).
 //! - **Anchored cues**: the hint sits on the thing you would act on - ORBIT
 //!   projected on the dominant well, GOTO on the aim lock while no maneuver is
 //!   engaged - now the same keycap chip rather than `[O] ORBIT` text.
@@ -61,9 +61,8 @@ const CHIP_TEXT_PX: f32 = 11.0;
 const CUE_OFFSET: Vec2 = Vec2::new(0.0, 48.0);
 
 /// The verb names, in dock display order (left to right). The component-cycle
-/// chip documents the wheel gesture (task 20260708-165705): plain scroll steps
-/// the component fine-lock; CTRL+scroll steps the ship lock through the tracked
-/// candidates.
+/// chip documents the wheel gesture: plain scroll steps the component
+/// fine-lock; CTRL+scroll steps the ship lock through the tracked candidates.
 pub const DOCK_VERBS: [&str; 7] = [
     "STOP",
     "GOTO",
@@ -77,8 +76,8 @@ pub const DOCK_VERBS: [&str; 7] = [
 /// Emphasis pulse rate and the alpha bands it sweeps. The emphasized chip
 /// renders PURE OBJECTIVE_GOLD hue at all times and only its alpha pulses: the
 /// first cut cross-mixed the availability color toward gold, and a lit chip's
-/// phosphor->gold RGB path passes through a washed near-white blend every cycle
-/// - unreadable at 11 px (playtest 2026-07-12, task 20260712-152340).
+/// phosphor->gold RGB path passes through a washed near-white blend every
+/// cycle - unreadable at 11 px.
 /// Availability still reads from the band: available chips sweep the bright
 /// band, unavailable chips a dim one (spotlight, not a state change). ~1 Hz -
 /// present in peripheral vision, not a strobe.
@@ -104,7 +103,7 @@ pub struct DockChip(pub usize);
 
 /// A dock chip's rendered state, written every update from availability (and,
 /// for `Hot`, from what the ship is actually doing). Public so tests and the
-/// follow-up situational-emphasis task (20260728-175747) can read and drive it.
+/// situational-emphasis driver can read and drive it.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default, Reflect)]
 pub enum DockChipState {
     /// Pressing it now would do nothing. In the normal path such a chip is not
@@ -134,7 +133,7 @@ struct ChipKeyText;
 #[derive(Component, Debug, Clone, Reflect)]
 struct ChipLabel;
 
-/// The verbs the scenario wants the player's eyes on (task 20260712-093831):
+/// The verbs the scenario wants the player's eyes on:
 /// names from [`DOCK_VERBS`], set/cleared by the `HintEmphasisSet`/
 /// `HintEmphasisClear` scenario actions and cleared wholesale on scenario
 /// teardown. Emphasis is a SPOTLIGHT, not a state change - it never alters
@@ -219,8 +218,8 @@ fn chip_paint(state: DockChipState) -> (Color, Color, Color) {
 }
 
 /// The keycap image tint for `state` - Bevy UI has no grayscale filter, so the
-/// dim state is alpha-dimming (spike 20260728-175742 note); the dark keycaps
-/// with white glyphs read well over the phosphor HUD either way.
+/// dim state is alpha-dimming; the dark keycaps with white glyphs read well
+/// over the phosphor HUD either way.
 fn glyph_tint(state: DockChipState) -> Color {
     match state {
         DockChipState::Dim => Color::WHITE.with_alpha(0.45),
@@ -436,7 +435,7 @@ fn verb_hint(hints: &FlightVerbHints, index: usize) -> &VerbHint {
 }
 
 /// The state chip `index` should render, from availability plus what the ship
-/// is actually doing right now (task 20260728-175747).
+/// is actually doing right now.
 ///
 /// The `Hot` rules are the demo's, mapped onto the real verbs: the engaged
 /// maneuver's own chip is hot (GOTO while a GOTO burns, STOP while stopping,
@@ -470,10 +469,10 @@ fn chip_state(hints: &FlightVerbHints, situations: &HudSituations, index: usize)
 /// Whether chip `index` is on screen at all - the dock's ONE answer to "is this
 /// chip rendered", so nothing can hide a chip the paint still treats as visible.
 ///
-/// The rule (owner playtest 2026-07-30, task 20260730-122843): a verb you cannot
-/// press right now is not on screen. The dock's first cut kept unavailable verbs
-/// docked and dimmed, so the row's chip positions never moved; playtested, that
-/// read as a wall of mostly-dead keys rather than "these are your options NOW".
+/// The rule: a verb you cannot press right now is not on screen. The dock's
+/// first cut kept unavailable verbs docked and dimmed, so the row's chip
+/// positions never moved; playtested, that read as a wall of mostly-dead keys
+/// rather than "these are your options NOW".
 ///
 /// Two verbs survive the hide:
 ///
@@ -483,8 +482,7 @@ fn chip_state(hints: &FlightVerbHints, situations: &HudSituations, index: usize)
 ///   maneuver off the dock;
 /// - an EMPHASIZED chip, because a scenario spotlight exists precisely to point
 ///   at a verb before it lights up - that is what the
-///   `EMPHASIS_ALPHA_UNAVAILABLE` band is for (decision record in
-///   `tasks/20260730-122843/DECISION.md`).
+///   `EMPHASIS_ALPHA_UNAVAILABLE` band is for.
 fn chip_visible(
     state: DockChipState,
     hint: &VerbHint,
@@ -562,9 +560,9 @@ fn paint_key_visual<FG, FT>(
 
 /// Paint every dock chip from availability, and decide which chips are on
 /// screen at all via [`chip_visible`] - the dock shows the verbs you can press
-/// NOW, so the row shrinks and grows as the situation changes (owner playtest
-/// 2026-07-30). The first cut kept unavailable verbs docked and dimmed for
-/// constant chip positions; that lost the playtest.
+/// NOW, so the row shrinks and grows as the situation changes. The first cut
+/// kept unavailable verbs docked and dimmed for constant chip positions; that
+/// lost the playtest.
 ///
 /// The row is `justify_content: Center`, so it re-centres as verbs come and go.
 /// That is the accepted price of the rule.
@@ -652,7 +650,7 @@ fn update_dock(
     }
 }
 
-/// Grow the chip whose verb the ship is currently doing (task 20260728-175747).
+/// Grow the chip whose verb the ship is currently doing.
 /// Reads the state [`update_dock`] just wrote rather than re-deriving it, so the
 /// grown chip and the inverted chip can never be different chips.
 fn grow_hot_chips(mut q_chip: Query<(&DockChipState, &mut HudEmphasis), With<DockChip>>) {
@@ -711,9 +709,9 @@ fn pulse_emphasized_chips(
         //
         // The restore matters for chips that go hidden MID-pulse: a chip whose
         // key empties (rig despawn) must not keep its gold, and the key
-        // emptying is a HINTS change, not an emphasis change (review R1.4 of
-        // 20260712-093831). The same holds for a spotlight being cleared off an
-        // unavailable verb, which drops the chip off the dock.
+        // emptying is a HINTS change, not an emphasis change. The same holds
+        // for a spotlight being cleared off an unavailable verb, which drops
+        // the chip off the dock.
         let (next_border, next_label) =
             if chip_visible(*state, hint, &emphasis, **chip) && emphasis.contains(verb) {
                 let gold = emphasis_color(hint.available, wave);
@@ -906,9 +904,9 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<Image>();
-        // The dock reads the contextual situations for its Hot states (task
-        // 20260728-175747); idle-cruise defaults keep these rigs testing the
-        // availability paint they were written for.
+        // The dock reads the contextual situations for its Hot states;
+        // idle-cruise defaults keep these rigs testing the availability paint
+        // they were written for.
         app.init_resource::<HudSituations>();
         app
     }
@@ -1034,8 +1032,8 @@ mod tests {
         );
     }
 
-    /// The situational hot rules (task 20260728-175747): the engaged maneuver's
-    /// OWN chip inverts, and RADAR inverts while a combat lock is held. Each
+    /// The situational hot rules: the engaged maneuver's OWN chip inverts, and
+    /// RADAR inverts while a combat lock is held. Each
     /// situation is asserted on and then off again, so a chip that latched hot
     /// would fail.
     #[test]
@@ -1148,8 +1146,8 @@ mod tests {
         app.world().entity(chip).get::<Node>().unwrap().display
     }
 
-    /// DoD 1 (owner playtest 2026-07-30): a verb you cannot press right now is
-    /// not on screen at all - the dock answers "these are your options NOW".
+    /// A verb you cannot press right now is not on screen at all - the dock
+    /// answers "these are your options NOW".
     /// A `Hot` chip stays docked even when its own offer has been retired,
     /// because hot means "this is what the ship is doing".
     #[test]
@@ -1381,7 +1379,7 @@ mod tests {
 
     /// The emphasized chip renders PURE gold hue at every point of the wave -
     /// only its alpha moves; a cross-hue mix passes through a washed near-white
-    /// blend that killed readability in playtest (task 20260712-152340).
+    /// blend that killed readability in playtest.
     #[test]
     fn emphasized_chips_pulse_pure_gold_alpha_only() {
         let gold = OBJECTIVE_GOLD.to_srgba();
@@ -1480,7 +1478,7 @@ mod tests {
 
     /// A rig despawn (key empties) while a chip is mid-pulse must restore the
     /// base paint even though the EMPHASIS never changed - the key emptying is
-    /// a hints change (review R1.4 of 20260712-093831).
+    /// a hints change.
     #[test]
     fn rig_despawn_mid_pulse_restores_the_base_paint() {
         let mut app = glyph_app();
@@ -1659,7 +1657,7 @@ mod tests {
     }
 }
 
-/// Live-tree keycap SIZING rig (task 20260730-122940).
+/// Live-tree keycap SIZING rig.
 ///
 /// The wide caps (Tab, Shift, Ctrl, Space) are drawn wide-and-short inside a
 /// square 128x128 canvas, so a `width == height` node threw ~40% of their
@@ -1680,7 +1678,7 @@ mod keycap_sizing_tests {
     };
 
     /// The opaque bounding box of each keycap inside its 128x128 canvas,
-    /// measured OUTSIDE this code base on 2026-07-30 with
+    /// measured OUTSIDE this code base with
     /// `magick <file> -alpha extract -threshold 0 -format '%@' info:`
     /// (`WxH+X+Y`), then written here as `[min_x, min_y, max_x, max_y]`.
     ///
@@ -1764,11 +1762,11 @@ mod keycap_sizing_tests {
         only_descendant_with::<ChipGlyph>(app, chips[index])
     }
 
-    /// DoD 1: a wide cap renders at the aspect its ART carries, with the cap
-    /// filling the box height - and a near-square cap stays near-square.
+    /// A wide cap renders at the aspect its ART carries, with the cap filling
+    /// the box height - and a near-square cap stays near-square.
     ///
-    /// This is the failing-first rig for task 20260730-122940: on the square
-    /// `width == height` box every chip measured 22x22 regardless of its art.
+    /// The bug this pins: on the square `width == height` box every chip
+    /// measured 22x22 regardless of its art.
     #[test]
     fn wide_keycaps_render_at_their_art_aspect() {
         let (mut app, chips) = dock_app();

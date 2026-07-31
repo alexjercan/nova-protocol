@@ -1,5 +1,5 @@
 //! What the player's ship is DOING right now, sensed once per frame for the
-//! contextual HUD (task 20260728-175747).
+//! contextual HUD.
 //!
 //! Demo 2's ruleset (`examples/ui/hud_rework_poc.html`, `reflect()`) is written
 //! against a handful of situations - autopilot burn, combat lock, weapons hot,

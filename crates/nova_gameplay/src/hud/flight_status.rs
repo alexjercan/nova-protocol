@@ -1,9 +1,7 @@
-//! Diegetic flight readouts (task 20260710-231926, spike
-//! docs/spikes/20260710-234019-diegetic-flight-status.md): the old
-//! bottom-left status text rehomed onto the ship - a speed chip parked
-//! beside the velocity sphere and a mode chip (verb + phase) shown only
-//! while the autopilot is engaged; manual flight keeps a quiet HUD. Plus
-//! the projected marker on the GOTO destination.
+//! Diegetic flight readouts: the old bottom-left status text rehomed onto
+//! the ship - a speed chip parked beside the velocity sphere and a mode chip
+//! (verb + phase) shown only while the autopilot is engaged; manual flight
+//! keeps a quiet HUD. Plus the projected marker on the GOTO destination.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -37,7 +35,7 @@ const CHIP_FONT_PX: f32 = 12.0;
 /// sphere (world radius 5.6 u for the outer gravity shell) at typical
 /// chase-camera distance. Fixed px in v1; a projected-radius offset is the
 /// richer option if the fixed one misbehaves at extreme zooms.
-/// Lifted clear of the bottom-centre keybind dock (task 20260728-175742): the
+/// Lifted clear of the bottom-centre keybind dock: the
 /// ship sits low-centre under the chase camera, so a chip level with it landed
 /// on the dock's chips. This is the demo's `.speed` band (~120 px off the
 /// bottom) expressed as a ship-relative offset, so the readout stays parked on
@@ -275,7 +273,7 @@ fn drive_speed_chip(
     }
 }
 
-/// Emphasize the speed chip while a maneuver is engaged (task 20260728-175747):
+/// Emphasize the speed chip while a maneuver is engaged:
 /// during an autopilot burn the speed is the number the player is watching, so
 /// it grows and settles back the moment the maneuver ends.
 fn emphasize_speed_on_burn(
@@ -519,7 +517,7 @@ mod tests {
         );
     }
 
-    /// The burn emphasis (task 20260728-175747): the speed chip is held large
+    /// The burn emphasis: the speed chip is held large
     /// while a maneuver flies and lets go the moment it ends. Asserted on the
     /// HELD flag rather than the eased scale, so it pins the RULE; the easing
     /// itself is pinned in `hud::emphasis`.

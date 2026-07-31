@@ -3,12 +3,12 @@
 //! The HUD shows keys as PICTURES, not `[BRACKETED]` text - the icon dock, the
 //! anchored verb cues and the objective stack's NOVA OS affordance all draw a
 //! keycap from `assets/input-prompts/keyboard/Alt/` (the dark keycaps with white
-//! glyphs, relocated into `assets/` by task 20260728-233707).
+//! glyphs).
 //!
 //! This module owns the mapping, and with it the explicit asset path list that
 //! [`nova_assets`]'s `GameAssets::key_glyphs` collection preloads: the glyphs
-//! load and load-gate like every other static asset (the pattern established by
-//! task 20260729-000956 for the UI SFX), never lazily per chip. A FOLDER
+//! load and load-gate like every other static asset, the same as the UI SFX,
+//! never lazily per chip. A FOLDER
 //! collection cannot be used - folder collections do not work on wasm - so the
 //! path list is explicit and `key_glyph_collection_matches_mapping_table`
 //! (in `nova_assets`) pins the two together.
@@ -22,9 +22,9 @@
 //!
 //! Unmapped labels resolve to `None`, and every consumer falls back to a TEXT
 //! chip - a rebind to an unmapped key degrades to the old look instead of
-//! rendering an empty box. The remapping/gamepad follow-up (20260710-231927)
-//! may `server.load` a glyph for a runtime-rebound key: that is dynamic content
-//! and cannot sit behind a one-shot preload collection.
+//! rendering an empty box. TODO(20260710-231927): the remapping/gamepad
+//! follow-up may `server.load` a glyph for a runtime-rebound key - that is
+//! dynamic content and cannot sit behind a one-shot preload collection.
 
 use bevy::{platform::collections::HashMap, prelude::*};
 
@@ -103,7 +103,7 @@ pub fn key_glyph_asset_paths() -> Vec<String> {
 /// 112x74, Space 128x68, and the mouse 76x128 - each centred in the canvas with
 /// transparent bands around it. Rendering that canvas into a square box throws
 /// the difference away, which cost the wide caps ~40% of their height and made
-/// their legends unreadable (owner playtest 2026-07-30, task 20260730-122940).
+/// their legends unreadable.
 ///
 /// So a cap carries its own bounds, measured from the alpha channel at load
 /// ([`KeyGlyphs::measure_caps`]), and every HUD site sizes from them: HEIGHT is

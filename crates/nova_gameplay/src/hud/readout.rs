@@ -1,5 +1,5 @@
 //! The HUD readout strip: a generic surface for showing a SCENARIO VARIABLE on
-//! the HUD (task 20260716-174729) - the modding-surface piece the gauntlet
+//! the HUD - the modding-surface piece the gauntlet
 //! time-trial needs and any mod can reuse. It is the display half of the
 //! scenario-variable vocabulary: `scenario_elapsed` (and any authored variable)
 //! already exists on the event world; nothing put one on screen until now.
@@ -32,7 +32,7 @@ use super::HudTier;
 /// re-exports the public API of this module. `HudReadoutFormat` is deliberately
 /// NOT re-exported here: nova_scenario's prelude exports a same-named authoring
 /// enum, and nova_core globs both preludes, so re-exporting it from both is an
-/// ambiguous glob re-export (task 20260721-151934). It stays `pub` and is
+/// ambiguous glob re-export. It stays `pub` and is
 /// reached by its full path from the sync in nova_scenario's world.rs.
 pub mod prelude {
     pub use super::{HudReadoutEntry, HudReadouts};
@@ -191,9 +191,9 @@ fn sync_readout_rows(
                 },
                 Text::new(text),
                 TextFont::from_font_size(READOUT_FONT_SIZE_PX),
-                // Each row is a member of the HUD chip family (task
-                // 20260728-175742) - a scenario clock reads as an instrument
-                // readout, not as text floating over the starfield.
+                // NOTE: each row is a member of the HUD chip family - a
+                // scenario clock reads as an instrument readout, not as text
+                // floating over the starfield.
                 chip_node(),
                 chip_paint(ChipTone::Phosphor),
                 TextColor(ChipTone::Phosphor.text()),

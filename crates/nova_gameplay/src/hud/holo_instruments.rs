@@ -1,16 +1,14 @@
-//! World-space holo instruments (task 20260710-174629, spike
-//! docs/spikes/20260710-174523-diegetic-instruments-keybind-hints.md):
-//! the expansion of the language the ORBIT ring piloted - thin unlit
-//! NAV_CYAN geometry the flight computer "projects" into space.
+//! World-space holo instruments: the expansion of the language the ORBIT ring
+//! piloted - thin unlit NAV_CYAN geometry the flight computer "projects" into
+//! space.
 //!
 //! - **Trajectory ribbon**: the engaged leg's path (ship -> flip -> park
 //!   point, or ship -> park point once braking) as thin cylinder segments,
 //!   for GOTO and STOP alike via [`ManeuverTelemetry`]. The ribbon ends at
 //!   the park point, not the goal center - on a big body the center sits
-//!   radius + standoff past where the ship actually stops (task
-//!   20260710-214316). Deliberately the straight-line
-//!   plan the computer actually flies today; when the arrival solve
-//!   becomes gravity-aware (task 20260710-193500) a curved prediction can
+//!   radius + standoff past where the ship actually stops. Deliberately the
+//!   straight-line plan the computer actually flies today; when the arrival
+//!   solve becomes gravity-aware a curved prediction can
 //!   replace it - the instrument must not out-promise the autopilot.
 //! - **Flip gate**: a ring at the flip point, perpendicular to the path,
 //!   sized to fly through.
@@ -143,9 +141,9 @@ fn sync_trajectory_ribbon(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut assets: ResMut<HoloAssets>,
-    // The ribbon's ship end must meet the RENDERED hull: eased root
-    // Transform, not raw avian Position (task 20260710-231928). The other
-    // points are plan geometry, not rendered bodies.
+    // NOTE: the ribbon's ship end must meet the RENDERED hull: eased root
+    // Transform, not raw avian Position. The other points are plan geometry,
+    // not rendered bodies.
     q_ship: Query<
         (Entity, &Transform, &ManeuverTelemetry),
         (
@@ -162,7 +160,7 @@ fn sync_trajectory_ribbon(
         }
         // The leg ends where the ship will rest, not at the target
         // center - on a big body the center sits radius + standoff past
-        // the park point (task 20260710-214316).
+        // the park point.
         points.push(telemetry.park_point);
         (ship, points)
     });
@@ -345,7 +343,7 @@ mod tests {
 
     #[test]
     fn ribbon_terminates_at_the_park_point_not_the_goal() {
-        // Task 20260710-214316: on a big body the goal center sits
+        // On a big body the goal center sits
         // radius + standoff past where the ship actually parks; the last
         // segment must stop at the published park point.
         let mut world = holo_world();

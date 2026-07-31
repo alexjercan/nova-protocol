@@ -1,12 +1,11 @@
-//! Objective marker HUD chips (task 20260712-093831, spike
-//! docs/spikes/20260712-140842-objective-conveyance-visuals.md): one
-//! screen-projected gold chip per [`ObjectiveMarkerTarget`] entity - the
-//! marker's label plus live distance to the player ship - with the
-//! indicator widget's `ClampToEdge` path, so an off-screen objective's chip
-//! pins to the viewport edge and its chevron points at it. Where the nav
-//! beacon chip says "a waypoint exists", this chip says "go HERE now":
-//! gold, a diamond glyph instead of the beacon dot language, and a slow
-//! alpha breath so it reads in peripheral vision without strobing.
+//! Objective marker HUD chips: one screen-projected gold chip per
+//! [`ObjectiveMarkerTarget`] entity - the marker's label plus live distance
+//! to the player ship - with the indicator widget's `ClampToEdge` path, so an
+//! off-screen objective's chip pins to the viewport edge and its chevron
+//! points at it. Where the nav beacon chip says "a waypoint exists", this
+//! chip says "go HERE now": gold, a diamond glyph instead of the beacon dot
+//! language, and a slow alpha breath so it reads in peripheral vision without
+//! strobing.
 //!
 //! Chrome tier, like the beacon chips - the same nav-chip family.
 
@@ -68,7 +67,7 @@ pub struct ObjectiveMarkerChipNodeMarker;
 ///
 /// The label cannot live on the chip entity itself: taffy only measures leaf
 /// nodes, so a `Text` node that also has children loses its measure and the
-/// pill collapses to its padding (task 20260730-122909).
+/// pill collapses to its padding.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct ObjectiveMarkerChipTextMarker;
 
@@ -79,7 +78,7 @@ struct ObjectiveMarkerDiamondMarker;
 
 /// Marker for a node whose color breathes with the chip: the diamond
 /// border and the chevron strokes - NOT the label text, which stays at
-/// full alpha for readability (task 20260712-152340).
+/// full alpha for readability.
 #[derive(Component, Debug, Clone, Reflect)]
 struct ObjectiveMarkerBreathMarker;
 
@@ -113,7 +112,7 @@ fn objective_marker_chip_hud(target: Entity) -> impl Bundle {
             // The chip is a pure CONTAINER: diamond and label are in-flow flex
             // items it grows around, the chevron an absolute one it ignores.
             // Putting the `Text` here instead would take this node off taffy's
-            // leaf path and collapse the pill (task 20260730-122909).
+            // leaf path and collapse the pill.
             children![
                 objective_marker_diamond(),
                 objective_marker_label(),
@@ -136,7 +135,7 @@ fn objective_marker_label() -> impl Bundle {
             ..default()
         },
         // The LABEL does not breathe: 12 px gold at 0.7 alpha over a bright
-        // planetoid was unreadable (playtest 2026-07-12, task 20260712-152340).
+        // planetoid was unreadable.
         // Constant full gold + a tight dark shadow for contrast; the diamond and
         // chevron carry the motion.
         TextColor(OBJECTIVE_GOLD),
@@ -152,9 +151,9 @@ fn objective_marker_label() -> impl Bundle {
 /// (the same UiTransform trick as the chevron strokes), riding INSIDE the pill
 /// as the first in-flow flex item - `chip_node`'s `column_gap` spaces it from
 /// the label and its `align_items: Center` centres it, so the same fill and
-/// border back the mark as back the text (owner decision, 2026-07-30 plan
-/// gate). It used to be an absolute glyph at `left: -14 px`, which read as
-/// "attached" only because the pill was a collapsed slab at the same origin.
+/// border back the mark as back the text. It used to be an absolute glyph at
+/// `left: -14 px`, which read as "attached" only because the pill was a
+/// collapsed slab at the same origin.
 fn objective_marker_diamond() -> impl Bundle {
     (
         Name::new("ObjectiveMarkerDiamond"),
@@ -208,7 +207,7 @@ fn objective_marker_arrow() -> impl Bundle {
             // Park the chevron just above the pill and centred on it. Half the
             // chip's width, then back off half the chevron's own - a plain
             // `-ARROW_PX / 2` sat near the origin, which only looked centred
-            // while the pill was a collapsed slab (task 20260730-122909).
+            // while the pill was a collapsed slab.
             // `update_arrows` writes only `.rotation`, so this translation
             // survives every frame.
             left: Val::Percent(50.0),
@@ -280,7 +279,7 @@ fn remove_objective_marker_chip(
 fn update_objective_marker_labels(
     q_chips: Query<&ObjectiveMarkerChipTargetEntity, With<ObjectiveMarkerChipHudMarker>>,
     // Two hops now: the text is a leaf CHILD of the chip, which is itself a
-    // child of the layer that knows the target (task 20260730-122909).
+    // child of the layer that knows the target.
     mut q_labels: Query<(&mut Text, &ChildOf), With<ObjectiveMarkerChipTextMarker>>,
     q_parents: Query<&ChildOf>,
     q_targets: Query<(&ObjectiveMarkerTarget, &GlobalTransform)>,
@@ -324,7 +323,7 @@ fn breath_alpha(elapsed_secs: f32) -> f32 {
 /// Breathe every chip's gold GLYPHS - the diamond border and the chevron
 /// strokes - with the shared wave. The label text deliberately does NOT
 /// breathe: thinning 12 px text to 0.7 alpha broke readability over
-/// bright scene content (playtest 2026-07-12, task 20260712-152340); the
+/// bright scene content; the
 /// glyphs carry all the motion.
 fn breathe_objective_markers(
     time: Res<Time>,
@@ -450,9 +449,8 @@ mod tests {
     }
 
     /// The label text does NOT breathe and carries a contrast shadow;
-    /// the diamond glyph carries the motion (playtest 2026-07-12, task
-    /// 20260712-152340 - 12 px gold at 0.7 alpha over a bright planetoid
-    /// was unreadable).
+    /// the diamond glyph carries the motion - 12 px gold at 0.7 alpha over a
+    /// bright planetoid was unreadable.
     #[test]
     fn label_stays_full_alpha_while_glyphs_breathe() {
         let mut world = world_with_observers();
@@ -518,7 +516,7 @@ mod tests {
         (app, layer, chip, text)
     }
 
-    /// The reported bug (owner playtest 2026-07-30): the chip's fill/border
+    /// The reported bug: the chip's fill/border
     /// covered only a corner of "BEACON 1" instead of the whole label. Asserted
     /// against a live layout pass, comparing with an INDEPENDENT measurement of
     /// the same string - see `chip_layout_rig`.
@@ -535,8 +533,8 @@ mod tests {
         );
     }
 
-    /// The diamond identity glyph rides INSIDE the pill (owner decision at the
-    /// 2026-07-30 plan gate, `DECISION.md`): an in-flow flex item the chip's
+    /// The diamond identity glyph rides INSIDE the pill: an in-flow flex item
+    /// the chip's
     /// fill and border wrap, not an absolute glyph parked outside the box.
     #[test]
     fn the_objective_chips_diamond_sits_inside_the_pill() {

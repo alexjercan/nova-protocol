@@ -1,5 +1,4 @@
-//! Live-tree UI layout rig for the world-anchored HUD chips (task
-//! 20260730-122909).
+//! Live-tree UI layout rig for the world-anchored HUD chips.
 //!
 //! Test-only support module. It builds an `App` carrying bevy_ui's real taffy
 //! layout AND bevy_text's real measurement, spawns a chip bundle exactly as the
@@ -303,8 +302,8 @@ mod tests {
 
     use super::*;
 
-    /// The mechanism behind task 20260730-122909, pinned against the engine
-    /// rather than against theory: taffy runs a node's measure function only on
+    /// The collapsed-pill mechanism, pinned against the engine rather than
+    /// against theory: taffy runs a node's measure function only on
     /// the LEAF path, so putting `Text` on a node that also has children drops
     /// the text measure and collapses the box to its padding plus border, while
     /// the glyphs still render at full length.

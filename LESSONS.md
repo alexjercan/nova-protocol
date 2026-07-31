@@ -316,12 +316,28 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   '^warning'` read 2 against a true 14 and made an unchanged tree look like a
   regression; `git stash` -> touch the crate root -> rerun -> `stash pop`
   showed both sides at 14. 20260731-170329.
-- `doc-comment-rewrap-changes-the-render` (x1): deleting a mid-line clause from
+- `doc-comment-rewrap-changes-the-render` (x2): deleting a mid-line clause from
   a `//!`/`///` block can leave the next line starting with `-`, `#`, `>` or
   `1.`, which CommonMark parses as a block construct - rustdoc renders a stray
   list item while check and fmt stay green, so a "comments only, no behavior
-  change" pass silently changes output. After bulk comment edits re-read the
-  touched blocks AS MARKDOWN. 20260731-170329.
+  change" pass silently changes output. A SCRIPTED substitution reproduces it
+  at scale; cheapest check is grepping the ADDED comment lines for over-fill
+  length and a leading `- `, before re-reading the touched blocks as markdown.
+  20260731-170329, 20260731-170335.
+- `re-measure-records-after-the-last-edit` (x1): a record holding measured
+  numbers (line counts, `file:line` inventories, diff totals) goes stale the
+  moment ANY later edit touches the measured files - a review-round rewrap
+  shortened three files by one line and silently falsified three table rows
+  and three marker line numbers. Re-measure after the round's LAST edit, not
+  after the edit that motivated the measurement, and keep the producing
+  command next to the number. 20260731-170335.
+- `provenance-vs-deferred-work-check-the-status` (x1): a task ID in a comment
+  is provenance ("added by X") or a live pointer ("X will replace this"), and
+  the two are textually identical - a bulk strip demoted an OPEN task's
+  `TODO(20260710-231927)` to a bare `NOTE:` pointing at nothing. The signal is
+  the referenced task's STATUS plus whether the sentence describes work not
+  yet done, so classify the hits before stripping; a sweep cannot make that
+  call. 20260731-170335.
 - `warnings-clean-before-land` (x2): run a warnings-SURFACED build and read
   the warnings before landing - error-only greps ride warnings into the
   squash. 20260716-215423, 20260717-003613.
