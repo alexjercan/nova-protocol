@@ -121,7 +121,7 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   bin). A leaf tool that is not a game dependency is ALREADY skipped by bare
   builds, so the key buys nothing and only adds an allowlist footgun - do not add
   it. 20260721-151934.
-- `validate-proof-command-shape-at-plan-time` (x5 -> Pending promotions, work
+- `validate-proof-command-shape-at-plan-time` (x6 -> Pending promotions, work
   skill): a `cmd:` proof is unrun until verify, so a malformed OR wrong-target
   one is a silent gate - at verify confirm it runs the INTENDED tests: right
   arity/flags AND a NON-ZERO count of the named tests (read "N passed" PER
@@ -133,8 +133,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   boundary a token the SAME change ADDS defeats (`--panel\b` also matches the new
   `--panel-radius`), can never reach zero - grep the specific phrases really in
   the tree, and check at plan time, against the tree the change will PRODUCE,
-  that the command can return zero. 20260726-115334, 20260727-135208,
-  20260728-175731, 20260730-122843, 20260731-143918.
+  that the command can return zero. Sibling failure: a proof narrower than the
+  claim it gates reads as done at zero - a `//.*<tatr-id>` grep cleared the
+  "provenance stripped" DoD while `(playtest 2026-07-13)` and `(review R2.1)`
+  survived, being the same category without an ID. Ask what OTHER shapes the
+  defect takes before believing zero. 20260726-115334, 20260727-135208,
+  20260728-175731, 20260730-122843, 20260731-143918, 20260731-170329.
 - `inseparable-seeded-tasks-remerge` (x1, PROMOTED 2026-07-19 -> flow skill):
   when seeded tasks prove architecturally inseparable, surface the re-cut and
   merge them instead of building shims. 20260717-215742.
@@ -306,6 +310,18 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `flow-land-scope-when-user-says-branch` (x1, PROMOTED 2026-07-19 -> flow
   skill): when the ask mentions a branch AND /flow, confirm land-to-master vs
   stop-at-branch at the START. 20260718-181305.
+- `baseline-and-after-share-one-measurement` (x1): a before/after count is only
+  a baseline if BOTH sides use the same extraction and the same cache state -
+  one command run twice, not two commands. A warm-cache `cargo doc | grep -c
+  '^warning'` read 2 against a true 14 and made an unchanged tree look like a
+  regression; `git stash` -> touch the crate root -> rerun -> `stash pop`
+  showed both sides at 14. 20260731-170329.
+- `doc-comment-rewrap-changes-the-render` (x1): deleting a mid-line clause from
+  a `//!`/`///` block can leave the next line starting with `-`, `#`, `>` or
+  `1.`, which CommonMark parses as a block construct - rustdoc renders a stray
+  list item while check and fmt stay green, so a "comments only, no behavior
+  change" pass silently changes output. After bulk comment edits re-read the
+  touched blocks AS MARKDOWN. 20260731-170329.
 - `warnings-clean-before-land` (x2): run a warnings-SURFACED build and read
   the warnings before landing - error-only greps ride warnings into the
   squash. 20260716-215423, 20260717-003613.
@@ -610,10 +626,7 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   `Some("x.png")`). 20260715-142849.
 - `declared-but-not-loaded` (x1): a resource named in config/markup is not
   wired; grep for where it is imported/served. 20260713-222025.
-- `generated-links-need-real-targets` (x2): manifest-rendered AND authored doc
-  links gate on the target existing or they 404 - check every link target
-  resolves on disk (a README banner link went stale when the file moved dirs).
-  20260713-225324, 20260718-152205.
+- `generated-links-need-real-targets` (x3 -> Pending promotions): see below.
 - `enumerate-bins-via-cargo-metadata` (x1): to document or audit "every
   binary/target", enumerate with `cargo metadata --no-deps` (or find
   `src/bin/*.rs` + `src/main.rs`), never by grepping `[[bin]]` stanzas -
@@ -1527,6 +1540,16 @@ here (annotated) as the paid record.
 
 ## Pending promotions (3+ occurrences, user decides)
 
+- `generated-links-need-real-targets` (x3) -> tooling:
+  manifest-rendered, authored, AND source-comment doc links gate on the target
+  existing - a README banner went stale on a dir move; seven `docs/spikes/*.md`
+  and `DECISION.md` pointers in nova_gameplay HUD comments outlived the files,
+  the spike content having moved to `tasks/<id>/SPIKE.md`. Proposed target is a
+  tool, not prose: a check that every filesystem-looking path in a comment or
+  doc resolves, run with the other checks. It is mechanical, and a rotted
+  pointer is the one thing in a comment pass that is checkable rather than a
+  judgment call. 20260713-225324, 20260718-152205, 20260731-170329.
+
 - `rustdoc-no-public-to-private-intra-doc-link` (x3, PROMOTE 2026-07-31 -> 20260731-202401) -> work skill (verify step):
   a `pub` item's rustdoc cannot `[intra-doc-link]` a PRIVATE symbol (or a
   cross-module item not in scope) without a `cargo doc` warning - plain code span
@@ -1536,7 +1559,9 @@ here (annotated) as the paid record.
   still resolve after a move, just to a different module. Prose target (work
   verify step): "when a change moves documented items across a module or crate
   boundary, run `cargo doc -p <crate> --no-deps --document-private-items` and
-  diff the warning count against the BASE, not zero". The x3 occurrence had the
+  diff the warning count against the BASE, not zero - capturing the base with
+  the SAME command and a forced rebuild, since a warm-cache loose grep read 2
+  against a true 14 in 20260731-170329". The x3 occurrence had the
   x2 lesson already written and did not apply it, which is the argument for
   making it a step rather than a lesson.
   20260723-143530, 20260727-015156, 20260731-170322.

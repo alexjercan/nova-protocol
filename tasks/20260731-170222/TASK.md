@@ -89,3 +89,12 @@ before the epic closes.
       changed. Supporting evidence in that task's REVIEW.md: item multisets
       identical to the base, all three plugin `build` bodies byte-identical,
       and the same 102 tests passing by name.
+- [ ] 20260731-170329 - skim the combat-readout comment diff and agree no
+      behavior changed. Supporting evidence in that task's NOTES.md: item
+      multiset identical at 485, `cargo doc` warnings unchanged at 14, and the
+      entire non-comment diff is 3 test assertion strings, so every plugin
+      `build` body is byte-identical.
+- [ ] 20260731-170329 - the test-name-list proof was NOT obtained; running the
+      suite locally exhausts this box's RAM (see 20260731-210651). CI runs it
+      on the PR. Confirm that substitution is acceptable, or run it somewhere
+      with headroom.

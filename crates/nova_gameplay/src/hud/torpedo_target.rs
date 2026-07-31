@@ -1,7 +1,7 @@
 //! The torpedo-lock reticle and the locked-target info readout: a
 //! screen-projected indicator on the entity the player's aim-assist currently
 //! locks (the ship-root `CombatLock`), with distance, closing speed
-//! and a health bar riding its edge (tasks 20260708-165700 / 165702).
+//! and a health bar riding its edge.
 //!
 //! A thin consumer of the [`screen_indicator`](mod@super::screen_indicator)
 //! widget: the widget owns projection, sizing and visibility; this module
@@ -58,8 +58,7 @@ const HEALTH_BAR_SIZE: Vec2 = Vec2::new(64.0, 6.0);
 const HEALTH_BAR_BACKDROP: Color = nova_ui::theme::semantic::BACKDROP;
 
 /// Focus meter size (px): a thin underline below the reticle that fills
-/// while the focus dwell accumulates (component-lock arc, task
-/// 20260709-192523).
+/// while the focus dwell accumulates (the component-lock arc).
 const FOCUS_METER_SIZE: Vec2 = Vec2::new(48.0, 4.0);
 
 /// Focus meter backdrop.
@@ -69,16 +68,15 @@ const FOCUS_METER_BACKDROP: Color = nova_ui::theme::semantic::BACKDROP;
 /// unlocks.
 const FOCUS_METER_COLOR: Color = Color::srgba(1.0, 0.4, 0.25, 0.9);
 
-/// The combat reticle is ALWAYS combat-red (user decision 2026-07-13, task
-/// 20260713-124000): the on-object lock language is purely slot-colored -
-/// red bracket = combat lock, white bracket = travel lock. This retires the
-/// relation tint (task 20260708-203708, kept "awaiting user veto" - this is
-/// the veto) and the reticle's four armed corner pips: a visible combat
-/// reticle already IMPLIES weapons-hot (lock => hot, the safety truth
-/// table), and the raised-manual hot cue lives on the lead pips.
+/// The combat reticle is ALWAYS combat-red: the on-object lock language is
+/// purely slot-colored - red bracket = combat lock, white bracket = travel
+/// lock. This retires the relation tint and the reticle's four armed corner
+/// pips: a visible combat reticle already IMPLIES weapons-hot (lock => hot,
+/// the safety truth table), and the raised-manual hot cue lives on the lead
+/// pips.
 const RETICLE_COMBAT_COLOR: Color = nova_ui::theme::semantic::THREAT;
 
-/// The LOCK WIND-DOWN cue (task 20260730-123009). The combat lock decays
+/// The LOCK WIND-DOWN cue. The combat lock decays
 /// after `COMBAT_DECAY_SECS` without combat activity - an intended rule the
 /// owner kept, but with nothing on screen counting it down the lock simply
 /// vanished and read as a bug. Over the last `DECAY_WIND_DOWN_SECS` of the
@@ -86,8 +84,8 @@ const RETICLE_COMBAT_COLOR: Color = nova_ui::theme::semantic::THREAT;
 /// (`DECAY_PULSE_HZ_CALM` -> `DECAY_PULSE_HZ_URGENT`, depth
 /// `DECAY_PULSE_DEPTH`), so the lock is SEEN losing its grip before the
 /// unlatch ghost pops it off. Deliberately the existing reticle rather than a
-/// new countdown widget (DECISION.md): no extra screen furniture for a state
-/// that only matters at the end.
+/// new countdown widget: no extra screen furniture for a state that only
+/// matters at the end.
 const DECAY_WIND_DOWN_SECS: f32 = 5.0;
 const DECAY_MIN_ALPHA: f32 = 0.25;
 const DECAY_PULSE_HZ_CALM: f32 = 1.5;
@@ -173,7 +171,7 @@ pub fn torpedo_target_hud(config: TorpedoTargetHudConfig) -> impl Bundle {
                     min_px: MIN_RETICLE_PX,
                     // The travel crosshair rides the same anchors at 1.35;
                     // the combat reticle tracks true apparent size so the
-                    // pair stays concentric (playtest 2026-07-13).
+                    // pair stays concentric.
                     scale: 1.0,
                 },
                 offset: Vec2::ZERO,
@@ -325,7 +323,7 @@ impl Plugin for TorpedoTargetHudPlugin {
     }
 }
 
-/// The combat emphasis (task 20260728-175747): the lock readout grows while the
+/// The combat emphasis: the lock readout grows while the
 /// weapons are hot, and the reticle pulses while the trigger is actually down.
 /// Two nodes, one situation source, so they cannot disagree about what "in
 /// combat" means.
@@ -355,8 +353,8 @@ fn emphasize_lock_on_weapons_hot(
 /// boundary (at zero progress the ceiling IS the full alpha and the pulse has
 /// no depth), so the cue fades in without a step.
 ///
-/// A function of the DECAY CLOCK alone - deliberately not of session time
-/// (review R1.1). Phase must be the INTEGRAL of a sweeping frequency: the
+/// NOTE: a function of the DECAY CLOCK alone - deliberately not of session
+/// time. Phase must be the INTEGRAL of a sweeping frequency: the
 /// first cut multiplied the render clock by the swept `hz`, which makes the
 /// instantaneous rate `hz + elapsed * d(hz)/dt` and so grows without bound
 /// with session uptime - measured at 29 pulses over the window at t=0, 10 at
@@ -382,8 +380,8 @@ fn wind_down_alpha(idle_secs: f32) -> f32 {
 }
 
 /// Drive the combat reticle's alpha from the player's [`CombatDecay`] clock,
-/// so an idling lock is SEEN winding down instead of vanishing (task
-/// 20260730-123009). No lock, or a clock held at zero by combat activity,
+/// so an idling lock is SEEN winding down instead of vanishing.
+/// No lock, or a clock held at zero by combat activity,
 /// renders the reticle at full strength.
 fn wind_down_reticle_on_decay(
     q_player: Query<(&CombatLock, &CombatDecay), With<PlayerSpaceshipMarker>>,
@@ -887,17 +885,16 @@ mod tests {
         assert_eq!(meter_state(&mut world).0, Visibility::Hidden);
     }
 
-    // -- reticle slot color (task 20260713-124000) --
+    // -- reticle slot color --
 
     #[test]
     fn the_reticle_is_always_combat_red() {
-        // The on-object lock language is slot-colored (user decision
-        // 2026-07-13): red bracket = combat lock, white bracket = travel
-        // lock. No relation tint - the red is baked into the bundle; this
-        // pins the contract so a re-added tint system shows up as a failing
-        // diff here. The one per-frame color system is the wind-down cue
-        // (task 20260730-123009), and it only ever moves the ALPHA of this
-        // same red - pinned by `the_wind_down_*` tests below.
+        // The on-object lock language is slot-colored: red bracket = combat
+        // lock, white bracket = travel lock. No relation tint - the red is
+        // baked into the bundle; this pins the contract so a re-added tint
+        // system shows up as a failing diff here. The one per-frame color
+        // system is the wind-down cue, and it only ever moves the ALPHA of
+        // this same red - pinned by `the_wind_down_*` tests below.
         let mut world = World::new();
         world.spawn(torpedo_target_hud(TorpedoTargetHudConfig::default()));
         let color = world
@@ -909,7 +906,7 @@ mod tests {
         assert_eq!(color, RETICLE_COMBAT_COLOR);
     }
 
-    // -- the lock wind-down cue (task 20260730-123009) --
+    // -- the lock wind-down cue --
 
     /// Sample the whole wind-down window at `sample_hz` frames per second,
     /// from the moment it opens to the moment the lock clears.
@@ -976,7 +973,7 @@ mod tests {
         );
     }
 
-    /// THE R1.1 REGRESSION. The cue must be the SAME cue however long the
+    /// The cue must be the SAME cue however long the
     /// session has been running and whatever the frame rate. The first cut
     /// multiplied the RENDER clock by a swept frequency, which makes the
     /// instantaneous rate grow with uptime: 29 pulses over the window at
@@ -1054,7 +1051,7 @@ mod tests {
         );
 
         // The PULSE reaches the node too, and reads the same on a session
-        // that has been running for five minutes (review R1.1: the first cut
+        // that has been running for five minutes (the first cut
         // read the render clock, so the same idle clock painted a different
         // reticle depending on uptime). Walk the last second of the window a
         // frame at a time and count what the player would see.
@@ -1097,7 +1094,7 @@ mod tests {
         );
     }
 
-    /// The combat emphasis (task 20260728-175747): the readout grows with the
+    /// The combat emphasis: the readout grows with the
     /// SAFETY (weapons hot) and the reticle pulses with the TRIGGER (firing).
     /// Pinned as two different situations so the pair cannot be collapsed into
     /// one flag by a later edit.
@@ -1150,12 +1147,12 @@ mod tests {
     /// The readout rides INSIDE the reticle, so the two emphases MULTIPLY
     /// rather than the readout showing its own 1.12 while firing. Pinned so the
     /// number a playtest complaint would be about is written down, and so a
-    /// later re-parent that changes it shows up here (review R1.3).
+    /// later re-parent that changes it shows up here.
     #[test]
     fn the_composed_peak_while_firing_is_the_product() {
         // The doc comment on LOCK_COMPOSED_FIRING_PEAK quotes 1.2544 as the
         // number to take to a playtest; pin it to the constants so retuning
-        // either emphasis cannot leave that prose silently stale (review R2.1).
+        // either emphasis cannot leave that prose silently stale.
         assert!(
             (LOCK_COMPOSED_FIRING_PEAK - 1.2544).abs() < 1e-6,
             "the documented composed peak is {LOCK_COMPOSED_FIRING_PEAK}, not 1.2544"

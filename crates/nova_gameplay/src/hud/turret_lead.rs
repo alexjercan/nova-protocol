@@ -1,7 +1,7 @@
 //! Turret lead/intercept pips: one small screen-projected pip per player
 //! turret, drawn at the turret's already-computed intercept point
 //! (`TurretSectionAimPoint`) so the player can see the lead each turret is
-//! taking (task 20260708-165701).
+//! taking.
 //!
 //! A thin consumer of the [`screen_indicator`](mod@super::screen_indicator)
 //! widget with `Point` anchors: a reconcile system keeps one pip per turret
@@ -42,11 +42,10 @@ pub struct TurretLeadPipMarker;
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 pub struct TurretLeadPipTurret(pub Entity);
 
-/// Hot-shifted pip tint (Q5a of spike 20260713-110039): while the player's
-/// weapons are HOT the aim pips go lock-red - raised-manual gunnery has no
-/// lock crosshair or inset on screen, so the pip the player is aiming with
-/// must carry the state (adversarial F4). Ticks would be noise at 8 px;
-/// color-only is the deliberate exception to shape+color here.
+/// Hot-shifted pip tint: while the player's weapons are HOT the aim pips go
+/// lock-red - raised-manual gunnery has no lock crosshair or inset on screen,
+/// so the pip the player is aiming with must carry the state. Ticks would be
+/// noise at 8 px; color-only is the deliberate exception to shape+color here.
 const PIP_HOT_COLOR: Color = Color::srgba(1.0, 0.4, 0.3, 0.95);
 
 /// UI bundle for the pip layer. Pips are spawned under it by
@@ -88,10 +87,10 @@ impl Plugin for TurretLeadPlugin {
     fn build(&self, app: &mut App) {
         debug!("TurretLeadPlugin: build");
 
-        // The pips consume THIS frame's intercept: after the PostUpdate aim
-        // chain publishes it, before the indicator projection places the
-        // nodes (task 20260710-231929 - in Update the pip was always one
-        // frame behind the solution, jittering against a moving target).
+        // NOTE: the pips consume THIS frame's intercept - after the PostUpdate
+        // aim chain publishes it, before the indicator projection places the
+        // nodes. In Update the pip was always one frame behind the solution,
+        // jittering against a moving target.
         app.add_systems(
             PostUpdate,
             (sync_turret_pips, drive_pip_anchors, drive_pip_hot_tint)
@@ -102,8 +101,8 @@ impl Plugin for TurretLeadPlugin {
     }
 }
 
-/// Shift the pips to the hot tint while the player's weapons are HOT (F4:
-/// the manual-gunnery hot cue).
+/// Shift the pips to the hot tint while the player's weapons are HOT - the
+/// manual-gunnery hot cue.
 fn drive_pip_hot_tint(
     q_player: Query<&WeaponsHot, With<PlayerSpaceshipMarker>>,
     mut q_pips: Query<&mut BackgroundColor, With<TurretLeadPipMarker>>,
@@ -321,7 +320,7 @@ mod tests {
         );
     }
 
-    /// The pip must mark THIS frame's intercept (task 20260710-231929). The
+    /// The pip must mark THIS frame's intercept. The
     /// aim chain publishes in PostUpdate; before the fix the pips consumed
     /// it from Update - always one frame behind, so the crosshair jittered
     /// against any moving target by one frame of intercept motion. The rig

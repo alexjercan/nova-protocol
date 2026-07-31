@@ -1,8 +1,7 @@
 //! Diegetic per-weapon ammo readouts: a small chunked gauge drawn ON each
 //! player weapon that still carries a finite [`SectionAmmo`], so the player
-//! can see a turret or torpedo bay running dry without reading a corner panel
-//! (task 20260712-131348; direction settled in
-//! docs/spikes/20260712-143113-diegetic-ammo-readout.md).
+//! can see a turret or torpedo bay running dry without reading a corner
+//! panel.
 //!
 //! A thin consumer of the [`screen_indicator`](mod@super::screen_indicator)
 //! widget with `Entity` anchors: a reconcile system keeps one readout per
@@ -21,7 +20,7 @@
 //! pips above the live-round level fill as a reload sweep in the same hue at a
 //! dimmer `RELOAD_ALPHA`, proportional to cycle progress: a spent turret ring
 //! fills from empty back to full, and a rearming torpedo bar lights the rounds
-//! coming back above the ones still loaded (task 20260716-123556).
+//! coming back above the ones still loaded.
 //!
 //! A weapon with no `SectionAmmo` fires without limit (the `infinite_ammo`
 //! path forces `ammo_capacity = None`, so the component is simply absent):
@@ -39,7 +38,7 @@
 //! Like the other combat overlays the layer is `HudTier::Instrument` and is
 //! spawned/despawned with the player ship by the hud/mod.rs observers.
 //!
-//! CONTEXTUAL (task 20260728-175747): the gauges are not on whenever a weapon
+//! CONTEXTUAL: the gauges are not on whenever a weapon
 //! has ammo - the layer carries a [`HudContextGate`] driven by
 //! [`sync_ammo_gate`], so they surface while the weapons are hot or a group is
 //! nearly dry, and stay out of the way in idle cruise. Low ammo forces them
@@ -142,8 +141,8 @@ pub struct AmmoReadoutNumber;
 #[reflect(Resource)]
 pub struct AmmoReadoutDebug(pub bool);
 
-/// Starts off to match nova_debug's `DebugEnabled(false)` default (task
-/// 20260721-221936: the whole debug layer boots off and F11 raises it as one).
+/// Starts off to match nova_debug's `DebugEnabled(false)` default: the whole
+/// debug layer boots off and F11 raises it as one.
 /// Both toggle on F11, so matching defaults keeps the ammo number in phase with
 /// debug mode; a mismatch here is what inverts the number relative to the rest
 /// of the debug layer.
@@ -163,7 +162,7 @@ pub fn ammo_readout_hud() -> impl Bundle {
         // Contextual: shut until the weapons are hot or a group runs low. The
         // readouts underneath are projected indicators, so the gate has to be
         // enforced downstream of the projection - which is exactly where
-        // `apply_hud_visibility` reads it from this layer (task 20260728-175747).
+        // `apply_hud_visibility` reads it from this layer.
         HudContextGate(false),
         screen_indicator_layer(),
     )
@@ -393,7 +392,7 @@ const WARN_ALPHA: (f32, f32) = (0.62, LIT_ALPHA);
 
 /// Alpha of a pip the reload sweep has filled - between dim and lit, so a
 /// reloading track reads as "coming back" without being mistaken for live
-/// rounds. Task 20260716-123556.
+/// rounds.
 const RELOAD_ALPHA: f32 = 0.5;
 
 /// Whether a weapon group is nearly dry (see [`LOW_AMMO_FRACTION`]). A group at
@@ -415,21 +414,21 @@ fn warn_alpha(elapsed: f32) -> f32 {
 /// steady level up to full - as progress runs 0->1, so a discrete reload of an
 /// empty magazine fills the whole gauge and a continuous regen lights just the
 /// round being restored. Pure and gauge-agnostic (turret ring or torpedo bar):
-/// the caller passes the pip count and the steady lit count. Task 20260716-123556.
+/// the caller passes the pip count and the steady lit count.
 fn reload_fill_segments(segment_count: usize, steady_lit: usize, progress: f32) -> usize {
     let remaining = segment_count.saturating_sub(steady_lit);
     ((progress.clamp(0.0, 1.0) * remaining as f32).round() as usize).min(remaining)
 }
 
 /// Light each readout's chunks from its section's current `rounds/capacity`, in
-/// the color of the loaded round's damage type (task 20260712-133349). Turret
+/// the color of the loaded round's damage type. Turret
 /// readouts read the section's [`LoadedBullet`] slot; torpedo readouts are
 /// Explosive (a torpedo always detonates an Explosive `NovaBlast`).
 ///
 /// While the section is reloading (it carries a [`SectionReload`] mid-cycle) the
 /// pips above the steady lit level fill as a reload sweep in the same hue at
 /// [`RELOAD_ALPHA`], so a spent turret ring fills from empty to full and a
-/// rearming torpedo bar lights the round being restored (task 20260716-123556).
+/// rearming torpedo bar lights the round being restored.
 /// This is the single point that reads ammo/reload state, so growing to
 /// per-bullet-type magazines later stays a local change.
 fn drive_ammo_readouts(
@@ -473,9 +472,9 @@ fn drive_ammo_readouts(
             _ => steady_lit,
         };
         // Nearly dry: the whole group goes amber and breathes, so a magazine
-        // about to run out is visible without reading a number (task
-        // 20260728-175742, demo 2 `.grp.low`). A group in a reload cycle is
-        // deliberately NOT warned - it is already coming back.
+        // about to run out is visible without reading a number (demo 2
+        // `.grp.low`). A group in a reload cycle is deliberately NOT warned -
+        // it is already coming back.
         let low = is_low_ammo(ammo) && reload_end == steady_lit;
         let hue = if low {
             nova_ui::theme::AMBER_NOVA
@@ -585,7 +584,7 @@ impl Plugin for AmmoReadoutPlugin {
             app.init_resource::<AmmoReadoutDebug>();
             app.register_type::<AmmoReadoutDebug>();
             app.register_type::<AmmoReadoutNumber>();
-            // UNGATED on purpose (task 20260712-173928): this mirrors
+            // NOTE: UNGATED on purpose - this mirrors
             // nova_debug's `toggle_debug_mode`, which is also ungated, so the two
             // F11 flags stay in phase from their shared `true` default. Gating
             // this to `Playing` (the old bug) let an F11 press in the menu/editor
@@ -936,8 +935,8 @@ mod tests {
         // ungated toggle; keep this system ungated, see AmmoReadoutPlugin.)
         let mut world = World::new();
         world.init_resource::<AmmoReadoutDebug>();
-        // Default OFF, in phase with nova_debug's `DebugEnabled(false)`: the whole
-        // debug layer boots off and F11 raises it as one (task 20260721-221936).
+        // Default OFF, in phase with nova_debug's `DebugEnabled(false)`: the
+        // whole debug layer boots off and F11 raises it as one.
         assert!(
             !**world.resource::<AmmoReadoutDebug>(),
             "the ammo number defaults off, matching the rest of the debug layer"
@@ -1100,7 +1099,7 @@ mod tests {
         );
     }
 
-    /// A nearly-dry group goes AMBER and breathes (task 20260728-175742, demo 2
+    /// A nearly-dry group goes AMBER and breathes (demo 2
     /// `.grp.low`), while a healthy group keeps its damage-type hue. Without
     /// this the only "you are out" signal was counting dark pips.
     #[test]
@@ -1200,7 +1199,7 @@ mod tests {
         );
     }
 
-    // -- contextual gate (task 20260728-175747) --
+    // -- contextual gate --
 
     fn gate(world: &mut World) -> bool {
         world

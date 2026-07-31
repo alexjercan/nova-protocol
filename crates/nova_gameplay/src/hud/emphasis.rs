@@ -1,5 +1,5 @@
 //! Grow-in-use emphasis: the one mechanism every contextual HUD widget uses to
-//! say "this is the thing you are using right now" (task 20260728-175747).
+//! say "this is the thing you are using right now".
 //!
 //! Demo 2 (`examples/ui/hud_rework_poc.html`) expresses emphasis as a CSS
 //! `transform: scale(...)` with a 0.2s ease, plus one oscillating case (the

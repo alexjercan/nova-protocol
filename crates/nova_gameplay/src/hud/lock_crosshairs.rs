@@ -1,26 +1,25 @@
-//! The two-lock crosshair language of the deliberate-radar model (spikes
-//! 20260713-082207 + 20260713-110039): show, don't tell.
+//! The two-lock crosshair language of the deliberate-radar model: show,
+//! don't tell.
 //!
 //! - WHITE crosshair on the [`TravelLock`] target - the nav designation. The
 //!   COMBAT crosshair (the existing reticle in hud/torpedo_target.rs, kept
 //!   slightly SMALLER so the two overlap cleanly on one body) is always
-//!   combat-RED: the on-object lock language is purely slot-colored (user
-//!   decision 2026-07-13, task 20260713-124000 - red bracket = combat lock,
-//!   white bracket = travel lock; the relation tint and the reticle corner
-//!   pips are retired, since a visible combat reticle already implies
-//!   weapons-hot).
+//!   combat-RED: the on-object lock language is purely slot-colored - red
+//!   bracket = combat lock, white bracket = travel lock; the relation tint
+//!   and the reticle corner pips are retired, since a visible combat reticle
+//!   already implies weapons-hot.
 //! - A HOLLOW bordered box riding the live lock while a radar gesture is
 //!   ENGAGED (past the hold threshold; nothing renders inside the tap
-//!   window - F11), colored by the engaged slot, with a DISTANCE-ONLY label
-//!   identical for both slots (playtest 2026-07-13 revising Q6a: the name
-//!   read as clutter and the slot asymmetry as a bug; names live on the
-//!   inset's faction line and the readout).
-//! - An UNLATCH GHOST per tap-clear (Q7a): the crosshair visibly pops off
+//!   window), colored by the engaged slot, with a DISTANCE-ONLY label
+//!   identical for both slots: the name read as clutter and the slot
+//!   asymmetry as a bug, so names live on the inset's faction line and the
+//!   readout.
+//! - An UNLATCH GHOST per tap-clear: the crosshair visibly pops off
 //!   the target - scale up, fade out - in the slot's color; the staged
 //!   double tap reads as two distinct pops. Replaces the old text toast
 //!   (the LockOff cue in audio.rs is its sound).
 //! - A brief centered red flash when the radar is DENIED (no Lock
-//!   capability, F7/Q8a; pairs with the deny buzz).
+//!   capability; pairs with the deny buzz).
 //!
 //! The old "WEAPONS HOT ..." status text block is GONE: the inset frame
 //! (+ the hot-shifted lead pips) carries the safety state, the inset's
@@ -46,7 +45,7 @@ const TRAVEL_CROSSHAIR_MIN_PX: f32 = 40.0;
 
 /// Apparent-size multiplier of the travel crosshair vs the combat reticle
 /// (which tracks at 1.0): keeps an overlapped pair concentric at any target
-/// size, not just at the min-px floor (playtest 2026-07-13). A feel knob.
+/// size, not just at the min-px floor. A feel knob.
 const TRAVEL_CROSSHAIR_SCALE: f32 = 1.35;
 
 /// Travel-lock white.
@@ -68,7 +67,7 @@ const GHOST_GROWTH: f32 = 0.8;
 const GHOST_TRAVEL_PX: f32 = TRAVEL_CROSSHAIR_MIN_PX;
 const GHOST_COMBAT_PX: f32 = 32.0;
 
-/// Radar-denied flash: a centered hollow box, red, gone fast (Q8a).
+/// Radar-denied flash: a centered hollow box, red, gone fast.
 const DENY_FLASH_SECONDS: f32 = 0.35;
 
 /// Marker for the crosshairs layer root.
@@ -129,8 +128,7 @@ pub fn lock_crosshairs_hud(target_sprite: Handle<Image>) -> impl Bundle {
                         // Rendered a step LARGER than the combat reticle
                         // (scale 1.0) so an overlapped pair on a big/close
                         // body stays two concentric rings instead of two
-                        // same-size sprites shimmering over each other
-                        // (playtest 2026-07-13).
+                        // same-size sprites shimmering over each other.
                         scale: TRAVEL_CROSSHAIR_SCALE,
                     },
                     offset: Vec2::ZERO,
@@ -242,11 +240,10 @@ fn drive_travel_crosshair(
 /// rides the LIVE LOCK - the engaged slot's current target - not the raw
 /// candidate (keep-last means the candidate can be `None` over empty space
 /// while the lock still holds; the adornment must not blink there). Inside
-/// the tap window nothing renders (F11). The label is DISTANCE ONLY and
-/// identical for both slots (playtest 2026-07-13: name + distance read as
-/// clutter, and combat/travel behaving differently read as a bug; the
-/// target's name lives on the inset viewfinder's faction line and the
-/// readout).
+/// the tap window nothing renders. The label is DISTANCE ONLY and
+/// identical for both slots: name + distance read as clutter, and
+/// combat/travel behaving differently read as a bug; the target's name lives
+/// on the inset viewfinder's faction line and the readout.
 #[allow(clippy::type_complexity)]
 fn drive_radar_candidate(
     q_player: Query<
@@ -308,7 +305,7 @@ fn drive_radar_candidate(
     }
 }
 
-/// Spawn an unlatch ghost per tap-clear (Q7a): a crosshair stamp on the
+/// Spawn an unlatch ghost per tap-clear: a crosshair stamp on the
 /// cleared target that grows and fades - the wordless "the lock let go".
 /// The toast message always carries the target (the tap only fires on a
 /// `Some` slot), so there is nothing to pop for a `None`.
@@ -384,7 +381,7 @@ fn fade_unlatch_ghosts(
     }
 }
 
-/// Flash the centered deny box while [`RadarDenied`] burns down (Q8a): the
+/// Flash the centered deny box while [`RadarDenied`] burns down: the
 /// visual half of the deny cue (the buzz is audio.rs's).
 fn flash_radar_deny(
     time: Res<Time>,
@@ -502,7 +499,7 @@ mod tests {
     fn radar_box_rides_the_live_lock_with_a_distance_only_label() {
         let (mut world, player, target, boxed, label) = box_world();
 
-        // Open search inside the tap window: nothing renders (F11).
+        // Open search inside the tap window: nothing renders.
         world.entity_mut(player).insert(RadarState {
             engaged: None,
             candidate: Some(target),
@@ -517,8 +514,8 @@ mod tests {
         );
 
         // Engaged travel sweep: the box rides the pick, white, and the
-        // label is DISTANCE ONLY (playtest 2026-07-13 - the name read as
-        // clutter; it lives on the inset's faction line now).
+        // label is DISTANCE ONLY - the name read as clutter, and it lives on
+        // the inset's faction line now.
         world.get_mut::<RadarState>(player).unwrap().engaged = Some(RadarSlot::Travel);
         world.get_mut::<TravelLock>(player).unwrap().0 = Some(target);
         world.run_system_once(drive_radar_candidate).unwrap();

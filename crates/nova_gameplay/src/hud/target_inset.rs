@@ -2,31 +2,28 @@
 //! close-up of the currently focused/locked body - a ship, torpedo or asteroid
 //! flagged [`InsetZoomable`], but not a nav beacon - so the player can see which
 //! section the fine-lock is selecting (and watch it take damage / explode
-//! scope-style) instead of squinting at sub-pixel markers at range
-//! (task 20260710-104421 + scope refinement 20260712-203345; design in
-//! docs/spikes/20260710-104011-target-inset-view.md, Option A).
+//! scope-style) instead of squinting at sub-pixel markers at range.
 //!
 //! Three pieces, all thin consumers of the existing targeting state
 //! (input/targeting.rs) - this module adds no new targeting mechanics:
 //!
 //! - A second `Camera3d` that renders the live scene into an `Image` via the
 //!   standalone [`RenderTarget`] component (the Bevy 0.19 RTT path, distinct
-//!   from a second window-targeting camera, which blacks out the scene). The
-//!   probe in task 20260710-104421 confirmed RTT coexists with the main
-//!   camera's per-camera post-processing + skybox and trips none of the
-//!   marker-filtered `Single<Camera>` queries.
+//!   from a second window-targeting camera, which blacks out the scene). RTT
+//!   coexists with the main camera's per-camera post-processing + skybox and
+//!   trips none of the marker-filtered `Single<Camera>` queries.
 //! - A corner [`ImageNode`] panel showing that texture, spawned with the player
 //!   HUD (hud/mod.rs observers) and shown whenever a COMBAT LOCK exists.
 //! - An in-scene emissive overlay on the fine-locked section, so the selection
 //!   reads in BOTH the main view and the inset with no projection code.
 //!
-//! INSET-ON-LOCK (spike 20260713-110039 B1): the camera spawns/despawns and
+//! INSET-ON-LOCK: the camera spawns/despawns and
 //! the panel shows/hides with the [`CombatLock`] itself - during a radar
 //! sweep the panel is the VIEWFINDER, and its presence is the "torpedoes
 //! are guided" signal. The focus dwell gates only the component fine-lock
 //! now. A lock on a non-zoomable body (beacon) holds the panel with the
-//! NO-SIGNAL overlay instead of blinking (Q4a); the frame color + armed
-//! corner ticks carry the weapons-safety state (Q5a). The camera is posed
+//! NO-SIGNAL overlay instead of blinking; the frame color + armed
+//! corner ticks carry the weapons-safety state. The camera is posed
 //! each frame on the locked ship's [`live_structure_anchor`] from a
 //! scope-like player-relative bearing.
 
@@ -48,8 +45,8 @@ pub mod prelude {
 
 /// Opt-in flag for bodies the target inset is allowed to scope: the lockable
 /// physical/combat bodies (ships, committed torpedoes, asteroids), but NOT nav
-/// beacons - a waypoint is not worth a close-up (user decision 2026-07-12,
-/// spike 20260712-203235). Authored by observers on the kind markers
+/// beacons - a waypoint is not worth a close-up. Authored by observers on the
+/// kind markers
 /// (SpaceshipRootMarker, TorpedoTargetChosen) and on asteroids in nova_scenario.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct InsetZoomable;
@@ -66,7 +63,7 @@ const INSET_MARGIN_PX: f32 = 12.0;
 
 /// Panel inset from the screen's top edge (px): pushed below the bcs
 /// status bar (FPS/latency row, top-right at 10 px - bcs ui/status.rs),
-/// which the panel used to overlap (playtest, 2026-07-13). A feel knob.
+/// which the panel used to overlap. A feel knob.
 const INSET_TOP_PX: f32 = 44.0;
 
 /// Panel border thickness (px).
@@ -75,26 +72,26 @@ const INSET_BORDER_PX: f32 = 2.0;
 /// Panel border tint while the weapons are HOT: the hot-metal lock red the
 /// component markers use (`hud/component_lock.rs` MARKER_SELECTED_COLOR), so
 /// the inset reads as part of the targeting family. The frame carries the
-/// safety state (Q5a of spike 20260713-110039): this red + the armed corner
-/// ticks while hot, the neutral tint below while safe.
+/// safety state: this red + the armed corner ticks while hot, the neutral
+/// tint below while safe.
 const INSET_BORDER_HOT_COLOR: Color = Color::srgba(1.0, 0.45, 0.3, 0.95);
 
 /// Panel border tint while the weapons are SAFE: quiet steel.
 const INSET_BORDER_SAFE_COLOR: Color = Color::srgba(0.65, 0.7, 0.75, 0.8);
 
 /// Armed corner tick size and thickness (px): four bars that appear at the
-/// panel corners while the weapons are hot - the SHAPE half of the Q5a
+/// panel corners while the weapons are hot - the SHAPE half of the
 /// shape+color redundancy (colorblind-safe).
 const INSET_TICK_LEN_PX: f32 = 16.0;
 const INSET_TICK_THICK_PX: f32 = 4.0;
 
-/// Faction-line colors (playtest 2026-07-13): the relation palette the
-/// retired reticle tint used, now living on the inset's rich surface.
+/// Faction-line colors: the relation palette the retired reticle tint used,
+/// now living on the inset's rich surface.
 const FACTION_HOSTILE_COLOR: Color = nova_ui::theme::semantic::THREAT;
 const FACTION_OWN_COLOR: Color = nova_ui::theme::semantic::ALLY;
 const FACTION_NEUTRAL_COLOR: Color = nova_ui::theme::semantic::NEUTRAL;
 
-/// NO-SIGNAL overlay (Q4a): shown when a combat lock exists on a body the
+/// NO-SIGNAL overlay: shown when a combat lock exists on a body the
 /// inset cannot scope (a beacon - lockable, never zoomable), so the panel
 /// holds steady instead of blinking during a sweep across it. Text-free: a
 /// near-opaque dark cover with a pulsing hollow square.
@@ -133,7 +130,7 @@ const HIGHLIGHT_SCALE: f32 = 1.14;
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TargetInsetHudMarker;
 
-/// Marker for the NO-SIGNAL overlay child (Q4a).
+/// Marker for the NO-SIGNAL overlay child.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TargetInsetNoSignalMarker;
 
@@ -141,13 +138,13 @@ pub struct TargetInsetNoSignalMarker;
 #[derive(Component, Debug, Clone, Reflect)]
 struct TargetInsetNoSignalPulseMarker;
 
-/// Marker for one armed corner tick (four exist; visible while hot, Q5a).
+/// Marker for one armed corner tick (four exist; visible while hot).
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TargetInsetArmedTickMarker;
 
 /// Marker for the viewfinder's faction line: the locked target's name +
-/// relation tag, colored by relation (playtest 2026-07-13 - the rich home
-/// of the information the retired reticle relation-tint carried).
+/// relation tag, colored by relation - the rich home of the information the
+/// retired reticle relation-tint carried.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TargetInsetCaptionMarker;
 
@@ -162,7 +159,7 @@ pub struct TargetInsetLastFramed {
     pub pose: Transform,
 }
 
-/// The kill cam (spike 20260713-154023, option B): the framed target DIED,
+/// The kill cam: the framed target DIED,
 /// so the panel holds this frozen pose while the fragments fly, then
 /// closes. Presentation-only.
 #[derive(Component, Debug, Clone, Reflect)]
@@ -249,7 +246,7 @@ pub fn create_render_target(images: &mut Assets<Image>) -> Handle<Image> {
 }
 
 /// One armed corner tick: a small bar hugging a panel corner, hidden until
-/// the weapons go hot (Q5a). `horizontal` picks the bar orientation;
+/// the weapons go hot. `horizontal` picks the bar orientation;
 /// `(right, bottom)` pick the corner.
 fn armed_tick(horizontal: bool, right: bool, bottom: bool) -> impl Bundle {
     let (width, height) = if horizontal {
@@ -281,9 +278,8 @@ fn armed_tick(horizontal: bool, right: bool, bottom: bool) -> impl Bundle {
 /// starting Hidden (the lock-driven reconcile reveals it). `Chrome` tier +
 /// `HudSelfDrivenVisibility` so it follows the HUD level yet the lock
 /// reconcile owns its moment-to-moment visibility (the gravity-sphere
-/// pattern). Children: the NO-SIGNAL overlay (Q4a), eight armed corner
-/// ticks (Q5a - two per corner, an L each) and the viewfinder caption
-/// (Q6a).
+/// pattern). Children: the NO-SIGNAL overlay, eight armed corner
+/// ticks (two per corner, an L each) and the viewfinder caption.
 pub fn target_inset_hud(image: Handle<Image>) -> impl Bundle {
     (
         Name::new("TargetInsetHUD"),
@@ -482,17 +478,16 @@ enum InsetPanelState {
     Live { target: Entity, anchor: Vec3 },
     /// A lock on a non-zoomable body: panel holds with NO-SIGNAL.
     NoSignal,
-    /// The framed target DIED: hold the frozen final shot (spike
-    /// 20260713-154023 option B).
+    /// The framed target DIED: hold the frozen final shot.
     KillCam { pose: Transform },
     /// Nothing to show.
     Hidden,
 }
 
 /// Spawn/despawn the inset camera and show/hide the panel with the COMBAT
-/// LOCK (inset-on-lock, spike 20260713-110039 B1, user-confirmed: presence
-/// of the inset IS the "not dumb-fire" signal, and during a radar sweep it
-/// is the viewfinder). The focus dwell no longer gates the panel - it keeps
+/// LOCK (inset-on-lock: presence of the inset IS the "not dumb-fire" signal,
+/// and during a radar sweep it is the viewfinder). The focus dwell no longer
+/// gates the panel - it keeps
 /// gating only the component fine-lock. One idempotent system (like the
 /// component-marker reconcile) so every ordering of lock/section changes
 /// converges; folding the lifecycle and the pose together avoids a
@@ -501,7 +496,7 @@ enum InsetPanelState {
 /// Four states: no lock (or chrome hidden) = panel hidden, camera gone;
 /// lock on a zoomable, resolvable body = panel + live camera; lock on a
 /// NON-zoomable body (a beacon) = panel with the NO-SIGNAL overlay, camera
-/// gone (Q4a); and the KILL CAM (spike 20260713-154023): when the framed
+/// gone; and the KILL CAM: when the framed
 /// target dies - it is DESPAWNED, the discriminator against tap-clear /
 /// decay / allegiance-flip clears, whose targets remain alive - the panel
 /// and camera hold the frozen final pose for [`KILL_CAM_SECS`], filming
@@ -669,9 +664,9 @@ fn drive_inset_camera(
     }
 }
 
-/// The frame carries the safety state (Q5a, shape + color): hot = the lock
+/// The frame carries the safety state (shape + color): hot = the lock
 /// red border + the armed corner ticks; safe = quiet steel, no ticks. The
-/// caption is the FACTION line (playtest 2026-07-13, revising Q6a): the
+/// caption is the FACTION line: the
 /// locked target's name + relation, colored by relation - restoring on the
 /// RICH surface the information the retired reticle relation-tint carried.
 /// The gesture-time name+distance caption is gone (it read as clutter);
@@ -919,7 +914,7 @@ mod tests {
 
     #[test]
     fn camera_and_panel_appear_the_moment_the_lock_exists() {
-        // Inset-on-lock (spike 20260713-110039 B1, user-confirmed): the
+        // Inset-on-lock: the
         // panel is up whenever a combat lock exists - the focus dwell no
         // longer gates it. The rig's dwell is stripped to zero to prove it
         // (under the old focus gate this rig showed nothing for 1.5 s).
@@ -1014,8 +1009,8 @@ mod tests {
     #[test]
     fn a_non_zoomable_lock_holds_the_panel_with_no_signal() {
         // A locked body that is NOT flagged InsetZoomable (a beacon) gets no
-        // camera - but the panel HOLDS with the NO-SIGNAL overlay (Q4a), so
-        // a sweep crossing a beacon never blinks the viewfinder (F5).
+        // camera - but the panel HOLDS with the NO-SIGNAL overlay, so
+        // a sweep crossing a beacon never blinks the viewfinder.
         let (mut world, _player, target) = rig(3);
         world.entity_mut(target).remove::<InsetZoomable>();
 
@@ -1028,7 +1023,7 @@ mod tests {
         assert_eq!(
             panel_visibility(&mut world),
             Visibility::Visible,
-            "the panel holds through the beacon (Q4a)"
+            "the panel holds through the beacon"
         );
         assert_eq!(
             overlay_visibility(&mut world),
@@ -1063,7 +1058,7 @@ mod tests {
 
     #[test]
     fn the_kill_cam_holds_the_final_shot_when_the_target_dies() {
-        // Spike 20260713-154023 option B: the framed target DYING (it is
+        // The framed target DYING (it is
         // despawned) freezes the panel on its final pose for
         // KILL_CAM_SECS instead of slamming shut, then closes.
         let (mut world, player, target) = rig(3);
@@ -1202,9 +1197,9 @@ mod tests {
 
     #[test]
     fn the_frame_carries_the_safety_state_and_the_faction_line() {
-        // Q5a (shape + color for the safety state) + the faction line
-        // (playtest 2026-07-13): name + relation tag, colored by relation,
-        // whenever a lock exists - gesture-independent.
+        // Shape + color for the safety state, plus the faction line
+        // it carries: name + relation tag, colored by relation, whenever a
+        // lock exists - gesture-independent.
         let mut world = World::new();
         let target = world
             .spawn((
@@ -1261,18 +1256,18 @@ mod tests {
             "colored by relation"
         );
 
-        // Hot: red frame, ticks on (Q5a).
+        // Hot: red frame, ticks on.
         world.entity_mut(player).insert(WeaponsHot(true));
         world.run_system_once(drive_inset_frame_state).unwrap();
         assert_eq!(
             *world.entity(frame).get::<BorderColor>().unwrap(),
             BorderColor::all(INSET_BORDER_HOT_COLOR),
-            "hot: the frame goes lock-red (Q5a color)"
+            "hot: the frame goes lock-red (color half)"
         );
         assert_eq!(
             *world.entity(tick).get::<Visibility>().unwrap(),
             Visibility::Inherited,
-            "hot: the armed ticks appear (Q5a shape)"
+            "hot: the armed ticks appear (shape half)"
         );
 
         // A neutral lock reads NEUTRAL (delivery guard for the relation

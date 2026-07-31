@@ -1,14 +1,13 @@
-//! Item highlight brackets (task 20260712-093831, spike
-//! docs/spikes/20260712-140842-objective-conveyance-visuals.md): a hollow
+//! Item highlight brackets: a hollow
 //! bracket over every [`ItemHighlight`] entity, so interactable props
 //! (salvage crates, future pickups) pop against the debris around them.
 //! The bracket tracks the prop's on-screen size via the component's
 //! AUTHORED visible radius (`ScreenIndicatorSize::WorldRadius`) - NOT
 //! collider-derived `ApparentSize`, because a pickup's only collider is
-//! its sensor sphere and the bracket would balloon to the trigger volume
-//! (review R1.1) - and hides off-screen: pointing at off-screen items is
-//! the objective marker's job, and the viewport edges stay reserved for
-//! threats and the active objective.
+//! its sensor sphere and the bracket would balloon to the trigger volume -
+//! and hides off-screen: pointing at off-screen items is the objective
+//! marker's job, and the viewport edges stay reserved for threats and the
+//! active objective.
 //!
 //! The bracket's alpha breathes in step with the crate's emissive pulse
 //! (same period, nova_scenario's salvage module), so mesh and HUD read as
@@ -192,7 +191,7 @@ mod tests {
 
     /// The bracket's indicator carries the tag's AUTHORED radius as a
     /// WorldRadius mode - never collider-derived ApparentSize, which would
-    /// size to the pickup sensor (review R1.1).
+    /// size to the pickup sensor.
     #[test]
     fn brackets_size_to_the_authored_radius() {
         let mut world = world_with_observers();

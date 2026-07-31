@@ -1,4 +1,4 @@
-//! Allegiance markers (task 20260723-233446): a small filled triangle
+//! Allegiance markers: a small filled triangle
 //! floating above every NON-player ship, tinted by the ship's
 //! [`Allegiance`] so a mixed brawl reads friend-vs-foe at a glance - green
 //! ally, red threat, grey neutral. Born from the ch5 raid playtest, where
@@ -39,7 +39,7 @@
 //! they carry an authored allegiance.
 //!
 //! Instrument tier: combat-relevant, on with the HUD and cleared at the
-//! cinematic level. Deliberately NOT contextual (task 20260728-175747): the
+//! cinematic level. Deliberately NOT contextual: the
 //! accepted ruleset does not cover always-on allegiance triangles either way,
 //! so they are left as they are pending the owner's playtest call.
 

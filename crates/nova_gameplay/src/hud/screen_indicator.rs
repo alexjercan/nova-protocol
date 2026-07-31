@@ -4,9 +4,7 @@
 //! [`ScreenIndicatorPlugin`] moves to its anchor's viewport projection every
 //! frame: give it an entity to follow or a bare world point, and the widget
 //! owns projection, visibility lifecycle, sizing, and off-screen policy, so
-//! each HUD overlay is a thin consumer instead of a fresh copy of that loop
-//! (task 20260708-165700; architecture in
-//! docs/spikes/20260709-164502-screen-indicator-architecture.md).
+//! each HUD overlay is a thin consumer instead of a fresh copy of that loop.
 //!
 //! The indicator IS the projected node: parent it under a full-screen
 //! [`screen_indicator_layer`] and attach arbitrary content to it - an
@@ -75,7 +73,7 @@ pub enum ScreenIndicatorSize {
     ApparentSize {
         /// Minimum indicator size (px), also the fallback size.
         min_px: f32,
-        /// Multiplier on the tracked extent (task 20260713-130305): two
+        /// Multiplier on the tracked extent: two
         /// indicators of the same anchor at scale 1.0 converge to the SAME
         /// pixel size on big/close targets and shimmer over each other; a
         /// distinct scale keeps them concentric rings. Applied to the
@@ -86,8 +84,7 @@ pub enum ScreenIndicatorSize {
     /// radius around the anchor, never shrinking below `min_px`. For
     /// anchors whose colliders do not describe their visible extent - a
     /// pickup whose only collider is its oversized sensor sphere would
-    /// make `ApparentSize` balloon to the trigger volume (task
-    /// 20260712-093831 review R1.1).
+    /// make `ApparentSize` balloon to the trigger volume.
     WorldRadius {
         /// The visible bounding-sphere radius (world units) to project.
         radius: f32,
@@ -225,15 +222,14 @@ impl Plugin for ScreenIndicatorPlugin {
     fn build(&self, app: &mut App) {
         debug!("ScreenIndicatorPlugin: build");
 
-        // Projection must sample the SAME camera pose the frame renders
+        // NOTE: projection must sample the SAME camera pose the frame renders
         // with. In Update the chase camera has not moved yet (bcs moves it
         // in PostUpdate), so indicators lagged the world by one frame of
-        // camera motion - the HUD twitch of task 20260710-231928. The slot
-        // is: after the chase camera writes the camera Transform, before UI
-        // layout consumes the node positions (bevy_ui runs layout BEFORE
-        // transform propagation, so fresh poses are computed via
-        // TransformHelper inside the system rather than read from
-        // GlobalTransform).
+        // camera motion - a visible HUD twitch. The slot is: after the chase
+        // camera writes the camera Transform, before UI layout consumes the
+        // node positions (bevy_ui runs layout BEFORE transform propagation,
+        // so fresh poses are computed via TransformHelper inside the system
+        // rather than read from GlobalTransform).
         app.configure_sets(
             PostUpdate,
             ScreenIndicatorSystems
@@ -345,10 +341,9 @@ fn arrow_angle(dir: Vec2) -> f32 {
 /// rather than just the root. SENSOR colliders are excluded by the query:
 /// they are invisible trigger volumes, not apparent size - a locked
 /// beacon's only collider is its 70u trigger sphere, and the reticle
-/// wrapped the trigger instead of the 2u orb (playtest 2026-07-12, task
-/// 20260712-154318; same class as the crate bracket, 20260712-093831
-/// R1.1). A sensor-only subtree yields None and the consumer falls back
-/// to its min_px.
+/// wrapped the trigger instead of the 2u orb - the same class of bug as the
+/// salvage-crate bracket. A sensor-only subtree yields None and the consumer
+/// falls back to its min_px.
 pub(crate) fn target_world_aabb(
     entity: Entity,
     q_children: &Query<&Children>,
@@ -796,9 +791,8 @@ mod tests {
 
     /// Sensor colliders are not apparent size: a locked BEACON's only
     /// collider is its huge trigger sphere, and the reticle must fall
-    /// back to min_px instead of wrapping the trigger (playtest
-    /// 2026-07-12, task 20260712-154318). A mixed subtree (ship hull +
-    /// an aim sensor) unions only the solid part. Delivery guard: the
+    /// back to min_px instead of wrapping the trigger. A mixed subtree
+    /// (ship hull + an aim sensor) unions only the solid part. Delivery guard: the
     /// same entity WITH the Sensor removed does contribute - it is the
     /// query shape, not entity absence, doing the excluding.
     #[test]
@@ -1190,7 +1184,7 @@ mod tests {
 
     /// WorldRadius projects the AUTHORED radius, ignoring colliders
     /// entirely: an oversized sensor sphere on the anchor must not change
-    /// the size (the salvage-crate bug of review R1.1, 20260712-093831).
+    /// the size (the salvage-crate bug).
     /// The size scales inversely with distance and floors at min_px.
     #[test]
     fn world_radius_projects_the_authored_radius_not_the_colliders() {
@@ -1295,7 +1289,7 @@ mod tests {
     }
 
     /// The projection must place indicators with the SAME camera pose the
-    /// frame renders with (task 20260710-231928). Before the PostUpdate
+    /// frame renders with. Before the PostUpdate
     /// move the system ran in Update, one chase-camera step early: every
     /// frame the HUD was placed with LAST frame's camera while the world
     /// rendered with this frame's, so anchored text jittered by one frame

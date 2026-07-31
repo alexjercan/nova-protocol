@@ -1,8 +1,7 @@
 //! Component-lock markers: one small screen-projected marker per attached
 //! section of the locked ship, visible only while the focus dwell is
-//! complete, with the fine-locked section highlighted
-//! (task 20260709-192523; mechanic in input/targeting.rs, design in
-//! docs/spikes/20260709-192358-component-lock-vats-lite.md).
+//! complete, with the fine-locked section highlighted (mechanic in
+//! input/targeting.rs).
 //!
 //! A thin consumer of the [`screen_indicator`](mod@super::screen_indicator)
 //! widget with `Entity` anchors on section entities: a reconcile system

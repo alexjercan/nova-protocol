@@ -1,8 +1,7 @@
 //! Off-screen target/threat edge indicators: an arrow clamped to the screen
 //! edge pointing at each tracked entity - the active lock, the multi-target
 //! candidates, and committed hostile torpedoes - so the player knows where
-//! to turn (task 20260708-165704; data source decided in
-//! docs/spikes/20260711-163800-multi-target-cycle.md).
+//! to turn.
 //!
 //! First consumer of the screen-indicator widget's `ClampToEdge` +
 //! [`ScreenIndicatorArrowMarker`] path: each indicator's only visible
@@ -16,8 +15,7 @@ use bevy::prelude::*;
 use crate::prelude::*;
 
 /// Square size (px) of one edge-arrow node. Sized to read at a glance
-/// from the screen edge (user feedback 20260711: the first cut's 14 px
-/// was too small).
+/// from the screen edge; the first cut's 14 px was too small.
 const ARROW_PX: f32 = 24.0;
 
 /// Chevron stroke length / thickness (px), and the stroke placement inside
@@ -41,9 +39,9 @@ const TORPEDO_COLOR: Color = Color::srgba(1.0, 0.2, 0.2, 0.95);
 /// Tracked candidates that are not the lock: the bracket overlay's dim red.
 const CANDIDATE_COLOR: Color = Color::srgba(1.0, 0.25, 0.25, 0.45);
 
-/// The combat-lock arrow follows the reticle's slot color (torpedo_target.rs,
-/// task 20260713-124000): always combat-red - red = combat lock, white =
-/// travel lock, everywhere. (The relation tint it used to mirror is retired.)
+/// The combat-lock arrow follows the reticle's slot color (torpedo_target.rs):
+/// always combat-red - red = combat lock, white = travel lock, everywhere.
+/// (The relation tint it used to mirror is retired.)
 const LOCK_COLOR: Color = nova_ui::theme::semantic::THREAT;
 
 /// Glob-import surface: `use nova_gameplay::hud::edge_indicators::prelude::*` re-exports the public API of this module.
@@ -201,10 +199,10 @@ impl Plugin for EdgeIndicatorsHudPlugin {
 
         app.register_type::<EdgeIndicatorKind>();
         app.add_systems(Update, sync_edge_indicators.in_set(super::NovaHudSystems));
-        // The label mirrors the arrow's visibility, which the widget writes
-        // in PostUpdate (ScreenIndicatorSystems) - mirroring from Update
-        // would lag it by a frame (review R1.1), so the driver runs right
-        // after the widget, still before UI layout consumes the text.
+        // NOTE: the label mirrors the arrow's visibility, which the widget
+        // writes in PostUpdate (ScreenIndicatorSystems) - mirroring from
+        // Update would lag it by a frame, so the driver runs right after the
+        // widget, still before UI layout consumes the text.
         app.add_systems(
             PostUpdate,
             update_edge_labels
@@ -492,8 +490,8 @@ mod tests {
 
     #[test]
     fn the_kinds_have_their_tints_and_the_lock_arrow_is_combat_red() {
-        // Slot-colored lock language (task 20260713-124000): the lock arrow
-        // is always combat-red, relation-independent, matching the reticle.
+        // Slot-colored lock language: the lock arrow is always combat-red,
+        // relation-independent, matching the reticle.
         assert_eq!(arrow_color(EdgeIndicatorKind::Lock), LOCK_COLOR);
         assert_eq!(arrow_color(EdgeIndicatorKind::Torpedo), TORPEDO_COLOR);
         assert_eq!(arrow_color(EdgeIndicatorKind::Candidate), CANDIDATE_COLOR);
