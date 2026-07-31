@@ -1,10 +1,10 @@
 # Epic: UI rework - NOVA OS look everywhere, quieter contextual HUD, metric units
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: v0.9.0,epic,ui,hud,feedback
+- TAGS: v0.9.0, epic, ui, hud, feedback
 - KIND: EPIC
-- FLOW STEP: PLANNED
+- FLOW STEP: DONE
 - PLAN STATUS: APPROVED
 
 ## Context
@@ -86,18 +86,32 @@ before Bevy work starts.
       assets/input-prompts/keyboard/Alt/, Dark/White dropped (2.4M->~800K),
       license absorbed into credits/CREDITS.md + credits/licenses/, webpack +
       HUD PoC repointed. Unblocks the HUD icon dock (175742).
-- [ ] 20260729-000956 (p50) Preload static assets via bevy_asset_loader + phosphor boot loading screen
-- [ ] 20260728-175734 (p40) nova_ui theme + widgets: NOVA OS palette + skin-aware widget set
-- [ ] 20260728-175738 (p38) Menus + editor adopt the reworked widget language
-- [ ] 20260728-175742 (p36) HUD restyle + on-screen text reduction (icon dock)
-- [ ] 20260728-175747 (p34) Contextual HUD: show-by-relevance + grow-in-use + On/Cinematic
+- [x] 20260729-000956 (p50) Preload static assets via bevy_asset_loader + phosphor boot loading screen
+      landed; bevy_asset_loader collections + phosphor boot screen; also fixed
+      the probe FPS regression (d96a9b54 closes it).
+- [x] 20260728-175734 (p40) nova_ui theme + widgets: NOVA OS palette + skin-aware widget set
+      landed 634eb3e7 (+ aab05fe8 widget_zoo duplicate-Node/text-ghost fix);
+      nova_menu's button system folded into nova_ui.
+- [x] 20260728-175738 (p38) Menus + editor adopt the reworked widget language
+      landed 6ef67424 + 87dc6ba8; UI skin setting and the scenarios scroll
+      driver came with it.
+- [x] 20260728-175742 (p36) HUD restyle + on-screen text reduction (icon dock)
+      landed 89dd435b (legacy navy/cyan retired from HUD + theme) + 5b19d08a
+      (phosphor chip family + contextual keycap icon dock).
+- [x] 20260728-175747 (p34) Contextual HUD: show-by-relevance + grow-in-use + On/Cinematic
+      landed e109b5cf + 92c153a8; objective read-notification stack replaces
+      the status-bar hint and the objective chip is the posting itself.
 
 Owner playtest feedback wave 2026-07-30 (/flow) - direct verdicts on this
 epic's DoD 3/4/5, planned as three more children:
 
-- [ ] 20260730-122843 (p50) Keybind dock shows only currently-available verbs again
-- [ ] 20260730-122909 (p48) Floating chip background covers only a corner of its label
-- [ ] 20260730-122940 (p46) Wide keycaps (Tab/Shift/Space) render at their art aspect
+- [x] 20260730-122843 (p50) Keybind dock shows only currently-available verbs again
+      landed 1f1a5c40; available-only dock with the scenario-spotlight override
+      from its DECISION.md.
+- [x] 20260730-122909 (p48) Floating chip background covers only a corner of its label
+      landed d1460fc5; world-anchored chips back their whole label.
+- [x] 20260730-122940 (p46) Wide keycaps (Tab/Shift/Space) render at their art aspect
+      landed 69dc505c; keycaps size from their art's proportions.
 
 Two more items from the same playtest are NOT part of this epic (they touch
 targeting and the NOVA OS map, neither in the epic's Done Means) and run as
@@ -136,15 +150,39 @@ scenarios scroll bug is a missing driver system for ScenariosList.
 - (done 2026-07-28) owner reviewed both HTML demos and accepted the directions
   (spike 20260728-175726; phosphor-primary CLI widgets, corner menu, contextual
   HUD ruleset, icon dock, On/Cinematic, 1u=10m).
-- (pending) owner eyeballs every restyled screen (menus, editor, HUD) in game.
-- (pending) owner playtest verdict on text density + contextual HUD feel.
 - (2026-07-30, interim) owner playtested the reworked HUD. Verdicts: the dock's
   dim-chip rule is REJECTED (wants available-only back, 122843); the world-
   anchored chip backgrounds are BROKEN (122909); the wide keycaps are
   ILLEGIBLE (122940). No verdict yet on overall text density - it is re-asked
   once these three land.
+- (done 2026-07-31) all three feedback-wave fixes landed (1f1a5c40, d1460fc5,
+  69dc505c) and the owner signed the epic off at the /flow Finish gate: DoD 3
+  (every screen carries the NOVA OS language), DoD 4 (text density) and DoD 5
+  (contextual show/emphasis) ACCEPTED. No further verdicts outstanding.
 
 ## Notes
+
+Finish gate 2026-07-31 (/flow), verified on master at 48ae5962:
+
+- DoD 1: `ls examples/ui/*poc*.html` -> nova_os_terminal_poc.html,
+  nova_ui_rework_poc.html, hud_rework_poc.html. Spike 20260728-175726's
+  SPIKE.md + DECISION.md carry the accepted directions.
+- DoD 2: `crates/nova_ui/src/units.rs` (`distance`/`speed`/`closing_speed`) is
+  the single formatter; a repo-wide grep finds no `u`/`u/s` in HUD, NOVA OS or
+  wiki output. Remaining `u/s` hits are internal world-unit comments and the
+  archived 0.7.0/0.8.0 news posts, which are historical and stay as written.
+- DoD 3-5: children 175734/175738/175742/175747 + the 2026-07-30 feedback wave
+  (122843/122909/122940) all CLOSED; owner accepted at this gate (see Manual
+  Acceptance).
+- Checks: `cargo check --workspace` clean, `cargo fmt --check` clean,
+  `tatr check` clean. `tatr check --ledger LESSONS.md` reports only pending
+  promotions awaiting the owner's decision plus one malformed disposition
+  (`reuse-known-good-stack` carries `positive`, not a
+  PROMOTE|DEFER|RETIRE|ABSORBED token) - both are ledger-level, not epic work.
+- Not epic blockers, left open on the backlog: 20260729-140945 and
+  20260730-161545 are two records of the SAME red shakedown test
+  (`an_early_derelict_kill_skips_to_the_fight`), confirmed inherited rather
+  than caused by this epic. They should be merged into one task.
 
 Extra (owner request 2026-07-28, during the spike): 20260728-185730 LANDED
 (80427d2d) - wires the reworked PoCs into the web app as a hidden easter egg

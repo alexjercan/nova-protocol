@@ -360,3 +360,7 @@ To be authored in the planning pass. Skeleton:
   (theme/widgets, p40), 20260728-175738 (menus+editor, p38), 20260728-175742
   (HUD restyle/text, p36), 20260728-175747 (contextual HUD, p34). The epic
   container holds the strand map and manual-acceptance batch.
+- **2026-07-31 (/flow Finish):** epic 20260728-175719 is CLOSED - all 11
+  children landed (including the 2026-07-30 feedback wave 122843/122909/122940)
+  and the owner accepted DoD 3/4/5 at the Finish gate. The condition gating the
+  v0.9.0 tag is met; the release is ready to cut.
