@@ -6,8 +6,6 @@ WASM simulation, scenario-driven combat.
 Start here:
 
 - Read this file.
-- Read `LESSONS.md` header and `## Pending promotions`.
-- Grep `LESSONS.md` for the touched crate or subsystem.
 - Use crate preludes. New public items require prelude exports.
 
 ## Code map
@@ -108,7 +106,7 @@ section.
 - `#![warn(missing_docs)]`: enable only on a fully documented crate.
 - Keep `cargo doc --workspace --no-deps` warning-free.
 
-Paid rules from `LESSONS.md`:
+Paid rules:
 
 - Prose from the final diff. Re-read every claim against shipped behavior.
 - Reproduce stale bug briefs against the current tree before scoping a fix.
@@ -135,7 +133,8 @@ Paid rules from `LESSONS.md`:
 - Examples/retention: declared location -> existing `examples/` or `scripts/` -> task folder -> ask once and cache in the task.
 - Domain docs: durable reference under `web/src/wiki/`; routing map in `web/src/wiki/dev/keeping-docs-in-sync.md`.
 - Research/network: use `/spike`; keep `SPIKE.md` in the task folder; verify current tree before external research.
-- Checks/records: proof-bearing DoD (`test:`, `cmd:`, `manual:`); gate with `tatr check --ledger LESSONS.md`.
+- Checks/records: proof-bearing DoD (`test:`, `cmd:`, `manual:`); gate with `tatr check`.
+- Knowledge: central repo `/home/alex/personal/agent-knowledge`; project=nova-protocol; tags=rust,bevy,game,protocol. Advisory only; failed writes stay in RETRO.
 
 Task scheduling:
 
@@ -154,8 +153,8 @@ Task records:
 | `RETRO.md` | Retrospective. |
 | `NOTES.md` | Design/fix record. |
 
-`docs/`: ephemeral scratch only. Before release: distill lessons to
-`LESSONS.md`, reference material to the wiki, then run `scripts/wipe-docs.sh`.
+`docs/`: ephemeral scratch only. Before release: move durable reference
+material to the wiki, then run `scripts/wipe-docs.sh`.
 Plans and durable records stay out of `docs/`.
 
 ## Documentation

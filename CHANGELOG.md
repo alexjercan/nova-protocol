@@ -124,7 +124,7 @@ tagged **(breaking)**.
 - Frame-time rows record run metadata (backend, GPU, resolution, preset, git SHA, host) and build profile; pre-metadata files still load.
 - Run-harness hardened for unattended use: a cleaned run dir + `probe-run.json` manifest, so a hung or crashed run still produces a FAILing report.
 - bevy_common_systems 0.19.1 -> 0.19.2: `GameEvent` gained public `name()`/`info()` read accessors for external observers.
-- The lessons ledger moved to `LESSONS.md` at the repo root; `docs/` wipes to only its README at a release (guard-enforced).
+- `docs/` wipes to only its README at a release (guard-enforced).
 
 ## [0.7.0] - 2026-07-18
 
