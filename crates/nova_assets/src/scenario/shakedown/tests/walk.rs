@@ -95,6 +95,7 @@ fn settle_beat(app: &mut App) {
 /// this.
 fn walk_to_rehearsal(app: &mut App) {
     boot(app);
+    finish_opening(app);
     enter(app, ID_BEACON_1);
     settle_beat(app);
     enter(app, ID_BEACON_2);
