@@ -17,7 +17,7 @@
 //! - An UNLATCH GHOST per tap-clear: the crosshair visibly pops off
 //!   the target - scale up, fade out - in the slot's color; the staged
 //!   double tap reads as two distinct pops. Replaces the old text toast
-//!   (the LockOff cue in audio.rs is its sound).
+//!   (the LockOff cue in audio/ is its sound).
 //! - A brief centered red flash when the radar is DENIED (no Lock
 //!   capability; pairs with the deny buzz).
 //!
@@ -382,7 +382,7 @@ fn fade_unlatch_ghosts(
 }
 
 /// Flash the centered deny box while [`RadarDenied`] burns down: the
-/// visual half of the deny cue (the buzz is audio.rs's).
+/// visual half of the deny cue (the buzz is the audio module's).
 fn flash_radar_deny(
     time: Res<Time>,
     mut denied: MessageReader<RadarDenied>,

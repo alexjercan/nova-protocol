@@ -1,9 +1,8 @@
-//! Nav beacon components (task 20260712-093044, spike
-//! docs/spikes/20260712-092926-starter-scenario.md): the marker and label a
-//! scenario-spawned beacon carries. They live in nova_gameplay - not with
-//! the beacon's scenario object in nova_scenario - because the HUD chip
-//! module (hud/beacon_chips.rs) queries them and the crate dependency runs
-//! nova_scenario -> nova_gameplay, the same split as SpaceshipRootMarker.
+//! Nav beacon components: the marker and label a scenario-spawned beacon
+//! carries. They live in nova_gameplay - not with the beacon's scenario object
+//! in nova_scenario - because the HUD chip module (hud/beacon_chips.rs) queries
+//! them and the crate dependency runs nova_scenario -> nova_gameplay, the same
+//! split as SpaceshipRootMarker.
 
 use bevy::prelude::*;
 

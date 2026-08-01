@@ -1,15 +1,14 @@
 //! Nova's gravity layer: authored one-way gravity wells with a sphere of
 //! influence (patched-conics-lite).
 //!
-//! Design: docs/spikes/20260709-193147-gravity-wells-orbital-mechanics.md.
 //! Designated bodies carry a [`GravityWell`]; entities opt in via
 //! [`GravityAffected`] and feel the real inverse square `a = mu / r^2` toward
-//! the well's center - clamped to the surface value below
-//! `body_radius + surface_margin` (no singularity slingshots), smoothstep-
-//! faded to zero over the outer band of the SOI (no force step at the
-//! boundary), exactly zero outside. When SOIs overlap only the dominant well
-//! (strongest pull at the entity's position, with hysteresis) applies, so an
-//! entity is always in exactly one body's orbit or in flat space.
+//! the well's center - clamped to the surface value below `body_radius +
+//! surface_margin` (no singularity slingshots), smoothstep- faded to zero over
+//! the outer band of the SOI (no force step at the boundary), exactly zero
+//! outside. When SOIs overlap only the dominant well (strongest pull at the
+//! entity's position, with hysteresis) applies, so an entity is always in
+//! exactly one body's orbit or in flat space.
 //!
 //! Gravity here is one-way by construction: wells pull only opted-in
 //! entities, a well source never opts in (the force system additionally
@@ -22,8 +21,7 @@
 //! The math lives in pure helpers ([`well_accel`], [`circular_orbit_speed`],
 //! [`dominant_well`]) so the well-force core stays game-agnostic - a future
 //! bevy_common_systems promotion candidate - and so the ORBIT autopilot verb
-//! (task 20260709-193339) can plan with the same formulas the force system
-//! integrates.
+//! can plan with the same formulas the force system integrates.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -82,12 +80,12 @@ impl GravityWell {
 
 /// Opt-in marker: only entities carrying this feel gravity wells. Inserted
 /// automatically on ship roots (player and AI - one arena, one physics),
-/// torpedo projectiles, and turret rounds. Turret rounds opted in as of the
-/// bullet-gravity spike (docs/spikes/20260712-112113): the curve is only
-/// perceptible on close grazing passes, but since the target ship already
-/// feels gravity, letting rounds fall too is a free common-mode correction to
-/// the lead solver's aim-behind-a-falling-target miss. Section debris still
-/// skips (perf; a later flourish). Never insert this on a well source.
+/// torpedo projectiles, and turret rounds. Turret rounds opt in too: the curve
+/// is only perceptible on close grazing passes, but since the target ship
+/// already feels gravity, letting rounds fall too is a free common-mode
+/// correction to the lead solver's aim-behind-a-falling-target miss. Section
+/// debris still skips (perf; a later flourish). Never insert this on a well
+/// source.
 #[derive(Component, Clone, Debug, Default, Reflect)]
 #[reflect(Component)]
 pub struct GravityAffected;
@@ -113,10 +111,10 @@ pub struct GravitySettings {
     /// Surface gravity a designated body gets when the scenario does not
     /// author one, u/s^2 at the body's nominal radius. 6.0 on a 20u rock
     /// gives mu = 2400: v_circ ~ 6.9 u/s at r = 50u with a ~45s lap.
-    /// Doubled from 3.0 after the 2026-07-10 playtest ("a bit weak...
-    /// I would like it to be stronger so you actually feel it") - the
-    /// arrival solver budgets the pull since 20260710-193500, so a
-    /// stronger well costs an earlier flip, not a crash.
+    /// NOTE: doubled from 3.0 after playtest ("a bit weak... I would like
+    /// it to be stronger so you actually feel it") - the arrival solver
+    /// budgets the pull, so a stronger well costs an earlier flip, not a
+    /// crash.
     pub default_surface_gravity: f32,
     /// Bodies below this nominal radius (world units) get no well by default;
     /// the 1-3u field rocks stay flat space. A scenario can still author a
@@ -125,9 +123,8 @@ pub struct GravitySettings {
     /// SOI radius as a multiple of the body radius. 8.0 puts a 20u rock's
     /// SOI at 160u: the fun orbit band (30-80u) sits deep in the unfaded
     /// core, and the well announces itself with a gentle inverse-square tug
-    /// long before the rock fills the screen. Retuned from 4.0 after the
-    /// 2026-07-10 playtest ("had to be almost near it to experience the
-    /// pull").
+    /// long before the rock fills the screen. NOTE: retuned from 4.0 after
+    /// playtest ("had to be almost near it to experience the pull").
     pub soi_factor: f32,
     /// Fraction of the SOI (outermost band) over which the pull smoothsteps
     /// to zero, so there is no force discontinuity at the boundary for the
@@ -145,15 +142,14 @@ pub struct GravitySettings {
     pub switch_hysteresis: f32,
     /// Hard cap on authored surface gravity, u/s^2 - the "gravity never
     /// out-muscles a live ship" guardrail. This is a tuning contract, not
-    /// enforced against the emergent ship acceleration (which comes from
-    /// live thruster magnitudes over live mass): for scale, the flight
-    /// tests' minimal ship accelerates at ~21 u/s^2 (magnitude 1.0 impulse
-    /// per 1/64s tick over mass 3), and shipped builds are the same order.
-    /// Keep this well under the weakest flyable build when retuning.
-    /// Raised 5.0 -> 10.0 with the 2026-07-10 strength retune (still
-    /// under half the reference ship's authority; the gravity-aware
-    /// arrival degrades to an explicit no-stopping-plan state rather
-    /// than crashing if a build ever dips below it).
+    /// enforced against the emergent ship acceleration (which comes from live
+    /// thruster magnitudes over live mass): for scale, the flight tests'
+    /// minimal ship accelerates at ~21 u/s^2 (magnitude 1.0 impulse per 1/64s
+    /// tick over mass 3), and shipped builds are the same order. Keep this well
+    /// under the weakest flyable build when retuning. Raised 5.0 -> 10.0 with
+    /// the strength retune (still under half the reference ship's authority;
+    /// the gravity-aware arrival degrades to an explicit no-stopping-plan state
+    /// rather than crashing if a build ever dips below it).
     pub max_surface_gravity: f32,
 }
 
@@ -212,10 +208,10 @@ impl Plugin for NovaGravityPlugin {
 /// `AISpaceshipMarker` per controller (a `controller: None` ship gets neither).
 /// An unpiloted ship has no drive to resist a well, so gravity would just drag
 /// it in - scripted bystanders (the Broadside Ceres Queen) are meant to FLOAT,
-/// not fall (owner playtest, task 20260722-092427). A hauler that GAINS an AI
-/// pilot (the Lifeline loiter, task 20260722-092432) opts in the moment its
-/// `AISpaceshipMarker` lands. Both observers `try_insert` the same idempotent
-/// marker, so a ship that somehow carried both would just opt in once.
+/// not fall. A hauler that GAINS an AI pilot (the Lifeline loiter) opts in the
+/// moment its `AISpaceshipMarker` lands. Both observers `try_insert` the same
+/// idempotent marker, so a ship that somehow carried both would just opt in
+/// once.
 fn insert_gravity_affected_on_player_ship(
     add: On<Add, PlayerSpaceshipMarker>,
     mut commands: Commands,
@@ -228,7 +224,7 @@ fn insert_gravity_affected_on_ai_ship(add: On<Add, AISpaceshipMarker>, mut comma
 }
 
 /// Torpedoes opt in too: PN guidance is closed-loop on line-of-sight rate,
-/// so it self-corrects through wells (spike decision 5).
+/// so it self-corrects through wells.
 fn insert_gravity_affected_on_torpedo(
     add: On<Add, TorpedoProjectileMarker>,
     mut commands: Commands,
@@ -236,8 +232,7 @@ fn insert_gravity_affected_on_torpedo(
     commands.entity(add.entity).try_insert(GravityAffected);
 }
 
-/// Turret rounds opt in as of the bullet-gravity spike
-/// (docs/spikes/20260712-112113). They ride the same `gravity_well_system` as
+/// Turret rounds opt in too. They ride the same `gravity_well_system` as
 /// ships and torpedoes - it only touches `DominantWell` on an SOI crossing
 /// (~twice over a round's life, not per tick), so ~500 live rounds/turret is
 /// affordable; a lighter no-`DominantWell` path was left unbuilt because the
@@ -260,10 +255,9 @@ fn remove_dominant_well_on_well_removed(
     for (entity, dominant) in &q_dominant {
         if **dominant == remove.entity {
             // Plain remove is safe here even during the unload sweep: this
-            // observer's commands apply BEFORE the queue's remaining
-            // despawns (probed in 20260712-115902 - see
-            // `a_wells_death_does_not_race_its_holders_despawn`, which pins
-            // that ordering), and the query only yields live holders. Only
+            // observer's commands apply BEFORE the queue's remaining despawns
+            // (see `a_wells_death_does_not_race_its_holders_despawn`, which
+            // pins that ordering), and the query only yields live holders. Only
             // commands targeting the entity whose OWN despawn triggered the
             // observer race (that entity is already gone when they apply).
             commands.entity(entity).remove::<DominantWell>();
@@ -435,9 +429,7 @@ pub(crate) fn gravity_well_system(
 mod tests {
     use super::*;
 
-    // --- Pure helpers -----------------------------------------------------
-
-    /// The spike's sanity rock: 20u radius at surface gravity 3 u/s^2.
+    /// Sanity rock: 20u radius at surface gravity 3 u/s^2.
     const MU: f32 = 1200.0;
     const BODY: f32 = 20.0;
     const SOI: f32 = 80.0;
@@ -455,18 +447,17 @@ mod tests {
         assert_eq!(accel_at(68.0), MU / (68.0 * 68.0));
     }
 
-    /// ORDERING PIN (task 20260712-115902): cross-entity observer commands
-    /// do NOT race the unload sweep. Sweep-style queue [despawn(well),
-    /// despawn(holder)]: the well's despawn fires
-    /// `remove_dominant_well_on_well_removed` while the holder is still
-    /// visible, and bevy applies the observer's strip BEFORE the holder's
-    /// pending despawn - probed by sabotage during the task: the plain
-    /// `remove` produced NO warn in this exact rig, refuting the assumed
-    /// race. The plain command in the observer is therefore correct; if
-    /// bevy ever moves observer commands behind the pending queue
-    /// (breadth-first), this test fails with "Entity despawned" and the
-    /// observer needs `try_remove`. Asserted on the log because `remove`
-    /// bakes in the WARN handler at queue time (see `crate::test_log`).
+    /// ORDERING PIN: cross-entity observer commands do NOT race the unload
+    /// sweep. Sweep-style queue [despawn(well), despawn(holder)]: the well's
+    /// despawn fires `remove_dominant_well_on_well_removed` while the holder is
+    /// still visible, and bevy applies the observer's strip BEFORE the holder's
+    /// pending despawn - probed by sabotage during the task: the plain `remove`
+    /// produced NO warn in this exact rig, refuting the assumed race. The plain
+    /// command in the observer is therefore correct; if bevy ever moves
+    /// observer commands behind the pending queue (breadth-first), this test
+    /// fails with "Entity despawned" and the observer needs `try_remove`.
+    /// Asserted on the log because `remove` bakes in the WARN handler at queue
+    /// time (see `crate::test_log`).
     #[test]
     fn a_wells_death_does_not_race_its_holders_despawn() {
         use bevy::log::tracing_subscriber::{self, util::SubscriberInitExt};
@@ -588,8 +579,6 @@ mod tests {
         assert_eq!(dominant_well(Some(a), &[(b, 0.01)], 1.1), Some(b));
     }
 
-    // --- Observer wiring ---------------------------------------------------
-
     #[test]
     fn piloted_ships_torpedoes_and_turret_rounds_opt_into_gravity() {
         let mut app = App::new();
@@ -616,9 +605,9 @@ mod tests {
         assert!(app.world().get::<GravityAffected>(round).is_some());
     }
 
-    /// The Ceres Queen case (owner playtest, task 20260722-092427): a
-    /// `controller: None` ship carries NO pilot marker, so it never opts into
-    /// gravity - it floats where it is spawned instead of falling into a well.
+    /// The Ceres Queen case: a `controller: None` ship carries NO pilot marker,
+    /// so it never opts into gravity - it floats where it is spawned instead of
+    /// falling into a well.
     #[test]
     fn an_unpiloted_ship_does_not_opt_into_gravity() {
         let mut app = App::new();
@@ -637,7 +626,6 @@ mod tests {
         );
     }
 
-    // --- Physics-level integration ------------------------------------------
     //
     // A real avian world with the real force system: well pull -> velocity ->
     // orbit. No thrusters anywhere; these cover the substrate alone.
@@ -734,11 +722,11 @@ mod tests {
 
     #[test]
     fn a_turret_round_curves_under_a_well_and_a_gravity_free_body_does_not() {
-        // The bullet-gravity regression (docs/spikes/20260712-112113): a round
-        // on a tangential pass past a well must bend toward the center, and an
-        // identical body WITHOUT GravityAffected must fly dead straight. This
-        // A/Bs the opt-in - delete the marker (or its observer) and the two
-        // trajectories coincide, failing the test.
+        // The bullet-gravity regression: a round on a tangential pass past a
+        // well must bend toward the center, and an identical body WITHOUT
+        // GravityAffected must fly dead straight. This A/Bs the opt-in - delete
+        // the marker (or its observer) and the two trajectories coincide,
+        // failing the test.
         //
         // Geometry: well at origin (mu 1200, SOI 160, unfaded core out to
         // 0.85*160 = 136u), body starts at x = b = 40u (deep in the core) on
@@ -913,11 +901,11 @@ mod tests {
         );
     }
 
-    /// The Ceres Queen, behaviourally (owner playtest, task 20260722-092427):
-    /// an unpiloted ship (`controller: None`, no pilot marker) parked inside a
-    /// well's SOI holds its position - it never opts into gravity, so no force
-    /// acts on it and it FLOATS instead of falling in. Fails before the fix,
-    /// when every ship root opted in regardless of pilot.
+    /// The Ceres Queen, behaviourally: an unpiloted ship (`controller: None`,
+    /// no pilot marker) parked inside a well's SOI holds its position - it
+    /// never opts into gravity, so no force acts on it and it FLOATS instead of
+    /// falling in. Fails before the fix, when every ship root opted in
+    /// regardless of pilot.
     #[test]
     fn an_unpiloted_ship_root_floats_in_a_well() {
         let mut app = gravity_app();

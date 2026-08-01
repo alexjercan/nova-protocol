@@ -36,7 +36,7 @@ pub use bevy_common_systems;
 /// `despawn` bake in the WARN handler at queue time (bevy_ecs
 /// commands/mod.rs `queue_handled(_, warn)`), so a `FallbackErrorHandler`
 /// swap can never see them - a "no stale command" regression test must
-/// assert on the log itself (tasks 20260712-115902, 20260713-175352).
+/// assert on the log itself.
 #[cfg(test)]
 pub(crate) mod test_log {
     /// Cloneable in-memory log sink; every clone shares the same buffer.
@@ -114,18 +114,17 @@ pub enum GameStates {
     Playing,
 }
 
-/// Whether gameplay is frozen behind a modal overlay (task 20260711-185156).
-/// Owned UI-wise by `nova_menu` (ESC toggle + overlay) and `nova_gameplay`'s
-/// Tab ship-computer NOVA OS; `nova_gameplay` gates the spaceship input/section
-/// system sets on `Unpaused`, and the clocks (`Time<Virtual>` +
-/// `Time<Physics>`) pause on entering any frozen variant. Init'd by
-/// `AppBuilder` next to [`GameStates`]. Only meaningful inside
-/// `GameStates::Playing`; leaving Playing must reset it.
+/// Whether gameplay is frozen behind a modal overlay. Owned UI-wise by
+/// `nova_menu` (ESC toggle + overlay) and `nova_gameplay`'s Tab ship-computer
+/// NOVA OS; `nova_gameplay` gates the spaceship input/section system sets on
+/// `Unpaused`, and the clocks (`Time<Virtual>` + `Time<Physics>`) pause on
+/// entering any frozen variant. Init'd by `AppBuilder` next to [`GameStates`].
+/// Only meaningful inside `GameStates::Playing`; leaving Playing must reset it.
 ///
 /// Both frozen variants ([`PauseStates::Paused`] and [`PauseStates::NovaOs`])
 /// are entered ONLY from [`PauseStates::Unpaused`] and exit back to it - never
 /// one directly into the other - so the freeze/cursor hooks never
-/// double-fire (task 20260724-102304, see its DECISION.md).
+/// double-fire.
 #[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
 pub enum PauseStates {
     #[default]
@@ -135,17 +134,16 @@ pub enum PauseStates {
     Paused,
     /// Gameplay is frozen behind the Tab ship-computer NOVA OS; the clocks are
     /// stopped and the cursor is freed, exactly like [`PauseStates::Paused`]
-    /// but without the pause menu (task 20260724-102304).
+    /// but without the pause menu.
     NovaOs,
 }
 
 impl PauseStates {
-    /// True when gameplay is frozen (any non-[`Unpaused`](PauseStates::Unpaused)
-    /// variant): the clocks are stopped and input observers must suppress. This
-    /// is the predicate the ~18 observer self-guards use instead of comparing
-    /// against a single variant, so a new frozen overlay is covered without
-    /// re-auditing every guard (task 20260724-102304;
-    /// `set-gates-miss-observers`).
+    /// True when gameplay is frozen (any
+    /// non-[`Unpaused`](PauseStates::Unpaused) variant): the clocks are stopped
+    /// and input observers must suppress. This is the predicate the ~18
+    /// observer self-guards use instead of comparing against a single variant,
+    /// so a new frozen overlay is covered without re-auditing every guard.
     pub fn is_frozen(&self) -> bool {
         *self != PauseStates::Unpaused
     }

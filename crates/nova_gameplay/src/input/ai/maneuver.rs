@@ -433,7 +433,7 @@ mod rotation_tests {
 
 #[cfg(test)]
 mod physics_tests {
-    // A real avian world with the real PD, mirroring flight.rs's physics-
+    // A real avian world with the real PD, mirroring the flight module's
     // level harness: AI rotation command -> PD torque -> hull swings. Covers
     // the task's acceptance: the AI swings to the target attitude and settles
     // without limit-cycling.

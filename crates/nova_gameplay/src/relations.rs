@@ -1,13 +1,12 @@
 //! Minimal faction/relation model: who is hostile to whom, and no more.
 //!
 //! The game needs exactly three answers about any pair of entities - own,
-//! hostile, or neutral - to drive AI target selection and HUD coloring
-//! (task 20260708-203708). This module provides an [`Allegiance`] component
-//! and a pure [`relation`] resolver over optional allegiances, so callers
-//! can pass `Option<&Allegiance>` straight from a query and unmarked
-//! entities (asteroids, debris) resolve as neutral. A fuller faction system
-//! (alliances, reputation) is deliberately out of scope; spike it if the
-//! game ever needs one.
+//! hostile, or neutral - to drive AI target selection and HUD coloring This
+//! module provides an [`Allegiance`] component and a pure [`relation`] resolver
+//! over optional allegiances, so callers can pass `Option<&Allegiance>`
+//! straight from a query and unmarked entities (asteroids, debris) resolve as
+//! neutral. A fuller faction system (alliances, reputation) is deliberately out
+//! of scope.
 
 use bevy::prelude::*;
 

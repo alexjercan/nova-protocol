@@ -25,7 +25,7 @@ const AI_WAYPOINT_SLACK: f32 = 25.0;
 /// actually satisfies it and the helm rests between corrections.
 const AI_IDLE_DRIFT_SPEED: f32 = 1.0;
 
-/// Fly the passive states through the real autopilot (flight.rs) instead of
+/// Fly the passive states through the real autopilot (flight/) instead of
 /// a parallel steering path: `Patrol` keeps a GOTO engaged toward the
 /// current [`AIPatrolRoute`] waypoint and turns onto the next leg on
 /// arrival; `Orbit` keeps an ORBIT engaged on its directive's well (the

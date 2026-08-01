@@ -1,16 +1,13 @@
 //! Nova's typed-damage layer: authored weapon damage scaled by a per-section
 //! resistance table, applied by OWNING the `HealthApplyDamage` trigger.
 //!
-//! - Architecture: docs/spikes/20260712-133135-weapon-and-damage-type-variety.md
-//! - Types + table: docs/spikes/20260712-160505-damage-and-bullet-type-taxonomy.md
-//!
 //! bevy_common_systems (bcs) owns the generic HP + integrity store: its single
 //! `on_damage` observer subtracts `HealthApplyDamage.amount`, marks the node at
 //! zero, and re-propagates up `ChildOf`. bcs carries NO damage type, and Bevy
 //! 0.19 gives no ordering between observers of one event - so a nova observer
 //! that tried to scale `amount` would race bcs's subtractor and lose half the
-//! time (spike, rejected option C). Instead nova owns the trigger: it computes
-//! the already-resistance-scaled amount at the weapon-hit callsite and only THEN
+//! time. Instead nova owns the trigger: it computes the
+//! already-resistance-scaled amount at the weapon-hit callsite and only THEN
 //! triggers `HealthApplyDamage`, so bcs just subtracts what nova decided. This
 //! module is the shared vocabulary the turret and torpedo callsites use:
 //! [`DamageType`], the [`ProjectileDamage`] a projectile carries, the
@@ -34,7 +31,7 @@ pub mod prelude {
 ///
 /// Kinetic is the reference type - [`resistance`] is 1.0 for it against every
 /// section, so a Kinetic weapon behaves exactly as the pre-typed model did. The
-/// three others each have one clear best target (spike taxonomy).
+/// three others each have one clear best target.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum DamageType {
@@ -87,22 +84,20 @@ pub enum SectionDamageClass {
 /// Physical mass given to a turret bullet so bcs's emergent kinetic term rounds
 /// to nothing.
 ///
-/// bcs's `on_impact_collision_deal_damage` computes damage from
-/// `effective_mass = m_bullet * m_ship / (m_bullet + m_ship)` (~ `m_bullet`
-/// since a ship is far heavier), so a near-zero bullet mass makes bcs's
-/// contribution negligible next to nova's authored [`ProjectileDamage`], leaving
-/// the typed amount as the only weapon damage. Gravity is unaffected:
-/// `gravity_well_system` applies a mass-INDEPENDENT acceleration
-/// (`forces.apply_linear_acceleration`), and Sensor bullets take no contact
-/// forces, so a tiny mass changes neither flight nor knockback. Kept small but
-/// non-zero to avoid a zero-mass dynamic body. See task 20260712-133343.
+/// bcs's `on_impact_collision_deal_damage` computes damage from `effective_mass
+/// = m_bullet * m_ship / (m_bullet + m_ship)` (~ `m_bullet` since a ship is far
+/// heavier), so a near-zero bullet mass makes bcs's contribution negligible
+/// next to nova's authored [`ProjectileDamage`], leaving the typed amount as
+/// the only weapon damage. Gravity is unaffected: `gravity_well_system` applies
+/// a mass-INDEPENDENT acceleration (`forces.apply_linear_acceleration`), and
+/// Sensor bullets take no contact forces, so a tiny mass changes neither flight
+/// nor knockback. Kept small but non-zero to avoid a zero-mass dynamic body.
 pub const NEUTRALIZED_BULLET_MASS: f32 = 1.0e-6;
 
 /// Damage multiplier for a `(section class, damage type)` pair. `> 1.0` = the
 /// section takes MORE, `< 1.0` = less. Kinetic is 1.0 on every section (the
-/// feel-preserving reference). The full table and its per-row intent live in
-/// docs/spikes/20260712-160505-damage-and-bullet-type-taxonomy.md; keep the
-/// intent (which type beats which section) even if playtest moves the numbers.
+/// feel-preserving reference). NOTE: keep the intent (which type beats which
+/// section) even if playtest moves the numbers.
 pub const fn resistance(class: SectionDamageClass, kind: DamageType) -> f32 {
     use DamageType::*;
     use SectionDamageClass::*;
@@ -137,11 +132,10 @@ pub const fn resistance(class: SectionDamageClass, kind: DamageType) -> f32 {
 }
 
 /// The identifying color of a damage type, for HUD conveyance (the ammo readout
-/// colors its pips by the loaded round's type; task 20260712-133349). Opaque
-/// hue - callers apply their own alpha (lit vs dim). Kinetic is the readout's
-/// historical amber so a Kinetic weapon looks unchanged; the others are distinct
-/// hues (steel blue, cyan, red-orange) that read on the dark HUD behind the pip
-/// outline.
+/// colors its pips by the loaded round's type). Opaque hue - callers apply
+/// their own alpha (lit vs dim). Kinetic is the readout's historical amber so a
+/// Kinetic weapon looks unchanged; the others are distinct hues (steel blue,
+/// cyan, red-orange) that read on the dark HUD behind the pip outline.
 pub fn damage_type_color(kind: DamageType) -> Color {
     match kind {
         // The original ammo-readout amber (LIT_COLOR's hue) - unchanged look.
@@ -195,10 +189,10 @@ pub fn apply_typed_damage(
 ///
 /// Used to AUTHOR the turret's fixed Kinetic `amount` so the typed system
 /// preserves the old feel at a representative engagement speed (the design
-/// deliberately trades velocity-dependent damage for a fixed authored amount -
-/// spike). Mirrors bcs integrity/plugin.rs:143-150 (RESTITUTION 0.5,
-/// IMPULSE_MOD 0.1, ENERGY_MOD 0.05); nova must not modify bcs, so the constants
-/// are duplicated here with this citation.
+/// deliberately trades velocity-dependent damage for a fixed authored amount).
+/// Mirrors bcs integrity/plugin.rs:143-150 (RESTITUTION 0.5, IMPULSE_MOD 0.1,
+/// ENERGY_MOD 0.05); nova must not modify bcs, so the constants are duplicated
+/// here with this citation.
 pub fn representative_kinetic_damage(mass: f32, speed: f32) -> f32 {
     const RESTITUTION: f32 = 0.5;
     const IMPULSE_MOD: f32 = 0.1;

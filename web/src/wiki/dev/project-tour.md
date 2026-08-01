@@ -55,7 +55,7 @@ The highest-value table. Verified paths; follow the linked page for depth.
 | A ship section behavior | `crates/nova_gameplay/src/sections/` | [Ship sections](../sections/), [Add a ship section](../guide-add-section/) |
 | Damage / resistances | `crates/nova_gameplay/src/damage.rs` | [Ship sections](../sections/) |
 | Integrity (disable/destroy) | `crates/nova_gameplay/src/integrity/` | [Ship sections](../sections/) |
-| Flight / autopilot verbs | `crates/nova_gameplay/src/flight.rs` | -- |
+| Flight / autopilot verbs | `crates/nova_gameplay/src/flight/` | -- |
 | Player input / AI | `crates/nova_gameplay/src/input/{player,ai}/` | -- |
 | Radar targeting / lock-on | `crates/nova_gameplay/src/input/targeting/` | -- |
 | Gravity wells | `crates/nova_gameplay/src/gravity.rs` | -- |

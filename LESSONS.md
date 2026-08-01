@@ -319,8 +319,16 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   '^warning'` read 2 against a true 14 and made an unchanged tree look like a
   regression; `git stash` -> touch the crate root -> rerun -> `stash pop`
   showed both sides at 14. 20260731-170329.
-- `doc-comment-rewrap-changes-the-render` (x4 -> Pending promotions): see below.
-- `re-measure-records-after-the-last-edit` (x3 -> Pending promotions): see below.
+- `doc-comment-rewrap-changes-the-render` (x5 -> Pending promotions): see below.
+- `re-measure-records-after-the-last-edit` (x4 -> Pending promotions): see below.
+- `visibility-sweep-narrows-back` (x1): a scripted visibility sweep over a
+  file-to-folder split proves only its LOWER bound - too narrow fails to
+  build, too wide compiles clean forever. A column-0
+  `s/^(struct|fn|const) /pub(super) \1 /` also widened eight `#[test]` fns and
+  seven items nothing outside their own file references. After the sweep,
+  grep each widened item for an out-of-file reference and narrow the ones with
+  none; the type in a `pub(super)` signature is the one legitimate exception.
+  20260731-170345.
 - `split-must-re-export-not-repoint` (x1): a file-to-folder module split is
   done when the PATHS still resolve, not when the crate compiles - declaring
   `pub mod <concern>;` without re-exporting silently moves every item one
@@ -1558,7 +1566,7 @@ here (annotated) as the paid record.
 
 ## Pending promotions (3+ occurrences, user decides)
 
-- `doc-comment-rewrap-changes-the-render` (x4, PROMOTE 2026-08-01 -> 20260801-102759) -> tooling:
+- `doc-comment-rewrap-changes-the-render` (x5, PROMOTE 2026-08-01 -> 20260801-102759) -> tooling:
   re-wrapping or deleting a mid-line clause in a `//!`/`///` block changes what
   rustdoc RENDERS while check and fmt stay green - a following line starting
   `-`/`#`/`>`/`1.` becomes a block construct, a wrapped `- ` list collapses into
@@ -1571,9 +1579,14 @@ here (annotated) as the paid record.
   substitution also spliced a code span (`` a `.chain()` `` -> `a.chain`),
   duplicated a rustdoc line, and deleted a live task ID - all invisible to a
   lint over the RESULT, all obvious in a comment-text diff against the base.
-  20260731-170329, 20260731-170335, 20260731-170359, 20260731-170340.
+  A fifth pass added the ragged-line half: deleting a mid-paragraph clause
+  leaves lines rustfmt will never re-wrap, and hand-wrapping a rustdoc BULLET
+  (which a prose re-wrapper must skip, or the list collapses) left one line at
+  124 columns.
+  20260731-170329, 20260731-170335, 20260731-170359, 20260731-170340,
+  20260731-170345.
 
-- `re-measure-records-after-the-last-edit` (x3, DEFER 2026-08-01 at x3: revisit at x4; always caught in review, and the record-command tooling is a bigger build than the two promoted checks - see whether the comment-diff check absorbs part of it first): a record holding measured
+- `re-measure-records-after-the-last-edit` (x4, DEFER 2026-08-01 at x3: now re-crossed at x4; always caught in review, and the record-command tooling is a bigger build than the two promoted checks - see whether the comment-diff check absorbs part of it first): a record holding measured
   numbers (line counts, `file:line` inventories, diff totals) goes stale the
   moment ANY later edit touches the measured files - a review-round rewrap
   shortened three files by one line and falsified three table rows and three
@@ -1582,8 +1595,11 @@ here (annotated) as the paid record.
   after the edit that motivated the measurement, and keep the producing
   command next to the number. Proposed target is a tool: the numbers all come
   from one command (`wc -l`, a grep count), so a record could carry the
-  command and have it re-run rather than transcribed.
-  20260731-170335, 20260731-170359, 20260731-170340.
+  command and have it re-run rather than transcribed. A fourth pass recorded
+  a separator count of four where thirteen were deleted, and a `NOTE:` marker
+  line number that a later re-wrap shifted by one - both correct when first
+  measured, neither re-measured after the round's last edit.
+  20260731-170335, 20260731-170359, 20260731-170340, 20260731-170345.
 
 - `generated-links-need-real-targets` (x5, PROMOTE 2026-08-01 -> 20260801-102808) -> tooling:
   manifest-rendered, authored, AND source-comment doc links gate on the target

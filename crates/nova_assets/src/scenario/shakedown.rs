@@ -1652,7 +1652,7 @@ mod tests {
     /// soi_factor(8) times the geometric radius
     /// (GravityWell::from_surface_gravity), and the ORBIT ring parks at
     /// orbit_clearance_factor(1.5) * (body_radius + surface_margin(1))
-    /// (flight.rs). Pin the beat-4 geometry against the WORST seed in the
+    /// (flight/). Pin the beat-4 geometry against the WORST seed in the
     /// exported range: beacon 3 inside the smallest SOI, outside the gate;
     /// the gate outside the widest orbit ring.
     #[test]

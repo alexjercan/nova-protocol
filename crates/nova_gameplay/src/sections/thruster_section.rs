@@ -339,7 +339,7 @@ pub(crate) fn thruster_impulse_system(
 
         // Compose the burn from the ROOT's raw physics pose and the engine's
         // local mount (sections are direct children of the root), the exact
-        // math of the balancer's lever arms in flight.rs. In FixedUpdate,
+        // math of the balancer's lever arms in flight/. In FixedUpdate,
         // `GlobalTransform` and the child collider's avian pose are at least
         // one tick stale - at speed that trails the hull by `v * dt` and a
         // COM-centered engine torques the ship it must not touch (task

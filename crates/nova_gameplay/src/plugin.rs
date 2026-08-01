@@ -74,8 +74,7 @@ impl Plugin for NovaGameplayPlugin {
         app.add_plugins(EntropyPlugin::<WyRand>::default());
 
         // Hanabi particles run on every target: native, and wasm via the WebGPU
-        // backend (compute shaders; see nova_core's wasm webgpu feature and
-        // tasks/20260714-085955/SPIKE.md).
+        // backend (compute shaders; see nova_core's wasm webgpu feature).
         app.add_plugins(bevy_hanabi::HanabiPlugin);
 
         // Bevy Common Systems - WASD Camera
@@ -157,12 +156,11 @@ impl Plugin for NovaGameplayPlugin {
 }
 
 /// While the pause overlay is up nothing may fly or fire: gate the spaceship
-/// sets on Unpaused. Run conditions from separate configure_sets calls
-/// compose (AND), so this stacks with nova_scenario's scenario_is_live gate. The
-/// clocks are also paused (nova_menu), but input actions do not consume
-/// time - without this gate a held trigger would still spawn projectiles
-/// into the frozen world. Factored out so the test below exercises the
-/// production wiring (review R1.3).
+/// sets on Unpaused. Run conditions from separate configure_sets calls compose
+/// (AND), so this stacks with nova_scenario's scenario_is_live gate. The clocks
+/// are also paused (nova_menu), but input actions do not consume time - without
+/// this gate a held trigger would still spawn projectiles into the frozen
+/// world. Factored out so the test below exercises the production wiring.
 pub(crate) fn configure_pause_gating(app: &mut App) {
     app.configure_sets(
         Update,
@@ -184,7 +182,7 @@ mod pause_gating_tests {
     #[derive(Resource, Default)]
     struct Ticks(u32);
 
-    /// Review R1.3: the production pause gating must actually stop systems in
+    /// The production pause gating must actually stop systems in
     /// the spaceship sets. Probe runs while Unpaused, freezes while Paused,
     /// resumes after (delivery-guarded on both edges).
     #[test]

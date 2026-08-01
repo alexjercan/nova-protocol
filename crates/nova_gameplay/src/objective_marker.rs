@@ -1,10 +1,9 @@
-//! Objective conveyance components (task 20260712-093831, spike
-//! docs/spikes/20260712-140842-objective-conveyance-visuals.md): the marker
-//! and highlight tags the scenario side attaches to world entities. They
-//! live in nova_gameplay - not in nova_scenario with the actions that
-//! insert them - because the HUD chip modules (hud/objective_markers.rs,
-//! hud/item_highlights.rs) query them and the crate dependency runs
-//! nova_scenario -> nova_gameplay, the same split as BeaconMarker.
+//! Objective conveyance components: the marker and highlight tags the scenario
+//! side attaches to world entities. They live in nova_gameplay - not in
+//! nova_scenario with the actions that insert them - because the HUD chip
+//! modules (hud/objective_markers.rs, hud/item_highlights.rs) query them and
+//! the crate dependency runs nova_scenario -> nova_gameplay, the same split as
+//! BeaconMarker.
 
 use bevy::prelude::*;
 
@@ -47,7 +46,7 @@ pub struct ItemHighlight {
     /// The prop's VISIBLE bounding-sphere radius (world units) - what the
     /// bracket sizes to. Authored, not collider-derived: a pickup's only
     /// collider is its oversized sensor sphere, which would balloon the
-    /// bracket to the trigger volume (review R1.1).
+    /// bracket to the trigger volume.
     pub world_radius: f32,
 }
 

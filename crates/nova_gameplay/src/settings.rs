@@ -1,7 +1,7 @@
 //! Player-facing game settings and the systems that apply them to the live
-//! world (task 20260711-180511). Two small resources drive the settings menu
-//! (`nova_menu`); the UI reads and writes them, and the systems here push the
-//! changes onto the engine:
+//! world. Two small resources drive the settings menu (`nova_menu`); the UI
+//! reads and writes them, and the systems here push the changes onto the
+//! engine:
 //!
 //! - [`MasterVolume`] scales all audio. One-shot SFX pick it up at sink-spawn
 //!   through bevy's [`GlobalVolume`] (`audio_output` multiplies
@@ -14,17 +14,17 @@
 //! - [`GraphicsQuality`] is a three-tier preset. It maps onto two things through
 //!   the single `apply_graphics_quality` seam: the combat juice
 //!   ([`crate::juice::JuiceSettings`]) and the derived [`GraphicsBudget`] gate
-//!   (task 20260525-133013, the low-end spawn-less mode). `GraphicsBudget` is
-//!   what the expensive effect systems actually read - whether hanabi particles
-//!   spawn (torpedo blast/launch, turret muzzle) and the render-scale fraction
-//!   the scenario view is drawn at before upscaling (task 20260718-004723, the
-//!   fill lever for the web target; applied by `nova_scenario::render_scale`) -
-//!   so the tier->cost policy lives in one place instead of being re-derived at
-//!   every spawn site. Each tier stays genuinely distinct and observable across
-//!   juice, particles and resolution. The particle cut is the one the frame-time
-//!   baseline (20260716-123551) validates as a real combat cost. Scatter/object
-//!   counts are deliberately NOT a preset lever: asteroids, rocks and debris are
-//!   gameplay content, so no quality tier thins them (task 20260718-004834).
+//!   (the low-end spawn-less mode). `GraphicsBudget` is what the expensive
+//!   effect systems actually read - whether hanabi particles spawn (torpedo
+//!   blast/launch, turret muzzle) and the render-scale fraction the scenario
+//!   view is drawn at before upscaling (the fill lever for the web target;
+//!   applied by `nova_scenario::render_scale`) - so the tier->cost policy lives
+//!   in one place instead of being re-derived at every spawn site. Each tier
+//!   stays genuinely distinct and observable across juice, particles and
+//!   resolution. The particle cut is the one the frame-time
+//!   baseline validates as a real combat cost. Scatter/object counts are
+//!   deliberately NOT a preset lever: asteroids, rocks and debris are gameplay
+//!   content, so no quality tier thins them.
 //!
 //! Persistence (native RON + web localStorage) lives in `nova_menu`, which owns
 //! the load-at-startup and save-on-change wiring; this module only defines the
@@ -96,9 +96,9 @@ impl HarnessMute {
     }
 }
 
-/// The mute decision as a pure function of its inputs (the probe-env pattern:
-/// the env read stays in the thin [`HarnessMute::from_env`] wrapper so this
-/// logic is unit-testable without process-global env mutation).
+/// The mute decision as a pure function of its inputs: the env read stays in
+/// the thin [`HarnessMute::from_env`] wrapper so this logic is unit-testable
+/// without process-global env mutation.
 fn harness_muted_from(nova_mute: Option<&str>, harness_env_active: bool) -> bool {
     match nova_mute {
         Some(explicit) => explicit != "0",
@@ -146,13 +146,13 @@ impl GraphicsQuality {
     ];
 }
 
-/// The applied per-frame visual-cost gates a [`GraphicsQuality`] preset produces
-/// (task 20260525-133013, the low-end spawn-less mode). `GraphicsQuality` is the
-/// player's *choice*; this is the *derived budget* the expensive effect systems
-/// read, so the tier->cost policy lives only in [`GraphicsBudget::for_quality`]
-/// (driven by `apply_graphics_quality`) instead of being re-derived at every
-/// spawn site. Mirrors how [`crate::juice::JuiceSettings`] is the resource the
-/// juice systems read while the preset just flips its toggles.
+/// The applied per-frame visual-cost gates a [`GraphicsQuality`] preset
+/// produces (the low-end spawn-less mode). `GraphicsQuality` is the player's
+/// *choice*; this is the *derived budget* the expensive effect systems read, so
+/// the tier->cost policy lives only in [`GraphicsBudget::for_quality`] (driven
+/// by `apply_graphics_quality`) instead of being re-derived at every spawn
+/// site. Mirrors how [`crate::juice::JuiceSettings`] is the resource the juice
+/// systems read while the preset just flips its toggles.
 ///
 /// A settings-less app (examples, headless tools) never inserts this; those
 /// systems read it through `Option`/`get_resource` and fall back to
@@ -166,24 +166,23 @@ pub struct GraphicsBudget {
     /// baseline flags.
     pub particles: bool,
     /// Internal render-resolution fraction (`0.0..=1.0`) the scenario view is
-    /// drawn at before being upscaled to the window for presentation (task
-    /// 20260718-004723). `1.0` is native window resolution (no intermediate
-    /// image, the default direct-to-window path). Below `1.0` the 3D scene
-    /// renders into a smaller offscreen target and a blit camera scales it up
-    /// (the HUD stays crisp and clickable on the window) - the one lever that
-    /// bites on the fill/overhead-bound web target the
-    /// frame-time baseline (20260716-123551) flagged, where dropping pixels
-    /// shaded buys more than the particle toggle. Only `Low` drops it;
-    /// `Medium`/`High` stay at native resolution.
+    /// drawn at before being upscaled to the window for presentation. `1.0` is
+    /// native window resolution (no intermediate image, the default
+    /// direct-to-window path). Below `1.0` the 3D scene renders into a smaller
+    /// offscreen target and a blit camera scales it up (the HUD stays crisp and
+    /// clickable on the window) - the one lever that bites on the
+    /// fill/overhead-bound web target, where dropping pixels shaded buys more
+    /// than the particle toggle. Only `Low` drops it; `Medium`/`High` stay at
+    /// native resolution.
     pub render_scale: f32,
 }
 
 impl GraphicsBudget {
-    /// The one place the tier->cost policy lives. High and Medium keep particles
-    /// and native resolution; Low drops particles (the "spawn-less" low-end mode)
-    /// and renders at a reduced `render_scale`. Particles and render-scale are the
-    /// per-frame costs the preset gates - scatter/object counts are gameplay
-    /// content and are never thinned by a quality tier (task 20260718-004834).
+    /// The one place the tier->cost policy lives. High and Medium keep
+    /// particles and native resolution; Low drops particles (the "spawn-less"
+    /// low-end mode) and renders at a reduced `render_scale`. Particles and
+    /// render-scale are the per-frame costs the preset gates - scatter/object
+    /// counts are gameplay content and are never thinned by a quality tier.
     pub fn for_quality(quality: GraphicsQuality) -> Self {
         match quality {
             GraphicsQuality::High => Self {
@@ -196,11 +195,10 @@ impl GraphicsBudget {
             },
             GraphicsQuality::Low => Self {
                 particles: false,
-                // 0.7 draws ~49% of the pixels (0.7^2). Measured (task
-                // 20260718-004723, report in that folder): on the RTX 3060 Ti
-                // web/WebGPU rig the win at 0.7 is ~neutral - that GPU is
-                // overhead-bound, not fill-bound, so the upscale pass roughly
-                // cancels the fill saved. Kept at 0.7 (user decision) as a
+                // NOTE: 0.7 draws ~49% of the pixels (0.7^2). Measured: on the
+                // RTX 3060 Ti web/WebGPU rig the win at 0.7 is ~neutral - that
+                // GPU is overhead-bound, not fill-bound, so the upscale pass
+                // roughly cancels the fill saved. Kept at 0.7 as a
                 // conservative, still-readable drop aimed at the weaker
                 // fill-bound web hardware the Low preset exists for (iGPUs,
                 // phones) that the available rig cannot stand in for. Retune
@@ -288,12 +286,12 @@ fn apply_master_volume(
     }
 }
 
-/// Map the [`GraphicsQuality`] preset onto the two things it drives: the derived
-/// [`GraphicsBudget`] gate (particle cost, read by the effect systems)
-/// and the combat-juice toggles. This is the single seam - the low-end spawn-less
-/// mode (20260525-133013) hooks the budget half here rather than re-deriving the
-/// tier at every spawn site. The budget is written unconditionally (this plugin
-/// owns it); the juice half is `Option`-guarded for headless juice-less rigs and
+/// Map the [`GraphicsQuality`] preset onto the two things it drives: the
+/// derived [`GraphicsBudget`] gate (particle cost, read by the effect systems)
+/// and the combat-juice toggles. This is the single seam - the low-end
+/// spawn-less mode hooks the budget half here rather than re-deriving the tier
+/// at every spawn site. The budget is written unconditionally (this plugin owns
+/// it); the juice half is `Option`-guarded for headless juice-less rigs and
 /// only touches the fields it owns (the master switch and the two per-effect
 /// enables), leaving juice tunables like the distance falloff alone.
 fn apply_graphics_quality(
@@ -443,11 +441,11 @@ mod tests {
 
     #[test]
     fn graphics_budget_gates_particles_only_by_tier() {
-        // The tier->cost policy is a pure function, so assert it directly rather
-        // than only through the app. Particles are the ONLY per-frame cost the
-        // preset gates: High and Medium keep them, Low is spawn-less. Scatter and
-        // object counts are gameplay content and are never a preset lever
-        // (task 20260718-004834), so there is no density field to assert on.
+        // The tier->cost policy is a pure function, so assert it directly
+        // rather than only through the app. Particles are the ONLY per-frame
+        // cost the preset gates: High and Medium keep them, Low is spawn-less.
+        // Scatter and object counts are gameplay content and are never a preset
+        // lever, so there is no density field to assert on.
         let high = GraphicsBudget::for_quality(GraphicsQuality::High);
         let medium = GraphicsBudget::for_quality(GraphicsQuality::Medium);
         let low = GraphicsBudget::for_quality(GraphicsQuality::Low);

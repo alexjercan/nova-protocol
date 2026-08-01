@@ -25,7 +25,7 @@
 //! Both effects are **distance-attenuated** from the gameplay camera (the one
 //! carrying `SfxListenerMarker`, shared with the audio layer; the trauma
 //! impulse and the ring alpha both scale with the falloff) and **per-area-cell
-//! throttled**, mirroring `audio.rs`: a blast that damages a dozen colliders of
+//! throttled**, mirroring `audio/`: a blast that damages a dozen colliders of
 //! one ship in a single frame collapses to one kick and one flash, and a distant
 //! event kicks/flashes weaker than one in your face. Every tunable
 //! lives on the [`JuiceSettings`] resource (with per-effect enable toggles and a
@@ -509,7 +509,7 @@ fn emit_juice(
 /// cells (2x trauma plus a phantom ring at the ship root's origin). Reacting
 /// only to the original target keeps one hit = one cue, and the original
 /// target is also the better cue position: the actual hit location. Any future
-/// damage-cue observer needs this same guard (mirrors `audio.rs`).
+/// damage-cue observer needs this same guard (mirrors `audio/`).
 fn on_damage_juice(
     damage: On<HealthApplyDamage>,
     settings: Res<JuiceSettings>,
@@ -753,7 +753,6 @@ mod tests {
         assert!(!off.shake_on() && !off.flash_on());
     }
 
-    // --- Observer-level integration tests -------------------------------------
     //
     // These exercise the wiring the pure helpers cannot: that the event observers
     // actually feed trauma into `CameraShakeInput` and queue a `Flash`, that the
@@ -871,11 +870,11 @@ mod tests {
 
     #[test]
     fn a_propagated_hit_on_a_straddling_hierarchy_fires_one_cue() {
-        // The PR #54 regression: `HealthApplyDamage` auto-propagates child ->
-        // parent, and with the parent one area cell away the per-cell throttle
-        // cannot collapse the hops - one hit read as two cues (flashes = 2,
-        // trauma = 2x the tuned impulse, plus a phantom ring at the parent's
-        // origin). The original-target guard must keep it at exactly one.
+        // `HealthApplyDamage` auto-propagates child -> parent, and with the
+        // parent one area cell away the per-cell throttle cannot collapse the
+        // hops - one hit read as two cues (flashes = 2, trauma = 2x the tuned
+        // impulse, plus a phantom ring at the parent's origin). The
+        // original-target guard must keep it at exactly one.
         let mut app = juice_test_app();
         let sink = spawn_shake_sink(&mut app);
         let parent = spawn_at(&mut app, Vec3::new(JUICE_AREA_CELL * 4.0, 0.0, 0.0));

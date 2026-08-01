@@ -114,3 +114,12 @@ before the epic closes.
       non-comment line multiset whose every difference is a visibility keyword
       or a moved import. Parent paths were re-proved with a throwaway import
       probe after review round 1 found them broken.
+- [ ] 20260731-170345 - skim the flight/camera/audio split diff and agree no
+      behavior changed. Supporting evidence in that task's NOTES.md: the three
+      oversized files split into folder modules (5812/2264/1752 -> 26 files,
+      largest 939), the 119 `#[test]` fns conserved exactly with all 119
+      passing locally (`cargo test -p nova_gameplay --lib` per module fits in
+      RAM), and an executable-line multiset whose only differences are
+      rustfmt re-wraps of signatures lengthened by a visibility keyword or a
+      changed import path. Outside the three splits the entire non-comment
+      diff is one wiki table cell.
