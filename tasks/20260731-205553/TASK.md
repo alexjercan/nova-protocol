@@ -33,9 +33,6 @@ out-of-scope defects.
 
 ## Definition of Done
 
-- `cmd: nix develop --command cargo check -p nova_gameplay --all-targets` -
-  no `ambiguous import visibility` warning.
-- `cmd: nix develop --command cargo doc -p nova_gameplay --no-deps
-  --document-private-items` - no `public documentation for ... links to
-  private item` warning.
-- Public paths and the nova_gameplay prelude unchanged.
+- No `ambiguous import visibility` warning. (cmd: `nix develop --command cargo check -p nova_gameplay --all-targets`)
+- No `public documentation for ... links to private item` warning. (cmd: `nix develop --command cargo doc -p nova_gameplay --no-deps --document-private-items`)
+- Public paths and the nova_gameplay prelude unchanged. (manual: review diff)
