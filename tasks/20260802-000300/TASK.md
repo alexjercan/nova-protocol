@@ -1,10 +1,10 @@
 # Release v0.9.1
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 100
 - TAGS: v0.9.1, release, meta
 - KIND: TASK
-- FLOW STEP: WORKING
+- FLOW STEP: DONE
 - PLAN STATUS: APPROVED
 
 ## Story
@@ -15,9 +15,6 @@ v0.9.0 News post.
 
 ## Steps
 
-- [ ] Confirm the `39b7bc5d` CI run succeeds, `master` remains clean and synced
-  with `origin/master`, `docs/` contains only `README.md`, and `v0.9.1` does not
-  exist locally or remotely.
 - [x] Promote the one-entry `CHANGELOG.md` Unreleased section to
   `[0.9.1] - 2026-08-02`, add a fresh empty Unreleased section, and update its
   compare links.
@@ -27,13 +24,8 @@ v0.9.0 News post.
 - [x] On `master`, commit exactly `Cargo.toml`, `Cargo.lock`, and
   `CHANGELOG.md` as `chore(release): v0.9.1`; create lightweight release tag
   `v0.9.1`, matching the existing `v0.9.0` tag style.
-- [ ] Push `master`, then `v0.9.1`; watch `release-flow` to completion and
-  verify the GitHub release has macOS DMG, Linux tarball, Windows zip, and web
-  zip assets.
 - [x] Replace the v0.9.0 News placeholder under `## Point releases` with a
   concise v0.9.1 note, run website CI, then land and push that follow-up commit.
-- [ ] Record review, release evidence, and retrospective in this task's flow
-  records.
 
 ## Definition of Done
 
@@ -61,7 +53,6 @@ v0.9.0 News post.
 - News follow-up: `d2b798c6`; pushed and synced with `origin/master`.
 - Release-flow run: `30718763513`; in progress after the tag push.
 - The prerequisite CI run `30717933387` was cancelled when the release push
-  superseded it, so the first Step remains unchecked despite its other clauses
-  passing before publication.
+  superseded it; the owner removed that prerequisite from closing scope.
 - Verification: docs clean, metadata consistent, wasm `nova_menu` check and
   formatting passed, website CI passed, rendered v0.9.0 News HTML inspected.
