@@ -1586,7 +1586,7 @@ here (annotated) as the paid record.
   20260731-170329, 20260731-170335, 20260731-170359, 20260731-170340,
   20260731-170345.
 
-- `re-measure-records-after-the-last-edit` (x4, DEFER 2026-08-01 at x3: now re-crossed at x4; always caught in review, and the record-command tooling is a bigger build than the two promoted checks - see whether the comment-diff check absorbs part of it first): a record holding measured
+- `re-measure-records-after-the-last-edit` (x4, PROMOTE 2026-08-01 -> 20260801-112556): a record holding measured
   numbers (line counts, `file:line` inventories, diff totals) goes stale the
   moment ANY later edit touches the measured files - a review-round rewrap
   shortened three files by one line and falsified three table rows and three
