@@ -2,10 +2,10 @@
 
 - STATUS: OPEN
 - PRIORITY: 1
-- TAGS: v0.9.0,release,meta
+- TAGS: v0.9.0, release, meta
 - KIND: TASK
-- FLOW STEP: BACKLOG
-- PLAN STATUS: DRAFT
+- FLOW STEP: PLANNED
+- PLAN STATUS: APPROVED
 
 Release-level tracker for v0.9.0. Per-strand work lives in its own tatr task
 (tagged `v0.9.0`); this task carries the release theme, strand map, out-of-scope
@@ -243,21 +243,99 @@ flow gate.
 Note: this project's release convention is a `v0.9.0, release, meta` tracker
 task (this file), NOT flow's GOAL.md - the v0.8.0 tracker set the precedent.
 
-## Definition of done (release-level; filled at planning)
+## Release cut plan - v0.9.0
 
-To be authored in the planning pass. Skeleton:
+Date decision: cut metadata uses `2026-08-01`, the current release date. The
+`DATE: 2026-07-24` tracker field remains the original scope/grooming date.
 
-- The cockpit Tab drawer becomes NOVA OS: one inset terminal monitor, command
-  scrollback, useful output commands, app takeover, CRT/green-phosphor visual
-  treatment, ordinary flight HUD hidden, and diagnostic FPS/version preserved.
-  Objectives and comms feed that computer rather than permanent side panels.
-  (proofs per task DoD)
-- Friendly/enemy allegiance is readable at a glance over ships in a busy scene.
-- The Scenarios tab groups scenarios under collapsible campaign headers.
-- (stretch) A ship with no weapons + no thrusters counts as combat-dead.
-- (stretch) `map` launches from NOVA OS as a placeholder 3D/schematic local map
-  app, not as a permanent center drawer panel.
-- Overall: the full check suite passes; gameplay-touching strands probed.
+Branch decision: release edits happen on `master`, matching
+`web/src/wiki/dev/development.md`. Do not use a sprout worktree for the final
+version/tag cut. Confirm with `git branch --show-current` immediately before
+staging or tagging.
+
+Tag boundary: create the local `v0.9.0` tag only after the release commit if
+the user asks to proceed past planning. Do not push `master` or the tag in this
+flow unless the user explicitly asks later.
+
+## Steps
+
+1. Confirm release preconditions:
+   - `git status --short --branch`
+   - `git branch --show-current`
+   - `find docs -maxdepth 2 -type f | sort` shows only `docs/README.md`
+   - `scripts/check-docs-clean.sh`
+   - confirm no non-DONE `v0.9.0` story blocks the cut, ignoring backlog tasks
+     already recorded as out of scope
+2. Update versions:
+   - edit root `Cargo.toml` `[workspace.package] version` from `0.8.1` to
+     `0.9.0`
+   - run `nix develop --command cargo metadata --format-version 1 >/dev/null`
+     to refresh `Cargo.lock`
+   - grep exact old release strings after the bump:
+     `rg -n '"0\.8\.1"|v0\.8\.1|0\.8\.1' Cargo.toml Cargo.lock crates web/src CHANGELOG.md`
+     and keep intentional dated/history hits only
+3. Update `CHANGELOG.md`:
+   - leave a fresh empty `## [Unreleased]`
+   - promote current Unreleased content to `## [0.9.0] - 2026-08-01`
+   - keep subsystem headings concise and merge duplicate headings if any exist
+   - update compare links:
+     `[unreleased]` -> `v0.9.0...HEAD`
+     add `[0.9.0]` -> `v0.8.1...v0.9.0`
+4. Add the v0.9.0 News post:
+   - create `web/src/news/0.9.0.md`
+   - source narrative from the final `CHANGELOG.md` section and release tracker,
+     not intent
+   - cover the headline NOVA OS drawer/terminal, contextual phosphor HUD,
+     scenario campaign headers, neutralized ships, allegiance markers, web/site
+     skin sync, preload/assets/licensing, and probe/profile sandboxing
+   - include `.figure` placeholders for screenshots to capture later
+   - include closing `## Point releases`
+5. Wire the News post:
+   - add newest-first `NEWS_POSTS` entry in `web/webpack.config.js`
+   - add newest-first card in `web/src/news.html`
+   - update `scripts/shoot-web-pages.sh` `news-post|/news/0.8.0/` to
+     `news-post|/news/0.9.0/` so the representative news-post screenshot covers
+     the current release
+6. Re-read edited artifacts:
+   - `Cargo.toml`
+   - `CHANGELOG.md`
+   - `web/src/news/0.9.0.md`
+   - `web/webpack.config.js`
+   - `web/src/news.html`
+   - `scripts/shoot-web-pages.sh`
+7. Verify:
+   - `nix develop --command cargo fmt --check`
+   - `nix develop --command cargo check`
+   - `nix develop --command cargo run -p nova_assets --bin content -- lint`
+   - `cd web && npm run ci` inside the Nix dev shell
+   - optional visual proof if time permits: `nix develop --command scripts/shoot-web-pages.sh target/web-shots-v0.9.0`, then open the news-index and news-post screenshots
+   - do not rerun full `cargo test` unless requested; user reported all tests
+     green on master before this release cut
+8. Record and commit:
+   - update this task Notes with exact proof commands and outcomes
+   - run `tatr check --ledger LESSONS.md`
+   - stage explicit paths only:
+     `Cargo.toml Cargo.lock CHANGELOG.md tasks/20260724-083631/TASK.md web/webpack.config.js web/src/news.html web/src/news/0.9.0.md scripts/shoot-web-pages.sh`
+   - commit with `chore(release): v0.9.0`
+   - if proceeding to local tag, run `git tag v0.9.0`; do not push it
+
+## Definition of Done
+
+- Workspace and lockfile carry version `0.9.0`. (cmd:
+  `rg -n '^version = "0\.9\.0"$' Cargo.toml` and
+  `rg -n 'name = "nova-protocol"|version = "0\.9\.0"' Cargo.lock`)
+- Changelog has a fresh empty Unreleased section, a dated `0.9.0` section, and
+  correct compare links. (cmd:
+  `rg -n '## \[Unreleased\]|## \[0\.9\.0\] - 2026-08-01|\[unreleased\]: .*v0\.9\.0\.\.\.HEAD|\[0\.9\.0\]: .*v0\.8\.1\.\.\.v0\.9\.0' CHANGELOG.md`)
+- News has a v0.9.0 post, webpack registration, news index card, and screenshot
+  route. (cmd:
+  `test -f web/src/news/0.9.0.md && rg -n 'slug: "0\.9\.0"|news/0\.9\.0/|news-post\|/news/0\.9\.0/' web/webpack.config.js web/src/news.html scripts/shoot-web-pages.sh`)
+- `docs/` remains release-clean. (cmd: `scripts/check-docs-clean.sh`)
+- Notes record every verification command from Step 7 with pass/fail output.
+  (manual: inspect `## Notes`)
+- Release commit exists on `master`. (cmd: `git log -1 --oneline --decorate`)
+- If the user approves local tagging, `v0.9.0` exists and is unpushed.
+  (manual: `git tag --list v0.9.0` shows `v0.9.0` and no push is performed)
 
 ## Grooming history
 
