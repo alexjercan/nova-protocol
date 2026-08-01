@@ -123,3 +123,13 @@ before the epic closes.
       rustfmt re-wraps of signatures lengthened by a visibility keyword or a
       changed import path. Outside the three splits the entire non-comment
       diff is one wiki table cell.
+- [ ] 20260731-170351 - skim the sections/integrity split diff and agree no
+      behavior changed. Supporting evidence in that task's REVIEW.md:
+      `turret_section.rs` 3668 -> 7 files and `torpedo_section/mod.rs` 1820 ->
+      2, largest file now 1377; the 126 `#[test]` fns over the whole scope
+      conserved exactly with 100 + 21 passing locally (`cargo test -p
+      nova_gameplay --lib sections::` / `integrity::` fit in RAM); every
+      removed comment line accounted for by a base-vs-new comment multiset
+      diff, with all four value-guarding comments found again as `NOTE:`; and
+      `cargo doc -p nova_gameplay --no-deps` clean under the touched scope, so
+      no intra-doc link broke when items moved between modules.

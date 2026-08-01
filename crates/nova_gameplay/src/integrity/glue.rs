@@ -125,7 +125,7 @@ fn build_integrity_relations(
 /// The bubbled amount is *clamped to what actually landed on the section*: bcs's `on_damage`
 /// propagates `min(amount, section.current)`, not the raw hit. That is why overkill on one
 /// section cannot kill the ship (a 1000-damage hit on a 100 hp section costs the root 100, not
-/// 1000, task 20260709-144906), while the last-section case still works - there the aggregate
+/// 1000), while the last-section case still works - there the aggregate
 /// equals that lone section, so the clamped amount is exactly enough to zero the root.
 fn aggregate_ship_health(
     mut commands: Commands,
@@ -152,7 +152,7 @@ fn aggregate_ship_health(
             }
         }
 
-        // Structural death backstop (task 20260716-162701, the 0-HP ghost):
+        // NOTE: structural death backstop (the 0-HP ghost).
         // `HealthZeroMarker` only ever comes from the damage path (bcs
         // `on_damage`), so a ship that loses its last section WITHOUT a
         // final bubble reaching the root (a direct destroy, a detach, any
@@ -350,8 +350,8 @@ mod physics_tests {
         assert_eq!(neighbors(&app, right), vec![mid]);
     }
 
-    /// The physical half of task 20260709-140620: when a section is gone, the
-    /// body's mass, center of mass and angular inertia must follow the
+    /// When a section is gone, the body's mass, center of mass and angular
+    /// inertia must follow the
     /// survivors. This is avian ground truth (direct despawn), separating
     /// "avian does not recompute on collider removal" from "our destroy path
     /// never removes the collider".
@@ -461,7 +461,7 @@ mod physics_tests {
         // Exactly the section's health, torpedo-blast scale. The amount also
         // propagates through ChildOf to the root's aggregate health (200 ->
         // 100 here); exact damage leaves the root alive, while overkill would
-        // zero it and kill the whole ship (see task 20260709-144906).
+        // zero it and kill the whole ship.
         app.world_mut().trigger(HealthApplyDamage {
             entity: right,
             source: None,
@@ -487,8 +487,8 @@ mod physics_tests {
         );
     }
 
-    /// Regression for task 20260709-144906: overkill on ONE section must not
-    /// kill the whole ship. A 1000-damage hit on a 100 hp section used to
+    /// Regression: overkill on ONE section must not kill the whole ship.
+    /// A 1000-damage hit on a 100 hp section used to
     /// propagate its full amount to the root aggregate (200 -> -800 -> zeroed),
     /// dragging an otherwise-healthy ship through disable -> destroy. With the
     /// bcs clamp, the root is charged only the section's remaining 100, so the
@@ -595,8 +595,8 @@ mod physics_tests {
     }
 }
 
-/// The ghost-ship boundary rig (task 20260716-162701): a playtest saw an
-/// enemy "survive" its shootdown as an empty 0-HP hull. Root death depends
+/// The ghost-ship boundary rig: a playtest saw an enemy "survive" its
+/// shootdown as an empty 0-HP hull. Root death depends
 /// on the fatal hit's bubble reaching the root with a nonzero amount
 /// (HealthZeroMarker comes ONLY from bcs on_damage), while the aggregate
 /// recompute writes marker-less zeros - these tests walk every path a ship

@@ -43,10 +43,10 @@ pub struct ControllerSectionConfig {
     )]
     pub render_mesh_transform: Option<RenderMeshTransform>,
     /// The radar/lock and weapons-safety cues this computer plays, as
-    /// authorable [`AssetRef<AudioSource>`]s like the render mesh (task
-    /// 20260717-101633, spike 20260717-101524): the controller IS the ship's
-    /// computer (it grants the Lock capability), so its feedback ticks are its
-    /// own authorable voice. Snapshotted (unresolved) into
+    /// authorable [`AssetRef<AudioSource>`]s like the render mesh: the
+    /// controller IS the ship's computer (it grants the Lock capability), so its
+    /// feedback ticks are its own authorable voice. Snapshotted (unresolved)
+    /// into
     /// `ControllerSectionSounds`; the audio cues resolve the PLAYER ship's
     /// controller's refs. AUTHORED-OR-SILENT: `None` plays nothing; base
     /// controllers author all five via gen_content.
@@ -88,8 +88,8 @@ pub struct ControllerSectionConfig {
     pub safety_on_sound: Option<AssetRef<AudioSource>>,
     /// RCS fine-adjust LOOP: plays continuously while this controller is burning
     /// the RCS primitive - whether the player is holding SHIFT or the autopilot
-    /// is trimming an ORBIT / settling a STOP (task 20260718-201532). Unlike the
-    /// five one-shot cues above this is a sustained loop, resolved and volume-
+    /// is trimming an ORBIT / settling a STOP. Unlike the five one-shot cues
+    /// above this is a sustained loop, resolved and volume-
     /// tracked by the audio module (one loop per distinct handle), exactly like a
     /// thruster's `loop_sound`. AUTHORED-OR-SILENT: `None` plays nothing.
     #[reflect(ignore)]
@@ -177,7 +177,7 @@ pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
 /// A render-only controller section for the editor preview: it shows the controller mesh (and is
 /// pickable) but carries no [`PDController`], so it never tries to torque a root. The editor
 /// preview ship is a visual config preview with no `RigidBody`; a live controller there just
-/// floods the log with "root not found" every frame (task 20260706-212909). Because it has no
+/// floods the log with "root not found" every frame. Because it has no
 /// `PDController`, the bcs PD systems and `insert_controller_section_target` both skip it, so the
 /// preview controller is inert.
 pub fn preview_controller_section(config: ControllerSectionConfig) -> impl Bundle {
@@ -214,14 +214,14 @@ pub enum FlightVerb {
     Goto,
     /// ORBIT: circularize and station-keep in a gravity well.
     Orbit,
-    /// LOCK: the targeting radar - deliberate hold-to-search locking
-    /// (deliberate-radar spike 20260713-082207). Not a maneuver, but the same
-    /// computer-provided capability model: a ship without it cannot lock.
+    /// LOCK: the targeting radar - deliberate hold-to-search locking. Not a
+    /// maneuver, but the same computer-provided capability model: a ship
+    /// without it cannot lock.
     Lock,
     /// RCS: reaction-control fine translation - the hold-to-nudge docking mode
     /// that pushes the hull along its local axes without exceeding a small
-    /// speed cap (spike 20260718-122508). Not a planned maneuver but the same
-    /// capability model: a ship without it cannot fine-adjust. Drives the
+    /// speed cap. Not a planned maneuver but the same capability model: a ship
+    /// without it cannot fine-adjust. Drives the
     /// shared `RcsIntent` / `rcs_burn_system` primitive in `crate::flight`.
     Rcs,
 }
@@ -282,10 +282,10 @@ impl Plugin for ControllerSectionPlugin {
 
         app.add_observer(insert_controller_section_target);
 
-        // The command copy into the bcs PDControllerInput runs on the FIXED
-        // clock, between the command writers and the PD (task
-        // 20260711-140241): its producer (the autopilot, NovaFlightSystems)
-        // and consumer (PDControllerSystems::Sync) both tick in FixedUpdate,
+        // NOTE: the command copy into the bcs PDControllerInput runs on the
+        // FIXED clock, between the command writers and the PD: its producer
+        // (the autopilot, NovaFlightSystems) and consumer
+        // (PDControllerSystems::Sync) both tick in FixedUpdate,
         // and the old Update-schedule copy handed the PD a command 1-2
         // ticks stale, varying with the 64 Hz-vs-render beat - up to
         // 0.22 rad of phantom command error and ~20% wasted torque during
@@ -494,7 +494,7 @@ mod tests {
     #[test]
     fn preview_controller_carries_no_live_pd_controller() {
         // The editor preview controller renders but must not carry a live PDController - that is
-        // what spammed "root not found" against the non-physics preview root (task 20260706-212909).
+        // what spammed "root not found" against the non-physics preview root.
         let mut app = App::new();
         let id = app
             .world_mut()

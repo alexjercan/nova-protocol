@@ -157,8 +157,8 @@ mod test {
     }
 
     /// The authored `render_mesh_transform` lands on the hull's meshed render
-    /// child (task 20260718-121205), and an unset one leaves it at identity -
-    /// the same shared wiring as the turret, exercised on a section-kind path.
+    /// child, and an unset one leaves it at identity - the same shared wiring
+    /// as the turret, exercised on a section-kind path.
     #[test]
     fn render_mesh_transform_positions_the_hull_render_child() {
         use bevy::asset::AssetPlugin;

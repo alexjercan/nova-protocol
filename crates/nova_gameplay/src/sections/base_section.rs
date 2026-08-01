@@ -199,9 +199,8 @@ pub struct BaseSectionConfig {
     pub health: f32,
     /// The sound a hit on THIS section plays - per-target, so the target IS
     /// the material (a rock, a light hull and a reinforced hull can each sound
-    /// different; spike 20260717-101524, task 20260717-101641). Authorable
-    /// asset ref like the meshes; AUTHORED-OR-SILENT. Snapshotted into
-    /// [`ImpactDestroySounds`] by [`base_section`].
+    /// different). Authorable asset ref like the meshes; AUTHORED-OR-SILENT.
+    /// Snapshotted into [`ImpactDestroySounds`] by [`base_section`].
     #[reflect(ignore)]
     #[cfg_attr(
         feature = "serde",

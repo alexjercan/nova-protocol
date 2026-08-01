@@ -320,7 +320,7 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   regression; `git stash` -> touch the crate root -> rerun -> `stash pop`
   showed both sides at 14. 20260731-170329.
 - `doc-comment-rewrap-changes-the-render` (x5 -> Pending promotions): see below.
-- `re-measure-records-after-the-last-edit` (x4 -> Pending promotions): see below.
+- `re-measure-records-after-the-last-edit` (x5 -> Pending promotions): see below.
 - `visibility-sweep-narrows-back` (x1): a scripted visibility sweep over a
   file-to-folder split proves only its LOWER bound - too narrow fails to
   build, too wide compiles clean forever. A column-0
@@ -329,6 +329,13 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   grep each widened item for an out-of-file reference and narrow the ones with
   none; the type in a `pub(super)` signature is the one legitimate exception.
   20260731-170345.
+- `comment-pass-as-asserted-replacements` (x1): every recorded instance of
+  rustdoc rewrap damage came from a SCRIPTED substitution, so do the opposite -
+  write the comment pass as N explicit replacements, each asserting its anchor
+  occurs exactly once, and let a moved or re-wrapped anchor fail the pass
+  loudly instead of matching something else. ~60 such replacements over 98
+  sites produced a clean rewrap-damage scan on the first run, the first time in
+  six passes. 20260731-170351.
 - `split-must-re-export-not-repoint` (x1): a file-to-folder module split is
   done when the PATHS still resolve, not when the crate compiles - declaring
   `pub mod <concern>;` without re-exporting silently moves every item one
@@ -1586,7 +1593,7 @@ here (annotated) as the paid record.
   20260731-170329, 20260731-170335, 20260731-170359, 20260731-170340,
   20260731-170345.
 
-- `re-measure-records-after-the-last-edit` (x4, PROMOTE 2026-08-01 -> 20260801-112556): a record holding measured
+- `re-measure-records-after-the-last-edit` (x5, PROMOTE 2026-08-01 -> 20260801-112556): a record holding measured
   numbers (line counts, `file:line` inventories, diff totals) goes stale the
   moment ANY later edit touches the measured files - a review-round rewrap
   shortened three files by one line and falsified three table rows and three
@@ -1598,8 +1605,13 @@ here (annotated) as the paid record.
   command and have it re-run rather than transcribed. A fourth pass recorded
   a separator count of four where thirteen were deleted, and a `NOTE:` marker
   line number that a later re-wrap shifted by one - both correct when first
-  measured, neither re-measured after the round's last edit.
-  20260731-170335, 20260731-170359, 20260731-170340, 20260731-170345.
+  measured, neither re-measured after the round's last edit. A fifth pass got
+  three counts wrong in one close-out (NOTE promotions, widened items, deleted
+  separators) - all three transcribed rather than produced, and two of them
+  counted incrementally across a multi-file sweep instead of once from the
+  finished tree.
+  20260731-170335, 20260731-170359, 20260731-170340, 20260731-170345,
+  20260731-170351.
 
 - `generated-links-need-real-targets` (x5, PROMOTE 2026-08-01 -> 20260801-102808) -> tooling:
   manifest-rendered, authored, AND source-comment doc links gate on the target

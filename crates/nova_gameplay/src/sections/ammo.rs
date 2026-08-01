@@ -15,11 +15,10 @@
 //! [`SectionReloadConfig`] on the weapon config) so a spent magazine refills on
 //! its own - discrete auto-reload-on-empty or continuous per-round regen, both
 //! from one timer ([`tick_section_reload`]). Reload rides on the magazine, so a
-//! weapon with no [`SectionAmmo`] never reloads and stays unlimited (task
-//! 20260717-085640). Multiple ammo/bullet types (armor-piercing, EMP) landed as
-//! the `LoadedBullet` slot (task 20260712-133349); a future per-type magazine
-//! would replace the scalar pool while keeping the same consume-one-to-fire
-//! contract the weapon systems rely on.
+//! weapon with no [`SectionAmmo`] never reloads and stays unlimited. Multiple
+//! ammo/bullet types (armor-piercing, EMP) landed as the `LoadedBullet` slot; a
+//! future per-type magazine would replace the scalar pool while keeping the
+//! same consume-one-to-fire contract the weapon systems rely on.
 //!
 //! [`TurretSectionConfig`]: super::turret_section::TurretSectionConfig
 //! [`TorpedoSectionConfig`]: super::torpedo_section::TorpedoSectionConfig
@@ -41,9 +40,9 @@ pub mod prelude {
 pub struct SectionAmmo {
     /// Rounds left to fire. Never exceeds `capacity`.
     pub rounds: u32,
-    /// Magazine size - what a reload would refill `rounds` to (task
-    /// 20260708-162005). Kept so the HUD and a future reload have the full/empty
-    /// reference without a second source of truth.
+    /// Magazine size - what a reload refills `rounds` to. Kept so the HUD and
+    /// the reload have the full/empty reference without a second source of
+    /// truth.
     pub capacity: u32,
 }
 
@@ -83,8 +82,7 @@ impl SectionAmmo {
 /// A weapon with no magazine (unlimited / `infinite_ammo`) gets neither, so the
 /// "no [`SectionAmmo`] = unlimited" invariant is untouched.
 ///
-/// One descriptor covers both refill styles the reload spike settled on
-/// (tasks/20260716-123556/SPIKE.md):
+/// One descriptor covers both refill styles:
 ///
 /// - **discrete auto-reload** (`only_when_empty: true`,
 ///   `rounds_per_cycle = capacity`): the magazine sits until it runs dry, then

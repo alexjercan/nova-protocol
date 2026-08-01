@@ -46,10 +46,10 @@ pub struct ThrusterSectionConfig {
     )]
     pub render_mesh_transform: Option<RenderMeshTransform>,
     /// The engine-hum loop this thruster contributes to. An authorable
-    /// [`AssetRef<AudioSource>`] like the render mesh (task 20260717-101650,
-    /// spike 20260717-101524): thrusters sharing a sound share one loop entity
-    /// whose volume tracks the loudest ship burning it. AUTHORED-OR-SILENT: a
-    /// thruster with no loop_sound hums nothing; base thrusters author
+    /// [`AssetRef<AudioSource>`] like the render mesh: thrusters sharing a
+    /// sound share one loop entity whose volume tracks the loudest ship burning
+    /// it. AUTHORED-OR-SILENT: a thruster with no loop_sound hums nothing; base
+    /// thrusters author
     /// `self://sounds/thruster_loop.wav` via gen_content. Snapshotted
     /// (unresolved) as `ThrusterSectionLoopSound`; the audio module resolves
     /// and groups by handle.
@@ -337,13 +337,12 @@ pub(crate) fn thruster_impulse_system(
             continue;
         };
 
-        // Compose the burn from the ROOT's raw physics pose and the engine's
-        // local mount (sections are direct children of the root), the exact
-        // math of the balancer's lever arms in flight/. In FixedUpdate,
+        // NOTE: compose the burn from the ROOT's raw physics pose and the
+        // engine's local mount (sections are direct children of the root), the
+        // exact math of the balancer's lever arms in flight/. In FixedUpdate,
         // `GlobalTransform` and the child collider's avian pose are at least
         // one tick stale - at speed that trails the hull by `v * dt` and a
-        // COM-centered engine torques the ship it must not touch (task
-        // 20260711-103527).
+        // COM-centered engine torques the ship it must not touch.
         let position = force.position().0;
         let rotation = *force.rotation();
         let thrust_direction = rotation

@@ -32,15 +32,15 @@ pub struct SpaceshipRootMarker;
 /// World-space anchor of a ship's live structure: the computed center of
 /// mass, which avian keeps in body-local space, lifted with rotation +
 /// translation only. Not `transform_point`: avian ignores render scale, so
-/// scaling the local COM would move the anchor off the physical pivot (task
-/// 20260709-140620). Falls back to the root translation when no COM exists
-/// (marker-only roots in tests).
+/// scaling the local COM would move the anchor off the physical pivot. Falls
+/// back to the root translation when no COM exists (marker-only roots in
+/// tests).
 ///
 /// The root ORIGIN is just the build spot of the ship's first sections and
 /// stops meaning anything once those die - a wreck spins about its shifted
-/// COM while the origin floats in empty space (task 20260709-150711). Aim
-/// targets, lock-cone origins and camera anchors should all use this anchor
-/// instead of the root translation.
+/// COM while the origin floats in empty space. Aim targets, lock-cone origins
+/// and camera anchors should all use this anchor instead of the root
+/// translation.
 pub fn live_structure_anchor(
     transform: &Transform,
     center_of_mass: Option<&ComputedCenterOfMass>,
@@ -59,8 +59,7 @@ pub fn live_structure_anchor(
 /// This is the raw-clock spawn pattern shared by the weapon sections: a
 /// FixedUpdate spawner composes the mount chain onto the root's avian
 /// `Position`/`Rotation` instead of sampling `GlobalTransform`, which inside
-/// FixedUpdate still holds the previous frame's EASED render pose (task
-/// 20260710-231930 for turrets, 20260711-114640 for torpedoes).
+/// FixedUpdate still holds the previous frame's EASED render pose.
 pub(crate) fn local_pose_in_root(
     descendant: Entity,
     root: Entity,
@@ -127,10 +126,9 @@ impl Plugin for SpaceshipSectionPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<ammo::SectionAmmo>();
         app.register_type::<ammo::SectionReload>();
-        // Auto-reload/regen: advance every weapon section's reload cycle and
-        // refill its magazine on the fixed clock the fire systems consume on.
-        // Add-only vs the consume in `shoot_spawn_projectile`, so no ordering is
-        // needed against them (task 20260717-085640).
+        // NOTE: reload is add-only against the consume in
+        // `shoot_spawn_projectile`, so it needs no ordering versus the fire
+        // systems - only the same fixed clock.
         app.add_systems(FixedUpdate, ammo::tick_section_reload);
         app.add_plugins((
             hull_section::HullSectionPlugin {

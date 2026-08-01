@@ -17,10 +17,6 @@
 //!
 //! Neutral / unmarked bodies are never tinted.
 //!
-//! - Task (player, v1): tasks/20260717-003613/TASK.md
-//! - Task (enemy dead-only): tasks/20260718-181305/TASK.md
-//! - Spike: tasks/20260711-202901/SPIKE.md (Option 1, recommended)
-//!
 //! ## Why per-section material clones
 //!
 //! Sections render via gltf `WorldAssetRoot` scenes (see
@@ -192,7 +188,7 @@ fn mark_section_meshes(
         // `try_insert`, not `insert`: a section mesh can be chain-destroyed the
         // same frame it gains its material (a ship exploding), despawning this
         // entity before the buffer applies - the insert must be a no-op there,
-        // not a panic (Rust Tally crash, task 20260721-224506).
+        // not a panic.
         commands
             .entity(entity)
             .try_insert(PendingSectionTint { section, mode });
@@ -222,9 +218,9 @@ fn resolve_pending_tints(
         let emissive = pristine.emissive;
         let handle = materials.add(pristine);
 
-        // Same despawn race as `mark_section_meshes`: a pending section mesh can
-        // be chain-destroyed before this resolves, so tolerate a missing entity
-        // rather than panic (task 20260721-224506).
+        // NOTE: same despawn race as `mark_section_meshes` - a pending section
+        // mesh can be chain-destroyed before this resolves, so tolerate a
+        // missing entity rather than panic.
         commands
             .entity(entity)
             .try_insert((
@@ -595,8 +591,8 @@ mod tests {
         );
     }
 
-    /// Regression for the Rust Tally crash (task 20260721-224506): a ship
-    /// exploding chain-destroys its section leaves, and `mark_section_meshes`
+    /// Regression: a ship exploding chain-destroys its section leaves, and
+    /// `mark_section_meshes`
     /// had queued a `PendingSectionTint` insert on a section mesh that gains its
     /// material the SAME frame. The deferred insert then landed on a despawned
     /// entity and panicked. This mirrors the frame order - a despawn queued

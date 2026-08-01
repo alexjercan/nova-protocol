@@ -251,8 +251,8 @@ pub(super) fn insert_particle_effect(
     let entity = add.entity;
     trace!("insert_particle_effect: entity {:?}", entity);
 
-    // Low graphics tier is spawn-less: skip the hanabi blast entirely (task
-    // 20260525-133013). Absent budget (settings-less app) means full quality.
+    // Low graphics tier is spawn-less: skip the hanabi blast entirely. Absent
+    // budget (settings-less app) means full quality.
     if !budget.as_deref().is_none_or(|b| b.particles) {
         return;
     }
@@ -377,8 +377,8 @@ pub(super) fn insert_torpedo_spawner_effect(
     let entity = add.entity;
     trace!("insert_torpedo_spawner_effect: entity {:?}", entity);
 
-    // Low graphics tier is spawn-less: skip the launch-burst hanabi (task
-    // 20260525-133013). Absent budget (settings-less app) means full quality.
+    // Low graphics tier is spawn-less: skip the launch-burst hanabi. Absent
+    // budget (settings-less app) means full quality.
     if !budget.as_deref().is_none_or(|b| b.particles) {
         return;
     }
@@ -500,7 +500,7 @@ pub(super) fn on_torpedo_launch_effect(
 
     // On the Low tier `insert_torpedo_spawner_effect` never spawned the launch
     // effect, so there is nothing to reset - skip before the lookup, otherwise the
-    // missing-effect branch below would `error!` on every launch (task 20260525-133013).
+    // missing-effect branch below would `error!` on every launch.
     if !budget.as_deref().is_none_or(|b| b.particles) {
         return;
     }
@@ -593,8 +593,7 @@ mod tests {
     /// The torpedo bay reads its `render_mesh_transform` STRAIGHT OFF THE CONFIG
     /// (unlike hull/thruster/controller which snapshot it into a component), so
     /// this exercises that distinct path end to end: the authored transform must
-    /// land on the meshed body render child, identity when unset (task
-    /// 20260718-121205).
+    /// land on the meshed body render child, identity when unset.
     #[test]
     fn render_mesh_transform_positions_the_torpedo_body_render_child() {
         use bevy::asset::AssetPlugin;
