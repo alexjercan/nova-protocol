@@ -175,6 +175,13 @@ const docPage = ({ slug, md, title, crumbParent }) =>
 // fill the meta line; description is the head meta; the title comes from the H1.
 const NEWS_POSTS = [
     {
+        slug: "0.9.0",
+        version: "v0.9.0",
+        date: "2026-08-01",
+        description:
+            "Nova Protocol v0.9.0: the cockpit becomes a real NOVA OS ship computer, with a CRT terminal drawer, command output, shell input, app takeover surfaces, scanlines, bloom, sound, power controls and a full phosphor HUD language. Combat reads faster with allegiance markers, neutralized ships, contextual chips and clearer lock decay; scenarios browse by campaign headers; the website adopts the same phosphor skin; assets preload with credited fonts, key glyphs and UI sounds; and nova_probe runs are now profile-sandboxed.",
+    },
+    {
         slug: "0.8.0",
         version: "v0.8.0",
         date: "2026-07-23",

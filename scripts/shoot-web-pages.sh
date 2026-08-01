@@ -37,7 +37,7 @@ done
 PAGES=(
     "landing|/"
     "news-index|/news/"
-    "news-post|/news/0.8.0/"
+    "news-post|/news/0.9.0/"
     "tutorial|/tutorial/"
     "wiki-index|/wiki/"
     "wiki-dev-page|/wiki/dev/architecture/"
@@ -51,7 +51,7 @@ VIEWPORTS=(
     "mobile|390x2200"
 )
 
-echo ">> building the landing site (webpack)…"
+echo ">> building the landing site (webpack)..."
 pushd web >/dev/null
 [[ -d node_modules ]] || npm install
 npm run build
@@ -70,7 +70,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo ">> serving web/dist on 127.0.0.1:${PORT}…"
+echo ">> serving web/dist on 127.0.0.1:${PORT}..."
 python3 -m http.server "$PORT" --bind 127.0.0.1 --directory web/dist >/dev/null 2>&1 &
 SERVER_PID=$!
 

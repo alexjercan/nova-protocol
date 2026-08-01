@@ -4533,7 +4533,7 @@ dependencies = [
 
 [[package]]
 name = "nova-protocol"
-version = "0.8.1"
+version = "0.9.0"
 dependencies = [
  "avian3d",
  "bevy",
@@ -4553,7 +4553,7 @@ dependencies = [
 
 [[package]]
 name = "nova_assets"
-version = "0.8.1"
+version = "0.9.0"
 dependencies = [
  "avian3d",
  "bevy",
@@ -4583,7 +4583,7 @@ dependencies = [
 
 [[package]]
 name = "nova_core"
-version = "0.8.1"
+version = "0.9.0"
 dependencies = [
  "bevy",
  "bevy_enhanced_input",
@@ -4600,7 +4600,7 @@ dependencies = [
 
 [[package]]
 name = "nova_debug"
-version = "0.8.1"
+version = "0.9.0"
 dependencies = [
  "avian3d",
  "bevy",
@@ -4614,7 +4614,7 @@ dependencies = [
 
 [[package]]
 name = "nova_editor"
-version = "0.8.1"
+version = "0.9.0"
 dependencies = [
  "avian3d",
  "bevy",
@@ -4628,7 +4628,7 @@ dependencies = [
 
 [[package]]
 name = "nova_events"
-version = "0.8.1"
+version = "0.9.0"
 dependencies = [
  "bevy",
  "bevy_common_systems",
@@ -4637,7 +4637,7 @@ dependencies = [
 
 [[package]]
 name = "nova_gameplay"
-version = "0.8.1"
+version = "0.9.0"
 dependencies = [
  "avian3d",
  "bevy",
@@ -4657,11 +4657,11 @@ dependencies = [
 
 [[package]]
 name = "nova_info"
-version = "0.8.1"
+version = "0.9.0"
 
 [[package]]
 name = "nova_menu"
-version = "0.8.1"
+version = "0.9.0"
 dependencies = [
  "avian3d",
  "bevy",
@@ -4681,7 +4681,7 @@ dependencies = [
 
 [[package]]
 name = "nova_meta_gen"
-version = "0.8.1"
+version = "0.9.0"
 dependencies = [
  "bevy",
  "clap",
@@ -4691,7 +4691,7 @@ dependencies = [
 
 [[package]]
 name = "nova_mod_format"
-version = "0.8.1"
+version = "0.9.0"
 dependencies = [
  "ron",
  "serde",
@@ -4700,7 +4700,7 @@ dependencies = [
 
 [[package]]
 name = "nova_modding"
-version = "0.8.1"
+version = "0.9.0"
 dependencies = [
  "bevy",
  "nova_gameplay",
@@ -4712,7 +4712,7 @@ dependencies = [
 
 [[package]]
 name = "nova_os"
-version = "0.8.1"
+version = "0.9.0"
 dependencies = [
  "bevy",
  "nova_info",
@@ -4720,7 +4720,7 @@ dependencies = [
 
 [[package]]
 name = "nova_probe"
-version = "0.8.1"
+version = "0.9.0"
 dependencies = [
  "avian3d",
  "bevy",
@@ -4736,7 +4736,7 @@ dependencies = [
 
 [[package]]
 name = "nova_scenario"
-version = "0.8.1"
+version = "0.9.0"
 dependencies = [
  "avian3d",
  "bevy",
@@ -4756,7 +4756,7 @@ dependencies = [
 
 [[package]]
 name = "nova_ui"
-version = "0.8.1"
+version = "0.9.0"
 dependencies = [
  "bevy",
  "serde",

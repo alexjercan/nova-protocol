@@ -1,10 +1,10 @@
 # v0.9.0 release tracker: Cockpit & Command - ship-computer drawer, combat readability, scenario browsing
 
-- STATUS: OPEN
+- STATUS: IN_PROGRESS
 - PRIORITY: 1
 - TAGS: v0.9.0, release, meta
 - KIND: TASK
-- FLOW STEP: PLANNED
+- FLOW STEP: WORKING
 - PLAN STATUS: APPROVED
 
 Release-level tracker for v0.9.0. Per-strand work lives in its own tatr task
@@ -336,6 +336,65 @@ flow unless the user explicitly asks later.
 - Release commit exists on `master`. (cmd: `git log -1 --oneline --decorate`)
 - If the user approves local tagging, `v0.9.0` exists and is unpushed.
   (manual: `git tag --list v0.9.0` shows `v0.9.0` and no push is performed)
+
+## Notes
+
+2026-08-01 release cut:
+
+- Changed workspace version to `0.9.0`; refreshed `Cargo.lock` with `cargo metadata`.
+- Promoted `CHANGELOG.md` Unreleased content to `0.9.0` dated `2026-08-01`.
+- Added `web/src/news/0.9.0.md`; wired `NEWS_POSTS`, the news index card and
+  the representative screenshot route.
+- Expanded the v0.9.0 feature post from 1,192 to 3,342 words after comparison
+  with v0.8.0's 2,751-word post. Added shipped detail for the terminal command
+  tree, map and ship apps, CRT interaction, contextual HUD, combat outcomes,
+  campaign content, interface skins, startup, web verification, asset loading
+  and probe isolation; increased screenshot placeholders from three to five.
+- `git status --short --branch`: clean before edits except `master` ahead of
+  `origin/master` by one existing commit.
+- `git branch --show-current`: `master`.
+- `find docs -maxdepth 2 -type f | sort`: only `docs/README.md`.
+- `scripts/check-docs-clean.sh`: pass, `docs/` is release-clean.
+- `tatr ls -f '(:tags contains v0.9.0) and (:status eq OPEN)' --sort priority`:
+  only this release tracker remains open.
+- `nix develop --command cargo metadata --format-version 1 >/dev/null`: pass.
+- `rg -n '"0\.8\.1"|v0\.8\.1|0\.8\.1' Cargo.toml Cargo.lock crates web/src CHANGELOG.md`:
+  no stale workspace crate versions; remaining hits are dated changelog/history
+  links, the v0.8.1 point-release news section and unrelated dependency
+  versions in `Cargo.lock`.
+- `rg -n '^version = "0\.9\.0"$' Cargo.toml`: pass.
+- `rg -n 'name = "nova-protocol"|version = "0\.9\.0"' Cargo.lock`: pass for
+  workspace packages.
+- `test -f web/src/news/0.9.0.md && rg -n 'slug: "0\.9\.0"|news/0\.9\.0/|news-post\|/news/0\.9\.0/' web/webpack.config.js web/src/news.html scripts/shoot-web-pages.sh`:
+  pass.
+- `nix develop --command cargo fmt --check`: pass.
+- `nix develop --command cargo check`: pass; existing future-incompat warnings
+  remain in `nova_gameplay` map/ship prelude exports and `proc-macro-error2`.
+- `nix develop --command cargo run -p nova_assets --bin content -- lint`: pass,
+  `0 error(s), 0 warning(s), 0 finding(s), 14 scenario(s) balance-audited, 1 acked`.
+- `nix develop --command bash -lc 'cd web && npm run ci'`: pass; format,
+  eslint, site/theme tests and webpack build succeeded.
+- `nix develop --command scripts/shoot-web-pages.sh target/web-shots-v0.9.0`:
+  pass; captured 12 screenshots. Manual inspection of news index and v0.9.0
+  post desktop/mobile shots: coherent layout, top card/post rendered.
+- After the expanded news rewrite, reran
+  `nix develop --command bash -lc 'cd web && npm run ci'`: pass; format,
+  eslint, site/theme tests and webpack build succeeded.
+- `nix develop --command scripts/shoot-web-pages.sh target/web-shots-v0.9.0-news-expanded`:
+  pass; captured 12 screenshots. Re-inspected the news index and expanded
+  v0.9.0 post at desktop/mobile widths: coherent layout, no overlap or clipped
+  text, and figure placeholders render correctly.
+- `tatr check --ledger LESSONS.md`: blocked by five existing
+  `promotion-awaiting-decision` findings: `split-tests-hoist-the-shared-fixture`,
+  `split-must-re-export-not-repoint`, `conserve-on-regroup`,
+  `comment-pass-as-asserted-replacements` and
+  `visibility-sweep-narrows-back`. Owner chose `DEFER` for all five during the
+  release close; recorded with `tatr ledger` and reran the check successfully.
+- Release child `20260729-211150` has `STATUS: CLOSED` but remains at
+  `FLOW STEP: COMPOUNDING`; all other v0.9.0 children are `DONE`.
+- Full `cargo test` skipped per release plan; user had reported all tests green
+  on master before the cut.
+- Local `v0.9.0` tag not created; task requires a later explicit user approval.
 
 ## Grooming history
 

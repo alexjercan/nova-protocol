@@ -14,6 +14,8 @@ tagged **(breaking)**.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-08-01
+
 ### Scenarios & Objectives
 
 - Scenarios tab groups campaigns under collapsible `[-]`/`[+]` headers listing each campaign's ordered chapters - including hidden mid-story chapters - so any chapter is launchable directly for replay.
@@ -427,7 +429,8 @@ tagged **(breaking)**.
 
 - Editor and simulation scenes.
 
-[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.8.1...HEAD
+[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/alexjercan/nova-protocol/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/alexjercan/nova-protocol/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/alexjercan/nova-protocol/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/alexjercan/nova-protocol/compare/v0.6.0...v0.7.0

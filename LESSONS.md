@@ -1579,7 +1579,7 @@ here (annotated) as the paid record.
 
 ## Pending promotions (3+ occurrences, user decides)
 
-- `split-tests-hoist-the-shared-fixture` (x4): when a test module splits with
+- `split-tests-hoist-the-shared-fixture` (x4, DEFER 2026-08-01 at x4: Deferred for now by owner during the v0.9.0 release.): when a test module splits with
   its file, its fixtures are shared state - hoist them into the new
   `tests/mod.rs` (or a `#[cfg(test)] pub(super) mod`) rather than copying one
   per child, because a duplicated fixture drifts silently and no check
@@ -1599,7 +1599,7 @@ here (annotated) as the paid record.
   helper defined more than once across the sibling modules of one split, so a
   copied fixture fails the pass instead of drifting.
 
-- `split-must-re-export-not-repoint` (x4): a file-to-folder module split is
+- `split-must-re-export-not-repoint` (x4, DEFER 2026-08-01 at x4: Deferred for now by owner during the v0.9.0 release.): a file-to-folder module split is
   done when the PATHS still resolve, not when the crate compiles - declaring
   `pub mod <concern>;` without re-exporting silently moves every item one
   level down, and repointing the few call sites that break is precisely what
@@ -1622,7 +1622,7 @@ here (annotated) as the paid record.
   of the post-split folder and diff them, run with `cargo doc`, so a broken
   public path fails a check rather than a consumer's `use`.
 
-- `conserve-on-regroup` (x6): any MECHANICAL edit to prose, a list-shaped doc,
+- `conserve-on-regroup` (x6, DEFER 2026-08-01 at x6: Deferred for now by owner during the v0.9.0 release.): any MECHANICAL edit to prose, a list-shaped doc,
   or CODE needs a conservation check derived from the edit's invariant -
   multiset-diff the tokens (items when regrouping, WORDS when stripping clauses
   in place, LINES when moving code between files) and reconcile; a pattern hunt
@@ -1644,7 +1644,7 @@ here (annotated) as the paid record.
   20260716-102950, 20260731-170359, 20260731-170427, 20260731-170432,
   20260731-170437, 20260731-170448.
 
-- `comment-pass-as-asserted-replacements` (x4): every recorded instance of
+- `comment-pass-as-asserted-replacements` (x4, DEFER 2026-08-01 at x4: Deferred for now by owner during the v0.9.0 release.): every recorded instance of
   rustdoc rewrap damage came from a SCRIPTED substitution, so do the opposite -
   write the comment pass as N explicit replacements, each asserting its anchor
   occurs exactly once, and let a moved or re-wrapped anchor fail the pass
@@ -1665,7 +1665,7 @@ here (annotated) as the paid record.
   warning-free - two clean passes out of two that used them.
   20260731-170351, 20260731-170409, 20260731-170427, 20260731-170432.
 
-- `visibility-sweep-narrows-back` (x4): a file-to-folder split moves visibility
+- `visibility-sweep-narrows-back` (x4, DEFER 2026-08-01 at x4: Deferred for now by owner during the v0.9.0 release.): a file-to-folder split moves visibility
   in BOTH directions and neither direction has a check. Anything ADDED to make
   it compile proves only a LOWER bound - a column-0
   `s/^(struct|fn|const) /pub(super) \1 /` widened eight `#[test]` fns and seven
