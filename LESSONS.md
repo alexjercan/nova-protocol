@@ -1558,7 +1558,7 @@ here (annotated) as the paid record.
 
 ## Pending promotions (3+ occurrences, user decides)
 
-- `doc-comment-rewrap-changes-the-render` (x4, DEFER 2026-08-01 at x3: revisit at the next occurrence) -> tooling:
+- `doc-comment-rewrap-changes-the-render` (x4, PROMOTE 2026-08-01 -> 20260801-102759) -> tooling:
   re-wrapping or deleting a mid-line clause in a `//!`/`///` block changes what
   rustdoc RENDERS while check and fmt stay green - a following line starting
   `-`/`#`/`>`/`1.` becomes a block construct, a wrapped `- ` list collapses into
@@ -1573,7 +1573,7 @@ here (annotated) as the paid record.
   lint over the RESULT, all obvious in a comment-text diff against the base.
   20260731-170329, 20260731-170335, 20260731-170359, 20260731-170340.
 
-- `re-measure-records-after-the-last-edit` (x3): a record holding measured
+- `re-measure-records-after-the-last-edit` (x3, DEFER 2026-08-01 at x3: revisit at x4; always caught in review, and the record-command tooling is a bigger build than the two promoted checks - see whether the comment-diff check absorbs part of it first): a record holding measured
   numbers (line counts, `file:line` inventories, diff totals) goes stale the
   moment ANY later edit touches the measured files - a review-round rewrap
   shortened three files by one line and falsified three table rows and three
@@ -1585,7 +1585,7 @@ here (annotated) as the paid record.
   command and have it re-run rather than transcribed.
   20260731-170335, 20260731-170359, 20260731-170340.
 
-- `generated-links-need-real-targets` (x5, DEFER 2026-08-01 at x4: delete rotted pointers by hand as each pass finds them) -> tooling:
+- `generated-links-need-real-targets` (x5, PROMOTE 2026-08-01 -> 20260801-102808) -> tooling:
   manifest-rendered, authored, AND source-comment doc links gate on the target
   existing - a README banner went stale on a dir move; seven `docs/spikes/*.md`
   and `DECISION.md` pointers in nova_gameplay HUD comments outlived the files,
