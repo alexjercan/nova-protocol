@@ -4,7 +4,7 @@
 - PRIORITY: 0
 - TAGS: backlog, bug, gameplay
 - KIND: TASK
-- FLOW STEP: REVIEWING
+- FLOW STEP: COMPOUNDING
 - PLAN STATUS: APPROVED
 
 ## Context

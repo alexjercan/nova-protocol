@@ -637,12 +637,14 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `commit-before-sabotage` (x2, PROMOTED 2026-07-11 -> work skill): commit
   the fix before A/B sabotage; anchor splices on unique strings.
   20260710-231930.
-- `production-faithful-rigs` (x9, PROMOTED 2026-07-11 -> work skill): rigs
+- `production-faithful-rigs` (x10, PROMOTED 2026-07-11 -> work skill): rigs
   mirror production - scheduling, hierarchy, shipped configuration,
   required-component DEFAULTS; extract ONE shared registration helper both
   plugin and rigs call; when a rig cannot run a shipped action for a missing
   resource, give the rig the resource PRODUCTION has (an AssetPlugin) rather than
-  softening the engine to tolerate its absence. 20260711-103527, 20260717-163042, 20260722-214115.
+  softening the engine to tolerate its absence; shortcut fixtures must replay
+  production hand-offs before firing later events. 20260711-103527,
+  20260717-163042, 20260722-214115, 20260801-122138.
 - `seed-helper-drifts-from-source` (x1): a hand-maintained "seed/mirror the
   whole <source> block" test helper rots SILENTLY when the source grows a field
   - final_tally's seed_live_claim fell behind the OnStart VariableSet block when
