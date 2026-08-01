@@ -172,3 +172,14 @@ before the epic closes.
       re-exported by `run_report/mod.rs`; and the relocated bin target smoke-
       run on both `Cmd` arms. Tests ran here: `cargo test -p nova_probe --lib
       --bins` 71 + 26 passed.
+- [ ] 20260731-170437 - skim the nova_ui / nova_os split + comment diff and
+      agree no behavior changed. Supporting evidence in that task's REVIEW.md:
+      `widget.rs` 2265 and `terminal.rs` 1579 split into folder modules,
+      largest file now 863; a comment-stripped line multiset over both splits
+      whose entire residue is imports, `pub(super)` keywords, `mod`/`pub use`
+      lines and rustfmt re-wraps, with one deliberate deletion (the dead test
+      helper `only_button`, recorded in NOTES.md); the `#[test]` names an
+      identical sorted list before and after; all 56 old public paths compiled
+      from an external crate by a throwaway import probe; and the whole
+      `nova_editor` + `nova_debug` diff comment-only. Tests ran here: `cargo
+      test -p nova_ui -p nova_os -p nova_editor -p nova_debug --lib` 65 passed.
