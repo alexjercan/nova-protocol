@@ -45,6 +45,12 @@ struct Cli;
 /// Id of the one gate that drifts, so the range can single it out and drive it.
 const MOVING_GATE_ID: &str = "gate_moving";
 
+/// The broad torpedo range needs a longer runway than the shared autopilot
+/// preset on slow software-rendered CI, where Playing can arrive with too
+/// little of the default 6s window left to observe detonation.
+#[cfg(feature = "debug")]
+const RANGE_AUTOPILOT_SECS: f32 = 10.0;
+
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
@@ -89,7 +95,11 @@ fn main() -> bevy::app::AppExit {
         app.add_plugins(nova_probe::nova_timeline());
         app.add_plugins(nova_probe::nova_invariants());
         app.add_plugins(nova_probe::nova_frametime());
-        app.add_plugins(nova_autopilot().input(autopilot_fire_and_assert));
+        app.add_plugins(
+            AutopilotPlugin::new()
+                .hold(GameStates::Loading, RANGE_AUTOPILOT_SECS)
+                .input(autopilot_fire_and_assert),
+        );
         app.add_plugins(nova_screenshot());
     }
 
@@ -498,7 +508,7 @@ fn autopilot_fire_and_assert(world: &mut World, elapsed: f32) {
         );
     }
 
-    if elapsed > nova_protocol::nova_debug::harness::NOVA_AUTOPILOT_SECS - 0.5 {
+    if elapsed > RANGE_AUTOPILOT_SECS - 0.5 {
         let mut outcome = world.resource_mut::<RangeOutcome>();
         if outcome.asserted {
             return;
