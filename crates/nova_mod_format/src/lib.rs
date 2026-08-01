@@ -1,7 +1,7 @@
 //! Pure serde types for the Nova Protocol mod formats - the ENGINE-FREE half of
-//! the modding data model, split out of `nova_modding` (task 20260715-142900) so
-//! the portal wire schema stays engine-free (the portal generator is now the
-//! stdlib-only `scripts/gen-portal.py`, no bevy in its path).
+//! the modding data model, split out of `nova_modding` so the portal wire
+//! schema stays engine-free (the portal generator is the stdlib-only
+//! `scripts/gen-portal.py`, no bevy in its path).
 //!
 //! Three format families live here:
 //! - the on-disk bundle manifest (`*.bundle.ron`): [`BundleManifest`] + the mod's
@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 
 /// Pure mod-dependency resolution (topological order, transitive closure,
 /// dependents) over an id-keyed graph. Engine-free; shared by the merge, the
-/// menu and the portal. Task 20260715-142931.
+/// menu and the portal.
 pub mod deps;
 
 /// The portal catalog schema version THIS build writes and reads. Bump on any
@@ -97,8 +97,8 @@ pub struct BundleManifest {
     pub meta: ModMeta,
     /// The scenario id New Game launches. HONORED ONLY when this bundle is
     /// the catalog's `base: true` entry - the merge warns and ignores it on
-    /// any other bundle, so a mod cannot redirect the New Game start (task
-    /// 20260716-155849). Strict RON writes the Option variant explicitly:
+    /// any other bundle, so a mod cannot redirect the New Game start. Strict
+    /// RON writes the Option variant explicitly:
     /// `new_game_scenario: Some("shakedown_run")`, never a bare string.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub new_game_scenario: Option<String>,
@@ -194,7 +194,6 @@ mod tests {
     /// block decodes every field.
     #[test]
     fn bundle_manifest_ron_decodes() {
-        // Meta-less body (the pre-142849 format) -> ModMeta::default().
         let ron = r#"(content: [
             "sections/base.content.ron",
             "scenarios/demo.content.ron",
@@ -218,7 +217,6 @@ mod tests {
             "an undeclared new_game_scenario defaults to None"
         );
 
-        // Full meta block -> every field decodes.
         let ron = r#"(
             content: ["mod.content.ron"],
             meta: (

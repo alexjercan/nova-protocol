@@ -83,15 +83,11 @@ impl AppBuilder {
     /// assets, and the `mods://` source registered before `AssetPlugin` lands).
     pub fn new() -> Self {
         let mut app = App::new();
-        // The `mods://` source (the downloaded-mods cache, task 20260715-142906)
-        // must be registered BEFORE AssetPlugin lands with DefaultPlugins below:
-        // bevy builds the registered sources at AssetPlugin insertion, not
-        // lazily. It cannot live inside `assets_plugin()` (that returns the
-        // AssetPlugin VALUE for `.set()`; source registration needs the App), so
-        // the registration helper lives next to the cache in
-        // `nova_assets::mod_cache` and is called here - which also lets the
-        // nova_assets integration tests build their rigs on the exact production
-        // registration.
+        // NOTE: the `mods://` source must be registered BEFORE AssetPlugin lands
+        // with DefaultPlugins below - bevy builds the registered sources at
+        // AssetPlugin insertion, not lazily. It cannot live inside
+        // `assets_plugin()`, which returns the AssetPlugin VALUE for `.set()`
+        // while source registration needs the App.
         nova_assets::mod_cache::register_mods_source(&mut app);
         app.add_plugins(
             DefaultPlugins
@@ -150,8 +146,6 @@ impl AppBuilder {
         self.app
             .add_plugins(bevy_enhanced_input::EnhancedInputPlugin);
         self.app.add_plugins(GameAssetsPlugin);
-        // The boot loading screen covers the native window during asset load
-        // (the web build has its own HTML spinner over the pre-wasm + Boot phase).
         self.app.add_plugins(LoadingScreenPlugin);
         self.app.add_plugins(NovaGameplayPlugin {
             render: self.render,
@@ -160,14 +154,10 @@ impl AppBuilder {
             render: self.render,
         });
 
-        // Add the editor (the default "game") if no custom game plugins were provided
         if self.use_default_plugins {
             self.app.add_plugins(NovaEditorPlugin);
         }
 
-        // The main menu fronts the default app unless explicitly overridden; custom
-        // game plugins (the examples) skip it and keep the direct Loading -> Playing
-        // lifecycle.
         let main_menu = self.main_menu.unwrap_or(self.use_default_plugins);
         if main_menu {
             self.app.add_plugins(NovaMenuPlugin);
@@ -176,11 +166,9 @@ impl AppBuilder {
         #[cfg(feature = "debug")]
         self.app.add_plugins(DebugPlugin);
 
-        // When assets are loaded, hand off to the main menu (when it fronts the app)
-        // or straight to gameplay. The status UI comes up either way. Only advance
-        // when still in Loading: the screenshot harness (BCS_SHOT) force-sets
-        // Playing on the first frame, and this hook firing seconds later must not
-        // yank the app backwards into the menu (review R1.2).
+        // NOTE: only advance when still in Loading - the screenshot harness
+        // (BCS_SHOT) force-sets Playing on the first frame, and this hook firing
+        // seconds later must not yank the app backwards into the menu.
         self.app.add_systems(
             OnEnter(GameAssetsStates::Loaded),
             (
@@ -202,33 +190,16 @@ impl AppBuilder {
     }
 }
 
-// pub fn new_headless_app() -> App {
-//     let mut app = App::new();
-//     app.add_plugins((
-//         DefaultPlugins
-//             .build()
-//             .set(AssetPlugin {
-//                 meta_check: bevy::asset::AssetMetaCheck::Never,
-//                 ..default()
-//             })
-//             .set(log_plugin())
-//             .disable::<WinitPlugin>(),
-//         ScheduleRunnerPlugin::run_loop(Duration::from_secs_f64(1.0 / 64.0)),
-//     ));
-//
-//     app
-// }
-
 fn window_plugin() -> WindowPlugin {
     WindowPlugin {
         primary_window: Some(Window {
             title: format!("NovaProtocol - {}", env!("CARGO_PKG_VERSION")),
             resolution: (1024, 768).into(),
             present_mode: PresentMode::AutoVsync,
-            // Bind to canvas included in `index.html`
+            // NOTE: selector of the canvas shipped in the repo-root `index.html`.
             canvas: Some("#bevy".to_owned()),
             fit_canvas_to_parent: true,
-            // set to true if we want to capture tab etc in wasm
+            // NOTE: true lets the canvas capture tab and other browser keys on wasm.
             prevent_default_event_handling: true,
             ..Default::default()
         }),
@@ -260,36 +231,26 @@ fn log_filter_str<'a>() -> &'a str {
 }
 
 /// The app's asset configuration. Public so tests can load assets through the
-/// exact config the game ships (a hand-rolled `AssetPlugin` once masked a bug
-/// here: the cubemap meta fix was verified against default settings while the
-/// app ignored metas entirely, task 20260713-175416).
+/// exact config the game ships, rather than a hand-rolled `AssetPlugin` that
+/// can mask a bug by differing from it.
 ///
 /// `AssetMetaCheck::Always` reads a `.meta` sidecar for EVERY asset, whatever
-/// its source. This is what makes the shipped `.meta` files actually take
-/// effect. `Never` silently defeated `cubemap.png.meta`'s `array_layout` and
-/// resurrected the skybox upload race (tasks/20260710-143138/NOTES.md); the
-/// `Paths` set that followed (task 20260717-013440) fixed the two BASE cubemaps
-/// but could not cover mod-shipped skyboxes, whose `mods://`/`self://` paths are
-/// dynamic and never appear in a set fixed at App build - so a mod's own
-/// cubemap loaded single-layer and rode the same teardown race (task
-/// 20260717-111558). `Always` honors every mod's sidecar with no per-path
-/// bookkeeping and closes that class for good.
+/// its source, which is what makes the shipped `.meta` files take effect.
+/// Do not narrow it: `Never` defeats `cubemap.png.meta`'s `array_layout` and
+/// resurrects the skybox upload race, and a fixed `Paths` set cannot cover
+/// mod-shipped skyboxes, whose `mods://`/`self://` paths are dynamic and never
+/// appear in a set fixed at App build.
 ///
 /// The cost is web-only and non-fatal: on wasm the asset reader `fetch()`es
-/// `<path>.meta` for every asset, and the ones without a sidecar (most of
-/// them) come back HTTP 404, which bevy handles by falling back to the
-/// loader's default meta (bevy_asset 0.19 `server/mod.rs:1564-1644` and
-/// `io/wasm.rs:100-124`, verified at the pinned rev). So the price is one
-/// extra request per asset and some 404 console noise on web; native pays
-/// only a filesystem stat. We take that over shipping a class of skybox that
-/// crashes on WebGL2-class GPUs.
+/// `<path>.meta` for every asset and the sidecar-less majority come back HTTP
+/// 404, which bevy handles by falling back to the loader's default meta
+/// (bevy_asset 0.19 `server/mod.rs:1564-1644` and `io/wasm.rs:100-124`, at the
+/// pinned rev). Native pays only a filesystem stat.
 ///
 /// A cubemap whose `.meta` `array_layout` applied arrives already 6-layer, which
 /// SKIPS the bcs SkyboxPlugin fallback branch that also set the Cube texture
 /// view - the swap applier (`nova_scenario::apply_pending_skybox_swaps`) sets the
-/// view for that case; keep the two in sync. That fallback (a single-layer
-/// stacked image reinterpreted only when the observer runs) is exactly the
-/// teardown race `Always` avoids by loading the array up front.
+/// view for that case; keep the two in sync.
 ///
 /// The `mods://` source for downloaded mods is NOT configured here - it must be
 /// registered on the App before this plugin is added; `AppBuilder::new` calls
@@ -302,18 +263,13 @@ pub fn assets_plugin() -> AssetPlugin {
 }
 
 fn setup_status_ui(mut commands: Commands, game_assets: Res<GameAssets>) {
-    // Status tier: the fps/version bar is persistent reference chrome (task
-    // 20260724-171509). It is shown at HudVisibility::On and hides at the
-    // cinematic level (and in the main menu, which drives the level to
-    // Cinematic).
-    //
-    // It is NOT NOVA OS-exempt (task 20260727-014806): while the NOVA OS computer is
-    // open the whole flight status bar hides, and the one item that matters there -
-    // FPS - is rehomed onto the NOVA OS terminal topbar instead (see
-    // `drive_nova_os_topbar_fps` in nova_gameplay's hud/nova_os.rs). Dropping
-    // HudNovaOsExempt lets `apply_hud_visibility` hide the bar in
-    // `PauseStates::NovaOs`; its pause-change restore branch un-hides it on close.
-    // The base GlobalZIndex is kept so the bar has a stable z at the HUD layer.
+    // NOTE: the bar is deliberately NOT `HudNovaOsExempt`. While the NOVA OS
+    // computer is open the whole flight status bar hides, and the one item that
+    // matters there - FPS - is rehomed onto the NOVA OS terminal topbar (see
+    // `drive_nova_os_topbar_fps` in nova_gameplay's hud/nova_os/shell.rs).
+    // Without the exemption `apply_hud_visibility` hides the bar in
+    // `PauseStates::NovaOs` and its pause-change restore branch un-hides it on
+    // close. The base GlobalZIndex keeps a stable z at the HUD layer.
     commands.spawn((
         HudTier::Status,
         GlobalZIndex::default(),

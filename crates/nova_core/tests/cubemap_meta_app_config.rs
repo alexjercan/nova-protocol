@@ -4,27 +4,24 @@
 //!
 //! The sibling test in nova_assets (tests/cubemap_meta.rs) proves the meta
 //! file itself works, but it builds its own `AssetPlugin` with default
-//! settings - which is how the original fix shipped verified while the app's
-//! `AssetMetaCheck::Never` ignored every meta on every platform (the v0.5.0
-//! web build logged the single-layer canary warning). These tests pin the app
-//! config: if `assets_plugin()` stops reading a shipped cubemap's meta, they
-//! fail.
+//! settings - which once let the app ship with `AssetMetaCheck::Never`,
+//! ignoring every meta on every platform, while that test stayed green. These
+//! tests pin the APP config: if `assets_plugin()` stops reading a shipped
+//! cubemap's meta, they fail.
 //!
-//! `cubemap_alt.png` (broadside's sky, also dep://'d by the gauntlet and
-//! ledger webmods) is pinned alongside `cubemap.png`: its path was once missing
-//! from the old `meta_check` Paths set, so it loaded as a single-layer
-//! 4096x24576 image (task 20260717-013440). The bcs SkyboxPlugin fallback
-//! reinterpret hid that in the normal path, but a scenario teardown during the
-//! PNG decode leaves the raw stacked image to be uploaded as-is - over the 16384
-//! texture limit of llvmpipe/WebGL2-class GPUs, a fatal wgpu validation error.
+//! A cubemap whose meta is ignored loads as a single-layer 4096x24576 image.
+//! The bcs SkyboxPlugin fallback reinterpret hides that in the normal path, but
+//! a scenario teardown during the PNG decode leaves the raw stacked image to be
+//! uploaded as-is - over the 16384 texture limit of llvmpipe/WebGL2-class GPUs,
+//! a fatal wgpu validation error. `cubemap_alt.png` is pinned alongside
+//! `cubemap.png` because it was once missing from the old `meta_check` Paths
+//! set and hit exactly that.
 //!
 //! `mods/example/textures/nebula.png` is the example mod's OWN skybox, pinned
-//! here to prove the config honors a MOD-shipped sidecar too. A per-path Paths
-//! set could never list a dynamic `mods://`/`self://` path, so mod cubemaps kept
-//! riding the same teardown race (task 20260717-111558); the config now uses
-//! `AssetMetaCheck::Always`, which reads every asset's sidecar regardless of
-//! source. This case FAILS under the old `Paths` config and passes under
-//! `Always` - it is the regression pin for that switch.
+//! to prove the config honors a MOD-shipped sidecar too: a per-path Paths set
+//! can never list a dynamic `mods://`/`self://` path, so this case FAILS under
+//! the old `Paths` config and passes under `Always` - the regression pin for
+//! that switch.
 
 use std::time::{Duration, Instant};
 
@@ -41,8 +38,8 @@ fn assert_app_config_loads_as_six_layer_array(path: &str) {
     app.add_plugins((
         MinimalPlugins,
         AssetPlugin {
-            // Tests run with the crate root as cwd; the asset folder lives at
-            // the workspace root.
+            // NOTE: tests run with the crate root as cwd; the asset folder
+            // lives at the workspace root.
             file_path: "../../assets".to_string(),
             ..nova_core::assets_plugin()
         },
@@ -53,8 +50,8 @@ fn assert_app_config_loads_as_six_layer_array(path: &str) {
     let asset_server = app.world().resource::<AssetServer>().clone();
     let handle: Handle<Image> = asset_server.load(path.to_string());
 
-    // The PNG decode of a 4096x24576 image takes a few seconds in dev builds;
-    // the deadline only bounds a hang.
+    // NOTE: the PNG decode of a 4096x24576 image takes a few seconds in dev
+    // builds; the deadline only bounds a hang, it is not a perf assertion.
     let deadline = Instant::now() + Duration::from_secs(120);
     loop {
         app.update();
@@ -93,9 +90,8 @@ fn app_asset_config_loads_cubemap_alt_as_six_layer_array() {
 
 /// A MOD-shipped cubemap (the example mod's own `nebula.png`, a dynamic
 /// `self://`/`mods://` path no static Paths set could enumerate) must also get
-/// its sidecar honored. This is the pin for the `Paths` -> `Always` switch
-/// (task 20260717-111558): it fails if the config ever stops reading a
-/// non-base asset's meta.
+/// its sidecar honored. This is the pin for the `Paths` -> `Always` switch: it
+/// fails if the config ever stops reading a non-base asset's meta.
 ///
 /// This loads the SHIPPED path (default file source, `assets/mods/example/...`).
 /// The DOWNLOADED path (a `mods://` source reading a cached sidecar) is not

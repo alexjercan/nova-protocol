@@ -1,7 +1,7 @@
-//! Pure mod-dependency resolution over an `id -> dependency-ids` graph (task
-//! 20260715-142931). Engine-free like the rest of this crate, so the asset
-//! merge (`register_bundles`), the menu's enable/install flows and their tests
-//! all share ONE implementation. Ids only - no version constraints.
+//! Pure mod-dependency resolution over an `id -> dependency-ids` graph.
+//! Engine-free like the rest of this crate, so the asset merge
+//! (`register_bundles`), the menu's enable/install flows and their tests all
+//! share ONE implementation. Ids only - no version constraints.
 //!
 //! `base` is an IMPLICIT dependency (see [`ModMeta::dependencies`](crate::ModMeta))
 //! and never appears in a graph here; callers seed it separately. An id absent
@@ -31,8 +31,8 @@ pub fn transitive_deps(graph: &DepGraph, id: &str) -> Vec<String> {
         }
     }
     let mut seen = HashSet::new();
-    // Seed with `id` so a self-edge (or a cycle back to the root) is ignored and
-    // the root never lists itself.
+    // NOTE: seeding with `id` is what makes a self-edge (or a cycle back to the
+    // root) ignored and keeps the root out of its own list.
     seen.insert(id.to_string());
     let mut out = Vec::new();
     visit(graph, id, &mut seen, &mut out);
@@ -62,8 +62,6 @@ pub struct TopoOrder {
 pub fn topological_order(ids: &[String], graph: &DepGraph) -> TopoOrder {
     let in_set: HashSet<&str> = ids.iter().map(String::as_str).collect();
 
-    // Remaining in-set prerequisite count per id, and the reverse edges
-    // (prerequisite -> the ids that depend on it) so we can relax on emit.
     let mut indegree: HashMap<&str, usize> = ids.iter().map(|id| (id.as_str(), 0usize)).collect();
     let mut dependents_of: HashMap<&str, Vec<&str>> = HashMap::new();
     for id in ids {
@@ -80,9 +78,8 @@ pub fn topological_order(ids: &[String], graph: &DepGraph) -> TopoOrder {
 
     let mut order: Vec<String> = Vec::with_capacity(ids.len());
     let mut emitted: HashSet<&str> = HashSet::new();
-    // Kahn's: repeatedly emit the earliest-in-input id whose prerequisites are
-    // all emitted. Re-scanning `ids` in order each round preserves the stable
-    // tiebreak without a priority queue (mod counts are tiny).
+    // NOTE: re-scanning `ids` in input order each round is what preserves the
+    // stable tiebreak without a priority queue (mod counts are tiny).
     loop {
         let mut progressed = false;
         for id in ids {
@@ -104,7 +101,6 @@ pub fn topological_order(ids: &[String], graph: &DepGraph) -> TopoOrder {
         }
     }
 
-    // Anything left is in a cycle; emit in input order so the set is complete.
     let cycle = order.len() != ids.len();
     if cycle {
         for id in ids {
@@ -148,7 +144,6 @@ mod tests {
 
     #[test]
     fn transitive_deps_walks_a_chain_and_a_diamond() {
-        // c -> b -> a ; and d -> {b, e}, e -> a (diamond on a).
         let g = graph(&[
             ("c", &["b"]),
             ("b", &["a"]),
@@ -156,7 +151,8 @@ mod tests {
             ("e", &["a"]),
         ]);
         assert_eq!(transitive_deps(&g, "c"), vec!["a", "b"]);
-        // Post-order, each dep once: b's subtree (a,b) then e's (e, a already seen).
+        // NOTE: post-order, each dep once - b's subtree (a, b) then e's (e, with
+        // a already seen).
         assert_eq!(transitive_deps(&g, "d"), vec!["a", "b", "e"]);
         assert_eq!(transitive_deps(&g, "a"), Vec::<String>::new());
     }
@@ -164,33 +160,30 @@ mod tests {
     #[test]
     fn transitive_deps_tolerates_a_cycle() {
         let g = graph(&[("a", &["b"]), ("b", &["a"])]);
-        // a's deps: b (and b -> a is ignored as the root/seen).
+        // NOTE: b only - the `b -> a` edge back to the root is ignored.
         assert_eq!(transitive_deps(&g, "a"), vec!["b"]);
     }
 
     #[test]
     fn topological_order_puts_deps_before_dependents_regardless_of_input_order() {
-        // Input order lists the dependent (b) BEFORE its dependency (a).
         let g = graph(&[("b", &["a"])]);
         let ids = vec!["b".to_string(), "a".to_string(), "c".to_string()];
         let topo = topological_order(&ids, &g);
         assert!(!topo.cycle);
-        // a before b; c independent keeps its relative slot (stable tiebreak).
         let pos = |x: &str| topo.order.iter().position(|s| s == x).unwrap();
         assert!(
             pos("a") < pos("b"),
             "dep before dependent: {:?}",
             topo.order
         );
-        // c had no edges; among no-prereq nodes the input order (b,a,c... but b
-        // blocked) yields a, c, b or a, b, c depending on relaxation - assert the
-        // only hard constraint plus determinism.
+        // NOTE: with b blocked in round one, c may land before or after it
+        // depending on relaxation, so only the hard constraint is asserted.
         assert_eq!(topo.order.len(), 3);
     }
 
     #[test]
     fn topological_order_is_stable_for_independent_ids() {
-        let g = graph(&[]); // no edges
+        let g = graph(&[]);
         let ids = vec!["x".to_string(), "y".to_string(), "z".to_string()];
         let topo = topological_order(&ids, &g);
         assert!(!topo.cycle);
@@ -203,29 +196,24 @@ mod tests {
         let ids = vec!["a".to_string(), "b".to_string(), "c".to_string()];
         let topo = topological_order(&ids, &g);
         assert!(topo.cycle, "a<->b is a cycle");
-        // c is orderable; a and b are emitted in input order after it.
         assert!(topo.order.contains(&"c".to_string()));
         assert_eq!(topo.order.len(), 3, "all ids present despite the cycle");
     }
 
     #[test]
     fn dependents_lists_enabled_mods_that_need_the_id() {
-        // b and c depend on a; d does not.
         let g = graph(&[("b", &["a"]), ("c", &["a"]), ("d", &["e"])]);
         let enabled = ["a", "b", "c", "d"];
         assert_eq!(
             dependents("a", enabled.iter().copied(), &g),
             vec!["b".to_string(), "c".to_string()]
         );
-        // d depends on e, so e has one enabled dependent.
         assert_eq!(
             dependents("e", enabled.iter().copied(), &g),
             vec!["d".to_string()]
         );
-        // Nothing depends on d.
         assert!(dependents("d", enabled.iter().copied(), &g).is_empty());
-        // A DISABLED dependent does not count (only `enabled` is scanned): with
-        // only a and d enabled, nothing enabled depends on a.
+        // NOTE: a DISABLED dependent does not count - only `enabled` is scanned.
         assert!(dependents("a", ["a", "d"].iter().copied(), &g).is_empty());
     }
 }

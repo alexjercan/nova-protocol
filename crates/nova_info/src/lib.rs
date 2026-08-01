@@ -2,10 +2,6 @@
 //! [`APP_VERSION`], injected by this crate's `build.rs` at compile time so the
 //! menu and about screens can show the running version without every crate
 //! taking a dependency on the build script.
-//!
-//! This crate is the workspace's `#![warn(missing_docs)]` exemplar (task
-//! 20260525-133033): small and fully documented, so the enforcement lint is
-//! turned on here and rolls out to other crates as they come clean.
 #![warn(missing_docs)]
 
 /// The running application version, set by `build.rs` from the Cargo package

@@ -183,3 +183,12 @@ before the epic closes.
       from an external crate by a throwaway import probe; and the whole
       `nova_editor` + `nova_debug` diff comment-only. Tests ran here: `cargo
       test -p nova_ui -p nova_os -p nova_editor -p nova_debug --lib` 65 passed.
+- [ ] 20260731-170448 - skim the small-crates + root-binary comment diff and
+      agree no behavior changed. Supporting evidence in that task's REVIEW.md:
+      the structure axis was a NO-OP (largest file in scope 439 lines, every
+      file single-concern), so the diff is comments ONLY - stripping
+      comment-only lines, trailing `//` tails and blanks makes all eight
+      touched `.rs` files identical to master, with no residue at all to
+      reconcile. Tests ran to completion here: `cargo test -p nova_core -p
+      nova_events -p nova_info -p nova_modding -p nova_mod_format --lib` 12
+      passed, `-p nova_core --test cubemap_meta_app_config` 3 passed.

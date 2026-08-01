@@ -199,7 +199,6 @@ mod tests {
         app.init_state::<GameAssetsStates>();
         app.add_plugins(LoadingScreenPlugin);
 
-        // Boot (default): nothing spawned yet.
         app.update();
         assert_eq!(
             count::<LoadingScreenMarker>(&mut app),
@@ -207,7 +206,6 @@ mod tests {
             "loading screen must not exist before Loading"
         );
 
-        // Enter Loading: screen + camera spawn.
         app.world_mut()
             .resource_mut::<NextState<GameAssetsStates>>()
             .set(GameAssetsStates::Loading);
@@ -223,7 +221,6 @@ mod tests {
             "loading screen camera must spawn on OnEnter(Loading)"
         );
 
-        // Enter Loaded: screen + camera despawn.
         app.world_mut()
             .resource_mut::<NextState<GameAssetsStates>>()
             .set(GameAssetsStates::Loaded);
@@ -261,7 +258,6 @@ mod tests {
                 seen.insert(text.len());
             }
         }
-        // Expect to observe at least three distinct dot lengths over the sweep.
         assert!(
             seen.len() >= 3,
             "marching dots should cycle through multiple lengths, saw {seen:?}"

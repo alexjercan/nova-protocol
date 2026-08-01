@@ -6,10 +6,8 @@
 //!   item carries its KIND as a data flag (`Section((..))` / `Scenario((..))`).
 //!
 //! A [`Content`] item is one of:
-//! - [`Content::Section`] - a [`SectionConfig`]
-//!   prototype (previously the `*.sections.ron` catalog),
-//! - [`Content::Scenario`] - a [`ScenarioConfig`]
-//!   (previously the `*.scenario.ron` file), and
+//! - [`Content::Section`] - a [`SectionConfig`] prototype,
+//! - [`Content::Scenario`] - a [`ScenarioConfig`], and
 //! - [`Content::Campaign`] - a [`CampaignConfig`], the ordered scenario-id
 //!   mapping the Scenarios picker groups and launches by.
 //!
@@ -42,10 +40,9 @@ use bevy::{
     reflect::TypePath,
 };
 use nova_gameplay::prelude::SectionConfig;
-// The pure serde format types (manifests, catalog declarations, portal wire
-// schema) live in the engine-free `nova_mod_format` crate so the portal
-// generator builds without bevy; re-exported here so game code keeps importing
-// them from nova_modding.
+// NOTE: the pure serde format types live in the engine-free `nova_mod_format`
+// crate so the portal generator builds without bevy; re-exported here so game
+// code keeps importing them from nova_modding.
 pub use nova_mod_format::{BundleManifest, CatalogManifest, ModEntry, ModMeta};
 use nova_scenario::prelude::{CampaignConfig, ScenarioConfig};
 use serde::{Deserialize, Serialize};
@@ -217,7 +214,7 @@ impl AssetLoader for ContentAssetLoader {
 /// FULL extension - everything after the FIRST dot. `bundle.ron` yields the bare
 /// `ron` extension (this loader is registered for `bundle.ron`, so it would not
 /// match, and the load fails with "Could not find an asset loader"); a stemmed
-/// `base.bundle.ron` yields `bundle.ron` and matches. See task 20260714-163342.
+/// `base.bundle.ron` yields `bundle.ron` and matches.
 #[derive(Default, TypePath)]
 pub struct BundleAssetLoader;
 
@@ -236,11 +233,8 @@ impl AssetLoader for BundleAssetLoader {
         reader.read_to_end(&mut bytes).await?;
         let manifest: BundleManifest = ron::de::from_bytes(&bytes)?;
 
-        // Resolve each content path against the bundle file's DIRECTORY so the
-        // manifest paths are bundle-relative (self-contained folder). `path()`
-        // is the bundle file itself (e.g. `base/base.bundle.ron`); its parent is the
-        // bundle dir (e.g. `base`), and `resolve` joins the relative content
-        // path onto it.
+        // NOTE: content paths resolve against the bundle file's DIRECTORY, which
+        // is what makes a bundle folder self-contained and relocatable.
         let base = load_context
             .path()
             .parent()
@@ -250,19 +244,18 @@ impl AssetLoader for BundleAssetLoader {
             .content
             .iter()
             .map(|rel| {
-                // `to_string` (owned) is load-bearing here, not a smell: an
-                // `AssetPath::from(&str)` would borrow `manifest.content`, which does
-                // not outlive the resolved path.
+                // NOTE: the owned `to_string` is load-bearing - an
+                // `AssetPath::from(&str)` would borrow `manifest.content`, which
+                // does not outlive the resolved path.
                 let resolved = base.resolve(&AssetPath::from(rel.to_string()));
                 load_context.load::<ContentAsset>(resolved)
             })
             .collect();
 
-        // `base` is the bundle DIRECTORY as an `AssetPath`, source preserved:
-        // its `Display` is `mods/<id>` for a shipped bundle (default source) or
-        // `mods://<id>` for a downloaded one - exactly the prefix a `self://`
-        // content ref rewrites against at merge time. Computed after the content
-        // map (which borrows `base`) has finished.
+        // NOTE: `base` keeps its source scheme, so this is `mods/<id>` for a
+        // shipped bundle and `mods://<id>` for a downloaded one - exactly the
+        // prefix a `self://` content ref rewrites against at merge time. Must
+        // stay after the content map, which borrows `base`.
         let resource_base = base.to_string();
 
         Ok(BundleAsset {
@@ -327,7 +320,7 @@ impl Asset for InstalledCatalog {}
 /// UNTYPED (as a `GameAssets` field), which resolves the loader by the file's full
 /// extension - everything after the FIRST dot. A single-dot name yields the bare
 /// `ron` extension (no loader, fails in-game); `mods.catalog.ron` yields
-/// `catalog.ron` and matches. See task 20260714-163342.
+/// `catalog.ron` and matches.
 #[derive(Default, TypePath)]
 pub struct CatalogLoader;
 
@@ -346,9 +339,9 @@ impl AssetLoader for CatalogLoader {
         reader.read_to_end(&mut bytes).await?;
         let manifest: CatalogManifest = ron::de::from_bytes(&bytes)?;
 
-        // Bundle paths are asset-root-relative (the catalog lives at the root), so
-        // they load as-is - no dir resolution, unlike a bundle's content paths which
-        // are bundle-relative.
+        // NOTE: bundle paths are asset-root-relative (the catalog lives at the
+        // root), so they load as-is - no dir resolution, unlike a bundle's own
+        // content paths.
         let entries = manifest
             .mods
             .into_iter()

@@ -109,6 +109,19 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   to empty; a backticked `git`/`sprout`/`tatr` phrase would EXECUTE). Use
   `-F <file>` (heredoc, quoted delimiter) or single quotes for any message with
   backticks/shell metacharacters. 20260721-121316.
+- `one-task-one-sprout` (x1): two sprouts implemented ONE task in parallel from
+  separate cuts of master, both to a full close-out, and review opened by
+  picking a branch instead of reading a diff - roughly half the work discarded.
+  The flow state does not advertise the claim: the first sprout commits `--to
+  WORKING/REVIEWING` on its OWN branch, so master's TASK.md still reads
+  PLANNED. Check `git branch --list '*<slug>*'` for the id before cutting a
+  worktree. 20260731-170448.
+- `re-measure-plan-figures-before-choosing-an-approach` (x1): a size figure in a
+  task header is a plan-time CLAIM, not a measurement - "largest file: lib.rs at
+  622 lines" was really 446, in a different crate, a ~40% error that would have
+  worked the task as a split had it been trusted. When a figure selects the
+  APPROACH, re-run the one command behind it (`wc -l`) before committing to
+  one. 20260731-170448.
 - `parallel-builds-race-the-lint-count` (x1): fanning build-verified work across
   parallel agents on ONE shared worktree races their concurrent builds - a
   per-agent "count == 0" self-check is unreliable (one reported done with 40
@@ -1609,7 +1622,7 @@ here (annotated) as the paid record.
   of the post-split folder and diff them, run with `cargo doc`, so a broken
   public path fails a check rather than a consumer's `use`.
 
-- `conserve-on-regroup` (x5): any MECHANICAL edit to prose, a list-shaped doc,
+- `conserve-on-regroup` (x6): any MECHANICAL edit to prose, a list-shaped doc,
   or CODE needs a conservation check derived from the edit's invariant -
   multiset-diff the tokens (items when regrouping, WORDS when stripping clauses
   in place, LINES when moving code between files) and reconcile; a pattern hunt
@@ -1624,8 +1637,12 @@ here (annotated) as the paid record.
   the discipline: the residue is only trustworthy if its EXCEPTIONS are named -
   one dead test helper deleted in the same pass went unrecorded, and a reader
   reconciling the multiset trips over exactly that.
+  A sixth ran it on a comment-only pass, where the invariant is strongest:
+  strip comment-only lines, trailing `//` tails and blanks and the two revs
+  must be IDENTICAL, no residue to reconcile at all - which is what let a
+  five-crate pass close in one round on evidence instead of a hunk-by-hunk read.
   20260716-102950, 20260731-170359, 20260731-170427, 20260731-170432,
-  20260731-170437.
+  20260731-170437, 20260731-170448.
 
 - `comment-pass-as-asserted-replacements` (x4): every recorded instance of
   rustdoc rewrap damage came from a SCRIPTED substitution, so do the opposite -
@@ -1721,7 +1738,7 @@ here (annotated) as the paid record.
   20260731-170335, 20260731-170359, 20260731-170340, 20260731-170345,
   20260731-170351, 20260731-170409, 20260731-170432.
 
-- `generated-links-need-real-targets` (x5, PROMOTE 2026-08-01 -> 20260801-102808) -> tooling:
+- `generated-links-need-real-targets` (x6, PROMOTE 2026-08-01 -> 20260801-102808) -> tooling:
   manifest-rendered, authored, AND source-comment doc links gate on the target
   existing - a README banner went stale on a dir move; seven `docs/spikes/*.md`
   and `DECISION.md` pointers in nova_gameplay HUD comments outlived the files,
@@ -1733,8 +1750,12 @@ here (annotated) as the paid record.
   nova_menu's crate doc, and three more in nova_gameplay's input layer - plus
   the mirror case: splitting a file rots every `path/to/file.rs` mention
   elsewhere in the tree, 14 of them across five crates and the wiki.
+  A sixth: a comment pass RESOLVED that a kept constraint still binds, rewrote
+  it, and carried its dead `hud/nova_os.rs` pointer through the rewrite - the
+  rubric loop asks whether the constraint holds, never whether the paths inside
+  it still resolve, and an earlier child of the SAME epic had split that file.
   20260713-225324, 20260718-152205, 20260731-170329, 20260731-170359,
-  20260731-170340.
+  20260731-170340, 20260731-170448.
 
 - `rustdoc-no-public-to-private-intra-doc-link` (x3, PROMOTE 2026-07-31 -> 20260731-202401) -> work skill (verify step):
   a `pub` item's rustdoc cannot `[intra-doc-link]` a PRIVATE symbol (or a
