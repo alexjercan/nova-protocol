@@ -4,7 +4,7 @@
 - PRIORITY: 1
 - TAGS: v0.9.0, release, meta
 - KIND: TASK
-- FLOW STEP: WORKING
+- FLOW STEP: REVIEWING
 - PLAN STATUS: APPROVED
 
 Release-level tracker for v0.9.0. Per-strand work lives in its own tatr task
