@@ -96,9 +96,10 @@ variant (`nova_scenario`), plus the firing site.
    EventConfig::OnDocked => EventHandler::new::<OnDockedEvent>(),
    ```
 
-3. Fire it. Engine-driven events fire from `crates/nova_scenario/src/loader.rs`
+3. Fire it. Engine-driven events fire from `crates/nova_scenario/src/loader/`
    with `commands.fire::<OnDockedEvent>(OnDockedEventInfo { .. })` (see the
-   `OnStart`/`OnUpdate`/`OnOrbit`/lock sites there); object-local events (an
+   `OnStart` site in `loader/lifecycle.rs`, `OnUpdate` in `loader/clock.rs`, and
+   `OnOrbit`/the lock events in `loader/trackers.rs`); object-local events (an
    area entering/leaving) fire from the object's own observer, the way
    `objects/asteroid.rs` fires `OnDestroyedEvent` from `on_asteroid_node_destroyed`.
 
@@ -150,7 +151,10 @@ pass. Everything lives in `crates/nova_scenario/src/filters.rs`.
 ## Recipe 3: add an event action
 
 An action runs when a handler passes, in order. Everything lives in
-`crates/nova_scenario/src/actions.rs`.
+`crates/nova_scenario/src/actions/`: the `EventActionConfig` enum and its
+dispatch in `actions/mod.rs`, each action's config and impl in the submodule
+for what it touches (`view.rs`, `flow.rs`, `mission.rs`, `ship.rs`,
+`spawn.rs`).
 
 1. Define the config struct and its `EventAction<NovaEventWorld>` impl.
    `fn action(&self, world: &mut NovaEventWorld, info: &GameEventInfo)` mutates
@@ -243,7 +247,7 @@ A scenario object is a scoped, interpolated, dynamic body spawned by
    and if the kind has a plugin add it in `ScenarioObjectsPlugin::build` (like
    `AsteroidPlugin`, which takes `render`).
 
-3. In `crates/nova_scenario/src/actions.rs` add the variant to
+3. In `crates/nova_scenario/src/actions/spawn.rs` add the variant to
    `ScenarioObjectKind` (grep for `enum ScenarioObjectKind`) and the spawn arm in
    `impl EventAction<NovaEventWorld> for ScenarioObjectConfig`:
 

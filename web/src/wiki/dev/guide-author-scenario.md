@@ -1048,7 +1048,8 @@ needs no Rust:
 3. MAKE IT THE DEFAULT NEW GAME (base only). The scenario the New Game button
    plays is declared in the BASE bundle: `new_game_scenario` in
    `assets/base/base.bundle.ron` (currently `Some("shakedown_run")`). It lands in
-   the `NewGameStart` resource at load (`crates/nova_scenario/src/loader.rs`) and
+   the `NewGameStart` resource at load
+   (`crates/nova_scenario/src/loader/lifecycle.rs`) and
    is honored ONLY from base - a mod cannot repoint New Game. While you iterate in
    the base bundle you can set it there; a shipped mod instead reaches players
    through the Scenarios picker (option 1) or a `NextScenario` chain (option 2).

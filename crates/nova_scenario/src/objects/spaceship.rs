@@ -62,18 +62,18 @@ pub struct PlayerControllerConfig {
     pub speed_cap: Option<f32>,
     /// Give this player ship unlimited ammunition: its weapon sections are
     /// built with `ammo_capacity = None`, so no [`SectionAmmo`] is attached and
-    /// the guns never run dry (the finite-ammo default is task 20260525-133025).
-    /// The first/New Game scenario turns this on so the intro is not gated on
-    /// ammo before a reload mechanic exists; `false` (the default) keeps the
-    /// authored per-weapon magazines. Player-scoped: enemies are unaffected.
+    /// the guns never run dry. The first/New Game scenario turns this on so the
+    /// intro is not gated on ammo before a reload mechanic exists; `false` (the
+    /// default) keeps the authored per-weapon magazines. Player-scoped: enemies
+    /// are unaffected.
     pub infinite_ammo: bool,
-    /// Re-fire period (seconds) for this player's held travel/combat lock -
-    /// how often `OnTravelLock`/`OnCombatLock` recur while the same target
-    /// stays locked (acquisition always fires immediately). Inserted as
+    /// Re-fire period (seconds) for this player's held travel/combat lock - how
+    /// often `OnTravelLock`/`OnCombatLock` recur while the same target stays
+    /// locked (acquisition always fires immediately). Inserted as
     /// [`LockRefireSecs`] on the ship root. None = the engine default
     /// (`LOCK_REFIRE_SECS`, 5s). A non-positive/non-finite value is a
     /// content_lint error and is ignored at runtime (falls back to the
-    /// default). Author as `lock_refire_secs: Some(8.0)`. Task 20260717-165031.
+    /// default). Author as `lock_refire_secs: Some(8.0)`.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
@@ -115,23 +115,21 @@ pub struct AIControllerConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub leash: Option<f32>,
-    /// Arrival grace (seconds, task 20260717-163042): the ship spawns on
-    /// its passive routine and refuses to engage until this elapses -
-    /// pair with a warning story beat so enemies ARRIVE instead of
-    /// appearing hot. Being shot ends the grace immediately and
-    /// permanently. Strict RON: `engage_delay: Some(8.0)`; omitted or
+    /// Arrival grace: the ship spawns on its passive routine and refuses to
+    /// engage until this elapses - pair with a warning story beat so enemies
+    /// ARRIVE instead of appearing hot. Being shot ends the grace immediately
+    /// and permanently. Strict RON: `engage_delay: Some(8.0)`; omitted or
     /// non-positive values mean no grace.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub engage_delay: Option<f32>,
-    /// Seconds this ship must HOLD an engaged orbit before the `OnOrbit`
-    /// event fires (and the re-fire period while the hold continues). Only
-    /// meaningful together with `orbit`. None = the engine default
-    /// (`ORBIT_HOLD_SECS`, 5s). A non-positive/non-finite value is a
-    /// content_lint error and is ignored at runtime (falls back to the
-    /// default). Task 20260717-165031.
+    /// Seconds this ship must HOLD an engaged orbit before the `OnOrbit` event
+    /// fires (and the re-fire period while the hold continues). Only meaningful
+    /// together with `orbit`. None = the engine default (`ORBIT_HOLD_SECS`,
+    /// 5s). A non-positive/non-finite value is a content_lint error and is
+    /// ignored at runtime (falls back to the default).
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
@@ -143,7 +141,7 @@ pub struct AIControllerConfig {
 /// [`AIControllerConfig::orbit_hold_secs`] at spawn. Read by the orbit-hold
 /// tracker (`track_orbit_holds` in loader.rs), which falls back to the engine
 /// default `ORBIT_HOLD_SECS` when absent. Seconds of held orbit before
-/// `OnOrbit` fires. Task 20260717-165031.
+/// `OnOrbit` fires.
 #[derive(Component, Clone, Copy, Debug, Reflect)]
 #[reflect(Component)]
 pub struct OrbitHoldSecs(pub f64);
@@ -152,7 +150,7 @@ pub struct OrbitHoldSecs(pub f64);
 /// root from [`PlayerControllerConfig::lock_refire_secs`] at spawn. Read by the
 /// player-lock bridge (`track_player_locks` in loader.rs), which falls back to
 /// the engine default `LOCK_REFIRE_SECS` when absent. Seconds between recurring
-/// `OnTravelLock`/`OnCombatLock` fires while a lock is held. Task 20260717-165031.
+/// `OnTravelLock`/`OnCombatLock` fires while a lock is held.
 #[derive(Component, Clone, Copy, Debug, Reflect)]
 #[reflect(Component)]
 pub struct LockRefireSecs(pub f64);
@@ -313,7 +311,7 @@ fn insert_spaceship_sections(
 
     // An AI ship with no turret or torpedo section cannot fight; it becomes a
     // non-combatant below so it flies its routine and never chases. Tracked
-    // through the section loop (task 20260722-092432).
+    // through the section loop.
     let mut has_weapon = false;
 
     commands.entity(entity).with_children(|parent| {
@@ -419,18 +417,18 @@ fn insert_spaceship_sections(
             }
             // Per-player lock re-fire override; a non-positive/non-finite value
             // is a content_lint error, so the bridge treats it defensively as
-            // the default. Task 20260717-165031.
+            // the default.
             if let Some(secs) = config.lock_refire_secs {
                 commands.entity(entity).insert(LockRefireSecs(secs));
             }
         }
         SpaceshipController::AI(config) => {
             commands.entity(entity).insert(AISpaceshipMarker);
-            // An unarmed AI ship (no turret/torpedo section) cannot fight, so it
-            // flies its patrol/orbit/idle routine and never chases - a convoy
-            // hauler or civilian escort (task 20260722-092432). It stays
-            // targetable by hostiles, so a Player-aligned convoy is still hunted
-            // and must be defended.
+            // An unarmed AI ship (no turret/torpedo section) cannot fight, so
+            // it flies its patrol/orbit/idle routine and never chases - a
+            // convoy hauler or civilian escort. It stays targetable by
+            // hostiles, so a Player-aligned convoy is still hunted and must be
+            // defended.
             if !has_weapon {
                 commands.entity(entity).insert(AINonCombatant);
             }
@@ -478,7 +476,7 @@ mod tests {
 
     /// The AI controller config maps to the per-entity directive components
     /// exactly: patrol -> AIPatrolRoute, orbit -> AIOrbitDirective, absent
-    /// fields insert nothing (task 20260711-212521).
+    /// fields insert nothing.
     #[test]
     fn ai_config_maps_to_directive_components() {
         let mut world = World::new();
@@ -602,8 +600,8 @@ mod tests {
     }
 
     /// An AI ship with no turret/torpedo section is tagged `AINonCombatant` at
-    /// spawn, so it flies its routine and never chases; an armed AI ship is not
-    /// (task 20260722-092432). Non-AI ships never get the tag regardless.
+    /// spawn, so it flies its routine and never chases; an armed AI ship is
+    /// not. Non-AI ships never get the tag regardless.
     #[test]
     fn an_unarmed_ai_ship_is_flagged_non_combatant() {
         let mut world = World::new();
@@ -668,7 +666,7 @@ mod tests {
     }
 
     /// The arrival grace wires from config to component only for positive
-    /// delays (task 20260717-163042): Some(5) inserts, Some(0)/None do not.
+    /// delays: Some(5) inserts, Some(0)/None do not.
     #[test]
     fn engage_delay_inserts_the_grace_only_when_positive() {
         let mut world = World::new();

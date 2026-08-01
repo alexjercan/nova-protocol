@@ -177,10 +177,9 @@ mod tests {
         );
     }
 
-    /// The RCS fine-adjust verb (task 20260718-122906) threads through the same
-    /// DisableVerb plumbing: withholding it leaves the maneuver verbs granted,
-    /// so a scenario can ship a hull that flies the autopilot but cannot
-    /// fine-adjust.
+    /// The RCS fine-adjust verb threads through the same DisableVerb plumbing:
+    /// withholding it leaves the maneuver verbs granted, so a scenario can ship
+    /// a hull that flies the autopilot but cannot fine-adjust.
     #[test]
     fn disable_verb_clears_rcs_on_a_controller() {
         let mut app = app_with_observers();

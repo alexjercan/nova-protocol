@@ -1,19 +1,20 @@
 //! Render-scale lever: draw the scenario view into a reduced-resolution
-//! offscreen target and upscale it to the window (task 20260718-004723).
+//! offscreen target and upscale it to the window.
 //!
-//! The v0.7.0 frame-time baseline (`tasks/20260716-123551`) found web to be the
-//! one over-budget target and, unlike the discrete-GPU native path, **fill /
-//! overhead-bound with almost no headroom**: the same scenes that render at
-//! ~19-21 ms natively cost ~34-42 ms in the browser. On a fill-bound path the
-//! strongest lever is dropping the number of pixels shaded - it buys more than
-//! the existing particle/scatter toggles. This module is that lever.
+//! The v0.7.0 frame-time baseline found web to be the one over-budget target
+//! and, unlike the discrete-GPU native path, **fill / overhead-bound with
+//! almost no headroom**: the same scenes that render at ~19-21 ms natively cost
+//! ~34-42 ms in the browser. On a fill-bound path the strongest lever is
+//! dropping the number of pixels shaded - it buys more than the existing
+//! particle/scatter toggles. This module is that lever.
 //!
 //! ## How
 //!
-//! [`GraphicsBudget::render_scale`](nova_gameplay::prelude::GraphicsBudget) is a
-//! fraction the scenario view is drawn at. At `1.0` (Medium/High) nothing here
-//! fires - the scenario camera renders straight to the window, exactly as
-//! before, so the crisp tiers pay zero cost. Below `1.0` (Low) `reconcile_render_scale`:
+//! [`GraphicsBudget::render_scale`](nova_gameplay::prelude::GraphicsBudget) is
+//! a fraction the scenario view is drawn at. At `1.0` (Medium/High) nothing
+//! here fires - the scenario camera renders straight to the window, exactly as
+//! before, so the crisp tiers pay zero cost. Below `1.0` (Low)
+//! `reconcile_render_scale`:
 //!
 //! 1. creates an offscreen [`Image`] sized `render_scale * window_physical`,
 //! 2. points every [`ScenarioCameraMarker`] camera at that image, setting the
@@ -37,13 +38,13 @@
 //!
 //! bevy_ui's `ui_focus_system` only delivers a cursor to a camera whose render
 //! target is a WINDOW; a UI camera pointed at an image renders its nodes but
-//! never registers a click. So the HUD and menus MUST live on a window camera to
-//! stay clickable - here the blit `Camera2d`. Only the 3D world goes into the
-//! reduced image; the HUD renders full-resolution on top of the upscale (crisper
-//! than baking it into the reduced image, and it keeps the settings menu that
-//! toggles this very preset usable on Low). The world->screen projection stays
-//! aligned via the image target's `scale_factor` (step 2), not by sharing a
-//! coordinate space with the UI.
+//! never registers a click. So the HUD and menus MUST live on a window camera
+//! to stay clickable - here the blit `Camera2d`. Only the 3D world goes into
+//! the reduced image; the HUD renders full-resolution on top of the upscale
+//! (crisper than baking it into the reduced image, and it keeps the settings
+//! menu that toggles this very preset usable on Low). The world->screen
+//! projection stays aligned via the image target's `scale_factor` (step 2), not
+//! by sharing a coordinate space with the UI.
 
 use bevy::{
     camera::{ImageRenderTarget, RenderTarget},
@@ -115,7 +116,7 @@ fn reconcile_render_scale(
     };
     let physical = window.physical_size();
 
-    // Downscale only when the preset asks for it AND there is a scenario camera
+    // NOTE: downscale only when the preset asks for it AND there is a scenario camera
     // to redirect (never in the menu/editor, whose cameras are not scenario
     // cameras - they keep full resolution). A zero-axis window (minimized, or
     // not yet sized) is left untouched: recreating a zero-area target is a fatal
@@ -137,8 +138,6 @@ fn reconcile_render_scale(
 
     let desired = budget.render_target_size(physical);
 
-    // (Re)create the offscreen target when it is missing, was dropped, or the
-    // window/scale changed since it was made.
     let need_new_target = match &state.image {
         Some(handle) => state.size != desired || !images.contains(handle),
         None => true,
@@ -173,7 +172,7 @@ fn reconcile_render_scale(
     for (_entity, mut target, mut projection) in q_scenario_cam.iter_mut() {
         if !matches!(&*target, RenderTarget::Image(current) if *current == wanted) {
             *target = RenderTarget::Image(wanted.clone());
-            // bevy's `camera_system` only re-derives a camera's target info when
+            // NOTE: bevy's `camera_system` only re-derives a camera's target info when
             // the target CONTENT changes (window resize / image asset event), the
             // camera is added, or its Projection changed - NOT when the
             // `RenderTarget` component is swapped at runtime. Without this the
@@ -251,7 +250,7 @@ fn teardown_render_scale(
         return;
     }
 
-    // Reset the target to the window and mark the projection changed so bevy's
+    // NOTE: reset the target to the window and mark the projection changed so bevy's
     // `camera_system` re-derives the camera's target info - without that the
     // camera keeps the reduced image's size after switching back to High and
     // renders the window at the stale low resolution (the "High drops a lot"

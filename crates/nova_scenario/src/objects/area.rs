@@ -173,17 +173,17 @@ mod tests {
     use crate::prelude::*;
 
     /// An area spawned AROUND an already-present body fires OnEnter - IF it
-    /// carries the full production bundle: during this pin's discovery
-    /// (task 20260713-150343) a Collider WITHOUT a RigidBody registered no
-    /// contact pair at all, silently. With `RigidBody::Static` (what
-    /// CreateScenarioArea spawns) avian starts the fresh overlapping pair
-    /// even at full containment, so a scenario may create a trigger at a
-    /// player already inside it and the beat still advances instead of
-    /// soft-locking (the shakedown coast ring's sizing leans on this).
+    /// carries the full production bundle: during this pin's discovery a
+    /// Collider WITHOUT a RigidBody registered no contact pair at all,
+    /// silently. With `RigidBody::Static` (what CreateScenarioArea spawns)
+    /// avian starts the fresh overlapping pair even at full containment, so a
+    /// scenario may create a trigger at a player already inside it and the beat
+    /// still advances instead of soft-locking (the shakedown coast ring's
+    /// sizing leans on this).
     #[test]
     fn an_area_spawned_around_a_body_fires_on_enter() {
-        // The proven salvage-pipeline rig shape (20260712-093044): zero
-        // gravity, manual fixed steps, ScenarioAreaPlugin only.
+        // The proven salvage-pipeline rig shape: zero gravity, manual fixed
+        // steps, ScenarioAreaPlugin only.
         let mut app = App::new();
         app.add_plugins((
             MinimalPlugins,

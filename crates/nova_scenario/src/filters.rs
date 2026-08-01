@@ -205,12 +205,10 @@ mod tests {
 
     use super::*;
 
-    // These pin the filter/action semantics every data-driven scenario leans
-    // on - the exact patterns shipped content composes (gate guards, kill
-    // counters) - with SYNTHETIC handlers through the real dispatch
-    // (task 20260716-155830: per-mod behavior tests were removed, so the
-    // machinery must be guaranteed here, not re-proven per mod). The bridges
-    // that FIRE these events have their own pins (area.rs OnEnter,
+    // These pin the filter/action semantics every data-driven scenario leans on
+    // - the exact patterns shipped content composes (gate guards, kill
+    // counters) - with SYNTHETIC handlers through the real dispatch. The
+    // bridges that FIRE these events have their own pins (area.rs OnEnter,
     // asteroid.rs OnDestroyed); this module owns what happens after delivery.
 
     /// Headless dispatch rig: event plumbing only, no physics.

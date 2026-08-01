@@ -24,7 +24,7 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   commit that TOUCHED the string, not what it did with it - open the commit's
   diff and quote what it DID before writing history into a Record (a misread
   pickaxe put a never-true chain into three surfaces). 20260721-160842.
-- `keep-docs-in-sync-with-code` (x10, enforced in AGENTS.md but STILL recurring
+- `keep-docs-in-sync-with-code` (x11, enforced in AGENTS.md but STILL recurring
   -> needs a tooling guard, not more prose): a code change is not done until
   every doc surface it invalidates (CHANGELOG, news, player + dev wiki, tutorial,
   per-mod READMEs, content-file headers, and the crate table which lives in
@@ -40,7 +40,10 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   A file SPLIT is the same sweep with a different query: every
   `path/to/file.rs` mention elsewhere in the tree rots, 14 of them here across
   five crates and the wiki's project-tour table, all missed until review.
-  20260718-004723, 20260719-112231, 20260718-231555, 20260720-224236, 20260722-214119, 20260724-193830, 20260729-211200, 20260731-170340.
+  An eleventh pass split three files and swept nothing: four dev-wiki recipes
+  still walked the reader to the deleted `loader.rs`/`actions.rs`. Run the
+  old-path grep BEFORE opening the review, not after.
+  20260718-004723, 20260719-112231, 20260718-231555, 20260720-224236, 20260722-214119, 20260724-193830, 20260729-211200, 20260731-170340, 20260731-170427.
 - `sweep-docs-for-the-feature-description-not-just-its-symbols` (x2): the
   changed identifiers do not define the search space - docs describe BEHAVIOR
   (what the player sees, or which CATEGORY of thing does what) and often never
@@ -319,38 +322,20 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   '^warning'` read 2 against a true 14 and made an unchanged tree look like a
   regression; `git stash` -> touch the crate root -> rerun -> `stash pop`
   showed both sides at 14. 20260731-170329.
-- `doc-comment-rewrap-changes-the-render` (x5 -> Pending promotions): see below.
-- `re-measure-records-after-the-last-edit` (x6 -> Pending promotions): see below.
-- `visibility-sweep-narrows-back` (x2): anything ADDED to make a file-to-folder
-  split compile proves only a LOWER bound - too little fails to build, too much
-  compiles clean forever. A column-0 `s/^(struct|fn|const) /pub(super) \1 /`
-  also widened eight `#[test]` fns and seven items nothing outside their own
-  file references; a second split left a defensive `#[allow(missing_docs)]` on
-  a `pub(super)` struct that was never publicly reachable, so the lint it
-  suppresses could not have fired. After the split compiles, walk the boundary
-  and delete every widening/suppression with no out-of-file reference - the
-  type in a `pub(super)` signature is the one legitimate exception.
-  20260731-170345, 20260731-170409.
-- `split-tests-hoist-the-shared-fixture` (x1): when a test module splits with
+- `doc-comment-rewrap-changes-the-render` (x6 -> Pending promotions): see below.
+- `re-measure-records-after-the-last-edit` (x7 -> Pending promotions): see below.
+- `visibility-sweep-narrows-back` (x3 -> Pending promotions): see below.
+- `split-tests-hoist-the-shared-fixture` (x2): when a test module splits with
   its file, its fixtures are shared state - hoist them into the new
   `tests/mod.rs` (or a `#[cfg(test)] pub(super) mod`) rather than copying one
   per child, because a duplicated fixture drifts silently and no check
   notices. One task did both: `shakedown` hoisted `scenario()`/`all_actions()`
   correctly, while the `portal` split copied `fn entry(...)` verbatim into
-  `catalog.rs` and `install.rs`. 20260731-170409.
-- `comment-pass-as-asserted-replacements` (x2): every recorded instance of
-  rustdoc rewrap damage came from a SCRIPTED substitution, so do the opposite -
-  write the comment pass as N explicit replacements, each asserting its anchor
-  occurs exactly once, and let a moved or re-wrapped anchor fail the pass
-  loudly instead of matching something else. ~60 such replacements over 98
-  sites produced a clean rewrap-damage scan on the first run, the first time in
-  six passes. The next crate went back to a scripted pass and paid for it
-  twice over: a skip guard written at BLOCK granularity for a PARAGRAPH-level
-  edit silently left a third of the work undone, twice, and ten sentences came
-  out mangled where the deleted clause was the grammatical object. A silent
-  under-edit is the scripted pass's second failure mode, and an asserted
-  replacement cannot have it. 20260731-170351, 20260731-170409.
-- `split-must-re-export-not-repoint` (x1): a file-to-folder module split is
+  `catalog.rs` and `install.rs`. A later split hoisted correctly in both
+  `lint/` and `loader/`; `actions/` needed none, so check for shared fixtures
+  per split, not per task. 20260731-170409, 20260731-170427.
+- `comment-pass-as-asserted-replacements` (x3 -> Pending promotions): see below.
+- `split-must-re-export-not-repoint` (x2): a file-to-folder module split is
   done when the PATHS still resolve, not when the crate compiles - declaring
   `pub mod <concern>;` without re-exporting silently moves every item one
   level down, and repointing the few call sites that break is precisely what
@@ -358,7 +343,10 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   module needs its `use` rewritten, the split broke a public path: re-export
   at the parent instead. `cargo doc` (unresolved intra-doc link) is the only
   standing check that notices; a throwaway `#[cfg(test)]` module importing the
-  old paths proves the fix. 20260731-170340.
+  old paths proves the fix. Run `cargo doc` on the split even when the paths
+  ARE re-exported: a NEW module header's intra-doc link to a glob-re-exported
+  name is the same unresolved-link warning from the other direction.
+  20260731-170340, 20260731-170427.
 - `provenance-vs-deferred-work-check-the-status` (x2): a task ID in a comment
   is provenance ("added by X") or a live pointer ("X will replace this"), and
   the two are textually identical - two bulk strips in a row hit the SAME
@@ -428,11 +416,7 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `cross-boundary-attribution` (x1): per-part drafters attribute a neighbor's
   feature to their part; review asks "does vN claim anything of vN+1?".
   20260716-102954.
-- `conserve-on-regroup` (x2): any MECHANICAL edit to prose or a list-shaped doc
-  needs a conservation check derived from the edit's invariant - multiset-diff
-  the tokens (items when regrouping, WORDS when stripping clauses in place) and
-  reconcile; a pattern hunt for imagined damage only finds damage of the shape
-  you guessed. 20260716-102950, 20260731-170359.
+- `conserve-on-regroup` (x3 -> Pending promotions): see below.
 - `authored-durations-clamp-trio` (x2): every authored duration/magnitude/
   vector gets finite-check + runtime-cap + lint-range AT BIRTH; the pattern
   does not transfer across crates by itself. 20260717-163050, 20260717-215920.
@@ -1589,7 +1573,52 @@ here (annotated) as the paid record.
 
 ## Pending promotions (3+ occurrences, user decides)
 
-- `doc-comment-rewrap-changes-the-render` (x5, PROMOTE 2026-08-01 -> 20260801-102759) -> tooling:
+- `conserve-on-regroup` (x3): any MECHANICAL edit to prose, a list-shaped doc,
+  or CODE needs a conservation check derived from the edit's invariant -
+  multiset-diff the tokens (items when regrouping, WORDS when stripping clauses
+  in place, LINES when moving code between files) and reconcile; a pattern hunt
+  for imagined damage only finds damage of the shape you guessed. A file split
+  extracted by `sed` line range makes that check trivial and total: the residue
+  is exactly the `mod`/`use`/`pub use` lines and visibility keywords, and the
+  sorted `#[test]` name lists match. Proposed target is a tool: both halves
+  (line-multiset residue, test-name parity) are one script over two git revs.
+  20260716-102950, 20260731-170359, 20260731-170427.
+
+- `comment-pass-as-asserted-replacements` (x3): every recorded instance of
+  rustdoc rewrap damage came from a SCRIPTED substitution, so do the opposite -
+  write the comment pass as N explicit replacements, each asserting its anchor
+  occurs exactly once, and let a moved or re-wrapped anchor fail the pass
+  loudly instead of matching something else. ~60 such replacements over 98
+  sites produced a clean rewrap-damage scan on the first run, the first time in
+  six passes. The next crate went back to a scripted pass and paid for it
+  twice over: a skip guard written at BLOCK granularity for a PARAGRAPH-level
+  edit silently left a third of the work undone, twice, and ten sentences came
+  out mangled where the deleted clause was the grammatical object. A silent
+  under-edit is the scripted pass's second failure mode, and an asserted
+  replacement cannot have it. A third pass chose the script anyway, reasoning
+  153 sites were too many to write out - and collapsed two rustdoc lists.
+  Proposed target is a tool: a `comment-pass` helper taking (anchor, new text)
+  pairs that refuses to run unless every anchor matches exactly once, so the
+  count of sites stops being the argument for scripting.
+  20260731-170351, 20260731-170409, 20260731-170427.
+
+- `visibility-sweep-narrows-back` (x3): a file-to-folder split moves visibility
+  in BOTH directions and neither direction has a check. Anything ADDED to make
+  it compile proves only a LOWER bound - a column-0
+  `s/^(struct|fn|const) /pub(super) \1 /` widened eight `#[test]` fns and seven
+  file-local items, and another split left an `#[allow(missing_docs)]` on a
+  `pub(super)` struct whose lint could never fire. The other direction is
+  silent too: an item that was `pub` under a `pub mod` becomes unreachable the
+  moment its new module is private, which is how `loader::OrbitHold` and
+  `loader::LockEcho` left the public API under a commit message claiming public
+  paths were unchanged. After the split compiles, walk the boundary in both
+  directions: delete every widening with no out-of-file reference (the type in
+  a `pub(super)` signature is the one exception), and diff the public path set
+  against the base rather than asserting it held. Proposed target is a tool:
+  the public path set is mechanical to dump and diff.
+  20260731-170345, 20260731-170409, 20260731-170427.
+
+- `doc-comment-rewrap-changes-the-render` (x6, PROMOTE 2026-08-01 -> 20260801-102759) -> tooling:
   re-wrapping or deleting a mid-line clause in a `//!`/`///` block changes what
   rustdoc RENDERS while check and fmt stay green - a following line starting
   `-`/`#`/`>`/`1.` becomes a block construct, a wrapped `- ` list collapses into
@@ -1606,10 +1635,13 @@ here (annotated) as the paid record.
   leaves lines rustfmt will never re-wrap, and hand-wrapping a rustdoc BULLET
   (which a prose re-wrapper must skip, or the list collapses) left one line at
   124 columns.
+  A sixth pass collapsed BOTH list shapes in one run - a `1.`/`2.`/`3.` numbered
+  list and a `*` bullet list, from a re-wrapper that split on blank comment
+  lines only, so it saw each list as one paragraph.
   20260731-170329, 20260731-170335, 20260731-170359, 20260731-170340,
-  20260731-170345.
+  20260731-170345, 20260731-170427.
 
-- `re-measure-records-after-the-last-edit` (x6, PROMOTE 2026-08-01 -> 20260801-112556): a record holding measured
+- `re-measure-records-after-the-last-edit` (x7, PROMOTE 2026-08-01 -> 20260801-112556): a record holding measured
   numbers (line counts, `file:line` inventories, diff totals) goes stale the
   moment ANY later edit touches the measured files - a review-round rewrap
   shortened three files by one line and falsified three table rows and three

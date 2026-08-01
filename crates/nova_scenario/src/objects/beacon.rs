@@ -1,11 +1,9 @@
-//! Nav beacon scenario object (task 20260712-093044, spike
-//! docs/spikes/20260712-092926-starter-scenario.md): a small emissive,
-//! blinking marker body the player navigates by. The HUD side (label +
-//! distance chip, edge-clamped direction cue) hangs off [`BeaconMarker`]
-//! in nova_gameplay; this module owns the world-side body: mesh, blink,
-//! sensor collider, and - when `area_radius` is set - the beacon doubling
-//! as its own trigger area, firing `OnEnter` under the beacon's scenario
-//! id with no separate `CreateScenarioArea` needed.
+//! Nav beacon scenario object: a small emissive, blinking marker body the
+//! player navigates by. The HUD side (label + distance chip, edge-clamped
+//! direction cue) hangs off [`BeaconMarker`] in nova_gameplay; this module owns
+//! the world-side body: mesh, blink, sensor collider, and - when `area_radius`
+//! is set - the beacon doubling as its own trigger area, firing `OnEnter` under
+//! the beacon's scenario id with no separate `CreateScenarioArea` needed.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -55,10 +53,9 @@ pub struct BeaconConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub area_radius: Option<f32>,
-    /// Radar signature override; `None` = the default
-    /// `BEACON_LOCK_SIGNATURE` (600u lock range). A scenario whose GOTO
-    /// leg is longer than that authors the signature the leg needs
-    /// (shakedown's waypoint run, task 20260713-140929).
+    /// Radar signature override; `None` = the default `BEACON_LOCK_SIGNATURE`
+    /// (600u lock range). A scenario whose GOTO leg is longer than that authors
+    /// the signature the leg needs.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")

@@ -1,25 +1,24 @@
 //! Baseline + regression benchmark for the modding scenario-dispatch hot path.
 //!
-//! Task 20260714-083331 ("measure before optimizing"). The built-in scenarios
-//! are tiny (1-19 handlers, microsecond costs), so this drives a *synthetic*
-//! large-mod scenario - hundreds of handlers, dense per-frame `OnUpdate`
-//! filters/conditions - to prove where the time actually goes before we touch
-//! any of the seeded optimizations (20260525-133014 dispatch index,
-//! 20260714-083339 filter interning + condition caching).
+//! The built-in scenarios are tiny (1-19 handlers, microsecond costs), so this
+//! drives a *synthetic* large-mod scenario - hundreds of handlers, dense
+//! per-frame `OnUpdate` filters/conditions - to prove where the time actually
+//! goes before we touch any of the seeded optimizations.
 //!
 //! Three groups, from micro to macro:
 //!
-//! * `filter_entity`   - one `EntityFilterConfig::filter` (the per-field string
+//! * `filter_entity` - one `EntityFilterConfig::filter` (the per-field string
 //!   equality + `serde_json` map lookups hit every frame by entity filters).
-//! * `condition_eval`  - one `VariableConditionNode::evaluate` (the recursive
-//!   `VariableLiteral`-cloning tree walk hit every frame by expression filters).
-//! * `dispatch/*`      - the whole `GameEventsPlugin` loop for one `OnUpdate`
-//!   frame against N handlers, most of them for *other* event names (so the
-//!   linear O(all handlers) name scan in `bevy-common-systems` is exercised).
+//! * `condition_eval` - one `VariableConditionNode::evaluate` (the recursive
+//!   `VariableLiteral`-cloning tree walk hit every frame by expression
+//!   filters).
+//! * `dispatch/*` - the whole `GameEventsPlugin` loop for one `OnUpdate` frame
+//!   against N handlers, most of them for *other* event names (so the linear
+//!   O(all handlers) name scan in `bevy-common-systems` is exercised).
 //!
-//! Run with `cargo bench -p nova_scenario`; HTML lands in
-//! `target/criterion/`. To profile: `samply record -- cargo bench -p
-//! nova_scenario --bench scenario_dispatch -- --profile-time 10`.
+//! Run with `cargo bench -p nova_scenario`; HTML lands in `target/criterion/`.
+//! To profile: `samply record -- cargo bench -p nova_scenario --bench
+//! scenario_dispatch -- --profile-time 10`.
 
 use std::hint::black_box;
 

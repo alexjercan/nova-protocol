@@ -34,10 +34,9 @@ pub struct AsteroidConfig {
     pub texture: AssetRef<Image>,
     /// Hit points; ignored when `invulnerable` is set.
     pub health: f32,
-    /// The sound a hit on this rock plays (per-target = per-material; task
-    /// 20260717-101641). Authorable asset ref; AUTHORED-OR-SILENT. Snapshotted
-    /// into [`ImpactDestroySounds`] on the asteroid parent (the audio
-    /// observers walk up from the Health node).
+    /// The sound a hit on this rock plays. Authorable asset ref;
+    /// AUTHORED-OR-SILENT. Snapshotted into [`ImpactDestroySounds`] on the
+    /// asteroid parent (the audio observers walk up from the Health node).
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
@@ -67,9 +66,8 @@ pub struct AsteroidConfig {
     /// `health` is ignored when set.
     pub invulnerable: bool,
     /// Radar signature override; `None` = the radius (a rock locks in
-    /// proportion to its size). A scenario body meant to be designated
-    /// from afar authors what it needs (the shakedown derelict, task
-    /// 20260713-150343).
+    /// proportion to its size). A scenario body meant to be designated from
+    /// afar authors what it needs.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
@@ -101,8 +99,7 @@ pub fn asteroid_scenario_object(config: AsteroidConfig) -> impl Bundle {
         // override wins (the shakedown derelict).
         LockSignature(config.lock_signature.unwrap_or(config.radius)),
         // Asteroids are worth scoping in the target inset (a physical combat
-        // body, unlike a nav beacon), so flag them zoomable (task
-        // 20260712-203345).
+        // body, unlike a nav beacon), so flag them zoomable.
         InsetZoomable,
         // BodyRadius (the surface the GOTO standoff and the orbit band
         // measure from) is NOT authored here: the noise-displaced mesh
@@ -172,7 +169,7 @@ impl Plugin for AsteroidPlugin {
     fn build(&self, app: &mut App) {
         debug!("AsteroidPlugin: build");
 
-        // The gravity layer normally initializes this (NovaGravityPlugin);
+        // NOTE: the gravity layer normally initializes this (NovaGravityPlugin);
         // init here too so the asteroid observer works in scenario-only apps.
         app.init_resource::<GravitySettings>();
 
@@ -186,21 +183,22 @@ impl Plugin for AsteroidPlugin {
     }
 }
 
-/// When an asteroid's collider/health node is destroyed, mark the asteroid root for
-/// despawn AND fire the scenario's OnDestroyed under the ROOT's id. An asteroid is a
-/// `RigidBody::Dynamic` parent whose `Collider` + `Health` live on a child node; once
-/// that node explodes and despawns, the parent is an empty dynamic body with no
-/// collider - avian then logs "has no mass or inertia" and the invisible husk lingers
-/// until the scenario unloads. Marking (rather than despawning here) defers the
-/// despawn to `despawn_asteroid_husk` so the destruction observers - which spawn the
-/// explosion fragments and despawn the node - all run first.
+/// When an asteroid's collider/health node is destroyed, mark the asteroid root
+/// for despawn AND fire the scenario's OnDestroyed under the ROOT's id. An
+/// asteroid is a `RigidBody::Dynamic` parent whose `Collider` + `Health` live
+/// on a child node; once that node explodes and despawns, the parent is an
+/// empty dynamic body with no collider - avian then logs "has no mass or
+/// inertia" and the invisible husk lingers until the scenario unloads. Marking
+/// (rather than despawning here) defers the despawn to `despawn_asteroid_husk`
+/// so the destruction observers - which spawn the explosion fragments and
+/// despawn the node - all run first.
 ///
-/// The EVENT must fire from here (task 20260713-150343 round 2): the integrity
-/// pipeline's own bridge (nova_gameplay explode.rs `on_destroyed_entity`) reads
-/// `EntityId` off the MARKED entity, and for asteroids the marked entity is the
-/// id-less child node - so no asteroid ever fired OnDestroyed, and the shakedown's
-/// derelict beat soft-locked on a kill the script never heard about. Putting the
-/// marker on the root instead would fire the bridge but ALSO trip the meshless
+/// The EVENT must fire from here: the integrity pipeline's own bridge
+/// (nova_gameplay explode.rs `on_destroyed_entity`) reads `EntityId` off the
+/// MARKED entity, and for asteroids the marked entity is the id-less child node
+/// - so no asteroid ever fired OnDestroyed, and the shakedown's derelict beat
+/// soft-locked on a kill the script never heard about. Putting the marker on
+/// the root instead would fire the bridge but ALSO trip the meshless
 /// insta-despawn observer, racing the fragment spawn this deferral protects.
 fn on_asteroid_node_destroyed(
     add: On<Add, IntegrityDestroyMarker>,
@@ -237,27 +235,24 @@ fn despawn_asteroid_husk(mut commands: Commands, q_husk: Query<Entity, With<Aste
     }
 }
 
-/// Designate qualifying asteroids as gravity wells (spike
-/// docs/spikes/20260709-193147-gravity-wells-orbital-mechanics.md): an
-/// authored [`AsteroidSurfaceGravity`] always makes a well at that strength;
-/// otherwise big rocks (nominal radius at or above
-/// [`GravitySettings::min_well_radius`]) get a default-strength well and the
-/// small field rocks stay flat space. Strength and SOI derive through
-/// [`GravityWell::from_surface_gravity`], which also applies the escapability
-/// cap - from the GEOMETRIC [`BodyRadius`] the collider observer derives,
-/// not the nominal designation radius: the noise mesh reaches several
-/// times past the nominal sphere, and a well whose SOI/fade were sized on
-/// the nominal radius cannot contain an orbit band above the real surface
-/// (the 2026-07-10 "no stable band" regression). Triggering on
-/// `On<Add, BodyRadius>` is what sequences this after the collider
-/// derivation; qualification stays keyed on the nominal radius (the
-/// designation intent, seed-independent). The well goes on the asteroid
-/// root - which never carries `GravityAffected`, so wells stay one-way
-/// and the field cannot clump - and the source is put on rails
-/// (`RigidBody::Static`, overriding the base scenario bundle's Dynamic):
-/// a well that rams, blasts, or recoil could shove around would drag its
-/// SOI and every orbit in it along (spike option B, "bodies on rails").
-/// Small well-less rocks stay dynamic.
+/// Designate qualifying asteroids as gravity wells: an authored
+/// [`AsteroidSurfaceGravity`] always makes a well at that strength; otherwise
+/// big rocks (nominal radius at or above [`GravitySettings::min_well_radius`])
+/// get a default-strength well and the small field rocks stay flat space.
+/// Strength and SOI derive through [`GravityWell::from_surface_gravity`], which
+/// also applies the escapability cap - from the GEOMETRIC [`BodyRadius`] the
+/// collider observer derives, not the nominal designation radius: the noise
+/// mesh reaches several times past the nominal sphere, and a well whose
+/// SOI/fade were sized on the nominal radius cannot contain an orbit band above
+/// the real surface (the 2026-07-10 "no stable band" regression). Triggering on
+/// `On<Add, BodyRadius>` is what sequences this after the collider derivation;
+/// qualification stays keyed on the nominal radius (the designation intent,
+/// seed-independent). The well goes on the asteroid root - which never carries
+/// `GravityAffected`, so wells stay one-way and the field cannot clump - and
+/// the source is put on rails (`RigidBody::Static`, overriding the base
+/// scenario bundle's Dynamic): a well that rams, blasts, or recoil could shove
+/// around would drag its SOI and every orbit in it along (spike option B,
+/// "bodies on rails"). Small well-less rocks stay dynamic.
 fn insert_asteroid_gravity_well(
     add: On<Add, BodyRadius>,
     mut commands: Commands,
@@ -750,13 +745,8 @@ mod tests {
         );
     }
 
-    /// Destroying the node fires the scenario's OnDestroyed under the
-    /// ROOT's id, through the real handler pipeline (task 20260713-150343
-    /// round 2: the integrity bridge reads EntityId off the marked entity,
-    /// which for asteroids is the id-less NODE - so no asteroid ever fired
-    /// OnDestroyed and the shakedown derelict beat soft-locked; the
-    /// scripted beat-walks fire events by hand and can never catch a
-    /// missing bridge, so this pin owns the gap).
+    /// Destroying the node fires the scenario's OnDestroyed under the ROOT's
+    /// id, through the real handler pipeline.
     #[test]
     fn destroying_an_asteroid_node_fires_on_destroyed_for_the_root() {
         use bevy_common_systems::prelude::{EventHandler, GameEventsPlugin, GameObjectives};

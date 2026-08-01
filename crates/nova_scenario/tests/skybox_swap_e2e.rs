@@ -1,20 +1,21 @@
-//! End-to-end proof of the `SetSkybox` modding action against a REAL cubemap on a
-//! headless asset server (task 20260715-140049, follow-up to 20260525-133017 R1.1).
+//! End-to-end proof of the `SetSkybox` modding action against a REAL cubemap on
+//! a headless asset server.
 //!
 //! The applier's deferred install is already unit-tested in `actions.rs`
 //! (`skybox_swap_waits_for_load_then_installs`), but that rig uses a synthetic
-//! `Image::default()` and stops at the `SkyboxConfig` insert. It never reaches the
-//! LAST bridge: bevy_common_systems' `SkyboxPlugin` runs an `On<Insert, SkyboxConfig>`
-//! observer that reads the loaded image, reinterprets the stacked cubemap, and
-//! attaches a bevy `Skybox` to the camera. This test drives the whole chain on the
-//! real `textures/cubemap_alt.png` file:
+//! `Image::default` and stops at the `SkyboxConfig` insert. It never reaches
+//! the LAST bridge: bevy_common_systems' `SkyboxPlugin` runs an `On<Insert,
+//! SkyboxConfig>` observer that reads the loaded image, reinterprets the
+//! stacked cubemap, and attaches a bevy `Skybox` to the camera. This test
+//! drives the whole chain on the real `textures/cubemap_alt.png` file:
 //!
-//!   SetSkybox action -> NovaEventWorld command flush -> PendingSkyboxSwap
-//!   -> real asset load -> apply_pending_skybox_swaps installs SkyboxConfig
-//!   -> SkyboxPlugin observer -> the scenario camera's `Skybox.image` swaps.
+//! SetSkybox action -> NovaEventWorld command flush -> PendingSkyboxSwap ->
+//! real asset load -> apply_pending_skybox_swaps installs SkyboxConfig ->
+//! SkyboxPlugin observer -> the scenario camera's `Skybox.image` swaps.
 //!
-//! Modeled on `nova_assets/tests/example_scenario.rs` (real headless asset IO). Asset IO
-//! reads the real workspace `assets/` (tests run with the crate root as cwd).
+//! Modeled on `nova_assets/tests/example_scenario.rs` (real headless asset IO).
+//! Asset IO reads the real workspace `assets/` (tests run with the crate root
+//! as cwd).
 
 use std::time::{Duration, Instant};
 
@@ -188,8 +189,7 @@ fn set_skybox_swaps_a_real_cubemap_on_the_scenario_camera() {
     // every meta) AND a Cube texture view. The view is the applier's job: an
     // already-arrayed image skips the bcs observer's fallback branch that used
     // to be the only place the view was set, and bevy's skybox sanity check
-    // refuses a non-Cube view (warn_once) and silently skips rendering the
-    // sky (task 20260717-013440).
+    // refuses a non-Cube view (warn_once) and silently skips rendering the sky.
     let images = app.world().resource::<Assets<Image>>();
     let image = images.get(&swapped).expect("swapped cubemap is in Assets");
     assert_eq!(

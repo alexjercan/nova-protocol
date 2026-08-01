@@ -1,10 +1,8 @@
-//! Salvage crate scenario object (task 20260712-093044, spike
-//! docs/spikes/20260712-092926-starter-scenario.md): a minimal proximity
-//! pickup. The crate is a small tumbling prop that doubles as its own
-//! trigger area - flying through it fires `OnEnter` under the crate's
-//! scenario id, and the scenario script pairs that with
-//! `DespawnScenarioObject` plus whatever counting it wants. No inventory:
-//! "collected" is scenario state, which keeps pickup consequences in
+//! Salvage crate scenario object: a minimal proximity pickup. The crate is a
+//! small tumbling prop that doubles as its own trigger area - flying through it
+//! fires `OnEnter` under the crate's scenario id, and the scenario script pairs
+//! that with `DespawnScenarioObject` plus whatever counting it wants. No
+//! inventory: "collected" is scenario state, which keeps pickup consequences in
 //! scenario data instead of a hardcoded item system.
 
 use avian3d::prelude::*;
@@ -32,12 +30,11 @@ const CRATE_TUMBLE_RAD_PER_SEC: f32 = 0.6;
 /// prop advertises itself; spike, "Conveying objectives").
 const CRATE_COLOR: Color = Color::srgb(1.0, 0.75, 0.15);
 
-/// Self-glow band the highlight pulse sweeps (task 20260712-093831): the
-/// old static 2.0 becomes a sine between these - visible motion against
-/// static debris, still far dimmer than a beacon (8..60, a landmark).
-/// The period is the shared item-highlight clock
-/// (ITEM_HIGHLIGHT_PULSE_PERIOD_SECS, nova_gameplay), so the mesh glow and
-/// the HUD bracket breathe together.
+/// Self-glow band the highlight pulse sweeps: the old static 2.0 becomes a sine
+/// between these - visible motion against static debris, still far dimmer than
+/// a beacon (8..60, a landmark). The period is the shared item-highlight clock
+/// (ITEM_HIGHLIGHT_PULSE_PERIOD_SECS, nova_gameplay), so the mesh glow and the
+/// HUD bracket breathe together.
 const CRATE_EMISSIVE_MIN: f32 = 3.0;
 const CRATE_EMISSIVE_MAX: f32 = 6.0;
 
@@ -52,9 +49,7 @@ pub struct SalvageCrateConfig {
     /// Pickup radius: the sensor sphere that counts as "collected".
     pub area_radius: f32,
     /// The pickup "ding" this crate plays, an authorable
-    /// [`AssetRef<AudioSource>`] like any other content sound (task
-    /// 20260717-101659, spike 20260717-101524 - the LAST world sound to move
-    /// onto content; the transitional WorldSfx bank is gone). AUTHORED-OR-
+    /// [`AssetRef<AudioSource>`] like any other content sound. AUTHORED-OR-
     /// SILENT: an omitted sound picks up quietly; base crates author
     /// `self://sounds/salvage_pickup.wav`.
     #[cfg_attr(
@@ -82,11 +77,9 @@ pub fn salvage_crate_scenario_object(config: SalvageCrateConfig) -> impl Bundle 
         EntityTypeName::new(SALVAGE_CRATE_TYPE_NAME),
         SalvageCrateSize(config.size),
         SalvageCratePickupSound(config.pickup_sound.clone()),
-        // Every pickup advertises itself (task 20260712-093831): the HUD's
-        // item-highlights observer grows a bracket sized to the crate's
-        // VISIBLE half-diagonal (authored, not collider-derived - the only
-        // collider here is the sensor sphere, review R1.1). Intrinsic, not
-        // scenario data - a silent pickup is a bug.
+        // Every pickup advertises itself: the HUD's item-highlights observer
+        // grows a bracket sized to the crate's VISIBLE half-diagonal.
+        // Intrinsic, not scenario data - a silent pickup is a bug.
         ItemHighlight::new(config.size * 3f32.sqrt() / 2.0),
         // The pickup volume: the crate IS its own trigger area, so OnEnter
         // fires under its scenario id via the area plugin.
@@ -141,9 +134,9 @@ impl Plugin for SalvageCratePlugin {
     fn build(&self, app: &mut App) {
         debug!("SalvageCratePlugin: build");
 
-        // The per-crate pickup cue (task 20260714-090002) is audio, not render:
-        // register it regardless of the render flag. It no-ops without a
-        // SoundBank (editor, headless), so it is safe to add unconditionally.
+        // The per-crate pickup cue is audio, not render: register it regardless
+        // of the render flag. It no-ops without a SoundBank (editor, headless),
+        // so it is safe to add unconditionally.
         app.init_resource::<DingedCrates>();
         app.add_observer(on_crate_pickup_play_sfx);
         app.add_observer(forget_despawned_crate);
@@ -166,15 +159,16 @@ impl Plugin for SalvageCratePlugin {
 struct DingedCrates(bevy::platform::collections::HashSet<Entity>);
 
 /// Play the light pickup "ding" when the PLAYER flies into a salvage crate's
-/// sensor (task 20260714-090002). It lives here, in the crate's own plugin,
-/// because `SalvageCrateMarker` is a `nova_scenario` type and `nova_gameplay`'s
-/// audio module - which owns every other cue - cannot see it.
+/// sensor. It lives here, in the crate's own plugin, because
+/// `SalvageCrateMarker` is a `nova_scenario` type and `nova_gameplay`'s audio
+/// module - which owns every other cue - cannot see it.
 ///
 /// Gated to the player on purpose: the scenario pickup handler filters on the
 /// player entering, so an AI ship brushing a crate does NOT collect it and must
 /// not ding either. Non-positional, like the objective and lock UI cues: the
-/// pickup always happens at the player's own ship, so distance attenuation would
-/// be a no-op. The cue is a graceful no-op until the [`SoundBank`] exists.
+/// pickup always happens at the player's own ship, so distance attenuation
+/// would be a no-op. The cue is a graceful no-op until the [`SoundBank`]
+/// exists.
 ///
 /// This observes the same `CollisionStart` the area plugin turns into the
 /// scenario OnEnter - the truest pickup signal, firing on contact and never on
@@ -206,8 +200,8 @@ fn on_crate_pickup_play_sfx(
         return;
     }
     // `insert` returns true only the first time this crate is seen, collapsing
-    // the per-section-collider burst to a single ding. AUTHORED-OR-SILENT
-    // (spike 20260717-101524): the ding is the crate's own authored ref.
+    // the per-section-collider burst to a single ding. AUTHORED-OR-SILENT: the
+    // ding is the crate's own authored ref.
     if dinged.0.insert(crate_entity) {
         if let Some(handle) = pickup_sound.0.as_ref().map(|r| r.resolve(&asset_server)) {
             commands.play_sfx_volume(handle, SALVAGE_PICKUP_VOLUME);
@@ -318,7 +312,7 @@ mod tests {
             .get::<ItemHighlight>(entity)
             .expect("a pickup advertises itself: the HUD bracket hangs off this tag");
         // The bracket radius is the crate box's half-diagonal - the VISIBLE
-        // extent, decoupled from the (much larger) sensor sphere (R1.1).
+        // extent, decoupled from the (much larger) sensor sphere.
         let expected = 1.5 * 3f32.sqrt() / 2.0;
         assert!(
             (highlight.world_radius - expected).abs() < 1e-5,
@@ -530,8 +524,7 @@ mod tests {
 
     #[test]
     fn an_unauthored_crate_picks_up_silently() {
-        // AUTHORED-OR-SILENT (task 20260717-101659, the last world sound to
-        // move onto content): a crate whose config omits pickup_sound plays
+        // AUTHORED-OR-SILENT: a crate whose config omits pickup_sound plays
         // nothing. `a_player_flying_into_a_crate_dings_once` is the delivery
         // guard - same rig, authored crate, dings.
         let mut app = pickup_audio_app();
@@ -634,10 +627,10 @@ mod tests {
         );
     }
 
-    /// The glow pulse actually moves the emissive: after a nonzero step
-    /// off the wave's crest the luminance has left its spawn value, and it
-    /// stays inside the authored band. Real observer + system, real
-    /// material asset, deterministic manual clock (review R1.6).
+    /// The glow pulse actually moves the emissive: after a nonzero step off the
+    /// wave's crest the luminance has left its spawn value, and it stays inside
+    /// the authored band. Real observer + system, real material asset,
+    /// deterministic manual clock.
     #[test]
     fn crate_glow_pulses_inside_its_band() {
         use core::time::Duration;

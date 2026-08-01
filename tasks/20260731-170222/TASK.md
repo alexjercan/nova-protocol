@@ -148,3 +148,17 @@ before the epic closes.
       `portal/mod.rs:107` and `fn entry(...)` duplicated into
       `portal/catalog.rs` and `portal/install.rs`. Confirm they should fold
       into the epic's next crate pass, or ask for them now.
+- [ ] 20260731-170427 - skim the nova_scenario split diff and agree no behavior
+      changed. Supporting evidence in that task's REVIEW.md: `actions.rs` 2908,
+      `loader.rs` 2849 and `lint.rs` 2124 split into folder modules, largest
+      file now 1070; a comment-stripped line multiset over the three split
+      files whose entire residue is `mod`/`use`/`pub use` lines and visibility
+      keywords, so no statement, literal or signature changed; the 90 `#[test]`
+      names identical as sorted lists; and every module prelude byte-identical
+      to master. Tests DID run to completion here: `cargo test -p nova_scenario
+      --lib` 145 passed, `--test skybox_swap_e2e` 1 passed.
+- [ ] 20260731-170427 - `loader::OrbitHold` and `loader::LockEcho` were `pub`
+      under `pub mod loader` and are now `pub(super)` inside the private
+      `loader::trackers`. Neither is in any prelude and nothing outside the
+      crate names them, so the narrowing looks right - confirm, or ask for them
+      back on the public path.

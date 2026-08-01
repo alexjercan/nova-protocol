@@ -16,22 +16,20 @@ use crate::prelude::*;
 pub struct NovaEventWorld {
     queued_commands: VecDeque<Box<dyn FnOnce(&mut Commands) + Send + Sync>>,
     objectives: Vec<ObjectiveActionConfig>,
-    /// The scenario's story-message log, in delivery order (task
-    /// 20260716-183220). Append-only within a scenario; cleared at teardown
-    /// with the rest of the event world.
+    /// The scenario's story-message log, in delivery order. Append-only within
+    /// a scenario; cleared at teardown with the rest of the event world.
     story_messages: Vec<StoryMessageActionConfig>,
-    /// The scenario's active HUD readouts, in authored order (task
-    /// 20260716-174729). Upserted/cleared by slot via the `HudReadout` action;
-    /// the sync copies each one's CURRENT bound-variable value into the HUD's
-    /// [`HudReadouts`] resource every frame. Cleared at teardown with the rest
-    /// of the event world.
+    /// The scenario's active HUD readouts, in authored order. Upserted/cleared
+    /// by slot via the `HudReadout` action; the sync copies each one's CURRENT
+    /// bound-variable value into the HUD's [`HudReadouts`] resource every
+    /// frame. Cleared at teardown with the rest of the event world.
     hud_readouts: Vec<HudReadoutActionConfig>,
     variables: HashMap<String, VariableLiteral>,
     /// The queued scenario switch, if a `NextScenario` action has requested one.
     pub next_scenario: Option<NextScenarioActionConfig>,
-    /// The delayed non-lingering cut's clock (task 20260717-163050): armed
-    /// by the NextScenario action, ticked by `state_to_world_system` on
-    /// the world's (pause-frozen) time; the switch executes at expiry.
+    /// The delayed non-lingering cut's clock: armed by the NextScenario action,
+    /// ticked by `state_to_world_system` on the world's (pause-frozen) time;
+    /// the switch executes at expiry.
     pub next_scenario_delay: Option<Timer>,
     /// Logging-only: the last variable snapshot we debug-logged. `state_to_world_system`
     /// runs every frame, so it logs the variables only when they DIFFER from this, to
@@ -41,20 +39,21 @@ pub struct NovaEventWorld {
 
 impl EventWorld for NovaEventWorld {
     fn world_to_state_system(_world: &mut World) {
-        // Nothing to carry from the bevy world into the event world right now. The
-        // graphics-budget carry lived here (to thin scatter on the lower tiers) but
-        // scatter is no longer a preset lever (task 20260718-004834). Kept as a
-        // required `EventWorld` method so the plumbing exists if a future action
-        // needs live world state pulled in before the queue processes.
+        // Nothing to carry from the bevy world into the event world right now.
+        // The graphics-budget carry lived here (to thin scatter on the lower
+        // tiers) but scatter is no longer a preset lever. Kept as a required
+        // `EventWorld` method so the plumbing exists if a future action needs
+        // live world state pulled in before the queue processes.
     }
 
     fn state_to_world_system(world: &mut World) {
-        // Copy the objectives to the bevy world, mapping nova's scenario-action config to the
-        // generic bevy_common_systems Objective the HUD renders. Write-on-diff, not a blind
-        // clear+extend: this system now runs every frame (the OnUpdate pulse keeps the event
-        // queue warm), and an unconditional write would flag GameObjectives changed every
-        // frame - making the objectives panel despawn and respawn its text lines per frame
-        // for the whole session (review R2.1 of task 20260711-180506).
+        // Copy the objectives to the bevy world, mapping nova's scenario-action
+        // config to the generic bevy_common_systems Objective the HUD renders.
+        // Write-on-diff, not a blind clear+extend: this system now runs every
+        // frame (the OnUpdate pulse keeps the event queue warm), and an
+        // unconditional write would flag GameObjectives changed every frame -
+        // making the objectives panel despawn and respawn its text lines per
+        // frame for the whole session.
         let objectives = world.resource::<Self>().objectives.clone();
         let differs = {
             let current = &world.resource::<GameObjectives>().objectives;
@@ -92,18 +91,18 @@ impl EventWorld for NovaEventWorld {
         }
 
         // Copy the active HUD readouts into the HUD's HudReadouts resource
-        // (nova_gameplay), each with its bound variable's CURRENT value read off
-        // the event world THIS frame (task 20260716-174729). Unlike the story
-        // log this is NOT append-only: the value tracks a live variable (the
-        // scenario clock ticks while the scenario is live), so the set is rebuilt
-        // each frame the sync runs rather than write-on-diff. Under the outcome/
-        // pause freeze the clock stops advancing and the sync stops re-running,
-        // so the last value latches and the row PERSISTS at the final time (this
+        // (nova_gameplay), each with its bound variable's CURRENT value read
+        // off the event world THIS frame. Unlike the story log this is NOT
+        // append-only: the value tracks a live variable (the scenario clock
+        // ticks while the scenario is live), so the set is rebuilt each frame
+        // the sync runs rather than write-on-diff. Under the outcome/ pause
+        // freeze the clock stops advancing and the sync stops re-running, so
+        // the last value latches and the row PERSISTS at the final time (this
         // is how "final time on Victory" holds). The render side updates its
-        // rows' text in place, so the resource write costs no entity churn. Guarded on
-        // the resource existing so event-world rigs without the HUD half keep
-        // working. An empty set (teardown or all readouts cleared) drops every
-        // row - the same leak pin as the comms feed.
+        // rows' text in place, so the resource write costs no entity churn.
+        // Guarded on the resource existing so event-world rigs without the HUD
+        // half keep working. An empty set (teardown or all readouts cleared)
+        // drops every row - the same leak pin as the comms feed.
         let readouts: Vec<(HudReadoutActionConfig, f64)> = {
             let this = world.resource::<Self>();
             this.hud_readouts
@@ -146,12 +145,12 @@ impl EventWorld for NovaEventWorld {
             }
         }
 
-        // Log variables ONLY when they change since the last log - this system runs
-        // every frame (the OnUpdate pulse keeps the event queue warm), so an
-        // unconditional log spams the debug stream. Clone the snapshot only on a change.
-        // The engine clock is EXCLUDED from the diff: it advances every live frame
-        // by design, and letting it count as "changed" would defeat this guard
-        // (full dump + snapshot clone per frame; review 20260717-112647 R1.1).
+        // Log variables ONLY when they change since the last log - this system
+        // runs every frame (the OnUpdate pulse keeps the event queue warm), so
+        // an unconditional log spams the debug stream. Clone the snapshot only
+        // on a change. The engine clock is EXCLUDED from the diff: it advances
+        // every live frame by design, and letting it count as "changed" would
+        // defeat this guard.
         let changed_snapshot = {
             let this = world.resource::<Self>();
             let differs_ignoring_clock =
@@ -179,9 +178,9 @@ impl EventWorld for NovaEventWorld {
         // NextScenario action until something clears the flag.
         let request = world.resource::<Self>().next_scenario.clone();
         if let Some(request) = request.filter(|r| !r.linger) {
-            // The delayed cut (task 20260717-163050): while the delay runs,
-            // the world keeps playing - tick on the world's virtual clock
-            // (a paused game holds the cut) and only switch at expiry.
+            // The delayed cut: while the delay runs, the world keeps playing -
+            // tick on the world's virtual clock (a paused game holds the cut)
+            // and only switch at expiry.
             let delta = world.resource::<Time>().delta();
             let still_waiting = {
                 let mut event_world = world.resource_mut::<Self>();
@@ -190,7 +189,7 @@ impl EventWorld for NovaEventWorld {
                     None => false,
                 }
             };
-            // NO early return while waiting: the command-queue flush below
+            // NOTE: no early return while waiting - the command-queue flush below
             // must keep running through the delay window, or every queued
             // spawn/effect starves until the cut.
             if !still_waiting {
@@ -222,7 +221,6 @@ impl EventWorld for NovaEventWorld {
             }
         }
 
-        // Apply all the commands in the queue
         let mut event_world = world.resource_mut::<NovaEventWorld>();
         if !event_world.queued_commands.is_empty() {
             let queued_commands = std::mem::take(&mut event_world.queued_commands);
@@ -243,10 +241,10 @@ impl NovaEventWorld {
     /// Reset all scenario state (variables, objectives, story log, queued
     /// commands, and any pending switch) at scenario teardown.
     pub fn clear(&mut self) {
-        // Undrained commands die with the scenario. Legitimate on teardown,
-        // but it is also how an `Outcome` composed with an INSTANT switch
-        // (`linger: false`) gets swallowed before it can show - leave a
-        // trace for the scenario author (outcome review R1.2).
+        // Undrained commands die with the scenario. Legitimate on teardown, but
+        // it is also how an `Outcome` composed with an INSTANT switch (`linger:
+        // false`) gets swallowed before it can show - leave a trace for the
+        // scenario author.
         if !self.queued_commands.is_empty() {
             debug!(
                 "NovaEventWorld::clear: discarding {} undrained command(s) at teardown",
@@ -337,11 +335,10 @@ impl NovaEventWorld {
         match self.next_scenario.as_mut() {
             Some(request) => {
                 request.linger = false;
-                // A release also skips any pending delayed cut (review
-                // R1.3): Enter during a delay window jumps the beat, and a
-                // cross-handler overlay's Continue is never a dead button
-                // (the frozen delay clock would otherwise hold the switch
-                // under the pause forever).
+                // A release also skips any pending delayed cut: Enter during a
+                // delay window jumps the beat, and a cross-handler overlay's
+                // Continue is never a dead button (the frozen delay clock would
+                // otherwise hold the switch under the pause forever).
                 self.next_scenario_delay = None;
                 true
             }
@@ -372,10 +369,9 @@ impl NovaEventWorld {
 mod tests {
     use super::*;
 
-    /// The delayed non-lingering cut (task 20260717-163050): the switch
-    /// holds for the authored delay while the world keeps running, then
-    /// fires. The fail-first is the first assert - today's instant cut
-    /// would have switched on the first update.
+    /// The delayed non-lingering cut: the switch holds for the authored delay
+    /// while the world keeps running, then fires. The fail-first is the first
+    /// assert - today's instant cut would have switched on the first update.
     #[test]
     fn a_delayed_cut_holds_then_switches() {
         use core::time::Duration;
@@ -446,10 +442,10 @@ mod tests {
         );
     }
 
-    /// Review R1.2: the command flush must keep RUNNING through the delay
-    /// window (the tick must not early-return past it) - a command queued
-    /// mid-window applies before the cut. Mutation-proven: an early
-    /// return while waiting fails this test.
+    /// the command flush must keep RUNNING through the delay window (the tick
+    /// must not early-return past it) - a command queued mid-window applies
+    /// before the cut. Mutation-proven: an early return while waiting fails
+    /// this test.
     #[test]
     fn the_command_flush_runs_through_the_delay_window() {
         use core::time::Duration;
@@ -493,8 +489,8 @@ mod tests {
         );
     }
 
-    /// Review R1.1: an authored absurd delay must not panic Timer
-    /// construction - the apply finite-checks and caps it.
+    /// an authored absurd delay must not panic Timer construction - the apply
+    /// finite-checks and caps it.
     #[test]
     fn absurd_delays_are_capped_not_panics() {
         use bevy_common_systems::prelude::EventAction;
@@ -520,8 +516,8 @@ mod tests {
         );
     }
 
-    /// Review R1.3: releasing skips a pending delayed cut - Enter during
-    /// the window jumps the beat instead of a silent no-op.
+    /// releasing skips a pending delayed cut - Enter during the window jumps
+    /// the beat instead of a silent no-op.
     #[test]
     fn release_skips_the_pending_delay() {
         use bevy_common_systems::prelude::EventAction;
@@ -631,8 +627,7 @@ mod tests {
         bare.update();
     }
 
-    /// The authored per-line dwell rides the sync into the HUD line
-    /// (review 20260717-163033 R1.2: this was claimed but untested).
+    /// The authored per-line dwell rides the sync into the HUD line.
     #[test]
     fn story_sync_carries_the_authored_dwell() {
         let mut app = App::new();
@@ -660,9 +655,8 @@ mod tests {
         );
     }
 
-    /// The authored comms icon rides the sync into the HUD line (task
-    /// 20260721-211526), using the same `AssetRef<Image>` path object the
-    /// scenario action parsed.
+    /// The authored comms icon rides the sync into the HUD line, using the same
+    /// `AssetRef<Image>` path object the scenario action parsed.
     #[test]
     fn story_sync_carries_the_authored_icon() {
         let mut app = App::new();
@@ -690,13 +684,12 @@ mod tests {
         );
     }
 
-    /// The objectives sync is write-on-diff (review R2.1 of task
-    /// 20260711-180506): with the OnUpdate pulse keeping the event queue
-    /// warm, state_to_world runs every frame, and a blind clear+extend
-    /// would flag GameObjectives changed per frame - the objectives panel
-    /// (gated on resource_changed) would tear down and rebuild its text
-    /// lines every frame. Count actual change-detections across repeated
-    /// syncs: one per real change, not one per run.
+    /// The objectives sync is write-on-diff: with the OnUpdate pulse keeping
+    /// the event queue warm, state_to_world runs every frame, and a blind
+    /// clear+extend would flag GameObjectives changed per frame - the
+    /// objectives panel (gated on resource_changed) would tear down and rebuild
+    /// its text lines every frame. Count actual change-detections across
+    /// repeated syncs: one per real change, not one per run.
     #[test]
     fn unchanged_objectives_do_not_flag_the_resource() {
         #[derive(Resource, Default)]
