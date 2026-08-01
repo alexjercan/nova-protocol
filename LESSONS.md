@@ -1551,7 +1551,7 @@ here (annotated) as the paid record.
 
 ## Pending promotions (3+ occurrences, user decides)
 
-- `doc-comment-rewrap-changes-the-render` (x3) -> tooling:
+- `doc-comment-rewrap-changes-the-render` (x3, DEFER 2026-08-01 at x3: revisit at the next occurrence) -> tooling:
   re-wrapping or deleting a mid-line clause in a `//!`/`///` block changes what
   rustdoc RENDERS while check and fmt stay green - a following line starting
   `-`/`#`/`>`/`1.` becomes a block construct, a wrapped `- ` list collapses into
@@ -1562,7 +1562,7 @@ here (annotated) as the paid record.
   damage is mechanical and invisible to every check we currently run.
   20260731-170329, 20260731-170335, 20260731-170359.
 
-- `generated-links-need-real-targets` (x4) -> tooling:
+- `generated-links-need-real-targets` (x4, DEFER 2026-08-01 at x4: delete rotted pointers by hand as each pass finds them) -> tooling:
   manifest-rendered, authored, AND source-comment doc links gate on the target
   existing - a README banner went stale on a dir move; seven `docs/spikes/*.md`
   and `DECISION.md` pointers in nova_gameplay HUD comments outlived the files,
