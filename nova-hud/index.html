@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nova HUD Rework PoC - contextual flight HUD</title>
+  <style>
+    /* Tokens shared with nova_os_terminal_poc.html and the demo-1 widget PoC. */
+    :root {
+      --phosphor: #36ff79; --phosphor-dim: #19a64f; --phosphor-muted: #0d6e35;
+      --amber: #ffb84a; --orange: #ff7b2d; --red: #ff4e42; --blue: #36a3ff; --violet: #a98bff;
+      --white: #eaf6ff; --text: #b9ffc9;
+      --case-0: #0a0d10; --case-1: #161b20; --case-2: #232a31; --case-3: #2f383f; --case-edge: #05070a;
+      --mono: "JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+      --face: linear-gradient(180deg, var(--case-3) 0%, var(--case-1) 55%, var(--case-0) 100%);
+      --rim: inset 0 1px 0 rgba(255,255,255,0.14); --drop: 0 2px 4px rgba(0,0,0,0.55), 0 6px 16px -6px rgba(0,0,0,0.7);
+      --glow: 0 0 8px rgba(54,255,121,0.5);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; color: var(--text); font-family: var(--mono); background: #01040a; overflow: hidden; }
+
+    /* ============================== SCENE ================================= */
+    .scene { position: fixed; inset: 0; overflow: hidden; z-index: 0; background:
+        radial-gradient(circle at 22% 26%, rgba(54,163,255,0.10), transparent 34%),
+        radial-gradient(circle at 76% 72%, rgba(54,255,121,0.05), transparent 38%),
+        linear-gradient(140deg, #01040a 0%, #050f18 48%, #02060c 100%); }
+    .stars { position: absolute; inset: -20%; }
+    .stars.a { opacity: 0.85; animation: pan 90s linear infinite; background-image:
+        radial-gradient(1.4px 1.4px at 12% 24%, #eaf6ff, transparent), radial-gradient(1.4px 1.4px at 26% 78%, #cfe6ff, transparent),
+        radial-gradient(1.2px 1.2px at 44% 16%, #eaf6ff, transparent), radial-gradient(1.6px 1.6px at 71% 42%, #fff, transparent),
+        radial-gradient(1.2px 1.2px at 88% 72%, #dff0ff, transparent), radial-gradient(1.3px 1.3px at 59% 88%, #eaf6ff, transparent); }
+    .stars.b { opacity: 0.5; animation: pan 160s linear infinite reverse; background-image:
+        radial-gradient(1px 1px at 8% 62%, #9fc6ff, transparent), radial-gradient(1px 1px at 33% 34%, #cfe6ff, transparent),
+        radial-gradient(1px 1px at 52% 12%, #bcd8ff, transparent), radial-gradient(1px 1px at 79% 58%, #9fc6ff, transparent); }
+    @keyframes pan { to { transform: translate(4%, 3%); } }
+
+    .well { position: absolute; left: -80px; bottom: -110px; width: 320px; height: 320px; border-radius: 50%;
+      background: radial-gradient(circle at 40% 34%, #2a5877 0%, #17324a 36%, #0a1d2e 64%, #050f19 100%);
+      box-shadow: 0 0 90px rgba(54,163,255,0.22), inset -20px -14px 60px rgba(0,0,0,0.7); }
+    .asteroid { position: absolute; left: 24%; top: 26%; width: 54px; height: 44px; border-radius: 42% 58% 55% 45%;
+      background: linear-gradient(140deg, #3a3f45, #171b1f); box-shadow: inset -6px -6px 12px rgba(0,0,0,0.7); animation: spin 80s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .ship-me { position: absolute; left: 50%; top: 54%; transform: translate(-50%,-50%); z-index: 1; }
+    .ship-me .hull { width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-bottom: 30px solid #cfe9ff;
+      filter: drop-shadow(0 0 8px rgba(54,163,255,0.7)); }
+    .ship-me .flame { position: absolute; left: 50%; top: 30px; width: 10px; height: 20px; transform: translateX(-50%);
+      background: linear-gradient(180deg, var(--phosphor), transparent); border-radius: 50%; filter: blur(1px); animation: flame 0.4s ease-in-out infinite alternate; opacity: 0; }
+    body.s-ap .ship-me .flame { opacity: 1; }
+    @keyframes flame { to { height: 28px; opacity: 0.6; } }
+
+    .hostile { position: absolute; left: 70%; top: 30%; transform: translate(-50%,-50%); }
+    .hostile .h { width: 22px; height: 22px; background: linear-gradient(140deg, #6b2f2b, #2a1210); transform: rotate(45deg); box-shadow: inset 0 0 0 1px rgba(255,120,110,0.4); }
+
+    .vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 92% 84% at 50% 48%, transparent 54%, rgba(0,0,0,0.62) 100%); }
+
+    /* =============================== HUD ================================= */
+    .hud { position: fixed; inset: 0; z-index: 2; pointer-events: none; font-size: 12px; }
+    .el { transition: opacity 0.25s ease, transform 0.2s ease; }
+    .hidden { opacity: 0 !important; pointer-events: none !important; }
+
+    /* readout chip base */
+    .chip { position: absolute; display: inline-flex; align-items: center; gap: 8px; padding: 4px 9px; white-space: nowrap;
+      color: var(--phosphor); background: rgba(2,14,8,0.62); border: 1px solid rgba(54,255,121,0.34); border-radius: 3px;
+      text-shadow: 0 0 6px rgba(54,255,121,0.4); letter-spacing: 0.04em; backdrop-filter: blur(1px); }
+    .chip b { font-weight: 500; }
+    .chip .u { color: var(--phosphor-dim); }
+    .chip.emph { transform: scale(1.14); border-color: var(--phosphor); box-shadow: 0 0 16px rgba(54,255,121,0.4); }
+
+    /* velocity-direction shader: shaded heading sphere + cone along velocity,
+       centred on the ship. Always on (Instrument). Recolours with flight mode. */
+    .vel { position: absolute; left: 50%; top: 54%; width: 132px; height: 132px; transform: translate(-50%,-50%); z-index: 1; }
+    .vel .sphere { position: absolute; inset: 0; border-radius: 50%; border: 1px solid rgba(54,163,255,0.35);
+      background: radial-gradient(circle at 50% 34%, rgba(54,163,255,0.20), rgba(54,163,255,0.05) 55%, transparent 72%);
+      box-shadow: inset 0 0 26px rgba(54,163,255,0.18); }
+    .vel .cone { position: absolute; left: 50%; top: -2px; transform: translateX(-50%); width: 0; height: 0;
+      border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 16px solid var(--blue);
+      filter: drop-shadow(0 0 6px rgba(54,163,255,0.8)); }
+    body.s-ap .vel .sphere { border-color: rgba(54,255,121,0.4); background: radial-gradient(circle at 50% 34%, rgba(54,255,121,0.18), rgba(54,255,121,0.05) 55%, transparent 72%); box-shadow: inset 0 0 26px rgba(54,255,121,0.18); }
+    body.s-ap .vel .cone { border-bottom-color: var(--phosphor); filter: drop-shadow(0 0 6px rgba(54,255,121,0.8)); }
+
+    /* speed chip lower-centre */
+    .speed { left: 50%; bottom: 118px; transform: translateX(-50%); font-size: 15px; }
+    .speed.emph { transform: translateX(-50%) scale(1.14); }
+
+    /* AP mode chip above speed */
+    .mode { left: 50%; bottom: 152px; transform: translateX(-50%); color: var(--amber); border-color: rgba(255,184,74,0.5); text-shadow: 0 0 6px rgba(255,184,74,0.4); }
+    .mode .u { color: var(--orange); }
+
+    /* destination marker + readout */
+    .dest-read { left: 50%; top: 38%; transform: translate(-50%,-50%); }
+    .dest-mark { position: absolute; left: 50%; top: 42%; width: 26px; height: 26px; transform: translate(-50%,-50%); border: 1px solid var(--phosphor); border-radius: 50%; box-shadow: var(--glow); }
+    .dest-mark::before, .dest-mark::after { content: ""; position: absolute; background: var(--phosphor); }
+    .dest-mark::before { left: 50%; top: -6px; width: 1px; height: 8px; } .dest-mark::after { left: -6px; top: 50%; height: 1px; width: 8px; }
+
+    /* combat reticle ON the hostile (position:absolute so brackets anchor here,
+       not the screen corners - this was the top-left bug). */
+    .reticle { position: absolute; left: 70%; top: 30%; width: 58px; height: 58px; transform: translate(-50%,-50%); }
+    .reticle .br { position: absolute; width: 12px; height: 12px; border: 2px solid var(--red); box-shadow: 0 0 10px rgba(255,78,66,0.6); }
+    .reticle .br.tl { left: 0; top: 0; border-right: 0; border-bottom: 0; } .reticle .br.tr { right: 0; top: 0; border-left: 0; border-bottom: 0; }
+    .reticle .br.bl { left: 0; bottom: 0; border-right: 0; border-top: 0; } .reticle .br.br2 { right: 0; bottom: 0; border-left: 0; border-top: 0; }
+    body.s-fire .reticle { animation: retpulse 0.28s ease-in-out infinite alternate; }
+    @keyframes retpulse { to { transform: translate(-50%,-50%) scale(1.12); } }
+    .lock-read { left: calc(70% + 42px); top: 30%; transform: translateY(-50%); flex-direction: column; align-items: flex-start; gap: 2px; color: #ff8f86; border-color: rgba(255,78,66,0.5); text-shadow: 0 0 6px rgba(255,78,66,0.45); }
+    .lock-read b { color: #ffd9d5; } .lock-read .u { color: var(--red); }
+    .lock-read .row2 { display: flex; gap: 8px; }
+    .lock-read.emph { transform: translateY(-50%) scale(1.12); }
+
+    /* top-right target-zoom PiP (identify the locked target) */
+    .tgt-zoom { position: absolute; right: 14px; top: 52px; width: 158px; flex-direction: column; align-items: stretch; gap: 0; padding: 0; overflow: hidden;
+      color: var(--red); border-color: rgba(255,78,66,0.45); background: rgba(14,4,4,0.66); }
+    .tgt-zoom .zh { display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; font-size: 10px; letter-spacing: 0.14em; border-bottom: 1px solid rgba(255,78,66,0.35); color: #ff8f86; }
+    .tgt-zoom .zview { position: relative; height: 96px; background: radial-gradient(circle at 50% 46%, rgba(255,78,66,0.12), transparent 60%), #0a0406; overflow: hidden; }
+    .tgt-zoom .zview .zt { position: absolute; left: 50%; top: 48%; width: 44px; height: 44px; transform: translate(-50%,-50%) rotate(45deg); background: linear-gradient(140deg, #7a352f, #2a1210); box-shadow: inset 0 0 0 1px rgba(255,120,110,0.5); }
+    .tgt-zoom .zview .zc { position: absolute; inset: 0; background:
+        linear-gradient(rgba(255,78,66,0.18) 1px, transparent 1px) 50% 50%/100% 24px,
+        linear-gradient(90deg, rgba(255,78,66,0.18) 1px, transparent 1px) 50% 50%/24px 100%; opacity: 0.4; }
+    .tgt-zoom .zstat { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; padding: 6px 8px; font-size: 11px; color: #ffb3ad; }
+    .tgt-zoom .zstat b { color: #ffd9d5; } .tgt-zoom .zstat .u { color: var(--red); }
+    .tgt-zoom .zhp { height: 4px; margin: 0 8px 8px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,78,66,0.4); }
+    .tgt-zoom .zhp > i { display: block; height: 100%; width: 62%; background: linear-gradient(90deg, var(--red), var(--amber)); }
+
+    /* ammo: multiple weapon groups (PDCs, torpedo bays) */
+    .ammo { left: 50%; bottom: 74px; transform: translateX(-50%); gap: 14px; flex-wrap: wrap; justify-content: center; max-width: 60vw; }
+    .ammo .grp { display: inline-flex; align-items: center; gap: 6px; }
+    .ammo .lab { font-size: 10px; letter-spacing: 0.1em; color: var(--phosphor-muted); }
+    .pips { display: inline-flex; gap: 3px; }
+    .pips i { width: 6px; height: 12px; border-radius: 1px; background: var(--phosphor); box-shadow: 0 0 5px rgba(54,255,121,0.5); }
+    .pips i.off { background: transparent; box-shadow: inset 0 0 0 1px rgba(54,255,121,0.3); }
+    .grp.low { color: var(--amber); animation: warn 0.9s ease-in-out infinite; }
+    .grp.low .lab { color: var(--amber); } .grp.low .pips i { background: var(--amber); box-shadow: 0 0 5px rgba(255,184,74,0.5); }
+    @keyframes warn { 50% { opacity: 0.55; } }
+
+    /* keybind DOCK: contextual icon chips (real key glyphs), replaces 7-row text */
+    .dock { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: inline-flex; gap: 7px; pointer-events: none; }
+    .vchip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px 3px 4px; border-radius: 4px; font-size: 11px; letter-spacing: 0.04em;
+      color: var(--phosphor-muted); background: rgba(2,14,8,0.5); border: 1px solid rgba(54,255,121,0.16); opacity: 0.45; transition: opacity 0.2s ease, transform 0.2s ease, color 0.2s ease; }
+    .vchip .ki { width: 22px; height: 22px; object-fit: contain; filter: grayscale(0.4) opacity(0.7); }
+    .vchip.avail { opacity: 1; color: var(--phosphor); border-color: rgba(54,255,121,0.4); }
+    .vchip.avail .ki { filter: none; }
+    .vchip.hot { opacity: 1; color: #06110a; background: var(--phosphor); border-color: var(--phosphor); box-shadow: 0 0 12px rgba(54,255,121,0.4); transform: scale(1.08); }
+
+    /* anchored verb cue (contextual) with a real key glyph */
+    .cue { color: var(--phosphor); border-color: rgba(54,255,121,0.4); padding: 3px 8px 3px 4px; gap: 6px; }
+    .cue.goto { left: calc(70% - 8px); top: calc(30% + 46px); }
+    .cue .ki { width: 20px; height: 20px; object-fit: contain; }
+
+    /* edge arrow for an off-screen beacon */
+    .edge { right: 26px; top: 62%; flex-direction: column; align-items: center; gap: 2px; color: var(--phosphor); border: 0; background: none; text-shadow: var(--glow); }
+    .edge .arw { font-size: 16px; transform: rotate(90deg); }
+
+    /* objective chip, top-centre, slim; breathes when just posted */
+    .obj { left: 50%; top: 58px; transform: translateX(-50%); color: var(--amber); border-color: rgba(255,184,74,0.45); text-shadow: 0 0 6px rgba(255,184,74,0.4); }
+    .obj .di { color: var(--amber); } .obj.emph { transform: translateX(-50%) scale(1.16); }
+    body.s-obj .obj:not(.emph) { animation: breathe 2.4s ease-in-out infinite; }
+    @keyframes breathe { 50% { opacity: 0.72; } }
+
+    /* comms card, bottom-left */
+    .comms { left: 26px; bottom: 150px; max-width: 320px; white-space: normal; flex-direction: column; align-items: flex-start; gap: 2px; color: var(--blue); border-color: rgba(54,163,255,0.4); text-shadow: 0 0 6px rgba(54,163,255,0.35); }
+    .comms .who { font-size: 10px; letter-spacing: 0.14em; color: var(--blue); opacity: 0.85; }
+    .comms .msg { color: #cfe6ff; line-height: 1.4; }
+
+    /* status bar (top) */
+    .statusbar { position: absolute; left: 12px; top: 10px; display: inline-flex; align-items: center; gap: 14px; padding: 5px 12px; border-radius: 4px;
+      color: var(--phosphor-dim); background: rgba(2,14,8,0.55); border: 1px solid rgba(54,255,121,0.22); font-size: 11px; }
+    .statusbar b { color: var(--phosphor); font-weight: 500; }
+    .statusbar .hpbar { width: 60px; height: 5px; background: rgba(0,0,0,0.5); border: 1px solid rgba(54,255,121,0.3); }
+    .statusbar .hpbar > i { display: block; height: 100%; width: 84%; background: linear-gradient(90deg, var(--phosphor-dim), var(--phosphor)); }
+
+    /* ============================= DEMO DECK ============================= */
+    .deck { position: fixed; left: 0; right: 0; top: 0; z-index: 5; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      margin: 8px; padding: 7px 12px; border-radius: 10px; background: linear-gradient(168deg, rgba(35,42,49,0.94), rgba(10,13,16,0.94)); backdrop-filter: blur(3px); box-shadow: var(--rim), var(--drop); }
+    .deck .tag { font-size: 9px; letter-spacing: 0.2em; color: var(--phosphor-muted); border: 1px solid rgba(54,255,121,0.3); padding: 2px 6px; border-radius: 3px; }
+    .deck .lbl { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: #8fa39a; }
+    .sit { font: inherit; font-size: 11px; letter-spacing: 0.03em; cursor: pointer; color: var(--phosphor); padding: 6px 10px;
+      background: rgba(54,255,121,0.05); border: 1px solid rgba(54,255,121,0.34); border-radius: 3px; }
+    .sit:hover { background: rgba(54,255,121,0.12); }
+    .sit.on { background: var(--phosphor); color: #04140a; border-color: var(--phosphor); box-shadow: 0 0 12px rgba(54,255,121,0.4); }
+    .sit.pulse { border-color: var(--amber); color: var(--amber); }
+    .spacer { flex: 1; }
+    .lvlseg { display: inline-flex; border: 1px solid rgba(54,255,121,0.3); border-radius: 3px; overflow: hidden; }
+    .lvlseg button { font: inherit; font-size: 11px; cursor: pointer; color: var(--phosphor-dim); padding: 6px 12px; border: 0; background: transparent; border-right: 1px solid rgba(54,255,121,0.2); }
+    .lvlseg button:last-child { border-right: 0; }
+    .lvlseg button.on { background: var(--phosphor); color: #04140a; }
+    .units-note { font-size: 10px; color: var(--phosphor-muted); }
+
+    /* NOVA OS + Menu affordances (bottom-right, always clear of the dock/ammo).
+       .hud is pointer-events:none, so this cluster re-enables clicks. */
+    .hud-nav { position: absolute; right: 16px; bottom: 16px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; pointer-events: auto; }
+    .navbtn { display: inline-flex; align-items: center; gap: 7px; font: inherit; font-size: 12px; letter-spacing: 0.04em; cursor: pointer; color: var(--phosphor);
+      background: rgba(2,14,8,0.72); border: 1px solid rgba(54,255,121,0.4); border-radius: 3px; padding: 6px 11px; text-shadow: 0 0 6px rgba(54,255,121,0.4); backdrop-filter: blur(2px); }
+    .navbtn:hover { background: rgba(54,255,121,0.14); border-color: var(--phosphor); }
+    .navbtn .ki { width: 20px; height: 20px; object-fit: contain; }
+    .navbtn.os { font-weight: 500; box-shadow: 0 0 14px rgba(54,255,121,0.22); }
+    .navbtn.small { font-size: 11px; color: var(--phosphor-dim); border-color: rgba(54,255,121,0.28); }
+
+    /* Deployed /nova-hud/ route: drop the demo POC tag (keep the situation deck). */
+    body.on-route .deck .tag { display: none; }
+
+    /* HUD level: On = full contextual; Cinematic = clean screen (screenshots). */
+    body[data-level="cinematic"] .hud { opacity: 0 !important; }
+  </style>
+</head>
+<body data-level="on">
+
+  <div class="scene">
+    <div class="stars b"></div><div class="stars a"></div>
+    <div class="well"></div>
+    <div class="asteroid"></div>
+    <div class="hostile"><div class="h"></div></div>
+    <div class="ship-me"><div class="hull"></div><div class="flame"></div></div>
+    <div class="vignette"></div>
+  </div>
+
+  <div class="hud">
+    <!-- STATUS -->
+    <div class="statusbar tier-status el"><b>NX-9 DRIFTER</b><span>HULL <span class="hpbar"><i></i></span></span><span>OBJ <b>1</b></span><span>60 FPS</span></div>
+
+    <!-- INSTRUMENT: velocity shader is always on -->
+    <div class="vel tier-instrument el"><div class="sphere"></div><div class="cone"></div></div>
+    <div class="chip speed tier-instrument el"><b id="spd">142</b> <span class="u">m/s</span></div>
+    <div class="chip mode tier-instrument el hidden" id="mode">AP GOTO <span class="u">// BURN</span></div>
+    <div class="dest-mark tier-instrument el hidden" id="destMark"></div>
+    <div class="chip dest-read tier-instrument el hidden" id="destRead">ETA <b>12</b><span class="u">s</span> // <b>1.24</b> <span class="u">km</span></div>
+
+    <div class="reticle tier-instrument el hidden" id="reticle"><span class="br tl"></span><span class="br tr"></span><span class="br bl"></span><span class="br br2"></span></div>
+    <div class="chip lock-read tier-instrument el hidden" id="lockRead"><div>DST <b>840</b> <span class="u">m</span></div><div class="row2">CLS <b>+38</b> <span class="u">m/s</span></div></div>
+
+    <!-- top-right target zoom (identify) -->
+    <div class="chip tgt-zoom tier-instrument el hidden" id="tgtZoom">
+      <div class="zh"><span>TARGET</span><span>HOSTILE</span></div>
+      <div class="zview"><div class="zc"></div><div class="zt"></div></div>
+      <div class="zstat"><span>DST <b>840</b><span class="u">m</span></span><span>CLS <b>+38</b><span class="u">m/s</span></span><span>KIND <b>FRIG</b></span><span>HULL <b>62</b><span class="u">%</span></span></div>
+      <div class="zhp"><i></i></div>
+    </div>
+
+    <!-- ammo: multiple groups -->
+    <div class="chip ammo tier-instrument el hidden" id="ammo">
+      <span class="grp"><span class="lab">PDC-1</span><span class="pips"><i></i><i></i><i></i><i></i><i></i><i class="off"></i><i class="off"></i><i class="off"></i></span></span>
+      <span class="grp"><span class="lab">PDC-2</span><span class="pips"><i></i><i></i><i></i><i></i><i></i><i></i><i class="off"></i><i class="off"></i></span></span>
+      <span class="grp" id="tube1"><span class="lab">TUBE-1</span><span class="pips"><i></i><i class="off"></i></span></span>
+      <span class="grp" id="tube2"><span class="lab">TUBE-2</span><span class="pips"><i></i><i></i></span></span>
+    </div>
+
+    <!-- CHROME: learning aids + secondary cues -->
+    <div class="chip obj tier-chrome el hidden" id="obj"><span class="di">&#9670;</span> SALVAGE WRECK <span class="u">// 2.1 km</span></div>
+    <div class="chip comms tier-chrome el hidden" id="comms"><span class="who">CONTROL</span><span class="msg">Hostile on your six, Drifter. Weapons free.</span></div>
+    <div class="chip edge tier-chrome el hidden" id="edge"><span class="arw">&#10148;</span><span><b>BEACON</b> 3.4 <span class="u">km</span></span></div>
+    <div class="chip cue goto tier-chrome el hidden" id="gotoCue"><img class="ki" src="assets/input-prompts/keyboard/Alt/T_G_Key_Alt.png" alt="G"> GOTO</div>
+
+    <div class="dock tier-chrome el" id="dock">
+      <span class="vchip" data-v="stop"><img class="ki" src="assets/input-prompts/keyboard/Alt/T_Z_Key_Alt.png" alt="Z"> STOP</span>
+      <span class="vchip avail" data-v="goto"><img class="ki" src="assets/input-prompts/keyboard/Alt/T_G_Key_Alt.png" alt="G"> GOTO</span>
+      <span class="vchip avail" data-v="orbit"><img class="ki" src="assets/input-prompts/keyboard/Alt/T_O_Key_Alt.png" alt="O"> ORBIT</span>
+      <span class="vchip" data-v="cancel"><img class="ki" src="assets/input-prompts/keyboard/Alt/T_X_Key_Alt.png" alt="X"> CANCEL</span>
+      <span class="vchip avail" data-v="radar"><img class="ki" src="assets/input-prompts/keyboard/Alt/T_R_Key_Alt.png" alt="R"> RADAR</span>
+      <span class="vchip" data-v="fire"><img class="ki" src="assets/input-prompts/keyboard/Alt/T_Space_Key_Alt.png" alt="Space"> FIRE</span>
+    </div>
+
+    <!-- open the ship computer (Tab, like the game) / return to the menu -->
+    <div class="hud-nav" id="hudNav">
+      <button class="navbtn os" data-nav="os"><img class="ki" src="assets/input-prompts/keyboard/Alt/T_Tab_Key_Alt.png" alt="Tab"> NOVA OS</button>
+      <button class="navbtn small" data-nav="menu">&#9668; Menu</button>
+    </div>
+  </div>
+
+  <div class="deck">
+    <span class="tag">POC 2</span>
+    <span class="lbl">Situation</span>
+    <button class="sit" data-sit="ap">AP GOTO burn</button>
+    <button class="sit" data-sit="lock">Combat lock</button>
+    <button class="sit" data-sit="fire">Weapons hot + fire</button>
+    <button class="sit" data-sit="obj">Objective posted</button>
+    <button class="sit" data-sit="comms">Comms message</button>
+    <button class="sit" data-sit="lowammo">Low ammo</button>
+    <span class="spacer"></span>
+    <span class="lbl">HUD ~</span>
+    <div class="lvlseg" id="lvlSeg">
+      <button class="on" data-level="on">On</button>
+      <button data-level="cinematic">Cinematic</button>
+    </div>
+    <span class="units-note">1 u = 10 m</span>
+  </div>
+
+  <script>
+    const body = document.body;
+    const $ = s => document.querySelector(s);
+
+    function reflect() {
+      const on = c => body.classList.contains(c);
+      show('#mode', on('s-ap')); show('#destMark', on('s-ap')); show('#destRead', on('s-ap'));
+      $('.speed').classList.toggle('emph', on('s-ap'));
+      chip('goto', on('s-ap') ? 'hot' : 'avail'); chip('stop', on('s-ap') ? 'avail' : '');
+      show('#gotoCue', on('s-lock') && !on('s-ap'));
+      show('#reticle', on('s-lock')); show('#lockRead', on('s-lock')); show('#tgtZoom', on('s-lock'));
+      chip('fire', on('s-lock') ? 'avail' : ''); chip('radar', on('s-lock') ? 'hot' : 'avail');
+      body.classList.toggle('s-fire', on('s-hot'));
+      $('#lockRead').classList.toggle('emph', on('s-hot'));
+      chip('fire', on('s-hot') ? 'hot' : (on('s-lock') ? 'avail' : ''));
+      show('#ammo', on('s-hot') || on('s-lowammo'));
+      // low ammo emphasises the torpedo tubes (nearly empty), not the PDCs
+      $('#tube1').classList.toggle('low', on('s-lowammo'));
+      $('#tube2').classList.toggle('low', on('s-lowammo'));
+    }
+    function show(sel, v) { $(sel).classList.toggle('hidden', !v); }
+    function chip(v, state) { const c = document.querySelector('.vchip[data-v="' + v + '"]'); if (!c) return; c.classList.remove('avail', 'hot'); if (state) c.classList.add(state); }
+
+    document.querySelectorAll('.sit').forEach(btn => btn.addEventListener('click', () => {
+      const s = btn.dataset.sit;
+      if (s === 'obj') { flashObjective(); pulse(btn); return; }
+      if (s === 'comms') { flashComms(); pulse(btn); return; }
+      const cls = 's-' + (s === 'fire' ? 'hot' : s);
+      const active = body.classList.toggle(cls);
+      btn.classList.toggle('on', active);
+      if (s === 'fire' && active && !body.classList.contains('s-lock')) { body.classList.add('s-lock'); document.querySelector('.sit[data-sit="lock"]').classList.add('on'); }
+      reflect();
+    }));
+
+    let objTimer;
+    function flashObjective() { const o = $('#obj'); body.classList.add('s-obj'); o.classList.remove('hidden'); o.classList.add('emph'); clearTimeout(objTimer); objTimer = setTimeout(() => o.classList.remove('emph'), 1200); }
+    let commsTimer;
+    function flashComms() { const c = $('#comms'); c.classList.remove('hidden'); c.classList.add('emph'); setTimeout(() => c.classList.remove('emph'), 900); clearTimeout(commsTimer); commsTimer = setTimeout(() => c.classList.add('hidden'), 5000); }
+    function pulse(btn) { btn.classList.add('pulse'); setTimeout(() => btn.classList.remove('pulse'), 700); }
+
+    document.querySelectorAll('#lvlSeg button').forEach(b => b.addEventListener('click', () => {
+      document.querySelectorAll('#lvlSeg button').forEach(x => x.classList.toggle('on', x === b));
+      body.dataset.level = b.dataset.level;
+    }));
+
+    // Deployed easter-egg route (/nova-hud/) vs the in-repo file:// review copy.
+    // On a route the demo POC tag is hidden; the NOVA OS / Menu buttons navigate
+    // the chain (routes when deployed, sibling files in review so it still works).
+    const onRoute = /\/nova-hud(\/|$)/.test(location.pathname);
+    body.classList.toggle('on-route', onRoute);
+    // Key glyphs live in the game asset tree. The img srcs use the deployed
+    // shape (`assets/input-prompts/...`, served under /nova-hud/); when opened
+    // as an in-repo file:// review copy (examples/ui/), rewrite them to the
+    // real repo path (`../../assets/input-prompts/...`) so glyphs still render.
+    if (!onRoute) {
+      document.querySelectorAll('img.ki').forEach(img => {
+        const rel = img.getAttribute('src');
+        if (rel && rel.startsWith('assets/input-prompts/')) img.setAttribute('src', '../../' + rel);
+      });
+    }
+    function go(routeRel, sibling) { location.href = onRoute ? routeRel : sibling; }
+    document.getElementById('hudNav').addEventListener('click', e => {
+      const b = e.target.closest('[data-nav]'); if (!b) return;
+      // ?back tells the CRT its exit should return here (guarded; see nova_os PoC)
+      if (b.dataset.nav === 'os') go('../nova-os/?back=nova-hud', 'nova_os_terminal_poc.html?back=nova-hud');
+      else if (b.dataset.nav === 'menu') go('../nova-menu/', 'nova_ui_rework_poc.html');
+    });
+
+    (function initHash() {
+      const raw = location.hash.replace('#', ''); if (!raw) { reflect(); return; }
+      const [sits, lvl] = raw.split(';');
+      (sits ? sits.split(',') : []).map(s => s.trim()).filter(Boolean).forEach(s => { const btn = document.querySelector('.sit[data-sit="' + s + '"]'); if (btn) btn.click(); });
+      if (lvl) { const lb = document.querySelector('#lvlSeg button[data-level="' + lvl + '"]'); if (lb) lb.click(); }
+      reflect();
+    })();
+  </script>
+</body>
+</html>

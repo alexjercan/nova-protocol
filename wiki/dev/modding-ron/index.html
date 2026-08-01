@@ -48,13 +48,24 @@ branch <code>modding-language</code> (v0.6.0). For the runtime it feeds, see the
 <a href="../scenario-system/">scenario engine</a>.</p>
 <h2 id="what-shipped" tabindex="-1">What shipped</h2>
 <p>Scenarios (and sections) are now serializable. A <code>*.content.ron</code> file is a RON
-<code>Vec&lt;Content&gt;</code> where each <code>Content</code> item is a <code>Scenario((...))</code> or a
-<code>Section((...))</code>; a scenario item deserializes into the same
-<code>nova_scenario::ScenarioConfig</code> the runtime already used, and loads through a
-Bevy <code>AssetLoader</code> (<code>ContentAssetLoader</code>) that merges into the <code>GameScenarios</code>
+<code>Vec&lt;Content&gt;</code> where each <code>Content</code> item is a <code>Scenario((...))</code>, a
+<code>Section((...))</code>, or a <code>Campaign((...))</code>; a scenario item deserializes into the
+same <code>nova_scenario::ScenarioConfig</code> the runtime already used, and loads through
+a Bevy <code>AssetLoader</code> (<code>ContentAssetLoader</code>) that merges into the <code>GameScenarios</code>
 resource.</p>
 <ul>
-<li><code>nova_scenario</code> and <code>nova_gameplay</code> gained off-by-default <code>serde</code> features that
+<li>
+<p>A <code>Campaign((id, name, scenarios: [...]))</code> item is the ordered mapping from a
+campaign to its member scenario ids, in play order. It registers into the
+<code>GameCampaigns</code> resource (mirroring <code>GameScenarios</code>), and the Scenarios picker
+reads it to group and launch a campaign's chapters as a unit. <code>scenarios</code> may
+name <code>hidden</code> scenarios: they are filtered from the flat picker but stay
+reachable for replay under their campaign header. The content lint flags a
+member id that no bundle provides. Example:
+<code>Campaign((id: &quot;nova_protocol&quot;, name: &quot;Nova Protocol&quot;, scenarios: [&quot;shakedown_run&quot;, &quot;broadside&quot;, &quot;broadside_gunship&quot;, &quot;lifeline&quot;, &quot;final_tally&quot;]))</code>.</p>
+</li>
+<li>
+<p><code>nova_scenario</code> and <code>nova_gameplay</code> gained off-by-default <code>serde</code> features that
 <code>cfg_attr</code>-derive <code>Serialize</code>/<code>Deserialize</code> on the whole config tree (events,
 filters, the variables AST, actions, ship/section/object configs). Each engine
 crate is serde-free in isolation (<code>cargo build -p nova_scenario</code>). Note the
@@ -62,23 +73,30 @@ SHIPPED game binary is not: <code>nova_modding</code> enables <code>nova_scenari
 unconditionally and the game depends on it (via <code>nova_assets</code>), so Cargo feature
 unification turns <code>bevy/serialize</code> on for the real build - the loader is always
 present and genuinely needs it. The cost (extra serialize/<code>Reflect</code> registrations)
-is small, but it is paid at runtime, not only in tests.</li>
-<li><code>nova_gameplay::asset_ref::AssetRef&lt;A&gt;</code> is the authorable asset reference. In a
+is small, but it is paid at runtime, not only in tests.</p>
+</li>
+<li>
+<p><code>nova_gameplay::asset_ref::AssetRef&lt;A&gt;</code> is the authorable asset reference. In a
 data file an asset is a SCHEMED path string (<code>&quot;dep://base/textures/asteroid.png&quot;</code>,
 <code>&quot;self://textures/my.png&quot;</code>); <code>AssetRef</code>
 deserializes that as <code>Path</code>, and <code>resolve(&amp;AssetServer)</code> turns it into a
 <code>Handle&lt;A&gt;</code> lazily at spawn. Resolution is non-mutating and idempotent, so a ref
 keeps its path and re-serializes (for editor save). Code-built configs use
 <code>AssetRef::from(handle)</code>. It replaced the 13 section-config handle fields plus
-the scenario cubemap and asteroid texture.</li>
-<li><code>nova_modding</code> (new crate) owns the format: <code>ContentAsset</code> (a <code>Vec&lt;Content&gt;</code>)
+the scenario cubemap and asteroid texture.</p>
+</li>
+<li>
+<p><code>nova_modding</code> (new crate) owns the format: <code>ContentAsset</code> (a <code>Vec&lt;Content&gt;</code>)
 with <code>ContentAssetLoader</code> for the <code>content.ron</code> extension, <code>BundleManifest</code>
 with <code>BundleAssetLoader</code> for the <code>bundle.ron</code> extension, and
-<code>NovaModdingPlugin</code>. It depends on <code>nova_scenario</code> with its <code>serde</code> feature.</li>
-<li><code>nova_assets</code> registers the plugin, loads the enabled bundles' <code>*.content.ron</code>
+<code>NovaModdingPlugin</code>. It depends on <code>nova_scenario</code> with its <code>serde</code> feature.</p>
+</li>
+<li>
+<p><code>nova_assets</code> registers the plugin, loads the enabled bundles' <code>*.content.ron</code>
 files (the base game's live under <code>assets/base/scenarios/</code>) as part of the
 <code>GameAssets</code> collection, and merges their scenarios into <code>GameScenarios</code>. See
-<code>assets/mods/example/example.content.ron</code> for a worked example authored by hand.</li>
+<code>assets/mods/example/example.content.ron</code> for a worked example authored by hand.</p>
+</li>
 </ul>
 <h2 id="architecture-decisions" tabindex="-1">Architecture decisions</h2>
 <ul>

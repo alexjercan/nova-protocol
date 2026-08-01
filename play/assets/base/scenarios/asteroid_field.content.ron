@@ -353,6 +353,24 @@
                 ],
             ),
             (
+                name: OnNeutralized,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("Weapons and thrusters gone - you drift dead in the belt."),
+                    )),
+                    NextScenario((
+                        scenario_id: "asteroid_field",
+                        linger: true,
+                    )),
+                ],
+            ),
+            (
                 name: OnDestroyed,
                 filters: [
                     Entity((

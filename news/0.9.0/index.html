@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>v0.9.0 - Cockpit and command - Nova Protocol</title>
+        <meta name="description" content="Nova Protocol v0.9.0: the cockpit becomes a real NOVA OS ship computer, with a CRT terminal drawer, command output, shell input, app takeover surfaces, scanlines, bloom, sound, power controls and a full phosphor HUD language. Combat reads faster with allegiance markers, neutralized ships, contextual chips and clearer lock decay; scenarios browse by campaign headers; the website adopts the same phosphor skin; assets preload with credited fonts, key glyphs and UI sounds; and nova_probe runs are now profile-sandboxed." />
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/news.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="news">
+                <nav class="news__toc" aria-label="On this page">
+                    <p class="news__toc-title">On this page</p>
+                    <a href="#nova-os-arrives-in-the-cockpit" class="news__toc-link">NOVA OS arrives in the cockpit</a>
+                    <a href="#a-shell-with-useful-answers" class="news__toc-link news__toc-link--sub">A shell with useful answers</a>
+                    <a href="#the-map-is-both-command-and-app" class="news__toc-link news__toc-link--sub">The map is both command and app</a>
+                    <a href="#the-ship-becomes-a-schematic-you-can-operate" class="news__toc-link news__toc-link--sub">The ship becomes a schematic you can operate</a>
+                    <a href="#the-screen-is-a-real-crt" class="news__toc-link">The screen is a real CRT</a>
+                    <a href="#the-hud-learns-when-to-get-out-of-the-way" class="news__toc-link">The HUD learns when to get out of the way</a>
+                    <a href="#objectives-arrive-like-messages" class="news__toc-link news__toc-link--sub">Objectives arrive like messages</a>
+                    <a href="#keys-become-an-action-dock" class="news__toc-link news__toc-link--sub">Keys become an action dock</a>
+                    <a href="#combat-reads-faster-and-ends-when-the-fight-does" class="news__toc-link">Combat reads faster and ends when the fight does</a>
+                    <a href="#campaigns-browse-like-campaigns" class="news__toc-link">Campaigns browse like campaigns</a>
+                    <a href="#one-interface-language-from-boot-to-editor" class="news__toc-link">One interface language from boot to editor</a>
+                    <a href="#the-website-now-shows-the-game-that-exists" class="news__toc-link">The website now shows the game that exists</a>
+                    <a href="#assets-load-before-they-are-needed" class="news__toc-link">Assets load before they are needed</a>
+                    <a href="#tooling-runs-in-a-clean-cockpit-too" class="news__toc-link">Tooling runs in a clean cockpit too</a>
+                    <a href="#fixes" class="news__toc-link">Fixes</a>
+                    <a href="#point-releases" class="news__toc-link">Point releases</a>
+                </nav>
+                <article class="prose news__body">
+                <p class="prose__meta">
+                    <a href="/nova-protocol/news/">&larr; News</a>
+                    &nbsp;//&nbsp; 2026-08-01 &nbsp;//&nbsp; v0.9.0
+                </p>
+                <h1>v0.9.0 - Cockpit and command</h1>
+                <p>For eight releases Nova Protocol built outward: more ships, more combat rules,
+more scenarios, more ways for a mod to turn those pieces into a campaign. v0.9.0
+turns inward and asks what all of that should feel like from the pilot's seat.
+The answer is a cockpit that behaves like a working place instead of a layer of
+permanent gauges.</p>
+<p>The old Tab drawer started as two panels for objectives and messages. It ships
+as <strong>NOVA OS</strong>, a complete ship computer built around one inset CRT monitor. It
+pauses flight, frees the cursor, accepts shell commands, runs a local-space map
+and a ship schematic, reports live ship and mission state, and gives the cockpit
+a single surface for information that used to compete with the flight view.</p>
+<p>The rest of the interface follows that decision. The HUD stays quiet until the
+situation calls for it. Objectives and comms arrive as notifications instead of
+permanent furniture. Friend, threat and neutral ships identify themselves at a
+glance. A beaten ship can become a drifting neutralized wreck instead of needing
+one last round poured into an empty hull. Campaign chapters finally browse as
+campaigns. Menus, editor and website all adopt the same phosphor language.</p>
+<p>This is the largest interface release Nova Protocol has had. Here is the whole
+of it.</p>
+<h2 id="nova-os-arrives-in-the-cockpit" tabindex="-1">NOVA OS arrives in the cockpit</h2>
+<p>Press <strong>Tab</strong> in flight and the world yields to the ship computer. Flight pauses,
+the cursor returns, the ordinary HUD clears away and the monitor opens over the
+dimmed cockpit view. The same key that opens the computer becomes terminal
+completion while it is active; <strong>Esc</strong> closes it and resumes flight after the
+screen finishes its shutdown.</p>
+<p>There is no dashboard of little permanent panes. NOVA OS is one screen with one
+prompt, and every piece of information earns its place as either terminal output
+or a full-screen app. The topbar carries the live ship name. The footer changes
+its hints for the surface currently in control. The terminal keeps its own
+scrollback, and an app takes over the monitor until you exit back to the prompt.</p>
+<h3 id="a-shell-with-useful-answers" tabindex="-1">A shell with useful answers</h3>
+<p>The command line behaves like a small real shell. It supports command history,
+cursor editing, fish-style inline completion, Tab match cycling and close-match
+suggestions. <code>help</code> prints a proper usage synopsis and aligned command list;
+<code>map help</code> or <code>ship help</code> drills into the command tree; a wrong subcommand names
+what failed and prints the relevant usage instead of dropping a generic error.
+Page Up and Page Down move through long output, and <code>clear</code> restores the welcome
+block rather than leaving a dead empty tube.</p>
+<p>The core commands expose live game state:</p>
+<ul>
+<li><code>log</code> prints one combined history of comms, objectives and important flight
+events, including the messages that have already left the HUD.</li>
+<li><code>objectives</code> prints the standing mission list. The HUD can stay temporary
+because the complete record is always here.</li>
+<li><code>ship view</code> prints each live section of the player ship: hull, weapons,
+thrusters, ammunition where present, and critical or neutralized state.</li>
+<li><code>map view</code> prints local-space contacts in a fixed-width table with kind,
+label, range and bearing.</li>
+<li><code>clear</code> resets the terminal surface, and <code>exit</code> suspends the computer.</li>
+</ul>
+<p>The output is the point. Objectives and messages were not removed from the
+cockpit; they were moved into the cockpit's memory, where they can be recalled
+without occupying every frame of flight.</p>
+<h3 id="the-map-is-both-command-and-app" tabindex="-1">The map is both command and app</h3>
+<p>Bare <code>map</code> launches the local-space map. The terminal disappears and the same
+monitor becomes a green schematic of nearby space: your ship at <code>SELF</code>, then
+hostiles, allies, objectives and bodies under short stable labels such as
+<code>HOST-1</code>, <code>ALLY-1</code>, <code>OBJ-1</code> and <code>AST-1</code>. Labels ride with their contact blips, a
+selected contact gets detail, and <strong>G</strong> engages GOTO on it.</p>
+<p>The terminal version uses the same contact model. <code>map view</code> gives the table;
+<code>map goto &lt;label&gt;</code> engages the flight autopilot without opening the app. Tab
+completes the label from the contacts that actually exist. The visual tool and
+the CLI are two views of one local-space system, not separate features that can
+drift apart.</p>
+<h3 id="the-ship-becomes-a-schematic-you-can-operate" tabindex="-1">The ship becomes a schematic you can operate</h3>
+<p>Bare <code>ship</code> turns the monitor into an orbitable 3D phosphor schematic of the
+player ship. Every section receives a short cockpit code such as <code>HULL-1</code>,
+<code>PDC-1</code> or <code>TRB-1</code>. Click a section block, or cycle with <strong>[</strong> and <strong>]</strong>, to
+inspect its status. The labels and schematic stay tied to the live modular ship,
+so an editor-built craft gets the same computer as a stock one.</p>
+<p>Those codes also make the ship operable from the prompt. <code>ship section &lt;id&gt;</code>
+prints one section's detail. <code>ship reload &lt;id&gt;</code> and <code>ship repair &lt;id&gt;</code> act on
+that section, with Tab completing valid codes. The app offers the same actions
+on <strong>L</strong> and <strong>P</strong>. The computer is not a separate configuration screen; it is a
+cockpit surface over the ship you are currently flying.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-090-nova-os-terminal.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-090-nova-os-terminal.png</span>
+        <span class="figure__placeholder-note">NOVA OS open in flight with the phosphor terminal, command history, inline completion and contextual footer hints visible.</span>
+    </div>
+    <figcaption class="figure__caption">NOVA OS is now the cockpit's command surface, not a placeholder drawer.</figcaption>
+</figure>
+<h2 id="the-screen-is-a-real-crt" tabindex="-1">The screen is a real CRT</h2>
+<p>The monitor is not flat Bevy UI with scanline decoration laid over it. NOVA OS
+renders its complete screen into an offscreen image, then displays that image
+through one sampling shader. Bright glyphs bloom into a soft phosphor halo. The
+raster bows with barrel curvature while the text stays crisp. Scanlines, square
+grain, vignette and brightness live in the same pass instead of filming a dark
+overlay across the terminal.</p>
+<p>That rendering path also preserves interaction. Mouse coordinates are mapped
+back through the tube's barrel curve and overscan before being forwarded to the
+offscreen UI, so a contact at the edge of the map or a section away from the
+centre of the ship schematic clicks where its picture says it should. Scrolling
+and app input pass through the same surface.</p>
+<p>The tube has a beginning and an end. Opening the drawer blooms the raster out
+from one horizontal scan line. Closing collapses it back through a line to a
+dying centre dot, then hands control to flight. A degauss sweep briefly distorts
+the screen. The power button suspends and wakes the computer instead of serving
+as painted-on chrome.</p>
+<p>The casing carries the same level of attention: a dark blue-black shell, rounded
+tube corners, recessed glass, edge sheen, vents and fasteners, a heavy chin bar
+and a NovaCRT 9000 plate. <strong>BRIGHT</strong> and <strong>SCAN</strong> controls alter the sampled
+screen. <strong>SND</strong> controls the terminal audio. Key taps, enter, errors, boot tones,
+power sweeps and a low CRT bed all run through the game's UI sound path, so the
+monitor sounds like part of the cockpit rather than a web mockup pasted over it.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-090-nova-os-apps.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-090-nova-os-apps.png</span>
+        <span class="figure__placeholder-note">Split capture or ship schematic view: the NOVA OS map or ship app filling the curved CRT, with labelled contacts or ship sections and the physical chin controls below.</span>
+    </div>
+    <figcaption class="figure__caption">Apps take over the same tube, then hand it back to the terminal.</figcaption>
+</figure>
+<h2 id="the-hud-learns-when-to-get-out-of-the-way" tabindex="-1">The HUD learns when to get out of the way</h2>
+<p>The old flight HUD asked the player to manage its detail level manually. All,
+Minimal and None decided how much chrome stayed on screen whether it mattered or
+not. v0.9.0 replaces that dial with context. The grave key now switches between
+<strong>On</strong> and <strong>Cinematic</strong>: On lets the HUD decide what the current situation
+needs; Cinematic clears it.</p>
+<p>Idle cruise is close to empty. The important surfaces return when they become
+important:</p>
+<ul>
+<li>During an autopilot burn, the mode, destination and speed chips come up, and
+the speed readout grows because it is the number you are flying by.</li>
+<li>With a combat lock, the reticle, distance and closing-speed readout, and
+target viewfinder return. The RADAR action in the dock inverts because that is
+the lock you would change.</li>
+<li>When weapons are hot, ammo gauges appear and lock information grows. Hold the
+trigger and the reticle pulses. A nearly dry group forces itself visible and
+warns in amber even with the safety on.</li>
+<li>While a ship action is active, its dock chip inverts and grows. A scenario can
+still spotlight an action in gold, including one that is not currently
+available.</li>
+<li>Fresh comms and objectives arrive large, settle, breathe, then leave. The
+standing record stays in NOVA OS.</li>
+</ul>
+<p>The result is not fewer instruments. It is instruments with timing.</p>
+<h3 id="objectives-arrive-like-messages" tabindex="-1">Objectives arrive like messages</h3>
+<p>An objective now posts as an amber notification chip at the top of the flight
+view, carrying the objective text itself behind a diamond. It pops on the exact
+posting frame, settles into a slow breath, then leaves after its reading dwell
+or the moment NOVA OS opens. Several new objectives can stack without becoming a
+new permanent panel. A completed objective still ghosts green as it clears.</p>
+<p>The gold world marker remains on the actual target, so the lasting in-flight cue
+is where to go. The full standing list lives behind <code>objectives</code>, and the event
+history behind <code>log</code>. The cockpit can go quiet without losing information.</p>
+<p>Comms follow the same rule. Story lines now stack from the bottom-left like a
+chat transcript, with an optional authored speaker icon, newest at the bottom
+and older lines rising and fading. <strong>V</strong> dismisses the oldest visible card; <strong>B</strong>
+pulls the next queued line into view. A transmission is readable when it arrives
+and recoverable later without pinning a message box to the screen forever.</p>
+<h3 id="keys-become-an-action-dock" tabindex="-1">Keys become an action dock</h3>
+<p>The lower-left seven-row <code>[KEY] VERB</code> list is gone. A bottom-centre icon dock
+shows only the flight verbs that can do something right now. The real keycap art
+sits beside the verb, and the active maneuver inverts. ORBIT, GOTO and the
+objective stack's Tab affordance use the same keycap system.</p>
+<p>The glyphs keep the proportions of their art: Tab, Shift, Ctrl and Space remain
+wide instead of being crushed into square slots. A command that would do nothing
+is absent rather than greyed out. At a glance, the dock answers one question:
+what can this ship do in this situation?</p>
+<p>Every player-facing distance also moves to real display units. One world unit is
+shown as ten metres, with metres below a kilometre and kilometres above it;
+speed and closing speed use <code>m/s</code>. This is display-only. Physics, scenario
+content and AI tuning keep their existing scale.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-090-contextual-hud.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-090-contextual-hud.png</span>
+        <span class="figure__placeholder-note">Flight HUD in combat: bottom icon dock, objective notification, allegiance markers, combat lock and weapon chips visible while the rest of the screen stays clear.</span>
+    </div>
+    <figcaption class="figure__caption">The HUD now appears when the situation asks for it.</figcaption>
+</figure>
+<h2 id="combat-reads-faster-and-ends-when-the-fight-does" tabindex="-1">Combat reads faster and ends when the fight does</h2>
+<p>Every non-player ship now carries a small filled triangle above it. Green marks
+an ally, red a threat, grey a neutral or unaffiliated ship. The player ship does
+not mark itself. Because the colour follows live allegiance, a neutral hauler
+provoked in the middle of a scenario flips red on the spot. In convoy fights and
+mixed brawls, the field can be read before cycling through combat locks.</p>
+<p>The more important change is what counts as beaten. An armed ship that loses all
+working weapons <strong>and</strong> all working thrusters enters <strong>NEUTRALIZED</strong>. Its AI
+switches off and it drifts as a wreck, still present in the scene but no longer
+able to fight or maneuver. It does not disappear, and an unarmed civilian is not
+treated as combat-dead merely because its drive fails.</p>
+<p>Enemy kill objectives count neutralization alongside destruction. The player's
+defeat logic does the same when their ship can no longer fight. Scenario authors
+get a dedicated <code>OnNeutralized</code> event for aftermath, dialogue and branching.
+The outcome now follows the actual tactical state: once the enemy has no gun and
+no drive left, the game no longer asks for another minute of hull grinding.</p>
+<p>Combat lock behavior got a readability pass around the same principle. Firing
+now counts as combat activity for the existing 30-second idle decay, so a lock
+does not expire underneath a player who is actively shooting with the stance
+lowered. Over the final five seconds of a genuinely idle lock, the red reticle
+dims and pulses faster. Any combat activity snaps it back to full, and every
+automatic drop now names its cause: idle decay, range, missing target or an
+allegiance change.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-090-combat-readability.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-090-combat-readability.png</span>
+        <span class="figure__placeholder-note">A mixed fight with green, red and grey allegiance triangles visible above ships and one disarmed, disabled enemy left drifting as a neutralized wreck.</span>
+    </div>
+    <figcaption class="figure__caption">Friend, threat and neutral read at a glance; a ship out of the fight can stay in the world.</figcaption>
+</figure>
+<h2 id="campaigns-browse-like-campaigns" tabindex="-1">Campaigns browse like campaigns</h2>
+<p>The Scenarios tab used to flatten every launchable scenario into one list. A
+chapter could carry a title prefix that implied a campaign, but the menu did not
+know what that relationship meant. Hidden mid-story chapters were especially
+awkward: reachable through play, but not available for direct replay.</p>
+<p>Bundles can now declare a first-class <code>Campaign</code> content file with an id, a
+display name and an ordered list of scenario ids. The Scenarios tab renders that
+mapping as a collapsible <code>[-]</code> / <code>[+]</code> header with its chapters indented below.
+The order comes from the content, and every member can be launched directly from
+the campaign, including a chapter that stays hidden from the flat ungrouped
+list. The list pane also keeps a fixed share of the screen, so selecting a long
+description no longer shoves the campaign column around.</p>
+<p>The Ledger moves to bundle 1.13.0 to use the new model. All six chapters sit
+under one <strong>The Ledger</strong> header, their redundant <code>The Ledger N:</code> prefixes are
+gone, and <strong>The Raid</strong> returns to being a hidden reward finale while remaining
+available for replay from the campaign sequence. The content lint checks that
+every declared campaign member is actually supplied by a bundle, so a typo
+cannot ship a dead row.</p>
+<p>For mod authors, this is deliberately data rather than menu scripting. Declare
+the ordered relationship once, and the picker gets the grouping, replay access
+and validation.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-090-scenario-campaigns.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-090-scenario-campaigns.png</span>
+        <span class="figure__placeholder-note">Scenarios picker with The Ledger expanded under a campaign header, six chapters indented below it and the selected scenario detail pane holding its width.</span>
+    </div>
+    <figcaption class="figure__caption">Campaigns are now first-class in the picker and in mod content.</figcaption>
+</figure>
+<h2 id="one-interface-language-from-boot-to-editor" tabindex="-1">One interface language from boot to editor</h2>
+<p>NOVA OS became the source for the rest of the game's interface. The flat
+navy-and-cyan theme is retired. Menus, settings, scenario browser and ship editor
+now use the green phosphor palette, near-black recesses, amber accents and the
+same state-aware widget vocabulary as the cockpit.</p>
+<p>Buttons, segmented controls, rows, badges and panels are skin-aware rather than
+each screen inventing its own treatment. The main menu gives <strong>New Game</strong> the
+primary emphasis and <strong>Exit</strong> the danger treatment, adds the glowing title and a
+version footer, and lets long scenario lists scroll. The setting lives under a
+new <strong>Interface</strong> section and persists across restarts.</p>
+<p>There are two in-game skins. <strong>Phosphor</strong> is the default terminal surface: flat,
+dark and luminous. <strong>Hardware</strong> gives the same controls a light-3D casing. The
+state and behavior remain shared, so changing the material does not create a
+second widget system.</p>
+<p>Even the first native frame participates. Instead of a blank window while
+assets arrive, startup shows a near-black NOVA OS loading screen with the green
+mark, a <code>LOADING</code> line, marching dots and a blinking cursor. It hands off to the
+menu only after the load gate clears.</p>
+<h2 id="the-website-now-shows-the-game-that-exists" tabindex="-1">The website now shows the game that exists</h2>
+<p>The old site still advertised the retired navy HUD after the game had moved on.
+v0.9.0 rebuilds it around the same <strong>Phosphor</strong> skin: near-black CRT fields,
+green terminal lines, amber bracketed keycaps, mono typography, screen recesses
+for code and tables, and flat bordered CLI buttons that invert when primary.
+Cards and sidebars read as lit screen regions behind phosphor hairlines. The
+game's alternate Hardware material stays in the game; the website is a screen,
+not a moulded control panel.</p>
+<p>Typography is terminal-first across display, body and code. JetBrains Mono
+replaces the former Rajdhani and Inter pair, with measure and leading retuned for
+a mono face rather than merely swapping the font file.</p>
+<p>This visual relationship is checked, not maintained by memory. The site and the
+game's UI proof of concept mirror the same <code>:root</code> palette block, and web tests
+compare both directions. They also reject Hardware-only material creeping back
+into the web skin. <code>npm run ci</code> now includes those tests before the production
+webpack build.</p>
+<p>The new <code>scripts/shoot-web-pages.sh</code> closes the other half of web verification.
+It builds the site, serves it locally, checks each representative URL returns
+200, then captures desktop and mobile screenshots for landing, news index, news
+post, tutorial, wiki index and a developer wiki page. A CSS change now ends with
+rendered evidence for all six page kinds instead of only a successful bundle.</p>
+<h2 id="assets-load-before-they-are-needed" tabindex="-1">Assets load before they are needed</h2>
+<p>Static UI assets now preload through asset collections and gate the transition
+into the game. The terminal font, shared HUD art, input glyphs, UI sounds,
+textures and meshes arrive before gameplay instead of being fetched the first
+time a surface opens. Dynamic scenario <code>AssetRef</code>s and downloaded <code>mods://</code>
+bundles remain dynamic, where their source actually requires it.</p>
+<p>The difference is most visible on web. The first NOVA OS open no longer asks the
+browser for the old 66 MB font collection. The terminal ships one Iosevka Term
+Regular face as an approximately 11 MB <code>.ttf</code>, using Bevy's built-in loader and
+the matching generated web metadata. Startup can show progress, and the first
+terminal frame has the font it needs.</p>
+<p>The asset cleanup also closes the licensing trail. Iosevka Term ships with its
+SIL Open Font License copyright and full license text. The keyboard glyphs come
+from JulioCacko's CC0 FREE Input Prompts set; only the Alt style used by the game
+ships, while unused Dark and White variants stay out of the build.</p>
+<h2 id="tooling-runs-in-a-clean-cockpit-too" tabindex="-1">Tooling runs in a clean cockpit too</h2>
+<p><code>nova_probe</code> now gives each native child run an empty, probe-owned profile under
+its run directory. The mod cache, enabled-mod list and saved settings from the
+developer's everyday game can no longer silently decide whether an autopilot
+example passes. Each run receives isolated <code>NOVA_MOD_CACHE_ROOT</code>,
+<code>XDG_DATA_HOME</code> and <code>XDG_CONFIG_HOME</code> roots; exporting one explicitly is the
+opt-in path when a test genuinely needs local state.</p>
+<p>That isolation matters because a run harness should reproduce the committed
+game, not the machine that launched it. Alongside the website's palette checks
+and screenshot runner, v0.9.0 makes visual and runtime evidence less dependent
+on whatever happened to be installed locally.</p>
+<h2 id="fixes" tabindex="-1">Fixes</h2>
+<ul>
+<li><strong>NOVA OS clicks now land where the picture is.</strong> Pointer mapping now inverts
+the CRT barrel curve and includes overscan, removing an error that grew toward
+the corners and was most obvious on the map. Contact and section dots plus
+their labels are one continuous target.</li>
+<li><strong>Terminal scrolling stops cleanly at the content bottom.</strong> Reaching the end
+no longer leaves a hidden overscroll that makes the first reverse wheel input
+appear unresponsive.</li>
+<li><strong>World-anchored nav chips have complete backgrounds.</strong> The objective marker
+and beacon chip fill and border now wrap the full label, with the objective
+diamond inside the pill instead of beside a top-left slab.</li>
+<li><strong>NOVA OS text renders on the web build.</strong> The extracted <code>.ttf</code> uses the
+built-in font loader and receives the required generated <code>.meta</code> sidecar, so
+strict web asset metadata checks no longer leave the terminal glyphs invisible.</li>
+</ul>
+<h2 id="point-releases" tabindex="-1">Point releases</h2>
+<p>Point releases for v0.9.x will be listed here.</p>
+
+                <footer class="post-footer">
+                    <p class="post-footer__discuss">
+                        Got a reaction, a question, or a ship you want to show
+                        off?
+                        <a
+                            href="https://github.com/alexjercan/nova-protocol/discussions"
+                            target="_blank"
+                            rel="noopener"
+                            >Talk about this release on GitHub Discussions</a
+                        >.
+                    </p>
+                    <p class="post-footer__discuss">
+                        Want the terse, complete list for every version
+                        (patch releases included)?
+                        <a
+                            href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md"
+                            target="_blank"
+                            rel="noopener"
+                            >Read CHANGELOG.md on GitHub</a
+                        >.
+                    </p>
+                    <p class="post-footer__nav">
+                        <a href="/nova-protocol/news/">&larr; All news</a>
+                    </p>
+                </footer>
+            </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

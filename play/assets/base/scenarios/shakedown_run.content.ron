@@ -5,10 +5,6 @@
         description: "First flight: beacons, salvage, orbit - and one scavenger.",
         cubemap: "self://textures/cubemap.png",
         thumbnail: Some("self://banner.png"),
-        campaign: Some((
-            name: "Nova Protocol",
-            order: 1,
-        )),
         events: [
             (
                 name: OnStart,
@@ -711,7 +707,7 @@
                     ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Literal(Number(11.0)))),
+                        Term(Factor(Literal(Number(5.0)))),
                     ))),
                 ],
                 actions: [
@@ -734,7 +730,7 @@
                     ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Literal(Number(20.0)))),
+                        Term(Factor(Literal(Number(8.0)))),
                     ))),
                 ],
                 actions: [
@@ -757,7 +753,7 @@
                     ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Literal(Number(29.0)))),
+                        Term(Factor(Literal(Number(11.0)))),
                     ))),
                 ],
                 actions: [
@@ -780,7 +776,7 @@
                     ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Literal(Number(38.0)))),
+                        Term(Factor(Literal(Number(14.0)))),
                     ))),
                 ],
                 actions: [
@@ -2255,6 +2251,42 @@
                 ],
             ),
             (
+                name: OnNeutralized,
+                filters: [
+                    Entity((
+                        id: Some("pirate"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(12.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(13.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "b12_contact",
+                    )),
+                    Objective((
+                        id: "done",
+                        message: "Shakedown complete. Tap [CTRL] to stand down your locks - the belt is yours.",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "pirate",
+                    )),
+                    Outcome((
+                        outcome: Victory,
+                        message: Some("The scavenger drifts dead - guns cold, engines dark - but it was flying scout. A distress call is already crackling from the deep field."),
+                    )),
+                    NextScenario((
+                        scenario_id: "broadside",
+                        linger: true,
+                    )),
+                ],
+            ),
+            (
                 name: OnDestroyed,
                 filters: [
                     Entity((
@@ -2265,6 +2297,24 @@
                     Outcome((
                         outcome: Defeat,
                         message: Some("Your ship broke apart in the belt."),
+                    )),
+                    NextScenario((
+                        scenario_id: "shakedown_run",
+                        linger: true,
+                    )),
+                ],
+            ),
+            (
+                name: OnNeutralized,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("Guns and thrusters gone - you drift derelict in the belt."),
                     )),
                     NextScenario((
                         scenario_id: "shakedown_run",

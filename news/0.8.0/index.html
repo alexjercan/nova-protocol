@@ -270,10 +270,10 @@ line you have to go hunting from.</p>
 <p>A local <code>cargo fmt --check</code> <strong>pre-commit hook</strong> (armed once with
 <code>scripts/setup-hooks.sh</code>) now makes formatting drift impossible to land rather
 than merely flagged by CI after the fact. And <code>docs/</code> became <strong>ephemeral
-scratch</strong>: a release-time step compiles anything durable into the root
-<code>LESSONS.md</code> and the folder wipes to only its README, with a release guard that
-fails the tag if anything else is left behind - so the repo can never ship a
-junk-drawer of stale notes again.</p>
+scratch</strong>: a release-time step moves durable reference into the wiki and the
+folder wipes to only its README, with a release guard that fails the tag if
+anything else is left behind - so the repo can never ship a junk-drawer of
+stale notes again.</p>
 <h2 id="fixes" tabindex="-1">Fixes</h2>
 <ul>
 <li><strong>Destroying a sectioned ship no longer crashes.</strong> When a ship exploded, its

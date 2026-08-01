@@ -1,0 +1,20 @@
+// The Ledger campaign mapping (task 20260724-220842): a first-class Campaign
+// content entity (umbrella 20260724-193016) that lists the arc's chapters in
+// play order so the Scenarios picker groups them under one collapsible "The
+// Ledger" header. Members past chapter one are `hidden` from the flat picker but
+// reachable/replayable from the header. Chapter two plays in two acts
+// (claim_jumpers -> the_heavies); chapter five is the reward finale.
+[
+    Campaign((
+        id: "the_ledger",
+        name: "The Ledger",
+        scenarios: [
+            "ledger_ch1_dead_weight",
+            "ledger_ch2_claim_jumpers",
+            "ledger_ch2b_the_heavies",
+            "ledger_ch3_quiet_channel",
+            "ledger_ch4_the_buyer",
+            "ledger_ch5_the_raid",
+        ],
+    )),
+]

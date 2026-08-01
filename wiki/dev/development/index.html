@@ -170,13 +170,19 @@ asserted live), <code>playable</code> (a scenario played through the real input
 pipeline: lock, kill, GOTO, arrive - watched by its own handlers),
 <code>broadside</code> (the chapter-two scenario end to end through the Scenarios
 picker: defeat -&gt; Retry reload -&gt; the full act machine -&gt; the Victory
-overlay, all staged on scenario state).</li>
+overlay, all staged on scenario state) and <code>lifeline</code> (the same treatment
+for chapter three: the convoy defense and the finale at the claim, defeat
+and Retry included, in one run).</li>
 <li><code>ui/</code> - staged UI flows: <code>editor</code> (the shipped editor flow), <code>hud_range</code>
 (screen-projected HUD indicators, velocity sphere included),
-<code>menu_newgame</code> (the shipped boot flow).</li>
+<code>menu_newgame</code> (the shipped boot flow) and <code>menu_scenarios</code> (drives the
+Scenarios picker and logs its laid-out pane widths per selection, so a
+layout regression that only real text measure can show is caught).</li>
 <li><code>screenshots/</code> - <code>screenshot_reel</code>, <code>screenshot_ui</code>, <code>screenshot_combat</code>,
 <code>screenshot_sections</code>, <code>screenshot_juice</code>, <code>screenshot_orbit</code> (drive the
-shipped scenes headless to capture the wiki and marketing frames), and
+shipped scenes headless to capture the wiki and marketing frames),
+<code>screenshot_nova_os</code> (the Tab ship-computer, captured for HTML fidelity
+work against <code>examples/ui/nova_os_terminal_poc.html</code>), and
 <code>render_scale_shot</code> (a real-GPU window capture proving the render-scale
 lever draws a correct frame).</li>
 <li><code>perf/</code> - <code>perf_baseline</code> (the frame-time measurement scene the probe
@@ -197,8 +203,9 @@ each category headless as a regression suite, one test per category -
 additionally carry panic-on-failure behavior assertions with completion
 backstops (a stalled script fails instead of passing vacuously), except
 <code>torpedo_guidance</code> and <code>editor</code>, which assert at the scenario-load /
-reach-gameplay level; the screenshot examples drive the shipped scenes to
-capture frames. Disk, catalog and smoke lists cannot drift: the
+reach-gameplay level. The screenshot examples drive the shipped scenes to
+capture frames, and <code>screenshot_nova_os</code> self-ends behind the same
+backstop. Disk, catalog and smoke lists cannot drift: the
 display-free <code>catalog_matches_disk</code> test fails a bare <code>cargo test</code> when a
 new example misses its <code>[[example]]</code> block or its category's smoke list
 (<code>render_scale_shot</code> and <code>perf_baseline</code> are deliberately unsmoked; the
@@ -298,6 +305,35 @@ with a stdlib PNG codec, generates the section icons, and reports which shots
 have no capture example yet. Commit the resulting PNGs (they are content, like
 <code>banner.png</code>). Run <code>python3 scripts/gen-web-screenshots.py --self-test</code> to check
 the PNG codec (decode/resize/compose) in isolation.</p>
+<h3 id="eyeballing-the-site" tabindex="-1">Eyeballing the site</h3>
+<p><code>npm run ci</code> proves the bundle compiles and the theme tokens are in sync; it
+proves nothing about how a page LOOKS. For any styling, layout or readability
+change, capture the pages and look at them:</p>
+<pre><code class="hljs language-sh">nix develop -c scripts/shoot-web-pages.sh target/web-shots
+</code></pre>
+<p>It builds <code>web/</code>, serves <code>web/dist</code> on a free port and drives headless chromium
+over the six page kinds (landing, news index, a news post, tutorial, wiki index,
+a wiki dev page with code + a table + mermaid) at desktop and mobile widths,
+writing <code>&lt;kind&gt;-&lt;width&gt;.png</code> plus a <code>manifest.txt</code> naming the commit. For a
+before/after, run it once per commit into two dirs and compare the matching
+pairs at identical crop and scale - a comparison at two different zooms shows
+you the resize, not the change.</p>
+<h3 id="the-theme-is-shared-with-the-game" tabindex="-1">The theme is shared with the game</h3>
+<p><code>web/src/style.css</code> and <code>crates/nova_ui/src/theme.rs</code> both mirror the <code>:root</code>
+block of <code>examples/ui/nova_ui_rework_poc.html</code> - the NOVA OS palette and its
+control vocabulary. That PoC is the single source: change it first, then both
+consumers.</p>
+<p>The PoC ships two skins and the site wears only one. Everything the site draws
+comes from the PHOSPHOR skin (the PoC's <code>body[data-skin=&quot;phosphor&quot;]</code> widget
+zoo): flat translucent green fills, 1px phosphor hairlines, 2px corners on
+controls, glow instead of bevel, and a solid <code>--phosphor</code> inversion for the
+primary state. The light-3D HARDWARE vocabulary (<code>--face</code>, <code>--rim</code>,
+<code>--undercut</code>, <code>--well</code>) stays in <code>:root</code> only to keep the mirror exact - it must
+be consumed nowhere.</p>
+<p><code>web/tests/theme.test.ts</code> (part of <code>npm test</code>, and so of <code>npm run ci</code>) parses
+the PoC and <code>style.css</code> and fails if the site's tokens go missing or drift in
+value, if the phosphor vocabulary stops being consumed, or if any hardware
+material token is read outside <code>:root</code>.</p>
 <h2 id="performance-and-run-verification" tabindex="-1">Performance and run verification</h2>
 <p><code>nova_probe</code> (<code>crates/nova_probe/</code>) is the run-harness: it drives an autopilot
 example, records what happened (correctness) and what it cost (performance),
@@ -306,39 +342,58 @@ break behavior or perf?&quot; - is one command:</p>
 <pre><code class="hljs language-sh">cargo run -p nova_probe -- run playable            <span class="hljs-comment"># clean pass -&gt; report</span>
 cargo run -p nova_probe -- run playable --profile  <span class="hljs-comment"># + traced pass (top-N systems)</span>
 cargo run -p nova_probe -- run playable --samply   <span class="hljs-comment"># + named flamegraph</span>
-cargo run -p nova_probe -- run playable --baseline probe-runs/before  <span class="hljs-comment"># FPS deltas</span>
+cargo run -p nova_probe -- run playable --baseline probe-runs  <span class="hljs-comment"># FPS deltas vs nearest prior commit</span>
 cargo run -p nova_probe -- run playable,scenario   <span class="hljs-comment"># comma list -&gt; aggregate index</span>
 cargo run -p nova_probe -- run gameplay            <span class="hljs-comment"># a whole category</span>
 cargo run -p nova_probe -- run --all               <span class="hljs-comment"># the fleet (minus NOT_PROBED)</span>
 </code></pre>
 <p>It runs the example headless (throwaway Xvfb; <code>--display :0</code> to reuse yours),
 captures the run timeline + continuous invariants + the log into
-<code>probe-runs/&lt;example&gt;/</code>, optionally adds the profiled and samply passes
-(separate builds - tracing overhead never touches the clean numbers), and
-renders <code>report.html</code> + <code>checks.json</code> with a provisional
-OK/WARN/FAIL/NO_DATA the reviewer confirms. Every run dir carries a
-<code>probe-run.json</code> manifest (identity, passes, outcomes); <code>probe report</code> only
-re-renders dirs that have one. Two verbs is the whole surface - <code>run</code> and
-<code>report</code>; the transitional <code>sweep|web|profile</code> aliases and the <code>trace</code>
-verb retired at the v0.8.0 cut (retired commands error with a pointer to
-the <code>run</code> form).</p>
-<p>Multi specs (comma list, category dir name, <code>--all</code>) resolve against the
-<code>[[example]]</code> catalog, run each example sequentially with
-continue-on-failure, and write an aggregated status index above the run
-dirs: <code>index.html</code> (one row per example - verdict, measured n/total, the
-six check statuses, duration, a link to its report), <code>index.json</code> (the
-machine mirror), and <code>probe-all.json</code> (the re-render gate). The aggregate
-verdict is the WORST row; the exit code mirrors it. <code>--all</code> skips the
-NOT_PROBED exclusions, which the report lists with their reasons - and a
-bare <code>probe run</code> errors with the catalog rather than starting a fleet
-sweep by accident. Categories take single-digit minutes warm; <code>--all</code> is
-the pre-release/nightly sweep (roughly half an hour). <code>--baseline</code> works
-across a group too: for a multi-spec it is a baseline ROOT (a prior group's
-out dir), and each example compares against <code>&lt;root&gt;/&lt;example&gt;/frametime.csv</code>
-when present, else that example skips the comparison (<code>fps_within_baseline</code>
-SKIPPED, not an error) - so <code>probe run --all --fps --baseline probe-runs/before</code>
-regression-checks the whole fleet against a previous <code>--all</code> run and quietly
-skips the examples that had no prior capture.</p>
+<code>probe-runs/&lt;short-commit&gt;/&lt;example&gt;/</code> by default (or
+<code>&lt;out-base&gt;/&lt;short-commit&gt;/&lt;example&gt;/</code> with <code>--out &lt;out-base&gt;</code>), optionally
+adds the profiled and samply passes (separate builds - tracing overhead never
+touches the clean numbers), and renders <code>report.html</code> + <code>checks.json</code> with a
+provisional OK/WARN/FAIL/NO_DATA the reviewer confirms. Every run dir carries a
+<code>probe-run.json</code> manifest (identity, full git SHA, passes, outcomes); <code>probe report</code> only re-renders dirs that have one. The commit root also gets
+<code>index.html</code>, <code>index.json</code>, and <code>probe-all.json</code>, even when the spec names one
+example. Two verbs is the whole surface - <code>run</code> and <code>report</code>; the transitional
+<code>sweep|web|profile</code> aliases and the <code>trace</code> verb retired at the v0.8.0 cut
+(retired commands error with a pointer to the <code>run</code> form).</p>
+<p>Every run spec resolves to a list. A single example is just a one-item list;
+comma lists, category dir names, and <code>--all</code> expand against the <code>[[example]]</code>
+catalog and run sequentially with continue-on-failure. The status index lives
+above the example dirs: <code>index.html</code> (one row per example - verdict, measured
+n/total, the six check statuses, duration, a link to its report), <code>index.json</code>
+(the machine mirror), and <code>probe-all.json</code> (the re-render gate). The aggregate
+verdict is the WORST row; the exit code mirrors it. <code>--all</code> skips the NOT_PROBED
+exclusions, which the report lists with their reasons - and a bare <code>probe run</code>
+errors with the catalog rather than starting a fleet sweep by accident.
+Categories take single-digit minutes warm; <code>--all</code> is the pre-release/nightly
+sweep (roughly half an hour). <code>--baseline &lt;base&gt;</code> searches <code>&lt;base&gt;</code> for the
+nearest previous commit-hash directory in git history, ignoring compatibility
+folders such as <code>before</code>, then each example compares against
+<code>&lt;base&gt;/&lt;previous-short-commit&gt;/&lt;example&gt;/frametime.csv</code> when present. Without
+<code>--baseline</code>, probe searches the same base used by <code>--out</code>, defaulting to
+<code>probe-runs</code>.</p>
+<p>Probe runs are <strong>profile-sandboxed</strong>: a run measures a commit, so it must not
+depend on your desktop profile. Every native child run is pointed at an empty,
+probe-owned profile under its own run dir - <code>profile/mods</code>
+(<code>NOVA_MOD_CACHE_ROOT</code>, the downloaded-mod cache and its <code>installed.mods.ron</code>),
+<code>profile/data</code> (<code>XDG_DATA_HOME</code>) and <code>profile/config</code> (<code>XDG_CONFIG_HOME</code>, where
+<code>enabled_mods.ron</code> and <code>settings.ron</code> live) - and the tree is wiped at the start
+of each run. Without it, a mod cached in a structure an older commit cannot
+parse, or a saved enabled-mod set, fails or shifts a run for reasons unrelated
+to the code under measurement. Shipped content is untouched: <code>assets/</code> and
+<code>assets/mods.catalog.ron</code> load exactly as they do for a player, only YOUR saved
+state is swapped out. To probe your real installed mods, export the variable
+yourself - probe preserves any of the three it finds already set, and prints
+which ones it left alone:</p>
+<pre><code class="hljs language-sh">NOVA_MOD_CACHE_ROOT=~/.local/share/nova-protocol cargo run -p nova_probe -- run playable
+</code></pre>
+<p><code>XDG_CACHE_HOME</code> is deliberately NOT redirected (the shader cache lives there,
+and throwing it away each run would make FPS numbers incomparable). The XDG
+pair is how the <code>dirs</code> crate resolves on Linux, the supported probe host;
+<code>nova_probe::profile_sandbox</code> has the details.</p>
 <p>Under the hood: an env-gated capture plugin drives the real gameplay app to
 <code>Playing</code>, warms up, records the wall-clock delta of every frame for a fixed
 window, and writes percentile stats. It is inert unless <code>NOVA_PERF</code> is set,
@@ -411,7 +466,7 @@ both.</p>
 into it (<code>timeline.jsonl</code>, <code>frametime.csv</code>, <code>trace.json</code>, <code>run.log</code>, each
 optional) - into a self-contained <code>report.html</code> plus a machine-readable
 <code>checks.json</code>:</p>
-<pre><code class="hljs language-sh">cargo run -p nova_probe -- report &lt;run-dir&gt; [--baseline &lt;old-run-dir&gt;]
+<pre><code class="hljs language-sh">cargo run -p nova_probe -- report &lt;run-dir&gt;... [--baseline &lt;old-run-dir&gt;]
 </code></pre>
 <p>Auto checks produce a provisional OK/WARN/FAIL/NO_DATA (process exit from
 the run manifest, run completed, reached Playing, invariants held, FPS vs
@@ -468,9 +523,9 @@ entity-count leak bound. Violations warn, land on the timeline as
 <p>Pushing a tag <code>v[0-9]+.[0-9]+.[0-9]+*</code> triggers <code>release-flow</code>
 (<code>.github/workflows/release.yaml</code>). Steps, on <code>master</code>:</p>
 <ol>
-<li>Compile-and-wipe <code>docs/</code> (the ephemeral-docs model): distil anything durable
-out of <code>docs/</code> scratch into the root <code>LESSONS.md</code> (lessons) and the wiki
-(reference detail), then run <code>scripts/wipe-docs.sh</code> and commit. The
+<li>Compile-and-wipe <code>docs/</code> (the ephemeral-docs model): distil durable
+reference out of <code>docs/</code> scratch into the wiki, then run
+<code>scripts/wipe-docs.sh</code> and commit. The
 release-flow guard (<code>scripts/check-docs-clean.sh</code>, a job the build waits on)
 FAILS the tag if <code>docs/</code> holds anything but its <code>README.md</code>.</li>
 <li>Bump <code>workspace.package.version</code> in root <code>Cargo.toml</code>.</li>
@@ -528,7 +583,7 @@ wiring is needed.</li>
 excerpt. For the thumbnail, use the YouTube thumbnail
 (<code>https://img.youtube.com/vi/&lt;id&gt;/hqdefault.jpg</code>) if the release has a video,
 otherwise the <code>.post-card__ph</code> placeholder naming <code>assets/thumb-news-&lt;version&gt;.png</code>.</li>
-<li>Rebuild and check it: <code>cd web &amp;&amp; npm run ci</code> (format check, lint, build).</li>
+<li>Rebuild and check it: <code>cd web &amp;&amp; npm run ci</code> (format check, lint, test, build).</li>
 </ol>
 <h2 id="contributing-a-change" tabindex="-1">Contributing a change</h2>
 <p>The everyday loop for landing a change:</p>
@@ -557,8 +612,7 @@ any task-scoped records (<code>SPIKE.md</code>, <code>REVIEW.md</code>, <code>RE
 Multi-task plans are tatr tasks too - a release plan is a task with the strand
 breakdown in its body (or a <code>release</code>/<code>meta</code> tracker task linking the per-strand
 tasks). <code>docs/</code> is ephemeral scratch wiped at each release to only its own
-<code>README.md</code> - the lessons ledger is <code>LESSONS.md</code> at the repo root; see that
-README for the model.</p>
+<code>README.md</code>; see that README for the model.</p>
 
                     <div id="wiki-seealso"></div>
                 </article>

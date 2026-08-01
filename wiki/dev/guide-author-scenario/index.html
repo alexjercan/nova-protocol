@@ -171,6 +171,10 @@ must pass; then the actions run in order.</p>
 <td>an entity is destroyed</td>
 </tr>
 <tr>
+<td><code>OnNeutralized</code></td>
+<td>an armed ship loses ALL working weapons AND thrusters (combat-dead, hull intact, not despawned) - use it beside <code>OnDestroyed</code> so a beaten ship counts as beaten</td>
+</tr>
+<tr>
 <td><code>OnEnter</code></td>
 <td>a body enters an area / zone / beacon / crate</td>
 </tr>
@@ -400,9 +404,9 @@ optional <code>auto_advance_secs</code>) for checkpoints and chapter ends.</li>
 <li>An objective never shares a frame with a conversation. Every objective
 posts a BEAT after the comms line that introduces it (owner playtest, task
 20260722-092421) - never in the same handler, and never at <code>OnStart</code> while a
-dispatch or conversation is still playing. The objectives panel stays EMPTY
-through an opening conversation; the first goal appears only when the
-conversation hands off. The mainline pins this with two invariants
+dispatch or conversation is still playing. No objective is posted through an
+opening conversation (no objective chip posts); the first goal appears
+only when the conversation hands off. The mainline pins this with two invariants
 (<code>no_mainline_handler_posts_an_objective_alongside_a_conversation</code>,
 <code>no_mainline_scenario_posts_an_objective_at_onstart</code>).</li>
 <li>The tool is the shared <code>pacing</code> module (one definition site for the whole
@@ -449,24 +453,29 @@ it loiters without ever fighting; keep its <code>allegiance</code> on the side y
 hunted (a Player-aligned convoy stays something the enemy targets and the
 player must defend). The Lifeline convoy is the shipped example.</p>
 <h3 id="storymessage" tabindex="-1">StoryMessage</h3>
-<p>Speaker-attributed story text, rendered by the HUD comms panel
-(bottom-left) as <code>SPEAKER &gt; text</code>. Lines QUEUE and display in arrival
-order with a fade and a soft blip (task 20260717-163033): each holds
-about eight seconds alone, yields to a waiting line after four, and an
-optional per-line hold is authored as strict-RON
-<code>dwell: Some(12.0)</code> (clamped to 3-30s; <code>content lint</code> warns outside it).
-At most four lines wait - older ones drop (the full log persists
-engine-side). Prefer one line per beat regardless; the queue is the
-safety net, not the style. This is the dialog surface for story
-content - objectives state goals, comms lines carry voice.
+<p>Speaker-attributed story text, rendered by the HUD comms stack
+(bottom-left) as <code>SPEAKER &gt; text</code>. Lines display in arrival order with a fade
+and a soft blip: several can be visible at once, newest at the bottom, older
+ones pushed upward and fading. Each holds about eight seconds before fading,
+and an optional per-line hold is authored as strict-RON <code>dwell: Some(12.0)</code>
+(clamped to 3-30s; <code>content lint</code> warns outside it). At most three cards are
+visible and four more wait - older pending lines drop (the full log persists
+engine-side). Prefer one line per beat regardless; the stack is the safety net,
+not the style. This is the dialog surface for story content - objectives state
+goals, comms lines carry voice.
 Scenario-scoped like every event-world effect: teardown clears the log
 AND the on-screen mirror, so lines never leak into the next scenario,
 the menu, or a retry of the same scenario.</p>
 <pre><code class="hljs">StoryMessage((
     speaker: &quot;Foreman Okono&quot;,
     text: &quot;Strip it clean, Kestrel. Quota's quota.&quot;,
+    icon: Some(&quot;self://icons/okono.png&quot;),
 )),
 </code></pre>
+<p><code>icon</code> is optional; omit it or write <code>icon: None</code> for the cockpit placeholder.
+When present, it is an <code>AssetRef&lt;Image&gt;</code> path like any other scenario asset:
+<code>self://</code> names a file listed in this bundle's <code>resources</code>, <code>dep://base/</code> names
+a base asset, and <code>dep://&lt;id&gt;/</code> names a declared dependency's resource.</p>
 <h3 id="hudreadout" tabindex="-1">HudReadout</h3>
 <p>Show a scenario VARIABLE on the HUD - the display half of the variable
 vocabulary. Where <code>StoryMessage</code> carries voice, this carries a live number:
@@ -508,8 +517,11 @@ A despawned target detaches implicitly.</p>
 )),
 </code></pre>
 <h3 id="hintemphasisset-hintemphasisclear" tabindex="-1">HintEmphasisSet / HintEmphasisClear</h3>
-<p>Pulse one keybind-hint row gold. <code>verb</code> is a row name (the shakedown uses
-<code>&quot;RADAR&quot;</code>, <code>&quot;GOTO&quot;</code>); an unknown verb warns and does nothing.</p>
+<p>Pulse one keybind-dock chip gold. <code>verb</code> is a chip name (the shakedown uses
+<code>&quot;RADAR&quot;</code>, <code>&quot;GOTO&quot;</code>); an unknown verb warns and does nothing. The dock only
+shows verbs the player can use right now, so emphasizing one that is not
+available yet REVEALS its chip and pulses it in the dim band - point at a key
+before the player can press it, and it appears.</p>
 <pre><code class="hljs">HintEmphasisSet((
     verb: &quot;RADAR&quot;,
 )),
@@ -960,7 +972,8 @@ mid-story continuations reached by <code>NextScenario</code>.</li>
 <li>MAKE IT THE DEFAULT NEW GAME (base only). The scenario the New Game button
 plays is declared in the BASE bundle: <code>new_game_scenario</code> in
 <code>assets/base/base.bundle.ron</code> (currently <code>Some(&quot;shakedown_run&quot;)</code>). It lands in
-the <code>NewGameStart</code> resource at load (<code>crates/nova_scenario/src/loader.rs</code>) and
+the <code>NewGameStart</code> resource at load
+(<code>crates/nova_scenario/src/loader/lifecycle.rs</code>) and
 is honored ONLY from base - a mod cannot repoint New Game. While you iterate in
 the base bundle you can set it there; a shipped mod instead reaches players
 through the Scenarios picker (option 1) or a <code>NextScenario</code> chain (option 2).

@@ -59,7 +59,7 @@ with a <code>Section</code> overlay, so the section guide is the one that explai
 <li>one <code>&lt;id&gt;.bundle.ron</code> manifest (a <code>BundleManifest</code>: <code>content</code> list + <code>meta</code>,
 and an optional <code>resources</code> list of binary files it ships),</li>
 <li>one or more <code>*.content.ron</code> files it lists (a <code>[Content]</code> list of
-<code>Section((..))</code> / <code>Scenario((..))</code> items),</li>
+<code>Section((..))</code> / <code>Scenario((..))</code> / <code>Campaign((..))</code> items),</li>
 <li>optionally, the binary assets it ships (textures, skyboxes, models, audio)
 under the folder, declared in <code>resources</code> and referenced with <code>self://</code>.</li>
 </ul>
@@ -97,7 +97,7 @@ bump the MINOR, e.g. <code>1.1.0</code>;</li>
 <li>a reskin or bug fix that does not change what content exists -&gt; bump the PATCH,
 e.g. <code>1.0.1</code>.</li>
 </ul>
-<p>Gauntlet has walked <code>1.0.0 -&gt; 1.1.0 -&gt; 1.2.0</code> and The Ledger <code>1.0.0 -&gt; 1.12.0</code>
+<p>Gauntlet has walked <code>1.0.0 -&gt; 1.1.0 -&gt; 1.2.0</code> and The Ledger <code>1.0.0 -&gt; 1.14.0</code>
 this way.</p>
 <p><code>version</code> matters even though nothing parses it. The portal publishes each
 release under <code>&lt;id&gt;/&lt;version&gt;/</code>, so the string is how a republish is

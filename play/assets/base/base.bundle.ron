@@ -5,6 +5,7 @@
 (
     content: [
         "sections/base.content.ron",
+        "campaigns/nova_protocol.content.ron",
         "scenarios/asteroid_field.content.ron",
         "scenarios/broadside.content.ron",
         "scenarios/broadside_gunship.content.ron",

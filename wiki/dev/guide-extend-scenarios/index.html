@@ -125,9 +125,10 @@ EventConfig::OnDocked =&gt; EventHandler::new::&lt;OnDockedEvent&gt;(),
 </code></pre>
 </li>
 <li>
-<p>Fire it. Engine-driven events fire from <code>crates/nova_scenario/src/loader.rs</code>
+<p>Fire it. Engine-driven events fire from <code>crates/nova_scenario/src/loader/</code>
 with <code>commands.fire::&lt;OnDockedEvent&gt;(OnDockedEventInfo { .. })</code> (see the
-<code>OnStart</code>/<code>OnUpdate</code>/<code>OnOrbit</code>/lock sites there); object-local events (an
+<code>OnStart</code> site in <code>loader/lifecycle.rs</code>, <code>OnUpdate</code> in <code>loader/clock.rs</code>, and
+<code>OnOrbit</code>/the lock events in <code>loader/trackers.rs</code>); object-local events (an
 area entering/leaving) fire from the object's own observer, the way
 <code>objects/asteroid.rs</code> fires <code>OnDestroyedEvent</code> from <code>on_asteroid_node_destroyed</code>.</p>
 </li>
@@ -177,7 +178,10 @@ block at the top of <code>filters.rs</code>).</p>
 </ol>
 <h2 id="recipe-3-add-an-event-action" tabindex="-1">Recipe 3: add an event action</h2>
 <p>An action runs when a handler passes, in order. Everything lives in
-<code>crates/nova_scenario/src/actions.rs</code>.</p>
+<code>crates/nova_scenario/src/actions/</code>: the <code>EventActionConfig</code> enum and its
+dispatch in <code>actions/mod.rs</code>, each action's config and impl in the submodule
+for what it touches (<code>view.rs</code>, <code>flow.rs</code>, <code>mission.rs</code>, <code>ship.rs</code>,
+<code>spawn.rs</code>).</p>
 <ol>
 <li>
 <p>Define the config struct and its <code>EventAction&lt;NovaEventWorld&gt;</code> impl.
@@ -269,7 +273,7 @@ and if the kind has a plugin add it in <code>ScenarioObjectsPlugin::build</code>
 <code>AsteroidPlugin</code>, which takes <code>render</code>).</p>
 </li>
 <li>
-<p>In <code>crates/nova_scenario/src/actions.rs</code> add the variant to
+<p>In <code>crates/nova_scenario/src/actions/spawn.rs</code> add the variant to
 <code>ScenarioObjectKind</code> (grep for <code>enum ScenarioObjectKind</code>) and the spawn arm in
 <code>impl EventAction&lt;NovaEventWorld&gt; for ScenarioObjectConfig</code>:</p>
 <pre><code class="hljs language-rust"><span class="hljs-keyword">pub</span> <span class="hljs-keyword">enum</span> <span class="hljs-title class_">ScenarioObjectKind</span> {

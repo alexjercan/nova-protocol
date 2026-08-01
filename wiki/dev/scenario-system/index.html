@@ -54,6 +54,11 @@ event handlers; each pairs an event with filters (all must pass) and actions
 <li><code>ScenarioEventConfig</code> - one handler: <code>name: EventConfig</code>, <code>filters</code>, <code>actions</code>.</li>
 <li><code>GameScenarios(HashMap&lt;ScenarioId, ScenarioConfig&gt;)</code> - all known scenarios,
 populated by <code>nova_assets</code> (ready at <code>GameAssetsStates::Loaded</code>).</li>
+<li><code>CampaignConfig</code> - <code>id</code>, <code>name</code>, <code>scenarios</code> (ordered member scenario ids,
+hidden ones allowed); a first-class content kind (<code>Campaign((..))</code>).</li>
+<li><code>GameCampaigns(HashMap&lt;CampaignId, CampaignConfig&gt;)</code> - all known campaigns, the
+ordered campaign-&gt;scenario mapping the Scenarios picker groups/launches by,
+populated by <code>nova_assets</code> alongside <code>GameScenarios</code>.</li>
 <li><code>CurrentScenario(Option&lt;ScenarioConfig&gt;)</code> - the loaded scenario, if any. The
 <code>scenario_is_live</code> run condition gates the ship input/section sets on it.</li>
 </ul>
@@ -96,6 +101,10 @@ a scoped entity, (4) be a self-expiring <code>TempEntity</code>, or (5) be torn 
 <tr>
 <td><code>OnDestroyed</code></td>
 <td>an entity is destroyed</td>
+</tr>
+<tr>
+<td><code>OnNeutralized</code></td>
+<td>a ship that was armed loses ALL working weapons AND thrusters - combat-dead (out of the fight) even with its hull intact; the ship is NOT despawned</td>
 </tr>
 <tr>
 <td><code>OnEnter</code></td>
@@ -172,9 +181,11 @@ build with <code>ConditionalFilterConfig::not/and/or(...)</code>.</li>
 <li><code>ObjectiveMarkerAttach</code> / <code>ObjectiveMarkerDetach</code> - add/remove the gold
 marker chip (label + distance) on the scoped object by id; a despawned
 target detaches implicitly.</li>
-<li><code>HintEmphasisSet</code> / <code>HintEmphasisClear</code> - pulse one keybind-hint row gold
+<li><code>HintEmphasisSet</code> / <code>HintEmphasisClear</code> - pulse one keybind-dock chip gold
 (verbs: STOP, GOTO, ORBIT, CANCEL, RADAR, COMPONENT, RCS); availability never
-changes, and teardown clears all emphasis.</li>
+changes, and teardown clears all emphasis. The dock hides verbs you cannot
+use, so an emphasis on an unavailable verb REVEALS its chip (pulsing in the
+dim band) - that is how a tutorial points at a key before it lights up.</li>
 <li><code>SpawnScenarioObject(ScenarioObjectConfig)</code> - spawn an object (see below).</li>
 <li><code>DespawnScenarioObject</code> - despawn the scoped object whose id matches
 (scoped-only lookup, so ship sections with colliding ids are safe).</li>
@@ -236,7 +247,7 @@ upper-cased before the value). <code>visible</code> defaults to <code>true</code
 variable thereafter. The value freezes on pause and behind the outcome overlay
 because the bound variable does (<code>scenario_elapsed</code> stops ticking there), so a
 time-trial's FINAL time simply holds on the HUD through the Victory banner. It
-is an Instrument-tier widget (shown even at the Minimal HUD level) and clears
+is an Instrument-tier widget (shown whenever the HUD is on) and clears
 at scenario teardown like the comms panel, so it cannot leak into the next
 scenario or the menu. RON:
 <code>HudReadout((slot: &quot;run_timer&quot;, variable: &quot;scenario_elapsed&quot;, format: Time, label: Some(&quot;TIME&quot;)))</code>;
@@ -269,16 +280,25 @@ banner: it advances by itself after that many real seconds (the pause
 stops virtual time, not the wall clock) - the player can still click
 sooner.</li>
 </ul>
-<h3 id="story-pacing-storymessage-and-the-comms-queue" tabindex="-1">Story pacing (<code>StoryMessage</code> and the comms queue)</h3>
-<p>Story lines display through a PACED queue (task 20260717-163033), not
-latest-wins: lines show in arrival order with a fade and a comms blip,
-each holds ~8s but yields to a waiting line after 4s; at most 4 lines
-wait (oldest dropped; the full log stays in the feed). Author an
-optional per-line hold with strict-RON <code>Some</code>:</p>
-<pre><code class="hljs">StoryMessage((speaker: &quot;Foreman Okono&quot;, text: &quot;Read this slowly.&quot;, dwell: Some(15.0))),
+<h3 id="story-pacing-storymessage-and-the-comms-stack" tabindex="-1">Story pacing (<code>StoryMessage</code> and the comms stack)</h3>
+<p>Story lines display through a bottom-left CHAT stack, not latest-wins:
+lines show in arrival order with a fade and a comms blip, newest at the
+bottom and older lines pushed upward. Each card holds ~8s before fading;
+at most 3 cards are visible and 4 more wait (oldest dropped; the full log
+stays in the feed). The player can dismiss the oldest visible card with
+<kbd>V</kbd> or skip queued backlog into view with <kbd>B</kbd>. Author an
+optional per-line hold and icon with strict-RON <code>Some</code>:</p>
+<pre><code class="hljs">StoryMessage((
+    speaker: &quot;Foreman Okono&quot;,
+    text: &quot;Read this slowly.&quot;,
+    dwell: Some(15.0),
+    icon: Some(&quot;self://icons/okono.png&quot;),
+)),
 </code></pre>
-<p><code>dwell</code> clamps to [3, 30] seconds (content lint warns outside it). The
-queue means a two-line beat is READ as two beats - but prefer one line
+<p><code>dwell</code> clamps to [3, 30] seconds (content lint warns outside it). Omit
+<code>icon</code> for the HUD fallback tile; authored icons are normal <code>AssetRef&lt;Image&gt;</code>
+paths, so use <code>self://</code> for files listed by the same bundle or <code>dep://</code> for a
+declared dependency. The stack means a burst is readable - but prefer one line
 per beat anyway (the beat-sheet convention); the queue is the safety
 net, not the style.</p>
 <h3 id="the-scenario-clock-scenario_elapsed" tabindex="-1">The scenario clock (<code>scenario_elapsed</code>)</h3>

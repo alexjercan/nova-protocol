@@ -51,9 +51,9 @@
 <h2 id="objectives-events-filters-actions" tabindex="-1">Objectives: events, filters, actions</h2>
 <p>Objectives are wired with a three-layer reactive system. An <strong>event</strong> fires under a named condition, a <strong>filter</strong> gates whether it applies, and an <strong>action</strong> runs when both match - all reading and writing typed <strong>variables</strong> (numbers, strings, booleans) with arithmetic and comparisons.</p>
 <ul>
-<li><strong>Events</strong>: OnStart, OnUpdate, OnDestroyed, OnEnter / OnExit (a trigger area), OnOrbit (an orbit held a few seconds), OnTravelLock / OnCombatLock (a <a href="../targeting-radar/">lock</a> landed on an object).</li>
+<li><strong>Events</strong>: OnStart, OnUpdate, OnDestroyed, OnNeutralized (a ship is combat-dead - weapons and thrusters gone, hull intact), OnEnter / OnExit (a trigger area), OnOrbit (an orbit held a few seconds), OnTravelLock / OnCombatLock (a <a href="../targeting-radar/">lock</a> landed on an object).</li>
 <li><strong>Filters</strong>: match by object id or type (asteroid / beacon / salvage crate), combine with not / or / and, or test a variable expression.</li>
-<li><strong>Actions</strong>: post or complete an objective, attach or detach the gold objective marker, emphasize a keybind hint, set a variable, spawn or despawn an object, install or lift a speed cap, grant or withhold a flight verb, create a trigger area, queue the next scenario, or declare the outcome - a victory or defeat screen with Continue/Retry and Main Menu that pauses the game behind it.</li>
+<li><strong>Actions</strong>: post or complete an objective, attach or detach the gold objective marker, emphasize a keybind dock chip, set a variable, spawn or despawn an object, install or lift a speed cap, grant or withhold a flight verb, create a trigger area, queue the next scenario, or declare the outcome - a victory or defeat screen with Continue/Retry and Main Menu that pauses the game behind it.</li>
 </ul>
 <p>This is the vocabulary the <a href="../../tutorial/">Shakedown Run</a> is built from - each beat is an event handler that grants the next verb, posts the next objective, and moves a beat counter forward.</p>
 <h2 id="the-shipped-scenarios" tabindex="-1">The shipped scenarios</h2>
@@ -65,6 +65,14 @@
 <li><strong>Asteroid Field</strong> - a combat and gravity sandbox: a dense field, a planetoid to orbit, a fully outfitted ship and an AI drone. (A tiny <em>Asteroid Field - Next</em> loops it.)</li>
 <li><strong>Menu backdrops</strong> - the living scenes behind the menus, picked at random on each menu entry: <strong>Menu Ambience</strong> (a planetoid with an AI ship flying a real ORBIT), <strong>Waystation Traffic</strong> (a hauler convoy circling a freight stop under amber dock lights), and <strong>Scrapyard Drift</strong> (a quiet salvage yard of drifting crates, two wrecks and a lone tug). No gameplay - just scale and motion. Mods can ship their own by flagging a scenario <code>menu_backdrop</code>.</li>
 </ul>
+<h2 id="browsing-and-replaying-scenarios" tabindex="-1">Browsing and replaying scenarios</h2>
+<p>The <strong>Scenarios</strong> tab groups a campaign under a collapsible header - click the
+<code>[-]</code>/<code>[+]</code> header to expand or fold its chapters. A campaign lists its chapters
+in play order, including mid-story chapters that the story reaches automatically
+(the Broadside gunship phase, the Final Tally finale): they show under the
+campaign header so you can launch any chapter directly for a replay without
+flying the whole arc again. Scenarios that belong to no campaign (Asteroid Field,
+standalone mod scenarios) list on their own below the campaigns.</p>
 <p>You can author your own scenarios and mods in RON - see <a href="../modding/">Modding</a>.</p>
 
                     <div id="wiki-seealso"></div>
