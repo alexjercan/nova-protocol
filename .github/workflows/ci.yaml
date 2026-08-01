@@ -22,7 +22,7 @@ jobs:
     # up to GitHub's 6h cap. Fail fast instead - a warm-cache run is well
     # under this; the budget exists for cold-cache runs, which pay one full
     # build of the tree on 2 cores.
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
