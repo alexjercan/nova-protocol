@@ -1,10 +1,10 @@
 # KISS: nova_ui, nova_os, nova_editor, nova_debug
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 34
 - TAGS: v0.9.0, refactor, chore, ui
 - KIND: STORY
-- FLOW STEP: COMPOUNDING
+- FLOW STEP: DONE
 - PLAN STATUS: APPROVED
 - PARENT: 20260731-170222
 
