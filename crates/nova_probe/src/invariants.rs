@@ -1,7 +1,6 @@
 //! Continuous invariant assertions over a running app: always-true checks
 //! evaluated every frame, whose violations are structured evidence of a bug -
-//! the second correctness layer of the run-harness (spike
-//! tasks/20260719-112011/SPIKE.md, task 20260719-114931), complementing the
+//! the second correctness layer of the run-harness, complementing the
 //! run-timeline recorder: the recorder shows what happened, the invariants
 //! flag what must NEVER happen. Immune to host timing noise by construction
 //! (they assert state bounds, not schedules).

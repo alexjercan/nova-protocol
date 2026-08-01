@@ -1,8 +1,7 @@
 //! Chrome-trace post-processing: turn the JSON that a `--features trace`
 //! run writes (bevy's `trace_chrome`, output path via the `TRACE_CHROME`
 //! env var) into a top-N costliest-systems table - the profiling layer of
-//! the run-harness (spike tasks/20260719-112011/SPIKE.md, task
-//! 20260719-112253).
+//! the run-harness.
 //!
 //! Bevy has NO per-system timing diagnostic; per-system costs exist only as
 //! tracing SPANS compiled in under `bevy/trace`

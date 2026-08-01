@@ -1,10 +1,10 @@
 # KISS: nova_probe run harness
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 35
 - TAGS: v0.9.0, refactor, chore, probe
 - KIND: STORY
-- FLOW STEP: PLANNED
+- FLOW STEP: DONE
 - PLAN STATUS: APPROVED
 - PARENT: 20260731-170222
 
@@ -22,15 +22,16 @@ Current size: ~8.3k lines across 13 files. Largest file: bin/probe.rs at 2460 li
 
 ## Steps
 
-- [ ] Read the parent epic's comment and structure rubrics.
-- [ ] Inventory: per-file line counts and the concerns each file holds.
-- [ ] Split files that hold more than one concern; keep public paths and
+- [x] Read the parent epic's comment and structure rubrics.
+- [x] Inventory: per-file line counts and the concerns each file holds.
+- [x] Split files that hold more than one concern; keep public paths and
       prelude exports stable.
-- [ ] Apply the comment rubric file by file: delete narration and provenance
+- [x] Apply the comment rubric file by file: delete narration and provenance
       clauses, promote surviving constraints to NOTE/TODO/FIXME/BUG, keep
       rustdoc.
-- [ ] Open backlog tasks for any defect the pass uncovers; do not fix here.
-- [ ] Verify: check, fmt, and the existing tests for this area.
+- [x] Open backlog tasks for any defect the pass uncovers; do not fix here.
+      (None found.)
+- [x] Verify: check, fmt, and the existing tests for this area.
 
 ## Definition of Done
 
@@ -46,3 +47,41 @@ Current size: ~8.3k lines across 13 files. Largest file: bin/probe.rs at 2460 li
 ## Notes
 
 Moves, renames, deletions only. No new abstractions, no behavior change.
+
+## Close-out
+
+**What and why.** Split the two files over 1500 lines into folder modules by
+concern and stripped the comment fluff crate-wide. `src/bin/probe.rs` (2460)
+became `src/bin/probe/main.rs` + `native.rs` + nine `native/*.rs` concern
+modules; `src/run_report.rs` (1590) became `run_report/{mod,manifest,
+artifacts,checks,html,fixtures}.rs`. Largest file in the crate is now
+`run_report/checks.rs` at 913 lines, which is one concern. Full module map in
+NOTES.md.
+
+**Alternatives.** Keeping the bin at `src/bin/probe.rs` and putting its
+modules beside it in `src/bin/` was rejected: a bin file resolves submodules
+against its own directory, so `probe`'s private modules would have become
+sibling bin candidates in the shared `src/bin/` namespace. Moving the target
+to `src/bin/probe/main.rs` (one Cargo.toml path edit) keeps them private to
+the bin.
+
+**Difficulties.** Two mechanical traps. Slicing by line range left a dangling
+doc comment + `#[derive]` at each file boundary (the header of the item that
+starts the next file), which rustc reports as "expected item after
+attributes"; the fix was to move each dangling header into the file that owns
+its item. And the extracted `mod tests` bodies came out one indent level deep
+because they had lived inside `mod native`.
+
+**Evidence.** DoD 1-2: workspace check + `cargo fmt --check` green. DoD 3:
+`grep -rnE '//.*[0-9]{8}-[0-9]{6}' crates/nova_probe/` returns zero hits, so
+no exception list is needed. DoD 4: `wc -l` maximum is 913. DoD 5:
+`cargo test -p nova_probe --lib --bins` runs 97 tests, all green, and the
+sorted set of `#[test]` names is byte-identical to the pre-split tree. DoD 6
+stays pending for the owner.
+
+**Reflection.** The line-range extraction is fast but its boundaries are
+between an item's doc comment and the item; cutting at "the blank line before
+the next doc comment" instead of "the line before the next item" would have
+avoided both dangling-header errors. Comparing the test-name multiset before
+and after is a cheap, strong no-behavior-change proof for a pure move pass and
+is worth doing first, not last.

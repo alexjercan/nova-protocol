@@ -5,15 +5,15 @@
 //! Three CSV schema versions exist:
 //!
 //! - **v1** ([`CSV_HEADER_V1`]): the numeric columns only. The v0.7.0 baseline
-//!   sweeps (`tasks/20260716-123551/perf-results/`) are v1 and must keep
-//!   parsing - the reader accepts it and fills [`RunMeta::unknown`].
+//!   sweeps are v1 and must keep parsing - the reader accepts it and fills
+//!   [`RunMeta::unknown`].
 //! - **v2** ([`CSV_HEADER_V2`]): v1 plus the run-metadata columns
 //!   (backend, adapter, resolution, quality, git_sha, host), so a results
 //!   file is self-describing instead of leaning on its directory name.
 //!   Rows parse with `profile = "unknown"`.
 //! - **v3** ([`CSV_HEADER`]): v2 plus the build `profile` column (`dev` or
-//!   `release`, task 20260719-210443) - dev-profile numbers are not
-//!   baselines, and the report labels them.
+//!   `release`) - dev-profile numbers are not baselines, and the report
+//!   labels them.
 
 /// Percentile frame-time statistics over a capture window. Frame times are in
 /// milliseconds; the derived FPS figures are `1000 / ms`.
@@ -64,9 +64,9 @@ pub struct RunMeta {
     /// Host tag (env override, `/etc/hostname`, or `browser` on wasm).
     pub host: String,
     /// Build profile of the CAPTURE binary: `dev` or `release`, detected via
-    /// `cfg!(debug_assertions)` at capture time (schema v3, task
-    /// 20260719-210443). Dev-profile numbers are NOT baselines - the report
-    /// labels them so fps-everywhere wiring cannot invite apples-to-oranges
+    /// `cfg!(debug_assertions)` at capture time (schema v3). Dev-profile
+    /// numbers are NOT baselines - the report labels them so fps-everywhere
+    /// wiring cannot invite apples-to-oranges
     /// deltas. Pre-v3 rows parse as `unknown`.
     pub profile: String,
 }

@@ -1,8 +1,7 @@
 //! nova_probe: the run-harness for Nova Protocol dev tooling - frame-time
-//! capture and perf reporting over autopilot runs. (Formerly `nova_perf`;
-//! grown per the spike in `tasks/20260719-112011/SPIKE.md` into the home for
-//! the run-correctness recorder, invariant checks, profiling and the unified
-//! run report as those tasks land.)
+//! capture and perf reporting over autopilot runs. Also the home for the
+//! run-correctness recorder, invariant checks, profiling and the unified
+//! run report.
 //!
 //! Three modules today:
 //!
@@ -59,8 +58,8 @@
 //!
 //! Parameters come from [`perf_param`]: **native** reads env vars
 //! `NOVA_PERF_<UPPER>`; **wasm** reads the URL query `<name>` (so a browser drives
-//! it by URL - see `probe run --platform web`). The `NOVA_PERF_*` prefix predates the
-//! crate rename and stays until the runner-CLI task redesigns the surface. The
+//! it by URL - see `probe run --platform web`). NOTE: the `NOVA_PERF_*` prefix
+//! predates the crate rename and stays, so scripts and docs do not churn. The
 //! knobs:
 //!
 //! | Native env / wasm query | Default | Meaning |
@@ -71,7 +70,7 @@
 //! | `NOVA_PERF_LABEL` / `label`   | `scene` | Label recorded in the row. |
 //! | `NOVA_PERF_OUT` / (n/a)       | (none)  | Native only: dir for `<label>.json` + a `frametime.csv` row. Web has no fs, so it logs the summary line only. |
 //! | `NOVA_PERF_RES` / `res`       | `1280x720` | Forced primary-window resolution `WxH`. |
-//! | `NOVA_PERF_RENDER_SCALE` / `render_scale` | (tier default) | Forces `GraphicsBudget::render_scale`, holding the rest of the preset fixed - isolates the render-scale lever (measure a tier at `1.0` vs a fraction; task 20260718-004723). |
+//! | `NOVA_PERF_RENDER_SCALE` / `render_scale` | (tier default) | Forces `GraphicsBudget::render_scale`, holding the rest of the preset fixed - isolates the render-scale lever (measure a tier at `1.0` vs a fraction). |
 //! | `NOVA_PERF_QUALITY` / `quality` | (app default) | Graphics preset for the run (read by the example/bin); recorded in the run metadata. |
 //! | `NOVA_PERF_SHA` / `sha`       | `git rev-parse` | Overrides the recorded git SHA (the web build cannot shell out). |
 //! | `NOVA_PERF_HOST` / `host`     | `/etc/hostname` | Overrides the recorded host tag (`browser` on wasm). |
@@ -97,8 +96,7 @@ pub mod profile_sandbox;
 pub mod invariants;
 // The run-timeline recorder writes a JSONL file; the browser has no
 // filesystem, so the module is native-only and wasm gets no-op stubs with the
-// same signatures (cross-target callers compile; the runner-CLI task owns the
-// web story).
+// same signatures, so cross-target callers compile.
 #[cfg(not(target_arch = "wasm32"))]
 pub mod recorder;
 // The unified run report reads the recorder's timeline, so it is native-only

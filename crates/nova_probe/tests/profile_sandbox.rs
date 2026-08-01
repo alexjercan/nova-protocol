@@ -1,4 +1,4 @@
-//! Cross-process proof for the probe profile sandbox (task 20260729-015406).
+//! Cross-process proof for the probe profile sandbox.
 //!
 //! The bug is about what a SPAWNED child reads, so the rig spawns one: this
 //! test binary re-executes itself with a marker env var, and the child leg

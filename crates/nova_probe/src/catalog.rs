@@ -1,9 +1,9 @@
 //! The example catalog, parsed from the root Cargo.toml's `[[example]]`
-//! blocks (task 20260719-210438).
+//! blocks.
 //!
 //! The examples live in category subdirectories with auto-discovery OFF
-//! (`autoexamples = false`, task 20260719-193728), so the catalog is the
-//! SINGLE source of truth for what "an example" is - probe's multi-run
+//! (`autoexamples = false`), so the catalog is the SINGLE source of truth
+//! for what "an example" is - probe's multi-run
 //! specs (`probe run gameplay`, `--all`) resolve against it, and the root
 //! package's `catalog_matches_disk` drift test calls the same parser so
 //! the two consumers can never disagree about the format.

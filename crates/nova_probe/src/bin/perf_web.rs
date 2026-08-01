@@ -8,7 +8,7 @@
 //! DELETING THIS BIN DELETES THE WEB CAPTURE; it has twice been mistaken
 //! for a retired CLI (it is neither retired nor a CLI - the retired
 //! `run_report`/`perf_report`/`perf_trace` bins and the `sweep|web|profile`
-//! aliases were, tasks 20260719-174603 + 20260719-211500).
+//! aliases were).
 //!
 //! Same measurement as `examples/perf/perf_baseline`, but its config comes
 //! from the cross-platform perf-param source ([`perf_param`]: the URL query

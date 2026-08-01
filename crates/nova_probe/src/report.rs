@@ -3,7 +3,7 @@
 //! assets, so it opens offline). These are the SHARED pieces (styles, the
 //! frame-time chart and table) the unified run report composes; the
 //! standalone FPS renderer they once served retired with the perf_report
-//! bin (consolidation task 20260719-174603).
+//! bin.
 //!
 //! Renderer identity: schema-v2 rows carry their own metadata (backend,
 //! adapter, git SHA - see [`crate::stats::RunMeta`]), which this renderer

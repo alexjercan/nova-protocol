@@ -162,3 +162,13 @@ before the epic closes.
       `loader::trackers`. Neither is in any prelude and nothing outside the
       crate names them, so the narrowing looks right - confirm, or ask for them
       back on the public path.
+- [ ] 20260731-170432 - skim the nova_probe split diff and agree no behavior
+      changed. Supporting evidence in that task's NOTES.md and REVIEW.md:
+      `bin/probe.rs` 2460 and `run_report.rs` 1590 split into folder modules,
+      largest file now 913; a comment-stripped line multiset over the crate
+      whose entire residue is `mod`/`use`/`pub use` lines, visibility keywords
+      and rustfmt re-wrapping; the `#[test]` names an identical sorted list
+      before and after; every `pub` item of the old `run_report.rs`
+      re-exported by `run_report/mod.rs`; and the relocated bin target smoke-
+      run on both `Cmd` arms. Tests ran here: `cargo test -p nova_probe --lib
+      --bins` 71 + 26 passed.

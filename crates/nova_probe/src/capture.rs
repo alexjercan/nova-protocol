@@ -32,14 +32,13 @@ use crate::stats::{FrameStats, RunMeta, CSV_HEADER};
 /// Environment variable that arms [`nova_frametime`] on native. Any value (even
 /// empty) enables it; when unset the plugin adds nothing. On wasm the arm is the
 /// `?perf` URL query flag instead (there are no process env vars in a browser).
-/// The `NOVA_PERF_*` prefix predates the crate's rename to `nova_probe`; it is
-/// the stable measurement surface the runner-CLI task redesigns, kept as-is so
-/// scripts and docs do not churn twice.
+/// NOTE: the `NOVA_PERF_*` prefix predates the crate's rename to `nova_probe`
+/// and is kept as-is so scripts and docs do not churn.
 pub const PERF_ENV: &str = "NOVA_PERF";
 
 /// Collector name the capture registers with the harness completion
-/// protocol (task 20260720-000609): the app exits when EVERY registered
-/// collector - this capture, the autopilot - is done, so a wall-clock
+/// protocol: the app exits when EVERY registered collector - this capture,
+/// the autopilot - is done, so a wall-clock
 /// timeline can no longer end the app mid-window (the 11-frames-short
 /// scenario capture that silently lost 229 samples).
 pub const CAPTURE_COLLECTOR: &str = "capture";
@@ -128,8 +127,8 @@ impl FrameTimePlugin {
 #[derive(Resource, Clone)]
 struct PerfDriverRes(Arc<PerfDriver>);
 
-/// Reload bookkeeping for LOOPED captures (task 20260720-000616): frames
-/// inside a scene reload are EXCLUDED from the scene stats - how many
+/// Reload bookkeeping for LOOPED captures: frames inside a scene reload are
+/// EXCLUDED from the scene stats - how many
 /// reloads land in a window is host-speed-dependent, so including them
 /// makes baseline deltas measure reload count instead of scene cost - and
 /// tallied here for the report's own reload line.
@@ -194,7 +193,7 @@ struct PerfConfig {
     /// preset fixed. Set (`NOVA_PERF_RENDER_SCALE` / `render_scale=`) to isolate
     /// the render-scale lever from the tier's particle/scatter cuts - measure
     /// the SAME tier at `1.0` vs a fraction so the delta is pure resolution
-    /// (task 20260718-004723). Unset leaves the tier's own default.
+    /// Unset leaves the tier's own default.
     render_scale_override: Option<f32>,
 }
 
@@ -412,7 +411,7 @@ fn perf_force_window(
 
 /// Pin [`GraphicsBudget::render_scale`] to the configured override, holding the
 /// rest of the preset fixed - the isolation knob for measuring the render-scale
-/// lever on its own (task 20260718-004723). Only added when the override is set;
+/// lever on its own. Only added when the override is set;
 /// the `!=` guard avoids marking the budget changed every frame.
 fn perf_force_render_scale(config: Res<PerfConfig>, budget: Option<ResMut<GraphicsBudget>>) {
     let (Some(scale), Some(mut budget)) = (config.render_scale_override, budget) else {

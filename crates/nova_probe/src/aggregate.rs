@@ -1,6 +1,6 @@
-//! The aggregated run report (task 20260719-210438): one row per probed
-//! example, an overall worst-of verdict, and the honesty rules carried up
-//! from the per-run report - a row's verdict is never shown without its
+//! The aggregated run report: one row per probed example, an overall
+//! worst-of verdict, and the honesty rules carried up from the per-run
+//! report - a row's verdict is never shown without its
 //! `measured n/total`, and exclusions are IN the report with reasons (no
 //! silent caps). A single-example probe still writes this one-row aggregate.
 //!

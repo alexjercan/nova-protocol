@@ -1,7 +1,6 @@
 //! The run-timeline recorder: captures WHAT HAPPENED during a (headless
 //! autopilot) run as an ordered, structured timeline - the correctness half of
-//! the run-harness (spike tasks/20260719-112011/SPIKE.md, task
-//! 20260719-112238).
+//! the run-harness.
 //!
 //! One env-gated plugin, [`nova_timeline`]: inert unless `NOVA_PERF_TIMELINE`
 //! names an output path (native only - the browser has no filesystem). When
@@ -50,8 +49,7 @@ use nova_scenario::{
 use crate::capture::{perf_param, resolve_git_sha, resolve_host};
 
 /// Env var (via [`perf_param`], so `NOVA_PERF_TIMELINE` on native) naming the
-/// JSONL output path that arms [`nova_timeline`]. Part of the `NOVA_PERF_*`
-/// surface the runner-CLI task redesigns wholesale.
+/// JSONL output path that arms [`nova_timeline`].
 pub const TIMELINE_PARAM: &str = "timeline";
 
 /// Env-gated run-timeline recorder preset. Inert unless `NOVA_PERF_TIMELINE`

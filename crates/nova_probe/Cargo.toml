@@ -26,7 +26,7 @@ path = "src/bin/perf_web.rs"
 # report; sweep/web/profile wrap the perf scripts.
 [[bin]]
 name = "probe"
-path = "src/bin/probe.rs"
+path = "src/bin/probe/main.rs"
 
 [dependencies]
 # The invariant checks read avian's LinearVelocity directly (same pinned

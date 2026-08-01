@@ -323,30 +323,19 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   regression; `git stash` -> touch the crate root -> rerun -> `stash pop`
   showed both sides at 14. 20260731-170329.
 - `doc-comment-rewrap-changes-the-render` (x6 -> Pending promotions): see below.
-- `re-measure-records-after-the-last-edit` (x7 -> Pending promotions): see below.
-- `visibility-sweep-narrows-back` (x3 -> Pending promotions): see below.
-- `split-tests-hoist-the-shared-fixture` (x2): when a test module splits with
-  its file, its fixtures are shared state - hoist them into the new
-  `tests/mod.rs` (or a `#[cfg(test)] pub(super) mod`) rather than copying one
-  per child, because a duplicated fixture drifts silently and no check
-  notices. One task did both: `shakedown` hoisted `scenario()`/`all_actions()`
-  correctly, while the `portal` split copied `fn entry(...)` verbatim into
-  `catalog.rs` and `install.rs`. A later split hoisted correctly in both
-  `lint/` and `loader/`; `actions/` needed none, so check for shared fixtures
-  per split, not per task. 20260731-170409, 20260731-170427.
-- `comment-pass-as-asserted-replacements` (x3 -> Pending promotions): see below.
-- `split-must-re-export-not-repoint` (x2): a file-to-folder module split is
-  done when the PATHS still resolve, not when the crate compiles - declaring
-  `pub mod <concern>;` without re-exporting silently moves every item one
-  level down, and repointing the few call sites that break is precisely what
-  hides it from check, clippy, fmt and the tests. If a consumer outside the
-  module needs its `use` rewritten, the split broke a public path: re-export
-  at the parent instead. `cargo doc` (unresolved intra-doc link) is the only
-  standing check that notices; a throwaway `#[cfg(test)]` module importing the
-  old paths proves the fix. Run `cargo doc` on the split even when the paths
-  ARE re-exported: a NEW module header's intra-doc link to a glob-re-exported
-  name is the same unresolved-link warning from the other direction.
-  20260731-170340, 20260731-170427.
+- `re-measure-records-after-the-last-edit` (x8 -> Pending promotions): see below.
+- `visibility-sweep-narrows-back` (x4 -> Pending promotions): see below.
+- `bin-submodules-resolve-beside-the-bin-file` (x1): a `src/bin/<name>.rs`
+  binary cannot grow private submodules in a `src/bin/<name>/` folder - a
+  crate-root file resolves `mod foo;` against its OWN directory, so
+  `mod native;` looked for `src/bin/native.rs` and the modules would have
+  landed in the shared bin namespace. Splitting a bin means moving the target
+  to the directory form (`src/bin/<name>/main.rs` plus a one-line
+  `[[bin]] path` edit); only then do its modules live under it and stay
+  private to it. 20260731-170432.
+- `split-tests-hoist-the-shared-fixture` (x3 -> Pending promotions): see below.
+- `comment-pass-as-asserted-replacements` (x4 -> Pending promotions): see below.
+- `split-must-re-export-not-repoint` (x3 -> Pending promotions): see below.
 - `provenance-vs-deferred-work-check-the-status` (x2): a task ID in a comment
   is provenance ("added by X") or a live pointer ("X will replace this"), and
   the two are textually identical - two bulk strips in a row hit the SAME
@@ -1573,7 +1562,44 @@ here (annotated) as the paid record.
 
 ## Pending promotions (3+ occurrences, user decides)
 
-- `conserve-on-regroup` (x3): any MECHANICAL edit to prose, a list-shaped doc,
+- `split-tests-hoist-the-shared-fixture` (x3): when a test module splits with
+  its file, its fixtures are shared state - hoist them into the new
+  `tests/mod.rs` (or a `#[cfg(test)] pub(super) mod`) rather than copying one
+  per child, because a duplicated fixture drifts silently and no check
+  notices. One task did both: `shakedown` hoisted `scenario()`/`all_actions()`
+  correctly, while the `portal` split copied `fn entry(...)` verbatim into
+  `catalog.rs` and `install.rs`. A later split hoisted correctly in both
+  `lint/` and `loader/`; `actions/` needed none, so check for shared fixtures
+  per split, not per task. A third split hoisted in both directions at once -
+  a bin's argv/catalog builders into `native/fixtures.rs` and a lib module's
+  fixture-dir helpers into `run_report/fixtures.rs` - which also answers where
+  they go in a BIN: a `#[cfg(test)] mod fixtures;` beside the concern modules,
+  reached as `crate::<parent>::fixtures`. 20260731-170409, 20260731-170427,
+  20260731-170432.
+  Proposed target is a tool: a split checker that lists every `#[cfg(test)]`
+  helper defined more than once across the sibling modules of one split, so a
+  copied fixture fails the pass instead of drifting.
+
+- `split-must-re-export-not-repoint` (x3): a file-to-folder module split is
+  done when the PATHS still resolve, not when the crate compiles - declaring
+  `pub mod <concern>;` without re-exporting silently moves every item one
+  level down, and repointing the few call sites that break is precisely what
+  hides it from check, clippy, fmt and the tests. If a consumer outside the
+  module needs its `use` rewritten, the split broke a public path: re-export
+  at the parent instead. `cargo doc` (unresolved intra-doc link) is the only
+  standing check that notices; a throwaway `#[cfg(test)]` module importing the
+  old paths proves the fix. Run `cargo doc` on the split even when the paths
+  ARE re-exported: a NEW module header's intra-doc link to a glob-re-exported
+  name is the same unresolved-link warning from the other direction. A third
+  split confirmed the cheap proof: dump the `pub` item set of the old file and
+  of the new folder and diff them (empty difference), then run `cargo doc` -
+  together they cover the re-export and the link direction.
+  20260731-170340, 20260731-170427, 20260731-170432.
+  Proposed target is a tool: dump the `pub` path set of the pre-split file and
+  of the post-split folder and diff them, run with `cargo doc`, so a broken
+  public path fails a check rather than a consumer's `use`.
+
+- `conserve-on-regroup` (x4): any MECHANICAL edit to prose, a list-shaped doc,
   or CODE needs a conservation check derived from the edit's invariant -
   multiset-diff the tokens (items when regrouping, WORDS when stripping clauses
   in place, LINES when moving code between files) and reconcile; a pattern hunt
@@ -1582,9 +1608,12 @@ here (annotated) as the paid record.
   is exactly the `mod`/`use`/`pub use` lines and visibility keywords, and the
   sorted `#[test]` name lists match. Proposed target is a tool: both halves
   (line-multiset residue, test-name parity) are one script over two git revs.
-  20260716-102950, 20260731-170359, 20260731-170427.
+  A fourth pass ran exactly that pair over a whole crate and both came back
+  clean, which is what let the review APPROVE a 3.4k-line move diff on
+  evidence rather than on reading every hunk.
+  20260716-102950, 20260731-170359, 20260731-170427, 20260731-170432.
 
-- `comment-pass-as-asserted-replacements` (x3): every recorded instance of
+- `comment-pass-as-asserted-replacements` (x4): every recorded instance of
   rustdoc rewrap damage came from a SCRIPTED substitution, so do the opposite -
   write the comment pass as N explicit replacements, each asserting its anchor
   occurs exactly once, and let a moved or re-wrapped anchor fail the pass
@@ -1599,10 +1628,13 @@ here (annotated) as the paid record.
   153 sites were too many to write out - and collapsed two rustdoc lists.
   Proposed target is a tool: a `comment-pass` helper taking (anchor, new text)
   pairs that refuses to run unless every anchor matches exactly once, so the
-  count of sites stops being the argument for scripting.
-  20260731-170351, 20260731-170409, 20260731-170427.
+  count of sites stops being the argument for scripting. A fourth pass used
+  asserted replacements over ~35 sites across a crate and came out clean on
+  the first run - no mangled sentence, no collapsed list, and `cargo doc`
+  warning-free - two clean passes out of two that used them.
+  20260731-170351, 20260731-170409, 20260731-170427, 20260731-170432.
 
-- `visibility-sweep-narrows-back` (x3): a file-to-folder split moves visibility
+- `visibility-sweep-narrows-back` (x4): a file-to-folder split moves visibility
   in BOTH directions and neither direction has a check. Anything ADDED to make
   it compile proves only a LOWER bound - a column-0
   `s/^(struct|fn|const) /pub(super) \1 /` widened eight `#[test]` fns and seven
@@ -1615,8 +1647,13 @@ here (annotated) as the paid record.
   directions: delete every widening with no out-of-file reference (the type in
   a `pub(super)` signature is the one exception), and diff the public path set
   against the base rather than asserting it held. Proposed target is a tool:
-  the public path set is mechanical to dump and diff.
-  20260731-170345, 20260731-170409, 20260731-170427.
+  the public path set is mechanical to dump and diff. A fourth split widened
+  by the same mechanism in a BIN, where the compiler is quieter still: a
+  blanket `s/^(pub )?(fn|const|struct|enum) /pub(crate) &/` left 20 of 59
+  items `pub(crate)` with no out-of-file reference, and nothing but a reviewer
+  noticed. The narrow-back is one grep per item (`grep -l '\bNAME\b' *.rs`
+  minus its own file), which is exactly the tool this entry proposes.
+  20260731-170345, 20260731-170409, 20260731-170427, 20260731-170432.
 
 - `doc-comment-rewrap-changes-the-render` (x6, PROMOTE 2026-08-01 -> 20260801-102759) -> tooling:
   re-wrapping or deleting a mid-line clause in a `//!`/`///` block changes what
@@ -1641,7 +1678,7 @@ here (annotated) as the paid record.
   20260731-170329, 20260731-170335, 20260731-170359, 20260731-170340,
   20260731-170345, 20260731-170427.
 
-- `re-measure-records-after-the-last-edit` (x7, PROMOTE 2026-08-01 -> 20260801-112556): a record holding measured
+- `re-measure-records-after-the-last-edit` (x8, PROMOTE 2026-08-01 -> 20260801-112556): a record holding measured
   numbers (line counts, `file:line` inventories, diff totals) goes stale the
   moment ANY later edit touches the measured files - a review-round rewrap
   shortened three files by one line and falsified three table rows and three
@@ -1660,8 +1697,11 @@ here (annotated) as the paid record.
   finished tree. A sixth wrote "the grep returns 6 hits" into both NOTES.md and
   the close-out while its own marker table listed 7 - the number came from the
   sentence being written, not from re-running the DoD command it quotes.
+  A seventh took a test count from `grep -cE '^test '`, which also matches the
+  `test result:` summary lines, and recorded 100 where `cargo test` reported
+  97 - the number came from a command ADJACENT to the DoD's, not the DoD's.
   20260731-170335, 20260731-170359, 20260731-170340, 20260731-170345,
-  20260731-170351, 20260731-170409.
+  20260731-170351, 20260731-170409, 20260731-170432.
 
 - `generated-links-need-real-targets` (x5, PROMOTE 2026-08-01 -> 20260801-102808) -> tooling:
   manifest-rendered, authored, AND source-comment doc links gate on the target

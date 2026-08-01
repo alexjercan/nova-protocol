@@ -1,4 +1,4 @@
-//! The PROFILE SANDBOX for probe's native child runs (task 20260729-015406).
+//! The PROFILE SANDBOX for probe's native child runs.
 //!
 //! A probe run measures a COMMIT, so it must not depend on the operator's
 //! desktop profile. Left alone, a spawned example inherits probe's environment
