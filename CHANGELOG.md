@@ -14,6 +14,10 @@ tagged **(breaking)**.
 
 ## [Unreleased]
 
+### Web & Platform
+
+- Web release builds compile after the pause-menu split stopped importing the native-only Exit handler on wasm.
+
 ## [0.9.0] - 2026-08-01
 
 ### Scenarios & Objectives

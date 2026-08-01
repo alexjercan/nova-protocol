@@ -15,8 +15,9 @@ use nova_ui::{
     widget::{panel, ButtonVariant},
 };
 
+#[cfg(not(target_arch = "wasm32"))]
+use crate::menu_ui::on_exit;
 use crate::{
-    menu_ui::on_exit,
     settings::{build_settings_body, PauseSettingsPanel},
     widgets::{button, button_variant},
 };
