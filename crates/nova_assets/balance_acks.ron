@@ -1,4 +1,4 @@
-// Acknowledged balance-audit findings (task 20260717-143806): WARN-grade
+// Acknowledged balance-audit findings: WARN-grade
 // findings a human decided are INTENDED, kept here so the audit stays
 // honest (the finding still prints, tagged ACK with its reason) without
 // counting as an open warning. ERRORs are never ackable, and an ack that

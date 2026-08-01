@@ -1,12 +1,11 @@
-//! The base campaign's recurring comms voices (task 20260721-160929).
+//! The base campaign's recurring comms voices.
 //!
 //! The base chain had NO StoryMessage speakers before the voice pass - all
-//! narrative rode objective text and outcome banners; the only voiced cast
-//! in shipped content was the Ledger mod's (Foreman Okono, Broker Vesh).
-//! These are the BASE chain's voices, one constant per speaker so a rename
-//! is a one-line change. Names are working placeholders from the arc spike
-//! (tasks/20260721-155249/SPIKE.md, Open questions) pending the owner's
-//! nod at the flow Finish gate.
+//! narrative rode objective text and outcome banners; the only voiced cast in
+//! shipped content was the Ledger mod's (Foreman Okono, Broker Vesh). These are
+//! the BASE chain's voices, one constant per speaker so a rename is a one-line
+//! change. Names are working placeholders from the arc spike (Open questions)
+//! pending the owner's nod at the flow Finish gate.
 
 /// Captain of the hauler Ceres Queen - the distress call the story hangs
 /// on, and the friendly voice of chapters two and three.
@@ -18,10 +17,10 @@ pub(crate) const RUST_TALLY: &str = "Rust Tally";
 /// Belt traffic control - dispatch connective tissue between the fights.
 pub(crate) const BELT_RELAY: &str = "Belt Relay";
 
-/// The player's own comms label (owner decision, task 20260721-211506): a plain
-/// "You", not a callsign - neutral and reusable, so the campaign's first player
-/// voice (the Shakedown opening) commits to no name. One constant so a future
-/// callsign is a one-line change.
+/// The player's own comms label (owner decision): a plain "You", not a callsign
+/// - neutral and reusable, so the campaign's first player voice (the Shakedown
+/// opening) commits to no name. One constant so a future callsign is a one-line
+/// change.
 pub(crate) const PLAYER: &str = "You";
 
 /// The gang's boss - chapter three's antagonist voice. Named by Halloran

@@ -291,9 +291,9 @@ pub fn resource_ref_violations(content: &Content, scope: &RefScope) -> Vec<Strin
 }
 
 /// Binary-asset file extensions an authored asset ref carries. A content string
-/// ending in one of these (optionally with a `#label`) but WITHOUT a `self://` /
-/// `dep://` scheme is almost certainly a forgotten scheme - the canonical model
-/// (task 20260717-002133) requires every asset ref be namespaced.
+/// ending in one of these (optionally with a `#label`) but WITHOUT a `self:/` /
+/// `dep:/` scheme is almost certainly a forgotten scheme - the canonical model
+/// requires every asset ref be namespaced.
 const ASSET_EXTENSIONS: &[&str] = &[
     "png", "jpg", "jpeg", "glb", "gltf", "ktx2", "exr", "hdr", "dds", "basis", "ogg", "wav", "mp3",
     "flac",
@@ -320,8 +320,8 @@ fn looks_like_bare_asset(s: &str) -> bool {
 }
 
 /// Every BARE (scheme-less) asset-path ref a content item makes - the canonical
-/// gate's finding set (task 20260717-002133), sorted and deduplicated. Empty
-/// means every asset ref carries a `self://` or `dep://` scheme.
+/// gate's finding set, sorted and deduplicated. Empty means every asset ref
+/// carries a `self:/` or `dep:/` scheme.
 pub fn bare_asset_refs(content: &Content) -> Vec<String> {
     let mut out = Vec::new();
     if let Ok(value) = serde_json::to_value(content) {
@@ -529,8 +529,8 @@ mod tests {
     }
 
     /// A turret section whose `fire_sound` (an `AssetRef<AudioSource>` content
-    /// field, task 20260717-002228) references `reference`. Only the required
-    /// config fields are set; the mesh/effect/ammo options are omitted.
+    /// field) references `reference`. Only the required config fields are set;
+    /// the mesh/effect/ammo options are omitted.
     fn turret_section_with_fire_sound(reference: &str) -> Content {
         let ron = format!(
             r#"Section((
@@ -551,11 +551,11 @@ mod tests {
 
     #[test]
     fn a_mod_turret_references_a_base_sound_via_dep_base() {
-        // The mod-shippable audio round-trip (task 20260717-002228): a mod turret
-        // declares its fire sound as `dep://base/sounds/turret_fire.wav`; with base
-        // declaring that sound in its resources the ref is valid and rewrites to
-        // the base bundle's folder - exactly the path `register_sounds` loads, so
-        // the mod turret plays the shipped base cue. Proves an AudioSource AssetRef
+        // The mod-shippable audio round-trip: a mod turret declares its fire
+        // sound as `dep:/base/sounds/turret_fire.wav`; with base declaring that
+        // sound in its resources the ref is valid and rewrites to the base
+        // bundle's folder - exactly the path `register_sounds` loads, so the
+        // mod turret plays the shipped base cue. Proves an AudioSource AssetRef
         // flows through the same generic walk as textures and meshes.
         let content = turret_section_with_fire_sound("dep://base/sounds/turret_fire.wav");
         let declared: HashSet<String> = ["base".to_string()].into_iter().collect();

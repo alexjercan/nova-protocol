@@ -1,5 +1,4 @@
-//! Balance audit over shipped scenario content (task 20260717-112656,
-//! spike tasks/20260717-111808/SPIKE.md).
+//! Balance audit over shipped scenario content (spike).
 //!
 //! Balance regressions do not fail loaders or lints: a scenario that
 //! spawns a top-tier gunner on top of the player parses, loads and plays -
@@ -29,13 +28,13 @@
 //!   the fight the frame it exists - the pre-rework "wave 2 on top of you"
 //!   shape.
 //!
-//! The per-scenario invariant PINS for the reworked encounters live in
-//! their own tests (ledger_ch2_encounter.rs, broadside_assault.rs); this
-//! module is the repo-wide generalization that also covers content nobody
-//! hand-pinned (asteroid_field, the ledger's later chapters, future mods).
+//! The per-scenario invariant PINS for the reworked encounters live in their
+//! own tests (ledger_ch2_encounter.rs, broadside_assault.rs); this module is
+//! the repo-wide generalization that also covers content nobody hand-pinned
+//! (asteroid_field, the ledger's later chapters, future mods).
 //! `balance_audit_gate` runs it in CI; the `content` CLI's `lint` runs it in
 //! one pass with the reference checks (the balance audit was folded into
-//! `lint`, task 20260718-152240).
+//! `lint`).
 
 use std::collections::HashMap;
 
@@ -48,9 +47,9 @@ use nova_scenario::prelude::*;
 /// x projectile_lifetime.
 pub const EFFECTIVE_RANGE_MARGIN: f32 = 0.9;
 
-/// Mirrors AI_TORPEDO_MAX_RANGE (nova_gameplay/src/input/ai/torpedo.rs): the outer
-/// edge of the AI launch envelope, whose per-bay cooldown starts ELAPSED -
-/// a tube inside this range is a live opening threat (review R1.1).
+/// Mirrors AI_TORPEDO_MAX_RANGE (nova_gameplay/src/input/ai/torpedo.rs): the
+/// outer edge of the AI launch envelope, whose per-bay cooldown starts ELAPSED
+/// - a tube inside this range is a live opening threat.
 pub const TORPEDO_ENVELOPE: f32 = 1000.0;
 
 /// The section-prototype view a scenario's ships resolve against: the
@@ -116,8 +115,8 @@ impl ShipStats {
 }
 
 /// Sum the fire rate of every muzzle in a turret's joint tree. Fire rate is
-/// per-muzzle since the joint-tree refactor (spike 20260717-214834); the shipped
-/// turrets each carry one muzzle, so for the catalog this is that one rate.
+/// per-muzzle since the joint-tree refactor; the shipped turrets each carry one
+/// muzzle, so for the catalog this is that one rate.
 fn turret_total_fire_rate(joint: &nova_gameplay::prelude::TurretJoint) -> f32 {
     let here = joint.muzzle.as_ref().map(|m| m.fire_rate).unwrap_or(0.0);
     here + joint
@@ -151,9 +150,9 @@ pub fn ship_stats(ship: &SpaceshipConfig, catalog: &SectionCatalog) -> ShipStats
         stats.hp += hp_override.unwrap_or(config.base.health);
         match &config.kind {
             SectionKind::Turret(turret) => {
-                // Fire rate is per-muzzle now (spike 20260717-214834); burst DPS
-                // sums every muzzle in the joint tree. The shipped turrets each
-                // carry one muzzle, so this is unchanged for the catalog.
+                // Fire rate is per-muzzle now; burst DPS sums every muzzle in
+                // the joint tree. The shipped turrets each carry one muzzle, so
+                // this is unchanged for the catalog.
                 stats.dps += turret_total_fire_rate(&turret.root) * turret.bullet_damage;
                 stats.max_effective_range = stats
                     .max_effective_range
@@ -704,9 +703,9 @@ mod tests {
         assert!(audit.findings().is_empty(), "{:?}", audit.findings());
     }
 
-    /// Review R1.1's fail-first, permanently in-tree: a TUBE-ONLY hostile
-    /// has zero turret dps but the AI launch envelope opens immediately
-    /// (the bay cooldown starts elapsed) - it must not evade the rules.
+    /// A fail-first pin, permanently in-tree: a TUBE-ONLY hostile has zero
+    /// turret dps but the AI launch envelope opens immediately (the bay
+    /// cooldown starts elapsed) - it must not evade the rules.
     #[test]
     fn a_tube_only_onstart_ambusher_is_spawned_dead() {
         use nova_gameplay::prelude::TorpedoSectionConfig;

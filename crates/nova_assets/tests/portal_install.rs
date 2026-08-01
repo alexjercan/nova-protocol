@@ -1,20 +1,19 @@
-//! End-to-end proof of the PORTAL CLIENT (task 20260715-163508): the game
-//! fetches a portal catalog and installs/uninstalls mods over the wire,
-//! committing through the 142906 local cache and registering into the live
-//! installed set.
+//! End-to-end proof of the PORTAL CLIENT: the game fetches a portal catalog and
+//! installs/uninstalls mods over the wire, committing through the 142906 local
+//! cache and registering into the live installed set.
 //!
 //! Two rigs, both driving the PRODUCTION wiring (`PortalPlugin` - the real
 //! observers, channel and poll system; `register_mods_source`; the real merge
 //! condition):
 //!
 //! - THE REAL WIRE: `scripts/gen-portal.py` (the production generator, run as a
-//!   python3 subprocess) builds a portal tree from a
-//!   synthetic fixture source (no real mod named - task 20260716-155839),
+//!   python3 subprocess) builds a portal tree from a synthetic fixture
+//!   source (no real mod named),
 //!   `tiny_http` serves it on localhost, and the REAL `EhttpTransport`
 //!   fetches it - catalog to `RemoteCatalog::Ready`, install to cached
 //!   files + a `DownloadedMods` record, enable to the fixture's scenario
 //!   in `GameScenarios`, uninstall all the way back out (including the
-//!   `EnabledMods` strip that resolves 142906's R1.7).
+//!   `EnabledMods` strip).
 //! - FAILURE INJECTION: a mock `PortalTransport` serves corrupted/truncated
 //!   bodies, unknown schema versions and mid-install transport errors; every
 //!   failure asserts the ABSENCE evidence through the cache API (no files, no
@@ -242,11 +241,11 @@ fn assert_nothing_committed(app: &App, guard: &CacheRootGuard, id: &str, paths: 
 // EhttpTransport.
 // ---------------------------------------------------------------------------
 
-/// The synthetic portal mod the wire test installs (task 20260716-155839:
-/// core tests must not depend on any REAL mod, so mods can be renamed or
-/// removed without touching CI). Same shape as a webmods/ source: one dir
-/// per mod, flat files, and a real Scenario so the enable step can assert
-/// registration through the actual merge machinery.
+/// The synthetic portal mod the wire test installs (: core tests must not
+/// depend on any REAL mod, so mods can be renamed or removed without touching
+/// CI). Same shape as a webmods/ source: one dir per mod, flat files, and a
+/// real Scenario so the enable step can assert registration through the actual
+/// merge machinery.
 const FIXTURE_ID: &str = "fixture-slalom";
 const FIXTURE_SCENARIO_ID: &str = "fixture_slalom_run";
 
@@ -339,9 +338,9 @@ fn portal_fetch_install_enable_uninstall_over_the_wire() {
     let portal_dir = tempfile::tempdir().expect("temp portal tree");
     // Drive the PRODUCTION generator (scripts/gen-portal.py) the same way the
     // deploy job does - a subprocess with --source/--shipped/--out. The crate
-    // was retired (task 20260720-230924); its gate coverage moved to
-    // tests/gen_portal_gate.rs. Absolute paths so cwd never matters; the shipped
-    // catalog stays wired in so the shipped-id collision gate is still exercised.
+    // was retired; its gate coverage moved to tests/gen_portal_gate.rs.
+    // Absolute paths so cwd never matters; the shipped catalog stays wired in
+    // so the shipped-id collision gate is still exercised.
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
         .canonicalize()
@@ -395,9 +394,9 @@ fn portal_fetch_install_enable_uninstall_over_the_wire() {
             _ => None,
         }
     });
-    // The successful fetch also stamps the LAST-GOOD fallback (task 142916)
-    // and persists it under the (test-overridden) cache root; the persisted
-    // bytes re-pass the schema gate - the exact startup-load path.
+    // The successful fetch also stamps the LAST-GOOD fallback and persists it
+    // under the (test-overridden) cache root; the persisted bytes re-pass the
+    // schema gate - the exact startup-load path.
     assert!(
         app.world()
             .resource::<RemoteCatalog>()
@@ -477,7 +476,7 @@ fn portal_fetch_install_enable_uninstall_over_the_wire() {
         "enabling the installed mod must register its scenario"
     );
 
-    // UNINSTALL: everything reverses, INCLUDING the enablement (R1.7).
+    // UNINSTALL: everything reverses, INCLUDING the enablement.
     app.world_mut().trigger(UninstallPortalMod {
         id: FIXTURE_ID.to_string(),
     });
@@ -767,13 +766,13 @@ fn unknown_schema_version_is_rejected_not_misparsed() {
     );
 }
 
-/// Review 142916 R1.3: an install whose file fetch NEVER calls back (the
-/// pathological transport 163508 documented) is failed by the stall timeout
-/// instead of wedging in `Fetching` forever, landing on the standard Failed
-/// surface (the menu's Retry/Dismiss) with nothing committed. The tiny
-/// injected `PortalFetchTimeout` drives the REAL timeout system across
-/// frames; deleting `timeout_wedged_fetches` (or its Fetching filter) makes
-/// this pump time out with the job still in `Fetching`.
+/// Review: an install whose file fetch NEVER calls back (the pathological
+/// transport 163508 documented) is failed by the stall timeout instead of
+/// wedging in `Fetching` forever, landing on the standard Failed surface (the
+/// menu's Retry/Dismiss) with nothing committed. The tiny injected
+/// `PortalFetchTimeout` drives the REAL timeout system across frames; deleting
+/// `timeout_wedged_fetches` (or its Fetching filter) makes this pump time out
+/// with the job still in `Fetching`.
 #[test]
 fn a_wedged_file_fetch_times_out_into_failed() {
     let guard = cache_root_guard();
@@ -903,10 +902,10 @@ fn install_guards_reject_shadowing_and_double_install() {
 }
 
 /// Installing a mod whose PORTAL entry declares a dependency also installs the
-/// dependency from the same portal first (task 20260715-142931): triggering the
-/// install of `cool` (deps [lib]) pulls `lib` too, so BOTH land in the cache.
-/// Deleting the dependency-resolution loop leaves `lib` uninstalled and this
-/// test's `lib` wait times out.
+/// dependency from the same portal first: triggering the install of `cool`
+/// (deps [lib]) pulls `lib` too, so BOTH land in the cache. Deleting the
+/// dependency-resolution loop leaves `lib` uninstalled and this test's `lib`
+/// wait times out.
 #[test]
 fn installing_a_mod_auto_installs_its_portal_dependency() {
     let _guard = cache_root_guard();

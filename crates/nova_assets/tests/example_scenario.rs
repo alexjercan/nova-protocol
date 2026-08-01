@@ -1,11 +1,10 @@
 //! End-to-end proof of the catalog-driven modding pipeline on a headless asset
-//! server (task 20260714-174120, on 134119/134127). The real `mods.catalog.ron`
-//! loads through `nova_modding`'s `CatalogLoader`, which loads EVERY installed mod's
-//! `*.bundle.ron` (base + example) and, through each, its
-//! `*.content.ron` files. Waiting
-//! for the catalog's RECURSIVE load state waits for that whole tree. Then the real
-//! `register_bundles` system merges only the ENABLED subset (`EnabledMods`) into
-//! `GameSections` / `GameScenarios`, base first.
+//! server (on 134119/134127). The real `mods.catalog.ron` loads through
+//! `nova_modding`'s `CatalogLoader`, which loads EVERY installed mod's
+//! `*.bundle.ron` (base + example) and, through each, its `*.content.ron`
+//! files. Waiting for the catalog's RECURSIVE load state waits for that whole
+//! tree. Then the real `register_bundles` system merges only the ENABLED subset
+//! (`EnabledMods`) into `GameSections` / `GameScenarios`, base first.
 //!
 //! The asset IO reads the real workspace `assets/` dir (tests run with the crate root
 //! as cwd).
@@ -89,10 +88,10 @@ fn game_assets_with_catalog(catalog: Handle<InstalledCatalog>) -> GameAssets {
 
 /// An app whose `GameAssets.catalog` points at a SYNTHETIC catalog: the real
 /// base + example entries plus a `hidden: true` declaration ("hidden-fixture")
-/// whose bundle handle REUSES the loaded example bundle. No shipped mod is hidden
-/// anymore (the screenshot-reel was unshipped, task 20260715-151551), so the
-/// hidden-flag semantics are pinned against this in-memory catalog - real
-/// loaders and real content still back every handle, no fixture files.
+/// whose bundle handle REUSES the loaded example bundle. No shipped mod is
+/// hidden anymore (the screenshot-reel was unshipped), so the hidden-flag
+/// semantics are pinned against this in-memory catalog - real loaders and real
+/// content still back every handle, no fixture files.
 fn app_with_hidden_fixture() -> App {
     let mut app = headless_app();
     let asset_server = app.world().resource::<AssetServer>().clone();
@@ -164,8 +163,8 @@ fn merge_with_enabled(enabled: &[&str]) -> (GameSections, GameScenarios) {
 /// `build_mod_catalog` fills the PLAYER-FACING `ModCatalog` with the installed
 /// mods, in catalog order (base first), composing each entry with the `meta`
 /// block AUTHORED IN ITS OWN BUNDLE - the thin catalog carries no metadata, so
-/// the exact strings below passing proves the plumbing reads the bundle (task
-/// 20260715-142849; hidden filtering is pinned separately by
+/// the exact strings below passing proves the plumbing reads the bundle (hidden
+/// filtering is pinned separately by
 /// `hidden_entries_are_filtered_from_mod_catalog`).
 #[test]
 fn mod_catalog_lists_installed_mods_metadata() {
@@ -210,8 +209,7 @@ fn mod_catalog_lists_installed_mods_metadata() {
 }
 
 /// `build_mod_catalog` FILTERS `hidden: true` entries out of the player-facing
-/// list (task 20260715-142844; synthetic-catalog rig since no shipped mod is
-/// hidden anymore).
+/// list (synthetic-catalog rig since no shipped mod is hidden anymore).
 #[test]
 fn hidden_entries_are_filtered_from_mod_catalog() {
     let mut app = app_with_hidden_fixture();
@@ -275,8 +273,8 @@ fn hidden_mod_still_merges_when_enabled_by_id() {
     );
 }
 
-/// Run `seed_enabled_mods` with `EnabledMods` pre-set to `preset` and return the
-/// resulting set. Exercises the "union base ids" behaviour (task 174131).
+/// Run `seed_enabled_mods` with `EnabledMods` pre-set to `preset` and return
+/// the resulting set. Exercises the "union base ids" behaviour.
 fn seed_from(preset: &[&str]) -> std::collections::HashSet<String> {
     let mut app = headless_app();
     let asset_server = app.world().resource::<AssetServer>().clone();
@@ -323,9 +321,8 @@ fn seed_enabled_mods_unions_base_over_any_restored_set() {
 
 /// `seed_enabled_mods` strips restored HIDDEN ids: a hidden mod's enablement is
 /// session-only, so a dev-tool run that persisted a hidden id cannot leave it
-/// stuck-enabled with no menu row to disable it (task 20260715-142844 R1.1). The
-/// visible restored choice survives. Synthetic-catalog rig (no shipped hidden
-/// mod anymore).
+/// stuck-enabled with no menu row to disable it. The visible restored choice
+/// survives. Synthetic-catalog rig (no shipped hidden mod anymore).
 #[test]
 fn seed_enabled_mods_strips_restored_hidden_ids() {
     let mut app = app_with_hidden_fixture();
@@ -477,12 +474,13 @@ fn toggling_enabled_mods_remerges_live() {
     );
 }
 
-/// Regression guard for the in-game load path (task 20260714-163342). The catalog is
-/// a `GameAssets` field, so bevy_asset_loader loads it UNTYPED, resolving the loader
-/// by the file's FULL extension only (everything after the first dot). A bare
-/// `catalog.ron` would resolve to `ron` (no loader) and fail in-game; `mods.catalog.ron`
-/// yields `catalog.ron`, which `CatalogLoader` registers. Loading it untyped here (the
-/// game's path) must resolve and reach `Loaded`, pulling in every installed bundle.
+/// Regression guard for the in-game load path. The catalog is a `GameAssets`
+/// field, so bevy_asset_loader loads it UNTYPED, resolving the loader by the
+/// file's FULL extension only (everything after the first dot). A bare
+/// `catalog.ron` would resolve to `ron` (no loader) and fail in-game;
+/// `mods.catalog.ron` yields `catalog.ron`, which `CatalogLoader` registers.
+/// Loading it untyped here (the game's path) must resolve and reach `Loaded`,
+/// pulling in every installed bundle.
 #[test]
 fn catalog_untyped_load_resolves_the_loader() {
     let mut app = headless_app();
@@ -496,9 +494,9 @@ fn catalog_untyped_load_resolves_the_loader() {
     );
 }
 
-/// Lower-level proof of the overlay itself (task 20260714-134127): load the base and
-/// example bundles directly, flatten to `Content`, and run the pure `merge_bundles` with
-/// the mod after the base. Complements the system-level tests above by pinning the
+/// Lower-level proof of the overlay itself: load the base and example bundles
+/// directly, flatten to `Content`, and run the pure `merge_bundles` with the
+/// mod after the base. Complements the system-level tests above by pinning the
 /// merge core independent of the catalog/EnabledMods plumbing.
 #[test]
 fn merge_bundles_overlays_example_over_base() {
@@ -560,7 +558,7 @@ fn merge_bundles_overlays_example_over_base() {
 
 /// The shipped base bundle declares the New Game start: after the real merge,
 /// `NewGameStart` carries `base.bundle.ron`'s `new_game_scenario` (the menu
-/// reads this resource instead of naming any id; task 20260716-155849).
+/// reads this resource instead of naming any id).
 #[test]
 fn base_bundle_declares_the_new_game_start() {
     let mut app = headless_app();
@@ -588,8 +586,8 @@ fn base_bundle_declares_the_new_game_start() {
 }
 
 /// Only the BASE bundle's `new_game_scenario` is honored: a non-base bundle
-/// declaring one is ignored (warned), so a mod cannot redirect New Game
-/// (task 20260716-155849, the trust rule).
+/// declaring one is ignored (warned), so a mod cannot redirect New Game (the
+/// trust rule).
 #[test]
 fn new_game_declaration_is_honored_only_from_base() {
     let mut app = headless_app();
@@ -657,10 +655,10 @@ fn new_game_declaration_is_honored_only_from_base() {
     );
 }
 
-/// The runtime content gate's merge sweep (task 20260716-193949): the real
-/// shipped catalog merges with ZERO content issues (the clean-tree pin the
-/// static gate also enforces), and a synthetic bundle whose scenario names a
-/// missing prototype lands in `ContentIssues` keyed by scenario id.
+/// The runtime content gate's merge sweep: the real shipped catalog merges with
+/// ZERO content issues (the clean-tree pin the static gate also enforces), and
+/// a synthetic bundle whose scenario names a missing prototype lands in
+/// `ContentIssues` keyed by scenario id.
 #[test]
 fn merge_sweep_flags_bad_content_and_passes_the_shipped_tree() {
     // Clean pin: the real catalog.

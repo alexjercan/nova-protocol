@@ -320,22 +320,36 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   regression; `git stash` -> touch the crate root -> rerun -> `stash pop`
   showed both sides at 14. 20260731-170329.
 - `doc-comment-rewrap-changes-the-render` (x5 -> Pending promotions): see below.
-- `re-measure-records-after-the-last-edit` (x5 -> Pending promotions): see below.
-- `visibility-sweep-narrows-back` (x1): a scripted visibility sweep over a
-  file-to-folder split proves only its LOWER bound - too narrow fails to
-  build, too wide compiles clean forever. A column-0
-  `s/^(struct|fn|const) /pub(super) \1 /` also widened eight `#[test]` fns and
-  seven items nothing outside their own file references. After the sweep,
-  grep each widened item for an out-of-file reference and narrow the ones with
-  none; the type in a `pub(super)` signature is the one legitimate exception.
-  20260731-170345.
-- `comment-pass-as-asserted-replacements` (x1): every recorded instance of
+- `re-measure-records-after-the-last-edit` (x6 -> Pending promotions): see below.
+- `visibility-sweep-narrows-back` (x2): anything ADDED to make a file-to-folder
+  split compile proves only a LOWER bound - too little fails to build, too much
+  compiles clean forever. A column-0 `s/^(struct|fn|const) /pub(super) \1 /`
+  also widened eight `#[test]` fns and seven items nothing outside their own
+  file references; a second split left a defensive `#[allow(missing_docs)]` on
+  a `pub(super)` struct that was never publicly reachable, so the lint it
+  suppresses could not have fired. After the split compiles, walk the boundary
+  and delete every widening/suppression with no out-of-file reference - the
+  type in a `pub(super)` signature is the one legitimate exception.
+  20260731-170345, 20260731-170409.
+- `split-tests-hoist-the-shared-fixture` (x1): when a test module splits with
+  its file, its fixtures are shared state - hoist them into the new
+  `tests/mod.rs` (or a `#[cfg(test)] pub(super) mod`) rather than copying one
+  per child, because a duplicated fixture drifts silently and no check
+  notices. One task did both: `shakedown` hoisted `scenario()`/`all_actions()`
+  correctly, while the `portal` split copied `fn entry(...)` verbatim into
+  `catalog.rs` and `install.rs`. 20260731-170409.
+- `comment-pass-as-asserted-replacements` (x2): every recorded instance of
   rustdoc rewrap damage came from a SCRIPTED substitution, so do the opposite -
   write the comment pass as N explicit replacements, each asserting its anchor
   occurs exactly once, and let a moved or re-wrapped anchor fail the pass
   loudly instead of matching something else. ~60 such replacements over 98
   sites produced a clean rewrap-damage scan on the first run, the first time in
-  six passes. 20260731-170351.
+  six passes. The next crate went back to a scripted pass and paid for it
+  twice over: a skip guard written at BLOCK granularity for a PARAGRAPH-level
+  edit silently left a third of the work undone, twice, and ten sentences came
+  out mangled where the deleted clause was the grammatical object. A silent
+  under-edit is the scripted pass's second failure mode, and an asserted
+  replacement cannot have it. 20260731-170351, 20260731-170409.
 - `split-must-re-export-not-repoint` (x1): a file-to-folder module split is
   done when the PATHS still resolve, not when the crate compiles - declaring
   `pub mod <concern>;` without re-exporting silently moves every item one
@@ -1593,7 +1607,7 @@ here (annotated) as the paid record.
   20260731-170329, 20260731-170335, 20260731-170359, 20260731-170340,
   20260731-170345.
 
-- `re-measure-records-after-the-last-edit` (x5, PROMOTE 2026-08-01 -> 20260801-112556): a record holding measured
+- `re-measure-records-after-the-last-edit` (x6, PROMOTE 2026-08-01 -> 20260801-112556): a record holding measured
   numbers (line counts, `file:line` inventories, diff totals) goes stale the
   moment ANY later edit touches the measured files - a review-round rewrap
   shortened three files by one line and falsified three table rows and three
@@ -1609,9 +1623,11 @@ here (annotated) as the paid record.
   three counts wrong in one close-out (NOTE promotions, widened items, deleted
   separators) - all three transcribed rather than produced, and two of them
   counted incrementally across a multi-file sweep instead of once from the
-  finished tree.
+  finished tree. A sixth wrote "the grep returns 6 hits" into both NOTES.md and
+  the close-out while its own marker table listed 7 - the number came from the
+  sentence being written, not from re-running the DoD command it quotes.
   20260731-170335, 20260731-170359, 20260731-170340, 20260731-170345,
-  20260731-170351.
+  20260731-170351, 20260731-170409.
 
 - `generated-links-need-real-targets` (x5, PROMOTE 2026-08-01 -> 20260801-102808) -> tooling:
   manifest-rendered, authored, AND source-comment doc links gate on the target

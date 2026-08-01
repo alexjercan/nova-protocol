@@ -1,15 +1,13 @@
-//! CI gate for the balance audit (task 20260717-112656): the same walk the
-//! `content` CLI's `lint` runs (the balance audit was folded into `lint`,
-//! task 20260718-152240) must produce ZERO error-grade findings over the
-//! shipped content tree - a scenario that opens with an armed hostile
-//! inside its own effective range of the player spawn (the pre-rework
-//! ledger_ch2 shape) fails the build, not a playtest. Warn-grade findings
-//! do not gate unless ACKNOWLEDGED-and-stale (task 20260717-143806): an
-//! ack in crates/nova_assets/balance_acks.ron that matches no live finding
-//! is dead weight and fails here so the exception list stays pruned. The
-//! finding rules' own fail-first lives in nova_assets::balance's unit
-//! tests (a synthetic spawned-dead scenario must grade ERROR, and an ack
-//! must never suppress one).
+//! CI gate for the balance audit: the same walk the `content` CLI's `lint` runs
+//! (the balance audit was folded into `lint`) must produce ZERO error-grade
+//! findings over the shipped content tree - a scenario that opens with an armed
+//! hostile inside its own effective range of the player spawn (the pre-rework
+//! ledger_ch2 shape) fails the build, not a playtest. Warn-grade findings do
+//! not gate unless ACKNOWLEDGED-and-stale: an ack in
+//! crates/nova_assets/balance_acks.ron that matches no live finding is dead
+//! weight and fails here so the exception list stays pruned. The finding rules'
+//! own fail-first lives in nova_assets::balance's unit tests (a synthetic
+//! spawned-dead scenario must grade ERROR, and an ack must never suppress one).
 
 use nova_assets::balance::{audit_content_tree, partition_findings, shipped_acks, BalanceSeverity};
 

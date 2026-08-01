@@ -1,9 +1,8 @@
 //! Production-faithful behavior + geometry rig for The Ledger chapter 3, THE
-//! QUIET CHANNEL (task 20260722-214105, deepening the campaign's thinnest
-//! chapter). Loads the ACTUAL shipped
-//! `webmods/the-ledger/ledger_ch3.content.ron`, registers its real handlers
-//! the way the loader does, and drives the gate machine with the same event
-//! infos the engine emits - plus a scenario-clock pump for the new
+//! QUIET CHANNEL (deepening the campaign's thinnest chapter). Loads the ACTUAL
+//! shipped `webmods/the-ledger/ledger_ch3.content.ron`, registers its real
+//! handlers the way the loader does, and drives the gate machine with the same
+//! event infos the engine emits - plus a scenario-clock pump for the new
 //! clock-gated opening cascade + breathers.
 //!
 //! What this pins (the ch3-depth deliverables):
@@ -22,13 +21,13 @@
 //!    leave a threadable gap on the NAV-1 -> NAV-2 leg (a computed geometry
 //!    pin, mirroring the ch2 cover-corridor style - there IS a gap wider than
 //!    the tug).
-//! 5. The stealth rework (task 20260723-000320): the two channel Magpies
+//! 5. The stealth rework: the two channel Magpies
 //!    spawn at OnStart as NEUTRAL patrols (no engage_delay) flanking the
 //!    pinch; the picket-watch OnEnter zones and the per-Magpie OnCombatLock
 //!    paint both fire SetAllegiance -> Enemy on BOTH ships (asserted on the
 //!    live Allegiance COMPONENT, spawned through the real spawn action and
 //!    flushed by the production state_to_world sync) and stamp `spotted`.
-//! 5b. The overspeed provocation (task 20260723-143603): burning over 8 u/s
+//! 5b. The overspeed provocation: burning over 8 u/s
 //!    is the fifth wake path, warn-then-trip on the reserved `player_speed`
 //!    readout - the first breach only WARNS (pickets stay Neutral), and
 //!    tripping needs a FRESH breach after slowing under the 7 u/s rearm band,
@@ -163,12 +162,12 @@ fn seeded_keys(event: &ScenarioEventConfig) -> Vec<&str> {
 fn slice_app() -> App {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
-    // The debris-pinch beat now carries a real SetSkybox accent (task
-    // 20260722-214115); its command reads the AssetServer to start the cubemap
-    // load, exactly as in production. Register the asset plumbing so the shipped
-    // handler runs to completion in the rig rather than panicking on a missing
-    // resource (no scenario camera is present, so the swap no-ops after the
-    // load kicks off - which is all this behavior rig needs).
+    // The debris-pinch beat now carries a real SetSkybox accent; its command
+    // reads the AssetServer to start the cubemap load, exactly as in
+    // production. Register the asset plumbing so the shipped handler runs to
+    // completion in the rig rather than panicking on a missing resource (no
+    // scenario camera is present, so the swap no-ops after the load kicks off -
+    // which is all this behavior rig needs).
     app.add_plugins(bevy::asset::AssetPlugin::default());
     app.init_asset::<Image>();
     app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
@@ -292,8 +291,7 @@ fn ship_allegiance(app: &mut App, id: &str) -> Allegiance {
 /// Pump the scenario clock to a value and tick, so the clock-gated opening
 /// cascade + breather handlers actually fire. The loader fires OnStart before
 /// the first tick and this rig sets no time, so `scenario_elapsed` reads 0
-/// until stamped (the time-gated-content-needs-a-clock-pump lesson, task
-/// 20260721-211506).
+/// until stamped (the time-gated-content-needs-a-clock-pump lesson).
 fn pump_clock(app: &mut App, to_secs: f64) {
     seed_var(app, "scenario_elapsed", to_secs);
     app.update();
@@ -305,7 +303,7 @@ fn pump_clock(app: &mut App, to_secs: f64) {
 /// the clock. In production `track_player_speed` (nova_scenario) writes this
 /// off the player ship's LinearVelocity every live tick; the tracker is
 /// unit-pinned there, so this rig injects the value directly and tests the
-/// CONTENT handlers that consume it (task 20260723-143603).
+/// CONTENT handlers that consume it.
 fn pump_speed(app: &mut App, to_units: f64) {
     seed_var(app, "player_speed", to_units);
     app.update();
@@ -423,11 +421,10 @@ fn on_start_seeds_the_sequencer_and_spawns_the_cast() {
 
 #[test]
 fn the_magpies_spawn_neutral_on_patrol_without_engage_delay() {
-    // The stealth contract (task 20260723-000320): the pickets are NEUTRAL
-    // bystanders on a patrol loop, not hostiles on an arrival grace. An
-    // engage_delay would be a lie (a Neutral ship needs no grace), and a
-    // missing patrol would leave them station-keeping instead of walking
-    // the lane the player must sneak past.
+    // The stealth contract: the pickets are NEUTRAL bystanders on a patrol
+    // loop, not hostiles on an arrival grace. An engage_delay would be a lie (a
+    // Neutral ship needs no grace), and a missing patrol would leave them
+    // station-keeping instead of walking the lane the player must sneak past.
     let scenario = scenario_from(CH3_RON);
     let start = on_start(&scenario);
 
@@ -532,14 +529,13 @@ fn the_pinch_boulders_are_invulnerable_and_leave_a_threadable_gap() {
 
 #[test]
 fn the_picket_watch_zones_spare_the_safe_lane_and_cover_the_wide_swing() {
-    // The stealth geometry pin (task 20260723-000320), computed from the
-    // authored positions like the pinch-gap pin above: the detection bubbles
-    // must (a) leave the whole pinch safe lane - the NAV-1 -> NAV-2 leg and
-    // its worst-case clear gap - undetected, so threading the pinch IS the
-    // sneak; (b) cover the wide swing around their flanking boulder, so
-    // skipping the pinch flies into the watch; and (c) stay clear of every
-    // beacon's arrival sphere, so simply flying the objectives never trips
-    // detection.
+    // The stealth geometry pin, computed from the authored positions like the
+    // pinch-gap pin above: the detection bubbles must (a) leave the whole pinch
+    // safe lane - the NAV-1 -> NAV-2 leg and its worst-case clear gap -
+    // undetected, so threading the pinch IS the sneak; (b) cover the wide swing
+    // around their flanking boulder, so skipping the pinch flies into the
+    // watch; and (c) stay clear of every beacon's arrival sphere, so simply
+    // flying the objectives never trips detection.
     let scenario = scenario_from(CH3_RON);
     let start = on_start(&scenario);
 
@@ -801,16 +797,16 @@ fn painting_a_sleeping_magpie_wakes_both() {
     assert!(linger);
 }
 
-/// The fifth provocation (task 20260723-143603, reaction window
-/// 20260723-182850): burning too hot wakes the pickets, but the SECOND strike
-/// gives the player a sustained-overspeed grace before it lands. The rig
-/// injects `player_speed` via `pump_speed` and the clock via `pump_clock`
-/// (independent reserved-variable seeds; the engine writes `player_speed` off
-/// the ship every tick in production, the tracker is unit-pinned in
-/// nova_scenario, so here the CONTENT handlers are under test). Hysteresis:
-/// warn > 8 u/s, rearm < 7; the armed breach STARTS a 3.5s countdown and the
-/// wake lands only if the burn is held past the deadline - so one continuous
-/// burn cannot warn-and-trip, and an armed breach cannot instantly trip.
+/// The fifth provocation (reaction window): burning too hot wakes the pickets,
+/// but the SECOND strike gives the player a sustained-overspeed grace before it
+/// lands. The rig injects `player_speed` via `pump_speed` and the clock via
+/// `pump_clock` (independent reserved-variable seeds; the engine writes
+/// `player_speed` off the ship every tick in production, the tracker is
+/// unit-pinned in nova_scenario, so here the CONTENT handlers are under test).
+/// Hysteresis: warn > 8 u/s, rearm < 7; the armed breach STARTS a 3.5s
+/// countdown and the wake lands only if the burn is held past the deadline - so
+/// one continuous burn cannot warn-and-trip, and an armed breach cannot
+/// instantly trip.
 #[test]
 fn overspeed_warns_then_a_held_breach_wakes_both_magpies_after_the_window() {
     let scenario = scenario_from(CH3_RON);
@@ -941,7 +937,7 @@ fn overspeed_warns_then_a_held_breach_wakes_both_magpies_after_the_window() {
 /// The reaction window is real: easing off the throttle BEFORE the deadline
 /// cancels the wake and re-arms, and the run stays dark. A later held breach
 /// past a fresh deadline still wakes them - so the cancel is a reprieve, not an
-/// immunity (task 20260723-182850).
+/// immunity.
 #[test]
 fn easing_off_during_the_countdown_cancels_the_wake() {
     let scenario = scenario_from(CH3_RON);
@@ -1007,7 +1003,7 @@ fn easing_off_during_the_countdown_cancels_the_wake() {
 /// The overspeed provocation composes one-shot with the other four: once any
 /// wake has stamped `spotted`, the speed handlers (all gated spotted == 0) are
 /// inert - no second warning, no re-flip. Pins the one-shot contract from the
-/// speed side (task 20260723-143603).
+/// speed side.
 #[test]
 fn a_prior_wake_disarms_the_overspeed_provocation() {
     let scenario = scenario_from(CH3_RON);

@@ -1,9 +1,9 @@
 //! Production-faithful behavior rig for The Ledger chapter 4's DIVERGING
-//! endings (task 20260722-214110). Loads the ACTUAL shipped
-//! `webmods/the-ledger/ledger_ch4.content.ron`, registers its real handlers
-//! the way the loader does, and drives the act machine with the same event
-//! infos the engine emits (plus a clock pump for the deferred burn overlay).
-//! The test IS the divergence contract - it pins that:
+//! endings. Loads the ACTUAL shipped
+//! `webmods/the-ledger/ledger_ch4.content.ron`, registers its real handlers the
+//! way the loader does, and drives the act machine with the same event infos
+//! the engine emits (plus a clock pump for the deferred burn overlay). The test
+//! IS the divergence contract - it pins that:
 //!
 //! 1. OnStart seeds `act = 1` / `choice = 0` and spawns both branch beacons
 //!    (`handoff_berth`, `burn_buoy`) plus the player;
@@ -17,7 +17,7 @@
 //! 5. Defeat (player death) is reachable ONLY on the sell path (act == 2) and
 //!    is inert once the burn path has latched act = 3;
 //! 6. the SELL (fight) win chains a NextScenario to ch5, the reward raid
-//!    finale (task 20260723-182855); the BURN ending stays terminal (no
+//!    finale; the BURN ending stays terminal (no
 //!    chain), and the Defeat retry requeues this chapter.
 //!
 //! Harness mirrors `ledger_ch2_encounter.rs` (mod content stays out of the
@@ -78,12 +78,12 @@ fn spawn_by_id<'a>(event: &'a ScenarioEventConfig, id: &str) -> Option<&'a Scena
 fn slice_app() -> App {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
-    // The Auditor-arrival beat (sell path) now carries a real SetSkybox accent
-    // (task 20260722-214115); its command reads the AssetServer to start the
-    // cubemap load, exactly as in production. Register the asset plumbing so the
-    // shipped handoff_berth handler runs to completion in the rig rather than
-    // panicking on a missing resource (no scenario camera is present, so the
-    // swap no-ops after the load kicks off - all this behavior rig needs).
+    // The Auditor-arrival beat (sell path) now carries a real SetSkybox accent;
+    // its command reads the AssetServer to start the cubemap load, exactly as
+    // in production. Register the asset plumbing so the shipped handoff_berth
+    // handler runs to completion in the rig rather than panicking on a missing
+    // resource (no scenario camera is present, so the swap no-ops after the
+    // load kicks off - all this behavior rig needs).
     app.add_plugins(bevy::asset::AssetPlugin::default());
     app.init_asset::<Image>();
     app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
@@ -165,9 +165,9 @@ fn neutralize(app: &mut App, id: &str) {
 }
 
 /// Pump the scenario clock past a deadline and tick, so the deferred burn
-/// overlay (gated `scenario_elapsed > burn_gate`) actually fires. The rig
-/// sets no time, so `scenario_elapsed` reads 0 until we stamp it here (the
-/// time-gated-content-needs-a-clock-pump lesson, task 20260721-211506).
+/// overlay (gated `scenario_elapsed > burn_gate`) actually fires. The rig sets
+/// no time, so `scenario_elapsed` reads 0 until we stamp it here (the
+/// time-gated-content-needs-a-clock-pump lesson).
 fn pump_clock(app: &mut App, to_secs: f64) {
     seed_var(app, "scenario_elapsed", to_secs);
     app.update();
@@ -338,9 +338,9 @@ fn sell_branch_wins_by_breaking_the_auditor() {
         outcome_message(&app).unwrap().contains("SOLD"),
         "the SELL ending is the payday message"
     );
-    // The SELL (fight) win now CHAINS to ch5, the reward raid finale (task
-    // 20260723-182855): payday buys the gunship you take into the raid. Only
-    // the fight path reaches this; the BURN ending stays terminal (below).
+    // The SELL (fight) win now CHAINS to ch5, the reward raid finale: payday
+    // buys the gunship you take into the raid. Only the fight path reaches
+    // this; the BURN ending stays terminal (below).
     assert_eq!(
         queued_next(&app),
         Some(("ledger_ch5_the_raid".to_string(), true)),

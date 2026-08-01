@@ -1,6 +1,5 @@
-//! Parity guard for the built-in content files (tasks 20260714-150508,
-//! 20260716-155823): the committed `assets/base/**/*.content.ron` must match
-//! their builders byte for byte.
+//! Parity guard for the built-in content files: the committed
+//! `assets/base/**/*.content.ron` must match their builders byte for byte.
 //!
 //! The config builders (`build_section_catalog` / `build_scenarios`) are the
 //! SINGLE definition of each built-in; at runtime `register_bundles` loads the
@@ -13,8 +12,8 @@
 //! - `assets/base/scenarios/<id>.content.ron` = a `Vec<Content>` with one `Scenario((..))`.
 //!
 //! A second guard pins the UNIFORMITY invariant (every base content file is
-//! builder-backed, per 20260716-155816): `base.bundle.ron` must ship exactly
-//! the generated file set, so a hand-written file cannot hide in the bundle.
+//! builder-backed, per): `base.bundle.ron` must ship exactly the generated file
+//! set, so a hand-written file cannot hide in the bundle.
 
 use std::{collections::BTreeSet, path::PathBuf};
 

@@ -3,11 +3,10 @@
 //! This test drives the real Python tool the deploy workflow and the preview
 //! script both run, over synthetic fixtures, and asserts the manifest-level
 //! PUBLISH gates each reject (non-zero exit) or accept (exit 0) exactly as the
-//! now-deleted `nova_portal_gen` crate's `tests/generate.rs` did (task
-//! 20260720-230924). The Rust crate's `tests/generate.rs` was the ONLY committed
-//! exercise of these gates; re-homing them here onto the production tool keeps
-//! that coverage after the crate is gone
-//! (`deleted-content-tests-carry-engine-coverage`).
+//! now-deleted `nova_portal_gen` crate's `tests/generate.rs` did. The Rust
+//! crate's `tests/generate.rs` was the ONLY committed exercise of these gates;
+//! re-homing them here onto the production tool keeps that coverage after the
+//! crate is gone (`deleted-content-tests-carry-engine-coverage`).
 //!
 //! The rejection cases are TABLE-DRIVEN off a single fixture builder so each new
 //! case is one row. Positives (real webmods/ publishes, a synthetic mod

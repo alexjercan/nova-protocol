@@ -1,15 +1,15 @@
-//! End-to-end proof of the LOCAL mod cache + `mods://` source (task
-//! 20260715-142906): a synthetic fixture mod (in-memory bytes, task
-//! 20260716-155839 - core tests depend on no real mod) is installed into a
-//! temp cache root with `install_local`, the `mods://` source is registered
-//! through the PRODUCTION registration (`mod_cache::register_mods_source` -
-//! the same call `AppBuilder::new` makes, pointed at the temp root via the
-//! `NOVA_MOD_CACHE_ROOT` override both it and the cache helpers read), the
-//! production startup system reads the index and kicks the bundle load, and
-//! the production merge wiring (register_bundles gated on
-//! EnabledMods-or-DownloadedMods changes, plus `mark_downloaded_bundles_loaded`)
-//! puts the fixture's scenario into `GameScenarios` when the mod is enabled -
-//! and takes it back out on uninstall.
+//! End-to-end proof of the LOCAL mod cache + `mods:/` source: a synthetic
+//! fixture mod (in-memory bytes, - core tests depend on no real mod) is
+//! installed into a temp cache root with `install_local`, the `mods:/` source
+//! is registered through the PRODUCTION registration
+//! (`mod_cache::register_mods_source` - the same call `AppBuilder::new` makes,
+//! pointed at the temp root via the `NOVA_MOD_CACHE_ROOT` override both it and
+//! the cache helpers read), the production startup system reads the index and
+//! kicks the bundle load, and the production merge wiring (register_bundles
+//! gated on EnabledMods-or-DownloadedMods changes, plus
+//! `mark_downloaded_bundles_loaded`) puts the fixture's scenario into
+//! `GameScenarios` when the mod is enabled - and takes it back out on
+//! uninstall.
 //!
 //! The env override is PROCESS-GLOBAL, so every test here serializes on one
 //! lock and owns a fresh temp root while it holds it (separate test binaries
@@ -538,11 +538,11 @@ fn loaded_event_flags_downloaded_mods_changed() {
     );
 }
 
-/// Review 142906 R1.1(a): the on-disk index is DOWNLOADED input - a record
-/// whose id or bundle path could escape the cache (a `..` component, a nested
-/// id) is skipped with a warning before any `mods://` path is built from it.
-/// The poisoned index is written BY HAND (the real attack shape; the public
-/// write path validates and would refuse to produce it).
+/// Review (a): the on-disk index is DOWNLOADED input - a record whose id or
+/// bundle path could escape the cache (a `..` component, a nested id) is
+/// skipped with a warning before any `mods:/` path is built from it. The
+/// poisoned index is written BY HAND (the real attack shape; the public write
+/// path validates and would refuse to produce it).
 #[test]
 fn unsafe_index_records_are_skipped_at_load() {
     let guard = cache_root_guard();
@@ -571,13 +571,13 @@ fn unsafe_index_records_are_skipped_at_load() {
     assert_eq!(downloaded.0[0].record.id, "good");
 }
 
-/// Review 142906 R1.1(b): a malicious bundle MANIFEST can request an escaping
-/// content path without touching the index (`AssetPath::resolve` preserves an
-/// underflowing `..`), so record validation alone cannot stop it - the
-/// SANDBOXED native source must. A decoy content file sits OUTSIDE the mods
-/// root (at the data root, exactly where `../../` from the mod dir lands): the
-/// bundle load must FAIL (the sandbox answers not-found), and the decoy's
-/// scenario must never register even with the mod enabled.
+/// Review (b): a malicious bundle MANIFEST can request an escaping content path
+/// without touching the index (`AssetPath::resolve` preserves an underflowing
+/// `..`), so record validation alone cannot stop it - the SANDBOXED native
+/// source must. A decoy content file sits OUTSIDE the mods root (at the data
+/// root, exactly where `../../` from the mod dir lands): the bundle load must
+/// FAIL (the sandbox answers not-found), and the decoy's scenario must never
+/// register even with the mod enabled.
 #[test]
 fn escaping_bundle_manifest_cannot_read_outside_the_mods_root() {
     let guard = cache_root_guard();
@@ -663,11 +663,11 @@ fn escaping_bundle_manifest_cannot_read_outside_the_mods_root() {
     );
 }
 
-/// Review 142906 R1.2: a downloaded record whose id matches a SHIPPED catalog
-/// entry is skipped with a warning (the portal generator's no-shadowing rule,
+/// Review: a downloaded record whose id matches a SHIPPED catalog entry is
+/// skipped with a warning (the portal generator's no-shadowing rule,
 /// re-enforced at the consumers because the index is downloaded input) - one
-/// toggle must never drive two bundles or two rows. The downloaded copy here
-/// is the fixture content installed under the shipped id "example", so the
+/// toggle must never drive two bundles or two rows. The downloaded copy here is
+/// the fixture content installed under the shipped id "example", so the
 /// assertions can tell the two bundles apart by their scenarios and meta.
 #[test]
 fn downloaded_id_shadowing_a_shipped_mod_is_skipped() {

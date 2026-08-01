@@ -8,14 +8,13 @@
 //! error. Reinterpreting in the loader means the oversized 2D form never
 //! exists. If someone deletes or breaks `cubemap.png.meta`, this test fails.
 //!
-//! It proves the meta FILE, not the app: this rig uses `AssetPlugin`'s
-//! default `meta_check` (Always). The shipped app also reads metas with
-//! `AssetMetaCheck::Always` (`nova_core::assets_plugin`, since task
-//! 20260717-111558), but that is a config choice this rig does not exercise -
-//! the test that guards the real app's config is
-//! nova_core/tests/cubemap_meta_app_config.rs. The gap between a default plugin
-//! and the shipped one is exactly how the meta once shipped ignored (the app
-//! ran `Never`, task 20260713-175416).
+//! It proves the meta FILE, not the app: this rig uses `AssetPlugin`'s default
+//! `meta_check` (Always). The shipped app also reads metas with
+//! `AssetMetaCheck::Always` (`nova_core::assets_plugin`, since), but that is a
+//! config choice this rig does not exercise - the test that guards the real
+//! app's config is nova_core/tests/cubemap_meta_app_config.rs. The gap between
+//! a default plugin and the shipped one is exactly how the meta once shipped
+//! ignored (the app ran `Never`).
 
 use std::time::{Duration, Instant};
 

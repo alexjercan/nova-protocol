@@ -1,5 +1,5 @@
 //! Final Tally - chapter three, part two: the finale at the gang's claim
-//! (task 20260721-161020, spike tasks/20260721-155249/SPIKE.md).
+//! (spike).
 //!
 //! The intercepted burn from Lifeline traces to a dead claim: a cracked
 //! megahauler anchorage berthed deep in a planetoid's gravity well - the
@@ -18,13 +18,13 @@
 //! design this time, stated in the banner.
 //!
 //! Structure notes: the planetoid sits at WORLD ORIGIN because ScatterObjects'
-//! Ring region is origin-centred (sample() replaces the template position);
+//! Ring region is origin-centred (sample replaces the template position);
 //! everything else is authored around it. Gates are FLAG-based (surveyed,
 //! picket kills), not act-sequenced, so killing the picket before surveying
 //! cannot deadlock the cast-off. Terminal acts close every outcome gate the
 //! moment any outcome is declared (LESSONS:
-//! outcome-is-last-write-wins-close-the-act): act 1 live, 4 epilogue (the
-//! win is locked - a post-kill death declares nothing), 2 won, 3 lost.
+//! outcome-is-last-write-wins-close-the-act): act 1 live, 4 epilogue (the win
+//! is locked - a post-kill death declares nothing), 2 won, 3 lost.
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
@@ -82,10 +82,10 @@ const VAR_EPILOGUE_AT: &str = "epilogue_at";
 const VAR_HELLO_SAID: &str = "hello_said";
 const VAR_TAUNT_SAID: &str = "taunt_said";
 const VAR_CLOSE_SAID: &str = "close_said";
-/// Pacing (task 20260722-092421): objectives post a beat after the comms line
-/// that introduces them. The survey objective follows the opening dispatch; the
-/// picket objective follows the survey-confirmed line. Each gate holds a
-/// `mark_clock` deadline; the `_posted` flag latches the one-shot.
+/// Pacing: objectives post a beat after the comms line that introduces them.
+/// The survey objective follows the opening dispatch; the picket objective
+/// follows the survey-confirmed line. Each gate holds a `mark_clock` deadline;
+/// the `_posted` flag latches the one-shot.
 const VAR_SURVEY_GATE: &str = "survey_gate";
 const VAR_SURVEY_POSTED: &str = "survey_posted";
 const VAR_PICKET_GATE: &str = "picket_gate";
@@ -351,9 +351,9 @@ pub(crate) fn final_tally(
         set(VAR_SURVEY_POSTED, num(0.0)),
         set(VAR_PICKET_POSTED, num(0.0)),
         set(VAR_BREAK_POSTED, num(0.0)),
-        // Seed the transition gates so their gated_once filters read a defined 0
-        // before the survey / cast-off stamp them, not an undefined var (bug
-        // 20260722-114541). The survey gate is seeded by its open_gate below.
+        // Seed the transition gates so their gated_once filters read a defined
+        // 0 before the survey / cast-off stamp them, not an undefined var. The
+        // survey gate is seeded by its open_gate below.
         set(VAR_PICKET_GATE, num(0.0)),
         set(VAR_BREAK_GATE, num(0.0)),
         spawn(player_ship()),
@@ -377,16 +377,16 @@ pub(crate) fn final_tally(
         spawn(picket(ID_PICKET_A, PICKET_A_SPAWN)),
         spawn(picket(ID_PICKET_B, PICKET_B_SPAWN)),
         claim_belt(&asteroid_texture),
-        // Pacing pass (task 20260722-092421): the survey objective posts a beat
-        // after this dispatch (the gated_once handler below), not the same frame.
+        // Pacing pass: the survey objective posts a beat after this dispatch
+        // (the gated_once handler below), not the same frame.
         story(
             BELT_RELAY,
             "The raiders' burn traces to a dead claim: a cracked megahauler \
              berthed deep in a planetoid's pull. Confirm what's hiding there.",
         ),
         // Reveal-then-instruct: "confirm what's hiding there" sets up, the
-        // objective explains the travel-lock mechanic - a mid gap (review
-        // 20260722-163718). The anchorage marker is already up (below).
+        // objective explains the travel-lock mechanic - a mid gap. The
+        // anchorage marker is already up (below).
         open_gate(VAR_SURVEY_GATE, MID_GAP),
         mark(ID_WRECK_BOW, "ANCHORAGE"),
     ];
@@ -425,12 +425,11 @@ pub(crate) fn final_tally(
                 ),
             ],
         },
-        // The SURVEY: the travel lock lands on the bow. OnTravelLock
-        // recurs every 5s while held, so the one-shot flag gates it. TWO
-        // fate variants (review R1.1, the lifeline banner pattern): the
-        // pickets may already be drift when the survey lands - that path
-        // must not post a picket objective nothing will ever complete, nor
-        // mark two dead ships.
+        // The SURVEY: the travel lock lands on the bow. OnTravelLock recurs
+        // every 5s while held, so the one-shot flag gates it. TWO fate variants
+        // (the lifeline banner pattern): the pickets may already be drift when
+        // the survey lands - that path must not post a picket objective nothing
+        // will ever complete, nor mark two dead ships.
         ScenarioEventConfig {
             name: EventConfig::OnTravelLock,
             filters: vec![
@@ -452,9 +451,8 @@ pub(crate) fn final_tally(
                      wreck. Two pickets riding the well.",
                 ),
                 // The confirm line reveals the pickets (already on-screen
-                // orbiting), so the reveal is short - a mid gap lands "break the
-                // picket" snappier without stepping on the line (review
-                // 20260722-163718).
+                // orbiting), so the reveal is short - a mid gap lands "break
+                // the picket" snappier without stepping on the line.
                 mark_clock(VAR_PICKET_GATE, MID_GAP),
             ],
         },
@@ -553,9 +551,9 @@ pub(crate) fn final_tally(
             ],
             actions: vec![
                 set(VAR_CAST_OFF, num(1.0)),
-                // Pacing pass (task 20260722-092421): the flagship and its gold
-                // marker appear with this reveal line; the break objective posts
-                // a beat later (the gated_once below), not the same frame.
+                // Pacing pass: the flagship and its gold marker appear with
+                // this reveal line; the break objective posts a beat later (the
+                // gated_once below), not the same frame.
                 story(
                     BELT_RELAY,
                     "Capital burn off the anchorage - tubes open. That's \
@@ -564,8 +562,8 @@ pub(crate) fn final_tally(
                 spawn(flagship()),
                 spawn(escort()),
                 // Threat reveal (the capital ship emerges): full absorb beat -
-                // the flagship's approach IS the peak-fight framing (review
-                // 20260722-163718). The marker is set with the reveal (below).
+                // the flagship's approach IS the peak-fight framing. The marker
+                // is set with the reveal (below).
                 mark_clock(VAR_BREAK_GATE, REVEAL_GAP),
                 mark(ID_FLAGSHIP, "FINAL TALLY"),
             ],
@@ -716,13 +714,13 @@ pub(crate) fn final_tally(
                       the base storyline, part two."
             .to_string(),
         cubemap,
-        // A mid-story continuation reached from Lifeline's victory chain
-        // (the Broadside-gunship precedent), with the placeholder thumbnail
-        // (real art: task 20260715-220011).
+        // A mid-story continuation reached from Lifeline's victory chain (the
+        // Broadside-gunship precedent).
+        // TODO(20260715-220011): placeholder thumbnail; real art pending.
         thumbnail: Some(AssetRef::from("self://banner.png")),
         // Hidden from the flat picker, but a member of the `nova_protocol`
-        // campaign mapping (task 20260724-193830) so the finale is replayable
-        // from the campaign header.
+        // campaign mapping so the finale is replayable from the campaign
+        // header.
         hidden: true,
         menu_backdrop: false,
         events,

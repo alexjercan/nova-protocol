@@ -1,10 +1,9 @@
 //! Production-faithful behavior + layout rig for Lifeline, chapter three's
-//! convoy defense (task 20260721-160957, spike tasks/20260721-155249/
-//! SPIKE.md). Loads the ACTUAL shipped `lifeline.content.ron`, registers
-//! its real handlers the way the loader does, and drives the act machine
-//! with the same event infos the engine emits - plus computed layout pins
-//! over the shipped spawns, so the fairness constraints cannot silently
-//! rot:
+//! convoy defense (spike tasks/ SPIKE.md). Loads the ACTUAL shipped
+//! `lifeline.content.ron`, registers its real handlers the way the loader does,
+//! and drives the act machine with the same event infos the engine emits - plus
+//! computed layout pins over the shipped spawns, so the fairness constraints
+//! cannot silently rot:
 //!
 //! 1. the convoy is the ally mechanism in shipped form: unarmed AI
 //!    non-combatant haulers with `allegiance: Some(Player)` (targetable, they
@@ -521,8 +520,8 @@ fn player_death_retries_the_lane() {
     assert_eq!(next.scenario_id, "lifeline");
     assert!(next.linger);
 
-    // The mutual-destruction trade (review R1.1): the last raider dying
-    // AFTER the player must not overwrite the Defeat with a Victory.
+    // The mutual-destruction trade: the last raider dying AFTER the player must
+    // not overwrite the Defeat with a Victory.
     seed_var(&mut app, "w3_up", 1.0);
     destroy(&mut app, "raider_3a");
     destroy(&mut app, "raider_3b");

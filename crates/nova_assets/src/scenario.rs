@@ -202,7 +202,6 @@ pub(crate) fn asteroid_field(
     });
 
     let events = vec![
-        // OnStart: Create the scenario objects
         ScenarioEventConfig {
             name: EventConfig::OnStart,
             filters: vec![],
@@ -212,7 +211,6 @@ pub(crate) fn asteroid_field(
                 .chain([asteroid_scatter])
                 .collect::<_>(),
         },
-        // OnStart: Create the safe zone
         ScenarioEventConfig {
             name: EventConfig::OnStart,
             filters: vec![],
@@ -224,7 +222,6 @@ pub(crate) fn asteroid_field(
                 radius: 10.0,
             })],
         },
-        // OnStart: Create the destroy asteroids objective
         ScenarioEventConfig {
             name: EventConfig::OnStart,
             filters: vec![],
@@ -267,7 +264,7 @@ pub(crate) fn asteroid_field(
                     message: "The player's spaceship was destroyed!".to_string(),
                 }),
                 // The outcome frame's Defeat + lingering retry (retrofit,
-                // outcome review R1.8): before it this restart was silent.
+                // outcome): before it this restart was silent.
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Defeat,
                     "Your ship is one more rock in the field.",
@@ -393,10 +390,10 @@ pub(crate) fn asteroid_field(
                 EventActionConfig::ObjectiveComplete(ObjectiveCompleteActionConfig {
                     id: "reach_zone".to_string(),
                 }),
-                // Clearing the field is a win; the overlay's Continue rides
-                // the lingering loop through asteroid_next (retrofit,
-                // outcome review R1.8; re-landed by slice review R1.1 after
-                // the first application was lost in a retry).
+                // Clearing the field is a win; the overlay's Continue rides the
+                // lingering loop through asteroid_next (retrofit, outcome;
+                // re-landed by slice after the first application was lost in a
+                // retry).
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Victory,
                     "Zone reached - the field is yours to run again.",
@@ -417,11 +414,11 @@ pub(crate) fn asteroid_field(
         cubemap,
         // The combat/gravity sandbox, listed in the Scenarios picker. It was
         // hidden as "a mid-story stage reached by chaining from the shakedown
-        // run" - a premise that was never true: this was the ORIGINAL New
-        // Game scenario until the shakedown replaced it, and nothing but its
-        // own asteroid_next relay ever chained here. Unhidden (task
-        // 20260721-160842); the player wiki advertises it as a picker
-        // sandbox. Placeholder thumbnail, real art is task 20260715-220011.
+        // run" - a premise that was never true: this was the ORIGINAL New Game
+        // scenario until the shakedown replaced it, and nothing but its own
+        // asteroid_next relay ever chained here. Unhidden; the player wiki
+        // advertises it as a picker sandbox.
+        // TODO(20260715-220011): placeholder thumbnail; real art pending.
         thumbnail: Some(AssetRef::from("self://banner.png")),
         events,
         ..Default::default()
@@ -432,11 +429,10 @@ pub(crate) fn asteroid_next(cubemap: AssetRef<Image>) -> ScenarioConfig {
     let events = vec![ScenarioEventConfig {
         name: EventConfig::OnStart,
         filters: vec![],
-        // Non-lingering cut (task 20260717-201534): this relay carries no
-        // Outcome overlay, so a lingering switch would strand the player in
-        // an empty scenario until a stray Enter press. linger: false makes it
-        // an immediate cut back into the field - one acknowledgement, seamless
-        // loop.
+        // Non-lingering cut: this relay carries no Outcome overlay, so a
+        // lingering switch would strand the player in an empty scenario until a
+        // stray Enter press. linger: false makes it an immediate cut back into
+        // the field - one acknowledgement, seamless loop.
         actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
             scenario_id: "asteroid_field".to_string(),
             linger: false,
@@ -461,10 +457,10 @@ pub(crate) mod tests {
     use super::*;
 
     /// The asteroid_next relay is a pure OnStart bridge with no Outcome
-    /// overlay, so its switch must be a non-lingering cut (task
-    /// 20260717-201534): a lingering switch here would strand the player in
-    /// this empty scenario until a stray Enter press. Mirrors the
-    /// filter-events shape of shakedown's player_death_routes_back test.
+    /// overlay, so its switch must be a non-lingering cut: a lingering switch
+    /// here would strand the player in this empty scenario until a stray Enter
+    /// press. Mirrors the filter-events shape of shakedown's
+    /// player_death_routes_back test.
     #[test]
     fn asteroid_next_bridge_is_a_non_lingering_cut() {
         let config = asteroid_next(AssetRef::default());
@@ -508,11 +504,11 @@ pub(crate) mod tests {
         event.actions.iter().any(pred)
     }
 
-    /// Owner pacing pass (task 20260722-092421): an objective must never appear
-    /// in the same frame as a conversation line. Every objective posts a beat
-    /// AFTER the story line that introduces it (via the shared `pacing`
-    /// deadline), so the exhaustive rule is: no single handler posts both a
-    /// StoryMessage and an Objective. This is the regression pin for the whole
+    /// Owner pacing pass: an objective must never appear in the same frame as a
+    /// conversation line. Every objective posts a beat AFTER the story line
+    /// that introduces it (via the shared `pacing` deadline), so the exhaustive
+    /// rule is: no single handler posts both a StoryMessage and an Objective.
+    /// This is the regression pin for the whole
     /// "objectives-appear-during-conversations" complaint across the mainline.
     #[test]
     fn no_mainline_handler_posts_an_objective_alongside_a_conversation() {
@@ -619,12 +615,13 @@ pub(crate) mod tests {
         }
     }
 
-    /// Regression pin for bug 20260722-114541: no OnStart handler may READ the
-    /// engine clock `scenario_elapsed`. It is undefined at OnStart (the first
-    /// `tick_scenario_clock` has not run) and the content evaluator errors on an
-    /// undefined read, so a `mark_clock`/gate stamp at OnStart silently fails and
-    /// the opening objective never posts. OnStart gates must use an ABSOLUTE
-    /// deadline (`pacing::open_gate`), not a `scenario_elapsed`-relative one.
+    /// Regression pin: no OnStart handler may READ the engine clock
+    /// `scenario_elapsed`. It is undefined at OnStart (the first
+    /// `tick_scenario_clock` has not run) and the content evaluator errors on
+    /// an undefined read, so a `mark_clock`/gate stamp at OnStart silently
+    /// fails and the opening objective never posts. OnStart gates must use an
+    /// ABSOLUTE deadline (`pacing::open_gate`), not a
+    /// `scenario_elapsed`-relative one.
     #[test]
     fn no_onstart_handler_reads_the_scenario_clock() {
         for (name, config) in mainline_scenarios() {

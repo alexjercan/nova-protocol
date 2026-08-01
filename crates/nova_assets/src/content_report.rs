@@ -1,12 +1,11 @@
-//! The human-facing content-lint report (task 20260718-152240): the unified
-//! `content lint` gathers every finding - reference/geometry checks
-//! (`nova_scenario::lint`), combat-balance/fairness findings
-//! (`nova_assets::balance`), and flight-rig input overlaps - into one
-//! [`ContentReport`] that names, for each finding, the mod, the file it lives
-//! in, the offending element, a short explanation and a suggested fix. A modder
-//! debugging a multi-file bundle gets a document instead of a wall of stdout
-//! lines. Markdown is the diffable baseline; HTML matches the perf report's
-//! styling for a browsable view.
+//! The human-facing content-lint report: the unified `content lint` gathers
+//! every finding - reference/geometry checks (`nova_scenario::lint`),
+//! combat-balance/fairness findings (`nova_assets::balance`), and flight-rig
+//! input overlaps - into one [`ContentReport`] that names, for each finding,
+//! the mod, the file it lives in, the offending element, a short explanation
+//! and a suggested fix. A modder debugging a multi-file bundle gets a document
+//! instead of a wall of stdout lines. Markdown is the diffable baseline; HTML
+//! matches the perf report's styling for a browsable view.
 //!
 //! The report is BUILT by `crate::lint_walk::{collect_tree, collect_target}`
 //! (they own the content walk and its file provenance); this module owns the

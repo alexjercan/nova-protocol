@@ -1,9 +1,8 @@
-//! Data-level "the accent is wired" rig for The Ledger's per-chapter look
-//! (task 20260722-214115). The minimal-look pass gives each chapter a
-//! deliberate STARTING skybox (`cubemap:` on the ScenarioConfig) and adds one
-//! motivated mid-scenario `SetSkybox` accent tied to a real story beat, using
-//! only base's two existing cubemaps (`cubemap.png`, `cubemap_alt.png`) - no
-//! new art, no `self://` refs.
+//! Data-level "the accent is wired" rig for The Ledger's per-chapter look. The
+//! minimal-look pass gives each chapter a deliberate STARTING skybox
+//! (`cubemap:` on the ScenarioConfig) and adds one motivated mid-scenario
+//! `SetSkybox` accent tied to a real story beat, using only base's two existing
+//! cubemaps (`cubemap.png`, `cubemap_alt.png`) - no new art, no `self:/` refs.
 //!
 //! The diagnostic brief's caution is "advertised is not wired": a future edit
 //! that silently drops one of these swaps should fail a test. So this rig

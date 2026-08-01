@@ -1,14 +1,12 @@
-//! Production-faithful behavior tests for Broadside, the chapter-two slice
-//! (task 20260708-203659). Loads the ACTUAL shipped
-//! `assets/base/scenarios/broadside.content.ron`, registers its real
-//! `OnDestroyed`/`OnUpdate` handlers the way the loader does, and drives the
-//! act machine by firing `OnDestroyedEvent` - the same info the integrity
-//! bridge emits when a ship root dies (the physical bridge itself is pinned
-//! in nova_scenario/nova_gameplay; what this file owns is the SCENARIO
-//! DATA's consumption of it, and the filter/action machinery the data leans
-//! on is pinned by nova_scenario's filters.rs tests). BASE story content
-//! gets this depth of coverage in core CI; MOD content deliberately does
-//! not (task 20260716-155830).
+//! Production-faithful behavior tests for Broadside, the chapter-two slice.
+//! Loads the ACTUAL shipped `assets/base/scenarios/broadside.content.ron`,
+//! registers its real `OnDestroyed`/`OnUpdate` handlers the way the loader
+//! does, and drives the act machine by firing `OnDestroyedEvent` - the same
+//! info the integrity bridge emits when a ship root dies (the physical bridge
+//! itself is pinned in nova_scenario/nova_gameplay; what this file owns is the
+//! SCENARIO DATA's consumption of it, and the filter/action machinery the data
+//! leans on is pinned by nova_scenario's filters.rs tests). BASE story content
+//! gets this depth of coverage in core CI; MOD content deliberately does not.
 //!
 //! Structural pins ride along for what the behavior rig seeds for itself
 //! (rig-supplies-precondition): the OnStart stage - player loadout, the
@@ -214,8 +212,8 @@ fn breaking_both_corvettes_declares_the_chapter_checkpoint() {
 
 #[test]
 fn killing_the_gunship_declares_victory_and_chains_into_lifeline() {
-    // Chapter two's end is no longer a dead end (task 20260721-160957):
-    // both fate variants chain (lingering) into chapter three.
+    // Chapter two's end is no longer a dead end: both fate variants chain
+    // (lingering) into chapter three.
     for hauler_dies in [false, true] {
         let scenario = scenario_from(BROADSIDE_GUNSHIP_RON);
         let mut app = slice_app();
@@ -267,13 +265,13 @@ fn player_death_retries_the_current_part_only() {
     }
 }
 
-/// Review R1.1 class (task 20260721-182034): CurrentOutcome is last-write-wins,
-/// so a mutual-destruction TRADE - the player's blast killing the last
-/// objective target on the same beat the player dies - must not let the win
-/// gate overwrite the Defeat with a Victory over the queued retry. Both parts'
-/// player-death handlers set a terminal act (3), which closes every win gate.
-/// Fails before the fix: the win target dying after the player re-opens the
-/// `act == 1` win and flips the Defeat to a Victory.
+/// Review class: CurrentOutcome is last-write-wins, so a mutual-destruction
+/// TRADE - the player's blast killing the last objective target on the same
+/// beat the player dies - must not let the win gate overwrite the Defeat with a
+/// Victory over the queued retry. Both parts' player-death handlers set a
+/// terminal act (3), which closes every win gate. Fails before the fix: the win
+/// target dying after the player re-opens the `act == 1` win and flips the
+/// Defeat to a Victory.
 #[test]
 fn a_trade_after_the_players_death_cannot_overwrite_the_defeat() {
     // Per part: the destroys that, on a LIVE act, would declare the win.
@@ -313,12 +311,11 @@ fn a_trade_after_the_players_death_cannot_overwrite_the_defeat() {
     }
 }
 
-/// Review R1.3 (original slice) + split review R1.3: a death AFTER the win
-/// (act 2 in either part - a death blast, a rock under the gold banner)
-/// declares NOTHING and pushes NOTHING - the earned Victory must not flip
-/// to Defeat, and the hauler's soft-fail objective must not appear under
-/// the overlay. The act-1 tests above are the delivery guards: the same
-/// destroys on a live act do declare/push.
+/// Review (original slice) + split: a death AFTER the win (act 2 in either part
+/// - a death blast, a rock under the gold banner) declares NOTHING and pushes
+/// NOTHING - the earned Victory must not flip to Defeat, and the hauler's
+/// soft-fail objective must not appear under the overlay. The act-1 tests above
+/// are the delivery guards: the same destroys on a live act do declare/push.
 #[test]
 fn player_death_after_the_win_declares_nothing() {
     for ron in [BROADSIDE_RON, BROADSIDE_GUNSHIP_RON] {
@@ -341,9 +338,9 @@ fn player_death_after_the_win_declares_nothing() {
             "no retry queued over the earned Victory"
         );
 
-        // The hauler's soft-fail gate is act < 2 too: nothing may land
-        // under the Victory overlay (split review R1.3; since the voice
-        // pass the beat is a flag + comms line, so the pin is the flag).
+        // The hauler's soft-fail gate is act < 2 too: nothing may land under
+        // the Victory overlay (split; since the voice pass the beat is a flag +
+        // comms line, so the pin is the flag).
         seed_var(&mut app, "hauler_lost", 0.0);
         destroy(&mut app, "hauler");
         assert_eq!(
@@ -410,11 +407,11 @@ fn hauler_death_on_a_live_act_pushes_the_soft_fail_beat() {
     }
 }
 
-/// Review R1.1 (voice pass): the first-corvette-down comms pair's mutual
-/// exclusion is load-bearing and subtle - each handler must gate on the
-/// OTHER corvette's kill flag still being 0, so a first kill speaks exactly
-/// once and a second kill stays silent. Pinned on the shipped data: exactly
-/// two such story handlers, each carrying the cross-flag == 0 filter.
+/// Review (voice pass): the first-corvette-down comms pair's mutual exclusion
+/// is load-bearing and subtle - each handler must gate on the OTHER corvette's
+/// kill flag still being 0, so a first kill speaks exactly once and a second
+/// kill stays silent. Pinned on the shipped data: exactly two such story
+/// handlers, each carrying the cross-flag == 0 filter.
 #[test]
 fn the_first_kill_line_is_mutually_exclusive_on_the_cross_flag() {
     let scenario = scenario_from(BROADSIDE_RON);
@@ -460,10 +457,9 @@ fn the_first_kill_line_is_mutually_exclusive_on_the_cross_flag() {
     }
 }
 
-/// The voice pass (task 20260721-160929): the Victory banner acknowledges
-/// the Ceres Queen's fate. Both parts, both branches, driven through the
-/// act machine - the two gated Victory handlers are mutually exclusive on
-/// the flag the soft-fail beat raises.
+/// The voice pass: the Victory banner acknowledges the Ceres Queen's fate. Both
+/// parts, both branches, driven through the act machine - the two gated Victory
+/// handlers are mutually exclusive on the flag the soft-fail beat raises.
 #[test]
 fn victory_banner_reflects_the_haulers_fate() {
     // (scenario RON, the kills that win it, alive phrase, lost phrase)
@@ -562,9 +558,9 @@ fn on_start_stages_the_slice() {
     let SpaceshipController::Player(player_controller) = &player_ship.controller else {
         panic!("player-controlled");
     };
-    // Playtest tuning (task 20260716-160159): torpedoes are the ENEMY's
-    // weapon this chapter - the player screens them, not trades them - and
-    // the magazine is finite with auto-reload (task 20260717-085640).
+    // Playtest tuning: torpedoes are the ENEMY's weapon this chapter - the
+    // player screens them, not trades them - and the magazine is finite with
+    // auto-reload.
     let catalog = nova_assets::scenario_generation::build_section_catalog();
     assert!(
         !player_ship
@@ -611,8 +607,8 @@ fn on_start_stages_the_slice() {
     );
 }
 
-/// The other half of the playtest tuning (task 20260716-160159): torpedoes
-/// stay the GUNSHIP's weapon - the screening beat needs tubes on the enemy.
+/// The other half of the playtest tuning: torpedoes stay the GUNSHIP's weapon -
+/// the screening beat needs tubes on the enemy.
 #[test]
 fn the_gunship_keeps_its_torpedo_tubes() {
     let scenario = scenario_from(BROADSIDE_GUNSHIP_RON);
@@ -658,8 +654,7 @@ fn base_bundle_ships_broadside() {
 
 /// The story chain, pinned at both ends: shakedown's chapter win chains into
 /// broadside behind a Victory overlay, and the asteroid_field retrofits
-/// (outcome review R1.8) declare their outcomes instead of switching
-/// silently.
+/// (outcome) declare their outcomes instead of switching silently.
 #[test]
 fn story_chain_declares_outcomes_at_both_ends() {
     let shakedown = scenario_from(SHAKEDOWN_RON);
@@ -712,9 +707,8 @@ fn story_chain_declares_outcomes_at_both_ends() {
         "the sandbox death restart declares Defeat (R1.8 retrofit)"
     );
 
-    // The OTHER half of the retrofit (slice review R1.1 - the first
-    // application was lost in a retry): the zone-clear switch to
-    // asteroid_next declares Victory.
+    // The OTHER half of the retrofit (slice - the first application was lost in
+    // a retry): the zone-clear switch to asteroid_next declares Victory.
     let zone_clear = field
         .events
         .iter()
@@ -760,10 +754,9 @@ fn the_gunship_part_is_hidden_and_stages_itself() {
     }
 }
 
-/// The sandbox is a Scenarios-picker entry again (task 20260721-160842: it
-/// had been hidden under a never-true "mid-story stage" premise, leaving
-/// finished content unreachable), while its relay continuation stays hidden
-/// exactly like the gunship part.
+/// The sandbox is a Scenarios-picker entry again (: it had been hidden under a
+/// never-true "mid-story stage" premise, leaving finished content unreachable),
+/// while its relay continuation stays hidden exactly like the gunship part.
 #[test]
 fn the_sandbox_is_listed_and_its_relay_is_not() {
     let field = scenario_from(ASTEROID_FIELD_RON);

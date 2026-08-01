@@ -1,10 +1,9 @@
-//! Production-faithful behavior + layout rig for Final Tally, chapter
-//! three's finale (task 20260721-161020, spike tasks/20260721-155249/
-//! SPIKE.md). Loads the ACTUAL shipped `final_tally.content.ron`, registers
-//! its real handlers, and drives the machine with the same event infos the
-//! engine emits - plus layout pins COMPUTED from the production gravity and
-//! geometry constants (authored-vs-derived-values), so the staging cannot
-//! rot:
+//! Production-faithful behavior + layout rig for Final Tally, chapter three's
+//! finale (spike tasks/ SPIKE.md). Loads the ACTUAL shipped
+//! `final_tally.content.ron`, registers its real handlers, and drives the
+//! machine with the same event infos the engine emits - plus layout pins
+//! COMPUTED from the production gravity and geometry constants
+//! (authored-vs-derived-values), so the staging cannot rot:
 //!
 //! 1. the coast-in: the player spawns outside even the worst-seed SOI of
 //!    the claim's well (derived from GravitySettings::default().soi_factor
@@ -132,14 +131,13 @@ fn register_non_start_handlers(app: &mut App, scenario: &ScenarioConfig) {
 }
 
 /// Seed the whole OnStart variable block the way OnStart would. Must stay in
-/// lockstep with the OnStart `VariableSet` block in
-/// `final_tally.content.ron` - the defer-objectives pass (commit 0ae5c7f9)
-/// added the `*_posted` / `*_gate` breathe variables, and a slice test that
-/// omits them leaves the gated handlers reading `None` (e.g. the picket handler
-/// filters `picket_posted == 0`, so an unseeded `picket_posted` never lets it
-/// fire, and the picket/break objectives never post). `scenario_elapsed` is
-/// engine-provided (the loader seeds it, task 20260721-000249), so the slice
-/// seeds it here too.
+/// lockstep with the OnStart `VariableSet` block in `final_tally.content.ron` -
+/// the defer-objectives pass (commit 0ae5c7f9) added the `*_posted` / `*_gate`
+/// breathe variables, and a slice test that omits them leaves the gated
+/// handlers reading `None` (e.g. the picket handler filters `picket_posted ==
+/// 0`, so an unseeded `picket_posted` never lets it fire, and the picket/break
+/// objectives never post). `scenario_elapsed` is engine-provided (the loader
+/// seeds it), so the slice seeds it here too.
 fn seed_live_claim(app: &mut App) {
     for (key, value) in [
         ("act", 1.0),
@@ -393,9 +391,8 @@ fn the_survey_is_a_one_shot_travel_lock_gate() {
     // The picket objective lands a BREATHE after the survey, not the same
     // frame: the survey sets `picket_gate = scenario_elapsed + 6` and a
     // separate OnUpdate handler posts the objective once the clock passes that
-    // gate (the "announce, breathe, arrive" deferral, task 20260721-161020 /
-    // the defer-objectives pass). Advance the clock past the gate, then it
-    // posts.
+    // gate (the "announce, breathe, arrive" deferral, / the defer-objectives
+    // pass). Advance the clock past the gate, then it posts.
     seed_var(&mut app, "scenario_elapsed", 30.0);
     pump(&mut app);
     assert!(
@@ -445,9 +442,9 @@ fn the_cast_off_waits_for_survey_pickets_and_the_breathe() {
         "no cast-off without the survey"
     );
 
-    // Survey late: the cast-off arrives (no deadlock) - and the late
-    // survey takes its pickets-down variant: no picket objective is left
-    // open for ships that are already drift (review R1.1).
+    // Survey late: the cast-off arrives (no deadlock) - and the late survey
+    // takes its pickets-down variant: no picket objective is left open for
+    // ships that are already drift.
     travel_lock(&mut app, "anchorage_bow");
     pump(&mut app);
     assert!(

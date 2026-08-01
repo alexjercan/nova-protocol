@@ -1,6 +1,5 @@
-//! Broadside - the capital-combat vertical slice (task 20260708-203659),
-//! act-split for checkpointed retries by the difficulty rework
-//! (task 20260717-112639, spike tasks/20260717-111808/SPIKE.md F4/F7).
+//! Broadside - the capital-combat vertical slice, act-split for checkpointed
+//! retries by the difficulty rework (spike F4/F7).
 //!
 //! Chapter two of the base storyline: the scavenger driven off in Shakedown
 //! Run was a scout. Its gang comes back in force to strip the belt - and a
@@ -17,10 +16,10 @@
 //!   retries HERE.
 //!
 //! Win: gunship destroyed -> Victory overlay whose lingering chain enters
-//! chapter three (`lifeline`, task 20260721-160957). Lose: player destroyed
-//! -> Defeat + lingering retry of the current part. The hauler is a NEUTRAL ship (the
-//! `SpaceshipConfig.allegiance` override): nobody targets it, but stray
-//! blast damage can kill it - a flavor beat reacts, the mission continues.
+//! chapter three (`lifeline`). Lose: player destroyed -> Defeat + lingering
+//! retry of the current part. The hauler is a NEUTRAL ship (the
+//! `SpaceshipConfig.allegiance` override): nobody targets it, but stray blast
+//! damage can kill it - a flavor beat reacts, the mission continues.
 //!
 //! Cover comes in two tiers since the AI line-of-fire gate (2d006707):
 //! five fixed INVULNERABLE boulders anchor the hauler fight and the gunship
@@ -28,11 +27,11 @@
 //! shot), while the seeded 24-rock scatter stays destructible chaff.
 //!
 //! Distances are authored against the measured AI constants
-//! (crates/nova_gameplay/src/input/ai/): engage range 800u, torpedo
-//! envelope [3 x blast_radius, 1000u] with a 10s per-bay cadence and the
-//! first launch immediate, standoff orbit ~250u. The gunship spawns ~720u
-//! from the hauler fight so it engages on arrival and its tubes are open
-//! through the whole approach.
+//! (crates/nova_gameplay/src/input/ai): engage range 800u, torpedo envelope [3
+//! x blast_radius, 1000u] with a 10s per-bay cadence and the first launch
+//! immediate, standoff orbit ~250u. The gunship spawns ~720u from the hauler
+//! fight so it engages on arrival and its tubes are open through the whole
+//! approach.
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
@@ -50,9 +49,9 @@ use super::{
 };
 
 /// Ships spawn with -Z forward; the fight sits +Z of both the corvette and
-/// gunship spawns, so every combatant is authored with this about-face -
-/// the gunship's torpedo alignment gate (cos > 0.5 on the hull bearing)
-/// opens on arrival instead of after a 180-degree slew (review R1.4).
+/// gunship spawns, so every combatant is authored with this about-face - the
+/// gunship's torpedo alignment gate (cos > 0.5 on the hull bearing) opens on
+/// arrival instead of after a 180-degree slew.
 fn facing_the_fight() -> Quat {
     Quat::from_rotation_y(std::f32::consts::PI)
 }
@@ -83,18 +82,18 @@ const VAR_ACT: &str = "act";
 const VAR_CORVETTE_A_DOWN: &str = "corvette_a_down";
 const VAR_CORVETTE_B_DOWN: &str = "corvette_b_down";
 /// Whether the Ceres Queen died to stray fire this part (0/1). Seeded 0 on
-/// start; the soft-fail beat raises it, and the Victory beat reads it to
-/// pick its banner variant - protecting her finally gets acknowledged
-/// (voice pass, task 20260721-160929). Scenario-scoped like every variable:
-/// each part tracks its OWN hauler (state does not cross the checkpoint).
+/// start; the soft-fail beat raises it, and the Victory beat reads it to pick
+/// its banner variant - protecting her finally gets acknowledged (voice pass).
+/// Scenario-scoped like every variable: each part tracks its OWN hauler (state
+/// does not cross the checkpoint).
 const VAR_HAULER_LOST: &str = "hauler_lost";
 
-/// Pacing (task 20260722-092421): objectives post a beat AFTER the comms line
-/// that introduces them, never the same frame. Each gate variable holds a
-/// `mark_clock` deadline; the paired `_posted` flag latches the one-shot
-/// `gated_once` that posts the objective once the clock passes it. Part one:
-/// the contact objective (after the distress call) and the defend objective
-/// (after the ambush line). Part two reuses its own pair in a separate scope.
+/// Pacing: objectives post a beat AFTER the comms line that introduces them,
+/// never the same frame. Each gate variable holds a `mark_clock` deadline; the
+/// paired `_posted` flag latches the one-shot `gated_once` that posts the
+/// objective once the clock passes it. Part one: the contact objective (after
+/// the distress call) and the defend objective (after the ambush line). Part
+/// two reuses its own pair in a separate scope.
 const VAR_CONTACT_GATE: &str = "contact_gate";
 const VAR_CONTACT_POSTED: &str = "contact_posted";
 const VAR_DEFEND_GATE: &str = "defend_gate";
@@ -114,12 +113,11 @@ const CORVETTE_B_SPAWN: Vec3 = Vec3::new(-150.0, -20.0, -540.0);
 /// envelope (<= 1000u) open through the whole approach.
 const GUNSHIP_SPAWN: Vec3 = Vec3::new(80.0, 60.0, -1170.0);
 
-/// The player's chapter-two ship: shakedown's trainer plus a second hull
-/// and the better turret. NO torpedo bay - torpedoes are the ENEMY's
-/// weapon this chapter (story: not unlocked yet), which keeps the
-/// PDC-screening fantasy pure: you shoot torpedoes down, you don't trade
-/// them. Finite ammo: catalog weapons auto-reload (task 20260717-085640),
-/// so a dry magazine is a pacing beat, not a fail state.
+/// The player's chapter-two ship: shakedown's trainer plus a second hull and
+/// the better turret. NO torpedo bay - torpedoes are the ENEMY's weapon this
+/// chapter (story: not unlocked yet), which keeps the PDC-screening fantasy
+/// pure: you shoot torpedoes down, you don't trade them. Finite ammo: catalog
+/// weapons auto-reload, so a dry magazine is a pacing beat, not a fail state.
 fn player_ship() -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -145,15 +143,15 @@ fn player_ship() -> ScenarioObjectConfig {
                     .collect(),
                 // Post-tutorial: unbounded burn.
                 speed_cap: None,
-                // Finite ammo: catalog weapons auto-reload (task 20260717-085640),
-                // so the PDC screen-and-brawl plays with real magazines and the
-                // diegetic ammo gauge instead of unlimited fire.
+                // Finite ammo: catalog weapons auto-reload, so the PDC
+                // screen-and-brawl plays with real magazines and the diegetic
+                // ammo gauge instead of unlimited fire.
                 infinite_ammo: false,
                 lock_refire_secs: None,
             }),
             allegiance: None,
-            // The racer. RCS is off in the mainline campaign until the rework
-            // (task 20260718-175502); no other verb is gated this chapter.
+            // The racer. RCS is off in the mainline campaign until the rework;
+            // no other verb is gated this chapter.
             sections: craft::racer_sections(
                 ShipGrade::Player,
                 vec![SectionModification::DisableVerb(FlightVerb::Rcs)],
@@ -198,8 +196,8 @@ fn corvette(id: &str, spawn_pos: Vec3) -> ScenarioObjectConfig {
             controller: SpaceshipController::AI(AIControllerConfig {
                 patrol: vec![spawn_pos, HAULER_POS + Vec3::new(0.0, 40.0, 60.0)],
                 leash: Some(420.0),
-                // Arrival grace (beat-sheet pass, task 20260717-163058):
-                // "drop off the rocks" is readable before the tracers.
+                // Arrival grace (beat-sheet pass): "drop off the rocks" is
+                // readable before the tracers.
                 engage_delay: Some(5.0),
                 ..Default::default()
             }),
@@ -322,8 +320,8 @@ pub(crate) fn broadside(
         set(VAR_HAULER_LOST, num(0.0)),
         set(VAR_CONTACT_POSTED, num(0.0)),
         set(VAR_DEFEND_POSTED, num(0.0)),
-        // Seed the defend gate so its gated_once filter reads a defined 0 before
-        // the ambush stamps it, not an undefined var (bug 20260722-114541).
+        // Seed the defend gate so its gated_once filter reads a defined 0
+        // before the ambush stamps it, not an undefined var.
         set(VAR_DEFEND_GATE, num(0.0)),
         spawn(player_ship()),
         spawn(hauler_ship()),
@@ -338,22 +336,21 @@ pub(crate) fn broadside(
             rotation: Quat::IDENTITY,
             radius: 130.0,
         }),
-        // The voice pass (task 20260721-160929): the distress call the
-        // shakedown banner promised is now HEARD - the announce beat's one
-        // comms line; the objective shrinks to the goal.
-        // Pacing pass (task 20260722-092421): the objective no longer shares
-        // this frame with the distress call - the deadline is stamped here and
-        // OBJ_CONTACT posts a beat later (the gated_once handler below).
+        // The voice pass: the distress call the shakedown banner promised is
+        // now HEARD - the announce beat's one comms line; the objective shrinks
+        // to the goal. Pacing pass: the objective no longer shares this frame
+        // with the distress call - the deadline is stamped here and OBJ_CONTACT
+        // posts a beat later (the gated_once handler below).
         story(
             CAPTAIN_HALLORAN,
             "Ceres Queen to any ship in the belt - drive's stripped, and \
              they're coming back for the hull.",
         ),
         // Reveal-then-navigate: the distress call sets up, "find the hauler" is
-        // a soft instruction - a mid gap (review 20260722-163718). The gold
-        // marker rides the hauler from OnStart (NOT withheld inside the gate),
-        // so the player has a nav target during the call; only the objective
-        // TEXT waits, matching shakedown/final_tally.
+        // a soft instruction - a mid gap. The gold marker rides the hauler from
+        // OnStart (NOT withheld inside the gate), so the player has a nav
+        // target during the call; only the objective TEXT waits, matching
+        // shakedown/final_tally.
         open_gate(VAR_CONTACT_GATE, MID_GAP),
         mark(ID_HAULER, "CERES QUEEN"),
     ]);
@@ -524,7 +521,7 @@ pub(crate) fn broadside(
         },
         // Flavor, not failure: the hauler dies to stray fire and the story
         // notices - but only while the fight is on; after the win nothing
-        // pushes fresh objectives under the Victory overlay (review R1.5).
+        // pushes fresh objectives under the Victory overlay.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
             filters: vec![destroyed(ID_HAULER), lt_num(VAR_ACT, 2.0)],
@@ -537,20 +534,19 @@ pub(crate) fn broadside(
                 ),
             ],
         },
-        // Lose: the Defeat overlay offers Retry (lingering restart) and
-        // Main Menu. Gated to the live acts: a death AFTER the win (a
-        // drifting rock under the gold banner) must not overwrite the
-        // earned Victory with Defeat (review R1.3).
+        // Lose: the Defeat overlay offers Retry (lingering restart) and Main
+        // Menu. Gated to the live acts: a death AFTER the win (a drifting rock
+        // under the gold banner) must not overwrite the earned Victory with
+        // Defeat.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
             filters: vec![destroyed(ID_PLAYER), lt_num(VAR_ACT, 2.0)],
             actions: vec![
-                // Terminal act FIRST (review R1.1 class, task 20260721-182034):
-                // CurrentOutcome is last-write-wins, so a mutual-destruction
-                // trade - the player's blast killing the last corvette on the
-                // same beat the player dies - could let the checkpoint win
-                // (gated act == 1) overwrite this Defeat over the queued retry.
-                // Act 3 closes every win gate.
+                // Terminal act FIRST: CurrentOutcome is last-write-wins, so a
+                // mutual-destruction trade - the player's blast killing the
+                // last corvette on the same beat the player dies - could let
+                // the checkpoint win (gated act == 1) overwrite this Defeat
+                // over the queued retry. Act 3 closes every win gate.
                 set(VAR_ACT, num(3.0)),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Defeat,
@@ -589,14 +585,14 @@ pub(crate) fn broadside(
                       Chapter two of the base storyline, part one."
             .to_string(),
         cubemap,
-        // Placeholder thumbnail (real per-scenario art: task 20260715-220011).
+        // TODO(20260715-220011): placeholder thumbnail; real per-scenario art pending.
         thumbnail: Some(AssetRef::from("self://banner.png")),
         hidden: false,
         menu_backdrop: false,
-        // Chapter two of the Nova Protocol campaign. Membership + order now live
-        // in the `nova_protocol` campaign mapping (task 20260724-193830), which
-        // also lists the hidden part-two wave (`broadside_gunship`) so it is
-        // replayable from the campaign header.
+        // Chapter two of the Nova Protocol campaign. Membership + order now
+        // live in the `nova_protocol` campaign mapping, which also lists the
+        // hidden part-two wave (`broadside_gunship`) so it is replayable from
+        // the campaign header.
         events,
     }
 }
@@ -622,10 +618,10 @@ pub(crate) fn broadside_gunship(
     opening.extend(hard_cover(&asteroid_texture).into_iter().map(spawn));
     opening.extend([
         spawn(gunship()),
-        // The capital gets a voice (task 20260721-160929): the announce
-        // beat's one comms line, while the objectives shrink to goals. Pacing
-        // pass (task 20260722-092421): the objectives post a beat after the
-        // taunt (the gated_once handler below), not the same frame.
+        // The capital gets a voice: the announce beat's one comms line, while
+        // the objectives shrink to goals. Pacing pass: the objectives post a
+        // beat after the taunt (the gated_once handler below), not the same
+        // frame.
         story(
             RUST_TALLY,
             "You cost me two pickers, belt rat. The Rust Tally pays its \
@@ -633,7 +629,7 @@ pub(crate) fn broadside_gunship(
         ),
         // Threat reveal (the gunship taunts and burns in): full absorb beat.
         // The gunship and its RADAR marker are already up (this is OnStart), so
-        // only the objective text waits (review 20260722-163718).
+        // only the objective text waits.
         open_gate(VAR_GUN_OBJ_GATE, REVEAL_GAP),
         mark(ID_GUNSHIP, "GUNSHIP"),
         emphasize("RADAR"),
@@ -657,13 +653,11 @@ pub(crate) fn broadside_gunship(
                 objective(OBJ_BREAK, "Break the Rust Tally, section by section."),
             ],
         ),
-        // Win: the gunship comes apart - and the deep scan keeps the door
-        // open: the lingering chain rides into chapter three (Lifeline,
-        // task 20260721-160957).
-        // Two variants on the hauler's fate (mutually exclusive on
-        // VAR_HAULER_LOST) - each part tracks its OWN hauler, since
-        // variables are scenario-scoped and the arena restages across the
-        // checkpoint.
+        // Win: the gunship comes apart - and the deep scan keeps the door open:
+        // the lingering chain rides into chapter three (Lifeline). Two variants
+        // on the hauler's fate (mutually exclusive on VAR_HAULER_LOST) - each
+        // part tracks its OWN hauler, since variables are scenario-scoped and
+        // the arena restages across the checkpoint.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
             filters: vec![
@@ -787,11 +781,11 @@ pub(crate) fn broadside_gunship(
             name: EventConfig::OnDestroyed,
             filters: vec![destroyed(ID_PLAYER), lt_num(VAR_ACT, 2.0)],
             actions: vec![
-                // Terminal act FIRST (review R1.1 class, task 20260721-182034):
-                // last-write-wins CurrentOutcome means a trade - the player's
-                // blast breaking the gunship on the same beat the player dies -
-                // could let the win (gated act == 1) overwrite this Defeat over
-                // the queued retry. Act 3 closes every win gate.
+                // Terminal act FIRST: last-write-wins CurrentOutcome means a
+                // trade - the player's blast breaking the gunship on the same
+                // beat the player dies - could let the win (gated act == 1)
+                // overwrite this Defeat over the queued retry. Act 3 closes
+                // every win gate.
                 set(VAR_ACT, num(3.0)),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Defeat,
@@ -830,11 +824,10 @@ pub(crate) fn broadside_gunship(
                       section. Chapter two of the base storyline, part two."
             .to_string(),
         cubemap,
-        // Placeholder thumbnail (real per-scenario art: task 20260715-220011).
+        // TODO(20260715-220011): placeholder thumbnail; real per-scenario art pending.
         thumbnail: Some(AssetRef::from("self://banner.png")),
         // Hidden from the flat picker, but a member of the `nova_protocol`
-        // campaign mapping (task 20260724-193830) so it is replayable from the
-        // campaign header.
+        // campaign mapping so it is replayable from the campaign header.
         hidden: true,
         menu_backdrop: false,
         events,

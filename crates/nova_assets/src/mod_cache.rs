@@ -1,5 +1,5 @@
 //! The LOCAL mod cache: downloaded mods' file bytes plus the installed index,
-//! and the `mods://` asset source that serves them (task 20260715-142906).
+//! and the `mods:/` asset source that serves them.
 //!
 //! Two halves, split per platform like `mod_prefs` (small index sync, bulk
 //! bytes on the platform's bulk store):
@@ -13,35 +13,34 @@
 //!   IndexedDB (database `nova-protocol`, object store `mod-files`, key
 //!   `<id>/<path>`) on the web.
 //!
-//! `<data_root>` is `dirs::data_dir()/nova-protocol` (data, not config - the
+//! `<data_root>` is `dirs::data_dir/nova-protocol` (data, not config - the
 //! config dir stays prefs-only), OVERRIDABLE via the `NOVA_MOD_CACHE_ROOT`
-//! environment variable. The override is read both at `mods://`
+//! environment variable. The override is read both at `mods:/`
 //! source-registration time and by every native path helper here, so the asset
 //! source and the cache always agree; tests point both at a temp dir with it.
 //!
-//! The `mods://` ASSET SOURCE serves the cached files to the asset server:
+//! The `mods:/` ASSET SOURCE serves the cached files to the asset server:
 //! native reads the cache directory live through a `FileAssetReader`; the web
 //! reads a shared in-memory [`Dir`](bevy::asset::io::memory::Dir)
 //! (`MemoryAssetReader`) that a startup task hydrates from IndexedDB (the
 //! `ModsSourceDir` resource keeps the `Dir` handle reachable - it is
 //! Arc-shared, so filling it after registration is visible to the reader). A
-//! downloaded mod's bundle then loads as `mods://<id>/<bundle>` through the
+//! downloaded mod's bundle then loads as `mods:/<id>/<bundle>` through the
 //! exact same loaders as a shipped one.
 //!
 //! The COMMIT discipline for a real download (write files first, index last)
-//! belongs to the installer flow (task 20260715-163508); this module only
-//! provides the primitives plus the native [`install_local`] composition used
-//! by tests and local tooling.
+//! belongs to the installer flow; this module only provides the primitives plus
+//! the native [`install_local`] composition used by tests and local tooling.
 //!
-//! TRUST BOUNDARY (review 142906 R1.1): index records and bundle manifests are
-//! DOWNLOADED input, guarded in layers. Ids and file paths are validated by
-//! the shared, cfg-independent helpers below in the PUBLIC cache API (both
-//! platforms) and again where the index is consumed (`load_downloaded_mods`
-//! skips unsafe records with a warning). Escaping ASSET paths (a malicious
-//! manifest can request one without touching the index) are rejected by bevy's
-//! own `UnapprovedPathMode::Forbid` default at load time, and the native
-//! source is additionally SANDBOXED at the reader layer
-//! (`SandboxedAssetReader`) so containment does not depend on that default.
+//! TRUST BOUNDARY: index records and bundle manifests are DOWNLOADED input,
+//! guarded in layers. Ids and file paths are validated by the shared,
+//! cfg-independent helpers below in the PUBLIC cache API (both platforms) and
+//! again where the index is consumed (`load_downloaded_mods` skips unsafe
+//! records with a warning). Escaping ASSET paths (a malicious manifest can
+//! request one without touching the index) are rejected by bevy's own
+//! `UnapprovedPathMode::Forbid` default at load time, and the native source is
+//! additionally SANDBOXED at the reader layer (`SandboxedAssetReader`) so
+//! containment does not depend on that default.
 
 use std::path::Path;
 
@@ -89,10 +88,10 @@ pub(crate) fn portal_catalog_store_path() -> Option<std::path::PathBuf> {
 }
 
 /// Persist the downloaded-mods index. Best-effort - failures are logged, not
-/// returned (the mod_prefs idiom; the installer flow of task 163508 owns any
-/// stricter commit discipline via the `*_at` primitives). A plain persist: the
-/// UNTRUSTED direction is reading the on-disk index back, which
-/// `load_downloaded_mods` validates record by record.
+/// returned (the mod_prefs idiom; the installer flow of owns any stricter
+/// commit discipline via the `*_at` primitives). A plain persist: the UNTRUSTED
+/// direction is reading the on-disk index back, which `load_downloaded_mods`
+/// validates record by record.
 pub fn write_index(records: &[InstalledModRecord]) {
     backend::write_index(records);
 }
@@ -137,15 +136,15 @@ pub(crate) fn is_safe_rel_path(s: &str) -> bool {
 }
 
 /// True when `id` is usable as a single cache directory name. Rejecting `/`
-/// (and `\`) also keeps the wasm `<id>/<path>` IndexedDB keys UNAMBIGUOUS:
-/// id "a" + path "b/c" cannot collide with id "a/b" + path "c" because the
-/// latter id never passes (review 142906 R1.3).
+/// (and `\`) also keeps the wasm `<id>/<path>` IndexedDB keys UNAMBIGUOUS: id
+/// "a" + path "b/c" cannot collide with id "a/b" + path "c" because the latter
+/// id never passes.
 pub(crate) fn is_safe_id(id: &str) -> bool {
     is_safe_rel_path(id) && !id.contains('/') && !id.contains('\\')
 }
 
 /// The shared public-API gate, applied BEFORE the cfg dispatch below so both
-/// platform backends get identical validation (review 142906 R1.1/R1.3).
+/// platform backends get identical validation.
 fn validate_file_op<'a>(id: &str, paths: impl IntoIterator<Item = &'a str>) -> Result<(), String> {
     if !is_safe_id(id) {
         return Err(format!("mod cache: unsafe mod id '{id}'"));
@@ -189,7 +188,7 @@ pub fn remove_mod_files(id: &str, paths: &[String]) -> std::io::Result<()> {
 /// Install a mod into the local cache from in-memory files: store the bytes,
 /// then upsert the index record (files first, index last - the same order a
 /// failed install must leave a readable state in). Used by tests and local
-/// tooling; the network installer (task 163508) composes the same primitives.
+/// tooling; the network installer composes the same primitives.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn install_local(
     id: &str,
@@ -234,13 +233,13 @@ pub async fn remove_mod_files(id: &str, paths: &[String]) -> Result<(), String> 
     backend::remove_mod_files(id, paths).await
 }
 
-/// Store a downloaded mod's files in ONE IndexedDB transaction, resolved on
-/// the TRANSACTION's `complete` event - NOT per-request success, which is not
-/// commit (review 142906 R1.4): a put whose request succeeded can still abort
-/// at commit time (e.g. quota exceeded). All-or-nothing, which is exactly the
-/// installer's files-first-index-last need: `Ok` here means every byte is
-/// durably committed, so writing the index record afterwards can never
-/// publish a mod whose files silently rolled back.
+/// Store a downloaded mod's files in ONE IndexedDB transaction, resolved on the
+/// TRANSACTION's `complete` event - NOT per-request success, which is not
+/// commit: a put whose request succeeded can still abort at commit time (e.g.
+/// quota exceeded). All-or-nothing, which is exactly the installer's
+/// files-first-index-last need: `Ok` here means every byte is durably
+/// committed, so writing the index record afterwards can never publish a mod
+/// whose files silently rolled back.
 #[cfg(target_arch = "wasm32")]
 pub async fn commit_mod_files(id: &str, files: &[(String, Vec<u8>)]) -> Result<(), String> {
     validate_file_op(id, files.iter().map(|(p, _)| p.as_str()))?;
@@ -323,9 +322,9 @@ pub fn register_mods_source(app: &mut bevy::app::App) {
     }
 }
 
-/// Confines the native `mods://` source to its root (review 142906 R1.1): any
-/// requested path with a non-Normal component (`..`, a root, a drive prefix,
-/// `.`) is rejected as not-found before the wrapped reader sees it.
+/// Confines the native `mods:/` source to its root: any requested path with a
+/// non-Normal component (`..`, a root, a drive prefix, `.`) is rejected as
+/// not-found before the wrapped reader sees it.
 ///
 /// Threat and layering (verified in bevy_asset 0.19 source): `AssetPath::
 /// resolve` PRESERVES an underflowing `..` (normalize_path, path.rs:692, per
@@ -333,13 +332,13 @@ pub fn register_mods_source(app: &mut bevy::app::App) {
 /// source-relative path that still starts with `..` - record validation alone
 /// cannot stop a malicious MANIFEST. The FIRST guard against such a path is
 /// bevy itself: `AssetPlugin::unapproved_path_mode` defaults to `Forbid` and
-/// the server rejects `is_unapproved()` paths at load time (server/mod.rs:544);
-/// the raw `FileAssetReader`, which would happily raw-join `..` onto its
-/// root, never sees them. This sandbox is the READER-layer backstop so the
-/// cache's containment does not hinge on that config staying at its default
-/// (an `unapproved_path_mode: Allow` app, a `load_override` caller, or any
-/// future direct-reader consumer would otherwise reopen the hole). Escaping
-/// requests always retain a non-Normal component, so the check is exact.
+/// the server rejects `is_unapproved` paths at load time (server/mod.rs:544);
+/// the raw `FileAssetReader`, which would happily raw-join `..` onto its root,
+/// never sees them. This sandbox is the READER-layer backstop so the cache's
+/// containment does not hinge on that config staying at its default (an
+/// `unapproved_path_mode: Allow` app, a `load_override` caller, or any future
+/// direct-reader consumer would otherwise reopen the hole). Escaping requests
+/// always retain a non-Normal component, so the check is exact.
 #[cfg(not(target_arch = "wasm32"))]
 struct SandboxedAssetReader<R: bevy::asset::io::AssetReader> {
     inner: R,
@@ -472,8 +471,7 @@ mod backend {
     /// Install a mod into the local cache from in-memory files: store the
     /// bytes, then upsert the index record (files first, index last - the same
     /// order a failed install must leave a readable state in). Used by tests
-    /// and local tooling; the network installer (task 163508) composes the same
-    /// primitives.
+    /// and local tooling; the network installer composes the same primitives.
     pub fn install_local(
         id: &str,
         version: &str,
@@ -632,7 +630,7 @@ mod backend {
     //! COMPILE-GATED, NOT RUNTIME-TESTED here: neither the local test runner
     //! nor PR/master CI compiles the wasm target (only the manual web deploy
     //! does), so this half is statically reviewed against web-sys 0.3; its
-    //! first runtime exercise is task 163508's web testing.
+    //! first runtime exercise is web testing.
 
     use bevy::log::warn;
     use wasm_bindgen::{closure::Closure, JsCast, JsValue};
@@ -698,10 +696,10 @@ mod backend {
     }
 
     /// Store all of a mod's files in ONE readwrite transaction and resolve on
-    /// the TRANSACTION settling - the R1.4-correct commit signal (request
-    /// `success` fires before the transaction is durable, and a later abort
-    /// rolls every put back). All-or-nothing by IDB's own transaction
-    /// semantics: the installer writes the index record only after `Ok`.
+    /// the TRANSACTION settling - the correct commit signal (request `success`
+    /// fires before the transaction is durable, and a later abort rolls every
+    /// put back). All-or-nothing by IDB's own transaction semantics: the
+    /// installer writes the index record only after `Ok`.
     pub async fn commit_mod_files(id: &str, files: &[(String, Vec<u8>)]) -> Result<(), String> {
         let (db, store) = open_store(web_sys::IdbTransactionMode::Readwrite).await?;
         let tx = store.transaction();
@@ -817,9 +815,8 @@ mod backend {
 
     /// Open (creating/upgrading on first use) the cache database. Opened per
     /// operation and CLOSED by the caller after it - connections otherwise
-    /// linger until GC (review 142906 R1.4). Simple over fast: the browser
-    /// caches the connection handshake and this surface runs once at startup
-    /// plus per install.
+    /// linger until GC. Simple over fast: the browser caches the connection
+    /// handshake and this surface runs once at startup plus per install.
     ///
     /// The open request wires all four callbacks into one promise: success,
     /// error, `blocked` (an old connection in another tab holds a lower
@@ -908,7 +905,7 @@ mod backend {
 
     /// NOTE: resolving on the request's `success` is NOT transaction commit -
     /// a put can still abort at commit time (e.g. quota exceeded). Fine for
-    /// this cache's best-effort surface; the installer flow (task 163508) must
+    /// this cache's best-effort surface; the portal installer flow must
     /// await the TRANSACTION's `complete` event for its files-first-index-last
     /// discipline, not per-request success.
     async fn idb_put(key: &str, bytes: &[u8]) -> Result<(), String> {
@@ -946,10 +943,10 @@ mod backend {
     }
 }
 
-// The native fs backend is unit-tested through its pure `*_at` functions under a
-// temp root. The wasm half is cfg-guarded: PR/master CI compiles native only, so
-// (as with mod_prefs) static review against web-sys 0.3 is its real guard until
-// task 163508 exercises it in a browser.
+// The native fs backend is unit-tested through its pure `*_at` functions under
+// a temp root. The wasm half is cfg-guarded: PR/master CI compiles native only,
+// so (as with mod_prefs) static review against web-sys 0.3 is its real guard
+// until exercises it in a browser.
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::{
@@ -1131,9 +1128,8 @@ mod tests {
 
     /// The SHARED public-API gate (`validate_file_op`) is cfg-independent: it
     /// runs before the platform dispatch, so passing here pins the exact
-    /// validation the wasm backend gets too (review 142906 R1.1/R1.3) - and
-    /// rejecting `/` in ids is what keeps the wasm `<id>/<path>` IndexedDB
-    /// keys unambiguous.
+    /// validation the wasm backend gets too - and rejecting `/` in ids is what
+    /// keeps the wasm `<id>/<path>` IndexedDB keys unambiguous.
     #[test]
     fn shared_public_api_gate_rejects_unsafe_ids_and_paths() {
         let ok: Vec<&str> = vec!["pack.bundle.ron", "scenarios/run.content.ron"];

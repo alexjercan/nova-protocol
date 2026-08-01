@@ -1,10 +1,10 @@
-//! The DEEP publish gate for portal mods (task 20260715-142900): every bundle
-//! under the repo-root `webmods/` must load through the REAL modding loaders -
-//! manifest, every content file, every config tree - to a recursive `Loaded`.
-//! The portal generator (`scripts/gen-portal.py`) deliberately validates only
-//! what a manifest gate can (it is engine-free so the deploy job stays fast); THIS
-//! test, running where CI already runs tests, is the "does the content
-//! actually load" half of publishing.
+//! The DEEP publish gate for portal mods: every bundle under the repo-root
+//! `webmods/` must load through the REAL modding loaders - manifest, every
+//! content file, every config tree - to a recursive `Loaded`. The portal
+//! generator (`scripts/gen-portal.py`) deliberately validates only what a
+//! manifest gate can (it is engine-free so the deploy job stays fast); THIS
+//! test, running where CI already runs tests, is the "does the content actually
+//! load" half of publishing.
 //!
 //! Native tests may list directories (the wasm restriction is why the GAME
 //! never scans; a test host can).
@@ -76,9 +76,9 @@ fn every_webmods_bundle_loads_recursively() {
 /// The Ledger's campaign mapping lists its six chapters in play order, every
 /// member resolves to a real scenario in the bundle, and every member past the
 /// visible entry (`ch1`) is `hidden` - so the picker's collapsible "The Ledger"
-/// header lists the whole arc and the hidden chapters are reachable ONLY through
-/// it (task 20260724-220842). Reads the committed content files directly, the
-/// contract a mod author authored.
+/// header lists the whole arc and the hidden chapters are reachable ONLY
+/// through it. Reads the committed content files directly, the contract a mod
+/// author authored.
 #[test]
 fn the_ledger_campaign_lists_its_chapters_in_order() {
     let dir = "../../webmods/the-ledger";

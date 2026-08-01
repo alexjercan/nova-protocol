@@ -1,10 +1,11 @@
-//! Cross-platform persistence of the enabled-mods set (task 20260714-174131).
+//! Cross-platform persistence of the enabled-mods set.
 //!
-//! The enabled mod ids are stored as a RON `Vec<String>`. On native they live in a
-//! file under the user config dir (`dirs::config_dir()/nova-protocol/enabled_mods.ron`);
-//! on the web they live in `window.localStorage` under a fixed key. Both are
-//! best-effort: a missing or corrupt store reads as `None` (fall back to the base
-//! default), and write failures are logged, never fatal.
+//! The enabled mod ids are stored as a RON `Vec<String>`. On native they live
+//! in a file under the user config dir
+//! (`dirs::config_dir/nova-protocol/enabled_mods.ron`); on the web they live in
+//! `window.localStorage` under a fixed key. Both are best-effort: a missing or
+//! corrupt store reads as `None` (fall back to the base default), and write
+//! failures are logged, never fatal.
 //!
 //! This is a small hand-rolled store on purpose: Bevy 0.19 is bleeding-edge and a
 //! third-party persistence crate would be a version-compat liability for a UI feature.

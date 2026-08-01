@@ -1,11 +1,11 @@
-//! Production-faithful scenario tests for the NEUTRALIZED (combat-dead) signal
-//! (task 20260722-092320). A ship that was armed and has lost all working
-//! weapons AND thrusters fires `OnNeutralizedEvent` instead of being destroyed;
-//! the shipped scenarios carry `OnNeutralized` sibling handlers so a beaten ship
-//! counts as beaten without its hull being ground to zero. This loads the ACTUAL
-//! shipped RON, registers its real handlers the way the loader does, and drives
-//! the act machine by firing `OnNeutralizedEvent` - the same info the gameplay
-//! neutralize system emits.
+//! Production-faithful scenario tests for the NEUTRALIZED (combat-dead) signal.
+//! A ship that was armed and has lost all working weapons AND thrusters fires
+//! `OnNeutralizedEvent` instead of being destroyed; the shipped scenarios carry
+//! `OnNeutralized` sibling handlers so a beaten ship counts as beaten without
+//! its hull being ground to zero. This loads the ACTUAL shipped RON, registers
+//! its real handlers the way the loader does, and drives the act machine by
+//! firing `OnNeutralizedEvent` - the same info the gameplay neutralize system
+//! emits.
 //!
 //! The physical predicate (weapons + thrusters gone => the event) is pinned in
 //! `nova_gameplay::integrity::neutralize`; what this file owns is the SCENARIO
@@ -123,10 +123,10 @@ fn outcome_kind(app: &App) -> Option<ScenarioOutcomeKind> {
         .map(|outcome| outcome.outcome)
 }
 
-/// The immediate annoyance fixed at scenario level (task 20260722-092320):
-/// neutralizing an enemy kill-objective completes it exactly like destroying it,
-/// so a ship whose guns and engines are gone counts as down without grinding its
-/// hull to zero. Both corvettes neutralized wins part one and chains onward.
+/// The immediate annoyance fixed at scenario level: neutralizing an enemy
+/// kill-objective completes it exactly like destroying it, so a ship whose guns
+/// and engines are gone counts as down without grinding its hull to zero. Both
+/// corvettes neutralized wins part one and chains onward.
 #[test]
 fn neutralizing_both_corvettes_wins_part_one() {
     let scenario = scenario_from(BROADSIDE_RON);

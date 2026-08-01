@@ -1,10 +1,10 @@
-//! The unified content-report gate (task 20260718-152240): the merged
-//! `content lint` produces reference/geometry AND balance findings in one
-//! report, and every finding names the file + element it is about. A
-//! deliberately broken fixture mod plants one of each finding class and this
-//! test asserts the report pinpoints each; a second test walks the SHIPPED
-//! mods and confirms every located finding points at a file that actually
-//! exists in the mod. See `nova_assets::content_report` for the model and
+//! The unified content-report gate: the merged `content lint` produces
+//! reference/geometry AND balance findings in one report, and every finding
+//! names the file + element it is about. A deliberately broken fixture mod
+//! plants one of each finding class and this test asserts the report pinpoints
+//! each; a second test walks the SHIPPED mods and confirms every located
+//! finding points at a file that actually exists in the mod. See
+//! `nova_assets::content_report` for the model and
 //! `nova_assets::lint_walk::{collect_tree, collect_target}` for the walk.
 
 use nova_assets::{

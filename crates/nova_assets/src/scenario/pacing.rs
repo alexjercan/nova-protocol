@@ -1,11 +1,11 @@
 //! Scenario pacing primitives, shared across the mainline scenarios.
 //!
-//! Owner playtest (task 20260722-092421, 2026-07-22): objectives were showing
-//! in the same frame as the conversation that introduces them, and completing
-//! an objective was immediately followed by the next one - no breathing room.
-//! The fix is a scenario-clock deadline sitting between a conversation (or an
-//! objective completing) and the objective that follows it: the objective
-//! posts a beat LATER, never the same frame.
+//! Owner playtest (2026-07-22): objectives were showing in the same frame as
+//! the conversation that introduces them, and completing an objective was
+//! immediately followed by the next one - no breathing room. The fix is a
+//! scenario-clock deadline sitting between a conversation (or an objective
+//! completing) and the objective that follows it: the objective posts a beat
+//! LATER, never the same frame.
 //!
 //! Mechanism:
 //! - [`mark_clock`] stamps `scenario_elapsed + delay` into a variable at the
@@ -30,19 +30,19 @@ use super::shakedown::{eq_num, gt_num, num, set, var};
 
 // The beat gap - how long an objective waits after the conversation line that
 // introduces it - is a FEEL call, and the right value depends on the line's
-// RELATIONSHIP to the objective (out-of-context pacing review, task
-// 20260722-163718). A single global gap (the old BEAT_GAP) conflated two:
-// a coaching line the objective echoes wants the objective mid-read, while a
-// threat/situation reveal wants the line to fully land first. So there are
-// three named categories below, all derived from the comms panel's own
-// constants so they cannot drift from the dwell. THESE ARE TUNABLE: they are
-// authored timings, not physics - nudge them after playtest.
+// RELATIONSHIP to the objective (out-of-context pacing review). A single global
+// gap (the old BEAT_GAP) conflated two: a coaching line the objective echoes
+// wants the objective mid-read, while a threat/situation reveal wants the line
+// to fully land first. So there are three named categories below, all derived
+// from the comms panel's own constants so they cannot drift from the dwell.
+// THESE ARE TUNABLE: they are authored timings, not physics - nudge them after
+// playtest.
 
 /// Reveal gap: the line fully lands and fades, THEN the objective posts. For a
 /// threat or situation reveal the player should absorb before acting (the
 /// scavenger telegraph, the corvette ambush, the flagship cast-off). This is
 /// the previous uniform gap ([`COMMS_DWELL_SECS`] + [`COMMS_FADE_OUT_SECS`],
-/// 8.4s, task 20260722-142341).
+/// 8.4s).
 pub(crate) const REVEAL_GAP: f64 = (COMMS_DWELL_SECS + COMMS_FADE_OUT_SECS) as f64;
 
 /// Instruction gap: the objective posts MID-READ, while the coaching line is
@@ -67,7 +67,7 @@ pub(crate) const MID_GAP: f64 = ((COMMS_DWELL_SECS + COMMS_MIN_SECS) / 2.0) as f
 /// deadline is exactly what the relative one would be. Every gate the scenario
 /// uses must ALSO be seeded at OnStart (this seeds the opening gate; seed the
 /// rest with `set(gate, num(0.0))`), so a `gated_once` filter never reads an
-/// undefined gate before its transition stamps it (bug 20260722-114541).
+/// undefined gate before its transition stamps it.
 pub(crate) fn open_gate(key: &str, delay: f64) -> EventActionConfig {
     set(key, num(delay))
 }

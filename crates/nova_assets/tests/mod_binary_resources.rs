@@ -1,6 +1,5 @@
-//! Mods ship their own binary resources (task 20260716-123544) and reference a
-//! declared dependency's resources (task 20260716-215423). Proofs on a headless
-//! asset server:
+//! Mods ship their own binary resources and reference a declared dependency's
+//! resources. Proofs on a headless asset server:
 //!
 //! 1. DOGFOOD: enabling the shipped `example` mod merges a scenario whose skybox
 //!    and asteroid texture are the mod's OWN files - its `self://` refs resolve

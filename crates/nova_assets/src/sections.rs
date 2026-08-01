@@ -1,13 +1,13 @@
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 
-// Per-section-type durability baselines (task 20260525-133004).
+// Per-section-type durability baselines.
 //
 // Section TYPE governs how much damage a section effectively takes. With the
 // single (kinetic) damage model in play today, "takes more damage" is simply
 // "has less health", so the variation lives here in the health numbers rather
 // than in a damage-interception system (a real per-damage-type resistance -
-// AP/EMP - is the next pass, task 20260708-162005, and lands nova-side).
+// AP/EMP - is the next pass, and lands nova-side).
 //
 // Thrusters are exposed propulsion and go down fast (take MORE); turrets are
 // armored weapon mounts and shrug off MORE (take LESS); the controller core and
@@ -21,21 +21,21 @@ const TURRET_BASE_HEALTH: f32 = 130.0;
 const TORPEDO_BASE_HEALTH: f32 = 100.0;
 
 // Authored per-hit Kinetic damage of the player's PDC (`better_turret`), a
-// playtest knob (task 20260712-172035). A point-defense profile: LOW per-hit,
-// HIGH rate (100 rounds/s). At 4.0 the PDC does ~400 DPS - clearly the stronger
-// gun than the scavenger light turret (3.825/hit @ 25 rps ~ 96 DPS) - while a
-// 100-HP asteroid now takes ~25 rounds (~0.25s of fire) instead of ~5, so a
-// burst visibly chips it down rather than popping it in a blink (playtest: "PDC
+// playtest knob. A point-defense profile: LOW per-hit, HIGH rate (100
+// rounds/s). At 4.0 the PDC does ~400 DPS - clearly the stronger gun than the
+// scavenger light turret (3.825/hit @ 25 rps ~ 96 DPS) - while a 100-HP
+// asteroid now takes ~25 rounds (~0.25s of fire) instead of ~5, so a burst
+// visibly chips it down rather than popping it in a blink (playtest: "PDC
 // destroys asteroids/objects with one bullet"). Was ~20.25 (the old emergent
-// per-hit); the drop also slows ship TTK ~5x, consistent with a PDC and with the
-// shakedown pirate still dying in a short burst (~0.15s on a 60-HP hull).
+// per-hit); the drop also slows ship TTK ~5x, consistent with a PDC and with
+// the shakedown pirate still dying in a short burst (~0.15s on a 60-HP hull).
 const BETTER_TURRET_BULLET_DAMAGE: f32 = 4.0;
 
 /// Build the shipped turret's kinematic joint tree: the exact chain the flat
-/// config used to author 1:1 (spike 20260717-214834). base(fixed, at
-/// (0,-0.5,0)) -> yaw(Y, meshed) -> pitch(X, meshed, -30..90 deg) ->
-/// barrel(fixed, meshed) -> muzzle(fixed, fire point). `fire_rate` is per-muzzle
-/// now; every other numeric value is preserved from the old fields.
+/// config used to author 1:1. base(fixed, at (0,-0.5,0)) -> yaw(Y, meshed) ->
+/// pitch(X, meshed, -30..90 deg) -> barrel(fixed, meshed) -> muzzle(fixed, fire
+/// point). `fire_rate` is per-muzzle now; every other numeric value is
+/// preserved from the old fields.
 pub(crate) fn turret_joint_tree(
     yaw_mesh: &AssetRef<WorldAsset>,
     pitch_mesh: &AssetRef<WorldAsset>,
@@ -112,32 +112,30 @@ pub struct SectionMeshRefs {
     pub turret_pitch: AssetRef<WorldAsset>,
     pub turret_barrel: AssetRef<WorldAsset>,
     pub torpedo_bay: AssetRef<WorldAsset>,
-    /// The turret fire sound, authored the same `self://` way as the meshes
-    /// (task 20260717-002228). Serialized into the section config's `fire_sound`
-    /// field so base turrets ship + reference their weapon sound through the
-    /// scheme pipeline; `base/sounds/turret_fire.wav` resolves to the same handle
-    /// the global bank loads, so the audible result is unchanged.
+    /// The turret fire sound, authored the same `self:/` way as the meshes.
+    /// Serialized into the section config's `fire_sound` field so base turrets
+    /// ship + reference their weapon sound through the scheme pipeline;
+    /// `base/sounds/turret_fire.wav` resolves to the same handle the global
+    /// bank loads, so the audible result is unchanged.
     pub turret_fire_sound: AssetRef<AudioSource>,
-    /// The turret dry-fire click, authored like the fire sound (task
-    /// 20260717-101624).
+    /// The turret dry-fire click, authored like the fire sound.
     pub turret_dry_fire_sound: AssetRef<AudioSource>,
-    /// The torpedo bay launch sound (task 20260717-101624).
+    /// The torpedo bay launch sound.
     pub torpedo_launch_sound: AssetRef<AudioSource>,
-    /// The controller's radar/lock/safety feedback cues (task 20260717-101633).
+    /// The controller's radar/lock/safety feedback cues.
     pub controller_lock_on_sound: AssetRef<AudioSource>,
     pub controller_lock_off_sound: AssetRef<AudioSource>,
     pub controller_radar_deny_sound: AssetRef<AudioSource>,
     pub controller_radar_retarget_sound: AssetRef<AudioSource>,
     pub controller_safety_on_sound: AssetRef<AudioSource>,
-    /// The controller's RCS fine-adjust loop (task 20260718-201532): plays while
-    /// the RCS primitive burns, player- or autopilot-driven.
+    /// The controller's RCS fine-adjust loop: plays while the RCS primitive
+    /// burns, player- or autopilot-driven.
     pub controller_rcs_loop_sound: AssetRef<AudioSource>,
-    /// Per-target hit/destruction voices, shared by every catalog section
-    /// (task 20260717-101641); asteroids author the same two in scenario
-    /// content.
+    /// Per-target hit/destruction voices, shared by every catalog section;
+    /// asteroids author the same two in scenario content.
     pub section_impact_sound: AssetRef<AudioSource>,
     pub section_destroy_sound: AssetRef<AudioSource>,
-    /// The thruster engine hum (task 20260717-101650).
+    /// The thruster engine hum.
     pub thruster_loop_sound: AssetRef<AudioSource>,
 }
 
@@ -197,8 +195,8 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 name: "Basic Thruster Section".to_string(),
                 description: "A basic thruster section for spaceships.".to_string(),
                 mass: 1.0,
-                // Exposed propulsion: fragile, takes more damage per hit than an
-                // armored mount (task 20260525-133004).
+                // Exposed propulsion: fragile, takes more damage per hit than
+                // an armored mount.
                 health: THRUSTER_BASE_HEALTH,
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
@@ -219,7 +217,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 name: "Basic Controller Section".to_string(),
                 description: "A basic controller section for spaceships.".to_string(),
                 mass: 1.0,
-                // Command core: mid durability baseline (task 20260525-133004).
+                // Command core: mid durability baseline.
                 health: CONTROLLER_BASE_HEALTH,
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
@@ -229,14 +227,13 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
             kind: SectionKind::Controller(ControllerSectionConfig {
                 frequency: 4.0,
                 damping_ratio: 4.0,
-                // Torque budget (task 20260709-095043): 40.0 keeps the
-                // asteroid_field flagship (max principal inertia ~10.8) at
-                // its familiar ~88 deg/s command rate while a hull+thruster
-                // remnant hits the 240 deg/s ceiling - weight becomes legible
-                // without regressing the baseline feel. 100.0 saturated
-                // nothing (every build turned identically at the old fixed
-                // slew). Flip-time optima per ship are tabled in
-                // docs/2026-07-09-flight-feel-retune.md; playtest owns the
+                // Torque budget: 40.0 keeps the asteroid_field flagship (max
+                // principal inertia ~10.8) at its familiar ~88 deg/s command
+                // rate while a hull+thruster remnant hits the 240 deg/s ceiling
+                // - weight becomes legible without regressing the baseline
+                // feel. 100.0 saturated nothing (every build turned identically
+                // at the old fixed slew). Flip-time optima per ship are tabled
+                // in docs/2026-07-09-flight-feel-retune.md; playtest owns the
                 // final number.
                 max_torque: 40.0,
                 // Full flight-verb loadout by default (no WithheldVerbs on the
@@ -260,8 +257,8 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 name: "Better Turret Section".to_string(),
                 description: "A better turret section for spaceships.".to_string(),
                 mass: 1.0,
-                // Armored weapon mount: tough, takes less damage per hit than an
-                // exposed section (task 20260525-133004).
+                // Armored weapon mount: tough, takes less damage per hit than
+                // an exposed section.
                 health: TURRET_BASE_HEALTH,
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
@@ -270,7 +267,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
             },
             kind: SectionKind::Turret(TurretSectionConfig {
                 // base(fixed) -> yaw(Y) -> pitch(X) -> barrel(fixed) -> muzzle,
-                // migrated 1:1 from the old flat fields (spike 20260717-214834).
+                // migrated 1:1 from the old flat fields.
                 root: turret_joint_tree(
                     &meshes.turret_yaw,
                     &meshes.turret_pitch,
@@ -279,13 +276,12 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 ),
                 muzzle_speed: 100.0,
                 projectile_lifetime: 5.0,
-                // Point-defense per-hit (task 20260712-172035): low damage, high
-                // rate. See BETTER_TURRET_BULLET_DAMAGE. (Was the old emergent
-                // per-hit representative_kinetic_damage(0.1, 100.0) ~= 20.25,
-                // which vaporised asteroids in a blink.)
+                // Point-defense per-hit: low damage, high rate. See
+                // BETTER_TURRET_BULLET_DAMAGE. (Was the old emergent per-hit
+                // representative_kinetic_damage(0.1, 100.0) ~= 20.25, which
+                // vaporised asteroids in a blink.)
                 bullet_damage: BETTER_TURRET_BULLET_DAMAGE,
-                // Kinetic loadout (the slot's authored default; task
-                // 20260712-133349).
+                // Kinetic loadout (the slot's authored default).
                 bullet_kind: DamageType::Kinetic,
                 projectile_render_mesh: None,
                 fire_sound: Some(meshes.turret_fire_sound.clone()),
@@ -295,8 +291,8 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 // normal engagement. Playtest knob.
                 ammo_capacity: Some(500),
                 // Discrete auto-reload: dump the magazine, then a ~3s cycle
-                // refills it to full. Running dry is a brief cadence beat, never
-                // a death, so finite ammo is safe to turn on (task 20260717-085640).
+                // refills it to full. Running dry is a brief cadence beat,
+                // never a death, so finite ammo is safe to turn on.
                 reload: Some(SectionReloadConfig {
                     reload_time: 3.0,
                     rounds_per_cycle: 500,
@@ -310,9 +306,8 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 name: "Light Hull Section".to_string(),
                 description: "A thin-walled hull section; scavenger grade.".to_string(),
                 mass: 1.0,
-                // A third of reinforced: the shakedown pirate should die in
-                // a short burst, not a slugging match (task 20260711-180506,
-                // "gentle" is data).
+                // A third of reinforced: the shakedown pirate should die in a
+                // short burst, not a slugging match ("gentle" is data).
                 health: 60.0,
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
@@ -331,9 +326,9 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 description: "A low-caliber turret; scavenger grade.".to_string(),
                 mass: 1.0,
                 // Deliberately BELOW the turret baseline: scavenger grade, and
-                // the shakedown pirate should die in a short burst (task
-                // 20260711-180506). A per-section variant departing from its
-                // type baseline on purpose - not the armored better_turret.
+                // the shakedown pirate should die in a short burst. A
+                // per-section variant departing from its type baseline on
+                // purpose - not the armored better_turret.
                 health: 60.0,
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
@@ -352,15 +347,15 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                     25.0,
                 ),
                 // Scavenger grade: slower rounds. Since the typed-damage pass
-                // (task 20260712-133343) the per-hit damage is authored below
-                // (bullet_damage) rather than emergent from mass x velocity.
+                // the per-hit damage is authored below (bullet_damage) rather
+                // than emergent from mass x velocity.
                 muzzle_speed: 60.0,
                 projectile_lifetime: 5.0,
                 // Authored Kinetic damage reproducing the old emergent per-hit
                 // (mass 0.05 @ 60 u/s) - roughly a fifth of the better turret's,
                 // matching the previous gentleness.
                 bullet_damage: representative_kinetic_damage(0.05, 60.0),
-                // Kinetic loadout (task 20260712-133349).
+                // Kinetic loadout.
                 bullet_kind: DamageType::Kinetic,
                 projectile_render_mesh: None,
                 fire_sound: Some(meshes.turret_fire_sound.clone()),
@@ -382,7 +377,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 name: "Torpedo Bay Section".to_string(),
                 description: "A torpedo bay section for spaceships.".to_string(),
                 mass: 1.0,
-                // Torpedo bay: mid durability baseline (task 20260525-133004).
+                // Torpedo bay: mid durability baseline.
                 health: TORPEDO_BASE_HEALTH,
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
@@ -416,7 +411,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 ammo_capacity: Some(6),
                 // Continuous rearm: the bay regrows one torpedo every ~4s up to
                 // capacity, so a spent bay slowly comes back rather than
-                // dumping-and-refilling all at once (task 20260717-085640).
+                // dumping-and-refilling all at once.
                 reload: Some(SectionReloadConfig {
                     reload_time: 4.0,
                     rounds_per_cycle: 1,
@@ -437,10 +432,10 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
 mod tests {
     use super::*;
 
-    /// "Variable damage by section type" (task 20260525-133004) as a checked
-    /// invariant: section TYPE must drive durability, not sit at a uniform value.
-    /// If someone flattens the baselines back to one number this fails, catching
-    /// a silent regression of the feature.
+    /// "Variable damage by section type" as a checked invariant: section TYPE
+    /// must drive durability, not sit at a uniform value. If someone flattens
+    /// the baselines back to one number this fails, catching a silent
+    /// regression of the feature.
     #[test]
     fn section_type_durability_ordering_holds() {
         // Thrusters take MORE damage than the baseline (fragile); turrets take
@@ -465,12 +460,12 @@ mod tests {
         assert_eq!(CONTROLLER_BASE_HEALTH, TORPEDO_BASE_HEALTH);
     }
 
-    /// Anti-regression guard for the PDC one-shot fix (task 20260712-172035): the
-    /// player PDC's per-hit must stay low enough that a 100-HP asteroid takes a
-    /// sustained burst, not a blink. At the old ~20.25 a 100-HP rock died in ~5
-    /// rounds (~50 ms); the ceiling here keeps it at >= ~13 rounds. This fails if
-    /// the PDC damage creeps back toward the old value; it is a loose guard, not a
-    /// precise balance number (raise it consciously if playtest wants punchier).
+    /// Anti-regression guard for the PDC one-shot fix: the player PDC's per-hit
+    /// must stay low enough that a 100-HP asteroid takes a sustained burst, not
+    /// a blink. At the old ~20.25 a 100-HP rock died in ~5 rounds (~50 ms); the
+    /// ceiling here keeps it at >= ~13 rounds. This fails if the PDC damage
+    /// creeps back toward the old value; it is a loose guard, not a precise
+    /// balance number (raise it consciously if playtest wants punchier).
     #[test]
     fn pdc_per_hit_stays_below_the_one_shot_ceiling() {
         // A representative environment object (field asteroid) is 100 HP.

@@ -4,8 +4,8 @@
 //! planetoid with a real gravity well and AI ships flying thruster/RCS orbits
 //! around it. Extracted from the scenario catalog into their own module (like
 //! the campaign scenarios `broadside`/`shakedown`) so the menu backdrops live
-//! together (task 20260718-210000). Registered in `nova_assets/src/lib.rs`; the
-//! shared scatter seed stays in the parent module.
+//! together. Registered in `nova_assets/src/lib.rs`; the shared scatter seed
+//! stays in the parent module.
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
@@ -13,11 +13,10 @@ use nova_scenario::prelude::*;
 
 use super::{craft, SCATTER_SEED};
 
-/// The main menu's living backdrop (task 20260711-180455): a big planetoid
-/// with a real gravity well, a scatter of rocks, and one AI ship flying a
-/// thruster-driven orbit around the planetoid (orbit directive, task
-/// 20260711-212504). No
-/// player, no objectives, no areas - the scene exists to be looked at.
+/// The main menu's living backdrop: a big planetoid with a real gravity well, a
+/// scatter of rocks, and one AI ship flying a thruster-driven orbit around the
+/// planetoid (orbit directive). No player, no objectives, no areas - the scene
+/// exists to be looked at.
 pub(crate) fn menu_ambience(
     cubemap: AssetRef<Image>,
     asteroid_texture: AssetRef<Image>,
@@ -94,14 +93,13 @@ pub(crate) fn menu_ambience(
     });
 
     // The actor: an AI ship directed to orbit the planetoid on its own
-    // thrusters (task 20260711-212504) - the ORBIT autopilot plans its ring
-    // from the well's runtime geometry, so no staging math lives here or in
-    // nova_menu. It spawns comfortably outside the planetoid's geometric
-    // surface (the noise mesh reaches several times past the nominal 20u)
-    // and inside its SOI, and flies itself in from there. WARNING: the
-    // spaceship input/section sets ARE live in MainMenu - this scenario is
-    // a loaded scenario like any other (scenario_is_live gating,
-    // nova_scenario) - so keep ambience ships off
+    // thrusters - the ORBIT autopilot plans its ring from the well's runtime
+    // geometry, so no staging math lives here or in nova_menu. It spawns
+    // comfortably outside the planetoid's geometric surface (the noise mesh
+    // reaches several times past the nominal 20u) and inside its SOI, and flies
+    // itself in from there. WARNING: the spaceship input/section sets ARE live
+    // in MainMenu - this scenario is a loaded scenario like any other
+    // (scenario_is_live gating, nova_scenario) - so keep ambience ships off
     // SpaceshipController::Player.
     objects.push(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -237,13 +235,12 @@ fn backdrop_beacon(id: &str, label: &str, position: Vec3, color: Color) -> Scena
     }
 }
 
-/// Menu backdrop two (task 20260716-180352): a freight waystation going
-/// about its day. Two named haulers circle the planetoid in convoy
-/// (opposite phases on the same autopilot ring, so they chase and never
-/// meet), dock beacons glow below the lane, and a flat band of cargo rocks
-/// reads as the shipping lane. Same safety envelope as menu_ambience:
-/// everything static sits past the geometric radius and below the orbit
-/// plane.
+/// Menu backdrop two: a freight waystation going about its day. Two named
+/// haulers circle the planetoid in convoy (opposite phases on the same
+/// autopilot ring, so they chase and never meet), dock beacons glow below the
+/// lane, and a flat band of cargo rocks reads as the shipping lane. Same safety
+/// envelope as menu_ambience: everything static sits past the geometric radius
+/// and below the orbit plane.
 pub(crate) fn menu_waystation(
     cubemap: AssetRef<Image>,
     asteroid_texture: AssetRef<Image>,
@@ -339,11 +336,10 @@ pub(crate) fn menu_waystation(
     }
 }
 
-/// Menu backdrop three (task 20260716-180352): a quiet salvage yard. One
-/// lazy tug circles the planetoid, salvage crates tumble in a drifting band
-/// (crates are on-rails statics with a render-child tumble - zero physics
-/// risk), two big wreck rocks anchor the yard, and a single warm beacon
-/// marks it. Cozy, not busy.
+/// Menu backdrop three: a quiet salvage yard. One lazy tug circles the
+/// planetoid, salvage crates tumble in a drifting band (crates are on-rails
+/// statics with a render-child tumble - zero physics risk), two big wreck rocks
+/// anchor the yard, and a single warm beacon marks it. Cozy, not busy.
 pub(crate) fn menu_scrapyard(
     cubemap: AssetRef<Image>,
     asteroid_texture: AssetRef<Image>,
@@ -456,11 +452,11 @@ pub(crate) fn menu_scrapyard(
 mod tests {
     use super::*;
 
-    /// The menu backdrop's contract (task 20260711-212504): the orbiter is
-    /// an AI ship directed to orbit the planetoid on its own thrusters -
-    /// controller + thruster sections aboard, directive pointing at an
-    /// object that actually exists in the same scenario and carries an
-    /// authored surface gravity (so it gets a well at spawn).
+    /// The menu backdrop's contract: the orbiter is an AI ship directed to
+    /// orbit the planetoid on its own thrusters - controller + thruster
+    /// sections aboard, directive pointing at an object that actually exists in
+    /// the same scenario and carries an authored surface gravity (so it gets a
+    /// well at spawn).
     #[test]
     fn menu_orbiter_is_an_ai_ship_directed_at_the_planetoid() {
         let scenario = menu_ambience(AssetRef::default(), AssetRef::default());

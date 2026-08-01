@@ -1,5 +1,5 @@
 //! Production-faithful behavior rig for The Ledger chapter 5, THE RAID - the
-//! reward finale (task 20260723-182855). Loads the ACTUAL shipped
+//! reward finale. Loads the ACTUAL shipped
 //! `webmods/the-ledger/ledger_ch5_the_raid.content.ron`, registers its real
 //! handlers the way the loader does, and drives the raid with the same event
 //! infos the engine emits. The test IS the reward contract - it pins that:
@@ -325,8 +325,8 @@ fn the_player_flies_a_torpedo_gunship() {
             .input_mapping
             .get(*tube)
             .unwrap_or_else(|| panic!("torpedo bay '{tube}' is bound to a fire input"));
-        // The tubes fire on the R KEY (playtest rebind, task 20260723-200643) -
-        // round-trip each Binding back to its authorable form and look for R.
+        // The tubes fire on the R KEY (playtest rebind) - round-trip each
+        // Binding back to its authorable form and look for R.
         assert!(
             binds
                 .iter()
@@ -384,11 +384,10 @@ fn the_wing_is_friendly_and_the_defenders_are_hostile() {
 
 // --- the base holds station: THRUSTERLESS, out of gravity, fewer turrets -----
 
-/// Gravity round 2 (task 20260723-223954): the RCS + leash approach could not
-/// hold the base, so it is now THRUSTERLESS - with no propulsion it physically
-/// cannot move (holds station AND cannot chase), and it is placed clear of every
-/// planetoid well (the AI cannot fly a well yet - backlog 20260723-224003). Its
-/// turret load stays at two.
+/// Gravity round 2: the RCS + leash approach could not hold the base, so it is
+/// now THRUSTERLESS - with no propulsion it physically cannot move (holds
+/// station AND cannot chase), and it is placed clear of every planetoid well
+/// (the AI cannot fly a well yet - backlog). Its turret load stays at two.
 #[test]
 fn the_base_holds_station_thrusterless() {
     let scenario = scenario_from(CH5_RON);
@@ -430,10 +429,10 @@ fn the_base_holds_station_thrusterless() {
 }
 
 /// The finale is HIDDEN from the flat picker - it is reached by winning the ch4
-/// fight, or replayed directly from the "The Ledger" campaign header (task
-/// 20260724-220842). The campaign membership + header launchability are pinned in
-/// `webmods_validation::the_ledger_campaign_lists_its_chapters_in_order`; here we
-/// just hold the finale hidden, retiring the earlier temporary-visible hack.
+/// fight, or replayed directly from the "The Ledger" campaign header. The
+/// campaign membership + header launchability are pinned in
+/// `webmods_validation::the_ledger_campaign_lists_its_chapters_in_order`; here
+/// we just hold the finale hidden, retiring the earlier temporary-visible hack.
 #[test]
 fn the_raid_is_hidden_reached_by_playing_or_the_campaign_header() {
     let scenario = scenario_from(CH5_RON);

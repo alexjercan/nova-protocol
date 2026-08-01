@@ -1,8 +1,8 @@
-//! The CI half of the content lint (task 20260716-191543): the same tree
-//! walk the `content` CLI's `lint` subcommand runs, asserted clean of
-//! Error-level issues. Warns are printed but do not fail - they are authoring
-//! smells, not broken references. See `nova_scenario::lint` for the check list
-//! and `cargo run -p nova_assets --bin content -- lint` for the author CLI.
+//! The CI half of the content lint: the same tree walk the `content` CLI's
+//! `lint` subcommand runs, asserted clean of Error-level issues. Warns are
+//! printed but do not fail - they are authoring smells, not broken references.
+//! See `nova_scenario::lint` for the check list and `cargo run -p nova_assets
+//! --bin content -- lint` for the author CLI.
 
 use nova_scenario::prelude::LintSeverity;
 
@@ -29,21 +29,19 @@ fn repo_content_tree_has_no_lint_errors() {
     );
 }
 
-/// `--target` mode (task 20260716-204618): an in-repo id scopes the report to
-/// exactly that bundle - zero errors, its findings and acked exceptions all
-/// attributed to it, and the-ledger's DURABLE acked signal (the auditor
-/// close-spawn finale entrance) surfaced. An EXTERNAL mod directory - the
-/// mod-developer case - sees the base section catalog (a base prototype
-/// passes) while a bad prototype still flags.
+/// `--target` mode: an in-repo id scopes the report to exactly that bundle -
+/// zero errors, its findings and acked exceptions all attributed to it, and
+/// the-ledger's DURABLE acked signal (the auditor close-spawn finale entrance)
+/// surfaced. An EXTERNAL mod directory - the mod-developer case - sees the base
+/// section catalog (a base prototype passes) while a bad prototype still flags.
 ///
 /// The in-repo half pins the ACKED auditor exception rather than an incidental
-/// warn on purpose (task 20260723-103523): the old assertion tracked a
-/// "mutually exclusive" cross-handler duplicate-spawn warn that ch4's diverging
-/// endings removed (the Auditor now spawns from one branch only, task
-/// 20260722-214110). A frozen-warn assertion should not track that kind of
-/// content churn; the acked finale entrance is a deliberate, playtested design
-/// decision recorded in `balance_acks.ron`, so it is the stable the-ledger
-/// signal to assert on.
+/// warn on purpose: the old assertion tracked a "mutually exclusive"
+/// cross-handler duplicate-spawn warn that ch4's diverging endings removed (the
+/// Auditor now spawns from one branch only). A frozen-warn assertion should not
+/// track that kind of content churn; the acked finale entrance is a deliberate,
+/// playtested design decision recorded in `balance_acks.ron`, so it is the
+/// stable the-ledger signal to assert on.
 #[test]
 fn target_mode_lints_one_mod_in_repo_or_external() {
     // In-repo by id: target mode scopes to exactly that bundle, error-free,

@@ -1,5 +1,4 @@
-//! Lifeline - chapter three, part one: the convoy defense (task
-//! 20260721-160957, spike tasks/20260721-155249/SPIKE.md).
+//! Lifeline - chapter three, part one: the convoy defense (spike).
 //!
 //! The Rust Tally was the gang's muscle, not its head. Breaking it provokes
 //! the Tallyman: his raiders hit the belt's supply convoy in revenge, and
@@ -8,15 +7,15 @@
 //! composition is light waves, and the pressure is a clock - a relief
 //! countdown on the HUD (the HudReadout surface's first campaign use).
 //!
-//! The convoy is the ch3-mechanisms discovery in shipped form (task
-//! 20260721-160906): LOITERING haulers - unarmed AI ships (hull cubes, two
-//! thrusters, a controller, NO weapon) flying a slow patrol loop through the
-//! belt, tagged `AINonCombatant` at spawn so they never chase or shoot (task
-//! 20260722-092432). Their `allegiance: Some(Player)` keeps enemy AI targeting
-//! them over the relation model, so raiders spawning nearer to the convoy than
-//! to the player draw fire onto it (nearest-hostile rule, pinned by
-//! `ally_relation_tests`), which is the whole mission - the player screens a
-//! convoy that flies around and holds the belt instead of drifting off.
+//! The convoy is the ch3-mechanisms discovery in shipped form: LOITERING
+//! haulers - unarmed AI ships (hull cubes, two thrusters, a controller, NO
+//! weapon) flying a slow patrol loop through the belt, tagged `AINonCombatant`
+//! at spawn so they never chase or shoot. Their `allegiance: Some(Player)`
+//! keeps enemy AI targeting them over the relation model, so raiders spawning
+//! nearer to the convoy than to the player draw fire onto it (nearest-hostile
+//! rule, pinned by `ally_relation_tests`), which is the whole mission - the
+//! player screens a convoy that flies around and holds the belt instead of
+//! drifting off.
 //!
 //! Waves stage on the scenario clock AND the previous wave's kill flags, so
 //! a slow player is never buried under stacked waves (the schedule
@@ -28,8 +27,7 @@
 //! every friendly anchor), and an `engage_delay` grace.
 //!
 //! Victory chains (lingering) into the finale: the relief wing traced the
-//! raiders' burn to the claim, and `final_tally` (task 20260721-161020)
-//! waits behind Continue.
+//! raiders' burn to the claim, and `final_tally` waits behind Continue.
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
@@ -82,9 +80,9 @@ const VAR_R3B_DOWN: &str = "r3b_down";
 const VAR_HELLO_SAID: &str = "hello_said";
 const VAR_W1_CLEAR_SAID: &str = "w1_clear_said";
 const VAR_W2_CLEAR_SAID: &str = "w2_clear_said";
-/// Pacing (task 20260722-092421): the screen-the-convoy objective posts a beat
-/// AFTER the dispatch line, not the same frame. The gate holds the `mark_clock`
-/// deadline; the flag latches the one-shot post.
+/// Pacing: the screen-the-convoy objective posts a beat AFTER the dispatch
+/// line, not the same frame. The gate holds the `mark_clock` deadline; the flag
+/// latches the one-shot post.
 const VAR_SCREEN_GATE: &str = "screen_gate";
 const VAR_SCREEN_POSTED: &str = "screen_posted";
 /// The HUD countdown: `RELIEF_SECS - scenario_elapsed`, recomputed every
@@ -108,11 +106,11 @@ const HELLO_AT: f64 = 9.0;
 /// Player spawn, looking down the lane toward the stalled convoy.
 const PLAYER_SPAWN: Vec3 = Vec3::new(0.0, 0.0, 40.0);
 /// The convoy's holding stations, mid-lane at the transfer stop. The haulers
-/// LOITER around these (task 20260722-092432): unarmed non-combatant AI ships
-/// flying a slow loop through the belt so they read as alive and hold their
-/// ground under fire instead of drifting off when a raider shoves them. They
-/// never shoot or chase (unarmed => AINonCombatant), but stay Player-aligned so
-/// the raiders still hunt them and the player must screen them.
+/// LOITER around these: unarmed non-combatant AI ships flying a slow loop
+/// through the belt so they read as alive and hold their ground under fire
+/// instead of drifting off when a raider shoves them. They never shoot or chase
+/// (unarmed => AINonCombatant), but stay Player-aligned so the raiders still
+/// hunt them and the player must screen them.
 const QUEEN_POS: Vec3 = Vec3::new(0.0, 5.0, -420.0);
 const MERIDIAN_POS: Vec3 = Vec3::new(70.0, -12.0, -520.0);
 /// Loiter loops: legs > the ~75u patrol arrival radius (arrival_standoff 50 +
@@ -194,9 +192,9 @@ fn player_ship() -> ScenarioObjectConfig {
 /// A loitering convoy hauler: the cargoa hull (unarmed - hull cubes, two rear
 /// thrusters, a controller), an AI driver flying `patrol` so it slow-loops the
 /// belt and holds its ground under fire instead of drifting off, PLAYER
-/// allegiance so raider AI genuinely hunts it. Unarmed, so nova_scenario tags it
-/// `AINonCombatant` at spawn: it never targets, chases, or shoots - it just
-/// flies its loop and gets defended (task 20260722-092432).
+/// allegiance so raider AI genuinely hunts it. Unarmed, so nova_scenario tags
+/// it `AINonCombatant` at spawn: it never targets, chases, or shoots - it just
+/// flies its loop and gets defended.
 fn convoy_hauler(
     id: &str,
     name: &str,
@@ -389,8 +387,8 @@ fn paced_line(
 }
 
 /// A Victory beat: complete the objective, set the terminal act, show the
-/// banner - and chain (lingering) into the finale: the relief wing traced
-/// the raiders' burn, and Continue follows it (task 20260721-161020).
+/// banner - and chain (lingering) into the finale: the relief wing traced the
+/// raiders' burn, and Continue follows it.
 fn victory(message: &str, extra_filters: Vec<EventFilterConfig>) -> ScenarioEventConfig {
     let mut filters = vec![eq_num(VAR_ACT, 1.0)];
     filters.extend(extra_filters);
@@ -466,15 +464,15 @@ pub(crate) fn lifeline(
     ];
     opening.extend(lane_boulders(&asteroid_texture).into_iter().map(spawn));
     opening.extend([
-        // Pacing pass (task 20260722-092421): the objective posts a beat after
-        // the dispatch line (the gated_once handler below), not the same frame.
+        // Pacing pass: the objective posts a beat after the dispatch line (the
+        // gated_once handler below), not the same frame.
         story(
             BELT_RELAY,
             "Relief wing is spooled and burning your way - four minutes \
              out. The convoy holds the lane until they arrive.",
         ),
         // Reveal beat: "the convoy holds the lane" is a situation to absorb, so
-        // the screen objective waits the full gap (pacing review 20260722-163718).
+        // the screen objective waits the full gap (pacing).
         open_gate(VAR_SCREEN_GATE, REVEAL_GAP),
         mark(ID_QUEEN, "CERES QUEEN"),
         mark(ID_MERIDIAN, "LONG MERIDIAN"),
@@ -745,12 +743,12 @@ pub(crate) fn lifeline(
             ],
         ),
         // --- Lose: the player dies on a live act; retry THIS scenario.
-        // Terminal act FIRST (review R1.1): CurrentOutcome is
-        // last-write-wins, and the bell Victory's clock gate is true every
-        // pulse - without act 3 here, a mutual-destruction trade (the
-        // player's blast killing the last raider just after the player
-        // dies) could overwrite this Defeat with a Victory over the queued
-        // retry. Act 3 closes every win gate and stops the countdown.
+        // Terminal act FIRST: CurrentOutcome is last-write-wins, and the bell
+        // Victory's clock gate is true every pulse - without act 3 here, a
+        // mutual-destruction trade (the player's blast killing the last raider
+        // just after the player dies) could overwrite this Defeat with a
+        // Victory over the queued retry. Act 3 closes every win gate and stops
+        // the countdown.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
             filters: vec![destroyed(ID_PLAYER), eq_num(VAR_ACT, 1.0)],
@@ -795,14 +793,14 @@ pub(crate) fn lifeline(
                       storyline, part one."
             .to_string(),
         cubemap,
-        // The chapter head: picker-visible with the placeholder thumbnail
-        // (real per-scenario art: task 20260715-220011), like Broadside.
+        // The chapter head: picker-visible, like Broadside.
+        // TODO(20260715-220011): placeholder thumbnail; real per-scenario art pending.
         thumbnail: Some(AssetRef::from("self://banner.png")),
         hidden: false,
         menu_backdrop: false,
         // Chapter three of the Nova Protocol campaign. Membership + order now
-        // live in the `nova_protocol` campaign mapping (task 20260724-193830),
-        // which also lists the hidden finale (`final_tally`) for replay.
+        // live in the `nova_protocol` campaign mapping, which also lists the
+        // hidden finale (`final_tally`) for replay.
         events,
     }
 }

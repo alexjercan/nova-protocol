@@ -133,3 +133,18 @@ before the epic closes.
       diff, with all four value-guarding comments found again as `NOTE:`; and
       `cargo doc -p nova_gameplay --no-deps` clean under the touched scope, so
       no intra-doc link broke when items moved between modules.
+- [ ] 20260731-170409 - skim the nova_assets split diff and agree no behavior
+      changed. Supporting evidence in that task's REVIEW.md: `lib.rs` 2683 ->
+      84, `portal.rs` 1773 -> 5 files and `scenario/shakedown.rs` 2843 -> 4,
+      largest file now 1221; and a comment-stripped line multiset over the
+      whole crate whose entire residue is `mod`/`use`/`pub use` lines, the
+      listed visibility widenings and rustfmt re-wraps, so no statement,
+      literal or signature changed. Tests were NOT run to completion locally
+      (this box's RAM, see 20260731-210651): 24/24 integration binaries and
+      95/96 lib tests passed, the one failure reproduced on master before any
+      edit and filed as 20260801-122138.
+- [ ] 20260731-170409 - two MINOR review findings were left unfixed rather than
+      re-opening the branch: a dead `#[allow(missing_docs)]` at
+      `portal/mod.rs:107` and `fn entry(...)` duplicated into
+      `portal/catalog.rs` and `portal/install.rs`. Confirm they should fold
+      into the epic's next crate pass, or ask for them now.

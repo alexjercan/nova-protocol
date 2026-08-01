@@ -1,5 +1,5 @@
 //! Production-faithful behavior + layout rig for Gauntlet Run 2.0, the portal
-//! parkour mod (task 20260716-124722). Loads the ACTUAL shipped
+//! parkour mod. Loads the ACTUAL shipped
 //! `webmods/gauntlet/gauntlet.content.ron`, registers its real OnEnter /
 //! OnDestroyed handlers the way the loader does, and drives the race by firing
 //! the same event infos the engine emits. What this file owns is the SCENARIO
@@ -8,13 +8,13 @@
 //! nova_scenario's own tests.
 //!
 //! Unlike base story content, MOD content is deliberately kept out of the deep
-//! core-CI behavior suite (task 20260716-155830) - but the gauntlet is the
-//! portal's flagship worked example, and its two geometric invariants (gate
-//! areas must not overlap; the racing line must stay flyable past the 6x
-//! asteroid geometric factor) are exactly the kind of thing that silently rots
-//! and soft-locks a player. So it gets a rig. (It lives in nova_assets, which
-//! already unifies the serde feature across the workspace, so it compiles and
-//! runs standalone - `cargo test -p nova_assets --test gauntlet_course`.)
+//! core-CI behavior suite - but the gauntlet is the portal's flagship worked
+//! example, and its two geometric invariants (gate areas must not overlap; the
+//! racing line must stay flyable past the 6x asteroid geometric factor) are
+//! exactly the kind of thing that silently rots and soft-locks a player. So it
+//! gets a rig. (It lives in nova_assets, which already unifies the serde
+//! feature across the workspace, so it compiles and runs standalone - `cargo
+//! test -p nova_assets --test gauntlet_course`.)
 
 use bevy::{
     asset::{AssetApp, AssetPlugin},

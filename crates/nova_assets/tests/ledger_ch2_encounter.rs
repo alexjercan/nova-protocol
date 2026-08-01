@@ -1,12 +1,11 @@
 //! Production-faithful behavior + layout rig for The Ledger chapter 2's
-//! two-part encounter (task 20260717-112630, spike
-//! tasks/20260717-111808/SPIKE.md). Loads the ACTUAL shipped
+//! two-part encounter (spike). Loads the ACTUAL shipped
 //! `webmods/the-ledger/ledger_ch2.content.ron` and `ledger_ch2b.content.ron`,
-//! registers their real handlers the way the loader does, and drives the
-//! act machines with the same event infos the engine emits - plus computed
-//! GEOMETRY pins over the shipped spawn positions, so the fairness rework
-//! cannot silently rot back into the pre-spike shape (mook better-turrets,
-//! point-blank spawns, bracketing crossfire, no cover):
+//! registers their real handlers the way the loader does, and drives the act
+//! machines with the same event infos the engine emits - plus computed GEOMETRY
+//! pins over the shipped spawn positions, so the fairness rework cannot
+//! silently rot back into the pre-spike shape (mook better-turrets, point-blank
+//! spawns, bracketing crossfire, no cover):
 //!
 //! 1. spawn RANGE: wave one >= 500u out, the heavies >= 800u out - the
 //!    approach IS the breathing room;
@@ -234,12 +233,11 @@ fn neutralize(app: &mut App, id: &str) {
 
 /// Pump the scenario clock past a deadline and tick, so a deferred
 /// (clock-gated) handler actually fires. The pacing rework defers each
-/// chapter's Victory overlay by a beat (`win_gate = scenario_elapsed +
-/// delay`, then a one-shot `OnUpdate` gated `scenario_elapsed > win_gate`),
-/// so a walk that never advances the clock would silently never see the
-/// outcome (the time-gated-content-needs-a-clock-pump lesson, task
-/// 20260721-211506). The rig sets no time, so `scenario_elapsed` reads 0
-/// until we stamp it here.
+/// chapter's Victory overlay by a beat (`win_gate = scenario_elapsed + delay`,
+/// then a one-shot `OnUpdate` gated `scenario_elapsed > win_gate`), so a walk
+/// that never advances the clock would silently never see the outcome (the
+/// time-gated-content-needs-a-clock-pump lesson). The rig sets no time, so
+/// `scenario_elapsed` reads 0 until we stamp it here.
 fn pump_clock(app: &mut App, to_secs: f64) {
     seed_var(app, "scenario_elapsed", to_secs);
     app.update();
@@ -335,7 +333,7 @@ fn wave_one_spawns_far_light_and_on_one_bearing() {
 
 /// The leash sphere (centered on the patrol centroid, spaceship.rs:330) must
 /// cover the player spawn, or the ship yo-yos on the re-engage hysteresis at
-/// the arena's edge instead of fighting in it (review R1.1).
+/// the arena's edge instead of fighting in it.
 fn assert_leash_covers_spawn(id: &str, ai: &AIControllerConfig, player: Vec3) {
     let centroid = ai.patrol.iter().sum::<Vec3>() / ai.patrol.len() as f32;
     let reach = ai.leash.expect("caller asserted a leash");

@@ -1,10 +1,10 @@
-//! Pins the two-loading-state chain that the boot loading screen depends on
-//! (task 20260729-000956). `nova_assets` registers TWO `bevy_asset_loader`
-//! loading states on the SINGLE `GameAssetsStates` enum: `Boot` loads the boot
-//! collection then continues to `Loading`, which loads the main collection then
-//! continues to `Processing`. This walk works only because bevy_asset_loader
-//! keys its internal schedules per state VALUE, so two loading states on one
-//! enum chain rather than clobbering each other.
+//! Pins the two-loading-state chain that the boot loading screen depends on.
+//! `nova_assets` registers TWO `bevy_asset_loader` loading states on the SINGLE
+//! `GameAssetsStates` enum: `Boot` loads the boot collection then continues to
+//! `Loading`, which loads the main collection then continues to `Processing`.
+//! This walk works only because bevy_asset_loader keys its internal schedules
+//! per state VALUE, so two loading states on one enum chain rather than
+//! clobbering each other.
 //!
 //! This test drives that exact registration shape on the real `GameAssetsStates`
 //! enum with real async image loads (one small PNG per collection, from the
