@@ -1,10 +1,10 @@
 # Fix shakedown an_early_derelict_kill_skips_to_the_fight failing on master
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, bug, gameplay
 - KIND: TASK
-- FLOW STEP: COMPOUNDING
+- FLOW STEP: DONE
 - PLAN STATUS: APPROVED
 
 ## Context
