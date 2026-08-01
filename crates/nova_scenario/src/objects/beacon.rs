@@ -84,7 +84,7 @@ pub fn beacon_scenario_object(config: BeaconConfig) -> impl Bundle {
         // A nav point holds its position: on rails like a well source,
         // overriding the base scenario bundle's Dynamic. Lockability is
         // preserved by the authored LockSignature (the targeting gate
-        // admits Static bodies with one; input/targeting.rs).
+        // admits Static bodies with one; input/targeting/contacts.rs).
         RigidBody::Static,
         LockSignature(config.lock_signature.unwrap_or(BEACON_LOCK_SIGNATURE)),
     )

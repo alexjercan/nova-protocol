@@ -5,7 +5,7 @@
 //! scope-style) instead of squinting at sub-pixel markers at range.
 //!
 //! Three pieces, all thin consumers of the existing targeting state
-//! (input/targeting.rs) - this module adds no new targeting mechanics:
+//! (input/targeting/) - this module adds no new targeting mechanics:
 //!
 //! - A second `Camera3d` that renders the live scene into an `Image` via the
 //!   standalone [`RenderTarget`] component (the Bevy 0.19 RTT path, distinct

@@ -1736,7 +1736,7 @@ mod tests {
     /// audio device needed (the sink-apply half is split off for exactly
     /// this). Mirrors the production shape verified in the task's plan pass:
     /// thruster sections are `ChildOf` children of a `SpaceshipRootMarker`
-    /// root (input/player.rs:186), torpedo thrusters are children of the
+    /// root (input/player/mod.rs), torpedo thrusters are children of the
     /// projectile root with their own `GlobalTransform`
     /// (torpedo_section/projectile.rs).
     fn hum_app() -> App {

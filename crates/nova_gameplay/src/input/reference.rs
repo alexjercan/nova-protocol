@@ -1,13 +1,13 @@
-//! A read-only keybind reference for the settings menu (task 20260711-180511).
+//! A read-only keybind reference for the settings menu.
 //!
 //! The settings panel renders in the main menu, where no input rig is spawned
-//! (the flight/camera rigs only exist during a live scenario), so the reference
-//! cannot be read live off the `Bindings` the way the in-flight verb hints are
-//! ([`super::player::binding_label`]). It is therefore authored as static data
-//! here, next to the rigs it describes, and a parity test pins the flight rig's
-//! keyboard bindings so a future remap of the rig cannot silently desync this
-//! list. Full remapping + key icons stay backlog (task 20260710-231927); this
-//! is the read-only surface only.
+//! (the flight/camera rigs only exist during a live scenario), so the
+//! reference cannot be read live off the `Bindings` the way the in-flight
+//! verb hints are ([`super::player::binding_label`]). It is therefore
+//! authored as static data here, next to the rigs it describes, and a parity
+//! test pins the flight rig's keyboard bindings so a future remap of the rig
+//! cannot silently desync this list. This is the read-only surface only;
+//! full remapping + key icons stay backlog (TODO: 20260710-231927).
 //!
 //! The camera-rig rows (aim / free-look / raise), comms controls, and the
 //! system rows (pause, HUD level) are static prose: they live outside the
@@ -34,7 +34,7 @@ pub struct KeybindEntry {
 /// targeting actions, the camera controller rig, comms panel keys, and the
 /// pause toggle.
 pub const KEYBINDS: &[KeybindEntry] = &[
-    // FLIGHT - the flight rig in input/player.rs.
+    // FLIGHT - the flight rig in input/player/flight_rig.rs.
     KeybindEntry {
         section: "FLIGHT",
         action: "Aim",

@@ -31,7 +31,7 @@
 //! exactly as rotation authority already dies with it. Thruster inputs are
 //! spooled (exponential ramp) so engines light up and cut instead of
 //! snapping. Tunables live on the reflected [`FlightSettings`]; the math is
-//! pure helpers, unit-tested, shared-shaped so the AI brain (input/ai.rs,
+//! pure helpers, unit-tested, shared-shaped so the AI brain (input/ai/,
 //! today a cruder version of the same idea) can adopt it later.
 
 use avian3d::prelude::*;
@@ -1207,7 +1207,7 @@ fn autopilot_system(
     // ship would otherwise leave the autopilot with zero authority (it
     // rotated but could never burn, the 2026-07-09 playtest bug). Pressing a
     // bound thruster key is a flight input and disengages instead (see
-    // input/player.rs).
+    // input/player/intent.rs).
     mut q_thruster: Query<
         (
             Entity,
@@ -2260,7 +2260,7 @@ fn rcs_burn_system(
         }
         // Capability gate: only a ship with a live controller section that
         // grants RCS fine-adjusts, even if something wrote an intent. Mirrors
-        // `ship_grants_verb` (input/player.rs) so the verb stays authoritative
+        // `ship_grants_verb` (input/player/flight_rig.rs) so the verb stays authoritative
         // no matter who drives the primitive.
         let granted = q_controllers.iter().any(|(&ChildOf(parent), withheld)| {
             parent == ship && withheld.is_none_or(|w| w.granted(FlightVerb::Rcs))

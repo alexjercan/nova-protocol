@@ -44,11 +44,11 @@ use nova_gameplay::prelude::{Allegiance, SectionConfig, SectionKind};
 use nova_scenario::prelude::*;
 
 /// Mirrors the AI's own shot-worth-taking margin (AI_FIRE_RANGE_FACTOR in
-/// nova_gameplay/src/input/ai.rs): effective range = margin x muzzle_speed
+/// nova_gameplay/src/input/ai/guns.rs): effective range = margin x muzzle_speed
 /// x projectile_lifetime.
 pub const EFFECTIVE_RANGE_MARGIN: f32 = 0.9;
 
-/// Mirrors AI_TORPEDO_MAX_RANGE (nova_gameplay/src/input/ai.rs): the outer
+/// Mirrors AI_TORPEDO_MAX_RANGE (nova_gameplay/src/input/ai/torpedo.rs): the outer
 /// edge of the AI launch envelope, whose per-bay cooldown starts ELAPSED -
 /// a tube inside this range is a live opening threat (review R1.1).
 pub const TORPEDO_ENVELOPE: f32 = 1000.0;

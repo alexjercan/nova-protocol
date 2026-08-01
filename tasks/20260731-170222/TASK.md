@@ -105,3 +105,12 @@ before the epic closes.
       passing locally - `cargo test -p nova_menu --lib` fits in RAM), and the
       non-comment source text a pure move with 28 base-only lines, all import
       fragments or rustfmt re-wraps.
+- [ ] 20260731-170340 - skim the gameplay input-layer split diff and agree no
+      behavior changed. Supporting evidence in that task's NOTES.md: all three
+      oversized files split into folder modules (5427/3666/2727 -> 21 files,
+      largest 1076), every `Plugin::build` body multiset-identical to the base,
+      the 179 `#[test]` fns conserved exactly with 180 passing locally
+      (`cargo test -p nova_gameplay --lib input::` fits in RAM), and a
+      non-comment line multiset whose every difference is a visibility keyword
+      or a moved import. Parent paths were re-proved with a throwaway import
+      probe after review round 1 found them broken.

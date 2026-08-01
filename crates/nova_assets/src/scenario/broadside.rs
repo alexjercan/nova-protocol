@@ -28,7 +28,7 @@
 //! shot), while the seeded 24-rock scatter stays destructible chaff.
 //!
 //! Distances are authored against the measured AI constants
-//! (crates/nova_gameplay/src/input/ai.rs): engage range 800u, torpedo
+//! (crates/nova_gameplay/src/input/ai/): engage range 800u, torpedo
 //! envelope [3 x blast_radius, 1000u] with a 10s per-bay cadence and the
 //! first launch immediate, standoff orbit ~250u. The gunship spawns ~720u
 //! from the hauler fight so it engages on arrival and its tubes are open

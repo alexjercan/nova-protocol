@@ -1,6 +1,6 @@
 //! The lock-on acquisition dwell ring: a smooth radial
 //! arc that fills clockwise around the PENDING target while the radar dwell
-//! charges (mechanic in input/targeting.rs), and vanishes the
+//! charges (mechanic in input/targeting/radar.rs), and vanishes the
 //! instant the lock snaps (the `LockOn` SFX is the audible half of the same
 //! beat). nova's first [`UiMaterial`]: a trivial WGSL fragment
 //! (`assets/shaders/lock_dwell_ring.wgsl`) driven by a `progress` uniform.

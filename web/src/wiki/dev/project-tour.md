@@ -56,8 +56,8 @@ The highest-value table. Verified paths; follow the linked page for depth.
 | Damage / resistances | `crates/nova_gameplay/src/damage.rs` | [Ship sections](../sections/) |
 | Integrity (disable/destroy) | `crates/nova_gameplay/src/integrity/` | [Ship sections](../sections/) |
 | Flight / autopilot verbs | `crates/nova_gameplay/src/flight.rs` | -- |
-| Player input / AI | `crates/nova_gameplay/src/input/{player,ai}.rs` | -- |
-| Radar targeting / lock-on | `crates/nova_gameplay/src/input/targeting.rs` | -- |
+| Player input / AI | `crates/nova_gameplay/src/input/{player,ai}/` | -- |
+| Radar targeting / lock-on | `crates/nova_gameplay/src/input/targeting/` | -- |
 | Gravity wells | `crates/nova_gameplay/src/gravity.rs` | -- |
 | The HUD (widgets) | `crates/nova_gameplay/src/hud/` | -- |
 | A scenario event/filter/action | `crates/nova_scenario/src/{events,filters,actions}.rs` | [Scenario engine](../scenario-system/), [Extend the scenario engine](../guide-extend-scenarios/) |

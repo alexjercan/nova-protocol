@@ -24,7 +24,7 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   commit that TOUCHED the string, not what it did with it - open the commit's
   diff and quote what it DID before writing history into a Record (a misread
   pickaxe put a never-true chain into three surfaces). 20260721-160842.
-- `keep-docs-in-sync-with-code` (x9, enforced in AGENTS.md but STILL recurring
+- `keep-docs-in-sync-with-code` (x10, enforced in AGENTS.md but STILL recurring
   -> needs a tooling guard, not more prose): a code change is not done until
   every doc surface it invalidates (CHANGELOG, news, player + dev wiki, tutorial,
   per-mod READMEs, content-file headers, and the crate table which lives in
@@ -37,7 +37,10 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   enumerations (modding-ron, guide-make-a-mod, scenario-system). The rule guards
   the sweep's SCOPE; its QUERY is
   [[sweep-docs-for-the-feature-description-not-just-its-symbols]].
-  20260718-004723, 20260719-112231, 20260718-231555, 20260720-224236, 20260722-214119, 20260724-193830, 20260729-211200.
+  A file SPLIT is the same sweep with a different query: every
+  `path/to/file.rs` mention elsewhere in the tree rots, 14 of them here across
+  five crates and the wiki's project-tour table, all missed until review.
+  20260718-004723, 20260719-112231, 20260718-231555, 20260720-224236, 20260722-214119, 20260724-193830, 20260729-211200, 20260731-170340.
 - `sweep-docs-for-the-feature-description-not-just-its-symbols` (x2): the
   changed identifiers do not define the search space - docs describe BEHAVIOR
   (what the player sees, or which CATEGORY of thing does what) and often never
@@ -316,21 +319,25 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   '^warning'` read 2 against a true 14 and made an unchanged tree look like a
   regression; `git stash` -> touch the crate root -> rerun -> `stash pop`
   showed both sides at 14. 20260731-170329.
-- `doc-comment-rewrap-changes-the-render` (x3 -> Pending promotions): see below.
-- `re-measure-records-after-the-last-edit` (x2): a record holding measured
-  numbers (line counts, `file:line` inventories, diff totals) goes stale the
-  moment ANY later edit touches the measured files - a review-round rewrap
-  shortened three files by one line and silently falsified three table rows
-  and three marker line numbers. Re-measure after the round's LAST edit, not
-  after the edit that motivated the measurement, and keep the producing
-  command next to the number. 20260731-170335, 20260731-170359.
-- `provenance-vs-deferred-work-check-the-status` (x1): a task ID in a comment
+- `doc-comment-rewrap-changes-the-render` (x4 -> Pending promotions): see below.
+- `re-measure-records-after-the-last-edit` (x3 -> Pending promotions): see below.
+- `split-must-re-export-not-repoint` (x1): a file-to-folder module split is
+  done when the PATHS still resolve, not when the crate compiles - declaring
+  `pub mod <concern>;` without re-exporting silently moves every item one
+  level down, and repointing the few call sites that break is precisely what
+  hides it from check, clippy, fmt and the tests. If a consumer outside the
+  module needs its `use` rewritten, the split broke a public path: re-export
+  at the parent instead. `cargo doc` (unresolved intra-doc link) is the only
+  standing check that notices; a throwaway `#[cfg(test)]` module importing the
+  old paths proves the fix. 20260731-170340.
+- `provenance-vs-deferred-work-check-the-status` (x2): a task ID in a comment
   is provenance ("added by X") or a live pointer ("X will replace this"), and
-  the two are textually identical - a bulk strip demoted an OPEN task's
-  `TODO(20260710-231927)` to a bare `NOTE:` pointing at nothing. The signal is
-  the referenced task's STATUS plus whether the sentence describes work not
-  yet done, so classify the hits before stripping; a sweep cannot make that
-  call. 20260731-170335.
+  the two are textually identical - two bulk strips in a row hit the SAME
+  comment, one demoting an OPEN task's `TODO(20260710-231927)` to a bare
+  `NOTE:` and the next deleting the ID outright. The signal is the referenced
+  task's STATUS plus whether the sentence describes work not yet done, so
+  classify the hits before stripping; a sweep cannot make that call.
+  20260731-170335, 20260731-170340.
 - `warnings-clean-before-land` (x2): run a warnings-SURFACED build and read
   the warnings before landing - error-only greps ride warnings into the
   squash. 20260716-215423, 20260717-003613.
@@ -637,7 +644,7 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   `Some("x.png")`). 20260715-142849.
 - `declared-but-not-loaded` (x1): a resource named in config/markup is not
   wired; grep for where it is imported/served. 20260713-222025.
-- `generated-links-need-real-targets` (x4 -> Pending promotions): see below.
+- `generated-links-need-real-targets` (x5 -> Pending promotions): see below.
 - `enumerate-bins-via-cargo-metadata` (x1): to document or audit "every
   binary/target", enumerate with `cargo metadata --no-deps` (or find
   `src/bin/*.rs` + `src/main.rs`), never by grepping `[[bin]]` stanzas -
@@ -1551,7 +1558,7 @@ here (annotated) as the paid record.
 
 ## Pending promotions (3+ occurrences, user decides)
 
-- `doc-comment-rewrap-changes-the-render` (x3, DEFER 2026-08-01 at x3: revisit at the next occurrence) -> tooling:
+- `doc-comment-rewrap-changes-the-render` (x4, DEFER 2026-08-01 at x3: revisit at the next occurrence) -> tooling:
   re-wrapping or deleting a mid-line clause in a `//!`/`///` block changes what
   rustdoc RENDERS while check and fmt stay green - a following line starting
   `-`/`#`/`>`/`1.` becomes a block construct, a wrapped `- ` list collapses into
@@ -1559,10 +1566,26 @@ here (annotated) as the paid record.
   Three passes have now hit it, always from a SCRIPTED substitution. Proposed
   target is a tool, not prose: diff `cargo doc` output (or the rendered comment
   blocks) before and after a comment pass, run with the other checks - the
-  damage is mechanical and invisible to every check we currently run.
-  20260731-170329, 20260731-170335, 20260731-170359.
+  damage is mechanical and invisible to every check we currently run. A fourth
+  pass widened the damage class beyond rewrapping: the same scripted
+  substitution also spliced a code span (`` a `.chain()` `` -> `a.chain`),
+  duplicated a rustdoc line, and deleted a live task ID - all invisible to a
+  lint over the RESULT, all obvious in a comment-text diff against the base.
+  20260731-170329, 20260731-170335, 20260731-170359, 20260731-170340.
 
-- `generated-links-need-real-targets` (x4, DEFER 2026-08-01 at x4: delete rotted pointers by hand as each pass finds them) -> tooling:
+- `re-measure-records-after-the-last-edit` (x3): a record holding measured
+  numbers (line counts, `file:line` inventories, diff totals) goes stale the
+  moment ANY later edit touches the measured files - a review-round rewrap
+  shortened three files by one line and falsified three table rows and three
+  marker line numbers, and a round-2 fix pass falsified five rows of a table
+  round 1 had already verified. Re-measure after the round's LAST edit, not
+  after the edit that motivated the measurement, and keep the producing
+  command next to the number. Proposed target is a tool: the numbers all come
+  from one command (`wc -l`, a grep count), so a record could carry the
+  command and have it re-run rather than transcribed.
+  20260731-170335, 20260731-170359, 20260731-170340.
+
+- `generated-links-need-real-targets` (x5, DEFER 2026-08-01 at x4: delete rotted pointers by hand as each pass finds them) -> tooling:
   manifest-rendered, authored, AND source-comment doc links gate on the target
   existing - a README banner went stale on a dir move; seven `docs/spikes/*.md`
   and `DECISION.md` pointers in nova_gameplay HUD comments outlived the files,
@@ -1571,8 +1594,11 @@ here (annotated) as the paid record.
   doc resolves, run with the other checks. It is mechanical, and a rotted
   pointer is the one thing in a comment pass that is checkable rather than a
   judgment call. A fourth dead `docs/spikes/*.md` pointer surfaced in
-  nova_menu's crate doc. 20260713-225324, 20260718-152205, 20260731-170329,
-  20260731-170359.
+  nova_menu's crate doc, and three more in nova_gameplay's input layer - plus
+  the mirror case: splitting a file rots every `path/to/file.rs` mention
+  elsewhere in the tree, 14 of them across five crates and the wiki.
+  20260713-225324, 20260718-152205, 20260731-170329, 20260731-170359,
+  20260731-170340.
 
 - `rustdoc-no-public-to-private-intra-doc-link` (x3, PROMOTE 2026-07-31 -> 20260731-202401) -> work skill (verify step):
   a `pub` item's rustdoc cannot `[intra-doc-link]` a PRIVATE symbol (or a

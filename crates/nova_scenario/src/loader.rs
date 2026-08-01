@@ -676,7 +676,7 @@ fn tick_lock_slot(
 
 /// Fire [`OnTravelLockEvent`]/[`OnCombatLockEvent`] when the PLAYER's lock
 /// slots land on scenario objects. Player-scoped on purpose: the AI combat
-/// mirror (nova_gameplay input/ai.rs) writes `CombatLock` on every engaged
+/// mirror (nova_gameplay input/ai/acquisition.rs) writes `CombatLock` on every engaged
 /// AI ship, and an unscoped bridge would fire for all of them. The event's
 /// `id` is the locked TARGET's scenario id (a target without one - debris,
 /// editor previews - fires nothing; the re-fire window retries, mirroring
@@ -945,7 +945,7 @@ fn on_load_scenario(
             ScenarioInputMarker[(
                 Name::new("Input: Next Scenario"),
                 Action::<NextScenarioInput>::new(),
-                // DPadDown: moved off South, which ORBIT now uses (player.rs).
+                // DPadDown: moved off South, which ORBIT now uses (input/player/flight_rig.rs).
                 bindings![KeyCode::Enter, GamepadButton::DPadDown]
             )]
         ),
