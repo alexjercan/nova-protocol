@@ -172,7 +172,7 @@ fn assert_scenario_loaded_payload(
         loaded.scenario_id, loaded.handler_count, loaded.object_count
     );
 
-    // The smoke contract covers the FIRST load only: the app must boot
+    // NOTE: the smoke contract covers the FIRST load only - the app must boot
     // into the expected scenario with real content. LATER loads are
     // legitimate gameplay (completing an objective advances to the next
     // scenario, which may be an object-less epilogue) - an assertion that
@@ -371,7 +371,8 @@ impl Plugin for ScreenshotReelPlugin {
 /// bodies), so it costs nothing once the scene has settled.
 fn reel_freeze_bodies(mut commands: Commands, bodies: Query<(Entity, &RigidBody)>) {
     for (entity, body) in &bodies {
-        // RigidBody is an immutable component, so swap it via a command insert.
+        // NOTE: RigidBody is an immutable component, so swap it via a command
+        // insert.
         if matches!(body, RigidBody::Dynamic) {
             commands.entity(entity).insert(RigidBody::Static);
         }

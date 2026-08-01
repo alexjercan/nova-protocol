@@ -10,8 +10,8 @@
 //!
 //! The split keeps the dependency graph acyclic (`nova_gameplay -> nova_os`) and
 //! `nova_ui` free of any NOVA OS dependency. The crate depends on `bevy` on
-//! purpose (task 20260727-015156's DECISION.md, D3): the [`terminal::NovaOsTerminal`]
-//! resource, the [`app::NovaOsAppRuntime`] trait's `spawn_body`/`handle_key`, and the
+//! purpose: the [`terminal::NovaOsTerminal`] resource, the
+//! [`app::NovaOsAppRuntime`] trait's `spawn_body`/`handle_key`, and the
 //! `Handle<Font>` row styling all speak bevy types.
 #![warn(missing_docs)]
 

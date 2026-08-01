@@ -186,14 +186,14 @@ pub(crate) fn on_click_spaceship_section(
 
     match *selection {
         SectionChoice::None => {
-            // No placement tool selected = select/edit mode: clicking a bindable
-            // section arms a rebind (task 20260712-163912). `apply_section_rebind`
+            // NOTE: no placement tool selected = select/edit mode - clicking a
+            // bindable section arms a rebind, and `apply_section_rebind`
             // captures the next key or mouse-button press. Non-bindable sections
             // (hull, controller) and empty space do nothing.
             //
             // Only arm when nothing is armed yet: while a rebind is pending, the
-            // next click is the user PICKING a mouse-button binding (e.g. LMB), so
-            // it must not re-arm on whatever is under the cursor (task 20260712-191604).
+            // next click is the user PICKING a mouse-button binding (e.g. LMB),
+            // so it must not re-arm on whatever is under the cursor.
             if rebind.target.is_none() && q_bindable.get(entity).is_ok() {
                 rebind.target = Some(entity);
                 // Wait for this arming click to release before capturing.

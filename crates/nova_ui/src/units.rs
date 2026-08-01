@@ -1,9 +1,9 @@
 //! Player-facing distance/speed formatting: the single policy for turning raw
 //! world units into the metres/kilometres/metres-per-second the HUD and NOVA OS
-//! show. Spike DECISION D6 (task 20260728-175726): 1 world unit displays as
-//! 10 m; distance below 1000 m in integer metres (`840 m`), at/above in
-//! kilometres to two decimals (`1.24 km`); speed and closing speed in m/s to
-//! one decimal (`50.0 m/s`, `+200.0 m/s`).
+//! show. The policy: 1 world unit displays as 10 m; distance below 1000 m in
+//! integer metres (`840 m`), at/above in kilometres to two decimals
+//! (`1.24 km`); speed and closing speed in m/s to one decimal (`50.0 m/s`,
+//! `+200.0 m/s`).
 //!
 //! Display-only. World-space transforms, physics, content RON and AI tuning
 //! keep raw world units; only the strings a player reads pass through here.

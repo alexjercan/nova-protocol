@@ -54,8 +54,8 @@ pub const DEBUG_TOGGLE_KEYCODE: KeyCode = KeyCode::F11;
 /// Whether the debug layer (nova gizmos, the egui inspector + avian gizmos, the
 /// wireframe pass, and nova_gameplay's ammo number) starts ON. It boots OFF so a
 /// dev build is a clean, cursor-free flight and F11 raises the whole layer as
-/// one (task 20260721-221936). Shared by every `DebugEnabled` insert so they
-/// cannot drift out of phase.
+/// one. Shared by every `DebugEnabled` insert so they cannot drift out of
+/// phase.
 const DEBUG_LAYER_STARTS_ON: bool = false;
 
 /// Resource with debug toggle state.
@@ -83,13 +83,13 @@ impl Plugin for DebugPlugin {
         app.add_plugins(gravity::GravityDebugPlugin);
         app.add_plugins(screenshot::ScreenshotHotkeyPlugin);
 
-        // A dev build boots with the WHOLE debug layer off, and F11 raises it as
-        // one (task 20260721-221936). There are four F11-toggled `DebugEnabled`
+        // NOTE: a dev build boots with the WHOLE debug layer off, and F11
+        // raises it as one. There are four F11-toggled `DebugEnabled`
         // states - nova's own (gravity/sections gizmos), the egui inspector (UI +
         // avian PhysicsGizmos), the wireframe pass, and nova_gameplay's ammo
         // number - each with its OWN F11 `toggle_debug_mode`. They stay in phase
         // only if they share a default, so they all default OFF here: the
-        // inspector needs a pointer (task 20260721-211500), so a cursor-free
+        // inspector needs a pointer, so a cursor-free
         // default flight requires the inspector off, and flipping only it would
         // invert F11 (gizmos on / inspector off, then swapping on every press).
         // While the inspector panel is up `sync_inspector_cursor` hands the
@@ -134,8 +134,8 @@ fn toggle_debug_mode(mut debug: ResMut<DebugEnabled>, keyboard: Res<ButtonInput<
     }
 }
 
-/// Reconcile the flight cursor with the F11 debug inspector (task
-/// 20260721-211500). Flight now hides and locks the cursor unconditionally
+/// Reconcile the flight cursor with the F11 debug inspector. Flight hides and
+/// locks the cursor unconditionally
 /// (nova_editor's `setup_grab_cursor_scenario`, nova_menu's `restore_cursor` /
 /// `regrab_cursor_on_player_spawn`), including debug builds, so this is the
 /// debug-only counterpart that keeps the inspector usable: while the inspector
@@ -194,8 +194,8 @@ mod tests {
 
     use super::*;
 
-    /// The debug layer boots off so F11 raises it as one (task 20260721-221936):
-    /// nova's gizmos, the egui inspector + avian, the wireframe pass, and the
+    /// The debug layer boots off so F11 raises it as one: nova's gizmos, the
+    /// egui inspector + avian, the wireframe pass, and the
     /// ammo number must share a default or F11 inverts them. This pins the
     /// nova_debug side; nova_gameplay's `AmmoReadoutDebug` default is pinned in
     /// its own `f11_flips_the_ammo_debug_flag`.

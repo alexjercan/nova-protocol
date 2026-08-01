@@ -11,8 +11,8 @@
 //!
 //! The resource change drives a live restyle of every spawned widget (see
 //! [`crate::widget`]'s reconciler), so flipping the skin in Settings reskins the
-//! whole UI in place. The persistence + the Settings segmented control land in
-//! task 20260728-175738 (they add the `ui_skin` field to `settings_store`).
+//! whole UI in place. Settings persists the choice through the `ui_skin` field
+//! of its settings store.
 
 use bevy::prelude::*;
 

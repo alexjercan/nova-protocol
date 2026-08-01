@@ -8,22 +8,20 @@
 //! casing (see [`crate::skin::UiSkin`]).
 //!
 //! The flat navy/cyan `web/src/style.css` palette that this theme used to mirror
-//! has been fully retired: its last consumers (menu + editor, HUD chrome) moved
-//! onto the NOVA OS tokens in tasks 20260728-175738 and -175742, and the landing
-//! site followed in 20260731-143918. Site and game are no longer two hand-synced
-//! lists: `web/src/style.css` now mirrors the SAME PoC `:root` block this module
-//! does, and `web/tests/theme.test.ts` parses both and fails on drift. Change the
-//! PoC first, then both consumers.
+//! has been fully retired. Site and game are no longer two hand-synced lists:
+//! `web/src/style.css` now mirrors the SAME PoC `:root` block this module does,
+//! and `web/tests/theme.test.ts` parses both and fails on drift. Change the PoC
+//! first, then both consumers.
 //!
-//! The site is single-skin (20260731-154015): it draws only the PHOSPHOR look,
-//! and its test fails if any hardware-skin material token is consumed. The game
-//! keeps both skins - only here is [`crate::skin::UiSkin`] a user choice.
+//! The site is single-skin: it draws only the PHOSPHOR look, and its test fails
+//! if any hardware-skin material token is consumed. The game keeps both skins -
+//! only here is [`crate::skin::UiSkin`] a user choice.
 //!
 //! Palette + metrics only - typography routes through [`crate::font::UiFont`].
 
 use bevy::prelude::*;
 
-// ===================== NOVA OS palette (the PoC :root tokens) ================
+// NOVA OS palette (the PoC :root tokens).
 
 /// Deepest field behind everything (`--space`).
 pub const SPACE: Color = Color::srgb_u8(0x03, 0x06, 0x0b);
@@ -94,23 +92,16 @@ pub const BORDER_W: f32 = 1.0;
 /// Placeholder/thumbnail icon size (the wiki `.wiki-child__icon` is 44x44).
 pub const ICON: f32 = 44.0;
 
-// The LEGACY navy/cyan web palette (BG/PANEL/PANEL_RAISED/BORDER/BORDER_BRIGHT/
-// CYAN/CYAN_BRIGHT/AMBER/TEXT/TEXT_MUTED/SELECTED_FILL) was retired here once its
-// last consumers migrated onto the NOVA OS tokens above: the menu + editor in
-// task 20260728-175738 and the flight-HUD chrome in 20260728-175742 (this task,
-// landing second, deleted the block). See 175734's DECISION.md for the staged
-// retirement.
-
 /// Semantic HUD accents: the meaning-carrying gameplay colours (threat, ally,
 /// nav, objective, ...), centralized here so the HUD has ONE palette source.
 ///
 /// These are the game's FUNCTIONAL colours (a hostile reticle must be red, an
 /// ally green), distinct from the neutral chrome above - so they keep their own
 /// tuned hues rather than snapping to the cyan/amber brand accents. Values are
-/// the canonical HUD literals verbatim (task 20260714-214118): centralizing them
-/// changes nothing visually. Per-widget tuned variants (the many slightly-
-/// different combat reds/ambers) intentionally stay local to their file; only the
-/// shared, exactly-repeated accents live here.
+/// the canonical HUD literals verbatim, so centralizing them changed nothing
+/// visually. Per-widget tuned variants (the many slightly-different combat
+/// reds/ambers) intentionally stay local to their file; only the shared,
+/// exactly-repeated accents live here.
 pub mod semantic {
     use bevy::prelude::Color;
 
@@ -132,8 +123,8 @@ pub mod semantic {
     mod tests {
         use super::*;
 
-        /// The HUD consts were centralized here at their EXACT original values
-        /// (task 20260714-214118), so the restyle changed nothing visually. Pin
+        /// The HUD consts were centralized here at their EXACT original values,
+        /// so the restyle changed nothing visually. Pin
         /// them: any future edit that shifts a semantic hue must be deliberate,
         /// because it moves every HUD widget that references it.
         #[test]

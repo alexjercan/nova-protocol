@@ -322,7 +322,7 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   '^warning'` read 2 against a true 14 and made an unchanged tree look like a
   regression; `git stash` -> touch the crate root -> rerun -> `stash pop`
   showed both sides at 14. 20260731-170329.
-- `doc-comment-rewrap-changes-the-render` (x6 -> Pending promotions): see below.
+- `doc-comment-rewrap-changes-the-render` (x7 -> Pending promotions): see below.
 - `re-measure-records-after-the-last-edit` (x8 -> Pending promotions): see below.
 - `visibility-sweep-narrows-back` (x4 -> Pending promotions): see below.
 - `bin-submodules-resolve-beside-the-bin-file` (x1): a `src/bin/<name>.rs`
@@ -333,9 +333,9 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   to the directory form (`src/bin/<name>/main.rs` plus a one-line
   `[[bin]] path` edit); only then do its modules live under it and stay
   private to it. 20260731-170432.
-- `split-tests-hoist-the-shared-fixture` (x3 -> Pending promotions): see below.
+- `split-tests-hoist-the-shared-fixture` (x4 -> Pending promotions): see below.
 - `comment-pass-as-asserted-replacements` (x4 -> Pending promotions): see below.
-- `split-must-re-export-not-repoint` (x3 -> Pending promotions): see below.
+- `split-must-re-export-not-repoint` (x4 -> Pending promotions): see below.
 - `provenance-vs-deferred-work-check-the-status` (x2): a task ID in a comment
   is provenance ("added by X") or a live pointer ("X will replace this"), and
   the two are textually identical - two bulk strips in a row hit the SAME
@@ -405,7 +405,7 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `cross-boundary-attribution` (x1): per-part drafters attribute a neighbor's
   feature to their part; review asks "does vN claim anything of vN+1?".
   20260716-102954.
-- `conserve-on-regroup` (x3 -> Pending promotions): see below.
+- `conserve-on-regroup` (x5 -> Pending promotions): see below.
 - `authored-durations-clamp-trio` (x2): every authored duration/magnitude/
   vector gets finite-check + runtime-cap + lint-range AT BIRTH; the pattern
   does not transfer across crates by itself. 20260717-163050, 20260717-215920.
@@ -546,12 +546,16 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   changed on ANY `&mut` deref, even a no-op (`vec.extend(empty)`); a dependent
   `run_if(resource_changed::<T>)` then thrashes - gate the mutation behind an
   actual-change check (`if !fresh.is_empty()`). 20260726-214708.
-- `decision-status-enum` (x2 -> template candidate: seed DECISION.md with the
+- `decision-status-enum` (x3 -> template candidate: seed DECISION.md with the
   `- DATE/- STATUS/- TASK/- TAGS` frontmatter): a DECISION.md STATUS must be a
   `- ` bullet with a closed-enum value - `tatr check --ledger` accepts only
   `ACCEPTED` or `SUPERSEDED by <ref>`; `PROPOSED`/`DRAFT` or an un-bulleted prose
   line fail `bad-decision-status`. Copy an existing passing DECISION.md's header
-  block rather than authoring the STATUS line freehand. 20260727-112529, 20260728-175726.
+  block rather than authoring the STATUS line freehand. Same failure for
+  REVIEW.md: one written freehand (prose `Branch:`/`Reviewer:` lines, verdict in
+  a `### Verdict` section) blocked REVIEWING -> COMPOUNDING on six
+  preconditions - `tatr scaffold <id> <RECORD>` first, always.
+  20260727-112529, 20260728-175726, 20260731-170437.
 - `resource-changed-fires-on-init-frame` (x1): a `run_if(resource_changed::<T>)`
   system that ACTS on the DEFAULT/empty `T` (teardown-on-empty, reset-on-clear)
   fires on the resource's very first frame - `init_resource` marks it changed - so
@@ -1562,7 +1566,7 @@ here (annotated) as the paid record.
 
 ## Pending promotions (3+ occurrences, user decides)
 
-- `split-tests-hoist-the-shared-fixture` (x3): when a test module splits with
+- `split-tests-hoist-the-shared-fixture` (x4): when a test module splits with
   its file, its fixtures are shared state - hoist them into the new
   `tests/mod.rs` (or a `#[cfg(test)] pub(super) mod`) rather than copying one
   per child, because a duplicated fixture drifts silently and no check
@@ -1574,13 +1578,15 @@ here (annotated) as the paid record.
   a bin's argv/catalog builders into `native/fixtures.rs` and a lib module's
   fixture-dir helpers into `run_report/fixtures.rs` - which also answers where
   they go in a BIN: a `#[cfg(test)] mod fixtures;` beside the concern modules,
-  reached as `crate::<parent>::fixtures`. 20260731-170409, 20260731-170427,
-  20260731-170432.
+  reached as `crate::<parent>::fixtures`. A fourth hoisted one fixture module
+  serving FOUR sibling test modules (`nova_ui/src/widget/fixtures.rs`), which is
+  where copying costs the most. 20260731-170409, 20260731-170427,
+  20260731-170432, 20260731-170437.
   Proposed target is a tool: a split checker that lists every `#[cfg(test)]`
   helper defined more than once across the sibling modules of one split, so a
   copied fixture fails the pass instead of drifting.
 
-- `split-must-re-export-not-repoint` (x3): a file-to-folder module split is
+- `split-must-re-export-not-repoint` (x4): a file-to-folder module split is
   done when the PATHS still resolve, not when the crate compiles - declaring
   `pub mod <concern>;` without re-exporting silently moves every item one
   level down, and repointing the few call sites that break is precisely what
@@ -1593,13 +1599,17 @@ here (annotated) as the paid record.
   name is the same unresolved-link warning from the other direction. A third
   split confirmed the cheap proof: dump the `pub` item set of the old file and
   of the new folder and diff them (empty difference), then run `cargo doc` -
-  together they cover the re-export and the link direction.
-  20260731-170340, 20260731-170427, 20260731-170432.
+  together they cover the re-export and the link direction. A fourth ran both
+  BEFORE review plus the strongest form of the proof - a throwaway test in
+  ANOTHER crate importing all 56 old public paths - and the review found
+  nothing to re-derive; the probe 20260731-170340 had to add after its round 1
+  cost nothing when written up front.
+  20260731-170340, 20260731-170427, 20260731-170432, 20260731-170437.
   Proposed target is a tool: dump the `pub` path set of the pre-split file and
   of the post-split folder and diff them, run with `cargo doc`, so a broken
   public path fails a check rather than a consumer's `use`.
 
-- `conserve-on-regroup` (x4): any MECHANICAL edit to prose, a list-shaped doc,
+- `conserve-on-regroup` (x5): any MECHANICAL edit to prose, a list-shaped doc,
   or CODE needs a conservation check derived from the edit's invariant -
   multiset-diff the tokens (items when regrouping, WORDS when stripping clauses
   in place, LINES when moving code between files) and reconcile; a pattern hunt
@@ -1610,8 +1620,12 @@ here (annotated) as the paid record.
   (line-multiset residue, test-name parity) are one script over two git revs.
   A fourth pass ran exactly that pair over a whole crate and both came back
   clean, which is what let the review APPROVE a 3.4k-line move diff on
-  evidence rather than on reading every hunk.
-  20260716-102950, 20260731-170359, 20260731-170427, 20260731-170432.
+  evidence rather than on reading every hunk. A fifth adds the other half of
+  the discipline: the residue is only trustworthy if its EXCEPTIONS are named -
+  one dead test helper deleted in the same pass went unrecorded, and a reader
+  reconciling the multiset trips over exactly that.
+  20260716-102950, 20260731-170359, 20260731-170427, 20260731-170432,
+  20260731-170437.
 
 - `comment-pass-as-asserted-replacements` (x4): every recorded instance of
   rustdoc rewrap damage came from a SCRIPTED substitution, so do the opposite -
@@ -1655,7 +1669,7 @@ here (annotated) as the paid record.
   minus its own file), which is exactly the tool this entry proposes.
   20260731-170345, 20260731-170409, 20260731-170427, 20260731-170432.
 
-- `doc-comment-rewrap-changes-the-render` (x6, PROMOTE 2026-08-01 -> 20260801-102759) -> tooling:
+- `doc-comment-rewrap-changes-the-render` (x7, PROMOTE 2026-08-01 -> 20260801-102759) -> tooling:
   re-wrapping or deleting a mid-line clause in a `//!`/`///` block changes what
   rustdoc RENDERS while check and fmt stay green - a following line starting
   `-`/`#`/`>`/`1.` becomes a block construct, a wrapped `- ` list collapses into
@@ -1675,8 +1689,12 @@ here (annotated) as the paid record.
   A sixth pass collapsed BOTH list shapes in one run - a `1.`/`2.`/`3.` numbered
   list and a `*` bullet list, from a re-wrapper that split on blank comment
   lines only, so it saw each list as one paragraph.
+  A seventh cut a clause from the MIDDLE of two doc paragraphs and re-wrapped
+  neither, leaving a short line mid-paragraph that reached review: re-wrap the
+  paragraph in the same replacement that cuts the clause, since `fmt` never
+  will.
   20260731-170329, 20260731-170335, 20260731-170359, 20260731-170340,
-  20260731-170345, 20260731-170427.
+  20260731-170345, 20260731-170427, 20260731-170437.
 
 - `re-measure-records-after-the-last-edit` (x8, PROMOTE 2026-08-01 -> 20260801-112556): a record holding measured
   numbers (line counts, `file:line` inventories, diff totals) goes stale the

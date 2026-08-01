@@ -2,9 +2,8 @@
 //! spheres for each well's sphere of influence and a line from every
 //! gravity-affected body to the well that currently owns it. Gated behind
 //! the F11 debug toggle like the section gizmos; the diegetic (non-debug)
-//! readout is the HUD GRAV line and orbit cue of task 20260709-193339, and
-//! SOI rings for normal play belong to the diegetic-instruments task
-//! (20260709-103454).
+//! readout is the HUD GRAV line and orbit cue, and SOI rings for normal play
+//! belong to the diegetic instruments.
 
 use avian3d::prelude::*;
 use bevy::{color::palettes::tailwind, prelude::*};
@@ -19,7 +18,7 @@ pub struct GravityDebugPlugin;
 
 impl Plugin for GravityDebugPlugin {
     fn build(&self, app: &mut App) {
-        // Normally initialized by NovaGravityPlugin; init here too so a
+        // NOTE: normally initialized by NovaGravityPlugin; init here too so a
         // debug-only app cannot panic on the missing resource.
         app.init_resource::<GravitySettings>();
 
@@ -57,7 +56,7 @@ fn draw_dominant_well_links(
     q_wells: Query<&Position, With<GravityWell>>,
 ) {
     for (position, dominant) in &q_affected {
-        // The owned well can be gone for the current flush (it was just
+        // NOTE: the owned well can be gone for the current flush (it was just
         // destroyed); skip rather than assume.
         let Ok(well_position) = q_wells.get(**dominant) else {
             continue;

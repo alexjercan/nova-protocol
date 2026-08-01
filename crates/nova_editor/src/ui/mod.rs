@@ -1,6 +1,6 @@
 //! The editor UI: a wiki-inspired left rail of categories plus a component
-//! drawer of cards (task 20260714-204219). The theme + shared button widgets now
-//! live in `nova_ui`; the submodules here hold the editor-specific rail, drawer,
+//! drawer of cards. The theme + shared button widgets live in `nova_ui`; the
+//! submodules here hold the editor-specific rail, drawer,
 //! cards and hover tooltip, and this module assembles them into the scene and
 //! owns the panel scroll.
 
@@ -46,8 +46,7 @@ pub(crate) fn register(app: &mut App) {
     tooltip::register(app);
 }
 
-/// Marker for a scrollable panel (currently the drawer's card list). Task
-/// 20260712-185527.
+/// Marker for a scrollable panel (currently the drawer's card list).
 #[derive(Component, Debug, Clone, Copy)]
 pub(crate) struct EditorScrollPanel;
 
@@ -109,13 +108,13 @@ pub(crate) fn setup_editor_scene(
         PostProcessingCamera,
         WASDCameraController,
         Transform::from_xyz(0.0, 5.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
-        // Direct SkyboxConfig insert (no PendingSkyboxSwap): safe because
-        // `game_assets.cubemap` already has its Cube view. `prepare_cubemap_view`
-        // (nova_assets) sets it at startup, before any camera spawns, so the bcs
-        // SkyboxPlugin observer - which only sets the view on its single-layer
-        // fallback branch - sees a ready 6-layer + Cube image and just attaches
-        // Skybox. Pinned by prepare_cubemap_view_sets_cube_view_on_the_game_assets_cubemap
-        // (task 20260717-133332, which confirmed there is no missing-view bug here).
+        // NOTE: direct SkyboxConfig insert (no PendingSkyboxSwap) is safe
+        // because `game_assets.cubemap` already has its Cube view.
+        // `prepare_cubemap_view` (nova_assets) sets it at startup, before any
+        // camera spawns, so the bcs SkyboxPlugin observer - which only sets the
+        // view on its single-layer fallback branch - sees a ready 6-layer + Cube
+        // image and just attaches Skybox. Pinned by
+        // prepare_cubemap_view_sets_cube_view_on_the_game_assets_cubemap.
         SkyboxConfig {
             cubemap: game_assets.cubemap.clone(),
             brightness: 1000.0,
@@ -142,7 +141,6 @@ pub(crate) fn setup_editor_scene(
             },
         ))
         .with_children(|root| {
-            // -- Left rail: categories + tools + play --
             root.spawn((
                 Name::new("Editor Rail"),
                 Node {
@@ -180,8 +178,9 @@ pub(crate) fn setup_editor_scene(
 
                 rail.spawn(separator());
                 rail.spawn(panel_header("Ship"));
-                // Names kept exact: the editor / menu_newgame autopilots find
-                // these by Name and press them. Display text is free to change.
+                // NOTE: names kept exact - the editor / menu_newgame autopilots
+                // find these by Name and press them. Display text is free to
+                // change.
                 rail.spawn((
                     Name::new("Create New Spaceship Button V2"),
                     themed_button("New Ship"),
@@ -195,8 +194,9 @@ pub(crate) fn setup_editor_scene(
 
                 rail.spawn(separator());
                 rail.spawn(panel_header("Tools"));
-                // Deselect the build/delete tool -> select mode (SectionChoice::None),
-                // where clicking a section rebinds its key (task 20260712-183725).
+                // Deselect the build/delete tool -> select mode
+                // (SectionChoice::None), where clicking a section rebinds its
+                // key.
                 rail.spawn((
                     Name::new("Select Section Button"),
                     themed_button("Select / Rebind"),
@@ -216,7 +216,6 @@ pub(crate) fn setup_editor_scene(
                 ));
             });
 
-            // -- Component drawer: header + scrollable card list --
             root.spawn((
                 Name::new("Component Drawer"),
                 DrawerPanel,

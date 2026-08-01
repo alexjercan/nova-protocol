@@ -8,9 +8,9 @@ description = "Shared UI theme and widgets for the Nova Protocol game"
 
 [dependencies]
 bevy = { version = "0.19.0" }
-# `serde` enables Serialize/Deserialize on `UiSkin` so it can persist through
-# the settings store (task 20260728-175738), mirroring nova_gameplay's setting
-# resources. Optional: the widget layer itself needs no serialization.
+# `serde` enables Serialize/Deserialize on `UiSkin` so it can persist through the
+# settings store, mirroring nova_gameplay's setting resources. Optional: the
+# widget layer itself needs no serialization.
 serde = { version = "1", features = ["derive"], optional = true }
 
 [lints]

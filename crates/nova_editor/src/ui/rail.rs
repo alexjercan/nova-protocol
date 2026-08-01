@@ -1,7 +1,6 @@
 //! The left category rail, styled after the web wiki sidebar: an active
 //! "Components" category that opens the drawer, plus greyed coming-soon rows
-//! (Ships/Objects/Events/Objectives) that advertise "the rest" (task
-//! 20260714-081703).
+//! (Ships/Objects/Events/Objectives) that advertise "the rest".
 
 use bevy::{picking::hover::Hovered, prelude::*, ui_widgets::Button};
 use nova_ui::{

@@ -17,9 +17,9 @@ pub const NOVA_OS_TERMINAL_HINTS: &[&str] = &[
     "ENTER: RUN",
     "UP/DN: HISTORY",
     "PGUP/PGDN: SCROLL",
-    // Only Escape closes the computer AT THE PROMPT; Ctrl+C / Ctrl+[ is an
-    // app-exit chord (a no-op here), so it belongs on app hint sets, not this
-    // one (review R1.1 - do not advertise an unwired key on this surface).
+    // NOTE: only Escape closes the computer AT THE PROMPT; Ctrl+C / Ctrl+[ is
+    // an app-exit chord (a no-op here), so it belongs on app hint sets, not this
+    // one - do not advertise an unwired key on this surface.
     "ESC: CLOSE",
     "TYPE HELP",
 ];
@@ -27,8 +27,8 @@ pub const NOVA_OS_TERMINAL_HINTS: &[&str] = &[
 /// A NOVA OS app: a full-screen tool launched from the terminal that swallows the
 /// terminal surface and owns input until the user exits back to the prompt.
 ///
-/// This is the app-as-plugin seam (see `tasks/20260726-115334/DECISION.md`): each
-/// app is its own runtime object, held as the [`crate::command::CommandBody::App`]
+/// This is the app-as-plugin seam: each app is its own runtime object, held as
+/// the [`crate::command::CommandBody::App`]
 /// body of a [`crate::command::TerminalCommand`] registered into the
 /// [`crate::command::NovaOsCommandRegistry`]. The NOVA OS owns the generic parts -
 /// the [`crate::terminal::TerminalMode::App`] transition, input ownership, the

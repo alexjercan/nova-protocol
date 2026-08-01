@@ -1,7 +1,7 @@
 //! The spaceship editor: a scene where you build a ship out of sections and then
 //! hand it off to a scenario simulation.
 //!
-//! Structure (task 20260714-204219 split the old single file):
+//! Structure:
 //! - `config`    - the build-state resources + preview markers
 //! - `placement` - creating a ship + the pointer place/preview/delete observers
 //! - `keybind`   - section keybind chips + click-to-rebind
@@ -139,9 +139,8 @@ fn editor_plugin(app: &mut App) {
         .add_observer(on_move_spaceship_section)
         .add_observer(on_out_spaceship_section);
 
-    // Editor section keybind labels + click-to-rebind (task 20260712-163912).
-    // A stale rebind must not survive a scene change, so clear it on every
-    // state entry (like SectionChoice).
+    // NOTE: a stale rebind must not survive a scene change, so clear it on
+    // every state entry (like SectionChoice).
     app.add_systems(
         OnEnter(ExampleStates::Editor),
         |mut rebind: ResMut<EditorRebind>| rebind.target = None,
@@ -168,18 +167,18 @@ fn editor_plugin(app: &mut App) {
     );
     app.add_systems(
         Update,
-        // F1-to-editor is demo/sandbox furniture: campaigns (NewGame) must
-        // not offer an editor escape (task 20260711-203805); the pause menu
-        // is the sanctioned way out.
+        // NOTE: F1-to-editor is demo/sandbox furniture - campaigns (NewGame)
+        // must not offer an editor escape; the pause menu is the sanctioned way
+        // out.
         switch_scene_editor
             .run_if(in_state(ExampleStates::Scenario).and_then(resource_equals(GameMode::Sandbox))),
     );
 
-    // The spaceship input/section system sets are deliberately NOT gated
-    // here anymore: nova_scenario's ScenarioLoaderPlugin gates them on
-    // scenario-liveness (task 20260711-212519). The editor's build-mode
-    // preview stays inert because the Editor state never has a scenario
-    // loaded - initial entry loads nothing and F1 triggers UnloadScenario.
+    // NOTE: the spaceship input/section system sets are deliberately NOT gated
+    // here - nova_scenario's ScenarioLoaderPlugin gates them on
+    // scenario-liveness. The editor's build-mode preview stays inert because the
+    // Editor state never has a scenario loaded: initial entry loads nothing and
+    // F1 triggers UnloadScenario.
 }
 
 fn switch_scene_editor(
@@ -198,8 +197,8 @@ fn switch_scene_editor(
     }
 }
 
-/// Hide and lock the cursor for flight (owner decision, task 20260721-211500):
-/// unconditional now, debug builds included. The F11 debug inspector is an egui
+/// Hide and lock the cursor for flight (owner decision): unconditional,
+/// debug builds included. The F11 debug inspector is an egui
 /// panel that needs a pointer, so it hands the cursor back while it is up via
 /// nova_debug's `sync_inspector_cursor`; menus/pause/outcome free it through
 /// their own transitions.
@@ -262,11 +261,10 @@ mod tests {
         app
     }
 
-    /// Regression for review R1.1: in NewGame mode the editor must still enter
-    /// its Scenario state (cursor grab and the F1/despawn furniture key on it),
-    /// while leaving the scenario load itself to the menu. (Flyability itself
-    /// is no longer tied to this state: the spaceship sets are gated on
-    /// scenario-liveness by nova_scenario, task 20260711-212519.)
+    /// In NewGame mode the editor must still enter its Scenario state (cursor
+    /// grab and the F1/despawn furniture key on it), while leaving the scenario
+    /// load itself to the menu. (Flyability itself is not tied to this state:
+    /// the spaceship sets are gated on scenario-liveness by nova_scenario.)
     #[test]
     fn new_game_enters_scenario_state_without_loading_the_editor_scenario() {
         let mut app = app();
@@ -288,7 +286,7 @@ mod tests {
 
     /// Leaving Playing (the pause menu's Back to Main Menu) resets the
     /// editor's inner state so DespawnOnExit scene entities are torn down
-    /// and the next Sandbox entry starts fresh (task 20260711-185156).
+    /// and the next Sandbox entry starts fresh.
     #[test]
     fn leaving_playing_resets_the_inner_state() {
         let mut app = app();
@@ -317,7 +315,7 @@ mod tests {
         );
     }
 
-    /// F1 back-to-editor is Sandbox-only (task 20260711-203805): in NewGame
+    /// F1 back-to-editor is Sandbox-only: in NewGame
     /// the same press must do nothing. Delivery guard: the identical press in
     /// Sandbox mode queues the Editor state and unloads the scenario, proving
     /// the stimulus path works.
@@ -384,7 +382,7 @@ mod tests {
         );
     }
 
-    /// The scenario-liveness gate (nova_scenario, task 20260711-212519)
+    /// The scenario-liveness gate (nova_scenario)
     /// keeps the editor's build-mode preview inert only if the Editor state
     /// never has a live scenario. This exercises the one route that enters
     /// Editor FROM a live scenario - F1 - and asserts the same press
@@ -468,8 +466,8 @@ mod tests {
         assert_eq!(queued, Some(ExampleStates::Editor));
     }
 
-    /// Flight hides and locks the cursor (task 20260721-211500). Before the
-    /// fix `setup_grab_cursor_scenario` was wrapped in `cfg!(not(feature =
+    /// Flight hides and locks the cursor. Before the fix
+    /// `setup_grab_cursor_scenario` was wrapped in `cfg!(not(feature =
     /// "debug"))`, so a `--features dev` build (the standard playtest build)
     /// left the cursor visible the whole flight; the grab is unconditional now.
     #[test]

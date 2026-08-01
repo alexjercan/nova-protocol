@@ -1,4 +1,4 @@
-//! Section keybind labels + click-to-rebind (task 20260712-163912). Each
+//! Section keybind labels + click-to-rebind. Each
 //! bindable section (thruster/turret/torpedo) gets a screen-space chip showing
 //! its current key; clicking it in select mode arms a rebind that captures the
 //! next key or mouse-button press.
@@ -17,8 +17,8 @@ use crate::{config::PlayerSpaceshipConfig, ExampleStates};
 pub(crate) struct EditorRebind {
     pub(crate) target: Option<Entity>,
     /// Set true when armed by a mouse click: the capture waits until that click
-    /// is released before reading a press, so the arming LMB is not itself bound
-    /// (task 20260712-191604). False = ready to capture (e.g. armed in a test).
+    /// is released before reading a press, so the arming LMB is not itself
+    /// bound. False = ready to capture (e.g. armed in a test).
     pub(crate) awaiting_release: bool,
 }
 
@@ -49,13 +49,11 @@ pub(crate) fn sync_section_keybind_labels(
     q_bindable: Query<Entity, BindableFilter>,
     q_labels: Query<(Entity, &SectionKeybindLabel)>,
 ) {
-    // Despawn stale labels.
     for (label, SectionKeybindLabel { section }) in &q_labels {
         if q_bindable.get(*section).is_err() {
             commands.entity(label).despawn();
         }
     }
-    // Spawn missing labels.
     let has_label = |section: Entity| q_labels.iter().any(|(_, l)| l.section == section);
     for section in &q_bindable {
         if !has_label(section) {
@@ -72,14 +70,15 @@ pub(crate) fn sync_section_keybind_labels(
                 TextShadow::default(),
                 Node {
                     position_type: PositionType::Absolute,
-                    // Pill padding + rounded corners so the background reads as a
-                    // chip (BorderRadius is a Node field, not a component).
+                    // NOTE: pill padding + rounded corners so the background
+                    // reads as a chip (BorderRadius is a Node field, not a
+                    // component).
                     padding: UiRect::axes(px(6), px(2)),
                     border_radius: BorderRadius::all(px(4)),
                     ..default()
                 },
-                // Dark semi-transparent pill so the amber text stays legible over
-                // the 3D scene (task 20260712-183725).
+                // NOTE: dark semi-transparent pill so the amber text stays
+                // legible over the 3D scene.
                 BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.75)),
                 // Hidden until the positioner projects it this frame.
                 Visibility::Hidden,

@@ -1,8 +1,7 @@
-//! The scenario the editor hands off to on Play. Baseline slice (task
-//! 20260714-204219): an asteroid field with a single large PLANETOID backdrop
-//! and the PLAYER ship only - no enemy, no objective. The enemy ship, the
-//! destroy objective, and richer authoring live in "the rest" (task
-//! 20260714-081703).
+//! The scenario the editor hands off to on Play: an asteroid field with a
+//! single large PLANETOID backdrop and the PLAYER ship only - no enemy, no
+//! objective. The enemy ship, the destroy objective, and richer authoring live
+//! in "the rest".
 
 use bevy::prelude::*;
 use nova_assets::prelude::*;
