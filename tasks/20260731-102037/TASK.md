@@ -1,10 +1,10 @@
 # lessons: fold 7 promoted ledger lessons into the work/review skills
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,chore,process
+- TAGS: backlog, chore, process
 - KIND: TASK
-- FLOW STEP: BACKLOG
+- FLOW STEP: DROPPED
 - PLAN STATUS: DRAFT
 
 ## Story
@@ -66,3 +66,8 @@ proof.
   `new-required-system-param-sweeps-all-rigs` DEFERred at x1 (it sat under
   Pending promotions below the 3+ bar).
 - Precedent for a batched promotion pass: 20260720-220051.
+
+
+## Dropped
+
+- REASON: ledger is not a thing anymore

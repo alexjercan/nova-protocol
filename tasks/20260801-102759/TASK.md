@@ -1,10 +1,10 @@
 # Tooling: diff comment text base-vs-branch so a comment pass cannot silently damage rustdoc
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,tooling,chore
+- TAGS: backlog, tooling, chore
 - KIND: TASK
-- FLOW STEP: BACKLOG
+- FLOW STEP: DROPPED
 - PLAN STATUS: DRAFT
 
 ## Context
@@ -33,3 +33,8 @@ after a change, so a comment pass has to look at what it altered.
 
 The epic 20260731-170222 has further comment passes queued; landing this
 before them is the point. See LESSONS.md for the four occurrences.
+
+
+## Dropped
+
+- REASON: meh

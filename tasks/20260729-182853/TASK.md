@@ -1,10 +1,10 @@
 # Screenshot beat for the objective chip posting (currently unseeable)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,ui,hud,tooling,testing
+- TAGS: backlog, ui, hud, tooling, testing
 - KIND: TASK
-- FLOW STEP: BACKLOG
+- FLOW STEP: DROPPED
 - PLAN STATUS: DRAFT
 
 ## Story
@@ -63,3 +63,8 @@ the whole motion deterministically, with no scenario logic involved.
   keep it to the feature (flow: new work becomes its own task).
 - Also the natural home for a future "two chips stacked" capture, which is
   likewise test-only today.
+
+
+## Dropped
+
+- REASON: I want to create a big EPIC to redo the images and get better screenshots in v0.10.0 anyway

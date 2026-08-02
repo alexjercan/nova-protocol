@@ -1,10 +1,10 @@
 # Promote the self-ending completion guard into bevy-common-systems
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog
 - KIND: TASK
-- FLOW STEP: BACKLOG
+- FLOW STEP: DROPPED
 - PLAN STATUS: DRAFT
 
 ## Story
@@ -48,3 +48,8 @@ Two wording problems the copies share, which a single owner would settle once
   an exit written by a later-scheduled `Last` system goes unobserved. A
   protocol-level version could order itself explicitly and close that gap.
 - Source: review R1.7 of task 20260729-222131.
+
+
+## Dropped
+
+- REASON: old

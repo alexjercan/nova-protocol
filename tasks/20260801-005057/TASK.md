@@ -1,12 +1,11 @@
 # fix(nova_gameplay): ambiguous import visibility in the nova_os_map/ship mod.rs re-exports
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,bug,chore
+- TAGS: backlog, bug, chore
 - KIND: TASK
-- FLOW STEP: BACKLOG
+- FLOW STEP: DROPPED
 - PLAN STATUS: DRAFT
-
 
 ## Context
 
@@ -34,3 +33,8 @@ a hard error in a future release, so it is a real deadline, not style.
 1. cmd: `nix develop --command cargo check --workspace --all-targets 2>&1 |
    grep -c 'ambiguous import visibility'` - returns 0.
 2. cmd: `nix develop --command cargo fmt --check` - clean.
+
+
+## Dropped
+
+- REASON: duplicate. Warning remains real, but fully covered by broader 20260731-205553, including the related rustdoc warning.

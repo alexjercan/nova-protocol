@@ -1,10 +1,10 @@
 # Work skill: add a cargo doc baseline-diff verify step for module moves
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,chore,process
+- TAGS: backlog, chore, process
 - KIND: TASK
-- FLOW STEP: BACKLOG
+- FLOW STEP: DROPPED
 - PLAN STATUS: DRAFT
 
 ## Story
@@ -49,3 +49,8 @@ That is the argument for a standing verify step rather than another lesson.
 Skill prose is the right tier here, not tooling: the trigger ("did this change
 move documented items across a boundary?") is a judgement about the diff, not
 a checkable artifact state a hook could evaluate.
+
+
+## Dropped
+
+- REASON: meh

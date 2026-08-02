@@ -1,10 +1,10 @@
 # content lint: flag an unpiloted (controller:None) ship parked inside a gravity well's SOI
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog
 - KIND: TASK
-- FLOW STEP: BACKLOG
+- FLOW STEP: DROPPED
 - PLAN STATUS: DRAFT
 
 ## Story
@@ -50,3 +50,8 @@ Deferred to the backlog - a hardening guard, no observed bug.
   radius; asteroid_field rock r=20 -> SOI 160u, its None ship at 240u (80u
   clearance). Gravity opt-in now keyed on PlayerSpaceshipMarker /
   AISpaceshipMarker (gravity.rs).
+
+
+## Dropped
+
+- REASON: I want to improve AI

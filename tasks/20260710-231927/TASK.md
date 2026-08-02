@@ -1,12 +1,11 @@
 # Keybind hint icons and key remapping (Arma Reforger look)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,hud,ux,input
+- TAGS: backlog, hud, ux, input
 - KIND: TASK
-- FLOW STEP: BACKLOG
+- FLOW STEP: DROPPED
 - PLAN STATUS: DRAFT
-
 
 ## Goal
 
@@ -30,3 +29,8 @@ mostly UI + persistence on top of what exists.
   candidate remedy is a press-TOGGLE radar on pad (press on / press commit /
   long-press clear) or moving FreeLook off LB. Do not stress pad ergonomics in
   the radar family itself; solve it here with remapping.
+
+
+## Dropped
+
+- REASON: Already done

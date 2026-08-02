@@ -1,10 +1,10 @@
 # Tooling: check that every filesystem path named in a comment or doc actually resolves
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,tooling,chore
+- TAGS: backlog, tooling, chore
 - KIND: TASK
-- FLOW STEP: BACKLOG
+- FLOW STEP: DROPPED
 - PLAN STATUS: DRAFT
 
 ## Context
@@ -33,3 +33,8 @@ with the other checks.
 
 This is the one part of a comment pass that is checkable rather than a
 judgment call. See LESSONS.md for the five occurrences.
+
+
+## Dropped
+
+- REASON: meh

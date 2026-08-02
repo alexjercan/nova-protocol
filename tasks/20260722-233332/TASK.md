@@ -1,10 +1,10 @@
 # Harden SetSkybox: warn-and-skip on a missing AssetServer instead of panicking (headless-safe)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, modding, scenario
 - KIND: TASK
-- FLOW STEP: BACKLOG
+- FLOW STEP: DROPPED
 - PLAN STATUS: DRAFT
 
 ## Story
@@ -45,3 +45,8 @@ more mods start using mid-scenario SetSkybox.
 Surfaced by task 20260722-214115 (RETRO) under umbrella 20260722-212808. The
 alternative considered and chosen for that task was the production-faithful rig
 fix (AssetPlugin), per the `production-faithful-rigs` lesson.
+
+
+## Dropped
+
+- REASON: We basically refactor this to use a Handle<Image> so no longer needed.

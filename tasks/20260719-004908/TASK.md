@@ -1,12 +1,11 @@
 # Decide: pin the nightly toolchain date and add -D warnings to the CI clippy step, or stay advisory
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,ci,tooling
+- TAGS: backlog, ci, tooling
 - KIND: TASK
-- FLOW STEP: BACKLOG
+- FLOW STEP: DROPPED
 - PLAN STATUS: DRAFT
-
 
 ## Goal
 
@@ -35,3 +34,8 @@ zero code changes (exactly how that warning batch arrived).
 
 - Context: tasks/20260719-001600/NOTES.md ("CI gate deliberately NOT
   tightened").
+
+
+## Dropped
+
+- REASON: old

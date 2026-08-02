@@ -1,10 +1,10 @@
 # Drawer ship-status / damage section - DEFERRED from v0.9.0 (rides critical-damage model)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,spike,feature,ui,hud
+- TAGS: backlog, spike, feature, ui, hud
 - KIND: TASK
-- FLOW STEP: BACKLOG
+- FLOW STEP: DROPPED
 - PLAN STATUS: DRAFT
 
 ## Goal
@@ -25,3 +25,8 @@ Scope (direction-level; /plan breaks into steps at pickup):
 - Spike: tasks/20260721-211512/SPIKE.md (RECOMMENDED). Slots into the drawer's
   section framework (shell task 20260724-102304). Backlog; depends on
   20260722-092320 (critical-damage model).
+
+
+## Dropped
+
+- REASON: likely superseded. Requested ship-status/damage surface now exists through NOVA OS ship blips, integrity bars, detailed section view, and repair commands.

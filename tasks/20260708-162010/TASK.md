@@ -1,10 +1,10 @@
 # Embed a sandboxed scripting VM for scenario logic (piccolo prototype)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,modding,spike
+- TAGS: backlog, modding, spike
 - KIND: TASK
-- FLOW STEP: BACKLOG
+- FLOW STEP: DROPPED
 - PLAN STATUS: DRAFT
 
 Spike: tasks/20260708-161726/SPIKE.md
@@ -27,3 +27,8 @@ with vendored `lua54` + a manual instruction-count limiter, accepting the heavie
 wasm story. `bevy_mod_scripting` is explicitly not recommended (Bevy-version
 coupling + its own world-access model fights `NovaEventWorld`).
 </content>
+
+
+## Dropped
+
+- REASON: speculative scripting VM. Task explicitly requires evidence that declarative scenarios have run out of road; no such consumer or limitation recorded.

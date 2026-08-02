@@ -1,12 +1,11 @@
 # Tooling: re-runnable measured numbers in task records
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog
 - KIND: TASK
-- FLOW STEP: BACKLOG
+- FLOW STEP: DROPPED
 - PLAN STATUS: DRAFT
-
 
 ## Context
 
@@ -42,3 +41,8 @@ silently falsify a record I have already verified.
   of this? Both re-derive something about the diff; decide before building.
 - Scope: is it worth covering `file:line` markers (which shift on any rewrap)
   or only aggregate counts?
+
+
+## Dropped
+
+- REASON: meh

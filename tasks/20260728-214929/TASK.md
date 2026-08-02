@@ -1,10 +1,10 @@
 # Adopt input-prompt key glyphs across game + web key-UI (Alt style)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,ui,assets
+- TAGS: backlog, ui, assets
 - KIND: TASK
-- FLOW STEP: BACKLOG
+- FLOW STEP: DROPPED
 - PLAN STATUS: DRAFT
 
 ## Story
@@ -69,3 +69,8 @@ HEIGHT and deriving the width from the art's aspect
 NOVA OS help, editor chips - goes through `KeyCap` rather than setting a square
 box; the "Sizing/tint" bullet above now only has the TINT half left to decide.
 Rationale in `tasks/20260730-122940/DECISION.md`.
+
+
+## Dropped
+
+- REASON: this was done already

@@ -1,10 +1,10 @@
 # Perf: ch5 raid drops to ~40 FPS - profile and optimize the many-entity scene (big ship + 6 fighters + base + scatter)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, performance, gameplay
 - KIND: TASK
-- FLOW STEP: BACKLOG
+- FLOW STEP: DROPPED
 - PLAN STATUS: DRAFT
 
 ## Story
@@ -39,3 +39,8 @@ find where the frame time goes.
   measurable improvement (target: hold 60 FPS on the ch5 scene, or a documented
   honest limit).
 - The fix targets the profiler's actual hotspot (evidence recorded), not a guess.
+
+
+## Dropped
+
+- REASON: we need to do some profiling and figure things out

@@ -1,10 +1,10 @@
 # Ship real web fonts in-game (Rajdhani/Inter/JetBrains Mono) + wasm-safe load path
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,ui
+- TAGS: backlog, ui
 - KIND: TASK
-- FLOW STEP: BACKLOG
+- FLOW STEP: DROPPED
 - PLAN STATUS: DRAFT
 
 Umbrella: task 20260714-212139. Depends on: 20260714-214111 (nova_ui).
@@ -37,3 +37,8 @@ restyle (user chose palette-only first) because it adds assets + a load path.
 - wasm is the hard part: fonts must load through the bundled asset path, not the
   filesystem. Confirm the wasm build actually renders them (only `workflow_dispatch`
   builds wasm today - static review + a manual deploy check).
+
+
+## Dropped
+
+- REASON: this was done already

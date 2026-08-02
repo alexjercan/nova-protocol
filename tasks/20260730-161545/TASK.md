@@ -1,10 +1,10 @@
 # Fix the red shakedown test: an_early_derelict_kill_skips_to_the_fight
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog
 - KIND: TASK
-- FLOW STEP: BACKLOG
+- FLOW STEP: DROPPED
 - PLAN STATUS: DRAFT
 
 ## Story
@@ -44,3 +44,8 @@ is currently unverified.
    `cargo test -p nova_assets --lib shakedown`).
 2. The close-out names whether the scenario or the test was wrong, and why the
    guard started failing.
+
+
+## Dropped
+
+- REASON: duplicate of above; test passes.

@@ -1,10 +1,10 @@
 # Make the local test suite runnable: cap link jobs and drop test-binary DWARF
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog
 - KIND: TASK
-- FLOW STEP: REVIEWING
+- FLOW STEP: DONE
 - PLAN STATUS: APPROVED
 
 ## Context

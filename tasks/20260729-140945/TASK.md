@@ -1,10 +1,10 @@
 # Shakedown rehearsal test red on master: RADAR emphasis guard fails
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: backlog
 - KIND: TASK
-- FLOW STEP: BACKLOG
+- FLOW STEP: DROPPED
 - PLAN STATUS: DRAFT
 
 ## Story
@@ -55,3 +55,8 @@ here means that skip path is currently UNPROVEN.
   crates' suites; that task's own changes are unrelated (it renames the
   keybind-hint RENDERER, not `HintEmphasis`, whose API and verb vocabulary are
   unchanged).
+
+
+## Dropped
+
+- REASON: false report. Exact test passes on current tree.

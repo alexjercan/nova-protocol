@@ -1,10 +1,10 @@
 # End-of-sprint probe perf sweep (standing sprint-close check)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,probe,perf,process
+- TAGS: backlog, probe, perf, process
 - KIND: TASK
-- FLOW STEP: BACKLOG
+- FLOW STEP: DROPPED
 - PLAN STATUS: DRAFT
 
 ## Story
@@ -63,3 +63,8 @@ Add one of these per sprint, tagged with that sprint's version.
 - Native runs are sandboxed from the operator's profile since `a6d06220`, so the
   local `settings.ron` / installed mods no longer leak into a sweep.
 - Use the `/probe` skill; it wraps the run and produces the reviewable report.
+
+
+## Dropped
+
+- REASON: old

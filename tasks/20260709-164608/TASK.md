@@ -1,10 +1,10 @@
 # Promote screen-indicator widget to bevy_common_systems
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,hud,refactor,spike
+- TAGS: backlog, hud, refactor, spike
 - KIND: TASK
-- FLOW STEP: BACKLOG
+- FLOW STEP: DROPPED
 - PLAN STATUS: DRAFT
 
 Spike: tasks/20260709-164502/SPIKE.md
@@ -17,3 +17,8 @@ prelude; avian3d is already a dep there for the ApparentSize AABB union), bump
 the pinned rev in nova, and re-export via the prelude so nova consumers only
 change imports. Keep `ScreenIndicatorCamera` as the generic camera marker.
 
+
+
+## Dropped
+
+- REASON: I want to do a round of refactoring for moving things to BCS anyway

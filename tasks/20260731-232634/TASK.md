@@ -1,10 +1,10 @@
 # Holo trajectory ribbon doc may be stale: arrival solve gravity-awareness
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,hud,docs
+- TAGS: backlog, hud, docs
 - KIND: TASK
-- FLOW STEP: BACKLOG
+- FLOW STEP: DROPPED
 - PLAN STATUS: DRAFT
 
 ## Goal
@@ -27,3 +27,8 @@ the doc alone.
 ## Done Means
 
 - manual: the doc claim matches what the autopilot actually solves today.
+
+
+## Dropped
+
+- REASON: old

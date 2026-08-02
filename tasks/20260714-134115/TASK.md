@@ -1,10 +1,10 @@
 # Ship-prototype content kind: GameShips + *.ship.ron + ShipSource + ship-modifications (folds 113414)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,modding,scenario,spike
+- TAGS: backlog, modding, scenario, spike
 - KIND: TASK
-- FLOW STEP: BACKLOG
+- FLOW STEP: DROPPED
 - PLAN STATUS: DRAFT
 
 Spike: tasks/20260714-113418/SPIKE.md
@@ -51,3 +51,8 @@ stands. Activate mid-release only if the vertical slice (20260708-203659) or
 the scenario pack (20260716-123535) actually wants a shared ship definition -
 that consumer is the trigger. If every scenario inlines its ships, this rolls
 forward untouched. Plan: docs/plans/20260716-v0.7.0-plan.md, strand 1.
+
+
+## Dropped
+
+- REASON: conditional ship-prototype work never gained its required consumer. Both v0.7.0 trigger tasks closed without needing shared ship definitions.

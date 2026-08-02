@@ -1,10 +1,10 @@
 # Evaluate bevy_capture for in-engine video/GIF capture (Bevy 0.19 support?)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,example,screenshot,spike
+- TAGS: backlog, example, screenshot, spike
 - KIND: TASK
-- FLOW STEP: BACKLOG
+- FLOW STEP: DROPPED
 - PLAN STATUS: DRAFT
 
 Spike: tasks/20260714-081636/SPIKE.md
@@ -18,3 +18,8 @@ adding; if not, the fallback is feeding the `ScreenshotCaptured` image into the
 `image`/`gif` crates by hand. Backlog: only pursue if a concrete video need
 appears; stills are enough for the current web placeholders.
 
+
+
+## Dropped
+
+- REASON: speculative video/GIF tooling. Task says only pursue after a concrete video need; none recorded. Recreate when needed.

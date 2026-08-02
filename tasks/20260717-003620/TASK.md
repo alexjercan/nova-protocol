@@ -1,10 +1,10 @@
 # Numeric hull-integrity chip in the flight-status chip family (exact-value backstop)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,hud,ui,spike
+- TAGS: backlog, hud, ui, spike
 - KIND: TASK
-- FLOW STEP: BACKLOG
+- FLOW STEP: DROPPED
 - PLAN STATUS: DRAFT
 
 Goal: keep an exact hull-integrity number available once the generic bar is
@@ -29,3 +29,8 @@ Notes:
   sibling spike tasks/20260710-234019/SPIKE.md.
 - Append a line to the spike's Fix record when this lands.
 
+
+
+## Dropped
+
+- REASON: likely superseded. Exact integrity, damage inspection, and repair decisions now live in the NOVA OS ship view.
