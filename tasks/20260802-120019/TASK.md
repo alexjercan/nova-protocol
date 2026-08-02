@@ -54,7 +54,7 @@ ports, a runnable example, docs, one atomic migration, one cleanup.
 | ID | Priority | Title | Landed result |
 | --- | ---: | --- | --- |
 | `20260802-183336` | 99 | Scaffold the standalone `nova_autopilot` crate | Landed `c3a876ba`: `bevy`-only crate with the ownership boundary in the crate docs and four empty driver modules. |
-| `20260802-183340` | 98 | Port the harness completion protocol | Pending |
+| `20260802-183340` | 98 | Port the harness completion protocol | Landed `020c254f`: `completion` module with `register`/`HarnessCompletion`/`completion_watch`, `NOVA_AUTOPILOT_DEADLINE`, 6 tests. Review fixed two defects inherited from the BCS source - the watcher is added once per app, not per registrant, and the deadline error's naming is pinned by a log-capture test. |
 | `20260802-183343` | 97 | Port the scripted autopilot driver | Pending |
 | `20260802-183346` | 96 | Port the single-shot screenshot driver | Pending |
 | `20260802-183349` | 95 | Move the screenshot reel driver behind caller hooks | Pending |
