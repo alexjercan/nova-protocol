@@ -29,6 +29,7 @@ Root crate: CLI entry and `nova_core` re-export. Main assembly:
 | `nova_info` | `APP_VERSION` from `build.rs`. |
 | `nova_debug` | `debug`-gated inspector, wireframe, overlays. |
 | `nova_probe` | Autopilot run harness and performance reports. |
+| `nova_autopilot` | Automation drivers and the run-completion protocol; `bevy`-only. |
 | `nova_meta_gen` | Web asset `.meta` generator under `tools/`; no game dependency. |
 
 Shared Bevy helpers: pinned `bevy-common-systems` dependency. Local checkout:

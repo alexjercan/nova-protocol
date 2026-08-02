@@ -1,10 +1,10 @@
 # Scaffold the standalone nova_autopilot crate
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 99
 - TAGS: v0.10.0, tooling, autopilot, crates
 - KIND: TASK
-- FLOW STEP: PLANNED
+- FLOW STEP: DONE
 - PLAN STATUS: APPROVED
 - PARENT: 20260802-120019
 
@@ -19,23 +19,23 @@ so it stays.
 
 ## Steps
 
-- [ ] Add `crates/nova_autopilot/Cargo.toml`: `name = "nova_autopilot"`,
+- [x] Add `crates/nova_autopilot/Cargo.toml`: `name = "nova_autopilot"`,
       `version`/`edition`/`license` from `workspace = true`, `publish = false`,
       a one-line `description`, `[lints] workspace = true`, and exactly one
       dependency, `bevy = { version = "0.19.0" }` (no features; matches
       `crates/nova_events/Cargo.toml`).
-- [ ] Register the crate in the root `Cargo.toml` `[workspace] members` list at
+- [x] Register the crate in the root `Cargo.toml` `[workspace] members` list at
       line 303, alphabetically between `crates/nova_assets` and
       `crates/nova_core`. Do NOT add `default-members` (the comment at line 325
       explains why it stays absent).
-- [ ] Add `crates/nova_autopilot/src/lib.rs` with `#![warn(missing_docs)]` and
+- [x] Add `crates/nova_autopilot/src/lib.rs` with `#![warn(missing_docs)]` and
       crate docs stating the ownership boundary: the crate owns the automation
       drivers and the completion protocol and depends on `bevy` only; Nova
       adapters (scenario presets, camera posing, rigid-body freezing, overlay
       hiding) stay in `nova_debug` and reach in through caller hooks. Name the
       `S: States + FreelyMutableState` generic as the reason no
       `nova_gameplay::GameStates` appears here.
-- [ ] Add the empty module files `completion.rs`, `autopilot.rs`,
+- [x] Add the empty module files `completion.rs`, `autopilot.rs`,
       `screenshot.rs`, `reel.rs` plus an empty `pub mod prelude` in `lib.rs`,
       each declared `pub mod` in `lib.rs` with a doc comment saying what will
       land there (completion protocol; scripted autopilot driver; settled-frame
@@ -73,3 +73,34 @@ so it stays.
 - No feature flags on the crate: nothing in this task or the port tasks names a
   conditional-compilation requirement, and `nova_debug` is already gated behind
   its own `debug` feature.
+
+## Close-out
+
+**What/why.** Landed `crates/nova_autopilot` as an empty, `bevy`-only crate:
+manifest, workspace membership, `lib.rs` with the ownership-boundary docs, and
+four empty module files (`completion`, `autopilot`, `screenshot`, `reel`) plus
+an empty `prelude`. No behaviour ported; the shell exists so the port tasks stay
+small and the boundary is asserted by the dependency proof from day one.
+
+**Alternatives.** Considered declaring the modules with `#[path]`-less stubs
+only in `lib.rs` (no files) - rejected: the port tasks want a file to land into,
+and per-file doc comments are where the boundary story reads best. Also
+considered a `debug` feature flag mirroring `nova_debug`; skipped per the Notes -
+nothing in the port set names a conditional-compilation requirement (YAGNI).
+
+**Difficulties.** None. The `version = { workspace = true }` table form (rather
+than `version.workspace = true`) was copied from `crates/nova_events/Cargo.toml`
+to match the existing house style.
+
+**Evidence.** Base-red confirmed before implementation: `cargo check -p
+nova_autopilot` -> `package ID specification 'nova_autopilot' did not match any
+packages`. After: all four DoD proofs pass - `cargo check -p nova_autopilot`
+finished clean; the guarded anchored dependency grep exits 0; `RUSTDOCFLAGS=-Dwarnings
+cargo doc -p nova_autopilot --no-deps` generated docs with no warnings; `cargo
+metadata --no-deps` exits 0. `cargo fmt --check` clean. Full suite not run per
+the standing local-test policy; CI covers it.
+
+**Reflection.** The guarded/anchored dependency grep is the load-bearing part of
+this scaffold - it is what will fail loudly if a port task reaches for a `nova_*`
+type instead of a caller hook. Epic `20260802-120019` still carries the unsound
+unanchored form and should adopt this one.

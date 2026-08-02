@@ -301,6 +301,7 @@ license = "MIT"
 [workspace]
 members = [
   "crates/nova_assets",
+  "crates/nova_autopilot",
   "crates/nova_core",
   "crates/nova_debug",
   "crates/nova_editor",

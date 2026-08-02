@@ -4582,6 +4582,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nova_autopilot"
+version = "0.9.1"
+dependencies = [
+ "bevy",
+]
+
+[[package]]
 name = "nova_core"
 version = "0.9.1"
 dependencies = [
