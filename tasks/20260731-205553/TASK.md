@@ -1,13 +1,14 @@
-# Clear the standing nova_gameplay check and doc warnings
+# Clear compiler and rustdoc warnings for v0.10.0
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog
-- KIND: TASK
+- PRIORITY: 60
+- TAGS: v0.10.0,quality,docs,warnings
+- KIND: STORY
 - FLOW STEP: BACKLOG
 - PLAN STATUS: DRAFT
+- PARENT: 20260802-115955
 
-## Context
+## Story
 
 `cargo check -p nova_gameplay --all-targets` emits 4 warnings, 2 from each
 site:
@@ -28,11 +29,32 @@ passes and is the exact shape of the promoted
 `rustdoc-no-public-to-private-intra-doc-link` lesson. Fix by dropping the
 link brackets, not by making the fn public.
 
-Both found while working 20260731-170329, whose scope forbade fixing
-out-of-scope defects.
+Both found while working `20260731-170329`, whose scope forbade fixing
+out-of-scope defects. Clear these known warnings, then use warnings-as-errors to
+inventory and remove any additional compiler or rustdoc warnings exposed by the
+v0.10.0 automation work. CI retains ownership of the full Clippy run.
+
+## Steps
+
+- [ ] Reproduce the known `nova_gameplay` check and private-link rustdoc
+      warnings on the current tree.
+- [ ] Fix import visibility without changing public paths or prelude exports.
+- [ ] Drop the invalid rustdoc link markup without widening the private item.
+- [ ] Run workspace check and documentation with warnings denied; fix every
+      first-party warning in scope.
+- [ ] Confirm the existing CI Clippy pass remains the full-suite warning check;
+      fix any CI warning reported for this release without adding broad allows.
 
 ## Definition of Done
 
-- No `ambiguous import visibility` warning. (cmd: `nix develop --command cargo check -p nova_gameplay --all-targets`)
-- No `public documentation for ... links to private item` warning. (cmd: `nix develop --command cargo doc -p nova_gameplay --no-deps --document-private-items`)
-- Public paths and the nova_gameplay prelude unchanged. (manual: review diff)
+- Workspace compiler warnings are zero under the release feature set.
+  (cmd: `nix develop --command env RUSTFLAGS=-Dwarnings cargo check --workspace --all-targets --features debug`)
+- Workspace rustdoc warnings are zero.
+  (cmd: `nix develop --command env RUSTDOCFLAGS=-Dwarnings cargo doc --workspace --no-deps`)
+- Public paths and crate preludes remain unchanged except additive exports
+  required by planned new crates. (manual: review public API and prelude diff)
+
+## Notes
+
+- Do not run full local Clippy or the full test suite unless requested. CI owns
+  both per repository policy.

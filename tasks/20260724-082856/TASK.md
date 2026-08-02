@@ -1,57 +1,50 @@
 # Refresh frontend app images: fill missing + re-capture stale screenshots across web/
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog,web,assets,screenshot
-- KIND: TASK
+- PRIORITY: 80
+- TAGS: v0.10.0,web,assets,screenshot
+- KIND: STORY
 - FLOW STEP: BACKLOG
 - PLAN STATUS: DRAFT
+- PARENT: 20260802-115955
+- DEPENDS ON: 20260802-120045
 
 ## Story
 
-As a visitor to the nova-protocol web app (landing, devlog/news, wiki), I want
-the images to be present and current, so the site does not fall back to
-placeholders or show screenshots from old builds that no longer match the game.
-
-Consolidates two closed tasks - 20260715-092658 (devlog/news thumbnails) and
-20260715-231500 (stale wiki-hud/wiki-radar captures) - into one image-refresh
-pass, plus a general sweep for other missing/stale images the user has noticed.
+Use the automated showcase pipeline to replace every missing, placeholder, or
+stale website capture with current v0.10.0 output. This task owns the shipped
+asset refresh, not the capture mechanism built by `20260802-120045`.
 
 ## Steps
 
-- [ ] Inventory: enumerate every image referenced under `web/src/` (assets,
-      thumbnails, wiki figures, landing hero) and mark each present / missing /
-      stale (captured from an old build / wrong version chip in frame).
-- [ ] Reconcile the thumbnail naming drift: site references
-      `thumb-news-0.3.0/0.4.0/0.5.0/0.6.0.png` while
-      `scripts/gen-web-screenshots.py` still lists `thumb-devlog-3/4/5.png`.
-      Pick the canonical scheme, add the missing 0.6.0 (and any newer) thumb.
-- [ ] Re-capture stale screenshots at the current build via the screenshot
-      harness: `wiki-hud.png` (v0.5.2 in frame - needs a scene showing velocity
-      sphere, speed+mode chips with autopilot engaged, ORBIT ring while orbiting,
-      keybind cluster) and `wiki-radar.png` (sweep box, combat vs nav lock,
-      fine-lock section marker). Keep sources reproducible.
-- [ ] Fill genuinely missing images (the ones the user flagged) - source or
-      capture each and wire it in.
-- [ ] Verify: `cd web && npm run ci` green; serve and eyeball that no card or
-      figure falls back to a placeholder and no screenshot shows an old version
-      chip.
+- [ ] Inventory all image references under `web/src/` and classify current,
+      missing, placeholder, stale UI, stale version chrome, alias, or authored
+      non-game art.
+- [ ] Reconcile thumbnail naming between the website and shared capture manifest;
+      retain one version-based scheme and remove obsolete devlog aliases.
+- [ ] Run the canonical showcase capture. Refresh HUD, radar, flight, combat,
+      editor, NOVA OS, gravity, sections, tutorial, feature, and news images that
+      the inventory marks stale or missing.
+- [ ] Review every generated image at its actual page crop. Adjust source scene
+      checkpoints or camera framing, then recapture; do not hand-fix generated
+      screenshots.
+- [ ] Run the strict asset check and website CI. Open the rendered landing,
+      tutorial, news, and affected wiki pages.
 
 ## Definition of Done
 
-- No image reference under `web/src/` resolves to a placeholder (cmd: grep the
-  gen-web-screenshots pending report shows 0 pending).
-- `wiki-hud.png` / `wiki-radar.png` match the current build's HUD (manual: no
-  stale version chip in frame; named instruments visible).
-- Thumbnail naming is consistent between the site and the gen script (cmd:
-  `npm run ci`).
+- Every game screenshot reference resolves to current generated output with one
+  declared producer. (cmd: `nix develop --command python3 scripts/gen-web-screenshots.py --check`)
+- The site build has no missing asset reference or obsolete screenshot name.
+  (test: `web_asset_manifest_covers_every_game_capture`)
+- HUD/radar captures show the current instruments and no pre-v0.10.0 version
+  chrome. (manual: inspect rendered HUD and radar wiki figures)
+- Landing, tutorial, news, and affected wiki pages use intentional crops with no
+  placeholder fallback. (manual: inspect the locally rendered website pages)
 
 ## Notes
 
-- The user will point at the specific missing images; step 1's inventory should
-  surface them and any others.
-- Re-capture is game-render work (screenshot harness in the right scene state),
-  not a pure packaging job - `gen-web-screenshots.py` only packages staged
-  captures. Best done in a session that can drive the game / with a human on the
-  harness.
-- ImageMagick is available in the devshell for any overlay/annotation.
+- Known drift: site version thumbnails and `thumb-devlog-*` generator names do
+  not currently agree; `wiki-hud.png` and `wiki-radar.png` reuse older captures.
+- Authored diagrams/icons may remain authored. Only game-rendered imagery needs
+  an automation producer.
