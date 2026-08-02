@@ -107,6 +107,19 @@ jobs:
         # bevy/track_location back off and rebuild Bevy inside this step.
         run: xvfb-run --auto-servernum cargo test -p nova-protocol --test examples_smoke --features debug
 
+      # nova_autopilot's own end-to-end proof: its `driven_app` example is a
+      # standalone DefaultPlugins app driven Boot -> Flying -> Done, and this
+      # asserts the exit status plus the harness log lines. Written with no
+      # `--features` on purpose: `debug` is a nova-protocol feature that flips
+      # bevy/track_location, and the nested `cargo run -p nova_autopilot`
+      # resolves without it - so this costs ONE extra cached Bevy variant, and
+      # the test binary and its nested run share that one graph. Never running
+      # it would leave the crate's only end-to-end proof permanently skipped.
+      - name: Autopilot example
+        env:
+          RUST_BACKTRACE: full
+        run: xvfb-run --auto-servernum cargo test -p nova_autopilot --test autopilot_example
+
   # The dependency-license gate. The shipped manifest
   # (credits/THIRD-PARTY-LICENSES.md) is GENERATED at build/release time, not
   # committed (cargo-about's output is not byte-stable, so a committed copy could

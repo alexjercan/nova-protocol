@@ -1,26 +1,44 @@
-# Decisions - 20260802-183352
+# Decision: The runnable proof is a windowed app, run as a subprocess
 
-## The example runs `DefaultPlugins`, not `MinimalPlugins`
+- DATE: 20260803-001040
+- STATUS: ACCEPTED
+- TASK: 20260802-183352
+- TAGS: decision, autopilot, testing, ci
 
-A `MinimalPlugins` example would need no display and would run in the plain CI
-test step - but the crate already has App-driven `MinimalPlugins` coverage in
-`src/autopilot.rs` and `tests/`. What is NOT covered is the real thing: a
-windowed app whose state machine, input collection and exit path are Bevy's own.
-That is what `nova_probe` will reuse, and what the "runs headless to a clean
-exit" DoD means. The cost is a display requirement, which the DoD already
-accounts for by demanding a loud skip rather than a failure.
+## Context
 
-## The test spawns the example as a subprocess
+`nova_autopilot` needs a runnable example that proves the crate stands alone,
+plus an automated check on it. The crate already has App-driven `MinimalPlugins`
+coverage in `src/autopilot.rs` and `tests/`, so the open questions were what the
+example must be to add anything, and how CI should exercise it.
 
-Same shape as `tests/examples_smoke.rs`: `env!("CARGO")` + `cargo run --example`,
-assert on exit status and stderr lines. In-process is not an option - the thing
-under test is the process exit code and the log output a supervisor reads.
+## Decision
 
-## CI gets one extra Bevy variant
+The example (`examples/driven_app.rs`) runs `DefaultPlugins`, and
+`tests/autopilot_example.rs` spawns it as a subprocess via `env!("CARGO")`,
+asserting on exit status and stderr lines - the same shape as the root
+`tests/examples_smoke.rs`. CI runs it as `-p nova_autopilot` with no
+`--features`.
 
-The root `debug` feature turns on `bevy/track_location`; the nested
-`cargo run -p nova_autopilot` resolves without it, so CI compiles a second Bevy
-variant once and caches it. The alternative - never running this test in CI -
-would leave the crate's only end-to-end proof permanently skipped. Accepted, and
-the CI step is written as `-p nova_autopilot` with no `--features` so the test
-binary and its nested run share one graph (one extra variant, not two).
+## Alternatives considered
+
+- `MinimalPlugins`: would need no display and would ride the plain CI test step,
+  but duplicates existing lib coverage. What is NOT covered is the real thing: a
+  windowed app whose state machine, input collection and exit path are Bevy's
+  own. That is what the probe run-harness reuses, and what the "runs headless to
+  a clean exit" DoD means.
+- Driving the example in-process: not an option - the subjects under test are
+  the process exit code and the log output a supervisor reads.
+- Never running the test in CI: would leave the crate's only end-to-end proof
+  permanently skipped.
+
+## Consequences
+
+- A display is required. The DoD accounts for it: no `DISPLAY`/`WAYLAND_DISPLAY`
+  means a loud skip, not a failure, so a bare `cargo test` on a headless box
+  still passes.
+- CI compiles one extra Bevy variant, once, then caches it. The root `debug`
+  feature turns on `bevy/track_location`; the nested `cargo run -p
+  nova_autopilot` resolves without it. Writing the CI step as `-p nova_autopilot`
+  with no `--features` keeps the test binary and its nested run on one graph -
+  one extra variant, not two.

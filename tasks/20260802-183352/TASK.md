@@ -3,9 +3,9 @@
 - PRIORITY: 94
 - TAGS: v0.10.0, tooling, autopilot, testing
 - KIND: TASK
-- ACTIVITY: WORKING
-- GATES: PLAN
-- RESOLUTION: -
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 - PARENT: 20260802-120019
 - DEPENDS ON: 20260802-183343
 
@@ -19,7 +19,7 @@ pattern `nova_probe` reuses for correctness and profiling runs.
 
 ## Steps
 
-- [ ] Add `crates/nova_autopilot/examples/driven_app.rs`: a self-contained
+- [x] Add `crates/nova_autopilot/examples/driven_app.rs`: a self-contained
       `DefaultPlugins` app with its own `DemoState { Boot, Flying, Done }`,
       a camera, a light and one cube. `AutopilotPlugin::<DemoState>::new()`
       holds `Boot 0.5s -> Flying 2.0s -> Done 0.5s`; the `input` closure is
@@ -27,10 +27,10 @@ pattern `nova_probe` reuses for correctness and profiling runs.
       `ButtonInput<KeyCode>` and translates the cube, logging
       `driven_app: thrust moved the cube` once. `fn main() -> AppExit` returns
       `app.run()`. No `nova_*` import but the crate itself.
-- [ ] Add the in-example behavior assertion: an `OnEnter(DemoState::Done)`
+- [x] Add the in-example behavior assertion: an `OnEnter(DemoState::Done)`
       system that panics when the cube never moved, so a driven run that stops
       driving fails the process instead of exiting green.
-- [ ] Add `crates/nova_autopilot/tests/autopilot_example.rs` with
+- [x] Add `crates/nova_autopilot/tests/autopilot_example.rs` with
       `autopilot_example_completes_a_cycle`: skip loudly (eprintln + return)
       when neither `DISPLAY` nor `WAYLAND_DISPLAY` is set; otherwise spawn
       `cargo run --quiet -p nova_autopilot --example driven_app` via
@@ -40,9 +40,9 @@ pattern `nova_probe` reuses for correctness and profiling runs.
       `harness completion: all collectors done, exiting` and the example's own
       `driven_app: thrust moved the cube`. Failure messages print a `tail()` of
       stderr (same helper shape as `tests/examples_smoke.rs`).
-- [ ] RUN the example for real once under `Xvfb :99` (repository rule), then run
+- [x] RUN the example for real once under `Xvfb :99` (repository rule), then run
       the new test both with and without a display.
-- [ ] Wire the test into CI: add
+- [x] Wire the test into CI: add
       `xvfb-run --auto-servernum cargo test -p nova_autopilot --test autopilot_example`
       to the existing "Examples smoke test" step in `.github/workflows/ci.yaml`,
       with a comment stating the one-extra-Bevy-variant cost (see Notes).
@@ -95,3 +95,49 @@ Discovered facts (verified on `master` while planning):
 - Crate docs/prelude are `20260802-183355`; the example fleet migration is
   `20260802-183403`. This task touches neither.
 - No user-visible behavior changes, so no CHANGELOG or wiki surface is due.
+
+## Close-out
+
+What/why: `crates/nova_autopilot/examples/driven_app.rs` is a standalone
+`DefaultPlugins` app - own `DemoState { Boot, Flying, Done }`, camera, light,
+one cube - driven `Boot 0.5s -> Flying 2.0s -> Done 0.5s` by
+`AutopilotPlugin`, with the input closure gated to `Flying` pressing Space and
+an `Update` system that reads real `ButtonInput` and translates the cube. An
+`OnEnter(Done)` guard asserts the cube moved, so a run that stops being driven
+exits 101 instead of green. `crates/nova_autopilot/tests/autopilot_example.rs`
+spawns it via `env!("CARGO")` and asserts exit status plus the three log
+lines; it skips loudly without a display.
+
+Alternatives: `MinimalPlugins` (rejected in DECISION.md - the lib tests
+already cover that; the uncovered thing is a windowed app's real state
+machine, input collection and exit path). In-process run (rejected: the
+subjects are the process exit code and the stderr a supervisor reads).
+
+Deviation from Step 5: CI gets its OWN step ("Autopilot example") rather than
+a second command inside "Examples smoke test". Same command and same
+one-extra-variant cost as planned (`-p nova_autopilot`, no `--features`), but
+a separate step attributes a failure to the crate instead of to the game's
+example fleet.
+
+Difficulties/diagnosis: the no-coupling DoD grep initially failed on the
+example's own doc comment, which named `nova_probe` in prose. Reworded to "the
+probe run-harness" with a comment saying why - the proof greps the whole
+directory, comments included.
+
+Evidence:
+- Real run under `Xvfb :99`: exit 0, logged `autopilot: -> Flying (t=0.5s)`,
+  `driven_app: thrust moved the cube`, `autopilot: -> Done (t=2.5s)`,
+  `autopilot: cycle complete, no panic (t=3.0s)`,
+  `harness completion: all collectors done, exiting`.
+- Falsification: with the input closure short-circuited, the same run panicked
+  in the `OnEnter(Done)` guard and exited 101 - the guard is load-bearing.
+- `cargo test -p nova_autopilot --test autopilot_example` with `DISPLAY=:99`:
+  1 passed (5.65s); with `-u DISPLAY -u WAYLAND_DISPLAY`: 1 passed, SKIP line
+  printed.
+- `cargo check -p nova_autopilot --examples`: clean (no longer a no-op).
+- No-coupling grep: exit 0. `cargo fmt --check`: clean.
+
+Reflection: the example is deliberately dumb - one cube, one key, one
+assertion - because its job is to prove the seam, not to demo anything. Per
+repository policy the full suite and clippy were NOT run locally; CI covers
+them on the PR.
