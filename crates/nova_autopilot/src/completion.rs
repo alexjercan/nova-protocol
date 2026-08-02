@@ -34,6 +34,9 @@ pub const AUTOPILOT: &str = "autopilot";
 /// Collector name the settled-frame screenshot driver registers under.
 pub const SCREENSHOT: &str = "screenshot";
 
+/// Collector name the multi-shot screenshot reel driver registers under.
+pub const REEL: &str = "reel";
+
 /// Environment variable overriding the completion deadline, in seconds.
 pub const DEADLINE_ENV: &str = "NOVA_AUTOPILOT_DEADLINE";
 

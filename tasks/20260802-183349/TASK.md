@@ -3,9 +3,9 @@
 - PRIORITY: 95
 - TAGS: v0.10.0, tooling, autopilot, screenshot
 - KIND: TASK
-- ACTIVITY: WORKING
-- GATES: PLAN
-- RESOLUTION: -
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 - PARENT: 20260802-120019
 - DEPENDS ON: 20260802-183346
 
@@ -20,10 +20,10 @@ carries no `nova_scenario` or `avian3d` dependency. Armed by `NOVA_REEL`.
 
 ## Steps
 
-- [ ] Add `pub const REEL: &str = "reel";` to
+- [x] Add `pub const REEL: &str = "reel";` to
       `crates/nova_autopilot/src/completion.rs` next to `AUTOPILOT` and
       `SCREENSHOT`, with the same one-line doc shape.
-- [ ] Port the driver into `crates/nova_autopilot/src/reel.rs`, replacing the
+- [x] Port the driver into `crates/nova_autopilot/src/reel.rs`, replacing the
       module's placeholder `//!` line with real crate-shaped docs (a
       `nova_autopilot::reel` import path, `NOVA_REEL`, no `nova_scenario` /
       `ScenarioCameraMarker` / BCS references, and the two-hook contract). Port
@@ -36,15 +36,15 @@ carries no `nova_scenario` or `avian3d` dependency. Armed by `NOVA_REEL`.
       outer `/// The screenshot reel driver...` line above `pub mod reel;` in
       `lib.rs` - the module now carries `//!` docs and the outer doc would
       concatenate ahead of them (`20260802-183340` REVIEW.md R1.3).
-- [ ] Port the shot-dir path resolution: `pub const SHOT_DIR_ENV: &str =
+- [x] Port the shot-dir path resolution: `pub const SHOT_DIR_ENV: &str =
       "NOVA_SHOT_DIR";` and a private `capture_path(&str) -> PathBuf` that joins
       a RELATIVE path under it and passes an absolute path through unchanged.
-- [ ] Port `pub fn capture_window(world: &mut World, path: &str)` verbatim
+- [x] Port `pub fn capture_window(world: &mut World, path: &str)` verbatim
       (create the parent dir, warn-and-continue on failure, spawn
       `Screenshot::primary_window()` + `save_to_disk(capture_path(path))`). It
       stays public: the UI/combat/juice capture examples drive their own beats
       from an autopilot closure and call it directly.
-- [ ] Replace the three reach-ins with hooks on `ScreenshotReelPlugin`, all
+- [x] Replace the three reach-ins with hooks on `ScreenshotReelPlugin`, all
       stored as `Option<Arc<...>>` and cloned into systems at `build` (the
       `ScreenshotPlugin::hide_overlay` shape):
       - `ready(impl Fn(&World) -> bool + Send + Sync + 'static)` replaces the
@@ -61,18 +61,18 @@ carries no `nova_scenario` or `avian3d` dependency. Armed by `NOVA_REEL`.
         `hide_dev_overlays` + `reel_hide_hud` startup pair, same name and
         signature as `ScreenshotPlugin::hide_overlay`.
       Do NOT port `reel_freeze_bodies` in any form - DECISION.md D2.
-- [ ] Fold the exit into the completion protocol: `completion::register(app,
+- [x] Fold the exit into the completion protocol: `completion::register(app,
       completion::REEL)` in `build` after the armed and non-empty-beats checks,
       and on the LAST beat's capture landing call
       `completion.done(completion::REEL)` in place of
       `world.write_message(AppExit::Success)`. Keep `state.done = true` so the
       driver goes inert. `reel_drive` is exclusive, so reach the resource with
       `world.resource_mut::<completion::HarnessCompletion>()`.
-- [ ] Port the two pure `capture_path` unit tests from `harness.rs`
+- [x] Port the two pure `capture_path` unit tests from `harness.rs`
       (`reel_capture_path_leaves_bare_and_absolute_paths_alone`) into the
       module's `#[cfg(test)]` block. Nothing else stays in the lib-test binary
       (DECISION.md D5).
-- [ ] Add `crates/nova_autopilot/tests/reel.rs`, reusing `tests/screenshot.rs`'s
+- [x] Add `crates/nova_autopilot/tests/reel.rs`, reusing `tests/screenshot.rs`'s
       rig (`MinimalPlugins + StatesPlugin` is not needed - the reel is not
       state-generic, so `MinimalPlugins` alone), `TimeUpdateStrategy::
       ManualDuration(FRAME)`, a `Once`-guarded `arm()`, a per-frame `AppExit`
@@ -152,3 +152,41 @@ carries no `nova_scenario` or `avian3d` dependency. Armed by `NOVA_REEL`.
   inside `resource_scope` (they take `&mut World` / `&World`, and `ReelState` is
   out of the world for the duration, so they must not touch it - they cannot,
   it is private).
+
+## Close-out
+
+**What/why.** `nova_autopilot::reel` now owns the beat cadence (ready -> apply
+-> settle -> capture -> await the PNG -> advance -> report done) and nothing
+else. `ReelCamera` is gone; a beat carries an `apply` closure instead, the
+scenario-camera probe became a `ready` predicate, and the overlay+HUD pair
+became one `hide_overlay` startup hook - the same shape `ScreenshotPlugin`
+already takes. The last beat calls `completion.done(completion::REEL)` where
+the `nova_debug` copy wrote `AppExit::Success`, so a reel running alongside the
+autopilot can no longer truncate it.
+
+**Alternatives.** Recorded in DECISION.md (D1-D6) at plan time and unchanged by
+the implementation. One shape choice made here: the parent-dir creation is a
+private `create_capture_dir` helper rather than the duplicated inline block the
+source had in both `capture_window` and `reel_drive`.
+
+**Difficulties.** Two, both in the test rig:
+- Bevy's render app despawns a served `Screenshot` entity (bevy_render
+  `screenshot.rs:199`). A headless test that only triggers `ScreenshotCaptured`
+  leaves it behind, so a naive "exactly one capture outstanding" assertion
+  would count stale requests. `land_capture` despawns as the render app does.
+- The frame after a capture lands only ADVANCES the index; the next beat's
+  `apply` runs on the frame after that. The first draft of
+  `reel_beats_are_serialized_on_capture` was off by one frame per beat.
+
+**Evidence.** `cargo test -p nova_autopilot`: 15 lib + 3 reel + 4 screenshot +
+1 stand-down + 3 doc tests, all green. Clippy `--all-targets` and
+`cargo fmt --check` clean. Both `rg` boundary guards exit 0. The three new
+tests were falsified against a deliberately broken driver (capture wait
+removed, `AppExit::Success` restored, ready gate bypassed): all three failed,
+then all three passed again on the restored file.
+
+**Reflection.** The `ready` predicate taking `&World` (D3) paid off immediately
+in the test - the gate reads a plain test-owned resource, no world mutation to
+sequence against the driver. Nothing in `nova_debug` changed, so the branch is
+landable on its own; `20260802-183403` still owns the caller migration and
+inherits the adapter work DECISION.md's consequences list.

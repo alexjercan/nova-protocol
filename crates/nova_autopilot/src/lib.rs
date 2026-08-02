@@ -18,14 +18,12 @@
 
 #![warn(missing_docs)]
 
-// No outer doc here, and none on `completion` or `screenshot` below: those
-// modules carry their own `//!` docs, and an outer `///` would concatenate
-// ahead of them and re-resolve their intra-doc links (`AppExit`,
-// `AUTOPILOT_ENV`, `SCREENSHOT_ENV`) in THIS module's scope, where they do not
-// exist. See 20260802-183340 REVIEW.md R1.3.
+// No outer docs here: every module below carries its own `//!` docs, and an
+// outer `///` would concatenate ahead of them and re-resolve their intra-doc
+// links (`AppExit`, `AUTOPILOT_ENV`, `SCREENSHOT_ENV`) in THIS module's scope,
+// where they do not exist. See 20260802-183340 REVIEW.md R1.3.
 pub mod autopilot;
 pub mod completion;
-/// The screenshot reel driver, driven through caller hooks.
 pub mod reel;
 pub mod screenshot;
 
