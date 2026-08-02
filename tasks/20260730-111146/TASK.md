@@ -1,8 +1,8 @@
 # Refresh the tutorial against the current UI and automated captures
 
 - STATUS: OPEN
-- PRIORITY: 70
-- TAGS: v0.10.0,docs,web
+- PRIORITY: 60
+- TAGS: v0.10.0, docs, web
 - KIND: STORY
 - FLOW STEP: BACKLOG
 - PLAN STATUS: DRAFT

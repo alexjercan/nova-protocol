@@ -1,8 +1,8 @@
 # Clear compiler and rustdoc warnings for v0.10.0
 
 - STATUS: OPEN
-- PRIORITY: 60
-- TAGS: v0.10.0,quality,docs,warnings
+- PRIORITY: 50
+- TAGS: v0.10.0, quality, docs, warnings
 - KIND: STORY
 - FLOW STEP: BACKLOG
 - PLAN STATUS: DRAFT

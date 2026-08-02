@@ -1,8 +1,8 @@
 # Add checkpoint-driven Nova automation scripts
 
 - STATUS: OPEN
-- PRIORITY: 95
-- TAGS: v0.10.0,tooling,autopilot,testing
+- PRIORITY: 85
+- TAGS: v0.10.0, tooling, autopilot, testing
 - KIND: STORY
 - FLOW STEP: BACKLOG
 - PLAN STATUS: DRAFT

@@ -41,14 +41,14 @@ website. The release favors one reusable pipeline over unrelated features.
 
 | ID | Priority | Repo | Title | Landed result |
 | --- | ---: | --- | --- | --- |
-| `20260802-120019` | 100 | nova-protocol | Move the automation harness into `nova_autopilot` | Pending |
-| `20260802-120025` | 95 | nova-protocol | Add checkpoint-driven Nova automation scripts | Pending |
-| `20260802-120029` | 90 | nova-protocol | Build the v0.10.0 showcase scenario suite | Pending |
-| `20260802-120045` | 85 | nova-protocol | Generate showcase evidence and web assets with one command | Pending |
-| `20260724-082856` | 80 | nova-protocol | Refresh frontend app images | Pending |
-| `20260715-220011` | 78 | nova-protocol | Generate real per-scenario picker thumbnails | Pending |
-| `20260730-111146` | 70 | nova-protocol | Refresh the tutorial against current UI and captures | Pending |
-| `20260731-205553` | 60 | nova-protocol | Clear compiler and rustdoc warnings | Pending |
+| `20260802-120019` | 100 | nova-protocol | Move the automation harness into `nova_autopilot` (9 children) | Pending |
+| `20260802-120025` | 85 | nova-protocol | Add checkpoint-driven Nova automation scripts | Pending |
+| `20260802-120029` | 80 | nova-protocol | Build the v0.10.0 showcase scenario suite | Pending |
+| `20260802-120045` | 75 | nova-protocol | Generate showcase evidence and web assets with one command | Pending |
+| `20260724-082856` | 70 | nova-protocol | Refresh frontend app images | Pending |
+| `20260715-220011` | 68 | nova-protocol | Generate real per-scenario picker thumbnails | Pending |
+| `20260730-111146` | 60 | nova-protocol | Refresh the tutorial against current UI and captures | Pending |
+| `20260731-205553` | 50 | nova-protocol | Clear compiler and rustdoc warnings | Pending |
 
 ## Decisions
 

@@ -1,8 +1,8 @@
 # Build the v0.10.0 showcase scenario suite
 
 - STATUS: OPEN
-- PRIORITY: 90
-- TAGS: v0.10.0,content,scenario,examples,testing
+- PRIORITY: 80
+- TAGS: v0.10.0, content, scenario, examples, testing
 - KIND: STORY
 - FLOW STEP: BACKLOG
 - PLAN STATUS: DRAFT
