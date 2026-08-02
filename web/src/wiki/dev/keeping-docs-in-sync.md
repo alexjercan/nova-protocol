@@ -61,6 +61,7 @@ it if the change made it wrong - not every change touches every listed page.
 | App assembly, plugin order, states (`nova_core`, `nova_assets`) | | `dev/architecture.md`, `dev/project-tour.md` | CHANGELOG |
 | Content CLI: gen/lint/audit subcommands (`nova_assets` bin `content`) | | `dev/guide-author-scenario.md`, `dev/guide-make-a-mod.md`, `dev/modding-ron.md` | CHANGELOG |
 | The website itself (`web/`) | | `dev/development.md`, [this page](../keeping-docs-in-sync/) | |
+| Local dev servers (`scripts/serve-web.sh`, `scripts/serve-mods.sh`, `scripts/preview-web.sh`, `web/webpack.config.js`, `Trunk.toml`) | | `dev/development.md` ("Local web preview"), `dev/mod-portal.md` ("Local development") | README.md quick start + scripts table |
 
 When a change lives in `bevy-common-systems` (the pinned git dependency), fix it
 there first, bump the `rev` in `crates/nova_gameplay/Cargo.toml`, and note the

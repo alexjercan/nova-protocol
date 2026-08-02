@@ -51,6 +51,7 @@ cargo run
 cargo run --features dev
 cargo run --example scenario
 trunk serve
+scripts/serve-web.sh
 cargo check
 cargo fmt
 cargo run -p nova_assets --bin content -- gen

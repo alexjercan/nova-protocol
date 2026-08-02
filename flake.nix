@@ -42,6 +42,7 @@
             nodejs_22 # for the web/ landing site (matches the CI setup-node version)
             samply # sampling profiler for the scenario-dispatch benchmarks (task 20260714-083331)
             sccache # RUSTC_WRAPPER: content-hash compile cache shared safely across worktrees (task 20260721-000229)
+            watchexec # file-watch driver for scripts/serve-mods.sh (the mod portal has no watch mode of its own)
             xvfb-run
           ];
 

@@ -153,11 +153,28 @@ of `/play/` and appending `/mods` as a SIBLING - so the game at
 CORS, so a cross-origin portal fails; serve the portal same-origin instead.
 (Native has no such rule - ureq ignores CORS.)
 
-### Web: full site preview (recommended)
+### Web: live dev (recommended)
+
+`scripts/serve-web.sh` starts all three servers and proxies the game and the
+portal onto the site's origin, reproducing that layout without building anything
+statically. The portal half is `scripts/serve-mods.sh`, which regenerates the
+tree on every `webmods/` edit - change a mod, reload Explore, it is there:
+
+```sh
+nix develop -c scripts/serve-web.sh   # or --release for an optimized game
+# the banner prints the URL; open it, click Play, Explore works with NO ?portal=
+```
+
+Each server takes a random free port in 7000-7999 (pin them with
+`NOVA_UI_PORT` / `NOVA_GAME_PORT` / `NOVA_MODS_PORT`). See
+[Local web preview](../development/#local-web-preview).
+
+### Web: full site preview (closest to the deploy)
 
 `scripts/preview-web.sh` builds the game, assembles it under `/play/`, generates
-the portal as the `/mods` sibling, and serves the whole thing same-origin - the
-same layout the deploy publishes:
+the portal as the `/mods` sibling, and serves the whole thing same-origin as
+static files - no dev servers, no proxies, so it is the honest check before a
+release. It does not watch anything:
 
 ```sh
 nix develop -c scripts/preview-web.sh            # or --release for an optimized game
@@ -181,27 +198,28 @@ looks at the `/mods` sibling and 404s - this was the bug in task 20260715-214540
 
 ### Web: lighter loop (trunk serve, game at root)
 
-For a quick iteration without assembling the full `/play/` site, run the portal
-on its own server and let `trunk serve` proxy to it same-origin:
+For a quick iteration without the content site, run the portal on its own server
+and let `trunk serve` proxy to it same-origin. Trunk's backend proxy is
+configured through the environment (`Trunk.toml` carries no `[[proxy]]` entry:
+Trunk merges a config-file proxy with the env one and then panics on the
+duplicate `/mods` route):
 
 ```sh
-python3 scripts/gen-portal.py --source webmods --shipped assets/mods.catalog.ron --out /tmp/portal/mods
-python3 -m http.server -d /tmp/portal 8000       # portal at :8000/mods/
-trunk serve                                       # Trunk.toml proxies /mods -> :8000/mods
+nix develop -c scripts/serve-mods.sh              # prints its port, watches webmods/
+TRUNK_SERVE_PROXY_BACKEND=http://127.0.0.1:<port>/mods nix develop -c trunk serve
 # open http://localhost:8080  (game at root) with NO ?portal=
 ```
 
-The dev-only `[[proxy]]` in `Trunk.toml` applies to `trunk serve` only (never
-`trunk build`), so it has no effect on the deploy.
+The proxy applies to `trunk serve` only (never `trunk build`), so it has no
+effect on the deploy.
 
 ### Native
 
 No origin rule applies; point at any local portal with `NOVA_PORTAL_URL`:
 
 ```sh
-python3 scripts/gen-portal.py --source webmods --shipped assets/mods.catalog.ron --out /tmp/portal/mods
-python3 -m http.server -d /tmp/portal 8000
-NOVA_PORTAL_URL=http://localhost:8000/mods cargo run
+nix develop -c scripts/serve-mods.sh              # prints its port
+NOVA_PORTAL_URL=http://localhost:<port>/mods cargo run
 ```
 
 ### A note on cross-origin `?portal=`

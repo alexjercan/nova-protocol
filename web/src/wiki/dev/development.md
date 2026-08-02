@@ -234,9 +234,13 @@ cargo run -p nova_assets --bin content -- lint --target <mod> --report r.md     
 WASM via **Trunk** (`Trunk.toml`, `index.html`):
 
 ```sh
-trunk serve            # serve on http://localhost:8080
+trunk serve            # serve the game alone on http://localhost:8080
 trunk build --release
 ```
+
+For the full site (game at `/play/`, mod portal at `/mods/`) with everything
+watched, use `scripts/serve-web.sh` - see [Local web preview](#local-web-preview)
+below.
 
 `.cargo/config.toml` sets `--cfg=web_sys_unstable_apis` for wasm; `bevy_rand`
 uses its `wasm_js` feature there. Trunk only supports the `release` profile.
@@ -257,6 +261,64 @@ flowchart LR
   pages --> root["/ (landing)"]
   pages --> play["/play/ (game)"]
 ```
+
+### Local web preview
+
+The published site is three builds stitched together - the content site at `/`,
+the WASM game at `/play/`, the generated mod portal at `/mods/`. Serving only
+one of them locally is what makes **Play** fall back to the landing page and the
+in-game Explore tab come up empty. Two scripts cover the two things you actually
+want:
+
+```sh
+nix develop -c scripts/serve-web.sh      # live dev: all three, watched
+nix develop -c scripts/preview-web.sh    # one-shot static build of the deploy
+```
+
+`serve-web.sh` starts all three servers and proxies the other two onto the
+site's origin, so a single URL has the deployed shape:
+
+```mermaid
+flowchart LR
+  you([Browser])
+  you -->|":UI_PORT/"| site["webpack dev server<br/>watches web/src"]
+  site -->|proxy /play| game["trunk serve<br/>watches crates, src, assets"]
+  site -->|proxy /mods| mods["serve-mods.sh<br/>watches webmods/"]
+```
+
+Everything rebuilds on save: edit a wiki page and the tab reloads, edit a crate
+and Trunk rebuilds the wasm, edit a mod and the portal is regenerated in place.
+`--release` switches the game to an optimized build. Ctrl-C stops all three.
+
+Each server takes a **random free port in 7000-7999**, so several worktrees can
+serve at once - the banner prints the URLs. Pin any of them, or point the site
+at servers you started yourself:
+
+| Variable | Read by | Effect |
+| --- | --- | --- |
+| `NOVA_UI_PORT` | `web/webpack.config.js` | Fixes the site's port. |
+| `NOVA_GAME_PORT` | `scripts/serve-web.sh` | Fixes the game's port (exported as `TRUNK_SERVE_PORT`). |
+| `NOVA_MODS_PORT` | `scripts/serve-mods.sh` | Fixes the portal's port. |
+| `GAME_DEV_URL` | `web/webpack.config.js` | Where `/play` is proxied. Default `http://localhost:8080` (Trunk's own default). |
+| `MODS_DEV_URL` | `web/webpack.config.js` | Where `/mods` is proxied. Default `http://localhost:9000`. |
+
+Two things are worth knowing before you go off-script:
+
+- **Trunk needs explicit watch paths here.** Its default ("the build target's
+  parent folder", i.e. the repo root) never fires in this repo, so a bare
+  `trunk serve` keeps serving the first build no matter what you edit.
+  `serve-web.sh` passes `--watch` for each real input (`crates`, `src`,
+  `assets`, `credits`, `build`, `index.html`, `Cargo.toml`, `Cargo.lock`).
+- **The portal must be same-origin with the game.** The wasm build derives its
+  portal base from `window.location`, so under `/play/` it fetches
+  `<origin>/mods`. That is why the *site* server proxies `/mods`, and why a
+  cross-origin `?portal=` override fails on CORS. See
+  [Mod portal](../mod-portal/), "Local development".
+
+`preview-web.sh` is the other half: no dev servers and no proxies, just
+`trunk build` + `npm run build` + `gen-portal.py` assembled into `web/dist` and
+served statically on `:8090`. It does not watch anything, but it is the only
+local check of the real deploy layout - run it before a release.
 
 ### Regenerating the web screenshots
 

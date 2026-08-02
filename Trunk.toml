@@ -17,17 +17,23 @@ command = "cargo"
 command_arguments = ["run", "--quiet", "-p", "nova_meta_gen"]
 
 [serve]
+# Default for a bare `trunk serve`. The preview scripts override it with
+# TRUNK_SERVE_PORT so several worktrees can serve at once (see
+# scripts/serve-web.sh).
 port = 8080
 
-# Local mod-portal testing (dev only - proxies apply to `trunk serve`, never
-# `trunk build`, so this has ZERO effect on the deployed site). It serves the
+# Local mod-portal testing is configured through the environment, NOT a [[proxy]]
+# entry here. Trunk merges config-file proxies with TRUNK_SERVE_PROXY_BACKEND and
+# then panics on the duplicate /mods route, so a fixed entry would make
+# `scripts/serve-web.sh` unstartable.
+#
+# Why a proxy at all (dev only - proxies apply to `trunk serve`, never
+# `trunk build`, so this has ZERO effect on the deployed site): it serves the
 # generated portal SAME-ORIGIN under the trunk dev server, so the wasm Explore
-# tab fetches `http://localhost:8080/mods/...` with no cross-origin `?portal=`
-# override (which the browser blocks on CORS). Generate + serve the portal
-# first, then `trunk serve` and open http://localhost:8080 with NO ?portal=:
-#   python3 scripts/gen-portal.py --source webmods \
-#     --shipped assets/mods.catalog.ron --out /tmp/portal/mods
-#   python3 -m http.server -d /tmp/portal 8000
+# tab fetches `<game origin>/mods/...` with no cross-origin `?portal=` override
+# (which the browser blocks on CORS).
+#
+# `scripts/serve-web.sh` wires this up for you. For the game-only loop:
+#   nix develop -c scripts/serve-mods.sh          # prints its port
+#   TRUNK_SERVE_PROXY_BACKEND=http://127.0.0.1:<port>/mods nix develop -c trunk serve
 # See web/src/wiki/dev/mod-portal.md, "Local development".
-[[proxy]]
-backend = "http://localhost:9000/mods"

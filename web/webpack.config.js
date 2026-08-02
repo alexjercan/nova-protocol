@@ -3,6 +3,7 @@ const HtmlWebpackPlugin = require("html-webpack-plugin");
 const HtmlPartialsPlugin = require("./webpack-partials");
 const CopyPlugin = require("copy-webpack-plugin");
 const { wikiDocPage, newsPostPage } = require("./markdown");
+const getPort = require("get-port");
 
 // PUBLIC_PATH should be "/" for local dev (default) or "/nova-protocol/" for the
 // GitHub project-pages deploy, so asset URLs and inter-page links resolve under
@@ -286,132 +287,171 @@ const redirectPage = ([from, to]) =>
         templateContent: redirectHtml(publicPath + to + "/"),
     });
 
-const config = {
-    entry: {
-        index: "./src/index.ts",
-        tutorial: "./src/tutorial.ts",
-        wiki: "./src/wiki.ts",
-        news: "./src/news.ts",
-    },
-    output: {
-        path: path.resolve(__dirname, "dist"),
-        filename: "[name].js",
-        assetModuleFilename: "assets/[name][ext]",
-        clean: true,
-        publicPath: publicPath,
-    },
-    plugins: [
-        page("index", "src/index.html", "index.html"),
-        page("tutorial", "src/tutorial.html", "tutorial/index.html"),
-        page("wiki", "src/wiki.html", "wiki/index.html"),
-        ...WIKI_DOC_PAGES.map(docPage),
-        page("news", "src/news.html", "news/index.html"),
-        ...NEWS_POSTS.map(newsPage),
-        ...REDIRECTS.map(redirectPage),
-        new CopyPlugin({
-            patterns: [
-                { from: "src/assets", to: "assets" },
-                { from: "src/favicon.svg", to: "favicon.svg" },
-                // Easter egg: the self-contained UI-rework PoCs live in
-                // `examples/ui/` (their source of truth). Copy them verbatim into
-                // the build at secret, unlinked routes rather than committing a
-                // second copy under `src/`. The 5x brand-click (src/site.ts) opens
-                // `/nova-menu/`; New Game -> `/nova-hud/`; the HUD's NOVA OS button
-                // -> `/nova-os/`. The menu + CRT PoCs have no relative asset refs
-                // and render as-is under any publicPath; the HUD PoC references the
-                // input-prompt key glyphs, which live in the game asset tree
-                // (`assets/input-prompts/`), so that folder is copied alongside.
-                {
-                    from: "../examples/ui/nova_ui_rework_poc.html",
-                    to: "nova-menu/index.html",
-                },
-                {
-                    from: "../examples/ui/hud_rework_poc.html",
-                    to: "nova-hud/index.html",
-                },
-                {
-                    from: "../assets/input-prompts",
-                    to: "nova-hud/assets/input-prompts",
-                },
-                {
-                    from: "../examples/ui/nova_os_terminal_poc.html",
-                    to: "nova-os/index.html",
-                },
-            ],
-        }),
-        new HtmlPartialsPlugin({ basePath: publicPath }),
-    ],
-    resolve: {
-        extensions: [".ts", ".tsx", ".js"],
-    },
-    module: {
-        rules: [
-            {
-                test: /\.tsx?$/,
-                use: "ts-loader",
-                exclude: /node_modules/,
-            },
-            {
-                test: /\.css$/i,
-                use: ["style-loader", "css-loader", "postcss-loader"],
-            },
-        ],
-    },
-    mode: "development",
-    devServer: {
-        static: path.join(__dirname, "dist"),
-        port: 8090,
-        // Forward /play/ to a running `trunk serve` (the Bevy WASM game) so the
-        // Play button works during live site development. Start the game first
-        // with `trunk serve` at the repo root (defaults to :8080), then this
-        // dev server; without it, /play/ has nothing to serve and would fall
-        // through to the history fallback (the landing page). Registered before
-        // historyApiFallback, so /play never reaches the SPA fallback. The game
-        // uses relative asset URLs, so stripping the /play prefix is all it
-        // needs. Override the target with GAME_DEV_URL if trunk runs elsewhere.
-        proxy: [
-            {
-                context: ["/play"],
-                target: process.env.GAME_DEV_URL || "http://localhost:8080",
-                pathRewrite: { "^/play": "" },
-                changeOrigin: true,
-                ws: true,
-            },
-        ],
-        historyApiFallback: {
-            rewrites: [
-                { from: /^\/tutorial/, to: "/tutorial/index.html" },
-                // Easter-egg routes: resolve /nova-menu, /nova-hud and /nova-os
-                // (with or without a trailing slash) to the copied PoCs during
-                // `webpack serve`. Order before the broader rewrites below.
-                { from: /^\/nova-menu/, to: "/nova-menu/index.html" },
-                { from: /^\/nova-hud/, to: "/nova-hud/index.html" },
-                { from: /^\/nova-os/, to: "/nova-os/index.html" },
-                ...WIKI_DOC_PAGES.map(({ slug }) => ({
-                    from: new RegExp("^/wiki/" + slug),
-                    to: "/wiki/" + slug + "/index.html",
-                })),
-                { from: /^\/wiki/, to: "/wiki/index.html" },
-                ...NEWS_POSTS.map(({ slug }) => ({
-                    from: new RegExp("^/news/" + slug),
-                    to: "/news/" + slug + "/index.html",
-                })),
-                { from: /^\/news/, to: "/news/index.html" },
-                // Retired sections: the physical redirect stubs under
-                // dist/blog|changelog are served directly; these fallbacks catch
-                // any sub-path that misses a stub and bounce it to the index.
-                ...REDIRECTS.map(([from]) => ({
-                    from: new RegExp("^/" + from.replace(/[.]/g, "\\$&")),
-                    to: "/" + from + "/index.html",
-                })),
-                { from: /^\/blog/, to: "/blog/index.html" },
-                { from: /^\/changelog/, to: "/changelog/index.html" },
-            ],
-        },
-    },
-    watchOptions: {
-        ignored: ["**/node_modules/**", "**/dist/**"],
-    },
+// Dev-server port. `scripts/serve-web.sh` allocates all three preview ports up
+// front (site, game, portal) and passes them down as NOVA_UI_PORT/GAME_DEV_URL/
+// MODS_DEV_URL, because the proxies below have to know where the other two
+// servers landed. A bare `npm run serve` gets no such env, so it picks its own
+// free port in 7000-7999 - several worktrees can then serve at once without
+// fighting over a fixed port. There is no hardcoded fallback on purpose: a busy
+// fallback port fails later and more confusingly than failing here.
+const resolveUiPort = async () => {
+    const preset = process.env.NOVA_UI_PORT;
+    if (preset) {
+        const port = Number(preset);
+        if (!Number.isInteger(port) || port < 1 || port > 65535) {
+            throw new Error(`NOVA_UI_PORT is not a valid port: ${preset}`);
+        }
+        return port;
+    }
+    return getPort.default({ port: getPort.portNumbers(7000, 7999) });
 };
 
-module.exports = config;
+module.exports = async (env, argv) => {
+    // Only `webpack serve` needs a port; skipping the scan keeps `npm run build`
+    // (and CI) from probing sockets it will never listen on.
+    const uiPort = env && env.WEBPACK_SERVE ? await resolveUiPort() : undefined;
+
+    return {
+        entry: {
+            index: "./src/index.ts",
+            tutorial: "./src/tutorial.ts",
+            wiki: "./src/wiki.ts",
+            news: "./src/news.ts",
+        },
+        output: {
+            path: path.resolve(__dirname, "dist"),
+            filename: "[name].js",
+            assetModuleFilename: "assets/[name][ext]",
+            clean: true,
+            publicPath: publicPath,
+        },
+        plugins: [
+            page("index", "src/index.html", "index.html"),
+            page("tutorial", "src/tutorial.html", "tutorial/index.html"),
+            page("wiki", "src/wiki.html", "wiki/index.html"),
+            ...WIKI_DOC_PAGES.map(docPage),
+            page("news", "src/news.html", "news/index.html"),
+            ...NEWS_POSTS.map(newsPage),
+            ...REDIRECTS.map(redirectPage),
+            new CopyPlugin({
+                patterns: [
+                    { from: "src/assets", to: "assets" },
+                    { from: "src/favicon.svg", to: "favicon.svg" },
+                    // Easter egg: the self-contained UI-rework PoCs live in
+                    // `examples/ui/` (their source of truth). Copy them verbatim into
+                    // the build at secret, unlinked routes rather than committing a
+                    // second copy under `src/`. The 5x brand-click (src/site.ts) opens
+                    // `/nova-menu/`; New Game -> `/nova-hud/`; the HUD's NOVA OS button
+                    // -> `/nova-os/`. The menu + CRT PoCs have no relative asset refs
+                    // and render as-is under any publicPath; the HUD PoC references the
+                    // input-prompt key glyphs, which live in the game asset tree
+                    // (`assets/input-prompts/`), so that folder is copied alongside.
+                    {
+                        from: "../examples/ui/nova_ui_rework_poc.html",
+                        to: "nova-menu/index.html",
+                    },
+                    {
+                        from: "../examples/ui/hud_rework_poc.html",
+                        to: "nova-hud/index.html",
+                    },
+                    {
+                        from: "../assets/input-prompts",
+                        to: "nova-hud/assets/input-prompts",
+                    },
+                    {
+                        from: "../examples/ui/nova_os_terminal_poc.html",
+                        to: "nova-os/index.html",
+                    },
+                ],
+            }),
+            new HtmlPartialsPlugin({ basePath: publicPath }),
+        ],
+        resolve: {
+            extensions: [".ts", ".tsx", ".js"],
+        },
+        module: {
+            rules: [
+                {
+                    test: /\.tsx?$/,
+                    use: "ts-loader",
+                    exclude: /node_modules/,
+                },
+                {
+                    test: /\.css$/i,
+                    use: ["style-loader", "css-loader", "postcss-loader"],
+                },
+            ],
+        },
+        mode: "development",
+        devServer: {
+            static: path.join(__dirname, "dist"),
+            port: uiPort,
+            // Two proxies reproduce the published sibling layout (site at /,
+            // game at /play/, portal at /mods/) on this one origin. Both are
+            // registered before historyApiFallback, so neither path can fall
+            // through to the SPA fallback and answer with landing-page HTML.
+            //
+            // /play -> a running `trunk serve` (the Bevy WASM game). Without it
+            // the Play button lands on the landing page again. The game uses
+            // relative asset URLs, so stripping the /play prefix is all it
+            // needs; `ws: true` carries Trunk's autoreload socket.
+            //
+            // /mods -> a running `scripts/serve-mods.sh` (the generated static
+            // portal). The wasm build derives its portal base from
+            // window.location - at /play/ it steps out and fetches <origin>/mods
+            // - so the Explore tab hits THIS server, not trunk's. Serving it
+            // here keeps it same-origin, with no `?portal=` override and no CORS.
+            //
+            // `scripts/serve-web.sh` sets both targets. The defaults only cover
+            // a hand-started stack: trunk's own [serve] port, and a portal
+            // pinned with `NOVA_MODS_PORT=9000 scripts/serve-mods.sh`.
+            proxy: [
+                {
+                    context: ["/play"],
+                    target: process.env.GAME_DEV_URL || "http://localhost:8080",
+                    pathRewrite: { "^/play": "" },
+                    changeOrigin: true,
+                    ws: true,
+                },
+                {
+                    context: ["/mods"],
+                    target: process.env.MODS_DEV_URL || "http://localhost:9000",
+                    changeOrigin: true,
+                },
+            ],
+            historyApiFallback: {
+                rewrites: [
+                    { from: /^\/tutorial/, to: "/tutorial/index.html" },
+                    // Easter-egg routes: resolve /nova-menu, /nova-hud and /nova-os
+                    // (with or without a trailing slash) to the copied PoCs during
+                    // `webpack serve`. Order before the broader rewrites below.
+                    { from: /^\/nova-menu/, to: "/nova-menu/index.html" },
+                    { from: /^\/nova-hud/, to: "/nova-hud/index.html" },
+                    { from: /^\/nova-os/, to: "/nova-os/index.html" },
+                    ...WIKI_DOC_PAGES.map(({ slug }) => ({
+                        from: new RegExp("^/wiki/" + slug),
+                        to: "/wiki/" + slug + "/index.html",
+                    })),
+                    { from: /^\/wiki/, to: "/wiki/index.html" },
+                    ...NEWS_POSTS.map(({ slug }) => ({
+                        from: new RegExp("^/news/" + slug),
+                        to: "/news/" + slug + "/index.html",
+                    })),
+                    { from: /^\/news/, to: "/news/index.html" },
+                    // Retired sections: the physical redirect stubs under
+                    // dist/blog|changelog are served directly; these fallbacks catch
+                    // any sub-path that misses a stub and bounce it to the index.
+                    ...REDIRECTS.map(([from]) => ({
+                        from: new RegExp("^/" + from.replace(/[.]/g, "\\$&")),
+                        to: "/" + from + "/index.html",
+                    })),
+                    { from: /^\/blog/, to: "/blog/index.html" },
+                    { from: /^\/changelog/, to: "/changelog/index.html" },
+                ],
+            },
+        },
+        watchOptions: {
+            ignored: ["**/node_modules/**", "**/dist/**"],
+        },
+    };
+};

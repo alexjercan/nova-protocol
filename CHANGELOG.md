@@ -14,6 +14,18 @@ tagged **(breaking)**.
 
 ## [Unreleased]
 
+### Internals & Tooling
+
+- `scripts/serve-web.sh`: one-command live web preview - site, game and mod
+  portal on free 7XXX ports, proxied onto one origin, all watched.
+- `scripts/serve-mods.sh`: builds and serves the mod portal, regenerating on
+  every `webmods/` edit.
+- Web dev server picks a free port in 7000-7999 instead of `:8090`, and proxies
+  `/mods` alongside `/play`.
+- `Trunk.toml`: the dev `[[proxy]]` moved to `TRUNK_SERVE_PROXY_BACKEND`; a
+  config-file entry conflicts with the env one and panics Trunk.
+- Dev shell: added `watchexec`.
+
 ## [0.9.1] - 2026-08-02
 
 ### Web & Platform

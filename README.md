@@ -59,7 +59,7 @@ git clone https://github.com/alexjercan/nova-protocol && cd nova-protocol
 cargo run                           # 1. play the game (boots into the main menu)
 cargo test --workspace --features debug   # 2. run the tests (windowed smoke test needs a display; else it self-skips)
 
-cd web && npm install && npm run serve    # 3. serve the content site on :8090
+cd web && npm install && npm run serve    # 3. serve the content site (prints its port)
 ```
 
 That is the bare minimum. For a **Play** button that launches the game locally,
@@ -73,7 +73,7 @@ live in the dev wiki:
 cargo run                       # run the game (boots into the main menu)
 cargo run --features dev        # dev build (inspector, wireframe, debug tooling)
 cargo build --release           # release profile
-trunk serve                     # web build (WASM), served on :8080
+trunk serve                     # web build (WASM), served on :8080 (see scripts/serve-web.sh for the full site)
 
 cargo run --example             # list the examples in examples/ (by category)
 cargo run --example scenario    # run one; add --features debug for autopilot ones
@@ -96,30 +96,35 @@ site at the root and the WASM game under `/play/`.
 ```sh
 cd web
 npm install
-npm run serve   # dev server on :8090 (site only - see the note below)
+npm run serve   # dev server on a free 7XXX port (site only - see the note below)
 npm run build   # static bundle in web/dist/
 npm run ci      # format check + lint + test + build
 ```
 
-**The game is a separate build.** `npm run serve` on its own serves only the
-content site, so the **Play** button (and `/play/`) falls back to the landing
-page. There are two ways to get a working Play locally:
+**The game and the mod portal are separate builds.** `npm run serve` on its own
+serves only the content site, so the **Play** button (and `/play/`) falls back
+to the landing page, and the in-game Explore tab has no `/mods/` to fetch. There
+are two ways to get the whole thing locally:
 
-*Live dev (hot reload on both):* run the game and the site side by side. The dev
-server proxies `/play/` to `trunk serve`, so edits to either reload:
+*Live dev (everything watched, one command):* `scripts/serve-web.sh` starts the
+site, the game (`trunk serve`) and the mod portal, each on its own free port in
+7000-7999, and proxies `/play/` and `/mods/` onto the site's origin - the same
+shape as the deploy. Every part rebuilds on save; the banner prints the URL:
 
 ```sh
-# terminal 1 - the game on :8080
-nix develop -c trunk serve
-# terminal 2 - the site on :8090, /play proxied to :8080
-cd web && npm run serve
-# open http://localhost:8090/ and click Play
+nix develop -c scripts/serve-web.sh            # debug game build
+nix develop -c scripts/serve-web.sh --release  # optimized game build
 ```
 
-(Override the proxy target with `GAME_DEV_URL` if trunk runs elsewhere.)
+Ports are random so several worktrees can serve at once. Pin any of them with
+`NOVA_UI_PORT`, `NOVA_GAME_PORT` or `NOVA_MODS_PORT`. To run the servers
+yourself instead, point the site's proxies at them with `GAME_DEV_URL` and
+`MODS_DEV_URL`.
 
-*One-shot preview (closest to the deploy):* build both and serve the combined
-static output. Run inside the dev shell so both `trunk` and `node` are on PATH:
+*One-shot preview (closest to the deploy):* build everything and serve the
+combined static output - no dev servers, no proxies, real deploy layout. This is
+the one to check before a release. Run inside the dev shell so both `trunk` and
+`node` are on PATH:
 
 ```sh
 nix develop -c scripts/preview-web.sh            # debug game build
@@ -157,7 +162,9 @@ the deeper docs live in the dev wiki linked in each row.
 | Web screenshots | `python3 scripts/gen-web-screenshots.py` (`--self-test`, `--no-icons`) | Validates + copies the captured game screenshots and the 44x44 section icons into `web/src/assets/`. See [`development.md`](web/src/wiki/dev/development.md). |
 | Placeholder sounds | `python3 scripts/gen-placeholder-sounds.py` | Generates the deterministic placeholder WAV sound effects the game ships until real audio lands. See [`assets/sounds/README.md`](assets/sounds/README.md). |
 | Obj -> hull cubes | `python3 scripts/cut-obj-into-hulls.py <ship.obj> --out <dir>` (`--self-test`) | Cuts a monolithic Kenney `.obj` ship into grid-aligned cube `.glb` pieces (cut only; turning cubes into sections is done in-game). |
-| Local site preview | `nix develop -c scripts/preview-web.sh [--release]` | Serves the full published site locally with the WASM game reachable at `/play/` - the only way to click **Play** locally. |
+| Live web dev | `nix develop -c scripts/serve-web.sh [--release]` | Starts the site, the game and the mod portal on free 7XXX ports and proxies them onto one origin (`/`, `/play/`, `/mods/`). Everything rebuilds on save. |
+| Mod portal server | `nix develop -c scripts/serve-mods.sh [--once]` | Generates the static mod portal and serves it on a free 7XXX port, regenerating on every `webmods/` edit. Started for you by `serve-web.sh`. |
+| Local site preview | `nix develop -c scripts/preview-web.sh [--release]` | One-shot static build of the full published site (no dev servers, no proxies) on `:8090`, with the game at `/play/` and the portal at `/mods/` - the closest thing to the deploy. |
 
 ## Project layout
 
