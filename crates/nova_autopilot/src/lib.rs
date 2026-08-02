@@ -18,12 +18,11 @@
 
 #![warn(missing_docs)]
 
-/// The scripted autopilot driver.
+// No outer doc here, and none on `completion` below: both modules carry their
+// own `//!` docs, and an outer `///` would concatenate ahead of them and
+// re-resolve their intra-doc links (`AppExit`, `AUTOPILOT_ENV`) in THIS
+// module's scope, where they do not exist. See 20260802-183340 REVIEW.md R1.3.
 pub mod autopilot;
-// No outer doc here: `completion.rs` carries its own `//!` module docs, and an
-// outer `///` would concatenate ahead of them and re-resolve their intra-doc
-// links (`AppExit`, `DEADLINE_ENV`) in THIS module's scope, where they do not
-// exist. See REVIEW.md R1.3.
 pub mod completion;
 /// The screenshot reel driver, driven through caller hooks.
 pub mod reel;
