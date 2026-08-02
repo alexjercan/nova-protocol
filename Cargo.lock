@@ -4586,6 +4586,8 @@ name = "nova_autopilot"
 version = "0.9.1"
 dependencies = [
  "bevy",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

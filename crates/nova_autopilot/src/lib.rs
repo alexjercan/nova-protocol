@@ -20,7 +20,10 @@
 
 /// The scripted autopilot driver.
 pub mod autopilot;
-/// The run-completion protocol.
+// No outer doc here: `completion.rs` carries its own `//!` module docs, and an
+// outer `///` would concatenate ahead of them and re-resolve their intra-doc
+// links (`AppExit`, `DEADLINE_ENV`) in THIS module's scope, where they do not
+// exist. See REVIEW.md R1.3.
 pub mod completion;
 /// The screenshot reel driver, driven through caller hooks.
 pub mod reel;
