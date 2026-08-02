@@ -37,8 +37,11 @@ ports, a runnable example, docs, one atomic migration, one cleanup.
 
 - `nova_autopilot` owns the automation and completion APIs used by Nova.
   (cmd: `nix develop --command cargo test --lib -p nova_autopilot`)
-- The crate is standalone.
-  (cmd: `! rg -n "nova_|bevy_common_systems|avian3d" crates/nova_autopilot/Cargo.toml`)
+- The crate is standalone. The pattern is anchored so the crate's own
+  `name = "nova_autopilot"` line does not match, and `test -f` keeps a missing
+  manifest from passing vacuously (`rg` exits 2 on a missing path, which the
+  bare `!` would invert into success).
+  (cmd: `test -f crates/nova_autopilot/Cargo.toml && ! rg -n '^(nova_|bevy_common_systems|avian3d)' crates/nova_autopilot/Cargo.toml`)
 - Nothing outside historical task records names a BCS harness path or env.
   (cmd: `! rg -n "BCS_AUTOPILOT|BCS_SHOT|BCS_REEL|BCS_HARNESS_DEADLINE|debug::harness" --glob '!tasks/**' --glob '!web/src/news/**'`)
 - The example fleet and a probe run still pass under the renamed contract.
@@ -50,7 +53,7 @@ ports, a runnable example, docs, one atomic migration, one cleanup.
 
 | ID | Priority | Title | Landed result |
 | --- | ---: | --- | --- |
-| `20260802-183336` | 99 | Scaffold the standalone `nova_autopilot` crate | Pending |
+| `20260802-183336` | 99 | Scaffold the standalone `nova_autopilot` crate | Landed `c3a876ba`: `bevy`-only crate with the ownership boundary in the crate docs and four empty driver modules. |
 | `20260802-183340` | 98 | Port the harness completion protocol | Pending |
 | `20260802-183343` | 97 | Port the scripted autopilot driver | Pending |
 | `20260802-183346` | 96 | Port the single-shot screenshot driver | Pending |
