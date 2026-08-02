@@ -84,3 +84,35 @@ Three forks in this port are load-bearing and would otherwise be re-litigated.
   Anything filtering on `--lib` silently skips the stand-down test.
 - The settle test writes a real file to the temp dir on every run. It is
   small, uniquely named per test, and never read back except for existence.
+
+## Amendment 1: every App-driven screenshot test leaves the lib binary
+
+- DATE: 20260802-214500
+- STATUS: ACCEPTED
+
+Decision 2 scoped the env hazard too narrowly. It ruled that the screenshot
+tests must not SET `NOVA_AUTOPILOT`, and it was right, but the hazard runs the
+other way too: `autopilot.rs`'s own `arm()` sets `NOVA_AUTOPILOT=1` for the
+whole lib-test binary. So when the unfiltered suite runs, `ScreenshotPlugin`
+stands down inside every screenshot lib test, and each one exercises a plugin
+that added nothing. Filtering on `screenshot` hid it - the four tests passed
+under the DoD command and failed the first time the full suite ran.
+
+The fix is the same shape as decision 2, one level up: ALL App-driven
+screenshot tests move to `crates/nova_autopilot/tests/screenshot.rs`, whose
+`arm()` sets only `NOVA_SHOT`. Two follow-on adjustments, both small:
+
+- `MAX_WAIT_FRAMES` becomes `pub` - the give-up test lives outside the crate
+  now, and hardcoding 1800 in the test would let the bound drift silently.
+- `unreached_target_state_error_exits` cannot order its reset system
+  `.after(screenshot_drive)` (private), so it writes `NextState` from
+  `PostUpdate` instead. Same guarantee, and arguably clearer: the write lands
+  after the driver's within the frame, so the next `StateTransition` applies
+  it and the target is provably never reached.
+
+Rejected: making `screenshot_drive` public just for the ordering. It is
+internal, and `PostUpdate` gets the determinism without widening the surface.
+
+Rejected: dropping `autopilot`'s `arm()` in favour of per-test env
+manipulation. That reintroduces exactly the parallel-thread race decision 2
+exists to avoid, in a module this task does not own.
