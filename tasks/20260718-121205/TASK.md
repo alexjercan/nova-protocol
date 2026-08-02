@@ -1,11 +1,11 @@
 # Extend render_mesh_transform to all section kinds (hull, thruster, controller, torpedo)
 
-- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.7.0, feature, content, sections
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

@@ -1,11 +1,11 @@
 # Status bar gets its own HudTier::Status (persists through drawer + Minimal, clears at cinematic None)
 
-- STATUS: CLOSED
 - PRIORITY: 56
 - TAGS: v0.9.0, feature, ui, hud
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 # Status bar gets its own HudTier::Status (persists through the drawer + Minimal; clears only at cinematic None)
 

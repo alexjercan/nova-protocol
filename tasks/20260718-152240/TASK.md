@@ -1,11 +1,11 @@
 # content lint: merge balance audit into lint and emit a human-friendly per-mod report that pinpoints where each finding occurs (file + location)
 
-- STATUS: CLOSED
 - PRIORITY: 48
-- TAGS: v0.8.0,tooling,modding
+- TAGS: v0.8.0, tooling, modding
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

@@ -1,11 +1,11 @@
 # Investigate the broadside-high single-frame hitch (75ms max, p99 39ms) seen in the baseline
 
-- STATUS: CLOSED
 - PRIORITY: 24
 - TAGS: performance, bug, v0.8.0
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

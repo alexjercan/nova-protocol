@@ -1,11 +1,11 @@
 # Broadside playtest tuning: drop the player torpedo bay, give infinite turret ammo
 
-- STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.7.0, balance, scenario, playtest
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

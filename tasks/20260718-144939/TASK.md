@@ -1,11 +1,11 @@
 # RCS cap ring on the velocity sphere (needs visual design + playtest)
 
-- STATUS: CLOSED
 - PRIORITY: 1
-- TAGS: v0.7.0,feature,hud,spike
+- TAGS: v0.7.0, feature, hud, spike
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Close-out (2026-07-18): WON'T-DO
 

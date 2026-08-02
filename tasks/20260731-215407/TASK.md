@@ -1,11 +1,11 @@
 # fix(assets): shakedown early-derelict-kill test fails on master
 
-- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: bug, backlog
 - KIND: TASK
-- FLOW STEP: DROPPED
-- PLAN STATUS: DRAFT
+- ACTIVITY: -
+- GATES: -
+- RESOLUTION: WONTDO
 
 `scenario::shakedown::tests::an_early_derelict_kill_skips_to_the_fight` fails on
 master. Surfaced by a full-workspace run made for the RAM investigation

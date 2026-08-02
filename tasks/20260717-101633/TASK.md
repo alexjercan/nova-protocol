@@ -1,11 +1,11 @@
 # Controller section sounds: lock, radar deny/retarget and weapons-safety cues as authorable AssetRefs
 
-- STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: spike, v0.7.0, audio, modding, feature
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

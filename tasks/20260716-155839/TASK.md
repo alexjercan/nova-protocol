@@ -1,11 +1,11 @@
 # Decouple portal/publish tests from specific mods
 
-- STATUS: CLOSED
 - PRIORITY: 70
-- TAGS: v0.7.0,testing,refactor
+- TAGS: v0.7.0, testing, refactor
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

@@ -1,11 +1,11 @@
 # Scenarios picker: pin pane widths across selections + indent campaign members
 
-- STATUS: CLOSED
 - PRIORITY: 52
-- TAGS: v0.9.0,feedback,bug,ui,menu
+- TAGS: v0.9.0, feedback, bug, ui, menu
 - KIND: TASK
-- FLOW STEP: COMPOUNDING
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: -
 
 ## Story
 

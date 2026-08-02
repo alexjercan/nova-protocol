@@ -1,11 +1,11 @@
 # Fix stale example count in development.md: 'ten of the twelve' -> 18 harnessed, enumerate 13-18
 
-- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: bug, docs, web
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## The bug (verified)
 

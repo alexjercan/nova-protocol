@@ -1,11 +1,11 @@
 # Make Demo Mod Arena a playable target-destruction challenge
 
-- STATUS: CLOSED
 - PRIORITY: 58
 - TAGS: modding, scenario, gameplay
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

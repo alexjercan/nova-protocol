@@ -1,12 +1,11 @@
 # Loop reload gate closes too early: ScenarioLoaded fires before OnStart seeds variables - playable panics on first real loop; close the gate on script-observed readiness
 
-- STATUS: CLOSED
 - PRIORITY: 63
-- TAGS: v0.8.0,bug,tooling
+- TAGS: v0.8.0, bug, tooling
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
-
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Close-out (2026-07-20, branch fix/loop-gate-readiness; bcs v0.19.5)
 

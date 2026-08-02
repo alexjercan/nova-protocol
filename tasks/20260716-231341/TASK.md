@@ -1,11 +1,11 @@
 # Shipped art-pack dogfood for cross-mod dep:// refs
 
-- STATUS: CLOSED
 - PRIORITY: 30
-- TAGS: v0.7.0,modding,content,assets,dogfood,wonto
+- TAGS: v0.7.0, modding, content, assets, dogfood, wonto
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Context
 

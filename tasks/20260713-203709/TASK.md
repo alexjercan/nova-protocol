@@ -1,11 +1,11 @@
 # Harnessed pin gap: remove/despawn warns bypass the fallback-to-panic error handler
 
-- STATUS: CLOSED
 - PRIORITY: 30
-- TAGS: v0.5.2,testing,harness
+- TAGS: v0.5.2, testing, harness
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

@@ -1,11 +1,11 @@
 # Non-lingering cut for the asteroid_next relay bridges
 
-- STATUS: CLOSED
 - PRIORITY: 55
-- TAGS: v0.7.0,scenario,content,pacing
+- TAGS: v0.7.0, scenario, content, pacing
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

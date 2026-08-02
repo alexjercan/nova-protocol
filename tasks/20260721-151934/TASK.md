@@ -1,11 +1,11 @@
 # Fix two v0.8.0 regressions: cargo run launches probe (default-members) + ambiguous glob re-export (HudReadoutFormat)
 
-- STATUS: CLOSED
 - PRIORITY: 92
-- TAGS: v0.8.0,bug,tooling
+- TAGS: v0.8.0, bug, tooling
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

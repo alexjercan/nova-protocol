@@ -1,11 +1,11 @@
 # ORBIT autopilot verb: circularize and station-keep inside a gravity well
 
-- STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.5.0, handling, autopilot, gravity, spike
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Spike: tasks/20260709-193147/SPIKE.md
 Depends on: 20260709-193338 (gravity-well substrate, CLOSED)

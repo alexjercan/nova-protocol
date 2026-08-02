@@ -1,11 +1,11 @@
 # Camera mode switching: WASD without spaceship, chase with spaceship
 
-- STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.3.1, bug
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 When no spaceship is present, the camera should be WASD-controlled; with a spaceship it should be chase cam. Legacy #100.
 

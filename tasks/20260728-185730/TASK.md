@@ -1,11 +1,11 @@
 # Web easter egg: 5x-click -> reworked main menu -> HUD -> NOVA OS CRT
 
-- STATUS: CLOSED
 - PRIORITY: 30
-- TAGS: v0.9.0,ui,web,easter-egg
+- TAGS: v0.9.0, ui, web, easter-egg
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

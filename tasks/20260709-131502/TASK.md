@@ -1,11 +1,11 @@
 # Torpedo takes no contact damage from its own ship at launch: unify projectile owner collision filter
 
-- STATUS: CLOSED
 - PRIORITY: 95
-- TAGS: v0.4.0,bug,torpedo
+- TAGS: v0.4.0, bug, torpedo
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Reported in play: torpedoes fired from the torpedo bay section immediately take
 damage or are destroyed at spawn. With the combat-juice work the damage is now

@@ -1,11 +1,11 @@
 # Author the world/meta wiki pages (factions, scenarios, modding coming-soon)
 
-- STATUS: CLOSED
 - PRIORITY: 15
-- TAGS: web,wiki,content
+- TAGS: web, wiki, content
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

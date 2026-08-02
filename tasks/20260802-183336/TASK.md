@@ -1,11 +1,11 @@
 # Scaffold the standalone nova_autopilot crate
 
-- STATUS: CLOSED
 - PRIORITY: 99
 - TAGS: v0.10.0, tooling, autopilot, crates
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 - PARENT: 20260802-120019
 
 ## Story

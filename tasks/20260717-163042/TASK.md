@@ -1,11 +1,11 @@
 # Arrival telegraphs: engage_delay on the AI controller + the warning-beat authoring pattern
 
-- STATUS: CLOSED
 - PRIORITY: 38
-- TAGS: spike,v0.7.0,ai,scenario,gameplay
+- TAGS: spike, v0.7.0, ai, scenario, gameplay
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Goal: enemies arrive instead of appearing. An engage_delay/spawn-passive
 option on AIControllerConfig: the ship spawns on its patrol/idle routine

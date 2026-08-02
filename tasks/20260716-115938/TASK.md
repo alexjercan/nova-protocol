@@ -1,11 +1,11 @@
 # Document the release + code->docs sync workflow (wiki dev page + AGENTS.md rule + LESSONS)
 
-- STATUS: CLOSED
 - PRIORITY: 65
-- TAGS: docs,web,process
+- TAGS: docs, web, process
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Outcome
 

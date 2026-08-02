@@ -1,11 +1,11 @@
 # NOVA OS map app: clicks miss their targets where the ship app's land
 
-- STATUS: CLOSED
 - PRIORITY: 42
 - TAGS: v0.9.0, bug, ui, nova_os, feedback
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

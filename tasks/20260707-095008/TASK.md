@@ -1,11 +1,11 @@
 # PDC turret test range example (playable + gates + autopilot)
 
-- STATUS: CLOSED
 - PRIORITY: 90
-- TAGS: v0.4.0,example,turret
+- TAGS: v0.4.0, example, turret
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 The PDC (point-defense) turret section feels clunky to tune because there is no
 focused way to exercise it. Build a dedicated example scene that is a small

@@ -1,11 +1,11 @@
 # Generate showcase evidence and web assets with one command
 
-- STATUS: OPEN
 - PRIORITY: 75
 - TAGS: v0.10.0, tooling, probe, screenshot, web
 - KIND: STORY
-- FLOW STEP: BACKLOG
-- PLAN STATUS: DRAFT
+- ACTIVITY: -
+- GATES: -
+- RESOLUTION: -
 - PARENT: 20260802-115955
 - DEPENDS ON: 20260802-120025, 20260802-120029
 

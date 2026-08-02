@@ -1,11 +1,11 @@
 # Retire the BCS harness surface and refresh the automation docs
 
-- STATUS: OPEN
 - PRIORITY: 91
-- TAGS: v0.10.0,tooling,autopilot,docs
+- TAGS: v0.10.0, tooling, autopilot, docs
 - KIND: TASK
-- FLOW STEP: BACKLOG
-- PLAN STATUS: DRAFT
+- ACTIVITY: -
+- GATES: -
+- RESOLUTION: -
 - PARENT: 20260802-120019
 - DEPENDS ON: 20260802-183403
 

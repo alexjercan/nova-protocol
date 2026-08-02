@@ -1,11 +1,11 @@
 # Fix stale content_lint_gate test: ledger ch4 'mutually exclusive' warn gone after ch4 rework
 
-- STATUS: CLOSED
 - PRIORITY: 5
 - TAGS: v0.8.0, bug, testing, content
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

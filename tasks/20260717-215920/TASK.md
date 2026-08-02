@@ -1,11 +1,11 @@
 # Turret joint tree: editor/lint updates + joint-tree well-formedness lint
 
-- STATUS: CLOSED
 - PRIORITY: 10
 - TAGS: v0.7.0, spike, refactor, weapons, turret, editor
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

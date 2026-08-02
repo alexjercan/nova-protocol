@@ -1,11 +1,11 @@
 # Relocate input-prompt key glyphs to assets/ (Alt only) and credit them in credits/
 
-- STATUS: CLOSED
 - PRIORITY: 41
-- TAGS: v0.9.0,ui,assets,web
+- TAGS: v0.9.0, ui, assets, web
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

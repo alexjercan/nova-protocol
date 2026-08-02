@@ -1,11 +1,11 @@
 # Keybind dock shows only currently-available verbs again
 
-- STATUS: CLOSED
 - PRIORITY: 50
-- TAGS: v0.9.0,ui,hud,feedback
+- TAGS: v0.9.0, ui, hud, feedback
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

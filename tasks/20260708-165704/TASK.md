@@ -1,11 +1,11 @@
 # Off-screen target/threat edge indicators (HUD)
 
-- STATUS: CLOSED
 - PRIORITY: 10
 - TAGS: v0.5.0, hud, spike
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Spike: tasks/20260708-165647/SPIKE.md
 

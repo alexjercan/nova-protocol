@@ -1,11 +1,11 @@
 # Remove the nova_portal_gen crate (gen-portal.py is the production generator); preserve publish-gate coverage
 
-- STATUS: CLOSED
 - PRIORITY: 38
-- TAGS: v0.8.0,tooling,refactor
+- TAGS: v0.8.0, tooling, refactor
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

@@ -1,11 +1,11 @@
 # Gauntlet Run 2.0: make it a real gauntlet - more gates, obstacles and hazards (parkour-map feel)
 
-- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.7.0, scenario, content, modding
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

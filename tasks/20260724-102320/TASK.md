@@ -1,11 +1,11 @@
 # NOVA OS map app: 3D minimap launched from the terminal - v0.9.0 STRETCH
 
-- STATUS: CLOSED
 - PRIORITY: 30
-- TAGS: v0.9.0,stretch,spike,feature,ui,hud
+- TAGS: v0.9.0, stretch, spike, feature, ui, hud
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

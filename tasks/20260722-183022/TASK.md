@@ -1,11 +1,11 @@
 # Pre-land/pre-commit cargo fmt --check guard (the real fix behind 20260721-163942)
 
-- STATUS: CLOSED
 - PRIORITY: 22
 - TAGS: v0.8.0, tooling, ci
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

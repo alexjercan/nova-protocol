@@ -1,11 +1,11 @@
 # Design-promised probe markers + monotonics for sections/broadside (show the feature working on the timeline)
 
-- STATUS: CLOSED
 - PRIORITY: 52
-- TAGS: v0.8.0,testing,examples
+- TAGS: v0.8.0, testing, examples
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

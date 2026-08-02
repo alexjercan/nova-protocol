@@ -1,11 +1,11 @@
 # Restyle nova_menu to nova_ui theme (main menu, settings, mods, pause)
 
-- STATUS: CLOSED
 - PRIORITY: 58
-- TAGS: ui,v0.6.0
+- TAGS: ui, v0.6.0
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Close-out (20260714)
 

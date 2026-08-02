@@ -1,11 +1,11 @@
 # Audio SFX: thruster hum audible from far away (attenuation bug)
 
-- STATUS: CLOSED
 - PRIORITY: 90
-- TAGS: v0.5.2,bug,audio,feedback
+- TAGS: v0.5.2, bug, audio, feedback
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

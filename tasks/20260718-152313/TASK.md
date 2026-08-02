@@ -1,11 +1,11 @@
 # Base campaign polish + extension: make Shakedown to Broadside longer and more interesting (more beats/acts, pacing, encounters)
 
-- STATUS: CLOSED
 - PRIORITY: 49
-- TAGS: v0.8.0,content,scenario,playtest
+- TAGS: v0.8.0, content, scenario, playtest
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

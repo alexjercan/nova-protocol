@@ -1,11 +1,11 @@
 # Torpedo bay shooting particles
 
-- STATUS: CLOSED
 - PRIORITY: 48
 - TAGS: v0.4.0, torpedo
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Visual feedback when firing. Legacy #135.
 

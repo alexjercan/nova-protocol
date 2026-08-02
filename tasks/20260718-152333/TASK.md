@@ -1,11 +1,11 @@
 # v0.7.0 pre-release: bring web wiki + news/changelog current with everything shipped in v0.7.0 before tagging
 
-- STATUS: CLOSED
 - PRIORITY: 54
 - TAGS: v0.7.0, docs, web, release
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

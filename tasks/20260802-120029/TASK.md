@@ -1,11 +1,11 @@
 # Build the v0.10.0 showcase scenario suite
 
-- STATUS: OPEN
 - PRIORITY: 80
 - TAGS: v0.10.0, content, scenario, examples, testing
 - KIND: STORY
-- FLOW STEP: BACKLOG
-- PLAN STATUS: DRAFT
+- ACTIVITY: -
+- GATES: -
+- RESOLUTION: -
 - PARENT: 20260802-115955
 - DEPENDS ON: 20260802-120025
 

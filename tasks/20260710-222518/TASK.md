@@ -1,12 +1,11 @@
 # Allow zooming out further while orbiting to visualize the area
 
-- STATUS: CLOSED
 - PRIORITY: 45
-- TAGS: v0.5.0,camera,ux
+- TAGS: v0.5.0, camera, ux
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
-
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

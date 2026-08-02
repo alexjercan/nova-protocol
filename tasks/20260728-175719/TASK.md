@@ -1,11 +1,11 @@
 # Epic: UI rework - NOVA OS look everywhere, quieter contextual HUD, metric units
 
-- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: v0.9.0, epic, ui, hud, feedback
 - KIND: EPIC
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN
+- RESOLUTION: DONE
 
 ## Context
 

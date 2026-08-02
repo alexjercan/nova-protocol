@@ -1,11 +1,11 @@
 # Pause menu: ESC overlay in game and editor with Back to Main Menu
 
-- STATUS: CLOSED
 - PRIORITY: 43
-- TAGS: v0.5.0,ui,menu,spike
+- TAGS: v0.5.0, ui, menu, spike
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

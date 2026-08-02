@@ -1,11 +1,11 @@
 # NOVA OS: the objectives/flight-log row lists are dead in production
 
-- STATUS: OPEN
 - PRIORITY: 0
 - TAGS: backlog, refactor, hud
 - KIND: TASK
-- FLOW STEP: BACKLOG
-- PLAN STATUS: DRAFT
+- ACTIVITY: -
+- GATES: -
+- RESOLUTION: -
 
 ## Story
 

@@ -1,11 +1,11 @@
 # Integrity: physics-level tests for collision damage + graph construction
 
-- STATUS: CLOSED
 - PRIORITY: 40
-- TAGS: v0.4.0,test,integrity
+- TAGS: v0.4.0, test, integrity
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Follow-up from the destruction-pipeline tests (task 20260525-133008). Those cover the
 avian-free core of the integrity pipeline (disable -> destroy -> chain, aggregation,

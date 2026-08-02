@@ -1,11 +1,11 @@
 # Mod dependencies: auto-install/auto-enable deps, topological merge order
 
-- STATUS: CLOSED
 - PRIORITY: 8
 - TAGS: modding
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Spike: tasks/20260714-202515/SPIKE.md (option AC)
 Depends on: 20260715-142916 (Explore tab - install path exists). Backlog until

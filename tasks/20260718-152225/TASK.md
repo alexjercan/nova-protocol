@@ -1,11 +1,11 @@
 # CI/pre-tag guard: fail if docs/ contains anything but LESSONS.md at release (enforces the ephemeral-docs model)
 
-- STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.8.0, tooling, docs, release
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

@@ -1,11 +1,11 @@
 # Ship editor polish + save/load ship blueprints
 
-- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: wontdo,editor,redundant
+- TAGS: wontdo, editor, redundant
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Spike: tasks/20260708-161726/SPIKE.md (roadmap)
 

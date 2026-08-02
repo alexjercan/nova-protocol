@@ -1,11 +1,11 @@
 # Clear compiler and rustdoc warnings for v0.10.0
 
-- STATUS: OPEN
 - PRIORITY: 50
 - TAGS: v0.10.0, quality, docs, warnings
 - KIND: STORY
-- FLOW STEP: BACKLOG
-- PLAN STATUS: DRAFT
+- ACTIVITY: -
+- GATES: -
+- RESOLUTION: -
 - PARENT: 20260802-115955
 
 ## Story

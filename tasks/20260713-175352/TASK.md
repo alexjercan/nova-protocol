@@ -1,11 +1,11 @@
 # Investigate Entity-despawned command error on menu to game transition
 
-- STATUS: CLOSED
 - PRIORITY: 30
-- TAGS: v0.5.0,bug
+- TAGS: v0.5.0, bug
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

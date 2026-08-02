@@ -1,12 +1,11 @@
 # AI patrol and idle flight states
 
-- STATUS: CLOSED
 - PRIORITY: 70
-- TAGS: v0.4.0,ai,spike,handling
+- TAGS: v0.4.0, ai, spike, handling
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
-
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Spike: tasks/20260709-225508/SPIKE.md (wave 2)
 

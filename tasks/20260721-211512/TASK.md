@@ -1,11 +1,11 @@
 # Spike: the Tab ship-computer drawer - objectives, comms log, 3D minimap, what else?
 
-- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.9.0, spike, ui, hud
 - KIND: SPIKE
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

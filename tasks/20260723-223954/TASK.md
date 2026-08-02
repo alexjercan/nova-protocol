@@ -1,11 +1,11 @@
 # ch5 gravity r2: strip base thrusters, move base + raiders clear of tiny wells, shrink planetoid wells (content)
 
-- STATUS: CLOSED
 - PRIORITY: 62
 - TAGS: v0.8.0, content, scenario, playtest
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

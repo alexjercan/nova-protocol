@@ -1,11 +1,11 @@
 # Objective posts before its intro dialogue finishes: match the beat gap to the comms dwell (mainline scenarios)
 
-- STATUS: CLOSED
 - PRIORITY: 84
 - TAGS: v0.8.0, content, scenario, pacing, playtest
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Owner playtest follow-up to the pacing pass (task 20260722-092421). The
 gated_once mechanism is in place across all four mainline scenarios, but the

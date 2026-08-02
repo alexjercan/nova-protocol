@@ -1,11 +1,11 @@
 # Add base game object abstraction
 
-- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.3.1, refactor
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Adds physics + health automatically; reduces boilerplate per entity. Legacy #107.
 

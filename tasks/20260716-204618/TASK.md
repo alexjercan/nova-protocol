@@ -1,11 +1,11 @@
 # content_lint --target: lint a single mod (by id or path) for mod developers
 
-- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.7.0, modding, tooling
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

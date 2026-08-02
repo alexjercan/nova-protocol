@@ -1,11 +1,11 @@
 # Build in-web-app changelog/release-notes section (blog-pattern pages + index + nav)
 
-- STATUS: CLOSED
 - PRIORITY: 60
-- TAGS: spike,web,docs
+- TAGS: spike, web, docs
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Outcome
 

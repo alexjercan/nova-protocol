@@ -1,11 +1,11 @@
 # Investigate: firing torpedoes drifts the ship ~20 u/s with no engaged drive
 
-- STATUS: CLOSED
 - PRIORITY: 40
-- TAGS: wontdo,physics,torpedo
+- TAGS: wontdo, physics, torpedo
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

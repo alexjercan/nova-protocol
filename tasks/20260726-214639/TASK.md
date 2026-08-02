@@ -1,11 +1,11 @@
 # NOVA OS sound: terminal SFX + ambient CRT bed
 
-- STATUS: CLOSED
 - PRIORITY: 42
 - TAGS: v0.9.0, feature, ui, hud, audio
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

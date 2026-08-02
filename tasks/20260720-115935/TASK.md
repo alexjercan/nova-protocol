@@ -1,11 +1,11 @@
 # probe: size the fps completion deadline to the capture window + examples propagate AppExit so a deadline expiry gates
 
-- STATUS: CLOSED
 - PRIORITY: 89
-- TAGS: v0.8.0,bug,tooling,performance
+- TAGS: v0.8.0, bug, tooling, performance
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

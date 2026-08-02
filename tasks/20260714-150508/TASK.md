@@ -1,11 +1,11 @@
 # Content model + generic kind-router: one Content enum (kind-in-RON) + ContentLoader + register_content; refactor per-kind loaders onto it
 
-- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.6.0, modding, scenario
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Spike: tasks/20260714-150410/SPIKE.md
 

@@ -1,11 +1,11 @@
 # In-editor scenario builder: place objects/objectives and save/load scenarios to RON
 
-- STATUS: OPEN
 - PRIORITY: 0
-- TAGS: backlog,editor,scenario,modding,spike
+- TAGS: backlog, editor, scenario, modding, spike
 - KIND: TASK
-- FLOW STEP: BACKLOG
-- PLAN STATUS: DRAFT
+- ACTIVITY: -
+- GATES: -
+- RESOLUTION: -
 
 Spike: tasks/20260714-081636/SPIKE.md
 Spike: tasks/20260714-204059/SPIKE.md (editor UI rework - splits this into baseline + "the rest")

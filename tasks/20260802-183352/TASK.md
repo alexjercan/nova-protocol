@@ -1,11 +1,11 @@
 # Add a runnable nova_autopilot example with a headless integration test
 
-- STATUS: OPEN
 - PRIORITY: 94
-- TAGS: v0.10.0,tooling,autopilot,testing
+- TAGS: v0.10.0, tooling, autopilot, testing
 - KIND: TASK
-- FLOW STEP: BACKLOG
-- PLAN STATUS: DRAFT
+- ACTIVITY: -
+- GATES: -
+- RESOLUTION: -
 - PARENT: 20260802-120019
 - DEPENDS ON: 20260802-183343
 

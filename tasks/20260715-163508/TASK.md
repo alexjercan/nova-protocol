@@ -1,11 +1,11 @@
 # Portal fetch + staged install/uninstall: ehttp client, sha256-verified commits, install events for the UI
 
-- STATUS: CLOSED
 - PRIORITY: 15
-- TAGS: modding,wasm
+- TAGS: modding, wasm
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Spike: tasks/20260714-202515/SPIKE.md (options M, J)
 Depends on: 20260715-142906 (the mod cache + mods:// source + installed-set

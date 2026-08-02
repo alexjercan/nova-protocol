@@ -1,11 +1,11 @@
 # Document modding meta-conventions: version semantics, dependency merge order, resource rules, and the publish-vs-load validation split
 
-- STATUS: CLOSED
 - PRIORITY: 44
-- TAGS: v0.8.0,docs,web,modding
+- TAGS: v0.8.0, docs, web, modding
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

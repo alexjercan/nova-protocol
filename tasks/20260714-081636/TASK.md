@@ -1,9 +1,9 @@
 # Spike: v0.6.0 direction - modding language, better editor, screenshot/example tooling
 
-- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: spike, roadmap, planning
 - KIND: SPIKE
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 

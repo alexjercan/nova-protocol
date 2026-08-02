@@ -1,11 +1,11 @@
 # Cross-mod resource refs: reference a declared dependency's shipped resources
 
-- STATUS: CLOSED
 - PRIORITY: 46
-- TAGS: v0.7.0,modding,feature,assets,spike
+- TAGS: v0.7.0, modding, feature, assets, spike
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Steps
 

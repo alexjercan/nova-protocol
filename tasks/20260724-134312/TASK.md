@@ -1,11 +1,11 @@
 # Flight objective HUD: minimalist top-right status-bar notification (remove compact panel + tab square; retune reveal; gamepad open)
 
-- STATUS: CLOSED
 - PRIORITY: 66
-- TAGS: v0.9.0,feature,ui,hud
+- TAGS: v0.9.0, feature, ui, hud
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

@@ -1,11 +1,11 @@
 # Port nova_portal_gen to a Python build-time script (interim mod portal generator before the hosted API), matching the catalog.json wire schema
 
-- STATUS: CLOSED
 - PRIORITY: 40
-- TAGS: v0.8.0,tooling,modding,refactor
+- TAGS: v0.8.0, tooling, modding, refactor
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

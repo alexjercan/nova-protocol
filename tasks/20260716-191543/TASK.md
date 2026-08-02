@@ -1,11 +1,11 @@
 # Prototype-reference lint: unknown section prototype ids must fail the mod gates
 
-- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.7.0, modding, testing
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

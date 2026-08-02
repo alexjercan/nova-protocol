@@ -1,11 +1,11 @@
 # Rework the examples to make more sense and to have better testing capabilities
 
-- STATUS: CLOSED
 - PRIORITY: 80
-- TAGS: v0.5.2,refactor,examples,tests
+- TAGS: v0.5.2, refactor, examples, tests
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

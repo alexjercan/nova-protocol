@@ -1,11 +1,11 @@
 # Enemy-ship diegetic damage: black-out destroyed sections (no intermediate red)
 
-- STATUS: CLOSED
 - PRIORITY: 30
-- TAGS: v0.7.0,feature,health,rendering,sections,hud
+- TAGS: v0.7.0, feature, health, rendering, sections, hud
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Closing notes (CLOSED)
 

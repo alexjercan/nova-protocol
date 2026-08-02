@@ -1,10 +1,10 @@
 # Build graph of spaceship sections (DFS/BFS)
 
-- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: v0.4.0, health
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Foundation for structural damage propagation. Legacy #148.

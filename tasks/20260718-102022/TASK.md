@@ -1,11 +1,11 @@
 # Configurable section collider shape and size (replace hardcoded Collider::cuboid(1,1,1))
 
-- STATUS: CLOSED
 - PRIORITY: 85
 - TAGS: v0.7.0, feature, physics, content
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Problem
 

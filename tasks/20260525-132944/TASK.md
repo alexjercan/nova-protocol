@@ -1,11 +1,11 @@
 # Add input mapping to PlayerControllerConfig
 
-- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.3.1, refactor
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 HashMap<Action, Input> per section. Legacy #117.
 

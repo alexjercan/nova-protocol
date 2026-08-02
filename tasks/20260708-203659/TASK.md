@@ -1,11 +1,11 @@
 # Playable capital-combat vertical-slice scenario
 
-- STATUS: CLOSED
 - PRIORITY: 85
 - TAGS: v0.7.0, example, scenario
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Spike: tasks/20260708-203517/SPIKE.md
 

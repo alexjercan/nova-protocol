@@ -1,11 +1,11 @@
 # Trim the tutorial to first-scenario onboarding only
 
-- STATUS: CLOSED
 - PRIORITY: 25
-- TAGS: web,wiki,content
+- TAGS: web, wiki, content
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

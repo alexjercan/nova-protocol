@@ -1,11 +1,11 @@
 # Debug-harness scenario assertion crashes on legitimate scenario transitions
 
-- STATUS: CLOSED
 - PRIORITY: 55
-- TAGS: v0.5.0,bugfix,debug
+- TAGS: v0.5.0, bugfix, debug
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Outcome (CLOSED 2026-07-13)
 

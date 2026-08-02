@@ -1,11 +1,11 @@
 # NOVA OS shell: shell-like help + wrong-command usage messages
 
-- STATUS: CLOSED
 - PRIORITY: 20
 - TAGS: v0.9.0, nova_os, ui, ux, feedback
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Problem
 

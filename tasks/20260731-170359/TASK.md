@@ -1,11 +1,11 @@
 # KISS: nova_menu - split the 7705-line lib.rs
 
-- STATUS: CLOSED
 - PRIORITY: 38
 - TAGS: v0.9.0, refactor, chore, menu
 - KIND: STORY
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 - PARENT: 20260731-170222
 
 ## Story

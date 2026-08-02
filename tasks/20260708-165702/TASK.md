@@ -1,11 +1,11 @@
 # Locked-target info readout: distance, closing speed, health (HUD)
 
-- STATUS: CLOSED
 - PRIORITY: 70
 - TAGS: v0.4.0, hud, torpedo, spike
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

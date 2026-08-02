@@ -1,11 +1,11 @@
 # Sticky focused lock: a focused lock resists aim-steal, manual CTRL+scroll to shift off
 
-- STATUS: CLOSED
 - PRIORITY: 26
 - TAGS: v0.5.0, targeting, spike
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Outcome (CLOSED 2026-07-12)
 

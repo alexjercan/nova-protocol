@@ -1,11 +1,11 @@
 # NOVA OS topbar FPS; hide flight status bar in drawer
 
-- STATUS: CLOSED
 - PRIORITY: 5
 - TAGS: v0.9.0, feature, ui, hud
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 While the NOVA OS ship-computer drawer is open (game paused in `PauseStates::Drawer`,
 terminal/computer mode), hide the normal flight status bar entirely, and instead show a

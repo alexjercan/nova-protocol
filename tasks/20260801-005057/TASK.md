@@ -1,11 +1,11 @@
 # fix(nova_gameplay): ambiguous import visibility in the nova_os_map/ship mod.rs re-exports
 
-- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, bug, chore
 - KIND: TASK
-- FLOW STEP: DROPPED
-- PLAN STATUS: DRAFT
+- ACTIVITY: -
+- GATES: -
+- RESOLUTION: WONTDO
 
 ## Context
 

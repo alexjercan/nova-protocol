@@ -1,11 +1,11 @@
 # Fix catalog_matches_disk: smoke-list screenshot_nova_os example
 
-- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.9.0, bug, test
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 `tests/examples_smoke.rs::catalog_matches_disk` fails on master: the
 `screenshot_nova_os` example is present in the Cargo.toml `[[example]]` catalog

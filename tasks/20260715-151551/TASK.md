@@ -1,11 +1,11 @@
 # Unship screenshot-reel: embed the reel scenario in the example, drop it from assets/ and the catalog
 
-- STATUS: CLOSED
 - PRIORITY: 18
-- TAGS: modding,examples
+- TAGS: modding, examples
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 User request (20260715, mid-flow on 142849): the reel mod should not live in the
 mods folder or ship at all - bake it into the examples. The `hidden` catalog flag

@@ -1,11 +1,11 @@
 # ch5: restore bigger planetoid wells once AI is gravity-aware (revert the tiny-well tuning of 20260723-223954)
 
-- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, content, scenario
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Closed (2026-07-24, premise removed)
 

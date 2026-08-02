@@ -1,11 +1,11 @@
 # Refactor: collapse controller verbs to a single WithheldVerbs component (drop bool struct + vestigial config.verbs)
 
-- STATUS: CLOSED
 - PRIORITY: 34
 - TAGS: v0.6.0, modding, refactor
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Spike: tasks/20260714-123535/SPIKE.md
 

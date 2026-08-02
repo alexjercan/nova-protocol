@@ -1,11 +1,11 @@
 # Explicit content generator bin; make content_ron_parity assert-only
 
-- STATUS: CLOSED
 - PRIORITY: 90
-- TAGS: v0.7.0,refactor,testing
+- TAGS: v0.7.0, refactor, testing
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

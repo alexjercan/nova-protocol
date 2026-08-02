@@ -1,11 +1,11 @@
 # Wiki infrastructure: manifest, sidebar, search, tags, see-also, index
 
-- STATUS: CLOSED
 - PRIORITY: 30
-- TAGS: web,wiki,design
+- TAGS: web, wiki, design
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

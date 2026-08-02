@@ -1,11 +1,11 @@
 # Fix stale path in modding-ron.md: assets/scenarios -> assets/base/scenarios, four->five built-ins
 
-- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: bug, docs, web
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## The bug (verified)
 

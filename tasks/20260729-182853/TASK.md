@@ -1,11 +1,11 @@
 # Screenshot beat for the objective chip posting (currently unseeable)
 
-- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, ui, hud, tooling, testing
 - KIND: TASK
-- FLOW STEP: DROPPED
-- PLAN STATUS: DRAFT
+- ACTIVITY: -
+- GATES: -
+- RESOLUTION: WONTDO
 
 ## Story
 

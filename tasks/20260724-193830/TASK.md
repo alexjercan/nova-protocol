@@ -1,11 +1,11 @@
 # Campaign content entity: first-class ordered scenario mapping
 
-- STATUS: CLOSED
 - PRIORITY: 66
-- TAGS: v0.9.0,scenario,modding,content,feature
+- TAGS: v0.9.0, scenario, modding, content, feature
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

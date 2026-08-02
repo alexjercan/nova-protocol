@@ -1,11 +1,11 @@
 # Emit mod scaffold: bundle.ron + content.ron with Hull/Thruster/Controller classification + assembly
 
-- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: spike, backlog, tooling, modding
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

@@ -1,11 +1,11 @@
 # Ledger diagnostic: campaign-wide pace-map + weak-spot brief (diagnostic-first)
 
-- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.8.0, content, scenario, playtest
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

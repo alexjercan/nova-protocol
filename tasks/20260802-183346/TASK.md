@@ -1,11 +1,11 @@
 # Port the single-shot screenshot driver into nova_autopilot
 
-- STATUS: CLOSED
 - PRIORITY: 96
 - TAGS: v0.10.0, tooling, autopilot, screenshot
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 - PARENT: 20260802-120019
 - DEPENDS ON: 20260802-183340
 

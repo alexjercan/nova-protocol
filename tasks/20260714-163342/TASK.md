@@ -1,11 +1,11 @@
 # Fix: base bundle fails to load in-game (untyped load, single-dot bundle.ron extension unresolvable)
 
-- STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: bug
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Regression from the folder-bundle work (20260714-134119). In-game (web + native) the
 base bundle never loads:

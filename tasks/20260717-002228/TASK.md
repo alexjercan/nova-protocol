@@ -1,11 +1,11 @@
 # Let sections declare sounds (like images/models), then move base sounds under assets/base/
 
-- STATUS: CLOSED
 - PRIORITY: 32
 - TAGS: v0.7.0, modding, audio, feature
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Context (from the base-as-normal-mod work, 2026-07-16)
 

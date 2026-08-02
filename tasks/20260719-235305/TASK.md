@@ -1,12 +1,11 @@
 # Spike: harness exit coordination - collectors (autopilot/capture/screenshot) negotiate the exit instead of racing clocks; scene looping for measurement windows
 
-- STATUS: CLOSED
 - PRIORITY: 65
-- TAGS: v0.8.0,spike,tooling,testing
+- TAGS: v0.8.0, spike, tooling, testing
 - KIND: SPIKE
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
-
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Outcome (2026-07-20)
 

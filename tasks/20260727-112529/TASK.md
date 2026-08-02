@@ -1,11 +1,11 @@
 # Fix conformance: add STATUS line to DECISION.md for tasks 20260726-214639 and 20260727-015156
 
-- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, chore
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 `tatr check --ledger` flags `bad-decision-status` on two landed tasks whose
 DECISION.md files have no STATUS line:

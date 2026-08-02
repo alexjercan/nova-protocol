@@ -1,11 +1,11 @@
 # Camera snaps to origin for one frame when switching camera modes
 
-- STATUS: CLOSED
 - PRIORITY: 70
 - TAGS: v0.4.0, bug, camera
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Reported in scene mode (playing the game): switching between camera modes (combat / normal /
 freelook) makes the camera snap to the origin for one frame before it settles into the right

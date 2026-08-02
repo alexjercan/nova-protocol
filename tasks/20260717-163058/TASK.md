@@ -1,11 +1,11 @@
 # Beat-sheet pass: apply the storytelling rhythm across campaign and ledger; write the convention into the dev wiki
 
-- STATUS: CLOSED
 - PRIORITY: 36
-- TAGS: spike,v0.7.0,scenario,content,docs
+- TAGS: spike, v0.7.0, scenario, content, docs
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Goal: make the rhythm actual. Apply the storytelling convention across
 shakedown_run, both broadside parts and the five ledger files using the

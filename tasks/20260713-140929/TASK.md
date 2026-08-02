@@ -1,11 +1,11 @@
 # Shakedown beat sheet v2: one-line objectives, beacon 4, coast ring, derelict rehearsal
 
-- STATUS: CLOSED
 - PRIORITY: 42
-- TAGS: v0.5.0,scenario,tutorial,spike
+- TAGS: v0.5.0, scenario, tutorial, spike
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Outcome (CLOSED 2026-07-13)
 

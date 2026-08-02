@@ -1,11 +1,11 @@
 # cubemap_alt.png.meta not in meta_check Paths (broadside skybox may miss its cube layout)
 
-- STATUS: CLOSED
 - PRIORITY: 25
-- TAGS: v0.7.0,assets,bug
+- TAGS: v0.7.0, assets, bug
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Context (surfaced during the base-art migration review, 2026-07-17)
 

@@ -1,11 +1,11 @@
 # Residual wobble while decelerating from high speed
 
-- STATUS: CLOSED
 - PRIORITY: 88
-- TAGS: v0.5.0,bug,physics,flight
+- TAGS: v0.5.0, bug, physics, flight
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

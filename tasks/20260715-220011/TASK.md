@@ -1,11 +1,11 @@
 # Real per-scenario thumbnail art for the Scenarios picker (replace placeholder textures)
 
-- STATUS: OPEN
 - PRIORITY: 68
 - TAGS: v0.10.0, menu, scenario, art, screenshot
 - KIND: STORY
-- FLOW STEP: BACKLOG
-- PLAN STATUS: DRAFT
+- ACTIVITY: -
+- GATES: -
+- RESOLUTION: -
 - PARENT: 20260802-115955
 - DEPENDS ON: 20260802-120045
 

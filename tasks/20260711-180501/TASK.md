@@ -1,11 +1,11 @@
 # HUD visibility levels: tilde cycles ALL/MINIMAL/NONE
 
-- STATUS: CLOSED
 - PRIORITY: 42
-- TAGS: v0.5.0,hud,ui,spike
+- TAGS: v0.5.0, hud, ui, spike
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

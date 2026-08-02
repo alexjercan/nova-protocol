@@ -1,11 +1,11 @@
 # nova_probe: golden run-timeline compare + bless workflow (drift detection with tolerance)
 
-- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, spike, tooling, testing
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Closed (2026-07-24, superseded)
 

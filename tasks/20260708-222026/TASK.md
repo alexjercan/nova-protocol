@@ -1,11 +1,11 @@
 # Thruster hum plays in editor build state (gate audio to sim)
 
-- STATUS: CLOSED
 - PRIORITY: 78
-- TAGS: v0.4.0,audio,bug
+- TAGS: v0.4.0, audio, bug
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

@@ -1,11 +1,11 @@
 # Rework broadside pacing: act-split retry and hardened cover ring
 
-- STATUS: CLOSED
 - PRIORITY: 52
-- TAGS: spike,v0.7.0,scenario,content,balance
+- TAGS: spike, v0.7.0, scenario, content, balance
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Goal: broadside is "hard but playable" - keep its good bones (light-turret
 corvettes, 550u spawns, the gunship's 1177u approach as breathing room) and

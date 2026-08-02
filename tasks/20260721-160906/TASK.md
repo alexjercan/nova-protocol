@@ -1,11 +1,11 @@
 # Harness-prove ally allegiance + orbit-directive combat guards (ch3 mechanisms)
 
-- STATUS: CLOSED
 - PRIORITY: 55
-- TAGS: v0.8.0,testing,scenario,gameplay
+- TAGS: v0.8.0, testing, scenario, gameplay
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

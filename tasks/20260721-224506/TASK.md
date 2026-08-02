@@ -1,11 +1,11 @@
 # Bug: crash destroying the Rust Tally - damage_tint inserts PendingSectionTint on a chain-destroyed section entity
 
-- STATUS: CLOSED
 - PRIORITY: 91
 - TAGS: v0.8.0, bug, crash, gameplay
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

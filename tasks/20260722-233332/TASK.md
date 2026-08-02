@@ -1,11 +1,11 @@
 # Harden SetSkybox: warn-and-skip on a missing AssetServer instead of panicking (headless-safe)
 
-- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, modding, scenario
 - KIND: TASK
-- FLOW STEP: DROPPED
-- PLAN STATUS: DRAFT
+- ACTIVITY: -
+- GATES: -
+- RESOLUTION: WONTDO
 
 ## Story
 

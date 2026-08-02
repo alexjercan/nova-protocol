@@ -1,11 +1,11 @@
 # Integration test for SFX event->sound wiring
 
-- STATUS: CLOSED
 - PRIORITY: 20
-- TAGS: v0.7.0,audio,test,testing,wontdo
+- TAGS: v0.7.0, audio, test, testing, wontdo
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Outcome (CLOSED wontdo 2026-07-17)
 

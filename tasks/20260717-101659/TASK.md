@@ -1,11 +1,11 @@
 # Salvage crate pickup sound as content on SalvageCrateConfig
 
-- STATUS: CLOSED
 - PRIORITY: 24
 - TAGS: spike, v0.7.0, audio, modding, feature
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

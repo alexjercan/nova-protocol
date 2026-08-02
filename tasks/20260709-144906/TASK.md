@@ -1,11 +1,11 @@
 # Overkill damage to one section propagates full amount and can kill the whole ship
 
-- STATUS: CLOSED
 - PRIORITY: 75
 - TAGS: v0.4.0, bug, health
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Found while testing 20260709-140620: `HealthApplyDamage` propagates through
 `ChildOf`, so damage applied to a section ALSO applies its FULL amount to the

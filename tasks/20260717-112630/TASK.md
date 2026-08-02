@@ -1,11 +1,11 @@
 # Rework ledger_ch2 encounter design: loadouts, spawn ranges, real cover, aggro stagger, act-split retry
 
-- STATUS: CLOSED
 - PRIORITY: 53
-- TAGS: spike,v0.7.0,scenario,content,balance
+- TAGS: spike, v0.7.0, scenario, content, balance
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Goal: ledger_ch2_claim_jumpers currently opens with two better_turret
 magpies (800 dps combined, perfect lead) at ~175u in open void, chains two

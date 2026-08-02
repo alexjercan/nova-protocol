@@ -1,12 +1,11 @@
 # HUD health percent rounds a living sliver to 0% - ceil sub-1% so alive never reads dead (bcs health_display)
 
-- STATUS: CLOSED
 - PRIORITY: 50
-- TAGS: v0.7.0,bug,hud,ui
+- TAGS: v0.7.0, bug, hud, ui
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
-
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

@@ -1,11 +1,11 @@
 # Spike: v0.7.0 release scope - content & scenarios, bugfixes & performance, UI/UX polish
 
-- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: spike, planning, v0.7.0
 - KIND: SPIKE
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Outcome (20260716)
 

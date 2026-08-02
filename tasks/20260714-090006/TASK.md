@@ -1,11 +1,11 @@
 # UI/feedback SFX pass: menu clicks, pause/settings toggles, dry-fire cue, radar retarget tick
 
-- STATUS: CLOSED
 - PRIORITY: 12
 - TAGS: v0.6.0, polish, audio, ui
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Goal: add the missing feedback cues the audio audit found. All currently silent:
 

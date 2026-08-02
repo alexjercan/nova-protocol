@@ -1,11 +1,11 @@
 # Add per-OS release download buttons to the landing page hero
 
-- STATUS: CLOSED
 - PRIORITY: 88
-- TAGS: v0.8.1,web,feature
+- TAGS: v0.8.1, web, feature
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

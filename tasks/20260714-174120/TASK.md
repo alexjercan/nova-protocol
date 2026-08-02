@@ -1,11 +1,11 @@
 # Catalog-driven mod loading: mods.catalog.ron + InstalledCatalog asset + EnabledMods (base default-enabled) + enabled-subset merge
 
-- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: modding, menu
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Spike: tasks/20260714-174000/SPIKE.md
 

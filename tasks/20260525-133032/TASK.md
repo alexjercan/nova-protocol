@@ -1,11 +1,11 @@
 # Add inline doc comments to all public plugin structs/components
 
-- STATUS: CLOSED
 - PRIORITY: 36
 - TAGS: docs, v0.8.0
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

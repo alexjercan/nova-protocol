@@ -1,11 +1,11 @@
 # Hidden NOVA OS terminal easter egg in the web app
 
-- STATUS: CLOSED
 - PRIORITY: 8
-- TAGS: v0.9.0,feature,web,ui
+- TAGS: v0.9.0, feature, web, ui
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

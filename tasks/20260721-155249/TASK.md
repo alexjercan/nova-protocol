@@ -1,11 +1,11 @@
 # Spike: base campaign arc - what shape does the Shakedown-to-Broadside extension take?
 
-- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.8.0, spike, scenario, content
 - KIND: SPIKE
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

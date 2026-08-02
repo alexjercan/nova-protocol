@@ -1,11 +1,11 @@
 # lessons: resolve 6 pending promotions
 
-- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, chore
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

@@ -1,11 +1,11 @@
 # Audit and finalize nova_gameplay crate boundary
 
-- STATUS: CLOSED
 - PRIORITY: 100
 - TAGS: v0.3.1, refactor, crates
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Confirm nova_gameplay is the umbrella for gameplay-specific plugins (sections, health, weapons, objectives) not ready for bevy_common_systems. Move misplaced modules in or out as needed. [new]
 

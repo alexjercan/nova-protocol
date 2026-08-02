@@ -1,11 +1,11 @@
 # Committed torpedoes do not auto-steal the aim lock (manual lock only)
 
-- STATUS: CLOSED
 - PRIORITY: 28
 - TAGS: v0.5.0, targeting, spike
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Closed won't-do (2026-07-12)
 

@@ -1,11 +1,11 @@
 # nova_probe consolidation: one verb (run absorbs sweep/web/profile), manifest-gated report, delete the .sh scripts
 
-- STATUS: CLOSED
 - PRIORITY: 66
 - TAGS: v0.8.0, tooling, refactor
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

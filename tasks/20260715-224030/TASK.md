@@ -1,11 +1,11 @@
 # Creator docs: complete starter scenario, author-a-section RON reference, honest launch note
 
-- STATUS: CLOSED
 - PRIORITY: 46
-- TAGS: docs,web,feature,modding
+- TAGS: docs, web, feature, modding
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 From the docs review spike 20260715-223147 (creator persona). A determined RON
 author can ship a mod, but the journey has gaps: only scenario fragments (no

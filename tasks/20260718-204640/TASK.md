@@ -1,11 +1,11 @@
 # Menu-scene ships crash the asteroid and cannot hold orbit (RCS-trim regression?)
 
-- STATUS: CLOSED
 - PRIORITY: 20
 - TAGS: v0.7.0, bug, flight
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Report
 

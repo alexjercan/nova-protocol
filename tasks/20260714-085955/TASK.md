@@ -1,11 +1,11 @@
 # Enable particle effects on wasm: WebGPU web build vs shader-particle fallback
 
-- STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.6.0, wasm, polish, spike
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Supersedes 20260706-162908 (backlog "re-enable particle effects on wasm").
 

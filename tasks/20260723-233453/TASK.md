@@ -1,11 +1,11 @@
 # Perf: ch5 raid drops to ~40 FPS - profile and optimize the many-entity scene (big ship + 6 fighters + base + scatter)
 
-- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, performance, gameplay
 - KIND: TASK
-- FLOW STEP: DROPPED
-- PLAN STATUS: DRAFT
+- ACTIVITY: -
+- GATES: -
+- RESOLUTION: WONTDO
 
 ## Story
 

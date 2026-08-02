@@ -1,11 +1,11 @@
 # Comms/story-beat action: speaker-attributed story text + HUD comms panel
 
-- STATUS: CLOSED
 - PRIORITY: 61
 - TAGS: v0.7.0, feature, scenario, modding, story
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

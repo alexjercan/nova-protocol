@@ -1,11 +1,11 @@
 # Preload static assets via bevy_asset_loader + phosphor boot loading screen
 
-- STATUS: CLOSED
 - PRIORITY: 50
-- TAGS: v0.9.0,ui,assets
+- TAGS: v0.9.0, ui, assets
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

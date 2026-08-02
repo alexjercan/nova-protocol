@@ -1,11 +1,11 @@
 # Rust Tally turrets share one rotation - each base should face the hull, not both point down
 
-- STATUS: CLOSED
 - PRIORITY: 42
-- TAGS: v0.7.0,scenario,content,bug
+- TAGS: v0.7.0, scenario, content, bug
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 User report (2026-07-17 playtest): Rust Tally (broadside_gunship, base
 campaign finale) "turrets have bad rotation - I think they both had the

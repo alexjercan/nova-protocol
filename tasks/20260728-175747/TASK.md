@@ -1,11 +1,11 @@
 # Contextual HUD: show-by-relevance + grow-in-use + On/Cinematic
 
-- STATUS: CLOSED
 - PRIORITY: 34
-- TAGS: v0.9.0,ui,hud,gameplay
+- TAGS: v0.9.0, ui, hud, gameplay
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

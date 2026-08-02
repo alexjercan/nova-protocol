@@ -1,11 +1,11 @@
 # Unit tests for section graph (DFS/BFS)
 
-- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.4.0, test
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Validate that the graph builds and updates correctly. [new]
 

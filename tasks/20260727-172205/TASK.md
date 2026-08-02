@@ -1,11 +1,11 @@
 # Web build: NOVA OS view renders no text (font .ttc gets no .meta sidecar)
 
-- STATUS: CLOSED
 - PRIORITY: 90
-- TAGS: v0.9.0,bug,web,assets
+- TAGS: v0.9.0, bug, web, assets
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Problem
 

@@ -1,11 +1,11 @@
 # Relocate nova_meta_gen to tools/ as a workspace-member build tool (out of crates/)
 
-- STATUS: CLOSED
 - PRIORITY: 34
-- TAGS: v0.8.0,tooling,refactor,web,spike
+- TAGS: v0.8.0, tooling, refactor, web, spike
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

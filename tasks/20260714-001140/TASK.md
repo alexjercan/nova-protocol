@@ -1,11 +1,11 @@
 # backlog: gamepad navigation for menus/editor + mobile virtual pad
 
-- STATUS: OPEN
 - PRIORITY: 0
-- TAGS: backlog,input,gamepad,mobile
+- TAGS: backlog, input, gamepad, mobile
 - KIND: TASK
-- FLOW STEP: BACKLOG
-- PLAN STATUS: DRAFT
+- ACTIVITY: -
+- GATES: -
+- RESOLUTION: -
 
 ## Goal
 

@@ -1,9 +1,9 @@
 # Spike: sharpen the web site visual design (less floaty, more industrial)
 
-- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: spike,web,design
+- TAGS: spike, web, design
 - KIND: SPIKE
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 

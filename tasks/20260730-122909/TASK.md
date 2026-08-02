@@ -1,11 +1,11 @@
 # Floating chip background covers only a corner of its label
 
-- STATUS: CLOSED
 - PRIORITY: 48
-- TAGS: v0.9.0,bug,ui,hud,feedback
+- TAGS: v0.9.0, bug, ui, hud, feedback
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

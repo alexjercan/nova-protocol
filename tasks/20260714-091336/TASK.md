@@ -1,9 +1,9 @@
 # Spike: crate boundary for the modding language - nova_modding vs extend nova_scenario
 
-- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: spike, modding, architecture
 - KIND: SPIKE
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 

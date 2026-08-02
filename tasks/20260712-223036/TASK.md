@@ -1,11 +1,11 @@
 # Fire gating on combat stance + natural combat-lock clearing (no unlock key)
 
-- STATUS: CLOSED
 - PRIORITY: 52
 - TAGS: v0.5.0, targeting, input, spike, wontdo
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

@@ -1,11 +1,11 @@
 # Player docs: getting-started front door, tutorial promotion, glossary, jargon trim
 
-- STATUS: CLOSED
 - PRIORITY: 48
-- TAGS: docs,web,feature
+- TAGS: docs, web, feature
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 From the docs review spike 20260715-223147 (player persona). The player wiki is
 strong and accurate but has no "start here" front door, the tutorial is only

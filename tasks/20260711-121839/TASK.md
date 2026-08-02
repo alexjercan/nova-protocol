@@ -1,11 +1,11 @@
 # Bullet renders one frame at its raw spawn pose before interpolation kicks in
 
-- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.5.0, rendering, turret
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

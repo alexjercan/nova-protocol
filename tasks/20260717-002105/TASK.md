@@ -1,11 +1,11 @@
 # Migrate base art under assets/base/ and repoint every reference (Option A)
 
-- STATUS: CLOSED
 - PRIORITY: 49
-- TAGS: v0.7.0,modding,base,assets,feature
+- TAGS: v0.7.0, modding, base, assets, feature
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

@@ -1,11 +1,11 @@
 # Spike: worktree build ergonomics - safe shared/cached cargo target for sprouts + crate-scoped cargo test works standalone
 
-- STATUS: CLOSED
 - PRIORITY: 46
 - TAGS: v0.8.0, spike, tooling, testing
 - KIND: SPIKE
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

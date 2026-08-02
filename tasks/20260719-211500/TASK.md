@@ -1,11 +1,11 @@
 # Probe surface close-out: remove deprecated sweep|web|profile aliases + trace verb; keep perf_web (the wasm web-capture app) with sharpened docs; AGENTS/skill/wiki sweep
 
-- STATUS: CLOSED
 - PRIORITY: 50
-- TAGS: v0.8.0,tooling,refactor
+- TAGS: v0.8.0, tooling, refactor
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

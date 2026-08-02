@@ -1,11 +1,11 @@
 # Unify content tooling bins into one 'content' CLI with subcommands (gen/lint/audit)
 
-- STATUS: CLOSED
 - PRIORITY: 35
 - TAGS: v0.7.0, tooling, refactor, cli
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 User request: one CLI for content-related tasks with flags/subcommands
 instead of three separate bins. Scope FIXED by the user to the three

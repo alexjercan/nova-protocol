@@ -1,11 +1,11 @@
 # Scenario picker: a Scenarios menu modal in the mods-screen style - list + details pane, play any registered scenario
 
-- STATUS: CLOSED
 - PRIORITY: 12
-- TAGS: feature,menu,scenario
+- TAGS: feature, menu, scenario
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 User request (20260715, on seeing the new mods screen): "the mods page looks
 really good! we should add a similar style page for playing custom scenarios

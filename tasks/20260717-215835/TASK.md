@@ -1,11 +1,11 @@
 # Turret joint tree: generalized aim solver (analytic per-joint CCD) + multi-hinge demo
 
-- STATUS: CLOSED
 - PRIORITY: 8
 - TAGS: v0.7.0, spike, refactor, weapons, turret
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

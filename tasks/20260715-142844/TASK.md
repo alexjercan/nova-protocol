@@ -1,11 +1,11 @@
 # Hidden dev mods: catalog hidden flag keeps screenshot-reel out of the Mods menu
 
-- STATUS: CLOSED
 - PRIORITY: 20
-- TAGS: modding,menu
+- TAGS: modding, menu
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Spike: tasks/20260714-202515/SPIKE.md (option W)
 

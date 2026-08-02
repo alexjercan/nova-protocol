@@ -1,11 +1,11 @@
 # Camera twitch when flying: ship transform stair-steps at fixed ticks under the smoothed camera
 
-- STATUS: CLOSED
 - PRIORITY: 85
-- TAGS: v0.4.0,bug,camera,handling
+- TAGS: v0.4.0, bug, camera, handling
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Playtest report on the flight-feel retune (20260709-095043): the camera
 weight feels right, but the view "twitches" when moving. User's hypothesis

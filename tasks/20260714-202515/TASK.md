@@ -1,11 +1,11 @@
 # Spike: remote mod catalog + download/cache (replace hand-maintained mods.catalog.ron; powers Explore)
 
-- STATUS: CLOSED
 - PRIORITY: 18
 - TAGS: spike, v0.6.0, modding, menu, wasm
 - KIND: SPIKE
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Related: spike tasks/20260714-174000 (the mod-manager family); the "Explore online
 (coming soon)" placeholder in the Mods menu (task 20260714-174126) is the UI this

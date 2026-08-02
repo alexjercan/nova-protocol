@@ -1,11 +1,11 @@
 # Mute audio in harness runs (autopilot/shot/reel + NOVA_MUTE): output_gain seam, settings and persistence untouched
 
-- STATUS: CLOSED
 - PRIORITY: 63
-- TAGS: v0.8.0,audio,testing,examples
+- TAGS: v0.8.0, audio, testing, examples
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

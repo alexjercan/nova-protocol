@@ -1,11 +1,11 @@
 # Weapon and damage-type variety (alt-fire, AP/EMP)
 
-- STATUS: CLOSED
 - PRIORITY: 46
 - TAGS: v0.5.0, weapons
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Spike: tasks/20260708-161726/SPIKE.md (roadmap)
 

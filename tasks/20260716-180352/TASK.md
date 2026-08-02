@@ -1,11 +1,11 @@
 # More menu backdrops: two simple cute ambience scenes for the rotation
 
-- STATUS: CLOSED
 - PRIORITY: 59
 - TAGS: v0.7.0, content, scenario
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

@@ -1,11 +1,11 @@
 # Goal: ch3 speed-provocation - wake the Magpies when the player burns too hot
 
-- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: goal, v0.8.0, content, scenario
 - KIND: EPIC
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

@@ -1,11 +1,11 @@
 # Weapons safety + RMB manual gunnery + consumer routing (travel->GOTO, combat->guns)
 
-- STATUS: CLOSED
 - PRIORITY: 54
 - TAGS: v0.5.0, targeting, input, combat, spike
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Outcome (CLOSED 2026-07-13)
 

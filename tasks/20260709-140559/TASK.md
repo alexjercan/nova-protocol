@@ -1,11 +1,11 @@
 # Torpedo blast self-harm at close range: own ship and salvo siblings caught in blast
 
-- STATUS: CLOSED
 - PRIORITY: 45
-- TAGS: v0.4.0,torpedo,balance
+- TAGS: v0.4.0, torpedo, balance
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Observed in the 06_torpedo_range headless logs while fixing 20260709-131502:
 a torpedo detonating on the NEAR gate (30 units) put the firing ship inside its

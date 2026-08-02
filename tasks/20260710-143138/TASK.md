@@ -1,11 +1,11 @@
 # CI: examples smoke test panics in taffy on GitHub runners only - diagnose and re-enable as blocking
 
-- STATUS: CLOSED
 - PRIORITY: 20
 - TAGS: v0.5.2, ci, testing, bug
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 The `examples_smoke` test step in `.github/workflows/ci.yaml` is currently
 `continue-on-error: true` because the scenario-loading example (03_scenario

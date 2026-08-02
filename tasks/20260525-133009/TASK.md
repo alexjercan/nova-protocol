@@ -1,11 +1,11 @@
 # Minimal example for nova_gameplay crate
 
-- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.4.0, example
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Shows a ship with sections, health, one weapon. [new]
 

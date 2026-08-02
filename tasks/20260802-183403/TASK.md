@@ -1,11 +1,11 @@
 # Migrate nova_debug, nova_probe, and the example fleet onto nova_autopilot
 
-- STATUS: OPEN
 - PRIORITY: 92
-- TAGS: v0.10.0,tooling,autopilot,examples
+- TAGS: v0.10.0, tooling, autopilot, examples
 - KIND: TASK
-- FLOW STEP: BACKLOG
-- PLAN STATUS: DRAFT
+- ACTIVITY: -
+- GATES: -
+- RESOLUTION: -
 - PARENT: 20260802-120019
 - DEPENDS ON: 20260802-183349, 20260802-183352
 

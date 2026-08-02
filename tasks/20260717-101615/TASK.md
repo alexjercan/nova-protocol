@@ -1,11 +1,11 @@
 # Split the sound bank: UI sounds stay in assets/, world sounds move behind the base mod boundary
 
-- STATUS: CLOSED
 - PRIORITY: 34
 - TAGS: spike, v0.7.0, audio, modding, refactor
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

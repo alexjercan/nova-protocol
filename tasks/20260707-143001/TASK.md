@@ -1,11 +1,11 @@
 # Torpedoes commit to their launch target and never retarget
 
-- STATUS: CLOSED
 - PRIORITY: 85
-- TAGS: v0.4.0,torpedo,behavior
+- TAGS: v0.4.0, torpedo, behavior
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Reported while testing the PN guidance (PR #31): fire a torpedo with no target,
 then shoot bullets - the loitering torpedo picks a bullet up as its target and

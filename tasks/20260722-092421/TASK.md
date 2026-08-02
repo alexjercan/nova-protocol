@@ -1,11 +1,11 @@
 # Sequence objectives after conversations + breathing room between objective-complete and next objective (mainline scenarios)
 
-- STATUS: CLOSED
 - PRIORITY: 85
 - TAGS: v0.8.0, content, scenario, pacing, playtest
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

@@ -1,11 +1,11 @@
 # Re-enable particle effects on wasm
 
-- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: wontdo,wasm,superseded
+- TAGS: wontdo, wasm, superseded
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 From the TODO sweep (task 20260525-132954). Particle effects are disabled on wasm
 because hanabi was not working there. Re-enable once a wasm-compatible path exists.

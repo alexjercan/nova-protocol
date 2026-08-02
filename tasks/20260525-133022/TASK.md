@@ -1,11 +1,11 @@
 # HUD indicator when torpedo is fired
 
-- STATUS: CLOSED
 - PRIORITY: 55
-- TAGS: v0.4.0,torpedo
+- TAGS: v0.4.0, torpedo
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Show target lock and torpedo state. Legacy #146.
 

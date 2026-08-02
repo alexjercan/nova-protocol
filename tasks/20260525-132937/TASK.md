@@ -1,11 +1,11 @@
 # Audit and finalize nova_core crate as thin wiring layer
 
-- STATUS: CLOSED
 - PRIORITY: 100
 - TAGS: v0.3.1, refactor, crates
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 nova_core should only assemble plugins from the other crates into the runnable game. Verify it contains no gameplay logic; move anything substantive into nova_gameplay or a dedicated crate. [new]
 

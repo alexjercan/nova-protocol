@@ -1,11 +1,11 @@
 # Fix: ManeuverTelemetry remove races scenario teardown (despawned entity warn)
 
-- STATUS: CLOSED
 - PRIORITY: 85
-- TAGS: v0.5.2,bug,flight,scenario
+- TAGS: v0.5.2, bug, flight, scenario
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Observed in the user's 2026-07-12 playtest log (pre-existing, not from
 the playtest-fixes branch): during scenario teardown (UnloadScenario

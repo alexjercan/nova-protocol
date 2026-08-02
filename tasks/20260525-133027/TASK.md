@@ -1,11 +1,11 @@
 # Implement HUD for objectives
 
-- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: wontdo,objectives
+- TAGS: wontdo, objectives
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Display current objective state to the player. Legacy #90.
 

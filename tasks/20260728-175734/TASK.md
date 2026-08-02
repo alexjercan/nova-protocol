@@ -1,11 +1,11 @@
 # nova_ui theme + widgets: NOVA OS palette + skin-aware widget set
 
-- STATUS: CLOSED
 - PRIORITY: 40
-- TAGS: v0.9.0,ui,refactor
+- TAGS: v0.9.0, ui, refactor
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

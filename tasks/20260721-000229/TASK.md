@@ -1,11 +1,11 @@
 # Wire sccache into the nix devshell for safe fast worktree builds (measured)
 
-- STATUS: CLOSED
 - PRIORITY: 44
-- TAGS: v0.8.0,tooling,testing
+- TAGS: v0.8.0, tooling, testing
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

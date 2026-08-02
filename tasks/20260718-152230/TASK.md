@@ -1,11 +1,11 @@
 # nova_perf: add an HTML report-generator binary that turns the frametime JSON/CSV into a styled standalone report (per-scene percentiles, charts, deltas)
 
-- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.8.0, tooling, performance
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

@@ -1,11 +1,11 @@
 # Work skill: add a cargo doc baseline-diff verify step for module moves
 
-- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, chore, process
 - KIND: TASK
-- FLOW STEP: DROPPED
-- PLAN STATUS: DRAFT
+- ACTIVITY: -
+- GATES: -
+- RESOLUTION: WONTDO
 
 ## Story
 

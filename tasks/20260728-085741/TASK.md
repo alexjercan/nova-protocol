@@ -1,11 +1,11 @@
 # NOVA OS: persistent header + main + footer layout
 
-- STATUS: CLOSED
 - PRIORITY: 47
-- TAGS: v0.9.0,ui,hud,nova_os,refactor
+- TAGS: v0.9.0, ui, hud, nova_os, refactor
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Refactor the NOVA OS screen into a persistent header + main + footer layout
 (HTML `<header>/<main>/<footer>` model). Today the "NOVA OS ... / COCKPIT LINK"

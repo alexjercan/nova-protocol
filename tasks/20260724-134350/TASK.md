@@ -1,11 +1,11 @@
 # Drawer right panel: objectives as a styled list (not plain text)
 
-- STATUS: CLOSED
 - PRIORITY: 54
 - TAGS: v0.9.0, feature, ui, hud
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

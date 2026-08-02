@@ -1,11 +1,11 @@
 # Editor keybind labels: add background + a deselect/select-mode button
 
-- STATUS: CLOSED
 - PRIORITY: 55
-- TAGS: v0.5.0,editor,ux,playtest
+- TAGS: v0.5.0, editor, ux, playtest
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

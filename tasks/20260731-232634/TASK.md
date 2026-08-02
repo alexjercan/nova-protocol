@@ -1,11 +1,11 @@
 # Holo trajectory ribbon doc may be stale: arrival solve gravity-awareness
 
-- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, hud, docs
 - KIND: TASK
-- FLOW STEP: DROPPED
-- PLAN STATUS: DRAFT
+- ACTIVITY: -
+- GATES: -
+- RESOLUTION: WONTDO
 
 ## Goal
 

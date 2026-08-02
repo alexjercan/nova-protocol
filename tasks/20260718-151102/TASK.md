@@ -1,11 +1,11 @@
 # RCS error-relative mode for autopilot ORBIT station-keep (needs primitive redesign)
 
-- STATUS: CLOSED
 - PRIORITY: 1
-- TAGS: v0.7.0,feature,flight,spike
+- TAGS: v0.7.0, feature, flight, spike
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

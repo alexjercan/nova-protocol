@@ -1,9 +1,9 @@
 # Spike: bundle family v2 - content-declared kind + folder bundles + generic registration (avoid the fold)
 
-- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: spike, modding, scenario, bundle
 - KIND: SPIKE
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 

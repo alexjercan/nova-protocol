@@ -1,11 +1,11 @@
 # Mirror OnNeutralized handlers in The Ledger webmod
 
-- STATUS: CLOSED
 - PRIORITY: 29
-- TAGS: v0.9.0,modding,scenario,bug
+- TAGS: v0.9.0, modding, scenario, bug
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

@@ -1,11 +1,11 @@
 # Refresh frontend app images: fill missing + re-capture stale screenshots across web/
 
-- STATUS: OPEN
 - PRIORITY: 70
 - TAGS: v0.10.0, web, assets, screenshot
 - KIND: STORY
-- FLOW STEP: BACKLOG
-- PLAN STATUS: DRAFT
+- ACTIVITY: -
+- GATES: -
+- RESOLUTION: -
 - PARENT: 20260802-115955
 - DEPENDS ON: 20260802-120045
 

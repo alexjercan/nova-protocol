@@ -1,11 +1,11 @@
 # Smarter enemy AI (target selection, evasion, patrol)
 
-- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.4.0, ai
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Spike: tasks/20260708-161726/SPIKE.md (roadmap)
 

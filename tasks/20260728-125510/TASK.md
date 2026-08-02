@@ -1,11 +1,11 @@
 # NOVA OS ship app: recenter the orbit camera on the selected section
 
-- STATUS: CLOSED
 - PRIORITY: 29
-- TAGS: v0.9.0,feedback,feature,ui,hud,gameplay
+- TAGS: v0.9.0, feedback, feature, ui, hud, gameplay
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

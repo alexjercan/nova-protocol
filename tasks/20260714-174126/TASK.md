@@ -1,11 +1,11 @@
 # Mods main-menu panel: list installed mods with enable/disable toggles, Explore online coming-soon, base locked-enabled
 
-- STATUS: CLOSED
 - PRIORITY: 58
 - TAGS: menu, modding
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Spike: tasks/20260714-174000/SPIKE.md
 Depends on: 20260714-174120 (catalog + EnabledMods).

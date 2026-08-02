@@ -1,11 +1,11 @@
 # Move base-mod content gen to build-time; remove the content bin's gen subcommand
 
-- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: wontdo,v0.8.0,tooling,build
+- TAGS: wontdo, v0.8.0, tooling, build
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

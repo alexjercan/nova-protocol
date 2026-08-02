@@ -1,11 +1,11 @@
 # Integrate RCS into autopilot (ORBIT station-keep, GOTO terminal arrival write RcsIntent)
 
-- STATUS: CLOSED
 - PRIORITY: 2
 - TAGS: v0.7.0, feature, flight, spike
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

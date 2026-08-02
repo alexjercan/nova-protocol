@@ -1,11 +1,11 @@
 # F1 to editor must be Sandbox-only (disable in New Game scenarios)
 
-- STATUS: CLOSED
 - PRIORITY: 42
-- TAGS: v0.5.0,bug,editor,input
+- TAGS: v0.5.0, bug, editor, input
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

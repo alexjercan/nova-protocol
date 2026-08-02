@@ -1,11 +1,11 @@
 # SetControllerVerb scenario action: enable/disable a flight verb on a ship's controller by id
 
-- STATUS: CLOSED
 - PRIORITY: 44
 - TAGS: v0.5.0, scenario, controller, verbs, spike
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Spike: tasks/20260712-143551/SPIKE.md
 

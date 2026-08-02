@@ -1,11 +1,11 @@
 # Ledger close-out: lint/audit, version bump 1.6.0, ch2 test update, regenerate catalog, doc sweep
 
-- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: v0.8.0, content, modding, docs
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

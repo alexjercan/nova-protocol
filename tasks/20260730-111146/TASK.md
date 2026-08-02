@@ -1,11 +1,11 @@
 # Refresh the tutorial against the current UI and automated captures
 
-- STATUS: OPEN
 - PRIORITY: 60
 - TAGS: v0.10.0, docs, web
 - KIND: STORY
-- FLOW STEP: BACKLOG
-- PLAN STATUS: DRAFT
+- ACTIVITY: -
+- GATES: -
+- RESOLUTION: -
 - PARENT: 20260802-115955
 - DEPENDS ON: 20260724-082856
 

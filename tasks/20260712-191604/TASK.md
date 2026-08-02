@@ -1,11 +1,11 @@
 # Editor rebind: allow binding mouse buttons (LMB etc.)
 
-- STATUS: CLOSED
 - PRIORITY: 55
-- TAGS: v0.5.0,editor,ux,playtest
+- TAGS: v0.5.0, editor, ux, playtest
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

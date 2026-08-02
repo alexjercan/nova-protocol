@@ -1,11 +1,11 @@
 # NOVA OS casing: playtest polish (dark-gray, bigger screen, plate)
 
-- STATUS: CLOSED
 - PRIORITY: 44
-- TAGS: v0.9.0,feature,ui,hud
+- TAGS: v0.9.0, feature, ui, hud
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Playtest feedback on the just-landed casing/glass pass (20260726-193219, commit 01cdd852).
 

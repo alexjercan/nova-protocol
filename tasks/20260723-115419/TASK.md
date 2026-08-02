@@ -1,11 +1,11 @@
 # Fix final_tally_claim survey->picket tests (inherited nova_assets failures)
 
-- STATUS: CLOSED
 - PRIORITY: 5
 - TAGS: v0.8.0, bug, testing, content
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

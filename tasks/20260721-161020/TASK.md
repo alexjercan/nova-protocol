@@ -1,11 +1,11 @@
 # Final Tally (ch3b): gravity-well anchorage finale + campaign ending
 
-- STATUS: CLOSED
 - PRIORITY: 52
-- TAGS: v0.8.0,content,scenario
+- TAGS: v0.8.0, content, scenario
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

@@ -1,11 +1,11 @@
 # Bullets affected by gravity wells
 
-- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: feature, gameplay, spike, v0.5.0
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Make turret rounds (bullets) feel gravity wells, the same way ships and
 torpedoes already do. Today only ship roots and torpedo projectiles opt into

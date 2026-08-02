@@ -1,11 +1,11 @@
 # Fix ammo-count number showing outside F11/debug mode
 
-- STATUS: CLOSED
 - PRIORITY: 62
-- TAGS: v0.5.0,hud,bug,playtest
+- TAGS: v0.5.0, hud, bug, playtest
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

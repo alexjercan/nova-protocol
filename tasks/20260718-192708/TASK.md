@@ -1,11 +1,11 @@
 # Retune RCS sensitivity: bump mouse a little, scroll a lot (playtest)
 
-- STATUS: CLOSED
 - PRIORITY: 5
 - TAGS: v0.7.0, input, playtest
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

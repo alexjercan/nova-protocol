@@ -1,11 +1,11 @@
 # Shakedown pacing pass: slower opening conversation, breathing gaps, simpler objective text
 
-- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.8.0, content, scenario, playtest
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

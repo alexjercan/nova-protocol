@@ -1,11 +1,11 @@
 # Editor UI rework (baseline): wiki-style category rail + component drawer with icons/tooltips; player-only asteroid+planetoid scenario
 
-- STATUS: CLOSED
 - PRIORITY: 55
-- TAGS: v0.6.0,editor,ui,spike
+- TAGS: v0.6.0, editor, ui, spike
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Spike: tasks/20260714-204059/SPIKE.md
 

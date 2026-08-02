@@ -1,11 +1,11 @@
 # Editor sandbox UI/layout overhaul: readable build panel, palette, grid feedback
 
-- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: wontdo,editor
+- TAGS: wontdo, editor
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Spike: tasks/20260714-081636/SPIKE.md
 

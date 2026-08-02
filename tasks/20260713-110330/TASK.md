@@ -1,11 +1,11 @@
 # Live radar lock: lock at threshold, retarget while held, stick on release
 
-- STATUS: CLOSED
 - PRIORITY: 50
-- TAGS: v0.5.0,targeting,input,spike
+- TAGS: v0.5.0, targeting, input, spike
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Outcome (CLOSED 2026-07-13)
 

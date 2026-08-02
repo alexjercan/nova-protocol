@@ -1,12 +1,11 @@
 # probe multi-run Xvfb race: same pid-derived display respawned per example dies on stale lock; share ONE Xvfb across the sweep
 
-- STATUS: CLOSED
 - PRIORITY: 64
-- TAGS: v0.8.0,bug,tooling
+- TAGS: v0.8.0, bug, tooling
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
-
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

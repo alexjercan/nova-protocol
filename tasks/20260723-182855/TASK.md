@@ -1,11 +1,11 @@
 # ledger_ch5: torpedo-ship reward raid finale (content)
 
-- STATUS: CLOSED
 - PRIORITY: 58
 - TAGS: v0.8.0, content, scenario, playtest
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

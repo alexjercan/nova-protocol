@@ -1,11 +1,11 @@
 # Mods screen rework: two-pane Installed|Explore layout with search, quiet enable toggles, details side panel
 
-- STATUS: CLOSED
 - PRIORITY: 14
 - TAGS: modding, menu, ui
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Spike: tasks/20260714-202515/SPIKE.md (option AA)
 Depends on: 20260715-142849 (bundle meta feeds the details panel).

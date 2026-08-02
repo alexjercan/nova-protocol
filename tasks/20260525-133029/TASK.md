@@ -1,11 +1,11 @@
 # Add optional serde feature + derives to nova_scenario config types
 
-- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.6.0, modding, scenario, foundation
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Data-driven scenario definition. Legacy #101.
 

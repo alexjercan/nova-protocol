@@ -1,11 +1,11 @@
 # Torpedo still vanishes on target loss: second despawn in player targeting
 
-- STATUS: CLOSED
 - PRIORITY: 90
-- TAGS: v0.4.0,bug,torpedo
+- TAGS: v0.4.0, bug, torpedo
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Follow-up to task 20260707-100004. That fix stopped `update_target_position` from
 despawning a torpedo when its target died, but the torpedo still vanishes for any

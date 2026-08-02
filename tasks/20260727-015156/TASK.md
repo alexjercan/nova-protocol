@@ -1,11 +1,11 @@
 # rename 'drawer' related things to 'nova_os' + create a nova_os crate for the OS logic and refactor
 
-- STATUS: CLOSED
 - PRIORITY: 40
-- TAGS: v0.9.0,refactoring
+- TAGS: v0.9.0, refactoring
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Problem
 

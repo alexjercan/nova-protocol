@@ -1,11 +1,11 @@
 # Bug: sandbox nova_probe mod cache from installed local mods
 
-- STATUS: CLOSED
 - PRIORITY: 81
 - TAGS: v0.9.0, bug, tooling, probe, modding
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

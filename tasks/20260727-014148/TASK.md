@@ -1,11 +1,11 @@
 # NOVA OS CRT degauss + micro-effects polish
 
-- STATUS: CLOSED
 - PRIORITY: 40
-- TAGS: v0.9.0,feature,ui,hud
+- TAGS: v0.9.0, feature, ui, hud
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

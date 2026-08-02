@@ -1,11 +1,11 @@
 # Harness completion protocol (bcs upstream): collectors register/done, deadline names laggards; nova adoption deletes exit-ownership folklore
 
-- STATUS: CLOSED
 - PRIORITY: 62
-- TAGS: v0.8.0,tooling,testing,refactor
+- TAGS: v0.8.0, tooling, testing, refactor
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

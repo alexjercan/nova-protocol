@@ -1,11 +1,11 @@
 # Fix the red shakedown test: an_early_derelict_kill_skips_to_the_fight
 
-- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog
 - KIND: TASK
-- FLOW STEP: DROPPED
-- PLAN STATUS: DRAFT
+- ACTIVITY: -
+- GATES: -
+- RESOLUTION: WONTDO
 
 ## Story
 

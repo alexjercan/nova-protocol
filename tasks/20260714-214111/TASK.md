@@ -1,11 +1,11 @@
 # nova_ui crate: shared theme + widgets; migrate nova_editor onto it
 
-- STATUS: CLOSED
 - PRIORITY: 65
-- TAGS: ui,v0.6.0
+- TAGS: ui, v0.6.0
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Umbrella: task 20260714-212139 (unify the whole game UI to the web-app theme).
 

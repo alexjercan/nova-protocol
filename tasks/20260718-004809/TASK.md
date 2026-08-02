@@ -1,11 +1,11 @@
 # Tune GraphicsBudget::for_quality fractions from the frame-time baseline (replace provisional values)
 
-- STATUS: CLOSED
 - PRIORITY: 38
 - TAGS: v0.7.0, performance, settings
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

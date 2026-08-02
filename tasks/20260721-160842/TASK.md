@@ -1,11 +1,11 @@
 # Resolve asteroid_field hidden-vs-wiki contradiction (picker sandbox or hidden?)
 
-- STATUS: CLOSED
 - PRIORITY: 56
-- TAGS: v0.8.0,scenario,docs
+- TAGS: v0.8.0, scenario, docs
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

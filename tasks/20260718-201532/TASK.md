@@ -1,11 +1,11 @@
 # Controller-based RCS burn loop sound (player + autopilot ORBIT/STOP)
 
-- STATUS: CLOSED
 - PRIORITY: 5
 - TAGS: v0.7.0, feature, audio, flight
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

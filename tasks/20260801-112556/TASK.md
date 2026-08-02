@@ -1,11 +1,11 @@
 # Tooling: re-runnable measured numbers in task records
 
-- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog
 - KIND: TASK
-- FLOW STEP: DROPPED
-- PLAN STATUS: DRAFT
+- ACTIVITY: -
+- GATES: -
+- RESOLUTION: WONTDO
 
 ## Context
 

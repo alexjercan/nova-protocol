@@ -1,11 +1,11 @@
 # scatter_density preset lever: wire authored scatter through scaled_count, or stop advertising it
 
-- STATUS: CLOSED
 - PRIORITY: 36
 - TAGS: v0.7.0, performance, settings, scenario
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

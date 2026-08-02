@@ -1,11 +1,11 @@
 # Embed a sandboxed scripting VM for scenario logic (piccolo prototype)
 
-- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, modding, spike
 - KIND: TASK
-- FLOW STEP: DROPPED
-- PLAN STATUS: DRAFT
+- ACTIVITY: -
+- GATES: -
+- RESOLUTION: WONTDO
 
 Spike: tasks/20260708-161726/SPIKE.md
 

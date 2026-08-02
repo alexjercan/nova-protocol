@@ -1,11 +1,11 @@
 # Turret crosshair (orange square) twitches while tracking
 
-- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.5.0, turret, bug
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

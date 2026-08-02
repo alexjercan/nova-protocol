@@ -1,11 +1,11 @@
 # Decide: pin the nightly toolchain date and add -D warnings to the CI clippy step, or stay advisory
 
-- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, ci, tooling
 - KIND: TASK
-- FLOW STEP: DROPPED
-- PLAN STATUS: DRAFT
+- ACTIVITY: -
+- GATES: -
+- RESOLUTION: WONTDO
 
 ## Goal
 

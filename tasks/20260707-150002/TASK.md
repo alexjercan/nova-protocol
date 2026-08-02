@@ -1,11 +1,11 @@
 # Live tuning sliders for the turret range
 
-- STATUS: CLOSED
 - PRIORITY: 40
-- TAGS: v0.4.0,example,turret
+- TAGS: v0.4.0, example, turret
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Deferred from the turret range task (20260707-095008, step 3). Add on-screen
 sliders to `examples/08_turret_range.rs` for the turret's tuning knobs - yaw/pitch

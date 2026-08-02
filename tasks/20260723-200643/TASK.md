@@ -1,11 +1,11 @@
 # ch5 raid tuning: shrink planetoid gravity/SOI, base holds station, fewer turrets, torpedo on R, unhide (content)
 
-- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.8.0, content, scenario, playtest
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

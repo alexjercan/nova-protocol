@@ -1,11 +1,11 @@
 # Unify NOVA OS commands: one TerminalCommand model (app-launch + CLI subcommands)
 
-- STATUS: CLOSED
 - PRIORITY: 47
-- TAGS: v0.9.0,refactoring,ui,hud,nova_os
+- TAGS: v0.9.0, refactoring, ui, hud, nova_os
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Unify the NOVA OS command surface so there is ONE command concept - a
 `TerminalCommand` - instead of today's split between the static

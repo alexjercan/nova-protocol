@@ -1,11 +1,11 @@
 # nova_probe: profiling layer (chrome-trace spans -> top-N systems table + Perfetto attachment + optional samply flamegraph)
 
-- STATUS: CLOSED
 - PRIORITY: 70
 - TAGS: v0.8.0, spike, tooling, performance
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

@@ -1,11 +1,11 @@
 # Objective feedback: delay the new-objective cue after a completion
 
-- STATUS: CLOSED
 - PRIORITY: 50
-- TAGS: v0.5.0,feel,audio
+- TAGS: v0.5.0, feel, audio
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

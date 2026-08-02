@@ -1,11 +1,11 @@
 # NOVA OS chin controls: 3D knobs/buttons, sound bulb, orange PWR close animation
 
-- STATUS: CLOSED
 - PRIORITY: 44
 - TAGS: v0.9.0, feature, ui, hud
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Playtest feedback on the NOVA OS chin controls (the knobs + buttons on the
 case chin). They read flat/ugly next to the web PoC; make the whole control

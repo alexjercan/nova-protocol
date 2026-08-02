@@ -1,11 +1,11 @@
 # Lock reticle on beacons sizes to the trigger sensor - exclude sensors from ApparentSize
 
-- STATUS: CLOSED
 - PRIORITY: 40
-- TAGS: v0.5.0,hud,polish,playtest
+- TAGS: v0.5.0, hud, polish, playtest
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

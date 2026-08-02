@@ -1,11 +1,11 @@
 # Scenario outcome frame: Victory/Defeat action + overlay (Enter to continue/retry, Esc to menu)
 
-- STATUS: CLOSED
 - PRIORITY: 86
 - TAGS: v0.7.0, feature, scenario, ui
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 

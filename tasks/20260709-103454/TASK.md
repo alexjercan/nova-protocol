@@ -1,11 +1,11 @@
 # Diegetic flight instruments: in-world autopilot/maneuver UI
 
-- STATUS: CLOSED
 - PRIORITY: 70
 - TAGS: v0.5.0, hud, autopilot, spike
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 Spike: tasks/20260710-174523/SPIKE.md
 (design language decided there; original ask from

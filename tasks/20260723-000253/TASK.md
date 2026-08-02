@@ -1,11 +1,11 @@
 # Add SetAllegiance scenario action - flip a ship's allegiance mid-scenario (neutral-until-provoked primitive)
 
-- STATUS: CLOSED
 - PRIORITY: 62
 - TAGS: v0.8.0, modding, scenario
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

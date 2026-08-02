@@ -1,11 +1,11 @@
 # Rotation command handoff crosses clocks: move the PD input copy to FixedUpdate and align the test harness
 
-- STATUS: CLOSED
 - PRIORITY: 56
 - TAGS: v0.5.0, bug, physics, flight
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Steps
 

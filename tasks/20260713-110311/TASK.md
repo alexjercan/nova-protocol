@@ -1,11 +1,11 @@
 # Show-don't-tell lock HUD: inset-on-lock viewfinder, state styling, lock sfx, status text retired
 
-- STATUS: CLOSED
 - PRIORITY: 48
-- TAGS: v0.5.0,hud,ux,audio,spike
+- TAGS: v0.5.0, hud, ux, audio, spike
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Outcome (CLOSED 2026-07-13)
 

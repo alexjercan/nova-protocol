@@ -1,11 +1,11 @@
 # Menus + editor spawn the shared nova_ui widget factories (finish 175738 adoption)
 
-- STATUS: CLOSED
 - PRIORITY: 37
-- TAGS: v0.9.0,ui,refactor
+- TAGS: v0.9.0, ui, refactor
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Story
 

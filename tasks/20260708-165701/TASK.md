@@ -1,11 +1,11 @@
 # Turret lead/intercept pip (HUD)
 
-- STATUS: CLOSED
 - PRIORITY: 72
 - TAGS: v0.4.0, hud, turret, spike
 - KIND: TASK
-- FLOW STEP: DONE
-- PLAN STATUS: APPROVED
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Goal
 
