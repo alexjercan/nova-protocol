@@ -25,6 +25,16 @@ tagged **(breaking)**.
 - `Trunk.toml`: the dev `[[proxy]]` moved to `TRUNK_SERVE_PROXY_BACKEND`; a
   config-file entry conflicts with the env one and panics Trunk.
 - Dev shell: added `watchexec`.
+- New `nova_autopilot` crate: the automation drivers (autopilot timeline,
+  screenshot, reel) and the run-completion protocol, depending on `bevy` alone.
+  `nova_debug`, `nova_probe` and every example now drive it instead of the
+  `bevy_common_systems` harness copy.
+- Harness environment variables renamed `BCS_* -> NOVA_*`: `BCS_AUTOPILOT ->
+  NOVA_AUTOPILOT`, `BCS_SHOT -> NOVA_SHOT`, `BCS_REEL -> NOVA_REEL`, and
+  `BCS_HARNESS_DEADLINE -> NOVA_AUTOPILOT_DEADLINE` (the deadline's stem moved
+  too, so it is not a pure prefix swap). `NOVA_SHOT_DIR` was always spelled
+  that way and is unchanged. Any scripted run pinned to the old names arms
+  nothing and silently does a plain play-through. **(breaking)**
 - Dev wiki: "Automation harness" page for the `nova_autopilot` drivers.
 - `nova_autopilot`: curated prelude, crate-level env contract table, and a
   `completion` doc example.

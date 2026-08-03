@@ -71,7 +71,7 @@ Fresh clone: run `scripts/setup-hooks.sh`. Pre-commit blocks Rust changes when
 
 ## Testing
 
-- Harness-first. Prefer App-driven tests and `BCS_AUTOPILOT` examples.
+- Harness-first. Prefer App-driven tests and `NOVA_AUTOPILOT` examples.
 - Bugs: failing current-tree harness first; record fail-first numbers in `TASK.md`.
 - Features: player-path harness coverage. Unit tests support, not replace, it.
 - Rigs: production scheduling, defaults, configuration. Extend a known-good rig.

@@ -185,7 +185,7 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
    that asserts the kind's behavior end to end. Run it:
 
    ```text
-   BCS_AUTOPILOT=1 cargo run --example <kind>_section --features debug
+   NOVA_AUTOPILOT=1 cargo run --example <kind>_section --features debug
    ```
 
 ## Done

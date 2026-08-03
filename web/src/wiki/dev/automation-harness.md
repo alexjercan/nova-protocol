@@ -14,17 +14,16 @@ presets, camera posing, freezing rigid bodies, hiding the dev overlay) stay in
 generic over the app's state type, and that generic is what keeps
 `GameStates` - and with it the whole game dependency tree - out of the crate.
 
-**Read this page as the crate's contract, not as today's wiring.**
-`nova_autopilot` is the extracted home for these drivers, and it is complete and
-tested on its own. Nova's own examples and `nova_probe` still run the older
-`bevy-common-systems` copy through `nova_debug::harness`, on the legacy `BCS_*`
-variables; moving them onto this crate is task `20260802-183403`. Everything
-below describes `nova_autopilot` itself and the shape Nova's callers take after
-that migration.
+**Read this page as the crate's contract.** Nova's own examples and
+`nova_probe` all run these drivers, reaching them through the `nova_debug`
+prelude and the `nova_debug::harness` presets - the Nova-flavored adapter, not a
+second implementation. `tests/examples_smoke.rs` fails any example that names a
+driver unqualified, because the shared `bevy_common_systems` prelude still
+exports same-named types that would resolve to an inert twin.
 
 ## What it drives
 
-| Driver | Does | What Nova will use it for |
+| Driver | Does | What Nova uses it for |
 | --- | --- | --- |
 | `AutopilotPlugin` | Walks a `(state, seconds)` timeline, running a per-frame input closure with full world access | Headless smoke runs, driving a scenario while something else measures |
 | `ScreenshotPlugin` | Advances to a target state, settles N frames, captures the primary window to a PNG | One-off visual checks (a phone-width layout regression) |
@@ -33,8 +32,8 @@ that migration.
 
 `nova_probe` is the layer above: it arms the harness variables, runs an example
 and turns the output into a correctness and performance report. It arms the
-legacy `BCS_*` names today and moves onto the `NOVA_*` ones with the rest of the
-migration.
+variables below - including a window-sized `NOVA_AUTOPILOT_DEADLINE` for its fps
+pass, which your own value overrides.
 
 ## The environment contract
 
@@ -54,10 +53,12 @@ so.
 `NOVA_SHOT` and `NOVA_REEL` are deliberately separate: a reel run and a one-off
 capture must never fight over the same window.
 
-Nova's own run scripts and `nova_probe` still spell these `BCS_*`, left over
-from when the drivers lived in `bevy-common-systems`. It is not a mechanical
-prefix swap: the deadline's stem changed too, from `BCS_HARNESS_DEADLINE` to
-`NOVA_AUTOPILOT_DEADLINE`. The crate's contract is the table above.
+The table above is the whole contract. These names replaced an older set from
+when the drivers lived in `bevy-common-systems`, and the swap was not purely a
+prefix change - the deadline's stem moved too. A scripted run still pinned to
+the old names arms nothing and silently does a plain play-through, so check
+yours against this table; the CHANGELOG's breaking entry spells out the old
+spellings.
 
 ## The completion protocol
 
@@ -110,9 +111,8 @@ holds the state BEFORE the gate and lets the loader do its own transition -
 (`crates/nova_debug/src/harness.rs`). Hold a state something else is
 responsible for entering and you get the same bug.
 
-Then arm it from the shell. `driven_app` is the crate's own example and runs
-today; the `scenario` forms are what Nova's examples take once
-`20260802-183403` moves them off `BCS_*`:
+Then arm it from the shell - `driven_app` is the crate's own example, the
+`scenario` forms are Nova's:
 
 ```sh
 NOVA_AUTOPILOT=1 cargo run -p nova_autopilot --example driven_app

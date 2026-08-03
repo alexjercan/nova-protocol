@@ -30,7 +30,7 @@ Notes that keep the suite honest and fast:
 - `cargo test` takes ONE filter and one `-p` per invocation; separate runs for
   separate filters or packages.
 - For a timed headless example run, build first, then time only the run
-  (`cargo build --example X --features debug`, then `BCS_AUTOPILOT=1 timeout N
+  (`cargo build --example X --features debug`, then `NOVA_AUTOPILOT=1 timeout N
   cargo run --example X ...`). A cold build inside the timeout burns the window.
 - Struct-field changes: `cargo check --workspace --all-targets`, or examples and
   tests stay silently broken.
@@ -158,7 +158,7 @@ subject lives in bevy-common-systems; 04_asteroids' slider tuning tool was
 dropped.)
 
 Every example outside `perf/` (plus `render_scale_shot`) is HARNESSED: it
-drives itself under `BCS_AUTOPILOT=1`, and `tests/examples_smoke.rs` runs
+drives itself under `NOVA_AUTOPILOT=1`, and `tests/examples_smoke.rs` runs
 each category headless as a regression suite, one test per category -
 `cargo test --test examples_smoke sections` (or `gameplay`, `ui`,
 `screenshots`) runs a single category alone. Each example must reach
@@ -174,8 +174,14 @@ new example misses its `[[example]]` block or its category's smoke list
 (`render_scale_shot` and `perf_baseline` are deliberately unsmoked; the
 `NOT_SMOKED` list records why).
 
-Harness runs are SILENT: any bcs harness env (`BCS_AUTOPILOT`, `BCS_SHOT`,
-`BCS_REEL`) zeroes the audio output via `HarnessMute` - Xvfb hides the
+The drivers themselves - `AutopilotPlugin`, the screenshot and reel captures,
+the completion protocol, and the full `NOVA_*` environment contract - live in
+the `nova_autopilot` crate and are documented on
+[The automation harness](../automation-harness/). This page only shows the run
+recipes; that page is the contract.
+
+Harness runs are SILENT: any harness env (`NOVA_AUTOPILOT`, `NOVA_SHOT`,
+`NOVA_REEL`) zeroes the audio output via `HarnessMute` - Xvfb hides the
 window but not the speakers, and nobody listens to a smoke test. The
 volume SETTING is untouched (persistence and the settings menu never see
 the mute). `NOVA_MUTE=0` forces sound through a harness run;
@@ -333,13 +339,13 @@ staging dir, then package into `web/src/assets/`:
 
 ```sh
 export NOVA_SHOT_DIR=target/reel
-BCS_REEL=1                cargo run --example screenshot_reel   --features debug
-BCS_AUTOPILOT=1 BCS_REEL=1 cargo run --example screenshot_ui     --features debug
-BCS_AUTOPILOT=1 BCS_REEL=1 cargo run --example screenshot_combat --features debug
+NOVA_REEL=1                  cargo run --example screenshot_reel   --features debug
+NOVA_AUTOPILOT=1 NOVA_REEL=1 cargo run --example screenshot_ui     --features debug
+NOVA_AUTOPILOT=1 NOVA_REEL=1 cargo run --example screenshot_combat --features debug
 python3 scripts/gen-web-screenshots.py   # validate + copy; build composites; write the 44x44 icons
 ```
 
-The capture examples run headless under `BCS_AUTOPILOT`; the reel poses a
+The capture examples run headless under `NOVA_AUTOPILOT`; the reel poses a
 free-fly camera per beat and captures 1920x1080 PNGs. The Python step validates
 each shot is 16:9, copies it in, builds the composite shots a single capture
 cannot make (e.g. `devlog5-radar-stance-slots`, two lock stances side by side)
@@ -477,11 +483,11 @@ matrix keep the full 180/900 baseline window) so a bare
 `probe run gameplay --fps` fits the completion deadline; your own
 `NOVA_PERF_WARMUP` / `NOVA_PERF_FRAMES` always override it. The completion
 deadline is SIZED to that window (not a flat 120s): probe sets
-`BCS_HARNESS_DEADLINE` for the fps pass to `(warmup + frames) / ~2fps +
+`NOVA_AUTOPILOT_DEADLINE` for the fps pass to `(warmup + frames) / ~2fps +
 margin`, so a slow-but-progressing capture (a heavy scene in a dev build under
 software rendering - `perf_baseline --fps` is the case) completes instead of
 tripping the hang detector; a genuine hang still fails at a window-appropriate
-bound, and your own `BCS_HARNESS_DEADLINE` overrides it. Every example's `main`
+bound, and your own `NOVA_AUTOPILOT_DEADLINE` overrides it. Every example's `main`
 returns `AppExit`, so a deadline expiry is a non-zero process exit the
 `process_exit` check reports. See the crate docs for the full knob list
 (`NOVA_PERF_*`).
@@ -526,7 +532,7 @@ keeps everything up to the panic. Compare runs by ORDER and VALUES, not
 timestamps (wall-clock and frame counts vary across hosts):
 
 ```sh
-NOVA_PERF_TIMELINE=/tmp/run.jsonl BCS_AUTOPILOT=1 \
+NOVA_PERF_TIMELINE=/tmp/run.jsonl NOVA_AUTOPILOT=1 \
   cargo run --example playable --features debug
 ```
 

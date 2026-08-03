@@ -383,7 +383,7 @@ mod tests {
 
     #[test]
     fn mute_policy_resolves_env_precedence() {
-        // Explicit NOVA_MUTE wins in both directions; otherwise the bcs
+        // Explicit NOVA_MUTE wins in both directions; otherwise the
         // harness envs decide. Pure inputs - no process-env mutation.
         assert!(harness_muted_from(Some("1"), false), "NOVA_MUTE=1 mutes");
         assert!(

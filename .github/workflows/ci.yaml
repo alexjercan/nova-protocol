@@ -89,7 +89,7 @@ jobs:
         run: cargo test --workspace --features debug
 
       # The windowed examples smoke test: spawns each harnessed example under
-      # BCS_AUTOPILOT/Xvfb (lavapipe renders) and asserts it reaches gameplay,
+      # NOVA_AUTOPILOT/Xvfb (lavapipe renders) and asserts it reaches gameplay,
       # passes its in-example behavior assertions, logs no command errors,
       # and exits without panic. BLOCKING again since 20260710-143138: the
       # taffy panic (resolve.rs unreachable, GitHub runners only) was
