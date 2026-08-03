@@ -3,7 +3,7 @@
 - PRIORITY: 60
 - TAGS: v0.10.0, docs, web
 - KIND: STORY
-- ACTIVITY: -
+- ACTIVITY: PLANNING
 - GATES: -
 - RESOLUTION: -
 - PARENT: 20260802-115955
@@ -12,17 +12,17 @@
 ## Story
 
 Refresh the whole tutorial against current v0.10.0 flight/UI behavior and the
-new reproducible capture set. The known retired objective-panel wording is the
+rebuilt example fleet's reproducible captures. The known retired objective-panel wording is the
 starting defect, not the full scope of the audit.
 
 ## Steps
 
-- [ ] Replay the tutorial path through its showcase automation and compare each
+- [ ] Replay the tutorial path through its gameplay/ui automation and compare each
       instruction, key, named widget, and screenshot with observed behavior.
 - [ ] Replace retired objective-panel language with the objective chip/stack and
       fix any other stale HUD, radar, autopilot, menu, or control references.
-- [ ] Replace tutorial figures through the shared capture manifest; keep prose
-      and screenshots aligned to the same checkpoints.
+- [ ] Replace tutorial figures through the `gen-web-screenshots.py` manifest;
+      keep prose and screenshots aligned to the same producer steps.
 - [ ] Open the rendered page at desktop and narrow widths. Verify instructional
       order, captions, crops, alt text, and links.
 
@@ -30,8 +30,9 @@ starting defect, not the full scope of the audit.
 
 - No tutorial instruction names the retired objective panel.
   (cmd: `! rg -n -i "objective panel" web/src/tutorial.html`)
-- Every tutorial screenshot is current and has a declared showcase producer.
-  (cmd: `nix develop --command python3 scripts/gen-web-screenshots.py --check`)
+- Every tutorial screenshot is current and has a declared producer example;
+  the coverage report lists no tutorial figure outstanding.
+  (cmd: `nix develop --command python3 scripts/gen-web-screenshots.py --report`)
 - Tutorial markup resolves every refreshed image and link.
   (test: `tutorial_render_has_no_broken_assets`)
 - The full tutorial matches the replayed player path at desktop and narrow

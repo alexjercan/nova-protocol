@@ -3,7 +3,7 @@
 - PRIORITY: 50
 - TAGS: v0.10.0, quality, docs, warnings
 - KIND: STORY
-- ACTIVITY: -
+- ACTIVITY: PLANNING
 - GATES: -
 - RESOLUTION: -
 - PARENT: 20260802-115955

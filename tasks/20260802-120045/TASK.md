@@ -5,7 +5,7 @@
 - KIND: STORY
 - ACTIVITY: -
 - GATES: -
-- RESOLUTION: -
+- RESOLUTION: WONTDO
 - PARENT: 20260802-115955
 - DEPENDS ON: 20260802-120025, 20260802-120029
 
@@ -51,3 +51,8 @@ capture, stale staging output, or invalid image dimensions.
   create a second report format or image copier.
 - Pixel comparison remains deferred. v0.10.0 validates provenance, inventory,
   dimensions, and gameplay invariants.
+
+
+## Dropped
+
+- REASON: Screenshot capture stays a python-script concern (scripts/gen-web-screenshots.py); nova_probe is for profiling and correctness runs only. Owner call 2026-08-03: a probe run over a screenshot example yields no useful evidence, so the one-command capture+packaging pipeline is not wanted. Capture refresh moves under 20260724-082856 / 20260715-220011, driven by the rebuilt screenshots/ examples from 20260802-120029.
