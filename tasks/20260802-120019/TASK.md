@@ -3,9 +3,9 @@
 - PRIORITY: 100
 - TAGS: v0.10.0, tooling, autopilot, crates
 - KIND: EPIC
-- ACTIVITY: -
-- GATES: -
-- RESOLUTION: -
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 - PARENT: 20260802-115955
 
 ## Epic
@@ -42,8 +42,12 @@ ports, a runnable example, docs, one atomic migration, one cleanup.
   manifest from passing vacuously (`rg` exits 2 on a missing path, which the
   bare `!` would invert into success).
   (cmd: `test -f crates/nova_autopilot/Cargo.toml && ! rg -n '^(nova_|bevy_common_systems|avian3d)' crates/nova_autopilot/Cargo.toml`)
-- Nothing outside historical task records names a BCS harness path or env.
-  (cmd: `! rg -n "BCS_AUTOPILOT|BCS_SHOT|BCS_REEL|BCS_HARNESS_DEADLINE|debug::harness" --glob '!tasks/**' --glob '!web/src/news/**'`)
+- Nothing outside historical records names a BCS harness path or env. The
+  `debug::harness` alternative needs the `(?<!nova_)` guard - without it the
+  grep also matches the `nova_debug::harness::` paths the migration requires,
+  and fails on its own success. `CHANGELOG.md` is excluded because its
+  `BCS_* -> NOVA_*` rename entry is release history, not a live instruction.
+  (cmd: `! rg -n --pcre2 "BCS_AUTOPILOT|BCS_SHOT|BCS_REEL|BCS_HARNESS_DEADLINE|(?<!nova_)debug::harness|bevy_common_systems::completion" --glob '!tasks/**' --glob '!web/src/news/**' --glob '!CHANGELOG.md'`)
 - The example fleet and a probe run still pass under the renamed contract.
   (cmd: `nix develop --command cargo test --test examples_smoke`)
 - Public items are exported through the crate prelude and rustdoc is clean.
@@ -61,7 +65,7 @@ ports, a runnable example, docs, one atomic migration, one cleanup.
 | `20260802-183352` | 94 | Add a runnable example with a headless integration test | Landed `4d2c2479`: `examples/driven_app.rs` (standalone `DefaultPlugins` app, own `DemoState { Boot, Flying, Done }`, autopilot-pressed Space moves a cube, `OnEnter(Done)` guard panics on an undriven run) plus `tests/autopilot_example.rs`, which spawns it as a subprocess and asserts the exit status and the cycle-complete / harness-completion / thrust-moved log lines, skipping loudly with no display. CI runs it under `xvfb-run` with no `--features`, so the test binary and its nested run share one Bevy graph (one extra cached variant). The guard was falsified for real under Xvfb. Review APPROVEd round 1; its two nits (test timeout, shared with `tests/examples_smoke.rs`; a crate-doc pointer) go to `20260802-183355`. |
 | `20260802-183355` | 93 | Document the crate: rustdoc, prelude, dev wiki page | Landed `493c2d31`: the prelude filled and enforced by `tests/prelude.rs`, which also scans `lib.rs` for `pub mod` so a new module cannot skip the list; the env contract table (five variables, with the `NOVA_SHOT` stand-down under `NOVA_AUTOPILOT`), the completion protocol's two rules, a `completion.rs` doc example, and the `driven_app` pointer (`20260802-183352` R1.2). The `20260802-183349` nits were cleared here, not in `20260802-183403` as row 60 says. New wiki page `dev/automation-harness`, registered in `webpack.config.js`, `wiki-pages.ts` and the `keeping-docs-in-sync` map. Review took two rounds: both round-1 MAJORs were the page writing the post-migration world as present fact (an inert `--example scenario` command; a `hold(Playing)` snippet teaching the pattern `nova_debug` documents as the bug), so the page now reads as the crate's contract and names `20260802-183403` as the migration. `20260802-183352` R1.1 (no per-test timeout, shared with `tests/examples_smoke.rs`) was out of scope and is now backlog `20260803-094601`. |
 | `20260802-183403` | 92 | Migrate `nova_debug`, `nova_probe`, and the example fleet | Landed `8cf34ebf`: `nova_debug::harness` is now the Nova adapter over the crate (-434/+263 in one file), filling the three caller hooks with `reel_beat(camera, path)` and `nova_reel(beats)`; `hide_dev_overlays` became an exclusive `fn(&mut World)` so one function serves both the `Startup` registration and the drivers' hook. `nova_probe` names `nova_autopilot::completion` directly and writes the child-run envs through the crate's consts. `BCS_* -> NOVA_*` renamed atomically, no aliases. Two breaks were invisible to `cargo check` and found only by RUNNING the fleet: four self-ending examples reported completion through the retired `bevy_common_systems::completion` resource, and ten named a bare `AutopilotPlugin` that resolved to the old glob prelude's inert twin (nine would have booted silently autopilot-less). New guard `examples_smoke::examples_name_drivers_through_the_nova_harness` fails any example naming a driver type without the `nova_debug::harness::` path. The DoD's absence grep had to be corrected twice - its bare `debug::harness` alternative also matched the `nova_debug::harness::` paths the task required to survive. Review APPROVEd round 1; its six MINOR/NIT findings (five new rustdoc warnings plus four small nits) are backlog `20260803-114158`. |
-| `20260802-183406` | 91 | Retire the BCS harness surface and refresh the docs | Pending |
+| `20260802-183406` | 91 | Retire the BCS harness surface and refresh the docs | Landed `07b9eeaf`: the last BCS-teaching prose retired. Every surviving `bevy_common_systems` import in `crates/` was read and confirmed gameplay, inspector, or wireframe - the pinned dependency stays, only the `debug::harness` and `completion` surfaces are gone. |
 
 ## Manual Acceptance
 
@@ -86,5 +90,17 @@ ports, a runnable example, docs, one atomic migration, one cleanup.
   writing `AppExit::Success` itself.
 - Nova-specific checkpoint scripting is out of scope here; it is
   `20260802-120025`.
+- Closing state (2026-08-03): all nine children CLOSED/DONE. The two grep
+  criteria were re-run at close and pass; the absence one only after its
+  pattern was corrected as the criterion now records. The cargo criteria were
+  not re-run locally per the standing skip - they passed in each child's own
+  CI run.
+- One criterion closed red: `cargo test --test examples_smoke` fails on
+  `ui_reach_playing_without_panic`, from the `hud_range` backstop at
+  `examples/ui/hud_range.rs:340`. Not this epic's doing - the identical
+  failure is in run `30768496842` (2026-08-02 21:42), before the migration
+  `8cf34ebf` landed, and reproduces unchanged in `30805870861`. Tracked as
+  `20260803-143141`; the epic closed rather than hold open behind a
+  pre-existing unrelated break (owner's call).
 - No changes land in the BCS checkout (epic decision
   `tasks/20260802-115955/DECISION.md`).
