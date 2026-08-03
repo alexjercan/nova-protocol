@@ -35,8 +35,12 @@
 //! # assert the destination marker is visible and centered on it and the
 //! # readout's closing speed went positive under the approach burn; at +4s
 //! # despawn the target and disable the turret section; at +4.5s assert all
-//! # three indicators hid again and the component markers are gone. Exits non-zero on any failed stage or if
-//! # the script never finishes (e.g. loading ate the window).
+//! # three indicators hid again and the component markers are gone, then
+//! # report done and exit. The run is script-owned: the 30s hold is a runway,
+//! # so a slow load delays the beats instead of truncating them. Exits
+//! # non-zero on any failed stage, and on a run that ends with beats unplayed
+//! # - whether the runway expires (harness error exit) or something else
+//! # exits early (the in-example completion guard panics naming them).
 //! ```
 
 #[cfg(feature = "debug")]
@@ -70,17 +74,45 @@ fn main() -> bevy::app::AppExit {
         app.add_plugins(nova_probe::nova_timeline());
         app.add_plugins(nova_probe::nova_invariants());
         app.add_plugins(nova_probe::nova_frametime());
-        // Not the stock nova_autopilot(): the scripted timeline needs ~4.5s
-        // of Playing, so hold a longer total window than the 6s preset.
+        // Not the stock nova_autopilot(): the script walks a finite beat list
+        // and SELF-ENDS on its last one, so the 30s hold is a RUNWAY, not the
+        // finish line - the run exits when the final beat lands, however long
+        // the load took, and a runway expiry with the script pending is an
+        // error exit naming it, never a silent pass. Keep the runway well
+        // under DEFAULT_DEADLINE_SECS (120s) so this specific error wins the
+        // race against the generic collector deadline.
         app.add_plugins(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
-                .hold(GameStates::Loading, 8.0)
+                .self_completing()
+                .hold(GameStates::Loading, 30.0)
                 .input(autopilot_script),
         );
         app.add_plugins(nova_screenshot());
+        if std::env::var_os("NOVA_AUTOPILOT").is_some() {
+            // Completion guard: an AppExit with the script unfinished is a
+            // stalled walk, not a pass.
+            app.add_systems(Last, guard_script_completion);
+        }
     }
 
     app.run()
+}
+
+/// The self-ending contract's other half: the run may only end once the script
+/// has reported done. A premature `AppExit` panics naming the beats that never
+/// fired - the detail the old autopilot-clock backstop carried - instead of
+/// exiting 0 with them unplayed. It runs in `Last`, unordered against the
+/// harness's own watcher, so it catches an exit written before that schedule.
+#[cfg(feature = "debug")]
+fn guard_script_completion(mut exits: MessageReader<AppExit>, script: Option<Res<HudRangeScript>>) {
+    let Some(script) = script else { return };
+    if exits.read().next().is_some() && !script.done {
+        panic!(
+            "hud range: run ended with the scripted run unfinished \
+             (ring={} lock={} goto={} drop={})",
+            script.asserted_ring, script.asserted_lock, script.asserted_goto, script.done
+        );
+    }
 }
 
 fn custom_plugin(app: &mut App) {
@@ -332,16 +364,6 @@ fn readout_value(line: &str) -> f32 {
 /// dies.
 #[cfg(feature = "debug")]
 fn autopilot_script(world: &mut World, elapsed: f32) {
-    // Backstop first, before the state gate: if the run is about to exit and
-    // the script never finished (loading ate the window, or Playing was never
-    // reached), fail instead of vacuously passing.
-    if elapsed > 7.5 && !world.resource::<HudRangeScript>().done {
-        let script = world.resource::<HudRangeScript>();
-        panic!(
-            "hud range: the scripted run never finished (ring={} lock={} goto={} drop={})",
-            script.asserted_ring, script.asserted_lock, script.asserted_goto, script.done
-        );
-    }
     if *world.resource::<State<GameStates>>().get() != GameStates::Playing {
         return;
     }
@@ -1013,5 +1035,13 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
             "hud range: the safety must re-engage once the lock dies lowered"
         );
         info!("hud range: PASS - indicators track their anchors and hide when they die");
+        // Last beat: the walk is finished, so end the run rather than idling
+        // out the rest of the runway. Report done rather than writing
+        // `AppExit` here - the autopilot is a REGISTERED completion collector,
+        // and the watcher owns the exit once every collector reports.
+        info!("probe: script complete, exiting");
+        world
+            .resource_mut::<nova_protocol::nova_debug::harness::HarnessCompletion>()
+            .done(nova_protocol::nova_debug::harness::AUTOPILOT);
     }
 }

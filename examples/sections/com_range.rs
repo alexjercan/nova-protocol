@@ -29,9 +29,12 @@
 //! # scripted (relative to entering Playing): spin at +1s, kill the
 //! # controller at +2s, kill hull(1) at +2.8s, then assert that the live COM
 //! # sits on the attached-section centroid, has moved aft from the spawn COM,
-//! # and that the chase camera anchor tracks it. Exits non-zero on a stale
-//! # COM, a phantom camera anchor, or if the script never reaches its
-//! # assertion (e.g. loading ate the window).
+//! # and that the chase camera anchor tracks it, then report done and exit.
+//! # The run is script-owned: the 30s hold is a runway, so a slow load delays
+//! # the beats instead of truncating them. Exits non-zero on a stale COM, a
+//! # phantom camera anchor, and on a run that ends with the assertion
+//! # unplayed - whether the runway expires (harness error exit) or something
+//! # else exits early (the in-example completion guard panics).
 //! ```
 
 use avian3d::prelude::*;
@@ -57,17 +60,46 @@ fn main() -> bevy::app::AppExit {
         app.add_plugins(nova_probe::nova_timeline());
         app.add_plugins(nova_probe::nova_invariants());
         app.add_plugins(nova_probe::nova_frametime());
-        // Not the stock nova_autopilot(): the scripted timeline needs ~4.5s of
-        // Playing, so hold a longer total window than the 6s preset.
+        // Not the stock nova_autopilot(): the script walks a finite beat list
+        // and SELF-ENDS on its assertion beat, so the 30s hold is a RUNWAY,
+        // not the finish line - the run exits when the assertion lands,
+        // however long the load took, and a runway expiry with the script
+        // pending is an error exit naming it, never a silent pass. Keep the
+        // runway well under DEFAULT_DEADLINE_SECS (120s) so this specific
+        // error wins the race against the generic collector deadline.
         app.add_plugins(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
-                .hold(GameStates::Loading, 8.0)
+                .self_completing()
+                .hold(GameStates::Loading, 30.0)
                 .input(autopilot_script),
         );
         app.add_plugins(nova_screenshot());
+        if std::env::var_os("NOVA_AUTOPILOT").is_some() {
+            // Completion guard: an AppExit with the script unfinished is a
+            // stalled walk, not a pass.
+            app.add_systems(Last, guard_script_completion);
+        }
     }
 
     app.run()
+}
+
+/// The self-ending contract's other half: the run may only end once the script
+/// has run its assertion. A premature `AppExit` panics naming how far the walk
+/// got - the detail the old autopilot-clock backstop carried - instead of
+/// exiting 0 with the assertion unplayed. It runs in `Last`, unordered against
+/// the harness's own watcher, so it catches an exit written before that
+/// schedule.
+#[cfg(feature = "debug")]
+fn guard_script_completion(mut exits: MessageReader<AppExit>, script: Option<Res<ComRangeScript>>) {
+    let Some(script) = script else { return };
+    if exits.read().next().is_some() && !script.asserted {
+        panic!(
+            "com range: run ended with the scripted run unfinished \
+             (spun={} kills={})",
+            script.spun, script.kills
+        );
+    }
 }
 
 fn custom_plugin(app: &mut App) {
@@ -344,12 +376,6 @@ fn log_com_status(
 /// then assert the live COM sits on the attached centroid and has moved aft.
 #[cfg(feature = "debug")]
 fn autopilot_script(world: &mut World, elapsed: f32) {
-    // Backstop first, before the state gate: if the run is about to exit and
-    // the assertion never ran (loading ate the window, or Playing was never
-    // reached), fail instead of vacuously passing.
-    if elapsed > 7.5 && !world.resource::<ComRangeScript>().asserted {
-        panic!("com range: the scripted run never reached its assertion");
-    }
     if *world.resource::<State<GameStates>>().get() != GameStates::Playing {
         return;
     }
@@ -425,5 +451,13 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
             serde_json::json!({ "t": elapsed, "com_drift": drift, "camera_drift": cam_drift }),
         );
         info!("com range: PASS - COM follows the surviving sections");
+        // Last beat: the walk is finished, so end the run rather than idling
+        // out the rest of the runway. Report done rather than writing
+        // `AppExit` here - the autopilot is a REGISTERED completion collector,
+        // and the watcher owns the exit once every collector reports.
+        info!("probe: script complete, exiting");
+        world
+            .resource_mut::<nova_protocol::nova_debug::harness::HarnessCompletion>()
+            .done(nova_protocol::nova_debug::harness::AUTOPILOT);
     }
 }
