@@ -15,6 +15,50 @@
 //! `S: States + FreelyMutableState`, and that generic is what keeps
 //! `nova_gameplay::GameStates` - and with it the whole game dependency tree -
 //! out of this crate.
+//!
+//! ## The environment contract
+//!
+//! Every driver is inert unless its own variable is set, so a host app adds
+//! the plugins unconditionally and a normal run pays nothing. Setting a
+//! variable is what ARMS the driver; the value only matters where noted.
+//!
+//! | Variable | Arms | Read by | Value |
+//! | --- | --- | --- | --- |
+//! | `NOVA_AUTOPILOT` ([`AUTOPILOT_ENV`](autopilot::AUTOPILOT_ENV)) | the scripted state driver | [`AutopilotPlugin`](autopilot::AutopilotPlugin) | any (presence only) |
+//! | `NOVA_SHOT` ([`SCREENSHOT_ENV`](screenshot::SCREENSHOT_ENV)) | the single settled-frame capture, UNLESS `NOVA_AUTOPILOT` is also set - both drivers write `NextState`, so the autopilot wins and [`ScreenshotPlugin`](screenshot::ScreenshotPlugin) stands down with a warning | [`ScreenshotPlugin`](screenshot::ScreenshotPlugin) | `WxH` overrides the window size; anything else is a plain toggle |
+//! | `NOVA_REEL` ([`REEL_ENV`](reel::REEL_ENV)) | the multi-shot reel | [`ScreenshotReelPlugin`](reel::ScreenshotReelPlugin) | any (presence only) |
+//! | `NOVA_SHOT_DIR` ([`SHOT_DIR_ENV`](reel::SHOT_DIR_ENV)) | nothing on its own | [`ScreenshotReelPlugin`](reel::ScreenshotReelPlugin) and [`capture_window`](reel::capture_window) | directory RELATIVE beat paths resolve under; absolute paths ignore it |
+//! | `NOVA_AUTOPILOT_DEADLINE` ([`DEADLINE_ENV`](completion::DEADLINE_ENV)) | nothing on its own | the [`completion`] watcher | seconds before the run error-exits naming the laggards (default [`DEFAULT_DEADLINE_SECS`](completion::DEFAULT_DEADLINE_SECS)) |
+//!
+//! `NOVA_SHOT` and `NOVA_REEL` are deliberately distinct: a reel run and a
+//! one-off capture must never fight over the same window.
+//!
+//! ## The completion protocol
+//!
+//! One run can carry several collectors (a scripted autopilot, a frame
+//! capture, a reel), each finishing on its own clock. Whoever exits first used
+//! to discard everyone else's data, so the exit is negotiated instead - see
+//! [`completion`]. Two rules:
+//!
+//! 1. **Register before the run starts.** A collector calls
+//!    [`completion::register`] from `Plugin::build`, behind its own armed
+//!    check. Nothing may join later, and an unarmed collector must not join at
+//!    all (it would hold the exit open until the deadline).
+//! 2. **The app exits only when every registrant reports done.** A collector
+//!    reports [`HarnessCompletion::done`](completion::HarnessCompletion::done)
+//!    and never writes `AppExit::Success` itself; the watcher writes it once
+//!    the pending set empties. An ERROR exit is the exception - an abort is
+//!    not a completion and waits for no one.
+//!
+//! ## Reading it end to end
+//!
+//! `examples/driven_app.rs` is the whole crate in one file: a real
+//! `DefaultPlugins` app with its own state machine, driven `Boot -> Flying ->
+//! Done` by the autopilot and exited by the completion protocol, importing no
+//! `nova_*` crate but this one. Run it with
+//! `NOVA_AUTOPILOT=1 cargo run -p nova_autopilot --example driven_app`;
+//! `tests/autopilot_example.rs` runs the same thing headless and asserts on
+//! the exit status and the log lines.
 
 #![warn(missing_docs)]
 
@@ -27,6 +71,27 @@ pub mod completion;
 pub mod reel;
 pub mod screenshot;
 
-/// Glob-import surface: `use nova_autopilot::prelude::*`. Empty until the
-/// drivers and the completion protocol land.
-pub mod prelude {}
+/// Glob-import surface: `use nova_autopilot::prelude::*`.
+///
+/// Every public item of the four modules is re-exported here verbatim, so a
+/// caller never needs a module path. `tests/prelude.rs` scans the module
+/// sources and fails when a new `pub` item skips this list.
+///
+/// Names are re-exported unaliased. [`ScreenshotPlugin`](screenshot::ScreenshotPlugin)
+/// shares its name with Bevy's render-side plugin of the same name; neither is
+/// in `bevy::prelude`, so a glob import of both preludes does not collide, and
+/// a caller that does hit the clash aliases at its own import site.
+pub mod prelude {
+    pub use crate::{
+        autopilot::{AutopilotLoop, AutopilotPlugin, AUTOPILOT_ENV},
+        completion::{
+            register, HarnessCompletion, AUTOPILOT, DEADLINE_ENV, DEFAULT_DEADLINE_SECS, REEL,
+            SCREENSHOT,
+        },
+        reel::{
+            capture_window, ReelBeat, ScreenshotReelPlugin, REEL_CAPTURE_RESOLUTION, REEL_ENV,
+            SHOT_DIR_ENV,
+        },
+        screenshot::{ScreenshotPlugin, MAX_WAIT_FRAMES, SCREENSHOT_ENV},
+    };
+}

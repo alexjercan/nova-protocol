@@ -58,6 +58,7 @@ it if the change made it wrong - not every change touches every listed page.
 | Modding data format, bundles, catalog, local cache (`nova_mod_format`, `nova_modding`) | `modding.md` | `dev/modding-ron.md`, `dev/guide-make-a-mod.md` | CHANGELOG **(breaking?)** |
 | Mod portal + generator (`scripts/gen-portal.py`, `nova_modding`) | `modding.md` | `dev/mod-portal.md`, `dev/modding-ron.md` | CHANGELOG |
 | Menus, editor, UI (`nova_menu`, `nova_editor`, `nova_ui`) | `hud.md`, `sections.md` | `dev/guide-add-section.md` | tutorial, CHANGELOG; **theme tokens: `examples/ui/nova_ui_rework_poc.html` is the source for BOTH `nova_ui/src/theme.rs` and `web/src/style.css`; the site draws the PHOSPHOR skin only** |
+| Automation drivers, the env contract, the completion protocol (`nova_autopilot`, `nova_probe`) | | `dev/automation-harness.md` | CHANGELOG **(env rename? breaking for every run script)** |
 | App assembly, plugin order, states (`nova_core`, `nova_assets`) | | `dev/architecture.md`, `dev/project-tour.md` | CHANGELOG |
 | Content CLI: gen/lint/audit subcommands (`nova_assets` bin `content`) | | `dev/guide-author-scenario.md`, `dev/guide-make-a-mod.md`, `dev/modding-ron.md` | CHANGELOG |
 | The website itself (`web/`) | | `dev/development.md`, [this page](../keeping-docs-in-sync/) | |

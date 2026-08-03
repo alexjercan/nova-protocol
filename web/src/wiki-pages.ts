@@ -525,6 +525,21 @@ export const WIKI_PAGES: WikiPage[] = [
         ],
     },
     {
+        slug: "dev/automation-harness",
+        title: "Automation harness",
+        category: "Architecture",
+        tags: ["dev", "architecture", "tooling"],
+        summary:
+            "The nova_autopilot crate that drives the game without a human: the scripted autopilot, screenshot and reel drivers, the NOVA_* environment contract, and the completion protocol that decides when a run ends.",
+        related: ["dev/architecture", "dev/development", "dev/project-tour"],
+        headings: [
+            "What it drives",
+            "The environment contract",
+            "The completion protocol",
+            "How an example opts in",
+        ],
+    },
+    {
         slug: "dev/guide-add-section",
         title: "Add a ship section",
         category: "Extending",

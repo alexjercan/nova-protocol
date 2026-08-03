@@ -25,6 +25,9 @@ tagged **(breaking)**.
 - `Trunk.toml`: the dev `[[proxy]]` moved to `TRUNK_SERVE_PROXY_BACKEND`; a
   config-file entry conflicts with the env one and panics Trunk.
 - Dev shell: added `watchexec`.
+- Dev wiki: "Automation harness" page for the `nova_autopilot` drivers.
+- `nova_autopilot`: curated prelude, crate-level env contract table, and a
+  `completion` doc example.
 
 ## [0.9.1] - 2026-08-02
 

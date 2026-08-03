@@ -25,6 +25,44 @@
 //! Registration is env-gated with the collectors themselves: an unarmed
 //! harness registers nothing, the resource never exists, and the watcher is
 //! never added - a normal run pays nothing.
+//!
+//! ## Joining the protocol
+//!
+//! A caller-owned collector joins in two moves: [`register`] from
+//! `Plugin::build`, behind its own armed check, and
+//! [`HarnessCompletion::done`] when its work finishes. It never writes
+//! `AppExit::Success` itself.
+//!
+//! ```rust,no_run
+//! use bevy::prelude::*;
+//! use nova_autopilot::completion::{self, HarnessCompletion};
+//!
+//! /// This collector's name in the pending set. Must outlive the app.
+//! const FRAME_LOG: &str = "frame_log";
+//!
+//! struct FrameLogPlugin;
+//!
+//! impl Plugin for FrameLogPlugin {
+//!     fn build(&self, app: &mut App) {
+//!         // Unarmed: add nothing and register nothing. Registering here
+//!         // would hold the exit open forever.
+//!         if std::env::var("MY_FRAME_LOG").is_err() {
+//!             return;
+//!         }
+//!         completion::register(app, FRAME_LOG);
+//!         app.add_systems(Update, log_frames);
+//!     }
+//! }
+//!
+//! fn log_frames(mut frames: Local<u32>, mut completion: ResMut<HarnessCompletion>) {
+//!     *frames += 1;
+//!     if *frames == 600 {
+//!         // Report done and let the watcher decide the exit, so a slower
+//!         // collector still gets its frames.
+//!         completion.done(FRAME_LOG);
+//!     }
+//! }
+//! ```
 
 use bevy::prelude::*;
 

@@ -130,6 +130,11 @@ const WIKI_DOC_PAGES = [
         title: "Project tour",
     },
     {
+        slug: "dev/automation-harness",
+        md: "dev/automation-harness.md",
+        title: "Automation harness",
+    },
+    {
         slug: "dev/guide-add-section",
         md: "dev/guide-add-section.md",
         title: "Add a ship section",

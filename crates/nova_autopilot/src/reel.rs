@@ -155,7 +155,11 @@ impl ScreenshotReelPlugin {
     }
 
     /// Set the readiness predicate gating the first beat: the reel idles until
-    /// it returns `true`. A caller that omits it starts on the first frame.
+    /// it returns `true`. It is a POLL, not a one-shot check: it is
+    /// re-evaluated every frame for the whole run, so it must be cheap, must
+    /// not mutate (hence `&World`), and a predicate that flips back to `false`
+    /// mid-reel PAUSES the remaining beats rather than being ignored. A caller
+    /// that omits it starts on the first frame.
     pub fn ready(mut self, f: impl Fn(&World) -> bool + Send + Sync + 'static) -> Self {
         self.ready = Some(Arc::new(f));
         self
@@ -265,13 +269,20 @@ fn create_capture_dir(resolved: &std::path::Path) {
     }
 }
 
-/// Resolve an output path under [`SHOT_DIR_ENV`]. Only RELATIVE paths are
-/// joined - an absolute path passes through unchanged, so a caller naming an
-/// exact file still gets it.
+/// Resolve an output path under [`SHOT_DIR_ENV`].
 fn capture_path(path: &str) -> PathBuf {
+    resolve_capture_path(std::env::var(SHOT_DIR_ENV).ok().as_deref(), path)
+}
+
+/// The path resolution itself, with the shot dir passed in rather than read:
+/// only RELATIVE paths are joined - an absolute path passes through unchanged,
+/// so a caller naming an exact file still gets it. Split from [`capture_path`]
+/// so every branch is testable without mutating the process environment, which
+/// would race the other tests sharing this binary.
+fn resolve_capture_path(shot_dir: Option<&str>, path: &str) -> PathBuf {
     let path = std::path::Path::new(path);
-    match std::env::var(SHOT_DIR_ENV) {
-        Ok(dir) if !dir.is_empty() && !path.is_absolute() => std::path::Path::new(&dir).join(path),
+    match shot_dir {
+        Some(dir) if !dir.is_empty() && !path.is_absolute() => std::path::Path::new(dir).join(path),
         _ => path.to_path_buf(),
     }
 }
@@ -361,24 +372,36 @@ mod tests {
     // `NOVA_SHOT_DIR` process-wide, and `NOVA_SHOT_DIR` would then leak into
     // the other modules' unit tests in THIS binary.
 
-    /// The shot-dir join itself is covered by `tests/reel.rs` (the beat PNGs
-    /// land under the armed dir); pin the no-env and absolute cases here so the
-    /// helper does not accidentally rewrite them.
+    /// Every branch of the resolution, asserted against an explicit shot dir
+    /// instead of whatever the ambient env happens to hold. `capture_path`'s
+    /// own env read is covered end to end by `tests/reel.rs` (the beat PNGs
+    /// land under the armed dir).
     #[test]
-    fn reel_capture_path_leaves_bare_and_absolute_paths_alone() {
-        // Read, never set: mutating the env would race the other tests sharing
-        // this binary's process.
-        if std::env::var(SHOT_DIR_ENV).is_err() {
-            assert_eq!(
-                capture_path("feature-gravity.png"),
-                PathBuf::from("feature-gravity.png"),
-                "with no shot dir a relative path stays relative"
-            );
-        }
+    fn reel_capture_path_joins_only_relative_paths_under_the_shot_dir() {
         assert_eq!(
-            capture_path("/shots/a.png"),
-            PathBuf::from("/shots/a.png"),
-            "an absolute path passes through whatever the env says"
+            resolve_capture_path(None, "feature-gravity.png"),
+            PathBuf::from("feature-gravity.png"),
+            "with no shot dir a relative path stays relative"
+        );
+        assert_eq!(
+            resolve_capture_path(Some(""), "feature-gravity.png"),
+            PathBuf::from("feature-gravity.png"),
+            "an empty shot dir is the same as none, not a join onto nothing"
+        );
+        assert_eq!(
+            resolve_capture_path(Some("/shots"), "feature-gravity.png"),
+            PathBuf::from("/shots/feature-gravity.png"),
+            "a relative path resolves under the shot dir"
+        );
+        assert_eq!(
+            resolve_capture_path(Some("/shots"), "/elsewhere/a.png"),
+            PathBuf::from("/elsewhere/a.png"),
+            "an absolute path passes through whatever the shot dir says"
+        );
+        assert_eq!(
+            resolve_capture_path(None, "/elsewhere/a.png"),
+            PathBuf::from("/elsewhere/a.png"),
+            "an absolute path is untouched with no shot dir either"
         );
     }
 }
