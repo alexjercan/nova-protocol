@@ -3,8 +3,8 @@
 - PRIORITY: 85
 - TAGS: v0.10.0, tooling, autopilot, testing
 - KIND: STORY
-- ACTIVITY: PLANNING
-- GATES: -
+- ACTIVITY: WORKING
+- GATES: PLAN
 - RESOLUTION: -
 - PARENT: 20260802-115955
 - DEPENDS ON: 20260802-120019
@@ -33,61 +33,110 @@ instead of per-example workarounds.
 
 ## Steps
 
-- [ ] Inventory the hand-rolled scaffolding across `playable`, `broadside`,
-      `lifeline`, `com_range`, `hud_range`, the `sections/` fleet, and the
-      screenshot producers: beat booleans, `playing_since` offsets, panic
-      guards, `self_completing` runways, `AutopilotLoop` reset handlers.
-      Record which of those a predicate step subsumes.
-- [ ] Design the step API from that inventory: named step, optional target
-      state, advance predicate (`&World -> bool`), `on_enter` and per-frame
-      actions, settle frames, per-step deadline, and terminal outcome
-      (finish / fail / loop). Keep `hold` as sugar over the elapsed predicate
-      and keep the existing plugin shape buildable in one chain.
-- [ ] Provide the predicate vocabulary the examples actually need: elapsed,
-      state-is, resource/component observation, entity-count, and
-      combinators (`and`, `or`, `not`). Vocabulary comes from the inventory,
-      not from speculation; Nova-specific predicates stay in the caller.
-- [ ] Add POINTER input synthesis alongside the existing keyboard poking:
-      move the cursor to a window position, click/press/release a mouse
-      button, and drag - written so the game sees the same events a real
-      pointer produces (window cursor position + `CursorMoved` +
-      `ButtonInput<MouseButton>`), inside the same post-`InputSystems` slot.
-      This is what lets `ui/` examples drive real UI (buttons, the NOVA OS
-      computer, the RTT screen). Keyboard and mouse only; gamepad and touch
-      wait for a caller that needs them.
-- [ ] Implement in `nova_autopilot` on the current completion protocol. A step
-      deadline expiry is an ABORT that names the step, its elapsed time, and
-      the last observed state; the runway/self-completing special case
-      collapses into the ordinary per-step deadline.
-- [ ] Make looping first-class: a declared loop point plus a reset hook, so
-      `loop_while_pending` restarts a labeled step (not just the last hold)
-      and the example no longer needs an `AutopilotLoop` reader plus a
-      reload-gate poll to know the scene is live again.
-- [ ] Migrate the existing examples that the fleet rebuild does not replace,
-      and delete the per-example completion guards the driver now owns.
-- [ ] Document script authoring (rustdoc + the dev wiki automation page) with a
-      before/after of one migrated script.
+- [ ] Add `crates/nova_autopilot/src/predicate.rs`: `pub type Predicate = dyn
+      Fn(&World) -> bool + Send + Sync` plus the vocabulary the inventory
+      below actually consumes - `elapsed(secs)` (seconds IN STEP),
+      `frames(n)`, `in_state::<S>(s)`, `resource_where::<R>(f)`,
+      `any_entity::<F: QueryFilter>()`, `and(a, b)`, `not(a)`. No `or`, no
+      `entity_count`: no caller in this task needs them.
+- [ ] Add `crates/nova_autopilot/src/input.rs`: world actions
+      `press_key`/`release_key`, `move_cursor(pos)` (writes the primary
+      `Window::cursor_position` AND a `CursorMoved` message, the pair a real
+      pointer produces), `click_at(pos, button)` and
+      `press_mouse`/`release_mouse`. No `drag`: no caller. All are plain
+      `Fn(&mut World)` so they compose as `on_enter`/`each` actions.
+- [ ] Rewrite `crates/nova_autopilot/src/autopilot.rs` around a step list:
+      `Step { name, enter: Option<S>, on_enter, each, until, deadline }` built
+      by `AutopilotPlugin::step(name) -> StepBuilder` with
+      `.enter/.on_enter/.each/.until/.deadline/.add()`. `hold(state, secs)`
+      becomes sugar for `step("hold:<state>").enter(state).until(elapsed(secs))`.
+      `input(f)` stays as sugar meaning "attach `f` as the `each` action of
+      every step" (every current caller is a single-step script, so its
+      run-relative `elapsed` and the new step-relative one coincide).
+      `autopilot_drive` walks the list: on entry set `NextState` + run
+      `on_enter`, each frame run `each(world, step_elapsed)`, advance when
+      `(until)(world)`, report `completion::AUTOPILOT` done after the last
+      step.
+- [ ] Per-step deadline in the same driver: `deadline` unset means no per-step
+      bound (the run-level `NOVA_AUTOPILOT_DEADLINE` watcher stays the
+      backstop). Expiry writes `error!("autopilot: step `{name}` stalled after
+      {step_elapsed:.1}s (run {elapsed:.1}s, state {state:?})")` then
+      `AppExit::error()` and never reports done - the abort path
+      `self_completing` used to own. DELETE `self_completing`.
+- [ ] Replace `loop_while_pending` with `loop_from(name)` + `on_loop(f)` in
+      `autopilot.rs`: at the last step, while
+      `HarnessCompletion::others_pending(AUTOPILOT)`, jump the cursor back to
+      the step named by `loop_from`, run `on_loop`, write `AutopilotLoop`
+      (kept - `crates/nova_probe/src/capture.rs` reads it), zero the clocks.
+      Keep the existing early-finish: once nothing else is pending mid-cycle,
+      report done immediately. DELETE `loop_while_pending`.
+- [ ] Re-export every new public item from `crates/nova_autopilot/src/lib.rs`'s
+      prelude (`tests/prelude.rs` fails otherwise) and update the crate docs'
+      step-model description and env table prose.
+- [ ] Rewrite `crates/nova_autopilot/examples/driven_app.rs` as the reference
+      script (named steps, a predicate, an `on_enter` action) and extend
+      `crates/nova_autopilot/tests/autopilot_example.rs` to assert the run
+      logs the step names and that a deliberately unsatisfiable step
+      error-exits naming that step.
+- [ ] Add the Nova-typed predicates to `crates/nova_debug/src/harness.rs`
+      (they may not live in the bevy-only crate): `scenario_variable_is`,
+      `section_gone(id)`, `player_ship_present()` - exactly what the three
+      rewritten scripts below need, built on `resource_where`/`any_entity`.
+      Keep `nova_autopilot()` as the Nova preset, now returning a step-shaped
+      plugin.
+- [ ] Rewrite the three scripts that carry the full scaffolding onto predicate
+      steps and delete their `playing_since` offsets, beat booleans, panic
+      guards and completion guards: `examples/sections/com_range.rs` (drop
+      `guard_script_completion`), `examples/ui/hud_range.rs`,
+      `examples/gameplay/playable.rs` (its `on_autopilot_loop` reader becomes
+      `on_loop`; the probe reload-gate calls stay in that hook).
+- [ ] Migrate the remaining `self_completing`/`loop_while_pending` callers at
+      the construction site only - one named step carrying the existing
+      closure as `each`, ending on the script's own done-report, with the old
+      runway seconds as its `deadline` - and delete their `Last`-schedule
+      guards: `examples/gameplay/broadside.rs`,
+      `examples/gameplay/lifeline.rs`, `examples/gameplay/scenario.rs`,
+      `examples/screenshots/screenshot_nova_os.rs`,
+      `examples/ui/menu_scenarios.rs` (drop `guard_run_completion`). The
+      six pure `hold`+`input` callers need no edit; confirm with a build.
+- [ ] Document script authoring in `web/src/wiki/dev/automation-harness.md`
+      with a before/after of the `com_range` script, and check
+      `web/src/wiki/dev/keeping-docs-in-sync.md` for any other page the
+      renamed API touches.
 
 ## Definition of Done
 
-- A step advances on an observed predicate, not on wall-clock, and the same
-  script is timing-independent under a stalled clock.
+- A step advances on an observed predicate, not on wall-clock: with the clock
+  advanced but the predicate false the driver stays on the step, and with the
+  clock stalled but the predicate true it advances.
   (test: `step_advances_only_when_its_predicate_holds`)
-- `hold` still works and is implemented as the elapsed predicate.
-  (test: `hold_is_sugar_for_the_elapsed_predicate`)
-- A step that never satisfies its predicate aborts naming the step, its
-  elapsed time, and the observed state; it never exits success.
+- `hold` still works and is built from the elapsed predicate over a named
+  step. (test: `hold_is_sugar_for_the_elapsed_predicate`)
+- A step that never satisfies its predicate inside its deadline error-exits
+  naming the step, its in-step elapsed time and the observed state, and never
+  reports the collector done.
   (test: `stalled_step_aborts_naming_the_step`)
-- A declared loop point restarts at that step and fires its reset hook while
-  other collectors are pending, then finishes as soon as they clear.
+- A declared loop point restarts at that named step and fires its reset hook
+  while other collectors are pending, then finishes as soon as they clear.
   (test: `loop_point_restarts_at_the_labeled_step_and_resets`)
-- Entry/per-frame actions still land inside the real input pipeline
-  (`just_pressed` survives into `Update`).
+- Entry and per-frame actions still land inside the real input pipeline, so a
+  synthesized key press is still `just_pressed` when `Update` reads it.
   (test: `step_actions_run_after_input_collection`)
-- A synthesized click at a window position reaches the widget under it, the
-  same as a real pointer. (test: `click_at_position_hits_the_widget_under_it`)
-- At least two migrated examples complete headlessly through the new driver.
-  (cmd: `nix develop --command cargo run -p nova_probe -- run playable`)
+- A synthesized click at a window position leaves the world in the state a
+  real pointer would: primary-window `cursor_position`, a `CursorMoved`
+  message at that position, and a `just_pressed` mouse button.
+  (test: `click_at_position_reaches_the_widget_under_it`)
+- The old shape is gone from the tree, aliases included.
+  (cmd: `grep -rn --exclude-dir=tasks --exclude-dir=.git --exclude-dir=target --include='*.rs' -E 'self_completing|loop_while_pending' .`)
+- The rewritten scripts carry no hand-rolled beat offsets or completion
+  guards.
+  (cmd: `grep -rn --include='*.rs' -E 'playing_since|fn guard_script_completion|fn guard_run_completion' examples/sections/com_range.rs examples/ui/hud_range.rs examples/gameplay/playable.rs examples/ui/menu_scenarios.rs`)
+- The crate's own end-to-end app drives a real `DefaultPlugins` run through
+  named steps to a clean exit, and an unsatisfiable step in that same real app
+  error-exits naming it.
+  (test: `driven_app_logs_its_step_names_and_a_stalled_step_aborts`)
+- Three migrated examples complete headlessly through the new driver.
+  (cmd: `nix develop --command cargo run -p nova_probe -- run com_range,hud_range,playable`)
 
 ## Notes
 
@@ -101,6 +150,35 @@ instead of per-example workarounds.
   completion. Scenario-specific actions and predicates stay in examples behind
   the `nova_debug::harness` adapter.
 - Migration is atomic per the epic's Nova-first decision: rename/replace, no
-  compatibility aliases for the old shape beyond `hold`.
+  compatibility aliases for the old shape beyond `hold` and `input`, both of
+  which are constructors over the step model rather than shims.
+- BREADTH, not splittability: deleting `self_completing` breaks eight example
+  binaries in the same commit that adds the step model, so driver and callers
+  cannot land separately without a broken intermediate tree. The offsetting
+  cut is that only three scripts are REWRITTEN; the other five change at the
+  plugin-construction site and `20260802-120029` rebuilds their content.
+- Inventory behind the migration split (`grep` over `examples/`):
+  `self_completing` - broadside, lifeline, com_range, hud_range,
+  screenshot_nova_os, menu_scenarios. `loop_while_pending` - playable,
+  scenario. `playing_since` - com_range, hud_range, playable plus
+  screenshot_combat/juice/orbit (those three are pure `hold`+`input`, so
+  their offset is harmless and stays for `20260802-120029`). Per-example
+  completion guards - `guard_script_completion` (com_range, broadside,
+  lifeline, hud_range), `guard_run_completion` (menu_scenarios).
+  Untouched pure `hold`+`input` callers: screenshot_combat, screenshot_juice,
+  screenshot_orbit, screenshot_ui, screenshot_reel, torpedo_section.
+- The `nova_probe` run proof is vacuous on the base branch, not green: the
+  migrated sources do not compile against the old driver, so the command only
+  becomes meaningful once the step model exists. The absence greps above are
+  the red-on-base pins (33, 24 and 6 hits respectively at plan time).
+- Per-step deadlines must stay summable under the run-level
+  `NOVA_AUTOPILOT_DEADLINE` that `crates/nova_probe/src/bin/probe/native/env.rs`
+  sizes from the fps window, or the generic hang detector wins the race and
+  the named-step diagnostic is lost. Documented, not enforced in code - no
+  caller needs the check yet.
+- Decide the pointer test's depth: drive a real `bevy_ui` widget headlessly if
+  `UiPlugin` + the picking backend run without a render device, or defer to
+  asserting the observable pointer state (window `cursor_position` +
+  `CursorMoved` + `just_pressed`) and record the reduction in DECISION.md.
 - Related backlog: `20260803-094601` (per-test timeout), `20260803-114158`
   (harness rustdoc nits).
