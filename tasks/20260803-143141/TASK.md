@@ -3,7 +3,7 @@
 - PRIORITY: 90
 - TAGS: v0.10.0, bug, examples, testing
 - KIND: TASK
-- ACTIVITY: UNDERSTANDING
+- ACTIVITY: PLANNING
 - GATES: -
 - RESOLUTION: -
 
