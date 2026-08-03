@@ -26,7 +26,10 @@ website. The release favors one reusable pipeline over unrelated features.
 ## Done Means
 
 - Nova automation no longer imports or activates the BCS debug harness; the
-  in-repo crate owns the driver and completion protocol. (cmd: `test -f crates/nova_autopilot/Cargo.toml && ! rg -n "BCS_AUTOPILOT|debug::harness" crates examples scripts --glob '*.rs' --glob '*.py' --glob '*.sh'`)
+  in-repo crate owns the driver and completion protocol. The `debug::harness`
+  alternative needs the `(?<!nova_)` guard: without it the grep also matches the
+  `nova_debug::harness::` adapter paths the migration requires, and fails on its
+  own success. (cmd: `test -f crates/nova_autopilot/Cargo.toml && ! rg -n --pcre2 "BCS_AUTOPILOT|(?<!nova_)debug::harness" crates examples scripts --glob '*.rs' --glob '*.py' --glob '*.sh'`)
 - The curated showcase group completes through the real app, produces probe
   reports, and captures its declared assets from one command. (cmd: `nix develop --command cargo run -p nova_probe -- run showcase --capture --fps --release`)
 - Every committed web screenshot and scenario thumbnail has a declared,
@@ -41,7 +44,7 @@ website. The release favors one reusable pipeline over unrelated features.
 
 | ID | Priority | Repo | Title | Landed result |
 | --- | ---: | --- | --- | --- |
-| `20260802-120019` | 100 | nova-protocol | Move the automation harness into `nova_autopilot` (9 children) | Pending |
+| `20260802-120019` | 100 | nova-protocol | Move the automation harness into `nova_autopilot` (9 children) | CLOSED/DONE 2026-08-03 (`6a19ebf2`): all nine children landed. `nova_autopilot` is a `bevy`-only crate owning completion, autopilot, screenshot and reel; `BCS_* -> NOVA_*` renamed atomically with no aliases; `nova_debug::harness` is now the Nova adapter filling the caller hooks, and `nova_probe` names the crate directly. Follow-ups: `20260803-114158` (rustdoc nits), `20260803-094601` (per-test timeout), `20260803-143141` (pre-existing `hud_range` smoke failure, closed one criterion red). |
 | `20260802-120025` | 85 | nova-protocol | Add checkpoint-driven Nova automation scripts | Pending |
 | `20260802-120029` | 80 | nova-protocol | Build the v0.10.0 showcase scenario suite | Pending |
 | `20260802-120045` | 75 | nova-protocol | Generate showcase evidence and web assets with one command | Pending |
