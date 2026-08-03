@@ -21,7 +21,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example editor --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example editor --features debug
 //! # look for: `nova harness: reached Playing`,
 //! #           `editor autopilot: created a ship with a controller`,
 //! #           `editor autopilot: placed a section ...`,
@@ -46,7 +46,7 @@ fn main() -> bevy::app::AppExit {
     // The same editor app the game/binary runs - not a bespoke copy.
     let mut app = editor_app(true);
 
-    // Headless smoke-test harness: inert in a normal run (gated on BCS_AUTOPILOT / BCS_SHOT).
+    // Headless smoke-test harness: inert in a normal run (gated on NOVA_AUTOPILOT / NOVA_SHOT).
     #[cfg(feature = "debug")]
     {
         // Probe wiring (task 20260719-210443; each plugin is inert without

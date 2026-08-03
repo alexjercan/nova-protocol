@@ -15,21 +15,21 @@
 //! objective (gold chip) side by side, so the world-anchored chip family can be
 //! eyeballed in one frame (task 20260730-122909).
 //!
-//! Two run modes, both under the autopilot (`BCS_AUTOPILOT`):
-//! - `BCS_AUTOPILOT=1` alone: the smoke path - reach Playing, drive the lock,
+//! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
+//! - `NOVA_AUTOPILOT=1` alone: the smoke path - reach Playing, drive the lock,
 //!   exit clean, capturing nothing.
-//! - `BCS_AUTOPILOT=1 BCS_REEL=1`: also capture the shots (staged under
+//! - `NOVA_AUTOPILOT=1 NOVA_REEL=1`: also capture the shots (staged under
 //!   `NOVA_SHOT_DIR`).
 //!
 //! Capture (windowed, real GPU):
 //! ```text
-//! NOVA_SHOT_DIR=target/reel BCS_AUTOPILOT=1 BCS_REEL=1 \
+//! NOVA_SHOT_DIR=target/reel NOVA_AUTOPILOT=1 NOVA_REEL=1 \
 //!   cargo run --example screenshot_combat --features debug
 //! ```
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example screenshot_combat --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example screenshot_combat --features debug
 //! # look for: `nova harness: reached Playing`, `autopilot: cycle complete, no panic`
 //! ```
 
@@ -63,7 +63,7 @@ fn main() -> bevy::app::AppExit {
         // A generous window: reach Playing, perform the gesture, let the lock +
         // inset + dwell settle, then capture.
         app.add_plugins(
-            AutopilotPlugin::<GameStates>::new()
+            nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
                 .hold(GameStates::Loading, 14.0)
                 .input(combat_capture_script),
         );
@@ -251,11 +251,11 @@ struct CombatScript {
 /// nav-slot radar sweep (weapons lowered), the live combat lock + viewfinder
 /// inset (weapons raised), then a GOTO maneuver. Runs every autopilot frame;
 /// input presses are held until the beat that releases them. Captures only when
-/// `BCS_REEL` is set, so the plain autopilot smoke run drives the same path
+/// `NOVA_REEL` is set, so the plain autopilot smoke run drives the same path
 /// without writing files.
 #[cfg(feature = "debug")]
 fn combat_capture_script(world: &mut World, elapsed: f32) {
-    let capturing = std::env::var_os("BCS_REEL").is_some();
+    let capturing = std::env::var_os("NOVA_REEL").is_some();
 
     if *world.resource::<State<GameStates>>().get() != GameStates::Playing {
         return;

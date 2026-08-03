@@ -79,7 +79,7 @@ impl MasterVolume {
 /// ONCE at [`NovaSettingsPlugin`] build (a run's mute state cannot change
 /// mid-session): `NOVA_MUTE` set and not `"0"` mutes any run, `NOVA_MUTE=0`
 /// forces sound even under a harness, and with `NOVA_MUTE` unset a run is
-/// muted iff a bcs harness env (`BCS_AUTOPILOT`/`BCS_SHOT`/`BCS_REEL`) is
+/// muted iff a harness env (`NOVA_AUTOPILOT`/`NOVA_SHOT`/`NOVA_REEL`) is
 /// active - which covers the smoke suite and probe with no changes there.
 /// Tests inject the resource directly (insert after the plugin) instead of
 /// touching process env, so parallel tests cannot race on it.
@@ -89,7 +89,10 @@ pub struct HarnessMute(pub bool);
 impl HarnessMute {
     fn from_env() -> Self {
         let nova_mute = std::env::var("NOVA_MUTE").ok();
-        let harness_env_active = ["BCS_AUTOPILOT", "BCS_SHOT", "BCS_REEL"]
+        // NOTE: string literals, not `nova_autopilot`'s consts. `nova_gameplay`
+        // is a shipping crate and does not take a dev-tooling dependency for
+        // three strings; the migration task's absence grep guards the drift.
+        let harness_env_active = ["NOVA_AUTOPILOT", "NOVA_SHOT", "NOVA_REEL"]
             .iter()
             .any(|key| std::env::var_os(key).is_some());
         Self(harness_muted_from(nova_mute.as_deref(), harness_env_active))
@@ -330,7 +333,7 @@ mod tests {
     /// plugin does, so a production app always has one). Overrides the
     /// env-derived [`HarnessMute`] with an explicit unmuted one AFTER the
     /// plugin (insert wins), so these tests stay deterministic even under
-    /// `BCS_AUTOPILOT=1 cargo test` - the mute test injects its own.
+    /// `NOVA_AUTOPILOT=1 cargo test` - the mute test injects its own.
     fn app() -> App {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);

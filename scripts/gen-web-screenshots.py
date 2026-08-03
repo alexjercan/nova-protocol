@@ -28,11 +28,11 @@ without any GPU-captured asset.
 Capturing the screenshots (needs a display + a GPU; use Xvfb + lavapipe headless)
 into the staging dir, then packaging them:
 
-    NOVA_SHOT_DIR=target/reel BCS_REEL=1 \\
+    NOVA_SHOT_DIR=target/reel NOVA_REEL=1 \\
         cargo run --example screenshot_reel --features debug
-    NOVA_SHOT_DIR=target/reel BCS_AUTOPILOT=1 BCS_REEL=1 \\
+    NOVA_SHOT_DIR=target/reel NOVA_AUTOPILOT=1 NOVA_REEL=1 \\
         cargo run --example screenshot_ui --features debug
-    NOVA_SHOT_DIR=target/reel BCS_AUTOPILOT=1 BCS_REEL=1 \\
+    NOVA_SHOT_DIR=target/reel NOVA_AUTOPILOT=1 NOVA_REEL=1 \\
         cargo run --example screenshot_combat --features debug
     python3 scripts/gen-web-screenshots.py            # stage -> web/src/assets
 

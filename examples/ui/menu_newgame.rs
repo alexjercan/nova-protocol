@@ -10,7 +10,7 @@
 //! - `editorplay`: click Sandbox, create a ship, click Play - the editor's
 //!   preview-teardown -> play-test transition.
 //!
-//! Under `BCS_AUTOPILOT` the ECS fallback error handler is swapped to panic,
+//! Under `NOVA_AUTOPILOT` the ECS fallback error handler is swapped to panic,
 //! so an UNHANDLED command error (e.g. a plain `insert` on an entity the
 //! menu/scenario teardown already despawned) aborts the smoke run. (Bevy
 //! 0.19's default severity already panics these; the explicit swap pins the
@@ -25,7 +25,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example menu_newgame --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example menu_newgame --features debug
 //! # look for: `probe: clicked New Game Button in the main menu`,
 //! #           `nova harness: reached Playing`,
 //! #           `autopilot: cycle complete, no panic`
@@ -48,10 +48,10 @@ fn main() -> bevy::app::AppExit {
     // The same app the game/binary runs - not a bespoke copy.
     let mut app = editor_app(true);
 
-    // Headless smoke-test harness: inert in a normal run (gated on BCS_AUTOPILOT).
+    // Headless smoke-test harness: inert in a normal run (gated on NOVA_AUTOPILOT).
     #[cfg(feature = "debug")]
     {
-        if std::env::var_os("BCS_AUTOPILOT").is_some() {
+        if std::env::var_os("NOVA_AUTOPILOT").is_some() {
             // Turn command errors (despawned-entity targets and friends) into
             // panics so the autopilot run fails loudly on them.
             app.insert_resource(bevy::ecs::error::FallbackErrorHandler(

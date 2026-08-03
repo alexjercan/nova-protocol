@@ -21,7 +21,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example torpedo_guidance --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example torpedo_guidance --features debug
 //! # look for: `guidance: closest approach ...` shrinking toward the blast radius,
 //! #           `range: torpedo detonated`, `autopilot: cycle complete, no panic`
 //! ```

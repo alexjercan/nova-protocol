@@ -26,7 +26,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example torpedo_section --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example torpedo_section --features debug
 //! # look for: `nova harness: reached Playing`, `range: torpedo fired`,
 //! #           `range: torpedo ... armed`, `autopilot: cycle complete, no panic`
 //! ```
@@ -55,11 +55,11 @@ fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
-    // Headless smoke-test harness: inert in a normal run. Under BCS_AUTOPILOT it
+    // Headless smoke-test harness: inert in a normal run. Under NOVA_AUTOPILOT it
     // drives Loading -> Playing, holds the fire key, and asserts the range's
     // PURPOSE before the window closes: a torpedo fired, armed, detonated, and
     // its blast damaged a gate (task 20260712-211352 - reach-Playing alone let
-    // a silently dud torpedo pass). Under BCS_SHOT it captures a PNG. The
+    // a silently dud torpedo pass). Under NOVA_SHOT it captures a PNG. The
     // scene is built on `GameAssetsStates::Loaded` (below) so the screenshot's
     // forced Playing does not re-run setup.
     #[cfg(feature = "debug")]
@@ -96,7 +96,7 @@ fn main() -> bevy::app::AppExit {
         app.add_plugins(nova_probe::nova_invariants());
         app.add_plugins(nova_probe::nova_frametime());
         app.add_plugins(
-            AutopilotPlugin::new()
+            nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
                 .hold(GameStates::Loading, RANGE_AUTOPILOT_SECS)
                 .input(autopilot_fire_and_assert),
         );

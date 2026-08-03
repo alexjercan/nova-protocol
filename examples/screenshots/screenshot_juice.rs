@@ -9,13 +9,13 @@
 //!
 //! Capture (windowed, real GPU):
 //! ```text
-//! NOVA_SHOT_DIR=target/reel BCS_AUTOPILOT=1 BCS_REEL=1 \
+//! NOVA_SHOT_DIR=target/reel NOVA_AUTOPILOT=1 NOVA_REEL=1 \
 //!   cargo run --example screenshot_juice --features debug
 //! ```
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example screenshot_juice --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example screenshot_juice --features debug
 //! # look for: `nova harness: reached Playing`, `autopilot: cycle complete, no panic`
 //! ```
 
@@ -43,7 +43,7 @@ fn main() -> bevy::app::AppExit {
         app.add_plugins(nova_probe::nova_invariants());
         app.add_plugins(nova_probe::nova_frametime());
         app.add_plugins(
-            AutopilotPlugin::<GameStates>::new()
+            nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
                 .hold(GameStates::Loading, 8.0)
                 .input(juice_capture_script),
         );
@@ -209,10 +209,10 @@ struct JuiceScript {
 }
 
 /// Pose the camera on the target, blow the front hull off, then capture while the
-/// fragments/rings are live. Captures only when `BCS_REEL` is set.
+/// fragments/rings are live. Captures only when `NOVA_REEL` is set.
 #[cfg(feature = "debug")]
 fn juice_capture_script(world: &mut World, elapsed: f32) {
-    let capturing = std::env::var_os("BCS_REEL").is_some();
+    let capturing = std::env::var_os("NOVA_REEL").is_some();
 
     if *world.resource::<State<GameStates>>().get() != GameStates::Playing {
         return;

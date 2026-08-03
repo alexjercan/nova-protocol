@@ -18,10 +18,10 @@ use bevy::{
     window::{PresentMode, PrimaryWindow},
     winit::WinitSettings,
 };
+use nova_autopilot::completion::{self, HarnessCompletion};
 // Health is re-exported by nova_gameplay, so nova_probe pins the same
 // bevy_common_systems version the game uses (no direct bcs dep, no version skew).
 use nova_gameplay::{
-    bevy_common_systems::completion::{self, HarnessCompletion},
     bevy_common_systems::health::Health,
     prelude::{GraphicsBudget, PlayerSpaceshipMarker, WeaponsHot},
     GameStates,

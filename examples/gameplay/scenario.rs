@@ -12,7 +12,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example scenario --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example scenario --features debug
 //! # look for: `nova harness: reached Playing`,
 //! #           `scenario probe: variables seeded`,
 //! #           `scenario probe: handlers, filters and expressions all ticked`,

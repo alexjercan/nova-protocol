@@ -93,3 +93,82 @@ it, and the honest answer ("Nova types -> `nova_debug`, driver state ->
 `nova_autopilot`") is a judgement call, not a rule the compiler enforces. The
 duplicated env strings in `nova_gameplay` can drift if a future rename skips the
 absence grep.
+
+## Addendum, 20260803 (found while implementing)
+
+Four SELF-ENDING examples - `broadside`, `lifeline`, `menu_scenarios`,
+`screenshot_nova_os` - report the autopilot collector done early instead of
+idling out the runway, and they did it by naming the protocol through
+`nova_protocol::nova_gameplay::bevy_common_systems::completion`. The plan did
+not list them, and its absence grep could not see them: they carry no `BCS_*`
+env and no `debug::harness` path.
+
+Left alone they would have been a silent, atomic-rename-shaped break. The
+drivers now register with `nova_autopilot::completion`, so nothing registers the
+*bcs* `HarnessCompletion` any more and `world.resource_mut::<..>()` on it panics
+on a missing resource - every one of the four would have died mid-script under
+`NOVA_AUTOPILOT`, and `cargo check` says nothing because both resources exist as
+types.
+
+They move onto the same protocol the drivers use, reached the same way the rest
+of the fleet reaches the harness: `nova_debug::harness` re-exports
+`HarnessCompletion` and `AUTOPILOT` next to the driver types, and the four call
+sites name `nova_protocol::nova_debug::harness::` instead. This is the adapter
+decision applied unchanged - the fleet talks to `nova_debug`, not to the crate -
+so it needed no new judgement, only the missing re-export.
+
+A second, smaller correction rides along: the DoD's absence grep spelled the
+harness path `debug::harness`, which also matches the `nova_debug::harness::`
+paths the task's own Notes say must survive (`NOVA_AUTOPILOT_SECS`,
+`AutopilotLoop`, `AutopilotPlugin`). The proof is narrowed to
+`bevy_common_systems::debug::harness`, which is what it was written to catch,
+and gains `bevy_common_systems::completion` so the reach-in above cannot come
+back.
+
+## Addendum 2, 20260803: the silent-shadow break the rename actually hid
+
+`playable` aborted on its first frame under `NOVA_AUTOPILOT`:
+
+```
+Encountered an error in system `playable::on_autopilot_loop`: Parameter
+`MessageReader<'_, '_, AutopilotLoop>::messages` failed validation:
+Message not initialized
+```
+
+Ten examples built their timeline from a BARE `AutopilotPlugin::new()`.
+`nova_debug`'s prelude deliberately withholds the driver types (so a glob next
+to `bevy::prelude::*` stays clean), so the only `AutopilotPlugin` in scope came
+from the `bevy_common_systems` prelude, which every example glob-imports through
+`nova_protocol::prelude::*`. Those ten examples were therefore still building
+the BCS driver - which arms on `BCS_AUTOPILOT`, now never set, so it added
+nothing at all. `playable` then failed loudly because it reads
+`nova_protocol::nova_debug::harness::AutopilotLoop` (the migrated type) from a
+`Messages` resource the migrated plugin never registered. The other nine would
+have failed QUIETLY, booting with no autopilot at all.
+
+`cargo check` is blind to this by construction: both `AutopilotPlugin`s exist,
+both compile, and picking the wrong one is a name-resolution outcome, not a type
+error. This is precisely the half-renamed-tree-that-still-boots failure the
+epic's no-alias rule exists to surface - it just surfaced through name
+resolution rather than through an env string, which is why the plan's absence
+grep could not see it.
+
+Fix: all ten call sites name
+`nova_protocol::nova_debug::harness::AutopilotPlugin`, the convention
+`broadside` and `lifeline` already used.
+
+Guard: `tests/examples_smoke.rs::examples_name_drivers_through_the_nova_harness`
+fails any example that names a harness driver (`AutopilotPlugin`,
+`AutopilotLoop`, `ScreenshotPlugin`, `ScreenshotReelPlugin`,
+`HarnessCompletion`) without the `nova_debug::harness::` path. It is a source
+grep with no display requirement, so it runs on a bare `cargo test` alongside
+`catalog_matches_disk` rather than only under Xvfb. Names BOTH preludes export
+need no guard - a glob-vs-glob clash is a compile error at the use site; the
+gap is exactly the names only bcs exports.
+
+Considered and rejected: re-exporting `AutopilotPlugin` from `nova_debug`'s
+prelude. It would make every bare use an ambiguity ERROR, which is a stronger
+guard than a test - but it forces the same ten edits anyway, and it re-opens the
+`ScreenshotPlugin`-versus-`bevy` clash the prelude's withholding exists to
+prevent (`crates/nova_debug/src/lib.rs`). The test buys the same coverage
+without touching the prelude contract.

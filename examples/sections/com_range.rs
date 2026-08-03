@@ -25,7 +25,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example com_range --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example com_range --features debug
 //! # scripted (relative to entering Playing): spin at +1s, kill the
 //! # controller at +2s, kill hull(1) at +2.8s, then assert that the live COM
 //! # sits on the attached-section centroid, has moved aft from the spawn COM,
@@ -60,7 +60,7 @@ fn main() -> bevy::app::AppExit {
         // Not the stock nova_autopilot(): the scripted timeline needs ~4.5s of
         // Playing, so hold a longer total window than the 6s preset.
         app.add_plugins(
-            AutopilotPlugin::<GameStates>::new()
+            nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
                 .hold(GameStates::Loading, 8.0)
                 .input(autopilot_script),
         );

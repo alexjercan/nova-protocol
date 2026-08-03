@@ -13,14 +13,14 @@
 //!
 //! Capture High vs Low for the same scene (windowed, real GPU):
 //! ```text
-//! NOVA_SHOT_PATH=target/rs-high.png NOVA_PERF_QUALITY=high BCS_SHOT=1 \
+//! NOVA_SHOT_PATH=target/rs-high.png NOVA_PERF_QUALITY=high NOVA_SHOT=1 \
 //!   cargo run --example render_scale_shot --features debug
-//! NOVA_SHOT_PATH=target/rs-low.png  NOVA_PERF_QUALITY=low  BCS_SHOT=1 \
+//! NOVA_SHOT_PATH=target/rs-low.png  NOVA_PERF_QUALITY=low  NOVA_SHOT=1 \
 //!   cargo run --example render_scale_shot --features debug
 //! ```
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`): a plain
-//! run with `BCS_SHOT` reaches Playing, captures, and exits; `--scenario <id>`
+//! run with `NOVA_SHOT` reaches Playing, captures, and exits; `--scenario <id>`
 //! or `NOVA_PERF_SCENARIO` picks the scene (default `asteroid_field`).
 
 use bevy::prelude::*;
@@ -69,7 +69,7 @@ fn main() -> bevy::app::AppExit {
         app.insert_resource(quality);
     }
 
-    // Single-shot capture (nova_debug; inert unless BCS_SHOT is set): force to
+    // Single-shot capture (nova_debug; inert unless NOVA_SHOT is set): force to
     // Playing, settle, capture the primary window, and exit. The path is the
     // real upscaled frame on Low.
     //

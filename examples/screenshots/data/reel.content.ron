@@ -2,7 +2,7 @@
 // a static showcase set: a gravity planetoid, a scattered asteroid field around it,
 // and a built showcase ship posed in the foreground. It carries NO camera or
 // screenshot actions - the `13_screenshot_reel` example owns the reel cadence
-// (pose the camera per beat, settle, capture) via the ScreenshotReelPlugin, so the
+// (pose the camera per beat, settle, capture) via the nova_reel driver, so the
 // scene stays pure data and the framing/filenames live with the capture code.
 //
 // Deterministic: the scatter uses a fixed seed, so every capture run frames the

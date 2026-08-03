@@ -1,10 +1,15 @@
-//! Headless smoke-test harness for nova examples.
+//! Nova adapter layer over the [`nova_autopilot`] drivers.
 //!
-//! Thin nova-specific presets over the `bevy_common_systems` env-gated harness
-//! plugins ([`AutopilotPlugin`] / [`ScreenshotPlugin`]), pinned to nova's
-//! [`GameStates`] lifecycle. Both are inert unless their env var is set
-//! (`BCS_AUTOPILOT` / `BCS_SHOT`), so an example adds them permanently and pays
-//! nothing in a normal run.
+//! The drivers themselves (scripted autopilot, settled-frame screenshot,
+//! screenshot reel) live in `nova_autopilot`, which depends on `bevy` alone and
+//! knows nothing about Nova. Everything Nova-shaped they need is a caller hook,
+//! and this module is what fills those hooks: the [`GameStates`] presets, the
+//! [`ScenarioLoaded`] smoke assertion, camera posing, body freezing and overlay
+//! hiding. The example fleet talks to this module, not to the crate.
+//!
+//! Both presets are inert unless their env var is set (`NOVA_AUTOPILOT` /
+//! `NOVA_SHOT`), so an example adds them permanently and pays nothing in a
+//! normal run.
 //!
 //! ## Why the autopilot does not force `Playing`
 //!
@@ -13,19 +18,19 @@
 //! force-set `Playing` on its own timeline it would either fire before the
 //! `GameAssets` resource exists (panicking scene setup that reads it) or re-enter
 //! `Playing` after the loader already did (double-running `OnEnter(Playing)`
-//! setup). So [`nova_autopilot`] holds `Loading` on a single generous step
-//! instead of forcing anything: the loader reaches `Playing` on its own within
-//! that window, the run exercises gameplay (and any
-//! [`input`](AutopilotPlugin::input) closure) there, and the autopilot exits
-//! cleanly with `AppExit::Success` when the step ends. The
-//! `nova harness: reached Playing` line (emitted by [`DebugPlugin`](crate::DebugPlugin)
-//! under the autopilot) confirms the loader got there before the exit, so a run
-//! that silently never leaves `Loading` fails the smoke test instead of passing.
+//! setup). So [`nova_autopilot`](nova_autopilot()) holds `Loading` on a single
+//! generous step instead of forcing anything: the loader reaches `Playing` on its
+//! own within that window, the run exercises gameplay (and any
+//! [`input`](AutopilotPlugin::input) closure) there, and the autopilot reports
+//! done when the step ends. The `nova harness: reached Playing` line (emitted by
+//! [`DebugPlugin`](crate::DebugPlugin) under the autopilot) confirms the loader
+//! got there before the exit, so a run that silently never leaves `Loading`
+//! fails the smoke test instead of passing.
 //!
 //! ## Usage
 //!
 //! Add the preset under the `debug` feature (the harness lives there); it is a
-//! no-op unless `BCS_AUTOPILOT` is set, so leaving it in costs nothing:
+//! no-op unless `NOVA_AUTOPILOT` is set, so leaving it in costs nothing:
 //!
 //! ```no_run
 //! # use bevy::prelude::*;
@@ -49,22 +54,27 @@
 //! Run it headless:
 //!
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example scenario --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example scenario --features debug
 //! # look for: `nova harness: reached Playing`
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
-// Re-export the underlying harness plugins so examples can name/extend them
-// (e.g. build a bespoke timeline) without reaching into bevy_common_systems.
+// Re-export the underlying drivers so examples can name/extend them (e.g. build
+// a bespoke timeline) without reaching into nova_autopilot themselves.
 use avian3d::prelude::RigidBody;
-use bevy::{
-    prelude::*,
-    render::view::screenshot::{save_to_disk, Screenshot, ScreenshotCaptured},
-};
-pub use bevy_common_systems::debug::harness::prelude::{
-    AutopilotLoop, AutopilotPlugin, ScreenshotPlugin,
-};
+use bevy::prelude::*;
 use bevy_common_systems::prelude::WASDCameraController;
+use nova_autopilot::reel::ScreenshotReelPlugin;
+pub use nova_autopilot::{
+    autopilot::{AutopilotLoop, AutopilotPlugin},
+    // The self-ending examples (broadside, lifeline, menu_scenarios,
+    // screenshot_nova_os) report the autopilot collector done early rather than
+    // idling out the runway. They must reach the SAME protocol instance the
+    // drivers register with, so it is re-exported here alongside them.
+    completion::{HarnessCompletion, AUTOPILOT},
+    reel::{capture_window, ReelBeat, REEL_ENV},
+    screenshot::ScreenshotPlugin,
+};
 use nova_gameplay::{prelude::HudVisibility, GameStates};
 use nova_scenario::prelude::{
     ScenarioCameraMarker, ScenarioId, ScenarioLoaded, ScriptedCameraPose,
@@ -83,17 +93,17 @@ pub const NOVA_SCREENSHOT_SETTLE_FRAMES: u32 = 30;
 ///
 /// Holds `Loading` for [`NOVA_AUTOPILOT_SECS`] (the asset loader reaches
 /// `Playing` within that window on its own -- see the module docs on why this
-/// does not force the transition), then exits with `AppExit::Success`. Chain
-/// [`input`](AutopilotPlugin::input) to poke fire/thrust while in `Playing`.
-/// Inert unless `BCS_AUTOPILOT` is set.
+/// does not force the transition), then reports done to the completion protocol.
+/// Chain [`input`](AutopilotPlugin::input) to poke fire/thrust while in
+/// `Playing`. Inert unless `NOVA_AUTOPILOT` is set.
 pub fn nova_autopilot() -> AutopilotPlugin<GameStates> {
     AutopilotPlugin::new().hold(GameStates::Loading, NOVA_AUTOPILOT_SECS)
 }
 
 /// Env-gated screenshot preset for nova examples: advance to `Playing`, settle
-/// [`NOVA_SCREENSHOT_SETTLE_FRAMES`] frames, capture the primary window to a
-/// PNG, and exit. Inert unless `BCS_SHOT` is set (a `WxH` value also overrides
-/// the window resolution). See [`ScreenshotPlugin`].
+/// [`NOVA_SCREENSHOT_SETTLE_FRAMES`] frames, hide the dev overlays, capture the
+/// primary window to a PNG, and report done. Inert unless `NOVA_SHOT` is set (a
+/// `WxH` value also overrides the window resolution). See [`ScreenshotPlugin`].
 ///
 /// Unlike [`nova_autopilot`], this force-advances to `Playing` on the first
 /// frame, so it is best used with examples that set their scene up in
@@ -101,7 +111,9 @@ pub fn nova_autopilot() -> AutopilotPlugin<GameStates> {
 /// `scenario`) rather than `OnEnter(GameStates::Playing)`, which the early
 /// forced transition would run before `GameAssets` is ready.
 pub fn nova_screenshot() -> ScreenshotPlugin<GameStates> {
-    ScreenshotPlugin::new(GameStates::Playing).settle_frames(NOVA_SCREENSHOT_SETTLE_FRAMES)
+    ScreenshotPlugin::new(GameStates::Playing)
+        .settle_frames(NOVA_SCREENSHOT_SETTLE_FRAMES)
+        .hide_overlay(hide_dev_overlays)
 }
 
 /// Smoke-test assertion preset: fail a headless run if scenario init is broken.
@@ -109,7 +121,7 @@ pub fn nova_screenshot() -> ScreenshotPlugin<GameStates> {
 /// A scenario-loading example passes `autopilot: cycle complete, no panic` even
 /// if the scenario silently came up empty. This preset closes that gap: it
 /// observes the [`ScenarioLoaded`] init-status payload and panics (which fails
-/// the `BCS_AUTOPILOT` run with a non-zero exit) when init is trivial -- the
+/// the `NOVA_AUTOPILOT` run with a non-zero exit) when init is trivial -- the
 /// wrong scenario id, zero event handlers, or zero objects -- and, via a `fired`
 /// flag checked on entering `Playing`, when the event never fires at all.
 ///
@@ -213,13 +225,12 @@ fn assert_scenario_loaded_fired(assertion: Res<ScenarioLoadAssertion>) {
     );
 }
 
-/// Environment variable that arms [`ScreenshotReelPlugin`]. Distinct from
-/// `BCS_SHOT` (the single-shot [`ScreenshotPlugin`]) so a reel run and a
-/// one-off capture never fight over the window/exit.
-pub const SCREENSHOT_REEL_ENV: &str = "BCS_REEL";
-
 /// A camera pose for a reel beat: where the camera sits and what it looks at
 /// (up is +Y), the same framing the `SetCamera` scenario action takes.
+///
+/// Nova-only, which is why it never moved into `nova_autopilot`: position +
+/// look-at means nothing there without [`ScenarioCameraMarker`] and
+/// [`ScriptedCameraPose`] to apply it to.
 #[derive(Clone, Copy, Debug)]
 pub struct ReelCamera {
     /// World-space camera position.
@@ -235,131 +246,62 @@ impl ReelCamera {
     }
 }
 
-/// One beat of a screenshot reel: optionally re-pose the scenario camera, wait
-/// `settle_frames` for the scene to render, then capture the primary window to
-/// `path`. A `None` camera keeps the previous beat's framing (e.g. two shots of
-/// the same view). Relative `path`s resolve under `NOVA_SHOT_DIR`, matching the
-/// `Screenshot` scenario action, so a whole reel stages into one folder.
-#[derive(Clone, Debug)]
-pub struct ReelBeat {
-    /// Camera framing for this beat, or `None` to keep the current pose.
-    pub camera: Option<ReelCamera>,
-    /// Frames to let the scene render after posing before capturing.
-    pub settle_frames: u32,
-    /// Output PNG path (relative paths resolve under `NOVA_SHOT_DIR`).
-    pub path: String,
-}
-
-impl ReelBeat {
-    /// A beat that poses the camera, settles [`NOVA_SCREENSHOT_SETTLE_FRAMES`]
-    /// frames, and captures to `path`.
-    pub fn new(camera: ReelCamera, path: impl Into<String>) -> Self {
-        Self {
-            camera: Some(camera),
-            settle_frames: NOVA_SCREENSHOT_SETTLE_FRAMES,
-            path: path.into(),
-        }
-    }
-
-    /// Override the settle-frame count for this beat.
-    pub fn settle_frames(mut self, frames: u32) -> Self {
-        self.settle_frames = frames;
-        self
-    }
-}
-
-/// Env-gated reel-capture preset for nova examples: once a scenario is live
-/// (its camera exists), step an ordered list of [`ReelBeat`]s - pose the camera,
-/// settle, capture a PNG - then exit with `AppExit::Success`. Inert unless
-/// `BCS_REEL` is set.
+/// A reel beat that poses the scenario camera and captures to `path`: the Nova
+/// filling of [`ReelBeat::apply`], which the driver runs on beat entry.
 ///
-/// This is the multi-shot sibling of [`nova_screenshot`] (one shot, then exit):
-/// the reel drives the *cadence* and camera framing for the pure-3D showcase
-/// beats, while the scene itself comes from a loaded scenario (e.g. the embedded
-/// reel scenario in `screenshot_reel`). Captures are serialized - each beat waits for its PNG
-/// to land before advancing - so a shot is never taken mid-camera-move.
+/// A beat that keeps the previous framing (two shots of the same view) is a
+/// plain [`ReelBeat::new`] with no `apply` hook.
+pub fn reel_beat(camera: ReelCamera, path: impl Into<String>) -> ReelBeat {
+    ReelBeat::new(path).apply(move |world: &mut World| {
+        reel_pose_camera(world, camera.position, camera.look_at);
+    })
+}
+
+/// Env-gated reel-capture preset for nova examples: once the scenario is live
+/// (its camera exists), step an ordered list of [`ReelBeat`]s - pose, settle,
+/// capture - then report done. Inert unless `NOVA_REEL` is set.
+///
+/// This is the Nova wiring of [`ScreenshotReelPlugin`]: the `ready` predicate is
+/// "a scenario camera exists", the `hide_overlay` hook clears the dev overlays
+/// and drops the HUD to [`HudVisibility::Cinematic`], and [`reel_freeze_bodies`]
+/// pins the scene still for the whole reel. Build the beats with [`reel_beat`].
 ///
 /// UI/state-dependent shots (menu, editor, HUD, combat) are NOT expressible as a
-/// `ReelBeat` (they need button clicks / state changes); those are driven by the
-/// example's own autopilot script, reusing [`reel_pose_camera`] and the same
-/// capture primitive.
-pub struct ScreenshotReelPlugin {
+/// [`ReelBeat`] (they need button clicks / state changes); those are driven by
+/// the example's own autopilot script, reusing [`reel_pose_camera`] and
+/// [`capture_window`].
+pub fn nova_reel(beats: Vec<ReelBeat>) -> NovaReelPlugin {
+    NovaReelPlugin { beats }
+}
+
+/// Plugin returned by [`nova_reel`]. Construct it through that preset rather
+/// than directly.
+pub struct NovaReelPlugin {
     beats: Vec<ReelBeat>,
-    resolution: (f32, f32),
 }
 
-impl ScreenshotReelPlugin {
-    /// Build a reel from an ordered list of beats, capturing at the default
-    /// [`REEL_CAPTURE_RESOLUTION`] (1920x1080, the 16:9 the web figures want).
-    pub fn new(beats: Vec<ReelBeat>) -> Self {
-        Self {
-            beats,
-            resolution: REEL_CAPTURE_RESOLUTION,
-        }
-    }
-
-    /// Override the capture resolution (the primary window is forced to this
-    /// size at startup so every beat is captured at a known aspect).
-    pub fn resolution(mut self, width: f32, height: f32) -> Self {
-        self.resolution = (width, height);
-        self
-    }
-}
-
-/// Default reel capture resolution: 1920x1080, the 16:9 the web site's figures
-/// and thumbnails use (thumbnails share this capture and the site sizes them
-/// down with CSS at ~300px wide).
-pub const REEL_CAPTURE_RESOLUTION: (f32, f32) = (1920.0, 1080.0);
-
-/// The forced capture resolution; drives the startup window resize.
-#[derive(Resource)]
-struct ReelWindowSize(f32, f32);
-
-/// Internal driver state; kept out of the prelude per the crate conventions.
-#[derive(Resource)]
-struct ReelState {
-    beats: Vec<ReelBeat>,
-    index: usize,
-    settled: u32,
-    posed: bool,
-    capturing: bool,
-    done: bool,
-}
-
-/// Flipped by the per-capture `ScreenshotCaptured` observer so the driver knows
-/// the PNG has landed and it is safe to advance (or exit).
-#[derive(Resource, Default)]
-struct ReelCaptureDone(bool);
-
-impl Plugin for ScreenshotReelPlugin {
+impl Plugin for NovaReelPlugin {
     fn build(&self, app: &mut App) {
-        if std::env::var(SCREENSHOT_REEL_ENV).is_err() {
+        // The driver is inert without the env var on its own, but the freeze
+        // system is ours: gate it here so a normal run keeps its physics.
+        if std::env::var(REEL_ENV).is_err() {
             return;
         }
-        if self.beats.is_empty() {
-            warn!("ScreenshotReelPlugin: {SCREENSHOT_REEL_ENV} set but no beats; doing nothing");
-            return;
-        }
-        debug!(
-            "ScreenshotReelPlugin: build ({SCREENSHOT_REEL_ENV} active, {} beats)",
-            self.beats.len()
+        app.add_plugins(
+            ScreenshotReelPlugin::new(self.beats.clone())
+                .ready(scenario_camera_present)
+                .hide_overlay(hide_reel_chrome),
         );
-        app.insert_resource(ReelState {
-            beats: self.beats.clone(),
-            index: 0,
-            settled: 0,
-            posed: false,
-            capturing: false,
-            done: false,
-        });
-        app.insert_resource(ReelWindowSize(self.resolution.0, self.resolution.1));
-        app.init_resource::<ReelCaptureDone>();
-        app.add_systems(
-            Startup,
-            (reel_resize_window, hide_dev_overlays, reel_hide_hud),
-        );
-        app.add_systems(Update, (reel_freeze_bodies, reel_drive));
+        app.add_systems(Update, reel_freeze_bodies);
     }
+}
+
+/// The reel's readiness gate: the scenario is live once its camera has spawned.
+/// A `&World` predicate polled every frame, so it stays a cheap query.
+fn scenario_camera_present(world: &World) -> bool {
+    world
+        .iter_entities()
+        .any(|entity| entity.contains::<ScenarioCameraMarker>())
 }
 
 /// Freeze the scene so every beat is a deterministic still: make every dynamic
@@ -386,41 +328,34 @@ fn reel_freeze_bodies(mut commands: Commands, bodies: Query<(Entity, &RigidBody)
 /// HUD alone, so a capture example that wants the HUD in shot (the 3-tier HUD
 /// showcase) can keep it - add [`hide_dev_overlays`] at `Startup` and manage
 /// [`HudVisibility`] per beat.
-pub fn hide_dev_overlays(
-    nova: Option<ResMut<crate::DebugEnabled>>,
-    inspector: Option<ResMut<bevy_common_systems::debug::inspector::DebugEnabled>>,
-    wireframe: Option<ResMut<bevy_common_systems::debug::wireframe::DebugEnabled>>,
-) {
-    if let Some(mut debug) = nova {
+///
+/// Exclusive rather than a parameterised system so ONE function satisfies both
+/// the `Startup` registration the screenshot examples use and the drivers'
+/// `Fn(&mut World)` `hide_overlay` hook.
+pub fn hide_dev_overlays(world: &mut World) {
+    if let Some(mut debug) = world.get_resource_mut::<crate::DebugEnabled>() {
         debug.0 = false;
     }
-    if let Some(mut debug) = inspector {
+    if let Some(mut debug) =
+        world.get_resource_mut::<bevy_common_systems::debug::inspector::DebugEnabled>()
+    {
         debug.0 = false;
     }
-    if let Some(mut debug) = wireframe {
+    if let Some(mut debug) =
+        world.get_resource_mut::<bevy_common_systems::debug::wireframe::DebugEnabled>()
+    {
         debug.0 = false;
     }
 }
 
-/// Reel-only: also hide the HUD chrome (the reel scenes carry no player HUD, so
-/// the fps/version bar is just clutter). Kept out of [`hide_dev_overlays`] so a
-/// HUD-showcase capture can keep the HUD up.
-fn reel_hide_hud(hud: Option<ResMut<HudVisibility>>) {
-    if let Some(mut hud) = hud {
+/// The reel's `hide_overlay` hook: [`hide_dev_overlays`] plus the HUD chrome
+/// (the reel scenes carry no player HUD, so the fps/version bar is just
+/// clutter). Kept out of [`hide_dev_overlays`] so a HUD-showcase capture can
+/// keep the HUD up.
+fn hide_reel_chrome(world: &mut World) {
+    hide_dev_overlays(world);
+    if let Some(mut hud) = world.get_resource_mut::<HudVisibility>() {
         *hud = HudVisibility::Cinematic;
-    }
-}
-
-/// Force the primary window to the reel's capture resolution at startup, so
-/// every beat lands at a known aspect (mirrors the single-shot harness's
-/// resize). Non-resizable so a tiling WM cannot reflow it mid-reel.
-fn reel_resize_window(
-    size: Res<ReelWindowSize>,
-    mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>,
-) {
-    if let Ok(mut window) = windows.single_mut() {
-        window.resolution.set(size.0, size.1);
-        window.resizable = false;
     }
 }
 
@@ -444,120 +379,6 @@ pub fn reel_pose_camera(world: &mut World, position: Vec3, look_at: Vec3) {
         entity.remove::<WASDCameraController>();
         entity.insert(ScriptedCameraPose { position, look_at });
     }
-}
-
-/// Capture the primary window to `path` (relative paths resolve under
-/// `NOVA_SHOT_DIR`), creating the parent directory if needed. For capture
-/// examples that drive their own beat script from the autopilot closure (the
-/// UI/menu/editor/combat shots) rather than the camera-posed [`ReelBeat`] list.
-/// Built on Bevy's `Screenshot::primary_window()` + `save_to_disk`.
-pub fn capture_window(world: &mut World, path: &str) {
-    let resolved = reel_capture_path(path);
-    if let Some(parent) = resolved.parent() {
-        if !parent.as_os_str().is_empty() {
-            if let Err(error) = std::fs::create_dir_all(parent) {
-                warn!(
-                    "capture_window: could not create capture dir {:?}: {error}",
-                    parent
-                );
-            }
-        }
-    }
-    world
-        .spawn(Screenshot::primary_window())
-        .observe(save_to_disk(resolved));
-}
-
-/// Resolve a reel output path under `NOVA_SHOT_DIR` (relative paths only),
-/// matching the `Screenshot` scenario action so a reel and hand-authored shots
-/// stage into the same folder.
-fn reel_capture_path(path: &str) -> std::path::PathBuf {
-    let path = std::path::Path::new(path);
-    match std::env::var("NOVA_SHOT_DIR") {
-        Ok(dir) if !dir.is_empty() && !path.is_absolute() => std::path::Path::new(&dir).join(path),
-        _ => path.to_path_buf(),
-    }
-}
-
-/// Step the reel: pose -> settle -> capture -> (await the PNG) -> advance ->
-/// exit. Exclusive because posing the camera and spawning the capture need
-/// `&mut World`; runs only once a scenario camera exists (scenario loaded).
-fn reel_drive(world: &mut World) {
-    if world.resource::<ReelState>().done {
-        return;
-    }
-    // Wait until the scenario is live (its camera spawned) before the first beat.
-    let has_camera = world
-        .query_filtered::<(), With<ScenarioCameraMarker>>()
-        .iter(world)
-        .next()
-        .is_some();
-    if !has_camera {
-        return;
-    }
-
-    world.resource_scope(|world, mut state: Mut<ReelState>| {
-        let index = state.index;
-        let beat = state.beats[index].clone();
-
-        // Waiting on the previous capture to land before advancing.
-        if state.capturing {
-            if !world.resource::<ReelCaptureDone>().0 {
-                return;
-            }
-            world.resource_mut::<ReelCaptureDone>().0 = false;
-            state.capturing = false;
-            state.posed = false;
-            state.settled = 0;
-            state.index += 1;
-            if state.index >= state.beats.len() {
-                info!("reel: {} beats captured, exiting", state.beats.len());
-                world.write_message(AppExit::Success);
-                state.done = true;
-            }
-            return;
-        }
-
-        // Pose the camera on beat entry, then give the transform a frame to apply.
-        if !state.posed {
-            if let Some(camera) = beat.camera {
-                reel_pose_camera(world, camera.position, camera.look_at);
-            }
-            state.posed = true;
-            state.settled = 0;
-            return;
-        }
-
-        // Let the scene render before capturing.
-        state.settled += 1;
-        if state.settled < beat.settle_frames {
-            return;
-        }
-
-        let path = reel_capture_path(&beat.path);
-        if let Some(parent) = path.parent() {
-            if !parent.as_os_str().is_empty() {
-                if let Err(error) = std::fs::create_dir_all(parent) {
-                    warn!("reel: could not create capture dir {:?}: {error}", parent);
-                }
-            }
-        }
-        info!(
-            "reel: beat {}/{} capturing -> {}",
-            index + 1,
-            state.beats.len(),
-            path.display()
-        );
-        world
-            .spawn(Screenshot::primary_window())
-            .observe(save_to_disk(path))
-            .observe(
-                |_: On<ScreenshotCaptured>, mut done: ResMut<ReelCaptureDone>| {
-                    done.0 = true;
-                },
-            );
-        state.capturing = true;
-    });
 }
 
 #[cfg(test)]
@@ -629,22 +450,27 @@ mod tests {
         assert!(world.get_entity(bystander).is_ok());
     }
 
-    /// A relative reel path joins under `NOVA_SHOT_DIR`-less default (cwd) and an
-    /// absolute path passes through. The env-driven join is exercised by the
-    /// scenario action's own test; here we pin the no-env and absolute cases so
-    /// the helper does not accidentally rewrite them.
+    /// The reel's readiness gate is exactly "the scenario camera spawned": false
+    /// on an empty world, true once the marker exists. The driver polls this
+    /// every frame to hold the first beat until the scene is live.
     #[test]
-    fn reel_capture_path_leaves_bare_and_absolute_paths_alone() {
-        use std::path::Path;
+    fn scenario_camera_present_gates_on_the_marker() {
+        let mut world = World::new();
+        world.spawn(Transform::default());
+        assert!(!scenario_camera_present(&world));
 
-        // No NOVA_SHOT_DIR in the test env: a relative path is used as-is.
-        if std::env::var("NOVA_SHOT_DIR").is_err() {
-            assert_eq!(
-                reel_capture_path("feature-gravity.png"),
-                Path::new("feature-gravity.png")
-            );
-        }
-        // Absolute paths pass through regardless of the env.
-        assert_eq!(reel_capture_path("/shots/a.png"), Path::new("/shots/a.png"));
+        world.spawn((ScenarioCameraMarker, Transform::default()));
+        assert!(scenario_camera_present(&world));
+    }
+
+    /// `reel_beat` carries the path through to the driver. The pose it wires
+    /// into the beat's `apply` hook is `reel_pose_camera`, pinned by its own
+    /// tests above; the crate's `apply` field is private, so the wiring itself
+    /// is proved end to end by the reel run in the task's manual proof.
+    #[test]
+    fn reel_beat_carries_the_output_path() {
+        let beat = reel_beat(ReelCamera::new(Vec3::ONE, Vec3::ZERO), "shot.png");
+        assert_eq!(beat.path, "shot.png");
+        assert_eq!(beat.settle_frames, NOVA_SCREENSHOT_SETTLE_FRAMES);
     }
 }

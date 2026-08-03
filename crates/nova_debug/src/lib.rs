@@ -1,10 +1,12 @@
 //! `nova_debug` is the debug-only tooling plugin, compiled only under the
 //! `debug` feature so it costs nothing in a shipped build. `DebugPlugin` adds
 //! the world inspector and dev overlays (gravity, section wireframes); the
-//! `harness` module provides the headless-run presets the examples and the
-//! `nova_probe` run-harness drive - `nova_autopilot` (scripted play) and
-//! `nova_screenshot` (settled-frame capture). Import the presets from the
-//! prelude; the raw plugin types stay reachable under `nova_debug::harness::`.
+//! `harness` module is the Nova adapter over the `nova_autopilot` drivers,
+//! providing the headless-run presets the examples and the `nova_probe`
+//! run-harness drive - `nova_autopilot` (scripted play), `nova_screenshot`
+//! (settled-frame capture) and `nova_reel` (multi-shot reel). Import the presets
+//! from the prelude; the raw driver types stay reachable under
+//! `nova_debug::harness::`.
 
 #![warn(missing_docs)]
 
@@ -14,11 +16,11 @@ use bevy::{
 };
 use bevy_common_systems::{
     debug::{
-        harness::AUTOPILOT_ENV, inspector::DebugEnabled as InspectorEnabled,
-        wireframe::DebugEnabled as WireframeEnabled,
+        inspector::DebugEnabled as InspectorEnabled, wireframe::DebugEnabled as WireframeEnabled,
     },
     prelude::*,
 };
+use nova_autopilot::autopilot::AUTOPILOT_ENV;
 use nova_gameplay::{prelude::PlayerSpaceshipMarker, GameStates, PauseStates};
 use nova_scenario::prelude::CurrentOutcome;
 
@@ -29,9 +31,10 @@ pub mod sections;
 
 /// Glob-import surface: `use nova_debug::prelude::*` brings the harness presets
 /// ([`nova_autopilot`](harness::nova_autopilot),
-/// [`nova_screenshot`](harness::nova_screenshot), the reel plugin) and
-/// [`DebugPlugin`] into scope; the raw plugin types stay under
-/// `nova_debug::harness::` to avoid clashing with Bevy's own `ScreenshotPlugin`.
+/// [`nova_screenshot`](harness::nova_screenshot),
+/// [`nova_reel`](harness::nova_reel)) and [`DebugPlugin`] into scope; the raw
+/// driver types stay under `nova_debug::harness::` to avoid clashing with Bevy's
+/// own `ScreenshotPlugin`.
 pub mod prelude {
     // Only the presets are the intended entry point. The raw `AutopilotPlugin` /
     // `ScreenshotPlugin` types stay reachable via `nova_debug::harness::` for the
@@ -40,8 +43,8 @@ pub mod prelude {
     pub use super::{
         debugdump,
         harness::{
-            assert_scenario_loaded, capture_window, hide_dev_overlays, nova_autopilot,
-            nova_screenshot, reel_pose_camera, ReelBeat, ReelCamera, ScreenshotReelPlugin,
+            assert_scenario_loaded, capture_window, hide_dev_overlays, nova_autopilot, nova_reel,
+            nova_screenshot, reel_beat, reel_pose_camera, ReelBeat, ReelCamera,
         },
         screenshot::{ScreenshotHotkeyPlugin, SCREENSHOT_KEYCODE},
         DebugPlugin,
@@ -107,7 +110,7 @@ impl Plugin for DebugPlugin {
             sync_inspector_cursor.run_if(in_state(GameStates::Playing)),
         );
 
-        // Under the headless autopilot (`nova_debug::harness`), confirm the
+        // Under the headless autopilot (the `harness` presets), confirm the
         // asset loader actually reached gameplay before the clean exit, so a run
         // that silently stalls in `Loading` fails the smoke test instead of
         // passing on `autopilot: cycle complete, no panic` alone.

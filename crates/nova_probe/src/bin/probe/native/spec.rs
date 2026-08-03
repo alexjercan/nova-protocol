@@ -7,7 +7,7 @@
 /// one (operator's choice, with a printed note).
 pub(crate) const NOT_PROBED: &[(&str, &str)] = &[(
     "render_scale_shot",
-    "BCS_SHOT real-GPU pixel capture with no self-ending autopilot: under \
+    "NOVA_SHOT real-GPU pixel capture with no self-ending autopilot: under \
      probe's Xvfb it would time out, and its point (correct pixels) needs \
      a real GPU and human eyes",
 )];

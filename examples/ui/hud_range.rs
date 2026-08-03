@@ -18,7 +18,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example hud_range --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example hud_range --features debug
 //! # scripted (relative to entering Playing): at +0.2s the script SETS the
 //! # combat+travel locks (the radar stand-in - nothing locks passively in
 //! # the deliberate-radar model); at +0.7s assert the focus meter is filling
@@ -73,7 +73,7 @@ fn main() -> bevy::app::AppExit {
         // Not the stock nova_autopilot(): the scripted timeline needs ~4.5s
         // of Playing, so hold a longer total window than the 6s preset.
         app.add_plugins(
-            AutopilotPlugin::<GameStates>::new()
+            nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
                 .hold(GameStates::Loading, 8.0)
                 .input(autopilot_script),
         );
@@ -783,7 +783,7 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
 
     // Capture a real loaded frame (scene up, lock focused, inset rendering) to
     // a PNG, so the RTT inset can be eyeballed headlessly. Inert unless
-    // NOVA_INSET_SHOT is set. BCS_SHOT itself captures black here because it
+    // NOVA_INSET_SHOT is set. NOVA_SHOT itself captures black here because it
     // force-advances to Playing and shoots before async asset loading has a
     // scene; injecting the screenshot mid-run from the settled autopilot
     // avoids that (task 20260710-104421 verify note).

@@ -8,21 +8,21 @@
 //! a ship built from sections). It steps the same way a player would - reach the
 //! menu, click Sandbox, create a ship - settling before each capture.
 //!
-//! Two run modes, both under the autopilot (`BCS_AUTOPILOT`):
-//! - `BCS_AUTOPILOT=1` alone: the smoke path - drive menu -> editor, reach
+//! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
+//! - `NOVA_AUTOPILOT=1` alone: the smoke path - drive menu -> editor, reach
 //!   Playing, exit clean, capturing nothing.
-//! - `BCS_AUTOPILOT=1 BCS_REEL=1`: also capture each beat's PNG (staged under
+//! - `NOVA_AUTOPILOT=1 NOVA_REEL=1`: also capture each beat's PNG (staged under
 //!   `NOVA_SHOT_DIR`).
 //!
 //! Capture (windowed, real GPU):
 //! ```text
-//! NOVA_SHOT_DIR=target/reel BCS_AUTOPILOT=1 BCS_REEL=1 \
+//! NOVA_SHOT_DIR=target/reel NOVA_AUTOPILOT=1 NOVA_REEL=1 \
 //!   cargo run --example screenshot_ui --features debug
 //! ```
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example screenshot_ui --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example screenshot_ui --features debug
 //! # look for: `nova harness: reached Playing`, `autopilot: cycle complete, no panic`
 //! ```
 
@@ -54,7 +54,7 @@ fn main() -> bevy::app::AppExit {
 
     #[cfg(feature = "debug")]
     {
-        if std::env::var_os("BCS_AUTOPILOT").is_some() {
+        if std::env::var_os("NOVA_AUTOPILOT").is_some() {
             // Turn command errors (despawned-entity targets on the menu/editor
             // teardown) into panics so the run fails loudly on them (as 12 does).
             app.insert_resource(bevy::ecs::error::FallbackErrorHandler(
@@ -73,7 +73,7 @@ fn main() -> bevy::app::AppExit {
         app.add_plugins(nova_probe::nova_invariants());
         app.add_plugins(nova_probe::nova_frametime());
         app.add_plugins(
-            AutopilotPlugin::<GameStates>::new()
+            nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
                 .hold(GameStates::Loading, UI_AUTOPILOT_SECS)
                 .input(ui_capture_script),
         );
@@ -120,17 +120,17 @@ fn button_by_name(world: &mut World, name: &str) -> Option<Entity> {
 
 /// Drive the menu -> editor beats and capture each, the way a player would. Runs
 /// every autopilot frame; each stage fires once and then waits where the scene or
-/// editor needs to settle before the shot. Captures only when `BCS_REEL` is set,
+/// editor needs to settle before the shot. Captures only when `NOVA_REEL` is set,
 /// so the plain autopilot smoke run drives the same path without writing files.
 #[cfg(feature = "debug")]
 fn ui_capture_script(world: &mut World, _elapsed: f32) {
     use bevy::ui_widgets::Activate;
 
-    let capturing = std::env::var_os("BCS_REEL").is_some();
+    let capturing = std::env::var_os("NOVA_REEL").is_some();
 
     // Frames to let a beat settle before its shot. The long settles matter ONLY
-    // for the capture path (`BCS_REEL`): the scene/UI must be still and the PNG
-    // must land before we navigate away. The smoke path (`BCS_AUTOPILOT` alone)
+    // for the capture path (`NOVA_REEL`): the scene/UI must be still and the PNG
+    // must land before we navigate away. The smoke path (`NOVA_AUTOPILOT` alone)
     // captures nothing, so it drives straight through on minimal waits - just
     // enough frames for the next button to spawn and the state transition to
     // apply. That keeps the menu -> editor -> Playing walk short in FRAMES, so it

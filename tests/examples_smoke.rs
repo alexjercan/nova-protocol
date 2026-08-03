@@ -2,7 +2,7 @@
 //! one test per example category so a single category runs alone via the
 //! test-name filter (`cargo test --test examples_smoke sections`).
 //!
-//! Each of these examples drives itself under `BCS_AUTOPILOT` - via the
+//! Each of these examples drives itself under `NOVA_AUTOPILOT` - via the
 //! `nova_debug::harness::nova_autopilot` preset or its own staged
 //! `AutopilotPlugin` timeline (hud_range/menu_newgame) - Loading -> Playing,
 //! exercises a few seconds of gameplay (many with in-example behavior
@@ -47,7 +47,7 @@ const GAMEPLAY: &[&str] = &["scenario", "playable", "broadside", "lifeline"];
 const UI: &[&str] = &["editor", "hud_range", "menu_newgame", "menu_scenarios"];
 
 /// examples/screenshots/ - the capture producers still run a full harnessed
-/// cycle headless (capture is inert without `BCS_SHOT`), so they smoke too.
+/// cycle headless (capture is inert without `NOVA_SHOT`), so they smoke too.
 const SCREENSHOTS: &[&str] = &[
     "screenshot_reel",
     "screenshot_ui",
@@ -61,7 +61,7 @@ const SCREENSHOTS: &[&str] = &[
 /// Cataloged examples deliberately NOT in any smoke list - each entry is a
 /// decision, not an omission. `catalog_matches_disk` fails if an example is
 /// neither smoked nor listed here.
-/// - render_scale_shot: BCS_SHOT-driven single capture on a real GPU (its
+/// - render_scale_shot: NOVA_SHOT-driven single capture on a real GPU (its
 ///   point is pixels, which Xvfb + a warmed-up autopilot cycle cannot judge);
 ///   verified by eyeballing the PNGs (task 20260718-004723).
 /// - perf_baseline: not harnessed - probe owns it (`probe run perf_baseline
@@ -172,6 +172,78 @@ fn catalog_matches_disk() {
     );
 }
 
+/// Every example that names a harness driver must reach it through
+/// `nova_debug::harness::` - the Nova adapter over `nova_autopilot`.
+///
+/// This is the gate for a failure `cargo check` CANNOT see. The
+/// `bevy_common_systems` prelude still exports its own `AutopilotPlugin` /
+/// `ScreenshotPlugin`, and it comes into every example through
+/// `nova_protocol::prelude::*`. A bare `AutopilotPlugin::new()` therefore
+/// compiles either way, but the bcs one arms on the retired bcs activation env
+/// (never set any more) and writes a bcs `AutopilotLoop` - so the example boots
+/// INERT while a `MessageReader<nova_autopilot::AutopilotLoop>` next to it
+/// aborts the run on an uninitialised message. That is how `playable` broke
+/// during the migration (task 20260802-183403); this test is why it cannot
+/// come back.
+///
+/// Display-free, like `catalog_matches_disk`: it is a source grep, not a run.
+#[test]
+fn examples_name_drivers_through_the_nova_harness() {
+    // Every harness name the bcs prelude ALSO exports and `nova_debug`'s
+    // prelude does not, so a bare use resolves silently to the inert twin.
+    // Names both preludes export are safe by construction: a glob-vs-glob
+    // clash is a compile error at the use site.
+    const DRIVERS: &[&str] = &[
+        "AutopilotPlugin",
+        "AutopilotLoop",
+        "ScreenshotPlugin",
+        "ScreenshotReelPlugin",
+        "HarnessCompletion",
+    ];
+    const QUALIFIED: &str = "nova_protocol::nova_debug::harness::";
+
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut offenders = Vec::new();
+    for entry in std::fs::read_dir(root.join("examples")).unwrap() {
+        let category = entry.unwrap().path();
+        if !category.is_dir() {
+            continue;
+        }
+        for entry in std::fs::read_dir(&category).unwrap() {
+            let path = entry.unwrap().path();
+            if !path.extension().is_some_and(|e| e == "rs") {
+                continue;
+            }
+            let source = std::fs::read_to_string(&path).unwrap();
+            for (number, line) in source.lines().enumerate() {
+                // Prose in `//!` and `///` docs may name a driver freely; only
+                // CODE has to be qualified.
+                let code = line.trim_start();
+                if code.starts_with("//") {
+                    continue;
+                }
+                for driver in DRIVERS {
+                    if line.contains(driver) && !line.contains(QUALIFIED) {
+                        offenders.push(format!(
+                            "{}:{}: {}",
+                            path.strip_prefix(root).unwrap().display(),
+                            number + 1,
+                            code.trim_end()
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        offenders.is_empty(),
+        "examples must name harness drivers as `{QUALIFIED}<Driver>`; a bare \
+         name silently resolves to the bevy_common_systems prelude's inert \
+         twin:\n{}",
+        offenders.join("\n")
+    );
+}
+
 /// Run each harnessed example headless and assert it reaches gameplay and exits
 /// without panic. Sequential on purpose: each spawns a `cargo run`, and running
 /// them one at a time avoids piling up concurrent builds/windows.
@@ -196,7 +268,7 @@ fn smoke(examples: &[&str]) {
                 "--features",
                 "debug",
             ])
-            .env("BCS_AUTOPILOT", "1")
+            .env("NOVA_AUTOPILOT", "1")
             .output()
             .unwrap_or_else(|e| panic!("failed to launch example {example}: {e}"));
 

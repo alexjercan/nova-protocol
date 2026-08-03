@@ -282,7 +282,7 @@ pub(super) fn reconcile_slider_track_skins(
 /// them - so neither half may panic on an already-dead entity. Splitting it as
 /// `despawn_related().try_insert(..)` does NOT achieve that: `try_insert` is
 /// silenced but `despawn_related` still queues through the default handler,
-/// which the game escalates to a panic under `BCS_AUTOPILOT` (see
+/// which the game escalates to a panic under `NOVA_AUTOPILOT` (see
 /// examples/ui/menu_newgame.rs). Verified directly: queueing
 /// `despawn_related::<Children>()` at a despawned entity under
 /// `FallbackErrorHandler(panic)` panics in `bevy_ecs`'s error handler.
@@ -537,7 +537,7 @@ mod tests {
         }
 
         let mut app = skin_app(UiSkin::Phosphor);
-        // NOTE: the handler the game installs under `BCS_AUTOPILOT`, which is how
+        // NOTE: the handler the game installs under `NOVA_AUTOPILOT`, which is how
         // the smoke suite runs - the configuration this failure mode bites in.
         app.insert_resource(FallbackErrorHandler(panic));
         app.edit_schedule(Update, |schedule| {

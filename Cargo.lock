@@ -4617,6 +4617,7 @@ dependencies = [
  "bevy_mod_debugdump",
  "dirs",
  "itertools 0.15.0",
+ "nova_autopilot",
  "nova_gameplay",
  "nova_scenario",
 ]
@@ -4736,6 +4737,7 @@ dependencies = [
  "dirs",
  "nova-protocol",
  "nova_assets",
+ "nova_autopilot",
  "nova_gameplay",
  "nova_scenario",
  "serde_json",

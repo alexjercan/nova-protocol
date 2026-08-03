@@ -3,6 +3,7 @@
 
 use std::path::Path;
 
+use nova_autopilot::{autopilot::AUTOPILOT_ENV, completion::DEADLINE_ENV};
 use nova_probe::profile_sandbox;
 
 use super::cli::Render;
@@ -85,10 +86,10 @@ fn fps_deadline_secs(warmup: u32, frames: u32) -> u64 {
 
 /// Env for the fps pass: the resolved capture window set EXPLICITLY (even
 /// for `perf/`, so the deadline matches the exact window the child
-/// measures) plus the window-sized `BCS_HARNESS_DEADLINE`. Returns the
+/// measures) plus the window-sized [`DEADLINE_ENV`]. Returns the
 /// deadline seconds too, so the caller can raise the supervisor timeout
 /// above it. The operator's `NOVA_PERF_WARMUP`/`FRAMES` are already folded
-/// in by [`resolve_fps_window`]; their `BCS_HARNESS_DEADLINE` wins here
+/// in by [`resolve_fps_window`]; their [`DEADLINE_ENV`] wins here
 /// (pushed only when unset).
 pub(crate) fn fps_window_and_deadline_env(category: &str) -> (Vec<(String, String)>, u64) {
     let (warmup, frames) = resolve_fps_window(category);
@@ -97,8 +98,8 @@ pub(crate) fn fps_window_and_deadline_env(category: &str) -> (Vec<(String, Strin
         ("NOVA_PERF_WARMUP".into(), warmup.to_string()),
         ("NOVA_PERF_FRAMES".into(), frames.to_string()),
     ];
-    if std::env::var_os("BCS_HARNESS_DEADLINE").is_none() {
-        env.push(("BCS_HARNESS_DEADLINE".into(), deadline.to_string()));
+    if std::env::var_os(DEADLINE_ENV).is_none() {
+        env.push((DEADLINE_ENV.into(), deadline.to_string()));
     }
     (env, deadline)
 }
@@ -117,7 +118,7 @@ pub(crate) fn clean_pass_env(
 ) -> Vec<(String, String)> {
     let mut env = profile_sandbox::env(out);
     env.extend(vec![
-        ("BCS_AUTOPILOT".into(), "1".into()),
+        (AUTOPILOT_ENV.into(), "1".into()),
         ("BEVY_ASSET_ROOT".into(), root.display().to_string()),
         ("DISPLAY".into(), display.into()),
         (
@@ -193,7 +194,7 @@ pub(crate) fn trace_pass_env(root: &Path, out: &Path, display: &str) -> Vec<(Str
     };
     let mut env = profile_sandbox::env(out);
     env.extend(vec![
-        ("BCS_AUTOPILOT".into(), "1".into()),
+        (AUTOPILOT_ENV.into(), "1".into()),
         ("BEVY_ASSET_ROOT".into(), root.display().to_string()),
         ("DISPLAY".into(), display.into()),
         (
@@ -214,7 +215,7 @@ pub(crate) fn trace_pass_env(root: &Path, out: &Path, display: &str) -> Vec<(Str
 pub(crate) fn samply_pass_env(root: &Path, out: &Path, display: &str) -> Vec<(String, String)> {
     let mut env = profile_sandbox::env(out);
     env.extend(vec![
-        ("BCS_AUTOPILOT".to_string(), "1".to_string()),
+        (AUTOPILOT_ENV.to_string(), "1".to_string()),
         ("BEVY_ASSET_ROOT".to_string(), root.display().to_string()),
         ("DISPLAY".to_string(), display.to_string()),
     ]);
@@ -298,7 +299,7 @@ mod tests {
     fn fps_window_and_deadline_env_sets_window_and_deadline() {
         if std::env::var_os("NOVA_PERF_WARMUP").is_none()
             && std::env::var_os("NOVA_PERF_FRAMES").is_none()
-            && std::env::var_os("BCS_HARNESS_DEADLINE").is_none()
+            && std::env::var_os(DEADLINE_ENV).is_none()
         {
             let (env, deadline) = fps_window_and_deadline_env("perf");
             assert_eq!(deadline, 585);
@@ -307,7 +308,7 @@ mod tests {
                 .any(|(k, v)| k == "NOVA_PERF_FRAMES" && v == "900"));
             assert!(env
                 .iter()
-                .any(|(k, v)| k == "BCS_HARNESS_DEADLINE" && v == "585"));
+                .any(|(k, v)| k == "NOVA_AUTOPILOT_DEADLINE" && v == "585"));
         }
     }
 
@@ -346,7 +347,7 @@ mod tests {
         let get = |k: &str, e: &[(String, String)]| {
             e.iter().find(|(key, _)| key == k).map(|(_, v)| v.clone())
         };
-        assert_eq!(get("BCS_AUTOPILOT", &env).as_deref(), Some("1"));
+        assert_eq!(get("NOVA_AUTOPILOT", &env).as_deref(), Some("1"));
         assert_eq!(
             get("NOVA_PERF_TIMELINE", &env).as_deref(),
             Some("/repo/probe-runs/x/timeline.jsonl")

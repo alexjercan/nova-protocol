@@ -13,7 +13,7 @@
 //!
 //! Run (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example menu_scenarios --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example menu_scenarios --features debug
 //! # look for: `scenarios pane widths:` per row, then
 //! #           `scenarios pane widths HELD` / `... CHANGED`,
 //! #           then `nova harness: reached Playing` and
@@ -21,7 +21,7 @@
 //! #           on the last selection, so the smoke suite can run it)
 //! ```
 //!
-//! With `BCS_REEL=1` it also captures `scenarios-picker-<id>.png` per selection
+//! With `NOVA_REEL=1` it also captures `scenarios-picker-<id>.png` per selection
 //! (staged under `NOVA_SHOT_DIR`), so the campaign indentation and the held
 //! split can be EYEBALLED and not just measured.
 
@@ -41,7 +41,7 @@ struct Cli;
 /// (`self_completing`), so this only has to outlast the slowest plausible walk.
 /// Sized for a software-rendered CI GPU (llvmpipe) with room for the scenario
 /// set to keep growing, and kept UNDER the harness completion deadline
-/// (`BCS_HARNESS_DEADLINE`, default 120 s) so the runway is what expires first
+/// (`NOVA_AUTOPILOT_DEADLINE`, default 120 s) so the runway is what expires first
 /// and the stall is named rather than reported as a deadline (review R2.1/R2.3).
 #[cfg(feature = "debug")]
 const SCENARIOS_AUTOPILOT_SECS: f32 = 100.0;
@@ -54,7 +54,7 @@ fn main() -> bevy::app::AppExit {
 
     #[cfg(feature = "debug")]
     {
-        if std::env::var_os("BCS_AUTOPILOT").is_some() {
+        if std::env::var_os("NOVA_AUTOPILOT").is_some() {
             app.insert_resource(bevy::ecs::error::FallbackErrorHandler(
                 bevy::ecs::error::panic,
             ));
@@ -65,7 +65,7 @@ fn main() -> bevy::app::AppExit {
         app.add_plugins(nova_probe::nova_invariants());
         app.add_plugins(nova_probe::nova_frametime());
         app.add_plugins(
-            AutopilotPlugin::<GameStates>::new()
+            nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
                 .hold(GameStates::Loading, SCENARIOS_AUTOPILOT_SECS)
                 // SCRIPT-OWNED completion (the broadside pattern): the walk
                 // reports done when it lands, and a timeline that expires first
@@ -80,7 +80,7 @@ fn main() -> bevy::app::AppExit {
         );
         // Harness-only: an interactive run never finishes a walk, so the guard
         // would panic on an ordinary window close (review R2.2).
-        if std::env::var_os("BCS_AUTOPILOT").is_some() {
+        if std::env::var_os("NOVA_AUTOPILOT").is_some() {
             app.add_systems(Last, guard_run_completion);
         }
         app.add_plugins(nova_screenshot());
@@ -180,8 +180,8 @@ fn scenarios_autopilot(world: &mut World, _elapsed: f32) {
             state.finished = true;
             info!("probe: script complete, exiting");
             world
-                .resource_mut::<nova_protocol::nova_gameplay::bevy_common_systems::completion::HarnessCompletion>()
-                .done(nova_protocol::nova_gameplay::bevy_common_systems::completion::AUTOPILOT);
+                .resource_mut::<nova_protocol::nova_debug::harness::HarnessCompletion>()
+                .done(nova_protocol::nova_debug::harness::AUTOPILOT);
         }
         world.insert_resource(state);
         return;
@@ -215,7 +215,7 @@ fn scenarios_autopilot(world: &mut World, _elapsed: f32) {
             let details = width_by_name(world, "Scenario Details Panel");
             if let (Some(list), Some(details)) = (list, details) {
                 info!("scenarios pane widths: list={list:.1} details={details:.1} after {last}");
-                if std::env::var_os("BCS_REEL").is_some() {
+                if std::env::var_os("NOVA_REEL").is_some() {
                     let id = last.trim_start_matches("Scenario Row: ");
                     capture_window(world, &format!("scenarios-picker-{id}.png"));
                     // Let the PNG land BEFORE the next row is clicked: the
@@ -271,14 +271,14 @@ fn scenarios_autopilot(world: &mut World, _elapsed: f32) {
 /// The verdict line the run is read by: every measured selection must have the
 /// same pane widths.
 ///
-/// Under `BCS_AUTOPILOT` this is an in-example ASSERTION, not just a log line:
+/// Under `NOVA_AUTOPILOT` this is an in-example ASSERTION, not just a log line:
 /// the smoke suite (`tests/examples_smoke.rs`) only greps for reach-Playing and
 /// a clean exit, so a rig that merely logged `CHANGED` would let the exact
 /// regression this example exists to catch pass CI green (review R1.3). A run
 /// that measured NOTHING fails the same way - "no rows found" is not a pass.
 #[cfg(feature = "debug")]
 fn report(state: &ScenariosAutopilot) {
-    let harnessed = std::env::var_os("BCS_AUTOPILOT").is_some();
+    let harnessed = std::env::var_os("NOVA_AUTOPILOT").is_some();
     let Some((_, first_list, first_details)) = state.measured.first() else {
         if harnessed {
             panic!(

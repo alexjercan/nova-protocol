@@ -14,7 +14,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example playable --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example playable --features debug
 //! # look for: `nova harness: reached Playing`,
 //! #           `playable: prey destroyed, waypoint locked, GOTO closing at ...`,
 //! #           `autopilot: cycle complete, no panic`
@@ -54,7 +54,7 @@ fn main() -> bevy::app::AppExit {
     {
         app.init_resource::<PlayableScript>();
         app.add_plugins(
-            AutopilotPlugin::<GameStates>::new()
+            nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
                 // Enrolled in capture looping (task 20260720-000616): when a
                 // frame capture outlives the window, the scene reloads and
                 // the script replays so the capture measures ACTIVITY.

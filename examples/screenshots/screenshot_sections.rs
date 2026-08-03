@@ -8,13 +8,13 @@
 //!
 //! Capture (windowed, real GPU):
 //! ```text
-//! NOVA_SHOT_DIR=target/reel BCS_REEL=1 \
+//! NOVA_SHOT_DIR=target/reel NOVA_REEL=1 \
 //!   cargo run --example screenshot_sections --features debug
 //! ```
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example screenshot_sections --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example screenshot_sections --features debug
 //! # look for: `nova harness: reached Playing`, `autopilot: cycle complete, no panic`
 //! ```
 
@@ -43,7 +43,7 @@ fn main() -> bevy::app::AppExit {
         app.add_plugins(nova_probe::nova_frametime());
         app.add_plugins(nova_autopilot());
         // Capture path: pose the camera at each section and shoot.
-        app.add_plugins(ScreenshotReelPlugin::new(section_beats()));
+        app.add_plugins(nova_reel(section_beats()));
     }
 
     app.run()
@@ -156,7 +156,7 @@ fn section_ship(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
 /// whole ship still reads. Positions match the ship layout in `section_ship`.
 #[cfg(feature = "debug")]
 fn section_beats() -> Vec<ReelBeat> {
-    let beat = |eye: Vec3, look: Vec3, name: &str| ReelBeat::new(ReelCamera::new(eye, look), name);
+    let beat = |eye: Vec3, look: Vec3, name: &str| reel_beat(ReelCamera::new(eye, look), name);
     vec![
         // Controller: from the front-right, looking back down the spine.
         beat(

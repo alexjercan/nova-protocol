@@ -9,7 +9,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example thruster_section --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example thruster_section --features debug
 //! # look for: `nova harness: reached Playing`,
 //! #           `burn probe: thrust accelerates the hull and drives the plume`,
 //! #           `autopilot: cycle complete, no panic`

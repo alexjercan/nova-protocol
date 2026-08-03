@@ -5,10 +5,10 @@
 //! and the CRT treatment can be compared against
 //! `examples/ui/nova_os_terminal_poc.html`.
 //!
-//! Two run modes, both under the autopilot (`BCS_AUTOPILOT`):
-//! - `BCS_AUTOPILOT=1` alone: the smoke path - reach Playing, open the computer,
+//! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
+//! - `NOVA_AUTOPILOT=1` alone: the smoke path - reach Playing, open the computer,
 //!   run the command script, exit clean, capturing nothing.
-//! - `BCS_AUTOPILOT=1 BCS_REEL=1`: also capture the shots (staged under
+//! - `NOVA_AUTOPILOT=1 NOVA_REEL=1`: also capture the shots (staged under
 //!   `NOVA_SHOT_DIR`).
 //!
 //! The script SELF-ENDS, so the 24s hold is a runway and the final stage prints
@@ -19,13 +19,13 @@
 //! exiting 0 with the beats unplayed (task 20260729-222131).
 //!
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example screenshot_nova_os --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example screenshot_nova_os --features debug
 //! # look for: `probe: script complete, exiting`
 //! ```
 //!
 //! Capture (windowed, real GPU):
 //! ```text
-//! NOVA_SHOT_DIR=target/reel BCS_AUTOPILOT=1 BCS_REEL=1 \
+//! NOVA_SHOT_DIR=target/reel NOVA_AUTOPILOT=1 NOVA_REEL=1 \
 //!   cargo run --example screenshot_nova_os --features debug
 //! ```
 
@@ -52,7 +52,7 @@ fn main() -> bevy::app::AppExit {
     {
         app.init_resource::<NovaOsScript>();
         app.add_plugins(
-            AutopilotPlugin::<GameStates>::new()
+            nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
                 // Script-owned completion: this example SELF-ENDS (the script
                 // walks a finite beat list and stops), so the 24s hold is a
                 // RUNWAY, not the finish line - the final stage reports done,
@@ -63,7 +63,7 @@ fn main() -> bevy::app::AppExit {
                 .input(nova_os_capture_script),
         );
         app.add_systems(Startup, (force_resolution, hide_dev_overlays));
-        if std::env::var_os("BCS_AUTOPILOT").is_some() {
+        if std::env::var_os("NOVA_AUTOPILOT").is_some() {
             // Completion guard: an AppExit with the script unfinished is a
             // stalled walk, not a pass.
             app.add_systems(Last, guard_script_completion);
@@ -228,10 +228,10 @@ fn press_enter(world: &mut World) {
 }
 
 /// Drive: open the computer, run `help`/`ship`, leave a prefix in the input to
-/// show inline completion, and capture. Captures only when `BCS_REEL` is set.
+/// show inline completion, and capture. Captures only when `NOVA_REEL` is set.
 #[cfg(feature = "debug")]
 fn nova_os_capture_script(world: &mut World, _elapsed: f32) {
-    let capturing = std::env::var_os("BCS_REEL").is_some();
+    let capturing = std::env::var_os("NOVA_REEL").is_some();
     let settle = if capturing { 40 } else { 6 };
 
     if *world.resource::<State<GameStates>>().get() != GameStates::Playing {
@@ -342,8 +342,8 @@ fn nova_os_capture_script(world: &mut World, _elapsed: f32) {
             info!("probe: script complete, exiting");
             state.done = true;
             world
-                .resource_mut::<nova_protocol::nova_gameplay::bevy_common_systems::completion::HarnessCompletion>()
-                .done(nova_protocol::nova_gameplay::bevy_common_systems::completion::AUTOPILOT);
+                .resource_mut::<nova_protocol::nova_debug::harness::HarnessCompletion>()
+                .done(nova_protocol::nova_debug::harness::AUTOPILOT);
         }
     }
 

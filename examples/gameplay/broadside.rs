@@ -26,7 +26,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example broadside --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example broadside --features debug
 //! # look for: `probe: defeat overlay up, retrying`,
 //! #           `probe: victory overlay up`,
 //! #           `probe: script complete, exiting` (the self-ending sentinel
@@ -51,7 +51,7 @@ fn main() -> bevy::app::AppExit {
 
     #[cfg(feature = "debug")]
     {
-        if std::env::var_os("BCS_AUTOPILOT").is_some() {
+        if std::env::var_os("NOVA_AUTOPILOT").is_some() {
             app.insert_resource(bevy::ecs::error::FallbackErrorHandler(
                 bevy::ecs::error::panic,
             ));
@@ -343,8 +343,8 @@ fn slice_autopilot(world: &mut World, elapsed: f32) {
             // Negotiated (task 20260720-000609): report done; the harness
             // watcher exits when every collector (script, capture) is done.
             world
-                .resource_mut::<nova_protocol::nova_gameplay::bevy_common_systems::completion::HarnessCompletion>()
-                .done(nova_protocol::nova_gameplay::bevy_common_systems::completion::AUTOPILOT);
+                .resource_mut::<nova_protocol::nova_debug::harness::HarnessCompletion>()
+                .done(nova_protocol::nova_debug::harness::AUTOPILOT);
         }
         _ => unreachable!(),
     }

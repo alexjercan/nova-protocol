@@ -32,7 +32,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example turret_section --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example turret_section --features debug
 //! # look for: `nova harness: reached Playing`, `turret: aim error ...`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
@@ -64,7 +64,7 @@ fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
-    // Headless smoke-test harness: inert in a normal run. Under BCS_AUTOPILOT
+    // Headless smoke-test harness: inert in a normal run. Under NOVA_AUTOPILOT
     // it holds the fire key and asserts the range's PURPOSE before the window
     // closes: rounds left the barrel and a gate actually took hits (task
     // 20260712-211352 - reach-Playing alone let a turret that never connects

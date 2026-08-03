@@ -10,20 +10,20 @@
 //! `toggling_enabled_mods_remerges_live`. Three run modes, all off the same
 //! scene:
 //!
-//! - `BCS_REEL=1`: the [`ScreenshotReelPlugin`] poses the camera per beat and
+//! - `NOVA_REEL=1`: the [`nova_reel`] driver poses the camera per beat and
 //!   captures each PNG (staged under `NOVA_SHOT_DIR`), then exits.
-//! - `BCS_AUTOPILOT=1`: the smoke path - reach `Playing`, assert the scene loaded,
+//! - `NOVA_AUTOPILOT=1`: the smoke path - reach `Playing`, assert the scene loaded,
 //!   exit clean.
 //! - plain run: boots into the scene under the free-fly WASD camera for framing.
 //!
 //! Capture (windowed, real GPU):
 //! ```text
-//! NOVA_SHOT_DIR=target/reel BCS_REEL=1 cargo run --example screenshot_reel --features debug
+//! NOVA_SHOT_DIR=target/reel NOVA_REEL=1 cargo run --example screenshot_reel --features debug
 //! ```
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example screenshot_reel --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example screenshot_reel --features debug
 //! # look for: `nova harness: reached Playing`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
@@ -50,7 +50,7 @@ fn main() -> bevy::app::AppExit {
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
     // Headless harness (inert without its env var): the autopilot smoke path,
-    // and the reel that captures the shots under BCS_REEL.
+    // and the reel that captures the shots under NOVA_REEL.
     #[cfg(feature = "debug")]
     {
         app.init_resource::<ReelSceneLoaded>();
@@ -62,7 +62,7 @@ fn main() -> bevy::app::AppExit {
         app.add_plugins(nova_probe::nova_invariants());
         app.add_plugins(nova_probe::nova_frametime());
         app.add_plugins(nova_autopilot().input(reel_smoke_probe));
-        app.add_plugins(ScreenshotReelPlugin::new(reel_beats()));
+        app.add_plugins(nova_reel(reel_beats()));
     }
 
     app.run()
@@ -124,18 +124,18 @@ fn reel_beats() -> Vec<ReelBeat> {
         // beat): looking between the ship and the planetoid so both read.
         // Frame the SHIP (look at the origin); the planetoid reads as a large
         // body off to the side, not a centered rock face.
-        ReelBeat::new(
+        reel_beat(
             ReelCamera::new(Vec3::new(-6.0, 5.0, 15.0), Vec3::ZERO),
             "feature-gravity.png",
         ),
         // The planetoid as the gravity-well subject, backed off so it is a whole
         // body with the field behind, not a surface closeup.
-        ReelBeat::new(
+        reel_beat(
             ReelCamera::new(Vec3::new(-2.0, 8.0, 22.0), Vec3::new(24.0, 0.0, -6.0)),
             "wiki-gravity.png",
         ),
         // A ship beauty pass, backed off so the whole hull + sections read.
-        ReelBeat::new(
+        reel_beat(
             ReelCamera::new(Vec3::new(8.0, 4.5, 12.0), Vec3::ZERO),
             "wiki-sections.png",
         ),
@@ -155,7 +155,7 @@ fn note_scenario_loaded(loaded: On<ScenarioLoaded>, mut flag: ResMut<ReelSceneLo
     }
 }
 
-/// Smoke backstop: fail the `BCS_AUTOPILOT` run if the embedded scene never
+/// Smoke backstop: fail the `NOVA_AUTOPILOT` run if the embedded scene never
 /// loaded within the window (a silent parse or load regression), instead of
 /// passing on `autopilot: cycle complete` alone. Checked late so the
 /// `LoadScenario` trigger has time to complete.
