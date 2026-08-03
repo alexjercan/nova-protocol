@@ -4,16 +4,38 @@
 //! dropped) and scans the module sources for `pub` items (a runtime check that
 //! nothing new skipped the prelude).
 
+use std::sync::Arc;
+
 use bevy::prelude::*;
+// Both preludes export a `not`; an explicit import picks the predicate one,
+// which is also the disambiguation the crate docs tell callers to write.
+use nova_autopilot::predicate::not;
 use nova_autopilot::prelude::*;
 
-/// Every public item of the four driver modules. The compile-time uses below
+/// Every public item of the six driver modules. The compile-time uses below
 /// and the source scan share this list, so the two halves cannot disagree.
 const EXPORTED: &[&str] = &[
     // autopilot
     "AUTOPILOT_ENV",
     "AutopilotLoop",
     "AutopilotPlugin",
+    "StepBuilder",
+    // input
+    "click_at",
+    "move_cursor",
+    "press_key",
+    "press_mouse",
+    "release_key",
+    "release_mouse",
+    // predicate
+    "Predicate",
+    "and",
+    "any_entity",
+    "elapsed",
+    "frames",
+    "not",
+    "resource_where",
+    "state_is",
     // completion
     "AUTOPILOT",
     "DEADLINE_ENV",
@@ -41,6 +63,8 @@ const EXPORTED: &[&str] = &[
 const MODULES: &[(&str, &str)] = &[
     ("autopilot.rs", include_str!("../src/autopilot.rs")),
     ("completion.rs", include_str!("../src/completion.rs")),
+    ("input.rs", include_str!("../src/input.rs")),
+    ("predicate.rs", include_str!("../src/predicate.rs")),
     ("reel.rs", include_str!("../src/reel.rs")),
     ("screenshot.rs", include_str!("../src/screenshot.rs")),
 ];
@@ -60,8 +84,32 @@ enum DemoState {
 /// `prelude` fails this file's COMPILE, before any assertion runs.
 fn name_every_export() {
     let _: AutopilotPlugin<DemoState> = AutopilotPlugin::new();
+    let _: StepBuilder<DemoState> = AutopilotPlugin::<DemoState>::new().step("beat");
     let _: AutopilotLoop = AutopilotLoop;
     let _: &str = AUTOPILOT_ENV;
+
+    let _: Arc<Predicate> = and(
+        not(any_entity::<With<Camera>>()),
+        and(
+            and(elapsed(1.0), frames(1)),
+            and(
+                state_is(DemoState::Boot),
+                resource_where::<Time>(|time| time.delta_secs() > 0.0),
+            ),
+        ),
+    );
+
+    // The input actions are `impl Fn(&mut World)`, so they are named through
+    // the slot they exist for rather than by writing their opaque type out.
+    let _ = AutopilotPlugin::<DemoState>::new()
+        .step("gesture")
+        .on_enter(press_key(KeyCode::Space))
+        .on_enter(release_key(KeyCode::Space))
+        .on_enter(press_mouse(MouseButton::Left))
+        .on_enter(release_mouse(MouseButton::Left))
+        .on_enter(move_cursor(Vec2::ZERO))
+        .on_enter(click_at(Vec2::ZERO, MouseButton::Left))
+        .add();
 
     let _: HarnessCompletion = HarnessCompletion::default();
     let _: fn(&mut App, &'static str) = register;

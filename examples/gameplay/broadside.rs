@@ -55,9 +55,6 @@ fn main() -> bevy::app::AppExit {
             app.insert_resource(bevy::ecs::error::FallbackErrorHandler(
                 bevy::ecs::error::panic,
             ));
-            // Completion guard: an AppExit with the script unfinished is a
-            // stalled walk, not a pass.
-            app.add_systems(Last, guard_script_completion);
         }
         app.init_resource::<SliceAutopilot>();
         // Probe wiring (task 20260719-210443; each plugin is inert without
@@ -71,13 +68,16 @@ fn main() -> bevy::app::AppExit {
         // 50s of runway (the script exits itself in ~12s when healthy).
         app.add_plugins(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
-                // Script-owned completion (task 20260720-000609): the 50s
-                // hold is a RUNWAY; the staged script reports done at its
-                // final stage, and a runway expiry with the script pending
-                // is an error exit naming it.
-                .self_completing()
-                .hold(GameStates::Loading, 50.0)
-                .input(slice_autopilot),
+                // Script-owned completion (task 20260720-000609): the step
+                // ends where the staged script reports itself done, and its
+                // 50s deadline is the old RUNWAY - an expiry with the script
+                // pending is an error exit naming this step.
+                .step("walk the broadside stages")
+                .enter(GameStates::Loading)
+                .each(slice_autopilot)
+                .until(nova_protocol::nova_debug::harness::script_reports_done())
+                .deadline(50.0)
+                .add(),
         );
         app.add_plugins(nova_screenshot());
     }
@@ -102,17 +102,6 @@ struct SliceAutopilot {
     /// `state` is out of the world, so it buffers here and the closure's
     /// flush point emits (task 20260719-210450).
     announce: Option<(u32, String)>,
-}
-
-#[cfg(feature = "debug")]
-fn guard_script_completion(mut exits: MessageReader<AppExit>, script: Option<Res<SliceAutopilot>>) {
-    let Some(script) = script else { return };
-    if exits.read().next().is_some() && !script.done {
-        panic!(
-            "broadside: run ended with the script stalled in stage {}",
-            script.stage
-        );
-    }
 }
 
 #[cfg(feature = "debug")]

@@ -8,7 +8,21 @@
 //! screenshot reel) and the completion protocol that reports when a run has
 //! finished. It does not own anything Nova-specific: the adapters - scenario
 //! presets, camera posing, rigid-body freezing, overlay hiding - stay in
-//! `nova_debug` and reach in through caller hooks.
+//! `nova_debug` and reach in through caller hooks. The same line runs through
+//! the script vocabulary: generic predicates ([`predicate`]) and generic
+//! pointer/key synthesis ([`input`]) live here; a predicate that names a Nova
+//! type is built on them in `nova_debug::harness`.
+//!
+//! ## The step model
+//!
+//! A script is a list of NAMED STEPS, and a step advances the frame its
+//! [`Predicate`](predicate::Predicate) holds - "the ship spawned", "the
+//! scenario set this variable", "two seconds passed". Elapsed time is one
+//! predicate among many, which is why
+//! [`hold`](autopilot::AutopilotPlugin::hold) is sugar over the step model
+//! rather than a second mechanism, and why a stall names the beat that stalled
+//! instead of dumping a tuple of booleans. See [`autopilot`] for the parts of a
+//! step and for how per-step deadlines relate to the run-level one.
 //!
 //! Nova-SHAPED choices (env var names, defaults, API vocabulary) do live here.
 //! Nova TYPES do not. The drivers are generic over the app's state type,
@@ -28,7 +42,7 @@
 //! | `NOVA_SHOT` ([`SCREENSHOT_ENV`](screenshot::SCREENSHOT_ENV)) | the single settled-frame capture, UNLESS `NOVA_AUTOPILOT` is also set - both drivers write `NextState`, so the autopilot wins and [`ScreenshotPlugin`](screenshot::ScreenshotPlugin) stands down with a warning | [`ScreenshotPlugin`](screenshot::ScreenshotPlugin) | `WxH` overrides the window size; anything else is a plain toggle |
 //! | `NOVA_REEL` ([`REEL_ENV`](reel::REEL_ENV)) | the multi-shot reel | [`ScreenshotReelPlugin`](reel::ScreenshotReelPlugin) | any (presence only) |
 //! | `NOVA_SHOT_DIR` ([`SHOT_DIR_ENV`](reel::SHOT_DIR_ENV)) | nothing on its own | [`ScreenshotReelPlugin`](reel::ScreenshotReelPlugin) and [`capture_window`](reel::capture_window) | directory RELATIVE beat paths resolve under; absolute paths ignore it |
-//! | `NOVA_AUTOPILOT_DEADLINE` ([`DEADLINE_ENV`](completion::DEADLINE_ENV)) | nothing on its own | the [`completion`] watcher | seconds before the run error-exits naming the laggards (default [`DEFAULT_DEADLINE_SECS`](completion::DEFAULT_DEADLINE_SECS)) |
+//! | `NOVA_AUTOPILOT_DEADLINE` ([`DEADLINE_ENV`](completion::DEADLINE_ENV)) | nothing on its own | the [`completion`] watcher | seconds before the run error-exits naming the laggards (default [`DEFAULT_DEADLINE_SECS`](completion::DEFAULT_DEADLINE_SECS)); the RUN-level backstop under a script's own per-step [`deadline`](autopilot::StepBuilder::deadline)s |
 //!
 //! `NOVA_SHOT` and `NOVA_REEL` are deliberately distinct: a reel run and a
 //! one-off capture must never fight over the same window.
@@ -53,9 +67,9 @@
 //! ## Reading it end to end
 //!
 //! `examples/driven_app.rs` is the whole crate in one file: a real
-//! `DefaultPlugins` app with its own state machine, driven `Boot -> Flying ->
-//! Done` by the autopilot and exited by the completion protocol, importing no
-//! `nova_*` crate but this one. Run it with
+//! `DefaultPlugins` app with its own state machine, driven through named
+//! predicate steps by the autopilot and exited by the completion protocol,
+//! importing no `nova_*` crate but this one. Run it with
 //! `NOVA_AUTOPILOT=1 cargo run -p nova_autopilot --example driven_app`;
 //! `tests/autopilot_example.rs` runs the same thing headless and asserts on
 //! the exit status and the log lines.
@@ -68,26 +82,37 @@
 // where they do not exist. See 20260802-183340 REVIEW.md R1.3.
 pub mod autopilot;
 pub mod completion;
+pub mod input;
+pub mod predicate;
 pub mod reel;
 pub mod screenshot;
 
 /// Glob-import surface: `use nova_autopilot::prelude::*`.
 ///
-/// Every public item of the four modules is re-exported here verbatim, so a
+/// Every public item of the six modules is re-exported here verbatim, so a
 /// caller never needs a module path. `tests/prelude.rs` scans the module
 /// sources and fails when a new `pub` item skips this list.
 ///
-/// Names are re-exported unaliased. [`ScreenshotPlugin`](screenshot::ScreenshotPlugin)
-/// shares its name with Bevy's render-side plugin of the same name; neither is
-/// in `bevy::prelude`, so a glob import of both preludes does not collide, and
-/// a caller that does hit the clash aliases at its own import site.
+/// Names are re-exported unaliased. Two share a name with something outside
+/// `bevy::prelude` or inside it:
+///
+/// - [`ScreenshotPlugin`](screenshot::ScreenshotPlugin) shares its name with
+///   Bevy's render-side plugin; neither is in `bevy::prelude`, so a glob import
+///   of both preludes does not collide.
+/// - [`not`](predicate::not) shares its name with Bevy's run-condition
+///   combinator, which IS in `bevy::prelude`. A file globbing both must name
+///   whichever it wants explicitly. (The predicate that would have been
+///   `in_state` is called [`state_is`](predicate::state_is) for the same
+///   reason - that clash is used everywhere, so it is spelled apart instead.)
 pub mod prelude {
     pub use crate::{
-        autopilot::{AutopilotLoop, AutopilotPlugin, AUTOPILOT_ENV},
+        autopilot::{AutopilotLoop, AutopilotPlugin, StepBuilder, AUTOPILOT_ENV},
         completion::{
             register, HarnessCompletion, AUTOPILOT, DEADLINE_ENV, DEFAULT_DEADLINE_SECS, REEL,
             SCREENSHOT,
         },
+        input::{click_at, move_cursor, press_key, press_mouse, release_key, release_mouse},
+        predicate::{and, any_entity, elapsed, frames, not, resource_where, state_is, Predicate},
         reel::{
             capture_window, ReelBeat, ScreenshotReelPlugin, REEL_CAPTURE_RESOLUTION, REEL_ENV,
             SHOT_DIR_ENV,

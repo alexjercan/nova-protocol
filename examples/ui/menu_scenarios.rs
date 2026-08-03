@@ -36,13 +36,14 @@ use nova_protocol::prelude::*;
 #[command(about = "Drive the Scenarios picker and measure its pane widths", long_about = None)]
 struct Cli;
 
-/// The RUNWAY, not the pacing budget: the walk is frame-counted (roughly 21
-/// frames per listed scenario) and ENDS ITSELF once the launched scenario is up
-/// (`self_completing`), so this only has to outlast the slowest plausible walk.
-/// Sized for a software-rendered CI GPU (llvmpipe) with room for the scenario
-/// set to keep growing, and kept UNDER the harness completion deadline
-/// (`NOVA_AUTOPILOT_DEADLINE`, default 120 s) so the runway is what expires first
-/// and the stall is named rather than reported as a deadline (review R2.1/R2.3).
+/// The step DEADLINE, not the pacing budget: the walk is frame-counted (roughly
+/// 21 frames per listed scenario) and ENDS ITSELF once the launched scenario is
+/// up, so this only has to outlast the slowest plausible walk. Sized for a
+/// software-rendered CI GPU (llvmpipe) with room for the scenario set to keep
+/// growing, and kept UNDER the harness completion deadline
+/// (`NOVA_AUTOPILOT_DEADLINE`, default 120 s) so the step deadline is what
+/// expires first and the stall is named rather than reported as a generic
+/// deadline (review R2.1/R2.3).
 #[cfg(feature = "debug")]
 const SCENARIOS_AUTOPILOT_SECS: f32 = 100.0;
 
@@ -66,23 +67,18 @@ fn main() -> bevy::app::AppExit {
         app.add_plugins(nova_probe::nova_frametime());
         app.add_plugins(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
-                .hold(GameStates::Loading, SCENARIOS_AUTOPILOT_SECS)
-                // SCRIPT-OWNED completion (the broadside pattern): the walk
-                // reports done when it lands, and a timeline that expires first
-                // means the script STALLED - the autopilot then writes
-                // `AppExit::error` from `PreUpdate`, which is both an abort and
-                // the only exit a `Last` reader can observe. Without this the
-                // expiry would report an ordinary "cycle complete" over an
-                // unfinished walk AND `guard_run_completion` would never see the
-                // exit at all (review R2.1 - it did not).
-                .self_completing()
-                .input(scenarios_autopilot),
+                // SCRIPT-OWNED completion (the broadside pattern): the step
+                // ends where the walk reports done, and a deadline that
+                // expires first means the script STALLED - which is an error
+                // exit naming this step, not an ordinary "cycle complete" over
+                // an unfinished walk (review R2.1).
+                .step("walk the scenarios picker")
+                .enter(GameStates::Loading)
+                .each(scenarios_autopilot)
+                .until(nova_protocol::nova_debug::harness::script_reports_done())
+                .deadline(SCENARIOS_AUTOPILOT_SECS)
+                .add(),
         );
-        // Harness-only: an interactive run never finishes a walk, so the guard
-        // would panic on an ordinary window close (review R2.2).
-        if std::env::var_os("NOVA_AUTOPILOT").is_some() {
-            app.add_systems(Last, guard_run_completion);
-        }
         app.add_plugins(nova_screenshot());
     }
 
@@ -104,23 +100,6 @@ struct ScenariosAutopilot {
     /// The launched scenario came up and the completion was reported.
     finished: bool,
     wait: u32,
-}
-
-/// A run that exits with the walk unfinished is a STALL, not a pass: without
-/// this the safety window expiring mid-walk would look like an ordinary
-/// "cycle complete" (or a confusing never-reached-Playing) instead of naming
-/// what did not happen (the broadside completion-guard pattern).
-#[cfg(feature = "debug")]
-fn guard_run_completion(mut exits: MessageReader<AppExit>, state: Option<Res<ScenariosAutopilot>>) {
-    let Some(state) = state else { return };
-    if exits.read().next().is_some() && !state.finished {
-        panic!(
-            "menu_scenarios: run ended with the walk unfinished ({} of the \
-             picker's rows measured, launched={})",
-            state.measured.len(),
-            state.launched
-        );
-    }
 }
 
 #[cfg(feature = "debug")]

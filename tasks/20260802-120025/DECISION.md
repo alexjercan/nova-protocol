@@ -100,8 +100,38 @@ step boundaries.
 - Deferring the deadline-sum check means a caller can size per-step deadlines
   above `NOVA_AUTOPILOT_DEADLINE` and lose the named-step diagnostic to the
   generic hang detector. Documented in rustdoc only.
-- OPEN at plan time: whether the pointer DoD test can drive a real `bevy_ui`
-  widget headlessly (`UiPlugin` plus the picking backend without a render
-  device). If not, it asserts the observable pointer state instead - primary
-  window `cursor_position`, a `CursorMoved` message, and `just_pressed` - and
-  `work` records the reduction here.
+## Resolved during work
+
+**The pointer test drives a real widget; no reduction was needed.** The plan
+left open whether `click_at` could be proven against a live `bevy_ui` node or
+would have to settle for asserting the three pieces of pointer state. It does
+the full thing: `click_at_position_reaches_the_widget_under_it` runs
+`examples/driven_app.rs` as a real `DefaultPlugins` process under a virtual
+display, and the "click the button" beat waits on the game's own
+`Pointer<Press>` flag, so a click that lands where the widget is not stalls the
+run. The unit tests in `src/input.rs` keep the state-level assertions as the
+cheap headless half.
+
+That depth forced a correction to the gesture synthesis. `bevy_picking`'s
+`mouse_pick_events` reads `WindowEvent`, NOT the concrete `CursorMoved` /
+`MouseButtonInput` messages, and it tracks the cursor from those events alone.
+Writing only the concrete messages left the picking backend believing the
+pointer had never moved, so every synthesized click resolved at the origin.
+`set_cursor` and `set_mouse_button` now write BOTH, which is what `bevy_winit`
+does for a real device. The button state is still written directly to
+`ButtonInput` (so it is `just_pressed` on the same frame, as `press_key` is)
+and the concrete `MouseButtonInput` message is deliberately NOT written -
+`bevy_input`'s own collector reads it and would re-apply the transition a frame
+late.
+
+**One predicate beyond the planned three: `script_reports_done()` in
+`nova_debug::harness`.** The five callers migrated at the construction site
+keep closures that walk their own beats and report `AUTOPILOT` done on the last
+one; their single wrapping step needs an `until` that ends exactly there. It
+reads a collector's state to decide a step, which is why it is in the adapter
+and not in the crate's generic vocabulary, and its rustdoc says plainly that a
+script written fresh should not use it. `20260802-120029` retires it when it
+rebuilds those five.
+
+**`in_state::<S>(s)` ships as `state_is(s)`.** The planned name collides with
+`bevy::prelude::in_state`, the run-condition every example globs.

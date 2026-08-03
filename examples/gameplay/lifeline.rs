@@ -56,7 +56,6 @@ fn main() -> bevy::app::AppExit {
             app.insert_resource(bevy::ecs::error::FallbackErrorHandler(
                 bevy::ecs::error::panic,
             ));
-            app.add_systems(Last, guard_script_completion);
         }
         app.init_resource::<SliceAutopilot>();
         // Probe wiring (inert without the NOVA_PERF_* env): run timeline +
@@ -68,9 +67,15 @@ fn main() -> bevy::app::AppExit {
         // healthy walk exits itself in ~15s of compressed time.
         app.add_plugins(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
-                .self_completing()
-                .hold(GameStates::Loading, 50.0)
-                .input(slice_autopilot),
+                // The step ends where the staged script reports itself done;
+                // its 50s deadline is the old runway, so a stalled walk is an
+                // error exit naming this step rather than a silent pass.
+                .step("walk the lifeline stages")
+                .enter(GameStates::Loading)
+                .each(slice_autopilot)
+                .until(nova_protocol::nova_debug::harness::script_reports_done())
+                .deadline(50.0)
+                .add(),
         );
         app.add_plugins(nova_screenshot());
     }
@@ -91,17 +96,6 @@ struct SliceAutopilot {
     wait: u32,
     done: bool,
     announce: Option<(u32, String)>,
-}
-
-#[cfg(feature = "debug")]
-fn guard_script_completion(mut exits: MessageReader<AppExit>, script: Option<Res<SliceAutopilot>>) {
-    let Some(script) = script else { return };
-    if exits.read().next().is_some() && !script.done {
-        panic!(
-            "lifeline: run ended with the script stalled in stage {}",
-            script.stage
-        );
-    }
 }
 
 #[cfg(feature = "debug")]

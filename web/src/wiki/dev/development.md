@@ -194,8 +194,9 @@ system-level mechanism, an example assertion when the bug only manifests in a
 composed scene (for example, `menu_newgame` runs the shipped boot flow with
 the ECS fallback error handler swapped to panic, so unhandled command errors on
 those transitions fail CI). An example pin is an autopilot-script assertion
-(`.input(...)` closure, staged by elapsed time - see `com_range`/`hud_range`
-for the style); the smoke suite runs it on every push. Caveat: the handler swap
+(a named step whose `on_enter` asserts, reached only once the steps before it
+have waited on the world - see `com_range`/`hud_range` for the style); the
+smoke suite runs it on every push. Caveat: the handler swap
 does NOT catch `remove`/`despawn` command warns (they bake in the WARN handler
 at queue time).
 
@@ -470,7 +471,7 @@ so the whole fleet carries it permanently. `--fps` runs it as a DEDICATED
 capture-only pass (the correctness recorder flushes per entry on the frame
 path - measurement and correctness never share a pass), the harness
 completion protocol keeps the app alive until the window closes, and
-enrolled scenes (`loop_while_pending`) reload + replay so the window
+enrolled scenes (a script `loop_from` point) reload + replay so the window
 measures activity - reload intervals are excluded from the stats and
 reported as their own line. Narrative one-shot examples that cannot loop to
 fill a window (e.g. `broadside`, a scripted die/retry/win smoke test) are

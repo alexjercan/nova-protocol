@@ -55,8 +55,9 @@ fn main() -> bevy::app::AppExit {
             nova_autopilot()
                 // Enrolled in capture looping (task 20260720-000616): when a
                 // frame capture outlives the 6s cycle, the scene reloads and
-                // the script replays so the capture measures ACTIVITY.
-                .loop_while_pending()
+                // the script replays so the capture measures ACTIVITY. The
+                // preset is one step, so the loop point is that step.
+                .loop_from(nova_protocol::nova_debug::harness::NOVA_AUTOPILOT_STEP)
                 .input(autopilot_scenario_probe),
         );
         app.add_systems(PreUpdate, on_autopilot_loop);

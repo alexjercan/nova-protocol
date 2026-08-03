@@ -40,11 +40,23 @@ pub mod prelude {
     // `ScreenshotPlugin` types stay reachable via `nova_debug::harness::` for the
     // rare bespoke-timeline case, so glob-importing this prelude does not clash
     // with Bevy's own `bevy::render::view::screenshot::ScreenshotPlugin`.
+    // The generic half of the script vocabulary, so an example writes its beats
+    // from ONE import instead of reaching into `nova_autopilot` alongside the
+    // Nova-typed predicates it is composing them with. `not` is deliberately
+    // absent: it collides with `bevy::prelude::not`, which every example globs,
+    // so a caller that wants it names `nova_autopilot::predicate::not`.
+    pub use nova_autopilot::{
+        input::{click_at, move_cursor, press_key, press_mouse, release_key, release_mouse},
+        predicate::{and, any_entity, elapsed, frames, resource_where, state_is},
+    };
+
     pub use super::{
         debugdump,
         harness::{
             assert_scenario_loaded, capture_window, hide_dev_overlays, nova_autopilot, nova_reel,
-            nova_screenshot, reel_beat, reel_pose_camera, ReelBeat, ReelCamera,
+            nova_screenshot, player_ship_present, reel_beat, reel_pose_camera,
+            scenario_variable_is, script_reports_done, section_gone, ReelBeat, ReelCamera,
+            NOVA_AUTOPILOT_STEP,
         },
         screenshot::{ScreenshotHotkeyPlugin, SCREENSHOT_KEYCODE},
         DebugPlugin,

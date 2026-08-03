@@ -61,10 +61,11 @@
 
 // Re-export the underlying drivers so examples can name/extend them (e.g. build
 // a bespoke timeline) without reaching into nova_autopilot themselves.
+use std::sync::Arc;
+
 use avian3d::prelude::RigidBody;
 use bevy::prelude::*;
 use bevy_common_systems::prelude::WASDCameraController;
-use nova_autopilot::reel::ScreenshotReelPlugin;
 pub use nova_autopilot::{
     autopilot::{AutopilotLoop, AutopilotPlugin},
     // The self-ending examples (broadside, lifeline, menu_scenarios,
@@ -72,12 +73,22 @@ pub use nova_autopilot::{
     // idling out the runway. They must reach the SAME protocol instance the
     // drivers register with, so it is re-exported here alongside them.
     completion::{HarnessCompletion, AUTOPILOT},
+    predicate::Predicate,
     reel::{capture_window, ReelBeat, REEL_ENV},
     screenshot::ScreenshotPlugin,
 };
-use nova_gameplay::{prelude::HudVisibility, GameStates};
+use nova_autopilot::{
+    predicate::{any_entity, resource_where},
+    reel::ScreenshotReelPlugin,
+};
+use nova_events::prelude::EntityId;
+use nova_gameplay::{
+    prelude::{HudVisibility, PlayerSpaceshipMarker, SectionMarker, SpaceshipRootMarker},
+    GameStates,
+};
 use nova_scenario::prelude::{
-    ScenarioCameraMarker, ScenarioId, ScenarioLoaded, ScriptedCameraPose,
+    NovaEventWorld, ScenarioCameraMarker, ScenarioId, ScenarioLoaded, ScriptedCameraPose,
+    VariableLiteral,
 };
 
 /// Seconds the [`nova_autopilot`] preset holds `Loading` before exiting. Must
@@ -89,15 +100,87 @@ pub const NOVA_AUTOPILOT_SECS: f32 = 6.0;
 /// reached, so the scene and UI have a few frames to render before the capture.
 pub const NOVA_SCREENSHOT_SETTLE_FRAMES: u32 = 30;
 
+/// The name of the single step [`nova_autopilot`] builds, so a caller can
+/// [`loop_from`](AutopilotPlugin::loop_from) it without repeating the string.
+pub const NOVA_AUTOPILOT_STEP: &str = "nova: play the loading-gated window";
+
 /// Env-gated autopilot preset for nova examples.
 ///
-/// Holds `Loading` for [`NOVA_AUTOPILOT_SECS`] (the asset loader reaches
-/// `Playing` within that window on its own -- see the module docs on why this
-/// does not force the transition), then reports done to the completion protocol.
-/// Chain [`input`](AutopilotPlugin::input) to poke fire/thrust while in
-/// `Playing`. Inert unless `NOVA_AUTOPILOT` is set.
+/// One step, holding `Loading` for [`NOVA_AUTOPILOT_SECS`] (the asset loader
+/// reaches `Playing` within that window on its own -- see the module docs on
+/// why this does not force the transition), after which the driver reports done
+/// to the completion protocol. Chain [`input`](AutopilotPlugin::input) to poke
+/// fire/thrust while in `Playing`. Inert unless `NOVA_AUTOPILOT` is set.
+///
+/// It is a WALL-CLOCK preset, which the step model makes the exception rather
+/// than the rule: an example with something observable to wait on should build
+/// its own beats on [`player_ship_present`] / [`scenario_variable_is`] instead.
 pub fn nova_autopilot() -> AutopilotPlugin<GameStates> {
-    AutopilotPlugin::new().hold(GameStates::Loading, NOVA_AUTOPILOT_SECS)
+    AutopilotPlugin::new()
+        .step(NOVA_AUTOPILOT_STEP)
+        .enter(GameStates::Loading)
+        .until(nova_autopilot::predicate::elapsed(NOVA_AUTOPILOT_SECS))
+        .add()
+}
+
+/// Advance once the scenario's own [`NovaEventWorld`] holds `key` as the number
+/// `value`.
+///
+/// The scenario's variables are what its event handlers actually wrote, so a
+/// script that waits on one waits on the GAME agreeing the beat happened -
+/// "the target is down" rather than "three seconds have passed". They are
+/// latches (`0 -> 1`), which is why an exact comparison is the right one here.
+///
+/// False while the variable is absent or holds another type, so it doubles as
+/// "wait for the scenario to seed its state" - the gate a reloading scene
+/// needs, since the variables outlive the load that is replacing them.
+pub fn scenario_variable_is(key: impl Into<String>, value: f64) -> Arc<Predicate> {
+    let key = key.into();
+    resource_where::<NovaEventWorld>(
+        move |events| matches!(events.get_variable(&key), Some(VariableLiteral::Number(live)) if *live == value),
+    )
+}
+
+/// Advance once no live section carries the scenario id `id`.
+///
+/// The end of the real disable -> destroy -> despawn pipeline: a script that
+/// kills a section waits for THIS rather than for however long the pipeline
+/// usually takes. Matches on [`SectionMarker`], so an editor preview of the
+/// same id does not hold the step open.
+pub fn section_gone(id: impl Into<String>) -> Arc<Predicate> {
+    let id = id.into();
+    Arc::new(move |world: &World| {
+        world
+            .try_query_filtered::<&EntityId, With<SectionMarker>>()
+            .is_none_or(|mut query| query.iter(world).all(|live| live.0 != id))
+    })
+}
+
+/// Advance once the script has reported the autopilot collector done itself.
+///
+/// The advance condition of a SELF-ENDING step: an example whose closure walks
+/// its own beat list and calls
+/// [`HarnessCompletion::done`](HarnessCompletion::done) on its last one wants a
+/// step that ends exactly there and nowhere else. Pair it with a
+/// [`deadline`](nova_autopilot::autopilot::StepBuilder::deadline) sized as the
+/// old runway, so a walk that never finishes error-exits naming the step
+/// instead of idling out and passing.
+///
+/// Not in `nova_autopilot`'s own vocabulary on purpose: it reads a collector's
+/// state to decide a step, which is a knot only this migration needs. A script
+/// written fresh ends its last step on a world predicate and lets the driver
+/// report done.
+pub fn script_reports_done() -> Arc<Predicate> {
+    resource_where::<HarnessCompletion>(|completion| !completion.is_pending(AUTOPILOT))
+}
+
+/// Advance once the player's ship root exists.
+///
+/// The scenario-is-live gate for a script that drives the player: the ship is
+/// spawned by an `OnStart` handler after the asset load, so this is the honest
+/// end of "loading", where a wall-clock runway is only a guess at it.
+pub fn player_ship_present() -> Arc<Predicate> {
+    any_entity::<(With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>()
 }
 
 /// Env-gated screenshot preset for nova examples: advance to `Playing`, settle

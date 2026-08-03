@@ -26,15 +26,14 @@
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
 //! NOVA_AUTOPILOT=1 cargo run --example com_range --features debug
-//! # scripted (relative to entering Playing): spin at +1s, kill the
-//! # controller at +2s, kill hull(1) at +2.8s, then assert that the live COM
-//! # sits on the attached-section centroid, has moved aft from the spawn COM,
-//! # and that the chase camera anchor tracks it, then report done and exit.
-//! # The run is script-owned: the 30s hold is a runway, so a slow load delays
-//! # the beats instead of truncating them. Exits non-zero on a stale COM, a
-//! # phantom camera anchor, and on a run that ends with the assertion
-//! # unplayed - whether the runway expires (harness error exit) or something
-//! # else exits early (the in-example completion guard panics).
+//! # scripted beats: wait for the ship to spawn, spin it, kill the controller
+//! # and wait for it to despawn, kill hull(1) and wait for the same, settle,
+//! # then assert that the live COM sits on the attached-section centroid, has
+//! # moved aft from the spawn COM, and that the chase camera anchor tracks it.
+//! # Every beat waits on the world, not the clock, so a slow load delays the
+//! # walk instead of truncating it. Exits non-zero on a stale COM, a phantom
+//! # camera anchor, and on a beat that never resolves inside its deadline -
+//! # which the harness reports by NAME.
 //! ```
 
 use avian3d::prelude::*;
@@ -60,63 +59,55 @@ fn main() -> bevy::app::AppExit {
         app.add_plugins(nova_probe::nova_timeline());
         app.add_plugins(nova_probe::nova_invariants());
         app.add_plugins(nova_probe::nova_frametime());
-        // Not the stock nova_autopilot(): the script walks a finite beat list
-        // and SELF-ENDS on its assertion beat, so the 30s hold is a RUNWAY,
-        // not the finish line - the run exits when the assertion lands,
-        // however long the load took, and a runway expiry with the script
-        // pending is an error exit naming it, never a silent pass. Keep the
-        // runway well under DEFAULT_DEADLINE_SECS (120s) so this specific
-        // error wins the race against the generic collector deadline.
+        // Not the stock nova_autopilot(): the script is its own beat list,
+        // and every beat waits on what has to HAPPEN rather than on a guessed
+        // duration - the ship spawns, the section despawns - so a slow load
+        // delays the walk instead of truncating it. The per-step deadlines are
+        // what the 30s runway used to be, and they name the beat that stalled
+        // instead of reporting a generic timeout. Keep their sum well under
+        // DEFAULT_DEADLINE_SECS (120s) so a named stall wins the race against
+        // the generic collector deadline.
         app.add_plugins(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
-                .self_completing()
-                .hold(GameStates::Loading, 30.0)
-                .input(autopilot_script),
+                .step("load the range")
+                .enter(GameStates::Loading)
+                .until(player_ship_present())
+                .deadline(30.0)
+                .add()
+                .step("spin the ship")
+                .on_enter(apply_spin)
+                .until(elapsed(1.0))
+                .add()
+                .step("kill the controller section")
+                .on_enter(kill_frontmost_section)
+                .until(section_gone("controller"))
+                .deadline(10.0)
+                .add()
+                .step("kill the first hull section")
+                .on_enter(kill_frontmost_section)
+                .until(section_gone("hull1"))
+                .deadline(10.0)
+                .add()
+                // The mass properties and the camera anchor both need a beat
+                // to follow the despawn before they are worth reading.
+                .step("settle after the losses")
+                .until(elapsed(1.5))
+                .add()
+                // Last beat: the driver reports done after it, so the run ends
+                // on the assertion rather than idling out a runway.
+                .step("assert the com follows the surviving sections")
+                .on_enter(assert_com_follows_sections)
+                .add(),
         );
         app.add_plugins(nova_screenshot());
-        if std::env::var_os("NOVA_AUTOPILOT").is_some() {
-            // Completion guard: an AppExit with the script unfinished is a
-            // stalled walk, not a pass.
-            app.add_systems(Last, guard_script_completion);
-        }
     }
 
     app.run()
 }
 
-/// The self-ending contract's other half: the run may only end once the script
-/// has run its assertion. A premature `AppExit` panics naming how far the walk
-/// got - the detail the old autopilot-clock backstop carried - instead of
-/// exiting 0 with the assertion unplayed. It runs in `Last`, unordered against
-/// the harness's own watcher, so it catches an exit written before that
-/// schedule.
-#[cfg(feature = "debug")]
-fn guard_script_completion(mut exits: MessageReader<AppExit>, script: Option<Res<ComRangeScript>>) {
-    let Some(script) = script else { return };
-    if exits.read().next().is_some() && !script.asserted {
-        panic!(
-            "com range: run ended with the scripted run unfinished \
-             (spun={} kills={})",
-            script.spun, script.kills
-        );
-    }
-}
-
 fn custom_plugin(app: &mut App) {
-    #[cfg(feature = "debug")]
-    app.init_resource::<ComRangeScript>();
     app.add_systems(OnEnter(GameAssetsStates::Loaded), setup_range);
     app.add_systems(Update, (com_range_hotkeys, draw_com_gizmos, log_com_status));
-}
-
-/// Progress of the scripted (autopilot) run.
-#[cfg(feature = "debug")]
-#[derive(Resource, Default)]
-struct ComRangeScript {
-    playing_since: Option<f32>,
-    spun: bool,
-    kills: usize,
-    asserted: bool,
 }
 
 fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, sections: Res<GameSections>) {
@@ -372,92 +363,61 @@ fn log_com_status(
     );
 }
 
-/// Scripted headless run: spin, kill two sections through the real pipeline,
-/// then assert the live COM sits on the attached centroid and has moved aft.
+/// The script's last beat: assert the live COM sits on the attached-section
+/// centroid, has moved aft, and that the chase camera anchor tracks it.
+///
+/// A world action rather than a timed branch: the driver runs it on entry to
+/// the final step, which the beats before it have already established the
+/// preconditions for (the ship exists, two sections are gone, the physics has
+/// settled).
 #[cfg(feature = "debug")]
-fn autopilot_script(world: &mut World, elapsed: f32) {
-    if *world.resource::<State<GameStates>>().get() != GameStates::Playing {
-        return;
-    }
-
-    // Timeline is relative to entering Playing, so a slow load shifts the
-    // script instead of truncating it.
-    let playing_since = {
-        let mut script = world.resource_mut::<ComRangeScript>();
-        *script.playing_since.get_or_insert(elapsed)
+fn assert_com_follows_sections(world: &mut World) {
+    let Some((world_com, centroid, root_gt)) = com_snapshot(world) else {
+        panic!("com range: ship vanished before the assertion");
     };
-    let t = elapsed - playing_since;
-    let script = world.resource::<ComRangeScript>();
-    let (spun, kills, asserted) = (script.spun, script.kills, script.asserted);
-
-    if t > 1.0 && !spun {
-        apply_spin(world);
-        world.resource_mut::<ComRangeScript>().spun = true;
-    }
-    if t > 2.0 && kills < 1 {
-        kill_frontmost_section(world);
-        world.resource_mut::<ComRangeScript>().kills = 1;
-    }
-    if t > 2.8 && kills == 1 {
-        kill_frontmost_section(world);
-        world.resource_mut::<ComRangeScript>().kills = 2;
-    }
-    if t > 4.3 && !asserted {
-        world.resource_mut::<ComRangeScript>().asserted = true;
-        let Some((world_com, centroid, root_gt)) = com_snapshot(world) else {
-            panic!("com range: ship vanished before the assertion");
-        };
-        let drift = world_com.distance(centroid);
-        let local_com = root_gt.affine().inverse().transform_point3(world_com);
-        info!("com range: assert drift={drift:.3} local_com={local_com:.2?} (spawn com z=2.0)");
-        assert!(
-            drift < 0.3,
-            "com range: live COM is {drift:.2} away from the attached-section \
-             centroid - avian's COM is stale in the real app"
-        );
-        assert!(
-            local_com.z > 2.4,
-            "com range: local COM {local_com:.2?} did not move aft after losing \
-             the two front sections (expected z near 2.75)"
-        );
-        // The ship must interpolate its Transform between fixed ticks, or it
-        // stair-steps under the smoothed camera (task 20260709-160753).
-        let root = player_root(world).expect("player root exists at assert time");
-        assert!(
-            world.entity(root).contains::<TransformInterpolation>(),
-            "com range: the ship root lost TransformInterpolation - camera twitch returns"
-        );
-        // The chase camera must orbit the physical pivot too, or a tumbling
-        // ship appears to spin around the empty space at the root origin. The
-        // camera is mandatory here: a broken query must fail, not skip.
-        let anchor = world
-            .query_filtered::<&ChaseCameraInput, With<ChaseCamera>>()
-            .iter(world)
-            .next()
-            .map(|input| input.anchor_pos)
-            .expect("com range: no chase camera input found at assert time");
-        let cam_drift = anchor.distance(world_com);
-        assert!(
-            cam_drift < 0.5,
-            "com range: chase camera anchor {anchor:.2?} is {cam_drift:.2} \
-             away from the live COM - the camera orbits a phantom point"
-        );
-        info!("com range: camera anchor tracks the COM (drift {cam_drift:.3})");
-        // Timeline beat (task 20260719-210450): COM and camera both
-        // tracked the section loss; drifts on the record.
-        nova_probe::probe_marker(
-            world,
-            "outcome: com + camera track section loss",
-            serde_json::json!({ "t": elapsed, "com_drift": drift, "camera_drift": cam_drift }),
-        );
-        info!("com range: PASS - COM follows the surviving sections");
-        // Last beat: the walk is finished, so end the run rather than idling
-        // out the rest of the runway. Report done rather than writing
-        // `AppExit` here - the autopilot is a REGISTERED completion collector,
-        // and the watcher owns the exit once every collector reports.
-        info!("probe: script complete, exiting");
-        world
-            .resource_mut::<nova_protocol::nova_debug::harness::HarnessCompletion>()
-            .done(nova_protocol::nova_debug::harness::AUTOPILOT);
-    }
+    let drift = world_com.distance(centroid);
+    let local_com = root_gt.affine().inverse().transform_point3(world_com);
+    info!("com range: assert drift={drift:.3} local_com={local_com:.2?} (spawn com z=2.0)");
+    assert!(
+        drift < 0.3,
+        "com range: live COM is {drift:.2} away from the attached-section \
+         centroid - avian's COM is stale in the real app"
+    );
+    assert!(
+        local_com.z > 2.4,
+        "com range: local COM {local_com:.2?} did not move aft after losing \
+         the two front sections (expected z near 2.75)"
+    );
+    // The ship must interpolate its Transform between fixed ticks, or it
+    // stair-steps under the smoothed camera (task 20260709-160753).
+    let root = player_root(world).expect("player root exists at assert time");
+    assert!(
+        world.entity(root).contains::<TransformInterpolation>(),
+        "com range: the ship root lost TransformInterpolation - camera twitch returns"
+    );
+    // The chase camera must orbit the physical pivot too, or a tumbling ship
+    // appears to spin around the empty space at the root origin. The camera is
+    // mandatory here: a broken query must fail, not skip.
+    let anchor = world
+        .query_filtered::<&ChaseCameraInput, With<ChaseCamera>>()
+        .iter(world)
+        .next()
+        .map(|input| input.anchor_pos)
+        .expect("com range: no chase camera input found at assert time");
+    let cam_drift = anchor.distance(world_com);
+    assert!(
+        cam_drift < 0.5,
+        "com range: chase camera anchor {anchor:.2?} is {cam_drift:.2} \
+         away from the live COM - the camera orbits a phantom point"
+    );
+    info!("com range: camera anchor tracks the COM (drift {cam_drift:.3})");
+    // Timeline beat (task 20260719-210450): COM and camera both tracked the
+    // section loss; drifts on the record.
+    let elapsed = world.resource::<Time>().elapsed_secs();
+    nova_probe::probe_marker(
+        world,
+        "outcome: com + camera track section loss",
+        serde_json::json!({ "t": elapsed, "com_drift": drift, "camera_drift": cam_drift }),
+    );
+    info!("com range: PASS - COM follows the surviving sections");
 }

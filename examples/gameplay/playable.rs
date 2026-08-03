@@ -12,10 +12,15 @@
 //! flag still fires interactively (llvmpipe throttles unfocused smoke
 //! windows too hard for a full flight leg).
 //!
+//! Every beat waits on what the scenario SAW - a seeded variable, a live lock,
+//! a published closing speed - so a slow load or an llvmpipe frame stall delays
+//! the play instead of truncating it, and a beat that never resolves inside its
+//! deadline error-exits naming that beat.
+//!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
 //! NOVA_AUTOPILOT=1 cargo run --example playable --features debug
-//! # look for: `nova harness: reached Playing`,
+//! # look for: `autopilot: step `sweep the prey into a combat lock` begins`,
 //! #           `playable: prey destroyed, waypoint locked, GOTO closing at ...`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
@@ -32,37 +37,109 @@ struct Cli;
 
 const SCENARIO_ID: &str = "playable_run";
 
-/// Total autopilot window, seconds. The run needs a kill, two radar
-/// gestures - each paying the acquisition dwell (~0.6 s+ of steady
-/// candidate, 20260708-165703) - and a ~40 u GOTO leg; the stock 6 s preset
-/// is far too tight, and the pre-dwell 18 s window left no margin under
-/// CI's llvmpipe throttle (frames hit Bevy's max-delta cap, so 18 wall
-/// seconds hold only ~6.5 sim seconds), so this example holds its own
-/// longer window like com_range/hud_range.
+/// The first step's name, so `loop_from` can restart the cycle at the scene
+/// reload without repeating the string.
 #[cfg(feature = "debug")]
-const WINDOW_SECS: f32 = 24.0;
+const LOAD_STEP: &str = "load the run";
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
-    // Headless smoke-test harness: a staged script drives the REAL gestures
-    // (raise, radar, fire, lower, radar, GOTO) and the assertion reads the
-    // SCENARIO's own variables - the run only passes if the event handlers
-    // saw the play happen.
+    // Headless smoke-test harness: named beats drive the REAL gestures
+    // (raise, radar, fire, lower, radar, GOTO) and each one advances on what
+    // the SCENARIO saw - its own event handlers' variables, the live lock
+    // components - rather than on a guessed duration. That matters here
+    // beyond tidiness: under CI's llvmpipe throttle frames hit Bevy's
+    // max-delta cap, so a wall-clock window holds a fraction of the sim
+    // seconds it looks like it does, and the old 24 s runway was margin
+    // guesswork. The per-step deadlines below are what that runway became;
+    // their sum stays well under DEFAULT_DEADLINE_SECS (120 s) so a stalled
+    // beat is named rather than swallowed by the generic hang detector.
     #[cfg(feature = "debug")]
     {
-        app.init_resource::<PlayableScript>();
         app.add_plugins(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+                // The ship is spawned by an OnStart handler, and that same
+                // handler seeds `target_down` - so waiting for BOTH is also
+                // the gate a looped scene reload needs, since the old cycle's
+                // variables outlive the load replacing them (20260720-014142:
+                // ScenarioLoaded fires BEFORE OnStart runs, and the first real
+                // loop crashed in that gap).
+                .step(LOAD_STEP)
+                .enter(GameStates::Loading)
+                .until(and(
+                    player_ship_present(),
+                    scenario_variable_is("target_down", 0.0),
+                ))
+                .deadline(30.0)
+                .add()
+                // The scene is live again: close the reload interval so the
+                // capture excludes it from the frame-time stats. A no-op on
+                // the first cycle, where no reload was ever in flight.
+                .step("close the reload interval")
+                .on_enter(nova_probe::capture_reload_end)
+                .add()
+                .step("raise the stance")
+                .on_enter(beat(press_mouse(MouseButton::Right), "beat: raised"))
+                .until(elapsed(0.3))
+                .add()
+                // Hold the sweep until the combat lock is LIVE. The radar
+                // writes it under the sweep, and waiting on the component
+                // rather than the clock is what survives llvmpipe stutter,
+                // where a wall-clock window can collapse into a single frame.
+                .step("sweep the prey into a combat lock")
+                .on_enter(beat(
+                    press_key(KeyCode::ControlLeft),
+                    "beat: radar combat sweep",
+                ))
+                .until(combat_lock_live())
+                .deadline(20.0)
+                .add()
+                .step("gun the prey down")
+                .on_enter(open_fire)
+                .until(scenario_variable_is("target_down", 1.0))
+                .deadline(20.0)
+                .add()
+                .step("lower the stance")
+                .on_enter(lower_stance)
+                .until(elapsed(0.3))
+                .add()
+                // With the prey gone the waypoint is the sweep's only
+                // candidate; same component-not-clock reasoning as above.
+                .step("sweep the waypoint into a travel lock")
+                .until(travel_lock_live())
+                .on_enter(beat(
+                    press_key(KeyCode::ControlLeft),
+                    "beat: radar travel sweep",
+                ))
+                .deadline(20.0)
+                .add()
+                // GOTO with the real key, then wait until the autopilot is
+                // demonstrably FLYING the locked leg. Full area arrival is
+                // deliberately NOT in the headless contract: llvmpipe
+                // throttles unfocused smoke windows too hard for a
+                // multi-second flight leg (it arrives fine standalone and
+                // interactively, and the area/OnEnter machinery is exercised
+                // by the shipped scenarios). The `arrived` handler stays in
+                // the scenario for interactive runs.
+                .step("engage the goto and start closing")
+                .on_enter(engage_goto)
+                .until(and(scenario_variable_is("leg", 1.0), goto_closing()))
+                .deadline(20.0)
+                .add()
+                // Last beat: the driver reports done after it, so a clean pass
+                // ends here rather than idling out a runway.
+                .step("report the flown leg")
+                .on_enter(report_flown_leg)
+                .add()
                 // Enrolled in capture looping (task 20260720-000616): when a
-                // frame capture outlives the window, the scene reloads and
-                // the script replays so the capture measures ACTIVITY.
-                .loop_while_pending()
-                .hold(GameStates::Loading, WINDOW_SECS)
-                .input(playable_script),
+                // frame capture outlives the script, the scene reloads and the
+                // beats replay, so the capture measures ACTIVITY rather than an
+                // idle tail.
+                .loop_from(LOAD_STEP)
+                .on_loop(reload_the_run),
         );
-        app.add_systems(PreUpdate, on_autopilot_loop);
         app.add_plugins(nova_screenshot());
         app.add_plugins(assert_scenario_loaded(SCENARIO_ID));
         // Run-timeline recorder (inert unless NOVA_PERF_TIMELINE names an
@@ -279,271 +356,136 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
     }
 }
 
-/// Reset the cycle on an autopilot loop: fresh script, reload interval
-/// marked, the same run re-triggered (task 20260720-000616).
+/// Restart the cycle on an autopilot loop: mark the reload interval and
+/// re-trigger the same run (task 20260720-000616). The step that follows the
+/// reload closes the interval once the scenario has re-seeded itself.
+///
+/// Silently does nothing before the loader has inserted the asset resources -
+/// a loop cannot happen that early, but reading them unguarded would panic.
 #[cfg(feature = "debug")]
-fn on_autopilot_loop(
-    mut loops: MessageReader<nova_protocol::nova_debug::harness::AutopilotLoop>,
-    mut commands: Commands,
-    // Option: this system runs from frame 1, before the loader has
-    // inserted the asset resources - a bare Res fails param validation
-    // and kills the run.
-    game_assets: Option<Res<GameAssets>>,
-    sections: Option<Res<GameSections>>,
-    script: Option<ResMut<PlayableScript>>,
-) {
-    if loops.read().next().is_none() {
-        return;
-    }
-    let (Some(game_assets), Some(sections), Some(mut script)) = (game_assets, sections, script)
-    else {
+fn reload_the_run(world: &mut World) {
+    let (Some(game_assets), Some(sections)) = (
+        world.get_resource::<GameAssets>().cloned(),
+        world.get_resource::<GameSections>().cloned(),
+    ) else {
         return;
     };
-    *script = PlayableScript {
-        looped: true,
-        ..PlayableScript::default()
-    };
-    commands.queue(nova_probe::capture_reload_begin);
-    commands.trigger(LoadScenario(playable_run(&game_assets, &sections)));
+    nova_probe::capture_reload_begin(world);
+    world.trigger(LoadScenario(playable_run(&game_assets, &sections)));
 }
 
-/// Stage tracker for the playable script.
+/// Wrap a gesture so it also pushes a timeline marker under `label` - the run
+/// timeline then reads "raise -> sweep -> fire -> ..." in the same JSONL stream
+/// as the scenario's own events.
 #[cfg(feature = "debug")]
-#[derive(Resource, Default)]
-struct PlayableScript {
-    /// True once the autopilot has looped: repeat cycles start LATE by the
-    /// reload duration, so completion-deadline backstops only bind on the
-    /// FIRST cycle (and every clean-pass run) - looped cycles exist to feed
-    /// the capture activity, not to re-prove completion (20260720-014142).
-    looped: bool,
-    playing_since: Option<f32>,
-    raised: bool,
-    radar_combat: bool,
-    fired: bool,
-    lowered: bool,
-    lowered_at: Option<f32>,
-    radar_travel: bool,
-    engaged_goto: bool,
-    done: bool,
-}
-
-/// Read a Number variable from the live event world.
-#[cfg(feature = "debug")]
-fn number_variable(world: &World, key: &str) -> f64 {
-    match world.resource::<NovaEventWorld>().get_variable(key) {
-        Some(VariableLiteral::Number(value)) => *value,
-        other => panic!("playable: variable {key} should be a number, got {other:?}"),
+fn beat(
+    gesture: impl Fn(&mut World) + Send + Sync + 'static,
+    label: &'static str,
+) -> impl Fn(&mut World) + Send + Sync + 'static {
+    move |world: &mut World| {
+        let t = world.resource::<Time>().elapsed_secs();
+        nova_probe::probe_marker(world, label, serde_json::json!({ "t": t }));
+        gesture(world);
     }
 }
 
-/// The staged play, all through the real input pipeline. Timeline is
-/// relative to entering Playing; the backstop fails the run loudly if the
-/// script never finishes (vacuous-pass guard).
+/// Advance once the player carries a live combat lock.
 #[cfg(feature = "debug")]
-fn playable_script(world: &mut World, elapsed: f32) {
-    // A looped-capture scene reload is in flight. The gate closes on the
-    // SCRIPT'S OWN readiness signal (the OnStart-seeded variable exists),
-    // not on ScenarioLoaded - which fires BEFORE OnStart runs, the gap the
-    // first real playable loop crashed in (task 20260720-014142). The seed
-    // wait is honestly part of the reload cost.
-    if nova_probe::capture_reloading(world) {
-        let seeded = matches!(
-            world
-                .resource::<NovaEventWorld>()
-                .get_variable("target_down"),
-            Some(VariableLiteral::Number(_))
-        );
-        if !seeded {
-            return;
-        }
-        nova_probe::capture_reload_end(world);
-        // The scene is live again from this frame; fall through.
-    }
-    if elapsed > WINDOW_SECS - 0.5
-        && !world.resource::<PlayableScript>().done
-        && !world.resource::<PlayableScript>().looped
-    {
-        let script = world.resource::<PlayableScript>();
-        panic!(
-            "playable: the run never finished (raised={} combat={} fired={} \
-             travel={} goto={} done={})",
-            script.raised,
-            script.radar_combat,
-            script.fired,
-            script.radar_travel,
-            script.engaged_goto,
-            script.done
-        );
-    }
-    if *world.resource::<State<GameStates>>().get() != GameStates::Playing {
-        return;
-    }
-    let playing_since = {
-        let mut script = world.resource_mut::<PlayableScript>();
-        *script.playing_since.get_or_insert(elapsed)
-    };
-    let t = elapsed - playing_since;
-    if world.resource::<PlayableScript>().done {
-        return;
-    }
+fn combat_lock_live() -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sync> {
+    std::sync::Arc::new(|world: &World| player_lock::<CombatLock>(world, |lock| lock.0).is_some())
+}
 
-    // Beat 1: raise, sweep, and the radar combat-locks the prey dead ahead.
-    if t > 0.2 && !world.resource::<PlayableScript>().raised {
-        world.resource_mut::<PlayableScript>().raised = true;
-        nova_probe::probe_marker(world, "beat: raised", serde_json::json!({ "t": t }));
-        world
-            .resource_mut::<ButtonInput<MouseButton>>()
-            .press(MouseButton::Right);
-    }
-    if t > 0.5 && !world.resource::<PlayableScript>().radar_combat {
-        world.resource_mut::<PlayableScript>().radar_combat = true;
-        nova_probe::probe_marker(
-            world,
-            "beat: radar combat sweep",
-            serde_json::json!({ "t": t }),
-        );
-        world
-            .resource_mut::<ButtonInput<KeyCode>>()
-            .press(KeyCode::ControlLeft);
-    }
-    // Beat 2: hold the sweep until the combat lock is LIVE (the radar
-    // writes it under the sweep; waiting on the component instead of the
-    // clock survives llvmpipe frame stutter, where a wall-clock window can
-    // collapse into a single frame), assert it locked the PREY, then
-    // release and hold fire until the kill.
-    if world.resource::<PlayableScript>().radar_combat && !world.resource::<PlayableScript>().fired
-    {
-        let player = {
-            let mut q = world.query_filtered::<Entity, With<PlayerSpaceshipMarker>>();
-            q.single(world)
-                .expect("playable: the player ship must exist")
-        };
-        let combat = world.get::<CombatLock>(player).and_then(|lock| lock.0);
-        if let Some(combat) = combat {
-            // The raised sweep must have locked the PREY, not the beacon
-            // (the radar pick is purely angular; the first collinear
-            // geometry locked the waypoint and the shots flew 30 u past
-            // their target).
-            let combat_id = world
-                .get::<EntityId>(combat)
-                .map(|id| id.0.clone())
-                .unwrap_or_default();
-            assert_eq!(
-                combat_id, "prey",
-                "playable: the combat lock must be on the prey"
-            );
-            world.resource_mut::<PlayableScript>().fired = true;
-            nova_probe::probe_marker(
-                world,
-                "beat: fire",
-                serde_json::json!({ "t": t, "combat_lock": combat_id }),
-            );
-            world
-                .resource_mut::<ButtonInput<KeyCode>>()
-                .release(KeyCode::ControlLeft);
-        }
-    }
-    if world.resource::<PlayableScript>().fired && !world.resource::<PlayableScript>().lowered {
-        // Hold fire through the kill window (the stance stays raised, so
-        // the safety cannot interrupt the burst). LMB, the shipped fire
-        // binding: the fire key must not overlap the flight rig, or the
-        // burst would also burn the ship off its mark (20260718-235837).
-        world
-            .resource_mut::<ButtonInput<MouseButton>>()
-            .press(MouseButton::Left);
-    }
-    // Beat 3: lower once the SCENARIO confirms the kill, then sweep again -
-    // with the prey gone the waypoint is the sweep's only candidate.
-    if world.resource::<PlayableScript>().fired
-        && !world.resource::<PlayableScript>().lowered
-        && number_variable(world, "target_down") == 1.0
-    {
-        world.resource_mut::<PlayableScript>().lowered = true;
-        world.resource_mut::<PlayableScript>().lowered_at = Some(t);
-        nova_probe::probe_marker(world, "beat: lowered", serde_json::json!({ "t": t }));
-        world
-            .resource_mut::<ButtonInput<MouseButton>>()
-            .release(MouseButton::Left);
-        world
-            .resource_mut::<ButtonInput<MouseButton>>()
-            .release(MouseButton::Right);
-    }
-    let lowered_at = world.resource::<PlayableScript>().lowered_at;
-    if let Some(lowered_at) = lowered_at {
-        if t > lowered_at + 0.3 && !world.resource::<PlayableScript>().radar_travel {
-            world.resource_mut::<PlayableScript>().radar_travel = true;
-            nova_probe::probe_marker(
-                world,
-                "beat: radar travel sweep",
-                serde_json::json!({ "t": t }),
-            );
-            world
-                .resource_mut::<ButtonInput<KeyCode>>()
-                .press(KeyCode::ControlLeft);
-        }
-        // Beat 4: hold the sweep until the TRAVEL lock is live (same
-        // frame-stutter reasoning as the combat sweep), then release and
-        // engage GOTO with the real key.
-        if world.resource::<PlayableScript>().radar_travel
-            && !world.resource::<PlayableScript>().engaged_goto
-        {
-            let player = {
-                let mut q = world.query_filtered::<Entity, With<PlayerSpaceshipMarker>>();
-                q.single(world)
-                    .expect("playable: the player ship must exist")
-            };
-            if world
-                .get::<TravelLock>(player)
-                .is_some_and(|lock| lock.0.is_some())
-            {
-                world.resource_mut::<PlayableScript>().engaged_goto = true;
-                nova_probe::probe_marker(
-                    world,
-                    "beat: goto engaged",
-                    serde_json::json!({ "t": t }),
-                );
-                world
-                    .resource_mut::<ButtonInput<KeyCode>>()
-                    .release(KeyCode::ControlLeft);
-                world
-                    .resource_mut::<ButtonInput<KeyCode>>()
-                    .press(KeyCode::KeyG);
-            }
-        }
-    }
-    // Beat 5: done when the scenario saw the kill and the travel lock, and
-    // the autopilot is demonstrably FLYING the locked leg (engaged, with a
-    // positive closing speed on its published telemetry). Full area
-    // arrival is deliberately NOT in the headless contract: under the
-    // smoke suite llvmpipe throttles unfocused windows, so a multi-second
-    // flight leg gets too few sim seconds to complete (it arrives fine
-    // standalone and interactively; the area/OnEnter machinery is
-    // exercised by the shipped scenarios). The `arrived` handler stays in
-    // the scenario for interactive runs.
-    if !world.resource::<PlayableScript>().done
-        && number_variable(world, "target_down") == 1.0
-        && number_variable(world, "leg") == 1.0
-    {
-        let player = {
-            let mut q = world.query_filtered::<Entity, With<PlayerSpaceshipMarker>>();
-            q.single(world)
-                .expect("playable: the player ship must exist")
-        };
-        let closing = world
-            .get::<ManeuverTelemetry>(player)
-            .filter(|_| world.get::<Autopilot>(player).is_some())
-            .map(|telemetry| telemetry.closing_speed);
-        if closing.is_some_and(|speed| speed > 0.1) {
-            info!(
-                "playable: prey destroyed, waypoint locked, GOTO closing at {:.2} u/s",
-                closing.unwrap_or_default()
-            );
-            nova_probe::probe_marker(
-                world,
-                "beat: done",
-                serde_json::json!({ "t": t, "closing_speed": closing }),
-            );
-            world.resource_mut::<PlayableScript>().done = true;
-        }
-    }
+/// Advance once the player carries a live travel lock.
+#[cfg(feature = "debug")]
+fn travel_lock_live() -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sync> {
+    std::sync::Arc::new(|world: &World| player_lock::<TravelLock>(world, |lock| lock.0).is_some())
+}
+
+/// Advance once the engaged autopilot publishes a positive closing speed - the
+/// proof that the ship is FLYING the locked leg, not merely pointed at it.
+#[cfg(feature = "debug")]
+fn goto_closing() -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sync> {
+    std::sync::Arc::new(|world: &World| closing_speed(world).is_some_and(|speed| speed > 0.1))
+}
+
+/// The lock entity `read` pulls out of the player's `L` component, if any.
+#[cfg(feature = "debug")]
+fn player_lock<L: Component>(world: &World, read: impl Fn(&L) -> Option<Entity>) -> Option<Entity> {
+    let mut query = world.try_query_filtered::<(&L, ()), With<PlayerSpaceshipMarker>>()?;
+    let (lock, ()) = query.iter(world).next()?;
+    read(lock)
+}
+
+/// The engaged autopilot's published closing speed, if the player has one.
+#[cfg(feature = "debug")]
+fn closing_speed(world: &World) -> Option<f32> {
+    let mut query = world
+        .try_query_filtered::<(&ManeuverTelemetry, &Autopilot), With<PlayerSpaceshipMarker>>()?;
+    query
+        .iter(world)
+        .next()
+        .map(|(telemetry, _)| telemetry.closing_speed)
+}
+
+/// Release the sweep and hold fire. The raised sweep must have locked the PREY,
+/// not the beacon: the radar pick is purely angular, and the first collinear
+/// geometry locked the waypoint so the shots flew 30 u past their target.
+///
+/// The stance stays raised through the burst, so the safety cannot interrupt
+/// it. LMB is the shipped fire binding: the fire key must not overlap the
+/// flight rig, or the burst would also burn the ship off its mark
+/// (20260718-235837). One press holds until the release beat - Bevy's input
+/// collection only clears the `just_*` edges.
+#[cfg(feature = "debug")]
+fn open_fire(world: &mut World) {
+    let combat = player_lock::<CombatLock>(world, |lock| lock.0)
+        .expect("playable: the sweep step advanced without a combat lock");
+    let combat_id = world
+        .get::<EntityId>(combat)
+        .map(|id| id.0.clone())
+        .unwrap_or_default();
+    assert_eq!(
+        combat_id, "prey",
+        "playable: the combat lock must be on the prey"
+    );
+    let t = world.resource::<Time>().elapsed_secs();
+    nova_probe::probe_marker(
+        world,
+        "beat: fire",
+        serde_json::json!({ "t": t, "combat_lock": combat_id }),
+    );
+    release_key(KeyCode::ControlLeft)(world);
+    press_mouse(MouseButton::Left)(world);
+}
+
+/// Cease fire and lower the stance, so the next sweep runs in the travel slot.
+#[cfg(feature = "debug")]
+fn lower_stance(world: &mut World) {
+    let t = world.resource::<Time>().elapsed_secs();
+    nova_probe::probe_marker(world, "beat: lowered", serde_json::json!({ "t": t }));
+    release_mouse(MouseButton::Left)(world);
+    release_mouse(MouseButton::Right)(world);
+}
+
+/// Release the travel sweep and engage GOTO with the real key.
+#[cfg(feature = "debug")]
+fn engage_goto(world: &mut World) {
+    let t = world.resource::<Time>().elapsed_secs();
+    nova_probe::probe_marker(world, "beat: goto engaged", serde_json::json!({ "t": t }));
+    release_key(KeyCode::ControlLeft)(world);
+    press_key(KeyCode::KeyG)(world);
+}
+
+/// The script's last beat: the scenario saw the kill and the travel lock, and
+/// the autopilot is flying the leg.
+#[cfg(feature = "debug")]
+fn report_flown_leg(world: &mut World) {
+    let closing = closing_speed(world).expect("playable: the goto step advanced without telemetry");
+    info!("playable: prey destroyed, waypoint locked, GOTO closing at {closing:.2} u/s");
+    let t = world.resource::<Time>().elapsed_secs();
+    nova_probe::probe_marker(
+        world,
+        "beat: done",
+        serde_json::json!({ "t": t, "closing_speed": closing }),
+    );
 }

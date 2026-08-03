@@ -38,6 +38,23 @@ tagged **(breaking)**.
 - Dev wiki: "Automation harness" page for the `nova_autopilot` drivers.
 - `nova_autopilot`: curated prelude, crate-level env contract table, and a
   `completion` doc example.
+- `nova_autopilot` is predicate-driven: a script is a list of NAMED STEPS, each
+  advancing when its predicate over the world holds (`elapsed`, `frames`,
+  `state_is`, `resource_where`, `any_entity`, `and`, `not`), with per-step
+  entry/per-frame actions, per-step deadlines and a loop point. A stalled beat
+  error-exits naming the step instead of timing out generically. `hold(state,
+  secs)` and `input(f)` survive as constructors over the step model;
+  `self_completing` (replaced by `deadline`) and `loop_while_pending` (replaced
+  by `loop_from` + `on_loop`) are removed. **(breaking)**
+- `nova_autopilot::input`: synthesized keyboard and pointer gestures
+  (`press_key`, `release_key`, `press_mouse`, `release_mouse`, `move_cursor`,
+  `click_at`) that leave the world in the state a real device would - window
+  `cursor_position`, a `CursorMoved` message and a fresh `just_pressed`.
+- `nova_debug::harness`: Nova-typed predicates `scenario_variable_is`,
+  `section_gone` and `player_ship_present`, so a script waits on what the game
+  agreed happened rather than on a guessed duration. `com_range`, `hud_range`
+  and `playable` are rewritten onto them, dropping their hand-rolled beat
+  offsets, boolean stage trackers and per-example completion guards.
 
 ## [0.9.1] - 2026-08-02
 

@@ -54,20 +54,18 @@ fn main() -> bevy::app::AppExit {
         app.add_plugins(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
                 // Script-owned completion: this example SELF-ENDS (the script
-                // walks a finite beat list and stops), so the 24s hold is a
-                // RUNWAY, not the finish line - the final stage reports done,
-                // and a runway expiry with the script pending is an error exit
-                // naming it, never a silent pass.
-                .self_completing()
-                .hold(GameStates::Loading, 24.0)
-                .input(nova_os_capture_script),
+                // walks a finite beat list and stops), so the step ends where
+                // the final stage reports done and its 24s deadline is the old
+                // RUNWAY - an expiry with the script pending is an error exit
+                // naming this step, never a silent pass.
+                .step("walk the nova_os capture beats")
+                .enter(GameStates::Loading)
+                .each(nova_os_capture_script)
+                .until(nova_protocol::nova_debug::harness::script_reports_done())
+                .deadline(24.0)
+                .add(),
         );
         app.add_systems(Startup, (force_resolution, hide_dev_overlays));
-        if std::env::var_os("NOVA_AUTOPILOT").is_some() {
-            // Completion guard: an AppExit with the script unfinished is a
-            // stalled walk, not a pass.
-            app.add_systems(Last, guard_script_completion);
-        }
     }
 
     app.run()
@@ -156,23 +154,6 @@ struct NovaOsScript {
     wait: u32,
     /// Set by the final stage. Until then, any `AppExit` is a stalled walk.
     done: bool,
-}
-
-/// The self-ending contract's other half: the run may only end once the script
-/// has reported done. A premature `AppExit` panics naming the stage it stalled
-/// in, instead of exiting 0 with the beats unplayed. It runs in `Last`,
-/// unordered against the harness's own watcher, so it catches an exit written
-/// before that schedule - the class it is here for (the script's own
-/// `PreUpdate` write) - but not one written later within `Last` itself.
-#[cfg(feature = "debug")]
-fn guard_script_completion(mut exits: MessageReader<AppExit>, script: Option<Res<NovaOsScript>>) {
-    let Some(script) = script else { return };
-    if exits.read().next().is_some() && !script.done {
-        panic!(
-            "screenshot_nova_os: run ended with the script stalled in stage {}",
-            script.stage
-        );
-    }
 }
 
 /// Press Tab to toggle the computer via the real `ButtonInput<KeyCode>` edge.
