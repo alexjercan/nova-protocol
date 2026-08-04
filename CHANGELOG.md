@@ -78,6 +78,22 @@ tagged **(breaking)**.
   A replaying example previously took a false `monotonic_regression` at every
   round boundary, because a reload overwrites its variables in place and never
   leaves the vanished-key gap the old reset waited for.
+- `examples/ui/` rebuilt around real pointer input: four of the five runs
+  (`widget_zoo`, `editor`, `menu_newgame`, `menu_scenarios`) now DRIVE the
+  interface - hover, press, segmented select, check/toggle, slider drag,
+  placement clicks on the ship - instead of triggering widget observers, and
+  check the live tree after every rebuild. `hud_range` stays predicate-driven;
+  its subject is where an indicator lands on screen, not what a pointer does to
+  it. `widget_zoo` joined the CI smoke list; `menu_newgame` narrowed to the
+  boot flow (`NOVA_MENU_PATH=editorplay` is gone - `editor` owns that
+  sequence).
+- `nova_autopilot::input`: `click_named` / `hover_named` / `ui_node_centre` /
+  `ui_node_rect` resolve a click target by `Name`, so a layout move is
+  survivable and only a rename breaks a run. `ui_node_rect` is the single home
+  of the physical-to-logical pixel conversion, and it warns when two laid-out
+  nodes share a name rather than pointing at an arbitrary one silently.
+- `nova_debug::harness::REACHED_PLAYING`: the smoke sentinel is a const, named
+  by its two emitters and the test that greps for it.
 
 ## [0.9.1] - 2026-08-02
 

@@ -176,6 +176,11 @@ bevy = { version = "0.19.0" }
 # run-harness dev tool, not shipped with the game binary). serde_json builds
 # the markers' payloads (the timeline speaks JSON).
 nova_probe = { path = "crates/nova_probe" }
+# `tests/examples_smoke.rs` greps runs for `harness::REACHED_PLAYING`. It is
+# reached DIRECTLY rather than through `nova_protocol::nova_debug`, which only
+# exists under the `debug` feature - the catalog/drift tests in that file must
+# keep compiling on a bare `cargo test`.
+nova_debug = { path = "crates/nova_debug" }
 # widget_zoo example renders the nova_ui skin-aware widget set directly.
 nova_ui = { path = "crates/nova_ui" }
 serde_json = { version = "1" }

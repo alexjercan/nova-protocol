@@ -46,7 +46,10 @@ pub mod prelude {
     // absent: it collides with `bevy::prelude::not`, which every example globs,
     // so a caller that wants it names `nova_autopilot::predicate::not`.
     pub use nova_autopilot::{
-        input::{click_at, move_cursor, press_key, press_mouse, release_key, release_mouse},
+        input::{
+            click_at, click_named, hover_named, move_cursor, press_key, press_mouse, release_key,
+            release_mouse, ui_node_centre, ui_node_rect,
+        },
         predicate::{and, any_entity, elapsed, frames, resource_where, state_is},
     };
 
@@ -128,7 +131,7 @@ impl Plugin for DebugPlugin {
         // passing on `autopilot: cycle complete, no panic` alone.
         if std::env::var(AUTOPILOT_ENV).is_ok() {
             app.add_systems(OnEnter(GameStates::Playing), || {
-                info!("nova harness: reached Playing")
+                info!("{}", crate::harness::REACHED_PLAYING)
             });
         }
 

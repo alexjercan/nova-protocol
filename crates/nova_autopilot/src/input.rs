@@ -27,6 +27,13 @@
 //! Gamepad, touch and drag synthesis are deliberately absent: nothing in the
 //! example fleet uses them, and [`move_cursor`] plus [`press_mouse`] /
 //! [`release_mouse`] compose a drag when something does.
+//!
+//! ## Naming a target instead of a coordinate
+//!
+//! [`click_at`] takes literal pixels, which couples a run to the layout it was
+//! written against. [`click_named`] / [`hover_named`] resolve a [`Name`] to the
+//! node's centre first ([`ui_node_centre`]), so moving a panel does not break
+//! the beat - only renaming the widget does.
 
 use bevy::{
     input::{mouse::MouseButtonInput, ButtonState},
@@ -84,6 +91,94 @@ pub fn click_at(
         set_cursor(world, position);
         set_mouse_button(world, button, ButtonState::Pressed);
     }
+}
+
+/// The logical-pixel RECT of the laid-out UI node called `name`, if there is
+/// one.
+///
+/// The single home of the physical-to-logical conversion, and the resolve half
+/// of [`click_named`] / [`hover_named`] via [`ui_node_centre`]. Public because a
+/// drag needs the rect it is dragging along and a caller may want to ask whether
+/// one node's centre lies inside another's box.
+///
+/// A UI node's [`UiGlobalTransform`] translation is its CENTRE and
+/// [`ComputedNode::size`] its extent, both in PHYSICAL pixels - the space
+/// `bevy_ui`'s picking backend compares against. [`move_cursor`] takes LOGICAL
+/// pixels, so both are scaled back through
+/// [`ComputedNode::inverse_scale_factor`]. Skipping that step reads right only
+/// at scale factor 1, which is exactly why it is spelled out here instead of at
+/// each call site.
+///
+/// `None` until the node has been through a layout pass - a UI entity spawned
+/// this frame has no transform to point at yet.
+///
+/// A name two laid-out nodes share resolves to whichever the query yields
+/// first, which is arbitrary - so it WARNS. A driven run silently clicking a
+/// ghost is the exact failure naming targets exists to make visible (review
+/// R1.5).
+pub fn ui_node_rect(world: &mut World, name: &str) -> Option<Rect> {
+    let mut query = world.query::<(&Name, &UiGlobalTransform, &ComputedNode)>();
+    let rects: Vec<Rect> = query
+        .iter(world)
+        .filter(|(node_name, _, _)| node_name.as_str() == name)
+        .map(|(_, transform, computed)| {
+            let scale = computed.inverse_scale_factor();
+            Rect::from_center_size(transform.translation * scale, computed.size() * scale)
+        })
+        .collect();
+    if rects.len() > 1 {
+        warn!(
+            "autopilot: {} laid-out UI nodes are named `{name}`; pointing at the first",
+            rects.len()
+        );
+    }
+    rects.first().copied()
+}
+
+/// The logical-pixel centre of the laid-out UI node called `name`, if there is
+/// one - [`ui_node_rect`]'s centre, and what the pointer beats aim at.
+pub fn ui_node_centre(world: &mut World, name: &str) -> Option<Vec2> {
+    ui_node_rect(world, name).map(|rect| rect.center())
+}
+
+/// Move the pointer to the centre of the UI node called `name` and press the
+/// left button there - [`click_at`] without the literal coordinates.
+///
+/// Resolving by [`Name`] is what makes a run survive a layout move: only a
+/// RENAME breaks it. Like [`move_cursor`] without a window, an unresolved name
+/// warns and continues - a beat that cannot find its target must not take the
+/// whole run down.
+pub fn click_named(name: impl Into<String>) -> impl Fn(&mut World) + Send + Sync + 'static {
+    let name = name.into();
+    move |world: &mut World| {
+        let Some(centre) = resolve(world, &name, "click") else {
+            return;
+        };
+        set_cursor(world, centre);
+        set_mouse_button(world, MouseButton::Left, ButtonState::Pressed);
+    }
+}
+
+/// Move the pointer to the centre of the UI node called `name` without
+/// pressing - the hover half of [`click_named`], and the first leg of a drag.
+pub fn hover_named(name: impl Into<String>) -> impl Fn(&mut World) + Send + Sync + 'static {
+    let name = name.into();
+    move |world: &mut World| {
+        let Some(centre) = resolve(world, &name, "hover") else {
+            return;
+        };
+        set_cursor(world, centre);
+    }
+}
+
+/// The shared warn-and-continue resolve behind [`click_named`] and
+/// [`hover_named`].
+fn resolve(world: &mut World, name: &str, gesture: &str) -> Option<Vec2> {
+    let centre = ui_node_centre(world, name);
+    if centre.is_none() {
+        warn!("autopilot: {gesture} on `{name}` found no laid-out UI node with that Name");
+    }
+    centre
 }
 
 /// The shared body of [`move_cursor`] and [`click_at`]: place the pointer in
@@ -154,6 +249,7 @@ mod tests {
     use bevy::{input::InputPlugin, window::WindowResolution};
 
     use super::*;
+    use crate::log_capture::capturing_logs;
 
     /// A headless app with real input collection and a primary window, so the
     /// actions write the resources and messages the game reads.
@@ -260,6 +356,195 @@ mod tests {
                 .resource::<ButtonInput<MouseButton>>()
                 .just_pressed(MouseButton::Left),
             "moving the pointer must not synthesize a click"
+        );
+    }
+
+    /// A laid-out UI node named on a beat resolves to its own centre, in the
+    /// LOGICAL pixels `move_cursor` takes.
+    #[test]
+    fn a_named_ui_node_resolves_to_its_centre() {
+        let mut app = app();
+        spawn_named_node(&mut app, "Play Button", Vec2::new(400.0, 120.0));
+
+        assert_eq!(
+            ui_node_centre(app.world_mut(), "Play Button"),
+            Some(Vec2::new(400.0, 120.0))
+        );
+        assert_eq!(
+            ui_node_centre(app.world_mut(), "No Such Button"),
+            None,
+            "an unknown name resolves to nothing rather than to some other node"
+        );
+    }
+
+    /// Two laid-out nodes sharing a name resolve to ONE of them and SAY SO - the
+    /// resolve must not pick silently, because a click on a ghost leaves the run
+    /// green (review R1.5). Which one is arbitrary; that it is one of the two,
+    /// that the beat survives, and that the ambiguity is logged once naming the
+    /// count, is the contract.
+    ///
+    /// The log is captured rather than assumed: the warn has no return value, so
+    /// without capture this test passes with the warn deleted and covers nothing
+    /// the fix added (review R2.4).
+    #[test]
+    fn a_duplicated_name_warns_and_resolves_to_one_of_them() {
+        let mut app = app();
+        spawn_named_node(&mut app, "Play Button", Vec2::new(400.0, 120.0));
+        spawn_named_node(&mut app, "Play Button", Vec2::new(10.0, 20.0));
+
+        let (centre, logs) = capturing_logs(|| ui_node_centre(app.world_mut(), "Play Button"));
+
+        let centre = centre.expect("a duplicated name still resolves rather than vanishing");
+        assert!(
+            centre == Vec2::new(400.0, 120.0) || centre == Vec2::new(10.0, 20.0),
+            "the resolve lands on one of the two nodes, not somewhere else ({centre})"
+        );
+        assert_eq!(
+            logs.matches("2 laid-out UI nodes are named `Play Button`")
+                .count(),
+            1,
+            "the duplicate must be reported once, naming the count: {logs}"
+        );
+    }
+
+    /// The complement: a name only ONE node carries resolves without any
+    /// ambiguity warning, so the duplicate warn cannot be a blanket log that
+    /// fires on every resolve.
+    #[test]
+    fn a_unique_name_resolves_without_warning() {
+        let mut app = app();
+        spawn_named_node(&mut app, "Play Button", Vec2::new(400.0, 120.0));
+
+        let (centre, logs) = capturing_logs(|| ui_node_centre(app.world_mut(), "Play Button"));
+
+        assert_eq!(centre, Some(Vec2::new(400.0, 120.0)));
+        assert!(
+            !logs.contains("laid-out UI nodes are named"),
+            "a unique name must resolve silently: {logs}"
+        );
+    }
+
+    /// [`ui_node_rect`] is where the physical-to-logical conversion lives, and
+    /// it converts the node's SIZE as well as its centre - a caller asking
+    /// whether one node's centre lies inside another's box needs both in the
+    /// same space.
+    ///
+    /// Spawned at scale factor 2 ON PURPOSE: at scale 1 the size conversion is
+    /// the identity, so the test passed with `* scale` deleted from the size
+    /// term and covered nothing (review R3.1).
+    #[test]
+    fn a_named_node_resolves_to_its_logical_rect() {
+        let mut app = app();
+        spawn_named_node_at_scale(&mut app, "Scenarios List", Vec2::new(400.0, 120.0), 2.0);
+
+        let rect = ui_node_rect(app.world_mut(), "Scenarios List")
+            .expect("a laid-out node has a rect, not just a point");
+
+        assert_eq!(rect.center(), Vec2::new(400.0, 120.0));
+        assert_eq!(rect.size(), NODE_SIZE);
+        assert_eq!(
+            ui_node_rect(app.world_mut(), "No Such List"),
+            None,
+            "an unknown name resolves to nothing rather than to some other node"
+        );
+    }
+
+    /// `click_named` is `click_at` with the coordinate looked up: the pointer
+    /// lands on the node's centre and the button edge is fresh there.
+    #[test]
+    fn click_named_lands_on_the_named_node() {
+        let mut app = app();
+        spawn_named_node(&mut app, "Hardware", Vec2::new(220.0, 60.0));
+
+        click_named("Hardware")(app.world_mut());
+
+        assert_eq!(
+            cursor_moves(&mut app)
+                .iter()
+                .map(|moved| moved.position)
+                .collect::<Vec<_>>(),
+            vec![Vec2::new(220.0, 60.0)]
+        );
+        assert!(app
+            .world()
+            .resource::<ButtonInput<MouseButton>>()
+            .just_pressed(MouseButton::Left));
+    }
+
+    /// `hover_named` positions without pressing, the way `move_cursor` does.
+    #[test]
+    fn hover_named_positions_without_pressing() {
+        let mut app = app();
+        spawn_named_node(&mut app, "Idle", Vec2::new(30.0, 40.0));
+
+        hover_named("Idle")(app.world_mut());
+
+        assert_eq!(
+            cursor_moves(&mut app)
+                .iter()
+                .map(|moved| moved.position)
+                .collect::<Vec<_>>(),
+            vec![Vec2::new(30.0, 40.0)]
+        );
+        assert!(!app
+            .world()
+            .resource::<ButtonInput<MouseButton>>()
+            .just_pressed(MouseButton::Left));
+    }
+
+    /// A name nothing answers to warns and continues: a widget that has not
+    /// spawned yet must not take the run down, and it must not click SOMEWHERE
+    /// as a consolation either.
+    #[test]
+    fn a_click_on_an_absent_name_is_harmless() {
+        let mut app = app();
+        spawn_named_node(&mut app, "Idle", Vec2::new(30.0, 40.0));
+
+        click_named("Not Spawned Yet")(app.world_mut());
+
+        assert!(cursor_moves(&mut app).is_empty());
+        assert!(!app
+            .world()
+            .resource::<ButtonInput<MouseButton>>()
+            .just_pressed(MouseButton::Left));
+    }
+
+    /// The LOGICAL extent every spawned test node lays out at. Non-zero so a
+    /// rect resolve has a size to convert, and asymmetric so a transposed
+    /// width/height cannot pass.
+    const NODE_SIZE: Vec2 = Vec2::new(120.0, 40.0);
+
+    /// A UI node as the resolve sees it: a `Name`, a centre in PHYSICAL px, and
+    /// the `ComputedNode` carrying the scale factor back to logical. Spawned by
+    /// hand because `MinimalPlugins` runs no layout pass.
+    fn spawn_named_node_at_scale(app: &mut App, name: &str, centre: Vec2, scale_factor: f32) {
+        app.world_mut().spawn((
+            Name::new(name.to_string()),
+            UiGlobalTransform::from_translation(centre * scale_factor),
+            ComputedNode {
+                inverse_scale_factor: 1.0 / scale_factor,
+                size: NODE_SIZE * scale_factor,
+                ..default()
+            },
+        ));
+    }
+
+    /// The same at scale factor 1, where physical and logical coincide.
+    fn spawn_named_node(app: &mut App, name: &str, centre: Vec2) {
+        spawn_named_node_at_scale(app, name, centre, 1.0);
+    }
+
+    /// The physical-vs-logical trap, pinned: a hi-dpi window lays the node out
+    /// in physical px, and the pointer actions take logical ones. A resolve
+    /// that skipped the conversion would click at twice the coordinates here.
+    #[test]
+    fn a_named_node_resolves_to_logical_pixels_on_a_scaled_window() {
+        let mut app = app();
+        spawn_named_node_at_scale(&mut app, "Play Button", Vec2::new(400.0, 120.0), 2.0);
+
+        assert_eq!(
+            ui_node_centre(app.world_mut(), "Play Button"),
+            Some(Vec2::new(400.0, 120.0))
         );
     }
 

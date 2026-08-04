@@ -1,33 +1,39 @@
-//! menu_newgame: the shipped boot flow, wired to the smoke-test harness.
+//! menu_newgame: the shipped boot flow, driven by a real pointer click.
 //!
 //! Boots the exact app the `nova_protocol` binary runs (via the shared
-//! [`editor_app`]: main menu over the ambience backdrop) and autopilot-drives
-//! the menu the way a player would. Two paths, picked by `NOVA_MENU_PATH`:
+//! [`editor_app`]: main menu over the ambience backdrop) and clicks New Game
+//! the way a player would - by name, at the button's own screen position, not
+//! by triggering its observer.
 //!
-//! - `newgame` (default): click New Game - the menu teardown +
-//!   `shakedown_run` load, the shipped default boot flow, which no other
-//!   harnessed example covers (editor clicks Sandbox).
-//! - `editorplay`: click Sandbox, create a ship, click Play - the editor's
-//!   preview-teardown -> play-test transition.
+//! ONE SUBJECT: the boot flow. The run asserts that clicking New Game tears the
+//! menu down and reaches gameplay state, and NOTHING about what
+//! `shakedown_run` then contains - that is story, and story is covered by the
+//! `story/` examples. An assertion here that grew into scenario content would
+//! mean this run had drifted (task 20260804-094021).
+//!
+//! The `NOVA_MENU_PATH=editorplay` branch this example used to carry is GONE:
+//! `examples/ui/editor.rs` now owns the create-a-ship-and-Play sequence end to
+//! end, and two runs covering one transition is the duplication the roster
+//! spike (`20260804-003244`) existed to cut.
 //!
 //! Under `NOVA_AUTOPILOT` the ECS fallback error handler is swapped to panic,
 //! so an UNHANDLED command error (e.g. a plain `insert` on an entity the
 //! menu/scenario teardown already despawned) aborts the smoke run. (Bevy
 //! 0.19's default severity already panics these; the explicit swap pins the
-//! contract against upstream default changes.) Coverage caveat (task 20260713-203709): `remove`/`despawn`
-//! bake in the WARN handler at queue time, so their errors never reach this
-//! handler - the smoke suite's stderr grep for "Encountered an error in
-//! command" is what gates that flavor. Together they pin the investigation
-//! of task 20260713-175352 (an "Entity despawned" command error on this
-//! transition in the v0.5.0 web build, not reproduced natively in 6 newgame +
-//! 3 editorplay runs): if the race exists natively and ever fires, CI catches
-//! it.
+//! contract against upstream default changes.) Coverage caveat (task 20260713-203709):
+//! `remove`/`despawn` bake in the WARN handler at queue time, so their errors
+//! never reach this handler - the smoke suite's stderr grep for "Encountered an
+//! error in command" is what gates that flavor. Together they pin the
+//! investigation of task 20260713-175352 (an "Entity despawned" command error
+//! on this transition in the v0.5.0 web build, not reproduced natively): if the
+//! race exists natively and ever fires, CI catches it.
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
 //! NOVA_AUTOPILOT=1 cargo run --example menu_newgame --features debug
-//! # look for: `probe: clicked New Game Button in the main menu`,
+//! # look for: `menu_newgame: clicked New Game`,
 //! #           `nova harness: reached Playing`,
+//! #           `menu_newgame: the menu tore down and gameplay state is up`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
@@ -39,7 +45,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "menu_newgame")]
 #[command(version = "1.0.0")]
-#[command(about = "The shipped menu boot flow, wired to the smoke-test harness", long_about = None)]
+#[command(about = "The shipped menu boot flow, driven by a real pointer click", long_about = None)]
 struct Cli;
 
 fn main() -> bevy::app::AppExit {
@@ -58,90 +64,80 @@ fn main() -> bevy::app::AppExit {
                 bevy::ecs::error::panic,
             ));
         }
-        app.init_resource::<MenuAutopilot>();
         // Probe wiring (task 20260719-210443; each plugin is inert without
         // its NOVA_PERF_* env): run timeline + engine-bound invariants +
         // frame-time capture, so `probe run` can measure this example.
         app.add_plugins(nova_probe::nova_timeline());
         app.add_plugins(nova_probe::nova_invariants());
         app.add_plugins(nova_probe::nova_frametime());
-        app.add_plugins(nova_autopilot().input(menu_autopilot));
+        app.add_plugins(menu_script());
         app.add_plugins(nova_screenshot());
     }
 
     app.run()
 }
 
-/// Frame-paced autopilot state (the editor needs a few frames between actions).
+/// Frames a beat waits for a gesture to land: the picking backend needs a frame
+/// to raycast the new pointer position and the menu's observers a frame to
+/// react. Generous rather than tight - this runs on a software-rendered CI GPU.
 #[cfg(feature = "debug")]
-#[derive(Resource, Default)]
-struct MenuAutopilot {
-    clicked_menu: bool,
-    created_ship: bool,
-    clicked_play: bool,
-    wait: u32,
-}
+const SETTLE: u32 = 10;
 
+/// Seconds the run gives the New Game click to reach gameplay state. Sized to
+/// outlast `shakedown_run`'s load on a software-rendered CI GPU, and kept UNDER
+/// the harness completion deadline (`NOVA_AUTOPILOT_DEADLINE`, default 120 s)
+/// so a stall is an error naming THIS beat rather than a generic deadline.
 #[cfg(feature = "debug")]
-fn button_by_name(world: &mut World, name: &str) -> Option<Entity> {
-    let mut names = world.query::<(Entity, &Name)>();
-    names
-        .iter(world)
-        .find(|(_, n)| n.as_str() == name)
-        .map(|(entity, _)| entity)
-}
+const BOOT_SECS: f32 = 90.0;
 
-/// Drive the menu like a player: click the chosen menu button, and on the
-/// editorplay path continue into ship creation + Play. Runs every autopilot
-/// frame; each step fires once and waits where the editor needs to settle.
+/// The boot flow, one beat per gesture.
 #[cfg(feature = "debug")]
-fn menu_autopilot(world: &mut World, _elapsed: f32) {
-    use bevy::ui_widgets::Activate;
-
-    let editor_play = std::env::var("NOVA_MENU_PATH").is_ok_and(|p| p == "editorplay");
-
-    let mut state = world.remove_resource::<MenuAutopilot>().unwrap();
-    if state.wait > 0 {
-        state.wait -= 1;
-        world.insert_resource(state);
-        return;
-    }
-
-    match *world.resource::<State<GameStates>>().get() {
-        GameStates::Loading => {}
-        GameStates::MainMenu => {
-            if !state.clicked_menu {
-                let name = if editor_play {
-                    "Sandbox Button"
-                } else {
-                    "New Game Button"
-                };
-                if let Some(button) = button_by_name(world, name) {
-                    world.trigger(Activate { entity: button });
-                    state.clicked_menu = true;
-                    info!("probe: clicked {name} in the main menu");
-                }
-            }
-        }
-        GameStates::Playing if editor_play => {
-            if !state.created_ship {
-                if let Some(button) = button_by_name(world, "Create New Spaceship Button V2") {
-                    world.trigger(Activate { entity: button });
-                    state.created_ship = true;
-                    // Let the preview spawn and avian settle before Play.
-                    state.wait = 30;
-                    info!("probe: created a ship in the editor");
-                }
-            } else if !state.clicked_play {
-                if let Some(button) = button_by_name(world, "Play Button") {
-                    world.trigger(Activate { entity: button });
-                    state.clicked_play = true;
-                    info!("probe: clicked Play in the editor");
-                }
-            }
-        }
-        GameStates::Playing => {}
-    }
-
-    world.insert_resource(state);
+fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
+    nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+        .step("menu_newgame: reach the main menu")
+        .until(state_is(GameStates::MainMenu))
+        .add()
+        .step("menu_newgame: let the menu lay out")
+        .until(frames(SETTLE))
+        .add()
+        .step("menu_newgame: click New Game")
+        .on_enter(click_named("New Game Button"))
+        .until(frames(SETTLE))
+        .add()
+        // The menu buttons act on `Activate`, which fires on RELEASE over the
+        // same widget - so a click is two beats.
+        .step("menu_newgame: release New Game")
+        .on_enter(|world: &mut World| {
+            release_mouse(MouseButton::Left)(world);
+            info!("menu_newgame: clicked New Game");
+        })
+        .until(state_is(GameStates::Playing))
+        .deadline(BOOT_SECS)
+        .add()
+        .step("menu_newgame: let the teardown finish")
+        .until(frames(SETTLE))
+        .add()
+        .step("menu_newgame: the boot flow completed")
+        .on_enter(|world: &mut World| {
+            // The whole claim: gameplay state is up and the menu is GONE. What
+            // the scenario then contains is deliberately not asserted.
+            assert_eq!(
+                *world.resource::<State<GameStates>>().get(),
+                GameStates::Playing,
+                "New Game must reach gameplay state"
+            );
+            let menu_buttons = world
+                .query::<&Name>()
+                .iter(world)
+                .filter(|name| name.as_str() == "New Game Button")
+                .count();
+            assert_eq!(
+                menu_buttons, 0,
+                "the main menu must be torn down once gameplay is up; \
+                 {menu_buttons} New Game button(s) survived"
+            );
+            info!("menu_newgame: the menu tore down and gameplay state is up");
+        })
+        .until(frames(1))
+        .add()
 }

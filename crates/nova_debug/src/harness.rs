@@ -104,6 +104,17 @@ pub const NOVA_SCREENSHOT_SETTLE_FRAMES: u32 = 30;
 /// [`loop_from`](AutopilotPlugin::loop_from) it without repeating the string.
 pub const NOVA_AUTOPILOT_STEP: &str = "nova: play the loading-gated window";
 
+/// The line a harnessed run logs once its app has reached gameplay state, and
+/// the line `tests/examples_smoke.rs` greps for.
+///
+/// [`DebugPlugin`](crate::DebugPlugin) emits it for every app that carries the
+/// nova debug layer; an app that does NOT carry it (the `widget_zoo` showcase
+/// runs a bare `App` on the widget library alone) emits it itself on entering
+/// its own `Playing`, and means by it "the library is up", not "gameplay". Three
+/// callers across two crates and a test are exactly why the string is a const:
+/// a literal duplicated that widely drifts.
+pub const REACHED_PLAYING: &str = "nova harness: reached Playing";
+
 /// Env-gated autopilot preset for nova examples.
 ///
 /// One step, holding `Loading` for [`NOVA_AUTOPILOT_SECS`] (the asset loader

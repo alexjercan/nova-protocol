@@ -1,5 +1,7 @@
 //! The CRT pipeline: the sampled image, its uniforms and the forwarded pointer.
 
+use bevy::camera::{visibility::RenderLayers, RenderTarget};
+
 use super::*;
 
 #[test]
@@ -459,4 +461,111 @@ fn nova_os_crt_material_publishes_the_mapping_constants() {
     let material = NovaOsCrtMaterial::default();
     assert_eq!(material.data.warp, NOVA_OS_CRT_WARP);
     assert_eq!(material.data.overscan, NOVA_OS_CRT_OVERSCAN);
+}
+
+/// The RTT ELEMENT claim, the one the retired `nova_os_rtt_poc` example was the
+/// only evidence for (task 20260804-094021, DECISION D1): the screen displays a
+/// subtree that is actually rendered offscreen, not an empty target.
+///
+/// The sampling half - the surface, the material, the uniforms, the forwarded
+/// pointer - is covered above. What no other test names is the CAMERA: that an
+/// image camera exists, that it draws into the image the shader samples, and
+/// that it and the content subtree share the private render layer that keeps
+/// stray world 2D sprites out of the terminal picture.
+#[test]
+fn rtt_element_renders_its_subtree() {
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+    spawn_nova_os_shell_with_crt(&mut app);
+
+    let (camera, content_root, image) = {
+        let rtt = app
+            .world()
+            .get_resource::<NovaOsRtt>()
+            .expect("render-capable build inserts the NovaOsRtt pipeline");
+        (rtt.camera, rtt.content_root, rtt.image.clone())
+    };
+
+    let cameras = app
+        .world_mut()
+        .query_filtered::<Entity, With<NovaOsImageCameraMarker>>()
+        .iter(app.world())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        cameras,
+        vec![camera],
+        "exactly one image camera exists, and it is the one the pipeline resource names"
+    );
+
+    // It draws INTO the image the CRT surface samples - the two halves of the
+    // element meeting at the same handle.
+    let target = app
+        .world()
+        .entity(camera)
+        .get::<RenderTarget>()
+        .expect("the image camera renders to a target");
+    assert!(
+        matches!(target, RenderTarget::Image(target) if target.handle == image),
+        "the image camera renders into the offscreen image the screen samples"
+    );
+
+    let camera_component = app
+        .world()
+        .entity(camera)
+        .get::<Camera>()
+        .expect("the image camera is a camera");
+    assert_eq!(
+        camera_component.order, NOVA_OS_RTT_CAMERA_ORDER,
+        "the offscreen pass runs before the window/UI cameras, so the sampled \
+         image is ready when the screen surface reads it"
+    );
+
+    let rtt_layer = RenderLayers::layer(NOVA_OS_RTT_LAYER);
+    assert_eq!(
+        app.world().entity(camera).get::<RenderLayers>(),
+        Some(&rtt_layer),
+        "the image camera draws ONLY the private terminal layer"
+    );
+    assert_eq!(
+        app.world().entity(content_root).get::<RenderLayers>(),
+        Some(&rtt_layer),
+        "the content root sits on the layer the image camera draws"
+    );
+
+    // NON-EMPTY: the element would sample a blank target if the chrome were
+    // routed anywhere else. Walk the subtree rather than counting children, so
+    // a nesting change cannot quietly empty the picture.
+    let mut subtree = Vec::new();
+    let mut stack = vec![content_root];
+    while let Some(entity) = stack.pop() {
+        if entity != content_root {
+            subtree.push(entity);
+        }
+        if let Some(children) = app.world().entity(entity).get::<Children>() {
+            stack.extend(children.iter());
+        }
+    }
+    assert!(
+        !subtree.is_empty(),
+        "the content root carries the terminal subtree; an empty one means the \
+         screen samples a blank image"
+    );
+
+    // Nothing under it opts back out onto another layer - a descendant on a
+    // layer the image camera does not draw is invisible in the picture while
+    // still passing every structural test above.
+    let strays: Vec<Entity> = subtree
+        .into_iter()
+        .filter(|entity| {
+            app.world()
+                .entity(*entity)
+                .get::<RenderLayers>()
+                .is_some_and(|layers| *layers != rtt_layer)
+        })
+        .collect();
+    assert!(
+        strays.is_empty(),
+        "every node under the content root stays on the image camera's layer; \
+         {strays:?} carry another"
+    );
 }

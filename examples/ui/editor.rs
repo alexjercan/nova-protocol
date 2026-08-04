@@ -1,21 +1,24 @@
-//! editor: the ship editor, wired to the headless smoke-test harness.
+//! editor: the ship editor, BUILT and INSPECTED through synthesized pointer input.
 //!
 //! This runs the exact same editor the `nova_protocol` binary launches (via the shared
-//! [`editor_app`]), just with the autopilot + screenshot harness attached. The point is to
-//! have the editor covered by the same headless smoke test as the gameplay examples: it boots
-//! into the editor, the autopilot drives a real editor action (create a ship that has a
-//! controller section), and the run exits without panicking.
+//! [`editor_app`]), just with the autopilot + screenshot harness attached. Every beat is a real
+//! gesture at a real screen position - the run clicks the menu, the rail buttons and the component
+//! cards by `Name`, and it clicks the ship itself by projecting a section onto the viewport. No
+//! editor code is reached by triggering its observer or by inserting its state component.
 //!
-//! Driving the "new ship with a controller" path also keeps the editor-preview controller fix
-//! (task 20260706-212909) honest: a live controller on the non-physics preview root used to
-//! flood the log with "root not found" every frame; the preview now uses an inert render-only
-//! controller, so this run stays quiet.
+//! The arc, one beat per gesture:
 //!
-//! The autopilot then drives section *placement* the way a user would: it selects a hull section
-//! and clicks on the ship, simulating the mouse through the real picking pipeline (a synthetic
-//! `PointerInput` over a section, which avian's physics-picking backend raycasts to a hit) so
-//! the editor's own `on_click_spaceship_section` observer places the new section. No editor code
-//! is changed - everything is driven through public input.
+//! 1. click Sandbox in the main menu, which is also the smoke coverage for the menu itself;
+//! 2. click New Ship - which keeps the editor-preview controller fix (task 20260706-212909) honest:
+//!    a live controller on the non-physics preview root used to flood the log with "root not found"
+//!    every frame, so this run staying quiet is the regression check;
+//! 3. hover a hull component card and assert the tooltip NAMES that section - the editor's one
+//!    surface that identifies a section to the player;
+//! 4. click that card, then place TWO sections by clicking the ship through the real picking
+//!    pipeline (avian's physics-picking backend raycasts the pointer to a hit, and the editor's own
+//!    `on_click_spaceship_section` observer places the section);
+//! 5. click Select / Rebind and click the ship again - select mode must place NOTHING;
+//! 6. click Delete Section and click the ship again - the count drops back.
 //!
 //! Controls (interactive run): use the on-screen buttons to create ships and place sections.
 //!
@@ -23,8 +26,7 @@
 //! ```text
 //! NOVA_AUTOPILOT=1 cargo run --example editor --features debug
 //! # look for: `nova harness: reached Playing`,
-//! #           `editor autopilot: created a ship with a controller`,
-//! #           `editor autopilot: placed a section ...`,
+//! #           `editor: ...` verdict lines per beat,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
@@ -55,169 +57,198 @@ fn main() -> bevy::app::AppExit {
         app.add_plugins(nova_probe::nova_timeline());
         app.add_plugins(nova_probe::nova_invariants());
         app.add_plugins(nova_probe::nova_frametime());
-        app.add_plugins(nova_autopilot().input(editor_autopilot));
+        app.init_resource::<EditorProbe>();
+        app.add_plugins(editor_script());
         app.add_plugins(nova_screenshot());
     }
 
     app.run()
 }
 
-/// The autopilot's step through the editor: create a ship, select a section, then drive the
-/// mouse to place it.
+/// Frames a beat waits for a gesture to land: the picking backend needs a frame
+/// to raycast the new pointer position and the editor's observers a frame to
+/// react. Generous rather than tight - this runs on a software-rendered CI GPU.
 #[cfg(feature = "debug")]
-#[derive(Clone, Copy, PartialEq, Eq, Default)]
-enum Phase {
-    #[default]
-    CreateShip,
-    SelectSection,
-    Aim,
-    Press,
-    Release,
-    Verify,
-    Done,
-}
+const SETTLE: u32 = 10;
 
-/// Autopilot progress. Held as a resource so the `fn(&mut World)` closure can run a small frame-
-/// paced state machine (each phase waits a few frames for the editor/physics to catch up).
+/// Frames the run waits after creating a ship, for the preview to spawn and for
+/// avian to prepare its section colliders before anything is clicked.
+#[cfg(feature = "debug")]
+const SHIP_SETTLE: u32 = 40;
+
+/// What a beat measured, so a later beat can say whether the gesture changed
+/// anything.
 #[cfg(feature = "debug")]
 #[derive(Resource, Default)]
-struct EditorAutopilot {
-    phase: Phase,
-    /// Frames to wait before acting on the current phase.
-    wait: u32,
-    /// The screen-space location to click, computed once we aim.
-    location: Option<bevy::picking::pointer::Location>,
-    /// Section count captured before the placement click, to confirm it added one.
-    sections_before: usize,
+struct EditorProbe {
+    /// The hull section the run places, resolved from the catalog once the
+    /// component cards are up.
+    hull: String,
+    /// Live section count, stamped by the beat before the one that checks it.
+    sections: usize,
 }
 
-/// Autopilot: once the editor is up, create a ship, select a hull section, and click on the ship
-/// to place it - a full editor interaction driven headless.
+/// The whole driven run.
+///
+/// A gesture beat and its VERDICT beat are separate on purpose: the gesture's
+/// effect is only visible after the frames the editor needs, and a verdict that
+/// panics names the beat it belongs to instead of stalling the step it was
+/// folded into.
 #[cfg(feature = "debug")]
-fn editor_autopilot(world: &mut World, _elapsed: f32) {
-    use bevy::{
-        picking::pointer::{PointerAction, PointerButton},
-        ui::Pressed,
-        ui_widgets::Activate,
-    };
-
-    // The app now boots into the main menu; drive it the way a user would by
-    // clicking Sandbox (which is also the smoke coverage for the menu itself).
-    // Repeat clicks while the state transition is pending are idempotent.
-    match *world.resource::<State<GameStates>>().get() {
-        GameStates::MainMenu => {
-            if let Some(button) = button_by_name(world, "Sandbox Button") {
-                world.trigger(Activate { entity: button });
-                info!("editor autopilot: clicked Sandbox in the main menu");
-            }
-            return;
-        }
-        // The editor lives inside GameStates::Playing (it switches its own inner state to
-        // Editor there); do nothing until the loader has reached the menu or gameplay.
-        GameStates::Loading => return,
-        GameStates::Playing => {}
-    }
-
-    if !world.contains_resource::<EditorAutopilot>() {
-        world.insert_resource(EditorAutopilot::default());
-    }
-    let mut state = world.remove_resource::<EditorAutopilot>().unwrap();
-
-    if state.wait > 0 {
-        state.wait -= 1;
-        world.insert_resource(state);
-        return;
-    }
-
-    match state.phase {
-        Phase::CreateShip => {
-            // The editor builds its buttons a couple of frames after entering; wait for it.
-            if let Some(button) = button_by_name(world, "Create New Spaceship Button V2") {
-                world.trigger(Activate { entity: button });
-                info!("editor autopilot: created a ship with a controller");
-                state.phase = Phase::SelectSection;
-                // Let the ship spawn and avian prepare its section colliders before we click.
-                state.wait = 30;
-            }
-        }
-        Phase::SelectSection => {
-            if let Some(name) = hull_section_name(world) {
-                if let Some(button) = button_by_name(world, &name) {
-                    // Section buttons set `SectionChoice` on `Add<Pressed>` (see the editor's
-                    // `button_on_setting`), so inserting `Pressed` selects the section.
-                    world.entity_mut(button).insert(Pressed);
-                    info!("editor autopilot: selected the '{name}' section");
-                    state.phase = Phase::Aim;
-                    state.wait = 2;
-                }
-            }
-        }
-        Phase::Aim => {
-            if let Some((location, count)) = aim_at_a_section(world) {
-                send_pointer(world, &location, PointerAction::Move { delta: Vec2::ZERO });
-                state.location = Some(location);
-                state.sections_before = count;
-                state.phase = Phase::Press;
-                // Let the picking backend raycast the new pointer position and hover the section.
-                state.wait = 2;
-            }
-            // else: no section/camera ready yet - retry next frame.
-        }
-        Phase::Press => {
-            if let Some(location) = state.location.clone() {
-                // Keep hovering, then press the primary button.
-                send_pointer(world, &location, PointerAction::Move { delta: Vec2::ZERO });
-                send_pointer(
-                    world,
-                    &location,
-                    PointerAction::Press(PointerButton::Primary),
-                );
-            }
-            state.phase = Phase::Release;
-            state.wait = 1;
-        }
-        Phase::Release => {
-            if let Some(location) = state.location.clone() {
-                send_pointer(
-                    world,
-                    &location,
-                    PointerAction::Release(PointerButton::Primary),
-                );
-            }
-            state.phase = Phase::Verify;
-            state.wait = 3;
-        }
-        Phase::Verify => {
-            let count = count_sections(world);
-            if count > state.sections_before {
-                info!(
-                    "editor autopilot: placed a section ({} -> {} sections)",
-                    state.sections_before, count
-                );
-            } else {
-                warn!(
-                    "editor autopilot: placement click did not add a section ({} -> {})",
-                    state.sections_before, count
-                );
-            }
-            state.phase = Phase::Done;
-        }
-        Phase::Done => {}
-    }
-
-    world.insert_resource(state);
+fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
+    nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+        .step("editor: reach the main menu")
+        .until(state_is(GameStates::MainMenu))
+        .add()
+        .step("editor: let the menu lay out")
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: click Sandbox")
+        .on_enter(click_named("Sandbox Button"))
+        .until(frames(SETTLE))
+        .add()
+        // The menu buttons act on `Activate`, which fires on RELEASE over the
+        // same widget - so a click is two beats throughout this script.
+        .step("editor: release Sandbox")
+        .on_enter(release_mouse(MouseButton::Left))
+        .until(state_is(GameStates::Playing))
+        .add()
+        .step("editor: let the editor lay out")
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: click New Ship")
+        .on_enter(click_named("Create New Spaceship Button V2"))
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: release New Ship")
+        .on_enter(release_mouse(MouseButton::Left))
+        .until(frames(SHIP_SETTLE))
+        .add()
+        .step("editor: the ship came up with a controller")
+        .on_enter(|world: &mut World| {
+            // `create_new_spaceship_with_controller` spawns the preview with
+            // exactly its controller section - the editor's own marker types are
+            // crate-private, so the section COUNT is what an example can see, and
+            // it is the same claim: the ship exists and it is not empty.
+            let sections = count_sections(world);
+            assert_eq!(
+                sections, 1,
+                "New Ship must create a ship carrying its controller section"
+            );
+            let hull = hull_section_name(world).expect("the catalog lists a hull section");
+            info!("editor: ship created, will build with `{hull}`");
+            world.resource_mut::<EditorProbe>().hull = hull;
+        })
+        .until(frames(1))
+        .add()
+        // Inspect: hovering a component card is the editor's one surface that
+        // NAMES a section to the player.
+        .step("editor: hover the hull card")
+        .on_enter(|world: &mut World| {
+            let hull = world.resource::<EditorProbe>().hull.clone();
+            hover_named(hull)(world);
+        })
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: the tooltip names the section")
+        .on_enter(|world: &mut World| {
+            let hull = world.resource::<EditorProbe>().hull.clone();
+            let named = tooltip_text(world);
+            assert!(
+                named.iter().any(|line| *line == hull),
+                "hovering the `{hull}` card must raise a tooltip naming it; the \
+                 tooltip read {named:?}"
+            );
+            info!("editor: tooltip names `{hull}`");
+        })
+        .until(frames(1))
+        .add()
+        .step("editor: click the hull card")
+        .on_enter(|world: &mut World| {
+            let hull = world.resource::<EditorProbe>().hull.clone();
+            click_named(hull)(world);
+        })
+        .until(frames(SETTLE))
+        .add()
+        // The cards carry `ButtonValue<SectionChoice>`, which `button_on_setting`
+        // applies on `Add<Pressed>` - so the tool is already chosen here, and the
+        // release only lets go of the card.
+        .step("editor: release the hull card")
+        .on_enter(release_mouse(MouseButton::Left))
+        .until(frames(SETTLE))
+        .add()
+        // `SectionChoice` - the armed tool - is crate-private to `nova_editor`, so
+        // the example cannot read it. The arming is proven the only way it is
+        // observable from outside: the next two clicks on the ship place sections,
+        // and the same clicks place nothing once Select mode disarms it.
+        .step("editor: stamp the count before building")
+        .on_enter(stamp_sections)
+        .until(frames(1))
+        .add()
+        .click_the_ship("editor: place the first section")
+        .click_the_ship("editor: place the second section")
+        .step("editor: two sections were placed")
+        .on_enter(|world: &mut World| {
+            let before = world.resource::<EditorProbe>().sections;
+            let now = count_sections(world);
+            assert_eq!(
+                now,
+                before + 2,
+                "two pointer clicks on the ship must place two sections"
+            );
+            info!("editor: placed 2 sections ({before} -> {now})");
+            stamp_sections(world);
+        })
+        .until(frames(1))
+        .add()
+        .step("editor: click Select / Rebind")
+        .on_enter(click_named("Select Section Button"))
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: release Select / Rebind")
+        .on_enter(release_mouse(MouseButton::Left))
+        .until(frames(SETTLE))
+        .add()
+        .click_the_ship("editor: click the ship in select mode")
+        .step("editor: select mode placed nothing")
+        .on_enter(|world: &mut World| {
+            let before = world.resource::<EditorProbe>().sections;
+            let now = count_sections(world);
+            assert_eq!(
+                now, before,
+                "select mode must not place anything; the same click built a \
+                 section a moment ago"
+            );
+            info!("editor: select mode is inert for placement ({now} sections)");
+        })
+        .until(frames(1))
+        .add()
+        .step("editor: click Delete Section")
+        .on_enter(click_named("Delete Section Button"))
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: release Delete Section")
+        .on_enter(release_mouse(MouseButton::Left))
+        .until(frames(SETTLE))
+        .add()
+        .click_the_ship("editor: click the ship in delete mode")
+        .step("editor: the count dropped back")
+        .on_enter(|world: &mut World| {
+            let before = world.resource::<EditorProbe>().sections;
+            let now = count_sections(world);
+            assert_eq!(
+                now,
+                before - 1,
+                "a click in delete mode must remove exactly the section under \
+                 the pointer"
+            );
+            info!("editor: deleted a section ({before} -> {now})");
+        })
+        .until(frames(1))
+        .add()
 }
 
-/// Find a UI entity by its `Name`.
-#[cfg(feature = "debug")]
-fn button_by_name(world: &mut World, name: &str) -> Option<Entity> {
-    let mut q = world.query::<(Entity, &Name)>();
-    q.iter(world)
-        .find(|(_, n)| n.as_str() == name)
-        .map(|(entity, _)| entity)
-}
-
-/// The display name of any hull section in the catalog (the section the autopilot places).
+/// The display name of any hull section in the catalog (the section the run places).
 #[cfg(feature = "debug")]
 fn hull_section_name(world: &World) -> Option<String> {
     world
@@ -234,48 +265,91 @@ fn count_sections(world: &mut World) -> usize {
     q.iter(world).count()
 }
 
-/// Project a preview section onto the screen, returning the pointer [`Location`] to click and
-/// the current section count. `None` until a section, the 3D camera, and the window all exist.
+/// Record the live section count, so the beat after the next gesture can say
+/// what that gesture changed.
 #[cfg(feature = "debug")]
-fn aim_at_a_section(world: &mut World) -> Option<(bevy::picking::pointer::Location, usize)> {
-    // The world-space position of a preview section (and how many there are).
+fn stamp_sections(world: &mut World) {
+    let count = count_sections(world);
+    world.resource_mut::<EditorProbe>().sections = count;
+}
+
+/// Every line of text in the component tooltip, if one is up.
+#[cfg(feature = "debug")]
+fn tooltip_text(world: &mut World) -> Vec<String> {
+    let Some(tooltip) = world
+        .query::<(Entity, &Name)>()
+        .iter(world)
+        .find(|(_, name)| name.as_str() == "Component Tooltip")
+        .map(|(entity, _)| entity)
+    else {
+        return Vec::new();
+    };
+    let mut lines = Vec::new();
+    let mut stack = vec![tooltip];
+    while let Some(entity) = stack.pop() {
+        if let Some(text) = world.get::<Text>(entity) {
+            lines.push(text.0.clone());
+        }
+        if let Some(children) = world.get::<Children>(entity) {
+            stack.extend(children.iter());
+        }
+    }
+    lines
+}
+
+/// The viewport position (logical px) of a preview section, or `None` until a
+/// section, the 3D camera and the window all exist.
+///
+/// `Camera::world_to_viewport` answers in LOGICAL pixels, which is the space
+/// [`move_cursor`] takes - no scale-factor conversion belongs here.
+#[cfg(feature = "debug")]
+fn aim_at_a_section(world: &mut World) -> Option<Vec2> {
     let mut q_sections = world.query_filtered::<&GlobalTransform, With<SectionMarker>>();
     let section_pos = q_sections.iter(world).next()?.translation();
-    let count = q_sections.iter(world).count();
 
     let camera_entity = world
         .query_filtered::<Entity, With<Camera3d>>()
         .iter(world)
         .next()?;
-    let window_entity = world
-        .query_filtered::<Entity, With<bevy::window::PrimaryWindow>>()
-        .iter(world)
-        .next()?;
-
-    // `&Camera` + `&GlobalTransform` + `&RenderTarget` coexist as shared borrows of the world
-    // (in bevy 0.19 the render target is a separate component the `Camera` requires).
     let camera = world.get::<Camera>(camera_entity)?;
     let camera_transform = world.get::<GlobalTransform>(camera_entity)?;
-    let render_target = world.get::<bevy::camera::RenderTarget>(camera_entity)?;
-    let position = camera
-        .world_to_viewport(camera_transform, section_pos)
-        .ok()?;
-    let target = render_target.normalize(Some(window_entity))?;
-
-    Some((bevy::picking::pointer::Location { target, position }, count))
+    camera.world_to_viewport(camera_transform, section_pos).ok()
 }
 
-/// Write a synthetic mouse `PointerInput` at `location`, as if the user moved/clicked there.
+/// The three-beat gesture the run performs on the SHIP rather than on the UI:
+/// aim the pointer at a section, press, release.
+///
+/// An extension trait rather than a free function so a click on the ship reads
+/// in the script exactly like a click on a widget does. The editor acts on
+/// `Pointer<Press>`, so the press is what does the work and the release only
+/// lets go.
+///
+/// Named for the GESTURE, not for placement: the same three beats also drive
+/// the select-mode and delete-mode clicks, where placing nothing is the claim
+/// (review R1.6).
 #[cfg(feature = "debug")]
-fn send_pointer(
-    world: &mut World,
-    location: &bevy::picking::pointer::Location,
-    action: bevy::picking::pointer::PointerAction,
-) {
-    use bevy::picking::pointer::{PointerId, PointerInput};
-    world.write_message(PointerInput::new(
-        PointerId::Mouse,
-        location.clone(),
-        action,
-    ));
+trait ClickTheShip {
+    fn click_the_ship(self, label: &str) -> Self;
+}
+
+#[cfg(feature = "debug")]
+impl ClickTheShip for nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
+    fn click_the_ship(self, label: &str) -> Self {
+        self.step(format!("{label}: aim"))
+            .on_enter(|world: &mut World| {
+                let at = aim_at_a_section(world)
+                    .expect("a preview section, the 3D camera and the window are all up");
+                move_cursor(at)(world);
+            })
+            .until(frames(SETTLE))
+            .add()
+            .step(format!("{label}: press"))
+            .on_enter(press_mouse(MouseButton::Left))
+            .until(frames(SETTLE))
+            .add()
+            .step(format!("{label}: release"))
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(frames(SETTLE))
+            .add()
+    }
 }

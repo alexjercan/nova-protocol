@@ -171,11 +171,27 @@ What is on disk today, in curriculum reading order:
   in one live run: die -> the Defeat overlay -> Retry -> a clean reload ->
   kill -> the objective and the CHECKPOINT -> Continue -> the chained
   scenario). Nothing here reads `assets/base/scenarios`.
-- `ui/` - staged UI flows: `editor` (the shipped editor flow), `hud_range`
-  (screen-projected HUD indicators, velocity sphere included),
-  `menu_newgame` (the shipped boot flow) and `menu_scenarios` (drives the
+- `ui/` - staged UI flows, five runs. Four of the five DRIVE the interface with
+  synthesized pointer input rather than asserting around it: `widget_zoo` (the
+  nova_ui widget set - hover, press, reskin, segmented select, check/toggle
+  flips and a slider drag, then the LIVE TREE checked after each rebuild),
+  `editor` (build a ship and inspect it: cards, placement clicks on the ship
+  itself, select and delete), `menu_newgame` (the shipped boot flow, and
+  nothing about the scenario it boots) and `menu_scenarios` (drives the
   Scenarios picker and logs its laid-out pane widths per selection, so a
-  layout regression that only real text measure can show is caught).
+  layout regression that only real text measure can show is caught). The fifth,
+  `hud_range` (screen-projected HUD indicators, velocity sphere included),
+  stays predicate-driven: it clicks no widget, because its subject is where an
+  indicator lands on screen, not what a pointer does to it.
+  The idiom: a beat NAMES its target (`click_named` / `hover_named` /
+  `ui_node_centre` / `ui_node_rect` in `nova_autopilot::input`) so a layout move
+  is survivable and only a rename breaks a run; nothing reaches a widget by
+  triggering its observer or inserting its state component. A driven run that
+  cannot reach a target says so and states its COVERAGE in the verdict -
+  `menu_scenarios` names the rows it skipped past the picker's fold and fails
+  outright below two measurements, since its property is a comparison across
+  selections. `systems/` deliberately does the opposite - its subject is the
+  outcome chain, so pixel coordinates would only add layout coupling.
 - `screenshots/` - `screenshot_reel`, `screenshot_ui`, `screenshot_combat`,
   `screenshot_sections`, `screenshot_juice`, `screenshot_orbit` (drive the
   shipped scenes headless to capture the wiki and marketing frames),

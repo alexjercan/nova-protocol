@@ -4542,6 +4542,7 @@ dependencies = [
  "clap",
  "embed-resource",
  "nova_core",
+ "nova_debug",
  "nova_modding",
  "nova_probe",
  "nova_ui",

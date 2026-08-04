@@ -83,6 +83,8 @@
 pub mod autopilot;
 pub mod completion;
 pub mod input;
+#[cfg(test)]
+mod log_capture;
 pub mod predicate;
 pub mod reel;
 pub mod screenshot;
@@ -111,7 +113,10 @@ pub mod prelude {
             register, HarnessCompletion, AUTOPILOT, DEADLINE_ENV, DEFAULT_DEADLINE_SECS, REEL,
             SCREENSHOT,
         },
-        input::{click_at, move_cursor, press_key, press_mouse, release_key, release_mouse},
+        input::{
+            click_at, click_named, hover_named, move_cursor, press_key, press_mouse, release_key,
+            release_mouse, ui_node_centre, ui_node_rect,
+        },
         predicate::{and, any_entity, elapsed, frames, not, resource_where, state_is, Predicate},
         reel::{
             capture_window, ReelBeat, ScreenshotReelPlugin, REEL_CAPTURE_RESOLUTION, REEL_ENV,

@@ -43,9 +43,23 @@ const SECTIONS: &[&str] = &[
 /// systems: the scenario grammar, the player path, and the outcome arc.
 const SYSTEMS: &[&str] = &["scenario_grammar", "player_path", "outcomes"];
 
-/// examples/ui/ - staged UI flows (editor via the preset; hud_range and
-/// menu_newgame + menu_scenarios drive their own `AutopilotPlugin` timelines).
-const UI: &[&str] = &["editor", "hud_range", "menu_newgame", "menu_scenarios"];
+/// examples/ui/ - staged UI flows, each driving real widgets with synthesized
+/// pointer input (editor via the preset; the rest drive their own
+/// `AutopilotPlugin` timelines).
+///
+/// `widget_zoo` is a widget-library showcase, not a game: it carries
+/// `GameStates` and steps into `Playing` in `Startup` solely so the shared
+/// harness can drive it, and "reached Playing" means "the widget library is up"
+/// there - the run's real claims are its own in-example assertions (hover and
+/// pressed faces, reskin, segmented select, check flips, slider drag, and the
+/// live tree after each rebuild), which panic and fail this test.
+const UI: &[&str] = &[
+    "editor",
+    "hud_range",
+    "menu_newgame",
+    "menu_scenarios",
+    "widget_zoo",
+];
 
 /// examples/screenshots/ - the capture producers still run a full harnessed
 /// cycle headless (capture is inert without `NOVA_SHOT`), so they smoke too.
@@ -67,11 +81,7 @@ const SCREENSHOTS: &[&str] = &[
 ///   verified by eyeballing the PNGs (task 20260718-004723).
 /// - perf_baseline: not harnessed - probe owns it (`probe run perf_baseline
 ///   --fps`), and a smoke pass would only measure noise.
-/// - widget_zoo: the nova_ui widget-library showcase (task 20260728-175734)
-///   runs its own `App` with no `GameStates` at all - it is an interactive
-///   render eyeball (and a `NOVA_ZOO_CAPTURE` two-skin capture), so the
-///   reach-Playing smoke has nothing to assert on it.
-const NOT_SMOKED: &[&str] = &["render_scale_shot", "perf_baseline", "widget_zoo"];
+const NOT_SMOKED: &[&str] = &["render_scale_shot", "perf_baseline"];
 
 #[test]
 fn sections_reach_playing_without_panic() {
@@ -298,7 +308,7 @@ fn smoke(examples: &[&str]) {
             tail(&stderr),
         );
         assert!(
-            stderr.contains("nova harness: reached Playing"),
+            stderr.contains(nova_debug::harness::REACHED_PLAYING),
             "example {example} never reached Playing\n--- stderr tail ---\n{}",
             tail(&stderr),
         );

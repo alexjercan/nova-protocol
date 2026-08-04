@@ -189,11 +189,10 @@ fn completion_watch(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
-
     use bevy::ecs::schedule::SingleThreadedExecutor;
 
     use super::*;
+    use crate::log_capture::capturing_logs;
 
     fn app() -> App {
         let mut app = App::new();
@@ -206,47 +205,6 @@ mod tests {
             .resource_mut::<Messages<AppExit>>()
             .drain()
             .collect()
-    }
-
-    /// A `tracing` sink, so a test can assert on what the watcher LOGGED and
-    /// not merely on the exit code it wrote.
-    #[derive(Clone, Default)]
-    struct LogBuf(Arc<Mutex<Vec<u8>>>);
-
-    impl LogBuf {
-        fn text(&self) -> String {
-            String::from_utf8_lossy(&self.0.lock().unwrap()).into_owned()
-        }
-    }
-
-    impl std::io::Write for LogBuf {
-        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-            self.0.lock().unwrap().extend_from_slice(buf);
-            Ok(buf.len())
-        }
-
-        fn flush(&mut self) -> std::io::Result<()> {
-            Ok(())
-        }
-    }
-
-    impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for LogBuf {
-        type Writer = Self;
-
-        fn make_writer(&'a self) -> Self::Writer {
-            self.clone()
-        }
-    }
-
-    /// Run `body` with every log line captured into the returned buffer.
-    fn capturing_logs<T>(body: impl FnOnce() -> T) -> (T, String) {
-        let logs = LogBuf::default();
-        let subscriber = tracing_subscriber::fmt()
-            .with_writer(logs.clone())
-            .with_ansi(false)
-            .finish();
-        let out = tracing::subscriber::with_default(subscriber, body);
-        (out, logs.text())
     }
 
     #[test]

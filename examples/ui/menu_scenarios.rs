@@ -1,8 +1,15 @@
 //! menu_scenarios: drive the main menu's Scenarios picker and MEASURE it.
 //!
 //! Boots the exact app the `nova_protocol` binary runs (via the shared
-//! [`editor_app`]), clicks Scenarios, then selects every listed scenario row in
-//! turn. After each selection settles it logs the laid-out width of the two
+//! [`editor_app`]), clicks Scenarios, then selects every scenario row that lies
+//! inside the list's visible box, in turn. The picker does not scroll under the
+//! harness, so a row past the fold is warned about and skipped rather than
+//! faked - and the run FAILS if fewer than two rows were reached, because the
+//! split it measures is only testable ACROSS selections. Every click is a REAL
+//! gesture: the pointer is moved to the widget's
+//! own screen position, resolved from its `Name`, and pressed and released
+//! there (task 20260804-094021) - nothing is reached by triggering its
+//! observer. After each selection settles it logs the laid-out width of the two
 //! panes ("Scenarios List" and "Scenario Details Panel") and, at the end, a
 //! verdict line saying whether those widths held constant across selections.
 //!
@@ -29,6 +36,8 @@
 use bevy::prelude::*;
 use clap::Parser;
 use nova_protocol::prelude::*;
+#[cfg(feature = "debug")]
+use nova_ui::widget::Selected;
 
 #[derive(Parser)]
 #[command(name = "menu_scenarios")]
@@ -95,32 +104,72 @@ struct ScenariosAutopilot {
     visited: Vec<String>,
     /// `(list width, details width)` measured after each selection settled.
     measured: Vec<(String, f32, f32)>,
+    /// Rows the walk gave up on, with the reason. Named in the verdict, so a
+    /// thin run says WHICH rows it could not reach rather than only how many.
+    skipped: Vec<(String, &'static str)>,
+    /// The row currently being waited on, and for how many driven frames. Reset
+    /// whenever the candidate changes, so the budget is per row.
+    settling: Option<(String, u32)>,
+    /// The row a click was just issued on, awaiting its measurement. Set only
+    /// when the gesture actually went out, so a row that never laid out is
+    /// skipped rather than measured against the PREVIOUS selection's panes.
+    pending_measure: Option<String>,
     /// The walk is over and Play has been clicked.
     launched: bool,
     /// The launched scenario came up and the completion was reported.
     finished: bool,
+    /// A press is outstanding: the next driven frame releases it. Widgets act
+    /// on `Activate`, which fires on RELEASE over the same node, so every click
+    /// this walk makes spans two frames.
+    pending_release: bool,
     wait: u32,
 }
 
+/// Driven frames a row gets to lay out inside the list before the walk gives up
+/// on it.
+///
+/// Every selection REBUILDS the list, so on the frames right after a rebuild
+/// the list - or the row - has no rect at all. A single-frame look read that as
+/// "below the fold" and skipped the row for good, which is why the measured
+/// count varied run to run (review R2.1). A row is only skipped once it has
+/// failed to settle for this many consecutive driven frames, so only a row that
+/// is genuinely past the fold is dropped.
 #[cfg(feature = "debug")]
-fn button_by_name(world: &mut World, name: &str) -> Option<Entity> {
-    let mut names = world.query::<(Entity, &Name)>();
-    names
-        .iter(world)
-        .find(|(_, n)| n.as_str() == name)
-        .map(|(entity, _)| entity)
+const ROW_SETTLE_FRAMES: u32 = 10;
+
+/// Where a row is, as far as the walk can tell THIS frame.
+///
+/// A row scrolled past the fold still LAYS OUT, so `ui_node_centre` happily
+/// returns a coordinate for it - one that points at whatever is actually on
+/// screen there. Clicking it would select nothing and the walk would measure the
+/// previous selection's panes. The picker does not scroll under the harness, so
+/// a row below the fold is skipped rather than faked.
+///
+/// The three not-yet-clickable cases are kept APART because they mean different
+/// things: two are transient and one is permanent, and collapsing them into one
+/// `false` is what made a settling list indistinguishable from a fold.
+#[cfg(feature = "debug")]
+enum RowPlacement {
+    /// Inside the list's box, at this logical-pixel centre. Click it.
+    OnScreen(Vec2),
+    /// Not clickable this frame, for the reason named (for the warn).
+    Unreached(&'static str),
 }
 
-/// The laid-out width (logical px) of the uniquely-named node, if it has been
-/// through layout yet. `ComputedNode::size` is PHYSICAL; multiplying by the
-/// inverse scale factor is what gives logical px (review R1.2 - dividing
-/// reported `physical * scale_factor`, which only reads right at scale 1).
+/// Locate `name` against the `Scenarios List` box.
 #[cfg(feature = "debug")]
-fn width_by_name(world: &mut World, name: &str) -> Option<f32> {
-    let mut q = world.query::<(&Name, &ComputedNode)>();
-    q.iter(world)
-        .find(|(n, _)| n.as_str() == name)
-        .map(|(_, computed)| computed.size().x * computed.inverse_scale_factor())
+fn row_placement(world: &mut World, name: &str) -> RowPlacement {
+    let Some(list) = ui_node_rect(world, "Scenarios List") else {
+        return RowPlacement::Unreached("the Scenarios List has not laid out yet");
+    };
+    let Some(row) = ui_node_rect(world, name) else {
+        return RowPlacement::Unreached("the row has not laid out yet");
+    };
+    if list.contains(row.center()) {
+        RowPlacement::OnScreen(row.center())
+    } else {
+        RowPlacement::Unreached("the row's centre is outside the list's box")
+    }
 }
 
 /// Every scenario row currently in the list, by name, in list order.
@@ -140,8 +189,6 @@ fn scenario_row_names(world: &mut World) -> Vec<String> {
 /// whether the split held, and launch the last selection.
 #[cfg(feature = "debug")]
 fn scenarios_autopilot(world: &mut World, _elapsed: f32) {
-    use bevy::ui_widgets::Activate;
-
     let playing = matches!(
         *world.resource::<State<GameStates>>().get(),
         GameStates::Playing
@@ -171,16 +218,31 @@ fn scenarios_autopilot(world: &mut World, _elapsed: f32) {
         world.insert_resource(state);
         return;
     }
+
+    // Let go of the press made on a previous frame; THIS is what fires
+    // `Activate` on the widget under the pointer.
+    if state.pending_release {
+        release_mouse(MouseButton::Left)(world);
+        state.pending_release = false;
+        // A selection rebuilds BOTH panes (and may load a thumbnail); give
+        // layout and the image load room before measuring.
+        state.wait = 20;
+        world.insert_resource(state);
+        return;
+    }
+
     if state.launched {
         world.insert_resource(state);
         return;
     }
 
     if !state.opened {
-        if let Some(button) = button_by_name(world, "Scenarios Button") {
-            world.trigger(Activate { entity: button });
+        // Resolved once and clicked at the bound centre: `click_named` would
+        // resolve the same node a second time (review R1.7).
+        if let Some(centre) = ui_node_centre(world, "Scenarios Button") {
+            click_at(centre, MouseButton::Left)(world);
             state.opened = true;
-            state.wait = 10;
+            state.pending_release = true;
             info!("probe: opened the Scenarios picker");
         }
         world.insert_resource(state);
@@ -188,27 +250,50 @@ fn scenarios_autopilot(world: &mut World, _elapsed: f32) {
     }
 
     // Measure the selection made on the previous step (it has settled by now).
-    if let Some(last) = state.visited.last().cloned() {
-        if state.measured.len() < state.visited.len() {
-            let list = width_by_name(world, "Scenarios List");
-            let details = width_by_name(world, "Scenario Details Panel");
-            if let (Some(list), Some(details)) = (list, details) {
-                info!("scenarios pane widths: list={list:.1} details={details:.1} after {last}");
-                if std::env::var_os("NOVA_REEL").is_some() {
-                    let id = last.trim_start_matches("Scenario Row: ");
-                    capture_window(world, &format!("scenarios-picker-{id}.png"));
-                    // Let the PNG land BEFORE the next row is clicked: the
-                    // capture resolves at the end of the frame, so clicking on
-                    // through in this same frame renders the NEXT selection into
-                    // the shot (it did - the first cut of this rig produced
-                    // shots one selection ahead of their filename).
-                    state.measured.push((last, list, details));
-                    state.wait = 4;
-                    world.insert_resource(state);
-                    return;
-                }
+    if let Some(last) = state.pending_measure.clone() {
+        // The click LANDED, or the measurement proves nothing. A pointer
+        // gesture can miss where triggering the observer directly could not (a
+        // row scrolled out, occluded, or hit-tested to another node), and a
+        // missed click leaves both panes untouched - so the widths would "hold"
+        // across selections that never happened (review R1.1).
+        assert_selection_landed(world, &last);
+        let list = ui_node_rect(world, "Scenarios List").map(|rect| rect.width());
+        let details = ui_node_rect(world, "Scenario Details Panel").map(|rect| rect.width());
+        if let (Some(list), Some(details)) = (list, details) {
+            info!("scenarios pane widths: list={list:.1} details={details:.1} after {last}");
+            state.pending_measure = None;
+            if std::env::var_os("NOVA_REEL").is_some() {
+                let id = last.trim_start_matches("Scenario Row: ");
+                capture_window(world, &format!("scenarios-picker-{id}.png"));
+                // Let the PNG land BEFORE the next row is clicked: the
+                // capture resolves at the end of the frame, so clicking on
+                // through in this same frame renders the NEXT selection into
+                // the shot (it did - the first cut of this rig produced
+                // shots one selection ahead of their filename).
                 state.measured.push((last, list, details));
+                state.wait = 4;
+                world.insert_resource(state);
+                return;
             }
+            state.measured.push((last, list, details));
+        } else {
+            // The click LANDED (asserted above) but a pane has not laid out, so
+            // this selection cannot be measured. It is recorded as SKIPPED, not
+            // merely warned about: a row in neither `measured` nor `skipped`
+            // would make `report()` state a coverage the run never had, which
+            // is the one thing that string exists to prevent (review R3.2).
+            // `pending_measure` is cleared with it, so the row is accounted
+            // ONCE rather than once per frame until the next click overwrites
+            // it.
+            let laid_out = |width: Option<f32>| if width.is_some() { "yes" } else { "no" };
+            warn!(
+                "scenarios: no pane widths after {last} (list laid out: {}, details laid out: \
+                 {}); dropping that measurement",
+                laid_out(list),
+                laid_out(details)
+            );
+            state.skipped.push((last, "its pane widths never laid out"));
+            state.pending_measure = None;
         }
     }
 
@@ -216,26 +301,44 @@ fn scenarios_autopilot(world: &mut World, _elapsed: f32) {
     let rows = scenario_row_names(world);
     let next = rows.iter().find(|n| !state.visited.contains(n)).cloned();
     match next {
-        Some(name) => {
-            if let Some(row) = button_by_name(world, &name) {
-                world.trigger(Activate { entity: row });
-                state.visited.push(name.clone());
-                // A selection rebuilds BOTH panes (and may load a thumbnail);
-                // give layout and the image load room before measuring.
-                state.wait = 20;
-            } else {
-                // Vanished between listing and clicking - do not spin on it.
+        Some(name) => match row_placement(world, &name) {
+            RowPlacement::OnScreen(centre) => {
+                click_at(centre, MouseButton::Left)(world);
+                state.pending_measure = Some(name.clone());
                 state.visited.push(name);
+                state.settling = None;
+                state.pending_release = true;
             }
-        }
+            RowPlacement::Unreached(reason) => {
+                // Give the rebuilt list room to settle before believing this.
+                // Only a row that stays unreachable for the whole budget is
+                // skipped, and the warn names WHICH of the three cases it was.
+                let waited = match &state.settling {
+                    Some((settling, waited)) if *settling == name => waited + 1,
+                    _ => 1,
+                };
+                if waited >= ROW_SETTLE_FRAMES {
+                    warn!(
+                        "scenarios: row `{name}` unreachable after {ROW_SETTLE_FRAMES} driven \
+                         frames ({reason}); skipping it"
+                    );
+                    state.visited.push(name.clone());
+                    state.skipped.push((name, reason));
+                    state.settling = None;
+                } else {
+                    state.settling = Some((name, waited));
+                }
+            }
+        },
         None => {
             report(&state);
             // Finish the way a player does: launch the scenario the picker has
             // selected. That also gives the smoke suite its reach-Playing
             // contract, and puts the details pane's Play button - the picker's
             // whole point - under the harness.
-            if let Some(play) = button_by_name(world, "Scenario Play Button") {
-                world.trigger(Activate { entity: play });
+            if let Some(centre) = ui_node_centre(world, "Scenario Play Button") {
+                click_at(centre, MouseButton::Left)(world);
+                state.pending_release = true;
                 info!("probe: clicked Play on the selected scenario");
             } else {
                 warn!("probe: no Play button in the details pane to finish on");
@@ -247,27 +350,81 @@ fn scenarios_autopilot(world: &mut World, _elapsed: f32) {
     world.insert_resource(state);
 }
 
+/// The row named `name` must be the selected one before its measurement counts.
+///
+/// `select_scenario_row` (`crates/nova_menu/src/scenarios.rs:596`) inserts
+/// [`Selected`] on the clicked row and removes it from every other, so this is
+/// the picker's own record of which click landed - not a restatement of what
+/// the beat intended. Under `NOVA_AUTOPILOT` a miss is fatal, the same way
+/// `report()` treats zero measurements; interactively it only warns.
+#[cfg(feature = "debug")]
+fn assert_selection_landed(world: &mut World, name: &str) {
+    let selected = world
+        .query_filtered::<&Name, With<Selected>>()
+        .iter(world)
+        .any(|selected| selected.as_str() == name);
+    if selected {
+        return;
+    }
+    if std::env::var_os("NOVA_AUTOPILOT").is_some() {
+        panic!(
+            "the click on `{name}` never landed: the picker has not marked that \
+             row Selected, so its pane widths measure the PREVIOUS selection"
+        );
+    }
+    warn!("scenarios: the click on `{name}` did not select it");
+}
+
 /// The verdict line the run is read by: every measured selection must have the
 /// same pane widths.
 ///
 /// Under `NOVA_AUTOPILOT` this is an in-example ASSERTION, not just a log line:
 /// the smoke suite (`tests/examples_smoke.rs`) only greps for reach-Playing and
 /// a clean exit, so a rig that merely logged `CHANGED` would let the exact
-/// regression this example exists to catch pass CI green (review R1.3). A run
-/// that measured NOTHING fails the same way - "no rows found" is not a pass.
+/// regression this example exists to catch pass CI green (review R1.3).
+///
+/// A thin run fails the same way. The property is a COMPARISON across
+/// selections, so one measurement makes both spreads `max - min` over a single
+/// value - zero - and prints `HELD` having proven nothing (review R2.3). Two is
+/// the floor, and falling under it names the rows that were skipped, since a
+/// skip is the only way to get there.
 #[cfg(feature = "debug")]
 fn report(state: &ScenariosAutopilot) {
     let harnessed = std::env::var_os("NOVA_AUTOPILOT").is_some();
-    let Some((_, first_list, first_details)) = state.measured.first() else {
-        if harnessed {
-            panic!(
-                "scenarios pane widths: NO measurements - the picker listed no \
-                 scenario rows, so nothing was proven"
-            );
-        }
-        warn!("scenarios pane widths: NO measurements (no scenario rows found)");
-        return;
+    // COVERAGE, stated on every verdict and not only when something goes wrong.
+    // The rows the walk could not reach are the difference between "the split
+    // held" and "the split held over whatever happened to be on screen", and a
+    // verdict that does not say which it is cannot be read later.
+    let coverage = if state.skipped.is_empty() {
+        format!("{} rows, none skipped", state.measured.len())
+    } else {
+        let skipped: Vec<String> = state
+            .skipped
+            .iter()
+            .map(|(name, reason)| format!("{name} ({reason})"))
+            .collect();
+        format!(
+            "{} rows measured, {} skipped: {}",
+            state.measured.len(),
+            state.skipped.len(),
+            skipped.join(", ")
+        )
     };
+
+    if state.measured.len() < 2 {
+        let detail = format!(
+            "only {} of the picker's rows were measured, and the split is only \
+             testable ACROSS selections - {coverage}",
+            state.measured.len()
+        );
+        if harnessed {
+            panic!("scenarios pane widths: TOO FEW measurements - {detail}");
+        }
+        warn!("scenarios pane widths: TOO FEW measurements - {detail}");
+        return;
+    }
+    // At least two, per the floor above.
+    let (_, first_list, first_details) = &state.measured[0];
     let spread = |pick: fn(&(String, f32, f32)) -> f32| -> f32 {
         let values: Vec<f32> = state.measured.iter().map(pick).collect();
         let min = values.iter().cloned().fold(f32::INFINITY, f32::min);
@@ -280,13 +437,13 @@ fn report(state: &ScenariosAutopilot) {
     if list_spread <= 0.5 && details_spread <= 0.5 {
         info!(
             "scenarios pane widths HELD across {} selections (list={first_list:.1} \
-             details={first_details:.1})",
+             details={first_details:.1}) - coverage: {coverage}",
             state.measured.len()
         );
     } else {
         error!(
             "scenarios pane widths CHANGED across {} selections: list spread {list_spread:.1}px, \
-             details spread {details_spread:.1}px",
+             details spread {details_spread:.1}px - coverage: {coverage}",
             state.measured.len()
         );
         for (name, list, details) in &state.measured {
