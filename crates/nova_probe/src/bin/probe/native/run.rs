@@ -14,7 +14,7 @@ use nova_probe::{
 use super::{
     cli::{Platform, RunOptions},
     env::{
-        clean_pass_env, example_fps_policy, fps_window_and_deadline_env, matrix_cells,
+        clean_pass_env, example_fps_skip_reason, fps_window_and_deadline_env, matrix_cells,
         samply_pass_env, sweep_cell_env, trace_pass_env,
     },
     paths::{default_output_root, repo_root, resolve_full_git_sha},
@@ -58,10 +58,10 @@ fn clean_out_dir(out: &Path) -> Result<(), String> {
 
 pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
     let root = repo_root();
-    // fps policy for this example: category (window default) + whether it
-    // is configured fps-exempt (a narrative one-shot with no stable
-    // window - runs correctness passes, skips the frame-time pass).
-    let (category, fps_exempt) = example_fps_policy(&root, &opts.example);
+    // The frame-time pass runs only for a frame-time CATEGORY; anywhere
+    // else this is the reason it did not, recorded for the report (the
+    // correctness passes are unaffected).
+    let fps_skipped = example_fps_skip_reason(&root, &opts.example);
     let out = opts.out.clone().unwrap_or_else(|| {
         let (git_sha, _) = run_identity();
         default_output_root(&root, None, &git_sha).join(&opts.example)
@@ -103,7 +103,7 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
             started_unix,
             passes,
             /*armed_native*/ false,
-            /*fps_exempt*/ None,
+            /*fps_skipped*/ None,
         );
     }
 
@@ -117,7 +117,7 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
     let sweeping = !opts.scenarios.is_empty() || !opts.presets.is_empty();
     eprintln!(
         "probe: [1/{}] clean pass: building {}{}",
-        passes_total(opts, fps_exempt.is_some()),
+        passes_total(opts, fps_skipped.is_some()),
         opts.example,
         if opts.release { " (release)" } else { "" }
     );
@@ -171,17 +171,14 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
     // FPS pass (optional, non-sweep): the dedicated capture-only run -
     // same binary as the clean pass, recorder/invariants OFF the frame
     // path, its own log. The completion protocol keeps the app alive
-    // until the capture window closes. SKIPPED for fps-exempt examples:
-    // a narrative one-shot cannot fill a window and would idle to the
+    // until the capture window closes. SKIPPED outside a frame-time
+    // category: an example with no steady-state window would idle to the
     // deadline, hard-timeout, and bare-FAIL the run - it runs the clean +
-    // profiled correctness passes only, and the report says fps-exempt
-    // instead of "no capture".
+    // profiled correctness passes only, and the report says which category
+    // policy skipped it instead of "no capture".
     if opts.fps && !sweeping {
-        if let Some(reason) = &fps_exempt {
-            eprintln!(
-                "probe: fps pass skipped: {} is fps-exempt ({reason})",
-                opts.example
-            );
+        if let Some(reason) = &fps_skipped {
+            eprintln!("probe: fps pass skipped for {}: {reason}", opts.example);
         } else {
             eprintln!(
                 "probe: fps pass: capture-only -> {}",
@@ -189,11 +186,11 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
             );
             let mut env = clean_pass_env(&root, &out, &display, true);
             env.retain(|(k, _)| k != "NOVA_PERF_TIMELINE" && k != "NOVA_PERF_INVARIANTS");
-            // Category-aware window + a completion deadline SIZED to that
-            // window, so a slow-but-progressing capture (a heavy dev scene
-            // under software rendering) completes instead of tripping the
-            // flat 120s hang detector.
-            let (window_env, deadline_secs) = fps_window_and_deadline_env(&category);
+            // The baseline capture window + a completion deadline SIZED to
+            // it, so a slow-but-progressing capture (a heavy dev scene under
+            // software rendering) completes instead of tripping the flat
+            // 120s hang detector.
+            let (window_env, deadline_secs) = fps_window_and_deadline_env();
             env.extend(window_env);
             // The supervisor timeout MUST exceed the in-process deadline,
             // or probe kills the child before the deadline can complete or
@@ -225,7 +222,7 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
     if opts.profile {
         eprintln!(
             "probe: [2/{}] profiled pass: building with tracing",
-            passes_total(opts, fps_exempt.is_some())
+            passes_total(opts, fps_skipped.is_some())
         );
         match build_example(&root, &opts.example, "debug,trace", None) {
             Err(e) => {
@@ -266,7 +263,7 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
     if opts.samply {
         eprintln!(
             "probe: [{n}/{n}] samply pass",
-            n = passes_total(opts, fps_exempt.is_some())
+            n = passes_total(opts, fps_skipped.is_some())
         );
         match build_example(&root, &opts.example, "debug", Some("profiling")) {
             Err(e) => eprintln!("probe: samply build failed ({e}); flamegraph skipped"),
@@ -310,10 +307,10 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
         started_unix,
         passes,
         /*armed_native*/ !sweeping,
-        // Only record the exemption when the operator actually asked for
-        // fps: a plain `probe run <exempt>` shows the normal no-capture
-        // line, not an exempt note for a pass nobody requested.
-        fps_exempt.filter(|_| opts.fps && !sweeping),
+        // Only record the skip when the operator actually asked for fps: a
+        // plain `probe run <example>` shows the normal no-capture line, not
+        // a policy note for a pass nobody requested.
+        fps_skipped.filter(|_| opts.fps && !sweeping),
     )
 }
 
@@ -324,7 +321,7 @@ fn finish_report(
     started_unix: u64,
     passes: Vec<PassRecord>,
     armed_native: bool,
-    fps_exempt: Option<String>,
+    fps_skipped: Option<String>,
 ) -> Result<ExitCode, String> {
     let (git_sha, host) = run_identity();
     let full_git_sha = resolve_full_git_sha(&repo_root());
@@ -336,10 +333,10 @@ fn finish_report(
         host,
         armed_timeline: armed_native,
         armed_invariants: armed_native,
-        // Exempt examples never armed the capture, so armed_fps is false
-        // (the fps_exempt reason carries the "why" for the report).
-        armed_fps: (opts.fps && fps_exempt.is_none()) || opts.platform == Platform::Web,
-        fps_exempt,
+        // A skipped frame-time pass never armed the capture, so armed_fps
+        // is false (the fps_skipped reason carries the "why").
+        armed_fps: (opts.fps && fps_skipped.is_none()) || opts.platform == Platform::Web,
+        fps_skipped,
         passes,
     };
     std::fs::write(
@@ -371,11 +368,11 @@ fn finish_report(
     })
 }
 
-fn passes_total(opts: &RunOptions, fps_exempt: bool) -> usize {
+fn passes_total(opts: &RunOptions, fps_skipped: bool) -> usize {
     let sweeping = !opts.scenarios.is_empty() || !opts.presets.is_empty();
-    // The fps pass does not run for an exempt example, so it does not
-    // count toward the progress total (keeps the [n/N] labels honest).
-    1 + usize::from(opts.fps && !sweeping && !fps_exempt)
+    // A skipped fps pass does not run, so it does not count toward the
+    // progress total (keeps the [n/N] labels honest).
+    1 + usize::from(opts.fps && !sweeping && !fps_skipped)
         + usize::from(opts.profile)
         + usize::from(opts.samply)
 }

@@ -8,14 +8,6 @@ use nova_probe::profile_sandbox;
 
 use super::cli::Render;
 
-/// The non-`perf/` fps window: a shorter warm-up +
-/// capture than the perf baseline so a bare `probe run <example> --fps`
-/// finishes quickly. `perf/` examples (dedicated steady-state scenes) and
-/// the sweep matrix keep the capture crate's full 180/900 baseline window
-/// so baselines stay like-for-like.
-const NON_PERF_WARMUP: u32 = 60;
-const NON_PERF_FRAMES: u32 = 240;
-
 /// Conservative software-render frame-rate FLOOR (frames/sec) used to size
 /// the completion deadline to the capture window.
 /// The heavy perf scene measured ~2.3 fps in a dev build under lavapipe, so
@@ -26,29 +18,36 @@ const FPS_FLOOR: f64 = 2.0;
 /// Extra seconds added to the sized deadline for scene load + asset warm.
 const FPS_LOAD_MARGIN_SECS: u64 = 45;
 
-/// Resolve an example's fps policy from the catalog + probe metadata: its
-/// category (drives the window default) and, when configured fps-exempt,
-/// the reason to record. Fail-OPEN (unknown example -> empty category, not
-/// exempt) so a catalog hiccup never silently suppresses a real capture.
-pub(crate) fn example_fps_policy(root: &Path, example: &str) -> (String, Option<String>) {
+/// Why the frame-time pass is skipped for `category`, or `None` when the
+/// category carries one. The reason NAMES the category, because that is
+/// where the decision actually lives - it is a property of the contract the
+/// example was written against, not a per-example opt-out.
+pub(crate) fn fps_skip_reason(category: &str) -> Option<String> {
+    (!nova_probe::category_policy(category).frame_time).then(|| {
+        format!(
+            "category `{category}/` carries no frame-time pass - it proves \
+             behavior, not frame cost, and has no steady-state window to \
+             measure (frame-time claims live in `stress/`)"
+        )
+    })
+}
+
+/// The frame-time skip reason for an EXAMPLE, resolved through its category
+/// in the catalog.
+///
+/// Fail-OPEN when the category cannot be resolved (catalog read error, or an
+/// example not in it): `None`, so the capture still runs. Spec resolution
+/// validates names against a loaded catalog, so this is a shape rather than a
+/// live path - but a catalog hiccup must never silently suppress a real
+/// capture, and formatting an unresolved category into the reason would
+/// print a meaningless ``category `/` ...``.
+pub(crate) fn example_fps_skip_reason(root: &Path, example: &str) -> Option<String> {
     let category = nova_probe::load_example_catalog(root)
-        .ok()
-        .and_then(|catalog| {
-            catalog
-                .iter()
-                .find(|entry| entry.name == example)
-                .map(|entry| entry.category.clone())
-        })
-        .unwrap_or_default();
-    let reason = nova_probe::load_fps_exempt(root)
+        .ok()?
         .iter()
-        .any(|name| name == example)
-        .then(|| {
-            "narrative scenario (configured in Cargo.toml \
-             [package.metadata.nova_probe] fps_exempt); no stable frame-time window"
-                .to_string()
-        });
-    (category, reason)
+        .find(|entry| entry.name == example)
+        .map(|entry| entry.category.clone())?;
+    fps_skip_reason(&category)
 }
 
 /// Read an env var as u32 (empty/unparseable -> None). Reads probe's own
@@ -57,22 +56,20 @@ fn env_u32(key: &str) -> Option<u32> {
     std::env::var(key).ok().and_then(|v| v.trim().parse().ok())
 }
 
-/// Resolve the fps capture window (warmup, frames) probe will use for a
-/// category: the operator's `NOVA_PERF_WARMUP`/`NOVA_PERF_FRAMES` win, else
-/// the `perf/` full baseline window (the capture crate's defaults) or the
-/// short non-perf window.
-fn resolve_fps_window(category: &str) -> (u32, u32) {
-    let (default_warmup, default_frames) = if category == "perf" {
-        (
-            nova_probe::DEFAULT_WARMUP_FRAMES,
-            nova_probe::DEFAULT_CAPTURE_FRAMES,
-        )
-    } else {
-        (NON_PERF_WARMUP, NON_PERF_FRAMES)
-    };
+/// Resolve the fps capture window (warmup, frames): the operator's
+/// `NOVA_PERF_WARMUP`/`NOVA_PERF_FRAMES` win, else the capture crate's full
+/// 180/900 baseline window.
+///
+/// ONE window, not a per-category default: under the category policy the fps
+/// pass runs only for a frame-time category, and those exist to be compared
+/// against a baseline - a shorter window would make their numbers
+/// incomparable with the sweep's. (This replaced a short non-`perf/` window
+/// that the policy made unreachable: the categories it served no longer run
+/// an fps pass at all.)
+fn resolve_fps_window() -> (u32, u32) {
     (
-        env_u32("NOVA_PERF_WARMUP").unwrap_or(default_warmup),
-        env_u32("NOVA_PERF_FRAMES").unwrap_or(default_frames),
+        env_u32("NOVA_PERF_WARMUP").unwrap_or(nova_probe::DEFAULT_WARMUP_FRAMES),
+        env_u32("NOVA_PERF_FRAMES").unwrap_or(nova_probe::DEFAULT_CAPTURE_FRAMES),
     )
 }
 
@@ -84,15 +81,15 @@ fn fps_deadline_secs(warmup: u32, frames: u32) -> u64 {
     (f64::from(warmup + frames) / FPS_FLOOR).ceil() as u64 + FPS_LOAD_MARGIN_SECS
 }
 
-/// Env for the fps pass: the resolved capture window set EXPLICITLY (even
-/// for `perf/`, so the deadline matches the exact window the child
-/// measures) plus the window-sized [`DEADLINE_ENV`]. Returns the
-/// deadline seconds too, so the caller can raise the supervisor timeout
-/// above it. The operator's `NOVA_PERF_WARMUP`/`FRAMES` are already folded
-/// in by [`resolve_fps_window`]; their [`DEADLINE_ENV`] wins here
-/// (pushed only when unset).
-pub(crate) fn fps_window_and_deadline_env(category: &str) -> (Vec<(String, String)>, u64) {
-    let (warmup, frames) = resolve_fps_window(category);
+/// Env for the fps pass: the resolved capture window set EXPLICITLY (so the
+/// deadline matches the exact window the child measures) plus the
+/// window-sized [`DEADLINE_ENV`]. Returns the deadline seconds too, so the
+/// caller can raise the supervisor timeout above it. The operator's
+/// `NOVA_PERF_WARMUP`/`FRAMES` are already folded in by
+/// [`resolve_fps_window`]; their [`DEADLINE_ENV`] wins here (pushed only
+/// when unset).
+pub(crate) fn fps_window_and_deadline_env() -> (Vec<(String, String)>, u64) {
+    let (warmup, frames) = resolve_fps_window();
     let deadline = fps_deadline_secs(warmup, frames);
     let mut env = vec![
         ("NOVA_PERF_WARMUP".into(), warmup.to_string()),
@@ -253,46 +250,58 @@ mod tests {
     use crate::native::fixtures::s;
 
     #[test]
-    fn resolve_fps_window_defaults_per_category() {
+    fn the_fps_window_is_the_baseline_window() {
         // Deterministic only when the operator has not pinned a window
         // (the suite runs without NOVA_PERF_* set; guard against a stray).
         if std::env::var_os("NOVA_PERF_WARMUP").is_none()
             && std::env::var_os("NOVA_PERF_FRAMES").is_none()
         {
-            // perf/ keeps the full baseline window; other categories get
-            // the short window.
+            // One window for every category that captures at all, so probe
+            // numbers stay comparable with the sweep's baselines.
             assert_eq!(
-                resolve_fps_window("perf"),
+                resolve_fps_window(),
                 (
                     nova_probe::DEFAULT_WARMUP_FRAMES,
                     nova_probe::DEFAULT_CAPTURE_FRAMES
                 )
             );
-            assert_eq!(
-                resolve_fps_window("gameplay"),
-                (NON_PERF_WARMUP, NON_PERF_FRAMES)
+        }
+    }
+
+    #[test]
+    fn frame_time_categories_capture_and_the_rest_record_a_reason() {
+        // The consumer side of the policy: only a frame-time category runs
+        // the fps pass; every other one gets a reason NAMING the category,
+        // so the report says why rather than showing a hole.
+        assert_eq!(fps_skip_reason("stress"), None);
+        assert_eq!(fps_skip_reason("perf"), None, "transitional row");
+        for category in ["sections", "systems", "ui", "gameplay"] {
+            let reason = fps_skip_reason(category)
+                .unwrap_or_else(|| panic!("{category} must record a skip reason"));
+            assert!(
+                reason.contains(&format!("`{category}/`")),
+                "the reason must name the category: {reason}"
             );
         }
     }
 
     #[test]
     fn fps_deadline_scales_with_the_window_and_clears_the_flat_default() {
-        // The flat bcs default is 120s; the perf window (180+900) must get a
-        // much larger deadline, and the short window a smaller one - the
-        // whole point of sizing.
-        let perf = fps_deadline_secs(
+        // The flat bcs default is 120s; the baseline window (180+900) must
+        // get a much larger deadline - the whole point of sizing.
+        let baseline = fps_deadline_secs(
             nova_probe::DEFAULT_WARMUP_FRAMES,
             nova_probe::DEFAULT_CAPTURE_FRAMES,
         );
-        let short = fps_deadline_secs(NON_PERF_WARMUP, NON_PERF_FRAMES);
+        let short = fps_deadline_secs(60, 240);
         // 1080 / 2.0 + 45 = 585; 300 / 2.0 + 45 = 195.
-        assert_eq!(perf, 585);
+        assert_eq!(baseline, 585);
         assert_eq!(short, 195);
         assert!(
-            perf > 120 && short > 120,
+            baseline > 120 && short > 120,
             "both clear the flat 120s default"
         );
-        assert!(perf > short, "a bigger window gets a bigger deadline");
+        assert!(baseline > short, "a bigger window gets a bigger deadline");
     }
 
     #[test]
@@ -301,7 +310,7 @@ mod tests {
             && std::env::var_os("NOVA_PERF_FRAMES").is_none()
             && std::env::var_os(DEADLINE_ENV).is_none()
         {
-            let (env, deadline) = fps_window_and_deadline_env("perf");
+            let (env, deadline) = fps_window_and_deadline_env();
             assert_eq!(deadline, 585);
             assert!(env
                 .iter()

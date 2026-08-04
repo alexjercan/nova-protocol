@@ -24,18 +24,45 @@ autoexamples = false
 path = "src/lib.rs"
 
 # nova_probe tool config (read by `crates/nova_probe`, ignored by cargo).
-# fps_exempt: examples that opt OUT of the `--fps` frame-time pass because they
-# are narrative / one-shot scenarios with no stable capture window - a fixed
-# story that cannot loop to fill a window (unlike playable/scenario, which loop
-# via loop_while_pending). They still run the clean + profiled CORRECTNESS
-# passes; only frame-time measurement is skipped, and the report says so
-# instead of timing out on a window the example can never fill. Add narrative
-# examples here. Task 20260719-233732.
+# ORPHANED: fps_exempt is inert. Whether an example runs the `--fps`
+# frame-time pass is now a property of its CATEGORY, resolved from
+# nova_probe::CATEGORY_POLICIES (task 20260804-093855) - there is no
+# per-example opt-out any more. The key is deleted with examples/gameplay/
+# and examples/perf/ (tasks 20260804-093910 / 20260804-094006).
 [package.metadata.nova_probe]
 fps_exempt = ["broadside"]
 
-# The example catalog (see autoexamples above). Blocks are listed in
-# curriculum reading order within each category.
+# THE EXAMPLE-CATEGORY CONTRACT (see autoexamples above). A category is a
+# promise about what its examples prove and what probe does with them; the
+# run policy half is the table in crates/nova_probe/src/catalog.rs, and
+# tests/examples_smoke.rs::every_category_has_a_probe_policy fails a
+# category that has no row. The five settled categories:
+#
+#   sections/    proves one ship section's behavior end to end.
+#                probe: correctness passes only.
+#                not this category: anything spanning two sections.
+#   systems/     proves a whole system's behavior on a code-built fixture.
+#                probe: correctness passes only.
+#                not this category: anything that needs shipped content to
+#                stand up, or that measures rather than asserts.
+#   stress/      the ONLY home for frame-time claims: a steady-state scene
+#                built to be measured and compared against a baseline.
+#                probe: correctness + the `--fps` frame-time pass.
+#                not this category: anything that ends on a script rather
+#                than holding a load (it cannot fill a capture window).
+#   ui/          proves a staged UI flow: layout, navigation, real text
+#                measure.
+#                probe: correctness passes only.
+#                not this category: anything whose subject is simulation
+#                rather than the interface over it.
+#   screenshots/ produces frames for the website and the wiki.
+#                probe: NOT a probe target - `probe run screenshots` is an
+#                error, and `--all` records the category as excluded. These
+#                are judged by their PNGs and human eyes.
+#                not this category: anything that asserts, rather than
+#                captures.
+#
+# Blocks are listed in curriculum reading order within each category.
 # sections/ - one example per ship section, the correctness curriculum.
 [[example]]
 name = "controller_section"
@@ -65,7 +92,10 @@ path = "examples/sections/torpedo_guidance.rs"
 name = "com_range"
 path = "examples/sections/com_range.rs"
 
-# gameplay/ - full autopilot scenario runs (the timeline/invariant-wired ones).
+# gameplay/ - TRANSITIONAL, not a contract: this was "full autopilot scenario
+# runs", which describes how the examples run, not what they prove. Retiring -
+# members move to systems/ or go away (tasks 20260804-093934 / 20260804-093910).
+# Probe policy meanwhile: correctness passes only.
 [[example]]
 name = "scenario"
 path = "examples/gameplay/scenario.rs"
@@ -140,7 +170,8 @@ path = "examples/screenshots/screenshot_orbit.rs"
 name = "render_scale_shot"
 path = "examples/screenshots/render_scale_shot.rs"
 
-# perf/ - frame-time measurement scenes (probe run --fps).
+# perf/ - TRANSITIONAL: absorbed into stress/ by task 20260804-094006.
+# Frame-time measurement scenes (probe run --fps).
 [[example]]
 name = "perf_baseline"
 path = "examples/perf/perf_baseline.rs"

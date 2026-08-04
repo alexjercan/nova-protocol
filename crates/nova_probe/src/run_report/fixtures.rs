@@ -43,7 +43,7 @@ pub fn manifest_ok() -> RunManifest {
         armed_timeline: true,
         armed_invariants: true,
         armed_fps: false,
-        fps_exempt: None,
+        fps_skipped: None,
         passes: vec![PassRecord {
             name: "clean".into(),
             success: true,

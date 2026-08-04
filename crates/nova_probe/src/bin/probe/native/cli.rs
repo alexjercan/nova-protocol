@@ -10,8 +10,10 @@ usage: probe <subcommand>
   [--release] [--render gpu|sw] [--scenario <id>]... [--preset <p>]...
   [--platform native|web]
   the post-feature check and the perf sweep. <spec> is one example, a
-  comma list (playable,scenario), or a category dir (sections|gameplay|
-  ui|screenshots|perf); --all runs the whole catalog minus NOT_PROBED.
+  comma list (playable,scenario), or a PROBED category dir (today:
+  sections|gameplay|ui|perf); an unprobed category (screenshots) is not a
+  probe target and errors. --all runs the catalog minus unprobed
+  categories and minus NOT_PROBED - two axes, both recorded in the report.
   Runs write to <out|probe-runs>/<short-commit>/<example>/ and
   write an aggregated index.html/index.json + probe-all.json above
   them, even for one example. Matrix flags (--scenario/--preset,

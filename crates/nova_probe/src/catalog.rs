@@ -4,9 +4,12 @@
 //! The examples live in category subdirectories with auto-discovery OFF
 //! (`autoexamples = false`), so the catalog is the SINGLE source of truth
 //! for what "an example" is - probe's multi-run
-//! specs (`probe run gameplay`, `--all`) resolve against it, and the root
+//! specs (`probe run ui`, `--all`) resolve against it, and the root
 //! package's `catalog_matches_disk` drift test calls the same parser so
 //! the two consumers can never disagree about the format.
+//!
+//! The catalog answers WHAT the examples are; [`CATEGORY_POLICIES`] answers
+//! what probe DOES with each category.
 
 use std::path::Path;
 
@@ -111,68 +114,116 @@ pub fn load_example_catalog(root: &Path) -> Result<Vec<CatalogExample>, String> 
     parse_example_catalog(&manifest)
 }
 
-/// Parse the optional `[package.metadata.nova_probe]` `fps_exempt` list from
-/// the root manifest: examples that opt OUT of the `--fps` frame-time pass
-/// because they are narrative / one-shot scenarios with no stable capture
-/// window (a fixed-length story that cannot loop to fill a window, e.g.
-/// `broadside`). Exempt examples still run the clean + profiled CORRECTNESS
-/// passes; only the frame-time measurement is skipped, and the report says so
-/// instead of timing out on a window the example can never fill.
+/// What probe does with a whole category - the run policy side of the
+/// example-category contract (the prose side lives in the root Cargo.toml's
+/// per-category comments and the dev wiki's category table).
 ///
-/// Absent table or key -> empty list. Fail-OPEN by design: exemption is opt-in
-/// config, not a gate, so a missing/garbled block just means "nothing exempt"
-/// rather than an error (unlike the catalog itself, which fails closed). A
-/// line-level parse in the same style as [`parse_example_catalog`]; supports
-/// both `fps_exempt = ["a", "b"]` and the multi-line array form.
-pub fn parse_fps_exempt(manifest: &str) -> Vec<String> {
-    let mut in_section = false;
-    let mut collecting = false;
-    let mut buf = String::new();
-    for line in manifest.lines() {
-        let trimmed = line.trim();
-        // A new table header ends the section (but not while we are still
-        // accumulating a multi-line array value).
-        if trimmed.starts_with('[') && !collecting {
-            in_section = trimmed == "[package.metadata.nova_probe]";
-            continue;
-        }
-        if !in_section {
-            continue;
-        }
-        if !collecting {
-            if let Some(rest) = trimmed.strip_prefix("fps_exempt") {
-                if let Some((_, value)) = rest.split_once('=') {
-                    buf.push_str(value);
-                    collecting = true;
-                }
-            }
-        } else {
-            buf.push('\n');
-            buf.push_str(trimmed);
-        }
-        if collecting && buf.contains(']') {
-            break;
-        }
-    }
-    let inner = buf
-        .split_once('[')
-        .and_then(|(_, rest)| rest.split_once(']'))
-        .map(|(inner, _)| inner)
-        .unwrap_or("");
-    inner
-        .split(',')
-        .map(|token| token.trim().trim_matches('"').to_string())
-        .filter(|token| !token.is_empty())
-        .collect()
+/// Two axes, because two is all the contract has: whether probe runs the
+/// category at all, and whether running it carries a frame-time pass.
+/// "Runs correctness" and "is in `--all`" are the same column here - there
+/// is no category that runs under an explicit spec but not under `--all`,
+/// so they stay one boolean until a caller needs them apart.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CategoryPolicy {
+    /// Probe runs this category at all: gates both `--all` and bare category
+    /// expansion. False means the category leaves probe's scope entirely -
+    /// `probe run <category>` is an error, not an empty run.
+    pub probed: bool,
+    /// Running it carries the `--fps` frame-time pass. False means `--fps`
+    /// records a skip reason instead: the category makes no frame-time claim,
+    /// so there is no window to measure and nothing to compare against.
+    pub frame_time: bool,
 }
 
-/// Load and parse the `fps_exempt` list from `<root>/Cargo.toml`. Fail-open:
-/// an unreadable manifest yields an empty list (the catalog load, which the
-/// same run also does, is the loud one).
-pub fn load_fps_exempt(root: &Path) -> Vec<String> {
-    std::fs::read_to_string(root.join("Cargo.toml"))
-        .map(|manifest| parse_fps_exempt(&manifest))
-        .unwrap_or_default()
+/// The policy table: one explicit row per category on disk.
+///
+/// A table rather than scattered predicates so that a new category is a
+/// compile-time edit next to [`CatalogExample`], and so the root package's
+/// `every_category_has_a_probe_policy` can enumerate it and turn a missing
+/// row into a red test rather than a silent [`category_policy`] default.
+pub const CATEGORY_POLICIES: &[(&str, CategoryPolicy)] = &[
+    // sections/ - one test range per ship section. Correctness curriculum:
+    // it asserts behavior, never frame cost.
+    (
+        "sections",
+        CategoryPolicy {
+            probed: true,
+            frame_time: false,
+        },
+    ),
+    // systems/ - code-built fixtures for whole-system behavior. Correctness,
+    // like sections/, at a coarser grain.
+    (
+        "systems",
+        CategoryPolicy {
+            probed: true,
+            frame_time: false,
+        },
+    ),
+    // stress/ - the ONLY home for frame-time claims: steady-state scenes
+    // built to be measured and compared against a baseline.
+    (
+        "stress",
+        CategoryPolicy {
+            probed: true,
+            frame_time: true,
+        },
+    ),
+    // ui/ - staged UI flows. Correctness of layout and flow; a UI example's
+    // frame cost is not a claim anyone reads.
+    (
+        "ui",
+        CategoryPolicy {
+            probed: true,
+            frame_time: false,
+        },
+    ),
+    // screenshots/ - capture producers, judged by their PNGs and human eyes.
+    // Outside probe's scope: a probe verdict on one would assert nothing.
+    (
+        "screenshots",
+        CategoryPolicy {
+            probed: false,
+            frame_time: false,
+        },
+    ),
+    // TRANSITIONAL: remove with 20260804-093934 / 20260804-093910, which
+    // retire examples/gameplay/ (its members move to systems/ or retire).
+    (
+        "gameplay",
+        CategoryPolicy {
+            probed: true,
+            frame_time: false,
+        },
+    ),
+    // TRANSITIONAL: remove with 20260804-094006, which absorbs perf_baseline
+    // into stress/.
+    (
+        "perf",
+        CategoryPolicy {
+            probed: true,
+            frame_time: true,
+        },
+    ),
+];
+
+/// The run policy for a category.
+///
+/// An unlisted category falls back to probed-without-frame-time: probe still
+/// runs it (the conservative choice - a new category is more likely a
+/// correctness one than a no-op), but claims no frame-time window for it.
+/// That default is a backstop, never a design: the root package's
+/// `every_category_has_a_probe_policy` fails if any category on disk reaches
+/// it.
+pub fn category_policy(category: &str) -> CategoryPolicy {
+    CATEGORY_POLICIES
+        .iter()
+        .find(|(name, _)| *name == category)
+        .map(|(_, policy)| *policy)
+        .unwrap_or(CategoryPolicy {
+            probed: true,
+            frame_time: false,
+        })
 }
 
 /// The distinct categories, in catalog order.
@@ -267,36 +318,30 @@ path = "src/lib.rs"
     }
 
     #[test]
-    fn fps_exempt_absent_is_empty() {
-        assert!(parse_fps_exempt(GOOD).is_empty());
-        assert!(parse_fps_exempt("").is_empty());
+    fn the_policy_table_has_no_duplicate_rows() {
+        // A duplicate would make the table's second row unreachable and the
+        // contract ambiguous about which one is the contract.
+        for (i, (name, _)) in CATEGORY_POLICIES.iter().enumerate() {
+            assert!(
+                !CATEGORY_POLICIES[..i]
+                    .iter()
+                    .any(|(prior, _)| prior == name),
+                "duplicate policy row for category {name}"
+            );
+        }
     }
 
     #[test]
-    fn fps_exempt_reads_single_line_array() {
-        let manifest =
-            format!("{GOOD}\n[package.metadata.nova_probe]\nfps_exempt = [\"broadside\"]\n");
-        assert_eq!(parse_fps_exempt(&manifest), vec!["broadside".to_string()]);
-    }
-
-    #[test]
-    fn fps_exempt_reads_multi_line_array_and_stops_at_next_table() {
-        let manifest = format!(
-            "{GOOD}\n[package.metadata.nova_probe]\n\
-             # narrative one-shots\n\
-             fps_exempt = [\n    \"broadside\",\n    \"intro_cutscene\",\n]\n\
-             [profile.release]\nlto = true\n"
-        );
+    fn an_unlisted_category_gets_the_conservative_default() {
+        // The backstop, pinned so the fallback stays a KNOWN shape (probed,
+        // no frame-time claim) - `every_category_has_a_probe_policy` is what
+        // keeps any real category from reaching it.
         assert_eq!(
-            parse_fps_exempt(&manifest),
-            vec!["broadside".to_string(), "intro_cutscene".to_string()]
+            category_policy("not_a_category"),
+            CategoryPolicy {
+                probed: true,
+                frame_time: false,
+            }
         );
-    }
-
-    #[test]
-    fn fps_exempt_ignores_a_key_outside_the_table() {
-        // A stray fps_exempt in the wrong section is not honored.
-        let manifest = format!("{GOOD}\n[package]\nfps_exempt = [\"broadside\"]\n");
-        assert!(parse_fps_exempt(&manifest).is_empty());
     }
 }

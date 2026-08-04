@@ -55,6 +55,15 @@ tagged **(breaking)**.
   agreed happened rather than on a guessed duration. `com_range`, `hud_range`
   and `playable` are rewritten onto them, dropping their hand-rolled beat
   offsets, boolean stage trackers and per-example completion guards.
+- Every example category carries an explicit contract, and `nova_probe`
+  resolves what to run from it (`CategoryPolicy { probed, frame_time }`)
+  instead of a `perf`-vs-everything split plus the hand-listed `fps_exempt`
+  key. Only a frame-time category (`stress/`, and `perf/` until it is
+  absorbed) carries the `--fps` pass; anywhere else the run records why it did
+  not. `--all` skips unprobed categories and records each as excluded, and a
+  bare `probe run screenshots` now errors instead of expanding to a no-op.
+- `checks.json`: the run manifest's `fps_exempt` field is renamed
+  `fps_skipped`, with no compatibility shim. **(breaking)**
 
 ## [0.9.1] - 2026-08-02
 

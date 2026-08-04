@@ -14,6 +14,8 @@ pub fn catalog() -> Vec<nova_probe::CatalogExample> {
         ("screenshot_reel", "screenshots"),
         ("render_scale_shot", "screenshots"),
         ("perf_baseline", "perf"),
+        ("many_bodies", "stress"),
+        ("outcomes", "systems"),
     ]
     .into_iter()
     .map(|(name, category)| nova_probe::CatalogExample {

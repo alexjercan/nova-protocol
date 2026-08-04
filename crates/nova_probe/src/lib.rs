@@ -144,8 +144,8 @@ pub use capture::{
 };
 #[cfg(not(target_arch = "wasm32"))]
 pub use catalog::{
-    categories, load_example_catalog, load_fps_exempt, parse_example_catalog, parse_fps_exempt,
-    CatalogExample,
+    categories, category_policy, load_example_catalog, parse_example_catalog, CatalogExample,
+    CategoryPolicy, CATEGORY_POLICIES,
 };
 #[cfg(not(target_arch = "wasm32"))]
 pub use invariants::{nova_invariants, InvariantState, InvariantsPlugin};

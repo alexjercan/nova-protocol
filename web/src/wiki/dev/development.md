@@ -119,7 +119,39 @@ in only under the `debug` feature:
 runnable examples over isolated unit tests. The examples live in purpose
 directories (bevy-repo style: category dirs, plain slug names), and the
 `[[example]]` catalog in the root Cargo.toml (`autoexamples = false`) is the
-single source of truth, listed in curriculum reading order:
+single source of truth, listed in curriculum reading order.
+
+### The category contract
+
+A category is not a folder - it is a promise about what its examples prove
+and what the probe harness does with them. Pick the category by what your
+example PROVES, not by what it happens to spawn.
+
+| Category | What it proves | What probe does with it | Disqualifies an example |
+|-|-|-|-|
+| `sections/` | one ship section's behavior, end to end | correctness passes only | spans two sections |
+| `systems/` | a whole system's behavior on a code-built fixture | correctness passes only | needs shipped content to stand up, or measures instead of asserting |
+| `stress/` | a frame-time claim: a steady-state scene built to be measured | correctness **+ the `--fps` frame-time pass** | ends on a script instead of holding a load (it cannot fill a capture window) |
+| `ui/` | a staged UI flow - layout, navigation, real text measure | correctness passes only | its subject is the simulation, not the interface over it |
+| `screenshots/` | frames for the website and the wiki | **not a probe target**: `probe run screenshots` is an error, and `--all` records the category as excluded | asserts instead of capturing |
+
+The run-policy half of that table is code: `CATEGORY_POLICIES` in
+`crates/nova_probe/src/catalog.rs`, two booleans per category (`probed`,
+`frame_time`). A category with no row fails
+`every_category_has_a_probe_policy` in `tests/examples_smoke.rs`, so a new
+category states its contract before it can ship. The prose half - what each
+category proves - is the table above and the per-block comments in the root
+`Cargo.toml`; review enforces it, because judging whether an example asserts
+enough is a reading task, not a test.
+
+`gameplay/` and `perf/` are being retired as directory names: `gameplay/` was
+never a contract (it described how the examples run, not what they prove) and
+every frame-time claim now lives in `stress/`. Both still carry transitional
+policy rows while their members move.
+
+### The catalog and the harness
+
+What is on disk today, in curriculum reading order:
 
 - `sections/` - one test range per ship section: `controller_section` (PD
   attitude), `thruster_section` (burn -> thrust + plume shader),
@@ -473,16 +505,22 @@ path - measurement and correctness never share a pass), the harness
 completion protocol keeps the app alive until the window closes, and
 enrolled scenes (a script `loop_from` point) reload + replay so the window
 measures activity - reload intervals are excluded from the stats and
-reported as their own line. Narrative one-shot examples that cannot loop to
-fill a window (e.g. `broadside`, a scripted die/retry/win smoke test) are
-marked **fps-exempt** in the root `Cargo.toml` under
-`[package.metadata.nova_probe] fps_exempt` - they run the clean + profiled
-CORRECTNESS passes and the report says "fps-exempt" instead of timing out on
-a window they can never fill; add narrative examples to that list. Outside
-`perf/`, `--fps` defaults to a short 60/240 window (`perf/` and the sweep
-matrix keep the full 180/900 baseline window) so a bare
-`probe run gameplay --fps` fits the completion deadline; your own
-`NOVA_PERF_WARMUP` / `NOVA_PERF_FRAMES` always override it. The completion
+reported as their own line.
+
+Which runs get that pass is **category policy**, not a per-example opt-out:
+only a frame-time category (`stress/`, and `perf/` until it is absorbed)
+carries the `--fps` pass. Everywhere else `--fps` runs the clean + profiled
+CORRECTNESS passes and the report records WHY the frame-time section is empty
+("category `ui/` carries no frame-time pass") instead of timing out on a
+window the example was never built to fill. See
+[the category contract](#the-category-contract); the table lives in
+`CATEGORY_POLICIES` (`crates/nova_probe/src/catalog.rs`). If your example
+needs a frame-time number, it belongs in `stress/` - that is what the
+category means.
+
+The capture window is the capture crate's full 180/900 baseline for every run
+that captures at all, so probe numbers stay comparable with the sweep's; your
+own `NOVA_PERF_WARMUP` / `NOVA_PERF_FRAMES` always override it. The completion
 deadline is SIZED to that window (not a flat 120s): probe sets
 `NOVA_AUTOPILOT_DEADLINE` for the fps pass to `(warmup + frames) / ~2fps +
 margin`, so a slow-but-progressing capture (a heavy scene in a dev build under

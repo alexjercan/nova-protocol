@@ -22,8 +22,8 @@ cargo run -p nova_probe -- run <example> --samply     # + named flamegraph
 cargo run -p nova_probe -- run <example> --fps        # + DEDICATED capture-only pass
 cargo run -p nova_probe -- run <example> --baseline <old-run-dir>   # FPS deltas
 cargo run -p nova_probe -- run playable,scenario      # comma list -> aggregate index
-cargo run -p nova_probe -- run ui                     # a whole category (sections|gameplay|ui|screenshots|perf)
-cargo run -p nova_probe -- run --all                  # the whole catalog minus NOT_PROBED
+cargo run -p nova_probe -- run ui                     # a whole PROBED category (today: sections|gameplay|ui|perf; systems|stress once populated; screenshots ERRORS)
+cargo run -p nova_probe -- run --all                  # the catalog minus unprobed categories and NOT_PROBED
 cargo run -p nova_probe -- run --all --fps --baseline probe-runs/before  # group: per-example baseline root
 cargo run -p nova_probe -- run perf_baseline --fps --release \
   --render gpu --scenario asteroid_field --preset high --preset low  # perf sweep (matrix)
@@ -44,7 +44,9 @@ agent surface: one file answers "does everything still work"), and
 `probe-all.json` (the gate). The aggregate verdict is the WORST row and
 the exit code mirrors it; each row shows verdict + measured n/total + the
 six check statuses + a link to that example's own report. `--all` skips
-the NOT_PROBED list (each entry has its reason, shown in the report);
+unprobed CATEGORIES (recorded once by category) and the per-EXAMPLE
+NOT_PROBED list - two orthogonal axes, each entry carrying its reason into
+the report's "Not probed (deliberately)" list;
 bare `probe run` errors with the catalog instead of accidentally starting
 a 30-minute fleet sweep. Expect a category to take single-digit minutes
 warm and `--all` 25-40 min - categories are the everyday unit, `--all`
@@ -162,15 +164,23 @@ window measures activity; reload intervals are EXCLUDED from the stats
 (schema v3); dev rows are labeled NOT a baseline - baselines come from
 `--release` runs.
 
-Narrative one-shot examples (a scripted story that cannot loop to fill a
-window, e.g. `broadside`) are fps-EXEMPT: list them in the root `Cargo.toml`
-under `[package.metadata.nova_probe] fps_exempt`. `--fps` then skips the
-capture pass for them (they still run the clean + profiled correctness
-passes) and the report says "fps-exempt" instead of hard-timing-out on a
-window they can never fill. Outside `perf/`, `--fps` defaults to a short
-60/240 window so a bare `probe run gameplay --fps` fits the deadline; `perf/`
-and the sweep keep 180/900, and your own `NOVA_PERF_WARMUP`/`NOVA_PERF_FRAMES`
-always win.
+Which runs get the capture pass is CATEGORY POLICY, not a per-example opt-out
+(there is no `fps_exempt` list any more). Only a frame-time category carries
+`--fps`: `stress/`, plus `perf/` until it is absorbed. Everywhere else `--fps`
+runs the clean + profiled CORRECTNESS passes and the report records WHY the
+frame-time section is empty ("category `ui/` carries no frame-time pass")
+instead of hard-timing-out on a window the example was never built to fill.
+An UNPROBED category (`screenshots/`) is out of probe's scope entirely:
+`--all` skips it and records the absence, and a bare `probe run screenshots`
+ERRORS rather than expanding to an empty run. The table is
+`CATEGORY_POLICIES` in `crates/nova_probe/src/catalog.rs`;
+`tests/examples_smoke.rs::every_category_has_a_probe_policy` fails a category
+with no row. If your example needs a frame-time number, it belongs in
+`stress/`.
+
+The capture window is ONE window - the capture crate's full 180/900 baseline
+for every run that captures at all, so probe numbers stay comparable with the
+sweep's. Your own `NOVA_PERF_WARMUP`/`NOVA_PERF_FRAMES` always win.
 
 The completion deadline is SIZED to the fps window, not a flat 120s (task
 20260720-115935): probe sets `NOVA_AUTOPILOT_DEADLINE` for the fps pass to

@@ -126,7 +126,7 @@ mod tests {
                 armed_timeline: false,
                 armed_invariants: false,
                 armed_fps: false,
-                fps_exempt: None,
+                fps_skipped: None,
                 passes: vec![PassRecord {
                     name: "clean".into(),
                     success: true,

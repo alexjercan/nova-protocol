@@ -23,13 +23,32 @@ pub(crate) struct Resolved {
     /// The spec as given, for the aggregate manifest ("--all", "ui", ...).
     pub spec_display: String,
     /// What expansion skipped, with reasons (empty for explicit names).
+    /// A per-EXAMPLE entry is named bare (`render_scale_shot`); a
+    /// per-CATEGORY entry carries the contract's trailing slash
+    /// (`screenshots/`), so the two axes stay distinguishable in the
+    /// aggregate report and a category can never collide with a name.
     pub excluded: Vec<(String, String)>,
+}
+
+/// Why an unprobed category is absent from an expansion - the category
+/// policy's side of `excluded`, phrased for the aggregate report.
+fn unprobed_reason(category: &str) -> String {
+    format!(
+        "category `{category}/` is not a probe target - it is judged by its \
+         own artifacts, not by a probe verdict"
+    )
 }
 
 /// Resolve spec tokens against the catalog: an exact example name wins,
 /// else a category dir name expands to its members (minus NOT_PROBED),
 /// else an error that lists the catalog. Pure - the catalog is injected
 /// (the probe-env pattern), so every branch is unit-testable.
+///
+/// Two orthogonal exclusion axes, both recorded in `excluded` so the
+/// aggregate report shows an absence as a decision: the per-CATEGORY
+/// `probed` policy (`nova_probe::category_policy`), and the per-EXAMPLE
+/// `not_probed` list. An explicit example name overrides both - the
+/// operator asked for it by name.
 pub(crate) fn resolve_spec(
     tokens: &[String],
     all: bool,
@@ -42,19 +61,26 @@ pub(crate) fn resolve_spec(
             .find(|(n, _)| *n == name)
             .map(|(n, r)| (n.to_string(), r.to_string()))
     };
+    let unprobed_entry = |category: &str| (format!("{category}/"), unprobed_reason(category));
     if all {
         let mut excluded = Vec::new();
-        let examples = catalog
-            .iter()
-            .filter(|example| match excluded_reason(&example.name) {
-                Some(entry) => {
+        let mut examples = Vec::new();
+        for example in catalog {
+            // The category policy comes first: an unprobed category is out
+            // wholesale, recorded once by CATEGORY rather than once per
+            // member (the decision was made about the category).
+            if !nova_probe::category_policy(&example.category).probed {
+                let entry = unprobed_entry(&example.category);
+                if !excluded.contains(&entry) {
                     excluded.push(entry);
-                    false
                 }
-                None => true,
-            })
-            .map(|example| example.name.clone())
-            .collect();
+                continue;
+            }
+            match excluded_reason(&example.name) {
+                Some(entry) => excluded.push(entry),
+                None => examples.push(example.name.clone()),
+            }
+        }
         return Ok(Resolved {
             examples,
             multi: true,
@@ -80,6 +106,16 @@ pub(crate) fn resolve_spec(
                 examples.push(token.clone());
             }
         } else if categories.contains(&token.as_str()) {
+            // A bare unprobed category ERRORS rather than expanding to an
+            // empty run: "not a probe target" is the honest answer, and a
+            // silent no-op would read as a pass.
+            if !nova_probe::category_policy(token).probed {
+                return Err(format!(
+                    "{}\n{}",
+                    unprobed_reason(token),
+                    spec_help(catalog)
+                ));
+            }
             multi = true;
             for example in catalog.iter().filter(|e| e.category == *token) {
                 match excluded_reason(&example.name) {
@@ -133,12 +169,14 @@ mod tests {
     use super::*;
     use crate::native::fixtures::{catalog, s};
 
-    const EXCLUDED: &[(&str, &str)] = &[("render_scale_shot", "needs a real GPU")];
+    /// A per-EXAMPLE exclusion inside a PROBED category, so the two
+    /// exclusion axes stay separable in these tests.
+    const EXCLUDED: &[(&str, &str)] = &[("playable", "needs a real GPU")];
 
     #[test]
     fn resolve_single_name_stays_single() {
-        let resolved = resolve_spec(&s(&["playable"]), false, &catalog(), EXCLUDED).unwrap();
-        assert_eq!(resolved.examples, s(&["playable"]));
+        let resolved = resolve_spec(&s(&["scenario"]), false, &catalog(), EXCLUDED).unwrap();
+        assert_eq!(resolved.examples, s(&["scenario"]));
         assert!(!resolved.multi, "a bare name keeps single-run semantics");
         assert!(resolved.excluded.is_empty());
     }
@@ -150,10 +188,10 @@ mod tests {
         assert_eq!(resolved.examples, s(&["playable", "scenario"]));
         assert!(resolved.multi);
 
-        let resolved = resolve_spec(&s(&["screenshots"]), false, &catalog(), EXCLUDED).unwrap();
+        let resolved = resolve_spec(&s(&["gameplay"]), false, &catalog(), EXCLUDED).unwrap();
         assert_eq!(
             resolved.examples,
-            s(&["screenshot_reel"]),
+            s(&["scenario"]),
             "category expansion skips NOT_PROBED members"
         );
         assert!(
@@ -163,27 +201,98 @@ mod tests {
         assert_eq!(resolved.excluded.len(), 1, "and records what it skipped");
     }
 
+    /// The category policy chooses which passes a category gets, and probe
+    /// honors both halves: `stress` carries the frame-time pass,
+    /// `sections`/`systems`/`ui` run correctness only, and `screenshots`
+    /// leaves probe's scope entirely - `--all` records the absence as a
+    /// decision instead of quietly shrinking.
+    #[test]
+    fn category_run_policy_selects_passes_per_category() {
+        assert!(
+            nova_probe::category_policy("stress").frame_time,
+            "stress/ is where frame-time claims live"
+        );
+        for correctness_only in ["sections", "systems", "ui"] {
+            let policy = nova_probe::category_policy(correctness_only);
+            assert!(policy.probed, "{correctness_only} runs under probe");
+            assert!(
+                !policy.frame_time,
+                "{correctness_only} makes no frame-time claim"
+            );
+        }
+
+        let resolved = resolve_spec(&[], true, &catalog(), EXCLUDED).unwrap();
+        assert!(
+            !resolved
+                .examples
+                .iter()
+                .any(|e| e.starts_with("screenshot")),
+            "--all skips an unprobed category: {:?}",
+            resolved.examples
+        );
+        // The fixture has TWO screenshots members, so this also pins the
+        // dedupe: recorded ONCE, by category, named with the contract's
+        // trailing slash so it cannot be read as an example.
+        let recorded: Vec<&(String, String)> = resolved
+            .excluded
+            .iter()
+            .filter(|(name, _)| name == "screenshots/")
+            .collect();
+        assert_eq!(
+            recorded.len(),
+            1,
+            "--all records the skipped category once, not once per member: {:?}",
+            resolved.excluded
+        );
+        assert!(recorded[0].1.contains("not a probe target"), "{recorded:?}");
+
+        // Bare expansion is gated by the same boolean: an error, never an
+        // empty run that reads as a pass.
+        let err = resolve_spec(&s(&["screenshots"]), false, &catalog(), EXCLUDED).unwrap_err();
+        assert!(
+            err.contains("`screenshots/` is not a probe target"),
+            "{err}"
+        );
+        assert!(err.contains("examples by category"), "{err}");
+
+        // An explicit member still runs - the operator asked by name.
+        let resolved =
+            resolve_spec(&s(&["render_scale_shot"]), false, &catalog(), EXCLUDED).unwrap();
+        assert_eq!(resolved.examples, s(&["render_scale_shot"]));
+    }
+
     #[test]
     fn resolve_all_and_explicit_excluded() {
         let resolved = resolve_spec(&[], true, &catalog(), EXCLUDED).unwrap();
         assert!(
-            !resolved.examples.contains(&"render_scale_shot".to_string()),
+            !resolved.examples.contains(&"playable".to_string()),
             "--all skips NOT_PROBED"
         );
-        assert_eq!(resolved.examples.len(), 5);
+        assert_eq!(
+            resolved.examples,
+            s(&[
+                "controller_section",
+                "scenario",
+                "perf_baseline",
+                "many_bodies",
+                "outcomes"
+            ])
+        );
         assert_eq!(resolved.spec_display, "--all");
+        // Exact, not `contains`: this pins the per-category dedupe too - the
+        // fixture has two `screenshots` members, so a broken dedupe would
+        // record the category twice and only an exact vector catches it.
         assert_eq!(
             resolved.excluded,
-            vec![(
-                "render_scale_shot".to_string(),
-                "needs a real GPU".to_string()
-            )]
+            vec![
+                ("playable".to_string(), "needs a real GPU".to_string()),
+                ("screenshots/".to_string(), unprobed_reason("screenshots")),
+            ]
         );
 
         // An explicit name overrides the exclusion (operator's choice).
-        let resolved =
-            resolve_spec(&s(&["render_scale_shot"]), false, &catalog(), EXCLUDED).unwrap();
-        assert_eq!(resolved.examples, s(&["render_scale_shot"]));
+        let resolved = resolve_spec(&s(&["playable"]), false, &catalog(), EXCLUDED).unwrap();
+        assert_eq!(resolved.examples, s(&["playable"]));
         assert!(!resolved.multi);
     }
 

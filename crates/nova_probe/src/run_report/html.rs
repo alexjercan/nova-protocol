@@ -178,19 +178,18 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
 
     // 4. Performance (the absorbed perf_report as a section).
     html.push_str("<h2>Performance</h2>\n");
-    let fps_exempt = artifacts
+    let fps_skipped = artifacts
         .manifest
         .as_ref()
-        .and_then(|m| m.fps_exempt.as_deref());
-    match (&artifacts.runs, fps_exempt) {
-        // fps-exempt: the frame-time pass was deliberately skipped, not
-        // missing. Say so, so a reader does not chase a capture the example
-        // structurally cannot provide.
+        .and_then(|m| m.fps_skipped.as_deref());
+    match (&artifacts.runs, fps_skipped) {
+        // The frame-time pass was deliberately skipped, not missing. Say so,
+        // so a reader does not chase a capture the example's category never
+        // promised.
         (None, Some(reason)) => html.push_str(&format!(
-            "<p class=\"note\">fps-exempt: {}. This example runs for correctness \
-             only (clean + profiled passes); it has no stable frame-time window \
-             to measure. Configured in <code>Cargo.toml \
-             [package.metadata.nova_probe] fps_exempt</code>.</p>\n",
+            "<p class=\"note\">no frame-time pass: {}. This example runs for \
+             correctness only (clean + profiled passes). The per-category run \
+             policy is the example-category contract; see the dev wiki.</p>\n",
             crate::report::escape(reason),
         )),
         (None, None) => html.push_str(
@@ -345,12 +344,13 @@ mod tests {
     }
 
     #[test]
-    fn fps_exempt_renders_an_honest_note_not_a_missing_capture() {
-        // No frametime.csv (runs = None) AND fps_exempt set: the Performance
-        // section must say "fps-exempt", not the generic "no capture" line, so
-        // a reader is not sent hunting for a window the example cannot provide.
+    fn fps_skipped_renders_an_honest_note_not_a_missing_capture() {
+        // No frametime.csv (runs = None) AND fps_skipped set: the Performance
+        // section must say the pass was skipped by policy, not the generic
+        // "no capture" line, so a reader is not sent hunting for a window the
+        // example's category never promised.
         let manifest = RunManifest {
-            fps_exempt: Some("narrative scenario".into()),
+            fps_skipped: Some("category `ui/` carries no frame-time pass".into()),
             ..manifest_ok()
         };
         let artifacts = RunArtifacts {
@@ -359,14 +359,21 @@ mod tests {
             ..Default::default()
         };
         let checks = evaluate_checks(&artifacts);
-        let html = render_run_report(Path::new("probe-runs/broadside"), &artifacts, &checks);
-        assert!(html.contains("fps-exempt"), "exempt note missing: {html}");
+        let html = render_run_report(Path::new("probe-runs/editor"), &artifacts, &checks);
+        assert!(
+            html.contains("no frame-time pass"),
+            "policy note missing: {html}"
+        );
+        assert!(
+            html.contains("carries no frame-time pass"),
+            "the recorded reason must reach the reader: {html}"
+        );
         assert!(
             !html.contains("No frame-time capture in this run dir"),
-            "the generic no-capture message should be replaced by the exempt note"
+            "the generic no-capture message should be replaced by the policy note"
         );
-        // process_exit must not FAIL: an exempt example ran no fps pass, so
-        // there is no failed/timed-out pass to flip the verdict.
+        // process_exit must not FAIL: a skipped fps pass never ran, so there
+        // is no failed/timed-out pass to flip the verdict.
         assert_ne!(check(&checks, "process_exit").status, CheckStatus::Fail);
     }
 }

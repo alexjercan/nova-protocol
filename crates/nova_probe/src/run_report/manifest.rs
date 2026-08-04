@@ -27,11 +27,11 @@ pub struct RunManifest {
     pub armed_invariants: bool,
     /// Whether the fps capture surface was armed (only with `--fps`).
     pub armed_fps: bool,
-    /// Set when `--fps` was requested but this example is configured
-    /// fps-exempt (`[package.metadata.nova_probe] fps_exempt`): the reason,
-    /// rendered in place of the frame-time section so a missing capture reads
-    /// as "not a perf target" instead of a failure. `None` for a normal run.
-    pub fps_exempt: Option<String>,
+    /// Set when `--fps` was requested but this example's CATEGORY carries no
+    /// frame-time pass: the reason, rendered in place of the frame-time
+    /// section so a missing capture reads as "not a frame-time target"
+    /// instead of a failure. `None` for a normal run.
+    pub fps_skipped: Option<String>,
     /// Per-pass outcomes, in execution order.
     pub passes: Vec<PassRecord>,
 }
@@ -70,7 +70,7 @@ impl RunManifest {
                 "invariants": self.armed_invariants,
                 "fps": self.armed_fps,
             },
-            "fps_exempt": self.fps_exempt,
+            "fps_skipped": self.fps_skipped,
             "passes": self.passes.iter().map(|p| serde_json::json!({
                 "name": p.name, "success": p.success, "timed_out": p.timed_out,
             })).collect::<Vec<_>>(),
@@ -122,8 +122,8 @@ impl RunManifest {
             armed_timeline: armed("timeline"),
             armed_invariants: armed("invariants"),
             armed_fps: armed("fps"),
-            fps_exempt: v
-                .get("fps_exempt")
+            fps_skipped: v
+                .get("fps_skipped")
                 .and_then(|x| x.as_str())
                 .map(str::to_string),
             passes,
