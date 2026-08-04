@@ -1,7 +1,7 @@
 //! Grow-in-use emphasis: the one mechanism every contextual HUD widget uses to
 //! say "this is the thing you are using right now".
 //!
-//! Demo 2 (`examples/ui/hud_rework_poc.html`) expresses emphasis as a CSS
+//! Demo 2 (`web/design/hud_rework_poc.html`) expresses emphasis as a CSS
 //! `transform: scale(...)` with a 0.2s ease, plus one oscillating case (the
 //! reticle pulsing while the trigger is down). Both are the same idea, so both
 //! live in one component and one system rather than a bespoke tween per widget:

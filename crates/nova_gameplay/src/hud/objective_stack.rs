@@ -1,7 +1,7 @@
 //! The objective NOTIFICATION stack: demo 2's top-centre amber objective
 //! chip, one per posted objective, read like a notification.
 //!
-//! Demo 2 (`examples/ui/hud_rework_poc.html`) puts the objective ITSELF on the
+//! Demo 2 (`web/design/hud_rework_poc.html`) puts the objective ITSELF on the
 //! flight HUD - `<div class="chip obj">&#9670; SALVAGE WRECK ...</div>`, a
 //! top-centre bordered amber chip that pops when posted and then breathes.
 //! This module is that chip, with two changes the game needs and the mock did

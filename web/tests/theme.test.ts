@@ -1,6 +1,6 @@
 // Theme parity: the site's `:root` must carry the SAME NOVA OS tokens the game
 // does. Both sides mirror one origin - the `:root` block of
-// `examples/ui/nova_ui_rework_poc.html` (which `crates/nova_ui/src/theme.rs`
+// `web/design/nova_ui_rework_poc.html` (which `crates/nova_ui/src/theme.rs`
 // also mirrors) - so this test parses that file as an INDEPENDENT source rather
 // than comparing against a constant copied in here. Run with `npm test`.
 //
@@ -14,13 +14,12 @@ import { strict as assert } from "node:assert";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-// npm runs a script with cwd at the package dir (`web/`), so the repo root is
-// one level up. Deriving it from cwd keeps this independent of where tsc drops
-// the compiled output.
+// npm runs a script with cwd at the package dir (`web/`), and both sources live
+// under it. Deriving them from cwd keeps this independent of where tsc drops the
+// compiled output.
 const WEB = process.cwd();
-const REPO = join(WEB, "..");
 const CSS_PATH = join(WEB, "src", "style.css");
-const POC_PATH = join(REPO, "examples", "ui", "nova_ui_rework_poc.html");
+const POC_PATH = join(WEB, "design", "nova_ui_rework_poc.html");
 for (const p of [CSS_PATH, POC_PATH])
     assert.ok(existsSync(p), `expected to read ${p} - run this from web/`);
 

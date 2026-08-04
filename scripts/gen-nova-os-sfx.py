@@ -2,7 +2,7 @@
 """Offline renderer for the NOVA OS terminal sound cues.
 
 This mirrors the WebAudio synth recipes in the `Sound` IIFE of
-examples/ui/nova_os_terminal_poc.html and bakes each cue into a
+web/design/nova_os_terminal_poc.html and bakes each cue into a
 `assets/sounds/nova_*.wav` file so the game can play the same chrome
 SFX without a live WebAudio graph.
 

@@ -2,7 +2,7 @@
 //!
 //! The primary palette is the **NOVA OS** language (green phosphor on a
 //! near-black screen inside a dark moulded casing), carried verbatim from the
-//! accepted PoC `examples/ui/nova_ui_rework_poc.html` (its `:root` tokens). The
+//! accepted PoC `web/design/nova_ui_rework_poc.html` (its `:root` tokens). The
 //! widget layer ([`crate::widget`]) renders every control from these tokens in
 //! one of two skins - the phosphor CLI look (default) and the light-3D hardware
 //! casing (see [`crate::skin::UiSkin`]).

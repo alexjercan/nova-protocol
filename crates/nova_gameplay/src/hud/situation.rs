@@ -1,7 +1,7 @@
 //! What the player's ship is DOING right now, sensed once per frame for the
 //! contextual HUD.
 //!
-//! Demo 2's ruleset (`examples/ui/hud_rework_poc.html`, `reflect()`) is written
+//! Demo 2's ruleset (`web/design/hud_rework_poc.html`, `reflect()`) is written
 //! against a handful of situations - autopilot burn, combat lock, weapons hot,
 //! firing, low ammo - and every contextual rule keys off one of them. Sensing
 //! them ONCE into [`HudSituations`] keeps the widgets dumb (a chip asks "is the

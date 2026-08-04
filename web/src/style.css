@@ -13,7 +13,7 @@
    Nova Protocol theme - NOVA OS.
 
    The `:root` block below is carried VERBATIM from the `:root` of
-   `examples/ui/nova_ui_rework_poc.html`, which is also what
+   `web/design/nova_ui_rework_poc.html`, which is also what
    `crates/nova_ui/src/theme.rs` mirrors. That file is the single source for
    both surfaces; `web/tests/theme.test.ts` parses it and fails if this block
    drifts. Change the PoC first, then both consumers.

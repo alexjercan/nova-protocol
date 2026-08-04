@@ -3,9 +3,9 @@
 - PRIORITY: 86
 - TAGS: v0.10.0, web, docs, refactor
 - KIND: STORY
-- ACTIVITY: WORKING
-- GATES: PLAN
-- RESOLUTION: -
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 - PARENT: 20260802-115955
 
 ## Story
@@ -23,9 +23,9 @@ example proves the live UI tree"), which they can never satisfy. Move them to
 
 ## Steps
 
-- [ ] `git mv` the three `.html` files from `examples/ui/` to `web/design/`.
+- [x] `git mv` the three `.html` files from `examples/ui/` to `web/design/`.
       Contents stay byte-identical - no reformat, no token edit.
-- [ ] Repoint the two functional readers:
+- [x] Repoint the two functional readers:
       - `web/webpack.config.js:355,359,367` - `from:` is resolved against the
         webpack context, which is the cwd `web/` (no `context:` key is set on
         the `CopyPlugin` or the config), so `../examples/ui/X.html` becomes
@@ -34,18 +34,18 @@ example proves the live UI tree"), which they can never satisfy. Move them to
       - `web/tests/theme.test.ts:23` - `POC_PATH` becomes
         `join(REPO, "web", "design", "nova_ui_rework_poc.html")`, and the file's
         header comment (line 3) cites the same new path.
-- [ ] Repoint the path-bearing comments. Only these cite a PATH:
+- [x] Repoint the path-bearing comments. Only these cite a PATH:
       `crates/nova_ui/src/theme.rs:5`, `crates/nova_ui/src/hud.rs:7`,
       `crates/nova_gameplay/src/hud/{emphasis.rs:4,objective_stack.rs:4,situation.rs:4}`,
       `examples/screenshots/screenshot_nova_os.rs:6`, and
       `scripts/gen-nova-os-sfx.py:5`. Leave
       `crates/nova_gameplay/src/hud/nova_os/{content.rs,style.rs,tests/structure.rs}`
       alone - they cite the bare filename or "the PoC", which stays true.
-- [ ] Repoint the docs: `web/src/style.css:16`,
+- [x] Repoint the docs: `web/src/style.css:16`,
       `web/src/wiki/dev/development.md:147,379`,
       `web/src/wiki/dev/keeping-docs-in-sync.md:60`, and `CHANGELOG.md:98`
       (a stale pointer, not a history rewrite - the file still exists).
-- [ ] Run the DoD proofs; confirm the repo-wide grep is clean.
+- [x] Run the DoD proofs; confirm the repo-wide grep is clean.
 
 ## Definition of Done
 
@@ -75,3 +75,61 @@ example proves the live UI tree"), which they can never satisfy. Move them to
   files byte-identical.
 - Kept: the filenames stay `*_poc.html`. Renaming them would touch every
   citation and is a separate call.
+
+## Close-out
+
+**What / why.** `git mv`ed the three design-source HTML files from
+`examples/ui/` to `web/design/` and repointed all 14 references. The files were
+never examples - they are accepted design sources with live consumers - and
+`examples/ui/` is about to get a "proves the live UI tree" contract they can
+never satisfy. Everything else is a path-string edit; no HTML byte, token, or
+style changed.
+
+**Alternatives.** Considered `design/` at the repo root instead of `web/design/`.
+Rejected: both functional readers (webpack's `CopyPlugin`, `theme.test.ts`) run
+with cwd `web/`, so keeping the sources under `web/` makes both paths local and
+removes the test's repo-root derivation entirely.
+
+**Difficulties / diagnosis.**
+- Webpack `from:` resolution. Confirmed empirically rather than assumed: no
+  `context:` key exists on the `CopyPlugin` or the config root (`rg -n context
+  webpack.config.js` -> only two unrelated `redirect` hits), and the sibling
+  entry `from: "src/assets"` is already cwd-relative. So the new value is
+  `design/X.html`, NOT `../design/X.html`. The build then emitted all three
+  routes byte-identical to the sources, which proves it.
+- Plan drift, corrected. The plan specified `POC_PATH = join(REPO, "web",
+  "design", ...)`, but that leaves `REPO` (`join(WEB, "..")`) with no other
+  reader - dead code plus an `eslint no-unused-vars` warn, and a pointless
+  `web/../web` round trip. Used `join(WEB, "design", ...)`, dropped `REPO`, and
+  retuned the comment above it that explained the repo-root derivation.
+
+**Known wart, deliberately left.** `web/design/hud_rework_poc.html:337` has an
+inline comment reading "as an in-repo file:// review copy (examples/ui/)". Its
+BEHAVIOUR is still correct - it rewrites asset srcs to `../../assets/...`, and
+`web/design/` is the same depth from the repo root that `examples/ui/` was, so
+`file://` review still resolves the key glyphs. Only the parenthetical path is
+stale. Editing it would break the "no byte of HTML changed" DoD proof, and the
+DoD grep (`examples/ui/.*\.html`) does not match it. Left for whoever next
+touches that file's content.
+
+**Evidence.**
+| Proof | Result |
+| --- | --- |
+| `! rg -n "examples/ui/.*\.html" --glob '!tasks/**' .` | clean (exit 1) |
+| `git diff -M --cached --summary HEAD \| rg -c "rename .*\(100%\)"` | `3` |
+| `cd web && npm test` | `site.test.ts` + `theme.test.ts` all assertions passed |
+| `cd web && npm run build` + three route files | `ROUTES_EXIT=0` |
+| `cd web && npm run ci` | `CI_EXIT=0` (format:check, lint, test, build) |
+| `cargo fmt --all --check` | exit 0 |
+| built routes vs sources (`diff -q` x3) | identical (`VERBATIM_EXIT=0`) |
+
+`cargo check`/`clippy`/test-suite skipped per standing instruction; the Rust
+diff is seven `//!` doc-comment lines, which cannot affect compilation, and CI
+covers it.
+
+**Reflection.** The plan's own uncertainty note ("worth confirming against the
+existing copy-plugin context") was the one real risk, and it paid off to resolve
+it by reading the config and then proving it with a build rather than reasoning
+about webpack defaults. The `REPO` leftover is the general lesson: a move task's
+plan enumerates path edits, but a path edit can strand the variable that built
+the path - grep the identifier, not just the string.

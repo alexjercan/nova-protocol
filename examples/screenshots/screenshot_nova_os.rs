@@ -3,7 +3,7 @@
 //! computer with Tab, drives a couple of commands through the real keyboard
 //! path, and captures the screen so contrast, the input box, inline completion
 //! and the CRT treatment can be compared against
-//! `examples/ui/nova_os_terminal_poc.html`.
+//! `web/design/nova_os_terminal_poc.html`.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - reach Playing, open the computer,

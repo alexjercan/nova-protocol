@@ -144,7 +144,7 @@ single source of truth, listed in curriculum reading order:
   `screenshot_sections`, `screenshot_juice`, `screenshot_orbit` (drive the
   shipped scenes headless to capture the wiki and marketing frames),
   `screenshot_nova_os` (the Tab ship-computer, captured for HTML fidelity
-  work against `examples/ui/nova_os_terminal_poc.html`), and
+  work against `web/design/nova_os_terminal_poc.html`), and
   `render_scale_shot` (a real-GPU window capture proving the render-scale
   lever draws a correct frame).
 - `perf/` - `perf_baseline` (the frame-time measurement scene the probe
@@ -376,7 +376,7 @@ you the resize, not the change.
 ### The theme is shared with the game
 
 `web/src/style.css` and `crates/nova_ui/src/theme.rs` both mirror the `:root`
-block of `examples/ui/nova_ui_rework_poc.html` - the NOVA OS palette and its
+block of `web/design/nova_ui_rework_poc.html` - the NOVA OS palette and its
 control vocabulary. That PoC is the single source: change it first, then both
 consumers.
 
