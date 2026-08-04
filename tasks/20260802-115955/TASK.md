@@ -51,21 +51,21 @@ website. The release favors one reusable pipeline over unrelated features.
 | ID | Priority | Repo | Title | Landed result |
 | --- | ---: | --- | --- | --- |
 | `20260802-120019` | 100 | nova-protocol | Move the automation harness into `nova_autopilot` (9 children) | CLOSED/DONE 2026-08-03 (`6a19ebf2`): all nine children landed. `nova_autopilot` is a `bevy`-only crate owning completion, autopilot, screenshot and reel; `BCS_* -> NOVA_*` renamed atomically with no aliases; `nova_debug::harness` is now the Nova adapter filling the caller hooks, and `nova_probe` names the crate directly. Follow-ups: `20260803-114158` (rustdoc nits), `20260803-094601` (per-test timeout), `20260803-143141` (pre-existing `hud_range` smoke failure, closed one criterion red). |
+| `20260804-003301` | 86 | nova-protocol | Move the design PoC HTML pages into `web/design` | Pending |
 | `20260802-120025` | 85 | nova-protocol | Make `nova_autopilot` predicate-driven | Pending |
+| `20260804-093855` | 85 | nova-protocol | Example categories: contract + probe run policy (foundation) | Pending |
+| `20260804-094021` | 83 | nova-protocol | Rebuild `ui/` on synthesized pointer input | Pending |
 | `20260804-003244` | 82 | nova-protocol | Spike: decide the v0.10.0 example fleet roster | Pending |
+| `20260804-093934` | 82 | nova-protocol | Build `systems/`: code-built fixtures, incl. `outcomes` | Pending |
 | `20260802-120029` | 80 | nova-protocol | Rebuild the example fleet per category contract | CLOSED/SUPERSEDED 2026-08-04 by `20260804-003244`: the roster spike replaced its category table and redistributed its Steps across the seven tasks below. Categories are now `sections/`, `systems/`, `stress/`, `ui/`, `screenshots/` - `gameplay/` retired, `perf/` absorbed into `stress/` - and mainline story scenarios get no example coverage at all. |
-| `20260804-093855` | 84 | nova-protocol | Example categories: contract + probe run policy (foundation) | Pending |
-| `20260804-093934` | 83 | nova-protocol | Build `systems/`: code-built fixtures, incl. `outcomes` | Pending |
-| `20260804-093950` | 81 | nova-protocol | Deepen `sections/`, merging `com_range` + `torpedo_guidance` | Pending |
-| `20260804-094006` | 78 | nova-protocol | Create `stress/`: absorb `perf_baseline`, add scale sweeps | Pending |
-| `20260804-094021` | 77 | nova-protocol | Rebuild `ui/` on synthesized pointer input | Pending |
-| `20260804-093910` | 79 | nova-protocol | Retire mainline + POC runs, reduce `screenshots/` | Pending |
-| `20260804-095507` | 76 | nova-protocol | Run the fleet as CI will, record the sprint evidence | Pending |
+| `20260804-093950` | 80 | nova-protocol | Deepen `sections/`, merging `com_range` + `torpedo_guidance` | Pending |
+| `20260804-093910` | 78 | nova-protocol | Retire mainline + POC runs, reduce `screenshots/` | Pending |
+| `20260804-094006` | 76 | nova-protocol | Create `stress/`: absorb `perf_baseline`, add scale sweeps | Pending |
 | `20260802-120045` | 75 | nova-protocol | Generate showcase evidence and web assets with one command | CLOSED/WONTDO 2026-08-03: owner call - screenshot capture and packaging stay in `scripts/gen-web-screenshots.py`; `nova_probe` is for profiling and correctness only, and probing a screenshot example yields no useful evidence. Capture refresh lives in `20260724-082856` / `20260715-220011`. |
+| `20260804-095507` | 74 | nova-protocol | Run the fleet as CI will, record the sprint evidence | Pending |
 | `20260724-082856` | 70 | nova-protocol | Refresh frontend app images | Pending |
 | `20260715-220011` | 68 | nova-protocol | Generated placeholder thumbnails for the Scenarios picker | Pending |
 | `20260730-111146` | 60 | nova-protocol | Refresh the tutorial against current UI and captures | Pending |
-| `20260804-003301` | 55 | nova-protocol | Move the design PoC HTML pages into `web/design` | Pending |
 | `20260731-205553` | 50 | nova-protocol | Clear compiler and rustdoc warnings | Pending |
 
 ## Decisions

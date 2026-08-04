@@ -1,9 +1,9 @@
 # Retire the mainline and POC example runs, reduce screenshots to capture-only
 
-- PRIORITY: 79
+- PRIORITY: 78
 - TAGS: v0.10.0, examples, testing
 - KIND: STORY
-- ACTIVITY: -
+- ACTIVITY: PLANNING
 - GATES: -
 - RESOLUTION: -
 - PARENT: 20260802-115955
@@ -14,11 +14,12 @@
 Delete what the roster spike (`20260804-003244`) retired, and reduce
 `screenshots/` to what its contract allows. All mechanical, no new content.
 
-Story scenarios lose their example coverage on purpose: they are the most
-volatile content in the repo and the least suited to being a test fixture.
-`broadside` and `lifeline` assert story wave timings and object ids, so every
-campaign rebalance rewrites them and the rewrite proves nothing new. Story is
-tested by players; examples test systems.
+Story scenarios lose their example coverage on purpose. Not because they churn
+- the spike's review measured that and it is false (`broadside.rs` 11 commits
+ever, `lifeline.rs` 6) - but because an autopilot-assisted win over 8000 lines
+of story RON proves little: `broadside` and `lifeline` assert story wave
+timings and object ids, which is content, not system behavior. Story is tested
+by players; examples test systems.
 
 ## Steps
 
@@ -39,8 +40,9 @@ tested by players; examples test systems.
   (cmd: `! rg -n 'broadside|lifeline|nova_os_rtt_poc' Cargo.toml examples tests`)
 - No example carries a hand-rolled completion guard or beat-boolean script.
   (cmd: `! rg -n 'run ended with the scripted run unfinished|playing_since' examples`)
-- The screenshot producers still produce every shot the web build consumes.
-  (cmd: `nix develop --command python3 scripts/gen-web-screenshots.py --check`)
+- The reduced screenshot producers still run their full harnessed cycle and
+  exit clean, so the capture path is intact even though probe no longer runs
+  them. (test: `screenshots_reach_playing_without_panic`)
 - The catalog, disk and smoke lists agree after the deletions.
   (test: `catalog_matches_disk`)
 
@@ -55,6 +57,12 @@ tested by players; examples test systems.
   is not coverage. Its coverage becomes an RTT element test beside the other
   widget tests.
 - Delete `fps_exempt = ["broadside"]` (Cargo.toml:35) - the only entry.
+- Coverage flag: `--report`, one name, built and owned by `20260724-082856`
+  (which now DEPENDS ON this task). Deliberately NOT in this task's DoD - that
+  would be circular, since 082856 needs these rebuilt producers and this task
+  cannot be gated on a flag 082856 has not written yet. Shot-for-shot coverage
+  of the web build is 082856's criterion; this task proves only that the
+  reduced producers still run clean.
 - Reduce all eight `screenshots/` runs to capture producers on the shared
   driver: enter, wait on a predicate, shoot, exit. No assertions, no fps
   wiring, no probe enrollment. `render_scale_shot` stays out of probe entirely.

@@ -7,15 +7,22 @@
 - GATES: -
 - RESOLUTION: -
 - PARENT: 20260802-115955
-- DEPENDS ON: 20260802-120029
+- DEPENDS ON: 20260804-093910
 
 ## Story
 
 Replace every missing, placeholder, or stale website capture with current
 v0.10.0 output, produced by the rebuilt `screenshots/` examples
-(`20260802-120029`) and packaged by `scripts/gen-web-screenshots.py`. This task
-owns the shipped asset refresh AND the script's producer manifest - probe never
-enters this path (`20260802-120045` WONTDO).
+(`20260804-093910`, which reduces them to capture-only) and packaged by
+`scripts/gen-web-screenshots.py`. This task owns the shipped asset refresh AND
+the script's producer manifest - probe never enters this path
+(`20260802-120045` WONTDO).
+
+The coverage flag is `--report` and there is only one name for it. Owner call
+2026-08-04: `20260804-093910` had cited a `--check` flag; both `--check` and
+`--report` are absent from the script today
+(`scripts/gen-web-screenshots.py:568-574` has only `--stage-dir`, `--no-icons`,
+`--self-test`), and this task is the one that builds it.
 
 ## Steps
 

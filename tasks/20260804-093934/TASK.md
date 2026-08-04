@@ -1,9 +1,9 @@
 # Build systems/: code-built fixtures for scenario grammar, the player path, and outcomes
 
-- PRIORITY: 83
-- TAGS: v0.10.0,content,examples,testing
+- PRIORITY: 82
+- TAGS: v0.10.0, content, examples, testing
 - KIND: STORY
-- ACTIVITY: -
+- ACTIVITY: PLANNING
 - GATES: -
 - RESOLUTION: -
 - PARENT: 20260802-115955
@@ -32,12 +32,18 @@ this; the rule promotes their precedent. The type is `ScenarioConfig`
 - [ ] Rename `examples/gameplay/playable.rs` -> `examples/systems/player_path.rs`
       and deepen it: more of the gesture chain, more rounds through the loop
       point.
-- [ ] Add the shared fixture builders as reusable `fn`s returning
-      `ScenarioConfig`, shaped so `sections/` and `stress/` can call them with
-      a count knob.
+- [ ] Build the fixtures LOCALLY, inline in `systems/`. Do NOT design a shared
+      builder: owner call 2026-08-04, `20260804-094006` is the third caller and
+      does the extraction once all three shapes are visible. One caller is not
+      an abstraction.
 - [ ] Add `examples/systems/outcomes.rs` with the `outcome_probe_a` /
       `outcome_probe_b` pair and its beats: die, Defeat overlay, Retry, clean
-      reload, kill, objective + CHECKPOINT, Continue, B loaded.
+      reload, kill, objective + CHECKPOINT, Continue, B loaded. Advance the
+      overlay by TRIGGERING the button's `Activate` on the target entity, not
+      by `click_at` on screen coordinates - owner call 2026-08-04. This run's
+      subject is the outcome CHAIN; the menu is `ui/`'s subject, and coupling
+      this run to overlay layout would make the sprint's most fragile test
+      more fragile still.
 
 ## Definition of Done
 

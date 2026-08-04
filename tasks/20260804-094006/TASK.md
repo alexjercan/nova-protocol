@@ -1,13 +1,13 @@
 # Create stress/: absorb perf_baseline and add the many-bodies, many-sections, many-projectiles sweeps
 
-- PRIORITY: 78
+- PRIORITY: 76
 - TAGS: v0.10.0, content, examples, testing, perf
 - KIND: STORY
-- ACTIVITY: -
+- ACTIVITY: PLANNING
 - GATES: -
 - RESOLUTION: -
 - PARENT: 20260802-115955
-- DEPENDS ON: 20260804-003244, 20260804-093855, 20260804-093950
+- DEPENDS ON: 20260804-003244, 20260804-093855, 20260804-093950, 20260804-093934
 
 ## Story
 
@@ -26,10 +26,17 @@ rather than padded to fill a window.
       `perf/` directory.
 - [ ] Add `stress/many_bodies`: N asteroids under physics + gravity + render,
       with a count knob and a declared `loop_from` point.
-- [ ] Add `stress/many_sections`: one ship with N sections, reusing the
-      `sections/` ship builder.
+- [ ] EXTRACT the shared fixture builders here, as the third caller. Owner call
+      2026-08-04: `20260804-093934` and `20260804-093950` each build theirs
+      inline, and this task designs the real signature (the count knob
+      included) from three visible shapes rather than from one. This is a
+      deliberate refactor step, budgeted - not an accident.
+- [ ] Add `stress/many_sections`: one ship with N sections, on the builder
+      extracted above.
 - [ ] Add `stress/many_projectiles`: turret + torpedo saturation.
-- [ ] Delete `fps_exempt` from `Cargo.toml` now that category policy owns it.
+- [ ] Delete the `fps_exempt` KEY from `Cargo.toml` (:34-35) now that category
+      policy owns it - if `20260804-093910` has not already. Only the manifest
+      key: the parsers and the checks.json field are `20260804-093855`'s.
 
 ## Definition of Done
 
