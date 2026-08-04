@@ -36,6 +36,7 @@
 
 use bevy::{platform::collections::HashMap, prelude::*};
 use clap::Parser;
+use nova_probe::fixtures::{self, SectionSpec};
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
@@ -220,16 +221,9 @@ fn number(value: f64) -> VariableExpressionNode {
 /// The run: an armed player ship, a hostile rock dead ahead, a nav beacon
 /// beyond it, and handlers that echo each beat into a variable.
 fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
-    let section = |id: &str| {
-        sections
-            .get_section(id)
-            .unwrap_or_else(|| panic!("section '{id}' not found"))
-            .clone()
-    };
-
-    let ship = SpaceshipConfig {
-        allegiance: None,
-        controller: SpaceshipController::Player(PlayerControllerConfig {
+    let ship = fixtures::ship(
+        sections,
+        SpaceshipController::Player(PlayerControllerConfig {
             // The shipped fire bindings (the base scenarios map turrets to
             // LMB / RightTrigger2). NOT Space/RightTrigger: both also bind
             // FlightBurnInput in the flight rig, so a held fire key would
@@ -246,37 +240,17 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
             infinite_ammo: true,
             lock_refire_secs: None,
         }),
-        sections: vec![
-            SpaceshipSectionConfig {
-                id: "controller".to_string(),
-                position: Vec3::ZERO,
-                rotation: Quat::IDENTITY,
-                source: SectionSource::Inline(section("basic_controller_section")),
-                modifications: vec![],
-            },
-            SpaceshipSectionConfig {
-                id: "hull".to_string(),
-                position: Vec3::new(0.0, 0.0, 1.0),
-                rotation: Quat::IDENTITY,
-                source: SectionSource::Inline(section("reinforced_hull_section")),
-                modifications: vec![],
-            },
-            SpaceshipSectionConfig {
-                id: "main_drive".to_string(),
-                position: Vec3::new(0.0, 0.0, 2.0),
-                rotation: Quat::IDENTITY,
-                source: SectionSource::Inline(section("basic_thruster_section")),
-                modifications: vec![],
-            },
-            SpaceshipSectionConfig {
-                id: "guns".to_string(),
-                position: Vec3::new(0.0, 1.0, -1.0),
-                rotation: Quat::IDENTITY,
-                source: SectionSource::Inline(section("better_turret_section")),
-                modifications: vec![],
-            },
+        &[
+            SectionSpec::new("controller", "basic_controller_section", Vec3::ZERO),
+            SectionSpec::new("hull", "reinforced_hull_section", Vec3::new(0.0, 0.0, 1.0)),
+            SectionSpec::new(
+                "main_drive",
+                "basic_thruster_section",
+                Vec3::new(0.0, 0.0, 2.0),
+            ),
+            SectionSpec::new("guns", "better_turret_section", Vec3::new(0.0, 1.0, -1.0)),
         ],
-    };
+    );
 
     let events = vec![
         ScenarioEventConfig {
@@ -294,24 +268,15 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                 }),
                 // The prey: dead ahead on the default look ray, lockable
                 // (an unsigned rock is invisible to the radar).
-                EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
-                    base: BaseScenarioObjectConfig {
-                        id: "prey".to_string(),
-                        name: "Prey".to_string(),
-                        position: Vec3::new(0.0, 0.0, -40.0),
-                        rotation: Quat::IDENTITY,
-                    },
-                    kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                        impact_sound: Some("base/sounds/impact.wav".into()),
-                        destroy_sound: Some("base/sounds/explosion.wav".into()),
-                        radius: 2.0,
-                        texture: game_assets.asteroid_texture.clone().into(),
-                        health: 60.0,
-                        surface_gravity: None,
-                        invulnerable: false,
-                        lock_signature: Some(1000.0),
-                    }),
-                }),
+                EventActionConfig::SpawnScenarioObject(fixtures::asteroid(
+                    game_assets,
+                    "prey",
+                    "Prey",
+                    Vec3::new(0.0, 0.0, -40.0),
+                    2.0,
+                    60.0,
+                    Some(1000.0),
+                )),
                 // The waypoint: off the boresight (the radar pick is
                 // purely angular, and with the camera above the hull a
                 // FARTHER on-axis object aligns better with the look ray -

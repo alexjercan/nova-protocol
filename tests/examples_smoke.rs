@@ -59,6 +59,13 @@ const UI: &[&str] = &[
     "widget_zoo",
 ];
 
+/// examples/stress/ - the scale sweeps. Each spawns a swarm at
+/// `NOVA_STRESS_COUNT` (default per example), holds it, tears it down and
+/// asserts the world came back to baseline, so the smoke run gates the
+/// correctness half of a category whose other half is a frame-time number.
+/// `scene_baseline` is deliberately absent - see `NOT_SMOKED`.
+const STRESS: &[&str] = &["many_bodies", "many_projectiles", "many_sections"];
+
 /// examples/screenshots/ - the capture producers still run a full harnessed
 /// cycle headless (capture is inert without `NOVA_SHOT`), so they smoke too.
 const SCREENSHOTS: &[&str] = &[
@@ -77,9 +84,9 @@ const SCREENSHOTS: &[&str] = &[
 /// - render_scale_shot: NOVA_SHOT-driven single capture on a real GPU (its
 ///   point is pixels, which Xvfb + a warmed-up autopilot cycle cannot judge);
 ///   verified by eyeballing the PNGs (task 20260718-004723).
-/// - perf_baseline: not harnessed - probe owns it (`probe run perf_baseline
+/// - scene_baseline: not harnessed - probe owns it (`probe run scene_baseline
 ///   --fps`), and a smoke pass would only measure noise.
-const NOT_SMOKED: &[&str] = &["render_scale_shot", "perf_baseline"];
+const NOT_SMOKED: &[&str] = &["render_scale_shot", "scene_baseline"];
 
 #[test]
 fn sections_reach_playing_without_panic() {
@@ -94,6 +101,11 @@ fn systems_reach_playing_without_panic() {
 #[test]
 fn ui_reach_playing_without_panic() {
     smoke(UI);
+}
+
+#[test]
+fn stress_reach_playing_without_panic() {
+    smoke(STRESS);
 }
 
 #[test]
@@ -154,7 +166,7 @@ fn catalog_matches_disk() {
 
     // Every cataloged example is either smoked or deliberately not.
     let mut accounted = BTreeSet::new();
-    for &example in [SECTIONS, SYSTEMS, UI, SCREENSHOTS, NOT_SMOKED]
+    for &example in [SECTIONS, SYSTEMS, UI, STRESS, SCREENSHOTS, NOT_SMOKED]
         .iter()
         .flat_map(|list| list.iter())
     {

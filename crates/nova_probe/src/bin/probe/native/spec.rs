@@ -273,7 +273,7 @@ mod tests {
             s(&[
                 "controller_section",
                 "scenario",
-                "perf_baseline",
+                "scene_baseline",
                 "many_bodies",
                 "outcomes"
             ])

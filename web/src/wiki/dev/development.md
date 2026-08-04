@@ -148,9 +148,7 @@ enough is a reading task, not a test.
 ran, not what they proved). Its system coverage became `systems/`
 (`scenario_grammar`, `player_path`, `outcomes`), and the two story-scenario
 runs that outlived that move were retired rather than rehomed - story is
-tested by players, examples test systems. `perf/` is the last transitional
-directory, still carrying a policy row until `perf_baseline` lands in
-`stress/`, where every frame-time claim now lives.
+tested by players, examples test systems.
 
 ### The catalog and the harness
 
@@ -201,8 +199,16 @@ What is on disk today, in curriculum reading order:
   work against `web/design/nova_os_terminal_poc.html`), and
   `render_scale_shot` (a real-GPU window capture proving the render-scale
   lever draws a correct frame).
-- `perf/` - `perf_baseline` (the frame-time measurement scene the probe
-  sweep runs; see [Performance and run verification](#performance-and-run-verification)).
+- `stress/` - the only category that carries frame-time windows:
+  `scene_baseline` (the release-over-release measurement scene the probe sweep
+  runs), plus the scale sweeps `many_bodies` (N asteroids under physics +
+  gravity + render), `many_sections` (one ship with N sections: mass/COM
+  aggregation and the integrity graph at scale) and `many_projectiles`
+  (turret + torpedo saturation: collision, particles, despawn churn). Each
+  sweep takes a count knob (`NOVA_STRESS_COUNT`) and loops spawn -> hold ->
+  teardown so the capture window is filled by activity, and each asserts that
+  entity counts return to baseline after teardown. See
+  [Performance and run verification](#performance-and-run-verification).
 
 When adding a substantial feature, add or extend the example that drives it.
 (Consolidated over time: 01_scene/03_scenario merged into scenario;
@@ -211,12 +217,13 @@ hud_range; 10_gameplay into hull_section + playable; 07b_slicer's
 subject lives in bevy-common-systems; 04_asteroids' slider tuning tool was
 dropped.)
 
-Every example outside `perf/` (plus `render_scale_shot`) is HARNESSED: it
-drives itself under `NOVA_AUTOPILOT=1`, and `tests/examples_smoke.rs` runs
-each category headless as a regression suite, one test per category -
-`cargo test --test examples_smoke sections` (or `systems`, `ui`,
-`screenshots`) runs a single category alone. Each example must reach
-`Playing` and exit without panic; the sections, systems and ui examples
+Every example except `scene_baseline` and `render_scale_shot` is HARNESSED: it
+drives itself under `NOVA_AUTOPILOT=1`, and
+`tests/examples_smoke.rs` runs each category headless as a regression suite,
+one test per category - `cargo test --test examples_smoke sections` (or
+`systems`, `ui`, `stress`, `screenshots`) runs a single category alone. Each
+example must reach
+`Playing` and exit without panic; the sections, systems, ui and stress examples
 additionally carry panic-on-failure behavior assertions with completion
 backstops (a stalled script fails instead of passing vacuously), except
 `editor`, which asserts at the reach-gameplay level. The `sections/` rosters
@@ -228,7 +235,7 @@ never resolves is an error exit naming that step. Disk, catalog and smoke
 lists cannot drift: the
 display-free `catalog_matches_disk` test fails a bare `cargo test` when a
 new example misses its `[[example]]` block or its category's smoke list
-(`render_scale_shot` and `perf_baseline` are deliberately unsmoked; the
+(`render_scale_shot` and `scene_baseline` are deliberately unsmoked; the
 `NOT_SMOKED` list records why).
 
 The drivers themselves - `AutopilotPlugin`, the screenshot and reel captures,
@@ -533,8 +540,8 @@ measures activity - reload intervals are excluded from the stats and
 reported as their own line.
 
 Which runs get that pass is **category policy**, not a per-example opt-out:
-only a frame-time category (`stress/`, and `perf/` until it is absorbed)
-carries the `--fps` pass. Everywhere else `--fps` runs the clean + profiled
+only a frame-time category (`stress/`) carries the `--fps` pass. Everywhere
+else `--fps` runs the clean + profiled
 CORRECTNESS passes and the report records WHY the frame-time section is empty
 ("category `ui/` carries no frame-time pass") instead of timing out on a
 window the example was never built to fill. See
@@ -549,7 +556,7 @@ own `NOVA_PERF_WARMUP` / `NOVA_PERF_FRAMES` always override it. The completion
 deadline is SIZED to that window (not a flat 120s): probe sets
 `NOVA_AUTOPILOT_DEADLINE` for the fps pass to `(warmup + frames) / ~2fps +
 margin`, so a slow-but-progressing capture (a heavy scene in a dev build under
-software rendering - `perf_baseline --fps` is the case) completes instead of
+software rendering - `scene_baseline --fps` is the case) completes instead of
 tripping the hang detector; a genuine hang still fails at a window-appropriate
 bound, and your own `NOVA_AUTOPILOT_DEADLINE` overrides it. Every example's `main`
 returns `AppExit`, so a deadline expiry is a non-zero process exit the
@@ -561,9 +568,9 @@ frame-time capture, one labeled `frametime.csv` row per cell, release-built
 (dev-profile frame numbers are not baselines):
 
 ```sh
-cargo run -p nova_probe -- run perf_baseline --fps --release \
+cargo run -p nova_probe -- run scene_baseline --fps --release \
   --scenario asteroid_field --scenario broadside --preset high --preset low
-cargo run -p nova_probe -- run perf_baseline --fps --release --render sw ...  # lavapipe floor
+cargo run -p nova_probe -- run scene_baseline --fps --release --render sw ...  # lavapipe floor
 cargo run -p nova_probe -- run <scenario> --platform web   # web/WebGPU capture (scraped)
 ```
 

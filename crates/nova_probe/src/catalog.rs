@@ -187,15 +187,6 @@ pub const CATEGORY_POLICIES: &[(&str, CategoryPolicy)] = &[
             frame_time: false,
         },
     ),
-    // TRANSITIONAL: remove with 20260804-094006, which absorbs perf_baseline
-    // into stress/.
-    (
-        "perf",
-        CategoryPolicy {
-            probed: true,
-            frame_time: true,
-        },
-    ),
 ];
 
 /// The run policy for a category.

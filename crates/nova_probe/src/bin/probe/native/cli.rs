@@ -138,7 +138,7 @@ pub(crate) fn parse(args: &[String]) -> Result<Cmd, String> {
         ),
         Some(alias @ ("sweep" | "web" | "profile")) => Err(format!(
             "`{alias}` retired (deprecated for one cycle, removed at v0.8.0): \
-             use `probe run` - the sweep is `run perf_baseline --fps --release \
+             use `probe run` - the sweep is `run scene_baseline --fps --release \
              --scenario ... --preset ...`, web is `run <scenario> --platform web`, \
              profiling is `run <example> --profile [--samply]`"
         )),
@@ -327,7 +327,7 @@ mod tests {
 
         let Ok(Cmd::RunSpec { tokens, base, .. }) = parse(&s(&[
             "run",
-            "perf_baseline",
+            "scene_baseline",
             "--fps",
             "--release",
             "--render",
@@ -341,7 +341,7 @@ mod tests {
         ])) else {
             panic!("sweep-shaped run parses");
         };
-        assert_eq!(tokens, s(&["perf_baseline"]));
+        assert_eq!(tokens, s(&["scene_baseline"]));
         assert!(base.release && base.fps);
         assert_eq!(base.render, Render::Sw);
         assert_eq!(base.scenarios, s(&["a", "b"]));

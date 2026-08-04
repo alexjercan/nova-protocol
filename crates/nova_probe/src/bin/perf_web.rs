@@ -10,7 +10,7 @@
 //! `run_report`/`perf_report`/`perf_trace` bins and the `sweep|web|profile`
 //! aliases were).
 //!
-//! Same measurement as `examples/perf/perf_baseline`, but its config comes
+//! Same measurement as `examples/stress/scene_baseline`, but its config comes
 //! from the cross-platform perf-param source ([`perf_param`]: the URL query
 //! string on wasm, `NOVA_PERF_*` env vars on native), so Trunk can build it
 //! into the wasm bundle and a headless browser can drive it by URL. No

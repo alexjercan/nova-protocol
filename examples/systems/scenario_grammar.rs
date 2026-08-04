@@ -32,6 +32,7 @@
 
 use bevy::prelude::*;
 use clap::Parser;
+use nova_probe::fixtures::{self, SectionSpec};
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
@@ -260,73 +261,46 @@ fn rock_position(i: usize) -> Vec3 {
 
 /// The showcase scenario: every part of the event grammar in one config.
 fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
-    let section = |id: &str| {
-        sections
-            .get_section(id)
-            .unwrap_or_else(|| panic!("section '{id}' not found"))
-            .clone()
-    };
-
     // The escort exists to be DISARMED: a weapon section and a thruster
     // section, both destroyable, on a hull that survives losing them. Nobody
     // drives it - `OnNeutralized` is an integrity verdict, not an AI one.
-    let escort = SpaceshipConfig {
-        allegiance: None,
-        controller: SpaceshipController::None,
-        sections: vec![
-            SpaceshipSectionConfig {
-                id: "escort_controller".to_string(),
-                position: Vec3::ZERO,
-                rotation: Quat::IDENTITY,
-                source: SectionSource::Inline(section("basic_controller_section")),
-                modifications: vec![],
-            },
-            SpaceshipSectionConfig {
-                id: "escort_hull".to_string(),
-                position: Vec3::new(0.0, 0.0, 1.0),
-                rotation: Quat::IDENTITY,
-                source: SectionSource::Inline(section("reinforced_hull_section")),
-                modifications: vec![],
-            },
-            SpaceshipSectionConfig {
-                id: ESCORT_DRIVE.to_string(),
-                position: Vec3::new(0.0, 0.0, 2.0),
-                rotation: Quat::IDENTITY,
-                source: SectionSource::Inline(section("basic_thruster_section")),
-                modifications: vec![],
-            },
-            SpaceshipSectionConfig {
-                id: ESCORT_GUNS.to_string(),
-                position: Vec3::new(0.0, 1.0, -1.0),
-                rotation: Quat::IDENTITY,
-                source: SectionSource::Inline(section("better_turret_section")),
-                modifications: vec![],
-            },
+    let escort = fixtures::ship(
+        sections,
+        SpaceshipController::None,
+        &[
+            SectionSpec::new("escort_controller", "basic_controller_section", Vec3::ZERO),
+            SectionSpec::new(
+                "escort_hull",
+                "reinforced_hull_section",
+                Vec3::new(0.0, 0.0, 1.0),
+            ),
+            SectionSpec::new(
+                ESCORT_DRIVE,
+                "basic_thruster_section",
+                Vec3::new(0.0, 0.0, 2.0),
+            ),
+            SectionSpec::new(
+                ESCORT_GUNS,
+                "better_turret_section",
+                Vec3::new(0.0, 1.0, -1.0),
+            ),
         ],
-    };
+    );
 
     // OnStart: the ring, the escort, the trigger volume, the objectives, the
     // HUD readout and the seeds.
     let mut start_actions: Vec<EventActionConfig> = (0..ASTEROID_COUNT)
         .map(|i| {
-            EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
-                base: BaseScenarioObjectConfig {
-                    id: format!("rock_{i}"),
-                    name: format!("Rock {i}"),
-                    position: rock_position(i),
-                    rotation: Quat::IDENTITY,
-                },
-                kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                    impact_sound: Some("base/sounds/impact.wav".into()),
-                    destroy_sound: Some("base/sounds/explosion.wav".into()),
-                    radius: 2.0,
-                    texture: game_assets.asteroid_texture.clone().into(),
-                    health: 50.0,
-                    surface_gravity: None,
-                    invulnerable: false,
-                    lock_signature: None,
-                }),
-            })
+            EventActionConfig::SpawnScenarioObject(fixtures::asteroid(
+                game_assets,
+                &format!("rock_{i}"),
+                &format!("Rock {i}"),
+                rock_position(i),
+                2.0,
+                50.0,
+                // Unsigned: the ring is cleared by hand, never radar-locked.
+                None,
+            ))
         })
         .collect();
     start_actions.push(EventActionConfig::SpawnScenarioObject(

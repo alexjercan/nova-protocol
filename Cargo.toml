@@ -112,6 +112,26 @@ path = "examples/ui/menu_newgame.rs"
 name = "menu_scenarios"
 path = "examples/ui/menu_scenarios.rs"
 
+# stress/ - the ONLY home for frame-time claims: steady-state scenes built to be
+# measured and compared against a baseline (probe run stress --fps). Each run
+# also asserts, so a scale sweep proves "nothing breaks at scale" alongside its
+# number.
+[[example]]
+name = "scene_baseline"
+path = "examples/stress/scene_baseline.rs"
+
+[[example]]
+name = "many_bodies"
+path = "examples/stress/many_bodies.rs"
+
+[[example]]
+name = "many_sections"
+path = "examples/stress/many_sections.rs"
+
+[[example]]
+name = "many_projectiles"
+path = "examples/stress/many_projectiles.rs"
+
 # screenshots/ - capture producers for the website (gen-web-screenshots.py).
 [[example]]
 name = "screenshot_reel"
@@ -145,12 +165,6 @@ path = "examples/screenshots/screenshot_orbit.rs"
 name = "render_scale_shot"
 path = "examples/screenshots/render_scale_shot.rs"
 
-# perf/ - TRANSITIONAL: absorbed into stress/ by task 20260804-094006.
-# Frame-time measurement scenes (probe run --fps).
-[[example]]
-name = "perf_baseline"
-path = "examples/perf/perf_baseline.rs"
-
 # Inherit the workspace clippy allows (type_complexity, too_many_arguments) for
 # the root package too, so the lib, binary and examples match the crates' policy.
 [lints]
@@ -163,7 +177,7 @@ nova_core = { path = "crates/nova_core" }
 [dev-dependencies]
 avian3d = { version = "0.7" }
 bevy = { version = "0.19.0" }
-# The perf_baseline example uses the frame-time capture harness, and the
+# The stress/ examples use the frame-time capture harness, and the
 # autopilot examples push run-timeline markers - both live in nova_probe (the
 # run-harness dev tool, not shipped with the game binary). serde_json builds
 # the markers' payloads (the timeline speaks JSON).

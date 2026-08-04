@@ -45,6 +45,7 @@ use std::sync::Arc;
 use avian3d::prelude::*;
 use bevy::{color::palettes::tailwind, platform::collections::HashMap, prelude::*};
 use clap::Parser;
+use nova_probe::fixtures::{self, SectionSpec};
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
@@ -224,21 +225,10 @@ fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, sections: R
 /// The player ship both scenes fly: a controller (so it holds attitude and is
 /// aimable) and the torpedo bay under test. The bay's section id "torpedo" is
 /// what the input mapping binds the fire key to.
-///
-/// Local to this example on purpose (owner call 2026-08-04): `20260804-094006`
-/// is the third caller and owns extracting a shared builder, designed from
-/// three visible shapes rather than this one.
 fn torpedo_ship(sections: &GameSections) -> SpaceshipConfig {
-    let section = |id: &str| {
-        sections
-            .get_section(id)
-            .unwrap_or_else(|| panic!("section '{id}' not found"))
-            .clone()
-    };
-
-    SpaceshipConfig {
-        allegiance: None,
-        controller: SpaceshipController::Player(PlayerControllerConfig {
+    fixtures::ship(
+        sections,
+        SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: HashMap::from([(
                 "torpedo".to_string(),
                 vec![KeyCode::Space.into(), GamepadButton::RightTrigger.into()],
@@ -248,30 +238,12 @@ fn torpedo_ship(sections: &GameSections) -> SpaceshipConfig {
             infinite_ammo: true,
             lock_refire_secs: None,
         }),
-        sections: vec![
-            SpaceshipSectionConfig {
-                id: "controller".to_string(),
-                position: Vec3::ZERO,
-                rotation: Quat::IDENTITY,
-                source: SectionSource::Inline(section("basic_controller_section")),
-                modifications: vec![],
-            },
-            SpaceshipSectionConfig {
-                id: "hull".to_string(),
-                position: Vec3::new(0.0, 0.0, 1.0),
-                rotation: Quat::IDENTITY,
-                source: SectionSource::Inline(section("reinforced_hull_section")),
-                modifications: vec![],
-            },
-            SpaceshipSectionConfig {
-                id: "torpedo".to_string(),
-                position: Vec3::new(0.0, 0.0, -1.0),
-                rotation: Quat::IDENTITY,
-                source: SectionSource::Inline(section("torpedo_section")),
-                modifications: vec![],
-            },
+        &[
+            SectionSpec::new("controller", "basic_controller_section", Vec3::ZERO),
+            SectionSpec::new("hull", "reinforced_hull_section", Vec3::new(0.0, 0.0, 1.0)),
+            SectionSpec::new("torpedo", "torpedo_section", Vec3::new(0.0, 0.0, -1.0)),
         ],
-    }
+    )
 }
 
 /// An asteroid target. Health is the knob that decides whether it survives being
@@ -286,24 +258,8 @@ fn gate(
     radius: f32,
     health: f32,
 ) -> ScenarioObjectConfig {
-    ScenarioObjectConfig {
-        base: BaseScenarioObjectConfig {
-            id: id.to_string(),
-            name: name.to_string(),
-            position: pos,
-            rotation: Quat::IDENTITY,
-        },
-        kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            impact_sound: Some("base/sounds/impact.wav".into()),
-            destroy_sound: Some("base/sounds/explosion.wav".into()),
-            radius,
-            texture: game_assets.asteroid_texture.clone().into(),
-            health,
-            surface_gravity: None,
-            invulnerable: false,
-            lock_signature: None,
-        }),
-    }
+    // Unsigned: the gates are shot at over open sights, never radar-locked.
+    fixtures::asteroid(game_assets, id, name, pos, radius, health, None)
 }
 
 fn player_ship_object(sections: &GameSections) -> ScenarioObjectConfig {
@@ -316,17 +272,6 @@ fn player_ship_object(sections: &GameSections) -> ScenarioObjectConfig {
         },
         kind: ScenarioObjectKind::Spaceship(torpedo_ship(sections)),
     }
-}
-
-fn spawn_on_start(objects: Vec<ScenarioObjectConfig>) -> Vec<ScenarioEventConfig> {
-    vec![ScenarioEventConfig {
-        name: EventConfig::OnStart,
-        filters: vec![],
-        actions: objects
-            .into_iter()
-            .map(EventActionConfig::SpawnScenarioObject)
-            .collect(),
-    }]
 }
 
 /// Scene 1: the gate range - one player torpedo ship plus the target gates.
@@ -382,7 +327,7 @@ fn torpedo_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
         name: "Torpedo Range".to_string(),
         description: "A test range for the torpedo bay section.".to_string(),
         cubemap: game_assets.cubemap.clone().into(),
-        events: spawn_on_start(objects),
+        events: fixtures::spawn_on_start(objects),
         ..Default::default()
     }
 }
@@ -411,7 +356,7 @@ fn crossing_range(game_assets: &GameAssets, sections: &GameSections) -> Scenario
         name: "Torpedo Crossing Range".to_string(),
         description: "A harness for the torpedo PN guidance.".to_string(),
         cubemap: game_assets.cubemap.clone().into(),
-        events: spawn_on_start(objects),
+        events: fixtures::spawn_on_start(objects),
         ..Default::default()
     }
 }

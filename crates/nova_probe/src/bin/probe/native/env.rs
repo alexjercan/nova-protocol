@@ -103,7 +103,7 @@ pub(crate) fn fps_window_and_deadline_env() -> (Vec<(String, String)>, u64) {
 
 /// Environment for the CLEAN pass: autopilot + recorder + invariants
 /// always; the frame-time capture only on request (`--fps`) since only
-/// the wired examples (perf_baseline) read it - elsewhere it is a
+/// the wired examples (stress/) read it - elsewhere it is a
 /// harmless no-op env. Plus the profile sandbox, so the run cannot read
 /// the operator's mod cache, enabled mods or settings
 /// ([`nova_probe::profile_sandbox`]).

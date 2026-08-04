@@ -50,7 +50,7 @@
 //! Xvfb :95 -screen 0 1280x720x24 &
 //! NOVA_PERF=1 NOVA_PERF_SCENARIO=asteroid_field NOVA_PERF_LABEL=asteroid_field-gpu \
 //!   NOVA_PERF_OUT=/tmp/perf BEVY_ASSET_ROOT="$PWD" DISPLAY=:95 \
-//!   cargo run --release --example perf_baseline --features debug
+//!   cargo run --release --example scene_baseline --features debug
 //! # look for: `nova perf: label=... frames=... mean=..ms p99=..ms mean_fps=.. 1%low_fps=..`
 //! ```
 //!
@@ -94,6 +94,11 @@ pub mod profile_sandbox;
 // wire them never build for wasm).
 #[cfg(not(target_arch = "wasm32"))]
 pub mod invariants;
+// Scenario fixture builders shared by the examples. Native-only with the rest
+// of the example-facing harness: nothing in the wasm bundle builds a scenario
+// config by hand.
+#[cfg(not(target_arch = "wasm32"))]
+pub mod fixtures;
 // The run-timeline recorder writes a JSONL file; the browser has no
 // filesystem, so the module is native-only and wasm gets no-op stubs with the
 // same signatures, so cross-target callers compile.
