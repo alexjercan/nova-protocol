@@ -23,15 +23,6 @@ autoexamples = false
 [lib]
 path = "src/lib.rs"
 
-# nova_probe tool config (read by `crates/nova_probe`, ignored by cargo).
-# ORPHANED: fps_exempt is inert. Whether an example runs the `--fps`
-# frame-time pass is now a property of its CATEGORY, resolved from
-# nova_probe::CATEGORY_POLICIES (task 20260804-093855) - there is no
-# per-example opt-out any more. The key is deleted with examples/gameplay/
-# and examples/perf/ (tasks 20260804-093910 / 20260804-094006).
-[package.metadata.nova_probe]
-fps_exempt = ["broadside"]
-
 # THE EXAMPLE-CATEGORY CONTRACT (see autoexamples above). A category is a
 # promise about what its examples prove and what probe does with them; the
 # run policy half is the table in crates/nova_probe/src/catalog.rs, and
@@ -108,26 +99,10 @@ path = "examples/systems/player_path.rs"
 name = "outcomes"
 path = "examples/systems/outcomes.rs"
 
-# gameplay/ - TRANSITIONAL, not a contract: this was "full autopilot scenario
-# runs", which describes how the examples run, not what they prove. Retiring -
-# its remaining members go away with task 20260804-093910.
-# Probe policy meanwhile: correctness passes only.
-[[example]]
-name = "broadside"
-path = "examples/gameplay/broadside.rs"
-
-[[example]]
-name = "lifeline"
-path = "examples/gameplay/lifeline.rs"
-
 # ui/ - staged UI flows with their own autopilot timelines.
 [[example]]
 name = "widget_zoo"
 path = "examples/ui/widget_zoo.rs"
-
-[[example]]
-name = "nova_os_rtt_poc"
-path = "examples/ui/nova_os_rtt_poc.rs"
 
 [[example]]
 name = "editor"

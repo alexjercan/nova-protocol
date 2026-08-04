@@ -37,14 +37,46 @@ use nova_protocol::prelude::*;
 #[command(about = "Capture the menu/editor web screenshots via the shipped app", long_about = None)]
 struct Cli;
 
-/// Seconds the autopilot holds its window - long enough to reach the menu, click
-/// into the editor, build a ship, and settle + capture each beat. Sized with
-/// headroom for a slow software-rendered CI GPU (llvmpipe), where every beat
-/// costs more wall-clock than on a real GPU; the smoke path's short frame waits
-/// (see `ui_capture_script`) keep the menu -> editor -> Playing walk well inside
-/// this on such a box.
+/// Seconds a step may sit before it is called a stall. Sized with headroom for a
+/// slow software-rendered CI GPU (llvmpipe), where every beat costs more
+/// wall-clock than on a real GPU. An expiry is an error exit naming the step,
+/// which is the point: a walk that never reaches the menu or the editor now
+/// fails loudly instead of idling out a fixed window.
 #[cfg(feature = "debug")]
-const UI_AUTOPILOT_SECS: f32 = 20.0;
+const STEP_DEADLINE_SECS: f32 = 30.0;
+
+/// Frames a beat settles before its shot. The long settles matter ONLY for the
+/// capture path (`NOVA_REEL`): the scene/UI must be still and the PNG must land
+/// before we navigate away. The smoke path (`NOVA_AUTOPILOT` alone) captures
+/// nothing, so it drives straight through on minimal waits - just enough frames
+/// for the next button to spawn and the state transition to apply. That keeps
+/// the menu -> editor -> Playing walk short in FRAMES, which is what a slow
+/// software-rendered CI GPU (llvmpipe) needs (task 20260716).
+#[cfg(feature = "debug")]
+struct Settle {
+    scene: u32,
+    after_capture: u32,
+    after_nav: u32,
+}
+
+#[cfg(feature = "debug")]
+impl Settle {
+    fn new(capturing: bool) -> Self {
+        if capturing {
+            Self {
+                scene: 90,
+                after_capture: 20,
+                after_nav: 30,
+            }
+        } else {
+            Self {
+                scene: 6,
+                after_capture: 0,
+                after_nav: 6,
+            }
+        }
+    }
+}
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
@@ -61,21 +93,61 @@ fn main() -> bevy::app::AppExit {
                 bevy::ecs::error::panic,
             ));
         }
-        app.init_resource::<UiCapture>();
         // Clean frames at a known 16:9 size: force the window resolution and drop
         // the dev overlays. The HUD chrome is re-hidden right before each capture
         // (entering the editor re-raises it).
         app.add_systems(Startup, (force_resolution, hide_dev_overlays));
-        // Probe wiring (task 20260719-210443; each plugin is inert without
-        // its NOVA_PERF_* env): run timeline + engine-bound invariants +
-        // frame-time capture, so `probe run` can measure this example.
-        app.add_plugins(nova_probe::nova_timeline());
-        app.add_plugins(nova_probe::nova_invariants());
-        app.add_plugins(nova_probe::nova_frametime());
+        let capturing = std::env::var_os(nova_protocol::nova_debug::harness::REEL_ENV).is_some();
+        let settle = Settle::new(capturing);
+        // The menu -> editor walk a player would do, one step per beat: the
+        // navigation steps wait on the STATE rather than on a frame count, and
+        // the settles are the frames the scene/PNG need.
         app.add_plugins(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
-                .hold(GameStates::Loading, UI_AUTOPILOT_SECS)
-                .input(ui_capture_script),
+                .step("reach the main menu")
+                .enter(GameStates::Loading)
+                .until(state_is(GameStates::MainMenu))
+                .deadline(STEP_DEADLINE_SECS)
+                .add()
+                .step("settle the menu and its ambience backdrop")
+                .until(frames(settle.scene))
+                .add()
+                // Hide the HUD first, and let the PNG land BEFORE navigating
+                // away: clicking Sandbox in the same frame captured a black
+                // mid-teardown frame.
+                .step("capture the main menu")
+                .on_enter(move |world| {
+                    if capturing {
+                        hide_hud(world);
+                        capture_window(world, "tutorial-menu.png");
+                        info!("ui capture: tutorial-menu.png");
+                    }
+                })
+                .until(frames(settle.after_capture))
+                .add()
+                .step("leave for the editor")
+                .on_enter(|world| click_button(world, "Sandbox Button"))
+                .until(and(state_is(GameStates::Playing), frames(settle.after_nav)))
+                .deadline(STEP_DEADLINE_SECS)
+                .add()
+                .step("build a ship in the editor")
+                .on_enter(|world| click_button(world, "Create New Spaceship Button V2"))
+                .until(frames(settle.scene))
+                .add()
+                // The last step's hold is the only thing giving `save_to_disk`
+                // room to land: `capture_window` spawns a bare `Screenshot`, so
+                // nothing registers it as a completion collector and the driver
+                // reports done the moment this step ends.
+                .step("capture the editor with the built ship")
+                .on_enter(move |world| {
+                    if capturing {
+                        hide_hud(world);
+                        capture_window(world, "feature-editor.png");
+                        info!("ui capture: feature-editor.png");
+                    }
+                })
+                .until(frames(settle.after_capture))
+                .add(),
         );
     }
 
@@ -100,105 +172,17 @@ fn hide_hud(world: &mut World) {
     }
 }
 
-/// Frame-paced beat tracker (the editor needs a few frames between actions, and
-/// each capture needs the scene/UI to settle first).
+/// Activate the named button through the widget path a click takes.
 #[cfg(feature = "debug")]
-#[derive(Resource, Default)]
-struct UiCapture {
-    stage: u32,
-    wait: u32,
-}
-
-#[cfg(feature = "debug")]
-fn button_by_name(world: &mut World, name: &str) -> Option<Entity> {
-    let mut names = world.query::<(Entity, &Name)>();
-    names
-        .iter(world)
-        .find(|(_, n)| n.as_str() == name)
-        .map(|(entity, _)| entity)
-}
-
-/// Drive the menu -> editor beats and capture each, the way a player would. Runs
-/// every autopilot frame; each stage fires once and then waits where the scene or
-/// editor needs to settle before the shot. Captures only when `NOVA_REEL` is set,
-/// so the plain autopilot smoke run drives the same path without writing files.
-#[cfg(feature = "debug")]
-fn ui_capture_script(world: &mut World, _elapsed: f32) {
-    use bevy::ui_widgets::Activate;
-
-    let capturing = std::env::var_os("NOVA_REEL").is_some();
-
-    // Frames to let a beat settle before its shot. The long settles matter ONLY
-    // for the capture path (`NOVA_REEL`): the scene/UI must be still and the PNG
-    // must land before we navigate away. The smoke path (`NOVA_AUTOPILOT` alone)
-    // captures nothing, so it drives straight through on minimal waits - just
-    // enough frames for the next button to spawn and the state transition to
-    // apply. That keeps the menu -> editor -> Playing walk short in FRAMES, so it
-    // fits the fixed-seconds autopilot window even on a slow software-rendered CI
-    // GPU (llvmpipe), where the capture-sized 90/20/30-frame settles overran the
-    // window and the run never left MainMenu (task 20260716).
-    let settle_scene = if capturing { 90 } else { 6 };
-    let after_capture = if capturing { 20 } else { 0 };
-    let after_nav = if capturing { 30 } else { 6 };
-
-    let mut state = world.remove_resource::<UiCapture>().unwrap();
-    if state.wait > 0 {
-        state.wait -= 1;
-        world.insert_resource(state);
-        return;
+fn click_button(world: &mut World, name: &str) {
+    let button = {
+        let mut names = world.query::<(Entity, &Name)>();
+        names
+            .iter(world)
+            .find(|(_, n)| n.as_str() == name)
+            .map(|(entity, _)| entity)
+    };
+    if let Some(button) = button {
+        world.trigger(bevy::ui_widgets::Activate { entity: button });
     }
-
-    match *world.resource::<State<GameStates>>().get() {
-        GameStates::Loading => {}
-        GameStates::MainMenu => match state.stage {
-            // Settle the menu + ambience backdrop before the shot.
-            0 => {
-                state.stage = 1;
-                state.wait = settle_scene;
-            }
-            // Capture the menu. Hide the HUD first; wait for the PNG to land
-            // BEFORE navigating away (clicking Sandbox in the same frame captured
-            // a black mid-teardown frame).
-            1 => {
-                if capturing {
-                    hide_hud(world);
-                    capture_window(world, "tutorial-menu.png");
-                    info!("ui capture: tutorial-menu.png");
-                }
-                state.stage = 2;
-                state.wait = after_capture;
-            }
-            // Now leave for the editor.
-            2 => {
-                if let Some(button) = button_by_name(world, "Sandbox Button") {
-                    world.trigger(Activate { entity: button });
-                }
-                state.stage = 3;
-                state.wait = after_nav;
-            }
-            _ => {}
-        },
-        GameStates::Playing => match state.stage {
-            // In the editor: create a ship, then let the preview spawn + settle.
-            3 => {
-                if let Some(button) = button_by_name(world, "Create New Spaceship Button V2") {
-                    world.trigger(Activate { entity: button });
-                }
-                state.stage = 4;
-                state.wait = settle_scene;
-            }
-            // Capture the editor with the built ship.
-            4 => {
-                if capturing {
-                    hide_hud(world);
-                    capture_window(world, "feature-editor.png");
-                    info!("ui capture: feature-editor.png");
-                }
-                state.stage = 5;
-            }
-            _ => {}
-        },
-    }
-
-    world.insert_resource(state);
 }

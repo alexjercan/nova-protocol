@@ -31,23 +31,48 @@ struct Cli;
 /// The orbit ring radius the ship holds around the planetoid.
 const ORBIT_RADIUS: f32 = 45.0;
 
+/// Seconds the ship flies before the shot, to settle onto the ring.
+#[cfg(feature = "debug")]
+const SETTLE_SECS: f32 = 5.6;
+
+/// Frames a capture step holds after requesting its PNG. `capture_window`
+/// spawns a bare `Screenshot` and is NOT a completion collector, so the last
+/// step's hold is the only thing giving `save_to_disk` room to land before the
+/// driver reports done and the app exits. A smoke run captures nothing and only
+/// needs the step to be observable.
+#[cfg(feature = "debug")]
+fn capture_settle_frames(capturing: bool) -> u32 {
+    if capturing {
+        20
+    } else {
+        2
+    }
+}
+
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
     #[cfg(feature = "debug")]
     {
-        app.init_resource::<OrbitScript>();
-        // Probe wiring (task 20260719-210443; each plugin is inert without
-        // its NOVA_PERF_* env): run timeline + engine-bound invariants +
-        // frame-time capture, so `probe run` can measure this example.
-        app.add_plugins(nova_probe::nova_timeline());
-        app.add_plugins(nova_probe::nova_invariants());
-        app.add_plugins(nova_probe::nova_frametime());
+        let capturing = std::env::var_os(nova_protocol::nova_debug::harness::REEL_ENV).is_some();
         app.add_plugins(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
-                .hold(GameStates::Loading, 12.0)
-                .input(orbit_capture_script),
+                // Wait for the ship to EXIST rather than for a guessed load
+                // duration: a slow load delays the beats instead of eating them.
+                .step("load the orbit scene")
+                .enter(GameStates::Loading)
+                .until(player_ship_present())
+                .deadline(30.0)
+                .add()
+                .step("settle onto the orbit ring")
+                .on_enter(engage_orbit)
+                .until(elapsed(SETTLE_SECS))
+                .add()
+                .step("capture the orbit shot")
+                .on_enter(move |world| capture_orbit(world, capturing))
+                .until(frames(capture_settle_frames(capturing)))
+                .add(),
         );
         app.add_systems(Startup, (force_resolution, hide_dev_overlays));
     }
@@ -144,69 +169,41 @@ fn orbit_scene(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
     }
 }
 
-/// Progress of the scripted capture run.
+/// Engage the ORBIT autopilot on the planetoid's gravity well with an explicit
+/// plan, so the ship flies the ring the shot is about.
 #[cfg(feature = "debug")]
-#[derive(Resource, Default)]
-struct OrbitScript {
-    playing_since: Option<f32>,
-    engaged: bool,
-    captured: bool,
+fn engage_orbit(world: &mut World) {
+    let well = world
+        .query_filtered::<Entity, With<GravityWell>>()
+        .iter(world)
+        .next();
+    let player = world
+        .query_filtered::<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>()
+        .iter(world)
+        .next();
+    if let (Some(well), Some(player)) = (well, player) {
+        world
+            .entity_mut(player)
+            .insert(Autopilot::engage(AutopilotAction::Orbit {
+                well,
+                plan: Some(OrbitPlan {
+                    radius: ORBIT_RADIUS,
+                    normal: Vec3::Y,
+                }),
+            }));
+        info!("orbit: engaged ORBIT on the planetoid");
+    }
 }
 
-/// Engage the ORBIT autopilot on the planetoid, let the ship settle on the ring,
-/// then capture. Captures only when `NOVA_REEL` is set.
+/// Turn the HUD on (the maneuver HUD draws the ring + radius spoke) and request
+/// the shot. Captures only when `NOVA_REEL` is set.
 #[cfg(feature = "debug")]
-fn orbit_capture_script(world: &mut World, elapsed: f32) {
-    let capturing = std::env::var_os("NOVA_REEL").is_some();
-
-    if *world.resource::<State<GameStates>>().get() != GameStates::Playing {
-        return;
+fn capture_orbit(world: &mut World, capturing: bool) {
+    if let Some(mut hud) = world.get_resource_mut::<HudVisibility>() {
+        *hud = HudVisibility::On;
     }
-    if world.resource::<OrbitScript>().captured {
-        return;
-    }
-
-    let playing_since = {
-        let mut script = world.resource_mut::<OrbitScript>();
-        *script.playing_since.get_or_insert(elapsed)
-    };
-    let t = elapsed - playing_since;
-
-    // Engage ORBIT on the planetoid's gravity well with an explicit plan.
-    if t > 0.4 && !world.resource::<OrbitScript>().engaged {
-        world.resource_mut::<OrbitScript>().engaged = true;
-        let well = world
-            .query_filtered::<Entity, With<GravityWell>>()
-            .iter(world)
-            .next();
-        let player = world
-            .query_filtered::<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>()
-            .iter(world)
-            .next();
-        if let (Some(well), Some(player)) = (well, player) {
-            world
-                .entity_mut(player)
-                .insert(Autopilot::engage(AutopilotAction::Orbit {
-                    well,
-                    plan: Some(OrbitPlan {
-                        radius: ORBIT_RADIUS,
-                        normal: Vec3::Y,
-                    }),
-                }));
-            info!("orbit: engaged ORBIT on the planetoid");
-        }
-    }
-
-    // Let the ship settle onto the ring (the maneuver HUD draws the ring +
-    // radius spoke), then capture with the HUD on.
-    if t > 6.0 && !world.resource::<OrbitScript>().captured {
-        if let Some(mut hud) = world.get_resource_mut::<HudVisibility>() {
-            *hud = HudVisibility::On;
-        }
-        if capturing {
-            capture_window(world, "tutorial-orbit.png");
-            info!("orbit capture: tutorial-orbit.png");
-        }
-        world.resource_mut::<OrbitScript>().captured = true;
+    if capturing {
+        capture_window(world, "tutorial-orbit.png");
+        info!("orbit capture: tutorial-orbit.png");
     }
 }

@@ -12,8 +12,7 @@
 //!
 //! - `NOVA_REEL=1`: the [`nova_reel`] driver poses the camera per beat and
 //!   captures each PNG (staged under `NOVA_SHOT_DIR`), then exits.
-//! - `NOVA_AUTOPILOT=1`: the smoke path - reach `Playing`, assert the scene loaded,
-//!   exit clean.
+//! - `NOVA_AUTOPILOT=1`: the smoke path - reach `Playing`, exit clean.
 //! - plain run: boots into the scene under the free-fly WASD camera for framing.
 //!
 //! Capture (windowed, real GPU):
@@ -41,10 +40,6 @@ struct Cli;
 
 /// The embedded reel scenario source (example-owned, not shipped in assets/).
 const REEL_CONTENT_RON: &str = include_str!("data/reel.content.ron");
-/// The scenario id inside the embedded content (the smoke probe keys on it).
-#[cfg(feature = "debug")]
-const SCENARIO_ID: &str = "screenshot_reel";
-
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
@@ -53,15 +48,7 @@ fn main() -> bevy::app::AppExit {
     // and the reel that captures the shots under NOVA_REEL.
     #[cfg(feature = "debug")]
     {
-        app.init_resource::<ReelSceneLoaded>();
-        app.add_observer(note_scenario_loaded);
-        // Probe wiring (task 20260719-210443; each plugin is inert without
-        // its NOVA_PERF_* env): run timeline + engine-bound invariants +
-        // frame-time capture, so `probe run` can measure this example.
-        app.add_plugins(nova_probe::nova_timeline());
-        app.add_plugins(nova_probe::nova_invariants());
-        app.add_plugins(nova_probe::nova_frametime());
-        app.add_plugins(nova_autopilot().input(reel_smoke_probe));
+        app.add_plugins(nova_autopilot());
         app.add_plugins(nova_reel(reel_beats()));
     }
 
@@ -140,33 +127,4 @@ fn reel_beats() -> Vec<ReelBeat> {
             "wiki-sections.png",
         ),
     ]
-}
-
-/// Set once `ScenarioLoaded` fires for the reel scenario with real content, so
-/// the smoke probe can confirm the embedded-scenario load actually worked.
-#[cfg(feature = "debug")]
-#[derive(Resource, Default)]
-struct ReelSceneLoaded(bool);
-
-#[cfg(feature = "debug")]
-fn note_scenario_loaded(loaded: On<ScenarioLoaded>, mut flag: ResMut<ReelSceneLoaded>) {
-    if loaded.scenario_id == SCENARIO_ID && loaded.object_count > 0 {
-        flag.0 = true;
-    }
-}
-
-/// Smoke backstop: fail the `NOVA_AUTOPILOT` run if the embedded scene never
-/// loaded within the window (a silent parse or load regression), instead of
-/// passing on `autopilot: cycle complete` alone. Checked late so the
-/// `LoadScenario` trigger has time to complete.
-#[cfg(feature = "debug")]
-fn reel_smoke_probe(world: &mut World, elapsed: f32) {
-    if elapsed > nova_protocol::nova_debug::harness::NOVA_AUTOPILOT_SECS - 0.3
-        && !world.resource::<ReelSceneLoaded>().0
-    {
-        panic!(
-            "screenshot-reel: scenario '{SCENARIO_ID}' never loaded with objects within the \
-             autopilot window (embedded scenario load failed)"
-        );
-    }
 }

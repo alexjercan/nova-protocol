@@ -11,16 +11,15 @@
 //! - `NOVA_AUTOPILOT=1 NOVA_REEL=1`: also capture the shots (staged under
 //!   `NOVA_SHOT_DIR`).
 //!
-//! The script SELF-ENDS, so the 24s hold is a runway and the final stage prints
-//! `probe: script complete, exiting` - the sentinel the smoke suite accepts in
-//! place of the autopilot's `autopilot: cycle complete, no panic`. A completion
-//! guard turns the silent-exit hole into a failure: an `AppExit` while the
-//! script is unfinished panics naming the stage it stalled in, instead of
-//! exiting 0 with the beats unplayed (task 20260729-222131).
+//! The beats are autopilot STEPS, so the driver owns completion: it reports done
+//! when the last step ends and the run prints `autopilot: cycle complete, no
+//! panic`. A step that never resolves inside its deadline is an error exit
+//! NAMING that step, so a stalled walk fails loudly instead of exiting 0 with
+//! the beats unplayed (task 20260729-222131).
 //!
 //! ```text
 //! NOVA_AUTOPILOT=1 cargo run --example screenshot_nova_os --features debug
-//! # look for: `probe: script complete, exiting`
+//! # look for: `autopilot: cycle complete, no panic`
 //! ```
 //!
 //! Capture (windowed, real GPU):
@@ -50,19 +49,90 @@ fn main() -> bevy::app::AppExit {
 
     #[cfg(feature = "debug")]
     {
-        app.init_resource::<NovaOsScript>();
+        let capturing = std::env::var_os(nova_protocol::nova_debug::harness::REEL_ENV).is_some();
+        // The per-beat settle counts are LOAD-BEARING for the capture path: a
+        // beat must be still before its shot, and `save_to_disk` must land
+        // before the next beat navigates away. Carried over from the stage
+        // machine this replaced, not re-derived.
+        let settle = if capturing { 40 } else { 6 };
+        let after_capture = if capturing { 20 } else { 2 };
         app.add_plugins(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
-                // Script-owned completion: this example SELF-ENDS (the script
-                // walks a finite beat list and stops), so the step ends where
-                // the final stage reports done and its 24s deadline is the old
-                // RUNWAY - an expiry with the script pending is an error exit
-                // naming this step, never a silent pass.
-                .step("walk the nova_os capture beats")
+                // Wait for the ship to EXIST: the computer keys off the player
+                // ship root, so a beat fired before it spawned would open
+                // nothing.
+                .step("load the nova_os range")
                 .enter(GameStates::Loading)
-                .each(nova_os_capture_script)
-                .until(nova_protocol::nova_debug::harness::script_reports_done())
-                .deadline(24.0)
+                .until(player_ship_present())
+                .deadline(30.0)
+                .add()
+                .step("open the computer")
+                .on_enter(press_tab)
+                .until(frames(settle))
+                .add()
+                .step("capture the welcome screen")
+                .on_enter(move |world| shoot(world, capturing, "nova-os-welcome.png"))
+                .until(frames(after_capture))
+                .add()
+                // Run `help` then `ship view` so command-output formatting is
+                // on screen (bare `ship` now LAUNCHES the app; `ship view` is
+                // the CLI status print).
+                .step("run the help command")
+                .on_enter(|world| run_command(world, "help"))
+                .until(frames(6))
+                .add()
+                .step("run the ship view command")
+                .on_enter(|world| run_command(world, "ship view"))
+                .until(frames(6))
+                .add()
+                // Leave a valid prefix in the input to show the inline
+                // completion ghost.
+                .step("leave an inline-completion prefix")
+                .on_enter(|world| type_word(world, "lo"))
+                .until(frames(settle))
+                .add()
+                .step("capture the active screen")
+                .on_enter(move |world| shoot(world, capturing, "nova-os-active.png"))
+                .until(frames(after_capture))
+                .add()
+                // Flush the leftover `lo` prefix, then type `map`.
+                .step("type the map command")
+                .on_enter(|world| {
+                    press_enter(world);
+                    type_word(world, "map");
+                })
+                .until(frames(6))
+                .add()
+                .step("launch the map app")
+                .on_enter(press_enter)
+                .until(frames(settle))
+                .add()
+                .step("capture the map app")
+                .on_enter(move |world| shoot(world, capturing, "nova-os-map.png"))
+                .until(frames(after_capture))
+                .add()
+                // Leave the map app back to the prompt, then type `ship`.
+                .step("type the ship command")
+                .on_enter(|world| {
+                    press_escape(world);
+                    type_word(world, "ship");
+                })
+                .until(frames(6))
+                .add()
+                // Launch the ship schematic app and let its RTT scene
+                // build/settle. This exercises the real render path (a
+                // wgsl/render panic would fail the run).
+                .step("launch the ship app")
+                .on_enter(press_enter)
+                .until(frames(settle))
+                .add()
+                // The last step's hold is what gives `save_to_disk` room to
+                // land: `capture_window` spawns a bare `Screenshot`, so nothing
+                // registers it as a completion collector and the driver reports
+                // done the moment this step ends.
+                .step("capture the ship app")
+                .on_enter(move |world| shoot(world, capturing, "nova-os-ship.png"))
+                .until(frames(after_capture))
                 .add(),
         );
         app.add_systems(Startup, (force_resolution, hide_dev_overlays));
@@ -146,16 +216,6 @@ fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
     }
 }
 
-/// Progress of the scripted capture run. Each stage fires once and then waits.
-#[cfg(feature = "debug")]
-#[derive(Resource, Default)]
-struct NovaOsScript {
-    stage: u32,
-    wait: u32,
-    /// Set by the final stage. Until then, any `AppExit` is a stalled walk.
-    done: bool,
-}
-
 /// Press Tab to toggle the computer via the real `ButtonInput<KeyCode>` edge.
 #[cfg(feature = "debug")]
 fn press_tab(world: &mut World) {
@@ -208,126 +268,20 @@ fn press_enter(world: &mut World) {
     });
 }
 
-/// Drive: open the computer, run `help`/`ship`, leave a prefix in the input to
-/// show inline completion, and capture. Captures only when `NOVA_REEL` is set.
+/// Type a command and submit it.
 #[cfg(feature = "debug")]
-fn nova_os_capture_script(world: &mut World, _elapsed: f32) {
-    let capturing = std::env::var_os("NOVA_REEL").is_some();
-    let settle = if capturing { 40 } else { 6 };
+fn run_command(world: &mut World, command: &str) {
+    type_word(world, command);
+    press_enter(world);
+}
 
-    if *world.resource::<State<GameStates>>().get() != GameStates::Playing {
-        return;
+/// Request one shot of the primary window. Captures only when `NOVA_REEL` is
+/// set, so the plain autopilot smoke run drives the same beats without writing
+/// files.
+#[cfg(feature = "debug")]
+fn shoot(world: &mut World, capturing: bool, path: &str) {
+    if capturing {
+        capture_window(world, path);
+        info!("nova os capture: {path}");
     }
-
-    let mut state = world.remove_resource::<NovaOsScript>().unwrap();
-    if state.done {
-        // Reported done already; the harness watcher owns the exit from here.
-        world.insert_resource(state);
-        return;
-    }
-    if state.wait > 0 {
-        state.wait -= 1;
-        world.insert_resource(state);
-        return;
-    }
-
-    match state.stage {
-        // Open the computer and let the slide + first layout settle.
-        0 => {
-            press_tab(world);
-            state.wait = settle;
-        }
-        // Capture the freshly opened welcome screen (empty prompt).
-        1 => {
-            if capturing {
-                capture_window(world, "nova-os-welcome.png");
-                info!("nova os capture: nova-os-welcome.png");
-            }
-            state.wait = if capturing { 20 } else { 2 };
-        }
-        // Run `help` then `ship view` so command-output formatting is on screen
-        // (bare `ship` now LAUNCHES the app; `ship view` is the CLI status print).
-        2 => {
-            type_word(world, "help");
-            press_enter(world);
-            state.wait = 6;
-        }
-        3 => {
-            type_word(world, "ship view");
-            press_enter(world);
-            state.wait = 6;
-        }
-        // Leave a valid prefix in the input to show the inline completion ghost.
-        4 => {
-            type_word(world, "lo");
-            state.wait = settle;
-        }
-        // Capture the active screen (command output + inline completion).
-        5 => {
-            if capturing {
-                capture_window(world, "nova-os-active.png");
-                info!("nova os capture: nova-os-active.png");
-            }
-            state.wait = if capturing { 20 } else { 2 };
-        }
-        // Flush the leftover `lo` prefix, then type `map`.
-        6 => {
-            press_enter(world);
-            type_word(world, "map");
-            state.wait = 6;
-        }
-        // Launch the `map` app (schematic 3D minimap) and let its scene settle.
-        7 => {
-            press_enter(world);
-            state.wait = settle;
-        }
-        // Capture the map app (schematic scene + projected contact blips).
-        8 => {
-            if capturing {
-                capture_window(world, "nova-os-map.png");
-                info!("nova os capture: nova-os-map.png");
-            }
-            state.wait = if capturing { 20 } else { 2 };
-        }
-        // Leave the map app back to the prompt, then launch the `ship` app.
-        9 => {
-            press_escape(world);
-            type_word(world, "ship");
-            state.wait = 6;
-        }
-        // Launch the ship schematic app and let its RTT scene build/settle. This
-        // exercises the real render path (a wgsl/render panic would fail the run).
-        10 => {
-            press_enter(world);
-            state.wait = settle;
-        }
-        // Capture the ship app (green-phosphor section blocks + code blips).
-        11 => {
-            if capturing {
-                capture_window(world, "nova-os-ship.png");
-                info!("nova os capture: nova-os-ship.png");
-            }
-            state.wait = if capturing { 20 } else { 2 };
-        }
-        _ => {
-            // The suite's completion sentinel for SELF-ENDING examples
-            // (tests/examples_smoke.rs accepts it in place of the autopilot's
-            // "cycle complete"): the autopilot's own line only prints when its
-            // lifetime expires, and idling out the remaining runway buys
-            // nothing. Report done rather than writing `AppExit` here: the
-            // autopilot is a REGISTERED completion collector, and the watcher
-            // owns the exit once every collector reports. The captures are not
-            // collectors (`capture_window` spawns a bare `Screenshot`, so
-            // nothing registers for them) - stage 11's 20-frame settle is what
-            // gives `save_to_disk` room to land, and it stays load-bearing.
-            info!("probe: script complete, exiting");
-            state.done = true;
-            world
-                .resource_mut::<nova_protocol::nova_debug::harness::HarnessCompletion>()
-                .done(nova_protocol::nova_debug::harness::AUTOPILOT);
-        }
-    }
-
-    state.stage += 1;
-    world.insert_resource(state);
 }

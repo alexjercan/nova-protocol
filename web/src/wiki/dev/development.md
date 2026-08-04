@@ -144,11 +144,13 @@ category proves - is the table above and the per-block comments in the root
 `Cargo.toml`; review enforces it, because judging whether an example asserts
 enough is a reading task, not a test.
 
-`gameplay/` and `perf/` are being retired as directory names: `gameplay/` was
-never a contract (it described how the examples run, not what they prove) and
-every frame-time claim now lives in `stress/`. Both still carry transitional
-policy rows while their members move; `scenario` and `playable` have already
-become `systems/scenario_grammar` and `systems/player_path`.
+`gameplay/` is gone: it was never a contract (it described how the examples
+ran, not what they proved). Its system coverage became `systems/`
+(`scenario_grammar`, `player_path`, `outcomes`), and the two story-scenario
+runs that outlived that move were retired rather than rehomed - story is
+tested by players, examples test systems. `perf/` is the last transitional
+directory, still carrying a policy row until `perf_baseline` lands in
+`stress/`, where every frame-time claim now lives.
 
 ### The catalog and the harness
 
@@ -169,11 +171,6 @@ What is on disk today, in curriculum reading order:
   in one live run: die -> the Defeat overlay -> Retry -> a clean reload ->
   kill -> the objective and the CHECKPOINT -> Continue -> the chained
   scenario). Nothing here reads `assets/base/scenarios`.
-- `gameplay/` - TRANSITIONAL, retired next: `broadside` (the chapter-two
-  scenario end to end through the Scenarios picker: defeat -> Retry reload ->
-  the full act machine -> the Victory overlay, all staged on scenario state)
-  and `lifeline` (the same treatment for chapter three: the convoy defense and
-  the finale at the claim, defeat and Retry included, in one run).
 - `ui/` - staged UI flows: `editor` (the shipped editor flow), `hud_range`
   (screen-projected HUD indicators, velocity sphere included),
   `menu_newgame` (the shipped boot flow) and `menu_scenarios` (drives the
@@ -199,15 +196,16 @@ dropped.)
 Every example outside `perf/` (plus `render_scale_shot`) is HARNESSED: it
 drives itself under `NOVA_AUTOPILOT=1`, and `tests/examples_smoke.rs` runs
 each category headless as a regression suite, one test per category -
-`cargo test --test examples_smoke sections` (or `gameplay`, `ui`,
+`cargo test --test examples_smoke sections` (or `systems`, `ui`,
 `screenshots`) runs a single category alone. Each example must reach
-`Playing` and exit without panic; the sections, gameplay and ui examples
+`Playing` and exit without panic; the sections, systems and ui examples
 additionally carry panic-on-failure behavior assertions with completion
 backstops (a stalled script fails instead of passing vacuously), except
 `torpedo_guidance` and `editor`, which assert at the scenario-load /
-reach-gameplay level. The screenshot examples drive the shipped scenes to
-capture frames, and `screenshot_nova_os` self-ends behind the same
-backstop. Disk, catalog and smoke lists cannot drift: the
+reach-gameplay level. The screenshot examples only drive the shipped scenes
+to capture frames: they assert nothing, and every one of them walks an
+`AutopilotPlugin` step timeline, so a beat that never resolves is an error
+exit naming that step. Disk, catalog and smoke lists cannot drift: the
 display-free `catalog_matches_disk` test fails a bare `cargo test` when a
 new example misses its `[[example]]` block or its category's smoke list
 (`render_scale_shot` and `perf_baseline` are deliberately unsmoked; the

@@ -29,23 +29,58 @@ use nova_protocol::prelude::*;
 #[command(about = "Capture the section-destruction juice shot", long_about = None)]
 struct Cli;
 
+/// Seconds the posed camera settles before the hull is blown off.
+#[cfg(feature = "debug")]
+const POSE_SETTLE_SECS: f32 = 0.9;
+
+/// Seconds between the hit and the shot: the window in which the mesh fragments
+/// and hit rings are still in the air, which is what this shot is about.
+#[cfg(feature = "debug")]
+const FRAGMENTS_LIVE_SECS: f32 = 0.12;
+
+/// Frames a capture step holds after requesting its PNG. `capture_window`
+/// spawns a bare `Screenshot` and is NOT a completion collector, so the last
+/// step's hold is the only thing giving `save_to_disk` room to land before the
+/// driver reports done and the app exits. A smoke run captures nothing and only
+/// needs the step to be observable.
+#[cfg(feature = "debug")]
+fn capture_settle_frames(capturing: bool) -> u32 {
+    if capturing {
+        20
+    } else {
+        2
+    }
+}
+
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
     #[cfg(feature = "debug")]
     {
-        app.init_resource::<JuiceScript>();
-        // Probe wiring (task 20260719-210443; each plugin is inert without
-        // its NOVA_PERF_* env): run timeline + engine-bound invariants +
-        // frame-time capture, so `probe run` can measure this example.
-        app.add_plugins(nova_probe::nova_timeline());
-        app.add_plugins(nova_probe::nova_invariants());
-        app.add_plugins(nova_probe::nova_frametime());
+        let capturing = std::env::var_os(nova_protocol::nova_debug::harness::REEL_ENV).is_some();
         app.add_plugins(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
-                .hold(GameStates::Loading, 8.0)
-                .input(juice_capture_script),
+                // The load gate is the STATE, not a guessed hold: this range has
+                // no player ship (the scenario's free-fly camera is the shot's
+                // camera), so there is no ship entity to wait on.
+                .step("load the juice range")
+                .enter(GameStates::Loading)
+                .until(state_is(GameStates::Playing))
+                .deadline(30.0)
+                .add()
+                .step("frame the target close")
+                .on_enter(pose_camera_on_target)
+                .until(elapsed(POSE_SETTLE_SECS))
+                .add()
+                .step("blow the front hull off")
+                .on_enter(blow_front_hull)
+                .until(elapsed(FRAGMENTS_LIVE_SECS))
+                .add()
+                .step("capture the juice shot")
+                .on_enter(move |world| capture_juice(world, capturing))
+                .until(frames(capture_settle_frames(capturing)))
+                .add(),
         );
         app.add_systems(Startup, (force_resolution, hide_dev_overlays));
     }
@@ -198,61 +233,32 @@ fn front_hull_health_node(world: &mut World) -> Option<Entity> {
     best.map(|(node, _)| node)
 }
 
-/// Progress of the scripted capture run.
+/// Frame the target close, from the front-quarter so the front hull is toward
+/// the camera.
 #[cfg(feature = "debug")]
-#[derive(Resource, Default)]
-struct JuiceScript {
-    playing_since: Option<f32>,
-    posed: bool,
-    blown: bool,
-    captured: bool,
+fn pose_camera_on_target(world: &mut World) {
+    reel_pose_camera(world, Vec3::new(-5.0, 2.5, -6.0), Vec3::new(0.0, 0.0, -0.5));
 }
 
-/// Pose the camera on the target, blow the front hull off, then capture while the
-/// fragments/rings are live. Captures only when `NOVA_REEL` is set.
+/// Blow the front hull section off through the production damage path.
 #[cfg(feature = "debug")]
-fn juice_capture_script(world: &mut World, elapsed: f32) {
-    let capturing = std::env::var_os("NOVA_REEL").is_some();
-
-    if *world.resource::<State<GameStates>>().get() != GameStates::Playing {
-        return;
+fn blow_front_hull(world: &mut World) {
+    if let Some(node) = front_hull_health_node(world) {
+        world.trigger(HealthApplyDamage {
+            entity: node,
+            source: None,
+            amount: 1.0e6,
+        });
+        info!("juice: blew the front hull section");
     }
-    if world.resource::<JuiceScript>().captured {
-        return;
-    }
+}
 
-    let playing_since = {
-        let mut script = world.resource_mut::<JuiceScript>();
-        *script.playing_since.get_or_insert(elapsed)
-    };
-    let t = elapsed - playing_since;
-
-    // Frame the target close, from the front-quarter so the front hull is toward
-    // the camera.
-    if t > 0.3 && !world.resource::<JuiceScript>().posed {
-        world.resource_mut::<JuiceScript>().posed = true;
-        reel_pose_camera(world, Vec3::new(-5.0, 2.5, -6.0), Vec3::new(0.0, 0.0, -0.5));
-    }
-
-    // Blow the front hull section off through the production damage path.
-    if t > 1.2 && !world.resource::<JuiceScript>().blown {
-        world.resource_mut::<JuiceScript>().blown = true;
-        if let Some(node) = front_hull_health_node(world) {
-            world.trigger(HealthApplyDamage {
-                entity: node,
-                source: None,
-                amount: 1.0e6,
-            });
-            info!("juice: blew the front hull section");
-        }
-    }
-
-    // A few frames after the hit, while the fragments and hit rings are live.
-    if t > 1.32 && !world.resource::<JuiceScript>().captured {
-        if capturing {
-            capture_window(world, "feature-juice.png");
-            info!("juice capture: feature-juice.png");
-        }
-        world.resource_mut::<JuiceScript>().captured = true;
+/// Capture while the fragments and hit rings are still live. Captures only when
+/// `NOVA_REEL` is set.
+#[cfg(feature = "debug")]
+fn capture_juice(world: &mut World, capturing: bool) {
+    if capturing {
+        capture_window(world, "feature-juice.png");
+        info!("juice capture: feature-juice.png");
     }
 }

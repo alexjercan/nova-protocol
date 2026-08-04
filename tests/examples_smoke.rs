@@ -43,10 +43,6 @@ const SECTIONS: &[&str] = &[
 /// systems: the scenario grammar, the player path, and the outcome arc.
 const SYSTEMS: &[&str] = &["scenario_grammar", "player_path", "outcomes"];
 
-/// examples/gameplay/ - TRANSITIONAL, retired by task 20260804-093910; the
-/// story-scenario runs that outlived the move to systems/.
-const GAMEPLAY: &[&str] = &["broadside", "lifeline"];
-
 /// examples/ui/ - staged UI flows (editor via the preset; hud_range and
 /// menu_newgame + menu_scenarios drive their own `AutopilotPlugin` timelines).
 const UI: &[&str] = &["editor", "hud_range", "menu_newgame", "menu_scenarios"];
@@ -71,21 +67,11 @@ const SCREENSHOTS: &[&str] = &[
 ///   verified by eyeballing the PNGs (task 20260718-004723).
 /// - perf_baseline: not harnessed - probe owns it (`probe run perf_baseline
 ///   --fps`), and a smoke pass would only measure noise.
-/// - nova_os_rtt_poc: a standalone render-to-texture FEASIBILITY prototype (task
-///   20260726-193233) - it runs its own `App` (not the game's AppBuilder /
-///   GameStates), prints its own `POC PICKING native: OK/FAIL` verdict and
-///   auto-exits, so it never reaches `GameStates::Playing` and the reach-Playing
-///   smoke would not apply.
 /// - widget_zoo: the nova_ui widget-library showcase (task 20260728-175734)
 ///   runs its own `App` with no `GameStates` at all - it is an interactive
 ///   render eyeball (and a `NOVA_ZOO_CAPTURE` two-skin capture), so the
 ///   reach-Playing smoke has nothing to assert on it.
-const NOT_SMOKED: &[&str] = &[
-    "render_scale_shot",
-    "perf_baseline",
-    "nova_os_rtt_poc",
-    "widget_zoo",
-];
+const NOT_SMOKED: &[&str] = &["render_scale_shot", "perf_baseline", "widget_zoo"];
 
 #[test]
 fn sections_reach_playing_without_panic() {
@@ -95,11 +81,6 @@ fn sections_reach_playing_without_panic() {
 #[test]
 fn systems_reach_playing_without_panic() {
     smoke(SYSTEMS);
-}
-
-#[test]
-fn gameplay_reach_playing_without_panic() {
-    smoke(GAMEPLAY);
 }
 
 #[test]
@@ -165,7 +146,7 @@ fn catalog_matches_disk() {
 
     // Every cataloged example is either smoked or deliberately not.
     let mut accounted = BTreeSet::new();
-    for &example in [SECTIONS, SYSTEMS, GAMEPLAY, UI, SCREENSHOTS, NOT_SMOKED]
+    for &example in [SECTIONS, SYSTEMS, UI, SCREENSHOTS, NOT_SMOKED]
         .iter()
         .flat_map(|list| list.iter())
     {
@@ -323,7 +304,7 @@ fn smoke(examples: &[&str]) {
         );
         // Two completion contracts: examples that run out the autopilot's
         // lifetime print its "cycle complete"; SELF-ENDING examples
-        // (broadside walks a scripted arc and exits on its final stage)
+        // (menu_scenarios walks a scripted arc and exits on its final stage)
         // print their own sentinel instead - idling out a long lifetime to
         // hear the autopilot say it would waste ~30s per CI run. A stalled
         // self-ending script cannot slip through the OR: its in-example

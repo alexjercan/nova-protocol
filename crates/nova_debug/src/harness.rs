@@ -68,10 +68,10 @@ use bevy::prelude::*;
 use bevy_common_systems::prelude::WASDCameraController;
 pub use nova_autopilot::{
     autopilot::{AutopilotLoop, AutopilotPlugin},
-    // The self-ending examples (broadside, lifeline, menu_scenarios,
-    // screenshot_nova_os) report the autopilot collector done early rather than
-    // idling out the runway. They must reach the SAME protocol instance the
-    // drivers register with, so it is re-exported here alongside them.
+    // The self-ending examples (menu_scenarios) report the autopilot collector
+    // done early rather than idling out the runway. They must reach the SAME
+    // protocol instance the drivers register with, so it is re-exported here
+    // alongside them.
     completion::{HarnessCompletion, AUTOPILOT},
     predicate::Predicate,
     reel::{capture_window, ReelBeat, REEL_ENV},

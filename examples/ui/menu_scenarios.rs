@@ -67,7 +67,7 @@ fn main() -> bevy::app::AppExit {
         app.add_plugins(nova_probe::nova_frametime());
         app.add_plugins(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
-                // SCRIPT-OWNED completion (the broadside pattern): the step
+                // SCRIPT-OWNED completion: the step
                 // ends where the walk reports done, and a deadline that
                 // expires first means the script STALLED - which is an error
                 // exit naming this step, not an ordinary "cycle complete" over
@@ -149,7 +149,7 @@ fn scenarios_autopilot(world: &mut World, _elapsed: f32) {
 
     let mut state = world.remove_resource::<ScenariosAutopilot>().unwrap();
 
-    // SELF-ENDING (the broadside pattern): the launched scenario is up, so the
+    // SELF-ENDING: the launched scenario is up, so the
     // walk is finished - say so and report the collector done instead of idling
     // out the safety window. `guard_run_completion` turns an exit BEFORE this
     // point into a panic, so a walk that outran the window fails loudly as a
