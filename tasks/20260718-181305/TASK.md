@@ -2,7 +2,6 @@
 
 - PRIORITY: 30
 - TAGS: v0.7.0, feature, health, rendering, sections, hud
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

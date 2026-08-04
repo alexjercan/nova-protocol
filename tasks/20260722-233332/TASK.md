@@ -2,7 +2,6 @@
 
 - PRIORITY: 0
 - TAGS: backlog, modding, scenario
-- KIND: TASK
 - ACTIVITY: -
 - GATES: -
 - RESOLUTION: WONTDO

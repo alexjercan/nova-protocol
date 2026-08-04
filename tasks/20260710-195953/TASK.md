@@ -2,7 +2,6 @@
 
 - PRIORITY: 30
 - TAGS: sensors, targeting, minimap, wontdo
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

@@ -2,7 +2,6 @@
 
 - PRIORITY: 30
 - TAGS: v0.9.0, stretch, spike, feature, ui, hud
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

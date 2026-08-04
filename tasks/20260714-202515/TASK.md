@@ -2,7 +2,6 @@
 
 - PRIORITY: 18
 - TAGS: spike, v0.6.0, modding, menu, wasm
-- KIND: SPIKE
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

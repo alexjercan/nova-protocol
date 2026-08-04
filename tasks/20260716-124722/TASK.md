@@ -2,7 +2,6 @@
 
 - PRIORITY: 55
 - TAGS: v0.7.0, scenario, content, modding
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

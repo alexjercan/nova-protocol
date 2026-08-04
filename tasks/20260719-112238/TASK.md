@@ -2,7 +2,6 @@
 
 - PRIORITY: 74
 - TAGS: v0.8.0, spike, tooling, performance, testing
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

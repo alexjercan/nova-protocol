@@ -2,7 +2,6 @@
 
 - PRIORITY: 0
 - TAGS: backlog, chore, process
-- KIND: TASK
 - ACTIVITY: -
 - GATES: -
 - RESOLUTION: WONTDO

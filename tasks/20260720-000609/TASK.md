@@ -2,7 +2,6 @@
 
 - PRIORITY: 62
 - TAGS: v0.8.0, tooling, testing, refactor
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

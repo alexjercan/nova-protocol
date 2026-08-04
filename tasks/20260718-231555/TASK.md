@@ -2,7 +2,6 @@
 
 - PRIORITY: 43
 - TAGS: v0.8.0, docs, web, modding, scenario
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

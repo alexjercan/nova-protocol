@@ -2,7 +2,6 @@
 
 - PRIORITY: 10
 - TAGS: backlog, chore, licenses, build
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

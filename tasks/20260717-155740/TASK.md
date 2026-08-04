@@ -2,7 +2,6 @@
 
 - PRIORITY: 41
 - TAGS: spike, v0.7.0, scenario, gameplay, hud
-- KIND: SPIKE
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

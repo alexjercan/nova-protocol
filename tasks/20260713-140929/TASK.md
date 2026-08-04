@@ -2,7 +2,6 @@
 
 - PRIORITY: 42
 - TAGS: v0.5.0, scenario, tutorial, spike
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

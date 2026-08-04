@@ -2,7 +2,6 @@
 
 - PRIORITY: 30
 - TAGS: backlog
-- KIND: TASK
 - ACTIVITY: -
 - GATES: -
 - RESOLUTION: WONTDO

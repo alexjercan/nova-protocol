@@ -2,7 +2,6 @@
 
 - PRIORITY: 0
 - TAGS: backlog, web, screenshot, devlog
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

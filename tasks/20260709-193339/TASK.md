@@ -2,7 +2,6 @@
 
 - PRIORITY: 90
 - TAGS: v0.5.0, handling, autopilot, gravity, spike
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

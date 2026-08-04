@@ -2,7 +2,6 @@
 
 - PRIORITY: 0
 - TAGS: backlog, spike, feature, ui, hud
-- KIND: TASK
 - ACTIVITY: -
 - GATES: -
 - RESOLUTION: WONTDO

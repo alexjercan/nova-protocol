@@ -2,7 +2,6 @@
 
 - PRIORITY: 96
 - TAGS: v0.10.0, tooling, autopilot, screenshot
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

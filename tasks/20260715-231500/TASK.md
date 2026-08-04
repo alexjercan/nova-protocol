@@ -2,7 +2,6 @@
 
 - PRIORITY: 0
 - TAGS: docs, web, assets, backlog
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

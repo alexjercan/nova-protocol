@@ -2,7 +2,6 @@
 
 - PRIORITY: 60
 - TAGS: v0.7.0, scenario, content, story, spike
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

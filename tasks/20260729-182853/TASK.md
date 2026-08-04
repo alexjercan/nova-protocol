@@ -2,7 +2,6 @@
 
 - PRIORITY: 0
 - TAGS: backlog, ui, hud, tooling, testing
-- KIND: TASK
 - ACTIVITY: -
 - GATES: -
 - RESOLUTION: WONTDO

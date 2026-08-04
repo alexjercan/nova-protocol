@@ -2,7 +2,6 @@
 
 - PRIORITY: 99
 - TAGS: v0.10.0, tooling, autopilot, crates
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

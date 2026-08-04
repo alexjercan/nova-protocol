@@ -2,7 +2,6 @@
 
 - PRIORITY: 0
 - TAGS: spike, backlog, tooling, modding
-- KIND: SPIKE
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

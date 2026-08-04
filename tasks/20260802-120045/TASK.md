@@ -2,7 +2,6 @@
 
 - PRIORITY: 75
 - TAGS: v0.10.0, tooling, probe, screenshot, web
-- KIND: STORY
 - ACTIVITY: -
 - GATES: -
 - RESOLUTION: WONTDO

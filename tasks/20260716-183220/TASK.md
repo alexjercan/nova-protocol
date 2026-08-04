@@ -2,7 +2,6 @@
 
 - PRIORITY: 61
 - TAGS: v0.7.0, feature, scenario, modding, story
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

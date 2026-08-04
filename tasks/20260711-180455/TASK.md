@@ -2,7 +2,6 @@
 
 - PRIORITY: 44
 - TAGS: v0.5.0, ui, menu, scenario, spike
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

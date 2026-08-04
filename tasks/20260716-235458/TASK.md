@@ -2,7 +2,6 @@
 
 - PRIORITY: 45
 - TAGS: v0.7.0, modding, spike, base, refactor
-- KIND: SPIKE
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

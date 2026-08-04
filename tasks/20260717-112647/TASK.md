@@ -2,7 +2,6 @@
 
 - PRIORITY: 51
 - TAGS: spike, v0.7.0, scenario, modding, feature
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

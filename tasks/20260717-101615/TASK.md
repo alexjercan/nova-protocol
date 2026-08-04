@@ -2,7 +2,6 @@
 
 - PRIORITY: 34
 - TAGS: spike, v0.7.0, audio, modding, refactor
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

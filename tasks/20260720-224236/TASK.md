@@ -2,7 +2,6 @@
 
 - PRIORITY: 34
 - TAGS: v0.8.0, tooling, refactor, web, spike
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

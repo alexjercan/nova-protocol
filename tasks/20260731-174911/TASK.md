@@ -2,7 +2,6 @@
 
 - PRIORITY: 0
 - TAGS: backlog, refactor, hud
-- KIND: TASK
 - ACTIVITY: -
 - GATES: -
 - RESOLUTION: -

@@ -2,7 +2,6 @@
 
 - PRIORITY: 40
 - TAGS: v0.8.0, tooling, modding, refactor
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

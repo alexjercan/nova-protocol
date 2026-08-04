@@ -2,7 +2,6 @@
 
 - PRIORITY: 70
 - TAGS: v0.10.0, web, assets, screenshot
-- KIND: STORY
 - ACTIVITY: PLANNING
 - GATES: -
 - RESOLUTION: -

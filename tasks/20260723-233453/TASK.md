@@ -2,7 +2,6 @@
 
 - PRIORITY: 0
 - TAGS: backlog, performance, gameplay
-- KIND: TASK
 - ACTIVITY: -
 - GATES: -
 - RESOLUTION: WONTDO

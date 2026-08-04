@@ -2,7 +2,6 @@
 
 - PRIORITY: 0
 - TAGS: backlog, hud, refactor, spike
-- KIND: TASK
 - ACTIVITY: -
 - GATES: -
 - RESOLUTION: WONTDO

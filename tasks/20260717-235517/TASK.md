@@ -2,7 +2,6 @@
 
 - PRIORITY: 20
 - TAGS: v0.7.0, gameplay, thruster, shader, backlog
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

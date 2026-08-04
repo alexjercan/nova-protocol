@@ -2,7 +2,6 @@
 
 - PRIORITY: 80
 - TAGS: v0.10.0, content, examples, testing, autopilot
-- KIND: STORY
 - ACTIVITY: PLANNING
 - GATES: -
 - RESOLUTION: SUPERSEDED

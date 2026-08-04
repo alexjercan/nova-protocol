@@ -2,7 +2,6 @@
 
 - PRIORITY: 80
 - TAGS: v0.5.2, refactor, examples, tests
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

@@ -2,7 +2,6 @@
 
 - PRIORITY: 20
 - TAGS: v0.9.0, nova_os, ui, ux, feedback
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

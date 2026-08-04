@@ -2,7 +2,6 @@
 
 - PRIORITY: 0
 - TAGS: backlog,examples,testing,ui
-- KIND: TASK
 - ACTIVITY: -
 - GATES: -
 - RESOLUTION: -

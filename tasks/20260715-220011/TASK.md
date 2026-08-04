@@ -2,7 +2,6 @@
 
 - PRIORITY: 68
 - TAGS: v0.10.0,menu,scenario,art,tooling
-- KIND: STORY
 - ACTIVITY: PLANNING
 - GATES: -
 - RESOLUTION: -

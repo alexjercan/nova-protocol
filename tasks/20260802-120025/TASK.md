@@ -2,7 +2,6 @@
 
 - PRIORITY: 85
 - TAGS: v0.10.0, tooling, autopilot, testing
-- KIND: STORY
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

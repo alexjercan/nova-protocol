@@ -2,7 +2,6 @@
 
 - PRIORITY: 100
 - TAGS: v0.10.0, epic, tooling, content, automation
-- KIND: EPIC
 - ACTIVITY: PLANNING
 - GATES: PLAN
 - RESOLUTION: -

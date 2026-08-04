@@ -2,7 +2,6 @@
 
 - PRIORITY: 60
 - TAGS: v0.6.0, modding, scenario, spike, refactor
-- KIND: SPIKE
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

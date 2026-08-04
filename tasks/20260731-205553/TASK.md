@@ -2,7 +2,6 @@
 
 - PRIORITY: 50
 - TAGS: v0.10.0, quality, docs, warnings
-- KIND: STORY
 - ACTIVITY: PLANNING
 - GATES: -
 - RESOLUTION: -

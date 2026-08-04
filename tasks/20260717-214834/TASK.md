@@ -2,7 +2,6 @@
 
 - PRIORITY: 4
 - TAGS: v0.7.0, spike, refactor, weapons, turret
-- KIND: SPIKE
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

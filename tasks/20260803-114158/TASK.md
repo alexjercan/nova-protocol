@@ -2,7 +2,6 @@
 
 - PRIORITY: 0
 - TAGS: backlog,tooling,autopilot,docs
-- KIND: TASK
 - ACTIVITY: -
 - GATES: -
 - RESOLUTION: -

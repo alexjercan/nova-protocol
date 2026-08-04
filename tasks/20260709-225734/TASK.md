@@ -2,7 +2,6 @@
 
 - PRIORITY: 65
 - TAGS: v0.7.0, ai, spike, health, wontdo
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

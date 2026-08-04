@@ -2,7 +2,6 @@
 
 - PRIORITY: 46
 - TAGS: docs, web, feature, modding
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

@@ -2,7 +2,6 @@
 
 - PRIORITY: 76
 - TAGS: v0.8.0, spike, tooling, refactor, performance
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

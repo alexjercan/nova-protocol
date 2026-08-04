@@ -2,7 +2,6 @@
 
 - PRIORITY: 0
 - TAGS: backlog, input, gamepad, mobile
-- KIND: TASK
 - ACTIVITY: -
 - GATES: -
 - RESOLUTION: -

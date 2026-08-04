@@ -2,7 +2,6 @@
 
 - PRIORITY: 47
 - TAGS: v0.9.0, ui, hud, nova_os, refactor
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

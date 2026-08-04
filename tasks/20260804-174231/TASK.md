@@ -2,7 +2,6 @@
 
 - PRIORITY: 0
 - TAGS: backlog,bug,examples,testing
-- KIND: TASK
 - ACTIVITY: -
 - GATES: -
 - RESOLUTION: -

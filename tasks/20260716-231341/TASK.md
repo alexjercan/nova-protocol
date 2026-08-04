@@ -2,7 +2,6 @@
 
 - PRIORITY: 30
 - TAGS: v0.7.0, modding, content, assets, dogfood, wonto
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

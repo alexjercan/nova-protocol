@@ -2,7 +2,6 @@
 
 - PRIORITY: 45
 - TAGS: v0.9.0, epic, refactor, chore
-- KIND: EPIC
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN
 - RESOLUTION: DONE

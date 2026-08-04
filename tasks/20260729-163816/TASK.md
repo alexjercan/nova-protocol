@@ -2,7 +2,6 @@
 
 - PRIORITY: 79
 - TAGS: v0.9.0, feature, ui, hud, feedback
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

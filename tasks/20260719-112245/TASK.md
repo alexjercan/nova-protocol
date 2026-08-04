@@ -2,7 +2,6 @@
 
 - PRIORITY: 0
 - TAGS: backlog, spike, tooling, testing
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

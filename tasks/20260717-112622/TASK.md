@@ -2,7 +2,6 @@
 
 - PRIORITY: 54
 - TAGS: spike, v0.7.0, ai, gameplay, balance
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

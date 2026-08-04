@@ -2,7 +2,6 @@
 
 - PRIORITY: 0
 - TAGS: backlog,testing,autopilot
-- KIND: TASK
 - ACTIVITY: -
 - GATES: -
 - RESOLUTION: -

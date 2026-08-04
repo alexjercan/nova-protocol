@@ -2,7 +2,6 @@
 
 - PRIORITY: 60
 - TAGS: v0.5.0, weapons, balance, playtest
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

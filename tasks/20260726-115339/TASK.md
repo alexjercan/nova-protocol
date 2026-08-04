@@ -2,7 +2,6 @@
 
 - PRIORITY: 29
 - TAGS: v0.9.0, stretch, feature, ui, hud, gameplay
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

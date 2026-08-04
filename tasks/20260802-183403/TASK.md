@@ -2,7 +2,6 @@
 
 - PRIORITY: 92
 - TAGS: v0.10.0, tooling, autopilot, examples
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

@@ -2,7 +2,6 @@
 
 - PRIORITY: 0
 - TAGS: backlog, hud, ux, input
-- KIND: TASK
 - ACTIVITY: -
 - GATES: -
 - RESOLUTION: WONTDO

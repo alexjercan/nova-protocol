@@ -2,7 +2,6 @@
 
 - PRIORITY: 56
 - TAGS: v0.4.0, targeting, gameplay, spike
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

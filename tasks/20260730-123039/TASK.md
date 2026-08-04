@@ -2,7 +2,6 @@
 
 - PRIORITY: 42
 - TAGS: v0.9.0, bug, ui, nova_os, feedback
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

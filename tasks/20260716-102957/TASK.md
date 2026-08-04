@@ -2,7 +2,6 @@
 
 - PRIORITY: 0
 - TAGS: wontdo, spike, docs, tooling, v0.8.0
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

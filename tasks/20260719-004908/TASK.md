@@ -2,7 +2,6 @@
 
 - PRIORITY: 0
 - TAGS: backlog, ci, tooling
-- KIND: TASK
 - ACTIVITY: -
 - GATES: -
 - RESOLUTION: WONTDO

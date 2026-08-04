@@ -2,7 +2,6 @@
 
 - PRIORITY: 0
 - TAGS: backlog, content, scenario
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

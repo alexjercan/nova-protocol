@@ -2,7 +2,6 @@
 
 - PRIORITY: 76
 - TAGS: v0.10.0, content, examples, testing, perf
-- KIND: STORY
 - ACTIVITY: WORKING
 - GATES: PLAN
 - RESOLUTION: -

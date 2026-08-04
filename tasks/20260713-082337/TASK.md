@@ -2,7 +2,6 @@
 
 - PRIORITY: 54
 - TAGS: v0.5.0, targeting, input, combat, spike
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

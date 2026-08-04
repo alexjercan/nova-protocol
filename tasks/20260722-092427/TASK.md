@@ -2,7 +2,6 @@
 
 - PRIORITY: 78
 - TAGS: v0.8.0, bug, gameplay, ai, gravity
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

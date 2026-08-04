@@ -2,7 +2,6 @@
 
 - PRIORITY: 0
 - TAGS: backlog, ai, gameplay, gravity
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

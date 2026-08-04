@@ -2,7 +2,6 @@
 
 - PRIORITY: 37
 - TAGS: spike, v0.7.0, scenario, menu, lint
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

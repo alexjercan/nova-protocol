@@ -2,7 +2,6 @@
 
 - PRIORITY: 60
 - TAGS: v0.10.0, docs, web
-- KIND: STORY
 - ACTIVITY: PLANNING
 - GATES: -
 - RESOLUTION: -

@@ -2,7 +2,6 @@
 
 - PRIORITY: 0
 - TAGS: backlog, probe, perf, process
-- KIND: TASK
 - ACTIVITY: -
 - GATES: -
 - RESOLUTION: WONTDO

@@ -2,7 +2,6 @@
 
 - PRIORITY: 0
 - TAGS: spike, modding, scenario, perf
-- KIND: SPIKE
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

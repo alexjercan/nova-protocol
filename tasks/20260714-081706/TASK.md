@@ -2,7 +2,6 @@
 
 - PRIORITY: 55
 - TAGS: v0.6.0, example, screenshot, web, testing
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

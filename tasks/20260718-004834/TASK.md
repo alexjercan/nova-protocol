@@ -2,7 +2,6 @@
 
 - PRIORITY: 36
 - TAGS: v0.7.0, performance, settings, scenario
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

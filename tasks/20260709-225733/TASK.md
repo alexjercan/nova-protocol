@@ -2,7 +2,6 @@
 
 - PRIORITY: 64
 - TAGS: v0.4.0, ai, spike, torpedo, turret
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

@@ -2,7 +2,6 @@
 
 - PRIORITY: 58
 - TAGS: modding, scenario, gameplay
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

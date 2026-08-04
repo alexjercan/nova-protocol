@@ -2,7 +2,6 @@
 
 - PRIORITY: 0
 - TAGS: v0.9.0, epic, ui, hud, feedback
-- KIND: EPIC
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN
 - RESOLUTION: DONE

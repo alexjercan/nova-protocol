@@ -2,7 +2,6 @@
 
 - PRIORITY: 75
 - TAGS: v0.6.0, modding, scenario, foundation
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

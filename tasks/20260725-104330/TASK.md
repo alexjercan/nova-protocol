@@ -2,7 +2,6 @@
 
 - PRIORITY: 0
 - TAGS: v0.9.0, feedback, gameplay, ui, ux, epic
-- KIND: EPIC
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

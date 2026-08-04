@@ -2,7 +2,6 @@
 
 - PRIORITY: 83
 - TAGS: v0.10.0, content, examples, testing, ui
-- KIND: STORY
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

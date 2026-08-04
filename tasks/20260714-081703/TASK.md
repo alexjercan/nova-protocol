@@ -2,7 +2,6 @@
 
 - PRIORITY: 0
 - TAGS: backlog, editor, scenario, modding, spike
-- KIND: TASK
 - ACTIVITY: -
 - GATES: -
 - RESOLUTION: -

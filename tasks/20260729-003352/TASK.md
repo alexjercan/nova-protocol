@@ -2,7 +2,6 @@
 
 - PRIORITY: 79
 - TAGS: v0.9.0, tooling, probe, performance
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE

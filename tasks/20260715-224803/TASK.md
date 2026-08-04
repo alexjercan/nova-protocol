@@ -2,7 +2,6 @@
 
 - PRIORITY: 60
 - TAGS: modding, scenario, gameplay, web
-- KIND: TASK
 - ACTIVITY: COMPOUNDING
 - GATES: PLAN REVIEW RETRO
 - RESOLUTION: DONE
