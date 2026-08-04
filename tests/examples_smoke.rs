@@ -39,8 +39,13 @@ const SECTIONS: &[&str] = &[
     "com_range",
 ];
 
-/// examples/gameplay/ - full autopilot scenario runs.
-const GAMEPLAY: &[&str] = &["scenario", "playable", "broadside", "lifeline"];
+/// examples/systems/ - code-built fixtures for the cross-cutting gameplay
+/// systems: the scenario grammar, the player path, and the outcome arc.
+const SYSTEMS: &[&str] = &["scenario_grammar", "player_path", "outcomes"];
+
+/// examples/gameplay/ - TRANSITIONAL, retired by task 20260804-093910; the
+/// story-scenario runs that outlived the move to systems/.
+const GAMEPLAY: &[&str] = &["broadside", "lifeline"];
 
 /// examples/ui/ - staged UI flows (editor via the preset; hud_range and
 /// menu_newgame + menu_scenarios drive their own `AutopilotPlugin` timelines).
@@ -85,6 +90,11 @@ const NOT_SMOKED: &[&str] = &[
 #[test]
 fn sections_reach_playing_without_panic() {
     smoke(SECTIONS);
+}
+
+#[test]
+fn systems_reach_playing_without_panic() {
+    smoke(SYSTEMS);
 }
 
 #[test]
@@ -155,7 +165,7 @@ fn catalog_matches_disk() {
 
     // Every cataloged example is either smoked or deliberately not.
     let mut accounted = BTreeSet::new();
-    for &example in [SECTIONS, GAMEPLAY, UI, SCREENSHOTS, NOT_SMOKED]
+    for &example in [SECTIONS, SYSTEMS, GAMEPLAY, UI, SCREENSHOTS, NOT_SMOKED]
         .iter()
         .flat_map(|list| list.iter())
     {

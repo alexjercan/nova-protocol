@@ -187,8 +187,8 @@ pub const CATEGORY_POLICIES: &[(&str, CategoryPolicy)] = &[
             frame_time: false,
         },
     ),
-    // TRANSITIONAL: remove with 20260804-093934 / 20260804-093910, which
-    // retire examples/gameplay/ (its members move to systems/ or retire).
+    // TRANSITIONAL: remove with 20260804-093910, which retires the last two
+    // members of examples/gameplay/ (the rest moved to systems/).
     (
         "gameplay",
         CategoryPolicy {

@@ -15,12 +15,12 @@
 ```sh
 cargo run                         # the game (boots into the main menu)
 cargo run --features dev          # + debug tooling (inspector, wireframe)
-cargo run --example scenario   # run an example
+cargo run --example scenario_grammar   # run an example
 cargo build --release             # release profile: opt=s, lto, stripped
 cargo check && cargo fmt          # before committing
 cargo test --workspace            # full suite (CI runs this; skip locally unless asked)
 cargo run -p nova_assets --bin content -- lint   # validate content: refs + balance + input overlaps (also: gen)
-cargo run -p nova_probe -- run playable          # run-harness check (correctness + perf)
+cargo run -p nova_probe -- run player_path          # run-harness check (correctness + perf)
 ```
 
 Notes that keep the suite honest and fast:
@@ -147,7 +147,8 @@ enough is a reading task, not a test.
 `gameplay/` and `perf/` are being retired as directory names: `gameplay/` was
 never a contract (it described how the examples run, not what they prove) and
 every frame-time claim now lives in `stress/`. Both still carry transitional
-policy rows while their members move.
+policy rows while their members move; `scenario` and `playable` have already
+become `systems/scenario_grammar` and `systems/player_path`.
 
 ### The catalog and the harness
 
@@ -158,15 +159,21 @@ What is on disk today, in curriculum reading order:
   `hull_section` (damage -> destroy -> ship survives), `turret_section`
   and `torpedo_section` (the weapon test ranges), `torpedo_guidance` (PN
   deep-dive), `com_range` (mass properties under section destruction).
-- `gameplay/` - full autopilot scenario runs: `scenario` (the scenario
-  language - variables, events, filters, actions - built in code and
-  asserted live), `playable` (a scenario played through the real input
-  pipeline: lock, kill, GOTO, arrive - watched by its own handlers),
-  `broadside` (the chapter-two scenario end to end through the Scenarios
-  picker: defeat -> Retry reload -> the full act machine -> the Victory
-  overlay, all staged on scenario state) and `lifeline` (the same treatment
-  for chapter three: the convoy defense and the finale at the claim, defeat
-  and Retry included, in one run).
+- `systems/` - code-built fixtures for the cross-cutting systems, every one a
+  `ScenarioConfig` written in Rust and loaded with `LoadScenario`:
+  `scenario_grammar` (the scenario language - variables, events, filters,
+  actions - over repeated rounds, each gated on the scenario's own
+  variables), `player_path` (a scenario played through the real input
+  pipeline: lock, kill, travel-lock, GOTO - watched by its own handlers, and
+  repeated through the loop point) and `outcomes` (the composed outcome arc
+  in one live run: die -> the Defeat overlay -> Retry -> a clean reload ->
+  kill -> the objective and the CHECKPOINT -> Continue -> the chained
+  scenario). Nothing here reads `assets/base/scenarios`.
+- `gameplay/` - TRANSITIONAL, retired next: `broadside` (the chapter-two
+  scenario end to end through the Scenarios picker: defeat -> Retry reload ->
+  the full act machine -> the Victory overlay, all staged on scenario state)
+  and `lifeline` (the same treatment for chapter three: the convoy defense and
+  the finale at the claim, defeat and Retry included, in one run).
 - `ui/` - staged UI flows: `editor` (the shipped editor flow), `hud_range`
   (screen-projected HUD indicators, velocity sphere included),
   `menu_newgame` (the shipped boot flow) and `menu_scenarios` (drives the
@@ -433,12 +440,12 @@ and assembles one reviewable report. The POST-FEATURE CHECK - "did my change
 break behavior or perf?" - is one command:
 
 ```sh
-cargo run -p nova_probe -- run playable            # clean pass -> report
-cargo run -p nova_probe -- run playable --profile  # + traced pass (top-N systems)
-cargo run -p nova_probe -- run playable --samply   # + named flamegraph
-cargo run -p nova_probe -- run playable --baseline probe-runs  # FPS deltas vs nearest prior commit
-cargo run -p nova_probe -- run playable,scenario   # comma list -> aggregate index
-cargo run -p nova_probe -- run gameplay            # a whole category
+cargo run -p nova_probe -- run player_path            # clean pass -> report
+cargo run -p nova_probe -- run player_path --profile  # + traced pass (top-N systems)
+cargo run -p nova_probe -- run player_path --samply   # + named flamegraph
+cargo run -p nova_probe -- run player_path --baseline probe-runs  # FPS deltas vs nearest prior commit
+cargo run -p nova_probe -- run player_path,scenario_grammar   # comma list -> aggregate index
+cargo run -p nova_probe -- run systems            # a whole category
 cargo run -p nova_probe -- run --all               # the fleet (minus NOT_PROBED)
 ```
 
@@ -488,7 +495,7 @@ yourself - probe preserves any of the three it finds already set, and prints
 which ones it left alone:
 
 ```sh
-NOVA_MOD_CACHE_ROOT=~/.local/share/nova-protocol cargo run -p nova_probe -- run playable
+NOVA_MOD_CACHE_ROOT=~/.local/share/nova-protocol cargo run -p nova_probe -- run player_path
 ```
 
 `XDG_CACHE_HOME` is deliberately NOT redirected (the shader cache lives there,
@@ -572,7 +579,7 @@ timestamps (wall-clock and frame counts vary across hosts):
 
 ```sh
 NOVA_PERF_TIMELINE=/tmp/run.jsonl NOVA_AUTOPILOT=1 \
-  cargo run --example playable --features debug
+  cargo run --example player_path --features debug
 ```
 
 The timeline is native-only (no fs in the browser) and inert without the env
@@ -609,8 +616,8 @@ frame times, so a profiled run RANKS systems while the clean capture owns the
 FPS truth (never mix the two):
 
 ```sh
-cargo run -p nova_probe -- run scenario --profile          # trace + report table
-cargo run -p nova_probe -- run scenario --profile --samply # + flamegraph
+cargo run -p nova_probe -- run scenario_grammar --profile          # trace + report table
+cargo run -p nova_probe -- run scenario_grammar --profile --samply # + flamegraph
 ```
 
 The profiled pass builds with `--features debug,trace` (bevy's per-system
@@ -638,10 +645,14 @@ Continuous INVARIANTS ride the same stream: set `NOVA_PERF_INVARIANTS=1` (or
 asserts what the engine guarantees - health within `0..=max` and finite,
 velocities finite (plus an absurd-speed bound at 10x a ship's soft
 `FlightSpeedCap`), scenario Number variables finite, registered monotonic
-variables never decreasing (opt-in per example: playable registers
-`target_down`/`leg`, scenario `beat`/`rocks_destroyed`), and a total
-entity-count leak bound. Violations warn, land on the timeline as
-`kind: "invariant"` entries, and feed the report's `invariants held` check.
+variables never decreasing (opt-in per example: `player_path` registers
+`target_down`/`leg`, `scenario_grammar` seven counters and latches,
+`outcomes` `hostile_down`), and a total entity-count leak bound. A monotonic
+is one-way within a SCENARIO LIFE, not for the process: the memory is
+forgotten on `ScenarioLoaded`, so an example that replays through its loop
+point re-seeds its latches without taking a false regression. Violations warn,
+land on the timeline as `kind: "invariant"` entries, and feed the report's
+`invariants held` check.
 
 ## Versioning and release
 

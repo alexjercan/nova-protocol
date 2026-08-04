@@ -68,6 +68,75 @@ this example exists to walk.
 - The overlay is advanced by triggering `Activate` on the
   `Outcome Primary Button` entity, never by `click_at` screen coordinates.
 
+### D5 - What the deepened fixtures could and could not reach (2026-08-04)
+
+Three plan clauses met the code and moved:
+
+- **`player_path` rounds stop at GOTO-closing, not at "arrive".** The Steps list
+  the gesture chain as ending in `arrive`; the example's headless contract
+  deliberately excludes the flight leg's arrival, because llvmpipe throttles an
+  unfocused smoke window too hard to fly it (the `arrived` handler stays in the
+  scenario for interactive runs). Repeating a beat the fleet cannot land
+  headlessly would make the run flaky, so each round asserts stance -> combat
+  lock -> kill -> travel lock -> GOTO closing, and `arrive` stays out. The
+  area/`OnEnter` machinery the plan wanted covered is covered instead by
+  `scenario_grammar`'s trigger volume, where nothing has to fly.
+- **`OnExit` needs a body that MOVES.** avian fires no `CollisionEnd` for a
+  despawned collider (`objects/area.rs` documents this as the reason area
+  occupancy is dropped on removal), so destroying the contained rock would fire
+  `OnEnter` and never its pair. `scenario_grammar` pushes the rock out with a
+  `LinearVelocity` instead. The `OnEnter` half needs nothing: an area created
+  around an already-present body starts a fresh contact pair even at full
+  containment (pinned by `an_area_spawned_around_a_body_fires_on_enter`).
+- **`OnNeutralized` is an integrity verdict, not a kill.** It needs a ship that
+  WAS armed and has lost every working weapon AND thruster section
+  (`integrity/neutralize.rs`), so `scenario_grammar` carries an escort with a
+  turret and a thruster section and the script strips those two sections rather
+  than hitting the root - a root kill would be `OnDestroyed`, the event this
+  beat exists to distinguish itself from.
+
+Rounds are also gated differently per fixture, on purpose: `scenario_grammar`
+closes each round with the scenario's OWN arithmetic
+(`rocks_destroyed > round * kills - 1` advancing a `round` variable), so the
+script waits on the grammar rather than on a settle window; `player_path`
+re-enters each round through the scenario reload the capture loop point already
+uses, since its round boundary is a teardown, not a tally.
+
+### D6 - Three mechanisms the first green run forced (2026-08-04)
+
+All three were found by RUNNING the fleet; every one of them passes
+`cargo check` and passes `reached_playing`, and each would have shipped a
+silently vacuous or falsely red example.
+
+- **`with_game_plugins` turns the menu plugin OFF, so `outcomes` adds
+  `NovaMenuPlugin` itself.** `AppBuilder::build` derives `main_menu` from
+  `use_default_plugins`, which `with_game_plugins` clears
+  (`crates/nova_core/src/lib.rs:161`), and `NovaMenuPlugin` is what owns the
+  outcome overlay and its buttons. Without it the run declared Defeat, found no
+  overlay, and stalled - with `CurrentOutcome` correct the whole time, which is
+  exactly why gating on the outcome resource alone would have passed on a build
+  that renders no overlay at all. Adding the plugin without the menu BOOT is
+  supported, not a workaround: it inits its own resources specifically so it can
+  stand alone in slim apps. `broadside` never hit this because it builds the
+  whole shipped app via `editor_app(true)`.
+- **An overkill has to be aimed at the `Health` bearer, which is not always the
+  root.** A ship root carries the aggregate health; an asteroid root carries only
+  markers, with the collider and `Health` on a CHILD
+  (`objects/asteroid.rs:111`). `HealthApplyDamage` propagates child -> parent and
+  never downwards, so the same helper that killed the player was absorbed by
+  nothing on the rock. `kill_object` now walks to the nearest `Health`-carrying
+  node at or beneath the object root, which is what makes ONE helper kill both.
+- **The monotonic invariant needed a load-shaped reset, not a teardown-shaped
+  one.** `check_invariants` forgot a monotonic key only when it was ABSENT for a
+  checked frame, and a reload never produces that gap: the outgoing scenario's
+  variables outlive the load and are overwritten in place by the incoming
+  `OnStart`, so a one-way latch reads 1 -> 0 with nothing in between.
+  `player_path`'s round loop therefore took a false `monotonic_regression` per
+  round boundary. Fixed in `nova_probe` (an observer clearing the memory on
+  `ScenarioLoaded`) rather than by dropping the invariant from the example: the
+  latch really is one-way within a life, and every future replaying example
+  inherits the fix. Pinned by `a_gapless_reload_resets_monotonic_memory`.
+
 ## Alternatives considered
 
 - **Carry the next `ScenarioConfig` in the `NextScenario` request.** Rejected:

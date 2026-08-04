@@ -42,7 +42,7 @@ use std::collections::HashMap;
 use avian3d::prelude::LinearVelocity;
 use bevy::{diagnostic::FrameCount, prelude::*};
 use nova_gameplay::{bevy_common_systems::health::Health, flight::FlightSpeedCap};
-use nova_scenario::{variables::VariableLiteral, world::NovaEventWorld};
+use nova_scenario::{loader::ScenarioLoaded, variables::VariableLiteral, world::NovaEventWorld};
 
 use crate::{
     capture::perf_param,
@@ -139,7 +139,21 @@ impl Plugin for InvariantsPlugin {
                 .chain()
                 .before(crate::recorder::record_variable_changes),
         );
+        app.add_observer(forget_monotonic_on_load);
     }
+}
+
+/// A scenario load starts a fresh monotonic life.
+///
+/// The vanished-key reset in [`check_invariants`] only fires when a registered
+/// key is ABSENT for a checked frame, which a reload never produces: the
+/// outgoing scenario's variables outlive the load and are overwritten in place
+/// when the incoming `OnStart` re-seeds them, so a one-way latch reads 1 -> 0
+/// with no gap. Examples that replay a scenario (the round loop in
+/// `player_path`) would otherwise take a false `monotonic_regression` on every
+/// round boundary.
+fn forget_monotonic_on_load(_: On<ScenarioLoaded>, mut state: ResMut<InvariantState>) {
+    state.monotonic_last.clear();
 }
 
 /// On the first `AppExit`, write one `invariant_summary` timeline entry
@@ -487,6 +501,39 @@ mod tests {
         app.update();
         assert_eq!(violations(&app), 0, "reload reset must not fire");
         // The fresh life is still guarded: 1 -> 0 live fires.
+        set(&mut app, 1.0);
+        app.update();
+        set(&mut app, 0.0);
+        app.update();
+        assert_eq!(violations(&app), 1, "live regression still fires");
+    }
+
+    #[test]
+    fn a_gapless_reload_resets_monotonic_memory() {
+        // The reload the round loops in `player_path` and `outcomes` take: the
+        // outgoing scenario's variables are never absent for a checked frame,
+        // they are overwritten in place by the incoming OnStart. Only
+        // `ScenarioLoaded` marks the boundary, so 1 -> 0 across it is a fresh
+        // life rather than a regression.
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(nova_invariants().strict(false).monotonic(["beat"]));
+        app.init_resource::<NovaEventWorld>();
+        let set = |app: &mut App, v: f64| {
+            app.world_mut()
+                .resource_mut::<NovaEventWorld>()
+                .insert_variable("beat".to_string(), VariableLiteral::Number(v));
+        };
+        set(&mut app, 1.0);
+        app.update();
+        app.world_mut().trigger(ScenarioLoaded {
+            scenario_id: "replay".to_string(),
+            handler_count: 0,
+            object_count: 0,
+        });
+        set(&mut app, 0.0);
+        app.update();
+        assert_eq!(violations(&app), 0, "a reload with no variable gap resets");
         set(&mut app, 1.0);
         app.update();
         set(&mut app, 0.0);

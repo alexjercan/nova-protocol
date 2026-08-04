@@ -4,9 +4,9 @@
 //! one row:
 //!
 //! ```text
-//! cargo run -p nova_probe -- run playable            # clean pass + report
-//! cargo run -p nova_probe -- run playable --profile  # + traced pass
-//! cargo run -p nova_probe -- run playable,scenario   # comma list -> aggregate
+//! cargo run -p nova_probe -- run player_path            # clean pass + report
+//! cargo run -p nova_probe -- run player_path --profile  # + traced pass
+//! cargo run -p nova_probe -- run player_path,scenario_grammar   # comma list -> aggregate
 //! cargo run -p nova_probe -- run ui                  # a category dir's examples
 //! cargo run -p nova_probe -- run --all               # the whole catalog (minus NOT_PROBED)
 //! cargo run -p nova_probe -- report <run-dir>           # re-render (manifest-gated)

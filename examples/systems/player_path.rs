@@ -1,4 +1,5 @@
-//! playable: a playable scenario, played - by the real input pipeline.
+//! player_path: a playable scenario, played - by the real input pipeline, and
+//! played AGAIN through the same loop point.
 //!
 //! One armed player ship, one hostile rock dead ahead, one nav beacon
 //! beyond it. The script performs the exact gestures a player would, in
@@ -17,11 +18,19 @@
 //! the play instead of truncating it, and a beat that never resolves inside its
 //! deadline error-exits naming that beat.
 //!
+//! The whole gesture chain runs [`ROUNDS`] times, each round separated by the
+//! same scenario reload the capture loop point uses. A chain that only ever
+//! holds on a freshly booted app is a weaker claim than one that holds on a
+//! RELOADED one: the second round is what would catch state surviving a
+//! teardown - a stale lock, an input latched down, a handler bound to the dead
+//! scene.
+//!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example playable --features debug
-//! # look for: `autopilot: step `sweep the prey into a combat lock` begins`,
-//! #           `playable: prey destroyed, waypoint locked, GOTO closing at ...`,
+//! NOVA_AUTOPILOT=1 cargo run --example player_path --features debug
+//! # look for: `autopilot: step `round 1: sweep the prey into a combat lock` begins`,
+//! #           `player_path: round 1 - prey destroyed, waypoint locked, GOTO closing at ...`,
+//! #           `player_path: round 2 - prey destroyed, waypoint locked, GOTO closing at ...`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
@@ -30,12 +39,19 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "playable")]
+#[command(name = "player_path")]
 #[command(version = "1.0.0")]
 #[command(about = "A playable scenario driven through the real input pipeline, watched by its own event handlers", long_about = None)]
 struct Cli;
 
 const SCENARIO_ID: &str = "playable_run";
+
+/// How many times the script plays the whole gesture chain, each round after
+/// the first re-entered through a scenario reload. Two, not more: every round
+/// is a real flight leg driven through the input pipeline, and under llvmpipe
+/// that is seconds of wall clock per round for a claim the SECOND round
+/// already makes (the chain survives a teardown).
+const ROUNDS: usize = 2;
 
 /// The first step's name, so `loop_from` can restart the cycle at the scene
 /// reload without repeating the string.
@@ -58,29 +74,47 @@ fn main() -> bevy::app::AppExit {
     // beat is named rather than swallowed by the generic hang detector.
     #[cfg(feature = "debug")]
     {
-        app.add_plugins(
-            nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
-                // The ship is spawned by an OnStart handler, and that same
-                // handler seeds `target_down` - so waiting for BOTH is also
-                // the gate a looped scene reload needs, since the old cycle's
-                // variables outlive the load replacing them (20260720-014142:
-                // ScenarioLoaded fires BEFORE OnStart runs, and the first real
-                // loop crashed in that gap).
-                .step(LOAD_STEP)
-                .enter(GameStates::Loading)
-                .until(and(
-                    player_ship_present(),
-                    scenario_variable_is("target_down", 0.0),
-                ))
-                .deadline(30.0)
-                .add()
-                // The scene is live again: close the reload interval so the
-                // capture excludes it from the frame-time stats. A no-op on
-                // the first cycle, where no reload was ever in flight.
-                .step("close the reload interval")
+        let mut script = nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+            // The ship is spawned by an OnStart handler, and that same
+            // handler seeds `target_down` - so waiting for BOTH is also
+            // the gate a looped scene reload needs, since the old cycle's
+            // variables outlive the load replacing them (20260720-014142:
+            // ScenarioLoaded fires BEFORE OnStart runs, and the first real
+            // loop crashed in that gap).
+            .step(LOAD_STEP)
+            .enter(GameStates::Loading)
+            .until(and(
+                player_ship_present(),
+                scenario_variable_is("target_down", 0.0),
+            ))
+            .deadline(30.0)
+            .add();
+
+        for round in 1..=ROUNDS {
+            if round > 1 {
+                // Re-enter the run the way the capture loop point does: drop
+                // whatever the last round left held (GOTO is still down), tear
+                // the scene down and reload it, and wait on the SAME gate the
+                // boot step uses. A latched key or a lock surviving the
+                // teardown fails the next round's beats, which is the point.
+                script = script
+                    .step(format!("round {round}: reload the run"))
+                    .on_enter(replay_the_run)
+                    .until(and(
+                        player_ship_present(),
+                        scenario_variable_is("target_down", 0.0),
+                    ))
+                    .deadline(30.0)
+                    .add();
+            }
+            script = script
+                // The scene is live: close the reload interval so the capture
+                // excludes it from the frame-time stats. A no-op in round 1 of
+                // a clean pass, where no reload was ever in flight.
+                .step(format!("round {round}: close the reload interval"))
                 .on_enter(nova_probe::capture_reload_end)
                 .add()
-                .step("raise the stance")
+                .step(format!("round {round}: raise the stance"))
                 .on_enter(beat(press_mouse(MouseButton::Right), "beat: raised"))
                 .until(elapsed(0.3))
                 .add()
@@ -88,7 +122,7 @@ fn main() -> bevy::app::AppExit {
                 // writes it under the sweep, and waiting on the component
                 // rather than the clock is what survives llvmpipe stutter,
                 // where a wall-clock window can collapse into a single frame.
-                .step("sweep the prey into a combat lock")
+                .step(format!("round {round}: sweep the prey into a combat lock"))
                 .on_enter(beat(
                     press_key(KeyCode::ControlLeft),
                     "beat: radar combat sweep",
@@ -96,18 +130,20 @@ fn main() -> bevy::app::AppExit {
                 .until(combat_lock_live())
                 .deadline(20.0)
                 .add()
-                .step("gun the prey down")
+                .step(format!("round {round}: gun the prey down"))
                 .on_enter(open_fire)
                 .until(scenario_variable_is("target_down", 1.0))
                 .deadline(20.0)
                 .add()
-                .step("lower the stance")
+                .step(format!("round {round}: lower the stance"))
                 .on_enter(lower_stance)
                 .until(elapsed(0.3))
                 .add()
                 // With the prey gone the waypoint is the sweep's only
                 // candidate; same component-not-clock reasoning as above.
-                .step("sweep the waypoint into a travel lock")
+                .step(format!(
+                    "round {round}: sweep the waypoint into a travel lock"
+                ))
                 .until(travel_lock_live())
                 .on_enter(beat(
                     press_key(KeyCode::ControlLeft),
@@ -121,22 +157,26 @@ fn main() -> bevy::app::AppExit {
                 // throttles unfocused smoke windows too hard for a
                 // multi-second flight leg (it arrives fine standalone and
                 // interactively, and the area/OnEnter machinery is exercised
-                // by the shipped scenarios). The `arrived` handler stays in
-                // the scenario for interactive runs.
-                .step("engage the goto and start closing")
+                // by the shipped scenarios and by systems/scenario_grammar).
+                // The `arrived` handler stays in the scenario for interactive
+                // runs.
+                .step(format!("round {round}: engage the goto and start closing"))
                 .on_enter(engage_goto)
                 .until(and(scenario_variable_is("leg", 1.0), goto_closing()))
                 .deadline(20.0)
                 .add()
-                // Last beat: the driver reports done after it, so a clean pass
-                // ends here rather than idling out a runway.
-                .step("report the flown leg")
-                .on_enter(report_flown_leg)
-                .add()
+                // The round's verdict: the scenario saw the whole chain.
+                .step(format!("round {round}: report the flown leg"))
+                .on_enter(report_flown_leg(round))
+                .add();
+        }
+
+        app.add_plugins(
+            script
                 // Enrolled in capture looping (task 20260720-000616): when a
                 // frame capture outlives the script, the scene reloads and the
-                // beats replay, so the capture measures ACTIVITY rather than an
-                // idle tail.
+                // rounds replay, so the capture measures ACTIVITY rather than
+                // an idle tail.
                 .loop_from(LOAD_STEP)
                 .on_loop(reload_the_run),
         );
@@ -149,7 +189,10 @@ fn main() -> bevy::app::AppExit {
         app.add_plugins(nova_probe::nova_timeline());
         // Continuous invariants (inert unless NOVA_PERF_INVARIANTS is set):
         // target_down and leg are one-way latches in this scenario's design
-        // (0 -> 1 on kill / lock), so a decrease is a real regression.
+        // (0 -> 1 on kill / lock), so a decrease is a real regression. A
+        // round's reload re-seeds both, which is not one: the checker forgets
+        // its monotonic memory on `ScenarioLoaded`, so each round is its own
+        // life.
         app.add_plugins(nova_probe::nova_invariants().monotonic(["target_down", "leg"]));
         // Frame-time capture (inert unless NOVA_PERF is set): fleet-wide
         // wiring, task 20260719-210443.
@@ -439,14 +482,14 @@ fn closing_speed(world: &World) -> Option<f32> {
 #[cfg(feature = "debug")]
 fn open_fire(world: &mut World) {
     let combat = player_lock::<CombatLock>(world, |lock| lock.0)
-        .expect("playable: the sweep step advanced without a combat lock");
+        .expect("player_path: the sweep step advanced without a combat lock");
     let combat_id = world
         .get::<EntityId>(combat)
         .map(|id| id.0.clone())
         .unwrap_or_default();
     assert_eq!(
         combat_id, "prey",
-        "playable: the combat lock must be on the prey"
+        "player_path: the combat lock must be on the prey"
     );
     let t = world.resource::<Time>().elapsed_secs();
     nova_probe::probe_marker(
@@ -476,16 +519,55 @@ fn engage_goto(world: &mut World) {
     press_key(KeyCode::KeyG)(world);
 }
 
-/// The script's last beat: the scenario saw the kill and the travel lock, and
-/// the autopilot is flying the leg.
+/// Each round's last beat: the scenario saw the kill and the travel lock, and
+/// the autopilot is flying the leg. Asserted per round, not once, so a chain
+/// that only works on a freshly booted app fails here rather than passing.
 #[cfg(feature = "debug")]
-fn report_flown_leg(world: &mut World) {
-    let closing = closing_speed(world).expect("playable: the goto step advanced without telemetry");
-    info!("playable: prey destroyed, waypoint locked, GOTO closing at {closing:.2} u/s");
-    let t = world.resource::<Time>().elapsed_secs();
-    nova_probe::probe_marker(
-        world,
-        "beat: done",
-        serde_json::json!({ "t": t, "closing_speed": closing }),
-    );
+fn report_flown_leg(round: usize) -> impl Fn(&mut World) + Send + Sync + 'static {
+    move |world: &mut World| {
+        let closing =
+            closing_speed(world).expect("player_path: the goto step advanced without telemetry");
+        assert_eq!(
+            variable(world, "target_down"),
+            Some(1.0),
+            "round {round}: the scenario must have seen the kill"
+        );
+        assert_eq!(
+            variable(world, "leg"),
+            Some(1.0),
+            "round {round}: the scenario must have seen the travel lock"
+        );
+        info!(
+            "player_path: round {round} - prey destroyed, waypoint locked, GOTO closing at \
+             {closing:.2} u/s"
+        );
+        let t = world.resource::<Time>().elapsed_secs();
+        nova_probe::probe_marker(
+            world,
+            "beat: done",
+            serde_json::json!({ "t": t, "round": round, "closing_speed": closing }),
+        );
+    }
+}
+
+/// A Number scenario variable, if the live event world holds one under `key`.
+#[cfg(feature = "debug")]
+fn variable(world: &World, key: &str) -> Option<f64> {
+    match world.resource::<NovaEventWorld>().get_variable(key) {
+        Some(VariableLiteral::Number(value)) => Some(*value),
+        _ => None,
+    }
+}
+
+/// Start the next round: release everything the last round left held and
+/// reload the scenario. GOTO is the one that matters - a still-pressed G would
+/// re-engage the autopilot on the fresh ship before its beat, and the run
+/// would prove the chain on a lock it never took.
+#[cfg(feature = "debug")]
+fn replay_the_run(world: &mut World) {
+    release_key(KeyCode::KeyG)(world);
+    release_key(KeyCode::ControlLeft)(world);
+    release_mouse(MouseButton::Left)(world);
+    release_mouse(MouseButton::Right)(world);
+    reload_the_run(world);
 }

@@ -76,10 +76,10 @@ cargo build --release           # release profile
 trunk serve                     # web build (WASM), served on :8080 (see scripts/serve-web.sh for the full site)
 
 cargo run --example             # list the examples in examples/ (by category)
-cargo run --example scenario    # run one; add --features debug for autopilot ones
+cargo run --example scenario_grammar    # run one; add --features debug for autopilot ones
 ```
 
-The `examples/` tree is grouped by category (`gameplay`, `screenshots`, `perf`,
+The `examples/` tree is grouped by category (`systems`, `sections`, `ui`,
 ...); the run-harness (`probe`, below) is the front door for driving them for
 correctness and performance. See
 [`web/src/wiki/dev/development.md`](web/src/wiki/dev/development.md) for the

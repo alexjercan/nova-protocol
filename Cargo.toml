@@ -92,18 +92,26 @@ path = "examples/sections/torpedo_guidance.rs"
 name = "com_range"
 path = "examples/sections/com_range.rs"
 
+# systems/ - code-built fixtures for the cross-cutting gameplay systems, at a
+# coarser grain than sections/. Every fixture is a `ScenarioConfig` built in
+# Rust and loaded with `LoadScenario`, so the compiler catches scenario-grammar
+# changes and no shipped story content is reachable from here.
+[[example]]
+name = "scenario_grammar"
+path = "examples/systems/scenario_grammar.rs"
+
+[[example]]
+name = "player_path"
+path = "examples/systems/player_path.rs"
+
+[[example]]
+name = "outcomes"
+path = "examples/systems/outcomes.rs"
+
 # gameplay/ - TRANSITIONAL, not a contract: this was "full autopilot scenario
 # runs", which describes how the examples run, not what they prove. Retiring -
-# members move to systems/ or go away (tasks 20260804-093934 / 20260804-093910).
+# its remaining members go away with task 20260804-093910.
 # Probe policy meanwhile: correctness passes only.
-[[example]]
-name = "scenario"
-path = "examples/gameplay/scenario.rs"
-
-[[example]]
-name = "playable"
-path = "examples/gameplay/playable.rs"
-
 [[example]]
 name = "broadside"
 path = "examples/gameplay/broadside.rs"

@@ -53,7 +53,7 @@ tagged **(breaking)**.
 - `nova_debug::harness`: Nova-typed predicates `scenario_variable_is`,
   `section_gone` and `player_ship_present`, so a script waits on what the game
   agreed happened rather than on a guessed duration. `com_range`, `hud_range`
-  and `playable` are rewritten onto them, dropping their hand-rolled beat
+  and `player_path` are rewritten onto them, dropping their hand-rolled beat
   offsets, boolean stage trackers and per-example completion guards.
 - Every example category carries an explicit contract, and `nova_probe`
   resolves what to run from it (`CategoryPolicy { probed, frame_time }`)
@@ -64,6 +64,20 @@ tagged **(breaking)**.
   bare `probe run screenshots` now errors instead of expanding to a no-op.
 - `checks.json`: the run manifest's `fps_exempt` field is renamed
   `fps_skipped`, with no compatibility shim. **(breaking)**
+- New `examples/systems/` category: code-built `ScenarioConfig` fixtures for
+  the cross-cutting systems, reaching no shipped story content. `scenario`
+  becomes `systems/scenario_grammar` and `playable` becomes
+  `systems/player_path`, both deepened into repeated rounds gated on scenario
+  variables; new `systems/outcomes` walks the whole outcome arc in one live run
+  (die -> Defeat overlay -> Retry -> clean reload -> Victory + CHECKPOINT ->
+  chained scenario). `cargo run --example scenario` / `playable` and
+  `probe run scenario` / `playable` are gone - use the new names.
+  **(breaking)**
+- `nova_probe` invariants: a registered monotonic is one-way within a SCENARIO
+  LIFE, not for the process - the memory is forgotten on `ScenarioLoaded`.
+  A replaying example previously took a false `monotonic_regression` at every
+  round boundary, because a reload overwrites its variables in place and never
+  leaves the vanished-key gap the old reset waited for.
 
 ## [0.9.1] - 2026-08-02
 

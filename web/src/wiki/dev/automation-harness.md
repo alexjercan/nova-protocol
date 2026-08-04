@@ -201,8 +201,8 @@ Then arm it from the shell - `driven_app` is the crate's own example, the
 
 ```sh
 NOVA_AUTOPILOT=1 cargo run -p nova_autopilot --example driven_app
-NOVA_SHOT=390x844 cargo run --example scenario
-NOVA_REEL=1 NOVA_SHOT_DIR=web/figures cargo run --example scenario
+NOVA_SHOT=390x844 cargo run --example scenario_grammar
+NOVA_REEL=1 NOVA_SHOT_DIR=web/figures cargo run --example scenario_grammar
 ```
 
 `crates/nova_autopilot/examples/driven_app.rs` is the end-to-end read: a

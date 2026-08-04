@@ -50,14 +50,14 @@ enter `nix develop` first. Never share `CARGO_TARGET_DIR` across worktrees.
 ```sh
 cargo run
 cargo run --features dev
-cargo run --example scenario
+cargo run --example scenario_grammar
 trunk serve
 scripts/serve-web.sh
 cargo check
 cargo fmt
 cargo run -p nova_assets --bin content -- gen
 cargo run -p nova_assets --bin content -- lint
-cargo run -p nova_probe -- run playable
+cargo run -p nova_probe -- run player_path
 ```
 
 Features:

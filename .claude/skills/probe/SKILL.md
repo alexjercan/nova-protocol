@@ -21,7 +21,7 @@ cargo run -p nova_probe -- run <example> --profile    # + traced pass (top-N sys
 cargo run -p nova_probe -- run <example> --samply     # + named flamegraph
 cargo run -p nova_probe -- run <example> --fps        # + DEDICATED capture-only pass
 cargo run -p nova_probe -- run <example> --baseline <old-run-dir>   # FPS deltas
-cargo run -p nova_probe -- run playable,scenario      # comma list -> aggregate index
+cargo run -p nova_probe -- run player_path,scenario_grammar      # comma list -> aggregate index
 cargo run -p nova_probe -- run ui                     # a whole PROBED category (today: sections|gameplay|ui|perf; systems|stress once populated; screenshots ERRORS)
 cargo run -p nova_probe -- run --all                  # the catalog minus unprobed categories and NOT_PROBED
 cargo run -p nova_probe -- run --all --fps --baseline probe-runs/before  # group: per-example baseline root
@@ -140,8 +140,9 @@ real-GPU pixel capture). Depth beyond the generic checks:
 
 | Example | extra depth |
 |---|---|
-| gameplay/scenario | monotonics: beat, rocks_destroyed |
-| gameplay/playable | monotonics: target_down, leg + 7 beat markers |
+| systems/scenario_grammar | monotonics: beat, rocks_destroyed, round, area_entries, area_exits, escort_neutralized, ring_cleared |
+| systems/player_path | monotonics: target_down, leg + 7 beat markers |
+| systems/outcomes | monotonic: hostile_down + 4 distinct beat markers, 6 per cycle (kill -> defeat overlay -> activate -> kill -> activate -> done) |
 | gameplay/broadside | a marker per script stage (11: picker -> defeat -> Retry -> acts -> victory) |
 | sections/* | outcome markers at the assertion sites (turret fired/gate damaged; the torpedo fire->arm->detonate->hit chain; hull partial-exact + destroyed-ship-survives; attitude error_rad; burn speeds; com/camera drifts) |
 | perf/perf_baseline | combat-burst fps driver (the sweep scene) |
@@ -151,14 +152,14 @@ guidance asserts at scenario-load level (no outcome flags exist), and the
 ui flows are state-transition shaped - the generic timeline already
 records every transition.
 
-Probe addresses examples by NAME (`probe run scenario`); categories come
+Probe addresses examples by NAME (`probe run scenario_grammar`); categories come
 from `examples/<category>/` (catalog in the root Cargo.toml). `--fps` runs
 a DEDICATED capture-only pass (task 20260720-000616) - the clean pass
 never arms the capture (the recorder's per-entry flush contaminated
 fps-on-clean numbers), and the completion protocol keeps the app alive
-until the window closes. Enrolled scenes (gameplay/scenario, playable -
-`loop_while_pending`) RELOAD and replay while the capture fills, so the
-window measures activity; reload intervals are EXCLUDED from the stats
+until the window closes. Enrolled scenes (the systems/ runs - `loop_from`)
+RELOAD and replay while the capture fills, so the window measures activity;
+reload intervals are EXCLUDED from the stats
 (their count is host-speed-dependent) and reported as their own line
 ("3 scene reloads - mean/max ms"). Frame rows carry their build profile
 (schema v3); dev rows are labeled NOT a baseline - baselines come from

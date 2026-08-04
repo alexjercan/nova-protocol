@@ -3,9 +3,9 @@
 - PRIORITY: 82
 - TAGS: v0.10.0, content, examples, testing
 - KIND: STORY
-- ACTIVITY: WORKING
-- GATES: PLAN
-- RESOLUTION: -
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 - PARENT: 20260802-115955
 - DEPENDS ON: 20260804-003244, 20260804-093855
 
@@ -26,7 +26,7 @@ this; the rule promotes their precedent. The type is `ScenarioConfig`
 
 ## Steps
 
-- [ ] Move `examples/gameplay/scenario.rs` -> `examples/systems/scenario_grammar.rs`
+- [x] Move `examples/gameplay/scenario.rs` -> `examples/systems/scenario_grammar.rs`
       with `git mv`, ATOMIC with its catalog and smoke edits, because
       `catalog_matches_disk` is red between them: in `Cargo.toml` the
       `[[example]] name = "scenario"` block becomes `scenario_grammar` under a
@@ -38,7 +38,7 @@ this; the rule promotes their precedent. The type is `ScenarioConfig`
       `crates/nova_probe/src/catalog.rs:191`. The `systems` policy row already
       exists there (`probed: true, frame_time: false`), so no probe edit is
       needed. Commit; `catalog_matches_disk` green.
-- [ ] Deepen `scenario_grammar`: extend `showcase()` past the single
+- [x] Deepen `scenario_grammar`: extend `showcase()` past the single
       seed-destroy-assert pass into repeated rounds, and gate each round's
       assertions on the scenario's own variables rather than the
       `elapsed < seeded_at + 1.5` wall-clock settle at
@@ -46,17 +46,17 @@ this; the rule promotes their precedent. The type is `ScenarioConfig`
       config already half-covers - `OnNeutralized`, `OnEnter`/`OnExit` via
       `CreateScenarioArea`, `ObjectiveComplete`, `HudReadout`. Keep the
       `nova_invariants().monotonic([...])` list in step with any new tally.
-- [ ] Move `examples/gameplay/playable.rs` -> `examples/systems/player_path.rs`
+- [x] Move `examples/gameplay/playable.rs` -> `examples/systems/player_path.rs`
       with `git mv`, atomic with the same two catalog/smoke edits as above.
       Deepen it: more rounds through the GOTO loop point (the script already
       loops via `reload_the_run:366`), asserting the gesture chain - stance,
       combat lock, kill, travel lock, GOTO, arrive - holds on every round, not
       just the first.
-- [ ] Build every fixture LOCALLY, inline in its own example file. Do NOT
+- [x] Build every fixture LOCALLY, inline in its own example file. Do NOT
       design a shared builder or a `systems/fixtures.rs` module - see
       DECISION.md D4. `20260804-094006` is the third caller and does the
       extraction once all three shapes are visible.
-- [ ] Add `examples/systems/outcomes.rs` (plus its `Cargo.toml` block and its
+- [x] Add `examples/systems/outcomes.rs` (plus its `Cargo.toml` block and its
       `SYSTEMS` smoke entry) holding two local `fn`s returning `ScenarioConfig`,
       both `hidden: true`:
       `outcome_probe_a` - `OnStart` spawns the player ship, one killable
@@ -71,7 +71,7 @@ this; the rule promotes their precedent. The type is `ScenarioConfig`
       `outcome_probe_b` - one object and one variable seeded on `OnStart` so
       the chain's arrival is observable.
       Leave `auto_advance_secs: None` on both (DECISION.md D3).
-- [ ] In `outcomes.rs`, on `OnEnter(GameAssetsStates::Loaded)`, INSERT both
+- [x] In `outcomes.rs`, on `OnEnter(GameAssetsStates::Loaded)`, INSERT both
       configs into the `GameScenarios` resource before triggering
       `LoadScenario(outcome_probe_a(...))`. Required: the queued switch
       resolves its id against that resource and unloads to the menu on a miss
@@ -79,7 +79,7 @@ this; the rule promotes their precedent. The type is `ScenarioConfig`
       on `Loaded`, not on `OnEnter(Playing)` - `assert_scenario_loaded` checks
       by `OnEnter(Playing)` and loading in the same schedule is a race
       (`examples/gameplay/scenario.rs:83`).
-- [ ] Write `outcomes.rs`'s script as `AutopilotPlugin` `.step()` beats
+- [x] Write `outcomes.rs`'s script as `AutopilotPlugin` `.step()` beats
       (DECISION.md D2), each with a `deadline` so a stall names its step:
       wait for the scenario to seed and `player_ship_present()`; kill the
       player with a `HealthApplyDamage { amount: 1e6 }` overkill on the ship
@@ -94,11 +94,11 @@ this; the rule promotes their precedent. The type is `ScenarioConfig`
       objective completed and that `NovaEventWorld::next_scenario` names
       `outcome_probe_b`; trigger `Activate` again; end on `outcome_probe_b`
       being the loaded scenario.
-- [ ] Update the category prose that names the fleet: the per-category comments
+- [x] Update the category prose that names the fleet: the per-category comments
       in `Cargo.toml` (the `gameplay/` block is marked TRANSITIONAL, not a
       contract) and the dev wiki category table
       (`web/src/wiki/dev/development.md`).
-- [ ] RUN each of the three examples under Xvfb, not just `cargo check` - a
+- [x] RUN each of the three examples under Xvfb, not just `cargo check` - a
       check misses duplicate-component panics and the run is the deliverable.
 
 ## Definition of Done
@@ -191,3 +191,112 @@ Both of NOTES.md's OPEN questions are answered by code; neither needs a spike.
   updating its catalog/smoke entries. It is kept because that window is exactly
   what the atomic-commit Steps must not leave open; the rename `cmd:` proof
   above is the red-on-base delivery guard beside it.
+
+## Close-out
+
+### What and why
+
+`examples/gameplay/` is now `examples/systems/`: `scenario` and `playable`
+moved with `git mv` and were deepened into repeated rounds, and `outcomes` is
+new - the composed Defeat -> Retry -> clean reload -> Victory + CHECKPOINT ->
+chain arc, on two code-built `ScenarioConfig` fixtures registered into
+`GameScenarios` (D1). `broadside`/`lifeline` stay behind under a TRANSITIONAL
+`gameplay/` block for `20260804-093910` to delete, so the composed outcome path
+is never absent from the tree.
+
+One production change came out of it: `nova_probe`'s monotonic invariant now
+forgets its memory on `ScenarioLoaded` (D6). That is a real bug, not test
+scaffolding - a replaying example was guaranteed a false `monotonic_regression`
+at every round boundary, and dropping the invariant from `player_path` instead
+would have traded a correct one-way-latch claim for silence.
+
+### Alternatives
+
+- Keeping `monotonic` off `player_path` entirely. Rejected: the latch IS
+  one-way within a scenario life, and the checker's reset rule was simply
+  shaped for teardown rather than reload.
+- Aiming the overkill at the object root only, and giving the hostile a ship
+  body so root damage lands. Rejected: it would have hidden the propagation
+  rule (D6) behind a fixture choice, and the asteroid is the cheaper hostile.
+- `with_main_menu(true)` to get the overlay. Rejected: it also takes the
+  boot-into-MainMenu handoff, which this run must not take.
+
+### Difficulties and diagnosis
+
+Three failures, none of which `cargo check` or `reached_playing` can see. All
+three were diagnosed by RUNNING the fleet and reading the step names in the
+stall lines, which is precisely the argument the Steps made for running rather
+than checking:
+
+- `die to the overkill` stalled with `CurrentOutcome == Defeat` the whole time.
+  A temporary `.each()` diagnostic printing every `Outcome*`-named entity showed
+  the list empty, which pointed at plugin composition rather than at the
+  scenario: `with_game_plugins` had disabled `NovaMenuPlugin`.
+- `kill the hostile` stalled with no `on_destroyed_entity` line at all. The
+  asteroid's own docs name the cause - the root is a marker carrier, `Health`
+  lives on the collider child, and `HealthApplyDamage` only propagates upward.
+- `player_path` completed and still failed 5/6 on two `monotonic_regression`
+  entries. Reading `check_invariants` showed the reset keyed on a key VANISHING,
+  a gap a reload never leaves.
+
+### Evidence
+
+- `probe run systems` - OK: `scenario_grammar` OK, `player_path` OK,
+  `outcomes` OK (5/6 each; the sixth is `fps_within_baseline`, SKIPPED, as
+  `systems/` carries no fps window by contract).
+- `probe run outcomes` - OK on its own: process_exit, run_completed,
+  reached_playing, invariants_held (0 violations / 52 frames), log_clean.
+- `cargo test --test examples_smoke systems_reach_playing_without_panic` - ok.
+- `cargo test --test examples_smoke catalog_matches_disk` - ok.
+- `cargo test -p nova_probe --lib invariants` - 12 passed, including the new
+  `a_gapless_reload_resets_monotonic_memory`.
+- Both `cmd:` shell proofs exit 0; `cargo fmt --check` clean;
+  `cargo check --examples --features debug` clean.
+- Not run locally: the full workspace suite (CI owns it).
+
+### Reflection
+
+The Step that said "RUN each of the three examples under Xvfb, not just
+`cargo check`" earned its place three separate times in one task - every bug
+here was invisible to a check and to `reached_playing`, and two of them would
+have shipped an example that proves nothing while reporting a stall nobody
+reads. The generalizable form is narrower than "run it": a predicate that
+gates on a RESOURCE alone (`CurrentOutcome`) passes on a build with no UI at
+all, so `outcome_overlay_up`'s insistence on the resource AND the entity is
+what turned a vacuous pass into a nameable stall. Worth keeping in mind for
+`20260804-094021`, which asserts on rendered UI throughout.
+
+### Round 1 feedback
+
+All nine findings fixed; see REVIEW.md for the per-finding responses. Eight
+were the doc sweep, and they share one root cause worth naming: the Step that
+owned the sweep enumerated two files (`Cargo.toml`'s comments and the wiki
+category table) instead of naming the grep. Everything missed sat outside that
+list - three wiki pages citing the deleted `examples/gameplay/scenario.rs`, a
+probe SKILL.md left self-contradictory by its own partial edit, an invariants
+paragraph naming two dead examples, and no CHANGELOG line for a rename that
+breaks `cargo run --example playable`. A half-swept doc is worse than an
+untouched one: the stale half still reads as current.
+
+Two findings changed the code rather than the prose:
+
+- `outcome_overlay_up` now waits on `Outcome Primary Button`, not
+  `Outcome Overlay`. The reviewer read this as the D6 frame-lag race one level
+  down; it is not - both spawn in one `commands.spawn(...).with_children(...)`
+  batch, so they land together. The real gap is that the button is CONDITIONAL
+  on something being queued, so a fixture that forgot its lingering
+  `NextScenario` would have panicked inside the next beat's `activate_named`
+  rather than stalling on a named step. Waiting on the button the beat
+  presses is right for the second reason, not the first.
+- `outcomes` gained a `report the defeat overlay` beat, so the log line its
+  module doc told readers to grep for actually exists. The doc block was
+  written from the intended shape, not the emitted one - the same class of
+  error as a self-ticked proof, caught only because the reviewer grepped the
+  run log for every string the doc promised.
+
+Re-verified after the fixes: `probe run systems` OK 3/3 (5/6 each), the full
+`cargo test --test examples_smoke` suite 8/8, `cargo test -p nova_probe --lib
+invariants` 12 passed, `cargo fmt --check` clean, both shell proofs exit 0, and
+the doc sweep re-grepped clean (the only survivors are synthetic manifest
+strings inside `catalog.rs`'s own unit tests). Both doc-promised grep strings
+confirmed live in `probe-runs/abde17e3/`.

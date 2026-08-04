@@ -54,7 +54,7 @@
 //! Run it headless:
 //!
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example scenario --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example scenario_grammar --features debug
 //! # look for: `nova harness: reached Playing`
 //! #           `autopilot: cycle complete, no panic`
 //! ```
