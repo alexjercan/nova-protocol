@@ -16,6 +16,13 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- `examples/sections/`: five ranges, one per section family, each walking a
+  NAMED roster of invariants over several predicate-gated rounds, across as
+  many scenes or rig layouts as its invariants need. `com_range` folds into
+  `hull_section` and `torpedo_guidance` into `torpedo_section`, whose PN lead
+  angle is now asserted rather than logged;
+  `sections_assert_their_invariant_roster` pins all 27 invariant names so one
+  cannot be deleted into a still-green run.
 - `scripts/serve-web.sh`: one-command live web preview - site, game and mod
   portal on free 7XXX ports, proxied onto one origin, all watched.
 - `scripts/serve-mods.sh`: builds and serves the mod portal, regenerating on
@@ -52,8 +59,8 @@ tagged **(breaking)**.
   `cursor_position`, a `CursorMoved` message and a fresh `just_pressed`.
 - `nova_debug::harness`: Nova-typed predicates `scenario_variable_is`,
   `section_gone` and `player_ship_present`, so a script waits on what the game
-  agreed happened rather than on a guessed duration. `com_range`, `hud_range`
-  and `player_path` are rewritten onto them, dropping their hand-rolled beat
+  agreed happened rather than on a guessed duration. `hull_section`,
+  `hud_range` and `player_path` are rewritten onto them, dropping their beat
   offsets, boolean stage trackers and per-example completion guards.
 - Every example category carries an explicit contract, and `nova_probe`
   resolves what to run from it (`CategoryPolicy { probed, frame_time }`)

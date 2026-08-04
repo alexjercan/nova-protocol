@@ -158,9 +158,11 @@ What is on disk today, in curriculum reading order:
 
 - `sections/` - one test range per ship section: `controller_section` (PD
   attitude), `thruster_section` (burn -> thrust + plume shader),
-  `hull_section` (damage -> destroy -> ship survives), `turret_section`
-  and `torpedo_section` (the weapon test ranges), `torpedo_guidance` (PN
-  deep-dive), `com_range` (mass properties under section destruction).
+  `hull_section` (damage -> destroy -> ship survives, and the mass properties
+  the losses move), `turret_section` and `torpedo_section` (the weapon test
+  ranges, the latter also the PN lead-a-crosser deep-dive). One range per
+  section family, each walking a named roster of invariants across several
+  rounds, and across as many scenes or rig layouts as its invariants need.
 - `systems/` - code-built fixtures for the cross-cutting systems, every one a
   `ScenarioConfig` written in Rust and loaded with `LoadScenario`:
   `scenario_grammar` (the scenario language - variables, events, filters,
@@ -217,11 +219,13 @@ each category headless as a regression suite, one test per category -
 `Playing` and exit without panic; the sections, systems and ui examples
 additionally carry panic-on-failure behavior assertions with completion
 backstops (a stalled script fails instead of passing vacuously), except
-`torpedo_guidance` and `editor`, which assert at the scenario-load /
-reach-gameplay level. The screenshot examples only drive the shipped scenes
-to capture frames: they assert nothing, and every one of them walks an
-`AutopilotPlugin` step timeline, so a beat that never resolves is an error
-exit naming that step. Disk, catalog and smoke lists cannot drift: the
+`editor`, which asserts at the reach-gameplay level. The `sections/` rosters
+are pinned by the display-free `sections_assert_their_invariant_roster`, so an
+invariant cannot be deleted into a still-green run. The screenshot examples
+only drive the shipped scenes to capture frames: they assert nothing, and
+every one of them walks an `AutopilotPlugin` step timeline, so a beat that
+never resolves is an error exit naming that step. Disk, catalog and smoke
+lists cannot drift: the
 display-free `catalog_matches_disk` test fails a bare `cargo test` when a
 new example misses its `[[example]]` block or its category's smoke list
 (`render_scale_shot` and `perf_baseline` are deliberately unsmoked; the
@@ -248,7 +252,7 @@ composed scene (for example, `menu_newgame` runs the shipped boot flow with
 the ECS fallback error handler swapped to panic, so unhandled command errors on
 those transitions fail CI). An example pin is an autopilot-script assertion
 (a named step whose `on_enter` asserts, reached only once the steps before it
-have waited on the world - see `com_range`/`hud_range` for the style); the
+have waited on the world - see `hull_section`/`hud_range` for the style); the
 smoke suite runs it on every push. Caveat: the handler swap
 does NOT catch `remove`/`despawn` command warns (they bake in the WARN handler
 at queue time).

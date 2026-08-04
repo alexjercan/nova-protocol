@@ -40,6 +40,9 @@
 #[path = "turret_section/slider.rs"]
 mod slider;
 
+#[cfg(feature = "debug")]
+use std::sync::Arc;
+
 use avian3d::prelude::*;
 use bevy::{
     color::palettes::tailwind,
@@ -60,29 +63,69 @@ struct Cli;
 /// Id of the gate that sweeps across the front for the turret to track.
 const MOVING_GATE_ID: &str = "gate_moving";
 
+/// Health of a static gate. High so the range keeps something to shoot at
+/// rather than clearing itself in a burst.
+const GATE_HEALTH: f32 = 2000.0;
+
+/// Health of an object the run must not lose: the sweeping gate and the
+/// planetoid. Not `invulnerable`, because the script still needs to OBSERVE
+/// damage landing on the sweeping gate.
+const INDESTRUCTIBLE_HEALTH: f32 = 100_000.0;
+
+/// Centre of the sweeping gate's path.
+const MOVING_GATE_ORIGIN: Vec3 = Vec3::new(-35.0, 6.0, -55.0);
+
+/// Half-width of the sweep, in world units. Chosen so the path stays clear of
+/// the static gates - `gate_front` sits at x = 0, and a sweep that reached it
+/// put the two within their combined radii once per pass, where contact damage
+/// destroyed the mover mid-run.
+const SWEEP_AMPLITUDE: f32 = 22.0;
+
+/// Angular rate of the sweep, in radians per second (a ~10.5 s round trip).
+const SWEEP_RATE: f32 = 0.6;
+
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
     // Headless smoke-test harness: inert in a normal run. Under NOVA_AUTOPILOT
-    // it holds the fire key and asserts the range's PURPOSE before the window
-    // closes: rounds left the barrel and a gate actually took hits (task
-    // 20260712-211352 - reach-Playing alone let a turret that never connects
-    // pass). Scene is built on `GameAssetsStates::Loaded` so the screenshot's
-    // forced Playing does not re-run setup.
+    // it holds the fire key and asserts the range's PURPOSE: rounds left the
+    // barrel, a gate actually took hits (task 20260712-211352 - reach-Playing
+    // alone let a turret that never connects pass), and the barrel converged
+    // on a MOVING target. Scene is built on `GameAssetsStates::Loaded` so the
+    // screenshot's forced Playing does not re-run setup.
     #[cfg(feature = "debug")]
     {
         app.init_resource::<RangeOutcome>();
+        app.init_resource::<HeldInput>();
         app.add_observer(
             |_: On<Add, TurretBulletProjectileMarker>, mut outcome: ResMut<RangeOutcome>| {
+                if !outcome.fired {
+                    info!("range: first round left the barrel");
+                }
                 outcome.fired = true;
             },
         );
+        // The SOURCE clause is load-bearing: the gates drift into each other
+        // and into the planetoid, and that collision damage tripped this flag
+        // within a frame of the range loading - long before any round could
+        // cross the ~55 u to the nearest gate. Requiring the source to be a
+        // turret round is what makes "a gate took hits" a claim about the
+        // turret. `apply_typed_damage` passes the bullet's body as `source`
+        // (nova_gameplay/src/damage.rs:162-183).
         app.add_observer(
             |damage: On<HealthApplyDamage>,
              q_gate: Query<(), With<RangeGateMarker>>,
+             q_bullet: Query<(), With<TurretBulletProjectileMarker>>,
              mut outcome: ResMut<RangeOutcome>| {
-                if q_gate.contains(damage.entity) {
+                if q_gate.contains(damage.entity)
+                    && damage
+                        .source
+                        .is_some_and(|source| q_bullet.contains(source))
+                {
+                    if !outcome.gate_damaged {
+                        info!("range: a turret round connected with a gate");
+                    }
                     outcome.gate_damaged = true;
                 }
             },
@@ -93,7 +136,7 @@ fn main() -> bevy::app::AppExit {
         app.add_plugins(nova_probe::nova_timeline());
         app.add_plugins(nova_probe::nova_invariants());
         app.add_plugins(nova_probe::nova_frametime());
-        app.add_plugins(nova_autopilot().input(autopilot_fire_and_assert));
+        app.add_plugins(turret_script());
         app.add_plugins(nova_screenshot());
     }
 
@@ -122,6 +165,38 @@ fn custom_plugin(app: &mut App) {
     );
     app.add_observer(tag_gate);
     app.add_plugins(SliderWidgetPlugin);
+    #[cfg(feature = "debug")]
+    {
+        app.init_resource::<AimSettle>();
+        app.add_systems(Update, track_aim_settle);
+    }
+}
+
+/// How long the barrel's aim error has stopped changing - i.e. how long the
+/// slew has been in steady state rather than still swinging onto the target.
+#[cfg(feature = "debug")]
+#[derive(Resource, Default)]
+struct AimSettle {
+    last_deg: Option<f32>,
+    still_frames: u32,
+}
+
+/// Sample the live aim error and count the frames its RATE of change has stayed
+/// under [`AIM_STEADY_RATE_DEG_PER_SEC`].
+#[cfg(feature = "debug")]
+fn track_aim_settle(world: &mut World) {
+    let error = aim_error_deg(world);
+    let dt = world.resource::<Time>().delta_secs();
+    let mut settle = world.resource_mut::<AimSettle>();
+    match (settle.last_deg, error) {
+        (Some(last), Some(now))
+            if dt > 0.0 && (last - now).abs() / dt < AIM_STEADY_RATE_DEG_PER_SEC =>
+        {
+            settle.still_frames += 1;
+        }
+        _ => settle.still_frames = 0,
+    }
+    settle.last_deg = error;
 }
 
 /// Marks an asteroid the range treats as a target gate.
@@ -137,10 +212,28 @@ struct RangeMovingTarget;
 struct StatusTimer(Timer);
 
 fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, sections: Res<GameSections>) {
-    commands.trigger(LoadScenario(turret_range(&game_assets, &sections)));
+    commands.trigger(LoadScenario(turret_range(
+        &game_assets,
+        &sections,
+        RANGE_ID,
+    )));
 }
 
-fn turret_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
+/// The scenario id the first load runs under. The reload uses
+/// [`RELOADED_RANGE_ID`] instead, so the reload gate can observe WHICH load is
+/// live rather than guessing from world contents.
+const RANGE_ID: &str = "turret_range";
+
+/// The scenario id the reload runs under.
+#[cfg(feature = "debug")]
+const RELOADED_RANGE_ID: &str = "turret_range_reloaded";
+
+/// The round label the reload pass runs under, so invariant 4 fires on that
+/// pass and only there.
+#[cfg(feature = "debug")]
+const RELOADED_ROUND: &str = "round 2";
+
+fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> ScenarioConfig {
     let section = |id: &str| {
         sections
             .get_section(id)
@@ -190,7 +283,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
     // Gates in the turret's firing arc (ahead, -Z, within its pitch range), plus
     // the sweeping one. Health is high so they survive and the turret keeps
     // tracking/firing rather than clearing the range in a burst.
-    let gate = |id: &str, name: &str, pos: Vec3| ScenarioObjectConfig {
+    let gate = |id: &str, name: &str, pos: Vec3, health: f32| ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
             name: name.to_string(),
@@ -202,7 +295,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
             destroy_sound: Some("base/sounds/explosion.wav".into()),
             radius: 2.0,
             texture: game_assets.asteroid_texture.clone().into(),
-            health: 2000.0,
+            health,
             surface_gravity: None,
             invulnerable: false,
             lock_signature: None,
@@ -219,11 +312,45 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
             },
             kind: ScenarioObjectKind::Spaceship(ship),
         },
-        gate("gate_front", "Front Gate", Vec3::new(0.0, 3.0, -55.0)),
-        gate("gate_left", "Left Gate", Vec3::new(-32.0, 4.0, -45.0)),
-        gate("gate_right", "Right Gate", Vec3::new(30.0, 3.0, -48.0)),
-        gate("gate_high", "High Gate", Vec3::new(6.0, 26.0, -40.0)),
-        gate(MOVING_GATE_ID, "Moving Gate", Vec3::new(-35.0, 6.0, -55.0)),
+        gate(
+            "gate_front",
+            "Front Gate",
+            Vec3::new(0.0, 3.0, -55.0),
+            GATE_HEALTH,
+        ),
+        gate(
+            "gate_left",
+            "Left Gate",
+            Vec3::new(-32.0, 4.0, -45.0),
+            GATE_HEALTH,
+        ),
+        gate(
+            "gate_right",
+            "Right Gate",
+            Vec3::new(30.0, 3.0, -48.0),
+            GATE_HEALTH,
+        ),
+        gate(
+            "gate_high",
+            "High Gate",
+            Vec3::new(6.0, 26.0, -40.0),
+            GATE_HEALTH,
+        ),
+        // The sweeping gate is the one target the script REQUIRES alive: the
+        // tracking beat waits on its live position, so its despawn stalls the
+        // run outright. It is also the most punished object on the range - it
+        // is what the turret aims at, and its sweep drives it through the
+        // static gates' lane, where contact damage alone took it from full to
+        // destroyed inside one round. The single-round version of this range
+        // ended before that mattered; a multi-round one has to outlast it, so
+        // this gate gets the planetoid's durability rather than a gate's. Still
+        // damageable, which is what invariant 2 observes.
+        gate(
+            MOVING_GATE_ID,
+            "Moving Gate",
+            MOVING_GATE_ORIGIN,
+            INDESTRUCTIBLE_HEALTH,
+        ),
         // A gravity planetoid slung below the firing lane so rounds crossing
         // its sphere of influence curve downward toward it - the range is where
         // you eyeball bullet gravity (docs/spikes/20260712-112113). It is
@@ -243,7 +370,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                 destroy_sound: Some("base/sounds/explosion.wav".into()),
                 radius: 16.0,
                 texture: game_assets.asteroid_texture.clone().into(),
-                health: 100_000.0,
+                health: INDESTRUCTIBLE_HEALTH,
                 surface_gravity: Some(10.0),
                 invulnerable: false,
                 lock_signature: None,
@@ -261,7 +388,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
     }];
 
     ScenarioConfig {
-        id: "turret_range".to_string(),
+        id: id.to_string(),
         name: "Turret Range".to_string(),
         description: "A test range for the PDC turret section.".to_string(),
         cubemap: game_assets.cubemap.clone().into(),
@@ -280,9 +407,19 @@ fn tag_gate(add: On<Add, AsteroidMarker>, mut commands: Commands, q_id: Query<&E
         .map(|id| id.0 == MOVING_GATE_ID)
         .unwrap_or(false)
     {
-        commands
-            .entity(entity)
-            .insert((RangeMovingTarget, LinearVelocity::default()));
+        // `RigidBody::Kinematic` is load-bearing, not a tweak: it is what makes
+        // the gate follow the path `drive_moving_gate` authors instead of
+        // negotiating with the solver. As a dynamic body it was pulled by the
+        // planetoid, shoved by bullet impacts and stopped dead on the driven
+        // axis. Kinematic bodies still collide and still take damage, so
+        // invariant 2 is unaffected. `SleepingDisabled` keeps avian from
+        // parking it during the quiet beats.
+        commands.entity(entity).insert((
+            RangeMovingTarget,
+            RigidBody::Kinematic,
+            LinearVelocity::default(),
+            SleepingDisabled,
+        ));
     }
 }
 
@@ -308,13 +445,30 @@ fn anchor_shooter_against_gravity(
 }
 
 /// Sweep the moving gate across the front so the turret has to track it.
+///
+/// The gate is placed ON its path each frame rather than pushed along it by
+/// `LinearVelocity`. As a dynamic body it was a rock in a scene full of forces:
+/// the planetoid pulled it, bullet impacts shoved it, contacts with the static
+/// gates damaged it, and - the flake that cost the most to find - a velocity
+/// written every frame in `Update` simply did not translate into motion on the
+/// driven axis, so the gate carried 18 u/s while sitting still. The tracking
+/// beat waits on this gate having TRAVELLED, so that stalled the run about half
+/// the time. Authored motion also makes the beat repeatable, which is what an
+/// assertion about tracking wants.
+///
+/// [`LinearVelocity`] is still written, because it is what `range_aim` feeds the
+/// turret's lead solution; here it is the analytic derivative of the path rather
+/// than a request to the solver.
 fn drive_moving_gate(
     time: Res<Time>,
-    mut q_gate: Query<&mut LinearVelocity, With<RangeMovingTarget>>,
+    mut q_gate: Query<(&mut Transform, &mut LinearVelocity), With<RangeMovingTarget>>,
 ) {
-    let speed = (time.elapsed_secs() * 0.6).sin() * 18.0;
-    for mut velocity in &mut q_gate {
-        velocity.0 = Vec3::new(speed, 0.0, 0.0);
+    let phase = time.elapsed_secs() * SWEEP_RATE;
+    for (mut transform, mut velocity) in &mut q_gate {
+        transform.translation.x = MOVING_GATE_ORIGIN.x + phase.sin() * SWEEP_AMPLITUDE;
+        transform.translation.y = MOVING_GATE_ORIGIN.y;
+        transform.translation.z = MOVING_GATE_ORIGIN.z;
+        velocity.0 = Vec3::new(phase.cos() * SWEEP_AMPLITUDE * SWEEP_RATE, 0.0, 0.0);
     }
 }
 
@@ -382,105 +536,446 @@ fn report_status(
     q_muzzle: Query<&GlobalTransform, With<TurretSectionBarrelMuzzleMarker>>,
     q_turret: Query<&TurretSectionAimPoint, With<TurretSectionMarker>>,
     q_bullets: Query<(), With<TurretBulletProjectileMarker>>,
+    q_moving: Query<(), With<RangeMovingTarget>>,
+    q_gates: Query<(), With<RangeGateMarker>>,
 ) {
     if !timer.0.tick(time.delta()).just_finished() {
         return;
     }
+    // Say WHICH piece is missing rather than returning silently: a range whose
+    // turret or aim point has gone away looks identical to a quiet log, and
+    // that ambiguity cost a diagnosis once already.
     let Some(aim) = q_turret.iter().next().and_then(|a| **a) else {
+        info!(
+            "turret: no aim point ({} turrets, {} gates up)",
+            q_turret.iter().count(),
+            q_gates.iter().count()
+        );
         return;
     };
     let Ok(muzzle) = q_muzzle.single() else {
+        info!(
+            "turret: no single muzzle ({} found)",
+            q_muzzle.iter().count()
+        );
         return;
     };
     let barrel = muzzle.forward();
     let to_aim = (aim - muzzle.translation()).normalize_or_zero();
     let error_deg = barrel.dot(to_aim).clamp(-1.0, 1.0).acos().to_degrees();
     info!(
-        "turret: aim error {:.1} deg, {} bullets in flight",
+        "turret: aim error {:.1} deg, {} bullets in flight, mover {}",
         error_deg,
-        q_bullets.iter().count()
+        q_bullets.iter().count(),
+        if q_moving.iter().next().is_some() {
+            "up"
+        } else {
+            "DOWN"
+        }
     );
 }
 
-/// What the headless range run has observed so far; asserted complete just
-/// before the autopilot window closes.
+/// What the headless range run has observed in the CURRENT round. Reset by the
+/// reload beat, so round 2 has to earn every flag again rather than inheriting
+/// round 1's.
 #[cfg(feature = "debug")]
 #[derive(Resource, Default)]
 struct RangeOutcome {
     fired: bool,
     gate_damaged: bool,
-    asserted: bool,
-    /// Timeline beats already emitted for the flags above.
-    fired_marked: bool,
-    damaged_marked: bool,
+    /// The moving gate's position when the round's fire beat opened, so the
+    /// aim assertion can show the turret converged on a target that MOVED.
+    gate_at_round_start: Option<Vec3>,
 }
 
-/// Autopilot input: hold the fire key while in Playing so the range fires
-/// headless, and just before the window closes assert rounds were fired and
-/// a gate took hits (the nearest gate sits ~55 u out; the PDC stream reaches
-/// it in about a second, so the chain completes well inside the window).
+/// The inputs the script holds down. A resource re-applied every frame rather
+/// than a one-shot press: `ButtonInput` is a live map the game's own systems
+/// read every frame, and the weapons safety (task 20260713-082337) derives
+/// `WeaponsHot` from the HELD combat input - a press applied once on a step's
+/// entry would be a press, not a hold.
 #[cfg(feature = "debug")]
-fn autopilot_fire_and_assert(world: &mut World, elapsed: f32) {
-    if *world.resource::<State<GameStates>>().get() != GameStates::Playing {
-        return;
+#[derive(Resource, Default)]
+struct HeldInput {
+    /// RMB - the combat stance the safety gates firing on.
+    combat: bool,
+    /// Space - the trigger.
+    fire: bool,
+}
+
+/// Re-press the held inputs for the frame.
+///
+/// Wired as the script's [`AutopilotPlugin::input`] hook, NOT as an `Update`
+/// system. That slot runs in `PreUpdate` after `InputSystems`
+/// (nova_autopilot/src/autopilot.rs:384), which is the only place a synthesized
+/// press is still `just_pressed` when the game's `Update` input systems read
+/// it. As an unordered `Update` system this raced `SpaceshipInputSystems` and
+/// lost: the stance still went hot (the safety reads the HELD button), but the
+/// trigger's single `just_pressed` edge was cleared before the weapon saw it,
+/// so the range aimed perfectly and never fired a round.
+#[cfg(feature = "debug")]
+fn hold_inputs(world: &mut World, _elapsed: f32) {
+    let held = world.resource::<HeldInput>();
+    let (combat, fire) = (held.combat, held.fire);
+    if combat {
+        world
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .press(MouseButton::Right);
     }
-    // Raise the combat stance (RMB held) and only then press fire: the
-    // weapons safety (task 20260713-082337) derives WeaponsHot from the
-    // HELD combat input, DENIES a press that arrives while cold, and a
-    // held key produces no fresh Start edge once hot - so pressing fire
-    // before the stance settles latches nothing, forever. The outcome
-    // assertion below caught exactly that: both ranges fired nothing
-    // since the safety landed (task 20260712-211352). Mirror a real
-    // player: raise, wait until hot, then hold fire.
-    world
-        .resource_mut::<ButtonInput<MouseButton>>()
-        .press(MouseButton::Right);
-    let hot = {
-        let mut q_hot = world.query_filtered::<&WeaponsHot, With<PlayerSpaceshipMarker>>();
-        q_hot.single(world).is_ok_and(|hot| hot.0)
-    };
-    if hot {
+    if fire {
         world
             .resource_mut::<ButtonInput<KeyCode>>()
             .press(KeyCode::Space);
     }
+}
 
-    // Timeline beats (task 20260719-210450): mark each range outcome the
-    // first frame it is OBSERVED, so the probe report shows the feature
-    // working, not just the process surviving.
-    let newly: Vec<&str> = {
-        let mut outcome = world.resource_mut::<RangeOutcome>();
-        let mut newly = Vec::new();
-        if outcome.fired && !outcome.fired_marked {
-            outcome.fired_marked = true;
-            newly.push("turret fired");
-        }
-        if outcome.gate_damaged && !outcome.damaged_marked {
-            outcome.damaged_marked = true;
-            newly.push("gate damaged");
-        }
-        newly
+/// How close to the aim point the barrel must come, in degrees, for the turret
+/// to count as tracking. The gizmo turns green well inside this; a turret that
+/// slews too slowly for the sweep sits far outside it.
+#[cfg(feature = "debug")]
+const AIM_TOLERANCE_DEG: f32 = 3.0;
+
+/// How far the moving gate must have travelled during a round before "the
+/// barrel is on target" means anything. Below this the turret could be holding
+/// a nearly static point.
+#[cfg(feature = "debug")]
+const GATE_TRAVEL_MIN: f32 = 8.0;
+
+/// How much margin the tracking beat's travel clause carries over the assert's,
+/// in units.
+///
+/// The travel is `|x(t) - x(t0)|` on a SINE sweep, so it is not monotonic: it
+/// returns to 0 once per ~10.5s period and passes through
+/// [`GATE_TRAVEL_MIN`] downward on the way. The autopilot enters the next step
+/// on the FOLLOWING frame (`nova_autopilot::autopilot`: "entry gets its own
+/// frame"), so a beat that opened on a FALLING edge at exactly the assert's
+/// threshold would hand the assert a lower value and panic a healthy turret.
+/// Half a second of the sweep's PEAK speed ([`SWEEP_AMPLITUDE`] *
+/// [`SWEEP_RATE`] = 13.2 u/s) is orders of magnitude more than a frame at any
+/// framerate this runs at.
+#[cfg(feature = "debug")]
+const GATE_TRAVEL_BEAT_MARGIN: f32 = SWEEP_AMPLITUDE * SWEEP_RATE * 0.5;
+
+/// How long the trigger beat holds after the first round leaves the barrel, in
+/// seconds.
+///
+/// A settle beat, and deliberately NOT "a gate took damage" - that is the
+/// comparison [`assert_fired_and_connected`] makes, and gating on it left
+/// invariants 1 and 2 unfailable: a turret that fires into empty space could
+/// only surface as a deadline stall on this beat's name, never as the message
+/// that explains it. The beat delivers the stimulus (rounds are leaving the
+/// barrel); whether one CONNECTED is the assertion's question.
+///
+/// Sized off the range: the joints slew at ~140 deg/s and the nearest gates sit
+/// 48-65 u out at a 100 u/s muzzle speed, so a healthy turret is on target and
+/// has landed several rounds inside ~1.7s. This window is more than twice that.
+#[cfg(feature = "debug")]
+const HIT_SETTLE_SECS: f32 = 4.0;
+
+/// How fast the aim error may still be moving and count as steady, in degrees
+/// per SECOND. A rate, not a per-frame delta: the joints slew via
+/// `SmoothLookRotation`, whose `speed` is rad/s, so a per-frame delta means a
+/// different physical threshold at every framerate. At the ~140 deg/s these
+/// joints slew at, a fixed 0.5 deg/frame bound is refused correctly on the
+/// ~14fps llvmpipe box and satisfied MID-SLEW above ~280fps, letting invariant
+/// 3 read an error tens of degrees out.
+///
+/// An order of magnitude under the slew rate, and above the wobble a barrel
+/// holding a swept target shows.
+#[cfg(feature = "debug")]
+const AIM_STEADY_RATE_DEG_PER_SEC: f32 = 10.0;
+
+/// How many consecutive steady samples the tracking beat waits for before
+/// letting invariant 3 read the error.
+#[cfg(feature = "debug")]
+const AIM_STEADY_FRAMES: u32 = 5;
+
+/// The script type, named once so the step list and its helpers agree.
+#[cfg(feature = "debug")]
+type Script = nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates>;
+
+/// The scripted run: raise the stance, hold the trigger through a firing
+/// window, assert the hits, let the barrel converge on the mover, then do the
+/// whole thing again on a reloaded range.
+///
+/// Not the stock `nova_autopilot()` preset: every beat waits on the value it
+/// depends on - `WeaponsHot`, the first round leaving the barrel, the live aim
+/// error - so a slow load or a slow slew delays the walk instead of truncating
+/// it. No beat reads a quantity an assertion decides; the one settle states its
+/// reason on [`HIT_SETTLE_SECS`]. The
+/// per-step deadlines NAME the beat that stalled; their runtime sum
+/// (15 + 36 + 10 + 36 = 97s, counting `fire_round`'s beats once per CALL rather
+/// than once per source line) stays under `DEFAULT_DEADLINE_SECS` (120s) so a
+/// named stall wins the race against the generic collector deadline.
+#[cfg(feature = "debug")]
+fn turret_script() -> Script {
+    let script = Script::new()
+        // Every step re-presses whatever the script is holding down; see
+        // `hold_inputs` for why this must be the plugin hook and not a system.
+        .input(hold_inputs)
+        .step("load the range")
+        .enter(GameStates::Loading)
+        .until(and(player_ship_present(), moving_gate_present()))
+        .deadline(15.0)
+        .add();
+    let script = fire_round(script, "round 1");
+    let script = script
+        // Wait for a range that is DEMONSTRABLY the fresh one: the reload
+        // carries a DISTINCT scenario id, so `CurrentScenario` naming it can
+        // only mean the second load landed. Paired with the ship being up,
+        // since that is what round 2 goes on to fire.
+        //
+        // Not "wait for the ship to be gone, then back": there is no such
+        // frame. `on_load_scenario` queues the scoped despawns and fires
+        // `OnStartEvent` on the SAME `Commands`
+        // (nova_scenario/src/loader/lifecycle.rs:162-253), so the teardown and
+        // the respawn land in one flush and a gone-then-present pair stalls out
+        // its deadline instead.
+        //
+        // Not "every gate is back at full health" either: the gates collide
+        // with each other and with the planetoid, so a pristine range is not
+        // a state this scene holds for long.
+        .step("reload the range")
+        .on_enter(reload_range)
+        .until(and(
+            scenario_is(RELOADED_RANGE_ID),
+            and(player_ship_present(), moving_gate_present()),
+        ))
+        .deadline(10.0)
+        .add();
+    fire_round(script, RELOADED_ROUND)
+}
+
+/// One full pass of invariants 1-3, appended to `script`. Called twice - once
+/// on the booted range and once on the reloaded one - which is what makes
+/// invariant 4 a claim about the whole set rather than a spot check.
+#[cfg(feature = "debug")]
+fn fire_round(script: Script, round: &'static str) -> Script {
+    script
+        // Raise the combat stance and wait for the safety to actually go hot.
+        // Pressing fire before it does latches nothing, forever: the safety
+        // DENIES a press that arrives while cold, and a held key produces no
+        // fresh Start edge once hot. The outcome assertions below caught
+        // exactly that - both ranges fired nothing for a while after the
+        // safety landed (task 20260712-211352).
+        .step("raise the weapons")
+        .on_enter(|world: &mut World| world.resource_mut::<HeldInput>().combat = true)
+        .until(weapons_are_hot())
+        .deadline(6.0)
+        .add()
+        .step("hold the trigger")
+        .on_enter(open_fire)
+        .until(and(range_fired(), elapsed(HIT_SETTLE_SECS)))
+        .deadline(15.0)
+        .add()
+        .step("assert the range fired and connected")
+        .on_enter(move |world: &mut World| assert_fired_and_connected(world, round))
+        .add()
+        // Keep the trigger down: the barrel converging is about the SLEW
+        // keeping up with the sweep, and the rounds in flight are what make
+        // the gizmo readable while it does.
+        .step("track the sweeping gate")
+        .until(aim_converged())
+        .deadline(15.0)
+        .add()
+        .step("assert the barrel tracks the mover")
+        .on_enter(move |world: &mut World| assert_aim_tracks_mover(world, round))
+        .add()
+}
+
+/// Open the trigger and record where the moving gate was, so the aim
+/// assertion can prove the target travelled while the turret held it.
+#[cfg(feature = "debug")]
+fn open_fire(world: &mut World) {
+    // The round-opening beat waited for this gate, so its absence here is a
+    // broken script rather than a slow load. Fail on the spot: recorded as
+    // `None` it produced a silent 30s stall on the tracking beat instead.
+    let gate = moving_gate_position(world)
+        .expect("range: the sweeping gate must exist when a round's trigger opens");
+    let mut outcome = world.resource_mut::<RangeOutcome>();
+    outcome.gate_at_round_start = Some(gate);
+    world.resource_mut::<HeldInput>().fire = true;
+}
+
+/// Re-trigger the range load, and clear the per-round state the fresh range
+/// has to re-establish: the observed outcomes and the held trigger. The
+/// stance stays raised - the fresh ship's safety re-derives it from the held
+/// input, and `raise the weapons` waits for that.
+#[cfg(feature = "debug")]
+fn reload_range(world: &mut World) {
+    let config = {
+        let game_assets = world.resource::<GameAssets>();
+        let sections = world.resource::<GameSections>();
+        turret_range(game_assets, sections, RELOADED_RANGE_ID)
     };
-    for name in newly {
+    *world.resource_mut::<RangeOutcome>() = RangeOutcome::default();
+    // RELEASE the trigger, do not merely stop re-pressing it. `ButtonInput`
+    // only yields a fresh `just_pressed` on a not-pressed -> pressed edge, and
+    // nothing else releases a synthesized key: leaving it latched from round 1
+    // made round 2's press a no-op, so the reloaded range aimed perfectly and
+    // never fired a round.
+    world.resource_mut::<HeldInput>().fire = false;
+    world
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .release(KeyCode::Space);
+    info!("range: reloading the range");
+    world.trigger(LoadScenario(config));
+}
+
+/// The player ship's weapons safety has gone hot.
+#[cfg(feature = "debug")]
+fn weapons_are_hot() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
+    Arc::new(|world: &World| {
+        world
+            .try_query_filtered::<&WeaponsHot, With<PlayerSpaceshipMarker>>()
+            .is_some_and(|mut query| query.iter(world).any(|hot| hot.0))
+    })
+}
+
+/// The live scenario is the one named `id`.
+#[cfg(feature = "debug")]
+fn scenario_is(id: &'static str) -> Arc<nova_protocol::nova_debug::harness::Predicate> {
+    resource_where::<CurrentScenario>(move |current| {
+        current.0.as_ref().is_some_and(|config| config.id == id)
+    })
+}
+
+#[cfg(feature = "debug")]
+fn range_fired() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
+    resource_where::<RangeOutcome>(|outcome| outcome.fired)
+}
+
+/// The sweeping gate exists.
+///
+/// Gated on by BOTH round-opening beats, not just the ship: the round's
+/// tracking invariant is measured against this gate's travel, and the ship
+/// spawning does not imply the scenario's objects have. A round that opened one
+/// frame early captured no start position and then stalled the tracking beat for
+/// its whole deadline - intermittently, since it depended on the spawn order
+/// landing inside a single frame.
+#[cfg(feature = "debug")]
+fn moving_gate_present() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
+    Arc::new(|world: &World| moving_gate_position(world).is_some())
+}
+
+/// The moving gate's current position, or `None` while the range is down.
+#[cfg(feature = "debug")]
+fn moving_gate_position(world: &World) -> Option<Vec3> {
+    let mut query = world.try_query_filtered::<&GlobalTransform, With<RangeMovingTarget>>()?;
+    query.iter(world).next().map(|gt| gt.translation())
+}
+
+/// The angle between the barrel and the point the turret is aiming for, in
+/// degrees - the same quantity `report_status` prints, read for the assertion
+/// rather than the log.
+#[cfg(feature = "debug")]
+fn aim_error_deg(world: &World) -> Option<f32> {
+    let aim = {
+        let mut query =
+            world.try_query_filtered::<&TurretSectionAimPoint, With<TurretSectionMarker>>()?;
+        (**query.iter(world).next()?)?
+    };
+    let muzzle = {
+        let mut query = world
+            .try_query_filtered::<&GlobalTransform, With<TurretSectionBarrelMuzzleMarker>>()?;
+        *query.iter(world).next()?
+    };
+    let barrel = muzzle.forward();
+    let to_aim = (aim - muzzle.translation()).normalize_or_zero();
+    Some(barrel.dot(to_aim).clamp(-1.0, 1.0).acos().to_degrees())
+}
+
+/// The tracking beat: the gate has travelled far enough for holding it to mean
+/// anything, and the slew has reached STEADY STATE - the aim error stopped
+/// changing, whatever value it stopped at.
+///
+/// Deliberately NOT `error < AIM_TOLERANCE_DEG`, which is what invariant 3 then
+/// asserts. Gating on the assert's own bound made the assert unfailable: a
+/// turret that settles 20 deg off the mover could only ever surface as a
+/// deadline stall on this beat's name, never as the invariant message that
+/// explains it. Steady state is the precondition; WHERE it settled is the
+/// assertion's question.
+///
+/// The travel clause IS shared with the assert's guard, so it carries
+/// [`GATE_TRAVEL_BEAT_MARGIN`] over it - see that constant for why a bare
+/// threshold flakes on the sweep's falling edge.
+#[cfg(feature = "debug")]
+fn aim_converged() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
+    Arc::new(|world: &World| {
+        gate_travel(world).is_some_and(|travel| travel > GATE_TRAVEL_MIN + GATE_TRAVEL_BEAT_MARGIN)
+            && world
+                .get_resource::<AimSettle>()
+                .is_some_and(|settle| settle.still_frames >= AIM_STEADY_FRAMES)
+    })
+}
+
+/// How far the moving gate has travelled since the round's trigger opened.
+#[cfg(feature = "debug")]
+fn gate_travel(world: &World) -> Option<f32> {
+    let start = world.get_resource::<RangeOutcome>()?.gate_at_round_start?;
+    Some(moving_gate_position(world)?.distance(start))
+}
+
+/// Invariants 1 and 2: rounds left the barrel, and a gate actually took hits.
+#[cfg(feature = "debug")]
+fn assert_fired_and_connected(world: &mut World, round: &str) {
+    let outcome = world.resource::<RangeOutcome>();
+    assert!(
+        outcome.fired,
+        "range ({round}): no turret round fired in the window"
+    );
+    assert!(
+        outcome.gate_damaged,
+        "range ({round}): no gate took turret hits in the window"
+    );
+    let elapsed = world.resource::<Time>().elapsed_secs();
+    info!("range: {round} - fired -> gate damaged, all observed");
+    nova_probe::probe_marker(
+        world,
+        "outcome: turret fired",
+        serde_json::json!({ "t": elapsed, "round": round }),
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: gate damaged",
+        serde_json::json!({ "t": elapsed, "round": round }),
+    );
+}
+
+/// Invariant 3: the barrel converged on the aim point while the gate was
+/// MOVING, so the slew keeps up with a mover rather than settling on a static
+/// bearing. On round 2 this is also invariant 4 - the whole set held again on
+/// a reloaded range - since reaching it means every earlier beat resolved.
+#[cfg(feature = "debug")]
+fn assert_aim_tracks_mover(world: &mut World, round: &str) {
+    let travel = gate_travel(world).expect("range: the moving gate must exist at assert time");
+    assert!(
+        travel > GATE_TRAVEL_MIN,
+        "range ({round}): the gate only travelled {travel:.1} u this round \
+         (need more than {GATE_TRAVEL_MIN}); tracking it proves nothing"
+    );
+    let error = aim_error_deg(world).expect("range: the turret must exist at assert time");
+    assert!(
+        error < AIM_TOLERANCE_DEG,
+        "range ({round}): the barrel is {error:.1} deg off the aim point \
+         (tolerance {AIM_TOLERANCE_DEG}) after the gate travelled {travel:.1} u - \
+         the turret is not tracking the mover"
+    );
+    info!(
+        "range: {round} - the barrel tracks the mover ({error:.1} deg off, \
+         gate travelled {travel:.1} u)"
+    );
+    let elapsed = world.resource::<Time>().elapsed_secs();
+    nova_probe::probe_marker(
+        world,
+        "outcome: turret tracks the mover",
+        serde_json::json!({ "t": elapsed, "round": round, "aim_error_deg": error, "gate_travel": travel }),
+    );
+    if round == RELOADED_ROUND {
         nova_probe::probe_marker(
             world,
-            &format!("outcome: {name}"),
+            "outcome: turret invariants hold after reload",
             serde_json::json!({ "t": elapsed }),
         );
-    }
-
-    if elapsed > nova_protocol::nova_debug::harness::NOVA_AUTOPILOT_SECS - 0.5 {
-        let mut outcome = world.resource_mut::<RangeOutcome>();
-        if outcome.asserted {
-            return;
-        }
-        outcome.asserted = true;
-        assert!(outcome.fired, "range: no turret round fired in the window");
-        assert!(
-            outcome.gate_damaged,
-            "range: no gate took turret hits in the window"
-        );
-        info!("range: fired -> gate damaged, all observed");
     }
 }
 

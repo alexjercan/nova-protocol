@@ -144,13 +144,11 @@ real-GPU pixel capture). Depth beyond the generic checks:
 | systems/player_path | monotonics: target_down, leg + 7 beat markers |
 | systems/outcomes | monotonic: hostile_down + 4 distinct beat markers, 6 per cycle (kill -> defeat overlay -> activate -> kill -> activate -> done) |
 | gameplay/broadside | a marker per script stage (11: picker -> defeat -> Retry -> acts -> victory) |
-| sections/* | outcome markers at the assertion sites (turret fired/gate damaged; the torpedo fire->arm->detonate->hit chain; hull partial-exact + destroyed-ship-survives; attitude error_rad; burn speeds; com/camera drifts) |
+| sections/* | one `outcome: <slug>` marker per asserted invariant, 27 across the five ranges, pinned by `sections_assert_their_invariant_roster` |
 | perf/perf_baseline | combat-burst fps driver (the sweep scene) |
 
-torpedo_guidance and the ui/ flows carry no extra markers on purpose:
-guidance asserts at scenario-load level (no outcome flags exist), and the
-ui flows are state-transition shaped - the generic timeline already
-records every transition.
+The ui/ flows carry no extra markers on purpose: they are state-transition
+shaped, and the generic timeline already records every transition.
 
 Probe addresses examples by NAME (`probe run scenario_grammar`); categories come
 from `examples/<category>/` (catalog in the root Cargo.toml). `--fps` runs

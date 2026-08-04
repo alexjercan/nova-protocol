@@ -112,9 +112,48 @@ gestures in `nova_autopilot::input` (`press_key`, `release_key`, `press_mouse`,
 `player_ship_present`). Anything the vocabulary cannot express is a plain
 closure: `Arc::new(|world: &World| ...)`.
 
-### Before and after: the `com_range` script
+**A settle predicate over a physics quantity belongs on the physics schedule.**
+"The value held still for N frames" is a common way to write "the solve is
+done", and on `Update` it does not mean that: avian runs in `FixedPostUpdate`,
+so above the fixed rate most `Update` frames carry no solve pass at all and N
+unchanged frames can all precede the recompute the beat is waiting for. Sample
+in `FixedPostUpdate` after `PhysicsSystems::Prepare`, so one sample is one
+pass, and carry any second fact the beat needs (an entity count, say) in the
+same sample rather than reading it live off the world. `hull_section`'s
+`ComSettle` is the worked example.
 
-The old shape was a wall-clock runway plus one closure that re-derived a
+The rule is "sample where the quantity is WRITTEN", not "sample on the fixed
+schedule" - `turret_section`'s `AimSettle` stays on `Update` precisely because
+its aim error is produced by `SmoothLookRotationPlugin` in `PostUpdate`, so
+consecutive fixed ticks inside one frame would read the same value and saturate
+the streak mid-slew. What that costs is framerate independence, which you buy
+back separately: a per-frame delta threshold means a different physical
+threshold at every framerate, so compare a RATE against `Time::delta_secs()`.
+`AimSettle` is the worked example for that half.
+
+Related, and the other half of the same mistake: **a beat must be strictly
+weaker than the assert that follows it.** If the beat's predicate and the next
+step's assert share a constant, the assert cannot fail and a real regression
+surfaces as a deadline stall on the beat's name instead of the message that
+explains it. Gate on the stimulus and the world having stopped changing; assert
+on where it ended up. When the two must read the same quantity, give the beat a
+margin - the driver enters the next step on the FOLLOWING frame, so a beat that
+opened at exactly the assert's threshold on a falling value hands the assert a
+failing one (`controller_section`'s `OFFSET_BEAT_MARGIN_SECS`, and
+`turret_section`'s `GATE_TRAVEL_BEAT_MARGIN` over a sweep that is not even
+monotonic).
+
+Where the invariant has no separate stimulus-side observable - "the torpedo
+detonated", "the burn accelerated" - the beat is the stimulus plus a bounded
+settle sized off the mechanism (`LAUNCH_SETTLE_SECS`, `BURN_WINDOW_SECS`,
+`HIT_SETTLE_SECS`), never the outcome itself. A settle is a runway, so it owes
+a derivation on its constant; what it must not do is read the quantity the
+assert decides.
+
+### Before and after: the mass-properties script
+
+The old shape - the retired `com_range` example, whose beats now live in
+`hull_section` - was a wall-clock runway plus one closure that re-derived a
 step machine from booleans:
 
 ```rust
@@ -139,27 +178,24 @@ fn com_range_script(world: &mut World, elapsed: f32) {
 }
 ```
 
-The new shape is the beats themselves, each waiting on the world:
+The new shape is the beats themselves, each waiting on the world
+(`examples/sections/hull_section.rs`):
 
 ```rust
 app.add_plugins(
     AutopilotPlugin::<GameStates>::new()
-        .step("load the range")
+        .step("load the rig")
         .enter(GameStates::Loading)
         .until(player_ship_present())   // not "30 seconds should do it"
-        .deadline(30.0)
+        .deadline(20.0)
         .add()
         .step("spin the ship")
         .on_enter(apply_spin)
-        .until(elapsed(1.0))
         .add()
         .step("kill the controller section")
         .on_enter(kill_frontmost_section)
         .until(section_gone("controller"))  // the real despawn, not a guess
         .deadline(10.0)
-        .add()
-        .step("settle after the losses")
-        .until(elapsed(1.5))
         .add()
         // Last beat: the driver reports done after it, so the run ends on the
         // assertion instead of idling out the rest of a runway.

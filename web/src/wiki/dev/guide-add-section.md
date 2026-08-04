@@ -175,7 +175,8 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
 
 9. **Example.**
    Add `examples/sections/<kind>_section.rs`, modelled on the existing
-   per-section examples (`hull_section.rs` is the smallest), plus its
+   per-section examples (`controller_section.rs` and `thruster_section.rs` are
+   the most compact of the five), plus its
    `[[example]]` block in the root Cargo.toml (auto-discovery is off; the
    catalog is the source of truth) and its name in the `SECTIONS` list of
    `tests/examples_smoke.rs` - the `catalog_matches_disk` test fails until

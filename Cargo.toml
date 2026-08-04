@@ -75,14 +75,6 @@ path = "examples/sections/turret_section.rs"
 name = "torpedo_section"
 path = "examples/sections/torpedo_section.rs"
 
-[[example]]
-name = "torpedo_guidance"
-path = "examples/sections/torpedo_guidance.rs"
-
-[[example]]
-name = "com_range"
-path = "examples/sections/com_range.rs"
-
 # systems/ - code-built fixtures for the cross-cutting gameplay systems, at a
 # coarser grain than sections/. Every fixture is a `ScenarioConfig` built in
 # Rust and loaded with `LoadScenario`, so the compiler catches scenario-grammar

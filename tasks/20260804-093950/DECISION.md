@@ -86,6 +86,49 @@ checkable proof, and where the shared-builder line sits.
   27-item roster is mechanical, and without a gate deleting one invariant
   leaves the run green.
 
+## Amended 2026-08-04 during implementation
+
+Two of the decisions above did not survive contact with the code. Both were
+found by RUNNING the examples, not by `cargo check`.
+
+**1a. Point 1 is wrong: there is no gone-then-present gap.** `on_load_scenario`
+queues the scoped despawns and fires `OnStartEvent` on the SAME `Commands`
+(`crates/nova_scenario/src/loader/lifecycle.rs:162-253`), so teardown and
+respawn land in one flush. No frame ever observes the rig absent, and
+`not(rig_present())` stalls out its deadline instead of advancing - which is
+exactly what `controller_section` did on the first run.
+
+Replaced by a per-run FRESH-STATE predicate: one step, still no new API and no
+state, gating on something only a respawned rig satisfies.
+
+- `controller_section`: the rig is further from the command than
+  `COMMAND_SWEEP_GUARD_RAD`, where the round before it just asserted the old
+  rig was inside `TRACK_TOLERANCE_RAD`.
+- `hull_section`: `not(section_gone(SIDE_HULL))` - round 1 destroyed that
+  section, so only a fresh rig has it back. (The `not` re-export earns its
+  keep here rather than in point 1.)
+
+This is strictly stronger than "a ship exists": each gate also establishes the
+precondition the next round needs.
+
+**2a. Point 2's five-in-a-line rig cannot destroy a hull.** `handle_destroy` is
+leaf-gated (`crates/nova_gameplay/src/integrity/glue.rs:118-124`), so `hull3`
+with the thruster hanging off its rear is only ever DISABLED, never despawned,
+and the `section_gone` beat stalls. The rig is now a four-section spine
+(controller, hull1, hull2, thruster) with `hull3` mounted BESIDE hull2, giving
+it a single connection. The spine keeps both its ends for round 2 to strip from
+the front, and `SIDE_HULL` replaces the misleading `REAR_HULL` name.
+
+Recomputed aft threshold (point 2's consequence, now with real numbers): spawn
+COM z = 1.6, survivors hull2(2) + thruster(3) = 2.5, so the shift is ~0.9
+against a `COM_AFT_SHIFT` bound of 0.5.
+
+**Also:** a converge beat that advances the instant the error crosses its
+tolerance reads a value still falling out of the PD transient - the first green
+`controller_section` run asserted 0.343 against a 0.35 bound. Converge beats
+now carry a settle clause (`and(elapsed(TRACK_SETTLE_SECS), ...)`) with that
+reason stated at the constant.
+
 ## Consequences
 
 - All five runs move off the `nova_autopilot()` wall-clock preset onto explicit
@@ -101,3 +144,38 @@ checkable proof, and where the shared-builder line sits.
 - `torpedo_section` invariant 5 is NEW work, not a port: `torpedo_guidance`
   only LOGS closest approach (`torpedo_guidance.rs:234-245`) and asserts
   nothing. Roster totals become 14 existing / 4 merged / 9 new = 27.
+
+## Amended 2026-08-04 during step 5 - invariant 5's metric
+
+**Closest approach cannot carry the lead-a-crosser claim.** The plan set
+invariant 5 as "closest approach falls under a stated bound". The proximity
+fuze detonates a torpedo at half the blast radius and DESPAWNS it
+(`torpedo_section/projectile.rs:91`, blast radius 30), so no working torpedo is
+ever observed nearer than 15 u - measured, the metric floors at 14.5 - and any
+bound above that is implied by "it detonated", which invariant 3 already
+asserts. A bound below it can never be met.
+
+Invariant 5 asserts the LEAD ANGLE instead: the component of the torpedo's
+heading along the direction its target is drifting across the line of sight,
+sampled in late midcourse (16-30 u). Pure pursuit scores 0 there by
+construction; the ideal constant-bearing lead for this scene is ~26 deg and the
+live guidance holds 33.1-34.1 deg across six runs. The bound is 12 deg. Its
+marker keeps the planned name, `outcome: torpedo leads the crosser`.
+
+The sample WINDOW is the load-bearing part. A torpedo leaves the bay pointing
+down the ship's nose, which for this geometry already sits ~24 deg off the line
+of sight and on the same side as the lead, so an early sample cannot tell "has
+not turned yet" from "is leading". Bounding the sample to 16-30 u excludes that
+transient and keeps the sample outside the fuze. Closest approach stays as the
+readable log, no longer as the claim.
+
+## Amended 2026-08-04 during step 5 - deadline sums are per CALL, not per line
+
+`turret_section` and `hull_section` both claimed a deadline sum under
+`DEFAULT_DEADLINE_SECS` (115s and 110s). Both numbers were summed from the
+SOURCE LITERALS, and both scripts call a round helper twice, so the real
+runtime sums were 190s and 135s - over the 120s run-level backstop the ordering
+exists to beat, meaning a late-beat stall would have been reported by the
+generic hang detector instead of by name. Per-step deadlines are now sized off
+the measured runs (longest example 6.5s wall) at 6-15s a beat, for runtime sums
+of 97s and 85s, and both doc comments now state the per-CALL arithmetic.

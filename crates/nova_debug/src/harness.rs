@@ -73,7 +73,12 @@ pub use nova_autopilot::{
     // protocol instance the drivers register with, so it is re-exported here
     // alongside them.
     completion::{HarnessCompletion, AUTOPILOT},
-    predicate::Predicate,
+    // `not` reaches the examples HERE rather than through the prelude: the
+    // name collides with `bevy::prelude::not`, which every example globs, so
+    // it must stay a qualified call. The examples' package does not depend on
+    // `nova_autopilot` directly (only on `nova_debug` and `nova_probe`), which
+    // is why re-exporting it is the route rather than a third path dependency.
+    predicate::{not, Predicate},
     reel::{capture_window, ReelBeat, REEL_ENV},
     screenshot::ScreenshotPlugin,
 };

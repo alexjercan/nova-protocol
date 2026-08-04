@@ -35,8 +35,6 @@ const SECTIONS: &[&str] = &[
     "hull_section",
     "turret_section",
     "torpedo_section",
-    "torpedo_guidance",
-    "com_range",
 ];
 
 /// examples/systems/ - code-built fixtures for the cross-cutting gameplay
@@ -363,4 +361,133 @@ fn tail(s: &str) -> String {
         .find(|&i| s.is_char_boundary(i))
         .unwrap_or(0);
     s[start..].to_string()
+}
+
+/// The `sections/` invariant ROSTER: every invariant each range asserts, named.
+///
+/// Each entry is `(example, &[invariant slug, ...])`, and each slug must appear
+/// in that example's source as a `nova_probe::probe_marker` literal
+/// `"outcome: <slug>"` beside the `assert!` it belongs to.
+///
+/// Three slugs are ROUND-COMPLETION invariants - "the whole set held again on a
+/// reloaded rig / in a second scene" - and have no assert of their own to sit
+/// beside, because the fact they claim is that the round's OTHER asserts all
+/// passed. Each rides the last assertion of its round (guarded on the round
+/// label) rather than a step of its own, so it is still emitted only from a
+/// line that a failing invariant would never reach:
+///
+/// - `damage invariants hold after reload` (hull_section)
+/// - `turret invariants hold after reload` (turret_section)
+/// - `launch chain holds in the crossing scene` (torpedo_section)
+///
+/// What this test bounds is that every invariant is NAMED. That the invariants
+/// HOLD is what the runs themselves prove, by panicking.
+const SECTION_ROSTER: &[(&str, &[&str])] = &[
+    (
+        "controller_section",
+        &[
+            "attitude command swept",
+            "attitude tracks",
+            "attitude reconverges after reload",
+            "attitude tracks on rig b",
+        ],
+    ),
+    (
+        "thruster_section",
+        &[
+            "burn accelerates",
+            "plume material exists",
+            "plume follows throttle",
+            "partial throttle is proportional",
+            "plume returns to idle",
+        ],
+    ),
+    (
+        "hull_section",
+        &[
+            "partial hit exact",
+            "section destroyed",
+            "root and controller survive",
+            "com follows surviving sections",
+            "com moved aft",
+            "root interpolates",
+            "camera anchor tracks com",
+            "damage invariants hold after reload",
+        ],
+    ),
+    (
+        "turret_section",
+        &[
+            "turret fired",
+            "gate damaged",
+            "turret tracks the mover",
+            "turret invariants hold after reload",
+        ],
+    ),
+    (
+        "torpedo_section",
+        &[
+            "torpedo fired",
+            "torpedo armed",
+            "torpedo detonated",
+            "gate damaged",
+            "launch chain holds in the crossing scene",
+            "torpedo leads the crosser",
+        ],
+    ),
+];
+
+/// How many invariants the five `sections/` ranges assert between them.
+const SECTION_INVARIANTS: usize = 27;
+
+/// Every `sections/` range names EXACTLY the invariants on its roster.
+///
+/// The stopping rule of task 20260804-093950 made executable: "deepen" is
+/// bounded by a named invariant list per run, so the list has to live somewhere
+/// a deletion fails. Dropping an invariant leaves the run green - it just
+/// asserts less - and this test is what turns that into a red one. The runs
+/// themselves are what prove the invariants HOLD; this only pins WHICH.
+///
+/// Matched both ways on purpose: a roster slug with no marker is an invariant
+/// that was removed, and a marker with no roster slug is one added without
+/// saying so.
+///
+/// Display-free, like `catalog_matches_disk`: it is a source grep, not a run.
+#[test]
+fn sections_assert_their_invariant_roster() {
+    const PREFIX: &str = "\"outcome: ";
+
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let listed: usize = SECTION_ROSTER.iter().map(|(_, names)| names.len()).sum();
+    assert_eq!(
+        listed, SECTION_INVARIANTS,
+        "the sections/ roster lists {listed} invariants, not {SECTION_INVARIANTS}"
+    );
+    assert_eq!(
+        SECTION_ROSTER
+            .iter()
+            .map(|(example, _)| *example)
+            .collect::<BTreeSet<_>>(),
+        SECTIONS.iter().copied().collect::<BTreeSet<_>>(),
+        "every sections/ example needs a roster, and only those"
+    );
+
+    for (example, names) in SECTION_ROSTER {
+        let path = root.join("examples/sections").join(format!("{example}.rs"));
+        let source = std::fs::read_to_string(&path).unwrap();
+        let marked: BTreeSet<&str> = source
+            .match_indices(PREFIX)
+            .filter_map(|(at, _)| {
+                let rest = &source[at + PREFIX.len()..];
+                rest.find('"').map(|end| &rest[..end])
+            })
+            .collect();
+        assert_eq!(
+            marked,
+            names.iter().copied().collect::<BTreeSet<_>>(),
+            "{example} does not emit exactly its roster of invariant markers; \
+             each invariant carries one `nova_probe::probe_marker` named \
+             `outcome: <slug>` beside its assert"
+        );
+    }
 }
