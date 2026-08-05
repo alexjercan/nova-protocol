@@ -1,0 +1,247 @@
+# Cleanup and maintenance: close the engine gaps the screenshot pipeline routed around
+
+- PRIORITY: 72
+- TAGS: v0.10.0, chore, refactor, tooling, testing
+- ACTIVITY: PLANNING
+- GATES: -
+- RESOLUTION: -
+- PARENT: 20260802-115955
+
+## Context
+
+A session-long read-only investigation (three rounds, two out-of-context
+verification agents) reviewed the screenshot/autopilot tooling, the game crates
+and the `bevy_common_systems` boundary against KISS/YAGNI. `NOTES.md` holds the
+full finding set with `file:line` evidence and the corrections each round made
+to the last; this task is the parent that sequences the work.
+
+The thesis: the screenshot examples are not hacky from laziness. Each capture
+need hit a missing engine capability and routed around it. The flicker the owner
+reported in `screenshot_combat`'s first `pose` is the proof - `pose()` is
+correct, and the engine's camera ordering contract is what is unfinished.
+
+Nova does NOT meaningfully hack bcs - no `#[allow]`, newtype or shim exists to
+make a bcs type fit. The real boundary problems are inverted from the
+hypothesis: bcs holds nova's code (`integrity`'s three combat constants,
+`ui/health_display.rs` in ship-section vocabulary nova never uses), nova
+re-implemented bcs `persist` twice, and nova's own prelude leaks bcs's retired
+harness twins into every example.
+
+This is a CLEANUP AND MAINTENANCE parent, deliberately slotted above the
+in-flight PNG refresh (priority 70). The investigation's own scope finding is
+that v0.10.0's two open engine tasks sit at priorities 50 and 66 while an image
+task sits at 70 - the ordering encodes the problem it is trying to fix.
+
+## Inputs
+
+| Input | Where | Note |
+| --- | --- | --- |
+| Full finding set | `NOTES.md` in this task | Round-3 corrected; supersedes rounds 1-2 |
+| The flicker | `crates/nova_scenario/src/loader/mod.rs:376-402` | one ordering edge, against the wrong writer |
+| The fix pattern, already in-tree | `crates/nova_gameplay/src/camera_controller/mod.rs:106-114` | diagnoses this exact class eight lines from the bug |
+| bcs pin | `Cargo.lock:817-819` (`v0.19.5`) | the bcs WORKING TREE is at `v0.19.6-6-g127f311`; verify bcs claims with `git show v0.19.5:<path>`, not the checkout |
+| Owner decisions | `NOTES.md` "Owner rulings" | two round-3 conclusions were reversed by the owner on stated conditions |
+
+## Steps
+
+Ordering rationale for the two non-obvious constraints: step 4 wires
+`nova_timeline` into six screenshot examples, two of which step 3 rewrites -
+reverse them and both files get edited twice. And
+`examples_name_drivers_through_the_nova_harness` cannot be deleted while it
+still has a subject, so step 2 precedes step 6.
+
+Each step below becomes its own child task at planning time.
+
+- [ ] 1. **Fix the torn `timeline.jsonl`.** `crates/nova_probe/src/recorder.rs:201`
+      uses truncating `File::create` with no singleton guard while an earlier
+      instance's `BufWriter` holds its own offset. Two recorders, one path.
+      Small, and load-bearing for steps 4-6, which make the timeline the sole
+      verdict.
+- [ ] 2. **Stop leaking the bcs prelude.**
+      `crates/nova_gameplay/src/lib.rs:70` is the ONLY
+      `pub use bevy_common_systems::prelude::*` in the workspace (the other 35
+      sites are private `use` and stay). Delete it; compile; add back only what
+      breaks as explicit named re-exports. Explicitly do NOT re-export
+      `AutopilotPlugin`, `AutopilotLoop`, `ScreenshotPlugin`,
+      `ScreenshotReelPlugin`, `HarnessCompletion` - the inert twins that boot an
+      example dead, and exactly the `DRIVERS` list at
+      `tests/examples_smoke.rs:233-239`. Then delete
+      `examples_name_drivers_through_the_nova_harness` (`:227`). Front half of
+      the `20260731-205553` warning cleanup: the prelude is why that task is
+      stalled.
+- [ ] 3. **One capture idiom: promote `shoot`, delete the reel.** Promote
+      `shoot` to `nova_debug::harness::shoot` (collapses three copies:
+      `screenshot_flight.rs:646`, `screenshot_nova_os.rs:282`,
+      `screenshot_combat.rs:856`); fold `examples/ui/widget_zoo.rs:605` and
+      `examples/ui/menu_scenarios.rs:267` onto it, deleting the duplicated
+      `NOVA_SHOT_DIR` resolution (also duplicated in a SHIPPING crate at
+      `crates/nova_scenario/src/actions/view.rs:70`); **convert
+      `examples/screenshots/screenshot_sections.rs:40` and
+      `screenshot_scene.rs:77` from `nova_reel(beats)` to autopilot steps** -
+      this is the real cost, two files rewritten; then delete
+      `crates/nova_autopilot/src/reel.rs`, `ReelBeat`, `ScreenshotReelPlugin`,
+      `crates/nova_autopilot/tests/reel.rs` and `nova_reel()`
+      (`crates/nova_debug/src/harness.rs:372-392`). **Keep `capture_window`** -
+      it is the primitive `shoot` wraps.
+- [ ] 4. **Capture ack + one uniform scene settle.** `capture_window` becomes a
+      completion collector / emits a per-shot ack; steps use
+      `until(shot_written(name))`. That deletes the save-latency settle outright
+      - it was never a duration, it was a missing await
+      (`screenshot_combat.rs:161-165` says so). Then ONE scene-settle value on
+      both paths, replacing the 90/6, 40/6 and 20/2 splits. Also makes the
+      `FIGURES` manifest at `scripts/gen-web-screenshots.py:74-105` checkable.
+- [ ] 5. **Make probe cover the `screenshots/` category.**
+      `crates/nova_probe/src/catalog.rs:181-188` -> `probed: true,
+      frame_time: false`, and rewrite the comment (its claim is true only of
+      frame-time). **Wire `nova_timeline` into all six screenshot examples** -
+      none has it today, and probe's `reached_playing`
+      (`run_report/checks.rs:279-315`) returns `Skipped` without a timeline, so
+      probe would run them and assert NOTHING. **Port the WARN command-error
+      gate into `log_clean`**: fail on `"Encountered an error in command"` at
+      any level - the one assertion probe lacks, and the reason it exists is
+      that `remove`/`despawn` bake in the WARN handler at queue time
+      (`examples_smoke.rs:338-346`, task `20260713-203709`). Also:
+      `CheckStatus::Skipped` must never fold into a passing verdict and
+      `CheckStatus::Warn` must stop being a category that never fails
+      (`checks.rs:36`, `:393`), or this step rebuilds "green and wrong" one
+      layer down. Confirm `scene_baseline` and `render_scale_shot` (both in
+      `NOT_SMOKED`) are covered by policy rather than by omission.
+- [ ] 6. **Delete the smoke suite; converge the verdicts.** Move
+      `catalog_matches_disk` (`:119`) and `every_category_has_a_probe_policy`
+      (`:195`) to `crates/nova_probe/tests/`, deriving the repo root as
+      `env!("CARGO_MANIFEST_DIR")` + `../..`; `catalog_matches_disk` gets
+      simpler once the smoke lists stop existing. Delete
+      `sections_assert_their_invariant_roster` (`:468`) and its 27-slug roster.
+      Delete the THIRD verdict implementation -
+      `crates/nova_autopilot/tests/autopilot_example.rs:37-90` and its
+      byte-identical `fn tail` copy (`:173` vs `examples_smoke.rs:368`). Swap
+      CI's "Examples smoke test" step (`.github/workflows/ci.yaml:95-101`) for
+      a probe correctness run (there is no probe step in CI today). Delete
+      `tests/examples_smoke.rs`. **Keep `log_clean`** - see Notes.
+- [ ] 7. **Camera authority sets.** Independent of 1-6; touches no automation
+      code. One nova-owned set chain in `PostUpdate`:
+      `CameraShakeSystems::Restore -> CameraAuthority::Solve` (chase + WASD
+      sync) `-> ::Override` (`enforce_scripted_camera_pose`) `-> ::Additive`
+      (`CameraShakeSystems::Apply`) `-> TransformSystems::Propagate`. **Zero bcs
+      changes** - every writer already exports its set. Kills the flicker, the
+      two missing `Propagate` edges, and the duplicate edge registration at
+      `camera_controller/mod.rs:112-114` / `framing.rs:475`. Highest
+      value-to-effort in the whole investigation.
+- [ ] 8. **Then, independently** (each its own child, no ordering between them):
+      move bcs `integrity` + `ui/health_display.rs` to nova and scrub the nova
+      task IDs from `bcs/src/physics/pd_controller.rs:535`; use bcs `persist`
+      and delete nova's two copies plus the shadowed `feedback::flash`
+      (`juice.rs:275`) and hand-rolled `time::Cooldown`; drop the physics pair
+      from `base_scenario_object` (`crates/nova_scenario/src/actions/spawn.rs:97-113`)
+      and delete the misaligned test at `:772-786`, moving its rationale comment
+      onto the ship/asteroid bundles; the env-var pass; the `hud/mod.rs`
+      registry refactor; the M9 dead-code sweep.
+
+## Definition of Done
+
+- [ ] Every step above has a child task, each with its own DoD. This task closes
+      when the children do. (manual: owner confirms the child set is complete)
+- [ ] The flicker is gone: `screenshot_combat`'s first `pose` holds a stable
+      frame across repeated runs. (manual: owner watches the capture run)
+- [ ] `tests/examples_smoke.rs` no longer exists, and CI runs a probe
+      correctness pass covering the `screenshots/` category.
+      (cmd: `test ! -f tests/examples_smoke.rs && rg -q "nova_probe" .github/workflows/ci.yaml`)
+- [ ] Nova's prelude no longer re-exports the bcs prelude.
+      (cmd: `! rg -n "pub use bevy_common_systems::prelude" crates`)
+- [ ] The screenshot reel is gone and `shoot` is the single capture idiom.
+      (cmd: `test ! -f crates/nova_autopilot/src/reel.rs && ! rg -n "ScreenshotReelPlugin|ReelBeat" crates examples`)
+- [ ] No example branches its step timing on whether it is capturing.
+      (cmd: `! rg -n "if capturing" examples/screenshots`)
+
+## Notes
+
+**Owner rulings that reverse the investigation's round-3 conclusions.** Both are
+conditional, and the conditions are steps above, not assumptions:
+
+- R3 said keep `tests/examples_smoke.rs`, because probe refuses the
+  `screenshots/` category BY DESIGN (`catalog.rs:181-188`: *"Outside probe's
+  scope: a probe verdict on one would assert nothing"*). The owner's answer is
+  to change that design - valid, but the three coverage losses R3 documented are
+  real and each gets an explicit fix in step 5.
+- R3 said withdraw the reel delete, because `ScreenshotReelPlugin` has two live
+  example users through the `nova_reel()` wrapper. Correct while the users
+  exist. Converting them is budgeted in step 3.
+
+**Things the investigation got wrong and later corrected - do not re-derive
+them.** Each was verified against source:
+
+- **Keep `log_clean`.** It is whole-token matching after ANSI stripping, not a
+  substring grep (`crates/nova_probe/src/run_report/checks.rs:472-491`, with a
+  comment saying substring matching was the previous BROKEN version). And
+  conflating a panic with a wgpu teardown race is a false POSITIVE, not "green
+  and wrong".
+- **Do not change bcs's camera shake.** `CameraShakeSystems` exists
+  (`bcs/src/camera/shake.rs:166`), is preluded, and `:205-209` already orders
+  `Restore.before(Chase::Sync)` / `Apply.after(Chase::Sync)`. The real gap is
+  that neither `Apply` nor `enforce_scripted_camera_pose` has an edge to
+  `TransformSystems::Propagate`.
+- **Do not add a deadline-panic to the autopilot.** Expiry ALREADY aborts with
+  `AppExit::error()` naming the step (`crates/nova_autopilot/src/autopilot.rs:467-484`,
+  with a NOTE comment saying exactly that). The real gap is a step with NO
+  deadline and an unsatisfiable `until`, which hangs forever - and both
+  subprocess harnesses block on `Command::output()` with no timeout, so that is
+  a silent 60-minute CI hang. Make `deadline` mandatory or defaulted.
+- **Do not build a flat `HashMap<String, Entity>` scenario index.** `EntityId`s
+  are NOT unique - `crates/nova_scenario/src/actions/spawn.rs:36-39` states that
+  spaceship SECTIONS carry their own `EntityId`s and an unscoped match would rip
+  a section out of every ship in the scene. Five insertion sites, not one. Key
+  it scoped (`(root_id, local_id)`) or skip it.
+
+**Counts to distrust.** The investigation's numbers drifted; the shapes held.
+Not reproducible: "253 of 477 prelude exports" (actual ~222 of ~387), "8
+zero-caller items in the automation crates" (did not reproduce under three
+passes; what exists is ~79 items with no CROSS-crate reference, i.e. internal
+API), "27 env vars" (24 unique `NOVA_*`), "11 setup/remove pairs in
+`hud/mod.rs`" (never enumerated). Wrong: `JuiceSettings` has 5 fields, not 14,
+and is NOT dead - read every frame and `#[reflect(Resource)]`-registered, so it
+is editor-tunable; `AIBehaviorState::Retreat` appears in 2 test functions, not
+3, and none asserts the stub; `StepBuilder` has 5 setters, not 11; THREE of four
+scenario object kinds override `RigidBody::Dynamic` (`asteroid.rs:280` too), not
+two. Line references throughout the investigation run 2-3 low - it was written
+against a slightly earlier tree.
+
+**What the investigation did NOT find**, which constrains what is worth doing:
+no `*_legacy`/`*_old`/`*_v2` anywhere; one damage path, one spawn path, one
+camera path; all declared code-map boundaries hold except an undocumented
+`nova_debug -> nova_autopilot` edge; no bcs version drift; the modding scaffold
+is clean; no test asserts on doc prose. The suspected "testing documentation"
+category is real but small - one WGSL source-text test worth KEEPING, three
+tests asserting Bevy's log wording, and the invariant roster. Going-forward
+rule: no test whose subject is source text or log text.
+
+**The bcs boundary rule**, twice-corrected. "Safe iff it exports a `SystemSet`"
+is wrong - only `meth` and the modding scaffold are opinion-free; orbit, PD and
+persist are all plugins with schedule opinions, and every bcs module that writes
+shared state already exports a set. The set is table stakes, not a
+differentiator. What holds: **(a) order, don't disable** - ordering needs only
+the exported set, costs one redundant write per frame, and survives bcs adding a
+new writer, whereas a gate breaks silently; **(b) import behavior, not
+presentation, and never a renderer you will not use.** The closest thing to a
+real bcs hack in the tree supports (b): nova adds bcs's objectives plugin purely
+for its Resource, discards its renderer (`crates/nova_gameplay/src/hud/mod.rs:293-298`),
+then hand-diffs `GameObjectives` (`crates/nova_scenario/src/world.rs:52-72`) to
+dodge a per-frame despawn/respawn in `bcs/src/ui/objectives.rs:104-107`. That
+conflict is change-detection and renderer ownership - no SystemSet fixes it.
+
+**Deliberately NOT in scope**, decided with the owner:
+
+- Storing perf baselines in the repo. `git checkout <tag>` + re-run is the
+  policy; `probe-runs/` stays gitignored. The residual is only that
+  `fps_within_baseline` is armed and always skips while the run prints OK -
+  delete the check, and let perf be `nova probe --compare <run-dir>` run by
+  hand. Folded into step 8's dead-code sweep.
+- Removing god mode from perf capture. A mix of god-mode and non-god-mode
+  examples is wanted. The residual defect is that
+  `crates/nova_probe/src/capture.rs:574-584` force-heals every `Health`
+  UNCONDITIONALLY, so a scenario measuring death/despawn cost is
+  unconstructible. Make it a per-EXAMPLE flag - note it cannot live in
+  `CATEGORY_POLICIES`, which is keyed by category, and the driver is selected by
+  `NOVA_PERF_COMBAT` (`scene_baseline.rs:95`).
+- Promoting `nova_autopilot` out of nova. Per-game autopilot until the design is
+  understood well enough to promote. Nova's is already the better design
+  (predicate-driven vs bcs's frame-driven).
