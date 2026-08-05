@@ -2,8 +2,8 @@
 
 - PRIORITY: 72
 - TAGS: v0.10.0, chore, refactor, tooling, testing
-- ACTIVITY: PLANNING
-- GATES: -
+- ACTIVITY: WORKING
+- GATES: PLAN
 - RESOLUTION: -
 - PARENT: 20260802-115955
 
@@ -52,7 +52,7 @@ still has a subject, so step 2 precedes step 6.
 
 Each step below becomes its own child task at planning time.
 
-- [ ] 1. **Fix the torn `timeline.jsonl`.** `crates/nova_probe/src/recorder.rs:201`
+- [x] 1. **Fix the torn `timeline.jsonl`.** `crates/nova_probe/src/recorder.rs:201`
       uses truncating `File::create` with no singleton guard while an earlier
       instance's `BufWriter` holds its own offset. Two recorders, one path.
       Small, and load-bearing for steps 4-6, which make the timeline the sole
@@ -245,3 +245,65 @@ conflict is change-detection and renderer ownership - no SystemSet fixes it.
 - Promoting `nova_autopilot` out of nova. Per-game autopilot until the design is
   understood well enough to promote. Nova's is already the better design
   (predicate-driven vs bcs's frame-driven).
+
+## Close-out - step 1: the torn `timeline.jsonl`
+
+**What.** `ProbeTimeline::create` no longer truncates first and asks questions
+later. It opens the path non-truncating, takes an EXCLUSIVE advisory file lock
+(`File::try_lock`, std since 1.89), and only then `set_len(0)`. A second
+recorder aiming at a live path gets `WouldBlock` and is refused with a message
+naming the path. The plugin's arm-failure log moves `warn!` -> `error!`.
+
+**Why.** The old `File::create` truncated to offset 0 while an earlier
+recorder's `BufWriter` kept writing at its own offset, splicing two streams
+into one line - the `malformed timeline line 143` failure recorded on
+`20260804-174231` and in `20260804-094021`'s review. Steps 4-6 make the
+timeline the SOLE verdict, so a silently torn artifact is the worst possible
+foundation.
+
+The log-level change is the second half of the fix: a refused recorder writes
+nothing, and probe's `reached_playing` / `run_completed` return `Skipped` on a
+missing timeline, which today folds into a passing verdict. `log_clean` greps
+ANSI-stripped whole-word `ERROR`, so `error!` turns "probe asked for a timeline
+and did not get one" into a run FAILURE instead of a thinner OK. That is the
+same "green and wrong" class this parent task exists to close.
+
+**Alternatives.** (a) A process-global registry of held paths - the fix
+suggested on `20260804-174231`. Rejected: bevy already rejects a duplicate
+unique plugin, so the only in-process double-arm is two `App`s, and a registry
+does nothing for the two-process case that the run directory
+(`probe-runs/<commit>/<example>/`, reused across invocations at one commit)
+makes reachable. The file lock covers both with one mechanism and no new state.
+(b) Open in append mode. Rejected: a stale timeline from a previous invocation
+would silently prefix the new one; probe wants a fresh artifact per run, and
+truncation under the lock gives exactly that.
+
+**Difficulties.** The historical splice was never reproduced from first
+principles - `t_real` 5.08 and 4.79 on the same `frame 168` says the two
+writers had near-identical uptimes, which two sequential probe passes do not
+explain. The fix is written against the MECHANISM (truncate-vs-offset), which
+is proven regardless of which pair of writers raced, rather than against a
+reproduction that six recorded runs could not produce.
+
+**Evidence.**
+
+- `recorder::tests::a_second_recorder_on_one_path_is_refused_not_torn` - the
+  real plugin over two real `App`s on one path. Written first, failed on
+  "the second recorder is refused, not armed on a shared path", passes now.
+  It also pins re-arming after the holder drops, which probe's
+  directory-reuse depends on.
+- `cargo test -p nova_probe --lib` - 74 passed, 0 failed.
+- `cargo check -p nova_probe --tests --bins` clean; `cargo fmt --all -- --check`
+  clean.
+- End to end: `cargo run -p nova_probe -- run menu_scenarios` - the example
+  whose timeline tore. **OK, measured 5/6**, `run_completed` PASS (`run_end` at
+  frame 178), `reached_playing` PASS, `invariants_held` PASS (0 violations /
+  178 frames), `log_clean` PASS. The recorder still arms and still closes its
+  bracket under the lock.
+
+**Reflection.** One run is not proof of a race fixed, and this close-out does
+not claim it is - what is proven is that the tearing MECHANISM is gone by
+construction and that the guard does not cost the normal path. The `warn!` ->
+`error!` move was not in the step text; it is in scope because a guard that
+disables the artifact silently would trade a torn timeline for a missing one,
+and steps 5-6 are explicitly about `Skipped` not folding into green.

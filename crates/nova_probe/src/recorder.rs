@@ -8,6 +8,11 @@
 //! per entry so a panicked or backstopped run keeps everything up to the
 //! panic - which is exactly when the timeline matters most.
 //!
+//! The sink holds an exclusive lock on its path for its lifetime: one writer
+//! per timeline, or none. A second recorder aiming at a live path is refused
+//! and logged at ERROR rather than allowed to tear the file into two spliced
+//! streams (`20260804-174231`).
+//!
 //! What lands on the timeline:
 //!
 //! - `run_start` / `run_end` - run bracket, with the git SHA + host the
@@ -35,7 +40,7 @@
 
 use std::{
     collections::HashMap,
-    fs::File,
+    fs::{File, OpenOptions, TryLockError},
     io::{BufWriter, Write},
     path::PathBuf,
 };
@@ -86,7 +91,11 @@ impl Plugin for RunRecorderPlugin {
         let timeline = match ProbeTimeline::create(path) {
             Ok(timeline) => timeline,
             Err(error) => {
-                warn!("nova probe: timeline disabled: {error}");
+                // ERROR, not WARN: the timeline was explicitly asked for, and
+                // a run that silently records nothing reports Skipped checks
+                // as if the properties held. `log_clean` greps whole-word
+                // ERROR, so this fails the run instead of thinning it.
+                error!("nova probe: timeline disabled: {error}");
                 return;
             }
         };
@@ -198,8 +207,34 @@ impl ProbeTimeline {
             std::fs::create_dir_all(parent)
                 .map_err(|e| format!("could not create {}: {e}", parent.display()))?;
         }
-        let file =
-            File::create(&path).map_err(|e| format!("could not create {}: {e}", path.display()))?;
+        // SINGLETON GUARD, then truncate - never the other way round. A plain
+        // `File::create` truncates to offset 0 while an earlier recorder's
+        // `BufWriter` keeps writing at its own offset, splicing two streams
+        // into one line (`20260804-174231`). The lock is advisory but
+        // process-wide AND cross-process on both unix (flock) and windows
+        // (LockFileEx), and it lives as long as the `File` inside the sink -
+        // so it releases when the recorder drops and probe can reuse a run
+        // directory on the next invocation.
+        let file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&path)
+            .map_err(|e| format!("could not create {}: {e}", path.display()))?;
+        match file.try_lock() {
+            Ok(()) => {}
+            Err(TryLockError::WouldBlock) => {
+                return Err(format!(
+                    "another recorder is already writing {} - refusing to share the path",
+                    path.display()
+                ))
+            }
+            Err(TryLockError::Error(e)) => {
+                return Err(format!("could not lock {}: {e}", path.display()))
+            }
+        }
+        file.set_len(0)
+            .map_err(|e| format!("could not truncate {}: {e}", path.display()))?;
         Ok(Self {
             sink: BufWriter::new(file),
             path,
@@ -610,6 +645,44 @@ mod tests {
         app.update();
         assert!(app.world().get_resource::<ProbeTimeline>().is_none());
         probe_marker(app.world_mut(), "beat", serde_json::Value::Null);
+    }
+
+    /// Two recorders on one path used to tear the file: the second
+    /// `File::create` truncated to offset 0 while the first's `BufWriter` kept
+    /// writing at its own offset, splicing two streams into one line
+    /// (`20260804-174231`). The second must be REFUSED instead, leaving the
+    /// first stream intact and parseable.
+    #[test]
+    fn a_second_recorder_on_one_path_is_refused_not_torn() {
+        let path = temp_timeline();
+        let mut first = rig(&path);
+        first.update();
+        assert!(
+            first.world().get_resource::<ProbeTimeline>().is_some(),
+            "the first recorder arms"
+        );
+
+        // A second app in the same process, same output path - what a
+        // concurrent run does. It must not arm.
+        let mut second = rig(&path);
+        second.update();
+        assert!(
+            second.world().get_resource::<ProbeTimeline>().is_none(),
+            "the second recorder is refused, not armed on a shared path"
+        );
+
+        // ...and the first stream is whole: still parseable, still its own.
+        first.update();
+        let entries = read_entries(&path);
+        assert_eq!(entries[0].kind, "run_start");
+        assert!(entries.len() >= 2, "the first recorder kept writing");
+
+        // Once the holder is gone the path re-arms - probe reuses a run
+        // directory across invocations at the same commit.
+        drop(first);
+        ProbeTimeline::create(path.clone()).expect("re-arms after the holder drops");
+
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
