@@ -67,7 +67,7 @@ Features:
 - `--norender`, `--debugdump`: require `debug`.
 
 Fresh clone: run `scripts/setup-hooks.sh`. Pre-commit blocks Rust changes when
-`cargo fmt --check` fails. Hook test: `scripts/test-fmt-hook.sh`.
+`cargo fmt --check` fails.
 
 ## Testing
 
