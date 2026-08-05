@@ -310,6 +310,19 @@ fn clamp_to_rect(pos: Vec2, viewport: Vec2, margin_px: f32) -> Vec2 {
     pos.clamp(min, max)
 }
 
+/// Clamp the center of a box of `size` so the WHOLE box stays inside the
+/// viewport inset by `margin_px`. [`clamp_to_rect`] keeps only the center
+/// inside, which is right for a point and wrong for anything as wide as a
+/// labelled chip. Degenerate cases (negative margin, a box or margin wider than
+/// the viewport) collapse to the viewport center rather than panicking.
+fn clamp_box_to_rect(center: Vec2, size: Vec2, viewport: Vec2, margin_px: f32) -> Vec2 {
+    let margin_px = margin_px.max(0.0);
+    let half = size.max(Vec2::ZERO) / 2.0;
+    let min = (Vec2::splat(margin_px) + half).min(viewport / 2.0);
+    let max = (viewport - margin_px - half).max(viewport / 2.0);
+    center.clamp(min, max)
+}
+
 /// Direction from the viewport center toward an off-screen projected point.
 /// Falls back to straight down when the point sits on the center.
 fn direction_from_center(pos: Vec2, center: Vec2) -> Vec2 {
@@ -549,6 +562,19 @@ fn update_screen_indicators(
             node.width = Val::Px(size.x);
             node.height = Val::Px(size.y);
         }
+        // Re-clamp a CLAMPED indicator now that its box is known. `place`
+        // clamps the centre before anything has measured the node, and the
+        // corner below then subtracts half the width - so a 180px chip clamped
+        // to x = 20 draws from x = -70 and loses its first characters (the
+        // beacon chip read `VEY 7.87 km` in any frame whose beacon was off past
+        // a corner). A `Content` node's size is last frame's measurement, so a
+        // chip that changes width is off by that change for exactly one frame.
+        let center = match (arrow, *offscreen) {
+            (Some(_), ScreenIndicatorOffscreen::ClampToEdge { margin_px }) => {
+                clamp_box_to_rect(center, size, viewport, margin_px)
+            }
+            _ => center,
+        };
         node.left = Val::Px(center.x - size.x / 2.0);
         node.top = Val::Px(center.y - size.y / 2.0);
         visibility.set_if_neq(Visibility::Visible);
@@ -639,6 +665,38 @@ mod tests {
         assert_eq!(
             clamp_to_rect(Vec2::new(400.0, 300.0), viewport, 20.0),
             Vec2::new(400.0, 300.0)
+        );
+    }
+
+    #[test]
+    fn clamp_box_to_rect_keeps_the_whole_box_inside() {
+        let viewport = Vec2::new(800.0, 600.0);
+        let chip = Vec2::new(180.0, 30.0);
+        // The clamped centre leaves room for the half-width: at the plain
+        // point clamp (x = 780) the chip would draw out to x = 870.
+        assert_eq!(
+            clamp_box_to_rect(Vec2::new(900.0, 300.0), chip, viewport, 20.0),
+            Vec2::new(690.0, 300.0)
+        );
+        assert_eq!(
+            clamp_box_to_rect(Vec2::new(-50.0, -50.0), chip, viewport, 20.0),
+            Vec2::new(110.0, 35.0)
+        );
+        // Inside with room to spare: untouched.
+        assert_eq!(
+            clamp_box_to_rect(Vec2::new(400.0, 300.0), chip, viewport, 20.0),
+            Vec2::new(400.0, 300.0)
+        );
+    }
+
+    #[test]
+    fn clamp_box_to_rect_degenerate_box_centers() {
+        // A box wider than the viewport must not panic (f32::clamp panics on
+        // min > max); it degenerates to the center.
+        let viewport = Vec2::new(100.0, 100.0);
+        assert_eq!(
+            clamp_box_to_rect(Vec2::ZERO, Vec2::splat(400.0), viewport, 10.0),
+            Vec2::new(50.0, 50.0)
         );
     }
 
@@ -1059,10 +1117,12 @@ mod tests {
             Visibility::Visible
         );
         // Directly behind falls back to the bottom edge, arrow pointing down
-        // (rotated by pi from the up-pointing art).
+        // (rotated by pi from the up-pointing art). The 32px box sits fully
+        // inside the 20px margin - its BOTTOM edge lands on 580, not its
+        // centre, which is what `clamp_box_to_rect` buys.
         let (left, top, _, _) = node_rect(&world, clamper);
         assert!((left - 384.0).abs() < 0.5, "left {left}");
-        assert!((top - (580.0 - 16.0)).abs() < 0.5, "top {top}");
+        assert!((top - (580.0 - 32.0)).abs() < 0.5, "top {top}");
         let arrow = world
             .entity(clamper)
             .get::<Children>()
