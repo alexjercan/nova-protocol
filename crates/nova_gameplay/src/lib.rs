@@ -66,8 +66,24 @@ pub(crate) mod test_log {
 /// Glob-import surface: `use nova_gameplay::prelude::*` re-exports the public API
 /// of this crate's submodules plus the top-level game-state enums.
 pub mod prelude {
-    // Re-export bevy_common_systems prelude
-    pub use bevy_common_systems::prelude::*;
+    // The `bevy_common_systems` names nova's own gameplay code is written in,
+    // re-exported BY NAME. A glob (`pub use bevy_common_systems::prelude::*`)
+    // used to stand here, and it also dragged in the retired bcs harness twins
+    // - `AutopilotPlugin`, `AutopilotLoop`, `ScreenshotPlugin`,
+    // `ScreenshotReelPlugin`, `HarnessCompletion` - which shadow nova's
+    // harness at every example's `use nova_protocol::prelude::*` and boot the
+    // example INERT (task 20260802-183403). Keep this list explicit: adding a
+    // name here is a decision, and the twins are never on it.
+    pub use bevy_common_systems::prelude::{
+        destructible_body, status_bar, status_bar_item, status_fps_color_fn, status_fps_value_fn,
+        status_version_color_fn, status_version_value_fn, CameraShake, CameraShakeInput,
+        CameraShakePlugin, ChaseCamera, ChaseCameraInput, GameObjectives, Health,
+        HealthApplyDamage, HealthZeroMarker, IntegrityDestroyMarker, Objective, ObjectivesPlugin,
+        PDController, PDControllerInput, PDControllerPlugin, PDControllerSystems,
+        PDControllerTarget, PlaySfx, PointRotationOutput, PostProcessingCamera, SfxCommandsExt,
+        SfxPlugin, SkyboxConfig, SoundBank, StatusBarItemConfig, StatusBarRootConfig,
+        WASDCameraController,
+    };
 
     pub use super::{
         asset_ref::prelude::*,

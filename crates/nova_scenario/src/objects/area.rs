@@ -1,7 +1,7 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use bevy_common_systems::prelude::CommandsGameEventExt;
 use nova_events::prelude::*;
-use nova_gameplay::prelude::*;
 
 /// Glob-import surface: `use crate::objects::area::prelude::*` re-exports the public API of this module.
 pub mod prelude {

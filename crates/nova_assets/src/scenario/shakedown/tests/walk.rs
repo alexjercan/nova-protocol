@@ -2,6 +2,8 @@
 //! scenario's handlers registered exactly as `on_load_scenario` registers
 //! them, driven through all five beats.
 
+use bevy_common_systems::prelude::{CommandsGameEventExt, EventHandler, GameEventsPlugin};
+
 use super::*;
 
 /// A headless app running the real event pipeline with the scenario's handlers

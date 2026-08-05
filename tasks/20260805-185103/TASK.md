@@ -57,7 +57,7 @@ Each step below becomes its own child task at planning time.
       instance's `BufWriter` holds its own offset. Two recorders, one path.
       Small, and load-bearing for steps 4-6, which make the timeline the sole
       verdict.
-- [ ] 2. **Stop leaking the bcs prelude.**
+- [x] 2. **Stop leaking the bcs prelude.**
       `crates/nova_gameplay/src/lib.rs:70` is the ONLY
       `pub use bevy_common_systems::prelude::*` in the workspace (the other 35
       sites are private `use` and stay). Delete it; compile; add back only what
@@ -307,3 +307,72 @@ construction and that the guard does not cost the normal path. The `warn!` ->
 `error!` move was not in the step text; it is in scope because a guard that
 disables the artifact silently would trade a torn timeline for a missing one,
 and steps 5-6 are explicitly about `Skipped` not folding into green.
+
+## Close-out - step 2: the leaked bcs prelude
+
+**What.** `crates/nova_gameplay/src/lib.rs`'s prelude no longer globs
+`bevy_common_systems::prelude::*`. In its place is an explicit 28-name list of
+the bcs vocabulary nova's own gameplay code is written in, with a comment naming
+the five harness twins that are never on it. Two consumers that were reaching
+bcs THROUGH that glob now import bcs directly, because their own crate already
+depends on it: `crates/nova_scenario/src/objects/area.rs` (swapped a
+now-unused `use nova_gameplay::prelude::*` for
+`bevy_common_systems::prelude::CommandsGameEventExt`) and
+`crates/nova_assets/src/scenario/shakedown/tests/walk.rs`
+(`CommandsGameEventExt, EventHandler, GameEventsPlugin`).
+`examples_name_drivers_through_the_nova_harness` is deleted from
+`tests/examples_smoke.rs` - its subject is gone.
+
+**Why.** The glob dragged bcs's retired `AutopilotPlugin`, `AutopilotLoop`,
+`ScreenshotPlugin`, `ScreenshotReelPlugin` and `HarnessCompletion` into every
+`use nova_protocol::prelude::*`, where a bare name silently resolved to the
+inert twin and booted the example dead (`20260802-183403`). A source-grep test
+policed that; deleting the glob turns the same failure into a compile error, so
+the grep test is dead weight rather than a safety net.
+
+**Alternatives.** (a) Keep the glob and widen the grep test - rejected: it
+polices a symptom the type system can police. (b) Push every re-exported name
+down to a direct bcs import in each consuming crate - rejected for
+`nova_editor`, `nova_menu` and `nova_core`, which do NOT depend on bcs; adding
+the dependency to three crates to avoid 28 re-export names is a bigger boundary
+change than the step asks for. The rule actually applied: a crate that already
+depends on bcs imports directly; a crate that does not gets the name through
+nova_gameplay's prelude.
+
+**Difficulties.** The blast radius could not be predicted, only measured, and it
+came in five compile rounds because each fix unblocked the next crate in the
+dependency order: nova_gameplay (42 errors) -> nova_scenario (`fire`) ->
+nova_assets + nova_editor + nova_menu -> nova_core (the bcs status-bar
+helpers) -> examples (`ChaseCamera`). Trait-method errors (`fire`,
+`play_sfx_volume`) do not name the trait, so each needed a lookup in the pinned
+bcs tree (`v0.19.5` = `30d1bef`) to find `CommandsGameEventExt` /
+`SfxCommandsExt`.
+
+**Evidence.**
+- `cargo check --workspace --all-targets` clean; `cargo fmt --all -- --check`
+  clean.
+- Warning set is IDENTICAL to master's (11 dead-code/unused-import warnings in
+  examples, verified by running the same check in the main checkout). This step
+  neither adds nor removes a warning - it unblocks `20260731-205553`, it does
+  not do it.
+- The deleted test's guarantee, re-proven at the type level: a throwaway
+  `tests/` file doing `use nova_protocol::prelude::*` then naming
+  `AutopilotPlugin` / `ScreenshotPlugin` / `ScreenshotReelPlugin` fails to
+  compile with E0433/E0425 (`--features debug`). The twins are unreachable, not
+  merely unused. File removed after the check.
+- `cargo test -p nova_assets --lib shakedown` 16/16;
+  `cargo test --test examples_smoke -- catalog every_category sections_assert`
+  3/3 (the display-free survivors of the file the deleted test lived in).
+- RUN, not just checked: `cargo run -p nova_probe -- run
+  hull_section,menu_scenarios` - both **OK, measured 5/6**, `reached_playing`
+  and `invariants_held` PASS on each. `hull_section` is the example that needed
+  `ChaseCamera` back; a prelude regression would boot it inert, and inert is
+  exactly what probe reports as a failure.
+
+**Reflection.** The 28-name list is the honest shape of the coupling, not a
+tidy one: nova_gameplay's prelude now visibly re-exports bcs status-bar UI
+helpers that only `nova_core` wants. That is worth leaving ugly - it names a
+real dependency that the glob was hiding, and it is the kind of thing a future
+step can move to `nova_core` depending on bcs directly. The step's estimate
+that the blast radius was unmeasurable was right, and the measurement cost five
+builds; nothing outside the workspace broke, which is the useful finding.
