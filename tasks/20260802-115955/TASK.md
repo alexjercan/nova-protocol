@@ -19,7 +19,7 @@ website. The release favors one reusable pipeline over unrelated features.
 | --- | --- | --- |
 | Nova-owned automation | `nova_autopilot` replaces the BCS harness and becomes a generic predicate-driven state machine. | `20260802-120019`, `20260802-120025` |
 | Example fleet | A spike sets the roster; every category has a contract, and the runs get deeper and assert what they claim on the shared driver. | `20260804-003244`, `20260802-120029`, `20260804-003301` |
-| Asset refresh | The rebuilt `screenshots/` producers plus the python packaging script refresh the web imagery; scenario art gets generated placeholders until the owner draws it. | `20260724-082856`, `20260715-220011` |
+| Asset refresh | The rebuilt `screenshots/` producers plus the python packaging script refresh the web imagery; scenario art gets generated placeholders until the owner draws it. | `20260805-105154`, `20260715-220011` |
 | Release confidence | Current tutorial media and warning-clean code ship with the automated evidence. | `20260730-111146`, `20260731-205553` |
 
 ## Done Means
@@ -63,7 +63,8 @@ website. The release favors one reusable pipeline over unrelated features.
 | `20260804-094006` | 76 | nova-protocol | Create `stress/`: absorb `perf_baseline`, add scale sweeps | Pending |
 | `20260802-120045` | 75 | nova-protocol | Generate showcase evidence and web assets with one command | CLOSED/WONTDO 2026-08-03: owner call - screenshot capture and packaging stay in `scripts/gen-web-screenshots.py`; `nova_probe` is for profiling and correctness only, and probing a screenshot example yields no useful evidence. Capture refresh lives in `20260724-082856` / `20260715-220011`. |
 | `20260804-095507` | 74 | nova-protocol | Run the fleet as CI will, record the sprint evidence | Pending |
-| `20260724-082856` | 70 | nova-protocol | Refresh frontend app images | Pending |
+| `20260724-082856` | 70 | nova-protocol | Refresh frontend app images | CLOSED/SUPERSEDED 2026-08-05 by `20260805-105154`: its first step landed on master (`0ff077ff`) - `gen-web-screenshots.py --report` is the advisory coverage worklist (`capturable`/`manual`/`historical`, exit 0). The owner then deleted every shipped game-rendered capture rather than patch the old set, so the refresh restarts green-field. |
+| `20260805-105154` | 70 | nova-protocol | Refresh frontend app images: redo the `screenshots/` examples, recapture every `capturable` image | Pending - replacement for `20260724-082856`; 27 `capturable` gaps grouped by producer, one image per step |
 | `20260715-220011` | 68 | nova-protocol | Generated placeholder thumbnails for the Scenarios picker | Pending |
 | `20260730-111146` | 60 | nova-protocol | Refresh the tutorial against current UI and captures | Pending |
 | `20260731-205553` | 50 | nova-protocol | Clear compiler and rustdoc warnings | Pending |

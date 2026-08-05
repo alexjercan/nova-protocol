@@ -4,7 +4,8 @@
 - TAGS: v0.10.0, web, assets, screenshot
 - ACTIVITY: PLANNING
 - GATES: -
-- RESOLUTION: -
+- RESOLUTION: SUPERSEDED
+- DUPLICATE OF: 20260805-105154
 - PARENT: 20260802-115955
 - DEPENDS ON: 20260804-093910
 
@@ -84,3 +85,10 @@ The coverage flag is `--report` and there is only one name for it. Owner call
   not currently agree; `wiki-hud.png` and `wiki-radar.png` reuse older captures.
 - Authored diagrams/icons may remain authored. Only game-rendered imagery needs
   an automation producer.
+- SUPERSEDED 2026-08-05 by `20260805-105154`. Step 1 landed on master
+  (`0ff077ff`): `scripts/gen-web-screenshots.py --report` is the advisory
+  worklist, README + `development.md` document it. The rest did not: the owner
+  chose to delete every shipped game-rendered capture and redo the
+  `screenshots/` examples for better-looking shots, one image per step, rather
+  than patch the old set in place. The replacement carries the `capturable`
+  worklist as its input.
