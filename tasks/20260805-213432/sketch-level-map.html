@@ -122,9 +122,9 @@
   <header>
     <div class="stamp">Nova Protocol / task 20260805-213432 / round 1 proposal</div>
     <h1>Shakedown Run - level layout sketch</h1>
-    <p class="lede">Orthographic views of chapter one with the belt added and the planetoid brought in.
-      Every coordinate below is a starting point for iteration, not a target. Existing objects keep their
-      positions unless marked. Grid squares are 100 world units.</p>
+    <p class="lede">Top-down map of chapter one with the belt added and the planetoid brought in, walked in
+      beat order. Every coordinate below is a starting point for iteration, not a target. Existing objects keep
+      their positions unless marked. Grid squares are 100 world units.</p>
   </header>
 
   <section class="views" id="views"></section>
@@ -191,8 +191,9 @@
   </div>
 
   <footer>
-    Views are orthographic and to scale with each other. World axes: +X right, +Y up, -Z is the direction the
-    player faces at spawn. Numbers are round-1 proposals - the point of this sheet is to argue with them.
+    Orthographic plan view. World axes: +X right, +Y up, -Z is the direction the player faces at spawn -
+    height is flattened out of the drawing, so read the y column in the schedule for vertical offsets.
+    Numbers are round-1 proposals - the point of this sheet is to argue with them.
   </footer>
 </div>
 
@@ -226,7 +227,21 @@ const RINGS = [
   {id:"far_out", around:"planetoid", r:900, kind:"field", label:"far layer outer 900u"},
 ];
 
-const ROUTE = ["spawn","beacon_1","beacon_2","debris","derelict","beacon_3","beacon_4"];
+// The journey, in beat order: burn to beacon 1, freelook to beacon 2, weave the
+// crates, GOTO beacon 3, waypoint to beacon 4, coast and orbit the planetoid,
+// then the live-fire rehearsal on the hulk and the scavenger fight back at the
+// debris field.
+const ROUTE = [
+  {id:"spawn",     step:null, label:"start"},
+  {id:"beacon_1",  step:1,    label:"burn (W)"},
+  {id:"beacon_2",  step:2,    label:"freelook (Alt)"},
+  {id:"debris",    step:3,    label:"crates (X)"},
+  {id:"beacon_3",  step:4,    label:"GOTO (G)"},
+  {id:"beacon_4",  step:5,    label:"waypoint"},
+  {id:"planetoid", step:6,    label:"coast + orbit (O)"},
+  {id:"derelict",  step:7,    label:"live fire"},
+  {id:"pirate",    step:8,    label:"scavenger"},
+];
 
 const COLOR = {
   beacon:"var(--beacon)", body:"var(--body)", rock:"var(--rock)", knot:"var(--hazard)",
@@ -234,11 +249,14 @@ const COLOR = {
   soi:"var(--body)", area:"var(--beacon)", orbit:"var(--ink-faint)", field:"var(--rock)"
 };
 
-const VIEWS = [
-  {key:"plan",  title:"Plan - looking down (+Y)",        ax:["x", 1,"X"], ay:["z",-1,"-Z (forward)"], caption:"Top-down. Up-screen is the heading the player faces at spawn."},
-  {key:"front", title:"Front elevation - looking along -Z", ax:["x", 1,"X"], ay:["y",-1,"Y (up)"],      caption:"What the player sees looking down the opening burn: how high the belt stacks."},
-  {key:"right", title:"Right elevation - looking along -X", ax:["z",-1,"-Z (forward)"], ay:["y",-1,"Y (up)"], caption:"From the starboard side: the planetoid sits below the flight plane."},
-];
+const VIEW = {
+  key:"plan",
+  title:"Plan - looking down (+Y)",
+  ax:["x", 1, "X"],
+  ay:["z", -1, "-Z (forward)"],
+  caption:"Top-down, orthographic. Up-screen is the heading the player faces at spawn. " +
+          "Numbered stops are the beats in order; vertical offsets (y) are in the schedule below.",
+};
 
 const IDX = {x:0, y:1, z:2};
 const byId = Object.fromEntries(OBJ.map(o => [o.id, o]));
@@ -285,8 +303,8 @@ function svgFor(view) {
       g += `<text x="${c[0]}" y="${c[1] - ring.r * s - 6}" text-anchor="middle" font-size="11" fill="${COLOR[ring.kind]}" opacity=".9" font-family="ui-monospace, Menlo, monospace">${ring.label}</text>`;
   }
 
-  // route
-  const pts = ROUTE.map(id => at(byId[id].p).join(",")).join(" ");
+  // route, in beat order
+  const pts = ROUTE.map(r => at(byId[r.id].p).join(",")).join(" ");
   g += `<polyline points="${pts}" fill="none" stroke="var(--beacon)" stroke-width="1.6" stroke-dasharray="7 5" opacity=".85"/>`;
 
   // objects
@@ -322,6 +340,16 @@ function svgFor(view) {
     g += `<text x="${x + Math.max(9, rr * 0.72)}" y="${y - Math.max(6, rr * 0.6)}" font-size="10.5" fill="var(--ink)" font-family="ui-monospace, Menlo, monospace" letter-spacing=".04em">${label}</text>`;
   }
 
+  // beat badges, drawn last so the route order stays readable over the field
+  for (const r of ROUTE) {
+    if (r.step === null) continue;
+    const o = byId[r.id], [x, y] = at(o.p);
+    const bx = x - Math.max(14, o.r * s * 0.7), by = y + Math.max(14, o.r * s * 0.6);
+    g += `<circle cx="${bx}" cy="${by}" r="9.5" fill="var(--void)" stroke="var(--beacon)" stroke-width="1.4"/>`;
+    g += `<text x="${bx}" y="${by + 3.6}" text-anchor="middle" font-size="10.5" font-weight="700" fill="var(--beacon)" font-family="ui-monospace, Menlo, monospace">${r.step}</text>`;
+    g += `<text x="${bx - 13}" y="${by + 3.6}" text-anchor="end" font-size="10" fill="var(--ink-soft)" font-family="ui-monospace, Menlo, monospace">${r.label}</text>`;
+  }
+
   // scale bar + axis labels
   const barY = H - 26, bar = 200 * s;
   g += `<line x1="${PAD * 0.5}" y1="${barY}" x2="${PAD * 0.5 + bar}" y2="${barY}" stroke="var(--ink-soft)" stroke-width="1.4"/>`;
@@ -333,12 +361,12 @@ function svgFor(view) {
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${view.title}">${g}</svg>`;
 }
 
-document.getElementById("views").innerHTML = VIEWS.map(v => `
+document.getElementById("views").innerHTML = `
   <figure>
-    <h2>${v.title}</h2>
-    <div class="frame">${svgFor(v)}</div>
-    <figcaption>${v.caption}</figcaption>
-  </figure>`).join("");
+    <h2>${VIEW.title}</h2>
+    <div class="frame">${svgFor(VIEW)}</div>
+    <figcaption>${VIEW.caption}</figcaption>
+  </figure>`;
 
 document.getElementById("legend").innerHTML = [
   ["beacon", "Beacon + 70u trigger sphere"],
@@ -349,7 +377,7 @@ document.getElementById("legend").innerHTML = [
   ["threat", "Hostile / derelict"],
   ["node", "Player spawn"],
 ].map(([k, t]) => `<div><span class="swatch" style="background:${COLOR[k]};opacity:.65"></span><span>${t}</span></div>`).join("")
-  + `<div><span class="swatch" style="background:transparent;border-style:dashed;color:var(--beacon)"></span><span>Player route through the beats</span></div>`
+  + `<div><span class="swatch" style="background:transparent;border-style:dashed;color:var(--beacon)"></span><span>Player route, walked in beat order (1-8)</span></div>`
   + `<div><span class="swatch" style="background:transparent;border-style:dashed;color:var(--body)"></span><span>Gravity rings: SOI, coast, orbit band</span></div>`;
 
 const rows = OBJ.map(o => {
