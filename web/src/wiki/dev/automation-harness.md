@@ -251,5 +251,4 @@ and asserts on the exit status and the log lines.
 
 The full API reference is the crate's rustdoc
 (`cargo doc -p nova_autopilot --open`); every public item is reachable through
-`nova_autopilot::prelude`, and `crates/nova_autopilot/tests/prelude.rs` fails if
-a new one is not.
+`nova_autopilot::prelude`.

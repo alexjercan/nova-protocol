@@ -92,8 +92,7 @@ pub mod screenshot;
 /// Glob-import surface: `use nova_autopilot::prelude::*`.
 ///
 /// Every public item of the six modules is re-exported here verbatim, so a
-/// caller never needs a module path. `tests/prelude.rs` scans the module
-/// sources and fails when a new `pub` item skips this list.
+/// caller never needs a module path.
 ///
 /// Names are re-exported unaliased. Two share a name with something outside
 /// `bevy::prelude` or inside it:
