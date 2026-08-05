@@ -207,13 +207,43 @@ supersedes (with its `[[example]]` block in `Cargo.toml` and its entry in
     owner's call the scene grew a second act: the ship drops the ring for a real
     GOTO out to a survey beacon over the pole (polar so the path clears the body
     from every point on the ring), which is where the burn and the flip-and-burn
-    come from. The leg's beats are shot over the GAME camera, not a pinned pose -
-    the subject there is the chrome (ribbon, destination readout, FLIP marker),
-    and a pinned pose watches a ship that is leaving.
-  - PENDING THE OWNER: five candidates for the flight and autopilot images -
-    `variant-autopilot-goto` (the departure burn, ribbon out to the beacon, 240
-    m/s) and `variant-flight-flip` (the flip-and-burn, retro plumes lit, 650 m/s)
-    off the leg; `variant-autopilot-ring` (close three-quarter of the insertion
+    come from.
+  - The leg is shot by a camera that FLIES it (`LegCamera` + `drive_leg_camera`,
+    re-solved every frame off the ship's live position and track), not by pinned
+    poses. A pose cannot hold a transfer: the ship crosses at 65 u/s, so the
+    ~0.3 s a framing beat holds is 20 units of travel, and the first cut of the
+    flip beat pinned its camera 22 units ahead of the ship and the ship flew
+    through it - an empty frame. Camera BEHIND for the departure burn (drive at
+    the lens), AHEAD for the flip (braking fires down the track).
+  - Every leg framing offsets along `lit_side()` - the key light's direction with
+    the along-track component removed - rather than a world axis, because the rig
+    is direction-only and a maneuvering ship changes attitude for a living. That
+    is what fixed the dark hull in the flip frame.
+  - LIGHTING IS PHASE-DEPENDENT, and the phase drifts per run: the insertion is a
+    real burn whose duration moves with the (per-run, 79-108) derived body radius,
+    so the ship is somewhere else on the ring each time and the outboard cameras
+    photographed a black planetoid on the runs that landed on the night side. The
+    fix is the START phase: the racer is parked on the rim light's horizontal
+    bearing (`START_RADIAL`), so every outboard camera looks down the brightest
+    lamp on the set at the body's lit face.
+  - The tutorial figure's offsets have to be SMALL next to its aim distance. Ship
+    and body are ~250 units apart with the camera ~50 off the ship, so every unit
+    of lateral offset swings the pair further apart in frame; at `Y * 30` the
+    planetoid was cropped off the top edge. It is now outboard + slightly up,
+    aimed most of the way to the body: whole body, ring across it, spoke, ship on
+    the far end of the spoke.
+  - HUD DEFECT, not fixed here and not this task's: `clamp_to_rect`
+    (`crates/nova_gameplay/src/hud/screen_indicator.rs`) clamps a chip's CENTRE to
+    the inset viewport, so a wide chip still overhangs the edge - the beacon's
+    `SURVEY 7.87 km` chip is cut to `VEY 7.87 km` in any frame whose beacon is
+    off-screen past a corner. Clamping by the node's own half-size would fix it
+    for every producer.
+  - PENDING THE OWNER: seven candidates for the flight and autopilot images -
+    `variant-autopilot-goto` (the departure burn, ribbon out to the beacon, 250
+    m/s), `variant-flight-departure` (clean wide, the lit planetoid with the ship
+    crossing its limb under power), `variant-flight-flip` (the flip-and-burn,
+    retro plumes lit, 640 m/s) and `variant-flight-arrival` (clean, parked off the
+    glowing beacon at the end of the leg) off the leg; `variant-autopilot-ring` (close three-quarter of the insertion
     burn, two plumes lit, `AP ORBIT - BURN` up), `variant-flight-limb` (cinematic,
     the hull over the body) and `variant-flight-chase` (the ring curving away) off
     the ring. If they beat the Rock hollow's GOTO beats, `feature-autopilot` and

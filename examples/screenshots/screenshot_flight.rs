@@ -6,13 +6,16 @@
 //! ACT 1, the ring: the ORBIT verb burns the ship from rest onto the
 //! circular-orbit velocity and holds it there while the maneuver instruments
 //! draw the holo ring and the radius spoke around the body. That is the shipped
-//! `tutorial-orbit` image and two cinematic variants.
+//! `tutorial-orbit` image, the insertion burn and two cinematic variants.
 //!
 //! ACT 2, the departure: ORBIT is a HELD state, and a held state photographs as
 //! a ship sitting still on a ring - the flight computer's loud beats are on a
 //! LEG. So the ship leaves: a real GOTO out to a survey beacon over the pole,
-//! align, burn, coast, FLIP, brake, with the trajectory ribbon and the
-//! destination readout up. The burn and the flip-and-burn come off that.
+//! align, burn, coast, FLIP, brake, park. The camera flies the leg with it -
+//! every beat is posed off the ship's own track and off the light rig, twice
+//! with the HUD up for the flight computer's chrome and twice clean for the
+//! picture: the burn, the wide of the ship climbing out of the well, the flip,
+//! and the arrival at the beacon.
 //!
 //! Everything here is the production flight stack. The script inserts the same
 //! [`Autopilot`] components the ORBIT and GOTO keybinds do and then watches the
@@ -23,7 +26,7 @@
 //! ship, a 12-unit planetoid and a single 5.6-second stopwatch before the shot.
 //!
 //! WHAT IT SHIPS, AND WHAT IT PROPOSES. `tutorial-orbit` is this set's image and
-//! the other five are `variant-*.png`: the flight and autopilot images
+//! the other seven are `variant-*.png`: the flight and autopilot images
 //! (`feature-autopilot`, `wiki-flight`) currently belong to the Rock hollow's
 //! GOTO leg, and these are this scene's candidates for them, staged by a capture
 //! run and named by no manifest entry. The pick is the owner's, at capture time.
@@ -31,7 +34,7 @@
 //! Sizing, so the numbers are not magic (the well math is
 //! `crates/nova_gameplay/src/gravity.rs`):
 //! - MEASURED, not assumed: the noise displaces the rock mesh outward, and the
-//!   derived `BodyRadius` of this planetoid comes out at 90-105 units for an
+//!   derived `BodyRadius` of this planetoid comes out at 79-108 units for an
 //!   authored 20 - a factor of about 4.5, not the 2 a diameter-based reading of
 //!   the task note suggests. The spread is per RUN, since the displacement is
 //!   seeded from the global RNG, so nothing here may sit close to a boundary.
@@ -40,7 +43,7 @@
 //!   cut of this scene put the ring 19 units off the surface and shot a frame of
 //!   nothing but rock.
 //! - The orbit band runs from `1.5 * (body_radius + 1)` out to `0.9 * 0.85 *
-//!   SOI`, and the SOI is 8 body radii - roughly 139 to 559 units here.
+//!   SOI`, and the SOI is 8 body radii - roughly 122 to 660 units here.
 //!   [`ORBIT_RADIUS`] sits mid-band, so the explicit plan is the ring the ship
 //!   actually flies and the body reads as a body rather than as terrain.
 //! - `mu = surface_gravity * body_radius^2`, so the ring's circular speed is
@@ -92,7 +95,7 @@ const PLANETOID_GRAVITY: f32 = 6.0;
 
 /// The player ship's scenario id.
 const PLAYER_ID: &str = "ring_player";
-/// The ring the ship holds: mid-band (roughly 139 to 559 units for this body),
+/// The ring the ship holds: mid-band (roughly 122 to 660 units for this body),
 /// so the explicit plan below is flown as authored rather than clamped. The
 /// distance is chosen off the DRAWN body, at about three and a half of its
 /// radii - close enough that the planetoid fills the lower third of a framing
@@ -101,6 +104,32 @@ const ORBIT_RADIUS: f32 = 320.0;
 /// The ring's plane: the world horizontal, so the rock ring and the holo ring
 /// are the same circle and the shots have one horizon rather than two.
 const ORBIT_NORMAL: Vec3 = Vec3::Y;
+/// Which way out of the ring the ship starts, and so WHERE ON THE RING every
+/// act-1 shot happens - the framings are built off the ship's own radial and
+/// track, but the light rig is fixed in WORLD space, so the phase decides
+/// whether the outboard cameras see a lit planetoid or a black one.
+///
+/// This is the rim light's horizontal direction (`shared/kit.rs` puts the rim
+/// at `(3, 4, -8)`, and at 16000 lux it is the brightest lamp on the set), so
+/// the cameras that sit outboard of the ship and look back in - the tutorial
+/// figure, the limb, the departure wide - are looking down the rim at the body's
+/// lit face. A run that starts a quarter turn away photographs the night side:
+/// the insertion is a real burn whose duration moves with the (per-run) derived
+/// body radius, so the shot phase cannot be left to drift out of the light.
+const START_RADIAL: Vec3 = Vec3::new(0.35, 0.0, -0.94);
+
+/// Where the racer is parked before the verb takes it: on the ring, out along
+/// [`START_RADIAL`].
+fn start_position() -> Vec3 {
+    START_RADIAL.normalize() * ORBIT_RADIUS
+}
+
+/// Pointing along the ring's travel direction (`normal x radial`), so the racer
+/// is already squared with the track it is about to be put on rather than
+/// swinging through 90 degrees on the first frame of the insertion.
+fn start_rotation() -> Quat {
+    Quat::from_rotation_arc(Vec3::NEG_Z, ORBIT_NORMAL.cross(START_RADIAL.normalize()))
+}
 
 /// The survey beacon the departure leg flies to.
 const BEACON_ID: &str = "ring_beacon";
@@ -184,7 +213,7 @@ fn main() -> bevy::app::AppExit {
                     let ship = ship_position(world);
                     let out = ship.normalize_or_zero();
                     let track = ship_heading(world);
-                    pose(
+                    pin(
                         world,
                         ship - out * 26.0 + Vec3::Y * 10.0 - track * 30.0,
                         ship,
@@ -211,23 +240,31 @@ fn main() -> bevy::app::AppExit {
                 // on a ring the body is 90 degrees off it - the game's own view
                 // of an orbit has the thing being orbited out of frame, which is
                 // a fine thing to fly and a useless thing to teach from. So the
-                // tutorial figure is posed: high on the ship's outboard quarter,
-                // looking down and in, with the hull up front, the holo ring
-                // sweeping past it and the planetoid filling the frame under
-                // both. HUD ON - the ring, the spoke and the AP chip are the
-                // subject.
+                // tutorial figure is posed: outboard of the ship and slightly
+                // above it, aimed most of the way at the body, so the whole
+                // planetoid, the holo ring across it, the radius spoke and the
+                // ship on the far end of that spoke are one picture. HUD ON - the
+                // ring, the spoke and the AP chip are the subject.
+                //
+                // The offsets are small next to the aim distance ON PURPOSE. Ship
+                // and body are ~250 units apart and the camera sits ~50 from the
+                // ship: every unit of lateral offset swings the two apart in
+                // frame, and at `Y * 30, -track * 20` the pair spanned more than
+                // the lens had and the body was cropped off the top edge.
                 .step("frame the orbit shot")
                 .on_enter(|world| {
                     hud_instrument(world);
                     let ship = ship_position(world);
                     let out = ship.normalize_or_zero();
                     let track = ship_heading(world);
-                    pose(
+                    pin(
                         world,
-                        ship + out * 30.0 + Vec3::Y * 20.0 - track * 14.0,
-                        // Short of the ship, toward the body: it drops the hull
-                        // into the upper third and gives the planetoid the rest.
-                        ship - out * 26.0,
+                        ship + out * 45.0 + Vec3::Y * 15.0 - track * 10.0,
+                        // Well short of the ship, most of the way to the body:
+                        // the planetoid takes the middle of the frame and the
+                        // ship falls out to the low corner on the end of its
+                        // spoke, which is the relationship the figure teaches.
+                        ship - out * 120.0,
                     );
                 })
                 .until(elapsed(0.4))
@@ -253,7 +290,7 @@ fn main() -> bevy::app::AppExit {
                     // hull, where a limb belongs. The offset is a fixed distance,
                     // not a fraction of the radius - the subject is the ship, and
                     // how far away it reads must not move with the ring.
-                    pose(
+                    pin(
                         world,
                         ship + ship.normalize_or_zero() * 24.0 - Vec3::Y * 3.0,
                         ship,
@@ -282,7 +319,7 @@ fn main() -> bevy::app::AppExit {
                     let ship = ship_position(world);
                     let out = ship.normalize_or_zero();
                     let track = ship_heading(world);
-                    pose(
+                    pin(
                         world,
                         ship - track * 22.0 + out * 7.0 + Vec3::Y * 11.0,
                         ship + track * 4.0 - out * 6.0,
@@ -302,12 +339,12 @@ fn main() -> bevy::app::AppExit {
                 // the G keybind, engaged straight over the orbit - nothing here
                 // is a scripted animation.
                 //
-                // The camera goes back to the GAME for this act. A pinned world
-                // pose watches a ship that is leaving, and the leg's subject is
-                // the chrome anyway: the trajectory ribbon, the destination
-                // readout and the FLIP marker are what an autopilot frame is
-                // about, and they are drawn around the ship the follow camera is
-                // already with.
+                // The camera FLIES the leg rather than sitting on the follow
+                // camera. Each beat is posed off the ship's own track ([`chase`],
+                // [`lead`]) and off the light rig ([`lit_side`]), because the
+                // follow camera has one framing and the leg has four different
+                // subjects: the burn, the well the ship is leaving, the flip, and
+                // the arrival.
                 .step("engage the travel computer")
                 .on_enter(|world| {
                     hud_instrument(world);
@@ -317,32 +354,123 @@ fn main() -> bevy::app::AppExit {
                 .until(player_burning())
                 .deadline(30.0)
                 .add()
+                // The burn, close and from behind: the drive is lit and the plume
+                // is pointed at the lens, with the ribbon running up out of frame
+                // to the beacon. HUD ON - this one is FOR the chrome (`AP GOTO -
+                // BURN`, the destination readout, the ribbon).
+                .step("frame the departure burn")
+                .on_enter(|world| {
+                    hud_instrument(world);
+                    chase(world, 26.0, 20.0, 4.0, 10.0);
+                })
+                .until(elapsed(0.3))
+                .add()
                 .step("capture the departure burn")
                 .on_enter(move |world| shoot(world, capturing, "variant-autopilot-goto.png"))
+                .until(elapsed(0.2))
+                .add()
+                // The same burn, wide and clean: back along the ship's own radius
+                // so the planetoid it is climbing away from sits behind it in
+                // frame. This is the shot the leg exists for - a ship leaving a
+                // well - and it is a picture rather than an instrument panel, so
+                // the HUD goes cinematic and the camera goes far enough out that
+                // the body, the ring and the hull are all in one frame.
+                .step("frame the departure wide")
+                .on_enter(|world| {
+                    hud_cinematic(world);
+                    let ship = ship_position(world);
+                    let radial = ship.normalize_or_zero();
+                    let side = lit_side(radial);
+                    // Looking SHORT of the ship, back down the radius: it puts the
+                    // hull in the upper third and gives the planetoid the rest.
+                    pin(
+                        world,
+                        ship + radial * 105.0 + side * 34.0,
+                        ship - radial * 42.0,
+                    );
+                })
+                .until(elapsed(0.4))
+                .add()
+                .step("capture the departure wide")
+                .on_enter(move |world| shoot(world, capturing, "variant-flight-departure.png"))
                 .until(elapsed(0.2))
                 .add()
                 // Coast, then the flip: the computer swings the ship end-for-end
                 // and lights the drive back down the path. The wait is on the
                 // BRAKING transition (the telemetry drops its flip point once the
-                // brake is planned), not on a stopwatch.
+                // brake is planned), not on a stopwatch. The camera is handed back
+                // for the coast - a pinned pose would spend it watching a ship
+                // shrink.
                 .step("coast to the flip")
+                .on_enter(|world| {
+                    hud_instrument(world);
+                    unpose(world);
+                })
                 .until(player_braking())
                 .deadline(150.0)
                 .add()
                 // The money frame of a flip-and-burn is the END of the swing: the
                 // hull is round, the drive is lit back down the path and the plume
-                // points at the camera. Waiting for the phase, not for a fraction
-                // of a rotation nobody can time.
+                // points where the ship is going. Waiting for the phase, not for a
+                // fraction of a rotation nobody can time.
                 .step("flip and burn")
                 .until(player_retro_burning())
                 .deadline(25.0)
                 .add()
+                // So the camera is AHEAD of the ship for this one, not behind it:
+                // braking, the drive fires down the track, and the plume that was
+                // at the lens during the departure is now on the far side of the
+                // hull. It also fixes the frame the first cut of this beat got
+                // wrong - the swing puts the hull's shadow side to a fixed-
+                // direction rig, and [`lit_side`] is what keeps the lens on the key.
+                .step("frame the flip")
+                .on_enter(|world| {
+                    hud_instrument(world);
+                    lead(world, 22.0, 20.0, 5.0);
+                })
+                .until(elapsed(0.3))
+                .add()
                 .step("capture the flip")
                 .on_enter(move |world| shoot(world, capturing, "variant-flight-flip.png"))
+                .until(elapsed(0.2))
+                .add()
+                // The arrival: the leg ends parked off the beacon, which is the
+                // only frame in the set that shows a flight-computer leg being
+                // COMPLETED rather than flown. Clean screen again - the subject is
+                // the two objects and the space between them.
+                .step("close on the beacon")
+                .on_enter(hud_cinematic)
+                .until(player_arrived())
+                .deadline(90.0)
+                .add()
+                // Over the ship's shoulder, up the closing line: the hull in the
+                // near corner and the beacon it has been flying at for half a
+                // minute glowing ahead of it. The framing is built off the LINE to
+                // the beacon rather than off the ship's track - parked at the end
+                // of a leg the velocity is nearly zero and the hull is still
+                // pointing backwards from the brake, so neither says where the
+                // shot is.
+                .step("frame the arrival")
+                .on_enter(|world| {
+                    let ship = ship_position(world);
+                    let line = (BEACON_POSITION - ship).normalize_or_zero();
+                    pin(
+                        world,
+                        ship - line * 26.0 + lit_side(line) * 16.0 + Vec3::Y * 5.0,
+                        ship + line * 24.0,
+                    );
+                })
+                .until(elapsed(0.4))
+                .add()
+                .step("capture the arrival")
+                .on_enter(move |world| shoot(world, capturing, "variant-flight-arrival.png"))
                 .until(frames(capture_settle_frames(capturing)))
                 .add(),
         );
         app.add_systems(Startup, (force_resolution, hide_dev_overlays));
+        // The leg camera re-solves against the ship every frame; it is inert
+        // until a beat installs a [`LegCamera`].
+        app.add_systems(Update, drive_leg_camera);
     }
 
     app.run()
@@ -368,15 +496,11 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, sections: Re
 /// The set: a gravity planetoid at the origin, a rock ring outside the flight
 /// path, and the player's racer parked on the ring radius.
 fn the_ring(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
-    // Square with the world: the ring's travel direction at the start point is
-    // `normal x radial` = world -Z, which is where a ship's nose already points.
-    // So the racer is flying its track from the first frame, before the verb has
-    // asked it to.
     let player = ship(
         PLAYER_ID,
         "Player Ship",
-        Vec3::new(ORBIT_RADIUS, 0.0, 0.0),
-        Quat::IDENTITY,
+        start_position(),
+        start_rotation(),
         SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: bevy::platform::collections::HashMap::new(),
             speed_cap: None,
@@ -460,7 +584,10 @@ fn beacon() -> EventActionConfig {
         },
         kind: ScenarioObjectKind::Beacon(BeaconConfig {
             label: "SURVEY".to_string(),
-            radius: 3.0,
+            // Bigger than a nav point needs to be: the arrival frame is a
+            // picture of the thing at the end of the leg, and a 3-unit orb at
+            // the far end of a standoff is a pixel.
+            radius: 6.0,
             color: Color::srgb(0.4, 0.75, 1.0),
             // No trigger area: nothing in this set springs on arrival.
             area_radius: None,
@@ -527,6 +654,92 @@ fn pose(world: &mut World, position: Vec3, look_at: Vec3) {
     reel_pose_camera(world, position, look_at);
 }
 
+/// Pin a STILL framing: the pose, plus stopping any leg camera that would
+/// otherwise re-solve it out from under this one on the next frame.
+#[cfg(feature = "debug")]
+fn pin(world: &mut World, position: Vec3, look_at: Vec3) {
+    world.remove_resource::<LegCamera>();
+    pose(world, position, look_at);
+}
+
+/// Where the photo rig's key light comes FROM (`shared/kit.rs`). The rig is
+/// direction-only, so which half of a hull is lit depends on the hull's
+/// ATTITUDE, and a maneuvering ship changes attitude for a living.
+#[cfg(feature = "debug")]
+const KEY_FROM: Vec3 = Vec3::new(-6.0, 5.0, 6.0);
+
+/// A camera offset perpendicular to `track` that keeps the lens on the key
+/// light's side of the subject: [`KEY_FROM`] with its along-track component
+/// removed. Every leg framing offsets along this rather than along a world axis,
+/// which is the difference between a hull with shape on it and the flat dark
+/// silhouette an arbitrary side gives once the ship has swung around.
+#[cfg(feature = "debug")]
+fn lit_side(track: Vec3) -> Vec3 {
+    let key = KEY_FROM.normalize();
+    (key - track * key.dot(track))
+        .try_normalize()
+        .unwrap_or(Vec3::Y)
+}
+
+/// A camera that FLIES with the ship: the offsets are in the ship's own frame
+/// (`side` along [`lit_side`], `along` down its track, `up` in world Y) and
+/// [`drive_leg_camera`] re-solves them every frame while this is present.
+///
+/// A leg camera CANNOT be a single pinned pose. The ship crosses the transfer at
+/// 65 u/s, so the ~0.3 s a framing beat holds is twenty units of travel - the
+/// first cut of the flip beat pinned its camera 22 units ahead of the ship and
+/// the ship flew straight through it, leaving an empty frame.
+#[cfg(feature = "debug")]
+#[derive(Resource, Clone, Copy)]
+struct LegCamera {
+    /// Offset onto the key light's side of the hull.
+    side: f32,
+    /// Offset down the track: negative is behind the ship, positive ahead.
+    along: f32,
+    /// Offset in world Y.
+    up: f32,
+    /// How far up the track the lens aims past the ship. Positive drops the hull
+    /// low in the frame and gives the space it is flying into to the shot.
+    look_ahead: f32,
+}
+
+/// Re-solve the leg camera against the ship's live position and track.
+#[cfg(feature = "debug")]
+fn drive_leg_camera(world: &mut World) {
+    let Some(rig) = world.get_resource::<LegCamera>().copied() else {
+        return;
+    };
+    let ship = ship_position(world);
+    let track = ship_heading(world);
+    let offset = lit_side(track) * rig.side + track * rig.along + Vec3::Y * rig.up;
+    pose(world, ship + offset, ship + track * rig.look_ahead);
+}
+
+/// Fly the camera behind the ship on the key side. The framing for a ship under
+/// power, since the drive is at the back and so is the lens.
+#[cfg(feature = "debug")]
+fn chase(world: &mut World, side: f32, back: f32, up: f32, look_ahead: f32) {
+    world.insert_resource(LegCamera {
+        side,
+        along: -back,
+        up,
+        look_ahead,
+    });
+}
+
+/// Fly the camera ahead of the ship on the key side. The framing for a ship
+/// under RETRO power: braking, the drive fires down the track, so the lens has
+/// to be down the track with it.
+#[cfg(feature = "debug")]
+fn lead(world: &mut World, side: f32, ahead: f32, up: f32) {
+    world.insert_resource(LegCamera {
+        side,
+        along: ahead,
+        up,
+        look_ahead: 0.0,
+    });
+}
+
 /// Engage the ORBIT verb on the planetoid's well with an explicit plan - the
 /// same [`Autopilot`] component the keybind inserts, so the ring the ship flies
 /// is the flight computer's and not an animation.
@@ -561,9 +774,11 @@ fn engage_orbit(world: &mut World) {
     info!("flight: ORBIT engaged at r = {ORBIT_RADIUS} on a body of radius {body_radius:?}");
 }
 
-/// Hand the camera back to the game.
+/// Hand the camera back to the game: stop flying any leg rig, then drop the
+/// pinned pose.
 #[cfg(feature = "debug")]
 fn unpose(world: &mut World) {
+    world.remove_resource::<LegCamera>();
     let camera = {
         let mut query = world.query_filtered::<Entity, With<ScenarioCameraMarker>>();
         query.iter(world).next()
@@ -629,6 +844,17 @@ fn player_retro_burning() -> std::sync::Arc<nova_protocol::nova_debug::harness::
     })
 }
 
+/// Advance once the leg is essentially over: inside the arrival standoff
+/// (`FlightSettings::arrival_standoff` is 50 units, and the telemetry's distance
+/// is to the target SURFACE), with the closing speed off the top of the brake.
+#[cfg(feature = "debug")]
+fn player_arrived() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        maneuver(world)
+            .is_some_and(|telemetry| telemetry.distance < 80.0 && telemetry.closing_speed < 60.0)
+    })
+}
+
 /// The live numbers of the player's engaged leg, if there is one.
 #[cfg(feature = "debug")]
 fn maneuver(world: &World) -> Option<&ManeuverTelemetry> {
@@ -662,7 +888,7 @@ fn ship_position(world: &mut World) -> Vec3 {
     player_root(world)
         .and_then(|player| world.get::<GlobalTransform>(player))
         .map(|transform| transform.translation())
-        .unwrap_or(Vec3::new(ORBIT_RADIUS, 0.0, 0.0))
+        .unwrap_or_else(start_position)
 }
 
 /// The direction the ship is travelling: its velocity, because on a ring the
