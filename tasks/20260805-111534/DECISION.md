@@ -28,9 +28,20 @@ Full problem and context: `NOTES.md` in this task folder.
    rotation; the light bundle overrides `RigidBody::Static` over the shared
    base's `Dynamic`, the way `beacon_scenario_object` already does.
 2. `LightConfig` covers two methods from the start:
-   `Directional { illuminance, color, shadows }` and
+   `Directional { illuminance, color, shadows, aim: Option<Vec3> }` and
    `Point { intensity, range, radius, color, shadows }`. Supporting two makes a
-   scene's lighting method a one-line RON change later.
+   scene's lighting method a one-line RON change later. `aim` is a world point
+   the directional light shines at, overriding the base config's `rotation`
+   when set: hand-authored mod RON must be able to aim a light without writing
+   a quaternion by hand, and no existing RON writes a non-identity one. The
+   Rust builders leave it `None` and use an `aimed_light_base` helper instead,
+   so it is serde-defaulted and skipped when absent.
+
+   A `light_scenario_object` bundle fn plus an `Add<LightMarker>` observer that
+   inserts the Bevy light, mirroring `beacon.rs`: a `match` cannot return one
+   `impl Bundle` holding either a `DirectionalLight` or a `PointLight`, and the
+   observer split is what lets `render: false` skip the light component for
+   headless tools. Full sketch in `NOTES.md`.
 3. **Delete the hardcoded light at `lifecycle.rs:203` outright.** No fallback,
    no reserved entity id. A scene looks like exactly what it authored.
 4. Relight every rendering scene in the repo as the feature's proof, lit to
@@ -80,3 +91,8 @@ never render and get no lights.
 - New public items (`LightConfig`, the light module's plugin and bundle fn)
   need prelude exports per the repo rule, and rustdoc that keeps
   `cargo doc --workspace --no-deps` warning-free.
+- Deferred, NOT this task: `base_scenario_object` hands every scenario object
+  `RigidBody::Dynamic` + `TransformInterpolation`, which lights make the second
+  object kind to override (beacons were the first). Worth rethinking what the
+  base bundle assumes once non-physical objects are established; lights follow
+  the beacon precedent here rather than reopening it.

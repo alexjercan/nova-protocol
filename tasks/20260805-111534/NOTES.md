@@ -219,6 +219,341 @@ Lost on the owner's reframing: presets are a naming layer over the thing that
 does not exist yet. Author lights first; a preset, if ever wanted, is a
 builder-side helper over authored lights, not a RON vocabulary.
 
+## Code sketch
+
+Illustrative, not final - the shape the owner reviewed before planning.
+
+### `crates/nova_scenario/src/objects/light.rs` (new)
+
+Mirrors `beacon.rs` deliberately: a config component on the entity plus an
+`Add` observer that inserts the real component. That is not decoration - a
+`match` cannot return one `impl Bundle` holding either a `DirectionalLight` or
+a `PointLight`, and the observer split is what lets `render: false` skip the
+light component entirely for headless tools.
+
+```rust
+//! Light scenario object: an authored key/rim/fill or point light. Replaces
+//! the loader's former hardcoded top-down key light - a scene now looks like
+//! exactly what it authored.
+
+use avian3d::prelude::*;
+use bevy::prelude::*;
+use nova_events::prelude::*;
+
+use crate::prelude::*;
+
+pub mod prelude {
+    pub use super::{light_scenario_object, LightConfig, LightPlugin, LIGHT_TYPE_NAME};
+}
+
+/// The scenario/modding RON type name for a light object.
+pub const LIGHT_TYPE_NAME: &str = "light";
+
+/// The scenario/modding RON surface for a light. Position and rotation come
+/// from [`BaseScenarioObjectConfig`] like any other scenario object; this picks
+/// the lighting METHOD and its per-method parameters.
+///
+/// A directional light is infinitely far away, so only its rotation matters -
+/// `aim` exists because authoring "shine at this point" by hand is possible and
+/// authoring the equivalent quaternion by hand is not.
+#[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum LightConfig {
+    /// A sun: parallel rays, direction only. The key/rim/fill workhorse.
+    Directional {
+        /// Illuminance in lux (the shipped default key light was 10000).
+        illuminance: f32,
+        /// Light color.
+        color: Color,
+        /// Whether this light casts shadows. One shadow caster per scene is
+        /// usually right; a second on a blocky hull reads as dirt, not depth.
+        shadows: bool,
+        /// When set, the light is aimed at this world point and the base
+        /// config's `rotation` is ignored. `None` uses `rotation` directly.
+        #[cfg_attr(
+            feature = "serde",
+            serde(default, skip_serializing_if = "Option::is_none")
+        )]
+        aim: Option<Vec3>,
+    },
+    /// A positional lamp: a star, a hangar floodlight, a nebula glow.
+    Point {
+        /// Luminous intensity in lumens.
+        intensity: f32,
+        /// Distance (world units) past which the light contributes nothing.
+        range: f32,
+        /// Source radius, softening the shadow terminator.
+        radius: f32,
+        /// Light color.
+        color: Color,
+        /// Whether this light casts shadows.
+        shadows: bool,
+    },
+}
+
+/// Marks a scenario light, so the insert observer can find it.
+#[derive(Component, Clone, Debug, Reflect)]
+pub struct LightMarker;
+
+/// The authored config, consumed by `insert_light`.
+#[derive(Component, Clone, Debug, Deref, Reflect)]
+pub struct ScenarioLightConfig(pub LightConfig);
+
+/// Build the light bundle from a [`LightConfig`].
+///
+/// `RigidBody::Static` overrides the shared base bundle's `Dynamic`: a light is
+/// posed, not simulated. Same override `beacon_scenario_object` makes, for the
+/// same reason.
+pub fn light_scenario_object(config: LightConfig) -> impl Bundle {
+    debug!("light_scenario_object: config {:?}", config);
+
+    (
+        LightMarker,
+        EntityTypeName::new(LIGHT_TYPE_NAME),
+        ScenarioLightConfig(config),
+        RigidBody::Static,
+    )
+}
+
+/// The light scenario object. `render` gates the actual light component, so a
+/// headless tool spawns the posed entity without lighting anything.
+pub struct LightPlugin {
+    /// Whether to insert the real light component (false for headless tools).
+    pub render: bool,
+}
+
+impl Plugin for LightPlugin {
+    fn build(&self, app: &mut App) {
+        debug!("LightPlugin: build");
+
+        if self.render {
+            app.add_observer(insert_light);
+        }
+    }
+}
+
+/// Insert the Bevy light the config names, and apply `aim` when authored.
+fn insert_light(
+    add: On<Add, LightMarker>,
+    mut commands: Commands,
+    q_light: Query<(&ScenarioLightConfig, &Transform), With<LightMarker>>,
+) {
+    let entity = add.entity;
+    let Ok((config, transform)) = q_light.get(entity) else {
+        error!("insert_light: entity {:?} not found in q_light", entity);
+        return;
+    };
+
+    match **config {
+        LightConfig::Directional {
+            illuminance,
+            color,
+            shadows,
+            aim,
+        } => {
+            let mut entity_commands = commands.entity(entity);
+            entity_commands.insert(DirectionalLight {
+                illuminance,
+                color,
+                shadow_maps_enabled: shadows,
+                ..default()
+            });
+            if let Some(target) = aim {
+                entity_commands.insert(
+                    Transform::from_translation(transform.translation)
+                        .looking_at(target, Vec3::Y),
+                );
+            }
+        }
+        LightConfig::Point {
+            intensity,
+            range,
+            radius,
+            color,
+            shadows,
+        } => {
+            commands.entity(entity).insert(PointLight {
+                intensity,
+                range,
+                radius,
+                color,
+                shadow_maps_enabled: shadows,
+                ..default()
+            });
+        }
+    }
+}
+```
+
+### The three plumbing edits
+
+```rust
+// objects/mod.rs - the module, the prelude re-export, and the plugin
+pub mod light;
+// prelude: light::prelude::*
+app.add_plugins(light::LightPlugin { render: self.render });
+
+// actions/spawn.rs - the fifth kind
+pub enum ScenarioObjectKind {
+    Asteroid(AsteroidConfig),
+    Spaceship(SpaceshipConfig),
+    Beacon(BeaconConfig),
+    SalvageCrate(SalvageCrateConfig),
+    /// An authored light - the scene's own key, rim, fill or lamp.
+    Light(LightConfig),
+}
+
+// actions/spawn.rs - the fifth dispatch arm
+ScenarioObjectKind::Light(config) => {
+    entity_commands.insert(light_scenario_object(config.clone()));
+}
+
+// loader/lifecycle.rs - the hardcoded DirectionalLight spawn is DELETED
+```
+
+### Authoring helper for the Rust builders
+
+A directional light is authored as "where it shines FROM", which is a position
+plus a look-at, not a quaternion. Builders get one small helper rather than
+thirteen open-coded `looking_at(..).rotation` calls:
+
+```rust
+// nova_scenario/src/objects/light.rs
+/// Base config for a directional light placed at `from` and aimed at `target`.
+/// The position is cosmetic for a directional light (only rotation is read),
+/// but it keeps the authored numbers readable as a physical rig.
+pub fn aimed_light_base(id: &str, name: &str, from: Vec3, target: Vec3) -> BaseScenarioObjectConfig {
+    BaseScenarioObjectConfig {
+        id: id.to_string(),
+        name: name.to_string(),
+        position: from,
+        rotation: Transform::from_translation(from).looking_at(target, Vec3::Y).rotation,
+    }
+}
+```
+
+### Consumer 1: a `.rs` scenario builder
+
+`crates/nova_assets/src/scenario/menu.rs`, `menu_ambience` - the three-point rig
+carried over from `kit.rs`, plus the `Point` light the owner asked for: a warm
+lamp just off the planetoid, giving the rocks a falloff the sun cannot.
+
+```rust
+// The rig, authored as objects like everything else in the scene. Replaces the
+// loader's former single top-down key light (deleted in this task).
+let light = |id: &str, name: &str, from: Vec3, illuminance: f32, color: Color, shadows: bool| {
+    ScenarioObjectConfig {
+        base: aimed_light_base(id, name, from, Vec3::ZERO),
+        kind: ScenarioObjectKind::Light(LightConfig::Directional {
+            illuminance,
+            color,
+            shadows,
+            aim: None, // the base rotation already aims it
+        }),
+    }
+};
+
+// Key: warm, high, camera-left - the only shadow caster.
+objects.push(light(
+    "menu_key", "Menu Key Light",
+    Vec3::new(-120.0, 90.0, 110.0), 11000.0,
+    Color::srgb(1.0, 0.96, 0.90), true,
+));
+// Rim: cold and hard from behind, separating the planetoid from the skybox.
+objects.push(light(
+    "menu_rim", "Menu Rim Light",
+    Vec3::new(60.0, 70.0, -150.0), 16000.0,
+    Color::srgb(0.72, 0.86, 1.0), false,
+));
+// Fill: cool and dim from the shadow side.
+objects.push(light(
+    "menu_fill", "Menu Fill Light",
+    Vec3::new(140.0, -40.0, 80.0), 2600.0,
+    Color::srgb(0.62, 0.72, 0.95), false,
+));
+// The lamp: a positional warm glow riding just off the planetoid's limb, so
+// the scatter ring falls off with distance instead of reading uniformly lit.
+objects.push(ScenarioObjectConfig {
+    base: BaseScenarioObjectConfig {
+        id: "menu_lamp".to_string(),
+        name: "Menu Planetoid Glow".to_string(),
+        position: Vec3::new(-60.0, 20.0, 90.0),
+        rotation: Quat::IDENTITY,
+    },
+    kind: ScenarioObjectKind::Light(LightConfig::Point {
+        intensity: 2_500_000.0,
+        range: 400.0,
+        radius: 12.0,
+        color: Color::srgb(1.0, 0.82, 0.6),
+        shadows: false,
+    }),
+});
+```
+
+### Consumer 2: a hand-authored `.ron` scenario
+
+`webmods/the-ledger/ledger_ch1.content.ron`, added to the existing `OnStart`
+actions list. This is the case `aim` exists for - a mod author writes the point
+the light shines at, never a quaternion. Spelling matches what serde emits for
+the shipped scenarios (`Srgba((red: ..))`, struct variants as
+`Variant(field: val)`).
+
+```ron
+SpawnScenarioObject((
+    base: (
+        id: "ch1_key",
+        name: "Freighter Key Light",
+        position: (-80.0, 60.0, 70.0),
+        rotation: (0.0, 0.0, 0.0, 1.0),
+    ),
+    kind: Light(Directional(
+        illuminance: 11000.0,
+        color: Srgba((
+            red: 1.0,
+            green: 0.96,
+            blue: 0.90,
+            alpha: 1.0,
+        )),
+        shadows: true,
+        aim: Some((0.0, 0.0, 0.0)),
+    )),
+)),
+SpawnScenarioObject((
+    base: (
+        id: "ch1_rim",
+        name: "Freighter Rim Light",
+        position: (40.0, 50.0, -90.0),
+        rotation: (0.0, 0.0, 0.0, 1.0),
+    ),
+    kind: Light(Directional(
+        illuminance: 16000.0,
+        color: Srgba((
+            red: 0.72,
+            green: 0.86,
+            blue: 1.0,
+            alpha: 1.0,
+        )),
+        shadows: false,
+        aim: Some((0.0, 0.0, 0.0)),
+    )),
+)),
+```
+
+Despawning one needs no new vocabulary - the existing action already resolves
+any scoped `EntityId`:
+
+```ron
+DespawnScenarioObject((id: "ch1_key")),
+```
+
+### Deferred thread: the base object bundle
+
+Owner observation (2026-08-05): `base_scenario_object` hands every scenario
+object `RigidBody::Dynamic` + `TransformInterpolation`, which is strict once
+non-physical objects exist - beacons already override to `Static`, and lights
+make it two. Worth rethinking what the base is allowed to assume. Explicitly
+NOT this task: lights follow the beacon precedent and override.
+
 ## Open assumptions
 
 - The three-point rig numbers in `kit.rs` transfer to authored RON unchanged,
