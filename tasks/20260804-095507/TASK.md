@@ -2,9 +2,9 @@
 
 - PRIORITY: 74
 - TAGS: v0.10.0, examples, testing, perf
-- ACTIVITY: PLANNING
-- GATES: -
-- RESOLUTION: -
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 - PARENT: 20260802-115955
 - DEPENDS ON: 20260804-093910, 20260804-094021, 20260804-094006, 20260804-093934, 20260804-093950, 20260804-093855
 
@@ -47,9 +47,11 @@ budget question is left to CI.
       `frame_time_categories_capture_and_the_rest_record_a_reason` still
       asserted `perf/` was a frame-time category. `perf/` was absorbed into
       `stress/` by `20260804-094006`; the stale "transitional row" is gone.
-- [ ] BLOCKED - verify the whole suite is green before closing. It is not:
-      `examples_smoke::ui_reach_playing_without_panic` fails ~1 run in 3 on
-      `20260805-091151`. This task cannot close until that one lands.
+- [x] Verify the whole suite is green before closing. UNBLOCKED:
+      `20260805-091151` landed (`87bcb956`) and both DoD commands were re-run
+      green - probe `--all --fps` exit 0 with every category PASS on
+      correctness, workspace suite exit 0 at 1543 passed / 0 failed,
+      `examples_smoke` 9/9. See `NOTES.md`, "The closing run".
 
 ## Definition of Done
 

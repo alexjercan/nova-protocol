@@ -146,3 +146,49 @@ list beside the prelude's own `pub use` list, so adding a correctly
 re-exported item went red until the duplicate caught up - which is what
 `ui_node_rect` did. The file is now `tests/env_contract.rs`, keeping only the
 env-name contract test.
+
+## The closing run - 2026-08-05, after the flake fix
+
+Re-run of both DoD commands once `20260805-091151` landed (`87bcb956`, "let a
+driven run own the pointer"). Both green.
+
+`probe run --all --fps` - exit 0, run id `cafae048`. All 17 probed categories
+PASS every correctness check: `process_exit`, `run_completed`,
+`reached_playing`, `invariants_held`, `log_clean`. Zero invariant violations,
+zero panic/ERROR lines. The per-category policy held against the RUN again:
+`screenshots/` NOT PROBED, `stress/` the only 6/6 (frame-time) category,
+everything else 5/6 correctness-only.
+
+`cargo test --workspace --features debug` - exit 0, 1543 passed, 0 failed,
+2 ignored, 72 test binaries. `examples_smoke` 9/9, including
+`catalog_matches_disk` and `every_category_has_a_probe_policy`. No
+`ui_reach_playing_without_panic` flake - the failure that blocked this task.
+The pre-fix categories that flaked, `menu_newgame` and `editor`, both passed.
+
+### The aggregate WARN is not a regression
+
+Probe auto-selected `probe-runs/d832b690` as baseline - this task's OWN
+pre-fix run from the same morning. Deltas:
+
+| category | delta vs d832b690 | status |
+|-|-:|-|
+| many_projectiles | -20.8% | PASS (improved) |
+| many_sections | +1.7% | PASS |
+| many_bodies | +14.2% | WARN |
+| scene_baseline | +14.8% | WARN |
+
+Both WARNs are the documented soft gate - "frame numbers are host-noisy;
+reviewer judges". OWNER CALL, and the reason the gate is soft: these are NEW
+examples, so there is no past to compare them against. `d832b690` is not a
+reference point, it is the same sprint's first capture. The comparison is
+noise by construction, not evidence of a regression. This does not gate the
+close; the thing that gated it was the failing test, and that is fixed.
+
+### Caveat on attribution
+
+The evidence was gathered in the shared checkout while another session was
+committing to `master` and running Bevy examples on the same host. HEAD moved
+`7789c4c8 -> cafae048 -> 1b738932 -> 37943668` across the two runs, so the
+runs attach to a commit range rather than one commit, and the host was not
+quiet during the frame-time capture. Accepted by the owner - the correctness
+verdicts are what this task needed, and those do not depend on a quiet host.
