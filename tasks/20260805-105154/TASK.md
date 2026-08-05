@@ -98,10 +98,19 @@ supersedes (with its `[[example]]` block in `Cargo.toml` and its entry in
       lights each of the five differently. The turret's authored rotation was
       left alone - it reads correctly from this bearing, but by tuning, not by
       construction.
-- [ ] `screenshot_ui`: add a settings-pane state and a Scenarios-picker state
+- [x] `screenshot_ui`: add a settings-pane state and a Scenarios-picker state
       with a campaign expanded (copy the real pointer gesture from
       `examples/ui/menu_scenarios.rs`), and put a built ship in the editor
-      state. -> OWNER APPROVAL.
+      state. -> OWNER APPROVED 2026-08-05. The whole walk moved to real pointer
+      gestures, and each shot asserts the state it claims (panel laid out,
+      chapter marked `Selected`, five sections on the preview ship). The
+      editor's ship could not be built until the camera was PINNED with a
+      `ScriptedCameraPose`: the free-fly controller rewrites the transform every
+      frame, and from the editor's dead-on default pose every side face is
+      edge-on, so every placement landed on the face the original camera saw.
+      Ships `wiki-settings` and `news-090-scenario-campaigns` as well, both now
+      in the manifest. Left alone, outside this task: the keybind rows render a
+      tofu box between the keyboard and gamepad columns, in game as in the shot.
 - [ ] `screenshot_nova_os`: terminal state with a command run and inline
       completion, plus an apps state so it reads as more than a prompt. Decide
       whether the old fidelity-comparison beats still have a reader.
