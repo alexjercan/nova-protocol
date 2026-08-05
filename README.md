@@ -151,20 +151,26 @@ the deeper docs live in the dev wiki linked in each row.
 | Probe (run-harness) | `cargo run -p nova_probe -- run <example>` / `cargo run -p nova_probe -- report <run-dir>` | Drives autopilot examples headless and writes reports under `probe-runs/<short-commit>/`; `--profile`, `--samply`, `--fps`, `--all`, `--baseline`, `--platform web` extend it; `report` re-renders run dirs. See [`development.md`](web/src/wiki/dev/development.md). |
 | `perf_web` | (not called directly - built and driven by `probe run <example> --platform web`) | The WASM measurement build the probe boots under headless Chromium to capture the web frame line. See [`development.md`](web/src/wiki/dev/development.md). |
 | Meta-sidecar gen | `cargo run -p nova_meta_gen -- [--assets <dir>]...` | Writes default `.meta` sidecars for assets that lack one (for `AssetMetaCheck::Always` on the web); normally runs as a Trunk `post_build` hook. A web-build tool under `tools/`, not a game crate - but a workspace member so Cargo pins its Bevy (version + features) to the game's. Stays Rust (unlike the portal generator): it asks Bevy for each loader's default meta, so it cannot drift when Bevy bumps - a Python hardcode would (spike 20260718-152255). See [`tools/nova_meta_gen`](tools/nova_meta_gen/). |
-| Mod-portal gen | `python3 scripts/gen-portal.py --source webmods --shipped assets/mods.catalog.ron --out site/mods` | Builds the static mod portal (`catalog.json` + hashed, versioned file copies) from a `webmods/` source tree (stdlib-only Python). See [`mod-portal.md`](web/src/wiki/dev/mod-portal.md). |
 | Dispatch benchmark | `cargo bench -p nova_scenario` | Criterion baseline/regression benchmark for the scenario event-dispatch hot path (report in `target/criterion/`). See [`benches/scenario_dispatch.rs`](crates/nova_scenario/benches/scenario_dispatch.rs). |
 
 ### Scripts (`scripts/`)
 
+Every file in `scripts/` is listed here.
+
 | Script | Command | What it does |
 | --- | --- | --- |
+| Git hooks | `./scripts/setup-hooks.sh` | Points `core.hooksPath` at the tracked `.githooks/`, arming the pre-commit `cargo fmt --check` guard. Run once per fresh clone; idempotent, and worktrees inherit it. |
 | Third-party licenses | `./scripts/gen-licenses.sh` | Regenerates `credits/THIRD-PARTY-LICENSES.md` via `cargo-about`; fails if a dependency carries a license not in `about.toml`. Needs `cargo install cargo-about`. |
+| Mod-portal gen | `python3 scripts/gen-portal.py --source webmods --shipped assets/mods.catalog.ron --out <dir>` | Builds the static mod portal (`catalog.json` + hashed, versioned file copies) from a `webmods/` source tree (stdlib-only Python). Also run by `deploy-page.yaml` and `preview-web.sh`. See [`mod-portal.md`](web/src/wiki/dev/mod-portal.md). |
 | Web screenshots | `python3 scripts/gen-web-screenshots.py` (`--self-test`, `--no-icons`) | Validates + copies the captured game screenshots and the 44x44 section icons into `web/src/assets/`. See [`development.md`](web/src/wiki/dev/development.md). |
-| Placeholder sounds | `python3 scripts/gen-placeholder-sounds.py` | Generates the deterministic placeholder WAV sound effects the game ships until real audio lands. See [`assets/sounds/README.md`](assets/sounds/README.md). |
+| Placeholder sounds | `python3 scripts/gen-placeholder-sounds.py` | Generates the deterministic **placeholder** WAVs for the gameplay + UI cues, into `assets/base/sounds/` and `assets/sounds/`. Overwrite with real audio at the same paths, no code change. See [`assets/sounds/README.md`](assets/sounds/README.md). |
+| NOVA OS terminal SFX | `python3 scripts/gen-nova-os-sfx.py` | Bakes the `assets/sounds/nova_*.wav` terminal cues - an offline render of the WebAudio recipes in `web/design/nova_os_terminal_poc.html`. These are the intended final chrome, not placeholders. Deterministic (fixed seed), so a rerun is a no-op in `git status`. |
 | Obj -> hull cubes | `python3 scripts/cut-obj-into-hulls.py <ship.obj> --out <dir>` (`--self-test`) | Cuts a monolithic Kenney `.obj` ship into grid-aligned cube `.glb` pieces (cut only; turning cubes into sections is done in-game). |
 | Live web dev | `nix develop -c scripts/serve-web.sh [--release]` | Starts the site, the game and the mod portal on free 7XXX ports and proxies them onto one origin (`/`, `/play/`, `/mods/`). Everything rebuilds on save. |
 | Mod portal server | `nix develop -c scripts/serve-mods.sh [--once]` | Generates the static mod portal and serves it on a free 7XXX port, regenerating on every `webmods/` edit. Started for you by `serve-web.sh`. |
 | Local site preview | `nix develop -c scripts/preview-web.sh [--release]` | One-shot static build of the full published site (no dev servers, no proxies) on `:8090`, with the game at `/play/` and the portal at `/mods/` - the closest thing to the deploy. |
+| Dev-server ports | `source scripts/dev-ports.sh` | Not a command - a sourced helper library (no shebang, not executable). Allocates the random free 7000-7999 ports `serve-web.sh` and `serve-mods.sh` run on, so several worktrees can serve at once without colliding. |
+| Web page shots | `nix develop -c scripts/shoot-web-pages.sh [outdir]` | Builds and statically serves `web/`, then drives headless chromium over the six landing-page kinds at desktop and mobile widths. Writes `<kind>-<width>.png` plus a `manifest.txt` naming the commit and URL per file, for before/after comparison. Requires `chromium` on PATH. |
 
 ## Project layout
 
