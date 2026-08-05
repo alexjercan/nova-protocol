@@ -164,6 +164,29 @@ supersedes (with its `[[example]]` block in `Cargo.toml` and its entry in
     rock four kilometres out steals a travel lock aimed a few degrees off. The
     start sits nearly in line with the beacon for that reason, and the step
     waits on a lock ON THE BEACON so a wrong latch aborts the run by name.
+- Scene 2, second pass (owner's polish list). Three changes and what each cost:
+  - The script now CUTS from the flip straight to station in the hollow instead
+    of flying the brake out - the fight used to open with the player still on
+    autopilot. The cut sets the ship down INSIDE the beacon's trigger, so the
+    ambush is still the scenario's to spring, and the run is 8 seconds shorter.
+    A plain run flies the whole approach; only the capture makes the edit.
+  - A friendly torpedo boat (cargo-B, the only hull in the catalog with bays)
+    joins the ambush and the script fires a salvo through the production bay,
+    guidance and fuze. Three findings, all in the example's comments: the run
+    must clear the rock shell (a level shot flies into stone), the blast visual
+    is a SOLID 60-unit sphere that swallows any camera close enough to see the
+    ship it hit, and a torpedo alone cannot kill a section - the fuze goes 15
+    units out and 100 blast damage with falloff leaves 70-100 health standing.
+    So the beat is the run and the aftermath, with a scripted section death
+    timed to the detonation.
+  - The hollow is now a hollow: the rock shell starts at 48 units rather than
+    28, which stops rocks landing on the raider and in front of every close
+    subject. The field is a horizontal annulus, so the ordnance framings tip the
+    lens UP - the only way to get sky behind a subject in this set.
+  - Variants, not extra images: `variant-juice-torpedo`, `variant-juice-aftermath`
+    and `variant-combat-tight` are staged by a capture run and named by no
+    manifest entry, so they are candidates for `feature-juice` / `wiki-combat`
+    to be picked at step 8 and cost nothing if they lose.
 - The generated rock mesh reaches well past its nominal radius (roughly 4x), so
   a planetoid authored at radius 30 draws a body about 120 units across. Size
   scene bodies from that, not from the authored number.

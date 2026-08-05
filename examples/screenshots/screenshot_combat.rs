@@ -12,10 +12,26 @@
 //!
 //! ACT 2, the ambush: the beacon doubles as its own trigger area, so crossing it
 //! fires `OnEnter` and spawns the whole fight - a raider dead ahead, two
-//! friendly racers on the near flanks and a hostile pair across the hollow.
-//! That is scenario data, not script, so the OWNER's plain run gets the ambush
-//! too: fly to the beacon and the hollow fills up. The rest of the set is as it
-//! was - travel lock cleared, weapons raised, combat lock latched, guns live.
+//! friendly racers on the near flanks, a hostile pair across the hollow and a
+//! friendly torpedo boat off the raider's far quarter. That is scenario data,
+//! not script, so the OWNER's plain run gets the ambush too: fly to the beacon
+//! and the hollow fills up. The rest of the set is as it was - travel lock
+//! cleared, weapons raised, combat lock latched, guns live.
+//!
+//! The scripted run CUTS between the acts (see [`cut_to_hollow`]): the flip is
+//! the last thing worth shooting on a GOTO, so the script ends the leg there and
+//! sets the ship down on station inside the trigger, rather than filming half a
+//! minute of braking and opening the fight with the player still on autopilot.
+//! The owner's plain run flies the approach out; the cut is an edit, and only
+//! the capture makes it.
+//!
+//! ACT 3, the ordnance: the boat looses a salvo at the raider, guided and fuzed
+//! by the production torpedo path. It exists because the set's juice was one
+//! graded hull on one ship - a launch burst, a drive plume and a 30-unit blast
+//! sphere eating sections belong to a SECOND ship, which is what makes the
+//! hollow read as a fight. Its frames are `variant-*.png`: candidates for
+//! `feature-juice` and `wiki-combat` that the packaging manifest does not name,
+//! so a capture run stages them for the pick without shipping them.
 //!
 //! WHAT THE PROOF RUN SHOWED (2026-08-05), and why the fight is shaped like
 //! this: two AI flights DO fight each other with no player in the scene - a
@@ -105,6 +121,29 @@ const RAIDER_POSITION: Vec3 = Vec3::new(0.0, 0.6, -34.0);
 /// The raider section the scripted blow takes off - a forward hull cube on the
 /// camera's side of the ship, so the fragments and the hole are both in frame.
 const RAIDER_BLOWN_SECTION: &str = "racer_cube_i0_j0_km2";
+/// The section the torpedo beat takes off, on the raider's upper deck where a
+/// blast arriving from above lands. A torpedo alone will NOT do this: the fuze
+/// goes 15 units out, and 100 blast damage with falloff at half the blast radius
+/// leaves a 70-100 health section standing. The frame is of a real detonation
+/// and a real section death, timed together.
+const RAIDER_BLAST_SECTION: &str = "racer_cube_i0_j1_km2";
+
+/// Scenario id of the friendly torpedo boat - the only hull in the set carrying
+/// bays (`cargob_cube_*_j1_km2` are the catalog's two Torpedo sections), and the
+/// ship the ordnance beats are shot off.
+const LANCE_ID: &str = "hollow_lance";
+/// Where it sits: high and off the raider's far quarter, so the run comes DOWN
+/// onto the target - and, the reason for the height, through open sky. The rock
+/// shell is 46 units thick in Y, and a torpedo fired across the hollow at the
+/// shell's own height flies into a rock: this bearing clears it. It is also what
+/// keeps the blast (30 units across) off the player, parked 34 from the raider.
+const LANCE_POSITION: Vec3 = Vec3::new(-38.0, 30.0, -56.0);
+/// How far short of its target a torpedo detonates: the proximity fuze fires at
+/// half the bay's blast radius (`torpedo_section/projectile.rs`), and the
+/// cargo-B's bays are authored at 30. The ordnance camera is framed off this,
+/// not off the raider - 15 units is a third of the frame at a close camera.
+#[cfg(feature = "debug")]
+const TORPEDO_FUZE_RANGE: f32 = 15.0;
 
 /// Seconds each AI flight holds fire after it spawns, so the shots are taken of
 /// a fight that has settled rather than of four ships still sorting out where
@@ -222,16 +261,25 @@ fn main() -> bevy::app::AppExit {
                 .on_enter(move |world| shoot(world, capturing, "wiki-flight.png"))
                 .until(elapsed(0.2))
                 .add()
-                // ACT 2 - the ambush. Crossing the beacon's trigger already
-                // spawned the flights (scenario data, so a plain run gets them
-                // too); this waits for the leg to actually end.
-                .step("arrive")
-                .until(player_arrived())
-                .deadline(90.0)
+                // ACT 2 - the ambush. The flip is the last thing worth shooting
+                // on the leg, so the script CUTS here rather than sitting
+                // through the rest of the brake: the player is set down on
+                // station inside the beacon's trigger, which springs the ambush
+                // (`OnEnter`, scenario data) with the ship already parked. The
+                // owner's plain run still flies the whole approach - this is an
+                // edit, and only the scripted run makes it.
+                .step("cut to the hollow")
+                .on_enter(cut_to_hollow)
+                // A frame for the disengage's camera handback to run, so
+                // [`hold_station`] re-seeds the rig AFTER it and not before.
+                .until(frames(4))
                 .add()
                 // Station-keeping starts HERE, not at load: the leg needs the
                 // ship free to fly. See [`pin_player`] for why the combat act
-                // cannot tolerate drift.
+                // cannot tolerate drift. Waiting on the RAIDER, because the
+                // ambush is the trigger's to spring: a cut that landed outside
+                // the area aborts this step by name instead of shooting an
+                // empty hollow.
                 .step("hold station in the hollow")
                 .on_enter(|world| {
                     hold_station(world);
@@ -239,10 +287,18 @@ fn main() -> bevy::app::AppExit {
                     // screen, and the combat shots are about the RED lock - two
                     // locks in one frame is chrome competing with itself.
                     clear_travel_lock(world);
+                })
+                .until(raider_present())
+                .deadline(10.0)
+                .add()
+                // Only once the ambush is in the world: the beacon is the
+                // trigger that spawned it, so it goes after it has fired.
+                .step("let the ambush settle")
+                .on_enter(|world| {
                     despawn_by_id(world, BEACON_ID);
                     nudge_raider(world);
                 })
-                .until(elapsed(ENGAGE_DELAY + 3.0))
+                .until(elapsed(ENGAGE_DELAY + 1.5))
                 .add()
                 // Quiet stance first: weapons lowered, no lock, the contextual
                 // rules keeping idle chrome off the frame. That IS the shot.
@@ -363,11 +419,107 @@ fn main() -> bevy::app::AppExit {
                 .until(elapsed(0.5))
                 .add()
                 .step("blow a section off the raider")
-                .on_enter(blow_raider_section)
+                .on_enter(|world| blow_raider_section(world, RAIDER_BLOWN_SECTION))
                 .until(frames(12))
                 .add()
                 .step("capture the juice")
                 .on_enter(move |world| shoot(world, capturing, "feature-juice.png"))
+                .until(elapsed(0.2))
+                .add()
+                // ACT 3 - the ordnance, and the set's variant frames. A dead
+                // section is a graded hull; a torpedo is the engine's loudest
+                // effect (launch burst, drive plume, a 30-unit blast sphere
+                // eating sections), and it belongs to a SECOND ship, which is
+                // what makes the hollow read as a fight rather than a duel.
+                // Everything here is shot to `variant-*.png`, which the
+                // packaging manifest does not name: these are candidates for
+                // `feature-juice` and `wiki-combat`, to be picked at capture
+                // time, not extra shipped images.
+                // One camera for both ordnance frames, so the pick is a
+                // before/after of the same shot. It is framed on the midpoint
+                // between the raider and where the fuze will go, NOT on the
+                // raider: a proximity fuze detonates 15 units short of its
+                // target, which at a close camera throws the blast a third of
+                // the way across the frame from the ship it is hitting. It
+                // stands on the far side from the boat, so the run comes down
+                // the lens and the blast opens behind the target, and far
+                // enough back that the 30-unit sphere stays in front of it.
+                .step("frame the torpedo run")
+                .on_enter(|world| {
+                    let subject = ordnance_subject(world);
+                    // From BELOW, looking up the run. The rock field is a
+                    // horizontal annulus 46 units thick, so any level camera in
+                    // the hollow frames its subject against the far wall and
+                    // the shot is rock soup; tipping the lens up puts open sky
+                    // behind the target and the torpedo dives into frame.
+                    pose(world, subject + Vec3::new(16.0, -14.0, 12.0), subject)
+                })
+                .until(elapsed(0.4))
+                .add()
+                .step("loose the torpedoes")
+                .on_enter(loose_torpedoes)
+                .until(torpedo_in_flight())
+                .deadline(6.0)
+                .add()
+                // The salvo is committed to the raider the frame after launch,
+                // the way both production commit systems do it, and the trigger
+                // drops so the boat fires once.
+                .step("commit the salvo")
+                .on_enter(commit_torpedoes)
+                .until(elapsed(0.1))
+                .add()
+                // Inbound: a beat before the fuze, with the drive still lit and
+                // the target intact.
+                .step("track the torpedoes in")
+                .until(torpedo_within(TORPEDO_FUZE_RANGE + 8.0))
+                .deadline(12.0)
+                .add()
+                .step("capture the torpedo run")
+                .on_enter(move |world| shoot(world, capturing, "variant-juice-torpedo.png"))
+                .until(elapsed(0.2))
+                .add()
+                .step("wait for the detonation")
+                .until(no_torpedo_in_flight())
+                .deadline(8.0)
+                .add()
+                // The AFTERMATH, not the flash. The detonation itself is not
+                // worth a beat: its blast visual is a solid 60-unit sphere on a
+                // 0.1 s temp entity (`insert_blast_radius_visual`), which at 30
+                // fps is a frame or two of flat orange filling any camera close
+                // enough to see the ship it hit. Half a second later the sphere
+                // is gone and what it did is not - the particle burst, the
+                // tumbling debris and a hull short some sections.
+                .step("let the blast clear")
+                .on_enter(|world| {
+                    blow_raider_section(world, RAIDER_BLAST_SECTION);
+                    // Re-framed off the LIVE raider: it has been drifting and
+                    // taking rounds since the run was framed, and a rock in the
+                    // wall behind it is one drift away from being in front of
+                    // it.
+                    let raider = raider_position(world);
+                    pose(world, raider + Vec3::new(16.0, -14.0, 12.0), raider)
+                })
+                .until(elapsed(0.5))
+                .add()
+                .step("capture the aftermath")
+                .on_enter(move |world| shoot(world, capturing, "variant-juice-aftermath.png"))
+                .until(elapsed(0.2))
+                .add()
+                // The exchange again, tighter and lower: the wide `wiki-combat`
+                // framing reads as a diorama at the site's 16:9 crop, so this is
+                // the same beat shot as a gun camera would see it.
+                .step("frame the exchange tight")
+                .on_enter(|world| {
+                    let raider = raider_position(world);
+                    // Down the player's own fire line and tipped up, so the
+                    // target reads against sky rather than against the far wall
+                    // of the hollow.
+                    pose(world, raider + Vec3::new(7.0, -5.0, 18.0), raider)
+                })
+                .until(elapsed(0.4))
+                .add()
+                .step("capture the tight exchange")
+                .on_enter(move |world| shoot(world, capturing, "variant-combat-tight.png"))
                 .until(frames(capture_settle_frames(capturing)))
                 .add(),
         );
@@ -439,15 +591,18 @@ fn rock_hollow(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
         radius: (4.0, 10.0),
         y_spread: 160.0,
     };
-    // The hollow itself: denser and bigger-bodied than the drift set's belt, and
-    // it starts outside the raider so the lock framings keep a clear sightline.
+    // The hollow itself - and it is a HOLLOW: the field starts outside the
+    // raider's station (34 units) with room to spare, so the pocket the fight
+    // happens in is clear and the rocks read as the wall around it. Tried
+    // tighter (28 units): rocks land on the raider, every close framing has one
+    // in front of the subject, and a torpedo run into it hits stone.
     let shell = kit::NearField {
         id_prefix: "hollow_rock_",
-        count: 44,
+        count: 48,
         seed: 40507,
-        distance: (28.0, 120.0),
-        radius: (1.0, 2.8),
-        y_spread: 42.0,
+        distance: (48.0, 130.0),
+        radius: (1.2, 3.2),
+        y_spread: 46.0,
     };
 
     ScenarioConfig {
@@ -555,6 +710,24 @@ fn ambush(sections: &GameSections) -> ScenarioEventConfig {
         kit::kenney_hull(sections, "cargob"),
     );
 
+    // The torpedo boat: a cargo-B, which is the only Kenney hull in the catalog
+    // with launch bays. Posed, not AI - the AI's own launch envelope opens at
+    // 3x the blast radius and its cadence is a 10-second playtest knob, so a
+    // capture that waited for it would be waiting on a coin flip. The script
+    // pulls the trigger instead ([`loose_torpedoes`]) and the bay, the
+    // projectile, the guidance and the blast are all the production path.
+    let lance = ship(
+        LANCE_ID,
+        "Lance",
+        LANCE_POSITION,
+        Transform::from_translation(LANCE_POSITION)
+            .looking_at(RAIDER_POSITION, Vec3::Y)
+            .rotation,
+        SpaceshipController::None,
+        Some(Allegiance::Player),
+        kit::kenney_hull(sections, "cargob"),
+    );
+
     ScenarioEventConfig {
         name: EventConfig::OnEnter,
         filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
@@ -562,7 +735,7 @@ fn ambush(sections: &GameSections) -> ScenarioEventConfig {
             other_id: Some(PLAYER_ID.to_string()),
             ..Default::default()
         })],
-        actions: vec![raider, wingman_a, wingman_b, hostile_a, hostile_b],
+        actions: vec![raider, wingman_a, wingman_b, hostile_a, hostile_b, lance],
     }
 }
 
@@ -841,12 +1014,54 @@ fn player_retro_burning() -> std::sync::Arc<nova_protocol::nova_debug::harness::
     })
 }
 
-/// Advance once the leg is over: the autopilot disengages itself at the goal,
-/// taking its telemetry with it.
+/// End the leg early: drop the travel computer and set the ship down on
+/// station.
+///
+/// The cut the module docs describe. Everything worth shooting on a GOTO is over
+/// once the flip has lit the retro burn - what follows is half a minute of
+/// braking with nothing new in frame - so the scripted run ends the leg here
+/// instead of flying it out. Dropping [`Autopilot`] is the same disengage the
+/// computer performs at the goal (the camera handback keys off its removal), and
+/// the ship is placed at the hollow's origin, INSIDE the beacon's trigger area,
+/// so the ambush springs the way it would have on arrival.
 #[cfg(feature = "debug")]
-fn player_arrived() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+fn cut_to_hollow(world: &mut World) {
+    let Some(player) = player_root(world) else {
+        warn!("combat: no player to cut to the hollow");
+        return;
+    };
+    world
+        .entity_mut(player)
+        .remove::<Autopilot>()
+        .remove::<ManeuverTelemetry>();
+    if let Some(mut transform) = world.entity_mut(player).get_mut::<Transform>() {
+        transform.translation = Vec3::ZERO;
+        transform.rotation = Quat::IDENTITY;
+    }
+    if let Some(mut linear) = world
+        .entity_mut(player)
+        .get_mut::<avian3d::prelude::LinearVelocity>()
+    {
+        linear.0 = Vec3::ZERO;
+    }
+    if let Some(mut angular) = world
+        .entity_mut(player)
+        .get_mut::<avian3d::prelude::AngularVelocity>()
+    {
+        angular.0 = Vec3::ZERO;
+    }
+    info!("combat: cut to the hollow, the leg ends here");
+}
+
+/// Advance once the ambush has actually spawned - the raider is the beat's
+/// subject and the last of the flight to matter, so its presence is the proof
+/// the beacon's trigger fired.
+#[cfg(feature = "debug")]
+fn raider_present() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
     std::sync::Arc::new(|world: &World| {
-        player_root_ref(world).is_some_and(|player| world.get::<Autopilot>(player).is_none())
+        world
+            .try_query_filtered::<&EntityId, With<SpaceshipRootMarker>>()
+            .is_some_and(|mut query| query.iter(world).any(|id| id.0 == RAIDER_ID))
     })
 }
 
@@ -921,9 +1136,9 @@ fn entity_by_id(world: &mut World, id: &str) -> Option<Entity> {
 /// path - the same `HealthApplyDamage` a bullet delivers, so the shot is of the
 /// real destruction, not of a prop.
 #[cfg(feature = "debug")]
-fn blow_raider_section(world: &mut World) {
-    let Some(node) = raider_section_health(world) else {
-        warn!("combat: no health node under section '{RAIDER_BLOWN_SECTION}' to blow");
+fn blow_raider_section(world: &mut World, section: &str) {
+    let Some(node) = raider_section_health(world, section) else {
+        warn!("combat: no health node under section '{section}' to blow");
         return;
     };
     world.trigger(HealthApplyDamage {
@@ -931,7 +1146,7 @@ fn blow_raider_section(world: &mut World) {
         source: None,
         amount: 1.0e6,
     });
-    info!("combat: blew '{RAIDER_BLOWN_SECTION}' off the raider");
+    info!("combat: blew '{section}' off the raider");
 }
 
 /// The player's ship root.
@@ -954,11 +1169,7 @@ fn player_root_ref(world: &World) -> Option<Entity> {
 /// The raider's ship root.
 #[cfg(feature = "debug")]
 fn raider_root(world: &mut World) -> Option<Entity> {
-    let mut query = world.query_filtered::<(Entity, &EntityId), With<SpaceshipRootMarker>>();
-    query
-        .iter(world)
-        .find(|(_, id)| id.0 == RAIDER_ID)
-        .map(|(entity, _)| entity)
+    ship_by_id(world, RAIDER_ID)
 }
 
 /// Where the raider actually is right now; its spawn point if it has gone.
@@ -970,15 +1181,145 @@ fn raider_position(world: &mut World) -> Vec3 {
         .unwrap_or(RAIDER_POSITION)
 }
 
-/// The raider's blown section entity. Picked BY SHIP: the racers in the set
-/// share section ids, as every shipped multi-ship scenario does.
+/// Pull the torpedo boat's triggers: every bay on the lance, fired at once, so
+/// the beat is a salvo rather than a single round.
+///
+/// The bays are the ship root's own children (which is how the AI's launch
+/// system finds them), and writing [`TorpedoSectionInput`] is exactly what the
+/// player's trigger observer and the AI's envelope do - from here on the launch
+/// is the production path.
 #[cfg(feature = "debug")]
-fn raider_section(world: &mut World) -> Option<Entity> {
+fn loose_torpedoes(world: &mut World) {
+    let Some(lance) = ship_by_id(world, LANCE_ID) else {
+        warn!("combat: no torpedo boat to fire");
+        return;
+    };
+    let bays: Vec<Entity> = world
+        .query_filtered::<(Entity, &ChildOf), With<TorpedoSectionMarker>>()
+        .iter(world)
+        .filter(|(_, parent)| parent.parent() == lance)
+        .map(|(bay, _)| bay)
+        .collect();
+    if bays.is_empty() {
+        warn!("combat: the torpedo boat has no bays");
+        return;
+    }
+    for bay in &bays {
+        if let Some(mut input) = world.entity_mut(*bay).get_mut::<TorpedoSectionInput>() {
+            **input = true;
+        }
+    }
+    info!("combat: {} torpedo bay(s) firing", bays.len());
+}
+
+/// Commit the salvo to the raider and drop the trigger.
+///
+/// A torpedo's target is decided exactly once, right after launch: the player
+/// commits from the crosshair lock and the AI from its own `AITarget`
+/// (`input/player/intent.rs`, `input/ai/torpedo.rs`), both by inserting
+/// [`TorpedoTargetChosen`] and a [`TorpedoTargetEntity`] on the fresh
+/// projectile. The boat is neither, so the script does that one write and the
+/// guidance, arming, fuze and blast run themselves. Releasing the bays here is
+/// what keeps it to one salvo - the bays would otherwise relaunch on their own
+/// fire-rate clock.
+#[cfg(feature = "debug")]
+fn commit_torpedoes(world: &mut World) {
+    let Some(raider) = raider_root(world) else {
+        warn!("combat: no raider to commit the salvo to");
+        return;
+    };
+    let bays: Vec<Entity> = world
+        .query_filtered::<Entity, With<TorpedoSectionMarker>>()
+        .iter(world)
+        .collect();
+    for bay in bays {
+        if let Some(mut input) = world.entity_mut(bay).get_mut::<TorpedoSectionInput>() {
+            **input = false;
+        }
+    }
+    let torpedoes: Vec<Entity> = world
+        .query_filtered::<Entity, (With<TorpedoProjectileMarker>, Without<TorpedoTargetChosen>)>()
+        .iter(world)
+        .collect();
+    for torpedo in &torpedoes {
+        world
+            .entity_mut(*torpedo)
+            .insert((TorpedoTargetChosen, TorpedoTargetEntity(raider)));
+    }
+    info!(
+        "combat: {} torpedo(es) committed to the raider",
+        torpedoes.len()
+    );
+}
+
+/// What the ordnance frames are about: the midpoint of the raider and the point
+/// the fuze will go off at, which is [`TORPEDO_FUZE_RANGE`] short of it along
+/// the boat's bearing. Framing on the raider alone puts the blast at the edge of
+/// the frame; framing on this holds both.
+#[cfg(feature = "debug")]
+fn ordnance_subject(world: &mut World) -> Vec3 {
+    let raider = raider_position(world);
+    let bearing = (LANCE_POSITION - raider).normalize_or_zero();
+    raider + bearing * (TORPEDO_FUZE_RANGE * 0.5)
+}
+
+/// Advance once a torpedo is actually in the world.
+#[cfg(feature = "debug")]
+fn torpedo_in_flight() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| torpedo_range(world).is_some())
+}
+
+/// Advance once the last torpedo is gone - the fuze despawns it and spawns the
+/// blast in the same frame, so this IS the detonation.
+#[cfg(feature = "debug")]
+fn no_torpedo_in_flight() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| torpedo_range(world).is_none())
+}
+
+/// Advance once the leading torpedo is within `distance` of the raider.
+#[cfg(feature = "debug")]
+fn torpedo_within(distance: f32) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(move |world: &World| {
+        torpedo_range(world).is_some_and(|range| range < distance)
+    })
+}
+
+/// How far the closest live torpedo is from the raider, if there is one of each.
+#[cfg(feature = "debug")]
+fn torpedo_range(world: &World) -> Option<f32> {
+    let raider = world
+        .try_query_filtered::<(Entity, &EntityId), With<SpaceshipRootMarker>>()?
+        .iter(world)
+        .find(|(_, id)| id.0 == RAIDER_ID)
+        .map(|(entity, _)| entity)?;
+    let target = world.get::<GlobalTransform>(raider)?.translation();
+    world
+        .try_query_filtered::<&GlobalTransform, With<TorpedoProjectileMarker>>()?
+        .iter(world)
+        .map(|transform| transform.translation().distance(target))
+        .min_by(f32::total_cmp)
+}
+
+/// The ship root carrying scenario id `id`.
+#[cfg(feature = "debug")]
+fn ship_by_id(world: &mut World, id: &str) -> Option<Entity> {
+    let mut query = world.query_filtered::<(Entity, &EntityId), With<SpaceshipRootMarker>>();
+    query
+        .iter(world)
+        .find(|(_, live)| live.0 == id)
+        .map(|(entity, _)| entity)
+}
+
+/// One of the raider's section entities, by prototype id. Picked BY SHIP: the
+/// racers in the set share section ids, as every shipped multi-ship scenario
+/// does.
+#[cfg(feature = "debug")]
+fn raider_section(world: &mut World, section: &str) -> Option<Entity> {
     let raider = raider_root(world)?;
     let mut query = world.query_filtered::<(Entity, &EntityId), With<SectionMarker>>();
     let candidates: Vec<Entity> = query
         .iter(world)
-        .filter(|(_, id)| id.0 == RAIDER_BLOWN_SECTION)
+        .filter(|(_, id)| id.0 == section)
         .map(|(entity, _)| entity)
         .collect();
     candidates
@@ -986,11 +1327,11 @@ fn raider_section(world: &mut World) -> Option<Entity> {
         .find(|&entity| under(world, entity, raider))
 }
 
-/// The `Health` node of the raider's blown section: the health lives on the
+/// The `Health` node of one of the raider's sections: the health lives on the
 /// section entity or on one of its children.
 #[cfg(feature = "debug")]
-fn raider_section_health(world: &mut World) -> Option<Entity> {
-    let section = raider_section(world)?;
+fn raider_section_health(world: &mut World, section: &str) -> Option<Entity> {
+    let section = raider_section(world, section)?;
     if world.get::<Health>(section).is_some() {
         return Some(section);
     }

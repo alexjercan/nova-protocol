@@ -194,8 +194,8 @@ What is on disk today, in curriculum reading order:
   outcome chain, so pixel coordinates would only add layout coupling.
 - `screenshots/` - `screenshot_scene` (the "Drydock drift" beauty set),
   `screenshot_combat` (the "Rock hollow" set: a real GOTO leg into an `OnEnter`
-  ambush, so it carries the travel, combat and HUD frames and absorbed the old
-  `screenshot_juice`), `screenshot_ui`, `screenshot_sections`,
+  ambush and a torpedo salvo, so it carries the travel, combat, HUD and ordnance
+  frames and absorbed the old `screenshot_juice`), `screenshot_ui`, `screenshot_sections`,
   `screenshot_orbit` (drive the scenes headless to capture
   the wiki and marketing frames),
   `screenshot_nova_os` (the Tab ship-computer, captured for HTML fidelity
