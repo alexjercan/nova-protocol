@@ -1,7 +1,21 @@
 # Notes: Run the rebuilt fleet as CI will and record the sprint's correctness+perf evidence
 
 Goal in one line: exercise the rebuilt fleet as a WHOLE - the only place that
-happens - and keep the resulting report as the sprint's evidence.
+happens - and read the resulting report.
+
+## Owner decisions (2026-08-05) - these override anything below
+
+| Question | Decision |
+|-|-|
+| The CI smoke gate | ALREADY RUN by the owner, green. Not a Step. |
+| CI budget / `timeout-minutes: 60` | Not investigated here. If CI blows the budget, the owner finds out on push. |
+| Where to run | `master`, in place. No sprout worktree. |
+| Where the report goes | probe's DEFAULT dir, `probe-runs/` (gitignored). NOT committed. |
+| Baseline comparison | DROPPED. The retained v0.7.0 numbers are other scenarios; there is nothing to compare against. |
+| The command | one plain probe run, default output. No `--baseline`, no custom `--out`. |
+
+What survives: run the fleet, read the verdict, act on what it surfaces. The
+deliverable is a green run and whatever it forces, not a stored artifact.
 
 ## What changes
 
@@ -10,39 +24,44 @@ Before: each of the six preceding tasks proves its own category with
 cross-category effects (the run policy misfiring, the aggregate report, a
 category that only fails under `--all`'s sequencing) are unproven.
 
-After: `probe run --all --fps` runs green as one invocation, its report.html +
-checks.json are retained as the sprint's evidence, and the frame-time numbers
-are recorded against the previous baseline.
+After: `probe run --all --fps` runs green as one invocation, writing its
+report.html + checks.json to the default `probe-runs/` (gitignored). The
+report is read, not stored.
 
-This is not new production code. It is a verification pass whose OUTPUT is a
-record, plus whatever fixing the full-fleet run turns out to demand.
+This is not new production code. It is a verification pass, plus whatever
+fixing the full-fleet run turns out to demand.
 
 ## Surfaces
 
 | File | Why |
 |-|-|
-| (none, by intent) | The deliverable is a run and a record. Code edits here are unplanned fixes to whatever the full-fleet run surfaces. |
+| (none, by intent) | The deliverable is a green run. Code edits here are unplanned fixes to whatever the full-fleet run surfaces. |
 | `crates/nova_probe/src/bin/probe/native/spec.rs` | `resolve_spec` with `all: true` walks the whole catalog minus `NOT_PROBED`. Verifying `screenshots/` is excluded means verifying THIS, not just reading the contract. |
 | `crates/nova_probe/src/run_report/` | `manifest.rs`, `checks.rs`, `html.rs` produce the artifacts being retained. |
 | `tasks/20260802-115955/TASK.md` | The epic Done Means this discharges (`probe run --all --fps`, and the `playing_since` absence grep). |
 
 ## Data and interfaces
 
-None added. The evidence is:
+None added. The run writes, to the default `probe-runs/` (gitignored):
 
 ```
-report.html      the human-readable aggregate
+index.json       the aggregate agent surface: does everything still work
+probe-all.json   the gate; exit code mirrors the WORST row
+report.html      per-example human-readable report
 checks.json      OK / WARN / FAIL per example per pass
 frametime.csv    per-run, stress/ only
 ```
 
-The three DoD proofs:
+The DoD proofs:
 
 ```bash
 nix develop --command cargo run -p nova_probe -- run --all --fps
 ! rg -n "run ended with the scripted run unfinished|playing_since" examples
 # test: catalog_matches_disk
 ```
+
+Read `index.json` / `checks.json`, not the HTML. Verdict is read TOGETHER with
+`measured` ("n/total"), never alone.
 
 ## Shape
 
@@ -62,8 +81,8 @@ nix develop --command cargo run -p nova_probe -- run --all --fps
           095507  THIS TASK
           probe run --all --fps
                  |
-                 +--> report.html + checks.json  = sprint evidence
-                 +--> frame-time delta vs previous baseline
+                 +--> probe-runs/ (gitignored, read not kept)
+                 +--> frame-time numbers written into this task's Notes
                  +--> anything only --all surfaces -> fix or file
 ```
 
@@ -85,16 +104,14 @@ unverified while producing a report nothing enforces:
 | Proves | reaches Playing, no panic, no command errors | correctness + frame time |
 | Fails the build | yes | no |
 
-Gate first: a red smoke makes the probe report meaningless, and it is far
-cheaper to run.
+The distinction still holds, but the gate column is already discharged: the
+owner ran the smoke command and it passed. It is not a Step.
 
-The gate also has a BUDGET consequence the sprint creates. The smoke run is
-sequential (`examples_smoke.rs:250`, one `cargo run` per example, deliberately
-not parallel). Today ~22 examples smoke. After the rebuild: three retire, but
-`widget_zoo` joins (owner call on `20260804-094021`) and three new `stress/`
-runs appear that exist specifically to be heavy. Net count barely moves; net
-TIME rises. Whether that still fits 60 minutes cold is a question this task
-must actually answer, not assume.
+The BUDGET question the sprint creates - the smoke run is sequential
+(`examples_smoke.rs:250`, one `cargo run` per example) and the new `stress/`
+runs exist specifically to be heavy, so net TIME rises against
+`timeout-minutes: 60` - is DEFERRED by owner call. CI reports it on push; no
+local estimate is worth the time here.
 
 ## Consequences and open questions
 
@@ -104,23 +121,16 @@ must actually answer, not assume.
 - Restored from `20260802-120029` Step 9 and its `playing_since` grep, which
   were dropped when that task closed SUPERSEDED and had no owner at all until
   the spike's review caught it.
-- RESOLVED - where the evidence lives: committed under
-  `tasks/20260804-095507/probe-results/`. There IS a precedent, missed on the
-  first pass: `tasks/20260716-123551/perf-results/` holds the v0.7.0 baseline
-  as committed per-scene JSON plus `frametime.csv`, organized by render path
-  (`sw/`, `xgpu/`, `combat/`, `web/`). Same shape, same reason - a generated
-  artifact is only evidence if it outlives `target/`.
-- RESOLVED - what "against the previous baseline" can mean, per series:
-  - `asteroid_field`: COMPARABLE. `scene_baseline` still loads it, and
-    `tasks/20260716-123551/perf-results/{sw,xgpu}/asteroid_field-{high,low}.json`
-    exist. This is the one real release-over-release number.
-  - `broadside-*`, `shakedown_run-*`: GONE. `broadside` is retired by
-    `20260804-093910`; its perf series ends with it. Not a regression, but say
-    so explicitly or the missing rows read as one.
-  - `many_bodies`, `many_sections`, `many_projectiles`: NO PRIOR by
-    construction. This run IS their baseline. Record them as such.
-  The honest report is "one comparison, one retirement, three new baselines",
-  not "the comparison is incomplete".
+- OWNER-DECIDED - where the report lives: probe's default `probe-runs/`,
+  gitignored, not committed. The earlier plan to commit it under
+  `tasks/20260804-095507/probe-results/` (on the `tasks/20260716-123551/`
+  precedent) is DROPPED. Consequence, stated plainly: this run leaves no
+  artifact behind in the repo, so the record of it is this task's Notes and
+  the retro - the numbers must be written down there or they are gone.
+- OWNER-DECIDED - baseline comparison is DROPPED. The retained v0.7.0
+  results cover other scenarios; with `broadside` retired and the `stress/`
+  runs new, there is no series that both sides share. Nothing to compare, so
+  the task does not pretend to.
 - Runtime, estimated rather than guessed: `stress/` uses the full 180 + 900
   frame window (`capture.rs:94,97`) and `env.rs` sizes each fps pass's deadline
   at `1080 / FPS_FLOOR(2.0) + 45s` = 585s. That is the worst-case BOUND, not
