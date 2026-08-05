@@ -67,6 +67,7 @@ website. The release favors one reusable pipeline over unrelated features.
 | `20260805-111329` | 83 | nova-protocol | `menu_scenarios` is killed by a signal in the ui smoke, roughly 1 run in 5 | Pending - found while closing `20260805-091151`; `exited with None` (signal, no panic, no stall) mid scenario load. A different fault from the driven-click flake; gates CI |
 | `20260805-105154` | 70 | nova-protocol | Refresh frontend app images: redo the `screenshots/` examples, recapture every `capturable` image | Pending - replacement for `20260724-082856`; 27 `capturable` gaps grouped by producer, one image per step |
 | `20260715-220011` | 68 | nova-protocol | Generated placeholder thumbnails for the Scenarios picker | Pending |
+| `20260805-111534` | 66 | nova-protocol | Authorable scenario lighting instead of one hardcoded top-down key | Pending - surfaced by `20260805-105154`, which works around it example-side; shipped menu backdrops stay flat until this lands |
 | `20260730-111146` | 60 | nova-protocol | Refresh the tutorial against current UI and captures | Pending |
 | `20260731-205553` | 50 | nova-protocol | Clear compiler and rustdoc warnings | Pending |
 
