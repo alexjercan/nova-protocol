@@ -242,6 +242,11 @@ fn cursor_moved(window: Entity, position: Vec2) -> CursorMoved {
 #[derive(Resource, Debug, Clone, Copy, PartialEq)]
 struct PinnedCursor(Vec2);
 
+/// How far the window may drift from the pin before it counts as a foreign
+/// move, squared: half a logical pixel, which no real gesture lands inside and
+/// no scale-factor round trip escapes.
+const HELD_TOLERANCE_SQ: f32 = 0.25;
+
 /// Give the driven run the pointer: re-assert the pinned position in `First`,
 /// AFTER `bevy_winit` has written the frame's real events and BEFORE
 /// `PickingSystems::Input` turns them into `PointerInput`.
@@ -272,6 +277,12 @@ pub(crate) fn register_pointer_pin(app: &mut App) {
 /// disagreeing with the pin means somebody else moved the pointer. `None`
 /// (the cursor left the window) counts as a disagreement.
 ///
+/// "Disagreeing" is half a logical pixel, not float equality: the driver's own
+/// OS-level warp echoes back through winit as PHYSICAL pixels, and on a
+/// fractional scale factor the trip back to logical need not land on the same
+/// float. Exact comparison would read that rounding as a stray and re-warp on
+/// every frame.
+///
 /// The correction is appended to the same batch the stray is in. Picking reads
 /// the moves in order, so the driver's is the one that lands.
 fn repin_cursor(
@@ -286,7 +297,10 @@ fn repin_cursor(
     let Ok((entity, mut window)) = windows.single_mut() else {
         return;
     };
-    if window.cursor_position() == Some(pinned.0) {
+    let held = window
+        .cursor_position()
+        .is_some_and(|position| position.distance_squared(pinned.0) <= HELD_TOLERANCE_SQ);
+    if held {
         return;
     }
     debug!(

@@ -1,10 +1,10 @@
 # A stray cursor event mid-click cancels the driven click
 
 - PRIORITY: 84
-- TAGS: v0.10.0,testing,automation
-- ACTIVITY: -
-- GATES: -
-- RESOLUTION: -
+- TAGS: v0.10.0, testing, automation
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 - PARENT: 20260802-115955
 
 TITLE CORRECTED. The brief below diagnosed a same-frame press; the
@@ -69,17 +69,18 @@ assertion hovers it in an earlier beat (`editor.rs:146-171`). Every other
    `build`, with the failing-first guard beside it.
 4. Sync the harness wiki.
 
-## DoD
+## Definition of Done
 
 - A driven click survives a foreign cursor event landing between its press and
-  release beats. (test: `cargo test -p nova_autopilot --test pointer_pin`)
-- The guard fails without the fix, so a green run is evidence of something.
-  (manual: delete the `register_pointer_pin` call, run the test - numbers in
-  Notes)
+  release beats. (test: `a_foreign_cursor_event_mid_click_does_not_cancel_the_click`)
+- The rig can break the click, so the guard above is not vacuous.
+  (test: `a_pointer_the_run_moves_away_does_cancel_the_click`)
+- The guard FAILS without the fix, so a green run is evidence of something.
+  (manual: delete the `register_pointer_pin` call and rerun - numbers in Notes)
 - The pointer-driving examples still pass untouched.
-  (cmd: `DISPLAY=:99 NOVA_AUTOPILOT=1 cargo run --example <ui example> --features debug`)
+  (cmd: `nix develop --command env DISPLAY=:99 cargo test --test examples_smoke ui`)
 - The harness wiki states that a driven run owns the pointer.
-  (manual: `web/src/wiki/dev/automation-harness.md`)
+  (manual: read `web/src/wiki/dev/automation-harness.md`)
 
 ## Notes
 
@@ -90,6 +91,11 @@ Fail-first numbers, all on `:99` unless stated:
 | `tests/pointer_pin.rs` | 1 of 2 FAILS (`a_foreign_cursor_event_mid_click_does_not_cancel_the_click`) | 2/2 pass |
 | `menu_newgame` + `editor` under a faithful stray every 7 frames (temporary rig, reverted) | 2/2 FAIL | 4/4 pass |
 | `menu_newgame` alone / x5 concurrent / 6 suite-shaped rounds | 218 runs, 0 failures - the ambient trigger never came out on this box | - |
+
+Out of band, found running the DoD command: `menu_scenarios` is intermittently
+KILLED BY A SIGNAL (`exited with None`), 1 run in 5, mid scenario load with no
+panic and no stall. A DIFFERENT fault from this one, not introduced by this
+fix, and filed as `20260805-111329`.
 
 The stray the rig writes sets `Window::cursor_position` AND both message
 halves, which is what `bevy_winit` does for a real one

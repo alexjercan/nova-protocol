@@ -123,7 +123,10 @@ off the widget in between produces a release, no click, and no `Activate` - a
 autopilot pins its pointer: whenever the window disagrees with the last
 position a gesture set, `nova_autopilot::input` puts the pinned position back
 in `First`, before the picking backend reads the frame's events. Nothing at a
-call site changes, and a script needs no defensive re-hover.
+call site changes, and a script needs no defensive re-hover. The pin holds the
+REAL cursor too, since that is what `Window::cursor_position` moves - so a
+driven run on your own desktop pulls the mouse back whenever you move it off,
+until the run ends.
 
 **A settle predicate over a physics quantity belongs on the physics schedule.**
 "The value held still for N frames" is a common way to write "the solve is
