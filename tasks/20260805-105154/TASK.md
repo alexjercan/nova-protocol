@@ -54,25 +54,57 @@ goes away with them unless a page asks for it again.
 
 ## Steps
 
-This task is the container: the work is seven children, each independently
-committable and each ending in an owner verdict. Scene tasks 2-6 depend on the
-photo kit landing with scene 1; the capture round depends on all six.
+One scene per step, built and then APPROVED BY THE OWNER before the next step
+starts. Every scene step ends at the same gate: the owner runs the example
+plainly (`cargo run --example <name> --features debug`, free-fly WASD camera,
+no `NOVA_REEL`) and says whether it looks good. NOTHING is captured until every
+scene has passed; the last step is the only one that produces a PNG.
 
-- [ ] `20260805-112749` - photo kit + `screenshot_reel` -> `screenshot_scene`
-      ("Drydock drift"). Sets the look every later scene inherits, so it is
-      first.
-- [ ] `20260805-112819` - `screenshot_combat` as a two-faction fight ("Rock
-      hollow"), absorbing `screenshot_juice`. Proves AI-vs-AI first.
-- [ ] `20260805-112841` - `screenshot_orbit` -> `screenshot_flight` ("The
-      ring").
-- [ ] `20260805-112903` - re-light and re-frame `screenshot_sections`.
-- [ ] `20260805-112929` - extend `screenshot_ui` with settings and the
-      Scenarios campaign picker.
-- [ ] `20260805-112951` - point `screenshot_nova_os` at the two web names.
-- [ ] `20260805-113033` - capture round: shoot all six, package, review at page
-      crop.
-- [ ] Close this container once the report is clean and the owner accepts the
-      rendered site.
+Each scene step: write the new example and its scene RON, delete the example it
+supersedes (with its `[[example]]` block in `Cargo.toml` and its entry in
+`SCREENSHOTS`, `tests/examples_smoke.rs`), and update the producer name in
+`scripts/gen-web-screenshots.py` plus the `screenshots/` roster in
+`web/src/wiki/dev/development.md`.
+
+- [ ] Shared photo kit, landing with the first scene: a three-light photo rig
+      (key + rim + fill, spawned by the example), the Kenney hull section lists
+      lifted from `assets/base/scenarios/menu_scrapyard.content.ron`, and a
+      near-field asteroid dressing helper. Bounded to those three things.
+      It CANNOT be `examples/screenshots/kit.rs` - see Notes.
+- [ ] `screenshot_scene` ("Drydock drift"): planetoid at a distance where its
+      surface reads, near-field rocks roughly 15-60 units out with radius
+      variance, a hero Kenney racer posed foreground, two more hulls drifting
+      on AI `orbit`. Supersedes `screenshot_reel`. First, because it settles the
+      look every later scene inherits. -> OWNER APPROVAL.
+- [ ] `screenshot_combat` ("Rock hollow"): PROVE the two-faction fight first
+      (an AI flight with `allegiance: Some(Player)` against a default-Enemy
+      flight, no player) - if they will not engage, bring it back before
+      building the set. Then the dense field, both flights with `engage_delay`
+      so they arrive, and a player ship for the lock/HUD framings. Supersedes
+      the old `screenshot_combat` and `screenshot_juice` (its scripted section
+      blow moves here). -> OWNER APPROVAL.
+- [ ] `screenshot_flight` ("The ring"): gravity planetoid, player Kenney racer
+      on the ORBIT autopilot, rocks along the ring for parallax, HUD on.
+      Supersedes `screenshot_orbit`. -> OWNER APPROVAL.
+- [ ] `screenshot_sections`: keep the frozen five-section ship (these document
+      the ENGINE section prototypes, not Kenney hulls) and give it the kit's
+      rig, tuned for macro work - a rim light carrying the silhouette. Re-frame
+      all five closeups; the turret's yaw/pitch/barrel stack is the hard one.
+      -> OWNER APPROVAL.
+- [ ] `screenshot_ui`: add a settings-pane state and a Scenarios-picker state
+      with a campaign expanded (copy the real pointer gesture from
+      `examples/ui/menu_scenarios.rs`), and put a built ship in the editor
+      state. -> OWNER APPROVAL.
+- [ ] `screenshot_nova_os`: terminal state with a command run and inline
+      completion, plus an apps state so it reads as more than a prompt. Decide
+      whether the old fidelity-comparison beats still have a reader.
+      -> OWNER APPROVAL.
+- [ ] ONLY NOW, screenshots: frame the 27 beats across the six approved scenes,
+      capture into staging, package with
+      `python3 scripts/gen-web-screenshots.py`, review every image at its PAGE
+      CROP (the site uses `aspect-ratio: 16/9; object-fit: cover`), fix
+      rejected framings in the producing example's beat and recapture - never
+      hand-fix a PNG - then commit the assets and open the rendered site.
 
 ## Definition of Done
 
@@ -85,9 +117,8 @@ photo kit landing with scene 1; the capture round depends on all six.
 - The six producers are cataloged, smoked and reach `Playing` headless without a
   panic; `screenshot_reel`, `screenshot_orbit` and `screenshot_juice` are gone.
   (test: `catalog_matches_disk`)
-- The owner accepted every scene before it was shot, running each example
-  plainly with no `NOVA_REEL`.
-  (manual: one verdict recorded per scene child task)
+- The owner approved all six scenes, one at a time, BEFORE any capture ran.
+  (manual: run each example plainly with no `NOVA_REEL` and confirm the look)
 - The owner accepts the new shots at their actual page crop.
   (manual: inspect the locally rendered landing, tutorial, news and wiki pages)
 
