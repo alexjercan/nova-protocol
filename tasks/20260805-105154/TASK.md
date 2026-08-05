@@ -37,8 +37,8 @@ roster change settled in `DECISION.md` - one row is one child task.
 | Producer | Was | Images |
 | --- | --- | --- |
 | `screenshot_scene` | `screenshot_reel` | `feature-gravity`, `wiki-gravity`, `wiki-sections` |
-| `screenshot_flight` | `screenshot_orbit` | `tutorial-orbit` |
-| `screenshot_combat` | `screenshot_combat` + `screenshot_juice` | `feature-combat`, `feature-hud`, `wiki-combat`, `wiki-hud`, `tutorial-combat-lock`, `tutorial-radar-lock`, `wiki-radar`, `feature-juice`, `news-090-combat-readability`, `news-090-contextual-hud`, `feature-autopilot`, `wiki-flight` |
+| `screenshot_flight` | `screenshot_orbit` | `tutorial-orbit`, `feature-autopilot`, `wiki-flight` |
+| `screenshot_combat` | `screenshot_combat` + `screenshot_juice` | `feature-combat`, `feature-hud`, `wiki-combat`, `wiki-hud`, `tutorial-combat-lock`, `tutorial-radar-lock`, `wiki-radar`, `feature-juice`, `news-090-combat-readability`, `news-090-contextual-hud` |
 | `screenshot_sections` | unchanged | the five `wiki-section-*` |
 | `screenshot_ui` | `screenshot_ui` | `feature-editor`, `tutorial-menu`, `wiki-settings`, `news-090-scenario-campaigns` |
 | `screenshot_nova_os` | `screenshot_nova_os` | `news-090-nova-os-terminal`, `news-090-nova-os-apps` |
@@ -83,9 +83,10 @@ supersedes (with its `[[example]]` block in `Cargo.toml` and its entry in
       so they arrive, and a player ship for the lock/HUD framings. Supersedes
       the old `screenshot_combat` and `screenshot_juice` (its scripted section
       blow moves here). -> OWNER APPROVAL.
-- [ ] `screenshot_flight` ("The ring"): gravity planetoid, player Kenney racer
+- [x] `screenshot_flight` ("The ring"): gravity planetoid, player Kenney racer
       on the ORBIT autopilot, rocks along the ring for parallax, HUD on.
-      Supersedes `screenshot_orbit`. -> OWNER APPROVAL.
+      Supersedes `screenshot_orbit`. -> OWNER APPROVED 2026-08-05, and it takes
+      `feature-autopilot` and `wiki-flight` off `screenshot_combat` with it.
 - [ ] `screenshot_sections`: keep the frozen five-section ship (these document
       the ENGINE section prototypes, not Kenney hulls) and give it the kit's
       rig, tuned for macro work - a rim light carrying the silhouette. Re-frame
@@ -156,9 +157,13 @@ supersedes (with its `[[example]]` block in `Cargo.toml` and its entry in
   the beacon's own trigger area springs the ambush on arrival (`OnEnter`
   scenario data, so a plain run gets the fight by flying there). Two calls
   against this plan's wording, both from what the leg showed:
-  - `feature-autopilot` and `wiki-flight` MOVE HERE (the burn and the
+  - `feature-autopilot` and `wiki-flight` moved here (the burn and the
     flip-and-burn are beats of this leg), leaving `screenshot_flight` with
     `tutorial-orbit` alone. `ALIASES` is now empty, which is a DoD item.
+    REVERSED 2026-08-05 by the owner after scene 4: both are back on
+    `screenshot_flight`, which is the roster NOTES.md set out. `screenshot_combat`
+    still flies its leg (it is the approach into the hollow, and the flip is where
+    the script cuts) but no longer captures anything on it.
   - The radar picks the body nearest the AIM RAY, and asteroids are lockable at
     any range (their signature gate is bypassed by the well/ship branch), so a
     rock four kilometres out steals a travel lock aimed a few degrees off. The
@@ -187,7 +192,7 @@ supersedes (with its `[[example]]` block in `Cargo.toml` and its entry in
     and `variant-combat-tight` are staged by a capture run and named by no
     manifest entry, so they are candidates for `feature-juice` / `wiki-combat`
     to be picked at step 8 and cost nothing if they lose.
-- Scene 3, `screenshot_flight` ("The ring"), built and awaiting the owner's run.
+- Scene 3, `screenshot_flight` ("The ring"), built and APPROVED.
   What it cost, and the one open decision:
   - MEASURED the draw factor instead of assuming it: this planetoid's derived
     `BodyRadius` is ~91 units for an authored 20, a factor of 4.5. The first cut
@@ -238,7 +243,11 @@ supersedes (with its `[[example]]` block in `Cargo.toml` and its entry in
     `SURVEY 7.87 km` chip is cut to `VEY 7.87 km` in any frame whose beacon is
     off-screen past a corner. Clamping by the node's own half-size would fix it
     for every producer.
-  - PENDING THE OWNER: seven candidates for the flight and autopilot images -
+  - OWNER'S PICK, 2026-08-05: this set takes `feature-autopilot` (the departure
+    burn) and `wiki-flight` (the flip-and-burn), and `screenshot_combat` loses
+    the two `shoot` calls on its leg. Step 4 is approved. The remaining five
+    frames stay `variant-*`. What was staged for the pick:
+  - Seven candidates for the flight and autopilot images -
     `variant-autopilot-goto` (the departure burn, ribbon out to the beacon, 250
     m/s), `variant-flight-departure` (clean wide, the lit planetoid with the ship
     crossing its limb under power), `variant-flight-flip` (the flip-and-burn,

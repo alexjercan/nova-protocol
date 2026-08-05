@@ -6,9 +6,12 @@
 //! units downrange. The weapons-lowered radar latches it (a TRAVEL lock, far
 //! enough out that its bracket sits in open sky instead of on top of the
 //! player's own hull), the travel computer engages, and the ship flies the real
-//! GOTO leg - align, burn, coast, FLIP, brake. Two shots come off that leg and
-//! nothing about it is faked: the plume, the trajectory ribbon and the flip are
-//! the autopilot's.
+//! GOTO leg - align, burn, coast, FLIP, brake. It SHIPS NOTHING: the leg's two
+//! shots (`feature-autopilot`, `wiki-flight`) moved to `screenshot_flight`,
+//! which flies the same verb around a real gravity well with a camera that flies
+//! the leg with the ship (owner's pick, 2026-08-05). The approach stays because
+//! it is how the player reaches the hollow, and the flip is where the script
+//! cuts.
 //!
 //! ACT 2, the ambush: the beacon doubles as its own trigger area, so crossing it
 //! fires `OnEnter` and spawns the whole fight - a raider dead ahead, two
@@ -225,9 +228,17 @@ fn main() -> bevy::app::AppExit {
                 .on_enter(move |world| shoot(world, capturing, "wiki-radar.png"))
                 .until(elapsed(0.2))
                 .add()
-                // Hand the camera back before the leg: the travel beats are shot
-                // over the game's own follow camera, because a pinned world pose
-                // watches a ship that is leaving.
+                // Hand the camera back before the leg: it is flown over the
+                // game's own follow camera, because a pinned world pose watches a
+                // ship that is leaving.
+                //
+                // The leg SHOOTS NOTHING. It used to stage `feature-autopilot`
+                // (the burn) and `wiki-flight` (the flip-and-burn); both moved to
+                // `screenshot_flight`, which flies the same verb around a real
+                // gravity well with a camera that flies the leg with the ship
+                // (owner's pick, 2026-08-05). The leg itself stays: this act is
+                // the approach that puts the player in the hollow, and the flip
+                // is where the script cuts.
                 .step("engage the travel computer")
                 .on_enter(|world| {
                     release_radar(world);
@@ -236,10 +247,6 @@ fn main() -> bevy::app::AppExit {
                 })
                 .until(player_burning())
                 .deadline(25.0)
-                .add()
-                .step("capture the burn")
-                .on_enter(move |world| shoot(world, capturing, "feature-autopilot.png"))
-                .until(elapsed(0.2))
                 .add()
                 // Coast, then the flip: the computer swings the ship end-for-end
                 // and lights the drive back down the path. The wait is on the
@@ -256,10 +263,6 @@ fn main() -> bevy::app::AppExit {
                 .step("flip and burn")
                 .until(player_retro_burning())
                 .deadline(20.0)
-                .add()
-                .step("capture the flip")
-                .on_enter(move |world| shoot(world, capturing, "wiki-flight.png"))
-                .until(elapsed(0.2))
                 .add()
                 // ACT 2 - the ambush. The flip is the last thing worth shooting
                 // on the leg, so the script CUTS here rather than sitting

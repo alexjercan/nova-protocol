@@ -89,10 +89,13 @@ FIGURES = [
     ("wiki-radar.png",             "screenshot_combat"),
     ("news-090-combat-readability.png", "screenshot_combat"),
     ("news-090-contextual-hud.png", "screenshot_combat"),
-    # The travel leg: `screenshot_combat` opens on a GOTO across the field, so
-    # the autopilot beats are its too - the burn and the flip-and-burn.
-    ("feature-autopilot.png",      "screenshot_combat"),
-    ("wiki-flight.png",            "screenshot_combat"),
+    # The flight-computer set. `screenshot_combat` still opens on a GOTO across
+    # the field, but the autopilot beats are shot in `screenshot_flight`: it
+    # flies both verbs around a real well with a camera that flies the leg with
+    # the ship, which is the picture these three want (owner's pick,
+    # 2026-08-05, restoring the roster in the task's NOTES.md).
+    ("feature-autopilot.png",      "screenshot_flight"),
+    ("wiki-flight.png",            "screenshot_flight"),
     ("tutorial-orbit.png",         "screenshot_flight"),
     ("wiki-section-hull.png",      "screenshot_sections"),
     ("wiki-section-controller.png", "screenshot_sections"),

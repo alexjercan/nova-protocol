@@ -25,11 +25,13 @@
 //! It replaces `screenshot_orbit`, whose set was a three-block primitive prop
 //! ship, a 12-unit planetoid and a single 5.6-second stopwatch before the shot.
 //!
-//! WHAT IT SHIPS, AND WHAT IT PROPOSES. `tutorial-orbit` is this set's image and
-//! the other seven are `variant-*.png`: the flight and autopilot images
-//! (`feature-autopilot`, `wiki-flight`) currently belong to the Rock hollow's
-//! GOTO leg, and these are this scene's candidates for them, staged by a capture
-//! run and named by no manifest entry. The pick is the owner's, at capture time.
+//! WHAT IT SHIPS. Three manifest images: `tutorial-orbit` (act 1, the ring),
+//! `feature-autopilot` (act 2, the departure burn - `AP GOTO - BURN`, the
+//! trajectory ribbon and the destination readout) and `wiki-flight` (act 2, the
+//! flip-and-burn). The last two were the Rock hollow's until the owner picked
+//! these on 2026-08-05; `screenshot_combat` still flies its leg but no longer
+//! shoots it. The other five frames are `variant-*.png` - alternates staged by a
+//! capture run and named by no manifest entry, so they cost nothing.
 //!
 //! Sizing, so the numbers are not magic (the well math is
 //! `crates/nova_gameplay/src/gravity.rs`):
@@ -366,7 +368,7 @@ fn main() -> bevy::app::AppExit {
                 .until(elapsed(0.3))
                 .add()
                 .step("capture the departure burn")
-                .on_enter(move |world| shoot(world, capturing, "variant-autopilot-goto.png"))
+                .on_enter(move |world| shoot(world, capturing, "feature-autopilot.png"))
                 .until(elapsed(0.2))
                 .add()
                 // The same burn, wide and clean: back along the ship's own radius
@@ -426,12 +428,12 @@ fn main() -> bevy::app::AppExit {
                 .step("frame the flip")
                 .on_enter(|world| {
                     hud_instrument(world);
-                    lead(world, 22.0, 20.0, 5.0);
+                    lead(world, 21.0, 11.0, 6.0);
                 })
                 .until(elapsed(0.3))
                 .add()
                 .step("capture the flip")
-                .on_enter(move |world| shoot(world, capturing, "variant-flight-flip.png"))
+                .on_enter(move |world| shoot(world, capturing, "wiki-flight.png"))
                 .until(elapsed(0.2))
                 .add()
                 // The arrival: the leg ends parked off the beacon, which is the
