@@ -2,7 +2,7 @@
 
 - PRIORITY: 70
 - TAGS: v0.10.0, web, assets, screenshot
-- ACTIVITY: UNDERSTANDING
+- ACTIVITY: PLANNING
 - GATES: -
 - RESOLUTION: -
 - PARENT: 20260802-115955
@@ -31,20 +31,21 @@ scope and stay outstanding.
 
 ## Inputs
 
-Every `capturable` gap, grouped by the example that can produce it - one group
-is one working session, one image is one step.
+Every `capturable` gap, assigned to the example that will produce it after the
+roster change settled in `DECISION.md` - one row is one child task.
 
-| Producer | Images |
-| --- | --- |
-| `screenshot_combat` | `feature-combat.png`, `feature-hud.png`, `feature-autopilot.png`, `tutorial-combat-lock.png`, `tutorial-radar-lock.png` |
-| `screenshot_ui` | `feature-editor.png`, `tutorial-menu.png`, `wiki-settings.png` (no manifest slot yet) |
-| `screenshot_reel` | `feature-gravity.png`, `wiki-gravity.png`, `wiki-sections.png` |
-| `screenshot_sections` | `wiki-section-hull.png`, `wiki-section-controller.png`, `wiki-section-thruster.png`, `wiki-section-turret.png`, `wiki-section-torpedo-bay.png` |
-| `screenshot_juice` | `feature-juice.png` |
-| `screenshot_orbit` | `tutorial-orbit.png` |
-| `screenshot_nova_os` | `news-090-nova-os-terminal.png`, `news-090-nova-os-apps.png` (no manifest slots yet) |
-| ALIASES (reuse today) | `wiki-combat.png`, `wiki-hud.png`, `wiki-flight.png`, `wiki-radar.png` - each wants its own framing, so each wants its own capture |
-| No producer yet | `news-090-combat-readability.png`, `news-090-contextual-hud.png`, `news-090-scenario-campaigns.png` |
+| Producer | Was | Images |
+| --- | --- | --- |
+| `screenshot_scene` | `screenshot_reel` | `feature-gravity`, `wiki-gravity`, `wiki-sections` |
+| `screenshot_flight` | `screenshot_orbit` + combat aliases | `feature-autopilot`, `wiki-flight`, `tutorial-orbit` |
+| `screenshot_combat` | `screenshot_combat` + `screenshot_juice` | `feature-combat`, `feature-hud`, `wiki-combat`, `wiki-hud`, `tutorial-combat-lock`, `tutorial-radar-lock`, `wiki-radar`, `feature-juice`, `news-090-combat-readability`, `news-090-contextual-hud` |
+| `screenshot_sections` | unchanged | the five `wiki-section-*` |
+| `screenshot_ui` | `screenshot_ui` | `feature-editor`, `tutorial-menu`, `wiki-settings`, `news-090-scenario-campaigns` |
+| `screenshot_nova_os` | `screenshot_nova_os` | `news-090-nova-os-terminal`, `news-090-nova-os-apps` |
+
+Without a manifest slot today: `wiki-settings`, and all five `news-090-*`.
+Currently ALIASES, and each becoming its own framed beat: `wiki-combat`,
+`wiki-hud`, `wiki-flight`, `wiki-radar`.
 
 Deleted and deliberately not replaced: `devlog5-target-viewfinder.png` and
 `devlog5-radar-stance-slots.png` (the composite). The site references neither -
@@ -53,35 +54,25 @@ goes away with them unless a page asks for it again.
 
 ## Steps
 
-Draft, to be settled in planning. Deletion is done (`web/src/assets/` holds only
-authored art); the report is green-field, so order is by producer, and inside a
-producer one step per image: pose it, capture it, look at it at the page crop,
-adjust the example's scene/framing, recapture. Never hand-fix a generated PNG.
+This task is the container: the work is seven children, each independently
+committable and each ending in an owner verdict. Scene tasks 2-6 depend on the
+photo kit landing with scene 1; the capture round depends on all six.
 
-- [ ] Decide the look: what makes a Nova shot cool (camera framing, action beat,
-      lighting, HUD state). Write it down once so 27 shots agree.
-- [ ] `screenshot_combat` - redo the example's beats, then per image:
-      `feature-combat`, `feature-hud`, `feature-autopilot`,
-      `tutorial-combat-lock`, `tutorial-radar-lock`.
-- [ ] `screenshot_ui` - redo, then per image: `feature-editor`,
-      `tutorial-menu`, `wiki-settings` (new: settings pane, needs a manifest
-      slot).
-- [ ] `screenshot_reel` - redo, then per image: `feature-gravity`,
-      `wiki-gravity`, `wiki-sections`.
-- [ ] `screenshot_sections` - redo, then one step per section image (hull,
-      controller, thruster, turret, torpedo bay).
-- [ ] `screenshot_juice` - redo, then `feature-juice`.
-- [ ] `screenshot_orbit` - redo, then `tutorial-orbit`.
-- [ ] `screenshot_nova_os` - redo, then `news-090-nova-os-terminal` and
-      `news-090-nova-os-apps` (new manifest slots).
-- [ ] Give each of the four ALIASES its own capture step and drop it from
-      `ALIASES`: `wiki-combat`, `wiki-hud`, `wiki-flight`, `wiki-radar`.
-- [ ] Decide the producer for the three remaining v0.9.0 news figures
-      (`news-090-combat-readability`, `news-090-contextual-hud`,
-      `news-090-scenario-campaigns`) - a new example or an existing one - then
-      capture each.
-- [ ] Package (`python3 scripts/gen-web-screenshots.py`), re-run `--report`, and
-      open the rendered landing, tutorial, news and wiki pages.
+- [ ] `20260805-112749` - photo kit + `screenshot_reel` -> `screenshot_scene`
+      ("Drydock drift"). Sets the look every later scene inherits, so it is
+      first.
+- [ ] `20260805-112819` - `screenshot_combat` as a two-faction fight ("Rock
+      hollow"), absorbing `screenshot_juice`. Proves AI-vs-AI first.
+- [ ] `20260805-112841` - `screenshot_orbit` -> `screenshot_flight` ("The
+      ring").
+- [ ] `20260805-112903` - re-light and re-frame `screenshot_sections`.
+- [ ] `20260805-112929` - extend `screenshot_ui` with settings and the
+      Scenarios campaign picker.
+- [ ] `20260805-112951` - point `screenshot_nova_os` at the two web names.
+- [ ] `20260805-113033` - capture round: shoot all six, package, review at page
+      crop.
+- [ ] Close this container once the report is clean and the owner accepts the
+      rendered site.
 
 ## Definition of Done
 
@@ -89,13 +80,16 @@ adjust the example's scene/framing, recapture. Never hand-fix a generated PNG.
   `manual` or `historical`.
   (cmd: `nix develop --command python3 scripts/gen-web-screenshots.py --report`)
 - Every shipped game-rendered image names one declared producer example in the
-  manifest; no image is an alias of another.
+  manifest; no image is an alias of another (`ALIASES` is empty).
   (cmd: `nix develop --command python3 scripts/gen-web-screenshots.py --report`)
-- Each redone `screenshots/` example runs headless and writes its shots.
-  (manual: run each example under Xvfb with `NOVA_SHOT_DIR=target/reel`)
-- The owner accepts the new shots as cooler than the deleted set, at their
-  actual page crop. (manual: inspect the locally rendered landing, tutorial,
-  news and wiki pages)
+- The six producers are cataloged, smoked and reach `Playing` headless without a
+  panic; `screenshot_reel`, `screenshot_orbit` and `screenshot_juice` are gone.
+  (test: `catalog_matches_disk`)
+- The owner accepted every scene before it was shot, running each example
+  plainly with no `NOVA_REEL`.
+  (manual: one verdict recorded per scene child task)
+- The owner accepts the new shots at their actual page crop.
+  (manual: inspect the locally rendered landing, tutorial, news and wiki pages)
 
 ## Notes
 
@@ -107,3 +101,11 @@ adjust the example's scene/framing, recapture. Never hand-fix a generated PNG.
 - The packaging script and its `--report` flag already exist (`0ff077ff`); this
   task consumes them, it does not build them. Wiring the report into CI as a
   warning-only job is still unowned.
+- Planning constraint, found in the code: `catalog_matches_disk`
+  (`tests/examples_smoke.rs:120`) treats every `.rs` DIRECTLY under a category
+  dir as an example and pins disk == the `[[example]]` catalog. The shared photo
+  kit therefore CANNOT be `examples/screenshots/kit.rs`; it lives one level down
+  and is pulled in with `#[path = ...] mod`, as
+  `examples/sections/turret_section.rs:40` already does.
+- Example-side lighting only. Authorable scenario lighting is `20260805-111534`
+  and is not a dependency of any child.
