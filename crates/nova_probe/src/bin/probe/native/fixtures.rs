@@ -11,7 +11,7 @@ pub fn catalog() -> Vec<nova_probe::CatalogExample> {
         ("controller_section", "sections"),
         ("scenario", "gameplay"),
         ("playable", "gameplay"),
-        ("screenshot_reel", "screenshots"),
+        ("screenshot_scene", "screenshots"),
         ("render_scale_shot", "screenshots"),
         ("scene_baseline", "stress"),
         ("many_bodies", "stress"),

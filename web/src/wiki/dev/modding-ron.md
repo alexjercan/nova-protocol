@@ -199,8 +199,8 @@ flowchart TD
   SESSION-ONLY: `seed_enabled_mods` strips hidden (non-base) ids from the restored
   prefs at startup, so a dev-tool run can never leave a hidden mod stuck-enabled
   with no menu row to disable it. No shipped mod is hidden right now - the
-  screenshot-reel capture set left the mods system entirely (its scenario is
-  embedded in `examples/screenshots/screenshot_reel.rs` via `examples/screenshots/data/reel.content.ron`);
+  screenshot capture sets left the mods system entirely (they build their
+  scenarios in Rust, in `examples/screenshots/`);
   the flag is pinned by the synthetic-catalog tests in
   `crates/nova_assets/tests/example_scenario.rs`.
 

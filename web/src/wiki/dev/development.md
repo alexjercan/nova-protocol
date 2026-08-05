@@ -192,9 +192,10 @@ What is on disk today, in curriculum reading order:
   outright below two measurements, since its property is a comparison across
   selections. `systems/` deliberately does the opposite - its subject is the
   outcome chain, so pixel coordinates would only add layout coupling.
-- `screenshots/` - `screenshot_reel`, `screenshot_ui`, `screenshot_combat`,
-  `screenshot_sections`, `screenshot_juice`, `screenshot_orbit` (drive the
-  shipped scenes headless to capture the wiki and marketing frames),
+- `screenshots/` - `screenshot_scene` (the "Drydock drift" beauty set),
+  `screenshot_ui`, `screenshot_combat`, `screenshot_sections`,
+  `screenshot_juice`, `screenshot_orbit` (drive the scenes headless to capture
+  the wiki and marketing frames),
   `screenshot_nova_os` (the Tab ship-computer, captured for HTML fidelity
   work against `web/design/nova_os_terminal_poc.html`), and
   `render_scale_shot` (a real-GPU window capture proving the render-scale
@@ -404,7 +405,7 @@ staging dir, then package into `web/src/assets/`:
 
 ```sh
 export NOVA_SHOT_DIR=target/reel
-NOVA_REEL=1                  cargo run --example screenshot_reel   --features debug
+NOVA_REEL=1                  cargo run --example screenshot_scene  --features debug
 NOVA_AUTOPILOT=1 NOVA_REEL=1 cargo run --example screenshot_ui     --features debug
 NOVA_AUTOPILOT=1 NOVA_REEL=1 cargo run --example screenshot_combat --features debug
 python3 scripts/gen-web-screenshots.py   # validate + copy; build composites; write the 44x44 icons

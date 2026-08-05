@@ -69,7 +69,7 @@ const STRESS: &[&str] = &["many_bodies", "many_projectiles", "many_sections"];
 /// examples/screenshots/ - the capture producers still run a full harnessed
 /// cycle headless (capture is inert without `NOVA_SHOT`), so they smoke too.
 const SCREENSHOTS: &[&str] = &[
-    "screenshot_reel",
+    "screenshot_scene",
     "screenshot_ui",
     "screenshot_combat",
     "screenshot_sections",

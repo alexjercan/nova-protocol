@@ -37,7 +37,7 @@ Capturing the screenshots (needs a display + a GPU; use Xvfb + lavapipe headless
 into the staging dir, then packaging them:
 
     NOVA_SHOT_DIR=target/reel NOVA_REEL=1 \\
-        cargo run --example screenshot_reel --features debug
+        cargo run --example screenshot_scene --features debug
     NOVA_SHOT_DIR=target/reel NOVA_AUTOPILOT=1 NOVA_REEL=1 \\
         cargo run --example screenshot_ui --features debug
     NOVA_SHOT_DIR=target/reel NOVA_AUTOPILOT=1 NOVA_REEL=1 \\
@@ -73,9 +73,9 @@ WEB_ASSETS = os.path.join(REPO_ROOT, "web", "src", "assets")
 # reports them as pending and skips them, so it stays useful as coverage grows.
 FIGURES = [
     # name                         example
-    ("feature-gravity.png",        "screenshot_reel"),
-    ("wiki-gravity.png",           "screenshot_reel"),
-    ("wiki-sections.png",          "screenshot_reel"),
+    ("feature-gravity.png",        "screenshot_scene"),
+    ("wiki-gravity.png",           "screenshot_scene"),
+    ("wiki-sections.png",          "screenshot_scene"),
     ("tutorial-menu.png",          "screenshot_ui"),
     ("feature-editor.png",         "screenshot_ui"),
     ("feature-combat.png",         "screenshot_combat"),

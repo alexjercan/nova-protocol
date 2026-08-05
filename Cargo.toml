@@ -134,8 +134,8 @@ path = "examples/stress/many_projectiles.rs"
 
 # screenshots/ - capture producers for the website (gen-web-screenshots.py).
 [[example]]
-name = "screenshot_reel"
-path = "examples/screenshots/screenshot_reel.rs"
+name = "screenshot_scene"
+path = "examples/screenshots/screenshot_scene.rs"
 
 [[example]]
 name = "screenshot_ui"

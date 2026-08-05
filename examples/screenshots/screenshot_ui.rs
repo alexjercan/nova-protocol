@@ -2,7 +2,7 @@
 //! scenario reel cannot make - the main menu and the sandbox editor - by driving
 //! the shipped app (`editor_app`, menu + editor) through an autopilot script.
 //!
-//! The pure-3D scene shots live in `screenshot_reel`; this example covers the
+//! The pure-3D scene shots live in `screenshot_scene`; this example covers the
 //! shots that need a real game state and UI up: `tutorial-menu.png` (main menu
 //! over the ambience backdrop) and `feature-editor.png` (the sandbox editor with
 //! a ship built from sections). It steps the same way a player would - reach the
