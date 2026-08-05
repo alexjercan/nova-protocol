@@ -701,6 +701,7 @@ mod tests {
                 count: 3,
                 seed: 1,
                 region: ScatterRegion::Ring {
+                    center: Vec3::ZERO,
                     inner: 10.0,
                     outer: 20.0,
                     y_min: -1.0,
@@ -711,6 +712,7 @@ mod tests {
                     _ => unreachable!(),
                 },
                 asteroid_radius: None,
+                min_separation: None,
             })],
             vec![
                 EventFilterConfig::Entity(EntityFilterConfig {

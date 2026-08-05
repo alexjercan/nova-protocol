@@ -264,6 +264,7 @@ fn cover_scatter(asteroid_texture: &AssetRef<Image>) -> EventActionConfig {
             }),
         },
         asteroid_radius: Some((1.5, 4.0)),
+        min_separation: None,
     })
 }
 

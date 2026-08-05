@@ -342,6 +342,7 @@ fn lane_chaff(asteroid_texture: &AssetRef<Image>) -> EventActionConfig {
             }),
         },
         asteroid_radius: Some((1.5, 3.5)),
+        min_separation: None,
     })
 }
 

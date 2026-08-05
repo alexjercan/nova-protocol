@@ -296,8 +296,10 @@ drifting hauler: no AI targets it, but stray blast damage still hurts it).
 ### ScatterObjects
 
 Spawn `count` templated objects at deterministic random positions in a region
-(`Box { min, max }` or `Ring { inner, outer, y_min, y_max }`). `seed` fixes the
-layout so it is identical every load:
+(`Box { min, max }` or `Ring { center, inner, outer, y_min, y_max }`). `seed`
+fixes the layout so it is identical every load. A ring's `center` is optional
+and defaults to the origin; set it to belt a body that sits away from `(0, 0,
+0)`:
 
 ```ron
 ScatterObjects((
@@ -323,8 +325,20 @@ ScatterObjects((
         )),
     ),
     asteroid_radius: Some((1.0, 3.0)),
+    min_separation: Some(32.0),
 )),
 ```
+
+`min_separation` (optional) is the smallest centre-to-centre distance between
+two copies of this scatter. Set it on any field of solid bodies: uniform
+sampling WILL place rocks inside each other, and two overlapping dynamic bodies
+are shoved apart on the first physics step hard enough to damage or destroy
+each other - a field that explodes as it spawns. Size it as the two widest
+bodies side by side. For asteroids that is NOT `radius`: the noise mesh reaches
+up to 6x the nominal radius, so `radius: 2.0` rocks need about
+`2 * 2.0 * 6.0 = 24` plus a gap. A copy that cannot find a clear spot within
+64 tries is dropped, so an over-tight region yields fewer objects rather than
+an exploding pile.
 
 `asteroid_radius: Some((lo, hi))` randomizes each asteroid's radius in that
 range; use `None` (or omit) to keep the template radius.

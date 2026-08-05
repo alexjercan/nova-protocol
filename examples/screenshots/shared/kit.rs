@@ -138,8 +138,8 @@ fn mount_rotation(section: &SectionConfig, cell: Vec3) -> Quat {
 /// real radius variance, so a wide shot has something with parallax in it -
 /// close enough to be in frame, far enough that a hero at the origin is not
 /// buried in rock at a 15-unit camera. Scenes tune the fields for their own
-/// framing; the subject is assumed to sit at the origin, which is where
-/// [`ScatterRegion::Ring`] centres.
+/// framing; the subject is assumed to sit at the origin, so the field's
+/// [`ScatterRegion::Ring`] is centred there.
 pub struct NearField {
     /// Id prefix each rock gets (`"{id_prefix}{i}"`).
     pub id_prefix: &'static str,
@@ -176,6 +176,7 @@ impl NearField {
             count: self.count,
             seed: self.seed,
             region: ScatterRegion::Ring {
+                center: Vec3::ZERO,
                 inner: self.distance.0,
                 outer: self.distance.1,
                 y_min: -self.y_spread,
@@ -203,6 +204,7 @@ impl NearField {
                 }),
             },
             asteroid_radius: Some(self.radius),
+            min_separation: None,
         })
     }
 }

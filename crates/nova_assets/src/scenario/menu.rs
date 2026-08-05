@@ -66,6 +66,7 @@ pub(crate) fn menu_ambience(
         count: 14,
         seed: SCATTER_SEED,
         region: ScatterRegion::Ring {
+            center: Vec3::ZERO,
             inner: 170.0,
             outer: 240.0,
             y_min: -70.0,
@@ -90,6 +91,7 @@ pub(crate) fn menu_ambience(
             }),
         },
         asteroid_radius: Some((1.0, 3.0)),
+        min_separation: None,
     });
 
     // The scene's own lighting. There is no engine light any more, so a backdrop
@@ -329,6 +331,7 @@ pub(crate) fn menu_waystation(
         count: 18,
         seed: SCATTER_SEED ^ 0x1,
         region: ScatterRegion::Ring {
+            center: Vec3::ZERO,
             inner: 180.0,
             outer: 230.0,
             y_min: -60.0,
@@ -353,6 +356,7 @@ pub(crate) fn menu_waystation(
             }),
         },
         asteroid_radius: Some((1.0, 2.5)),
+        min_separation: None,
     });
 
     let events = vec![ScenarioEventConfig {
@@ -450,6 +454,7 @@ pub(crate) fn menu_scrapyard(
         count: 10,
         seed: SCATTER_SEED ^ 0x2,
         region: ScatterRegion::Ring {
+            center: Vec3::ZERO,
             inner: 150.0,
             outer: 210.0,
             y_min: -50.0,
@@ -469,6 +474,7 @@ pub(crate) fn menu_scrapyard(
             }),
         },
         asteroid_radius: None,
+        min_separation: None,
     });
 
     let events = vec![ScenarioEventConfig {

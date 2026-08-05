@@ -51,6 +51,7 @@ pub(crate) fn asteroid_field(
             }),
         },
         asteroid_radius: Some((1.0, 3.0)),
+        min_separation: None,
     });
 
     let mut objects = Vec::new();

@@ -180,9 +180,13 @@ pub enum ScatterRegion {
         /// The box's maximum corner.
         max: Vec3,
     },
-    /// A horizontal annulus centred on the origin: uniform angle, radius in
-    /// `[inner, outer]`, height in `[y_min, y_max]`.
+    /// A horizontal annulus centred on `center`: uniform angle, radius in
+    /// `[inner, outer]`, height in `[y_min, y_max]`, all relative to that
+    /// centre.
     Ring {
+        /// The annulus centre in world space. Omitted in RON, it is the origin.
+        #[cfg_attr(feature = "serde", serde(default))]
+        center: Vec3,
         /// The annulus inner radius.
         inner: f32,
         /// The annulus outer radius.
@@ -213,6 +217,7 @@ impl ScatterRegion {
                 random_in(rng, min.z, max.z),
             ),
             ScatterRegion::Ring {
+                center,
                 inner,
                 outer,
                 y_min,
@@ -220,11 +225,12 @@ impl ScatterRegion {
             } => {
                 let angle = random_in(rng, 0.0, std::f32::consts::TAU);
                 let dist = random_in(rng, *inner, *outer);
-                Vec3::new(
-                    angle.cos() * dist,
-                    random_in(rng, *y_min, *y_max),
-                    angle.sin() * dist,
-                )
+                *center
+                    + Vec3::new(
+                        angle.cos() * dist,
+                        random_in(rng, *y_min, *y_max),
+                        angle.sin() * dist,
+                    )
             }
         }
     }
@@ -255,6 +261,46 @@ pub struct ScatterObjectsConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub asteroid_radius: Option<(f32, f32)>,
+    /// Minimum centre-to-centre distance (world units) between two copies from
+    /// THIS scatter. Uniform sampling puts bodies on top of each other, and
+    /// overlapping DYNAMIC bodies (a scattered rock is one) are shoved apart on
+    /// the first physics step hard enough to damage or destroy each other - a
+    /// field that explodes as it spawns. Author it as the widest two bodies
+    /// side by side: for asteroids the collider reaches
+    /// `radius * ASTEROID_GEOMETRIC_FACTOR_MAX`, not `radius`.
+    ///
+    /// A sample that cannot clear the placed copies within
+    /// [`Self::SEPARATION_ATTEMPTS`] tries is DROPPED, so a region too small
+    /// for `count` bodies yields fewer of them rather than an overlap.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub min_separation: Option<f32>,
+}
+
+impl ScatterObjectsConfig {
+    /// Rejection-sampling budget per copy when [`Self::min_separation`] is set.
+    /// Bounded so a hopeless region cannot hang the spawn; the layout stays
+    /// deterministic because a rejected sample still advances the seeded RNG.
+    pub const SEPARATION_ATTEMPTS: u32 = 64;
+
+    /// One position at least `min_separation` from every `placed` one, or
+    /// `None` when the budget runs out. Without a separation the first sample
+    /// is always taken.
+    fn sample_clear_of(&self, placed: &[Vec3], rng: &mut impl rand::Rng) -> Option<Vec3> {
+        let Some(separation) = self.min_separation.filter(|s| *s > 0.0) else {
+            return Some(self.region.sample(rng));
+        };
+        let min_sq = separation * separation;
+        (0..Self::SEPARATION_ATTEMPTS)
+            .map(|_| self.region.sample(rng))
+            .find(|candidate| {
+                placed
+                    .iter()
+                    .all(|p| p.distance_squared(*candidate) >= min_sq)
+            })
+    }
 }
 
 impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
@@ -269,11 +315,24 @@ impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
             count, self.id_prefix, self.seed
         );
 
+        let mut placed: Vec<Vec3> = Vec::new();
         for i in 0..count {
             let mut object = self.template.clone();
             object.base.id = format!("{}{}", self.id_prefix, i);
             object.base.name = format!("{} {}", self.template.base.name, i);
-            object.base.position = self.region.sample(&mut rng);
+            let Some(position) = self.sample_clear_of(&placed, &mut rng) else {
+                debug!(
+                    "ScatterObjects: dropped '{}{}' - no position clearing the \
+                     {}u separation in {} attempts",
+                    self.id_prefix,
+                    i,
+                    self.min_separation.unwrap_or_default(),
+                    Self::SEPARATION_ATTEMPTS
+                );
+                continue;
+            };
+            placed.push(position);
+            object.base.position = position;
 
             if let (Some((lo, hi)), ScenarioObjectKind::Asteroid(asteroid)) =
                 (self.asteroid_radius, &mut object.kind)
@@ -571,6 +630,123 @@ mod tests {
         assert_eq!(p, Vec3::new(5.0, 0.0, 5.0));
     }
 
+    /// A ring with a non-zero centre samples the annulus AROUND that centre, not
+    /// around the origin - what an authored belt around a distant body needs.
+    #[test]
+    fn scatter_region_ring_samples_around_its_center() {
+        use rand::SeedableRng;
+
+        let center = Vec3::new(500.0, -40.0, -560.0);
+        let region = ScatterRegion::Ring {
+            center,
+            inner: 620.0,
+            outer: 900.0,
+            y_min: -160.0,
+            y_max: 160.0,
+        };
+
+        let mut rng = rand::rngs::StdRng::seed_from_u64(7);
+        for _ in 0..64 {
+            let p = region.sample(&mut rng);
+            let offset = p - center;
+            let planar = Vec2::new(offset.x, offset.z).length();
+            assert!(
+                (620.0..=900.0).contains(&planar),
+                "planar distance from centre out of the annulus: {planar} ({p:?})"
+            );
+            assert!(offset.y >= -160.0 && offset.y <= 160.0, "y spread: {p:?}");
+        }
+    }
+
+    /// `min_separation` is what keeps a scattered field from spawning inside
+    /// itself: uniform sampling WILL put two bodies on top of each other, and
+    /// two overlapping dynamic rocks are shoved apart hard enough to destroy
+    /// each other on the first physics step. Sampled positions must respect it,
+    /// and a region with no room drops copies rather than overlapping them.
+    #[test]
+    fn scatter_min_separation_is_respected_and_never_hangs() {
+        use rand::SeedableRng;
+
+        let scatter = |count: u32, min_separation: Option<f32>| {
+            let config = ScatterObjectsConfig {
+                id_prefix: "rock_".to_string(),
+                count,
+                seed: 11,
+                region: ScatterRegion::Box {
+                    min: Vec3::new(-100.0, -20.0, -100.0),
+                    max: Vec3::new(100.0, 20.0, 100.0),
+                },
+                template: ScenarioObjectConfig {
+                    base: BaseScenarioObjectConfig {
+                        id: "rock".to_string(),
+                        name: "Rock".to_string(),
+                        position: Vec3::ZERO,
+                        rotation: Quat::IDENTITY,
+                    },
+                    kind: ScenarioObjectKind::Light(LightConfig::Directional {
+                        illuminance: 1000.0,
+                        color: Color::WHITE,
+                        shadows: false,
+                        aim: None,
+                    }),
+                },
+                asteroid_radius: None,
+                min_separation,
+            };
+            let mut rng = rand::rngs::StdRng::seed_from_u64(config.seed);
+            let mut placed: Vec<Vec3> = Vec::new();
+            for _ in 0..config.count {
+                if let Some(p) = config.sample_clear_of(&placed, &mut rng) {
+                    placed.push(p);
+                }
+            }
+            placed
+        };
+
+        let placed = scatter(12, Some(40.0));
+        assert_eq!(placed.len(), 12, "the box has room for 12 at 40u apart");
+        for (i, a) in placed.iter().enumerate() {
+            for b in placed.iter().skip(i + 1) {
+                assert!(
+                    a.distance(*b) >= 40.0,
+                    "two copies landed {:.1}u apart, under the 40u separation",
+                    a.distance(*b)
+                );
+            }
+        }
+
+        // A separation the region cannot satisfy drops the copies it cannot
+        // place - it does not loop forever and does not overlap them.
+        let crowded = scatter(40, Some(150.0));
+        assert!(
+            crowded.len() < 40,
+            "an impossible separation must drop copies, got all {} placed",
+            crowded.len()
+        );
+        for (i, a) in crowded.iter().enumerate() {
+            for b in crowded.iter().skip(i + 1) {
+                assert!(a.distance(*b) >= 150.0);
+            }
+        }
+
+        // No separation authored: every copy is placed, as before the field.
+        assert_eq!(scatter(40, None).len(), 40);
+    }
+
+    /// `center` is `serde(default)`, so mod RON written before the field
+    /// deserializes unchanged - as an origin-centred ring.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn scatter_region_ring_center_defaults_to_zero_in_ron() {
+        let region: ScatterRegion =
+            ron::from_str("Ring(inner: 10.0, outer: 20.0, y_min: -1.0, y_max: 1.0)")
+                .expect("deserialize a ring without a centre");
+        match region {
+            ScatterRegion::Ring { center, .. } => assert_eq!(center, Vec3::ZERO),
+            other => panic!("expected a ring: {other:?}"),
+        }
+    }
+
     #[cfg(feature = "serde")]
     #[test]
     fn scatter_objects_config_round_trips_through_ron() {
@@ -579,6 +755,7 @@ mod tests {
             count: 12,
             seed: 7,
             region: ScatterRegion::Ring {
+                center: Vec3::new(10.0, 0.0, -20.0),
                 inner: 100.0,
                 outer: 150.0,
                 y_min: -20.0,
@@ -603,6 +780,7 @@ mod tests {
                 }),
             },
             asteroid_radius: Some((1.0, 3.0)),
+            min_separation: None,
         };
 
         let ron = ron::to_string(&config).expect("serialize");
@@ -615,11 +793,15 @@ mod tests {
         // region variant and the template's asset ref must survive intact.
         match back.region {
             ScatterRegion::Ring {
+                center,
                 inner,
                 outer,
                 y_min,
                 y_max,
-            } => assert_eq!((inner, outer, y_min, y_max), (100.0, 150.0, -20.0, 20.0)),
+            } => {
+                assert_eq!(center, Vec3::new(10.0, 0.0, -20.0));
+                assert_eq!((inner, outer, y_min, y_max), (100.0, 150.0, -20.0, 20.0));
+            }
             other => panic!("region variant changed on round-trip: {other:?}"),
         }
         match &back.template.kind {
@@ -665,6 +847,7 @@ mod tests {
                 }),
             },
             asteroid_radius: Some((1.0, 3.0)),
+            min_separation: None,
         };
 
         let mut world = World::new();
@@ -746,6 +929,7 @@ mod tests {
                 }),
             },
             asteroid_radius: Some((1.0, 3.0)),
+            min_separation: None,
         };
 
         // The cheapest tier: if any preset were going to thin scatter, this is the

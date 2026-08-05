@@ -296,6 +296,7 @@ fn claim_belt(asteroid_texture: &AssetRef<Image>) -> EventActionConfig {
         count: 16,
         seed: SCATTER_SEED,
         region: ScatterRegion::Ring {
+            center: Vec3::ZERO,
             inner: 260.0,
             outer: 420.0,
             y_min: -70.0,
@@ -320,6 +321,7 @@ fn claim_belt(asteroid_texture: &AssetRef<Image>) -> EventActionConfig {
             }),
         },
         asteroid_radius: Some((1.5, 3.5)),
+        min_separation: None,
     })
 }
 

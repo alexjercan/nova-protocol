@@ -522,6 +522,11 @@
                         count: 10,
                         seed: 433757350076153858,
                         region: Ring(
+                            center: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             inner: 150.0,
                             outer: 210.0,
                             y_min: -50.0,

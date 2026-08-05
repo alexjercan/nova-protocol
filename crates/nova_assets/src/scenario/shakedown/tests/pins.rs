@@ -585,6 +585,106 @@ fn crates_are_spaced_for_distinct_pickups() {
     }
 }
 
+/// Distance from a point to a segment - an autopilot leg is a line the ship
+/// actually flies, not two endpoints.
+fn distance_to_segment(point: Vec3, from: Vec3, to: Vec3) -> f32 {
+    let leg = to - from;
+    let length_sq = leg.length_squared();
+    if length_sq <= f32::EPSILON {
+        return point.distance(from);
+    }
+    let t = ((point - from).dot(leg) / length_sq).clamp(0.0, 1.0);
+    point.distance(from + leg * t)
+}
+
+/// The slalom belt must not fill the air a beat needs. Every knot's box, plus
+/// a 20u margin, clears the player spawn, each beacon trigger, the debris
+/// cluster, the derelict and the planetoid's widest orbit ring - the sketch's
+/// first knot 5 sat INSIDE beacon 1's trigger, which is exactly what this
+/// catches. Second half: the far parallax layer stays under
+/// `GravitySettings::min_well_radius`, so no belt rock gets the default well
+/// and sprays gravity over the legs authored to be gravity-free.
+#[test]
+fn belt_knots_keep_every_beat_pocket_clear() {
+    const ORBIT_CLEARANCE: f32 = 1.5;
+    const SURFACE_MARGIN: f32 = 1.0;
+    const POCKET_MARGIN: f32 = 20.0;
+
+    let widest_ring = ORBIT_CLEARANCE
+        * (PLANETOID_NOMINAL_RADIUS * ASTEROID_GEOMETRIC_FACTOR_MAX + SURFACE_MARGIN);
+    let pockets: [(&str, Vec3, f32); 9] = [
+        ("the player spawn", PLAYER_SPAWN, 60.0),
+        ("beacon 1", BEACON_1_POS, BEACON_AREA_RADIUS),
+        ("beacon 2", BEACON_2_POS, BEACON_AREA_RADIUS),
+        ("beacon 3", BEACON_3_POS, BEACON_AREA_RADIUS),
+        ("beacon 4", BEACON_4_POS, BEACON_AREA_RADIUS),
+        ("the debris cluster", DEBRIS_CENTER, 90.0),
+        ("the derelict", DERELICT_POS, 40.0),
+        ("the pirate spawn", PIRATE_SPAWN, 40.0),
+        ("the planetoid orbit ring", PLANETOID_POS, widest_ring),
+    ];
+
+    for knot in &BELT_KNOTS {
+        // The knot's own reach: its widest half-extent, so one number holds
+        // whichever way the pocket lies.
+        let reach = knot.half_extent.max_element();
+        for (name, center, radius) in &pockets {
+            let distance = knot.center.distance(*center);
+            let needed = reach + POCKET_MARGIN + radius;
+            assert!(
+                distance > needed,
+                "{} ({distance:.0}u from {name}) must leave it clear: its box reaches \
+                 {reach:.0}u and {name} needs {radius:.0}u, so {needed:.0}u is the floor",
+                knot.id_prefix
+            );
+        }
+    }
+
+    // The AUTOPILOT legs: beat 4 hands the ship to the computer, so the player
+    // cannot dodge anything parked on the line. Every knot clears each leg by
+    // its own reach plus the margin.
+    let legs: [(&str, Vec3, Vec3); 3] = [
+        ("the GOTO leg to beacon 3", DEBRIS_CENTER, BEACON_3_POS),
+        ("the waypoint run to beacon 4", BEACON_3_POS, BEACON_4_POS),
+        ("the run in to the orbit", BEACON_4_POS, PLANETOID_POS),
+    ];
+    for knot in &BELT_KNOTS {
+        let reach = knot.half_extent.max_element();
+        for (name, from, to) in &legs {
+            let distance = distance_to_segment(knot.center, *from, *to);
+            let needed = reach + POCKET_MARGIN;
+            assert!(
+                distance > needed,
+                "{} sits {distance:.0}u off {name} - an autopilot corridor needs \
+                 {needed:.0}u of air (the knot reaches {reach:.0}u)",
+                knot.id_prefix
+            );
+        }
+    }
+
+    // The far parallax ring is seeded, so a single rock cannot be aimed away
+    // from a beat: its HOLE must contain the whole playable volume instead.
+    let farthest_beat = pockets
+        .iter()
+        .map(|(_, center, radius)| center.distance(PLANETOID_POS) + radius)
+        .fold(0.0f32, f32::max);
+    assert!(
+        BELT_FAR_RING.0 > farthest_beat + 100.0,
+        "the far belt ring starts at {}u from the planetoid, inside the playable \
+         volume (which reaches {farthest_beat:.0}u)",
+        BELT_FAR_RING.0
+    );
+
+    let gravity = nova_gameplay::prelude::GravitySettings::default();
+    assert!(
+        BELT_FAR_RADIUS.1 < gravity.min_well_radius,
+        "the far belt layer's biggest rock ({}u) must stay under min_well_radius \
+         ({}u), or all {BELT_FAR_COUNT} of them get the default well",
+        BELT_FAR_RADIUS.1,
+        gravity.min_well_radius
+    );
+}
+
 /// Player death restarts the run (linger: Enter confirms), matching
 /// the asteroid_field pattern.
 #[test]

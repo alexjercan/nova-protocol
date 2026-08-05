@@ -71,6 +71,12 @@ cluster (90u), the derelict (40u) and the planetoid's widest orbit ring (200u).
 
 ## Steps
 
+- [x] 1-3: `ScatterRegion::Ring { center }` + tests + wiki.
+- [x] 4-6: planetoid move, belt scatters, pins.
+- [x] 7: content regen, lint, CHANGELOG.
+- [ ] 8: look-and-retune rounds. Round 1 shown to the owner; round 2 landed
+      (see the close-out). Owner sign-off outstanding.
+
 1. `crates/nova_scenario/src/actions/spawn.rs`: add `center: Vec3` to
    `ScatterRegion::Ring`, `#[cfg_attr(feature = "serde", serde(default))]` so
    existing mod RON keeps deserializing, and add it to the sampled position in
@@ -166,3 +172,72 @@ Risks:
   `menu_newgame` is the guard and it is a 90s budget on a software GPU.
 - Beat 2 gains a hazard a first-time player can die into. Forgiving gaps are an
   authored claim until a round is actually flown at the 25 u/s cap.
+
+## Close-out
+
+### What and why
+
+- `ScatterRegion::Ring` gained `center: Vec3` (`serde(default)`), so the far
+  belt layer can circle the planetoid. Every existing `Ring` literal is
+  origin-centred and unchanged - four more than the plan listed
+  (`nova_assets/scenario/menu.rs` x3, `final_tally.rs`).
+- `ScatterObjectsConfig` gained `min_separation: Option<f32>` with bounded
+  rejection sampling (64 tries, then the copy is DROPPED). Not planned - see
+  difficulties.
+- Planetoid moved to (500, -40, -560) with mass 27 000 (SOI 329u); beacon 4 to
+  (680, 10, -410); coast ring 240u. Beat-4 pins hold on the derived numbers
+  with no edit to the test - the asserts were already written against consts.
+- The belt: five `BELT_KNOTS` boxes plus one planetoid-centred far ring, all on
+  OnStart beside `start_spawns`.
+
+### Round-1 -> round-2 (owner look)
+
+Owner verdict on round 1: too cluttered, autopilot legs must stay clear, and
+"asteroids just explode on spawn". Round 2:
+
+| Knob | Round 1 | Round 2 |
+| --- | --- | --- |
+| Near count / knot | 26 | 12 |
+| Near nominal radius | 1.2-3.4 | 0.8-2.0 |
+| Near separation | none | 32u |
+| Far ring | 620-900u, 30 rocks | 1050-1450u, 18 rocks, 80u separation |
+| Total belt rocks | 160 | 78 |
+
+### Difficulties and diagnosis
+
+- **Spawn explosions.** An asteroid's COLLIDER is `nominal_radius *
+  ASTEROID_GEOMETRIC_FACTOR` (3.5-6.0), so a 3.4-nominal belt rock is a 12-20u
+  body; 26 of them in a 140x70x140 box interpenetrate, and avian resolves that
+  by throwing them apart hard enough to deal impact damage. No count or radius
+  is safe on its own - uniform sampling always produces close pairs - so the
+  fix had to be a separation rule in the scatter itself.
+- **Autopilot corridors.** The far ring at 620-900u from the planetoid ran
+  straight through the play volume (the spawn is 752u out, beacon 3 is 699u), so
+  a seeded rock could land on a hands-off leg. Seeded scatter cannot be aimed
+  per rock, so the ring's HOLE now contains the whole playable volume.
+- **A pin that passed by accident.** The planned knot 4 at x=200 cleared the
+  planetoid's widest orbit ring by 0.9u. Moved to x=170.
+
+### Evidence
+
+- `cargo test --lib -p nova_scenario` 151 pass; `-p nova_assets` 97 pass.
+- New pin falsified before it was trusted: knot 5 at the sketch's
+  (-40, 10, -300) fails with "65u from beacon 1 ... 175u is the floor".
+- `content gen` + `lint`: 0 errors, 0 warnings, 14 scenarios balance-audited.
+- `nova_probe run menu_newgame`: OK, Playing at frame 56, 0 panic/ERROR lines.
+- `nova_probe run scene_baseline --fps --scenario shakedown_run`, dev profile,
+  RTX 3060 Ti: belt 46.4 low / 46.9 high mean fps vs 47.3 low / 34.6 high on
+  the pre-belt tree. NOTE: the first belt run read 25.6 low; a re-run put it at
+  46.4, so that number was warm-up, not the belt. Frame time is a non-issue.
+- 30s shakedown run log: all 60 near rocks placed, 0 dropped by the separation
+  budget, 0 destruction events.
+
+### Reflection
+
+- The authored-vs-derived lesson bit again, in a new place: the belt was sized
+  against `radius` when everything physical uses `radius * geometric_factor`.
+  Any new content that places rocks by hand should quote the DERIVED extent.
+- The hand-placed debris cluster (`ROCK_OFFSETS`) has pairs ~33u apart with
+  combined worst-seed extents of ~33u - the same latent overlap, pre-existing
+  and unreported. Worth its own task rather than a drive-by change here.
+- Round-2 numbers are still authored guesses; the DoD is the owner's call.

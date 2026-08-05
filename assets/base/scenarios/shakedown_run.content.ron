@@ -325,9 +325,9 @@
                             id: "planetoid",
                             name: "Planetoid",
                             position: (
-                                1240.0,
-                                -105.0,
-                                -700.0,
+                                500.0,
+                                -40.0,
+                                -560.0,
                             ),
                             rotation: (
                                 0.0,
@@ -342,7 +342,7 @@
                             health: 2000.0,
                             impact_sound: Some("self://sounds/impact.wav"),
                             destroy_sound: Some("self://sounds/explosion.wav"),
-                            mass: Some(45000.0),
+                            mass: Some(27000.0),
                             invulnerable: true,
                         )),
                     )),
@@ -717,6 +717,287 @@
                             )),
                             shadows: false,
                         )),
+                    )),
+                    ScatterObjects((
+                        id_prefix: "belt_k1_",
+                        count: 12,
+                        seed: 20260805001,
+                        region: Box(
+                            min: (
+                                -15.0,
+                                -55.0,
+                                -230.0,
+                            ),
+                            max: (
+                                125.0,
+                                15.0,
+                                -90.0,
+                            ),
+                        ),
+                        template: (
+                            base: (
+                                id: "belt_k1_",
+                                name: "Rock",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                            ),
+                            kind: Asteroid((
+                                radius: 0.8,
+                                texture: "self://textures/asteroid.png",
+                                health: 100.0,
+                                impact_sound: Some("self://sounds/impact.wav"),
+                                destroy_sound: Some("self://sounds/explosion.wav"),
+                                invulnerable: false,
+                            )),
+                        ),
+                        asteroid_radius: Some((
+                            0.8,
+                            2.0,
+                        )),
+                        min_separation: Some(32.0),
+                    )),
+                    ScatterObjects((
+                        id_prefix: "belt_k2_",
+                        count: 12,
+                        seed: 20260805002,
+                        region: Box(
+                            min: (
+                                70.0,
+                                0.0,
+                                -520.0,
+                            ),
+                            max: (
+                                210.0,
+                                70.0,
+                                -380.0,
+                            ),
+                        ),
+                        template: (
+                            base: (
+                                id: "belt_k2_",
+                                name: "Rock",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                            ),
+                            kind: Asteroid((
+                                radius: 0.8,
+                                texture: "self://textures/asteroid.png",
+                                health: 100.0,
+                                impact_sound: Some("self://sounds/impact.wav"),
+                                destroy_sound: Some("self://sounds/explosion.wav"),
+                                invulnerable: false,
+                            )),
+                        ),
+                        asteroid_radius: Some((
+                            0.8,
+                            2.0,
+                        )),
+                        min_separation: Some(32.0),
+                    )),
+                    ScatterObjects((
+                        id_prefix: "belt_k3_",
+                        count: 12,
+                        seed: 20260805003,
+                        region: Box(
+                            min: (
+                                215.0,
+                                10.0,
+                                -435.0,
+                            ),
+                            max: (
+                                355.0,
+                                80.0,
+                                -295.0,
+                            ),
+                        ),
+                        template: (
+                            base: (
+                                id: "belt_k3_",
+                                name: "Rock",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                            ),
+                            kind: Asteroid((
+                                radius: 0.8,
+                                texture: "self://textures/asteroid.png",
+                                health: 100.0,
+                                impact_sound: Some("self://sounds/impact.wav"),
+                                destroy_sound: Some("self://sounds/explosion.wav"),
+                                invulnerable: false,
+                            )),
+                        ),
+                        asteroid_radius: Some((
+                            0.8,
+                            2.0,
+                        )),
+                        min_separation: Some(32.0),
+                    )),
+                    ScatterObjects((
+                        id_prefix: "belt_k4_",
+                        count: 12,
+                        seed: 20260805004,
+                        region: Box(
+                            min: (
+                                85.0,
+                                -20.0,
+                                -645.0,
+                            ),
+                            max: (
+                                255.0,
+                                60.0,
+                                -475.0,
+                            ),
+                        ),
+                        template: (
+                            base: (
+                                id: "belt_k4_",
+                                name: "Rock",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                            ),
+                            kind: Asteroid((
+                                radius: 0.8,
+                                texture: "self://textures/asteroid.png",
+                                health: 100.0,
+                                impact_sound: Some("self://sounds/impact.wav"),
+                                destroy_sound: Some("self://sounds/explosion.wav"),
+                                invulnerable: false,
+                            )),
+                        ),
+                        asteroid_radius: Some((
+                            0.8,
+                            2.0,
+                        )),
+                        min_separation: Some(32.0),
+                    )),
+                    ScatterObjects((
+                        id_prefix: "belt_k5_",
+                        count: 12,
+                        seed: 20260805005,
+                        region: Box(
+                            min: (
+                                -65.0,
+                                -25.0,
+                                -625.0,
+                            ),
+                            max: (
+                                105.0,
+                                55.0,
+                                -455.0,
+                            ),
+                        ),
+                        template: (
+                            base: (
+                                id: "belt_k5_",
+                                name: "Rock",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                            ),
+                            kind: Asteroid((
+                                radius: 0.8,
+                                texture: "self://textures/asteroid.png",
+                                health: 100.0,
+                                impact_sound: Some("self://sounds/impact.wav"),
+                                destroy_sound: Some("self://sounds/explosion.wav"),
+                                invulnerable: false,
+                            )),
+                        ),
+                        asteroid_radius: Some((
+                            0.8,
+                            2.0,
+                        )),
+                        min_separation: Some(32.0),
+                    )),
+                    ScatterObjects((
+                        id_prefix: "belt_far_",
+                        count: 18,
+                        seed: 20260805100,
+                        region: Ring(
+                            center: (
+                                500.0,
+                                -40.0,
+                                -560.0,
+                            ),
+                            inner: 1050.0,
+                            outer: 1450.0,
+                            y_min: -200.0,
+                            y_max: 200.0,
+                        ),
+                        template: (
+                            base: (
+                                id: "belt_far_",
+                                name: "Rock",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                            ),
+                            kind: Asteroid((
+                                radius: 4.0,
+                                texture: "self://textures/asteroid.png",
+                                health: 100.0,
+                                impact_sound: Some("self://sounds/impact.wav"),
+                                destroy_sound: Some("self://sounds/explosion.wav"),
+                                invulnerable: false,
+                            )),
+                        ),
+                        asteroid_radius: Some((
+                            4.0,
+                            4.9,
+                        )),
+                        min_separation: Some(80.0),
                     )),
                     VariableSet((
                         key: "beat",
@@ -1483,9 +1764,9 @@
                             id: "beacon_4",
                             name: "BEACON 4",
                             position: (
-                                985.0,
-                                -69.0,
-                                -545.0,
+                                680.0,
+                                10.0,
+                                -410.0,
                             ),
                             rotation: (
                                 0.0,
@@ -1581,9 +1862,9 @@
                         id: "coast_ring",
                         name: "Coast Ring",
                         position: (
-                            1240.0,
-                            -105.0,
-                            -700.0,
+                            500.0,
+                            -40.0,
+                            -560.0,
                         ),
                         rotation: (
                             0.0,
@@ -1591,7 +1872,7 @@
                             0.0,
                             1.0,
                         ),
-                        radius: 300.0,
+                        radius: 240.0,
                     )),
                     Objective((
                         id: "b7_coast",
