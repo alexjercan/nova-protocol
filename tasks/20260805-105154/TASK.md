@@ -111,10 +111,21 @@ supersedes (with its `[[example]]` block in `Cargo.toml` and its entry in
       Ships `wiki-settings` and `news-090-scenario-campaigns` as well, both now
       in the manifest. Left alone, outside this task: the keybind rows render a
       tofu box between the keyboard and gamepad columns, in game as in the shot.
-- [ ] `screenshot_nova_os`: terminal state with a command run and inline
+- [x] `screenshot_nova_os`: terminal state with a command run and inline
       completion, plus an apps state so it reads as more than a prompt. Decide
       whether the old fidelity-comparison beats still have a reader.
-      -> OWNER APPROVAL.
+      -> OWNER APPROVED 2026-08-05. The terminal shot carries the `help` and
+      `ship view` output plus the `lo`->`log` completion ghost; the apps shot is
+      the ship schematic with all five sections labelled, CTL-1 selected and its
+      detail panel open. The range ship gained a turret and a torpedo bay:
+      three blocks in a line made a poor schematic and never showed the PDC/TRB
+      cockpit codes the page's copy names. Fidelity beats: KEPT, their captures
+      DROPPED. The four old names are referenced nowhere in `web/src/`, only in
+      the closed fidelity task (20260726-180807), but the welcome and map beats
+      are what exercise the map app and the RTT/wgsl schematic path, so a render
+      panic there still fails the run. The ship app is left on its default CTL-1
+      selection: `]` re-centres the orbit on the selected section, trading the
+      whole-ship read for a closeup.
 - [ ] ONLY NOW, screenshots: frame the 27 beats across the six approved scenes,
       capture into staging, package with
       `python3 scripts/gen-web-screenshots.py`, review every image at its PAGE
