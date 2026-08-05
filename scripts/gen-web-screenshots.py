@@ -85,6 +85,12 @@ FIGURES = [
     ("feature-juice.png",          "screenshot_combat"),
     # Own framed beats now, not aliases of the shots above.
     ("wiki-combat.png",            "screenshot_combat"),
+    # The ordnance act ships two more figures on the combat wiki page: the salvo
+    # in flight under Torpedoes, and what the blast left under Damage types
+    # (owner's pick, 2026-08-05 - both variants were good, and the page has room
+    # for both).
+    ("wiki-combat-torpedo.png",    "screenshot_combat"),
+    ("wiki-combat-aftermath.png",  "screenshot_combat"),
     ("wiki-hud.png",               "screenshot_combat"),
     ("wiki-radar.png",             "screenshot_combat"),
     ("news-090-combat-readability.png", "screenshot_combat"),

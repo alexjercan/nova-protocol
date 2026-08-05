@@ -32,9 +32,11 @@
 //! by the production torpedo path. It exists because the set's juice was one
 //! graded hull on one ship - a launch burst, a drive plume and a 30-unit blast
 //! sphere eating sections belong to a SECOND ship, which is what makes the
-//! hollow read as a fight. Its frames are `variant-*.png`: candidates for
-//! `feature-juice` and `wiki-combat` that the packaging manifest does not name,
-//! so a capture run stages them for the pick without shipping them.
+//! hollow read as a fight. Two of its frames SHIP: `wiki-combat-torpedo` (the
+//! salvo in flight) and `wiki-combat-aftermath` (what the blast left), which the
+//! combat wiki page carries under Torpedoes and Damage types (owner's pick,
+//! 2026-08-05). The tight exchange stays a `variant-*.png` - staged by a capture
+//! run, named by no manifest entry.
 //!
 //! WHAT THE PROOF RUN SHOWED (2026-08-05), and why the fight is shaped like
 //! this: two AI flights DO fight each other with no player in the scene - a
@@ -478,7 +480,7 @@ fn main() -> bevy::app::AppExit {
                 .deadline(12.0)
                 .add()
                 .step("capture the torpedo run")
-                .on_enter(move |world| shoot(world, capturing, "variant-juice-torpedo.png"))
+                .on_enter(move |world| shoot(world, capturing, "wiki-combat-torpedo.png"))
                 .until(elapsed(0.2))
                 .add()
                 .step("wait for the detonation")
@@ -505,7 +507,7 @@ fn main() -> bevy::app::AppExit {
                 .until(elapsed(0.5))
                 .add()
                 .step("capture the aftermath")
-                .on_enter(move |world| shoot(world, capturing, "variant-juice-aftermath.png"))
+                .on_enter(move |world| shoot(world, capturing, "wiki-combat-aftermath.png"))
                 .until(elapsed(0.2))
                 .add()
                 // The exchange again, tighter and lower: the wide `wiki-combat`

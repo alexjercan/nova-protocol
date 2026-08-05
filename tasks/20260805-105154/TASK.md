@@ -188,8 +188,13 @@ supersedes (with its `[[example]]` block in `Cargo.toml` and its entry in
     28, which stops rocks landing on the raider and in front of every close
     subject. The field is a horizontal annulus, so the ordnance framings tip the
     lens UP - the only way to get sky behind a subject in this set.
-  - Variants, not extra images: `variant-juice-torpedo`, `variant-juice-aftermath`
-    and `variant-combat-tight` are staged by a capture run and named by no
+  - OWNER'S PICK, 2026-08-05: `variant-juice-torpedo` and
+    `variant-juice-aftermath` both SHIP, as `wiki-combat-torpedo` and
+    `wiki-combat-aftermath` - two new figures on `web/src/wiki/combat-weapons.md`
+    (the salvo in flight under Torpedoes, what the blast left under Damage
+    types). `variant-combat-tight` stays a variant.
+  - Variants, not extra images: the ordnance frames were staged by a capture run
+    and named by no
     manifest entry, so they are candidates for `feature-juice` / `wiki-combat`
     to be picked at step 8 and cost nothing if they lose.
 - Scene 3, `screenshot_flight` ("The ring"), built and APPROVED.
@@ -237,12 +242,13 @@ supersedes (with its `[[example]]` block in `Cargo.toml` and its entry in
     planetoid was cropped off the top edge. It is now outboard + slightly up,
     aimed most of the way to the body: whole body, ring across it, spoke, ship on
     the far end of the spoke.
-  - HUD DEFECT, not fixed here and not this task's: `clamp_to_rect`
-    (`crates/nova_gameplay/src/hud/screen_indicator.rs`) clamps a chip's CENTRE to
-    the inset viewport, so a wide chip still overhangs the edge - the beacon's
-    `SURVEY 7.87 km` chip is cut to `VEY 7.87 km` in any frame whose beacon is
-    off-screen past a corner. Clamping by the node's own half-size would fix it
-    for every producer.
+  - HUD DEFECT, found here and FIXED (owner's call): the screen-indicator widget
+    clamped a chip's CENTRE to the inset viewport and only then subtracted half
+    its width, so the beacon chip read `VEY 7.87 km` in any frame whose beacon
+    was off-screen past a corner. `clamp_box_to_rect`
+    (`crates/nova_gameplay/src/hud/screen_indicator.rs`) re-clamps a clamped
+    indicator once its box is measured. A `Content` chip uses last frame's size,
+    so a readout that changes width is off by that change for one frame.
   - OWNER'S PICK, 2026-08-05: this set takes `feature-autopilot` (the departure
     burn) and `wiki-flight` (the flip-and-burn), and `screenshot_combat` loses
     the two `shoot` calls on its leg. Step 4 is approved. The remaining five

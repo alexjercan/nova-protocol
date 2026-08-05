@@ -27,6 +27,22 @@ A [turret](../sections/turret/) is an articulated mount that aims at your combat
 
 A torpedo homes on the combat lock with **proportional-navigation** guidance - turning toward where the target will be - after an arming gate clears (a short time or distance from launch, so it cannot go off in your lap). It detonates on a proximity fuze and deals **blast (area) damage** that falls off from the center, so torpedoes are about zoning and catching clustered or fragile targets where turret fire is precise and pointed.
 
+<figure class="figure">
+    <!-- Capture: assets/wiki-combat-torpedo.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Screenshot needed</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/wiki-combat-torpedo.png</span
+        >
+        <span class="figure__placeholder-note"
+            >A salvo in flight: launch burst at the bay,
+            drive plumes curving onto the lock.</span
+        >
+    </div>
+</figure>
+
 ## Cover & line of fire
 
 Rounds are physical: a bullet expends itself on the **first tangible thing**
@@ -53,6 +69,22 @@ Every round carries a damage type, and each turret has a loaded-ammo slot that s
 - **Armor-piercing (AP)** - a dense penetrator, strong against armor and turrets.
 - **EMP** - anti-electronics; wrecks controllers, barely dents hull.
 - **Explosive** - concussive area damage (what torpedo blasts deal); shreds thrusters, bounces off turret armor.
+
+<figure class="figure">
+    <!-- Capture: assets/wiki-combat-aftermath.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Screenshot needed</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/wiki-combat-aftermath.png</span
+        >
+        <span class="figure__placeholder-note"
+            >The same target after the blast: sections gone
+            off the hull, debris still clearing.</span
+        >
+    </div>
+</figure>
 
 ## Section resistances
 
