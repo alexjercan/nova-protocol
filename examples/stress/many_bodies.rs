@@ -246,7 +246,15 @@ fn swarm_scenario(game_assets: &GameAssets, count: usize) -> ScenarioConfig {
         name: "Many Bodies".to_string(),
         description: "A swarm of asteroids under physics, gravity and render.".to_string(),
         cubemap: game_assets.cubemap.clone().into(),
-        events: fixtures::spawn_on_start(rocks),
+        // The scene lights itself: the engine spawns no light, so a scenario
+        // that authors none renders black.
+        events: fixtures::spawn_on_start(
+            [
+                rocks,
+                ThreePointRig::around("swarm", Vec3::ZERO, 10.0).objects(),
+            ]
+            .concat(),
+        ),
         ..Default::default()
     }
 }

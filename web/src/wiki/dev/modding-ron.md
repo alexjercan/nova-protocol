@@ -103,6 +103,76 @@ Authored shapes that are easy to get wrong by hand (generate them with
 - Enum action/kind variants use RON newtype form - `DebugMessage((message: ..))`,
   `kind: Asteroid((..))`.
 
+## Lighting: a scene lights itself **(breaking)**
+
+The engine used to spawn one hardcoded top-down key light behind every scenario.
+It does not any more. Lighting is authored content: a scenario with no `Light`
+object **renders black**. Every scenario that spawns anything visible must spawn
+at least one light of its own.
+
+`Light` is an ordinary `ScenarioObjectKind`, so it takes the same `base` block
+(id, name, position, rotation) as a ship or a rock, and `DespawnScenarioObject`
+removes one by id like anything else. Two methods ship:
+
+- `Directional` - a sun: parallel rays, direction only. The key/rim/fill
+  workhorse. `aim` points it at a world position, which is what you want by
+  hand; without it the `base.rotation` quaternion is used as-is.
+- `Point` - a positional lamp with falloff: a star, a floodlight, a nebula glow.
+
+A copyable key light, aimed at the origin:
+
+```ron
+SpawnScenarioObject((
+    base: (
+        id: "ch1_key",
+        name: "Key Light",
+        position: (-60.0, 50.0, 60.0),
+        rotation: (0.0, 0.0, 0.0, 1.0),
+    ),
+    kind: Light(Directional(
+        illuminance: 11000.0,
+        color: Srgba((red: 1.0, green: 0.96, blue: 0.9, alpha: 1.0)),
+        shadows: true,
+        aim: Some((0.0, 0.0, 0.0)),
+    )),
+)),
+```
+
+And a lamp:
+
+```ron
+SpawnScenarioObject((
+    base: (
+        id: "yard_lamp",
+        name: "Yard Lamp",
+        position: (-60.0, 20.0, 90.0),
+        rotation: (0.0, 0.0, 0.0, 1.0),
+    ),
+    kind: Light(Point(
+        intensity: 2500000.0,
+        range: 400.0,
+        radius: 12.0,
+        color: Srgba((red: 1.0, green: 0.82, blue: 0.6, alpha: 1.0)),
+        shadows: false,
+    )),
+)),
+```
+
+Notes worth having before you light a scene:
+
+- One shadow caster is usually right. A second on a blocky hull reads as dirt,
+  not depth.
+- A directional light has no position and no falloff - only its DIRECTION is
+  read. `position` is there so the numbers read as a physical rig; moving it
+  without changing where it aims changes nothing on screen.
+- The shipped scenes all use the same three-point key/rim/fill rig: an 11000 lux
+  warm key (the only shadow caster), a 16000 lux cold rim from behind, and a
+  2600 lux cool fill from the shadow side. Copy those numbers - they are the
+  quality bar the built-ins are judged against. Rust-side scenarios get the same
+  rig from `ThreePointRig::around(..)`.
+- `Point` intensity is in lumens and needs tuning by eye against your scene's
+  scale; the value above is sized for a ~200-unit backdrop.
+
 ## Built-ins ported
 
 The built-ins are all data files under `assets/base/scenarios/` and load through

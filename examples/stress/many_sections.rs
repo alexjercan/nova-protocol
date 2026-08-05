@@ -252,15 +252,23 @@ fn structure_scenario(
         name: "Many Sections".to_string(),
         description: "One ship assembled out of a lattice of sections.".to_string(),
         cubemap: game_assets.cubemap.clone().into(),
-        events: fixtures::spawn_on_start(vec![ScenarioObjectConfig {
-            base: BaseScenarioObjectConfig {
-                id: "structure".to_string(),
-                name: "Structure".to_string(),
-                position: Vec3::ZERO,
-                rotation: Quat::IDENTITY,
-            },
-            kind: ScenarioObjectKind::Spaceship(ship),
-        }]),
+        // The scene lights itself: the engine spawns no light, so a scenario
+        // that authors none renders black.
+        events: fixtures::spawn_on_start(
+            [
+                vec![ScenarioObjectConfig {
+                    base: BaseScenarioObjectConfig {
+                        id: "structure".to_string(),
+                        name: "Structure".to_string(),
+                        position: Vec3::ZERO,
+                        rotation: Quat::IDENTITY,
+                    },
+                    kind: ScenarioObjectKind::Spaceship(ship),
+                }],
+                ThreePointRig::around("lattice", Vec3::ZERO, 3.0).objects(),
+            ]
+            .concat(),
+        ),
         ..Default::default()
     }
 }

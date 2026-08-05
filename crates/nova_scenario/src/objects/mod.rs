@@ -4,6 +4,9 @@ pub mod area;
 pub mod asteroid;
 pub mod beacon;
 pub mod binding_input;
+/// Light scenario object: the authored directional and point lights a scene
+/// lights itself with.
+pub mod light;
 pub mod modification;
 pub mod salvage;
 /// Spaceship scenario object: player/AI ships built from a section list.
@@ -13,7 +16,7 @@ pub mod spaceship;
 pub mod prelude {
     pub use super::{
         area::prelude::*, asteroid::prelude::*, beacon::prelude::*, binding_input::prelude::*,
-        modification::prelude::*, salvage::prelude::*, spaceship::prelude::*,
+        light::prelude::*, modification::prelude::*, salvage::prelude::*, spaceship::prelude::*,
         ScenarioObjectsPlugin,
     };
 }
@@ -21,11 +24,13 @@ pub mod prelude {
 use bevy::prelude::*;
 
 /// Aggregates the scenario-object plugins (asteroid, spaceship, area, beacon,
-/// salvage crate) into one group. `render` is threaded to the render-bearing
-/// members so headless tools can spawn objects without their visuals.
+/// salvage crate, light) into one group. `render` is threaded to the
+/// render-bearing members so headless tools can spawn objects without their
+/// visuals.
 /// Adds each object type's own plugin (see [`asteroid::AsteroidPlugin`],
 /// [`spaceship::SpaceshipPlugin`], [`area::ScenarioAreaPlugin`],
-/// [`beacon::BeaconPlugin`], [`salvage::SalvageCratePlugin`]) at build time.
+/// [`beacon::BeaconPlugin`], [`salvage::SalvageCratePlugin`],
+/// [`light::LightPlugin`]) at build time.
 pub struct ScenarioObjectsPlugin {
     /// Whether the render-bearing object plugins spawn their visuals (false for headless tools).
     pub render: bool,
@@ -44,6 +49,9 @@ impl Plugin for ScenarioObjectsPlugin {
             render: self.render,
         });
         app.add_plugins(salvage::SalvageCratePlugin {
+            render: self.render,
+        });
+        app.add_plugins(light::LightPlugin {
             render: self.render,
         });
     }

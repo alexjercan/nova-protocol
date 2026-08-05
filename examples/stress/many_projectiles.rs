@@ -345,7 +345,15 @@ fn range_scenario(
         name: "Many Projectiles".to_string(),
         description: "A turret ship saturating a field of asteroid targets.".to_string(),
         cubemap: game_assets.cubemap.clone().into(),
-        events: fixtures::spawn_on_start(objects),
+        // The scene lights itself: the engine spawns no light, so a scenario
+        // that authors none renders black.
+        events: fixtures::spawn_on_start(
+            [
+                objects,
+                ThreePointRig::around("field", Vec3::ZERO, 10.0).objects(),
+            ]
+            .concat(),
+        ),
         ..Default::default()
     }
 }

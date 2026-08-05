@@ -92,6 +92,16 @@ pub(crate) fn menu_ambience(
         asteroid_radius: Some((1.0, 3.0)),
     });
 
+    // The scene's own lighting. There is no engine light any more, so a backdrop
+    // that authors nothing renders black. Scale 20 puts the rig ~190u out, well
+    // clear of the planetoid's geometric radius - cosmetic for a directional
+    // light, but it keeps the numbers readable as a physical rig.
+    objects.extend(backdrop_rig("menu").objects());
+    // The lamp the rig cannot be: a warm positional glow riding just off the
+    // planetoid's limb, so the scatter ring falls off with distance instead of
+    // reading uniformly lit. Also the shipped proof that Point lights work.
+    objects.push(planetoid_glow("menu_lamp"));
+
     // The actor: an AI ship directed to orbit the planetoid on its own
     // thrusters - the ORBIT autopilot plans its ring from the well's runtime
     // geometry, so no staging math lives here or in nova_menu. It spawns
@@ -214,6 +224,37 @@ fn backdrop_orbiter(
     }
 }
 
+/// The shared backdrop rig: the standard three-point key/rim/fill, aimed at the
+/// planetoid every menu scene frames, scaled to the backdrop's ~200u stage.
+///
+/// Every backdrop carries one - deleting the engine's hardcoded key light made
+/// lighting authored content, and a menu scene that authors none renders black.
+fn backdrop_rig(prefix: &str) -> ThreePointRig {
+    ThreePointRig::around(prefix, Vec3::ZERO, 20.0)
+}
+
+/// A warm positional lamp just off the planetoid's limb: the falloff a
+/// directional light cannot give, so near dressing reads brighter than far.
+fn planetoid_glow(id: &str) -> ScenarioObjectConfig {
+    ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: id.to_string(),
+            name: "Planetoid Glow".to_string(),
+            position: Vec3::new(-60.0, 20.0, 90.0),
+            rotation: Quat::IDENTITY,
+        },
+        kind: ScenarioObjectKind::Light(LightConfig::Point {
+            // Lumens at backdrop scale: the lamp sits ~110u from the planetoid
+            // and must still register against an 11000 lux key.
+            intensity: 2_500_000.0,
+            range: 400.0,
+            radius: 12.0,
+            color: Color::srgb(1.0, 0.82, 0.6),
+            shadows: false,
+        }),
+    }
+}
+
 /// A static dressing beacon (label + warm little light). Below the orbit
 /// plane and outside the planetoid's geometric radius, like everything
 /// else in a backdrop.
@@ -245,7 +286,7 @@ pub(crate) fn menu_waystation(
     cubemap: AssetRef<Image>,
     asteroid_texture: AssetRef<Image>,
 ) -> ScenarioConfig {
-    let objects = vec![
+    let mut objects = vec![
         // Lighter pull for the two heavy haulers to hold their orbit.
         backdrop_planetoid(asteroid_texture.clone(), 4.0),
         backdrop_orbiter(
@@ -279,6 +320,7 @@ pub(crate) fn menu_waystation(
             Color::srgb(0.3, 0.9, 1.0),
         ),
     ];
+    objects.extend(backdrop_rig("waystation").objects());
 
     // The shipping lane: a flatter, slightly denser band than menu_ambience's
     // ring, same safety floor (inner past any plausible geometric radius,
@@ -344,7 +386,7 @@ pub(crate) fn menu_scrapyard(
     cubemap: AssetRef<Image>,
     asteroid_texture: AssetRef<Image>,
 ) -> ScenarioConfig {
-    let objects = vec![
+    let mut objects = vec![
         backdrop_planetoid(asteroid_texture.clone(), 6.0),
         backdrop_orbiter(
             "scrapyard_tug",
@@ -397,6 +439,10 @@ pub(crate) fn menu_scrapyard(
             Color::srgb(1.0, 0.55, 0.15),
         ),
     ];
+    objects.extend(backdrop_rig("scrapyard").objects());
+    // The yard's work lamp: warm falloff over the drifting crate band, which a
+    // parallel-ray rig alone leaves reading uniformly lit.
+    objects.push(planetoid_glow("scrapyard_lamp"));
 
     // The drifting cargo: on-rails salvage crates (visual tumble, no
     // physics), scattered in the same safe band as the rocks would be.

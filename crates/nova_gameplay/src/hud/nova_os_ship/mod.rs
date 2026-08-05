@@ -52,7 +52,10 @@ use crate::prelude::*;
 
 /// Glob-import surface: `use nova_gameplay::hud::nova_os_ship::prelude::*`.
 pub mod prelude {
-    pub use super::{NovaOsShipPlugin, SectionCode};
+    // `sections::SectionCode` explicitly: `super::SectionCode` is reachable
+    // both `pub` (the re-export above) and `pub(crate)` (the module glob),
+    // which rustc rejects as an ambiguous import visibility.
+    pub use super::{sections::SectionCode, NovaOsShipPlugin};
 }
 
 /// The launch word / stable id of the ship app.

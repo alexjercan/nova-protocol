@@ -211,17 +211,23 @@ fn burn_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
             filters: vec![],
-            actions: vec![EventActionConfig::SpawnScenarioObject(
-                ScenarioObjectConfig {
-                    base: BaseScenarioObjectConfig {
-                        id: "rig_ship".to_string(),
-                        name: "Rig Ship".to_string(),
-                        position: Vec3::new(0.0, 0.0, -12.0),
-                        rotation: Quat::IDENTITY,
+            // The rig lights itself: the engine spawns no light, so a
+            // scenario that authors none renders black.
+            actions: [
+                vec![EventActionConfig::SpawnScenarioObject(
+                    ScenarioObjectConfig {
+                        base: BaseScenarioObjectConfig {
+                            id: "rig_ship".to_string(),
+                            name: "Rig Ship".to_string(),
+                            position: Vec3::new(0.0, 0.0, -12.0),
+                            rotation: Quat::IDENTITY,
+                        },
+                        kind: ScenarioObjectKind::Spaceship(ship),
                     },
-                    kind: ScenarioObjectKind::Spaceship(ship),
-                },
-            )],
+                )],
+                ThreePointRig::around("rig", Vec3::new(0.0, 0.0, -12.0), 1.0).actions(),
+            ]
+            .concat(),
         }],
         ..Default::default()
     }

@@ -407,6 +407,116 @@
                             )),
                         )),
                     )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "scrapyard_key",
+                            name: "Key Light",
+                            position: (
+                                -120.0,
+                                100.0,
+                                120.0,
+                            ),
+                            rotation: (
+                                -0.24307884,
+                                -0.36920026,
+                                -0.10068656,
+                                0.8913283,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 11000.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.96,
+                                blue: 0.9,
+                                alpha: 1.0,
+                            )),
+                            shadows: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "scrapyard_rim",
+                            name: "Rim Light",
+                            position: (
+                                60.0,
+                                80.0,
+                                -160.0,
+                            ),
+                            rotation: (
+                                -0.03875094,
+                                0.9604674,
+                                0.21369855,
+                                0.17416595,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 16000.0,
+                            color: Srgba((
+                                red: 0.72,
+                                green: 0.86,
+                                blue: 1.0,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "scrapyard_fill",
+                            name: "Fill Light",
+                            position: (
+                                140.0,
+                                -40.0,
+                                80.0,
+                            ),
+                            rotation: (
+                                0.104897276,
+                                0.49822173,
+                                -0.060874254,
+                                0.8585255,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 2600.0,
+                            color: Srgba((
+                                red: 0.62,
+                                green: 0.72,
+                                blue: 0.95,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "scrapyard_lamp",
+                            name: "Planetoid Glow",
+                            position: (
+                                -60.0,
+                                20.0,
+                                90.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Light(Point(
+                            intensity: 2500000.0,
+                            range: 400.0,
+                            radius: 12.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.82,
+                                blue: 0.6,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
                     ScatterObjects((
                         id_prefix: "scrapyard_crate_",
                         count: 10,

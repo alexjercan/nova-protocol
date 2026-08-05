@@ -337,7 +337,7 @@ pub(crate) fn final_tally(
     cubemap: AssetRef<Image>,
     asteroid_texture: AssetRef<Image>,
 ) -> ScenarioConfig {
-    let opening = vec![
+    let mut opening = vec![
         set(VAR_ACT, num(1.0)),
         set(VAR_SURVEYED, num(0.0)),
         set(VAR_PICKET_A_DOWN, num(0.0)),
@@ -390,6 +390,12 @@ pub(crate) fn final_tally(
         open_gate(VAR_SURVEY_GATE, MID_GAP),
         mark(ID_WRECK_BOW, "ANCHORAGE"),
     ];
+    // Scale 20, not the usual 10: the claim's planetoid reaches ANCHOR_RADIUS *
+    // ASTEROID_GEOMETRIC_FACTOR_MAX (~113u) on its worst seed, and a scale-10
+    // key light would sit inside that body. Cosmetic for a directional light -
+    // only its direction is read - but `final_tally_claim` asserts that nothing
+    // spawns inside the planetoid, and a sun inside the planet is a lie anyway.
+    opening.extend(ThreePointRig::around("anchorage", ANCHOR_POS, 20.0).actions());
 
     let events = vec![
         ScenarioEventConfig {

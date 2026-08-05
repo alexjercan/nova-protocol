@@ -354,6 +354,7 @@ pub(crate) fn broadside(
         open_gate(VAR_CONTACT_GATE, MID_GAP),
         mark(ID_HAULER, "CERES QUEEN"),
     ]);
+    opening.extend(ThreePointRig::around("broadside", Vec3::ZERO, 10.0).actions());
 
     let events = vec![
         ScenarioEventConfig {
@@ -634,6 +635,7 @@ pub(crate) fn broadside_gunship(
         mark(ID_GUNSHIP, "GUNSHIP"),
         emphasize("RADAR"),
     ]);
+    opening.extend(ThreePointRig::around("gunship", Vec3::ZERO, 10.0).actions());
 
     let events = vec![
         ScenarioEventConfig {

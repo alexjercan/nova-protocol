@@ -1,4 +1,9 @@
-//! The screenshot photo kit: the three pieces every screenshot scene shares.
+//! The screenshot photo kit: the pieces every screenshot scene shares.
+//!
+//! The three-point photo rig used to live here as an observer that swapped out
+//! the engine's hardcoded key light. Lighting is authored scenario content now
+//! ([`ThreePointRig`], task `20260805-111534`), so each producer spawns the
+//! same rig from its own `ScenarioConfig` and the kit keeps only geometry.
 //!
 //! Included by each `examples/screenshots/*.rs` producer with
 //! `#[path = "shared/kit.rs"] mod kit;`. It lives one level down on purpose -
@@ -8,8 +13,6 @@
 //!
 //! What it holds, and nothing else:
 //!
-//! - [`photo_rig`]: a three-point light rig that replaces the scenario's single
-//!   top-down key light.
 //! - [`kenney_hull`]: the section list for a whole Kenney ship, rebuilt from the
 //!   `*_cube_*` prototypes in the catalog.
 //! - [`NearField`]: near-field asteroid dressing, close enough to the subject to
@@ -24,99 +27,6 @@
 
 use bevy::prelude::*;
 use nova_protocol::prelude::*;
-
-/// Marks a light this kit spawned, so [`replace_key_light`] leaves the rig
-/// alone and only fires on the scenario's own light.
-#[derive(Component)]
-pub struct PhotoRigLight;
-
-/// Replace the scenario's one straight-down key light with a three-point rig.
-///
-/// Every scenario spawns exactly one `DirectionalLight` (10000 lux, pointing
-/// straight down - `crates/nova_scenario/src/loader/lifecycle.rs`), which is
-/// what makes the current shots read flat: no rim, no separation from the
-/// skybox, no shape on a hull. There is no authorable lighting in the scenario
-/// RON yet (that is task `20260805-111534`), so the rig is example-side: an
-/// observer swaps the light out the moment the scenario spawns it.
-///
-/// The rig keeps the scenario's own scoping - the lights carry
-/// [`ScenarioScopedMarker`], so a scenario swap tears them down with everything
-/// else and the next scenario's light gets replaced in turn.
-pub fn photo_rig() -> PhotoRigPlugin {
-    PhotoRigPlugin
-}
-
-/// Plugin returned by [`photo_rig`].
-pub struct PhotoRigPlugin;
-
-impl Plugin for PhotoRigPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_observer(replace_key_light);
-    }
-}
-
-/// Swap any non-rig directional light for the three-point rig. Spawning the rig
-/// re-enters this observer once per light, which is why the rig lights carry
-/// [`PhotoRigLight`] - the marker is the recursion guard.
-fn replace_key_light(
-    add: On<Add, DirectionalLight>,
-    q_rig: Query<(), With<PhotoRigLight>>,
-    mut commands: Commands,
-) {
-    if q_rig.contains(add.entity) {
-        return;
-    }
-    // INFO, not debug: the example's own target sits at the default level, and
-    // this one line is how a headless run proves the swap happened.
-    info!("photo rig: replacing the scenario key light with the three-point rig");
-    commands.entity(add.entity).despawn();
-
-    // A light shines along its own -Z, so each transform is placed at the
-    // direction the light comes FROM and aimed back at the subject.
-    let light = |name: &str, from: Vec3, illuminance: f32, color: Color, shadows: bool| {
-        (
-            ScenarioScopedMarker,
-            PhotoRigLight,
-            Name::new(name.to_string()),
-            DirectionalLight {
-                illuminance,
-                color,
-                shadow_maps_enabled: shadows,
-                ..default()
-            },
-            Transform::from_translation(from).looking_at(Vec3::ZERO, Vec3::Y),
-        )
-    };
-
-    // Key: warm, high and to the camera's left, carrying the subject's main
-    // form. The only light casting shadows - a second shadow caster on a
-    // blocky hull reads as dirt rather than depth.
-    commands.spawn(light(
-        "Photo Rig Key",
-        Vec3::new(-6.0, 5.0, 6.0),
-        11000.0,
-        Color::srgb(1.0, 0.96, 0.90),
-        true,
-    ));
-    // Rim: the shot's whole reason for existing - a cold, hard edge from behind
-    // that separates a dark hull from a dark skybox.
-    commands.spawn(light(
-        "Photo Rig Rim",
-        Vec3::new(3.0, 4.0, -8.0),
-        16000.0,
-        Color::srgb(0.72, 0.86, 1.0),
-        false,
-    ));
-    // Fill: cool and dim, from the shadow side, so the unlit half keeps some
-    // detail without flattening the key.
-    commands.spawn(light(
-        "Photo Rig Fill",
-        Vec3::new(7.0, -2.0, 4.0),
-        2600.0,
-        Color::srgb(0.62, 0.72, 0.95),
-        false,
-    ));
-}
 
 /// The cell a Kenney hull's core controller fills, for the cargo hulls whose
 /// grid leaves it hollow (`cargoa_core_controller`, `cargob_core_controller`).

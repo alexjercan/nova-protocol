@@ -484,6 +484,7 @@ pub(crate) fn lifeline(
             visible: true,
         }),
     ]);
+    opening.extend(ThreePointRig::around("lifeline", Vec3::ZERO, 10.0).actions());
 
     let events = vec![
         ScenarioEventConfig {

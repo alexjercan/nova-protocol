@@ -58,7 +58,6 @@ fn main() -> bevy::app::AppExit {
 }
 
 fn custom_plugin(app: &mut App) {
-    app.add_plugins(kit::photo_rig());
     app.add_systems(OnEnter(GameAssetsStates::Loaded), setup_ship);
 }
 
@@ -145,17 +144,23 @@ fn section_ship(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
             filters: vec![],
-            actions: vec![EventActionConfig::SpawnScenarioObject(
-                ScenarioObjectConfig {
-                    base: BaseScenarioObjectConfig {
-                        id: "showcase_ship".to_string(),
-                        name: "Showcase Ship".to_string(),
-                        position: Vec3::ZERO,
-                        rotation: Quat::IDENTITY,
+            // The scene lights itself: the engine spawns no light, so a
+            // scenario that authors none renders black.
+            actions: [
+                vec![EventActionConfig::SpawnScenarioObject(
+                    ScenarioObjectConfig {
+                        base: BaseScenarioObjectConfig {
+                            id: "showcase_ship".to_string(),
+                            name: "Showcase Ship".to_string(),
+                            position: Vec3::ZERO,
+                            rotation: Quat::IDENTITY,
+                        },
+                        kind: ScenarioObjectKind::Spaceship(ship),
                     },
-                    kind: ScenarioObjectKind::Spaceship(ship),
-                },
-            )],
+                )],
+                ThreePointRig::around("showcase", Vec3::ZERO, 1.0).actions(),
+            ]
+            .concat(),
         }],
         ..Default::default()
     }

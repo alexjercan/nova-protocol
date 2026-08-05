@@ -124,6 +124,9 @@ pub enum ScenarioObjectKind {
     Beacon(BeaconConfig),
     /// A proximity pickup crate that fires `OnEnter` when flown through.
     SalvageCrate(SalvageCrateConfig),
+    /// An authored light - the scene's own key, rim, fill or lamp. A scene that
+    /// spawns none renders black; the engine no longer supplies one.
+    Light(LightConfig),
 }
 
 impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
@@ -156,6 +159,9 @@ impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
                 }
                 ScenarioObjectKind::SalvageCrate(config) => {
                     entity_commands.insert(salvage_crate_scenario_object(config.clone()));
+                }
+                ScenarioObjectKind::Light(config) => {
+                    entity_commands.insert(light_scenario_object(config.clone()));
                 }
             }
         });

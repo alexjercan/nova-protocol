@@ -300,7 +300,12 @@ fn outcome_probe_a(game_assets: &GameAssets, sections: &GameSections) -> Scenari
                     key: "hostile_down".to_string(),
                     expression: number(0.0),
                 }),
-            ],
+            ]
+            // The scene lights itself: the engine spawns no light, so a
+            // scenario that authors none renders black.
+            .into_iter()
+            .chain(ThreePointRig::around("arena", Vec3::ZERO, 2.0).actions())
+            .collect(),
         },
         // The DEFEAT path. The requeue of A is what makes the overlay show a
         // Retry button at all: `primary` is None unless something is queued.

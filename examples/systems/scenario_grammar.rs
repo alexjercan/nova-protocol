@@ -350,6 +350,9 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         set("escort_neutralized", 0.0),
         set("ring_cleared", 0.0),
     ]);
+    // The showcase lights itself: the engine spawns no light, so a scenario
+    // that authors none renders black.
+    start_actions.extend(ThreePointRig::around("showcase", Vec3::ZERO, 5.0).actions());
 
     let events = vec![
         ScenarioEventConfig {

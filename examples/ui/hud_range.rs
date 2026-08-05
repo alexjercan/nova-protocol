@@ -240,17 +240,23 @@ fn hud_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfi
     let events = vec![ScenarioEventConfig {
         name: EventConfig::OnStart,
         filters: vec![],
-        actions: vec![
-            spawn("player_ship", "HUD Test Ship", Vec3::ZERO, player),
-            // Dead ahead (the ship and camera face -Z at spawn), well inside
-            // the 2000 m lock range and the 18 degree aim cone.
-            spawn(
-                "target_ship",
-                "HUD Target Ship",
-                Vec3::new(0.0, 0.0, -150.0),
-                target,
-            ),
-        ],
+        // The range lights itself: the engine spawns no light, so a scenario
+        // that authors none renders black.
+        actions: [
+            vec![
+                spawn("player_ship", "HUD Test Ship", Vec3::ZERO, player),
+                // Dead ahead (the ship and camera face -Z at spawn), well inside
+                // the 2000 m lock range and the 18 degree aim cone.
+                spawn(
+                    "target_ship",
+                    "HUD Target Ship",
+                    Vec3::new(0.0, 0.0, -150.0),
+                    target,
+                ),
+            ],
+            ThreePointRig::around("range", Vec3::ZERO, 5.0).actions(),
+        ]
+        .concat(),
     }];
 
     ScenarioConfig {

@@ -381,9 +381,12 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
     let events = vec![ScenarioEventConfig {
         name: EventConfig::OnStart,
         filters: vec![],
+        // The range lights itself: the engine spawns no light, so a scenario
+        // that authors none renders black.
         actions: objects
             .into_iter()
             .map(EventActionConfig::SpawnScenarioObject)
+            .chain(ThreePointRig::around("range", Vec3::ZERO, 3.0).actions())
             .collect(),
     }];
 

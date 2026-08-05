@@ -45,6 +45,66 @@
                 name: OnStart,
                 filters: [],
                 actions: [
+                    // The scene's own lighting: the engine spawns no light, so a
+                    // scenario that authors none renders black. Standard three-point
+                    // key/rim/fill, each aimed at the origin.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gauntlet_key",
+                            name: "Key Light",
+                            position: (-60.0, 50.0, 60.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 11000.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.96,
+                                blue: 0.9,
+                                alpha: 1.0,
+                            )),
+                            shadows: true,
+                            aim: Some((0.0, 0.0, 0.0)),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gauntlet_rim",
+                            name: "Rim Light",
+                            position: (30.0, 40.0, -80.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 16000.0,
+                            color: Srgba((
+                                red: 0.72,
+                                green: 0.86,
+                                blue: 1.0,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                            aim: Some((0.0, 0.0, 0.0)),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gauntlet_fill",
+                            name: "Fill Light",
+                            position: (70.0, -20.0, 40.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 2600.0,
+                            color: Srgba((
+                                red: 0.62,
+                                green: 0.72,
+                                blue: 0.95,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                            aim: Some((0.0, 0.0, 0.0)),
+                        )),
+                    )),
                     DebugMessage((
                         message: "Gauntlet Run 2.0 loaded from the mod portal.",
                     )),

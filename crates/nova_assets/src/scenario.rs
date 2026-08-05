@@ -201,6 +201,11 @@ pub(crate) fn asteroid_field(
         kind: ScenarioObjectKind::Spaceship(spaceship),
     });
 
+    // The scene lights itself: there is no engine light, so a scenario that
+    // authors none renders black. Scale 10 sits the rig just outside the
+    // scatter cube's 100u reach.
+    objects.extend(ThreePointRig::around("field", Vec3::ZERO, 10.0).objects());
+
     let events = vec![
         ScenarioEventConfig {
             name: EventConfig::OnStart,

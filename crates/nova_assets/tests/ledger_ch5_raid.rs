@@ -712,7 +712,9 @@ fn the_bundle_ships_the_raid_and_bumps_the_version() {
         "the bundle lists the raid finale"
     );
     assert!(
-        LEDGER_BUNDLE_RON.contains("version: \"1.14.0\""),
-        "the bundle version is bumped for Ledger neutralization handling"
+        LEDGER_BUNDLE_RON.contains("version: \"1.15.0\""),
+        "the bundle version is bumped for the authored-lighting republish - \
+         without a NEW version string an installed copy is never offered the \
+         update, so it renders black forever"
     );
 }

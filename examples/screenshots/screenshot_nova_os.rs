@@ -218,17 +218,23 @@ fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
     let events = vec![ScenarioEventConfig {
         name: EventConfig::OnStart,
         filters: vec![],
-        actions: vec![EventActionConfig::SpawnScenarioObject(
-            ScenarioObjectConfig {
-                base: BaseScenarioObjectConfig {
-                    id: "player_ship".to_string(),
-                    name: "Ceres Queen".to_string(),
-                    position: Vec3::ZERO,
-                    rotation: Quat::IDENTITY,
+        // The scene lights itself: the engine spawns no light, so a
+        // scenario that authors none renders black.
+        actions: [
+            vec![EventActionConfig::SpawnScenarioObject(
+                ScenarioObjectConfig {
+                    base: BaseScenarioObjectConfig {
+                        id: "player_ship".to_string(),
+                        name: "Ceres Queen".to_string(),
+                        position: Vec3::ZERO,
+                        rotation: Quat::IDENTITY,
+                    },
+                    kind: ScenarioObjectKind::Spaceship(player),
                 },
-                kind: ScenarioObjectKind::Spaceship(player),
-            },
-        )],
+            )],
+            ThreePointRig::around("range", Vec3::ZERO, 1.0).actions(),
+        ]
+        .concat(),
     }];
 
     ScenarioConfig {

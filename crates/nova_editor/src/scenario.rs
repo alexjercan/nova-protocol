@@ -141,9 +141,13 @@ fn sandbox_events(objects: Vec<ScenarioObjectConfig>) -> Vec<ScenarioEventConfig
         ScenarioEventConfig {
             name: EventConfig::OnStart,
             filters: vec![],
+            // The sandbox lights itself: the engine spawns no light, so a
+            // scenario that authors none renders black. (The editor VIEW has
+            // its own light - `ui/mod.rs` - which is a different surface.)
             actions: objects
                 .into_iter()
                 .map(EventActionConfig::SpawnScenarioObject)
+                .chain(ThreePointRig::around("sandbox", Vec3::ZERO, 10.0).actions())
                 .collect::<_>(),
         },
         ScenarioEventConfig {

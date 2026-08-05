@@ -42,7 +42,10 @@ use crate::prelude::*;
 
 /// Glob-import surface: `use nova_gameplay::hud::nova_os_map::prelude::*`.
 pub mod prelude {
-    pub use super::{MapContactCode, NovaOsMapPlugin};
+    // `contacts::MapContactCode` explicitly: `super::MapContactCode` is
+    // reachable both `pub` (the re-export above) and `pub(crate)` (the module
+    // glob), which rustc rejects as an ambiguous import visibility.
+    pub use super::{contacts::MapContactCode, NovaOsMapPlugin};
 }
 
 /// The launch word / stable id of the map app.

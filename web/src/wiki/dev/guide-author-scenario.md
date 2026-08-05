@@ -233,6 +233,12 @@ combinator or an `Or`.
 The common actions, with real RON. Every action is a newtype variant -
 `Name((field: value, ...))` - even single-field ones.
 
+> **Light your scene, or it renders black.** The engine spawns no light of its
+> own. A scenario is lit only by the `Light` objects it authors, so every scene
+> that shows anything needs at least one - see the lighting section of the
+> [RON reference](./modding-ron) for copyable blocks. The shipped scenes all use
+> the same three-point key/rim/fill rig; start from those numbers.
+
 ### SpawnScenarioObject
 
 Spawn an object. `base` is shared (`id`, `name`, `position` as an xyz tuple,

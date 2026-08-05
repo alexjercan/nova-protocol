@@ -310,7 +310,12 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                     key: "arrived".to_string(),
                     expression: number(0.0),
                 }),
-            ],
+            ]
+            // The scene lights itself: the engine spawns no light, so a
+            // scenario that authors none renders black.
+            .into_iter()
+            .chain(ThreePointRig::around("path", Vec3::ZERO, 5.0).actions())
+            .collect(),
         },
         // The kill, seen by the scenario.
         ScenarioEventConfig {

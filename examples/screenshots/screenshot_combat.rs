@@ -178,10 +178,6 @@ fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
-    // NOT debug-gated: the rig is the set's look, so a plain run shows what a
-    // capture would shoot.
-    app.add_plugins(kit::photo_rig());
-
     #[cfg(feature = "debug")]
     {
         let capturing = std::env::var_os(nova_protocol::nova_debug::harness::REEL_ENV).is_some();
@@ -619,12 +615,20 @@ fn rock_hollow(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
             ScenarioEventConfig {
                 name: EventConfig::OnStart,
                 filters: vec![],
-                actions: vec![
-                    corridor.action(game_assets),
-                    shell.action(game_assets),
-                    player,
-                    beacon(),
-                ],
+                // The photo rig, now authored content rather than an
+                // example-side observer swap: scale 1.0 around the origin
+                // reproduces the kit's exact key/rim/fill numbers, so the
+                // captured frames are unchanged.
+                actions: [
+                    vec![
+                        corridor.action(game_assets),
+                        shell.action(game_assets),
+                        player,
+                        beacon(),
+                    ],
+                    ThreePointRig::around("photo", Vec3::ZERO, 1.0).actions(),
+                ]
+                .concat(),
             },
             ambush(sections),
         ],

@@ -668,8 +668,11 @@ fn on_start_spawns_the_full_gate_run() {
 #[test]
 fn bundle_ships_the_bumped_version() {
     assert!(
-        GAUNTLET_BUNDLE_RON.contains("version: \"1.3.0\""),
-        "the bundle is bumped to 1.3.0 for the time-trial republish"
+        GAUNTLET_BUNDLE_RON.contains("version: \"1.4.0\""),
+        "the bundle is bumped to 1.4.0 for the authored-lighting republish - \
+         without a NEW version string the portal serves the relit files under \
+         the old <id>/<version>/ path and an installed copy is never offered \
+         the update, so it renders black forever"
     );
     assert!(
         GAUNTLET_BUNDLE_RON.contains("gauntlet.content.ron"),

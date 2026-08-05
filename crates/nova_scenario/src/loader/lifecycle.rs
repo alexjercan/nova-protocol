@@ -199,20 +199,9 @@ pub(super) fn on_load_scenario(
         },
     ));
 
-    commands.spawn((
-        ScenarioScopedMarker,
-        DirectionalLight {
-            illuminance: 10000.0,
-            ..default()
-        },
-        Transform::from_rotation(Quat::from_euler(
-            EulerRot::XYZ,
-            -std::f32::consts::FRAC_PI_2,
-            0.0,
-            0.0,
-        )),
-        GlobalTransform::default(),
-    ));
+    // No engine light. A scene is lit by the `Light` objects it authors
+    // (`objects/light.rs`); one that authors none renders black, which is an
+    // authoring mistake the eye catches rather than a state to paper over.
 
     commands.spawn((
         ScenarioScopedMarker,

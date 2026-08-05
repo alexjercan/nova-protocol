@@ -60,7 +60,10 @@ is a list of mod ids; `base` is an IMPLICIT dependency and is never declared.
 #### Versioning your mod
 
 The loader accepts ANY non-empty `version` string - it is an opaque token, not
-a parsed semver (there is no comparison and no update detection in code today).
+a parsed semver (nothing compares them for ORDER, so there is no "newer than"
+check). The Mods screen does compare them for EQUALITY, though: an installed mod
+whose version string differs from the catalog's is offered as an Update, and one
+that matches is not. So the string is what makes a republish reachable.
 The convention the shipped portal mods follow is semver-ish, so a reader can
 tell a release apart at a glance:
 
@@ -69,8 +72,8 @@ tell a release apart at a glance:
 - a reskin or bug fix that does not change what content exists -> bump the PATCH,
   e.g. `1.0.1`.
 
-Gauntlet has walked `1.0.0 -> 1.1.0 -> 1.2.0` and The Ledger `1.0.0 -> 1.14.0`
-this way.
+Gauntlet has walked `1.0.0 -> 1.1.0 -> 1.2.0 -> 1.3.0 -> 1.4.0` and The Ledger
+`1.0.0 -> 1.14.0 -> 1.15.0` this way.
 
 `version` matters even though nothing parses it. The portal publishes each
 release under `<id>/<version>/`, so the string is how a republish is
@@ -79,7 +82,7 @@ anchor a changelog entry associates with. FORGETTING to bump on a republish is
 the silent failure: the new bytes land under the same `<version>` directory and
 the update is indistinguishable from the old one. Because of that a mod's test
 may PIN its version - `crates/nova_assets/tests/gauntlet_course.rs` asserts the
-bundle `contains("version: \"1.2.0\"")` (`bundle_ships_the_bumped_version`) so a
+bundle `contains("version: \"1.4.0\"")` (`bundle_ships_the_bumped_version`) so a
 content change that ships without a bump fails CI instead of shipping silently.
 
 Lint your mod while you work: `cargo run -p nova_assets --bin
@@ -414,6 +417,11 @@ flowchart LR
 
 ## Sharp edges (today)
 
+- **Your scenarios must light themselves, or they render black.** The engine
+  spawns no light; a scene is lit only by the `Light` objects it authors. Copy a
+  three-point rig out of the lighting section of the
+  [RON reference](./modding-ron) into each scenario's `OnStart`. This is the one
+  breaking change a mod written before v0.10 will hit.
 - Asset references (meshes, cubemaps, textures) are hand-typed path strings; a
   typo in a BASE-relative path is not caught until spawn (a mod-relative
   `self://` ref, by contrast, is validated against `resources` at the gates).

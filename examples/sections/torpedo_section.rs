@@ -327,7 +327,15 @@ fn torpedo_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
         name: "Torpedo Range".to_string(),
         description: "A test range for the torpedo bay section.".to_string(),
         cubemap: game_assets.cubemap.clone().into(),
-        events: fixtures::spawn_on_start(objects),
+        // The scene lights itself: the engine spawns no light, so a scenario
+        // that authors none renders black.
+        events: fixtures::spawn_on_start(
+            [
+                objects,
+                ThreePointRig::around("range", Vec3::ZERO, 5.0).objects(),
+            ]
+            .concat(),
+        ),
         ..Default::default()
     }
 }
@@ -356,7 +364,15 @@ fn crossing_range(game_assets: &GameAssets, sections: &GameSections) -> Scenario
         name: "Torpedo Crossing Range".to_string(),
         description: "A harness for the torpedo PN guidance.".to_string(),
         cubemap: game_assets.cubemap.clone().into(),
-        events: fixtures::spawn_on_start(objects),
+        // The scene lights itself: the engine spawns no light, so a scenario
+        // that authors none renders black.
+        events: fixtures::spawn_on_start(
+            [
+                objects,
+                ThreePointRig::around("crossing", Vec3::ZERO, 5.0).objects(),
+            ]
+            .concat(),
+        ),
         ..Default::default()
     }
 }

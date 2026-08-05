@@ -208,6 +208,13 @@ Each fires the action into a `NovaEventWorld`, drains with
 A scenario object is a scoped, interpolated, dynamic body spawned by
 `SpawnScenarioObject`. Model it on `crates/nova_scenario/src/objects/asteroid.rs`.
 
+> A kind is not required to be a physical body. `beacon.rs` overrides the base
+> bundle's `RigidBody::Dynamic` with `Static`, and `light.rs` is a pure-render
+> kind: it splits config from component with an `Add` observer so the `render`
+> flag can skip the Bevy light entirely for headless tools. Note that scene
+> lighting itself is authored content - a scenario with no `Light` object
+> renders black, so any new example or fixture that renders needs one.
+
 1. Create `crates/nova_scenario/src/objects/<kind>.rs`. It holds a config struct,
    a type-name const, a marker component, a `<kind>_scenario_object(config) -> impl Bundle`
    builder, and (optionally) a `Plugin` for any observers/systems the kind needs.

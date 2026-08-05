@@ -607,6 +607,8 @@ pub(crate) fn shakedown_run(
     for (i, position) in CRATE_POSITIONS.iter().enumerate() {
         start_spawns.push(crate_object(i + 1, *position));
     }
+    // The run lights itself: there is no engine light any more.
+    start_spawns.extend(ThreePointRig::around("shakedown", Vec3::ZERO, 10.0).objects());
 
     let events = vec![
         // Beat 1 setup: the world and the variables. The opening conversation
