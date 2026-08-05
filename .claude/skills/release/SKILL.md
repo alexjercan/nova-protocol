@@ -67,6 +67,12 @@ release". This skill is that checklist plus the guardrails learned in practice.
   this also renders the News markdown, so it catches a malformed post. Note
   `format:check` covers ts/html/js only, NOT markdown - do not run prettier over
   wiki or news `.md` files, it reformats the whole file as unrelated churn.
+- **Deploy layout sane:** `nix develop -c scripts/preview-web.sh`, then open
+  `http://localhost:8090/`, click Play, and open the Explore tab. This is the
+  ONLY local run with no dev servers and no proxies - static files in the real
+  `/`, `/play/`, `/mods/` shape - so it is the one that catches a broken
+  `PUBLIC_PATH`, a bad `public_url`, or a portal that is not same-origin with
+  the game. `serve-web.sh` proxies those failures away and cannot substitute.
 
 ### 2. Version bump + lock
 

@@ -52,7 +52,8 @@ cargo run
 cargo run --features dev
 cargo run --example scenario_grammar
 trunk serve
-scripts/serve-web.sh
+scripts/serve-web.sh    # live dev: site + game + portal, watched, proxied
+scripts/preview-web.sh  # one-shot static build in the real deploy layout
 cargo check
 cargo fmt
 cargo run -p nova_assets --bin content -- gen
