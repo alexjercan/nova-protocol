@@ -13,10 +13,19 @@
 //! Gravity here is one-way by construction: wells pull only opted-in
 //! entities, a well source never opts in (the force system additionally
 //! filters wells out of the affected set), and strength is authored
-//! ([`GravityWell::from_surface_gravity`], capped by
-//! [`GravitySettings::max_surface_gravity`]) rather than mass-derived. That
-//! is what makes the world provably unable to clump: rocks do not pull
-//! rocks, and no well can out-muscle a live main drive.
+//! ([`GravityWell::from_mass`], capped by
+//! [`GravitySettings::max_surface_gravity`]) rather than derived from the
+//! collider's physical mass. That is what makes the world provably unable to
+//! clump: rocks do not pull rocks, and no well can out-muscle a live main
+//! drive.
+//!
+//! Mass is the ONLY authored gravity quantity. Both strength (`a = mu / r^2`)
+//! and reach (the SOI, where that decays to
+//! [`GravitySettings::soi_cutoff_accel`]) fall out of it; the body's radius
+//! never sets either. That is both the real relation - the sphere of
+//! influence `r ~ a (m/M)^(2/5)` does not mention a body's radius - and the
+//! only stable one here, since the noise mesh puts the geometric radius
+//! anywhere in 3.5-6.0x the authored radius depending on the seed.
 //!
 //! The math lives in pure helpers ([`well_accel`], [`circular_orbit_speed`],
 //! [`dominant_well`]) so the well-force core stays game-agnostic - a future
@@ -39,16 +48,15 @@ pub mod prelude {
 /// A gravity well on a designated body. The well pulls [`GravityAffected`]
 /// entities toward this entity's position; it never pulls other wells.
 ///
-/// Prefer [`GravityWell::from_surface_gravity`] over filling the fields by
-/// hand - it derives `mu` and the SOI from the authored surface gravity and
-/// body radius and applies the strength cap.
+/// Prefer [`GravityWell::from_mass`] over filling the fields by hand - it
+/// derives the SOI from the authored mass parameter and applies the strength
+/// cap.
 #[derive(Component, Clone, Debug, Reflect)]
 #[reflect(Component)]
 pub struct GravityWell {
-    /// Gravitational parameter, u^3/s^2: `a = mu / r^2`. Authored via
-    /// `surface_gravity * body_radius^2`, never derived from collider mass
-    /// (true gravity at game scale is unplayably weak, so any orbit-capable
-    /// strength is a designer stat).
+    /// Gravitational parameter, u^3/s^2: `a = mu / r^2`. Authored directly,
+    /// never derived from collider mass (true gravity at game scale is
+    /// unplayably weak, so any orbit-capable strength is a designer stat).
     pub mu: f32,
     /// Nominal radius of the body, world units. The pull is clamped to its
     /// surface value below `body_radius + surface_margin`.
@@ -59,21 +67,35 @@ pub struct GravityWell {
 }
 
 impl GravityWell {
-    /// Build a well from an authored surface gravity (u/s^2 at
-    /// `body_radius`). The strength is clamped to
-    /// [`GravitySettings::max_surface_gravity`] - the guardrail that keeps
-    /// every well escapable under main drive - and the SOI derives from the
-    /// body radius via [`GravitySettings::soi_factor`].
-    pub fn from_surface_gravity(
-        surface_gravity: f32,
-        body_radius: f32,
-        settings: &GravitySettings,
-    ) -> Self {
-        let g = surface_gravity.clamp(0.0, settings.max_surface_gravity);
+    /// Build a well from the body's authored mass parameter (`mu`, u^3/s^2)
+    /// and its geometric radius.
+    ///
+    /// Mass is the only authored gravity quantity: strength is `a = mu / r^2`
+    /// and the SOI is the distance at which that decays to
+    /// [`GravitySettings::soi_cutoff_accel`]. The radius is used for two
+    /// things only - the surface clamp that stops a close pass being a
+    /// singularity slingshot, and the escapability cap below - and never for
+    /// how far the body reaches.
+    ///
+    /// `mu` is clamped so the acceleration at the surface cannot exceed
+    /// [`GravitySettings::max_surface_gravity`]: the guardrail that keeps
+    /// every well escapable under main drive. A body small enough for that
+    /// clamp to bite therefore also loses reach - it cannot be strong, so it
+    /// cannot be far-reaching either.
+    ///
+    /// The SOI floors at `body_radius` so a well can never have its own
+    /// surface outside its reach.
+    pub fn from_mass(mu: f32, body_radius: f32, settings: &GravitySettings) -> Self {
+        let mu = mu.clamp(
+            0.0,
+            settings.max_surface_gravity * body_radius * body_radius,
+        );
         Self {
-            mu: g * body_radius * body_radius,
+            mu,
             body_radius,
-            soi_radius: settings.soi_factor * body_radius,
+            soi_radius: (mu / settings.soi_cutoff_accel.max(1e-6))
+                .sqrt()
+                .max(body_radius),
         }
     }
 }
@@ -108,24 +130,39 @@ pub struct DominantWell(pub Entity);
 #[derive(Resource, Clone, Debug, Reflect)]
 #[reflect(Resource)]
 pub struct GravitySettings {
-    /// Surface gravity a designated body gets when the scenario does not
-    /// author one, u/s^2 at the body's nominal radius. 6.0 on a 20u rock
-    /// gives mu = 2400: v_circ ~ 6.9 u/s at r = 50u with a ~45s lap.
-    /// NOTE: doubled from 3.0 after playtest ("a bit weak... I would like
-    /// it to be stronger so you actually feel it") - the arrival solver
-    /// budgets the pull, so a stronger well costs an earlier flip, not a
-    /// crash.
-    pub default_surface_gravity: f32,
+    /// Mass parameter (`mu`, u^3/s^2) a designated body gets when the
+    /// scenario does not author one. Fixed rather than radius-scaled - reach
+    /// and strength are properties of mass alone - which means it can only be
+    /// right for one size of body, so it is sized for the bodies that
+    /// ACTUALLY take it: the 5-8u set-dressing rocks that clear
+    /// [`Self::min_well_radius`] without being anything a beat is built on
+    /// (every planetoid a player orbits authors its own mass). At 4 000 those
+    /// run 1.7-8.2 u/s^2 at their geometric surface and a ~126u SOI, near the
+    /// 6 u/s^2 / 8-radii well they used to get.
+    /// NOTE: a much larger default would be clamped straight to
+    /// [`Self::max_surface_gravity`] on every one of them - a fixed mass on a
+    /// small body is a strong body. A body big enough for 4 000 to feel thin
+    /// is a body worth authoring.
+    pub default_mass: f32,
     /// Bodies below this nominal radius (world units) get no well by default;
     /// the 1-3u field rocks stay flat space. A scenario can still author a
     /// well onto a small body explicitly.
     pub min_well_radius: f32,
-    /// SOI radius as a multiple of the body radius. 8.0 puts a 20u rock's
-    /// SOI at 160u: the fun orbit band (30-80u) sits deep in the unfaded
-    /// core, and the well announces itself with a gentle inverse-square tug
-    /// long before the rock fills the screen. NOTE: retuned from 4.0 after
-    /// playtest ("had to be almost near it to experience the pull").
-    pub soi_factor: f32,
+    /// Acceleration (u/s^2) below which a well is treated as having no reach:
+    /// the SOI is the distance at which `mu / r^2` decays to this. The one
+    /// global knob trading how far wells reach against how strong they are at
+    /// a given reach - halve it and every SOI in the game grows by ~1.41x at
+    /// unchanged strength.
+    /// 0.25 is ~1.2% of a reference ship's ~21 u/s^2 of thrust authority: far
+    /// below what a pilot can feel, and it lets a campaign planetoid reach
+    /// 400-500u without exceeding [`Self::max_surface_gravity`] on the
+    /// smallest mesh seed - the same order the radius-derived
+    /// `soi_factor: 8.0` gave it (560-960u, seed depending), so the playtest
+    /// that raised that factor from 4.0 ("had to be almost near it to
+    /// experience the pull") still holds. Reach and strength are now one
+    /// number, so this is the exchange rate between them: raising it makes
+    /// every well shorter-ranged unless its mass goes up.
+    pub soi_cutoff_accel: f32,
     /// Fraction of the SOI (outermost band) over which the pull smoothsteps
     /// to zero, so there is no force discontinuity at the boundary for the
     /// autopilot to chatter on. Orbits are only trusted inside the unfaded
@@ -140,8 +177,11 @@ pub struct GravitySettings {
     /// flip wells tick to tick. In dense fields this degrades to "nearest
     /// big rock wins", which is predictable and readable.
     pub switch_hysteresis: f32,
-    /// Hard cap on authored surface gravity, u/s^2 - the "gravity never
-    /// out-muscles a live ship" guardrail. This is a tuning contract, not
+    /// Hard cap on a well's acceleration at its own surface, u/s^2 - the
+    /// "gravity never out-muscles a live ship" guardrail, applied to the
+    /// authored mass as `mu <= max_surface_gravity * body_radius^2`. The one
+    /// place a body's radius still bounds its well: a small body cannot be
+    /// made arbitrarily heavy. This is a tuning contract, not
     /// enforced against the emergent ship acceleration (which comes from live
     /// thruster magnitudes over live mass): for scale, the flight tests'
     /// minimal ship accelerates at ~21 u/s^2 (magnitude 1.0 impulse per 1/64s
@@ -156,9 +196,9 @@ pub struct GravitySettings {
 impl Default for GravitySettings {
     fn default() -> Self {
         Self {
-            default_surface_gravity: 6.0,
+            default_mass: 4_000.0,
             min_well_radius: 5.0,
-            soi_factor: 8.0,
+            soi_cutoff_accel: 0.25,
             fade_fraction: 0.15,
             surface_margin: 1.0,
             switch_hysteresis: 1.1,
@@ -551,16 +591,47 @@ mod tests {
     }
 
     #[test]
-    fn from_surface_gravity_derives_mu_and_soi_and_applies_the_cap() {
+    fn from_mass_derives_the_soi_from_mass_alone_and_applies_the_cap() {
         let settings = GravitySettings::default();
-        let well = GravityWell::from_surface_gravity(3.0, 20.0, &settings);
+        let well = GravityWell::from_mass(1200.0, 20.0, &settings);
         assert_eq!(well.mu, 1200.0);
         assert_eq!(well.body_radius, 20.0);
-        assert_eq!(well.soi_radius, settings.soi_factor * 20.0);
+        // The SOI is where the pull decays to the cutoff, nothing else.
+        assert_eq!(
+            well.soi_radius,
+            (1200.0f32 / settings.soi_cutoff_accel).sqrt()
+        );
+        assert!(
+            (well.mu / (well.soi_radius * well.soi_radius) - settings.soi_cutoff_accel).abs()
+                < 1e-3,
+            "the unfaded pull at the SOI edge is the cutoff by construction"
+        );
 
-        // Authored strength beyond the guardrail is capped, not honored.
-        let capped = GravityWell::from_surface_gravity(50.0, 20.0, &settings);
+        // The same mass on a body of a different radius reaches exactly as
+        // far - as long as the radius is big enough to carry it (12u here:
+        // the cap allows mu up to 10 * 144 = 1440).
+        assert_eq!(
+            GravityWell::from_mass(1200.0, 12.0, &settings).soi_radius,
+            well.soi_radius
+        );
+        // Below that, the escapability cap takes strength AND reach.
+        assert!(GravityWell::from_mass(1200.0, 5.0, &settings).soi_radius < well.soi_radius);
+
+        // Authored strength beyond the guardrail is capped, not honored -
+        // and a capped body loses the reach that strength would have bought.
+        let capped = GravityWell::from_mass(500_000.0, 20.0, &settings);
         assert_eq!(capped.mu, settings.max_surface_gravity * 400.0);
+        assert_eq!(
+            capped.soi_radius,
+            (capped.mu / settings.soi_cutoff_accel).sqrt()
+        );
+
+        // A mass too small to reach past its own surface still gets an SOI
+        // that contains the body.
+        assert_eq!(
+            GravityWell::from_mass(1.0, 20.0, &settings).soi_radius,
+            20.0
+        );
     }
 
     #[test]
@@ -642,7 +713,14 @@ mod tests {
     }
 
     fn spawn_well(app: &mut App, position: Vec3) -> Entity {
-        let well = GravityWell::from_surface_gravity(3.0, BODY, &GravitySettings::default());
+        // Built by hand rather than through `from_mass`: these tests pin the
+        // force behaviour at fixed distances, so the well's geometry must not
+        // move when the SOI derivation is retuned.
+        let well = GravityWell {
+            mu: MU,
+            body_radius: BODY,
+            soi_radius: 160.0,
+        };
         app.world_mut()
             .spawn((
                 RigidBody::Static,
@@ -949,7 +1027,7 @@ mod tests {
     fn outside_the_soi_there_is_no_force_at_all() {
         let mut app = gravity_app();
         spawn_well(&mut app, Vec3::ZERO);
-        // SOI ends at 160 (soi_factor 8 x 20u body); park at 250 with zero
+        // SOI ends at 160 (the test well's hand-built reach); park at 250 with zero
         // velocity.
         let probe = spawn_probe(&mut app, Vec3::new(250.0, 0.0, 0.0), Vec3::ZERO);
         settle(&mut app);

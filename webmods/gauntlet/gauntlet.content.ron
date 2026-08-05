@@ -708,7 +708,7 @@
                             radius: 4.0,
                             texture: "dep://base/textures/asteroid.png",
                             health: 2000.0,
-                            surface_gravity: Some(8.0),
+                            mass: Some(1_900.0),
                             invulnerable: true,
                         )),
                     )),

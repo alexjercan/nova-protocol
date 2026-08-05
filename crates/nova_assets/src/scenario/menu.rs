@@ -23,11 +23,11 @@ pub(crate) fn menu_ambience(
 ) -> ScenarioConfig {
     let mut objects = Vec::new();
 
-    // The stage: a nominally-20u planetoid at the origin with an authored
-    // surface gravity of 6 u/s^2. The nominal numbers are only the inputs:
-    // the runtime well derives mu and SOI from the GEOMETRIC collider
-    // radius (observed ~80-91u across seeds; insert_asteroid_gravity_well),
-    // so the real mu lands well above the nominal 6 * 20^2 = 2400.
+    // The stage: a nominally-20u planetoid at the origin carrying the default
+    // mass. That mass alone fixes the pull and the SOI (424u); the GEOMETRIC
+    // collider radius (observed ~80-91u across seeds;
+    // insert_asteroid_gravity_well) only says where the surface clamp starts,
+    // so the orbiter below sees the same well on every seed.
     objects.push(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: "menu_planetoid".to_string(),
@@ -41,7 +41,7 @@ pub(crate) fn menu_ambience(
             radius: 20.0,
             texture: asteroid_texture.clone(),
             health: 2000.0,
-            surface_gravity: Some(6.0),
+            mass: Some(45_000.0),
             invulnerable: true,
             lock_signature: None,
         }),
@@ -84,7 +84,7 @@ pub(crate) fn menu_ambience(
                 radius: 1.0,
                 texture: asteroid_texture.clone(),
                 health: 100.0,
-                surface_gravity: None,
+                mass: None,
                 invulnerable: false,
                 lock_signature: None,
             }),
@@ -159,15 +159,14 @@ pub(crate) fn menu_ambience(
 /// The shared backdrop stage: the camera-framing planetoid every menu
 /// backdrop must carry (id `menu_planetoid` - the contract
 /// `stage_menu_camera` frames by; see the scenario authoring guide). Nominal
-/// 20u, invulnerable, with the caller's authored `surface_gravity` (the
-/// runtime well derives mu/SOI from the GEOMETRIC collider radius, observed
-/// ~80-91u across seeds). The gravity is per-scene: the waystation carries two
-/// heavy haulers and needs a lighter pull (4 u/s^2) to hold its orbit, while
-/// the single-ship ambience/scrapyard scenes use 6 u/s^2.
-fn backdrop_planetoid(
-    asteroid_texture: AssetRef<Image>,
-    surface_gravity: f32,
-) -> ScenarioObjectConfig {
+/// 20u, invulnerable, with the caller's authored mass parameter - which sets
+/// both the pull and the SOI (the GEOMETRIC collider radius, observed ~80-91u
+/// across seeds, only bounds the surface clamp). The mass is per-scene: the
+/// waystation carries two heavy haulers and needs a lighter pull to hold its
+/// orbit (30 000: 1.9-3.8 u/s^2 at the surface, SOI 346u), while the
+/// single-ship ambience/scrapyard scenes take the default 45 000 (2.9-5.7
+/// u/s^2, SOI 424u).
+fn backdrop_planetoid(asteroid_texture: AssetRef<Image>, mass: f32) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: "menu_planetoid".to_string(),
@@ -181,7 +180,7 @@ fn backdrop_planetoid(
             radius: 20.0,
             texture: asteroid_texture,
             health: 2000.0,
-            surface_gravity: Some(surface_gravity),
+            mass: Some(mass),
             invulnerable: true,
             lock_signature: None,
         }),
@@ -288,7 +287,7 @@ pub(crate) fn menu_waystation(
 ) -> ScenarioConfig {
     let mut objects = vec![
         // Lighter pull for the two heavy haulers to hold their orbit.
-        backdrop_planetoid(asteroid_texture.clone(), 4.0),
+        backdrop_planetoid(asteroid_texture.clone(), 30_000.0),
         backdrop_orbiter(
             "waystation_hauler_a",
             "Hauler Biscuit",
@@ -348,7 +347,7 @@ pub(crate) fn menu_waystation(
                 radius: 1.0,
                 texture: asteroid_texture,
                 health: 100.0,
-                surface_gravity: None,
+                mass: None,
                 invulnerable: false,
                 lock_signature: None,
             }),
@@ -387,7 +386,7 @@ pub(crate) fn menu_scrapyard(
     asteroid_texture: AssetRef<Image>,
 ) -> ScenarioConfig {
     let mut objects = vec![
-        backdrop_planetoid(asteroid_texture.clone(), 6.0),
+        backdrop_planetoid(asteroid_texture.clone(), 45_000.0),
         backdrop_orbiter(
             "scrapyard_tug",
             "Tug Pebble",
@@ -409,7 +408,7 @@ pub(crate) fn menu_scrapyard(
                 radius: 6.0,
                 texture: asteroid_texture.clone(),
                 health: 400.0,
-                surface_gravity: None,
+                mass: None,
                 invulnerable: false,
                 lock_signature: None,
             }),
@@ -427,7 +426,7 @@ pub(crate) fn menu_scrapyard(
                 radius: 8.0,
                 texture: asteroid_texture.clone(),
                 health: 400.0,
-                surface_gravity: None,
+                mass: None,
                 invulnerable: false,
                 lock_signature: None,
             }),
@@ -564,8 +563,8 @@ mod tests {
             panic!("the planetoid is an asteroid body");
         };
         assert!(
-            rock.surface_gravity.is_some(),
-            "authored surface gravity is what spawns the planetoid's well"
+            rock.mass.is_some(),
+            "an authored mass is what spawns the planetoid's well"
         );
     }
 }

@@ -5,9 +5,9 @@
 //! COMPUTED from the production gravity and geometry constants
 //! (authored-vs-derived-values), so the staging cannot rot:
 //!
-//! 1. the coast-in: the player spawns outside even the worst-seed SOI of
-//!    the claim's well (derived from GravitySettings::default().soi_factor
-//!    and ASTEROID_GEOMETRIC_FACTOR_MAX, never hand-copied);
+//! 1. the coast-in: the player spawns outside the SOI of the claim's well
+//!    (derived from the authored mass and
+//!    GravitySettings::default().soi_cutoff_accel, never hand-copied);
 //! 2. the survey is a one-shot travel-lock gate on the anchorage bow;
 //! 3. the cast-off waits on ALL of: survey + both pickets + the breathe
 //!    clock (flag-based - a pre-survey picket kill cannot deadlock it);
@@ -252,8 +252,8 @@ fn on_start_stages_the_claim() {
     assert_eq!(anchor.base.position, Vec3::new(0.0, -20.0, 0.0));
     assert!(anchor_rock.invulnerable, "the well survives the fight");
     assert_eq!(
-        anchor_rock.surface_gravity,
-        Some(6.0),
+        anchor_rock.mass,
+        Some(45_000.0),
         "the claim is a REAL gravity well (the chain's first combat one)"
     );
 
@@ -331,14 +331,15 @@ fn layout_clearances_derive_from_the_measured_constants() {
         panic!("anchor is an asteroid");
     };
 
-    // Worst-seed SOI, from the PRODUCTION constants: nominal radius x the
-    // max geometric factor x the default SOI factor.
-    let worst_soi =
-        anchor_rock.radius * ASTEROID_GEOMETRIC_FACTOR_MAX * GravitySettings::default().soi_factor;
+    // The SOI, from the PRODUCTION constants: it falls out of the authored
+    // mass alone, so unlike the body below it is the same on every seed.
+    let soi = (anchor_rock.mass.expect("the claim anchor authors a mass")
+        / GravitySettings::default().soi_cutoff_accel)
+        .sqrt();
     assert!(
-        player.distance(anchor.base.position) >= worst_soi,
-        "the player coasts IN from outside the worst-seed SOI \
-         ({:.0}u >= {worst_soi:.0}u)",
+        player.distance(anchor.base.position) >= soi,
+        "the player coasts IN from outside the SOI \
+         ({:.0}u >= {soi:.0}u)",
         player.distance(anchor.base.position)
     );
 

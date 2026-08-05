@@ -45,11 +45,12 @@
 //!   cut of this scene put the ring 19 units off the surface and shot a frame of
 //!   nothing but rock.
 //! - The orbit band runs from `1.5 * (body_radius + 1)` out to `0.9 * 0.85 *
-//!   SOI`, and the SOI is 8 body radii - roughly 122 to 660 units here.
-//!   [`ORBIT_RADIUS`] sits mid-band, so the explicit plan is the ring the ship
-//!   actually flies and the body reads as a body rather than as terrain.
-//! - `mu = surface_gravity * body_radius^2`, so the ring's circular speed is
-//!   around 12 u/s here: fast enough that the drive is lit and the hull is
+//!   SOI`, and the SOI comes from the authored mass alone
+//!   (`sqrt(mu / soi_cutoff_accel)` = 490 units) - roughly 122 to 375 units
+//!   here. [`ORBIT_RADIUS`] sits mid-band, so the explicit plan is the ring the
+//!   ship actually flies and the body reads as a body rather than as terrain.
+//! - The ring's circular speed is `sqrt(mu / r)`, around 14 u/s here: fast
+//!   enough that the drive is lit and the hull is
 //!   visibly banked into its plane, slow enough that a pinned camera keeps its
 //!   subject for the length of a beat.
 //!
@@ -90,14 +91,16 @@ const PLANETOID_ID: &str = "ring_planetoid";
 /// for this 20 - and the well, the orbit band and every framing measure from
 /// that derived radius, not from this number.
 const PLANETOID_RADIUS: f32 = 20.0;
-/// Surface gravity at the body radius, in world units per second squared. The
-/// engine default, and left there on purpose: this set's whole subject is the
-/// flight computer flying a REAL well, so a tuned-down one would be a prop.
-const PLANETOID_GRAVITY: f32 = 6.0;
+/// The body's mass parameter (mu, u^3/s^2) - the one authored gravity number,
+/// setting both the pull and the SOI (`soi = sqrt(mu / soi_cutoff_accel)`, so
+/// 490u here). Sized so [`ORBIT_RADIUS`] sits mid-band on every mesh seed:
+/// this set's whole subject is the flight computer flying a REAL well, so a
+/// tuned-down one would be a prop.
+const PLANETOID_MASS: f32 = 60_000.0;
 
 /// The player ship's scenario id.
 const PLAYER_ID: &str = "ring_player";
-/// The ring the ship holds: mid-band (roughly 122 to 660 units for this body),
+/// The ring the ship holds: mid-band (roughly 122 to 375 units for this body),
 /// so the explicit plan below is flown as authored rather than clamped. The
 /// distance is chosen off the DRAWN body, at about three and a half of its
 /// radii - close enough that the planetoid fills the lower third of a framing
@@ -570,7 +573,7 @@ fn planetoid(game_assets: &GameAssets) -> EventActionConfig {
             health: 5000.0,
             impact_sound: None,
             destroy_sound: None,
-            surface_gravity: Some(PLANETOID_GRAVITY),
+            mass: Some(PLANETOID_MASS),
             invulnerable: true,
             lock_signature: None,
         }),

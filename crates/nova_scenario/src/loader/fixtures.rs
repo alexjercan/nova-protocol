@@ -19,7 +19,7 @@ pub(crate) fn spawn_object_action() -> EventActionConfig {
             radius: 1.0,
             texture: AssetRef::default(),
             health: 1.0,
-            surface_gravity: None,
+            mass: None,
             invulnerable: false,
             lock_signature: None,
         }),

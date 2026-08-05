@@ -540,7 +540,7 @@ mod tests {
         let well = world
             .spawn((
                 Position(Vec3::ZERO),
-                GravityWell::from_surface_gravity(3.0, 20.0, &gravity),
+                GravityWell::from_mass(1200.0, 20.0, &gravity),
             ))
             .id();
         let plan = OrbitPlan {
@@ -616,7 +616,7 @@ mod tests {
         let well = world
             .spawn((
                 Position(Vec3::ZERO),
-                GravityWell::from_surface_gravity(3.0, 20.0, &gravity),
+                GravityWell::from_mass(1200.0, 20.0, &gravity),
             ))
             .id();
         // Plan still None (insertion being solved): the current radius

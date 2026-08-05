@@ -63,16 +63,18 @@ const DEFAULT_COUNT: usize = 400;
 /// sweeps so `probe run stress` scales all of them together.
 const COUNT_ENV: &str = "NOVA_STRESS_COUNT";
 
-/// One rock in this many carries surface gravity. Gravity is O(wells x affected
+/// One rock in this many carries a gravity well. Gravity is O(wells x affected
 /// bodies), so a swarm of pure colliders would leave that half of the sweep
 /// untouched; a well every eighth rock keeps the pair count quadratic in the
 /// knob without turning the scene into a single gravitational blender.
 const GRAVITY_EVERY: usize = 8;
 
-/// Surface gravity on a well-bearing rock. Weak on purpose: the sweep measures
-/// the COST of the gravity pass, and rocks that visibly clump would change the
-/// broad-phase distribution between cycles and make the number unrepeatable.
-const SURFACE_GRAVITY: f32 = 1.5;
+/// Mass parameter (mu) on a well-bearing rock. Weak on purpose: the sweep
+/// measures the COST of the gravity pass, and rocks that visibly clump would
+/// change the broad-phase distribution between cycles and make the number
+/// unrepeatable. 135 is a ~23u SOI - reach follows strength, so a weak well
+/// is also a small one, which if anything makes the sweep conservative.
+const WELL_MASS: f32 = 135.0;
 
 /// Radius of every rock. Small relative to [`SHELL_RADIUS`], so even the
 /// densest swarm the knob is meant for stays a field of separate bodies rather
@@ -234,7 +236,7 @@ fn swarm_scenario(game_assets: &GameAssets, count: usize) -> ScenarioConfig {
                 // its single caller rather than widened into the shared
                 // builder's signature (DECISION.md D2's reasoning).
                 if let ScenarioObjectKind::Asteroid(config) = &mut rock.kind {
-                    config.surface_gravity = Some(SURFACE_GRAVITY);
+                    config.mass = Some(WELL_MASS);
                 }
             }
             rock

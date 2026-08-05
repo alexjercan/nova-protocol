@@ -460,9 +460,9 @@ mod tests {
     fn orbit_target_radius_clamps_into_the_stable_band() {
         let flight = FlightSettings::default();
         let gravity = GravitySettings::default();
-        let well = GravityWell::from_surface_gravity(3.0, 20.0, &gravity);
-        // Band for the sanity rock: [1.5 * 21, 0.9 * 0.85 * 160] = [31.5,
-        // 122.4].
+        let well = GravityWell::from_mass(1200.0, 20.0, &gravity);
+        // Band for the sanity rock (mu = 1200, so SOI = sqrt(1200 / 0.25) =
+        // 69.28): [1.5 * 21, 0.9 * 0.85 * 69.28] = [31.5, 53.0].
         assert_eq!(
             orbit_target_radius(50.0, &well, &gravity, &flight),
             Some(50.0)

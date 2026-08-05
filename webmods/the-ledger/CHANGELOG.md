@@ -3,6 +3,16 @@
 All notable changes to The Ledger campaign mod. Versions are the `meta.version`
 in `the-ledger.bundle.ron`; the portal keeps every published version.
 
+## 1.16.0
+
+- The Raid's planetoid wells are authored by MASS, matching the base game's new
+  gravity rules: one number now sets both how hard a well pulls and how far it
+  reaches. The three approach wells pull exactly as hard as they did but reach
+  about a third as far, which is the direction 1.12.0 was already going - they
+  are scenery you brush past on the way in, and now they stop tugging sooner.
+  Required: the old `surface_gravity` field no longer exists, and a copy still
+  authoring it would fly an approach with no wells at all.
+
 ## 1.14.0
 
 - Combat-dead ships now count correctly across the campaign. If an armed

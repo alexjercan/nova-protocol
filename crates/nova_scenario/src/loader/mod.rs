@@ -519,7 +519,7 @@ mod tests {
                             radius: 5.0,
                             texture: AssetRef::from("textures/rock.png"),
                             health: 100.0,
-                            surface_gravity: None,
+                            mass: None,
                             invulnerable: false,
                             lock_signature: None,
                         }),

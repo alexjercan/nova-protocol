@@ -64,19 +64,26 @@ const CRATE_POSITIONS: [Vec3; 3] = [
     Vec3::new(395.0, 35.0, -110.0),
 ];
 /// The stage dressing and late-run destination: a planetoid with a real
-/// gravity well, far enough that even the WORST-seed SOI (960u) falls
-/// short of the debris cluster - playtest round 2 finding 1: at the old
-/// ~650u separation the player was fighting gravity while weaving
-/// crates. The SOI edge is crossed on the waypoint leg on every seed.
+/// gravity well, far enough that its SOI falls short of the debris cluster -
+/// playtest round 2 finding 1: at the old ~650u separation the player was
+/// fighting gravity while weaving crates. The SOI edge is crossed on the
+/// waypoint leg.
 const PLANETOID_POS: Vec3 = Vec3::new(1240.0, -105.0, -700.0);
 const PLANETOID_NOMINAL_RADIUS: f32 = 20.0;
+/// The planetoid's mass parameter (mu, u^3/s^2) - the only authored gravity
+/// number, setting both the pull and the reach. Tune it by the SOI the layout
+/// wants: `mu = soi_cutoff_accel * soi^2`. At the engine default this is a
+/// 424u SOI on every mesh seed, which is what beat 4 below is authored
+/// against; the pull at the geometric surface (70-120u) runs 3.1-9.2 u/s^2,
+/// under the escapability cap on every seed.
+const PLANETOID_MASS: f32 = 45_000.0;
 /// The FIRST radar-lock target (beat sheet v2): a comfortable GOTO leg from the
-/// debris cluster, OUTSIDE even the worst-seed SOI so the hands-off ride is
+/// debris cluster, OUTSIDE the planetoid SOI so the hands-off ride is
 /// gravity-free, and inside the default beacon lock range (600u) from the
 /// cluster.
 const BEACON_3_POS: Vec3 = Vec3::new(600.0, 90.0, 120.0);
 /// The waypoint-run target: the old beacon-3 spot scaled out to 300u from
-/// the planetoid - inside the smallest-seed SOI (so the ORBIT hint lights
+/// the planetoid - inside the SOI (so the ORBIT hint lights
 /// on arrival) with its trigger clear of the coast ring (the
 /// already-inside-when-armed trap; pinned below). The beacon-3 -> beacon-4
 /// leg (~800u) is beyond the DEFAULT beacon lock range, so beacon 4
@@ -86,14 +93,14 @@ const BEACON_4_LOCK_SIGNATURE: f32 = 30.0;
 /// The gravity-coast ring: a planetoid-centered invisible trigger sphere.
 /// Entering it (drifting in from the beacon-4 park) is the coast beat; LEAVING
 /// it after the held orbit is the break-away beat. Outside the widest orbit
-/// ring, inside the smallest SOI, and just inside the nominal beacon-4 park so
+/// ring, inside the SOI, and just inside the nominal beacon-4 park so
 /// the coast is SHORT (playtest 2026-07-13: the 210u ring made the drift read
 /// as dead air) - all pinned below. A player somehow already inside when the
 /// ring spawns still advances: a spawned area fires OnEnter for bodies it lands
 /// on (pinned in nova_scenario's area tests).
 const COAST_RING_RADIUS: f32 = 300.0;
 /// The live-fire rehearsal target: an inert hulk drifting near the old
-/// salvage field, OUTSIDE the worst-seed SOI (a dynamic body inside it
+/// salvage field, OUTSIDE the SOI (a dynamic body inside it
 /// would fall into the planetoid). Its combat-lock range is short
 /// (signature = radius, ~75u) - the marker walks the player in.
 const DERELICT_POS: Vec3 = Vec3::new(300.0, -40.0, 40.0);
@@ -419,7 +426,7 @@ fn derelict(asteroid_texture: AssetRef<Image>) -> ScenarioObjectConfig {
             radius: DERELICT_RADIUS,
             texture: asteroid_texture,
             health: DERELICT_HEALTH,
-            surface_gravity: None,
+            mass: None,
             invulnerable: false,
             lock_signature: Some(DERELICT_LOCK_SIGNATURE),
         }),
@@ -579,7 +586,7 @@ pub(crate) fn shakedown_run(
             radius: PLANETOID_NOMINAL_RADIUS,
             texture: asteroid_texture.clone(),
             health: 2000.0,
-            surface_gravity: Some(6.0),
+            mass: Some(PLANETOID_MASS),
             invulnerable: true,
             lock_signature: None,
         }),
@@ -598,7 +605,7 @@ pub(crate) fn shakedown_run(
                 radius,
                 texture: asteroid_texture.clone(),
                 health: 100.0,
-                surface_gravity: None,
+                mass: None,
                 invulnerable: false,
                 lock_signature: None,
             }),

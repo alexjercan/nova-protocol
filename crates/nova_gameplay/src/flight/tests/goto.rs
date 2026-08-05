@@ -96,14 +96,14 @@ fn goto_into_a_well_stops_at_the_standoff_instead_of_crashing() {
     // the whole way and still park at the standoff.
     let mut app = orbit_app();
     let gravity = GravitySettings::default();
-    // The strongest well the guardrail allows: surface pull 5 u/s^2 on
-    // a 40u body (mu = 8000, SOI 320u).
+    // The strongest well the guardrail allows on a 40u body: mu = 8000
+    // (5 u/s^2 at the surface), SOI 179u.
     let well = app
         .world_mut()
         .spawn((
             RigidBody::Static,
             Transform::default(),
-            crate::gravity::GravityWell::from_surface_gravity(5.0, 40.0, &gravity),
+            crate::gravity::GravityWell::from_mass(8000.0, 40.0, &gravity),
         ))
         .id();
     let (ship, _, _) = spawn_ship(&mut app);
@@ -292,7 +292,7 @@ fn handoff_ring_clears_the_geometric_radius() {
         .spawn((
             RigidBody::Static,
             Transform::default(),
-            crate::gravity::GravityWell::from_surface_gravity(5.0, 40.0, &gravity),
+            crate::gravity::GravityWell::from_mass(8000.0, 40.0, &gravity),
             BodyRadius(70.0),
         ))
         .id();
@@ -347,7 +347,7 @@ fn goto_radius_resolution_prefers_the_larger_source() {
             GlobalTransform::from(Transform::from_translation(center)),
             Position(center),
             BodyRadius(20.0),
-            crate::gravity::GravityWell::from_surface_gravity(3.0, 40.0, &gravity),
+            crate::gravity::GravityWell::from_mass(4800.0, 40.0, &gravity),
         ))
         .id();
     settle(&mut app);

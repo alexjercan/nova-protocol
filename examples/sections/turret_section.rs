@@ -296,7 +296,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
             radius: 2.0,
             texture: game_assets.asteroid_texture.clone().into(),
             health,
-            surface_gravity: None,
+            mass: None,
             invulnerable: false,
             lock_signature: None,
         }),
@@ -354,8 +354,8 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
         // A gravity planetoid slung below the firing lane so rounds crossing
         // its sphere of influence curve downward toward it - the range is where
         // you eyeball bullet gravity (docs/spikes/20260712-112113). It is
-        // authored strong (surface_gravity 10) and big (radius 16 -> SOI 128u
-        // at the default soi_factor), which is why the shooter's own gravity is
+        // authored heavy (mass 30 000 -> SOI 346u, and 3.3-9.6 u/s^2 at the
+        // geometric surface), which is why the shooter's own gravity is
         // stripped below: otherwise the ship, sitting inside that SOI, would
         // fall out of frame instead of holding still as a reference.
         ScenarioObjectConfig {
@@ -371,7 +371,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
                 radius: 16.0,
                 texture: game_assets.asteroid_texture.clone().into(),
                 health: INDESTRUCTIBLE_HEALTH,
-                surface_gravity: Some(10.0),
+                mass: Some(30_000.0),
                 invulnerable: false,
                 lock_signature: None,
             }),

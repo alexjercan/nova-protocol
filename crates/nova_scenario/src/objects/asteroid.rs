@@ -11,9 +11,8 @@ use rand::Rng;
 pub mod prelude {
     pub use super::{
         asteroid_scenario_object, AsteroidConfig, AsteroidInvulnerable, AsteroidMarker,
-        AsteroidPlugin, AsteroidRadius, AsteroidRenderMesh, AsteroidSurfaceGravity,
-        AsteroidTexture, ASTEROID_GEOMETRIC_FACTOR_MAX, ASTEROID_GEOMETRIC_FACTOR_MIN,
-        ASTEROID_TYPE_NAME,
+        AsteroidMass, AsteroidPlugin, AsteroidRadius, AsteroidRenderMesh, AsteroidTexture,
+        ASTEROID_GEOMETRIC_FACTOR_MAX, ASTEROID_GEOMETRIC_FACTOR_MIN, ASTEROID_TYPE_NAME,
     };
 }
 
@@ -48,17 +47,23 @@ pub struct AsteroidConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub destroy_sound: Option<AssetRef<AudioSource>>,
-    /// Per-body gravity override, u/s^2 at the surface. `Some` always makes
-    /// this asteroid a gravity well at that strength (subject to the
+    /// Mass parameter (`mu`, u^3/s^2) making this body a gravity well:
+    /// `a = mu / r^2`, and the sphere of influence is where that decays to
+    /// [`GravitySettings::soi_cutoff_accel`]. `Some` always makes this
+    /// asteroid a well (subject to the
     /// [`GravitySettings::max_surface_gravity`] cap), even below the radius
-    /// threshold; `None` falls back to the global rule (a default-strength
-    /// well when `radius >= GravitySettings::min_well_radius`, none
-    /// otherwise).
+    /// threshold; `None` falls back to the global rule
+    /// ([`GravitySettings::default_mass`] when
+    /// `radius >= GravitySettings::min_well_radius`, no well otherwise).
+    ///
+    /// Tune this by the SOI you want, not by a number that means anything on
+    /// its own: mass is invisible in game, the sphere of influence is what a
+    /// pilot feels. `mu = soi_cutoff_accel * soi^2`.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
-    pub surface_gravity: Option<f32>,
+    pub mass: Option<f32>,
     /// An invulnerable body gets its collider WITHOUT a health node:
     /// nothing can disable or destroy it, so its gravity well can never
     /// die mid-scenario (playtest 2026-07-12 finding 6 - a tutorial
@@ -92,7 +97,7 @@ pub fn asteroid_scenario_object(config: AsteroidConfig) -> impl Bundle {
             destroy: config.destroy_sound.clone(),
         },
         AsteroidInvulnerable(config.invulnerable),
-        AsteroidSurfaceGravity(config.surface_gravity),
+        AsteroidMass(config.mass),
         // The lock scanner sees a rock in proportion to its size: field
         // rocks only lock up close, big bodies from afar (well sources
         // are range-free in the targeting gate anyway). An authored
@@ -142,11 +147,11 @@ pub struct AsteroidHealth(pub f32);
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct AsteroidInvulnerable(pub bool);
 
-/// The scenario's authored gravity for this asteroid (see
-/// [`AsteroidConfig::surface_gravity`]). Consumed by
-/// `insert_asteroid_gravity_well` when the asteroid spawns.
+/// The scenario's authored mass parameter for this asteroid (see
+/// [`AsteroidConfig::mass`]). Consumed by `insert_asteroid_gravity_well`
+/// when the asteroid spawns.
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-pub struct AsteroidSurfaceGravity(pub Option<f32>);
+pub struct AsteroidMass(pub Option<f32>);
 
 /// Marks an asteroid root whose collider/health node has been destroyed, so its
 /// now-empty `RigidBody` husk is despawned next frame (see `despawn_asteroid_husk`).
@@ -236,15 +241,16 @@ fn despawn_asteroid_husk(mut commands: Commands, q_husk: Query<Entity, With<Aste
 }
 
 /// Designate qualifying asteroids as gravity wells: an authored
-/// [`AsteroidSurfaceGravity`] always makes a well at that strength; otherwise
-/// big rocks (nominal radius at or above [`GravitySettings::min_well_radius`])
-/// get a default-strength well and the small field rocks stay flat space.
-/// Strength and SOI derive through [`GravityWell::from_surface_gravity`], which
-/// also applies the escapability cap - from the GEOMETRIC [`BodyRadius`] the
-/// collider observer derives, not the nominal designation radius: the noise
-/// mesh reaches several times past the nominal sphere, and a well whose
-/// SOI/fade were sized on the nominal radius cannot contain an orbit band above
-/// the real surface (the 2026-07-10 "no stable band" regression). Triggering on
+/// [`AsteroidMass`] always makes a well at that mass; otherwise big rocks
+/// (nominal radius at or above [`GravitySettings::min_well_radius`]) get a
+/// [`GravitySettings::default_mass`] well and the small field rocks stay flat
+/// space. Strength and SOI derive from the mass alone through
+/// [`GravityWell::from_mass`]; the GEOMETRIC [`BodyRadius`] the collider
+/// observer derives is passed rather than the nominal designation radius
+/// because it is the real surface - what the pull clamps at and what the
+/// escapability cap is measured against (a well sized on the nominal radius
+/// cannot contain an orbit band above the real surface - the 2026-07-10 "no
+/// stable band" regression). Triggering on
 /// `On<Add, BodyRadius>` is what sequences this after the collider derivation;
 /// qualification stays keyed on the nominal radius (the designation intent,
 /// seed-independent). The well goes on the asteroid root - which never carries
@@ -257,10 +263,7 @@ fn insert_asteroid_gravity_well(
     add: On<Add, BodyRadius>,
     mut commands: Commands,
     settings: Res<GravitySettings>,
-    q_asteroid: Query<
-        (&AsteroidRadius, &BodyRadius, &AsteroidSurfaceGravity),
-        With<AsteroidMarker>,
-    >,
+    q_asteroid: Query<(&AsteroidRadius, &BodyRadius, &AsteroidMass), With<AsteroidMarker>>,
 ) {
     let entity = add.entity;
     // BodyRadius on non-asteroid entities is legitimate (any sized
@@ -269,14 +272,14 @@ fn insert_asteroid_gravity_well(
         return;
     };
 
-    let surface_gravity = match **authored {
-        Some(gravity) => gravity,
-        None if **radius >= settings.min_well_radius => settings.default_surface_gravity,
+    let mu = match **authored {
+        Some(mass) => mass,
+        None if **radius >= settings.min_well_radius => settings.default_mass,
         None => return,
     };
 
     commands.entity(entity).insert((
-        GravityWell::from_surface_gravity(surface_gravity, **body_radius, &settings),
+        GravityWell::from_mass(mu, **body_radius, &settings),
         RigidBody::Static,
     ));
 }
@@ -860,7 +863,7 @@ mod tests {
         app.update();
 
         let settings = GravitySettings::default();
-        let asteroid = spawn_asteroid_underived(&mut app, 20.0, Some(6.0));
+        let asteroid = spawn_asteroid_underived(&mut app, 20.0, Some(45_000.0));
         app.update();
 
         let derived = app
@@ -873,8 +876,14 @@ mod tests {
             .get::<GravityWell>(asteroid)
             .expect("designated rock well");
         assert_eq!(well.body_radius, derived);
-        assert_eq!(well.soi_radius, settings.soi_factor * derived);
-        assert_eq!(well.mu, 6.0 * derived * derived);
+        // The well is built on the GEOMETRIC radius, but only its surface
+        // clamp cares: the mass sets mu and the SOI outright, so both are the
+        // same numbers on every mesh seed.
+        assert_eq!(well.mu, 45_000.0);
+        assert_eq!(
+            well.soi_radius,
+            (45_000.0f32 / settings.soi_cutoff_accel).sqrt()
+        );
     }
 
     /// An invulnerable body's collider node carries NO Health - the
@@ -899,7 +908,7 @@ mod tests {
                         radius: 20.0,
                         texture: AssetRef::default(),
                         health: 2000.0,
-                        surface_gravity: Some(6.0),
+                        mass: Some(45_000.0),
                         invulnerable,
                         lock_signature: None,
                     }),
@@ -935,11 +944,7 @@ mod tests {
 
     /// The raw scenario bundle without the test stand-in BodyRadius, for
     /// tests that run the real collider derivation.
-    fn spawn_asteroid_underived(
-        app: &mut App,
-        radius: f32,
-        surface_gravity: Option<f32>,
-    ) -> Entity {
+    fn spawn_asteroid_underived(app: &mut App, radius: f32, mass: Option<f32>) -> Entity {
         app.world_mut()
             .spawn((
                 RigidBody::Dynamic,
@@ -949,7 +954,7 @@ mod tests {
                     radius,
                     texture: AssetRef::default(),
                     health: 100.0,
-                    surface_gravity,
+                    mass,
                     invulnerable: false,
                     lock_signature: None,
                 }),
@@ -969,7 +974,7 @@ mod tests {
 
     /// Spawn an asteroid the way the scenario does: the base bundle's
     /// dynamic rigid body plus the asteroid components, minus render bits.
-    fn spawn_asteroid(app: &mut App, radius: f32, surface_gravity: Option<f32>) -> Entity {
+    fn spawn_asteroid(app: &mut App, radius: f32, mass: Option<f32>) -> Entity {
         app.world_mut()
             .spawn((
                 RigidBody::Dynamic,
@@ -979,7 +984,7 @@ mod tests {
                     radius,
                     texture: AssetRef::default(),
                     health: 100.0,
-                    surface_gravity,
+                    mass,
                     invulnerable: false,
                     lock_signature: None,
                 }),
@@ -999,9 +1004,15 @@ mod tests {
         let small = spawn_asteroid(&mut app, 2.0, None);
         app.update();
 
+        // The default mass, through the same constructor the observer uses:
+        // this stand-in's BodyRadius is the NOMINAL 20u (the real pipeline
+        // derives 70-120u from the mesh), small enough that the escapability
+        // cap trims the default mass - which is the wiring being pinned here,
+        // not the numbers.
         let well = app.world().get::<GravityWell>(big).expect("big rock well");
-        assert_eq!(well.mu, settings.default_surface_gravity * 400.0);
-        assert_eq!(well.soi_radius, settings.soi_factor * 20.0);
+        let expected = GravityWell::from_mass(settings.default_mass, 20.0, &settings);
+        assert_eq!(well.mu, expected.mu);
+        assert_eq!(well.soi_radius, expected.soi_radius);
         assert!(
             app.world().get::<GravityWell>(small).is_none(),
             "field rocks below the radius threshold stay flat space"
@@ -1031,20 +1042,20 @@ mod tests {
     }
 
     #[test]
-    fn an_authored_surface_gravity_overrides_the_threshold_and_is_capped() {
+    fn an_authored_mass_overrides_the_threshold_and_is_capped() {
         let mut app = gravity_app();
         let settings = GravitySettings::default();
         // Authored well on a rock below the threshold: still a well.
-        let small = spawn_asteroid(&mut app, 2.0, Some(1.0));
-        // Authored strength beyond the guardrail: capped, not honored.
-        let hot = spawn_asteroid(&mut app, 20.0, Some(50.0));
+        let small = spawn_asteroid(&mut app, 2.0, Some(4.0));
+        // Authored mass beyond the guardrail: capped, not honored.
+        let hot = spawn_asteroid(&mut app, 20.0, Some(500_000.0));
         app.update();
 
         let small_well = app
             .world()
             .get::<GravityWell>(small)
             .expect("authored well");
-        assert_eq!(small_well.mu, 1.0 * 4.0);
+        assert_eq!(small_well.mu, 4.0);
         let hot_well = app.world().get::<GravityWell>(hot).expect("capped well");
         assert_eq!(hot_well.mu, settings.max_surface_gravity * 400.0);
     }

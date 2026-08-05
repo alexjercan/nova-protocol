@@ -395,7 +395,7 @@ fn a_nested_dep_ref_is_rewritten() {
                             radius: 2.0,
                             texture: "dep://art/textures/rock.png",
                             health: 50.0,
-                            surface_gravity: None,
+                            mass: None,
                             invulnerable: false,
                             lock_signature: None,
                         )),

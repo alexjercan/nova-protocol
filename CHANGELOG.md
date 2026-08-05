@@ -14,6 +14,16 @@ tagged **(breaking)**.
 
 ## [Unreleased]
 
+### Gameplay & Flight
+
+- **(breaking)** Gravity wells are authored by MASS, not surface gravity:
+  `AsteroidConfig::surface_gravity` becomes `mass` (the `mu` in `a = mu / r^2`)
+  and the sphere of influence is where that pull decays to the new
+  `GravitySettings::soi_cutoff_accel`, so a body's reach no longer multiplies
+  its noise-mesh radius - the same rock is the same well on every seed instead
+  of swinging 1.7x. `soi_factor` and `default_surface_gravity` are gone; a mod
+  authoring `surface_gravity` loses that setting silently.
+
 ### Scenarios & Objectives
 
 - **(breaking)** Scenario lighting is authored content: a new `Light` scenario
@@ -25,10 +35,11 @@ tagged **(breaking)**.
 
 ### Modding & Mod Portal
 
-- Portal republish so installed copies actually get the relit scenarios:
-  Gauntlet Run `1.3.0 -> 1.4.0`, The Ledger `1.14.0 -> 1.15.0`. The Mods screen
-  offers an Update on a version-string mismatch, so without the bump an
-  installed copy would keep its unlit content and render black.
+- Portal republish so installed copies actually get the relit scenarios and the
+  mass-authored gravity wells: Gauntlet Run `1.3.0 -> 1.5.0`, The Ledger
+  `1.14.0 -> 1.16.0`. The Mods screen offers an Update on a version-string
+  mismatch, so without the bump an installed copy would keep its unlit content
+  and render black, and its wells would silently lose their authored gravity.
 
 ### Internals & Tooling
 

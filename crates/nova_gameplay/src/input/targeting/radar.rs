@@ -548,7 +548,7 @@ mod tests {
                 0 => world
                     .spawn((
                         RigidBody::Static,
-                        GravityWell::from_surface_gravity(3.0, 20.0, &GravitySettings::default()),
+                        GravityWell::from_mass(1200.0, 20.0, &GravitySettings::default()),
                         far,
                     ))
                     .id(),

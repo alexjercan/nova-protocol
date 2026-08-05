@@ -256,7 +256,7 @@ SpawnScenarioObject((
         radius: 20.0,
         texture: "dep://base/textures/asteroid.png",
         health: 2000.0,
-        surface_gravity: Some(6.0),
+        mass: Some(45000.0),
         invulnerable: true,
     )),
 )),

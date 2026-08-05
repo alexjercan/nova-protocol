@@ -398,39 +398,50 @@ fn ships_are_racers_and_the_pirate_is_scavenger_grade() {
     );
 }
 
-/// The layout is authored against the planetoid's RUNTIME geometry
-/// (authored-vs-derived lesson): the noise mesh reaches
-/// ASTEROID_GEOMETRIC_FACTOR_MIN..MAX times the nominal radius - the bounds are
-/// exported by nova_scenario and pinned there by a 256-seed sweep (: the first
-/// cut hardcoded one observed band, 4.0-4.55, and real seeds reach 5.64, which
-/// parked the orbit ring OUTSIDE the old 160u gate: a silent beat-4 softlock).
-/// The SOI is soi_factor(8) times the geometric radius
-/// (GravityWell::from_surface_gravity), and the ORBIT ring parks at
-/// orbit_clearance_factor(1.5) * (body_radius + surface_margin(1)) (flight).
-/// Pin the beat-4 geometry against the WORST seed in the exported range: beacon
-/// 3 inside the smallest SOI, outside the gate; the gate outside the widest
+/// Beat 4's geometry, against the planetoid's ONE SOI and its worst-seed
 /// orbit ring.
+///
+/// The SOI is a property of the authored mass alone
+/// (`sqrt(mu / soi_cutoff_accel)`, GravityWell::from_mass), so it is the same
+/// number on every load - this test used to sweep a 560-960u range because the
+/// old derivation multiplied the geometric radius, which the noise mesh puts
+/// anywhere in ASTEROID_GEOMETRIC_FACTOR_MIN..MAX times the nominal one. That
+/// seed spread still governs the ORBIT ring, which parks at
+/// orbit_clearance_factor(1.5) * (body_radius + surface_margin(1)) off the
+/// GEOMETRIC surface (the authored-vs-derived lesson: an earlier cut hardcoded
+/// an observed 4.0-4.55 band, real seeds reach 5.64, and the ring landed
+/// outside the old 160u gate - a silent beat-4 softlock). So: one SOI, worst
+/// seed for the ring.
 #[test]
-fn beat4_geometry_holds_across_the_derived_radius_range() {
-    const SOI_FACTOR: f32 = 8.0;
+fn beat4_geometry_holds_against_the_planetoid_soi() {
     const ORBIT_CLEARANCE: f32 = 1.5;
     const SURFACE_MARGIN: f32 = 1.0;
 
-    let smallest_soi = SOI_FACTOR * PLANETOID_NOMINAL_RADIUS * ASTEROID_GEOMETRIC_FACTOR_MIN;
-    let largest_soi = SOI_FACTOR * PLANETOID_NOMINAL_RADIUS * ASTEROID_GEOMETRIC_FACTOR_MAX;
+    let gravity = nova_gameplay::prelude::GravitySettings::default();
+    // Mirrors GravityWell::from_mass. The mass is under the escapability cap
+    // on the smallest mesh seed (10 u/s^2 * 70^2 = 49 000), so no clamp bites
+    // and the SOI really is seed-independent - assert that, because a heavier
+    // planetoid would quietly go back to being a per-seed lottery.
+    let smallest_geometric = PLANETOID_NOMINAL_RADIUS * ASTEROID_GEOMETRIC_FACTOR_MIN;
+    assert!(
+        PLANETOID_MASS <= gravity.max_surface_gravity * smallest_geometric * smallest_geometric,
+        "the planetoid's mass ({PLANETOID_MASS}) must stay under the surface-gravity cap \
+         on the SMALLEST mesh seed, or its SOI varies with the seed again"
+    );
+    let soi = (PLANETOID_MASS / gravity.soi_cutoff_accel).sqrt();
     let widest_ring = ORBIT_CLEARANCE
         * (PLANETOID_NOMINAL_RADIUS * ASTEROID_GEOMETRIC_FACTOR_MAX + SURFACE_MARGIN);
 
     // Beacon 3 (the FIRST lock target, beat sheet v2): its GOTO leg is
-    // the gravity-free rehearsal, so it must clear even the worst-seed
-    // SOI - and stay within the DEFAULT beacon lock range of the
+    // the gravity-free rehearsal, so it must clear the SOI - and stay
+    // within the DEFAULT beacon lock range of the
     // debris cluster, where the lesson is taught (BEACON_LOCK_SIGNATURE
     // 20 * signature_range_per_unit 30 = 600u; both cited constants).
     let beacon_3_planetoid = BEACON_3_POS.distance(PLANETOID_POS);
     assert!(
-        beacon_3_planetoid > largest_soi + 40.0,
+        beacon_3_planetoid > soi + 40.0,
         "beacon 3 ({beacon_3_planetoid:.0}u from the planetoid) must clear the \
-         largest plausible SOI ({largest_soi:.0}u)"
+         planetoid SOI ({soi:.0}u)"
     );
     let default_lock_range = 20.0 * 30.0;
     let cluster_to_beacon_3 = DEBRIS_CENTER.distance(BEACON_3_POS);
@@ -440,17 +451,17 @@ fn beat4_geometry_holds_across_the_derived_radius_range() {
          the default beacon lock range ({default_lock_range:.0}u)"
     );
 
-    // Beacon 4 (the waypoint target): inside the smallest SOI with
-    // margin so the ORBIT hint lights on arrival, outside the widest
+    // Beacon 4 (the waypoint target): inside the SOI with margin so
+    // the ORBIT hint lights on arrival, outside the widest
     // orbit ring, and its 70u trigger must stay CLEAR of the coast
     // ring - a player still inside a trigger when its OnEnter beat
     // arms misses the CollisionStart (the already-inside trap, same
     // rule as the crate sensors below).
     let beacon_4_distance = BEACON_4_POS.distance(PLANETOID_POS);
     assert!(
-        beacon_4_distance < smallest_soi * 0.75,
-        "beacon 4 ({beacon_4_distance:.0}u) sits inside the smallest plausible SOI \
-         ({smallest_soi:.0}u) with margin, so the ORBIT hint lights on arrival"
+        beacon_4_distance < soi * 0.75,
+        "beacon 4 ({beacon_4_distance:.0}u) sits inside the SOI \
+         ({soi:.0}u) with margin, so the ORBIT hint lights on arrival"
     );
     assert!(
         beacon_4_distance > widest_ring + 30.0,
@@ -483,43 +494,43 @@ fn beat4_geometry_holds_across_the_derived_radius_range() {
     // The coast ring: outside the widest orbit ring (the held orbit
     // must stay INSIDE the ring, or breaking away could not be
     // detected by OnExit - and a swing outside during capture would
-    // fire it early, though the beat guard eats that), inside the
-    // smallest SOI (the coast is FELT on every seed).
+    // fire it early, though the beat guard eats that), inside the SOI
+    // (the coast is FELT).
     assert!(
         COAST_RING_RADIUS > widest_ring + 20.0,
         "the coast ring ({COAST_RING_RADIUS}u) clears the widest orbit ring \
          ({widest_ring:.0}u)"
     );
     assert!(
-        COAST_RING_RADIUS < smallest_soi - 50.0,
-        "the coast ring ({COAST_RING_RADIUS}u) sits well inside the smallest SOI \
-         ({smallest_soi:.0}u)"
+        COAST_RING_RADIUS < soi - 50.0,
+        "the coast ring ({COAST_RING_RADIUS}u) sits well inside the SOI \
+         ({soi:.0}u)"
     );
 
     // The derelict: a DYNAMIC body - inside the SOI it would fall into
     // the planetoid; it must hold still by the old salvage field.
     let derelict_distance = DERELICT_POS.distance(PLANETOID_POS);
     assert!(
-        derelict_distance > largest_soi + 40.0,
+        derelict_distance > soi + 40.0,
         "the derelict ({derelict_distance:.0}u from the planetoid) must clear the \
-         largest plausible SOI ({largest_soi:.0}u)"
+         planetoid SOI ({soi:.0}u)"
     );
 
     // Playtest round 2 finding 1: the debris cluster (and every crate
-    // in it) must sit OUTSIDE the worst-seed SOI - the salvage beat is
+    // in it) must sit OUTSIDE the SOI - the salvage beat is
     // flown by hand, and fighting gravity while weaving crates reads
     // as a bug, not a challenge.
     let cluster_distance = DEBRIS_CENTER.distance(PLANETOID_POS);
     assert!(
-        cluster_distance > largest_soi + 40.0,
+        cluster_distance > soi + 40.0,
         "the debris cluster ({cluster_distance:.0}u from the planetoid) must clear \
-         the largest plausible SOI ({largest_soi:.0}u)"
+         the planetoid SOI ({soi:.0}u)"
     );
     for (i, crate_pos) in CRATE_POSITIONS.iter().enumerate() {
         let distance = crate_pos.distance(PLANETOID_POS);
         assert!(
-            distance > largest_soi + 40.0,
-            "crate_{} ({distance:.0}u) sits outside the largest plausible SOI \
+            distance > soi + 40.0,
+            "crate_{} ({distance:.0}u) sits outside the SOI \
              with margin",
             i + 1
         );

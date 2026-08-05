@@ -106,7 +106,7 @@ pub fn asteroid(
             radius,
             texture: game_assets.asteroid_texture.clone().into(),
             health,
-            surface_gravity: None,
+            mass: None,
             invulnerable: false,
             lock_signature,
         }),

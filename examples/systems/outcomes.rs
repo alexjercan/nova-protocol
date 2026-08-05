@@ -281,7 +281,7 @@ fn outcome_probe_a(game_assets: &GameAssets, sections: &GameSections) -> Scenari
                         radius: 2.0,
                         texture: game_assets.asteroid_texture.clone().into(),
                         health: 60.0,
-                        surface_gravity: None,
+                        mass: None,
                         invulnerable: false,
                         lock_signature: Some(1000.0),
                     }),

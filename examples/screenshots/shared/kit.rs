@@ -197,7 +197,7 @@ impl NearField {
                     // No wells in the dressing: a near-field rock strong enough
                     // to pull the posed subject would drift it out of frame
                     // over a capture run.
-                    surface_gravity: None,
+                    mass: None,
                     invulnerable: false,
                     lock_signature: None,
                 }),

@@ -73,7 +73,7 @@ fn sandbox_objects(
                 radius,
                 texture: AssetRef::from(asteroid_texture.clone()),
                 health: 100.0,
-                surface_gravity: None,
+                mass: None,
                 invulnerable: false,
                 lock_signature: None,
             }),
@@ -99,7 +99,7 @@ fn sandbox_objects(
             radius: 55.0,
             texture: AssetRef::from(asteroid_texture),
             health: 100.0,
-            surface_gravity: Some(40.0),
+            mass: Some(300_000.0),
             invulnerable: true,
             lock_signature: None,
         }),
@@ -198,8 +198,8 @@ mod tests {
                 assert!(a.invulnerable, "the planetoid is scenery, not a target");
                 assert!(a.radius >= 40.0, "the planetoid is large");
                 assert_eq!(
-                    a.surface_gravity,
-                    Some(40.0),
+                    a.mass,
+                    Some(300_000.0),
                     "the planetoid is an explicit gravity well"
                 );
             }

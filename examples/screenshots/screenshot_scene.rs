@@ -56,10 +56,12 @@ const PLANETOID_POSITION: Vec3 = Vec3::new(170.0, -95.0, -560.0);
 /// units across and read as a pebble). The generated rock reaches well past its
 /// nominal radius, so 30 units here draws a body roughly 120 across.
 const PLANETOID_RADIUS: f32 = 30.0;
-/// Deliberately weak (the default is 6.0). These shots illustrate gravity, so
-/// the body in them is a real well - but at full strength it would haul the
-/// posed set out of frame during a long look.
-const PLANETOID_GRAVITY: f32 = 0.3;
+/// The body's mass parameter (mu, u^3/s^2), deliberately weak: these shots
+/// illustrate gravity, so the body in them is a real well - but at the default
+/// 45 000 it would haul the posed set out of frame during a long look. Reach
+/// follows strength now, so a weak well is also a SHORT one: the SOI is 156u,
+/// and nothing posed further out than that is inside it.
+const PLANETOID_MASS: f32 = 6_000.0;
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
@@ -183,7 +185,7 @@ fn planetoid(game_assets: &GameAssets) -> EventActionConfig {
             health: 5000.0,
             impact_sound: None,
             destroy_sound: None,
-            surface_gravity: Some(PLANETOID_GRAVITY),
+            mass: Some(PLANETOID_MASS),
             invulnerable: true,
             lock_signature: None,
         }),

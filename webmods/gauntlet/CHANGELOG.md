@@ -3,6 +3,15 @@
 All notable changes to the Gauntlet Run mod. Versions are the `meta.version`
 in `gauntlet.bundle.ron`; the portal keeps every published version.
 
+## 1.5.0
+
+- The act-3 gravity well is authored by MASS, matching the base game's new
+  gravity rules: one number now sets both how hard the well pulls and how far
+  it reaches. The well pulls as hard as it did, over a shorter range - so the
+  sling is a tighter, later commitment than it was, and the racing line past it
+  is more forgiving. Required: the old `surface_gravity` field no longer
+  exists, and a copy still authoring it would race past a dead well.
+
 ## 1.2.0
 
 - Re-skin onto the base-game racer/cargo prototypes now that ships are reusable

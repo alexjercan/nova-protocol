@@ -656,7 +656,7 @@ mod tests {
         let well = world
             .spawn((
                 Position(Vec3::ZERO),
-                GravityWell::from_surface_gravity(3.0, 20.0, &gravity),
+                GravityWell::from_mass(1200.0, 20.0, &gravity),
             ))
             .id();
         let ship = world

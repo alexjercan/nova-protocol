@@ -409,15 +409,15 @@ fn on_start_stages_the_course() {
         "the player flies the racer (got {racer_cubes} racer cubes)"
     );
 
-    // The gravity well is an authored well (surface_gravity), invulnerable so it
+    // The gravity well is an authored well (mass), invulnerable so it
     // can never die mid-run.
     let well = spawn_by_id(start, "gravity_well");
     let ScenarioObjectKind::Asteroid(rock) = &well.kind else {
         panic!("gravity_well is an asteroid");
     };
     assert!(
-        rock.surface_gravity.is_some(),
-        "the gravity well authors a surface_gravity so it actually pulls"
+        rock.mass.is_some(),
+        "the gravity well authors a mass so it actually pulls"
     );
     assert!(
         rock.invulnerable,

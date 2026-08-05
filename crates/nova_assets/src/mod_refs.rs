@@ -391,7 +391,7 @@ mod tests {
                                 radius: 2.0,
                                 texture: "self://textures/rock.png",
                                 health: 50.0,
-                                surface_gravity: None,
+                                mass: None,
                                 invulnerable: false,
                                 lock_signature: None,
                             )),

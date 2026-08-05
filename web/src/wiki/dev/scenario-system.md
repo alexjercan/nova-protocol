@@ -464,8 +464,11 @@ end to end:
 All share `BaseScenarioObjectConfig` (id, name, position, rotation) and spawn
 scoped, interpolated, dynamic bodies via `base_scenario_object`.
 
-- `Asteroid(AsteroidConfig)` - radius, texture, health, `surface_gravity`
-  override, `invulnerable` (no health node, so its gravity well cannot die),
+- `Asteroid(AsteroidConfig)` - radius, texture, health, `mass` (the body's
+  `mu`: it alone sets both the pull `a = mu / r^2` and the sphere of influence,
+  the distance where that decays to `GravitySettings::soi_cutoff_accel` - so
+  author it by the SOI you want, `mu = soi_cutoff_accel * soi^2`),
+  `invulnerable` (no health node, so its gravity well cannot die),
   `lock_signature` override, and optional per-spawn `impact_sound` /
   `destroy_sound` (`Some("dep://base/sounds/impact.wav")` / `explosion.wav`) so
   a scenario rock can carry its own hit and death audio, the same surface a

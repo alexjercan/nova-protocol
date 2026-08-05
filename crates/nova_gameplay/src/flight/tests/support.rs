@@ -348,29 +348,21 @@ pub(super) fn spawn_orbit_well(app: &mut App) -> Entity {
         .spawn((
             RigidBody::Static,
             Transform::default(),
-            crate::gravity::GravityWell::from_surface_gravity(
-                3.0,
-                20.0,
-                &GravitySettings::default(),
-            ),
+            crate::gravity::GravityWell::from_mass(1200.0, 20.0, &GravitySettings::default()),
         ))
         .id()
 }
 
-/// A STRONG well, like the menu planetoid: surface gravity 6 at a ~85u
-/// geometric radius gives `mu ~= 43000`, so at an r=140 orbit the local
-/// gravity accel `mu/r^2 ~= 2.2 u/s^2` EXCEEDS `rcs_accel` (1.5). The RCS
-/// fine-adjust cannot counter that inward pull.
+/// A STRONG well, like the menu planetoid: `mu = 43350` on a ~85u geometric
+/// radius, so at an r=140 orbit the local gravity accel
+/// `mu/r^2 ~= 2.2 u/s^2` EXCEEDS `rcs_accel` (1.5). The RCS fine-adjust
+/// cannot counter that inward pull.
 pub(super) fn spawn_strong_well(app: &mut App) -> Entity {
     app.world_mut()
         .spawn((
             RigidBody::Static,
             Transform::default(),
-            crate::gravity::GravityWell::from_surface_gravity(
-                6.0,
-                85.0,
-                &GravitySettings::default(),
-            ),
+            crate::gravity::GravityWell::from_mass(43_350.0, 85.0, &GravitySettings::default()),
         ))
         .id()
 }
