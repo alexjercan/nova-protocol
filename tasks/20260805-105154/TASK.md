@@ -126,12 +126,25 @@ supersedes (with its `[[example]]` block in `Cargo.toml` and its entry in
       panic there still fails the run. The ship app is left on its default CTL-1
       selection: `]` re-centres the orbit on the selected section, trading the
       whole-ship read for a closeup.
-- [ ] ONLY NOW, screenshots: frame the 27 beats across the six approved scenes,
+- [x] ONLY NOW, screenshots: frame the 27 beats across the six approved scenes,
       capture into staging, package with
       `python3 scripts/gen-web-screenshots.py`, review every image at its PAGE
       CROP (the site uses `aspect-ratio: 16/9; object-fit: cover`), fix
       rejected framings in the producing example's beat and recapture - never
       hand-fix a PNG - then commit the assets and open the rendered site.
+      -> DONE 2026-08-05. 29 figures (the 27 planned plus the two the NOVA OS
+      scene grew), captured from the six approved scenes into `target/reel` and
+      packaged; the report now lists zero `capturable` gaps. The page crop is a
+      no-op for these: every figure is 1920x1080 into a 16/9 `cover` box, and
+      the script hard-errors on any other shape. No page markup changed - the
+      site's placeholders swap themselves for the real image at runtime once the
+      asset resolves (`web/src/site.ts`). No framing was rejected. Flagged, not
+      fixed here: the screen-indicator labels collide in four shots
+      (`wiki-radar`, `tutorial-radar-lock` stack WAYPOINT over its own distance
+      readout; `feature-autopilot`'s FLIP label sits under the blip;
+      `wiki-flight`'s SURVEY chip overlaps the debug fps/version chip). That is
+      in-game HUD layout, identical in play, not a framing miss - it wants its
+      own task.
 
 ## Definition of Done
 
