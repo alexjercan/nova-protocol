@@ -134,7 +134,7 @@ Paid rules:
 - Tracker/epics: `tatr` records under `tasks/`; `/flow` drives plan -> work -> review -> compound -> land.
 - Examples/retention: declared location -> existing `examples/` or `scripts/` -> task folder -> ask once and cache in the task.
 - Domain docs: durable reference under `web/src/wiki/`; routing map in `web/src/wiki/dev/keeping-docs-in-sync.md`.
-- Research/network: use `/spike`; keep `SPIKE.md` in the task folder; verify current tree before external research.
+- Research/network: use `/understand`; keep `SPIKE.md` in the task folder; verify current tree before external research.
 - Checks/records: proof-bearing DoD (`test:`, `cmd:`, `manual:`); gate with `tatr check`.
 - Knowledge: central repo `/home/alex/personal/agent-knowledge`; project=nova-protocol; tags=rust,bevy,game,protocol. Advisory only; failed writes stay in RETRO.
 

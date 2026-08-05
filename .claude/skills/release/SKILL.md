@@ -43,24 +43,38 @@ release". This skill is that checklist plus the guardrails learned in practice.
   CLOSED)"` returns nothing, or the user explicitly ships with tasks open. For a
   patch release off a prior minor, check that minor's tag instead.
 - **docs/ clean:** `ls docs/` shows only `README.md`. If scratch remains, distil
-  it first (lessons -> `LESSONS.md`, reference -> wiki) then clear everything
-  under `docs/` except its `README.md`.
+  it first (reusable lessons -> `knowledge add` in the central repo, reference
+  -> the wiki) then clear everything under `docs/` except its `README.md`. This
+  is a convention, not a gate: nothing in CI checks it any more, so it only
+  happens if you do it.
 - **What is shipping:** `git log --oneline <lastTag>..HEAD` and
   `git diff --stat <lastTag>..HEAD`. Every user-facing change in that range must
   be reflected in CHANGELOG + news; anything missing gets written now. A change
   that landed without a changelog line is the common gap.
+- **master is green:** `.github/workflows/ci.yaml` owns the test suite (fmt,
+  clippy, `cargo test --workspace --features debug`, the windowed
+  `examples_smoke` run under Xvfb, and the license gate). Confirm the last
+  `master` run passed - `gh run list --workflow=ci --branch master -L 3`. Do not
+  run the full suite locally to substitute for it. If a job is red, cite the job
+  LOG's result line, not the run conclusion.
+- **Fleet probe sweep:** `cargo run -p nova_probe -- run --all` (25-40 min) is
+  the pre-release run-harness check. Read `index.json`, not just the exit code:
+  the aggregate verdict is the WORST row, and a SKIPPED check means UNMEASURED.
+  See the `probe` skill. Skip it only for a docs-only patch release, and say so.
 - **Docs/web current:** sweep the doc surfaces the shipped changes invalidate
   (`web/src/wiki/dev/keeping-docs-in-sync.md` is the map). Then validate the
   site actually builds: `cd web && npm run ci` (format:check + lint + test + build) -
-  this also renders the News markdown, so it catches a malformed post.
+  this also renders the News markdown, so it catches a malformed post. Note
+  `format:check` covers ts/html/js only, NOT markdown - do not run prettier over
+  wiki or news `.md` files, it reformats the whole file as unrelated churn.
 
 ### 2. Version bump + lock
 
 - Edit `workspace.package.version` in root `Cargo.toml` to the new version.
 - Refresh the lock: `nix develop --command cargo metadata --format-version 1
   >/dev/null`, then confirm `grep -A1 'name = "nova-protocol"' Cargo.lock` shows
-  the new version. (No cargo on PATH without the devshell - see
-  `nix-devshell-for-cargo` in LESSONS.)
+  the new version. (No cargo on PATH without the devshell - every cargo command
+  in this repo goes through `nix develop --command`.)
 
 ### 3. CHANGELOG
 
@@ -70,7 +84,8 @@ each - no paragraphs; that is what News is for), leave a fresh empty
 `## [Unreleased]` on top, and fix the compare-links footer: repoint
 `[unreleased]` to `<version>...HEAD` and add `[<version>]:
 .../compare/<lastTag>...<version>`. Write entries FROM THE DIFF, not from memory
-(`keep-docs-in-sync-with-code`, `measure-before-writing-the-number`).
+(central lessons `docs/document-observed-behavior`,
+`docs/update-restatements-with-the-source`).
 
 ### 4. News
 
@@ -120,7 +135,7 @@ to push). Do not push on your own initiative.
 Summarize: the version, what shipped (changelog delta), the release URL, the
 deployed site URL, and anything left for the owner (e.g. Discussions post). If a
 CI job went red, cite the job LOG's result line, not the run conclusion
-(`maskable-ci-conclusions`).
+(central lesson `verification/trust-the-authority-not-the-report`).
 
 ## Guardrails
 

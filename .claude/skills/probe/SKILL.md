@@ -9,9 +9,9 @@ description: Verify a change with the nova_probe run-harness - one command runs 
 one artifact: did the run behave correctly, and what did it cost? It is the
 post-feature check of this repo's SDLC: after implementing a change that
 touches gameplay, probe the affected example(s) and read the report before
-calling the work verified. Built by the 20260719-112011 spike family; design
-rationale lives in `tasks/20260719-112011/SPIKE.md`, user-facing docs in the
-wiki's Performance section (`web/src/wiki/dev/development.md`).
+calling the work verified. Design rationale lives in
+`tasks/20260719-112011/SPIKE.md`; user-facing docs in the wiki's Performance
+section (`web/src/wiki/dev/development.md`).
 
 ## Commands
 
@@ -20,12 +20,12 @@ cargo run -p nova_probe -- run <example>              # clean pass -> report
 cargo run -p nova_probe -- run <example> --profile    # + traced pass (top-N systems)
 cargo run -p nova_probe -- run <example> --samply     # + named flamegraph
 cargo run -p nova_probe -- run <example> --fps        # + DEDICATED capture-only pass
-cargo run -p nova_probe -- run <example> --baseline <old-run-dir>   # FPS deltas
-cargo run -p nova_probe -- run player_path,scenario_grammar      # comma list -> aggregate index
-cargo run -p nova_probe -- run ui                     # a whole PROBED category (today: sections|gameplay|ui|perf; systems|stress once populated; screenshots ERRORS)
+cargo run -p nova_probe -- run <example> --baseline <storage-base>  # FPS deltas
+cargo run -p nova_probe -- run <example> --out <dir>  # storage base (default probe-runs)
+cargo run -p nova_probe -- run player_path,scenario_grammar      # comma list
+cargo run -p nova_probe -- run ui                     # a whole PROBED category
 cargo run -p nova_probe -- run --all                  # the catalog minus unprobed categories and NOT_PROBED
-cargo run -p nova_probe -- run --all --fps --baseline probe-runs/before  # group: per-example baseline root
-cargo run -p nova_probe -- run perf_baseline --fps --release \
+cargo run -p nova_probe -- run scene_baseline --fps --release \
   --render gpu --scenario asteroid_field --preset high --preset low  # perf sweep (matrix)
 cargo run -p nova_probe -- run <scenario> --platform web  # web/WebGPU frame capture
 cargo run -p nova_probe -- report <run-dir> [--baseline <dir>]  # re-render (manifest-gated)
@@ -36,41 +36,81 @@ aliases and the `trace` verb retired at the v0.8.0 cut - retired commands
 error with a pointer to the `run` form; the top-N systems table renders
 inside the report on `--profile` runs and re-renders via `probe report`.)
 
-Multi specs (list, category, `--all`) resolve against the `[[example]]`
-catalog in the root Cargo.toml, run SEQUENTIALLY with continue-on-failure
-(one hung example FAILs its row, the sweep keeps going), and write an
-aggregate above the per-example run dirs: `index.html`, `index.json` (the
-agent surface: one file answers "does everything still work"), and
-`probe-all.json` (the gate). The aggregate verdict is the WORST row and
-the exit code mirrors it; each row shows verdict + measured n/total + the
-six check statuses + a link to that example's own report. `--all` skips
-unprobed CATEGORIES (recorded once by category) and the per-EXAMPLE
-NOT_PROBED list - two orthogonal axes, each entry carrying its reason into
-the report's "Not probed (deliberately)" list;
-bare `probe run` errors with the catalog instead of accidentally starting
-a 30-minute fleet sweep. Expect a category to take single-digit minutes
-warm and `--all` 25-40 min - categories are the everyday unit, `--all`
-the pre-release/nightly sweep.
+Also: `--timeout <secs>` (default 180), `--display <:N>` to reuse an existing
+X display, `--render gpu|sw` (`sw` = the lavapipe software floor, NOT a web
+stand-in), `--platform native|web`.
+
+## Categories - what probe does with each
+
+The `[[example]]` catalog in the root Cargo.toml is the single source of
+truth; the RUN POLICY per category is `CATEGORY_POLICIES` in
+`crates/nova_probe/src/catalog.rs`, two booleans each:
+
+| Category | probed | frame_time (`--fps`) | Examples |
+|---|---|---|---|
+| `sections/` | yes | no | controller, thruster, hull, turret, torpedo |
+| `systems/` | yes | no | scenario_grammar, player_path, outcomes |
+| `stress/` | yes | **YES** | scene_baseline, many_bodies, many_sections, many_projectiles |
+| `ui/` | yes | no | widget_zoo, editor, hud_range, menu_newgame, menu_scenarios |
+| `screenshots/` | **no** | no | the seven `screenshot_*` + render_scale_shot |
+
+`stress/` is the ONLY frame-time category. Everywhere else `--fps` runs the
+clean + profiled CORRECTNESS passes and the report records WHY the frame-time
+section is empty ("category `ui/` carries no frame-time pass") instead of
+hard-timing-out on a window the example was never built to fill. If your
+example needs a frame-time number, it belongs in `stress/`.
+
+`screenshots/` is out of probe's scope entirely: `--all` skips it and records
+the absence, and a bare `probe run screenshots` ERRORS rather than expanding
+to an empty run. `tests/examples_smoke.rs::every_category_has_a_probe_policy`
+fails a category with no policy row, so a new category is a compile-time
+decision, not a silent default.
+
+Two orthogonal skip axes, each carrying its reason into the report's "Not
+probed (deliberately)" list: unprobed CATEGORIES (recorded once by category)
+and the per-EXAMPLE `NOT_PROBED` list (`crates/nova_probe/src/bin/probe/
+native/spec.rs` - today only `render_scale_shot`, which needs a real GPU and
+human eyes). An explicit `probe run <name>` still runs a NOT_PROBED example,
+with a printed note.
+
+## Specs, run dirs, and baselines
+
+Bare `probe run` ERRORS with the catalog listing instead of accidentally
+starting a 30-minute fleet sweep. Multi specs (comma list, category, `--all`)
+run SEQUENTIALLY with continue-on-failure - one hung example FAILs its row and
+the sweep keeps going. Expect a category to take single-digit minutes warm and
+`--all` 25-40 min: categories are the everyday unit, `--all` the
+pre-release/nightly sweep.
+
+Runs write to `<--out|probe-runs>/<short-commit>/<example>/`, SURGICALLY
+CLEANED of probe's own artifacts at start (nothing stale survives into a
+report). The commit-keyed layer is what makes baselines work; the aggregate
+(`index.html`, `index.json`, `probe-all.json`) is written ABOVE the per-example
+dirs **even for a single example**, so `index.json` is always the one file that
+answers "does everything still work". The aggregate verdict is the WORST row
+and the exit code mirrors it; each row shows verdict + measured n/total + the
+six check statuses + a link to that example's own report.
+
+`--baseline` names a STORAGE BASE, not a run dir: probe searches it for the
+nearest previous commit dir and compares each example against
+`<base>/<commit>/<example>/` when that has a `frametime.csv`. Without
+`--baseline` it searches the `--out` base, or `probe-runs` - so a repeat run on
+a new commit picks up its own predecessor automatically.
+
+Per run dir: `probe-run.json` (the manifest: identity, passes, exit/timeout
+outcomes), `timeline.jsonl`, `run.log` (or `run-<n>.log` per sweep cell),
+`report.html`, `checks.json`, plus `trace.json`/`trace-run.log` (--profile),
+`samply-profile.json.gz` (--samply), `frametime.csv` (--fps on a stress
+example, or the sweep/web captures), `web-run.log` (--platform web). Exit code
+mirrors the verdict (FAIL and NO_DATA = 1). Probe spawns its own Xvfb
+(pid-derived display) and times out hung runs - a timed-out run still produces
+a FAILing report.
 
 `report` REFUSES dirs without `probe-run.json` (or `probe-all.json` for an
-aggregate dir - its rows are re-read fresh from each run's checks.json) -
-a report can only be built from dirs probe itself produced, so stale
-hand-assembled folders cannot impersonate a run. Sweeps run with
-`--release` (dev-profile frame numbers are not baselines - the report
-badges each frame row's build profile) and `--render sw` gives the
-lavapipe software floor.
-
-`run` writes to `probe-runs/<example>/` (gitignored), SURGICALLY CLEANED of
-probe's own artifacts at start (nothing stale survives into a report):
-`probe-run.json` (the manifest: identity, passes, exit/timeout outcomes),
-`timeline.jsonl`, `run.log` (or `run-<n>.log` per sweep cell),
-`report.html`, `checks.json`, plus `trace.json`/`trace-run.log` (--profile),
-`samply-profile.json.gz` (--samply), `frametime.csv` (--fps on a wired
-example, or the sweep/web captures), `web-run.log` (--platform web). Exit
-code mirrors the verdict (FAIL and NO_DATA = 1). It spawns its own Xvfb
-(pid-derived display; `--display :0` to reuse one) and times out hung runs
-(`--timeout <s>`, default 180) - a timed-out run still produces a FAILing
-report.
+aggregate dir - its rows are re-read fresh from each run's checks.json), so
+stale hand-assembled folders cannot impersonate a run. Sweeps run with
+`--release` (dev-profile frame numbers are not baselines - the report badges
+each frame row's build profile).
 
 Runs are PROFILE-SANDBOXED: the child gets an empty, probe-owned profile under
 `<run-dir>/profile/` (`NOVA_MOD_CACHE_ROOT`, `XDG_DATA_HOME`,
@@ -113,24 +153,27 @@ which is how you deliberately probe your real installed mods.
   inconvenience - read the timeline around the failing frame.
 - **Bug tasks (reproduce first)**: probe the reporting scenario BEFORE the
   fix - the timeline is the diagnosis evidence (states, events with
-  payloads, variable old/new around the failure). Keep the pre-fix run dir;
-  probe again after; cite both in TASK.md. Strict invariants
+  payloads, variable old/new around the failure). Probe again after; cite both
+  commit dirs in TASK.md. Strict invariants
   (`NOVA_PERF_INVARIANTS=strict` on a manual run) panic at the moment of
   corruption when you need the exact frame.
 - **Perf tasks (measure first)**: run the sweep matrix before and after the
-  change into separate run dirs, then `probe report <after> --baseline
-  <before>` for the delta table. Use `--profile` (+ `--samply`) to RANK
-  suspects before optimizing anything; the ledger's perf lessons
-  (quiet-host-before-measuring, isolate-the-lever) still apply.
+  change, then `probe report <after> --baseline <base>` for the delta table.
+  Use `--profile` (+ `--samply`) to RANK suspects before optimizing anything.
+  A dev build is not a release proof, and the host must be quiet before any
+  number is written down.
 - **/review**: when the implementer cites a probe verdict, open checks.json
   and read `measured` first, then the SKIPPED rows - what was NOT measured
-  is the first thing to challenge. For perf claims, confirm same-label baselines and a quiet host.
+  is the first thing to challenge. For perf claims, confirm same-label
+  baselines and a quiet host.
+- **Release**: `probe run --all` is the pre-release sweep (see the `release`
+  skill's pre-flight).
 - **New examples**: wiring is three inert lines -
   `app.add_plugins(nova_probe::nova_timeline())`,
   `nova_probe::nova_invariants()` and `nova_probe::nova_frametime()` -
   every cataloged example carries them (fleet wiring, 20260719-210443).
   Monotonic variables (`.monotonic([...])`, only what the scenario DESIGN
-  promises one-way) and `probe_marker` beats are the depth pass (T3).
+  promises one-way) and `probe_marker` beats are the depth pass.
 
 ## Wired today
 
@@ -141,55 +184,37 @@ real-GPU pixel capture). Depth beyond the generic checks:
 | Example | extra depth |
 |---|---|
 | systems/scenario_grammar | monotonics: beat, rocks_destroyed, round, area_entries, area_exits, escort_neutralized, ring_cleared |
-| systems/player_path | monotonics: target_down, leg + 7 beat markers |
-| systems/outcomes | monotonic: hostile_down + 4 distinct beat markers, 6 per cycle (kill -> defeat overlay -> activate -> kill -> activate -> done) |
-| gameplay/broadside | a marker per script stage (11: picker -> defeat -> Retry -> acts -> victory) |
-| sections/* | one `outcome: <slug>` marker per asserted invariant, 27 across the five ranges, pinned by `sections_assert_their_invariant_roster` |
-| perf/perf_baseline | combat-burst fps driver (the sweep scene) |
+| systems/player_path | monotonics: target_down, leg + per-beat markers |
+| systems/outcomes | monotonic: hostile_down + distinct beat markers per cycle (kill -> defeat overlay -> activate -> kill -> activate -> done) |
+| sections/* | one `outcome: <slug>` marker per asserted invariant, **27** across the five ranges, pinned both ways by `sections_assert_their_invariant_roster` (tests/examples_smoke.rs): a roster slug with no marker is a removed invariant, a marker with no slug is one added without saying so |
+| stress/* | stage markers (setup/steady/teardown) around the measured window; `scene_baseline` is the unmarked reference scene |
 
 The ui/ flows carry no extra markers on purpose: they are state-transition
 shaped, and the generic timeline already records every transition.
 
-Probe addresses examples by NAME (`probe run scenario_grammar`); categories come
-from `examples/<category>/` (catalog in the root Cargo.toml). `--fps` runs
-a DEDICATED capture-only pass (task 20260720-000616) - the clean pass
-never arms the capture (the recorder's per-entry flush contaminated
-fps-on-clean numbers), and the completion protocol keeps the app alive
-until the window closes. Enrolled scenes (the systems/ runs - `loop_from`)
-RELOAD and replay while the capture fills, so the window measures activity;
-reload intervals are EXCLUDED from the stats
-(their count is host-speed-dependent) and reported as their own line
-("3 scene reloads - mean/max ms"). Frame rows carry their build profile
-(schema v3); dev rows are labeled NOT a baseline - baselines come from
-`--release` runs.
+Probe addresses examples by NAME (`probe run scenario_grammar`); categories
+come from `examples/<category>/`. `--fps` runs a DEDICATED capture-only pass -
+the clean pass never arms the capture (the recorder's per-entry flush
+contaminated fps-on-clean numbers), and the completion protocol keeps the app
+alive until the window closes. Enrolled scenes RELOAD and replay while the
+capture fills, so the window measures activity; reload intervals are EXCLUDED
+from the stats (their count is host-speed-dependent) and reported as their own
+line ("3 scene reloads - mean/max ms"). Frame rows carry their build profile
+(schema v3); dev rows are labeled NOT a baseline.
 
-Which runs get the capture pass is CATEGORY POLICY, not a per-example opt-out
-(there is no `fps_exempt` list any more). Only a frame-time category carries
-`--fps`: `stress/`, plus `perf/` until it is absorbed. Everywhere else `--fps`
-runs the clean + profiled CORRECTNESS passes and the report records WHY the
-frame-time section is empty ("category `ui/` carries no frame-time pass")
-instead of hard-timing-out on a window the example was never built to fill.
-An UNPROBED category (`screenshots/`) is out of probe's scope entirely:
-`--all` skips it and records the absence, and a bare `probe run screenshots`
-ERRORS rather than expanding to an empty run. The table is
-`CATEGORY_POLICIES` in `crates/nova_probe/src/catalog.rs`;
-`tests/examples_smoke.rs::every_category_has_a_probe_policy` fails a category
-with no row. If your example needs a frame-time number, it belongs in
-`stress/`.
+The capture window is ONE window - `DEFAULT_WARMUP_FRAMES` 180 /
+`DEFAULT_CAPTURE_FRAMES` 900 (`crates/nova_probe/src/capture.rs`) for every run
+that captures at all, so probe numbers stay comparable with the sweep's. Your
+own `NOVA_PERF_WARMUP`/`NOVA_PERF_FRAMES` always win.
 
-The capture window is ONE window - the capture crate's full 180/900 baseline
-for every run that captures at all, so probe numbers stay comparable with the
-sweep's. Your own `NOVA_PERF_WARMUP`/`NOVA_PERF_FRAMES` always win.
-
-The completion deadline is SIZED to the fps window, not a flat 120s (task
-20260720-115935): probe sets `NOVA_AUTOPILOT_DEADLINE` for the fps pass to
-`(warmup + frames) / ~2fps + margin`, so a legitimately-slow capture (a heavy
-scene in a dev build under software rendering) COMPLETES instead of tripping
-the hang detector - `perf_baseline --fps` in dev no longer false-FAILs on the
-deadline. A genuine hang still fails, at a window-appropriate bound; your own
-`NOVA_AUTOPILOT_DEADLINE` overrides it. Every example's `main` returns `AppExit`,
-so a deadline expiry (or any harness error-exit) is a NON-ZERO process exit
-that `process_exit` reports - not just a log-scan flag.
+The completion deadline is SIZED to the fps window, not a flat 120s: probe sets
+`NOVA_AUTOPILOT_DEADLINE` for the fps pass to `(warmup + frames) / ~2fps +
+margin`, so a legitimately-slow capture (a heavy scene in a dev build under
+software rendering) COMPLETES instead of tripping the hang detector. A genuine
+hang still fails, at a window-appropriate bound; your own
+`NOVA_AUTOPILOT_DEADLINE` overrides it. Every example's `main` returns
+`AppExit`, so a deadline expiry (or any harness error-exit) is a NON-ZERO
+process exit that `process_exit` reports - not just a log-scan flag.
 
 ## Host knobs (flamegraphs)
 

@@ -10,7 +10,9 @@ open backlog, reconcile it against the goal, close what is dead, create or merge
 what the goal needs, and leave behind a release **tracker task** plus a tagged,
 prioritized, estimated member set - then STOP and wait for kickoff. This skill
 owns the SCOPING pass only. Per-task Definition of Done, Steps, and any spikes
-are the NEXT pass (`/plan`, `/spike`, `/flow`), run on the user's explicit go.
+are the NEXT pass (`/understand` for a spike, then `/plan`, then `/flow`), run
+on the user's explicit go. There is no `/spike` skill - investigation lives in
+`/understand`, which scaffolds the task's `SPIKE.md`.
 
 This is the release-level front half of `/flow`: `/flow` step 1-2 is "pin the
 goal, plan into tasks, gate". Here the "plan" is backlog grooming + a tracker,
@@ -24,11 +26,15 @@ and the gate is the awaiting-kickoff pause.
   (`feature`,`bug`,`hud`,...) come on top. Pulling a backlog task into a release
   = swap the tag, re-slot the priority.
 - **The previous release tracker** - the format precedent. Find it with
-  `tatr ls -f ':tags contains meta'` (or grep prior `vX.Y.Z, release, meta`
-  tasks). The v0.8.0 tracker (`20260720-142428`) is the reference shape.
-- **`LESSONS.md`** - grep it for the goal's subsystem words; note traps the
-  release should respect (e.g. `inseparable-seeded-tasks-remerge`,
-  `outcome-is-last-write-wins-close-the-act`).
+  `tatr ls -f ':tags contains meta'`. Reference shapes: `20260724-083631`
+  (v0.9.0, a full feature release) and `20260802-000300` (v0.9.1, the lighter
+  patch shape).
+- **The central knowledge repo** (`/home/alex/personal/agent-knowledge`) -
+  `knowledge list`, then `knowledge show <type>/<slug>` on anything matching the
+  goal's subsystem words. The planning/ lessons are the relevant family here
+  (`a-planned-proof-must-name-a-real-command`, `every-consequence-needs-a-step`,
+  `rejected-alternatives-are-requirements`). Advisory only - an unavailable
+  knowledge repo never blocks the grooming.
 
 ## Steps
 
@@ -86,16 +92,18 @@ On confirmation:
   paragraph of context; leave DoD/Steps light - the next pass authors them. Tag
   them into the release directly (or `backlog` if they are out-of-scope
   follow-ups surfaced during triage). One `tatr new` per Bash call.
-- **Merge** inseparable pairs: close the secondary (`tatr edit <id> -s CLOSED`),
-  append a note to BOTH (the closed one points to the survivor; the survivor
-  records what it absorbed), per `inseparable-seeded-tasks-remerge`.
-- **Close** the agreed stale tasks. Append a `## Closed (<date>, <reason>)` note
-  to each explaining WHY (wontdo / superseded / wrong-repo / premise-removed).
-  Then keep `tatr check` clean WITHOUT lying: a CLOSED task with unchecked
-  `- [ ]` Steps trips `closed-unchecked`. The work is not done, so do NOT tick
-  the boxes - convert the moot checkboxes to plain bullets instead
-  (`sed -i 's/^\(\s*\)- \[ \] /\1- /' tasks/<id>/TASK.md`). Honest reporting over
-  a green check.
+- **Merge** inseparable pairs: close the secondary with
+  `tatr close -x SUPERSEDED -O <survivor-id> <id>`, and append a note to BOTH
+  (the closed one points to the survivor; the survivor records what it
+  absorbed). Two tasks that are one architecturally inseparable question will
+  re-merge on their own during work - do it here, on purpose, instead.
+- **Close** the agreed stale tasks with a resolution, never by hand-editing
+  status: `tatr close -x WONTDO -R "<why>" <id>` (dead / premise-removed /
+  wrong-repo), `-x SUPERSEDED -O <id>` (a chosen alternative shipped), or
+  `-x DUPLICATE -O <id>`. Append a `## Closed (<date>, <reason>)` note spelling
+  out WHY. Never tick undone Steps to make a lint go green - the work is not
+  done, and honest reporting beats a green check. New tasks do not get
+  `tasks/EXEMPTIONS.md` entries; that list is historical records only.
 - **Retag + prioritize + estimate** the member set: for each,
   `tatr edit <id> -t vX.Y.Z,<topical...> -p <priority>`. Priority encodes ORDER
   (higher = earlier / gates more); slot the gate spikes highest, independent
@@ -118,9 +126,10 @@ On confirmation:
 - **Out of scope** - the backlog tasks NOT pulled, and the ones closed this
   pass, each with a one-line reason.
 - **Planning - next step (pending owner OK)** - explicitly list what this skill
-  did NOT do: spike the gate task(s), author per-task DoD + Steps via `/plan`
-  (each item naming its proof `test:`/`cmd:`/`manual:`), decide the stretch
-  in/out once the headline's real size is known, then the `/flow` gate.
+  did NOT do: spike the gate task(s) via `/understand`, author per-task DoD +
+  Steps via `/plan` (each item naming its proof `test:`/`cmd:`/`manual:`, and a
+  proof must name a REAL command), decide the stretch in/out once the
+  headline's real size is known, then the `/flow` gate.
 - **Definition of done (release-level; filled at planning)** - a skeleton, one
   bullet per strand, authored properly in the next pass. Do NOT invent DoD here.
 - **Grooming history** - a dated entry recording the triage: what was closed,
@@ -132,16 +141,19 @@ Note in the tracker that THIS project's release convention is the
 ### 7. Verify and pause at awaiting-kickoff
 
 - `tatr ls -s priority -f ":tags contains vX.Y.Z"` - confirm the set reads right.
-- `tatr check` - clean up any `closed-unchecked`/`malformed-header` findings you
-  introduced (per step 5).
+- `tatr check` - the tree is not clean baseline-wide (hundreds of historical
+  records sit behind `tasks/EXEMPTIONS.md`), so diff against what you found:
+  fix only findings YOU introduced. The live rules are `bad-record-schema`,
+  `bad-proof-syntax`, `inconsistent-gates`, `closed-missing-review`,
+  `closed-missing-retro`, `unused-exemption`.
 - Report: the theme, the member table (task | strand | prio | size), what was
   closed/merged/created, and the sequencing (what gates what).
 - The tracker + task changes are UNCOMMITTED in the main checkout. Offer to
   commit just the `tasks/` paths (stage explicit paths, never `git add -A` in
   the shared checkout); committing is the user's call.
-- **STOP.** Do not `/spike`, `/plan`, `/work`, or sprout anything. Wait for the
-  user's explicit kickoff ("start the spike", "plan it", "go") before the next
-  pass.
+- **STOP.** Do not `/understand`, `/plan`, `/work`, or sprout anything. Wait for
+  the user's explicit kickoff ("start the spike", "plan it", "go") before the
+  next pass.
 
 ## Guardrails
 
@@ -150,7 +162,8 @@ Note in the tracker that THIS project's release convention is the
 - Never close on your own judgment - recommend, then close on the user's yes.
   Creating new tasks to fill a genuine goal gap does not need a separate yes; it
   is the point of the skill.
-- Never tick undone Steps to satisfy `tatr check`; de-checkbox moot ones.
+- Never tick undone Steps to satisfy `tatr check`. Close with a resolution
+  (`tatr close -x ...`) and let the record say the work stopped.
 - Honor the one-scheduling-tag rule and relative priorities (AGENTS.md).
 - Keep the trail on disk: closes carry a reason note, the tracker carries the
   grooming history, so the scoping is resumable from the files alone.
