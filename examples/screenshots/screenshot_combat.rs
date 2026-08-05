@@ -1,9 +1,11 @@
 //! screenshot_combat: "Rock hollow" - the combat and HUD set.
 //!
 //! A clearing inside a dense rock shell. The player's racer sits in the middle
-//! with a derelict raider parked ahead of it (the lock subject and the ship
-//! that loses a section on camera), two friendly racers hold the flanks, and a
-//! hostile pair works the far side of the hollow. It replaces the old
+//! with a raider drifting ahead of it (the lock subject, the ship its guns
+//! shoot, and the one that loses a section on camera), two friendly racers
+//! working the near flanks and a hostile pair across the hollow - all four
+//! flying waypoint routes until the engage grace runs out, so the set is in
+//! motion before the first shot. It replaces the old
 //! `screenshot_combat` range (three primitive blocks on an empty backdrop) and
 //! absorbs `screenshot_juice`, whose scripted section blow is one beat here.
 //!
@@ -18,7 +20,12 @@
 //! never connect at that range - 45 seconds of continuous fire took zero
 //! sections off. So the AI pairs are the set's live background - tracer streams
 //! and moving hulls - while every close beat is authored: the lock subject is
-//! PARKED, and the destruction is scripted through the real damage path.
+//! not AI-flown (it drifts on a nudged velocity), and the destruction is
+//! scripted through the real damage path.
+//!
+//! The player's guns are REAL input: its turret sections carry `Mouse(Left)`
+//! bindings from [`turret_bindings`], the script holds the trigger, and the
+//! tracers in the combat frames are the player's own rounds hitting the lock.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - reach Playing, drive the whole
@@ -42,6 +49,7 @@
 mod kit;
 
 use bevy::{platform::collections::HashMap, prelude::*};
+use bevy_enhanced_input::prelude::Binding;
 use clap::Parser;
 use nova_protocol::prelude::*;
 
@@ -54,16 +62,16 @@ struct Cli;
 /// Scenario id of the parked raider the player locks, shoots and finally blows
 /// a section off.
 const RAIDER_ID: &str = "hollow_raider";
-/// Where it sits: dead ahead, inside the lock cone and close enough that the
-/// hull reads at the chase framing.
-const RAIDER_POSITION: Vec3 = Vec3::new(0.0, 0.4, -22.0);
+/// Where it sits: dead ahead, far enough back that the frame has depth between
+/// the player's hull and its target, close enough that the target still reads.
+const RAIDER_POSITION: Vec3 = Vec3::new(0.0, 0.6, -34.0);
 /// The raider section the scripted blow takes off - a forward hull cube on the
 /// camera's side of the ship, so the fragments and the hole are both in frame.
 const RAIDER_BLOWN_SECTION: &str = "racer_cube_i0_j0_km2";
 /// The nav beacon the weapons-lowered radar sweep latches. BEYOND the raider
 /// and off the axis: a beacon between camera and subject puts its glow over the
 /// player's own hull, and the orb is bright enough to blow out half the frame.
-const BEACON_POSITION: Vec3 = Vec3::new(2.6, 1.0, -34.0);
+const BEACON_POSITION: Vec3 = Vec3::new(3.4, 1.2, -48.0);
 
 /// Seconds each AI flight holds fire after the scenario starts, so the shots
 /// are taken of a fight that has settled rather than of four ships still
@@ -115,6 +123,7 @@ fn main() -> bevy::app::AppExit {
                 // The player holds station through all of it - see
                 // [`pin_player`] for why the set cannot tolerate its drift.
                 .step("let the flights engage")
+                .on_enter(nudge_raider)
                 .until(elapsed(ENGAGE_DELAY + 3.0))
                 .add()
                 // Quiet stance first: weapons lowered, no lock, the contextual
@@ -158,10 +167,15 @@ fn main() -> bevy::app::AppExit {
                 // A LATER step than the captures that want it: despawning in a
                 // capture frame removes the beacon before that frame's render,
                 // and its glow must not sit on the reticle in the combat shots.
-                .step("clear the nav beacon")
+                // Clear the NAV side before the combat side comes up: the
+                // travel lock keeps its white bracket and GOTO chip on screen,
+                // and the combat shots are about the RED lock - two locks in
+                // one frame is chrome competing with itself.
+                .step("clear the nav lock")
                 .on_enter(|world| {
                     release_radar(world);
                     despawn_by_id(world, "hollow_beacon");
+                    clear_travel_lock(world);
                     unpose(world);
                 })
                 .until(elapsed(0.3))
@@ -325,7 +339,11 @@ fn rock_hollow(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
         Vec3::ZERO,
         Quat::IDENTITY,
         SpaceshipController::Player(PlayerControllerConfig {
-            input_mapping: HashMap::new(),
+            // Without this the trigger is bound to NOTHING: turret bindings are
+            // per-section, snapshotted from this map by section id at spawn
+            // (`nova_scenario/src/objects/spaceship.rs`), so an empty map is a
+            // ship whose guns no button reaches.
+            input_mapping: turret_bindings(sections, "racer"),
             speed_cap: None,
             // The player holds fire through several beats; running dry
             // mid-capture would leave a reload where the tracers should be.
@@ -336,8 +354,10 @@ fn rock_hollow(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
         kit::kenney_hull(sections, "racer"),
     );
 
-    // The lock subject: PARKED, because an AI hostile flies to a 250-unit
-    // standoff and no close framing survives that (see the module docs).
+    // The lock subject: not AI, because an AI hostile flies to a 250-unit
+    // standoff and no close framing survives that (see the module docs). It is
+    // not dead still either - [`nudge_raider`] gives it a slow drift, so the
+    // lock's DST and CLS readouts are of a moving target.
     let raider = ship(
         RAIDER_ID,
         "Raider",
@@ -351,41 +371,61 @@ fn rock_hollow(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
         kit::kenney_hull(sections, "racer"),
     );
 
-    // The live background: two friendlies on the flanks, two hostiles across
-    // the hollow. Leashed to their posts so the ring they fly stays in the set.
+    // The live background: two friendlies working the near flanks, two hostiles
+    // across the hollow, all four FLYING a route while the engage grace runs -
+    // a set that opens on four parked hulls reads as a diorama. The grace
+    // (`engage_delay`) holds them in `Patrol`, so they are mid-leg and banking
+    // when the first shot is taken; leashed so the ring they fly afterwards
+    // stays in the set.
     let wingman_a = ship(
         "hollow_wing_a",
         "Wingman",
-        Vec3::new(-46.0, 8.0, -30.0),
+        Vec3::new(-64.0, 12.0, -44.0),
         Quat::from_rotation_y(0.2),
-        fighter(),
+        fighter(vec![
+            Vec3::new(-64.0, 12.0, -44.0),
+            Vec3::new(-30.0, 4.0, -96.0),
+            Vec3::new(-86.0, -6.0, -70.0),
+        ]),
         Some(Allegiance::Player),
         kit::kenney_hull(sections, "racer"),
     );
     let wingman_b = ship(
         "hollow_wing_b",
         "Wingman",
-        Vec3::new(44.0, -10.0, -40.0),
+        Vec3::new(62.0, -14.0, -58.0),
         Quat::from_rotation_y(-0.2),
-        fighter(),
+        fighter(vec![
+            Vec3::new(62.0, -14.0, -58.0),
+            Vec3::new(96.0, 6.0, -104.0),
+            Vec3::new(40.0, -20.0, -110.0),
+        ]),
         Some(Allegiance::Player),
         kit::kenney_hull(sections, "racer"),
     );
     let hostile_a = ship(
         "hollow_hostile_a",
         "Raider",
-        Vec3::new(-120.0, 26.0, -170.0),
+        Vec3::new(-150.0, 34.0, -230.0),
         Quat::from_rotation_y(3.0),
-        fighter(),
+        fighter(vec![
+            Vec3::new(-150.0, 34.0, -230.0),
+            Vec3::new(-70.0, 18.0, -290.0),
+            Vec3::new(-190.0, 6.0, -300.0),
+        ]),
         None,
         kit::kenney_hull(sections, "racer"),
     );
     let hostile_b = ship(
         "hollow_hostile_b",
         "Raider",
-        Vec3::new(140.0, -30.0, -200.0),
+        Vec3::new(176.0, -38.0, -262.0),
         Quat::from_rotation_y(3.3),
-        fighter(),
+        fighter(vec![
+            Vec3::new(176.0, -38.0, -262.0),
+            Vec3::new(90.0, -14.0, -320.0),
+            Vec3::new(210.0, -4.0, -330.0),
+        ]),
         None,
         kit::kenney_hull(sections, "cargob"),
     );
@@ -424,10 +464,40 @@ fn rock_hollow(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
     }
 }
 
-/// A fighting AI ship's routine: hold its post, engage after the grace, and
-/// come back when the fight drags it too far out.
-fn fighter() -> SpaceshipController {
+/// Bind every turret section of a built hull to the trigger, the way the
+/// shipped scenarios do (`shakedown_run` maps its two racer turret cubes to
+/// `Mouse(Left)` + `Gamepad(RightTrigger2)`).
+///
+/// Derived from the catalog rather than typed out, for the same reason
+/// [`kit::kenney_hull`] is: the ids ARE the layout, and a hand-listed pair goes
+/// stale the moment a hull gains a gun.
+fn turret_bindings(sections: &GameSections, hull: &str) -> HashMap<String, Vec<Binding>> {
+    let prefix = format!("{hull}_cube_");
+    sections
+        .iter()
+        .filter(|section| section.base.id.starts_with(&prefix))
+        .filter(|section| matches!(section.kind, SectionKind::Turret(_)))
+        .map(|section| {
+            (
+                section.base.id.clone(),
+                vec![
+                    MouseButton::Left.into(),
+                    GamepadButton::RightTrigger2.into(),
+                ],
+            )
+        })
+        .collect()
+}
+
+/// A fighting AI ship's routine: fly `patrol` until the engage grace expires,
+/// then fight, and come back when the fight drags it past the leash.
+///
+/// The route is what makes the set move before the first shot: the grace holds
+/// the ship in `Patrol`, which flies the waypoint loop through the real GOTO
+/// autopilot instead of station-keeping.
+fn fighter(patrol: Vec<Vec3>) -> SpaceshipController {
     SpaceshipController::AI(AIControllerConfig {
+        patrol,
         leash: Some(AI_LEASH),
         engage_delay: Some(ENGAGE_DELAY),
         ..default()
@@ -552,6 +622,39 @@ fn pin_player(
     }
 }
 
+/// Set the raider drifting: slow, and across the line of sight rather than
+/// along it, so it stays on the aim ray the radar picks by while the lock's
+/// distance and closing-speed readouts have something to say.
+#[cfg(feature = "debug")]
+fn nudge_raider(world: &mut World) {
+    let Some(raider) = raider_root(world) else {
+        warn!("combat: no raider to nudge");
+        return;
+    };
+    if let Some(mut velocity) = world
+        .entity_mut(raider)
+        .get_mut::<avian3d::prelude::LinearVelocity>()
+    {
+        velocity.0 = Vec3::new(0.35, 0.12, -0.25);
+    }
+}
+
+/// Drop the travel lock, so only the combat lock is on screen.
+#[cfg(feature = "debug")]
+fn clear_travel_lock(world: &mut World) {
+    let player = {
+        let mut query = world
+            .query_filtered::<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>();
+        query.iter(world).next()
+    };
+    let Some(player) = player else {
+        return;
+    };
+    if let Some(mut travel) = world.entity_mut(player).get_mut::<TravelLock>() {
+        travel.0 = None;
+    }
+}
+
 /// Hold CTRL: the radar gesture. Which slot it latches depends on the stance.
 #[cfg(feature = "debug")]
 fn hold_radar(world: &mut World) {
@@ -616,17 +719,21 @@ fn blow_raider_section(world: &mut World) {
     info!("combat: blew '{RAIDER_BLOWN_SECTION}' off the raider");
 }
 
+/// The parked raider's ship root.
+#[cfg(feature = "debug")]
+fn raider_root(world: &mut World) -> Option<Entity> {
+    let mut query = world.query_filtered::<(Entity, &EntityId), With<SpaceshipRootMarker>>();
+    query
+        .iter(world)
+        .find(|(_, id)| id.0 == RAIDER_ID)
+        .map(|(entity, _)| entity)
+}
+
 /// The raider's blown section entity. Picked BY SHIP: the two racers in the set
 /// share section ids, as every shipped multi-ship scenario does.
 #[cfg(feature = "debug")]
 fn raider_section(world: &mut World) -> Option<Entity> {
-    let raider = {
-        let mut query = world.query_filtered::<(Entity, &EntityId), With<SpaceshipRootMarker>>();
-        query
-            .iter(world)
-            .find(|(_, id)| id.0 == RAIDER_ID)
-            .map(|(entity, _)| entity)?
-    };
+    let raider = raider_root(world)?;
     let mut query = world.query_filtered::<(Entity, &EntityId), With<SectionMarker>>();
     let candidates: Vec<Entity> = query
         .iter(world)
