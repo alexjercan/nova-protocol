@@ -28,6 +28,21 @@
 //! example fleet uses them, and [`move_cursor`] plus [`press_mouse`] /
 //! [`release_mouse`] compose a drag when something does.
 //!
+//! ## The driven pointer is authoritative
+//!
+//! A driven app runs on a real display, and a real pointer event - the window
+//! manager's enter/motion pair, a developer nudging the mouse, the echo of the
+//! OS-level warp [`Window::set_cursor_position`] itself performs - lands in the
+//! same stream the synthesized one does. One of those between a press beat and
+//! its release beat CANCELS the click silently: `bevy_picking` dispatches
+//! `Pointer<Click>` from the PREVIOUS frame's hover map, so a pointer that
+//! moved off the widget in between produces a release and no click, and a
+//! button that acts on `Activate` never fires (task 20260805-091151).
+//!
+//! So a driven run owns the pointer: the autopilot pins it, putting the last
+//! synthesized position back before the picking backend reads the frame's
+//! events, and a foreign move is overridden instead of obeyed.
+//!
 //! ## Naming a target instead of a coordinate
 //!
 //! [`click_at`] takes literal pixels, which couples a run to the layout it was
@@ -37,6 +52,7 @@
 
 use bevy::{
     input::{mouse::MouseButtonInput, ButtonState},
+    picking::PickingSystems,
     prelude::*,
     window::{CursorMoved, PrimaryWindow, WindowEvent},
 };
@@ -182,7 +198,8 @@ fn resolve(world: &mut World, name: &str, gesture: &str) -> Option<Vec2> {
 }
 
 /// The shared body of [`move_cursor`] and [`click_at`]: place the pointer in
-/// the primary window and announce the move.
+/// the primary window, announce the move, and PIN the position so a foreign
+/// event cannot take the pointer somewhere else mid-gesture.
 fn set_cursor(world: &mut World, position: Vec2) {
     let window = {
         let mut query = world.query_filtered::<(Entity, &mut Window), With<PrimaryWindow>>();
@@ -197,20 +214,90 @@ fn set_cursor(world: &mut World, position: Vec2) {
             }
         }
     };
-    let moved = CursorMoved {
-        window,
-        position,
-        // A synthesized pointer teleports; a real one reports the step it took.
-        // `None` is the honest answer and the one Bevy itself writes for a
-        // cursor that was outside the window last frame.
-        delta: None,
-    };
+    world.insert_resource(PinnedCursor(position));
+    let moved = cursor_moved(window, position);
     world.write_message(moved.clone());
     // The picking backend reads `WindowEvent`, NOT the concrete message, and it
     // tracks the cursor from those events alone - so a click without this
     // wrapper lands at whatever position picking last saw. `bevy_winit` writes
     // both for every real pointer move; so does this.
     world.write_message(WindowEvent::CursorMoved(moved));
+}
+
+/// The move a synthesized pointer reports.
+///
+/// A synthesized pointer teleports; a real one reports the step it took. `None`
+/// is the honest answer and the one Bevy itself writes for a cursor that was
+/// outside the window last frame.
+fn cursor_moved(window: Entity, position: Vec2) -> CursorMoved {
+    CursorMoved {
+        window,
+        position,
+        delta: None,
+    }
+}
+
+/// Where the driver last pointed. Absent until a run performs its first pointer
+/// gesture, which is what keeps the pin inert in a keyboard-only script.
+#[derive(Resource, Debug, Clone, Copy, PartialEq)]
+struct PinnedCursor(Vec2);
+
+/// Give the driven run the pointer: re-assert the pinned position in `First`,
+/// AFTER `bevy_winit` has written the frame's real events and BEFORE
+/// `PickingSystems::Input` turns them into `PointerInput`.
+///
+/// Called by the autopilot's own `build`, so the pin is armed exactly when a
+/// script is - see the module docs for what it defends against.
+pub(crate) fn register_pointer_pin(app: &mut App) {
+    app.add_systems(
+        First,
+        repin_cursor
+            .after(bevy::ecs::message::MessageUpdateSystems)
+            .before(PickingSystems::Input)
+            // A windowless rig (`MinimalPlugins` without `WindowPlugin`) never
+            // registers the pointer messages, and there is no pointer there to
+            // hold anyway.
+            .run_if(
+                resource_exists::<Messages<CursorMoved>>
+                    .and_then(resource_exists::<Messages<WindowEvent>>),
+            ),
+    );
+}
+
+/// Put the pointer back where the script left it.
+///
+/// A foreign move is detectable from the window alone: `bevy_winit` writes the
+/// position into [`Window`] as well as into the messages
+/// (`bevy_winit/src/state.rs:292`), and so does [`set_cursor`] - so a window
+/// disagreeing with the pin means somebody else moved the pointer. `None`
+/// (the cursor left the window) counts as a disagreement.
+///
+/// The correction is appended to the same batch the stray is in. Picking reads
+/// the moves in order, so the driver's is the one that lands.
+fn repin_cursor(
+    pinned: Option<Res<PinnedCursor>>,
+    mut windows: Query<(Entity, &mut Window), With<PrimaryWindow>>,
+    mut moves: MessageWriter<CursorMoved>,
+    mut events: MessageWriter<WindowEvent>,
+) {
+    let Some(pinned) = pinned else {
+        return;
+    };
+    let Ok((entity, mut window)) = windows.single_mut() else {
+        return;
+    };
+    if window.cursor_position() == Some(pinned.0) {
+        return;
+    }
+    debug!(
+        "autopilot: a foreign pointer move to {:?} was overridden; the run holds {:?}",
+        window.cursor_position(),
+        pinned.0
+    );
+    window.set_cursor_position(Some(pinned.0));
+    let moved = cursor_moved(entity, pinned.0);
+    moves.write(moved.clone());
+    events.write(WindowEvent::CursorMoved(moved));
 }
 
 /// The shared body of [`press_mouse`], [`release_mouse`] and [`click_at`].

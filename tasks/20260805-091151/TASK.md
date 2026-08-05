@@ -1,4 +1,4 @@
-# click_named presses in the same frame it warps the cursor
+# A stray cursor event mid-click cancels the driven click
 
 - PRIORITY: 84
 - TAGS: v0.10.0,testing,automation
@@ -6,6 +6,12 @@
 - GATES: -
 - RESOLUTION: -
 - PARENT: 20260802-115955
+
+TITLE CORRECTED. The brief below diagnosed a same-frame press; the
+investigation disproved it (`NOTES.md`). The press always lands. What fails is
+the RELEASE: `Pointer<Click>` is dispatched from the previous frame's hover
+map, so any pointer event that moves the hover off the widget between the two
+beats cancels the click silently.
 
 ## Story
 
@@ -53,7 +59,44 @@ assertion hovers it in an earlier beat (`editor.rs:146-171`). Every other
 `menu_newgame.rs:104`, `editor.rs:107,120,205,227`,
 `widget_zoo.rs:721,743,761,769`.
 
+## Steps
+
+1. Reproduce and pin the mechanism rather than trusting the brief - DONE,
+   `NOTES.md`. The brief's candidate 1 is disproved; the real cause is the
+   hover moving off the widget between the press and release beats.
+2. Decide the fix shape - DONE, `DECISION.md`: pin the driven pointer.
+3. Land the pin in `nova_autopilot::input`, armed by the autopilot's own
+   `build`, with the failing-first guard beside it.
+4. Sync the harness wiki.
+
+## DoD
+
+- A driven click survives a foreign cursor event landing between its press and
+  release beats. (test: `cargo test -p nova_autopilot --test pointer_pin`)
+- The guard fails without the fix, so a green run is evidence of something.
+  (manual: delete the `register_pointer_pin` call, run the test - numbers in
+  Notes)
+- The pointer-driving examples still pass untouched.
+  (cmd: `DISPLAY=:99 NOVA_AUTOPILOT=1 cargo run --example <ui example> --features debug`)
+- The harness wiki states that a driven run owns the pointer.
+  (manual: `web/src/wiki/dev/automation-harness.md`)
+
 ## Notes
+
+Fail-first numbers, all on `:99` unless stated:
+
+| What | Without the fix | With it |
+| --- | --- | --- |
+| `tests/pointer_pin.rs` | 1 of 2 FAILS (`a_foreign_cursor_event_mid_click_does_not_cancel_the_click`) | 2/2 pass |
+| `menu_newgame` + `editor` under a faithful stray every 7 frames (temporary rig, reverted) | 2/2 FAIL | 4/4 pass |
+| `menu_newgame` alone / x5 concurrent / 6 suite-shaped rounds | 218 runs, 0 failures - the ambient trigger never came out on this box | - |
+
+The stray the rig writes sets `Window::cursor_position` AND both message
+halves, which is what `bevy_winit` does for a real one
+(`bevy_winit/src/state.rs:292`) and what the landed pin keys off. An earlier
+message-only rig (`prototype/`) predates the fix and no longer matches it.
+
+Superseded by the investigation, kept for the record:
 
 - Discriminate the two candidates first: the warn line in candidate 2 is
   present or it is not. A reproduction loop (`menu_newgame` under

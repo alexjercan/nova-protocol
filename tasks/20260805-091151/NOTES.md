@@ -1,4 +1,4 @@
-# NOTES: `click_named` presses in the same frame it warps the cursor
+# NOTES: a stray cursor event mid-click cancels the driven click
 
 ## Problem Statement
 
@@ -209,3 +209,29 @@ It also needs driver machinery, since `on_enter` is a single `Fn(&mut World)`.
 Narrows one ambient source in CI only. Does nothing for a local run or for the
 startup enter/motion pair, and does not close the class. A possible complement,
 never the fix.
+
+## What landed
+
+`crates/nova_autopilot/src/input.rs`: `set_cursor` records a `PinnedCursor`,
+and `register_pointer_pin` - called from `AutopilotPlugin::build`, so the pin
+arms exactly when a script does - adds `repin_cursor` to `First`, after
+`MessageUpdateSystems` and before `PickingSystems::Input`.
+
+A stray is detected from the window, not from the message stream: `bevy_winit`
+writes a real move into `Window::cursor_position` as well as into both message
+halves (`bevy_winit/src/state.rs:292`), and so does `set_cursor` - so a window
+that disagrees with the pin means somebody else moved the pointer. `None` (the
+cursor left the window) counts. The correction is appended to the same batch
+the stray is in, and picking reads the moves in order, so the driver's lands
+last.
+
+This is a narrower detector than the prototype's re-assert-every-frame, and
+deliberately: it writes no `CursorMoved` on a quiet frame, so a driven run does
+not carry a per-frame `Pointer<Move>` storm. It covers every stray `bevy_winit`
+can produce; a message-only stray (which nothing in production writes) it does
+not see.
+
+The guard is `crates/nova_autopilot/tests/pointer_pin.rs` - real pointer
+synthesis, real `bevy_picking`, a real `bevy_ui_widgets::Button` reporting
+`Activate`, with only the picking backend stood in for. Fail-first numbers are
+in `TASK.md`.

@@ -112,6 +112,19 @@ gestures in `nova_autopilot::input` (`press_key`, `release_key`, `press_mouse`,
 `player_ship_present`). Anything the vocabulary cannot express is a plain
 closure: `Arc::new(|world: &World| ...)`.
 
+**A driven run owns the pointer.** The examples run on a real display, so a
+real cursor event - the window manager's enter/motion pair, a developer nudging
+the mouse, the echo of the OS-level warp the driver itself performs - lands in
+the same stream the synthesized one does. One of those between a press beat and
+its release beat CANCELS the click silently: `bevy_picking` dispatches
+`Pointer<Click>` from the PREVIOUS frame's hover map, so a pointer that moved
+off the widget in between produces a release, no click, and no `Activate` - a
+90-second stall on the beat AFTER the one that actually went wrong. So the
+autopilot pins its pointer: whenever the window disagrees with the last
+position a gesture set, `nova_autopilot::input` puts the pinned position back
+in `First`, before the picking backend reads the frame's events. Nothing at a
+call site changes, and a script needs no defensive re-hover.
+
 **A settle predicate over a physics quantity belongs on the physics schedule.**
 "The value held still for N frames" is a common way to write "the solve is
 done", and on `Update` it does not mean that: avian runs in `FixedPostUpdate`,

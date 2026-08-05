@@ -382,6 +382,10 @@ impl<S: States + FreelyMutableState> Plugin for AutopilotPlugin<S> {
         // every frame - only then does a synthesized press survive into the
         // game's Update systems.
         app.add_systems(PreUpdate, autopilot_drive::<S>.after(InputSystems));
+        // A driven run owns the pointer: a real cursor event landing between a
+        // press beat and its release beat would cancel the click silently
+        // (`crate::input`).
+        crate::input::register_pointer_pin(app);
     }
 }
 

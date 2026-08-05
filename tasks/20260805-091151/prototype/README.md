@@ -27,6 +27,11 @@ DISPLAY=:99 NOVA_AUTOPILOT=1 NOVA_POINTER_TRACE=1 NOVA_POINTER_JITTER=7 \
   nix develop --command cargo run --example menu_newgame --features debug
 ```
 
+SUPERSEDED by the landed fix. This rig's stray is message-only, and the pin
+that shipped detects a stray from `Window::cursor_position` - which is what
+`bevy_winit` writes for a real one. The faithful rig, and the guard that
+outlives both, is `crates/nova_autopilot/tests/pointer_pin.rs`.
+
 Limitations: `NOVA_POINTER_JITTER` INJECTS the stray event. It reproduces the
 failure signature exactly, but it does not prove which ambient X event fires in
 CI - 218 runs across three ambient shapes never produced one. The pin numbers
