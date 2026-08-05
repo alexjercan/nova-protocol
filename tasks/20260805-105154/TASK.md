@@ -66,12 +66,12 @@ supersedes (with its `[[example]]` block in `Cargo.toml` and its entry in
 `scripts/gen-web-screenshots.py` plus the `screenshots/` roster in
 `web/src/wiki/dev/development.md`.
 
-- [ ] Shared photo kit, landing with the first scene: a three-light photo rig
+- [x] Shared photo kit, landing with the first scene: a three-light photo rig
       (key + rim + fill, spawned by the example), the Kenney hull section lists
       lifted from `assets/base/scenarios/menu_scrapyard.content.ron`, and a
       near-field asteroid dressing helper. Bounded to those three things.
       It CANNOT be `examples/screenshots/kit.rs` - see Notes.
-- [ ] `screenshot_scene` ("Drydock drift"): planetoid at a distance where its
+- [x] `screenshot_scene` ("Drydock drift"): planetoid at a distance where its
       surface reads, near-field rocks roughly 15-60 units out with radius
       variance, a hero Kenney racer posed foreground, two more hulls drifting
       on AI `orbit`. Supersedes `screenshot_reel`. First, because it settles the
@@ -140,3 +140,17 @@ supersedes (with its `[[example]]` block in `Cargo.toml` and its entry in
   `examples/sections/turret_section.rs:40` already does.
 - Example-side lighting only. Authorable scenario lighting is `20260805-111534`
   and is not a dependency of any child.
+- Scene 1 landed as `bb57a9d2` (kit) + `3b5a715f` (set), owner-approved
+  2026-08-05. Two calls made against this plan's wording, both from what the
+  renders showed:
+  - The yard hulls PATROL, they do not `orbit`. A planetoid close enough to
+    orbit fills the frame as a wall; at the distance where its surface reads it
+    sits outside the orbit band the AI flies to, so an orbiting hull leaves the
+    set. It is still a real (weak) well, since these are the gravity figures.
+  - No scene RON. `kit::kenney_hull` derives each hull's 18-54 sections from the
+    catalog at runtime, so a RON file would be a generated artifact maintained
+    by hand - which is what the shipped `menu_*` / `broadside` files are. The
+    scene is built in Rust, as `screenshot_sections` already does.
+- The generated rock mesh reaches well past its nominal radius (roughly 4x), so
+  a planetoid authored at radius 30 draws a body about 120 units across. Size
+  scene bodies from that, not from the authored number.
