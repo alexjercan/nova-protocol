@@ -1,0 +1,222 @@
+diff --git a/crates/nova_autopilot/src/autopilot.rs b/crates/nova_autopilot/src/autopilot.rs
+index 242935f8..33c6f644 100644
+--- a/crates/nova_autopilot/src/autopilot.rs
++++ b/crates/nova_autopilot/src/autopilot.rs
+@@ -382,6 +382,10 @@ impl<S: States + FreelyMutableState> Plugin for AutopilotPlugin<S> {
+         // every frame - only then does a synthesized press survive into the
+         // game's Update systems.
+         app.add_systems(PreUpdate, autopilot_drive::<S>.after(InputSystems));
++        // TEMPORARY diagnostic (task 20260805-091151). NOT FOR LANDING.
++        if std::env::var_os("NOVA_POINTER_TRACE").is_some() {
++            app.add_plugins(crate::pointer_trace::PointerTracePlugin);
++        }
+     }
+ }
+ 
+diff --git a/crates/nova_autopilot/src/input.rs b/crates/nova_autopilot/src/input.rs
+index 957bf013..ee142c8d 100644
+--- a/crates/nova_autopilot/src/input.rs
++++ b/crates/nova_autopilot/src/input.rs
+@@ -183,7 +183,13 @@ fn resolve(world: &mut World, name: &str, gesture: &str) -> Option<Vec2> {
+ 
+ /// The shared body of [`move_cursor`] and [`click_at`]: place the pointer in
+ /// the primary window and announce the move.
++/// PROTOTYPE (task 20260805-091151): the last position the driver pointed at.
++/// NOT FOR LANDING in this shape.
++#[derive(Resource, Debug, Clone, Copy)]
++pub struct PinnedCursor(pub Vec2);
++
+ fn set_cursor(world: &mut World, position: Vec2) {
++    world.insert_resource(PinnedCursor(position));
+     let window = {
+         let mut query = world.query_filtered::<(Entity, &mut Window), With<PrimaryWindow>>();
+         match query.single_mut(world) {
+diff --git a/crates/nova_autopilot/src/lib.rs b/crates/nova_autopilot/src/lib.rs
+index 2f2560f3..a764764e 100644
+--- a/crates/nova_autopilot/src/lib.rs
++++ b/crates/nova_autopilot/src/lib.rs
+@@ -85,6 +85,8 @@ pub mod completion;
+ pub mod input;
+ #[cfg(test)]
+ mod log_capture;
++/// TEMPORARY diagnostic (task 20260805-091151). NOT FOR LANDING.
++pub mod pointer_trace;
+ pub mod predicate;
+ pub mod reel;
+ pub mod screenshot;
+diff --git a/crates/nova_autopilot/src/pointer_trace.rs b/crates/nova_autopilot/src/pointer_trace.rs
+new file mode 100644
+index 00000000..00ee80ae
+--- /dev/null
++++ b/crates/nova_autopilot/src/pointer_trace.rs
+@@ -0,0 +1,170 @@
++//! TEMPORARY diagnostic (task 20260805-091151): trace the synthesized pointer
++//! through the picking pipeline. Gated on `NOVA_POINTER_TRACE`. NOT FOR LANDING.
++
++use bevy::{
++    picking::{
++        hover::HoverMap,
++        pointer::{PointerInput, PointerLocation},
++        PickingSystems,
++    },
++    prelude::*,
++    ui::Pressed,
++    window::{PrimaryWindow, WindowEvent},
++};
++
++pub struct PointerTracePlugin;
++
++impl Plugin for PointerTracePlugin {
++    fn build(&self, app: &mut App) {
++        // NOVA_POINTER_JITTER=<n>: every n frames, write a CursorMoved the way
++        // bevy_winit writes a REAL one (message only, no Window write), at a
++        // position no widget occupies. Stands in for the stray X pointer event
++        // the hypothesis needs.
++        if let Some(period) = std::env::var("NOVA_POINTER_JITTER")
++            .ok()
++            .and_then(|raw| raw.parse::<u32>().ok())
++        {
++            app.insert_resource(JitterPeriod(period));
++            app.add_systems(First, jitter_cursor.before(PickingSystems::Input));
++        }
++        // NOVA_POINTER_PIN: re-assert the driver's pointer position in `First`,
++        // AFTER bevy_winit wrote the frame's real events and BEFORE picking
++        // consumes them - so the last Move in the batch is always the driver's
++        // and a stray real event cannot steal the hover.
++        if std::env::var_os("NOVA_POINTER_PIN").is_some() {
++            app.add_systems(
++                First,
++                repin_cursor
++                    .before(PickingSystems::Input)
++                    .after(jitter_cursor),
++            );
++        }
++        app.add_systems(First, trace_window_events.after(PickingSystems::Input));
++        app.add_systems(
++            PreUpdate,
++            trace_hover_state.in_set(PickingSystems::PostHover),
++        );
++    }
++}
++
++#[derive(Resource)]
++struct JitterPeriod(u32);
++
++fn jitter_cursor(
++    period: Res<JitterPeriod>,
++    window: Query<Entity, With<PrimaryWindow>>,
++    mut frame: Local<u32>,
++    mut events: MessageWriter<WindowEvent>,
++    mut moves: MessageWriter<CursorMoved>,
++) {
++    *frame += 1;
++    if period.0 == 0 || *frame % period.0 != 0 {
++        return;
++    }
++    let Ok(entity) = window.single() else {
++        return;
++    };
++    let moved = CursorMoved {
++        window: entity,
++        position: Vec2::new(10.0, 10.0),
++        delta: None,
++    };
++    info!("TRACE jitter: stray CursorMoved {:?}", moved.position);
++    moves.write(moved.clone());
++    events.write(WindowEvent::CursorMoved(moved));
++}
++
++fn repin_cursor(
++    pinned: Option<Res<crate::input::PinnedCursor>>,
++    window: Query<Entity, With<PrimaryWindow>>,
++    mut events: MessageWriter<WindowEvent>,
++    mut moves: MessageWriter<CursorMoved>,
++) {
++    let (Some(pinned), Ok(entity)) = (pinned, window.single()) else {
++        return;
++    };
++    let moved = CursorMoved {
++        window: entity,
++        position: pinned.0,
++        delta: None,
++    };
++    moves.write(moved.clone());
++    events.write(WindowEvent::CursorMoved(moved));
++}
++
++fn trace_window_events(
++    mut events: MessageReader<WindowEvent>,
++    mut inputs: MessageReader<PointerInput>,
++) {
++    for event in events.read() {
++        match event {
++            WindowEvent::CursorMoved(moved) => {
++                info!("TRACE win: CursorMoved {:?}", moved.position);
++            }
++            WindowEvent::CursorEntered(_) => info!("TRACE win: CursorEntered"),
++            WindowEvent::CursorLeft(_) => info!("TRACE win: CursorLeft"),
++            WindowEvent::MouseButtonInput(input) => {
++                info!("TRACE win: MouseButton {:?} {:?}", input.button, input.state);
++            }
++            WindowEvent::WindowFocused(focus) => {
++                info!("TRACE win: Focused {}", focus.focused);
++            }
++            _ => {}
++        }
++    }
++    for input in inputs.read() {
++        info!(
++            "TRACE ptr: {:?} at {:?}",
++            input.action, input.location.position
++        );
++    }
++}
++
++#[allow(clippy::too_many_arguments)]
++fn trace_hover_state(
++    hover: Res<HoverMap>,
++    pointers: Query<&PointerLocation>,
++    window: Query<&Window, With<PrimaryWindow>>,
++    names: Query<&Name>,
++    pressed: Query<Entity, With<Pressed>>,
++    mut press_events: MessageReader<Pointer<Press>>,
++    mut click_events: MessageReader<Pointer<Click>>,
++    mut release_events: MessageReader<Pointer<Release>>,
++) {
++    let named = |entity: Entity| {
++        names
++            .get(entity)
++            .map(|name| name.as_str().to_string())
++            .unwrap_or_else(|_| format!("{entity}"))
++    };
++
++    let mut interesting = false;
++    for event in press_events.read() {
++        info!("TRACE evt: Press on `{}`", named(event.entity));
++        interesting = true;
++    }
++    for event in click_events.read() {
++        info!("TRACE evt: Click on `{}`", named(event.entity));
++        interesting = true;
++    }
++    for event in release_events.read() {
++        info!("TRACE evt: Release on `{}`", named(event.entity));
++        interesting = true;
++    }
++
++    let hovered: Vec<String> = hover
++        .iter()
++        .flat_map(|(_, map)| map.keys().map(|entity| named(*entity)))
++        .collect();
++    let pressed: Vec<String> = pressed.iter().map(named).collect();
++    if interesting || !pressed.is_empty() {
++        let locations: Vec<_> = pointers
++            .iter()
++            .filter_map(|location| location.location.as_ref().map(|l| l.position))
++            .collect();
++        info!(
++            "TRACE state: cursor={:?} pointer={locations:?} hovered={hovered:?} pressed={pressed:?}",
++            window.iter().next().and_then(|w| w.cursor_position()),
++        );
++    }
++}
