@@ -87,11 +87,17 @@ supersedes (with its `[[example]]` block in `Cargo.toml` and its entry in
       on the ORBIT autopilot, rocks along the ring for parallax, HUD on.
       Supersedes `screenshot_orbit`. -> OWNER APPROVED 2026-08-05, and it takes
       `feature-autopilot` and `wiki-flight` off `screenshot_combat` with it.
-- [ ] `screenshot_sections`: keep the frozen five-section ship (these document
+- [x] `screenshot_sections`: keep the frozen five-section ship (these document
       the ENGINE section prototypes, not Kenney hulls) and give it the kit's
       rig, tuned for macro work - a rim light carrying the silhouette. Re-frame
       all five closeups; the turret's yaw/pitch/barrel stack is the hard one.
-      -> OWNER APPROVAL.
+      -> OWNER APPROVED 2026-08-05. The rig was simply missing here (this scene
+      never got `kit::photo_rig()`), and the re-frame became a TURNTABLE: the
+      camera holds one bearing inside the rig's good wedge and the SHIP yaws to
+      present each section, because orbiting a camera around a world-space rig
+      lights each of the five differently. The turret's authored rotation was
+      left alone - it reads correctly from this bearing, but by tuning, not by
+      construction.
 - [ ] `screenshot_ui`: add a settings-pane state and a Scenarios-picker state
       with a campaign expanded (copy the real pointer gesture from
       `examples/ui/menu_scenarios.rs`), and put a built ship in the editor
