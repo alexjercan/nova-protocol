@@ -203,12 +203,22 @@ supersedes (with its `[[example]]` block in `Cargo.toml` and its entry in
     and the body is 90 degrees off it. `tutorial-orbit` is therefore posed (high
     outboard quarter, hull up front, ring and spoke sweeping to the planetoid),
     which is a change from the old `screenshot_orbit`'s follow-camera shot.
-  - PENDING THE OWNER: three candidates for the flight and autopilot images -
-    `variant-autopilot-ring` (close three-quarter of the insertion burn, two
-    plumes lit, `AP ORBIT - BURN` up), `variant-flight-limb` (cinematic, the hull
-    over the body) and `variant-flight-chase` (the ring curving away). If they
-    beat the Rock hollow's GOTO beats, `feature-autopilot` and `wiki-flight` move
-    BACK to `screenshot_flight` in the manifest and in the Inputs table above.
+  - ORBIT is a HELD state, so its frames are of a ship sitting on a ring. At the
+    owner's call the scene grew a second act: the ship drops the ring for a real
+    GOTO out to a survey beacon over the pole (polar so the path clears the body
+    from every point on the ring), which is where the burn and the flip-and-burn
+    come from. The leg's beats are shot over the GAME camera, not a pinned pose -
+    the subject there is the chrome (ribbon, destination readout, FLIP marker),
+    and a pinned pose watches a ship that is leaving.
+  - PENDING THE OWNER: five candidates for the flight and autopilot images -
+    `variant-autopilot-goto` (the departure burn, ribbon out to the beacon, 240
+    m/s) and `variant-flight-flip` (the flip-and-burn, retro plumes lit, 650 m/s)
+    off the leg; `variant-autopilot-ring` (close three-quarter of the insertion
+    burn, two plumes lit, `AP ORBIT - BURN` up), `variant-flight-limb` (cinematic,
+    the hull over the body) and `variant-flight-chase` (the ring curving away) off
+    the ring. If they beat the Rock hollow's GOTO beats, `feature-autopilot` and
+    `wiki-flight` move BACK to `screenshot_flight` in the manifest and in the
+    Inputs table above.
 - The generated rock mesh reaches well past its nominal radius (roughly 4x), so
   a planetoid authored at radius 30 draws a body about 120 units across. Size
   scene bodies from that, not from the authored number.

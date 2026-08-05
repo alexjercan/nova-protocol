@@ -1,19 +1,29 @@
 //! screenshot_flight: "The ring" - the orbit and flight-computer set.
 //!
 //! A gravity planetoid with a rock ring around it and a Kenney racer that flies
-//! the ORBIT verb onto a ring: the autopilot burns the ship from rest onto the
-//! circular-orbit velocity, then holds it there while the maneuver instruments
-//! draw the holo ring and the radius spoke around the body.
+//! both flight-computer verbs around it, in two acts.
+//!
+//! ACT 1, the ring: the ORBIT verb burns the ship from rest onto the
+//! circular-orbit velocity and holds it there while the maneuver instruments
+//! draw the holo ring and the radius spoke around the body. That is the shipped
+//! `tutorial-orbit` image and two cinematic variants.
+//!
+//! ACT 2, the departure: ORBIT is a HELD state, and a held state photographs as
+//! a ship sitting still on a ring - the flight computer's loud beats are on a
+//! LEG. So the ship leaves: a real GOTO out to a survey beacon over the pole,
+//! align, burn, coast, FLIP, brake, with the trajectory ribbon and the
+//! destination readout up. The burn and the flip-and-burn come off that.
 //!
 //! Everything here is the production flight stack. The script inserts the same
-//! [`Autopilot`] the ORBIT keybind does and then watches the phase
-//! (`Align -> Burn -> Hold`); no attitude, velocity or ring is faked.
+//! [`Autopilot`] components the ORBIT and GOTO keybinds do and then watches the
+//! phase (`Align -> Burn -> Hold`) and the telemetry; no attitude, velocity,
+//! ring or trajectory is faked.
 //!
 //! It replaces `screenshot_orbit`, whose set was a three-block primitive prop
 //! ship, a 12-unit planetoid and a single 5.6-second stopwatch before the shot.
 //!
 //! WHAT IT SHIPS, AND WHAT IT PROPOSES. `tutorial-orbit` is this set's image and
-//! the rest are `variant-*.png`: the flight and autopilot images
+//! the other five are `variant-*.png`: the flight and autopilot images
 //! (`feature-autopilot`, `wiki-flight`) currently belong to the Rock hollow's
 //! GOTO leg, and these are this scene's candidates for them, staged by a capture
 //! run and named by no manifest entry. The pick is the owner's, at capture time.
@@ -21,12 +31,14 @@
 //! Sizing, so the numbers are not magic (the well math is
 //! `crates/nova_gameplay/src/gravity.rs`):
 //! - MEASURED, not assumed: the noise displaces the rock mesh outward, and the
-//!   derived `BodyRadius` of this planetoid comes out at ~91 units for an
-//!   authored 20 - a factor of 4.5, not the 2 a diameter-based reading of the
-//!   task note suggests. Everything - the well strength, the orbit band, the
-//!   body in frame - measures from THAT, and [`engage_orbit`] logs it, because
-//!   the first cut of this scene put the ring 19 units off the surface and shot
-//!   a frame of nothing but rock.
+//!   derived `BodyRadius` of this planetoid comes out at 90-105 units for an
+//!   authored 20 - a factor of about 4.5, not the 2 a diameter-based reading of
+//!   the task note suggests. The spread is per RUN, since the displacement is
+//!   seeded from the global RNG, so nothing here may sit close to a boundary.
+//!   Everything - the well strength, the orbit band, the body in frame -
+//!   measures from that radius, and [`engage_orbit`] logs it, because the first
+//!   cut of this scene put the ring 19 units off the surface and shot a frame of
+//!   nothing but rock.
 //! - The orbit band runs from `1.5 * (body_radius + 1)` out to `0.9 * 0.85 *
 //!   SOI`, and the SOI is 8 body radii - roughly 139 to 559 units here.
 //!   [`ORBIT_RADIUS`] sits mid-band, so the explicit plan is the ring the ship
@@ -89,6 +101,20 @@ const ORBIT_RADIUS: f32 = 320.0;
 /// The ring's plane: the world horizontal, so the rock ring and the holo ring
 /// are the same circle and the shots have one horizon rather than two.
 const ORBIT_NORMAL: Vec3 = Vec3::Y;
+
+/// The survey beacon the departure leg flies to.
+const BEACON_ID: &str = "ring_beacon";
+/// Where it sits: over the well's pole, and far enough out for a full
+/// align-burn-coast-FLIP-brake profile. Polar on purpose - the ring is
+/// horizontal, so a leg straight up out of it clears the body from EVERY point
+/// on the ring (the closest a path from the ring to here passes the planetoid is
+/// about 300 units, against a 92-unit body), and the departure does not depend
+/// on where in its orbit the ship happened to be when the verb changed.
+const BEACON_POSITION: Vec3 = Vec3::new(0.0, 760.0, 0.0);
+/// Radar signature; lock range is 30 world units per unit of it. Not needed to
+/// fly the leg - GOTO takes an entity, not a lock - but it is what puts the
+/// beacon's own bracket on screen for the whole approach.
+const BEACON_SIGNATURE: f32 = 40.0;
 
 /// Seconds the ship holds the ring before the shots, so the last of the
 /// circularization wobble is out of the hull's attitude.
@@ -266,6 +292,53 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("capture the chase")
                 .on_enter(move |world| shoot(world, capturing, "variant-flight-chase.png"))
+                .until(elapsed(0.2))
+                .add()
+                // ACT 2 - the departure. ORBIT is a held state and its shots are
+                // of a ship sitting on a ring; the flight computer's loud beats
+                // are on a LEG, so the ship leaves: it drops the ring for a real
+                // GOTO out to the survey beacon over the pole, and the burn and
+                // the flip-and-burn come off that. Same `Autopilot` component as
+                // the G keybind, engaged straight over the orbit - nothing here
+                // is a scripted animation.
+                //
+                // The camera goes back to the GAME for this act. A pinned world
+                // pose watches a ship that is leaving, and the leg's subject is
+                // the chrome anyway: the trajectory ribbon, the destination
+                // readout and the FLIP marker are what an autopilot frame is
+                // about, and they are drawn around the ship the follow camera is
+                // already with.
+                .step("engage the travel computer")
+                .on_enter(|world| {
+                    hud_instrument(world);
+                    unpose(world);
+                    engage_goto(world);
+                })
+                .until(player_burning())
+                .deadline(30.0)
+                .add()
+                .step("capture the departure burn")
+                .on_enter(move |world| shoot(world, capturing, "variant-autopilot-goto.png"))
+                .until(elapsed(0.2))
+                .add()
+                // Coast, then the flip: the computer swings the ship end-for-end
+                // and lights the drive back down the path. The wait is on the
+                // BRAKING transition (the telemetry drops its flip point once the
+                // brake is planned), not on a stopwatch.
+                .step("coast to the flip")
+                .until(player_braking())
+                .deadline(150.0)
+                .add()
+                // The money frame of a flip-and-burn is the END of the swing: the
+                // hull is round, the drive is lit back down the path and the plume
+                // points at the camera. Waiting for the phase, not for a fraction
+                // of a rotation nobody can time.
+                .step("flip and burn")
+                .until(player_retro_burning())
+                .deadline(25.0)
+                .add()
+                .step("capture the flip")
+                .on_enter(move |world| shoot(world, capturing, "variant-flight-flip.png"))
                 .until(frames(capture_settle_frames(capturing)))
                 .add(),
         );
@@ -341,7 +414,12 @@ fn the_ring(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
             filters: vec![],
-            actions: vec![planetoid(game_assets), debris.action(game_assets), player],
+            actions: vec![
+                planetoid(game_assets),
+                debris.action(game_assets),
+                player,
+                beacon(),
+            ],
         }],
         ..Default::default()
     }
@@ -366,6 +444,27 @@ fn planetoid(game_assets: &GameAssets) -> EventActionConfig {
             surface_gravity: Some(PLANETOID_GRAVITY),
             invulnerable: true,
             lock_signature: None,
+        }),
+    })
+}
+
+/// The survey beacon: the departure leg's destination, and the only thing in
+/// the set the player is given a reason to fly to.
+fn beacon() -> EventActionConfig {
+    EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: BEACON_ID.to_string(),
+            name: "Survey Beacon".to_string(),
+            position: BEACON_POSITION,
+            rotation: Quat::IDENTITY,
+        },
+        kind: ScenarioObjectKind::Beacon(BeaconConfig {
+            label: "SURVEY".to_string(),
+            radius: 3.0,
+            color: Color::srgb(0.4, 0.75, 1.0),
+            // No trigger area: nothing in this set springs on arrival.
+            area_radius: None,
+            lock_signature: Some(BEACON_SIGNATURE),
         }),
     })
 }
@@ -462,10 +561,84 @@ fn engage_orbit(world: &mut World) {
     info!("flight: ORBIT engaged at r = {ORBIT_RADIUS} on a body of radius {body_radius:?}");
 }
 
+/// Hand the camera back to the game.
+#[cfg(feature = "debug")]
+fn unpose(world: &mut World) {
+    let camera = {
+        let mut query = world.query_filtered::<Entity, With<ScenarioCameraMarker>>();
+        query.iter(world).next()
+    };
+    if let Some(camera) = camera {
+        world.entity_mut(camera).remove::<ScriptedCameraPose>();
+    }
+}
+
+/// Engage the travel computer on the survey beacon - the same [`Autopilot`] the
+/// G keybind inserts, engaged straight over the held orbit (the component is
+/// replaced, which is what a pilot changing verbs does).
+#[cfg(feature = "debug")]
+fn engage_goto(world: &mut World) {
+    let (Some(player), Some(beacon)) = (player_root(world), entity_by_id(world, BEACON_ID)) else {
+        warn!("flight: no player or beacon to engage the travel computer on");
+        return;
+    };
+    world
+        .entity_mut(player)
+        .insert(Autopilot::engage(AutopilotAction::Goto { target: beacon }));
+    info!("flight: GOTO engaged on the survey beacon");
+}
+
+/// The first entity carrying scenario id `id`.
+#[cfg(feature = "debug")]
+fn entity_by_id(world: &mut World, id: &str) -> Option<Entity> {
+    let mut query = world.query::<(Entity, &EntityId)>();
+    query
+        .iter(world)
+        .find(|(_, live)| live.0 == id)
+        .map(|(entity, _)| entity)
+}
+
+/// Advance once the leg is actually under way: the computer has published its
+/// numbers and the ship is closing on the destination.
+#[cfg(feature = "debug")]
+fn player_burning() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        maneuver(world).is_some_and(|telemetry| telemetry.closing_speed > 20.0)
+    })
+}
+
+/// Advance the frame the flip starts: the telemetry drops its flip point once
+/// the brake is planned, which is the same instant the computer turns the ship
+/// around.
+#[cfg(feature = "debug")]
+fn player_braking() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        maneuver(world).is_some_and(|telemetry| {
+            telemetry.flip_point.is_none() && telemetry.closing_speed > 5.0
+        })
+    })
+}
+
+/// Advance once the flip has finished and the retro burn is lit: braking, and
+/// past the align phase the swing spends its time in.
+#[cfg(feature = "debug")]
+fn player_retro_burning() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        let braking = maneuver(world).is_some_and(|telemetry| telemetry.flip_point.is_none());
+        braking && autopilot_phase(world) == Some(AutopilotPhase::Burn)
+    })
+}
+
+/// The live numbers of the player's engaged leg, if there is one.
+#[cfg(feature = "debug")]
+fn maneuver(world: &World) -> Option<&ManeuverTelemetry> {
+    world.get::<ManeuverTelemetry>(player_root_ref(world)?)
+}
+
 /// Advance once the insertion burn is actually lit.
 #[cfg(feature = "debug")]
 fn orbit_burning() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    std::sync::Arc::new(|world: &World| orbit_phase(world) == Some(AutopilotPhase::Burn))
+    std::sync::Arc::new(|world: &World| autopilot_phase(world) == Some(AutopilotPhase::Burn))
 }
 
 /// Advance once the ship is circularized: ORBIT reports `Hold` when the velocity
@@ -474,12 +647,12 @@ fn orbit_burning() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predica
 /// this file could guess.
 #[cfg(feature = "debug")]
 fn orbit_holding() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    std::sync::Arc::new(|world: &World| orbit_phase(world) == Some(AutopilotPhase::Hold))
+    std::sync::Arc::new(|world: &World| autopilot_phase(world) == Some(AutopilotPhase::Hold))
 }
 
 /// The phase of the player's engaged maneuver, if there is one.
 #[cfg(feature = "debug")]
-fn orbit_phase(world: &World) -> Option<AutopilotPhase> {
+fn autopilot_phase(world: &World) -> Option<AutopilotPhase> {
     Some(world.get::<Autopilot>(player_root_ref(world)?)?.phase)
 }
 
