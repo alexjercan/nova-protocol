@@ -11,6 +11,8 @@ use bevy::{
     app::Plugins,
     log::{Level, LogPlugin},
     prelude::*,
+    // NOTE: RenderPlugin is not in bevy's prelude.
+    render::RenderPlugin,
     window::PresentMode,
 };
 use nova_assets::prelude::*;
@@ -94,7 +96,8 @@ impl AppBuilder {
                 .build()
                 .set(assets_plugin())
                 .set(log_plugin())
-                .set(window_plugin()),
+                .set(window_plugin())
+                .set(render_plugin()),
         );
 
         Self {
@@ -203,6 +206,21 @@ fn window_plugin() -> WindowPlugin {
             prevent_default_event_handling: true,
             ..Default::default()
         }),
+        ..default()
+    }
+}
+
+fn render_plugin() -> RenderPlugin {
+    RenderPlugin {
+        // NOTE: do not flip this back to bevy's async default (task
+        // 20260805-111329). An async pipeline-compile task still in flight at
+        // exit drops the last `Arc<Device>` from an `AsyncComputeTaskPool`
+        // thread while the main thread tears the same Vulkan device down,
+        // which SIGSEGVs inside the driver - one run in five for the
+        // self-ending `menu_scenarios` example. Compiling synchronously means
+        // no compile task ever owns a device reference, so the race cannot
+        // occur.
+        synchronous_pipeline_compilation: true,
         ..default()
     }
 }

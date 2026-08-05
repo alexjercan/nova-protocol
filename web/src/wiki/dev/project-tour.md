@@ -70,7 +70,7 @@ The highest-value table. Verified paths; follow the linked page for depth.
 ## The boot path in one glance
 
 `AppBuilder` (in `crates/nova_core/src/lib.rs`) is the single place the app is
-wired -- `DefaultPlugins` + window/log/asset setup, then the plugin stack
+wired -- `DefaultPlugins` + window/log/asset/render setup, then the plugin stack
 (assets, gameplay, scenario, editor, menu, debug). The state machines:
 
 - `GameStates { Loading, MainMenu, Playing }` -- top-level lifecycle.

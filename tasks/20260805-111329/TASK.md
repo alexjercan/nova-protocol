@@ -2,9 +2,9 @@
 
 - PRIORITY: 83
 - TAGS: v0.10.0, bug, examples, testing
-- ACTIVITY: WORKING
-- GATES: PLAN
-- RESOLUTION: -
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 - PARENT: 20260802-115955
 
 ## Story
@@ -42,7 +42,7 @@ shipped game alike.
 
 ## Steps
 
-- [ ] Add `render_plugin()` to `crates/nova_core/src/lib.rs`, beside
+- [x] Add `render_plugin()` to `crates/nova_core/src/lib.rs`, beside
       `window_plugin()` and `log_plugin()`: returns
       `RenderPlugin { synchronous_pipeline_compilation: true, ..default() }`.
       Carry a NOTE comment naming the teardown race and this task ID - the
@@ -50,20 +50,20 @@ shipped game alike.
       Import it as `bevy::render::RenderPlugin` - it is NOT in bevy's prelude
       (`bevy_render-0.19.0/src/lib.rs:74-95` exports only `ViewPlugin` and
       `WindowRenderPlugin` from that module).
-- [ ] Wire it into the `DefaultPlugins` chain in `AppBuilder::new`
+- [x] Wire it into the `DefaultPlugins` chain in `AppBuilder::new`
       (`crates/nova_core/src/lib.rs:92-98`) as a fourth
       `.set(render_plugin())`, so every app and example in the tree gets it -
       no feature gate, no env gate (`DECISION.md`, alternatives 1 and 2).
-- [ ] `nix develop --command cargo fmt` and
+- [x] `nix develop --command cargo fmt` and
       `nix develop --command cargo check --workspace --features debug`.
-- [ ] Prove it against the failure rate: 30 consecutive `menu_scenarios` runs
+- [x] Prove it against the failure rate: 30 consecutive `menu_scenarios` runs
       under `DISPLAY=:99`, each expected to exit 0. Baseline for the same loop
       is 2 failures in 20 (`NOTES.md`).
-- [ ] Check the kernel log over that loop's window for `Async Compute` +
+- [x] Check the kernel log over that loop's window for `Async Compute` +
       `segfault` records; expect zero. Record the count in `NOTES.md`
       alongside the pass count and median run time, against the 2/20 and 8.0 s
       baseline.
-- [ ] Run the ui smoke category once end to end:
+- [x] Run the ui smoke category once end to end:
       `nix develop --command env DISPLAY=:99 cargo test --test examples_smoke ui`.
 
 ## Definition of Done
@@ -111,3 +111,59 @@ shipped game alike.
   reports a signal death as `exited with None`. Filed separately as
   `20260805-114935` - naming the signal is worth an hour of triage but is a
   different change.
+
+## Close-out
+
+**What/why.** `AppBuilder::new` now sets a fourth plugin on the
+`DefaultPlugins` chain: `render_plugin()`, returning
+`RenderPlugin { synchronous_pipeline_compilation: true, ..default() }`. With
+pipelines compiled on the requesting thread there is no `AsyncComputeTaskPool`
+task holding an `Arc<Device>`, so the exit-time double teardown that SIGSEGVed
+inside the NVIDIA driver cannot happen - in the examples and in the shipped
+game alike. Unconditional: no feature gate, no env gate, per `DECISION.md`.
+The `RenderPlugin` import is explicit (`bevy::render::RenderPlugin`); it is not
+in bevy's prelude. The setter carries a NOTE naming the race and this task ID,
+because the value reads as a free perf knob and must not be flipped back blind.
+
+**Alternatives.** All five are recorded in `DECISION.md` and `NOTES.md`. The
+two gated variants (`debug` feature, `NOVA_AUTOPILOT`) were rejected for the
+same reason: the smoke suite's value is that it runs the shipped rendering
+configuration, and gating would have it green-light one the game never uses.
+Exit-gating on `PipelineCache` and `std::process::exit` were rejected as more
+machinery for a narrower guarantee, and as un-observing the bug rather than
+fixing it.
+
+**Difficulties/diagnosis.** The diagnosis was the hard part and it landed in
+UNDERSTANDING: a core dump named the faulting thread, which turned "example
+dies of an unnamed signal one run in five" into a specific ownership race.
+Implementation was three lines. The one live risk was statistical, not
+technical - a 30-run clean pass against a 10% base rate is about 4% likely to
+be luck - so the plan demanded a second independent reading. Two loop
+mishaps during verification (`bc` absent in the dev shell; an awk median over
+stderr-polluted input) cost a re-run but changed no conclusion.
+
+**Evidence.**
+
+| Proof | Result |
+|-|-|
+| `grep -n 'synchronous_pipeline_compilation: true' crates/nova_core/src/lib.rs` | line 223 |
+| 30 consecutive `menu_scenarios` runs exit 0 | 0 failures, run twice: 60/60 |
+| `cargo test --test examples_smoke ui` | passed, 68.3 s |
+| Kernel `segfault` records over the loop window | 0 |
+| Median run time | 7.6 s vs 8.0 s baseline |
+| `cargo fmt`, `cargo check --workspace --features debug` | clean (pre-existing warnings only) |
+
+After-numbers are in `NOTES.md` against the recorded baseline, which is what
+the manual proof asks a reader to check.
+
+**Doc surface.** `web/src/wiki/dev/architecture.md` and
+`web/src/wiki/dev/project-tour.md` both enumerated the builder's `.set()` calls
+as "window/log/asset setup"; both now say "window/log/asset/render setup".
+
+**Reflection.** The value here is in the NOTE comment and `DECISION.md`, not
+the diff - a future reader who sees a synchronous-compilation flag and no
+explanation will delete it, and get this bug back. Worth repeating: when a
+fix's proof is statistical, decide the second independent reading before
+running the first, or a single green loop will feel like evidence when it is
+not. Left deliberately undone and filed as `20260805-114935`:
+`tests/examples_smoke.rs` still reports a signal death as `exited with None`.

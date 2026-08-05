@@ -81,7 +81,7 @@ Boundary policy, from most game-agnostic to most game-specific:
 `AppBuilder` (in `crates/nova_core/src/lib.rs`) is the single place the app is wired:
 
 ```rust
-AppBuilder::new()                 // Bevy DefaultPlugins + window/log/asset setup
+AppBuilder::new()                 // Bevy DefaultPlugins + window/log/asset/render setup
     .with_game_plugins(my_plugin) // optional: your own systems/observers
     .with_rendering(true)         // debug-only toggle for headless runs
     .build()                      // adds the plugin stack, returns App

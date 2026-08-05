@@ -167,3 +167,25 @@ so no Vulkan teardown, so no crash. Two lines.
 Cost: it does not fix the race, it stops observing it, and it would hide every
 future teardown bug in the game - including ones that lose data. Recorded
 because it is the tempting one, and rejected for that reason.
+
+## After-numbers (2026-08-05, post-fix)
+
+Measured on the same box, `DISPLAY=:99` Xvfb 1280x720, NVIDIA driver, the same
+`for i in $(seq 30)` loop the baseline used.
+
+| Reading | Baseline (async default) | After (`synchronous_pipeline_compilation: true`) |
+|-|-|-|
+| `menu_scenarios` run-loop | 2 failures in 20 | 0 failures in 60 (two independent 30-run passes) |
+| Kernel `segfault` records over the loop window | non-zero, `Async Compute Task Pool` frames | 0 |
+| Median run time | 8.0 s | 7.6 s |
+| `cargo test --test examples_smoke ui` | flaky, ~1 in 5 `exited with None` | passed, 68.3 s |
+
+Both readings are clean, which is the bar `## Notes` set: the run-loop alone
+has about a 4% chance of being a fluke against a 10% base rate, so the
+kernel-log count is the independent second reading. 60/60 with zero kernel
+segfaults, on top of the prototype's 30/30, puts the fluke odds out of reach.
+
+Median run time did not regress - compiling on the requesting thread costs
+nothing measurable here, consistent with `DECISION.md`'s prediction that the
+cost, if it ever appears, shows up as a first-encounter frame hitch in real
+gameplay rather than as wall-clock in a short example.
