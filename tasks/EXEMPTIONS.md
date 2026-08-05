@@ -432,7 +432,6 @@ free-form headings, a single verdict line, no reviewer or task pointer.
 - 20260711-125226 missing-reviewer: REVIEW.md predates the REVIEWER field
 - 20260711-125227 bad-record-schema: RETRO/REVIEW/TASK predate the v2 record schema
 - 20260711-125227 bad-review-round: REVIEW.md predates the '## Round <n>' structure
-- 20260711-125227 missing-spike-record: spike-titled task whose research was recorded outside a SPIKE.md
 - 20260711-140234 bad-record-schema: TASK predates the v2 record schema
 - 20260711-140234 missing-reviewer: REVIEW.md predates the REVIEWER field
 - 20260711-140241 bad-record-schema: TASK predates the v2 record schema
@@ -561,19 +560,16 @@ free-form headings, a single verdict line, no reviewer or task pointer.
 - 20260712-212752 bad-review-round: REVIEW.md predates the '## Round <n>' structure
 - 20260712-215256 bad-record-schema: RETRO/REVIEW/SPIKE/TASK predate the v2 record schema
 - 20260712-215256 bad-review-round: REVIEW.md predates the '## Round <n>' structure
-- 20260712-215256 bad-spike-status: SPIKE.md STATUS predates the RECOMMENDED|INCONCLUSIVE|DROPPED vocabulary
 - 20260712-215402 bad-record-schema: RETRO/REVIEW/TASK predate the v2 record schema
 - 20260712-215402 bad-review-round: REVIEW.md predates the '## Round <n>' structure
 - 20260712-215733 bad-record-schema: RETRO/REVIEW/TASK predate the v2 record schema
 - 20260712-215733 bad-review-round: REVIEW.md predates the '## Round <n>' structure
-- 20260712-215733 bad-spike-status: SPIKE.md STATUS predates the RECOMMENDED|INCONCLUSIVE|DROPPED vocabulary
 - 20260712-215957 bad-record-schema: RETRO/REVIEW/TASK predate the v2 record schema
 - 20260712-215957 bad-review-round: REVIEW.md predates the '## Round <n>' structure
 - 20260712-215958 bad-record-schema: RETRO/REVIEW/TASK predate the v2 record schema
 - 20260712-215958 bad-review-round: REVIEW.md predates the '## Round <n>' structure
 - 20260712-222610 bad-record-schema: RETRO/REVIEW/SPIKE/TASK predate the v2 record schema
 - 20260712-222610 bad-review-round: REVIEW.md predates the '## Round <n>' structure
-- 20260712-222610 bad-spike-status: SPIKE.md STATUS predates the RECOMMENDED|INCONCLUSIVE|DROPPED vocabulary
 - 20260712-223034 bad-record-schema: RETRO/REVIEW/TASK predate the v2 record schema
 - 20260712-223034 bad-review-round: REVIEW.md predates the '## Round <n>' structure
 - 20260712-223035 bad-record-schema: RETRO/REVIEW/TASK predate the v2 record schema
@@ -586,7 +582,6 @@ free-form headings, a single verdict line, no reviewer or task pointer.
 - 20260712-231141 bad-review-round: REVIEW.md predates the '## Round <n>' structure
 - 20260713-082207 bad-record-schema: RETRO/REVIEW/SPIKE/TASK predate the v2 record schema
 - 20260713-082207 bad-review-round: REVIEW.md predates the '## Round <n>' structure
-- 20260713-082207 bad-spike-status: SPIKE.md STATUS predates the RECOMMENDED|INCONCLUSIVE|DROPPED vocabulary
 - 20260713-082324 bad-record-schema: TASK predates the v2 record schema
 - 20260713-082324 missing-reviewer: REVIEW.md predates the REVIEWER field
 - 20260713-082330 bad-record-schema: TASK predates the v2 record schema
@@ -599,7 +594,6 @@ free-form headings, a single verdict line, no reviewer or task pointer.
 - 20260713-090653 missing-reviewer: REVIEW.md predates the REVIEWER field
 - 20260713-110039 bad-record-schema: RETRO/REVIEW/SPIKE/TASK predate the v2 record schema
 - 20260713-110039 bad-review-round: REVIEW.md predates the '## Round <n>' structure
-- 20260713-110039 bad-spike-status: SPIKE.md STATUS predates the RECOMMENDED|INCONCLUSIVE|DROPPED vocabulary
 - 20260713-110311 bad-record-schema: REVIEW/TASK predate the v2 record schema
 - 20260713-110311 missing-reviewer: REVIEW.md predates the REVIEWER field
 - 20260713-110330 bad-record-schema: REVIEW/TASK predate the v2 record schema
@@ -686,7 +680,6 @@ free-form headings, a single verdict line, no reviewer or task pointer.
 - 20260714-103611 bad-review-round: REVIEW.md predates the '## Round <n>' structure
 - 20260714-103622 bad-record-schema: RETRO/REVIEW/TASK predate the v2 record schema
 - 20260714-103622 bad-review-round: REVIEW.md predates the '## Round <n>' structure
-- 20260714-103622 missing-spike-record: spike-titled task whose research was recorded outside a SPIKE.md
 - 20260714-110502 bad-record-schema: RETRO/REVIEW/TASK predate the v2 record schema
 - 20260714-110502 bad-review-round: REVIEW.md predates the '## Round <n>' structure
 - 20260714-113408 bad-record-schema: TASK predates the v2 record schema
@@ -697,7 +690,6 @@ free-form headings, a single verdict line, no reviewer or task pointer.
 - 20260714-113414 bad-review-round: REVIEW.md predates the '## Round <n>' structure
 - 20260714-113418 bad-record-schema: RETRO/REVIEW/TASK predate the v2 record schema
 - 20260714-113418 bad-review-round: REVIEW.md predates the '## Round <n>' structure
-- 20260714-113418 bad-spike-status: SPIKE.md STATUS predates the RECOMMENDED|INCONCLUSIVE|DROPPED vocabulary
 - 20260714-123535 bad-record-schema: RETRO/REVIEW/TASK predate the v2 record schema
 - 20260714-123535 bad-review-round: REVIEW.md predates the '## Round <n>' structure
 - 20260714-134119 bad-record-schema: TASK predates the v2 record schema
@@ -780,7 +772,6 @@ free-form headings, a single verdict line, no reviewer or task pointer.
 - 20260715-200828 missing-reviewer: REVIEW.md predates the REVIEWER field
 - 20260715-204133 bad-record-schema: RETRO/REVIEW/SPIKE/TASK predate the v2 record schema
 - 20260715-204133 bad-review-round: REVIEW.md predates the '## Round <n>' structure
-- 20260715-204133 bad-spike-status: SPIKE.md STATUS predates the RECOMMENDED|INCONCLUSIVE|DROPPED vocabulary
 - 20260715-204358 bad-record-schema: RETRO/TASK predate the v2 record schema
 - 20260715-204358 missing-reviewer: REVIEW.md predates the REVIEWER field
 - 20260715-205825 bad-record-schema: RETRO/TASK predate the v2 record schema
@@ -1311,6 +1302,17 @@ free-form headings, a single verdict line, no reviewer or task pointer.
 - 20260730-122940 bad-record-schema: DECISION predates the v2 record schema
 - 20260730-123009 bad-record-schema: DECISION/RETRO predate the v2 record schema
 
+## Epic and spike trackers with no Steps or Definition of Done
+
+An epic tracks its children and a spike answers a question; neither carries
+its own step list or proof-bearing done criteria. The facts live in the
+tracker's own headings (`## Delivery Tracks`, `## Done Means`, `## Question`).
+
+- 20260728-175719 bad-record-schema: epic tracker - child tasks carry the Steps and the proofs
+- 20260731-170222 bad-record-schema: epic tracker - child tasks carry the Steps and the proofs
+- 20260802-120019 bad-record-schema: epic tracker - child tasks carry the Steps and the proofs
+- 20260804-003244 bad-record-schema: spike record - the question and recommendation live in SPIKE.md
+
 ## Definition-of-Done proofs written before the parenthesized notation
 
 The proof kind was written as a `- cmd:` / `- manual:` prefix, or the item
@@ -1408,3 +1410,11 @@ trail, so they are classified instead.
 - 20260726-115320 approve-with-open-findings: the review approved with a finding left open; recorded as it happened
 - 20260726-115330 approve-with-open-findings: the review approved with a finding left open; recorded as it happened
 - 20260726-134738 approve-with-open-findings: the review approved with a finding left open; recorded as it happened
+- 20260728-175719 inconsistent-gates: the epic closed on its children's gates; it was never reviewed on its own
+- 20260728-175719 closed-missing-review: the epic closed on its children's reviews
+- 20260728-175719 closed-missing-retro: the epic closed on its children's retros
+- 20260731-170222 inconsistent-gates: the epic closed on its children's gates; it was never reviewed on its own
+- 20260731-170222 closed-missing-review: the epic closed on its children's reviews
+- 20260731-170222 closed-missing-retro: the epic closed on its children's retros
+- 20260802-120019 closed-missing-review: the epic closed on its children's reviews
+- 20260802-120019 closed-missing-retro: the epic closed on its children's retros

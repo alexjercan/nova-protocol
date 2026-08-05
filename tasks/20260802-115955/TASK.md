@@ -22,7 +22,23 @@ website. The release favors one reusable pipeline over unrelated features.
 | Asset refresh | The rebuilt `screenshots/` producers plus the python packaging script refresh the web imagery; scenario art gets generated placeholders until the owner draws it. | `20260805-105154`, `20260715-220011` |
 | Release confidence | Current tutorial media and warning-clean code ship with the automated evidence. | `20260730-111146`, `20260731-205553` |
 
-## Done Means
+## Steps
+
+- [ ] Nova-owned automation: `nova_autopilot` owns the driver and the
+      completion protocol, predicate-driven (`20260802-120019`,
+      `20260802-120025`).
+- [ ] Example fleet: the roster spike sets the categories, then every category
+      lands against its contract (`20260804-003244`, `20260804-093855`,
+      `20260804-093910`, `20260804-093934`, `20260804-093950`,
+      `20260804-094006`, `20260804-094021`).
+- [ ] Asset refresh: rebuilt `screenshots/` producers recapture every
+      `capturable` web image, and the picker gets generated placeholders
+      (`20260805-105154`, `20260715-220011`).
+- [ ] Release confidence: run the fleet as CI will, refresh the tutorial, and
+      clear the warnings (`20260804-095507`, `20260730-111146`,
+      `20260731-205553`).
+
+## Definition of Done
 
 - Nova automation no longer imports or activates the BCS debug harness; the
   in-repo crate owns the driver and completion protocol. The `debug::harness`

@@ -50,10 +50,9 @@ still belongs to this task, and it needs re-measuring with stderr captured.
 
 ## Definition of Done
 
-- [ ] `cmd:` `for i in (seq 10); DISPLAY=:99 nix develop --command cargo run -p
-      nova_probe -- run menu_scenarios; or exit 1; end` - ten consecutive green
-      runs.
-- [ ] The cause is recorded in the task, not just the symptom.
+- [ ] Ten consecutive green runs of the category. (cmd: `for i in (seq 10); DISPLAY=:99 nix develop --command cargo run -p nova_probe -- run menu_scenarios; or exit 1; end`)
+- [ ] The cause is recorded in the task, not just the symptom. (manual: the
+      task Notes name the exit-code source, not only the observed rate)
 
 ## Notes
 
