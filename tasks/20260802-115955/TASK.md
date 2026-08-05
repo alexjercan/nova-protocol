@@ -53,6 +53,7 @@ website. The release favors one reusable pipeline over unrelated features.
 | `20260804-003301` | 86 | nova-protocol | Move the design PoC HTML pages into `web/design` | Pending |
 | `20260802-120025` | 85 | nova-protocol | Make `nova_autopilot` predicate-driven | Pending |
 | `20260804-093855` | 85 | nova-protocol | Example categories: contract + probe run policy (foundation) | Pending |
+| `20260805-091151` | 84 | nova-protocol | `click_named` presses in the same frame it warps the cursor | Pending - CONFIRMED flake, ~1 in 3 full `examples_smoke` runs; gates CI |
 | `20260804-094021` | 83 | nova-protocol | Rebuild `ui/` on synthesized pointer input | Pending |
 | `20260804-003244` | 82 | nova-protocol | Spike: decide the v0.10.0 example fleet roster | Pending |
 | `20260804-093934` | 82 | nova-protocol | Build `systems/`: code-built fixtures, incl. `outcomes` | Pending |

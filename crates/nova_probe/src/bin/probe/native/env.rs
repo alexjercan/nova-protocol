@@ -274,7 +274,8 @@ mod tests {
         // the fps pass; every other one gets a reason NAMING the category,
         // so the report says why rather than showing a hole.
         assert_eq!(fps_skip_reason("stress"), None);
-        assert_eq!(fps_skip_reason("perf"), None, "transitional row");
+        // `gameplay` is retired and has no policy row, so it also exercises
+        // the unknown-category backstop: even there the report says why.
         for category in ["sections", "systems", "ui", "gameplay"] {
             let reason = fps_skip_reason(category)
                 .unwrap_or_else(|| panic!("{category} must record a skip reason"));

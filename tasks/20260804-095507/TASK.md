@@ -10,84 +10,72 @@
 
 ## Story
 
-Run the rebuilt fleet the way CI and probe will, and record the resulting
-report as the sprint's correctness + perf evidence.
+Run the rebuilt fleet as ONE invocation - the only place that happens - and
+read the resulting report as the sprint's correctness + perf evidence.
 
-This is `20260802-120029`'s last Step and one of the epic's Done Means. It was
-dropped when the roster spike (`20260804-003244`) redistributed that task, and
-is restored here as the closing task of the chain: it is the only place the
-rebuilt fleet is exercised as a WHOLE rather than per category.
+This is the closing task of the example-fleet chain and one of the epic's Done
+Means (`20260802-115955:37,45`). Each of the six preceding tasks proved its own
+category with `probe run <category>`; nothing had exercised them together, so
+cross-category effects were unproven.
+
+Scope was cut by the owner before planning - see `DECISION.md`. The report is
+INSPECTED, not committed; there is no baseline to compare against; the CI
+budget question is left to CI.
 
 ## Steps
 
-- [ ] Run what CI ACTUALLY runs, first and separately:
-      `xvfb-run --auto-servernum cargo test -p nova-protocol --test
-      examples_smoke --features debug` (`.github/workflows/ci.yaml:108`). This
-      is the fleet's real gate; probe is not in any workflow.
-- [ ] Check the smoke step still fits the job's `timeout-minutes: 60`
-      (ci.yaml:24) with the rebuilt fleet. The smoked count rises (~22 -> ~25:
-      `widget_zoo` joins, three `stress/` runs are new and heavy) while three
-      runs retire. If it does not fit, that is a CI-budget fix, not a
-      "record the evidence" fix - file it.
-- [ ] Run the evidence pass:
-      `nix develop --command cargo run -p nova_probe -- run --all --fps`
-      under Xvfb :99 with the full rebuilt fleet in place.
-- [ ] Confirm the per-category run policy did what the contract says:
-      `screenshots/` excluded from `--all`, `stress/` the only category with
-      frame-time passes, everything else correctness-only.
-- [ ] Commit the evidence under `tasks/20260804-095507/probe-results/`
-      (report.html + checks.json + frametime.csv), following the
-      `tasks/20260716-123551/perf-results/` precedent for the v0.7.0 baseline.
-- [ ] Compare frame times against the v0.7.0 baseline where a comparison
-      EXISTS, and say plainly where it does not: `scene_baseline` still loads
-      `asteroid_field`, so that series is comparable; the `broadside-*` series
-      dies with the retired example; `many_bodies` / `many_sections` /
-      `many_projectiles` are new, so this run IS their baseline.
-- [ ] FILE anything the full-fleet run surfaces that the per-category runs did
-      not. Fix only one-line corrections - this task is the sprint's last, and
-      it is where leftover work goes to hide.
+- [x] Run the evidence pass:
+      `nix develop --command xvfb-run --auto-servernum cargo run -p nova_probe -- run --all --fps`
+      on `master`, in place, writing to probe's default `probe-runs/`
+      (gitignored - `.gitignore:252`). No `--baseline`, no custom `--out`.
+- [x] Confirm the per-category run policy did what the contract says, against
+      the RUN and not just `CATEGORY_POLICIES`: `screenshots/` excluded from
+      `--all`, `stress/` the only category with frame-time passes, everything
+      else correctness-only.
+- [x] Read the verdict from `checks.json` - together with `measured`, never
+      alone - and account for every unmeasured check.
+- [x] Write the frame-time numbers into `NOTES.md`. Nothing else outlives
+      `target/`, so this is the only record they get.
+- [x] FILE anything the full-fleet run surfaced that the per-category runs did
+      not; fix only one-line corrections here.
+      -> `20260805-091146` (`many_projectiles` frame spikes).
+- [x] Record the owner's intermittent `examples_smoke` failure. Diagnosed and
+      REPRODUCED, not fixed - owner call. -> `20260805-091151`
+      (`click_named` same-frame press), moved into the v0.10.0 sprint at
+      priority 84 because it gates CI.
+- [x] One-line correction the full-suite run surfaced: `nova_probe`'s
+      `frame_time_categories_capture_and_the_rest_record_a_reason` still
+      asserted `perf/` was a frame-time category. `perf/` was absorbed into
+      `stress/` by `20260804-094006`; the stale "transitional row" is gone.
+- [ ] BLOCKED - verify the whole suite is green before closing. It is not:
+      `examples_smoke::ui_reach_playing_without_panic` fails ~1 run in 3 on
+      `20260805-091151`. This task cannot close until that one lands.
 
 ## Definition of Done
 
-- The fleet passes the gate CI actually enforces.
-  (cmd: `xvfb-run --auto-servernum cargo test -p nova-protocol --test examples_smoke --features debug`)
-- The full fleet runs green as one probe invocation, with the report retained
-  under `tasks/20260804-095507/probe-results/`.
-  (cmd: `nix develop --command cargo run -p nova_probe -- run --all --fps`)
+- The full fleet runs green as one probe invocation.
+  (cmd: `nix develop --command xvfb-run --auto-servernum cargo run -p nova_probe -- run --all --fps`)
 - No example carries a hand-rolled completion guard or beat-boolean script.
   (cmd: `! rg -n "run ended with the scripted run unfinished|playing_since" examples`)
 - The catalog, the on-disk layout and the smoke lists agree.
   (test: `catalog_matches_disk`)
+- Every category on disk has an explicit probe policy row.
+  (test: `every_category_has_a_probe_policy`)
+- The workspace suite passes.
+  (cmd: `nix develop --command xvfb-run --auto-servernum cargo test --workspace --features debug`)
+- The frame-time numbers and the run's two caveats are recorded in `NOTES.md`,
+  because no artifact is committed. (manual: read `NOTES.md`)
 
 ## Notes
 
 - Carried forward from `20260802-120029` Step 9 and its `playing_since` absence
   grep, which would otherwise have been lost when that task closed SUPERSEDED.
 - Depends on every other task in the chain; it is the last one.
-- Examples must be RUN under Xvfb :99, not only checked.
-
-The title says "as CI will", and that was imprecise. Two different runs:
-
-| | Gate | Evidence |
-| --- | --- | --- |
-| What | `cargo test --test examples_smoke` | `probe run --all --fps` |
-| Who | CI, every PR (`ci.yaml:108`) | the owner, once, here |
-| Proves | reaches Playing, no panic, no command errors | correctness + frame time, per category |
-| Fails the build | yes | no - probe is in no workflow |
-
-Both matter and neither substitutes for the other. The smoke gate is what
-regressions actually hit; the probe report is what the epic's Done Means asks
-for as the v0.10.0 demonstration. Run the gate FIRST - a red smoke makes the
-probe report meaningless, and the smoke run is much cheaper.
-
-- Runtime is worth estimating before committing to "one green invocation" as a
-  proof shape. `stress/` uses the full 180 + 900 frame window
-  (`capture.rs:94,97`), and `env.rs` sizes each fps pass's deadline at
-  `1080 / FPS_FLOOR(2.0) + 45s` = 585s. That is a worst-case bound, not the
-  expected time, but four `stress/` fps passes plus a correctness pass over
-  ~21 other examples is a long single command. If it proves unwieldy, running
-  `--all` and `stress --fps` separately still discharges the Done Means.
-- Evidence location follows `tasks/20260716-123551/perf-results/`, which
-  committed per-scene JSON + `frametime.csv` for the v0.7.0 baseline. Same
-  shape, same reason: a generated artifact is only evidence if it outlives
-  `target/`.
+- Examples must be RUN under Xvfb, not only checked.
+- "as CI will" was imprecise. CI's fleet gate is
+  `cargo test -p nova-protocol --test examples_smoke --features debug`
+  (`.github/workflows/ci.yaml:108`); probe is in no workflow. The two runs are
+  tabulated in `NOTES.md` and neither substitutes for the other.
+- Out of band, on owner instruction and not part of this plan: the
+  `nova_autopilot` prelude re-export bookkeeping tests were removed
+  (`2a8bd05b`).
