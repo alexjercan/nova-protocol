@@ -1,9 +1,16 @@
-//! screenshot_nova_os: capture the Tab NOVA OS ship-computer for the HTML
-//! fidelity pass (task 20260726-180807). It boots a one-ship range, opens the
-//! computer with Tab, drives a couple of commands through the real keyboard
-//! path, and captures the screen so contrast, the input box, inline completion
-//! and the CRT treatment can be compared against
-//! `web/design/nova_os_terminal_poc.html`.
+//! screenshot_nova_os: capture the Tab NOVA OS ship-computer for the site's two
+//! NOVA OS figures. It boots a one-ship range, opens the computer with Tab,
+//! drives commands through the real keyboard path, and shoots the terminal with
+//! output and an inline-completion ghost on it, then the ship app filling the
+//! tube.
+//!
+//! Two shots, four apps' worth of walking. The walk still opens the welcome
+//! screen and launches the map app before it gets to the ship app, and those
+//! beats are kept: they are what exercises the map app and the RTT/wgsl
+//! schematic path, so a render panic in either fails this run. What they no
+//! longer do is WRITE a file. Their captures existed for the HTML fidelity pass
+//! (task 20260726-180807, closed) against `web/design/nova_os_terminal_poc.html`
+//! and no page has ever referenced them.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - reach Playing, open the computer,
@@ -70,10 +77,6 @@ fn main() -> bevy::app::AppExit {
                 .on_enter(press_tab)
                 .until(frames(settle))
                 .add()
-                .step("capture the welcome screen")
-                .on_enter(move |world| shoot(world, capturing, "nova-os-welcome.png"))
-                .until(frames(after_capture))
-                .add()
                 // Run `help` then `ship view` so command-output formatting is
                 // on screen (bare `ship` now LAUNCHES the app; `ship view` is
                 // the CLI status print).
@@ -91,8 +94,8 @@ fn main() -> bevy::app::AppExit {
                 .on_enter(|world| type_word(world, "lo"))
                 .until(frames(settle))
                 .add()
-                .step("capture the active screen")
-                .on_enter(move |world| shoot(world, capturing, "nova-os-active.png"))
+                .step("capture the terminal")
+                .on_enter(move |world| shoot(world, capturing, "news-090-nova-os-terminal.png"))
                 .until(frames(after_capture))
                 .add()
                 // Flush the leftover `lo` prefix, then type `map`.
@@ -106,10 +109,6 @@ fn main() -> bevy::app::AppExit {
                 .step("launch the map app")
                 .on_enter(press_enter)
                 .until(frames(settle))
-                .add()
-                .step("capture the map app")
-                .on_enter(move |world| shoot(world, capturing, "nova-os-map.png"))
-                .until(frames(after_capture))
                 .add()
                 // Leave the map app back to the prompt, then type `ship`.
                 .step("type the ship command")
@@ -131,7 +130,7 @@ fn main() -> bevy::app::AppExit {
                 // registers it as a completion collector and the driver reports
                 // done the moment this step ends.
                 .step("capture the ship app")
-                .on_enter(move |world| shoot(world, capturing, "nova-os-ship.png"))
+                .on_enter(move |world| shoot(world, capturing, "news-090-nova-os-apps.png"))
                 .until(frames(after_capture))
                 .add(),
         );
@@ -160,6 +159,10 @@ fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, sections: R
 
 /// A single named player ship at the origin - enough for the NOVA OS computer to
 /// spawn (it keys off the player ship root) and for `ship` to have real sections.
+///
+/// It carries a turret and a torpedo bay on its flanks as well as the spine, so
+/// the schematic app has something to be a schematic OF and both shots show the
+/// weapon cockpit codes the page talks about, not three blocks in a line.
 fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
     let section = |id: &str| {
         sections
@@ -167,9 +170,9 @@ fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
             .unwrap_or_else(|| panic!("section '{id}' not found"))
             .clone()
     };
-    let at = |id: &str, kind: &str, z: f32| SpaceshipSectionConfig {
+    let at = |id: &str, kind: &str, position: Vec3| SpaceshipSectionConfig {
         id: id.to_string(),
-        position: Vec3::new(0.0, 0.0, z),
+        position,
         rotation: Quat::IDENTITY,
         source: SectionSource::Inline(section(kind)),
         modifications: vec![],
@@ -184,9 +187,31 @@ fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
             lock_refire_secs: None,
         }),
         sections: vec![
-            at("player_controller", "basic_controller_section", 0.0),
-            at("player_hull", "reinforced_hull_section", 1.0),
-            at("player_thruster", "basic_thruster_section", 2.0),
+            at(
+                "player_controller",
+                "basic_controller_section",
+                Vec3::new(0.0, 0.0, 0.0),
+            ),
+            at(
+                "player_hull",
+                "reinforced_hull_section",
+                Vec3::new(0.0, 0.0, 1.0),
+            ),
+            at(
+                "player_thruster",
+                "basic_thruster_section",
+                Vec3::new(0.0, 0.0, 2.0),
+            ),
+            at(
+                "player_turret",
+                "better_turret_section",
+                Vec3::new(1.0, 0.0, 1.0),
+            ),
+            at(
+                "player_torpedo",
+                "torpedo_section",
+                Vec3::new(-1.0, 0.0, 1.0),
+            ),
         ],
     };
 

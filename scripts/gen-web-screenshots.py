@@ -112,6 +112,10 @@ FIGURES = [
     ("wiki-section-thruster.png",  "screenshot_sections"),
     ("wiki-section-turret.png",    "screenshot_sections"),
     ("wiki-section-torpedo-bay.png", "screenshot_sections"),
+    # The ship computer: the terminal with output and an inline-completion ghost,
+    # then the ship app's schematic filling the same tube.
+    ("news-090-nova-os-terminal.png", "screenshot_nova_os"),
+    ("news-090-nova-os-apps.png",  "screenshot_nova_os"),
     # devlog5-radar-stance-slots is built by COMPOSITES (below) from two shots.
 ]
 
