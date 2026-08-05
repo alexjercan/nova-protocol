@@ -22,11 +22,7 @@ At release time (before tagging):
 
 1. **Distill** reference detail worth keeping out of `docs/` scratch into the
    wiki.
-2. Run **`scripts/wipe-docs.sh`** - clears everything under `docs/` except
-   this `README.md`. Idempotent (a no-op on an already-clean `docs/`).
-3. The **release-flow guard** (`scripts/check-docs-clean.sh`, run by
-   `.github/workflows/release.yaml`) FAILS the tag build if `docs/` still holds
-   anything else - so a release can never ship a junk-drawer `docs/`.
+2. **Wipe** everything under `docs/` except this `README.md`, and commit.
 
 ## Where records go
 

@@ -156,7 +156,7 @@ Task records:
 | `NOTES.md` | Design/fix record. |
 
 `docs/`: ephemeral scratch only. Before release: move durable reference
-material to the wiki, then run `scripts/wipe-docs.sh`.
+material to the wiki, then clear everything under `docs/` except its `README.md`.
 Plans and durable records stay out of `docs/`.
 
 ## Documentation

@@ -76,10 +76,8 @@ level, a release means:
 
 1. **`docs/` compile-and-wipe** (ephemeral-docs model): `docs/` is free scratch
    during the cycle; before the tag, distil durable reference into the wiki,
-   then run
-   `scripts/wipe-docs.sh`. The release-flow guard fails the tag if `docs/`
-   holds anything but its `README.md`. (Plans live in tatr tasks, not
-   `docs/plans`.)
+   then clear everything under `docs/` except its `README.md`. (Plans live in
+   tatr tasks, not `docs/plans`.)
 2. **`CHANGELOG.md`**: promote `## [Unreleased]` to `## [<version>] -
    <YYYY-MM-DD>`, leave a fresh empty `[Unreleased]`, merge any duplicate
    subsystem headings that grew during the cycle, and update the compare links

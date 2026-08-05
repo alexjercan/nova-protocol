@@ -691,10 +691,8 @@ Pushing a tag `v[0-9]+.[0-9]+.[0-9]+*` triggers `release-flow`
 (`.github/workflows/release.yaml`). Steps, on `master`:
 
 1. Compile-and-wipe `docs/` (the ephemeral-docs model): distil durable
-   reference out of `docs/` scratch into the wiki, then run
-   `scripts/wipe-docs.sh` and commit. The
-   release-flow guard (`scripts/check-docs-clean.sh`, a job the build waits on)
-   FAILS the tag if `docs/` holds anything but its `README.md`.
+   reference out of `docs/` scratch into the wiki, then clear everything under
+   `docs/` except its `README.md` and commit.
 2. Bump `workspace.package.version` in root `Cargo.toml`.
 3. Refresh `Cargo.lock`: `cargo metadata --format-version 1 >/dev/null`.
 4. Update `CHANGELOG.md` (Keep a Changelog, one concise line per entry):

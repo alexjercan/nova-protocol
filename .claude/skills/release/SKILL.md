@@ -42,10 +42,9 @@ release". This skill is that checklist plus the guardrails learned in practice.
 - **Sprint clean:** `tatr ls -f "(:tags contains vX.Y.Z) and (not :status eq
   CLOSED)"` returns nothing, or the user explicitly ships with tasks open. For a
   patch release off a prior minor, check that minor's tag instead.
-- **docs/ clean:** `ls docs/` shows only `README.md` (the release-flow guard
-  `scripts/check-docs-clean.sh` FAILS the tag otherwise). If scratch remains,
-  distil it first (lessons -> `LESSONS.md`, reference -> wiki) then
-  `scripts/wipe-docs.sh`.
+- **docs/ clean:** `ls docs/` shows only `README.md`. If scratch remains, distil
+  it first (lessons -> `LESSONS.md`, reference -> wiki) then clear everything
+  under `docs/` except its `README.md`.
 - **What is shipping:** `git log --oneline <lastTag>..HEAD` and
   `git diff --stat <lastTag>..HEAD`. Every user-facing change in that range must
   be reflected in CHANGELOG + news; anything missing gets written now. A change
