@@ -124,6 +124,11 @@ Placed first because it removes the mechanism rather than the symptom, it is
 about five lines in the one place the tree already funnels plugin
 configuration through, and it needs no new concept - the switch is bevy's.
 
+PROTOTYPED before the decision, then reverted: 30 runs, 0 failures, 0 kernel
+segfaults, median run 7.0 s against the baseline's 8.0 s. Against a 10% base
+rate a clean 30 is not proof (about a 4% chance of a fluke), so the fix still
+owes a longer run when it lands.
+
 ### 2. Idea 1, gated to debug builds
 
 Same change, behind `#[cfg(feature = "debug")]`. Every example in the smoke
