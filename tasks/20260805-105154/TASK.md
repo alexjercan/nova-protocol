@@ -37,8 +37,8 @@ roster change settled in `DECISION.md` - one row is one child task.
 | Producer | Was | Images |
 | --- | --- | --- |
 | `screenshot_scene` | `screenshot_reel` | `feature-gravity`, `wiki-gravity`, `wiki-sections` |
-| `screenshot_flight` | `screenshot_orbit` + combat aliases | `feature-autopilot`, `wiki-flight`, `tutorial-orbit` |
-| `screenshot_combat` | `screenshot_combat` + `screenshot_juice` | `feature-combat`, `feature-hud`, `wiki-combat`, `wiki-hud`, `tutorial-combat-lock`, `tutorial-radar-lock`, `wiki-radar`, `feature-juice`, `news-090-combat-readability`, `news-090-contextual-hud` |
+| `screenshot_flight` | `screenshot_orbit` | `tutorial-orbit` |
+| `screenshot_combat` | `screenshot_combat` + `screenshot_juice` | `feature-combat`, `feature-hud`, `wiki-combat`, `wiki-hud`, `tutorial-combat-lock`, `tutorial-radar-lock`, `wiki-radar`, `feature-juice`, `news-090-combat-readability`, `news-090-contextual-hud`, `feature-autopilot`, `wiki-flight` |
 | `screenshot_sections` | unchanged | the five `wiki-section-*` |
 | `screenshot_ui` | `screenshot_ui` | `feature-editor`, `tutorial-menu`, `wiki-settings`, `news-090-scenario-campaigns` |
 | `screenshot_nova_os` | `screenshot_nova_os` | `news-090-nova-os-terminal`, `news-090-nova-os-apps` |
@@ -151,6 +151,19 @@ supersedes (with its `[[example]]` block in `Cargo.toml` and its entry in
     catalog at runtime, so a RON file would be a generated artifact maintained
     by hand - which is what the shipped `menu_*` / `broadside` files are. The
     scene is built in Rust, as `screenshot_sections` already does.
+- Scene 2 turned into a two-act flight at the owner's call: the set opens 800
+  units out, the player TRAVEL-locks a nav beacon, flies the real GOTO leg, and
+  the beacon's own trigger area springs the ambush on arrival (`OnEnter`
+  scenario data, so a plain run gets the fight by flying there). Two calls
+  against this plan's wording, both from what the leg showed:
+  - `feature-autopilot` and `wiki-flight` MOVE HERE (the burn and the
+    flip-and-burn are beats of this leg), leaving `screenshot_flight` with
+    `tutorial-orbit` alone. `ALIASES` is now empty, which is a DoD item.
+  - The radar picks the body nearest the AIM RAY, and asteroids are lockable at
+    any range (their signature gate is bypassed by the well/ship branch), so a
+    rock four kilometres out steals a travel lock aimed a few degrees off. The
+    start sits nearly in line with the beacon for that reason, and the step
+    waits on a lock ON THE BEACON so a wrong latch aborts the run by name.
 - The generated rock mesh reaches well past its nominal radius (roughly 4x), so
   a planetoid authored at radius 30 draws a body about 120 units across. Size
   scene bodies from that, not from the authored number.

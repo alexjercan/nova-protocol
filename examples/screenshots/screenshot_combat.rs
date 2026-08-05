@@ -1,31 +1,43 @@
-//! screenshot_combat: "Rock hollow" - the combat and HUD set.
+//! screenshot_combat: "Rock hollow" - the travel, combat and HUD set.
 //!
-//! A clearing inside a dense rock shell. The player's racer sits in the middle
-//! with a raider drifting ahead of it (the lock subject, the ship its guns
-//! shoot, and the one that loses a section on camera), two friendly racers
-//! working the near flanks and a hostile pair across the hollow - all four
-//! flying waypoint routes until the engage grace runs out, so the set is in
-//! motion before the first shot. It replaces the old
-//! `screenshot_combat` range (three primitive blocks on an empty backdrop) and
-//! absorbs `screenshot_juice`, whose scripted section blow is one beat here.
+//! One flight in two acts, flown by the script the way a player would fly it.
 //!
-//! WHAT THE PROOF RUN SHOWED (2026-08-05), and why the set is shaped like this:
-//! two AI flights DO fight each other with no player in the scene - a flight
-//! spawned `allegiance: Some(Player)` acquires the default-Enemy flight within
-//! a second and both sides run their guns continuously. Nothing in acquisition
-//! is player-specific (`crates/nova_gameplay/src/input/ai/acquisition.rs`), and
-//! now it has been run. What they will NOT do is brawl: the engage maneuver
-//! flies to `AI_STANDOFF_RANGE` (250 units) and EXTENDS AWAY once inside the
-//! band, so a fight is a wide slow ring, and turret bullets (100 u/s, 5 s life)
-//! never connect at that range - 45 seconds of continuous fire took zero
-//! sections off. So the AI pairs are the set's live background - tracer streams
-//! and moving hulls - while every close beat is authored: the lock subject is
-//! not AI-flown (it drifts on a nudged velocity), and the destruction is
-//! scripted through the real damage path.
+//! ACT 1, the leg: the racer sits in open space with a nav beacon roughly 750
+//! units downrange. The weapons-lowered radar latches it (a TRAVEL lock, far
+//! enough out that its bracket sits in open sky instead of on top of the
+//! player's own hull), the travel computer engages, and the ship flies the real
+//! GOTO leg - align, burn, coast, FLIP, brake. Two shots come off that leg and
+//! nothing about it is faked: the plume, the trajectory ribbon and the flip are
+//! the autopilot's.
+//!
+//! ACT 2, the ambush: the beacon doubles as its own trigger area, so crossing it
+//! fires `OnEnter` and spawns the whole fight - a raider dead ahead, two
+//! friendly racers on the near flanks and a hostile pair across the hollow.
+//! That is scenario data, not script, so the OWNER's plain run gets the ambush
+//! too: fly to the beacon and the hollow fills up. The rest of the set is as it
+//! was - travel lock cleared, weapons raised, combat lock latched, guns live.
+//!
+//! WHAT THE PROOF RUN SHOWED (2026-08-05), and why the fight is shaped like
+//! this: two AI flights DO fight each other with no player in the scene - a
+//! flight spawned `allegiance: Some(Player)` acquires the default-Enemy flight
+//! within a second and both sides run their guns continuously. Nothing in
+//! acquisition is player-specific (`crates/nova_gameplay/src/input/ai/
+//! acquisition.rs`), and now it has been run. What they will NOT do is brawl:
+//! the engage maneuver flies to `AI_STANDOFF_RANGE` (250 units) and EXTENDS
+//! AWAY once inside the band, so a fight is a wide slow ring, and turret bullets
+//! (100 u/s, 5 s life) never connect at that range - 45 seconds of continuous
+//! fire took zero sections off. So the AI pairs are the set's live background -
+//! tracer streams and moving hulls - while every close beat is authored: the
+//! lock subject is not AI-flown (it drifts on a nudged velocity), and the
+//! destruction is scripted through the real damage path.
 //!
 //! The player's guns are REAL input: its turret sections carry `Mouse(Left)`
 //! bindings from [`turret_bindings`], the script holds the trigger, and the
 //! tracers in the combat frames are the player's own rounds hitting the lock.
+//!
+//! It replaces the old `screenshot_combat` range (three primitive blocks on an
+//! empty backdrop) and absorbs `screenshot_juice`, whose scripted section blow
+//! is one beat here.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - reach Playing, drive the whole
@@ -56,26 +68,47 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "screenshot_combat")]
 #[command(version = "1.0.0")]
-#[command(about = "The Rock hollow combat and HUD set", long_about = None)]
+#[command(about = "The Rock hollow travel, combat and HUD set", long_about = None)]
 struct Cli;
 
-/// Scenario id of the parked raider the player locks, shoots and finally blows
-/// a section off.
+/// Scenario id of the player's ship - the ambush event filters on it.
+const PLAYER_ID: &str = "hollow_player";
+/// Where the leg starts: up, out and roughly 750 units short of the hollow, so
+/// the GOTO has room for a full align-burn-coast-flip-brake profile.
+const START_POSITION: Vec3 = Vec3::new(0.0, -60.0, 754.0);
+
+/// The nav beacon: the travel lock's subject, the GOTO's destination and the
+/// trigger that springs the ambush. Sitting a long way downrange is the point -
+/// a destination a few units off the nose puts its bracket over the player's own
+/// hull, which is exactly what this framing must not do.
+const BEACON_ID: &str = "hollow_beacon";
+/// Just past where the leg comes to rest: GOTO parks at
+/// `FlightSettings::arrival_standoff` (50 units), so the ship ends up near the
+/// origin - where the hollow's geometry and every combat framing is measured
+/// from.
+const BEACON_POSITION: Vec3 = Vec3::new(0.0, 0.0, -46.0);
+/// Radar signature, world units of lock range per unit being 30: the default 20
+/// (600 units) is short of this leg, so the beacon authors the range the leg
+/// needs, the way the doc comment on the field asks.
+const BEACON_SIGNATURE: f32 = 40.0;
+/// The beacon's trigger radius. Wider than the arrival standoff, so the ambush
+/// springs while the ship is still braking and the flights are in the world
+/// before it comes to rest.
+const BEACON_AREA_RADIUS: f32 = 90.0;
+
+/// Scenario id of the raider the player locks, shoots and finally blows a
+/// section off.
 const RAIDER_ID: &str = "hollow_raider";
-/// Where it sits: dead ahead, far enough back that the frame has depth between
-/// the player's hull and its target, close enough that the target still reads.
+/// Where it appears: dead ahead of the parked player, far enough back that the
+/// frame has depth between the two hulls, close enough that the target reads.
 const RAIDER_POSITION: Vec3 = Vec3::new(0.0, 0.6, -34.0);
 /// The raider section the scripted blow takes off - a forward hull cube on the
 /// camera's side of the ship, so the fragments and the hole are both in frame.
 const RAIDER_BLOWN_SECTION: &str = "racer_cube_i0_j0_km2";
-/// The nav beacon the weapons-lowered radar sweep latches. BEYOND the raider
-/// and off the axis: a beacon between camera and subject puts its glow over the
-/// player's own hull, and the orb is bright enough to blow out half the frame.
-const BEACON_POSITION: Vec3 = Vec3::new(3.4, 1.2, -48.0);
 
-/// Seconds each AI flight holds fire after the scenario starts, so the shots
-/// are taken of a fight that has settled rather than of four ships still
-/// sorting out where they are.
+/// Seconds each AI flight holds fire after it spawns, so the shots are taken of
+/// a fight that has settled rather than of four ships still sorting out where
+/// they are.
 const ENGAGE_DELAY: f32 = 3.0;
 /// How far an AI ship may stray from its post before it breaks off and comes
 /// back. Wider than the standoff range the engage maneuver flies to (250), so
@@ -118,12 +151,97 @@ fn main() -> bevy::app::AppExit {
                 .until(player_ship_present())
                 .deadline(30.0)
                 .add()
-                // Let the flights take up their posts and open fire before any
-                // shot is taken - ENGAGE_DELAY plus a few seconds of closing.
-                // The player holds station through all of it - see
-                // [`pin_player`] for why the set cannot tolerate its drift.
-                .step("let the flights engage")
-                .on_enter(nudge_raider)
+                // ACT 1 - the leg.
+                .step("settle at the start")
+                .on_enter(hud_instrument)
+                .until(elapsed(1.0))
+                .add()
+                // Weapons lowered, hold CTRL: the nav-slot radar opens and the
+                // white NAV crosshair sweeps onto the beacon downrange. Waiting
+                // on the LOCK rather than on a guessed second - and naming the
+                // beacon - so a run that latches a rock instead aborts here and
+                // says so.
+                .step("sweep the nav radar")
+                .on_enter(hold_radar)
+                .until(travel_locked_on_beacon())
+                .deadline(12.0)
+                .add()
+                .step("capture the radar lock")
+                .on_enter(move |world| shoot(world, capturing, "tutorial-radar-lock.png"))
+                .until(elapsed(0.2))
+                .add()
+                // The radar instrument as its own subject: the same latched nav
+                // sweep from a tighter, lower camera.
+                .step("frame the radar instrument")
+                .on_enter(|world| {
+                    pose(
+                        world,
+                        START_POSITION + Vec3::new(-3.6, 1.0, 6.0),
+                        START_POSITION + Vec3::new(0.0, 0.3, -10.0),
+                    )
+                })
+                .until(elapsed(0.4))
+                .add()
+                .step("capture the radar")
+                .on_enter(move |world| shoot(world, capturing, "wiki-radar.png"))
+                .until(elapsed(0.2))
+                .add()
+                // Hand the camera back before the leg: the travel beats are shot
+                // over the game's own follow camera, because a pinned world pose
+                // watches a ship that is leaving.
+                .step("engage the travel computer")
+                .on_enter(|world| {
+                    release_radar(world);
+                    unpose(world);
+                    engage_goto(world);
+                })
+                .until(player_burning())
+                .deadline(25.0)
+                .add()
+                .step("capture the burn")
+                .on_enter(move |world| shoot(world, capturing, "feature-autopilot.png"))
+                .until(elapsed(0.2))
+                .add()
+                // Coast, then the flip: the computer swings the ship end-for-end
+                // and lights the drive back down the path. The wait is on the
+                // BRAKING transition (the telemetry drops its flip point once
+                // the brake is planned), not on a stopwatch.
+                .step("coast to the flip")
+                .until(player_braking())
+                .deadline(150.0)
+                .add()
+                // The money frame of a flip-and-burn is the END of the swing:
+                // the hull is round, the drive is lit back down the path and
+                // the plume points at the camera. Waiting for the phase, not
+                // for a fraction of a rotation nobody can time.
+                .step("flip and burn")
+                .until(player_retro_burning())
+                .deadline(20.0)
+                .add()
+                .step("capture the flip")
+                .on_enter(move |world| shoot(world, capturing, "wiki-flight.png"))
+                .until(elapsed(0.2))
+                .add()
+                // ACT 2 - the ambush. Crossing the beacon's trigger already
+                // spawned the flights (scenario data, so a plain run gets them
+                // too); this waits for the leg to actually end.
+                .step("arrive")
+                .until(player_arrived())
+                .deadline(90.0)
+                .add()
+                // Station-keeping starts HERE, not at load: the leg needs the
+                // ship free to fly. See [`pin_player`] for why the combat act
+                // cannot tolerate drift.
+                .step("hold station in the hollow")
+                .on_enter(|world| {
+                    hold_station(world);
+                    // The travel lock keeps its white bracket and GOTO chip on
+                    // screen, and the combat shots are about the RED lock - two
+                    // locks in one frame is chrome competing with itself.
+                    clear_travel_lock(world);
+                    despawn_by_id(world, BEACON_ID);
+                    nudge_raider(world);
+                })
                 .until(elapsed(ENGAGE_DELAY + 3.0))
                 .add()
                 // Quiet stance first: weapons lowered, no lock, the contextual
@@ -132,51 +250,6 @@ fn main() -> bevy::app::AppExit {
                 .on_enter(move |world| {
                     hud_instrument(world);
                     shoot(world, capturing, "news-090-contextual-hud.png");
-                })
-                .until(elapsed(0.3))
-                .add()
-                // Weapons still lowered, hold CTRL: the nav-slot radar opens and
-                // the white NAV crosshair sweeps onto the beacon.
-                .step("sweep the nav radar")
-                .on_enter(hold_radar)
-                .until(elapsed(1.2))
-                .add()
-                .step("capture the radar lock")
-                .on_enter(move |world| {
-                    hud_instrument(world);
-                    shoot(world, capturing, "tutorial-radar-lock.png");
-                })
-                .until(elapsed(0.2))
-                .add()
-                // The radar instrument as its own subject: the same latched nav
-                // sweep from a tighter, lower camera, so the sweep and the
-                // hollow behind it fill the frame.
-                .step("frame the radar instrument")
-                .on_enter(|world| {
-                    pose(world, Vec3::new(-3.6, 1.0, 6.0), Vec3::new(0.0, 0.3, -10.0))
-                })
-                .until(elapsed(0.4))
-                .add()
-                .step("capture the radar")
-                .on_enter(move |world| {
-                    hud_instrument(world);
-                    shoot(world, capturing, "wiki-radar.png");
-                })
-                .until(elapsed(0.2))
-                .add()
-                // A LATER step than the captures that want it: despawning in a
-                // capture frame removes the beacon before that frame's render,
-                // and its glow must not sit on the reticle in the combat shots.
-                // Clear the NAV side before the combat side comes up: the
-                // travel lock keeps its white bracket and GOTO chip on screen,
-                // and the combat shots are about the RED lock - two locks in
-                // one frame is chrome competing with itself.
-                .step("clear the nav lock")
-                .on_enter(|world| {
-                    release_radar(world);
-                    despawn_by_id(world, "hollow_beacon");
-                    clear_travel_lock(world);
-                    unpose(world);
                 })
                 .until(elapsed(0.3))
                 .add()
@@ -243,7 +316,7 @@ fn main() -> bevy::app::AppExit {
                 // is no longer with. They are framed on the PLAYER's tracer
                 // stream, not on the AI pairs: the AI holds a 250-unit standoff
                 // where its ships are specks, while the player's fire crosses
-                // 36 units of open hollow into a hull.
+                // 34 units of open hollow into a hull.
                 .step("frame the exchange")
                 .on_enter(|world| {
                     hud_cinematic(world);
@@ -260,11 +333,12 @@ fn main() -> bevy::app::AppExit {
                 // taking them.
                 .step("frame the readability shot")
                 .on_enter(|world| {
-                    pose(
-                        world,
-                        RAIDER_POSITION + Vec3::new(-7.0, 2.0, -8.0),
-                        Vec3::ZERO,
-                    )
+                    // Off the LIVE raider, not its spawn point: it drifts, and
+                    // a stream of turret rounds pushes it further - by this
+                    // beat it is a good ten units off, which throws a
+                    // ten-unit-away camera clean off the subject.
+                    let raider = raider_position(world);
+                    pose(world, raider + Vec3::new(-12.0, 3.5, 8.0), raider)
                 })
                 .until(elapsed(0.5))
                 .add()
@@ -273,22 +347,18 @@ fn main() -> bevy::app::AppExit {
                 .until(elapsed(0.2))
                 .add()
                 // The juice: one section blown off the raider through the
-                // production damage path, shot while the fragments and hit
-                // rings are still live.
-                // Three-quarter on the raider from inside the fire line, so
-                // the frame carries the player's incoming tracers, the impact
-                // flashes and the burnt-out section together. The destruction
-                // is a BURNT HULL, not a fireball: a dead section is graded to
-                // `DEAD_COLOR` in place (`sections/damage_tint.rs`) and the
-                // burst is over in a frame or two, so the shot is the damage,
-                // shown while the rounds are still arriving.
+                // production damage path, shot while the hit rings are still
+                // live. Three-quarter on the raider from inside the fire line,
+                // so the frame carries the player's incoming tracers, the impact
+                // flashes and the burnt-out section together. The destruction is
+                // a BURNT HULL, not a fireball: a dead section is graded to
+                // `DEAD_COLOR` in place (`sections/damage_tint.rs`) and the burst
+                // is over in a frame or two, so the shot is the damage, shown
+                // while the rounds are still arriving.
                 .step("frame the raider")
                 .on_enter(|world| {
-                    pose(
-                        world,
-                        RAIDER_POSITION + Vec3::new(6.5, 2.2, 9.0),
-                        RAIDER_POSITION,
-                    )
+                    let raider = raider_position(world);
+                    pose(world, raider + Vec3::new(6.5, 2.2, 9.0), raider)
                 })
                 .until(elapsed(0.5))
                 .add()
@@ -306,7 +376,7 @@ fn main() -> bevy::app::AppExit {
         // harness re-exports `REEL_ENV` but not the autopilot's own): a plain
         // run is the owner flying this set, and a pinned ship cannot be flown.
         if std::env::var_os("NOVA_AUTOPILOT").is_some() {
-            app.add_systems(Update, pin_player);
+            app.add_systems(Update, pin_player.run_if(resource_exists::<HoldStation>));
         }
     }
 
@@ -330,13 +400,18 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, sections: Re
     commands.trigger(LoadScenario(rock_hollow(&game_assets, &sections)));
 }
 
-/// The set: a rock shell around a clearing, the player, a parked raider, and
-/// two AI flights fighting across it.
+/// The set: an empty start, a beacon 750 units downrange, a rock hollow around
+/// it, and an ambush that springs when the player gets there.
 fn rock_hollow(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
     let player = ship(
-        "hollow_player",
+        PLAYER_ID,
         "Player Ship",
-        Vec3::ZERO,
+        START_POSITION,
+        // Square with the world, NOT nosed at the beacon: the radar picks by
+        // the CAMERA's look ray (`ActiveLookRay`), which opens down world -Z
+        // whatever the hull is doing, and the start offset is chosen so the
+        // beacon sits a few degrees off that ray - inside the 18-degree radar
+        // cone, and clear of the player's own hull in frame.
         Quat::IDENTITY,
         SpaceshipController::Player(PlayerControllerConfig {
             // Without this the trigger is bound to NOTHING: turret bindings are
@@ -354,6 +429,56 @@ fn rock_hollow(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
         kit::kenney_hull(sections, "racer"),
     );
 
+    // The corridor: big rocks spread wide around the hollow, so the leg has
+    // something with parallax passing it instead of an empty starfield.
+    let corridor = kit::NearField {
+        id_prefix: "hollow_far_",
+        count: 26,
+        seed: 90727,
+        distance: (200.0, 640.0),
+        radius: (4.0, 10.0),
+        y_spread: 160.0,
+    };
+    // The hollow itself: denser and bigger-bodied than the drift set's belt, and
+    // it starts outside the raider so the lock framings keep a clear sightline.
+    let shell = kit::NearField {
+        id_prefix: "hollow_rock_",
+        count: 44,
+        seed: 40507,
+        distance: (28.0, 120.0),
+        radius: (1.0, 2.8),
+        y_spread: 42.0,
+    };
+
+    ScenarioConfig {
+        id: "rock_hollow".to_string(),
+        name: "Rock Hollow".to_string(),
+        description: "A run into a rock field, and the ambush waiting in it.".to_string(),
+        cubemap: game_assets.cubemap.clone().into(),
+        events: vec![
+            ScenarioEventConfig {
+                name: EventConfig::OnStart,
+                filters: vec![],
+                actions: vec![
+                    corridor.action(game_assets),
+                    shell.action(game_assets),
+                    player,
+                    beacon(),
+                ],
+            },
+            ambush(sections),
+        ],
+        ..Default::default()
+    }
+}
+
+/// The ambush: everything that fights, spawned when the player crosses the
+/// beacon's trigger area.
+///
+/// Scenario data rather than script on purpose - this is the engine's own
+/// `OnEnter` ambush pattern, and it means the owner's plain run gets the fight
+/// by flying to the beacon, not only the scripted capture run.
+fn ambush(sections: &GameSections) -> ScenarioEventConfig {
     // The lock subject: not AI, because an AI hostile flies to a 250-unit
     // standoff and no close framing survives that (see the module docs). It is
     // not dead still either - [`nudge_raider`] gives it a slow drift, so the
@@ -373,7 +498,7 @@ fn rock_hollow(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
 
     // The live background: two friendlies working the near flanks, two hostiles
     // across the hollow, all four FLYING a route while the engage grace runs -
-    // a set that opens on four parked hulls reads as a diorama. The grace
+    // a fight that opens on four parked hulls reads as a diorama. The grace
     // (`engage_delay`) holds them in `Patrol`, so they are mid-leg and banking
     // when the first shot is taken; leashed so the ring they fly afterwards
     // stays in the set.
@@ -430,37 +555,14 @@ fn rock_hollow(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
         kit::kenney_hull(sections, "cargob"),
     );
 
-    // The shell: denser and bigger-bodied than the drift set's belt, and it
-    // starts outside the raider so the lock framings keep a clear sightline.
-    let shell = kit::NearField {
-        id_prefix: "hollow_rock_",
-        count: 44,
-        seed: 40507,
-        distance: (28.0, 120.0),
-        radius: (1.0, 2.8),
-        y_spread: 42.0,
-    };
-
-    ScenarioConfig {
-        id: "rock_hollow".to_string(),
-        name: "Rock Hollow".to_string(),
-        description: "A firefight in a clearing inside a rock field.".to_string(),
-        cubemap: game_assets.cubemap.clone().into(),
-        events: vec![ScenarioEventConfig {
-            name: EventConfig::OnStart,
-            filters: vec![],
-            actions: vec![
-                shell.action(game_assets),
-                player,
-                raider,
-                wingman_a,
-                wingman_b,
-                hostile_a,
-                hostile_b,
-                beacon(),
-            ],
-        }],
-        ..Default::default()
+    ScenarioEventConfig {
+        name: EventConfig::OnEnter,
+        filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
+            id: Some(BEACON_ID.to_string()),
+            other_id: Some(PLAYER_ID.to_string()),
+            ..Default::default()
+        })],
+        actions: vec![raider, wingman_a, wingman_b, hostile_a, hostile_b],
     }
 }
 
@@ -504,22 +606,22 @@ fn fighter(patrol: Vec<Vec3>) -> SpaceshipController {
     })
 }
 
-/// The nav beacon the weapons-lowered radar sweep latches, so the tutorial's
-/// radar-lock shot is a NAV lock and not a lock on the raider.
+/// The nav beacon: travel lock, GOTO destination and ambush trigger in one
+/// object.
 fn beacon() -> EventActionConfig {
     EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
-            id: "hollow_beacon".to_string(),
+            id: BEACON_ID.to_string(),
             name: "Waypoint".to_string(),
             position: BEACON_POSITION,
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Beacon(BeaconConfig {
             label: "WAYPOINT".to_string(),
-            radius: 0.8,
+            radius: 3.0,
             color: Color::srgb(0.4, 0.75, 1.0),
-            area_radius: None,
-            lock_signature: None,
+            area_radius: Some(BEACON_AREA_RADIUS),
+            lock_signature: Some(BEACON_SIGNATURE),
         }),
     })
 }
@@ -548,6 +650,12 @@ fn ship(
         }),
     })
 }
+
+/// Present once the leg is over and the ship should hold the station every
+/// combat framing is measured from.
+#[cfg(feature = "debug")]
+#[derive(Resource)]
+struct HoldStation;
 
 /// Put the HUD on (the contextual rules decide what is actually in shot).
 #[cfg(feature = "debug")]
@@ -594,15 +702,41 @@ fn unpose(world: &mut World) {
     }
 }
 
-/// Hold the player exactly where the set was measured from, for scripted runs.
+/// Start holding station: from here on the scripted run keeps the ship exactly
+/// where the combat set was measured from, and the camera looks the way the
+/// pinned hull does.
 ///
-/// Not cosmetic, and not the STOP autopilot: STOP flips retrograde and BURNS,
-/// so engaging it on a ship with a metre per second of spawn drift walks the
-/// ship fifty units downrange before it settles. The set's geometry is measured
-/// from a player at the origin, and the radar picks the body nearest the AIM
-/// RAY (`crates/nova_gameplay/src/input/targeting/radar.rs`), so a player a few
-/// tens of units off station swings the parked raider off the ray and latches a
-/// hostile two kilometres out instead. A photo subject sits still.
+/// Re-seeding the rig is not optional. A GOTO ends nose-RETROGRADE (it braked
+/// facing back down its own path), and the disengage re-seeds the mouse rig
+/// from that attitude (`camera_controller/handback.rs`) - so pinning the hull
+/// square without re-seeding leaves the camera parked on the wrong side of the
+/// ship, filming the combat act over its shoulder from in front.
+#[cfg(feature = "debug")]
+fn hold_station(world: &mut World) {
+    world.insert_resource(HoldStation);
+    let rigs: Vec<Entity> = world
+        .query_filtered::<Entity, With<PointRotationOutput>>()
+        .iter(world)
+        .collect();
+    for rig in rigs {
+        world.entity_mut(rig).insert((
+            PointRotation {
+                initial_rotation: Quat::IDENTITY,
+            },
+            PointRotationOutput(Quat::IDENTITY),
+        ));
+    }
+}
+
+/// Hold the player at the hollow's origin, for the combat act of a scripted run.
+///
+/// Not cosmetic, and not the STOP autopilot: the set's geometry is measured from
+/// a player at the origin, and the radar picks the body nearest the AIM RAY
+/// (`crates/nova_gameplay/src/input/targeting/radar.rs`), so a player a few tens
+/// of units off station swings the parked raider off the ray and latches a
+/// hostile two kilometres out instead. GOTO parks the ship within a few units of
+/// here and pointing back down its own path (it braked nose-first), so this also
+/// squares the hull up - a cut between beats, and the camera cuts with it.
 #[cfg(feature = "debug")]
 fn pin_player(
     mut player: Query<
@@ -639,15 +773,93 @@ fn nudge_raider(world: &mut World) {
     }
 }
 
+/// Engage the travel computer on the beacon - the same `Autopilot` component
+/// the G keybind inserts (`input/player/flight_rig.rs`), so the leg the ship
+/// flies is the player's GOTO and not a scripted animation.
+#[cfg(feature = "debug")]
+fn engage_goto(world: &mut World) {
+    let (Some(player), Some(beacon)) = (player_root(world), entity_by_id(world, BEACON_ID)) else {
+        warn!("combat: no player or beacon to engage the travel computer on");
+        return;
+    };
+    world
+        .entity_mut(player)
+        .insert(Autopilot::engage(AutopilotAction::Goto { target: beacon }));
+    info!("combat: GOTO engaged on the beacon");
+}
+
+/// Advance once the travel lock is on the beacon (and not on some rock the aim
+/// ray happened to cross).
+#[cfg(feature = "debug")]
+fn travel_locked_on_beacon() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        let Some(player) = player_root_ref(world) else {
+            return false;
+        };
+        let Some(TravelLock(Some(target))) = world.get::<TravelLock>(player) else {
+            return false;
+        };
+        world
+            .get::<EntityId>(*target)
+            .is_some_and(|id| id.0 == BEACON_ID)
+    })
+}
+
+/// Advance once the leg is actually under way: the computer has published its
+/// numbers and the ship is closing on the destination.
+#[cfg(feature = "debug")]
+fn player_burning() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        maneuver(world).is_some_and(|telemetry| telemetry.closing_speed > 20.0)
+    })
+}
+
+/// Advance the frame the flip starts: the telemetry drops its flip point once
+/// the brake is planned, which is the same instant the computer turns the ship
+/// around.
+#[cfg(feature = "debug")]
+fn player_braking() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        maneuver(world).is_some_and(|telemetry| {
+            telemetry.flip_point.is_none() && telemetry.closing_speed > 5.0
+        })
+    })
+}
+
+/// Advance once the flip has finished and the retro burn is lit: braking, and
+/// past the align phase the swing spends its time in.
+#[cfg(feature = "debug")]
+fn player_retro_burning() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        let braking = maneuver(world).is_some_and(|telemetry| telemetry.flip_point.is_none());
+        braking
+            && player_root_ref(world).is_some_and(|player| {
+                world
+                    .get::<Autopilot>(player)
+                    .is_some_and(|autopilot| autopilot.phase == AutopilotPhase::Burn)
+            })
+    })
+}
+
+/// Advance once the leg is over: the autopilot disengages itself at the goal,
+/// taking its telemetry with it.
+#[cfg(feature = "debug")]
+fn player_arrived() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        player_root_ref(world).is_some_and(|player| world.get::<Autopilot>(player).is_none())
+    })
+}
+
+/// The live numbers of the player's engaged leg, if there is one.
+#[cfg(feature = "debug")]
+fn maneuver(world: &World) -> Option<&ManeuverTelemetry> {
+    world.get::<ManeuverTelemetry>(player_root_ref(world)?)
+}
+
 /// Drop the travel lock, so only the combat lock is on screen.
 #[cfg(feature = "debug")]
 fn clear_travel_lock(world: &mut World) {
-    let player = {
-        let mut query = world
-            .query_filtered::<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>();
-        query.iter(world).next()
-    };
-    let Some(player) = player else {
+    let Some(player) = player_root(world) else {
         return;
     };
     if let Some(mut travel) = world.entity_mut(player).get_mut::<TravelLock>() {
@@ -690,21 +902,24 @@ fn open_fire(world: &mut World) {
 /// Despawn a scenario object by its scenario id.
 #[cfg(feature = "debug")]
 fn despawn_by_id(world: &mut World, id: &str) {
-    let found = {
-        let mut query = world.query::<(Entity, &EntityId)>();
-        query
-            .iter(world)
-            .find(|(_, live)| live.0 == id)
-            .map(|(entity, _)| entity)
-    };
-    if let Some(entity) = found {
+    if let Some(entity) = entity_by_id(world, id) {
         world.entity_mut(entity).despawn();
     }
 }
 
-/// Blow one forward hull section off the parked raider through the production
-/// damage path - the same `HealthApplyDamage` a bullet delivers, so the shot is
-/// of the real destruction, not of a prop.
+/// The first entity carrying scenario id `id`.
+#[cfg(feature = "debug")]
+fn entity_by_id(world: &mut World, id: &str) -> Option<Entity> {
+    let mut query = world.query::<(Entity, &EntityId)>();
+    query
+        .iter(world)
+        .find(|(_, live)| live.0 == id)
+        .map(|(entity, _)| entity)
+}
+
+/// Blow one forward hull section off the raider through the production damage
+/// path - the same `HealthApplyDamage` a bullet delivers, so the shot is of the
+/// real destruction, not of a prop.
 #[cfg(feature = "debug")]
 fn blow_raider_section(world: &mut World) {
     let Some(node) = raider_section_health(world) else {
@@ -719,7 +934,24 @@ fn blow_raider_section(world: &mut World) {
     info!("combat: blew '{RAIDER_BLOWN_SECTION}' off the raider");
 }
 
-/// The parked raider's ship root.
+/// The player's ship root.
+#[cfg(feature = "debug")]
+fn player_root(world: &mut World) -> Option<Entity> {
+    let mut query =
+        world.query_filtered::<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>();
+    query.iter(world).next()
+}
+
+/// The player's ship root, from a read-only world (what a predicate gets).
+#[cfg(feature = "debug")]
+fn player_root_ref(world: &World) -> Option<Entity> {
+    world
+        .try_query_filtered::<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>()?
+        .iter(world)
+        .next()
+}
+
+/// The raider's ship root.
 #[cfg(feature = "debug")]
 fn raider_root(world: &mut World) -> Option<Entity> {
     let mut query = world.query_filtered::<(Entity, &EntityId), With<SpaceshipRootMarker>>();
@@ -729,7 +961,16 @@ fn raider_root(world: &mut World) -> Option<Entity> {
         .map(|(entity, _)| entity)
 }
 
-/// The raider's blown section entity. Picked BY SHIP: the two racers in the set
+/// Where the raider actually is right now; its spawn point if it has gone.
+#[cfg(feature = "debug")]
+fn raider_position(world: &mut World) -> Vec3 {
+    raider_root(world)
+        .and_then(|raider| world.get::<GlobalTransform>(raider))
+        .map(|transform| transform.translation())
+        .unwrap_or(RAIDER_POSITION)
+}
+
+/// The raider's blown section entity. Picked BY SHIP: the racers in the set
 /// share section ids, as every shipped multi-ship scenario does.
 #[cfg(feature = "debug")]
 fn raider_section(world: &mut World) -> Option<Entity> {

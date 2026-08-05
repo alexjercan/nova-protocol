@@ -89,8 +89,10 @@ FIGURES = [
     ("wiki-radar.png",             "screenshot_combat"),
     ("news-090-combat-readability.png", "screenshot_combat"),
     ("news-090-contextual-hud.png", "screenshot_combat"),
-    # feature-autopilot and wiki-flight move to screenshot_flight, which does
-    # not exist yet: the report lists them as capturable gaps until it does.
+    # The travel leg: `screenshot_combat` opens on a GOTO across the field, so
+    # the autopilot beats are its too - the burn and the flip-and-burn.
+    ("feature-autopilot.png",      "screenshot_combat"),
+    ("wiki-flight.png",            "screenshot_combat"),
     ("tutorial-orbit.png",         "screenshot_orbit"),
     ("wiki-section-hull.png",      "screenshot_sections"),
     ("wiki-section-controller.png", "screenshot_sections"),
@@ -123,9 +125,9 @@ COMPOSITE_SIZE = (1920, 1080)
 # capture): {web name -> source web name}. The source must be copied first. Swap
 # any of these for a distinct capture later by dropping the file in the stage dir
 # (it takes precedence - see process_group).
-ALIASES = {
-    "wiki-flight.png": "feature-autopilot.png",
-}
+# Empty: `wiki-flight` was the last one, and it is now its own framed beat (the
+# flip-and-burn) rather than a copy of `feature-autopilot`.
+ALIASES = {}
 
 # 44x44 authored section icons: (web name, section letter, RGB accent). Colours
 # echo the editor's component cards.
