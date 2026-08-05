@@ -4541,6 +4541,7 @@ dependencies = [
  "bevy_rand",
  "clap",
  "embed-resource",
+ "nova_autopilot",
  "nova_core",
  "nova_debug",
  "nova_modding",

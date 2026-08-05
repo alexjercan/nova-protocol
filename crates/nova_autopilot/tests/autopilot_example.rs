@@ -49,8 +49,8 @@ fn driven_app_logs_its_step_names_and_a_stalled_step_aborts() {
 
     assert!(
         output.status.success(),
-        "driven_app exited with {:?}\n--- stderr tail ---\n{}",
-        output.status.code(),
+        "driven_app {}\n--- stderr tail ---\n{}",
+        nova_autopilot::exit::describe(&output.status),
         tail(&stderr),
     );
     for step in STEPS {
@@ -129,8 +129,8 @@ fn click_at_position_reaches_the_widget_under_it() {
 
     assert!(
         output.status.success(),
-        "driven_app exited with {:?}\n--- stderr tail ---\n{}",
-        output.status.code(),
+        "driven_app {}\n--- stderr tail ---\n{}",
+        nova_autopilot::exit::describe(&output.status),
         tail(&stderr),
     );
     assert!(

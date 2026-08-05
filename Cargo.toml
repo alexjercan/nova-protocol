@@ -173,6 +173,11 @@ nova_core = { path = "crates/nova_core" }
 [dev-dependencies]
 avian3d = { version = "0.7" }
 bevy = { version = "0.19.0" }
+# `tests/examples_smoke.rs` names a signal death with `exit::describe` - a
+# `None` exit code says nothing about the SIGSEGV behind it. Unconditional, like
+# nova_debug below: the catalog/drift tests must keep compiling on a bare
+# `cargo test`.
+nova_autopilot = { path = "crates/nova_autopilot" }
 # The stress/ examples use the frame-time capture harness, and the
 # autopilot examples push run-timeline markers - both live in nova_probe (the
 # run-harness dev tool, not shipped with the game binary). serde_json builds

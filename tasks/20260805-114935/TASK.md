@@ -2,9 +2,9 @@
 
 - PRIORITY: 46
 - TAGS: v0.10.0, testing, examples, dx
-- ACTIVITY: WORKING
-- GATES: PLAN
-- RESOLUTION: -
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 - PARENT: 20260802-115955
 
 ## Story
@@ -24,7 +24,7 @@ and the fix for one does not need the other.
 
 ## Steps
 
-- [ ] Add `crates/nova_autopilot/src/exit.rs` with
+- [x] Add `crates/nova_autopilot/src/exit.rs` with
       `pub fn describe(status: &ExitStatus) -> String`, and register it as
       `pub mod exit;` in `crates/nova_autopilot/src/lib.rs` (beside
       `pub mod completion;` at line 84). Module docs state the remit: it names
@@ -39,14 +39,14 @@ and the fix for one does not need the other.
         `exited with no code` when even that is `None` (non-unix signal death).
   - ASCII-adjacent text only (`AGENTS.md`); no new dependency
         (`DECISION.md`, alternative 3).
-- [ ] Add `#[cfg(test)] mod tests` in the same file, matching the crate's
+- [x] Add `#[cfg(test)] mod tests` in the same file, matching the crate's
       in-file convention (`completion.rs:191`). Build statuses with
       `ExitStatusExt::from_raw` so no process is actually killed: raw `11`
       (SIGSEGV), raw `139` (SIGSEGV + core dumped bit), raw `9` (SIGKILL, OOM
       hint), raw `0x1F00` (exit code 31), and an unnamed signal (raw `5`)
       degrading to `signal 5`. Assert the message text, not just that it is
       non-empty.
-- [ ] Swap the three call sites from `output.status.code()` to
+- [x] Swap the three call sites from `output.status.code()` to
       `nova_autopilot::exit::describe(&output.status)`, rewording each format
       string from `exited with {:?}` to `{}` so the message reads
       `example foo was killed by SIGSEGV (core dumped)`:
@@ -54,13 +54,13 @@ and the fix for one does not need the other.
       `crates/nova_autopilot/tests/autopilot_example.rs:50-55` and `:130-135`.
       Every assertion keeps its `output.status.success()` predicate unchanged -
       this changes what a failure SAYS, not which runs fail.
-- [ ] Add `nova_autopilot = { path = "crates/nova_autopilot" }` under the root
+- [x] Add `nova_autopilot = { path = "crates/nova_autopilot" }` under the root
       `[dev-dependencies]` (`Cargo.toml:173-197`), with a comment naming why it
       is a plain path dep and not feature-gated: the catalog/drift tests in
       `tests/examples_smoke.rs` must keep compiling on a bare `cargo test`
       (existing comment at `Cargo.toml:181-185`). The autopilot test file needs
       no manifest change - it is inside the crate.
-- [ ] `nix develop --command cargo fmt`, then
+- [x] `nix develop --command cargo fmt`, then
       `nix develop --command cargo check -p nova_autopilot --all-targets` and
       `nix develop --command cargo check --test examples_smoke`. Per repo
       policy, the only tests run locally are the newly written ones
@@ -101,3 +101,39 @@ and the fix for one does not need the other.
 - The working tree carries unrelated staged changes (screenshots, web docs,
   `Cargo.toml`) from adjacent work. `work` runs in a sprout worktree off
   `master`, so they do not travel; nothing here stages them.
+
+## Close-out
+
+- **What/why.** `nova_autopilot::exit::describe(&ExitStatus) -> String` names
+  the signal a process died on, so the three example assertions read
+  `example foo was killed by SIGSEGV (core dumped)` instead of
+  `exited with None`. Call sites swapped in `tests/examples_smoke.rs:315`,
+  `crates/nova_autopilot/tests/autopilot_example.rs:52` and `:132`; every
+  `status.success()` predicate is unchanged, so this changes what a failure
+  says, never which runs fail. Root `[dev-dependencies]` gains
+  `nova_autopilot`, unconditional like `nova_debug`, so the bare-`cargo test`
+  catalog path still compiles.
+- **Alternatives.** As planned in `DECISION.md`: a duplicated private helper
+  (undoable to unit-test without really killing a process), bare signal numbers
+  (the exact lookup cost this task removes), and a `nix`/`signal-hook`
+  dependency for `strsignal` (YAGNI against a six-arm match).
+- **Difficulties.** None material. Two deviations from the literal plan, both
+  smaller than written: the tests module is `#[cfg(all(test, unix))]` rather
+  than `#[cfg(test)]` with a `cfg(unix)` on each test - every case is built
+  from a raw unix wait status, and the per-test form left `use super::*`
+  unused on non-unix. `rustfmt` also reordered the test imports. The
+  `from_raw` assumption held: `139` round-tripped as SIGSEGV plus the core bit
+  and `0x1F00` as exit code 31, so no raw value needed adjusting.
+- **Evidence.** All four DoD proofs green in the worktree:
+  `pub mod exit;`/`pub fn describe` greps hit; `cargo test -p nova_autopilot
+  --lib exit::tests` = 5 passed; the `status.code()` grep finds nothing in
+  either test file; `cargo check -p nova_autopilot --all-targets` and
+  `cargo check --test examples_smoke` both finish clean. Also
+  `cargo test -p nova_autopilot --doc exit` = 1 passed (the `describe`
+  doctest) and `cargo fmt --all -- --check` clean. Per repo policy the wider
+  suite is CI's.
+- **Reflection.** The unit-shaped seam paid off exactly as planned - the
+  segfault and OOM messages are proven without a real death, which is the only
+  reason this behaviour is testable at all. `nova_probe`'s supervisor and the
+  asset/portal command tests still print the old message; the helper is now
+  there to reach for when one of them earns it.

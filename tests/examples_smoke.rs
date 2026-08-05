@@ -312,8 +312,8 @@ fn smoke(examples: &[&str]) {
 
         assert!(
             output.status.success(),
-            "example {example} exited with {:?}\n--- stderr tail ---\n{}",
-            output.status.code(),
+            "example {example} {}\n--- stderr tail ---\n{}",
+            nova_autopilot::exit::describe(&output.status),
             tail(&stderr),
         );
         assert!(

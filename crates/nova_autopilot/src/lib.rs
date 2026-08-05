@@ -82,6 +82,7 @@
 // where they do not exist. See 20260802-183340 REVIEW.md R1.3.
 pub mod autopilot;
 pub mod completion;
+pub mod exit;
 pub mod input;
 #[cfg(test)]
 mod log_capture;
