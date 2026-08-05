@@ -78,6 +78,10 @@ FIGURES = [
     ("wiki-sections.png",          "screenshot_scene"),
     ("tutorial-menu.png",          "screenshot_ui"),
     ("feature-editor.png",         "screenshot_ui"),
+    # The other two menu states the same walk drives: the Settings panel, and
+    # the Scenarios picker with a campaign's chapters indented under its header.
+    ("wiki-settings.png",          "screenshot_ui"),
+    ("news-090-scenario-campaigns.png", "screenshot_ui"),
     ("feature-combat.png",         "screenshot_combat"),
     ("tutorial-combat-lock.png",   "screenshot_combat"),
     ("tutorial-radar-lock.png",    "screenshot_combat"),
