@@ -14,8 +14,10 @@ Two primitives are reimplemented by hand:
     biquad (bandpass / lowpass / highpass) with the same envelope shape.
 
 DETERMINISM: the noise RNG is seeded with a FIXED seed (SEED below) so
-running the script twice produces byte-identical WAVs. CI regenerates and
-diffs the outputs, so the render must be reproducible.
+running the script twice produces byte-identical WAVs - a rerun must never
+show up as asset churn in a diff. Note the cues draw from ONE shared rng in
+the fixed order of build_cues(), so reordering or inserting a cue rewrites
+every later cue's bytes.
 
 Dependencies: Python STDLIB only (wave, struct, math, array, random). The
 DSP (oscillators, biquad, envelopes, normalization) is implemented by hand
