@@ -196,8 +196,9 @@ What is on disk today, in curriculum reading order:
   `screenshot_combat` (the "Rock hollow" set: a real GOTO leg into an `OnEnter`
   ambush and a torpedo salvo, so it carries the travel, combat, HUD and ordnance
   frames and absorbed the old `screenshot_juice`), `screenshot_ui`, `screenshot_sections`,
-  `screenshot_orbit` (drive the scenes headless to capture
-  the wiki and marketing frames),
+  `screenshot_flight` (the "The ring" set: the ORBIT verb flown around a real
+  well, with the holo ring and radius spoke up - it replaced `screenshot_orbit`)
+  (drive the scenes headless to capture the wiki and marketing frames),
   `screenshot_nova_os` (the Tab ship-computer, captured for HTML fidelity
   work against `web/design/nova_os_terminal_poc.html`), and
   `render_scale_shot` (a real-GPU window capture proving the render-scale

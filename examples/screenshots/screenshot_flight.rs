@@ -1,0 +1,531 @@
+//! screenshot_flight: "The ring" - the orbit and flight-computer set.
+//!
+//! A gravity planetoid with a rock ring around it and a Kenney racer that flies
+//! the ORBIT verb onto a ring: the autopilot burns the ship from rest onto the
+//! circular-orbit velocity, then holds it there while the maneuver instruments
+//! draw the holo ring and the radius spoke around the body.
+//!
+//! Everything here is the production flight stack. The script inserts the same
+//! [`Autopilot`] the ORBIT keybind does and then watches the phase
+//! (`Align -> Burn -> Hold`); no attitude, velocity or ring is faked.
+//!
+//! It replaces `screenshot_orbit`, whose set was a three-block primitive prop
+//! ship, a 12-unit planetoid and a single 5.6-second stopwatch before the shot.
+//!
+//! WHAT IT SHIPS, AND WHAT IT PROPOSES. `tutorial-orbit` is this set's image and
+//! the rest are `variant-*.png`: the flight and autopilot images
+//! (`feature-autopilot`, `wiki-flight`) currently belong to the Rock hollow's
+//! GOTO leg, and these are this scene's candidates for them, staged by a capture
+//! run and named by no manifest entry. The pick is the owner's, at capture time.
+//!
+//! Sizing, so the numbers are not magic (the well math is
+//! `crates/nova_gameplay/src/gravity.rs`):
+//! - MEASURED, not assumed: the noise displaces the rock mesh outward, and the
+//!   derived `BodyRadius` of this planetoid comes out at ~91 units for an
+//!   authored 20 - a factor of 4.5, not the 2 a diameter-based reading of the
+//!   task note suggests. Everything - the well strength, the orbit band, the
+//!   body in frame - measures from THAT, and [`engage_orbit`] logs it, because
+//!   the first cut of this scene put the ring 19 units off the surface and shot
+//!   a frame of nothing but rock.
+//! - The orbit band runs from `1.5 * (body_radius + 1)` out to `0.9 * 0.85 *
+//!   SOI`, and the SOI is 8 body radii - roughly 139 to 559 units here.
+//!   [`ORBIT_RADIUS`] sits mid-band, so the explicit plan is the ring the ship
+//!   actually flies and the body reads as a body rather than as terrain.
+//! - `mu = surface_gravity * body_radius^2`, so the ring's circular speed is
+//!   around 12 u/s here: fast enough that the drive is lit and the hull is
+//!   visibly banked into its plane, slow enough that a pinned camera keeps its
+//!   subject for the length of a beat.
+//!
+//! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
+//! - `NOVA_AUTOPILOT=1` alone: the smoke path - reach Playing, drive the whole
+//!   script, exit clean, capturing nothing.
+//! - `NOVA_AUTOPILOT=1 NOVA_REEL=1`: also capture the shots (staged under
+//!   `NOVA_SHOT_DIR`).
+//!
+//! Capture (windowed, real GPU):
+//! ```text
+//! NOVA_SHOT_DIR=target/reel NOVA_AUTOPILOT=1 NOVA_REEL=1 \
+//!   cargo run --example screenshot_flight --features debug
+//! ```
+//!
+//! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
+//! ```text
+//! NOVA_AUTOPILOT=1 cargo run --example screenshot_flight --features debug
+//! # look for: `nova harness: reached Playing`, `autopilot: cycle complete, no panic`
+//! ```
+
+#[path = "shared/kit.rs"]
+mod kit;
+
+use bevy::prelude::*;
+use clap::Parser;
+use nova_protocol::prelude::*;
+
+#[derive(Parser)]
+#[command(name = "screenshot_flight")]
+#[command(version = "1.0.0")]
+#[command(about = "The Ring orbit and flight-computer set", long_about = None)]
+struct Cli;
+
+/// The planetoid's scenario id.
+const PLANETOID_ID: &str = "ring_planetoid";
+/// Authored radius. The mesh draws well past it - about 91 units of real body
+/// for this 20 - and the well, the orbit band and every framing measure from
+/// that derived radius, not from this number.
+const PLANETOID_RADIUS: f32 = 20.0;
+/// Surface gravity at the body radius, in world units per second squared. The
+/// engine default, and left there on purpose: this set's whole subject is the
+/// flight computer flying a REAL well, so a tuned-down one would be a prop.
+const PLANETOID_GRAVITY: f32 = 6.0;
+
+/// The player ship's scenario id.
+const PLAYER_ID: &str = "ring_player";
+/// The ring the ship holds: mid-band (roughly 139 to 559 units for this body),
+/// so the explicit plan below is flown as authored rather than clamped. The
+/// distance is chosen off the DRAWN body, at about three and a half of its
+/// radii - close enough that the planetoid fills the lower third of a framing
+/// with a curved limb, far enough that it is a body and not the ground.
+const ORBIT_RADIUS: f32 = 320.0;
+/// The ring's plane: the world horizontal, so the rock ring and the holo ring
+/// are the same circle and the shots have one horizon rather than two.
+const ORBIT_NORMAL: Vec3 = Vec3::Y;
+
+/// Seconds the ship holds the ring before the shots, so the last of the
+/// circularization wobble is out of the hull's attitude.
+#[cfg(feature = "debug")]
+const STEADY_SECS: f32 = 2.0;
+
+/// Frames a capture step holds after requesting its PNG. `capture_window`
+/// spawns a bare `Screenshot` and is NOT a completion collector, so the last
+/// step's hold is the only thing giving `save_to_disk` room to land before the
+/// driver reports done and the app exits. A smoke run captures nothing and only
+/// needs the step to be observable.
+#[cfg(feature = "debug")]
+fn capture_settle_frames(capturing: bool) -> u32 {
+    if capturing {
+        20
+    } else {
+        2
+    }
+}
+
+fn main() -> bevy::app::AppExit {
+    let _ = Cli::parse();
+    let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
+
+    // NOT debug-gated: the rig is the set's look, so a plain run shows what a
+    // capture would shoot.
+    app.add_plugins(kit::photo_rig());
+
+    #[cfg(feature = "debug")]
+    {
+        let capturing = std::env::var_os(nova_protocol::nova_debug::harness::REEL_ENV).is_some();
+        // One step per beat, and every capture gets its OWN step: Bevy services
+        // one primary-window capture per frame, so the rule is structural here
+        // rather than a guard inside a shared step.
+        app.add_plugins(
+            nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+                // Wait for the ship to EXIST rather than for a guessed load
+                // duration: a slow load delays the beats instead of eating them.
+                .step("load the ring")
+                .enter(GameStates::Loading)
+                .until(player_ship_present())
+                .deadline(30.0)
+                .add()
+                .step("settle at the start")
+                .on_enter(hud_instrument)
+                .until(elapsed(1.0))
+                .add()
+                // The insertion burn: the ship is at rest on the ring radius, so
+                // the verb has a real circularization to fly - full drive, the
+                // hull swinging onto the plane, the holo ring and the radius
+                // spoke already up. Waiting on the PHASE, not on a stopwatch.
+                .step("engage the orbit computer")
+                .on_enter(engage_orbit)
+                .until(orbit_burning())
+                .deadline(20.0)
+                .add()
+                // Close on the hull for the burn, from INBOARD of the ring. Two
+                // rules, both paid for by a frame: the follow camera sits far
+                // enough back that the racer is a hundred pixels of the shot, so
+                // if the subject is the ship, get in front of it - and from
+                // outboard the only thing behind the ship is the planetoid, which
+                // swallows a small grey hull whole. Shot from inside the ring the
+                // body is behind the CAMERA, and the burn reads against open
+                // space.
+                .step("frame the insertion burn")
+                .on_enter(|world| {
+                    let ship = ship_position(world);
+                    let out = ship.normalize_or_zero();
+                    let track = ship_heading(world);
+                    pose(
+                        world,
+                        ship - out * 26.0 + Vec3::Y * 10.0 - track * 30.0,
+                        ship,
+                    );
+                })
+                .until(elapsed(0.3))
+                .add()
+                .step("capture the insertion burn")
+                .on_enter(move |world| shoot(world, capturing, "variant-autopilot-ring.png"))
+                .until(elapsed(0.2))
+                .add()
+                // Circularized: the verb reports Hold once the velocity error is
+                // inside the hold tolerance. A long deadline, because the
+                // insertion is a real burn against a real well and its duration
+                // is the ship's thrust-to-mass, not a number this file picks.
+                .step("settle onto the ring")
+                .until(orbit_holding())
+                .deadline(120.0)
+                .add()
+                .step("let the ring steady")
+                .until(elapsed(STEADY_SECS))
+                .add()
+                // The shipped image. The follow camera looks down the TRACK, and
+                // on a ring the body is 90 degrees off it - the game's own view
+                // of an orbit has the thing being orbited out of frame, which is
+                // a fine thing to fly and a useless thing to teach from. So the
+                // tutorial figure is posed: high on the ship's outboard quarter,
+                // looking down and in, with the hull up front, the holo ring
+                // sweeping past it and the planetoid filling the frame under
+                // both. HUD ON - the ring, the spoke and the AP chip are the
+                // subject.
+                .step("frame the orbit shot")
+                .on_enter(|world| {
+                    hud_instrument(world);
+                    let ship = ship_position(world);
+                    let out = ship.normalize_or_zero();
+                    let track = ship_heading(world);
+                    pose(
+                        world,
+                        ship + out * 30.0 + Vec3::Y * 20.0 - track * 14.0,
+                        // Short of the ship, toward the body: it drops the hull
+                        // into the upper third and gives the planetoid the rest.
+                        ship - out * 26.0,
+                    );
+                })
+                .until(elapsed(0.4))
+                .add()
+                .step("capture the orbit shot")
+                .on_enter(move |world| shoot(world, capturing, "tutorial-orbit.png"))
+                .until(elapsed(0.2))
+                .add()
+                // The limb: from outside the ring, looking in past the ship at
+                // the planetoid it is falling around. The camera leaves the
+                // player, so the HUD goes cinematic - chrome anchored to a ship
+                // the frame is only a spectator of reads as a mistake.
+                .step("frame the limb")
+                .on_enter(|world| {
+                    hud_cinematic(world);
+                    let ship = ship_position(world);
+                    // Outward along the ship's own radius, and BELOW the ring
+                    // plane. The height is the whole framing: a camera above the
+                    // plane looking at an in-plane subject throws everything
+                    // further down the plane toward the top of the frame, which
+                    // is what put the planetoid in the corner on the first cut.
+                    // From under the ring the body sits behind and below the
+                    // hull, where a limb belongs. The offset is a fixed distance,
+                    // not a fraction of the radius - the subject is the ship, and
+                    // how far away it reads must not move with the ring.
+                    pose(
+                        world,
+                        ship + ship.normalize_or_zero() * 24.0 - Vec3::Y * 3.0,
+                        ship,
+                    );
+                })
+                .until(elapsed(0.5))
+                .add()
+                .step("capture the limb")
+                .on_enter(move |world| shoot(world, capturing, "variant-flight-limb.png"))
+                .until(elapsed(0.2))
+                .add()
+                // The chase: behind and above the ship, canted inboard. The
+                // height is the point - level with the plane, the holo ring
+                // projects as a straight line across the frame and reads as
+                // scaffolding; from above it curves, and the shot is a ship on a
+                // ring. The body is NOT in this one and cannot be: from a camera
+                // on the ring, the hull lies down the track and the planetoid
+                // lies 90 degrees inboard of it, and no lens holds both without
+                // backing out to where the ship stops reading (which is what the
+                // tutorial framing does instead). The HUD comes back ON - the
+                // instruments are world-space holo geometry, so they project into
+                // a pinned camera too.
+                .step("frame the chase")
+                .on_enter(|world| {
+                    hud_instrument(world);
+                    let ship = ship_position(world);
+                    let out = ship.normalize_or_zero();
+                    let track = ship_heading(world);
+                    pose(
+                        world,
+                        ship - track * 22.0 + out * 7.0 + Vec3::Y * 11.0,
+                        ship + track * 4.0 - out * 6.0,
+                    );
+                })
+                .until(elapsed(0.5))
+                .add()
+                .step("capture the chase")
+                .on_enter(move |world| shoot(world, capturing, "variant-flight-chase.png"))
+                .until(frames(capture_settle_frames(capturing)))
+                .add(),
+        );
+        app.add_systems(Startup, (force_resolution, hide_dev_overlays));
+    }
+
+    app.run()
+}
+
+/// Force the window to 1920x1080 (the 16:9 the web figures use) at startup.
+#[cfg(feature = "debug")]
+fn force_resolution(mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>) {
+    if let Ok(mut window) = windows.single_mut() {
+        window.resolution.set(1920.0, 1080.0);
+        window.resizable = false;
+    }
+}
+
+fn custom_plugin(app: &mut App) {
+    app.add_systems(OnEnter(GameAssetsStates::Loaded), load_scene);
+}
+
+fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, sections: Res<GameSections>) {
+    commands.trigger(LoadScenario(the_ring(&game_assets, &sections)));
+}
+
+/// The set: a gravity planetoid at the origin, a rock ring outside the flight
+/// path, and the player's racer parked on the ring radius.
+fn the_ring(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
+    // Square with the world: the ring's travel direction at the start point is
+    // `normal x radial` = world -Z, which is where a ship's nose already points.
+    // So the racer is flying its track from the first frame, before the verb has
+    // asked it to.
+    let player = ship(
+        PLAYER_ID,
+        "Player Ship",
+        Vec3::new(ORBIT_RADIUS, 0.0, 0.0),
+        Quat::IDENTITY,
+        SpaceshipController::Player(PlayerControllerConfig {
+            input_mapping: bevy::platform::collections::HashMap::new(),
+            speed_cap: None,
+            infinite_ammo: true,
+            lock_refire_secs: None,
+        }),
+        None,
+        kit::kenney_hull(sections, "racer"),
+    );
+
+    // The ring debris: OUTSIDE the flight path, and small. Two rules, both
+    // learned from a frame:
+    // - The scatter region is an annulus centred on the origin - the same centre
+    //   the orbit is - so a band overlapping the ring puts rocks in the ship's
+    //   track, and a band INSIDE it walls off the one thing this set is about.
+    //   Everything the camera looks inward through has to be empty.
+    // - The 4.5x draw factor applies to these too, so an authored 2-7 is a field
+    //   of 9-32 unit boulders. Authored small, they read as the debris the ring
+    //   sweeps up rather than as a second asteroid field.
+    let debris = kit::NearField {
+        id_prefix: "ring_rock_",
+        count: 34,
+        seed: 71104,
+        distance: (420.0, 760.0),
+        radius: (1.0, 3.0),
+        y_spread: 110.0,
+    };
+
+    ScenarioConfig {
+        id: "the_ring".to_string(),
+        name: "The Ring".to_string(),
+        description: "A planetoid, its debris ring, and a ship flying the ORBIT verb around it."
+            .to_string(),
+        cubemap: game_assets.cubemap.clone().into(),
+        events: vec![ScenarioEventConfig {
+            name: EventConfig::OnStart,
+            filters: vec![],
+            actions: vec![planetoid(game_assets), debris.action(game_assets), player],
+        }],
+        ..Default::default()
+    }
+}
+
+/// The planetoid: the set's subject and the well the whole scene is about.
+/// Invulnerable - nothing should be able to shoot the scenery out of a shot.
+fn planetoid(game_assets: &GameAssets) -> EventActionConfig {
+    EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: PLANETOID_ID.to_string(),
+            name: "Planetoid".to_string(),
+            position: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
+        },
+        kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+            radius: PLANETOID_RADIUS,
+            texture: game_assets.asteroid_texture.clone().into(),
+            health: 5000.0,
+            impact_sound: None,
+            destroy_sound: None,
+            surface_gravity: Some(PLANETOID_GRAVITY),
+            invulnerable: true,
+            lock_signature: None,
+        }),
+    })
+}
+
+/// One posed ship in the set.
+fn ship(
+    id: &str,
+    name: &str,
+    position: Vec3,
+    rotation: Quat,
+    controller: SpaceshipController,
+    allegiance: Option<Allegiance>,
+    sections: Vec<SpaceshipSectionConfig>,
+) -> EventActionConfig {
+    EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: id.to_string(),
+            name: name.to_string(),
+            position,
+            rotation,
+        },
+        kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            controller,
+            allegiance,
+            sections,
+        }),
+    })
+}
+
+/// Put the HUD on (the contextual rules decide what is actually in shot).
+#[cfg(feature = "debug")]
+fn hud_instrument(world: &mut World) {
+    if let Some(mut hud) = world.get_resource_mut::<HudVisibility>() {
+        *hud = HudVisibility::On;
+    }
+}
+
+/// Clean the screen, for the beats whose camera has left the player's ship.
+#[cfg(feature = "debug")]
+fn hud_cinematic(world: &mut World) {
+    if let Some(mut hud) = world.get_resource_mut::<HudVisibility>() {
+        *hud = HudVisibility::Cinematic;
+    }
+}
+
+/// Request one shot of the primary window. Captures only when `NOVA_REEL` is
+/// set, so the plain autopilot smoke run drives the same path without writing
+/// files.
+#[cfg(feature = "debug")]
+fn shoot(world: &mut World, capturing: bool, path: &str) {
+    if capturing {
+        capture_window(world, path);
+        info!("flight capture: {path}");
+    }
+}
+
+/// Pin the camera for a framing the follow camera does not give.
+#[cfg(feature = "debug")]
+fn pose(world: &mut World, position: Vec3, look_at: Vec3) {
+    reel_pose_camera(world, position, look_at);
+}
+
+/// Engage the ORBIT verb on the planetoid's well with an explicit plan - the
+/// same [`Autopilot`] component the keybind inserts, so the ring the ship flies
+/// is the flight computer's and not an animation.
+///
+/// The plan is explicit rather than left to the verb because the ring is the
+/// SET's geometry: an unplanned engage circularizes at whatever radius the ship
+/// happens to be at, and every camera here is measured off [`ORBIT_RADIUS`].
+#[cfg(feature = "debug")]
+fn engage_orbit(world: &mut World) {
+    let well = world
+        .query_filtered::<Entity, With<GravityWell>>()
+        .iter(world)
+        .next();
+    let (Some(well), Some(player)) = (well, player_root(world)) else {
+        warn!("flight: no well or player to engage ORBIT on");
+        return;
+    };
+    // The derived body radius, logged because it is the number this whole set
+    // is sized off and it is NOT the authored one: the noise displaces the mesh
+    // outward by a seeded factor, so a run that drifts far from the sizing note
+    // above shows it here rather than in a frame full of rock.
+    let body_radius = world.get::<GravityWell>(well).map(|well| well.body_radius);
+    world
+        .entity_mut(player)
+        .insert(Autopilot::engage(AutopilotAction::Orbit {
+            well,
+            plan: Some(OrbitPlan {
+                radius: ORBIT_RADIUS,
+                normal: ORBIT_NORMAL,
+            }),
+        }));
+    info!("flight: ORBIT engaged at r = {ORBIT_RADIUS} on a body of radius {body_radius:?}");
+}
+
+/// Advance once the insertion burn is actually lit.
+#[cfg(feature = "debug")]
+fn orbit_burning() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| orbit_phase(world) == Some(AutopilotPhase::Burn))
+}
+
+/// Advance once the ship is circularized: ORBIT reports `Hold` when the velocity
+/// error is inside the hold tolerance (`flight/autopilot.rs`), which is the
+/// engine's own definition of "on the ring" and better than any settling time
+/// this file could guess.
+#[cfg(feature = "debug")]
+fn orbit_holding() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| orbit_phase(world) == Some(AutopilotPhase::Hold))
+}
+
+/// The phase of the player's engaged maneuver, if there is one.
+#[cfg(feature = "debug")]
+fn orbit_phase(world: &World) -> Option<AutopilotPhase> {
+    Some(world.get::<Autopilot>(player_root_ref(world)?)?.phase)
+}
+
+/// Where the ship actually is right now; its spawn point if it has gone.
+#[cfg(feature = "debug")]
+fn ship_position(world: &mut World) -> Vec3 {
+    player_root(world)
+        .and_then(|player| world.get::<GlobalTransform>(player))
+        .map(|transform| transform.translation())
+        .unwrap_or(Vec3::new(ORBIT_RADIUS, 0.0, 0.0))
+}
+
+/// The direction the ship is travelling: its velocity, because on a ring the
+/// track and the nose are not the same thing (the hull leads its own turn), and
+/// the chase camera is a camera on the TRACK. Falls back to the hull's forward
+/// while the ship is still at rest.
+#[cfg(feature = "debug")]
+fn ship_heading(world: &mut World) -> Vec3 {
+    let Some(player) = player_root(world) else {
+        return Vec3::NEG_Z;
+    };
+    let velocity = world
+        .get::<avian3d::prelude::LinearVelocity>(player)
+        .map(|velocity| velocity.0)
+        .unwrap_or(Vec3::ZERO);
+    velocity.try_normalize().unwrap_or_else(|| {
+        world
+            .get::<GlobalTransform>(player)
+            .map(|transform| transform.forward().as_vec3())
+            .unwrap_or(Vec3::NEG_Z)
+    })
+}
+
+/// The player's ship root.
+#[cfg(feature = "debug")]
+fn player_root(world: &mut World) -> Option<Entity> {
+    let mut query =
+        world.query_filtered::<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>();
+    query.iter(world).next()
+}
+
+/// The player's ship root, from a read-only world (what a predicate gets).
+#[cfg(feature = "debug")]
+fn player_root_ref(world: &World) -> Option<Entity> {
+    world
+        .try_query_filtered::<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>()?
+        .iter(world)
+        .next()
+}

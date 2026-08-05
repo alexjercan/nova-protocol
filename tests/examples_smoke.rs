@@ -73,7 +73,7 @@ const SCREENSHOTS: &[&str] = &[
     "screenshot_ui",
     "screenshot_combat",
     "screenshot_sections",
-    "screenshot_orbit",
+    "screenshot_flight",
     "screenshot_nova_os",
 ];
 

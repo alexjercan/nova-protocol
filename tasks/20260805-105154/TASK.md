@@ -76,7 +76,7 @@ supersedes (with its `[[example]]` block in `Cargo.toml` and its entry in
       variance, a hero Kenney racer posed foreground, two more hulls drifting
       on AI `orbit`. Supersedes `screenshot_reel`. First, because it settles the
       look every later scene inherits. -> OWNER APPROVAL.
-- [ ] `screenshot_combat` ("Rock hollow"): PROVE the two-faction fight first
+- [x] `screenshot_combat` ("Rock hollow"): PROVE the two-faction fight first
       (an AI flight with `allegiance: Some(Player)` against a default-Enemy
       flight, no player) - if they will not engage, bring it back before
       building the set. Then the dense field, both flights with `engage_delay`
@@ -187,6 +187,28 @@ supersedes (with its `[[example]]` block in `Cargo.toml` and its entry in
     and `variant-combat-tight` are staged by a capture run and named by no
     manifest entry, so they are candidates for `feature-juice` / `wiki-combat`
     to be picked at step 8 and cost nothing if they lose.
+- Scene 3, `screenshot_flight` ("The ring"), built and awaiting the owner's run.
+  What it cost, and the one open decision:
+  - MEASURED the draw factor instead of assuming it: this planetoid's derived
+    `BodyRadius` is ~91 units for an authored 20, a factor of 4.5. The first cut
+    put the ring at 110 units, which is 19 units off a surface that big, and the
+    shot was a frame of rock. Ring is now 320. The same factor applies to the
+    scatter rocks, so an authored 2-7 is a field of 9-32 unit boulders - the
+    debris band is authored 1-3 and sits OUTSIDE the ring, since a band inside it
+    walls off the one thing the set is about.
+  - Camera height decides where the body lands in frame: above the ring plane
+    throws it to the top corner, below drops it out of frame, level puts it
+    behind the subject. Every framing here is that dial.
+  - The game's own follow camera cannot shoot an orbit - it looks down the track,
+    and the body is 90 degrees off it. `tutorial-orbit` is therefore posed (high
+    outboard quarter, hull up front, ring and spoke sweeping to the planetoid),
+    which is a change from the old `screenshot_orbit`'s follow-camera shot.
+  - PENDING THE OWNER: three candidates for the flight and autopilot images -
+    `variant-autopilot-ring` (close three-quarter of the insertion burn, two
+    plumes lit, `AP ORBIT - BURN` up), `variant-flight-limb` (cinematic, the hull
+    over the body) and `variant-flight-chase` (the ring curving away). If they
+    beat the Rock hollow's GOTO beats, `feature-autopilot` and `wiki-flight` move
+    BACK to `screenshot_flight` in the manifest and in the Inputs table above.
 - The generated rock mesh reaches well past its nominal radius (roughly 4x), so
   a planetoid authored at radius 30 draws a body about 120 units across. Size
   scene bodies from that, not from the authored number.

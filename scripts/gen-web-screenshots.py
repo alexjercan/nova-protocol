@@ -93,7 +93,7 @@ FIGURES = [
     # the autopilot beats are its too - the burn and the flip-and-burn.
     ("feature-autopilot.png",      "screenshot_combat"),
     ("wiki-flight.png",            "screenshot_combat"),
-    ("tutorial-orbit.png",         "screenshot_orbit"),
+    ("tutorial-orbit.png",         "screenshot_flight"),
     ("wiki-section-hull.png",      "screenshot_sections"),
     ("wiki-section-controller.png", "screenshot_sections"),
     ("wiki-section-thruster.png",  "screenshot_sections"),

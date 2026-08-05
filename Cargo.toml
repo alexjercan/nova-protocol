@@ -154,8 +154,8 @@ name = "screenshot_sections"
 path = "examples/screenshots/screenshot_sections.rs"
 
 [[example]]
-name = "screenshot_orbit"
-path = "examples/screenshots/screenshot_orbit.rs"
+name = "screenshot_flight"
+path = "examples/screenshots/screenshot_flight.rs"
 
 [[example]]
 name = "render_scale_shot"
