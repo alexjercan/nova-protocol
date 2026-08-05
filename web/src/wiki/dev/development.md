@@ -193,8 +193,9 @@ What is on disk today, in curriculum reading order:
   selections. `systems/` deliberately does the opposite - its subject is the
   outcome chain, so pixel coordinates would only add layout coupling.
 - `screenshots/` - `screenshot_scene` (the "Drydock drift" beauty set),
-  `screenshot_ui`, `screenshot_combat`, `screenshot_sections`,
-  `screenshot_juice`, `screenshot_orbit` (drive the scenes headless to capture
+  `screenshot_combat` (the "Rock hollow" combat and HUD set, which absorbed the
+  old `screenshot_juice`), `screenshot_ui`, `screenshot_sections`,
+  `screenshot_orbit` (drive the scenes headless to capture
   the wiki and marketing frames),
   `screenshot_nova_os` (the Tab ship-computer, captured for HTML fidelity
   work against `web/design/nova_os_terminal_poc.html`), and

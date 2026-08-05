@@ -80,12 +80,17 @@ FIGURES = [
     ("feature-editor.png",         "screenshot_ui"),
     ("feature-combat.png",         "screenshot_combat"),
     ("tutorial-combat-lock.png",   "screenshot_combat"),
-    ("feature-autopilot.png",      "screenshot_combat"),
     ("tutorial-radar-lock.png",    "screenshot_combat"),
-    ("devlog5-target-viewfinder.png", "screenshot_combat"),
     ("feature-hud.png",            "screenshot_combat"),
-    # wiki-radar/-combat/-hud/-flight are filled by ALIASES (reuse), below.
-    ("feature-juice.png",          "screenshot_juice"),
+    ("feature-juice.png",          "screenshot_combat"),
+    # Own framed beats now, not aliases of the shots above.
+    ("wiki-combat.png",            "screenshot_combat"),
+    ("wiki-hud.png",               "screenshot_combat"),
+    ("wiki-radar.png",             "screenshot_combat"),
+    ("news-090-combat-readability.png", "screenshot_combat"),
+    ("news-090-contextual-hud.png", "screenshot_combat"),
+    # feature-autopilot and wiki-flight move to screenshot_flight, which does
+    # not exist yet: the report lists them as capturable gaps until it does.
     ("tutorial-orbit.png",         "screenshot_orbit"),
     ("wiki-section-hull.png",      "screenshot_sections"),
     ("wiki-section-controller.png", "screenshot_sections"),
@@ -106,12 +111,10 @@ THUMBNAILS = [
 # (each scaled to half width) into one 16:9 frame - the shots a single capture
 # cannot make. (web name, left source web name, right source web name). Like an
 # alias, a distinct capture staged for the composite name wins over the build.
-COMPOSITES = [
-    # The devlog-5 stance comparison: white NAV lock (left) vs red combat lock
-    # (right), matching the post's caption "white NAV lock lowered, red combat
-    # lock raised".
-    ("devlog5-radar-stance-slots.png", "tutorial-radar-lock.png", "feature-combat.png"),
-]
+# Empty: the devlog-5 stance comparison was built here from two shots, and both
+# it and `devlog5-target-viewfinder` were deleted without a replacement - the
+# site references neither (task 20260805-105154).
+COMPOSITES = []
 
 # Composite output frame (16:9, the figure resolution the capture reel uses).
 COMPOSITE_SIZE = (1920, 1080)
@@ -121,9 +124,6 @@ COMPOSITE_SIZE = (1920, 1080)
 # any of these for a distinct capture later by dropping the file in the stage dir
 # (it takes precedence - see process_group).
 ALIASES = {
-    "wiki-radar.png": "tutorial-radar-lock.png",
-    "wiki-combat.png": "feature-combat.png",
-    "wiki-hud.png": "feature-hud.png",
     "wiki-flight.png": "feature-autopilot.png",
 }
 

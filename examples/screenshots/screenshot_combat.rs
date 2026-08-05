@@ -1,23 +1,28 @@
-//! screenshot_combat: capture the combat/HUD web screenshots - a live combat
-//! lock with the red reticle and the target viewfinder inset - by driving the
-//! real radar-lock gesture on a small range (player ship + a target dead ahead),
-//! the same setup `hud_range` verifies.
+//! screenshot_combat: "Rock hollow" - the combat and HUD set.
 //!
-//! It performs the actual player gesture through the live input pipeline: raise
-//! weapons (RMB) + hold radar (CTRL); at the hold threshold the radar latches the
-//! combat slot on the target ahead, the lock goes live, and the reticle + inset
-//! come up. It captures with the HUD on ([`HudVisibility::On`]): the contextual
-//! rules keep idle chrome out of the frame by themselves, and a live lock is
-//! exactly when the reticle + inset are up.
+//! A clearing inside a dense rock shell. The player's racer sits in the middle
+//! with a derelict raider parked ahead of it (the lock subject and the ship
+//! that loses a section on camera), two friendly racers hold the flanks, and a
+//! hostile pair works the far side of the hollow. It replaces the old
+//! `screenshot_combat` range (three primitive blocks on an empty backdrop) and
+//! absorbs `screenshot_juice`, whose scripted section blow is one beat here.
 //!
-//! One beat of the reel is a verification shot rather than a web figure:
-//! `hud-nav-chips.png` frames a plain nav beacon (cyan chip) and a marked
-//! objective (gold chip) side by side, so the world-anchored chip family can be
-//! eyeballed in one frame (task 20260730-122909).
+//! WHAT THE PROOF RUN SHOWED (2026-08-05), and why the set is shaped like this:
+//! two AI flights DO fight each other with no player in the scene - a flight
+//! spawned `allegiance: Some(Player)` acquires the default-Enemy flight within
+//! a second and both sides run their guns continuously. Nothing in acquisition
+//! is player-specific (`crates/nova_gameplay/src/input/ai/acquisition.rs`), and
+//! now it has been run. What they will NOT do is brawl: the engage maneuver
+//! flies to `AI_STANDOFF_RANGE` (250 units) and EXTENDS AWAY once inside the
+//! band, so a fight is a wide slow ring, and turret bullets (100 u/s, 5 s life)
+//! never connect at that range - 45 seconds of continuous fire took zero
+//! sections off. So the AI pairs are the set's live background - tracer streams
+//! and moving hulls - while every close beat is authored: the lock subject is
+//! PARKED, and the destruction is scripted through the real damage path.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
-//! - `NOVA_AUTOPILOT=1` alone: the smoke path - reach Playing, drive the lock,
-//!   exit clean, capturing nothing.
+//! - `NOVA_AUTOPILOT=1` alone: the smoke path - reach Playing, drive the whole
+//!   script, exit clean, capturing nothing.
 //! - `NOVA_AUTOPILOT=1 NOVA_REEL=1`: also capture the shots (staged under
 //!   `NOVA_SHOT_DIR`).
 //!
@@ -33,6 +38,9 @@
 //! # look for: `nova harness: reached Playing`, `autopilot: cycle complete, no panic`
 //! ```
 
+#[path = "shared/kit.rs"]
+mod kit;
+
 use bevy::{platform::collections::HashMap, prelude::*};
 use clap::Parser;
 use nova_protocol::prelude::*;
@@ -40,12 +48,32 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "screenshot_combat")]
 #[command(version = "1.0.0")]
-#[command(about = "Capture the combat-lock web screenshots", long_about = None)]
+#[command(about = "The Rock hollow combat and HUD set", long_about = None)]
 struct Cli;
 
-/// Distance the target sits dead ahead: inside lock range and the aim cone,
-/// close enough that the reticle and target read at the chase-camera framing.
-const TARGET_Z: f32 = -50.0;
+/// Scenario id of the parked raider the player locks, shoots and finally blows
+/// a section off.
+const RAIDER_ID: &str = "hollow_raider";
+/// Where it sits: dead ahead, inside the lock cone and close enough that the
+/// hull reads at the chase framing.
+const RAIDER_POSITION: Vec3 = Vec3::new(0.0, 0.4, -22.0);
+/// The raider section the scripted blow takes off - a forward hull cube on the
+/// camera's side of the ship, so the fragments and the hole are both in frame.
+const RAIDER_BLOWN_SECTION: &str = "racer_cube_i0_j0_km2";
+/// The nav beacon the weapons-lowered radar sweep latches. BEYOND the raider
+/// and off the axis: a beacon between camera and subject puts its glow over the
+/// player's own hull, and the orb is bright enough to blow out half the frame.
+const BEACON_POSITION: Vec3 = Vec3::new(2.6, 1.0, -34.0);
+
+/// Seconds each AI flight holds fire after the scenario starts, so the shots
+/// are taken of a fight that has settled rather than of four ships still
+/// sorting out where they are.
+const ENGAGE_DELAY: f32 = 3.0;
+/// How far an AI ship may stray from its post before it breaks off and comes
+/// back. Wider than the standoff range the engage maneuver flies to (250), so
+/// the fight is not permanently interrupted, tight enough that the hollow keeps
+/// its ships instead of watching them leave.
+const AI_LEASH: f32 = 320.0;
 
 /// Frames a capture step holds after requesting its PNG. `capture_window`
 /// spawns a bare `Screenshot` and is NOT a completion collector, so the last
@@ -65,22 +93,41 @@ fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
+    // NOT debug-gated: the rig is the set's look, so a plain run shows what a
+    // capture would shoot.
+    app.add_plugins(kit::photo_rig());
+
     #[cfg(feature = "debug")]
     {
         let capturing = std::env::var_os(nova_protocol::nova_debug::harness::REEL_ENV).is_some();
-        // One step per beat. Every capture gets its OWN step, so the
-        // one-capture-per-frame rule (Bevy services one primary-window capture
-        // per frame) is structural rather than a `shot_*` guard. Input presses
-        // are held until the beat that releases them.
+        // One step per beat, and every capture gets its OWN step: Bevy services
+        // one primary-window capture per frame, so the rule is structural here
+        // rather than a guard inside a shared step.
         app.add_plugins(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
-                .step("load the combat range")
+                .step("load the hollow")
                 .enter(GameStates::Loading)
                 .until(player_ship_present())
                 .deadline(30.0)
                 .add()
-                // Nav sweep: weapons LOWERED, hold CTRL -> the nav-slot radar
-                // opens and the white NAV crosshair sweeps onto the target.
+                // Let the flights take up their posts and open fire before any
+                // shot is taken - ENGAGE_DELAY plus a few seconds of closing.
+                // The player holds station through all of it - see
+                // [`pin_player`] for why the set cannot tolerate its drift.
+                .step("let the flights engage")
+                .until(elapsed(ENGAGE_DELAY + 3.0))
+                .add()
+                // Quiet stance first: weapons lowered, no lock, the contextual
+                // rules keeping idle chrome off the frame. That IS the shot.
+                .step("capture the contextual HUD")
+                .on_enter(move |world| {
+                    hud_instrument(world);
+                    shoot(world, capturing, "news-090-contextual-hud.png");
+                })
+                .until(elapsed(0.3))
+                .add()
+                // Weapons still lowered, hold CTRL: the nav-slot radar opens and
+                // the white NAV crosshair sweeps onto the beacon.
                 .step("sweep the nav radar")
                 .on_enter(hold_radar)
                 .until(elapsed(1.2))
@@ -89,24 +136,39 @@ fn main() -> bevy::app::AppExit {
                 .on_enter(move |world| {
                     hud_instrument(world);
                     shoot(world, capturing, "tutorial-radar-lock.png");
-                    // Release the nav sweep before the raised combat stance.
-                    world
-                        .resource_mut::<ButtonInput<KeyCode>>()
-                        .release(KeyCode::ControlLeft);
                 })
                 .until(elapsed(0.2))
                 .add()
-                // A LATER step than the capture: despawning in the capture
-                // frame removes the beacon before the screenshot's
-                // end-of-frame render, and its glow must not sit on the
-                // reticle in the combat shots either.
-                .step("clear the nav beacon")
-                .on_enter(despawn_nav_beacon)
+                // The radar instrument as its own subject: the same latched nav
+                // sweep from a tighter, lower camera, so the sweep and the
+                // hollow behind it fill the frame.
+                .step("frame the radar instrument")
+                .on_enter(|world| {
+                    pose(world, Vec3::new(-3.6, 1.0, 6.0), Vec3::new(0.0, 0.3, -10.0))
+                })
+                .until(elapsed(0.4))
+                .add()
+                .step("capture the radar")
+                .on_enter(move |world| {
+                    hud_instrument(world);
+                    shoot(world, capturing, "wiki-radar.png");
+                })
                 .until(elapsed(0.2))
                 .add()
-                // Raise weapons (RMB), then hold radar (CTRL) a beat later -
-                // the natural order hud_range uses. At the hold threshold the
-                // radar latches the combat slot and the reticle + inset come up.
+                // A LATER step than the captures that want it: despawning in a
+                // capture frame removes the beacon before that frame's render,
+                // and its glow must not sit on the reticle in the combat shots.
+                .step("clear the nav beacon")
+                .on_enter(|world| {
+                    release_radar(world);
+                    despawn_by_id(world, "hollow_beacon");
+                    unpose(world);
+                })
+                .until(elapsed(0.3))
+                .add()
+                // Raise weapons (RMB), then hold radar (CTRL) a beat later - the
+                // natural order. At the hold threshold the radar latches the
+                // combat slot on the raider and the reticle + inset come up.
                 .step("raise the weapons")
                 .on_enter(raise_stance)
                 .until(elapsed(0.3))
@@ -115,6 +177,13 @@ fn main() -> bevy::app::AppExit {
                 .on_enter(hold_radar)
                 .until(elapsed(1.8))
                 .add()
+                // Guns live: the player's own turret streams tracers at the
+                // locked raider, so the combat frames have the player's fire in
+                // them and not just the AI's.
+                .step("open fire")
+                .on_enter(open_fire)
+                .until(elapsed(0.8))
+                .add()
                 .step("capture the combat frame")
                 .on_enter(move |world| {
                     hud_instrument(world);
@@ -122,9 +191,6 @@ fn main() -> bevy::app::AppExit {
                 })
                 .until(elapsed(0.2))
                 .add()
-                // HUD on so the target viewfinder inset is in shot (the
-                // tutorial combat-lock is about the viewfinder + reticle
-                // together).
                 .step("capture the combat lock")
                 .on_enter(move |world| {
                     hud_instrument(world);
@@ -132,61 +198,102 @@ fn main() -> bevy::app::AppExit {
                 })
                 .until(elapsed(0.2))
                 .add()
-                .step("capture the target viewfinder")
-                .on_enter(move |world| {
-                    hud_instrument(world);
-                    shoot(world, capturing, "devlog5-target-viewfinder.png");
-                })
-                .until(elapsed(0.2))
+                // The same fight from the ship's shoulder: the HUD showcase,
+                // every situational readout up with the hull in frame.
+                .step("frame the HUD showcase")
+                .on_enter(|world| pose(world, Vec3::new(5.0, 1.6, 7.0), Vec3::new(0.0, 0.4, -14.0)))
+                .until(elapsed(0.4))
                 .add()
-                // The same locked frame with every situational readout + the
-                // fps/version bar: the "HUD in combat" showcase.
                 .step("capture the HUD in combat")
                 .on_enter(move |world| {
                     hud_instrument(world);
                     shoot(world, capturing, "feature-hud.png");
                 })
-                .until(elapsed(0.05))
-                .add()
-                // The world-anchored nav chips, both members of the family in
-                // ONE frame: a plain beacon (cyan) and a marked objective
-                // (gold). One entity cannot show both - a marked beacon yields
-                // its chip to the gold marker - so this beat spawns two
-                // subjects side by side. It is the eyeball proof that each
-                // pill's fill and border back its WHOLE label (task
-                // 20260730-122909); the chips are torn down right after the
-                // shot so no later capture inherits them.
-                .step("spawn the nav chips")
-                .on_enter(spawn_nav_chips)
                 .until(elapsed(0.2))
                 .add()
-                .step("capture the nav chips")
+                .step("frame the HUD reference")
+                .on_enter(|world| {
+                    pose(world, Vec3::new(-6.0, 2.8, 5.0), Vec3::new(0.0, 0.2, -16.0))
+                })
+                .until(elapsed(0.4))
+                .add()
+                .step("capture the HUD reference")
                 .on_enter(move |world| {
                     hud_instrument(world);
-                    shoot(world, capturing, "hud-nav-chips.png");
+                    shoot(world, capturing, "wiki-hud.png");
                 })
-                .until(elapsed(0.1))
+                .until(elapsed(0.2))
                 .add()
-                .step("clear the nav chips")
-                .on_enter(despawn_nav_chips)
-                .until(elapsed(0.15))
-                .add()
-                // GOTO maneuver: release the stance, stick the travel lock on
-                // the target, and engage the GOTO autopilot. The hull swings
-                // onto the new heading and the thruster plume lights.
-                .step("engage the GOTO maneuver")
-                .on_enter(engage_goto)
-                .until(elapsed(1.9))
-                .add()
-                .step("capture the autopilot maneuver")
-                .on_enter(move |world| {
-                    hud_instrument(world);
-                    shoot(world, capturing, "feature-autopilot.png");
+                // The wide beats: the HUD goes cinematic and the camera leaves
+                // the player, so the chrome would be reading a ship the frame
+                // is no longer with. They are framed on the PLAYER's tracer
+                // stream, not on the AI pairs: the AI holds a 250-unit standoff
+                // where its ships are specks, while the player's fire crosses
+                // 36 units of open hollow into a hull.
+                .step("frame the exchange")
+                .on_enter(|world| {
+                    hud_cinematic(world);
+                    pose(world, Vec3::new(9.0, 2.5, 6.0), Vec3::new(0.0, 0.3, -14.0));
                 })
+                .until(elapsed(0.5))
+                .add()
+                .step("capture the exchange")
+                .on_enter(move |world| shoot(world, capturing, "wiki-combat.png"))
+                .until(elapsed(0.2))
+                .add()
+                // The receiving end: past the raider's shoulder back down the
+                // stream, so the frame is bullets, impact flashes and a hull
+                // taking them.
+                .step("frame the readability shot")
+                .on_enter(|world| {
+                    pose(
+                        world,
+                        RAIDER_POSITION + Vec3::new(-7.0, 2.0, -8.0),
+                        Vec3::ZERO,
+                    )
+                })
+                .until(elapsed(0.5))
+                .add()
+                .step("capture the readability shot")
+                .on_enter(move |world| shoot(world, capturing, "news-090-combat-readability.png"))
+                .until(elapsed(0.2))
+                .add()
+                // The juice: one section blown off the raider through the
+                // production damage path, shot while the fragments and hit
+                // rings are still live.
+                // Three-quarter on the raider from inside the fire line, so
+                // the frame carries the player's incoming tracers, the impact
+                // flashes and the burnt-out section together. The destruction
+                // is a BURNT HULL, not a fireball: a dead section is graded to
+                // `DEAD_COLOR` in place (`sections/damage_tint.rs`) and the
+                // burst is over in a frame or two, so the shot is the damage,
+                // shown while the rounds are still arriving.
+                .step("frame the raider")
+                .on_enter(|world| {
+                    pose(
+                        world,
+                        RAIDER_POSITION + Vec3::new(6.5, 2.2, 9.0),
+                        RAIDER_POSITION,
+                    )
+                })
+                .until(elapsed(0.5))
+                .add()
+                .step("blow a section off the raider")
+                .on_enter(blow_raider_section)
+                .until(frames(12))
+                .add()
+                .step("capture the juice")
+                .on_enter(move |world| shoot(world, capturing, "feature-juice.png"))
                 .until(frames(capture_settle_frames(capturing)))
                 .add(),
         );
         app.add_systems(Startup, (force_resolution, hide_dev_overlays));
+        // Only under the script (`NOVA_AUTOPILOT`, named literally - the
+        // harness re-exports `REEL_ENV` but not the autopilot's own): a plain
+        // run is the owner flying this set, and a pinned ship cannot be flown.
+        if std::env::var_os("NOVA_AUTOPILOT").is_some() {
+            app.add_systems(Update, pin_player);
+        }
     }
 
     app.run()
@@ -202,135 +309,174 @@ fn force_resolution(mut windows: Query<&mut Window, With<bevy::window::PrimaryWi
 }
 
 fn custom_plugin(app: &mut App) {
-    app.add_systems(OnEnter(GameAssetsStates::Loaded), setup_range);
+    app.add_systems(OnEnter(GameAssetsStates::Loaded), load_scene);
 }
 
-fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, sections: Res<GameSections>) {
-    commands.trigger(LoadScenario(combat_range(&game_assets, &sections)));
+fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, sections: Res<GameSections>) {
+    commands.trigger(LoadScenario(rock_hollow(&game_assets, &sections)));
 }
 
-/// A player ship at the origin with a turret, and an uncontrolled target ship
-/// parked dead ahead - the combat-lock subject. Mirrors `hud_range`.
-fn combat_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
-    let section = |id: &str| {
-        sections
-            .get_section(id)
-            .unwrap_or_else(|| panic!("section '{id}' not found"))
-            .clone()
-    };
-    let at = |id: &str, kind: &str, z: f32| SpaceshipSectionConfig {
-        id: id.to_string(),
-        position: Vec3::new(0.0, 0.0, z),
-        rotation: Quat::IDENTITY,
-        source: SectionSource::Inline(section(kind)),
-        modifications: vec![],
-    };
-    let sections_line = |prefix: &str| {
-        vec![
-            at(
-                &format!("{prefix}_controller"),
-                "basic_controller_section",
-                0.0,
-            ),
-            at(&format!("{prefix}_hull"), "reinforced_hull_section", 1.0),
-            at(&format!("{prefix}_thruster"), "basic_thruster_section", 2.0),
-        ]
-    };
-
-    let mut player_sections = sections_line("player");
-    player_sections.push(SpaceshipSectionConfig {
-        id: "player_turret".to_string(),
-        position: Vec3::new(0.0, 0.0, -1.0),
-        rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-        source: SectionSource::Inline(section("better_turret_section")),
-        modifications: vec![],
-    });
-    let player = SpaceshipConfig {
-        allegiance: None,
-        controller: SpaceshipController::Player(PlayerControllerConfig {
+/// The set: a rock shell around a clearing, the player, a parked raider, and
+/// two AI flights fighting across it.
+fn rock_hollow(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
+    let player = ship(
+        "hollow_player",
+        "Player Ship",
+        Vec3::ZERO,
+        Quat::IDENTITY,
+        SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: HashMap::new(),
             speed_cap: None,
+            // The player holds fire through several beats; running dry
+            // mid-capture would leave a reload where the tracers should be.
             infinite_ammo: true,
             lock_refire_secs: None,
         }),
-        sections: player_sections,
-    };
-    let target = SpaceshipConfig {
-        allegiance: None,
-        controller: SpaceshipController::None,
-        sections: sections_line("target"),
-    };
+        None,
+        kit::kenney_hull(sections, "racer"),
+    );
 
-    let spawn = |id: &str, name: &str, position: Vec3, ship: SpaceshipConfig| {
-        EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
-            base: BaseScenarioObjectConfig {
-                id: id.to_string(),
-                name: name.to_string(),
-                position,
-                rotation: Quat::IDENTITY,
-            },
-            kind: ScenarioObjectKind::Spaceship(ship),
-        })
-    };
+    // The lock subject: PARKED, because an AI hostile flies to a 250-unit
+    // standoff and no close framing survives that (see the module docs).
+    let raider = ship(
+        RAIDER_ID,
+        "Raider",
+        RAIDER_POSITION,
+        // Nose toward the player, turned off square: a hostile bearing down
+        // reads better than a hull presenting its flank, and it puts the
+        // section the juice beat blows on the camera's side of the ship.
+        Quat::from_rotation_y(std::f32::consts::PI - 0.4),
+        SpaceshipController::None,
+        Some(Allegiance::Enemy),
+        kit::kenney_hull(sections, "racer"),
+    );
 
-    let events = vec![ScenarioEventConfig {
-        name: EventConfig::OnStart,
-        filters: vec![],
-        actions: vec![
-            spawn("player_ship", "Player Ship", Vec3::ZERO, player),
-            spawn(
-                "target_ship",
-                "Hostile",
-                Vec3::new(0.0, 0.0, TARGET_Z),
-                target,
-            ),
-            // A nav waypoint dead ahead (in front of the hostile) so the
-            // weapons-lowered radar sweep latches the NAV slot onto a beacon -
-            // the tutorial's radar-lock, not a lock on the ship.
-            EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
-                base: BaseScenarioObjectConfig {
-                    id: "nav_beacon".to_string(),
-                    name: "Waypoint".to_string(),
-                    position: Vec3::new(0.0, 0.0, TARGET_Z + 14.0),
-                    rotation: Quat::IDENTITY,
-                },
-                kind: ScenarioObjectKind::Beacon(BeaconConfig {
-                    label: "WAYPOINT".to_string(),
-                    radius: 2.0,
-                    color: Color::srgb(0.4, 0.75, 1.0),
-                    area_radius: None,
-                    lock_signature: None,
-                }),
-            }),
-        ],
-    }];
+    // The live background: two friendlies on the flanks, two hostiles across
+    // the hollow. Leashed to their posts so the ring they fly stays in the set.
+    let wingman_a = ship(
+        "hollow_wing_a",
+        "Wingman",
+        Vec3::new(-46.0, 8.0, -30.0),
+        Quat::from_rotation_y(0.2),
+        fighter(),
+        Some(Allegiance::Player),
+        kit::kenney_hull(sections, "racer"),
+    );
+    let wingman_b = ship(
+        "hollow_wing_b",
+        "Wingman",
+        Vec3::new(44.0, -10.0, -40.0),
+        Quat::from_rotation_y(-0.2),
+        fighter(),
+        Some(Allegiance::Player),
+        kit::kenney_hull(sections, "racer"),
+    );
+    let hostile_a = ship(
+        "hollow_hostile_a",
+        "Raider",
+        Vec3::new(-120.0, 26.0, -170.0),
+        Quat::from_rotation_y(3.0),
+        fighter(),
+        None,
+        kit::kenney_hull(sections, "racer"),
+    );
+    let hostile_b = ship(
+        "hollow_hostile_b",
+        "Raider",
+        Vec3::new(140.0, -30.0, -200.0),
+        Quat::from_rotation_y(3.3),
+        fighter(),
+        None,
+        kit::kenney_hull(sections, "cargob"),
+    );
+
+    // The shell: denser and bigger-bodied than the drift set's belt, and it
+    // starts outside the raider so the lock framings keep a clear sightline.
+    let shell = kit::NearField {
+        id_prefix: "hollow_rock_",
+        count: 44,
+        seed: 40507,
+        distance: (28.0, 120.0),
+        radius: (1.0, 2.8),
+        y_spread: 42.0,
+    };
 
     ScenarioConfig {
-        id: "combat_range".to_string(),
-        name: "Combat Range".to_string(),
-        description: "A range for the combat-lock screenshots.".to_string(),
+        id: "rock_hollow".to_string(),
+        name: "Rock Hollow".to_string(),
+        description: "A firefight in a clearing inside a rock field.".to_string(),
         cubemap: game_assets.cubemap.clone().into(),
-        events,
+        events: vec![ScenarioEventConfig {
+            name: EventConfig::OnStart,
+            filters: vec![],
+            actions: vec![
+                shell.action(game_assets),
+                player,
+                raider,
+                wingman_a,
+                wingman_b,
+                hostile_a,
+                hostile_b,
+                beacon(),
+            ],
+        }],
         ..Default::default()
     }
 }
 
-/// The player ship root, once it exists.
-#[cfg(feature = "debug")]
-fn player_root(world: &mut World) -> Option<Entity> {
-    world
-        .query_filtered::<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>()
-        .iter(world)
-        .next()
+/// A fighting AI ship's routine: hold its post, engage after the grace, and
+/// come back when the fight drags it too far out.
+fn fighter() -> SpaceshipController {
+    SpaceshipController::AI(AIControllerConfig {
+        leash: Some(AI_LEASH),
+        engage_delay: Some(ENGAGE_DELAY),
+        ..default()
+    })
 }
 
-/// The target ship root (the only non-player ship on the range), once it exists.
-#[cfg(feature = "debug")]
-fn target_root(world: &mut World) -> Option<Entity> {
-    world
-        .query_filtered::<Entity, (With<SpaceshipRootMarker>, Without<PlayerSpaceshipMarker>)>()
-        .iter(world)
-        .next()
+/// The nav beacon the weapons-lowered radar sweep latches, so the tutorial's
+/// radar-lock shot is a NAV lock and not a lock on the raider.
+fn beacon() -> EventActionConfig {
+    EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: "hollow_beacon".to_string(),
+            name: "Waypoint".to_string(),
+            position: BEACON_POSITION,
+            rotation: Quat::IDENTITY,
+        },
+        kind: ScenarioObjectKind::Beacon(BeaconConfig {
+            label: "WAYPOINT".to_string(),
+            radius: 0.8,
+            color: Color::srgb(0.4, 0.75, 1.0),
+            area_radius: None,
+            lock_signature: None,
+        }),
+    })
+}
+
+/// One posed ship in the set.
+fn ship(
+    id: &str,
+    name: &str,
+    position: Vec3,
+    rotation: Quat,
+    controller: SpaceshipController,
+    allegiance: Option<Allegiance>,
+    sections: Vec<SpaceshipSectionConfig>,
+) -> EventActionConfig {
+    EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: id.to_string(),
+            name: name.to_string(),
+            position,
+            rotation,
+        },
+        kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            controller,
+            allegiance,
+            sections,
+        }),
+    })
 }
 
 /// Put the HUD on (the contextual rules decide what is actually in shot).
@@ -338,6 +484,14 @@ fn target_root(world: &mut World) -> Option<Entity> {
 fn hud_instrument(world: &mut World) {
     if let Some(mut hud) = world.get_resource_mut::<HudVisibility>() {
         *hud = HudVisibility::On;
+    }
+}
+
+/// Clean the screen, for the beats whose camera has left the player's ship.
+#[cfg(feature = "debug")]
+fn hud_cinematic(world: &mut World) {
+    if let Some(mut hud) = world.get_resource_mut::<HudVisibility>() {
+        *hud = HudVisibility::Cinematic;
     }
 }
 
@@ -352,12 +506,66 @@ fn shoot(world: &mut World, capturing: bool, path: &str) {
     }
 }
 
+/// Pin the camera for a framing the follow camera does not give.
+#[cfg(feature = "debug")]
+fn pose(world: &mut World, position: Vec3, look_at: Vec3) {
+    reel_pose_camera(world, position, look_at);
+}
+
+/// Hand the camera back to the game.
+#[cfg(feature = "debug")]
+fn unpose(world: &mut World) {
+    let camera = {
+        let mut query = world.query_filtered::<Entity, With<ScenarioCameraMarker>>();
+        query.iter(world).next()
+    };
+    if let Some(camera) = camera {
+        world.entity_mut(camera).remove::<ScriptedCameraPose>();
+    }
+}
+
+/// Hold the player exactly where the set was measured from, for scripted runs.
+///
+/// Not cosmetic, and not the STOP autopilot: STOP flips retrograde and BURNS,
+/// so engaging it on a ship with a metre per second of spawn drift walks the
+/// ship fifty units downrange before it settles. The set's geometry is measured
+/// from a player at the origin, and the radar picks the body nearest the AIM
+/// RAY (`crates/nova_gameplay/src/input/targeting/radar.rs`), so a player a few
+/// tens of units off station swings the parked raider off the ray and latches a
+/// hostile two kilometres out instead. A photo subject sits still.
+#[cfg(feature = "debug")]
+fn pin_player(
+    mut player: Query<
+        (
+            &mut Transform,
+            &mut avian3d::prelude::LinearVelocity,
+            &mut avian3d::prelude::AngularVelocity,
+        ),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
+) {
+    for (mut transform, mut linear, mut angular) in &mut player {
+        transform.translation = Vec3::ZERO;
+        transform.rotation = Quat::IDENTITY;
+        linear.0 = Vec3::ZERO;
+        angular.0 = Vec3::ZERO;
+    }
+}
+
 /// Hold CTRL: the radar gesture. Which slot it latches depends on the stance.
 #[cfg(feature = "debug")]
 fn hold_radar(world: &mut World) {
     world
         .resource_mut::<ButtonInput<KeyCode>>()
         .press(KeyCode::ControlLeft);
+}
+
+/// Release the radar gesture.
+#[cfg(feature = "debug")]
+fn release_radar(world: &mut World) {
+    world
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .release(KeyCode::ControlLeft);
 }
 
 /// Raise the weapons (RMB), switching the radar from the nav slot to combat.
@@ -368,88 +576,95 @@ fn raise_stance(world: &mut World) {
         .press(MouseButton::Right);
 }
 
-/// Despawn the scenario's nav beacon once it has served the radar-lock shot.
+/// Hold the trigger (LMB) so the player's turret is firing in the combat shots.
 #[cfg(feature = "debug")]
-fn despawn_nav_beacon(world: &mut World) {
-    let beacon = {
+fn open_fire(world: &mut World) {
+    world
+        .resource_mut::<ButtonInput<MouseButton>>()
+        .press(MouseButton::Left);
+}
+
+/// Despawn a scenario object by its scenario id.
+#[cfg(feature = "debug")]
+fn despawn_by_id(world: &mut World, id: &str) {
+    let found = {
         let mut query = world.query::<(Entity, &EntityId)>();
         query
             .iter(world)
-            .find(|(_, id)| id.0 == "nav_beacon")
+            .find(|(_, live)| live.0 == id)
             .map(|(entity, _)| entity)
     };
-    if let Some(beacon) = beacon {
-        world.entity_mut(beacon).despawn();
+    if let Some(entity) = found {
+        world.entity_mut(entity).despawn();
     }
 }
 
-/// The two nav-chip subjects, named so the teardown step can find them again.
+/// Blow one forward hull section off the parked raider through the production
+/// damage path - the same `HealthApplyDamage` a bullet delivers, so the shot is
+/// of the real destruction, not of a prop.
 #[cfg(feature = "debug")]
-const CHIP_NAMES: [&str; 2] = ["ChipShotBeacon", "ChipShotObjective"];
-
-/// Spawn a plain beacon (cyan chip) and a marked objective (gold chip) side by
-/// side, so one frame carries both members of the family.
-#[cfg(feature = "debug")]
-fn spawn_nav_chips(world: &mut World) {
-    world.spawn((
-        Name::new(CHIP_NAMES[0]),
-        // The scenario's OWN beacon bundle, so the chip is driven by exactly
-        // the components a scenario-spawned waypoint has (a bare
-        // `BeaconMarker` makes the render observer log an error and skip the
-        // orb).
-        beacon_scenario_object(BeaconConfig {
-            label: "WAYPOINT".to_string(),
-            // Small: the chip floats 28 px above its anchor, and a range-2 orb
-            // at this distance would sit behind the pill and wash the shot out.
-            radius: 0.5,
-            color: Color::srgb(0.4, 0.75, 1.0),
-            area_radius: None,
-            lock_signature: None,
-        }),
-        Transform::from_xyz(-11.0, 5.0, -38.0),
-        // The scenario's base object bundle supplies this; the orb child needs
-        // an inheritable parent visibility (B0004).
-        Visibility::default(),
-    ));
-    world.spawn((
-        Name::new(CHIP_NAMES[1]),
-        ObjectiveMarkerTarget::new("BEACON 1"),
-        Transform::from_xyz(11.0, 5.0, -38.0),
-    ));
+fn blow_raider_section(world: &mut World) {
+    let Some(node) = raider_section_health(world) else {
+        warn!("combat: no health node under section '{RAIDER_BLOWN_SECTION}' to blow");
+        return;
+    };
+    world.trigger(HealthApplyDamage {
+        entity: node,
+        source: None,
+        amount: 1.0e6,
+    });
+    info!("combat: blew '{RAIDER_BLOWN_SECTION}' off the raider");
 }
 
-/// Tear the chip subjects down so no later capture inherits them.
+/// The raider's blown section entity. Picked BY SHIP: the two racers in the set
+/// share section ids, as every shipped multi-ship scenario does.
 #[cfg(feature = "debug")]
-fn despawn_nav_chips(world: &mut World) {
-    let chips: Vec<Entity> = {
-        let mut query = world.query::<(Entity, &Name)>();
+fn raider_section(world: &mut World) -> Option<Entity> {
+    let raider = {
+        let mut query = world.query_filtered::<(Entity, &EntityId), With<SpaceshipRootMarker>>();
         query
             .iter(world)
-            .filter(|(_, name)| CHIP_NAMES.contains(&name.as_str()))
-            .map(|(entity, _)| entity)
-            .collect()
+            .find(|(_, id)| id.0 == RAIDER_ID)
+            .map(|(entity, _)| entity)?
     };
-    for chip in chips {
-        world.entity_mut(chip).despawn();
-    }
+    let mut query = world.query_filtered::<(Entity, &EntityId), With<SectionMarker>>();
+    let candidates: Vec<Entity> = query
+        .iter(world)
+        .filter(|(_, id)| id.0 == RAIDER_BLOWN_SECTION)
+        .map(|(entity, _)| entity)
+        .collect();
+    candidates
+        .into_iter()
+        .find(|&entity| under(world, entity, raider))
 }
 
-/// Release the combat stance, stick the travel lock on the target, and engage
-/// the GOTO autopilot.
+/// The `Health` node of the raider's blown section: the health lives on the
+/// section entity or on one of its children.
 #[cfg(feature = "debug")]
-fn engage_goto(world: &mut World) {
-    world
-        .resource_mut::<ButtonInput<KeyCode>>()
-        .release(KeyCode::ControlLeft);
-    world
-        .resource_mut::<ButtonInput<MouseButton>>()
-        .release(MouseButton::Right);
-    if let (Some(player), Some(target)) = (player_root(world), target_root(world)) {
-        if let Some(mut travel) = world.entity_mut(player).get_mut::<TravelLock>() {
-            travel.0 = Some(target);
-        }
-        world
-            .entity_mut(player)
-            .insert(Autopilot::engage(AutopilotAction::Goto { target }));
+fn raider_section_health(world: &mut World) -> Option<Entity> {
+    let section = raider_section(world)?;
+    if world.get::<Health>(section).is_some() {
+        return Some(section);
     }
+    let children: Vec<Entity> = world
+        .get::<Children>(section)
+        .map(|children| children.iter().collect())
+        .unwrap_or_default();
+    children
+        .into_iter()
+        .find(|&child| world.get::<Health>(child).is_some())
+}
+
+/// Whether `entity` sits under `root` in the hierarchy.
+#[cfg(feature = "debug")]
+fn under(world: &World, entity: Entity, root: Entity) -> bool {
+    let mut current = entity;
+    for _ in 0..8 {
+        match world.get::<ChildOf>(current) {
+            Some(parent) if parent.parent() == root => return true,
+            Some(parent) => current = parent.parent(),
+            None => return false,
+        }
+    }
+    false
 }

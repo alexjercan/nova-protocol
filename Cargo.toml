@@ -154,10 +154,6 @@ name = "screenshot_sections"
 path = "examples/screenshots/screenshot_sections.rs"
 
 [[example]]
-name = "screenshot_juice"
-path = "examples/screenshots/screenshot_juice.rs"
-
-[[example]]
 name = "screenshot_orbit"
 path = "examples/screenshots/screenshot_orbit.rs"
 
