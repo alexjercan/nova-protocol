@@ -25,7 +25,7 @@ The coverage flag is `--report` and there is only one name for it. Owner call
 
 ## Steps
 
-- [ ] Add an ADVISORY coverage report to `scripts/gen-web-screenshots.py`
+- [x] Add an ADVISORY coverage report to `scripts/gen-web-screenshots.py`
       (`--report`): scan `web/src/**` for referenced `assets/<name>`, diff
       against the manifest and the shipped assets, and print each gap with its
       OWNER class - `capturable` (names a producer example), `manual`

@@ -417,7 +417,28 @@ cannot make (e.g. `devlog5-radar-stance-slots`, two lock stances side by side)
 with a stdlib PNG codec, generates the section icons, and reports which shots
 have no capture example yet. Commit the resulting PNGs (they are content, like
 `banner.png`). Run `python3 scripts/gen-web-screenshots.py --self-test` to check
-the PNG codec (decode/resize/compose) in isolation.
+the PNG codec (decode/resize/compose) and the report's classification rules in
+isolation.
+
+#### What is still missing
+
+```sh
+python3 scripts/gen-web-screenshots.py --report
+```
+
+Scans `web/src/**` for referenced `assets/<name>` images, diffs them against the
+manifest and the shipped assets, and prints each gap with an owner class:
+
+| Class | Meaning |
+| --- | --- |
+| `capturable` | A game render an `examples/screenshots/` producer can make. |
+| `manual` | Authored art (post-card thumbnails, icons, diagrams) - no automation produces it. |
+| `historical` | A figure for an older shipped version; the current build can only approximate it. |
+
+Wrong-shaped and unreadable assets, assets the site never references, and staged
+PNGs the manifest does not declare print the same way. The report is ADVISORY:
+it copies nothing and always exits 0, so it is a worklist (for the owner: what
+art to draw; for automation: what a producer could capture), never a gate.
 
 ### Eyeballing the site
 

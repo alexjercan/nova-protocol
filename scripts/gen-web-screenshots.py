@@ -21,6 +21,14 @@ capture pipeline:
      glyphs, matching the editor's per-section colours) - these are authored, not
      captured.
 
+`--report` prints the ADVISORY coverage worklist and exits 0: it scans
+`web/src/**` for referenced `assets/<name>` images, diffs them against the
+manifest below and the shipped `web/src/assets/`, and prints every gap with its
+owner class - `capturable` (a game render some example can produce), `manual`
+(authored art: post cards, icons, diagrams) or `historical` (a figure for an
+older shipped version, at best approximated by the current build). It runs no
+capture and NEVER fails: a missing image is a worklist item, not a broken build.
+
 `--self-test` round-trips synthetic images through the PNG codec (all five row
 filters, RGB + RGBA) and exits, so the decode/resize/compose path is checkable
 without any GPU-captured asset.
@@ -45,6 +53,7 @@ and composites.
 
 import argparse
 import os
+import re
 import shutil
 import struct
 import sys
@@ -52,6 +61,7 @@ import zlib
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_STAGE = os.path.join(REPO_ROOT, "target", "reel")
+WEB_SRC = os.path.join(REPO_ROOT, "web", "src")
 WEB_ASSETS = os.path.join(REPO_ROOT, "web", "src", "assets")
 
 # Every screenshot the site references, grouped by kind. `stage` is the filename
@@ -130,6 +140,34 @@ ICONS = [
 ICON_SIZE = 44
 FIGURE_ASPECT = 16.0 / 9.0
 ASPECT_TOLERANCE = 0.02
+
+# --- coverage report (`--report`, advisory) -----------------------------------
+
+# Owner classes, in report sort order. `capturable` names a game render some
+# `examples/screenshots/` producer can make; `manual` is authored art no
+# automation can produce; `historical` illustrates an older shipped version, so
+# the current build can only approximate it.
+OWNERS = ("capturable", "manual", "historical")
+
+# Site files that may reference an asset, and the reference form they use.
+SCAN_SUFFIXES = (".html", ".md", ".css", ".js")
+ASSET_REF = re.compile(r"assets/([A-Za-z0-9._-]+\.(?:png|jpg|jpeg|gif|svg|webp))")
+
+# Owner class for a reference the manifest does not declare: first matching
+# prefix wins. Game-rendered surfaces are capturable even without a producer
+# slot yet; `news-0X0-*` figures belong to the post's version, so only the
+# newest ones are still capturable and the rest are historical.
+UNDECLARED_OWNERS = (
+    ("feature-", "capturable"),
+    ("wiki-", "capturable"),
+    ("tutorial-", "capturable"),
+    ("devlog", "capturable"),
+    ("news-090-", "capturable"),
+    ("news-", "historical"),
+    ("thumb-", "manual"),
+    ("icon-", "manual"),
+    ("banner", "manual"),
+)
 
 
 def png_dimensions(path):
@@ -562,6 +600,162 @@ def self_test():
 
     shutil.rmtree(tmp, ignore_errors=True)
     print("self-test OK: decode filters 0-4 (RGB+RGBA), resize_box, compose_side_by_side")
+    report_self_test()
+
+
+def manifest_owners():
+    """{web name -> (owner class, producer description, expect_16_9)} for every
+    asset the manifest declares."""
+    declared = {}
+    for name, example in FIGURES:
+        declared[name] = ("capturable", example or "(no producer yet)", True)
+    for name, example in THUMBNAILS:
+        declared[name] = ("manual", example or "(hand-made art)", True)
+    for name, left, right in COMPOSITES:
+        declared[name] = ("capturable", f"composite of {left} + {right}", True)
+    for name, source in ALIASES.items():
+        declared[name] = ("capturable", f"alias of {source}", True)
+    for name, _section, _accent in ICONS:
+        declared[name] = ("manual", "(generated icon)", False)
+    return declared
+
+
+def scan_references(web_src):
+    """Every `assets/<image>` name the site references, read from the site itself
+    rather than a hand list, so a new page reference lands on the worklist
+    instead of silently 404ing."""
+    found = set()
+    for root, _dirs, files in os.walk(web_src):
+        if os.path.abspath(root).startswith(os.path.abspath(WEB_ASSETS)):
+            continue  # the destination folder is the answer, not a reference
+        for filename in files:
+            if not filename.endswith(SCAN_SUFFIXES):
+                continue
+            with open(os.path.join(root, filename), encoding="utf-8", errors="replace") as handle:
+                found.update(ASSET_REF.findall(handle.read()))
+    return found
+
+
+def classify(name, declared):
+    """(owner class, producer description) for one referenced name."""
+    if name in declared:
+        owner, producer, _aspect = declared[name]
+        return owner, producer
+    for prefix, owner in UNDECLARED_OWNERS:
+        if name.startswith(prefix):
+            return owner, "(no manifest slot)"
+    return "unclassified", "(no manifest slot)"
+
+
+def coverage_rows(references, declared, shipped):
+    """The advisory worklist: one (owner, name, producer, status) row per
+    reference that is missing or the wrong shape. `shipped` maps a shipped asset
+    name to its (width, height), or None when the size could not be read."""
+    rows = []
+    for name in sorted(references):
+        owner, producer = classify(name, declared)
+        if name not in shipped:
+            rows.append((owner, name, producer, "MISSING - not shipped"))
+            continue
+        size = shipped[name]
+        # Site figures are 16:9; authored art (icons, banner, post cards drawn by
+        # hand) is whatever shape it is, so only figure-shaped assets are judged.
+        expect_16_9 = declared[name][2] if name in declared else owner != "manual"
+        if size is None:
+            rows.append((owner, name, producer, "UNREADABLE - not a valid PNG"))
+        elif expect_16_9 and abs(size[0] / size[1] - FIGURE_ASPECT) > ASPECT_TOLERANCE:
+            rows.append((owner, name, producer, f"WRONG SHAPE - {size[0]}x{size[1]} is not 16:9"))
+    return rows
+
+
+def shipped_sizes(assets_dir):
+    """{asset name -> (width, height) or None} for every shipped image."""
+    sizes = {}
+    for name in sorted(os.listdir(assets_dir)):
+        if not name.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp")):
+            continue
+        try:
+            sizes[name] = png_dimensions(os.path.join(assets_dir, name))
+        except (ValueError, OSError):
+            sizes[name] = None
+    return sizes
+
+
+def report(stage_dir):
+    """Print the advisory coverage worklist. Runs no capture, never fails."""
+    declared = manifest_owners()
+    references = scan_references(WEB_SRC)
+    shipped = shipped_sizes(WEB_ASSETS)
+    rows = coverage_rows(references, declared, shipped)
+
+    print(f"Coverage report: {len(references)} image reference(s) under web/src, "
+          f"{len(shipped)} shipped asset(s).\n")
+    if rows:
+        width = max(len(name) for _o, name, _p, _s in rows)
+        producer_width = max(len(producer) for _o, _n, producer, _s in rows)
+        for owner, name, producer, status in sorted(rows, key=lambda row: (OWNERS.index(row[0]) if row[0] in OWNERS else len(OWNERS), row[1])):
+            print(f"  {owner:<12} {name:<{width}}  {producer:<{producer_width}}  {status}")
+    else:
+        print("  every referenced image is shipped and correctly shaped.")
+
+    # Names the site never asks for, and staged captures the manifest does not
+    # know about: the same worklist, from the other direction.
+    unreferenced = sorted(set(shipped) - references)
+    if unreferenced:
+        print("\nShipped but never referenced by the site:")
+        for name in unreferenced:
+            print(f"  {name}")
+    if os.path.isdir(stage_dir):
+        undeclared = sorted(
+            name for name in os.listdir(stage_dir)
+            if name.endswith(".png") and name not in declared)
+        if undeclared:
+            print(f"\nStaged in {stage_dir} but not in the manifest:")
+            for name in undeclared:
+                print(f"  {name}")
+
+    counts = {owner: sum(1 for row in rows if row[0] == owner) for owner in OWNERS}
+    unclassified = len(rows) - sum(counts.values())
+    tail = f", {unclassified} unclassified" if unclassified else ""
+    print(f"\n{len(rows)} outstanding: "
+          + ", ".join(f"{counts[owner]} {owner}" for owner in OWNERS) + tail
+          + "  (advisory - exit 0)")
+
+
+def report_self_test():
+    """Classification is rule-driven, so check the rules on a synthetic manifest:
+    every reference gets an owner, and only the gaps become rows."""
+    declared = {
+        "feature-hud.png": ("capturable", "screenshot_combat", True),
+        "thumb-news-0.9.0.png": ("manual", "(hand-made art)", True),
+        "icon-hull.png": ("manual", "(generated icon)", False),
+    }
+    references = {
+        "feature-hud.png",        # shipped, 16:9 -> resolved
+        "thumb-news-0.9.0.png",   # missing, manual
+        "icon-hull.png",          # shipped, 44x44, not 16:9 but not expected to be
+        "wiki-settings.png",      # undeclared game render -> capturable
+        "news-030-torpedo-blast.png",  # undeclared old post figure -> historical
+        "banner.png",             # undeclared authored art -> manual
+        "feature-editor.png",     # shipped but wrong shape
+    }
+    shipped = {
+        "feature-hud.png": (1920, 1080),
+        "icon-hull.png": (44, 44),
+        "feature-editor.png": (1920, 1000),
+    }
+    for name in references:
+        owner, _producer = classify(name, declared)
+        assert owner in OWNERS, f"{name} classified {owner}"
+    rows = {name: (owner, status) for owner, name, _producer, status in coverage_rows(references, declared, shipped)}
+    assert "feature-hud.png" not in rows, "a shipped, correctly shaped figure is not outstanding"
+    assert "icon-hull.png" not in rows, "a 44x44 icon is not judged against 16:9"
+    assert rows["thumb-news-0.9.0.png"] == ("manual", "MISSING - not shipped"), rows["thumb-news-0.9.0.png"]
+    assert rows["wiki-settings.png"][0] == "capturable", rows["wiki-settings.png"]
+    assert rows["news-030-torpedo-blast.png"][0] == "historical", rows["news-030-torpedo-blast.png"]
+    assert rows["banner.png"][0] == "manual", rows["banner.png"]
+    assert rows["feature-editor.png"][1].startswith("WRONG SHAPE"), rows["feature-editor.png"]
+    print("self-test OK: coverage report classifies every reference and lists only the gaps")
 
 
 def main():
@@ -571,10 +765,18 @@ def main():
     parser.add_argument("--no-icons", action="store_true", help="skip generating the section icons")
     parser.add_argument("--self-test", action="store_true",
                         help="round-trip synthetic images through the PNG codec and exit")
+    parser.add_argument("--report", action="store_true",
+                        help="print the advisory image coverage worklist and exit 0 (copies nothing)")
     args = parser.parse_args()
 
     if args.self_test:
         self_test()
+        return
+
+    if args.report:
+        if not os.path.isdir(WEB_ASSETS):
+            sys.exit(f"web assets dir not found: {WEB_ASSETS}")
+        report(args.stage_dir)
         return
 
     if not os.path.isdir(WEB_ASSETS):
