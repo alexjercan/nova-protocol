@@ -1,0 +1,364 @@
+<title>Shakedown Run - layout sketch, round 1</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --ground: #eef0ee;
+    --sheet: #f8f9f7;
+    --ink: #1b1f1d;
+    --ink-soft: #5c6461;
+    --ink-faint: #98a19d;
+    --rule: #c9cfcb;
+    --grid: #dfe4e0;
+    --grid-major: #ccd3ce;
+    --beacon: #0f8fa8;
+    --hazard: #b4761c;
+    --rock: #8a8177;
+    --body: #6c6357;
+    --threat: #b2405a;
+    --field: #4a7f5c;
+    --void: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #101413;
+      --sheet: #171c1a;
+      --ink: #e6ebe8;
+      --ink-soft: #9aa5a0;
+      --ink-faint: #626d68;
+      --rule: #2c3634;
+      --grid: #202826;
+      --grid-major: #2b3532;
+      --beacon: #58d8ee;
+      --hazard: #e0a94e;
+      --rock: #a99e90;
+      --body: #cbbda6;
+      --threat: #ef7a92;
+      --field: #74c48f;
+      --void: #0a0d0c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #101413; --sheet: #171c1a; --ink: #e6ebe8; --ink-soft: #9aa5a0;
+    --ink-faint: #626d68; --rule: #2c3634; --grid: #202826; --grid-major: #2b3532;
+    --beacon: #58d8ee; --hazard: #e0a94e; --rock: #a99e90; --body: #cbbda6;
+    --threat: #ef7a92; --field: #74c48f; --void: #0a0d0c;
+  }
+  :root[data-theme="light"] {
+    --ground: #eef0ee; --sheet: #f8f9f7; --ink: #1b1f1d; --ink-soft: #5c6461;
+    --ink-faint: #98a19d; --rule: #c9cfcb; --grid: #dfe4e0; --grid-major: #ccd3ce;
+    --beacon: #0f8fa8; --hazard: #b4761c; --rock: #8a8177; --body: #6c6357;
+    --threat: #b2405a; --field: #4a7f5c; --void: #ffffff;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: ui-sans-serif, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.55;
+    margin: 0;
+    padding: clamp(1rem, 3vw, 2.5rem);
+  }
+  .sheet {
+    max-width: 1180px;
+    margin: 0 auto;
+    background: var(--sheet);
+    border: 1px solid var(--rule);
+    padding: clamp(1rem, 3vw, 2.25rem);
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+  }
+
+  .mono, code, th, .tag, .stamp, figcaption {
+    font-family: ui-monospace, "SF Mono", Menlo, "DejaVu Sans Mono", monospace;
+  }
+
+  header { display: flex; flex-direction: column; gap: .35rem; }
+  .stamp {
+    font-size: .7rem; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  h1 { font-size: clamp(1.35rem, 3vw, 1.9rem); margin: 0; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { color: var(--ink-soft); max-width: 68ch; margin: 0; }
+
+  h2 {
+    font-size: .78rem; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--ink-soft); margin: 0 0 .6rem; font-family: ui-monospace, Menlo, monospace;
+    border-bottom: 1px solid var(--rule); padding-bottom: .35rem;
+  }
+
+  .views { display: flex; flex-direction: column; gap: 1.5rem; }
+  figure { margin: 0; }
+  .frame {
+    background: var(--void);
+    border: 1px solid var(--rule);
+    overflow-x: auto;
+  }
+  svg { display: block; width: 100%; height: auto; min-width: 640px; }
+  figcaption { font-size: .72rem; color: var(--ink-faint); margin-top: .4rem; }
+
+  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem; }
+
+  .legend { display: flex; flex-direction: column; gap: .4rem; font-size: .82rem; }
+  .legend div { display: flex; align-items: center; gap: .6rem; }
+  .swatch { width: 26px; height: 12px; flex: none; border: 1px solid currentColor; }
+
+  table { border-collapse: collapse; width: 100%; font-size: .78rem; }
+  th, td { text-align: left; padding: .3rem .55rem; border-bottom: 1px solid var(--rule); }
+  th { color: var(--ink-soft); font-weight: 600; font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; }
+  td.num { font-family: ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tr.new td:first-child::before { content: "+ "; color: var(--hazard); font-weight: 700; }
+  tr.moved td:first-child::before { content: "> "; color: var(--beacon); font-weight: 700; }
+
+  ol, ul { margin: 0; padding-left: 1.2rem; }
+  li { margin-bottom: .45rem; }
+  .q { border-left: 3px solid var(--hazard); padding-left: .8rem; }
+  .q li::marker { color: var(--hazard); }
+  code { font-size: .85em; background: color-mix(in srgb, var(--ink) 8%, transparent); padding: .05em .3em; }
+  footer { color: var(--ink-faint); font-size: .74rem; border-top: 1px solid var(--rule); padding-top: .8rem; }
+</style>
+
+<div class="sheet">
+  <header>
+    <div class="stamp">Nova Protocol / task 20260805-213432 / round 1 proposal</div>
+    <h1>Shakedown Run - level layout sketch</h1>
+    <p class="lede">Orthographic views of chapter one with the belt added and the planetoid brought in.
+      Every coordinate below is a starting point for iteration, not a target. Existing objects keep their
+      positions unless marked. Grid squares are 100 world units.</p>
+  </header>
+
+  <section class="views" id="views"></section>
+
+  <div class="cols">
+    <section>
+      <h2>Legend</h2>
+      <div class="legend" id="legend"></div>
+    </section>
+    <section>
+      <h2>What changes</h2>
+      <ul>
+        <li><strong>Planetoid moves in</strong> from <code>(1240,-105,-700)</code> to <code>(520,-40,-520)</code>,
+          where it anchors the beacon-1 turn and is the landmark you steer by.</li>
+        <li><strong>SOI is authored, not derived</strong> - pinned at 300u instead of swinging 560-960u by seed.
+          That is what lets the planetoid come this close without swallowing the crate beat.</li>
+        <li><strong>Belt</strong> = 5 seeded knot discs bending around the planetoid, plus a sparse far layer
+          for parallax. Two scales, like the reference shot.</li>
+        <li><strong>Beacon 4, the coast ring and the orbit band</strong> ride along with the planetoid.</li>
+        <li>Beacons 1-3, the crates, the derelict, the pirate and every beat stay put.</li>
+      </ul>
+    </section>
+  </div>
+
+  <section>
+    <h2>Object schedule</h2>
+    <div class="frame" style="overflow-x:auto;background:transparent;border:0">
+      <table id="schedule"></table>
+    </div>
+  </section>
+
+  <div class="cols">
+    <section>
+      <h2>Why it is shaped like this</h2>
+      <ol>
+        <li><strong>Two scales.</strong> Near knots at r 1.2-3.4, far layer at r 4-10 - the reference's split.
+          One size band reads as noise.</li>
+        <li><strong>The belt is a sector, not a ring.</strong> A full annulus at r 380-560 around the planetoid
+          would contain both beacons, the debris cluster and all three crates. The banana stops before the
+          salvage field on purpose, and the crate beat sits in the hollow just past its end.</li>
+        <li><strong>Gates, not a wall.</strong> Three knots alternate sides of the beacon-1 -> beacon-2 line,
+          leaving a 60-70u open lane on the far side of each. At the 25 u/s starter cap that is a weave you can
+          fail cheaply, not a maze.</li>
+        <li><strong>Pockets are load-bearing.</strong> Clear air at the crate cluster, the pirate fight and the
+          orbit ring - the reference scene keeps the same hollow around its subject.</li>
+        <li><strong>Rocks do not fall in.</strong> Asteroids never carry <code>GravityAffected</code>, so belt
+          rocks inside the planetoid's SOI stay where they are placed.</li>
+      </ol>
+    </section>
+    <section>
+      <h2>Open questions for this round</h2>
+      <ol class="q">
+        <li><strong>Leg length.</strong> Beacon 1 -> beacon 2 is 301u, about 12 seconds at the speed cap.
+          That fits three gates. Push beacon 2 out to roughly <code>(430,40,-250)</code> for a 443u, ~18 second
+          slalom with five gates?</li>
+        <li><strong>Belt heaviness.</strong> The knots below are ~26 rocks each, ~130 in the belt plus 30 in the
+          far layer. Heavier, lighter, or start here and look at it?</li>
+        <li><strong>Planetoid scale.</strong> Nominal radius stays 20 (body 70-120u by seed). Bigger reads as more
+          of a landmark but eats more of the frame.</li>
+        <li><strong>Does the banana bend the right way?</strong> It is concave toward the planetoid here - the
+          player flies the inside of the curve with the body always off to their left.</li>
+      </ol>
+    </section>
+  </div>
+
+  <footer>
+    Views are orthographic and to scale with each other. World axes: +X right, +Y up, -Z is the direction the
+    player faces at spawn. Numbers are round-1 proposals - the point of this sheet is to argue with them.
+  </footer>
+</div>
+
+<script>
+const OBJ = [
+  // kind: beacon | body | rock | knot | crate | threat | area | node
+  {id:"spawn",     name:"Player spawn",     p:[0,0,0],         r:8,   kind:"node",   note:"beat 1 start, 25 u/s cap"},
+  {id:"beacon_1",  name:"Beacon 1",         p:[0,0,-350],      r:70,  kind:"beacon", note:"burn to it (W)"},
+  {id:"beacon_2",  name:"Beacon 2",         p:[260,20,-200],   r:70,  kind:"beacon", note:"freelook target; end of the slalom"},
+  {id:"knot_1",    name:"Belt knot 1",      p:[60,-25,-154],   r:70,  kind:"knot",   note:"~26 rocks, r 1.2-3.4", status:"new"},
+  {id:"knot_2",    name:"Belt knot 2",      p:[125,34,-434],   r:70,  kind:"knot",   note:"gate - open lane 65u", status:"new"},
+  {id:"knot_3",    name:"Belt knot 3",      p:[268,41,-346],   r:70,  kind:"knot",   note:"gate - open lane 60u", status:"new"},
+  {id:"knot_4",    name:"Belt knot 4",      p:[150,25,-540],   r:85,  kind:"knot",   note:"arc tail, bends around the body", status:"new"},
+  {id:"knot_5",    name:"Belt knot 5",      p:[-40,10,-300],   r:85,  kind:"knot",   note:"arc far end", status:"new"},
+  {id:"debris",    name:"Debris cluster",   p:[350,20,-160],   r:60,  kind:"rock",   note:"existing 9 hand-placed rocks"},
+  {id:"crate_1",   name:"Salvage crate 1",  p:[345,30,-190],   r:8,   kind:"crate",  note:"8u pickup"},
+  {id:"crate_2",   name:"Salvage crate 2",  p:[360,5,-145],    r:8,   kind:"crate",  note:"8u pickup"},
+  {id:"crate_3",   name:"Salvage crate 3",  p:[395,35,-110],   r:8,   kind:"crate",  note:"8u pickup"},
+  {id:"derelict",  name:"Derelict hulk",    p:[300,-40,40],    r:12,  kind:"threat", note:"live-fire rehearsal"},
+  {id:"pirate",    name:"Scavenger spawn",  p:[380,40,-100],   r:14,  kind:"threat", note:"beat 5, leash 150u"},
+  {id:"beacon_3",  name:"Beacon 3",         p:[600,90,120],    r:70,  kind:"beacon", note:"radar lock; stays gravity-free"},
+  {id:"planetoid", name:"Planetoid",        p:[520,-40,-520],  r:95,  kind:"body",   note:"body 70-120u by seed", status:"moved"},
+  {id:"beacon_4",  name:"Beacon 4",         p:[660,20,-380],   r:70,  kind:"beacon", note:"207u from body - inside the SOI", status:"moved"},
+];
+
+const RINGS = [
+  {id:"soi",     around:"planetoid", r:300, kind:"soi",   label:"SOI 300u (authored)"},
+  {id:"coast",   around:"planetoid", r:220, kind:"area",  label:"coast ring 220u"},
+  {id:"orbit",   around:"planetoid", r:182, kind:"orbit", label:"widest orbit ring 182u"},
+  {id:"far_in",  around:"planetoid", r:620, kind:"field", label:"far layer inner 620u"},
+  {id:"far_out", around:"planetoid", r:900, kind:"field", label:"far layer outer 900u"},
+];
+
+const ROUTE = ["spawn","beacon_1","beacon_2","debris","derelict","beacon_3","beacon_4"];
+
+const COLOR = {
+  beacon:"var(--beacon)", body:"var(--body)", rock:"var(--rock)", knot:"var(--hazard)",
+  crate:"var(--field)", threat:"var(--threat)", node:"var(--ink-soft)",
+  soi:"var(--body)", area:"var(--beacon)", orbit:"var(--ink-faint)", field:"var(--rock)"
+};
+
+const VIEWS = [
+  {key:"plan",  title:"Plan - looking down (+Y)",        ax:["x", 1,"X"], ay:["z",-1,"-Z (forward)"], caption:"Top-down. Up-screen is the heading the player faces at spawn."},
+  {key:"front", title:"Front elevation - looking along -Z", ax:["x", 1,"X"], ay:["y",-1,"Y (up)"],      caption:"What the player sees looking down the opening burn: how high the belt stacks."},
+  {key:"right", title:"Right elevation - looking along -X", ax:["z",-1,"-Z (forward)"], ay:["y",-1,"Y (up)"], caption:"From the starboard side: the planetoid sits below the flight plane."},
+];
+
+const IDX = {x:0, y:1, z:2};
+const byId = Object.fromEntries(OBJ.map(o => [o.id, o]));
+
+function bounds() {
+  let b = {x:[0,0], y:[0,0], z:[0,0]};
+  const grow = (k, v) => { b[k][0] = Math.min(b[k][0], v); b[k][1] = Math.max(b[k][1], v); };
+  for (const o of OBJ) for (const k of ["x","y","z"]) { grow(k, o.p[IDX[k]] - o.r); grow(k, o.p[IDX[k]] + o.r); }
+  for (const ring of RINGS) {
+    const c = byId[ring.around].p;
+    for (const k of ["x","y","z"]) { grow(k, c[IDX[k]] - ring.r); grow(k, c[IDX[k]] + ring.r); }
+  }
+  return b;
+}
+
+function svgFor(view) {
+  const B = bounds(), PAD = 90;
+  const [axk, axs] = view.ax, [ayk, ays] = view.ay;
+  const spanH = B[axk][1] - B[axk][0], spanV = B[ayk][1] - B[ayk][0];
+  const W = 1180, H = Math.max(360, Math.round(W * (spanV + 240) / (spanH + 240)));
+  const s = Math.min((W - PAD * 2) / spanH, (H - PAD * 2) / spanV);
+  const cx = (B[axk][0] + B[axk][1]) / 2, cy = (B[ayk][0] + B[ayk][1]) / 2;
+  const px = v => W / 2 + (v * axs - cx * axs) * s;
+  const py = v => H / 2 + (v * ays - cy * ays) * s;
+  const X = o => px(o.p ? o.p[IDX[axk]] : o), Y = o => py(o.p ? o.p[IDX[ayk]] : o);
+  const at = p => [px(p[IDX[axk]]), py(p[IDX[ayk]])];
+
+  let g = "";
+  // grid
+  const step = 100;
+  const gx0 = Math.ceil(B[axk][0] / step) * step, gx1 = B[axk][1];
+  const gy0 = Math.ceil(B[ayk][0] / step) * step, gy1 = B[ayk][1];
+  for (let v = gx0; v <= gx1; v += step)
+    g += `<line x1="${px(v)}" y1="0" x2="${px(v)}" y2="${H}" stroke="${v === 0 ? 'var(--grid-major)' : 'var(--grid)'}" stroke-width="${v === 0 ? 1.4 : 0.7}"/>`;
+  for (let v = gy0; v <= gy1; v += step)
+    g += `<line x1="0" y1="${py(v)}" x2="${W}" y2="${py(v)}" stroke="${v === 0 ? 'var(--grid-major)' : 'var(--grid)'}" stroke-width="${v === 0 ? 1.4 : 0.7}"/>`;
+
+  // rings around the planetoid
+  for (const ring of RINGS) {
+    const c = at(byId[ring.around].p);
+    const dash = ring.kind === "soi" ? "10 6" : ring.kind === "field" ? "2 7" : "5 5";
+    g += `<circle cx="${c[0]}" cy="${c[1]}" r="${ring.r * s}" fill="none" stroke="${COLOR[ring.kind]}" stroke-width="1.1" stroke-dasharray="${dash}" opacity=".75"/>`;
+    if (view.key === "plan")
+      g += `<text x="${c[0]}" y="${c[1] - ring.r * s - 6}" text-anchor="middle" font-size="11" fill="${COLOR[ring.kind]}" opacity=".9" font-family="ui-monospace, Menlo, monospace">${ring.label}</text>`;
+  }
+
+  // route
+  const pts = ROUTE.map(id => at(byId[id].p).join(",")).join(" ");
+  g += `<polyline points="${pts}" fill="none" stroke="var(--beacon)" stroke-width="1.6" stroke-dasharray="7 5" opacity=".85"/>`;
+
+  // objects
+  for (const o of OBJ) {
+    const [x, y] = at(o.p), rr = Math.max(3.5, o.r * s), c = COLOR[o.kind];
+    if (o.kind === "knot") {
+      g += `<circle cx="${x}" cy="${y}" r="${rr}" fill="${c}" fill-opacity=".14" stroke="${c}" stroke-width="1.2" stroke-dasharray="4 3"/>`;
+      for (let i = 0; i < 9; i++) {
+        const a = i * 2.399, rad = rr * Math.sqrt((i + 0.5) / 9) * 0.86;
+        g += `<circle cx="${x + Math.cos(a) * rad}" cy="${y + Math.sin(a) * rad}" r="${1.8 + (i % 3)}" fill="${c}" opacity=".8"/>`;
+      }
+    } else if (o.kind === "body") {
+      g += `<circle cx="${x}" cy="${y}" r="${rr}" fill="${c}" fill-opacity=".3" stroke="${c}" stroke-width="1.6"/>`;
+    } else if (o.kind === "beacon") {
+      g += `<circle cx="${x}" cy="${y}" r="${rr}" fill="none" stroke="${c}" stroke-width="1" stroke-dasharray="3 4" opacity=".8"/>`;
+      g += `<path d="M ${x} ${y - 7} L ${x + 7} ${y} L ${x} ${y + 7} L ${x - 7} ${y} Z" fill="${c}"/>`;
+    } else if (o.kind === "crate") {
+      g += `<rect x="${x - 4}" y="${y - 4}" width="8" height="8" fill="${c}"/>`;
+    } else if (o.kind === "threat") {
+      g += `<path d="M ${x} ${y - 7} L ${x + 6.5} ${y + 5} L ${x - 6.5} ${y + 5} Z" fill="none" stroke="${c}" stroke-width="1.6"/>`;
+    } else if (o.kind === "rock") {
+      g += `<circle cx="${x}" cy="${y}" r="${rr}" fill="${c}" fill-opacity=".18" stroke="${c}" stroke-width="1" stroke-dasharray="3 3"/>`;
+      for (let i = 0; i < 5; i++) {
+        const a = i * 2.399, rad = rr * Math.sqrt((i + 0.5) / 5) * 0.8;
+        g += `<circle cx="${x + Math.cos(a) * rad}" cy="${y + Math.sin(a) * rad}" r="2.2" fill="${c}"/>`;
+      }
+    } else {
+      g += `<circle cx="${x}" cy="${y}" r="4.5" fill="none" stroke="${c}" stroke-width="1.5"/>`;
+      g += `<line x1="${x - 9}" y1="${y}" x2="${x + 9}" y2="${y}" stroke="${c}" stroke-width="1"/>`;
+      g += `<line x1="${x}" y1="${y - 9}" x2="${x}" y2="${y + 9}" stroke="${c}" stroke-width="1"/>`;
+    }
+    const label = o.name.toUpperCase();
+    g += `<text x="${x + Math.max(9, rr * 0.72)}" y="${y - Math.max(6, rr * 0.6)}" font-size="10.5" fill="var(--ink)" font-family="ui-monospace, Menlo, monospace" letter-spacing=".04em">${label}</text>`;
+  }
+
+  // scale bar + axis labels
+  const barY = H - 26, bar = 200 * s;
+  g += `<line x1="${PAD * 0.5}" y1="${barY}" x2="${PAD * 0.5 + bar}" y2="${barY}" stroke="var(--ink-soft)" stroke-width="1.4"/>`;
+  g += `<line x1="${PAD * 0.5}" y1="${barY - 4}" x2="${PAD * 0.5}" y2="${barY + 4}" stroke="var(--ink-soft)" stroke-width="1.4"/>`;
+  g += `<line x1="${PAD * 0.5 + bar}" y1="${barY - 4}" x2="${PAD * 0.5 + bar}" y2="${barY + 4}" stroke="var(--ink-soft)" stroke-width="1.4"/>`;
+  g += `<text x="${PAD * 0.5 + bar / 2}" y="${barY - 8}" text-anchor="middle" font-size="10.5" fill="var(--ink-soft)" font-family="ui-monospace, Menlo, monospace">200 u</text>`;
+  g += `<text x="${W - 12}" y="${H - 12}" text-anchor="end" font-size="10.5" fill="var(--ink-faint)" font-family="ui-monospace, Menlo, monospace">across: ${view.ax[2]}   up: ${view.ay[2]}</text>`;
+
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${view.title}">${g}</svg>`;
+}
+
+document.getElementById("views").innerHTML = VIEWS.map(v => `
+  <figure>
+    <h2>${v.title}</h2>
+    <div class="frame">${svgFor(v)}</div>
+    <figcaption>${v.caption}</figcaption>
+  </figure>`).join("");
+
+document.getElementById("legend").innerHTML = [
+  ["beacon", "Beacon + 70u trigger sphere"],
+  ["body", "Planetoid (geometric body)"],
+  ["knot", "Belt knot - seeded scatter disc"],
+  ["rock", "Existing hand-placed debris"],
+  ["crate", "Salvage crate (8u pickup)"],
+  ["threat", "Hostile / derelict"],
+  ["node", "Player spawn"],
+].map(([k, t]) => `<div><span class="swatch" style="background:${COLOR[k]};opacity:.65"></span><span>${t}</span></div>`).join("")
+  + `<div><span class="swatch" style="background:transparent;border-style:dashed;color:var(--beacon)"></span><span>Player route through the beats</span></div>`
+  + `<div><span class="swatch" style="background:transparent;border-style:dashed;color:var(--body)"></span><span>Gravity rings: SOI, coast, orbit band</span></div>`;
+
+const rows = OBJ.map(o => {
+  const P = byId.planetoid.p;
+  const dist = Math.round(Math.hypot(o.p[0] - P[0], o.p[1] - P[1], o.p[2] - P[2]));
+  const cls = o.status === "new" ? "new" : o.status === "moved" ? "moved" : "";
+  return `<tr class="${cls}"><td>${o.name}</td><td class="num">${o.p.join(", ")}</td><td class="num">${o.r}</td>` +
+    `<td class="num">${o.id === "planetoid" ? "-" : dist}</td><td>${o.note}</td></tr>`;
+}).join("");
+document.getElementById("schedule").innerHTML =
+  `<thead><tr><th>Object</th><th>Position (x, y, z)</th><th>Radius</th><th>Dist to planetoid</th><th>Note</th></tr></thead><tbody>${rows}</tbody>`;
+</script>
