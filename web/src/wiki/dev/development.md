@@ -499,7 +499,7 @@ cargo run -p nova_probe -- run player_path --samply   # + named flamegraph
 cargo run -p nova_probe -- run player_path --baseline probe-runs  # FPS deltas vs nearest prior commit
 cargo run -p nova_probe -- run player_path,scenario_grammar   # comma list -> aggregate index
 cargo run -p nova_probe -- run systems            # a whole category
-cargo run -p nova_probe -- run --all               # the fleet (minus NOT_PROBED)
+cargo run -p nova_probe -- run --all               # the fleet (minus unprobed categories)
 ```
 
 It runs the example headless (throwaway Xvfb; `--display :0` to reuse yours),
@@ -522,8 +522,8 @@ catalog and run sequentially with continue-on-failure. The status index lives
 above the example dirs: `index.html` (one row per example - verdict, measured
 n/total, the six check statuses, duration, a link to its report), `index.json`
 (the machine mirror), and `probe-all.json` (the re-render gate). The aggregate
-verdict is the WORST row; the exit code mirrors it. `--all` skips the NOT_PROBED
-exclusions, which the report lists with their reasons - and a bare `probe run`
+verdict is the WORST row; the exit code mirrors it. `--all` skips the unprobed
+categories, which the report lists with their reasons - and a bare `probe run`
 errors with the catalog rather than starting a fleet sweep by accident.
 Categories take single-digit minutes warm; `--all` is the pre-release/nightly
 sweep (roughly half an hour). `--baseline <base>` searches `<base>` for the

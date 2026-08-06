@@ -11,7 +11,7 @@ use super::{
         resolve_baseline_root, resolve_full_git_sha,
     },
     run::run,
-    spec::{resolve_spec, Resolved, NOT_PROBED, NOT_PROBED_CATEGORIES},
+    spec::{resolve_spec, Resolved, NOT_PROBED_CATEGORIES},
     supervise::ensure_display,
 };
 
@@ -36,7 +36,7 @@ pub(crate) fn run_spec(
     }
     let root = repo_root();
     let catalog = nova_probe::load_example_catalog(&root)?;
-    let resolved = resolve_spec(tokens, all, &catalog, NOT_PROBED, NOT_PROBED_CATEGORIES)?;
+    let resolved = resolve_spec(tokens, all, &catalog, NOT_PROBED_CATEGORIES)?;
     // Multi gates: these flags are single-example concerns.
     if resolved.multi && (!base.scenarios.is_empty() || !base.presets.is_empty()) {
         return Err(
@@ -44,11 +44,6 @@ pub(crate) fn run_spec(
              give one example"
                 .into(),
         );
-    }
-    for example in &resolved.examples {
-        if let Some((_, reason)) = NOT_PROBED.iter().find(|(name, _)| *name == example) {
-            eprintln!("probe: note: {example} is excluded from --all/category runs: {reason}");
-        }
     }
     run_many(&resolved, &base, &catalog)
 }

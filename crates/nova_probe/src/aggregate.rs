@@ -53,10 +53,9 @@ pub struct AllManifest {
     /// (name, reason) pairs deliberately not probed by --all/category
     /// expansion - listed in the report so absence reads as a decision.
     ///
-    /// The name is an EXAMPLE for a per-example NOT_PROBED entry, or a
-    /// CATEGORY for an unprobed category (recorded once, not once per
-    /// member). Two orthogonal axes share this list, so a consumer joining
-    /// against the example catalog must tolerate a name that is not in it.
+    /// The name is a CATEGORY, carrying a trailing slash and recorded once
+    /// rather than once per member, so a consumer joining against the
+    /// example catalog must tolerate a name that is not in it.
     pub excluded: Vec<(String, String)>,
     /// One [`AllRow`] per probed example.
     pub rows: Vec<AllRow>,

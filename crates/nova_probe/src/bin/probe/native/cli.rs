@@ -13,7 +13,7 @@ usage: probe <subcommand>
   comma list (player_path,scenario_grammar), or a PROBED category dir
   (sections|systems|stress|ui); an unprobed category (screenshots) is not
   a probe target and errors. --all runs the catalog minus unprobed
-  categories and minus NOT_PROBED - two axes, both recorded in the report.
+  categories - the one exclusion axis, recorded in the report.
   Runs write to <out|probe-runs>/<short-commit>/<example>/ and
   write an aggregated index.html/index.json + probe-all.json above
   them, even for one example. Matrix flags (--scenario/--preset,

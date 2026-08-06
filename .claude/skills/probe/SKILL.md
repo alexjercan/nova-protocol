@@ -24,7 +24,7 @@ cargo run -p nova_probe -- run <example> --baseline <storage-base>  # FPS deltas
 cargo run -p nova_probe -- run <example> --out <dir>  # storage base (default probe-runs)
 cargo run -p nova_probe -- run player_path,scenario_grammar      # comma list
 cargo run -p nova_probe -- run ui                     # a whole PROBED category
-cargo run -p nova_probe -- run --all                  # the catalog minus unprobed categories and NOT_PROBED
+cargo run -p nova_probe -- run --all                  # the catalog minus unprobed categories
 cargo run -p nova_probe -- run scene_baseline --fps --release \
   --render gpu --scenario asteroid_field --preset high --preset low  # perf sweep (matrix)
 cargo run -p nova_probe -- run <scenario> --platform web  # web/WebGPU frame capture
@@ -58,18 +58,17 @@ claim, naming the call that would make it. A capability that IS declared,
 WAS armed, and produced nothing is a FAILURE, not a shrug.
 
 The only launch-side opinion left is what to SPAWN, which cannot be runtime:
-`NOT_PROBED_CATEGORIES` and `NOT_PROBED` in
+`NOT_PROBED_CATEGORIES` in
 `crates/nova_probe/src/bin/probe/native/spec.rs`, each entry carrying its
-reason. `screenshots/` is out of probe's scope entirely: `--all` skips it and
+reason. There is no per-EXAMPLE opt-out - an example that cannot survive a
+probe run FAILS, in the report, rather than being quietly listed away. `screenshots/` is out of probe's scope entirely: `--all` skips it and
 records the absence, and a bare `probe run screenshots` ERRORS rather than
 expanding to an empty run.
 
-Two orthogonal skip axes, each carrying its reason into the report's "Not
-probed (deliberately)" list: unprobed CATEGORIES (recorded once by category)
-and the per-EXAMPLE `NOT_PROBED` list (`crates/nova_probe/src/bin/probe/
-native/spec.rs` - today only `render_scale_shot`, which needs a real GPU and
-human eyes). An explicit `probe run <name>` still runs a NOT_PROBED example,
-with a printed note.
+One skip axis, carrying its reason into the report's "Not probed
+(deliberately)" list: unprobed CATEGORIES, recorded once by category
+(`crates/nova_probe/src/bin/probe/native/spec.rs`). An explicit
+`probe run <name>` still runs a member of one - the operator asked for it.
 
 ## Specs, run dirs, and baselines
 
@@ -176,8 +175,9 @@ which is how you deliberately probe your real installed mods.
 ## Wired today
 
 The WHOLE fleet carries timeline + invariants + frame capture (inert
-without probe's env); `render_scale_shot` alone is unwired (NOT_PROBED -
-real-GPU pixel capture). Depth beyond the generic checks:
+without probe's env); `render_scale_shot` alone is unwired (real-GPU pixel
+capture, and `screenshots/` is not a probe target). Depth beyond the generic
+checks:
 
 | Example | extra depth |
 |---|---|
