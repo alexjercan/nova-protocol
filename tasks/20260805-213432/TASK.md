@@ -2,9 +2,9 @@
 
 - PRIORITY: 71
 - TAGS: v0.10.0, content, scenario, art, engine
-- ACTIVITY: REVIEWING
-- GATES: PLAN
-- RESOLUTION: -
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 
 ## Scope
 
@@ -74,8 +74,9 @@ cluster (90u), the derelict (40u) and the planetoid's widest orbit ring (200u).
 - [x] 1-3: `ScatterRegion::Ring { center }` + tests + wiki.
 - [x] 4-6: planetoid move, belt scatters, pins.
 - [x] 7: content regen, lint, CHANGELOG.
-- [ ] 8: look-and-retune rounds. Round 1 shown to the owner; round 2 landed
-      (see the close-out). Owner sign-off outstanding.
+- [x] 8: look-and-retune rounds. Round 1 shown to the owner; round 2 landed;
+      round 3 moved knots 1, 2, 3 and 5 for the corrected pocket rule. Owner
+      signed off 2026-08-06.
 
 1. `crates/nova_scenario/src/actions/spawn.rs`: add `center: Vec3` to
    `ScatterRegion::Ring`, `#[cfg_attr(feature = "serde", serde(default))]` so
@@ -240,4 +241,37 @@ Owner verdict on round 1: too cluttered, autopilot legs must stay clear, and
 - The hand-placed debris cluster (`ROCK_OFFSETS`) has pairs ~33u apart with
   combined worst-seed extents of ~33u - the same latent overlap, pre-existing
   and unreported. Worth its own task rather than a drive-by change here.
-- Round-2 numbers are still authored guesses; the DoD is the owner's call.
+- Round-2 numbers were authored guesses; the owner signed off on round 3.
+
+### Review round 2 (2026-08-06) - APPROVE
+
+Two MAJOR findings, both real, both fixed in `20f7a0be`; F4 in `ae70caa1`.
+
+- **F1.** The pocket pin measured centre-to-centre against
+  `half_extent.max_element()`, which is not a box's reach. It passed knot 2 by
+  16u while that box's worst-case rock reached 5.8u INSIDE beacon 1's trigger,
+  and the tightest true margin in the layout was 4.4u, not the claimed 20u. Now
+  point-to-AABB minus the pocket radius minus the rock's real collider, with
+  `segment_distance_to_box` for the autopilot legs. Knots 1, 2, 3 and 5 moved
+  10-43u to satisfy it; the old knot-2 centre now fails the pin by -6u, so it is
+  not passing vacuously.
+- **F2.** `min_separation` was per-action, and four knot-box PAIRS were within
+  32u of each other (three actually intersecting, k2/k4 by 337 500 u^3) - the
+  exact spawn-overlap bug the field was added to fix, unguarded at the seams.
+  The shipped seeds happened to land clear. Fixed in the engine, not the
+  content: `NovaEventWorld` owns the placed set across all scatters. The
+  geometric alternative was tried first and rejected - five full-size knots
+  cannot hold 32u gaps in that corridor without destroying the slalom.
+- **F4.** CHANGELOG said 160 rocks; shipped is 78.
+
+Left open as MINOR/NIT, behavior-neutral: F3 (the 240u coast shell is not in
+the pin's `pockets` list - it is a boundary the player crosses, and both the
+orbit inside it and the leg into it are pinned separately), F5 (a dropped copy
+logs at `debug!`, and `// always the authored count` is now false), F6
+(`SEPARATION_ATTEMPTS` is `pub` with one consumer), F7 (the determinism
+sentence explains the wrong thing).
+
+- The deeper lesson from F1/F2: a pin is only as good as the quantity it
+  measures. Both findings were the test asserting a proxy - a centre distance,
+  one action's copies - that read like the real constraint. Write the metric the
+  physics uses, then falsify it.

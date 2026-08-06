@@ -1,16 +1,21 @@
-# Review - 20260805-213432
+# Review: Dress Shakedown Run to screenshot density: a slalom belt around a near planetoid
 
-Scope: `git diff 53ec7603..441db058` (worked directly on master, no sprout).
-`dc02f5f9` and `26bc29e0` sit on top and are unrelated.
+- TASK: 20260805-213432
+- BRANCH: master (worked in place at the owner's request, no sprout)
+- VERDICT: APPROVE
+
+Scope: `git diff 53ec7603..441db058`. `dc02f5f9` and `26bc29e0` sit on top and
+are unrelated.
 
 ## Round 1
 
-- Reviewer: out-of-context `general-purpose` subagent (`a9db15396b07a105a`),
+- REVIEWER: out-of-context `general-purpose` subagent (`a9db15396b07a105a`),
   prompt carried task ID, commit range, dimensions and record format only.
-- Primary re-ran both suites and independently re-derived the belt geometry
-  (`scratchpad/geo2.py`), which found one MORE overlapping knot pair than the
-  reviewer reported.
-- Verdict: REQUEST_CHANGES (2 open MAJOR).
+- VERDICT: REQUEST_CHANGES (2 open MAJOR)
+
+The primary re-ran both suites and independently re-derived the belt geometry
+(`scratchpad/geo2.py`), which found one MORE overlapping knot pair than the
+reviewer reported.
 
 ### F1 MAJOR - the pocket pin measures centre-to-centre, not clearance
 
@@ -113,7 +118,10 @@ because a rejected sample still advances the seeded RNG". Determinism comes from
 the fixed seed plus a deterministic algorithm. Reword to "the same seed yields
 the same layout, drops included".
 
-## Responses - F1 and F2 (owner asked for these two only)
+## Round 2
+
+- REVIEWER: primary (fix round; F1/F2/F4 applied and re-verified in place)
+- VERDICT: APPROVE
 
 ### F1 - fixed
 
@@ -211,8 +219,8 @@ F3 and F5-F7 remain open; they were not in the fix request.
 
 ## Pending user checks
 
-- `manual:` step 8 owner sign-off on the round-2 belt look is still outstanding.
-  The DoD is a timebox plus sign-off, not a metric. Not treated as done.
+- `manual:` step 8 owner sign-off on the belt look: GIVEN 2026-08-06 ("lgtm"),
+  after the F1 retune moved knots 1, 2, 3 and 5. The DoD timebox is met.
 
 ## Out of scope
 
@@ -235,4 +243,12 @@ python3 <scratchpad>/geo2.py
 
 ## Verdict
 
-REQUEST_CHANGES - F1 and F2 open.
+Round 1: REQUEST_CHANGES - F1 and F2 open.
+
+Round 2 (2026-08-06): APPROVE. F1, F2 and F4 fixed and re-verified (`20f7a0be`,
+`ae70caa1`); owner signed off on the belt look. No open BLOCKER or MAJOR.
+
+F3 and F5-F7 are MINOR/NIT and were consciously left: F3 is a doc-comment
+sentence about air the player only passes through, F5-F7 are a log level, a
+`pub` const and a doc wording. Carry them into a follow-up if they are worth a
+commit; none of them changes behavior.
