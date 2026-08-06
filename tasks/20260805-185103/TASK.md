@@ -233,7 +233,7 @@ Each step below becomes its own child task at planning time.
       two missing `Propagate` edges, and the duplicate edge registration at
       `camera_controller/mod.rs:112-114` / `framing.rs:475`. Highest
       value-to-effort in the whole investigation.
-      commits: `c944b4d1`
+      commits: `c944b4d1`, `cd1bff21`
 - [x] 8. **Then, independently** (each its own child, no ordering between them):
       move bcs `integrity` + `ui/health_display.rs` to nova and scrub the nova
       task IDs from `bcs/src/physics/pd_controller.rs:535`; use bcs `persist`
@@ -855,10 +855,10 @@ it does not, the fix is a narrower spec, not a longer timeout.
 **What.** One nova-owned chain now declares who writes the camera `Transform`
 and in what order. New module `crates/nova_gameplay/src/camera_controller/authority.rs`:
 
-- `CameraAuthority { Solve, Override, Additive }` - the phases, exported from
+- `CameraAuthority { Solve, Additive, Override }` - the phases, exported from
   `nova_gameplay`'s camera_controller prelude.
 - `CameraAuthorityPlugin` - two `configure_sets` calls and nothing else. First,
-  `(CameraShakeSystems::Restore, Solve, Override, Additive).chain()
+  `(CameraShakeSystems::Restore, Solve, Additive, Override).chain()
   .before(TransformSystems::Propagate)`. Second, the fold of bcs's writers into
   the phases as SET-IN-SET, not bare edges:
   `(ChaseCameraSystems::Sync, WASDCameraSystems::Sync).in_set(Solve)` and
@@ -949,6 +949,14 @@ capture scripts hide the HUD for most shots, and re-slotting a HUD consumer is a
 different change from declaring the writer order. If it ever shows, the fix is
 one edge: `ScreenIndicatorSystems.after(CameraAuthority::Additive)`.
 
+**The last two phases are the reverse of the plan, on purpose.** The step's text
+above chains `Solve -> Override -> Additive`, which puts shake LAST and lets
+trauma jitter a scripted pose. `cd1bff21` reverses them to
+`Solve -> Additive -> Override`: the scripted pose is the frame's final write
+and WINS over shake, so photo mode, the capture scripts and the cinematic
+framings are steady even with combat next to the camera. That is the owner's
+call and it is what `authority.rs:34-37` documents.
+
 ## Review round 1 (20260806)
 
 Three out-of-context lanes (behavior/proofs, correctness/security,
@@ -972,7 +980,7 @@ the old type still exists, and its stale consumers can live in a crate the step
 never names. A cross-crate grep for the moved symbol's OLD path is the check
 that would have caught it, and step 8 did not run one.
 
-**Fixed this round.** Both blockers, and 19 of the remaining 21 findings: the
+**Fixed this round.** Both blockers, and 20 of the remaining 21 findings: the
 DoD proofs that could never pass as written (both were matching guard comments,
 not code), four false and five missing `[Unreleased]` CHANGELOG entries
 including the ram-damage balance change, a dead `HealthSystems` set, ~20
@@ -981,10 +989,7 @@ persistence key/path derivation, two destruction-pipeline tests the port
 dropped, and the stale doc surfaces (`release`/`probe` skills, two wiki pages,
 the harness env table).
 
-**Not fixed, and why.** R1.7 is held for an owner clarification: the camera
-chain order the record contradicts is a deliberate change (`cd1bff21`), but the
-code's own docs describe the opposite intent, so which way the record gets
-corrected is not mine to decide. R1.19 is refused with reasoning - the
+**Not fixed, and why.** R1.19 is refused with reasoning - the
 suggested fix does not compile across the crate boundary. R1.20 is answered
 with an `## Amendment` section on the existing `DECISION.md` rather than a
 second decision file, which no task in `tasks/` has.

@@ -65,7 +65,7 @@ Scope: the 33 commits carrying this task's ID between `cafae048` and
   in-range code commit that carries no task ID and appears on no step's
   `commits:` line. Correct the order in the record and add `cd1bff21` to step
   7's commits.
-  - Response: HELD, not fixed. The shipped order is the owner's deliberate change in `cd1bff21`, made so override cameras interact with shake. It is held for one clarification: `authority.rs:34-37` and the module docs say the opposite (Override runs last so a posed shot is shake-FREE), and `enforce_scripted_camera_pose` writes the pose outright, so as shipped an override camera carries no shake. Whichever way that resolves, the record still owes the shipped order and `cd1bff21`'s commit line - both deferred with it.
+  - Response: fixed in this round's commit, record-only. The shipped order is the owner's deliberate change in `cd1bff21`: the scripted pose is the frame's LAST write and wins over shake, so a posed shot is steady - which is what `authority.rs:34-37` documents and what the code does. The step-7 record now quotes `Restore, Solve, Additive, Override`, `cd1bff21` is on step 7's commits line, and a close-out paragraph records that the last two phases are the reverse of the step's plan text and why.
 - [ ] R1.8 (MAJOR) crates/nova_gameplay/src/integrity/health.rs:71 - the
   `HealthSystems` set is declared, exported at `:21`, and applied to nothing:
   `NovaHealthPlugin::build` registers types and one observer, and no system in
