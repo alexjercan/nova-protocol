@@ -193,18 +193,37 @@ Each step below becomes its own child task at planning time.
       than slow frames or the new wiring. Probe EXPOSED a pre-existing
       flake; filed as `20260806-140928` rather than papered over with a
       wider deadline.
-- [ ] 6. **Delete the smoke suite; converge the verdicts.** Move
-      `catalog_matches_disk` (`:119`) and `every_category_has_a_probe_policy`
-      (`:195`) to `crates/nova_probe/tests/`, deriving the repo root as
-      `env!("CARGO_MANIFEST_DIR")` + `../..`; `catalog_matches_disk` gets
-      simpler once the smoke lists stop existing. Delete
-      `sections_assert_their_invariant_roster` (`:468`) and its 27-slug roster.
-      Delete the THIRD verdict implementation -
-      `crates/nova_autopilot/tests/autopilot_example.rs:37-90` and its
-      byte-identical `fn tail` copy (`:173` vs `examples_smoke.rs:368`). Swap
-      CI's "Examples smoke test" step (`.github/workflows/ci.yaml:95-101`) for
-      a probe correctness run (there is no probe step in CI today). Delete
-      `tests/examples_smoke.rs`. **Keep `log_clean`** - see Notes.
+- [x] 6. **Delete the smoke suite; converge the verdicts.** `tests/` is gone.
+      The two display-free source gates that lived in it moved to
+      `crates/nova_probe/tests/catalog_drift.rs` (repo root =
+      `env!("CARGO_MANIFEST_DIR")/../..`), beside the catalog parser they call:
+      `catalog_matches_disk`, now disk-vs-catalog alone, and
+      `sections_assert_their_invariant_roster`, which reads its example set
+      from the catalog instead of the deleted `SECTIONS` list. CI's "Examples
+      smoke test" step is now "Probe correctness sweep" -
+      `cargo run -p nova_probe --features nova-protocol/debug -- run --all`
+      under `xvfb-run`, with the run dirs uploaded as an artifact.
+      commits: `d86f8dd0`
+
+      Two items in the step text were written against a tree that has since
+      moved, and are recorded here rather than silently dropped:
+
+      - `every_category_has_a_probe_policy` was already gone - deleted with
+        `NOT_PROBED_CATEGORIES` in step 5 (`cf28c543`). Nothing to move.
+      - The step called `sections_assert_their_invariant_roster` and
+        `crates/nova_autopilot/tests/autopilot_example.rs:37-90` deletions.
+        Neither was deleted, on the owner's ruling. The roster test is the only
+        thing that fails when an invariant is dropped from a `sections/` range
+        (probe's `invariants_held` counts VIOLATIONS, and a range that asserts
+        less violates nothing), so it moved rather than died. `autopilot_example`
+        grades `driven_app`, which lives in nova_autopilot's OWN `examples/` and
+        is therefore not in the root catalog probe resolves against - probe
+        cannot reach it, and its unique claims (a stalled beat error-exits
+        naming itself; a synthesized click reaches the widget under it) have no
+        probe equivalent. It is a second verdict over a DIFFERENT subject, not a
+        duplicate. Its `fn tail` stopped being a copy the moment
+        `examples_smoke.rs` was deleted; the comment pointing at the dead file
+        was removed.
 - [ ] 7. **Camera authority sets.** Independent of 1-6; touches no automation
       code. One nova-owned set chain in `PostUpdate`:
       `CameraShakeSystems::Restore -> CameraAuthority::Solve` (chase + WASD
@@ -598,3 +617,82 @@ also owns window sizing, chrome, physics and a readiness gate does not announce
 those in its type - the only way to find them was to read `build`. Worth
 remembering when the next "delete the driver" step is scoped: budget for the
 driver's undeclared side jobs, not for its headline behaviour.
+
+## Close-out - step 6: the smoke suite is gone, probe is the verdict
+
+**What.** `tests/examples_smoke.rs` is deleted and the root `tests/` directory
+with it. Its five per-category smoke tests, the six example lists (`SECTIONS`,
+`SYSTEMS`, `UI`, `STRESS`, `SCREENSHOTS`, `NOT_SMOKED`), `smoke()` and `tail()`
+are gone. The two display-free SOURCE gates it also housed moved intact to
+`crates/nova_probe/tests/catalog_drift.rs`, which derives the repo root as
+`env!("CARGO_MANIFEST_DIR")/../..`:
+
+- `catalog_matches_disk`, now disk-vs-catalog alone (the smoke-list half died
+  with the lists).
+- `sections_assert_their_invariant_roster`, unchanged except that it reads its
+  example set from the catalog (`category == "sections"`) instead of the
+  deleted `SECTIONS` const - which makes it strictly better: a new range cannot
+  be added without a roster.
+
+CI's "Examples smoke test" step is now "Probe correctness sweep":
+`xvfb-run --auto-servernum cargo run -p nova_probe --features
+nova-protocol/debug -- run --all --out "$RUNNER_TEMP/probe-runs"`, followed by
+an `if: always()` artifact upload of the run directories.
+
+**Why the `--features nova-protocol/debug`.** probe builds each example itself
+with `--features debug`, but the probe BIN links `nova-protocol` too. Linking
+it with default features would flip `bevy/track_location` back off and pay for
+a second Bevy variant inside the step - exactly the cost the Tests step's
+comment exists to prevent.
+
+**Why the artifact upload.** The smoke test printed a 48 KB stderr tail into
+the job log on failure; probe prints the six-row check table and leaves the
+`run.log` on disk. Without the upload a red CI run would be undiagnosable.
+This is a requirement of the swap, not an extra.
+
+**Coverage.** A superset, not a trade. `probe run --all` is the whole catalog,
+so it also grades `scene_baseline`, which `NOT_SMOKED` deliberately skipped
+("probe owns it"), and it grades every run on six checks where the smoke suite
+asserted four things by grep. `log_clean` carries the smoke suite's one unique
+assertion - `"Encountered an error in command"` at ANY level - which step 5
+moved into it (`de288622`).
+
+**Two step-text items resolved differently, on the owner's ruling.** Both are
+recorded in the step above rather than done silently:
+`every_category_has_a_probe_policy` was already deleted in step 5, and neither
+`sections_assert_their_invariant_roster` nor
+`crates/nova_autopilot/tests/autopilot_example.rs` was cut - the first is the
+only gate that reddens when an invariant is dropped, and the second grades
+`driven_app`, which is not in the root catalog and therefore unreachable by
+probe. It is a second verdict over a DIFFERENT subject.
+
+**Difficulties.** The step text's line numbers had all moved and one of its
+targets no longer existed, because steps 4 and 5 landed against the same files.
+Reading the tree first rather than trusting the plan is what caught it.
+
+**Evidence.**
+
+- `cargo test -p nova_probe --test catalog_drift` - 2/2 pass.
+- FAIL-FIRST for the moved gate, not just a green run: dropping a stray
+  `examples/systems/stray_uncataloged.rs` into the tree made
+  `catalog_matches_disk` FAIL naming it, and removing the file made it pass
+  again. That is the one case nothing else in the toolchain catches - with
+  `autoexamples = false` an uncataloged example silently does not build.
+- `cargo test -p nova_probe --lib` 99/99.
+- `cargo check --workspace --all-targets --features debug` clean;
+  `cargo fmt --all -- --check` clean.
+- The CI command shape RUN, not just written: the exact invocation against the
+  `sections` category (`cargo run -p nova_probe --features
+  nova-protocol/debug -- run sections --out <tmp>`) - **aggregate OK**, all
+  five examples OK at `measured 5/6`, process exit code 0. `--out` under a
+  fresh temp dir finds no baseline and reports `fps_within_baseline N/A`, which
+  is the honest answer for a correctness gate.
+
+**Reflection.** The full `--all` sweep has NOT been run end to end locally -
+this step proved the command shape on one category (5 examples, ~4 min
+wall-clock) and relies on step 5's separate `screenshots` sweep for the other
+new category. The first CI run is therefore the first `--all` of the whole
+catalog, and the honest expectation is that it is where the runtime budget gets
+measured for real. The 60-minute job timeout is unchanged and was sized for a
+comparable number of `cargo run` example spawns, so the shape should hold; if
+it does not, the fix is a narrower spec, not a longer timeout.

@@ -224,10 +224,10 @@ subject lives in bevy-common-systems; 04_asteroids' slider tuning tool was
 dropped.)
 
 Every example except `scene_baseline` is HARNESSED: it
-drives itself under `NOVA_AUTOPILOT=1`, and
-`tests/examples_smoke.rs` runs each category headless as a regression suite,
-one test per category - `cargo test --test examples_smoke sections` (or
-`systems`, `ui`, `stress`, `screenshots`) runs a single category alone. Each
+drives itself under `NOVA_AUTOPILOT=1`, and probe is the regression suite over
+all of them - `cargo run -p nova_probe -- run sections` (or `systems`, `ui`,
+`stress`, `screenshots`) runs a single category alone, and `--all` is the whole
+catalog, which is what CI runs. Each
 example must reach
 `Playing` and exit without panic; the sections, systems, ui and stress examples
 additionally carry panic-on-failure behavior assertions with completion
@@ -239,12 +239,11 @@ carry no behavior assertions of their own - they drive the shipped scenes to
 capture frames - but every one walks an `AutopilotPlugin` step timeline, so a
 beat that never resolves is an error exit naming that step, and every one
 wires `nova_timeline` + `nova_invariants`, so a probe run grades the walk on
-the engine invariants. Disk, catalog and smoke
-lists cannot drift: the
-display-free `catalog_matches_disk` test fails a bare `cargo test` when a
-new example misses its `[[example]]` block or its category's smoke list
-(`scene_baseline` is deliberately unsmoked; the `NOT_SMOKED` list records
-why).
+the engine invariants. Disk and catalog cannot drift: the display-free
+`catalog_matches_disk` test (`crates/nova_probe/tests/catalog_drift.rs`) fails
+a bare `cargo test` when a new example misses its `[[example]]` block. That is
+the case nothing else catches - with auto-discovery off, an uncataloged example
+file does not build at all and no other tool says so.
 
 The drivers themselves - `AutopilotPlugin`, the screenshot and reel captures,
 the completion protocol, and the full `NOVA_*` environment contract - live in
@@ -254,7 +253,7 @@ recipes; that page is the contract.
 
 Harness runs are SILENT: any harness env (`NOVA_AUTOPILOT`, `NOVA_SHOT`,
 `NOVA_CAPTURE`) zeroes the audio output via `HarnessMute` - Xvfb hides the
-window but not the speakers, and nobody listens to a smoke test. The
+window but not the speakers, and nobody listens to a scripted run. The
 volume SETTING is untouched (persistence and the settings menu never see
 the mute). `NOVA_MUTE=0` forces sound through a harness run;
 `NOVA_MUTE=1` mutes a normal one.
@@ -267,8 +266,8 @@ composed scene (for example, `menu_newgame` runs the shipped boot flow with
 the ECS fallback error handler swapped to panic, so unhandled command errors on
 those transitions fail CI). An example pin is an autopilot-script assertion
 (a named step whose `on_enter` asserts, reached only once the steps before it
-have waited on the world - see `hull_section`/`hud_range` for the style); the
-smoke suite runs it on every push. Caveat: the handler swap
+have waited on the world - see `hull_section`/`hud_range` for the style); CI's
+probe sweep runs it on every push. Caveat: the handler swap
 does NOT catch `remove`/`despawn` command warns (they bake in the WARN handler
 at queue time).
 
@@ -820,8 +819,8 @@ The everyday loop for landing a change:
 4. **Open a PR.** CI (`.github/workflows/ci.yaml`) runs on every PR and push to
    `master`: `cargo fmt --check`, `cargo clippy --workspace --all-targets
    --features debug`, `cargo test --workspace --features debug`, then the
-   windowed `examples_smoke` suite under Xvfb/lavapipe, plus a dependency-license
-   gate. All of it must be green to merge.
+   windowed `probe run --all` sweep under Xvfb/lavapipe, plus a
+   dependency-license gate. All of it must be green to merge.
 
 Commit messages are plain and use ASCII punctuation only. Releases are a
 separate, tagged flow (see [Cutting a release](#cutting-a-release)).

@@ -128,8 +128,8 @@ impl Plugin for DebugPlugin {
 
         // Under the headless autopilot (the `harness` presets), confirm the
         // asset loader actually reached gameplay before the clean exit, so a run
-        // that silently stalls in `Loading` fails the smoke test instead of
-        // passing on `autopilot: cycle complete, no panic` alone.
+        // that silently stalls in `Loading` fails probe's `reached_playing`
+        // check instead of passing on `cycle complete, no panic` alone.
         if std::env::var(AUTOPILOT_ENV).is_ok() {
             app.add_systems(OnEnter(GameStates::Playing), || {
                 info!("{}", crate::harness::REACHED_PLAYING)

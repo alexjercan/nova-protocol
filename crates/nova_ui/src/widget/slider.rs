@@ -538,7 +538,7 @@ mod tests {
 
         let mut app = skin_app(UiSkin::Phosphor);
         // NOTE: the handler the game installs under `NOVA_AUTOPILOT`, which is how
-        // the smoke suite runs - the configuration this failure mode bites in.
+        // every scripted run works - the configuration this failure mode bites in.
         app.insert_resource(FallbackErrorHandler(panic));
         app.edit_schedule(Update, |schedule| {
             schedule.set_build_settings(ScheduleBuildSettings {

@@ -169,7 +169,7 @@ fn run_example(stall: bool) -> Output {
 }
 
 /// The last chunk of output, so a failure message is useful without dumping
-/// the whole (chatty) log. Same shape as `tests/examples_smoke.rs`.
+/// the whole (chatty) log.
 fn tail(s: &str) -> String {
     let start = s.len().saturating_sub(48_000);
     // Don't split a UTF-8 code point (log output can contain non-ASCII).

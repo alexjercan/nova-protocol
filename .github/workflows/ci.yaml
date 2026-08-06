@@ -17,8 +17,8 @@ jobs:
   check:
     name: fmt / clippy / test
     runs-on: ubuntu-latest
-    # examples_smoke launches real gameplay subprocesses with no internal
-    # timeout; under lavapipe a wedged example would otherwise hang the runner
+    # The probe sweep launches real gameplay subprocesses; probe gives each one
+    # its own `--timeout`, but a wedged runner-level step would otherwise hang
     # up to GitHub's 6h cap. Fail fast instead - a warm-cache run is well
     # under this; the budget exists for cold-cache runs, which pay one full
     # build of the tree on 2 cores.
@@ -29,8 +29,8 @@ jobs:
       # Two tiers of system deps. BUILD needs the ALSA + udev headers Bevy links
       # against, plus wayland/xkb headers a transitive dep's build script
       # pkg-configs even when nothing opens a window. RUNTIME is what sets this
-      # repo apart from a compile-only CI: tests/examples_smoke.rs actually
-      # LAUNCHES the harnessed examples (they use DefaultPlugins and open a real
+      # repo apart from a compile-only CI: the probe sweep actually LAUNCHES
+      # every cataloged example (they use DefaultPlugins and open a real
       # window), so we also need a Vulkan loader plus mesa's software rasterizer
       # (lavapipe) to render with no GPU, and Xvfb to give winit an X display.
       # winit's X11 backend also dlopens libxkbcommon-x11.so.0 at runtime (the
@@ -48,7 +48,7 @@ jobs:
       - name: Install Rust nightly toolchain
         run: rustup toolchain install nightly --profile minimal -c rustfmt -c clippy
 
-      # cache-on-failure matters here: while the smoke test was flaky every
+      # cache-on-failure matters here: while the example runs were flaky every
       # run failed, the cache never saved, and every run paid a ~25 min cold
       # build - which is what blew the job timeout.
       - uses: Swatinem/rust-cache@v2
@@ -74,31 +74,54 @@ jobs:
       # so testing with default features and then running examples with
       # `--features debug` rebuilds Bevy and everything downstream a second
       # time - the other half of what blew the job timeout. This step also
-      # builds the example binaries (cargo test builds examples), so the smoke
-      # step below reuses them as-is. No DISPLAY is set here, so
-      # tests/examples_smoke.rs skips itself loudly; this is the pure
-      # unit/integration gate.
+      # builds the example binaries (cargo test builds examples), so the probe
+      # step below reuses them as-is. No DISPLAY is set here, and the tests in
+      # this step launch nothing; this is the pure unit/integration gate.
       - name: Tests
         run: cargo test --workspace --features debug
 
-      # The windowed examples smoke test: spawns each harnessed example under
-      # NOVA_AUTOPILOT/Xvfb (lavapipe renders) and asserts it reaches gameplay,
-      # passes its in-example behavior assertions, logs no command errors,
-      # and exits without panic. BLOCKING again since 20260710-143138: the
-      # taffy panic (resolve.rs unreachable, GitHub runners only) was
-      # observed deterministically on the pre-rework 03_scenario and did not
-      # survive the 20260712-211352 examples rework - the full reworked
-      # suite ran green on ubuntu-latest (run 29283727248, 2026-07-13). If
-      # it ever resurfaces, this step fails loudly with RUST_BACKTRACE=full
-      # and the investigation record lives in tasks/20260710-143138/NOTES.md
-      # ("The taffy panic").
-      - name: Examples smoke test
+      # The windowed run gate: `probe run --all` spawns EVERY cataloged example
+      # under NOVA_AUTOPILOT/Xvfb (lavapipe renders) and grades each one on the
+      # same six checks a local probe run reports - process exit, run
+      # completion, reached-Playing, invariants, frame time, and log_clean
+      # (panics, ERROR lines, and bevy_ecs command errors at any level).
+      # `aggregate_exit` returns FAILURE on anything past OK/WARN, so this is a
+      # blocking gate. It REPLACED tests/examples_smoke.rs (task
+      # 20260805-185103 step 6): probe asserted a superset - it also grades
+      # scene_baseline, which the smoke suite skipped - and one verdict
+      # implementation beats two that could disagree.
+      #
+      # BLOCKING since 20260710-143138: the taffy panic (resolve.rs
+      # unreachable, GitHub runners only) was observed deterministically on the
+      # pre-rework 03_scenario and did not survive the 20260712-211352 examples
+      # rework - the full reworked suite ran green on ubuntu-latest (run
+      # 29283727248, 2026-07-13). If it ever resurfaces, this step fails loudly
+      # with RUST_BACKTRACE=full and the investigation record lives in
+      # tasks/20260710-143138/NOTES.md ("The taffy panic").
+      - name: Probe correctness sweep
         env:
           RUST_BACKTRACE: full
-        # --features debug here too: the test binary links the nova-protocol
-        # lib, and building it with default features would flip
-        # bevy/track_location back off and rebuild Bevy inside this step.
-        run: xvfb-run --auto-servernum cargo test -p nova-protocol --test examples_smoke --features debug
+        # probe builds each example itself with --features debug. The probe BIN
+        # needs the same flag through its nova-protocol dependency, or linking
+        # it with default features would flip bevy/track_location back off and
+        # pay for a second Bevy variant inside this step - the cost the Tests
+        # step's comment is about. --out keeps run directories off the checkout.
+        run: >-
+          xvfb-run --auto-servernum
+          cargo run -p nova_probe --features nova-protocol/debug --
+          run --all --out "$RUNNER_TEMP/probe-runs"
+
+      # The reports and logs for whatever the sweep graded, green or not: a
+      # failing check is diagnosed from its run.log, which the step output only
+      # tails.
+      - name: Upload probe reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: probe-runs
+          path: ${{ runner.temp }}/probe-runs
+          if-no-files-found: ignore
+          retention-days: 7
 
       # nova_autopilot's own end-to-end proof: its `driven_app` example is a
       # standalone DefaultPlugins app driven Boot -> Flying -> Done, and this

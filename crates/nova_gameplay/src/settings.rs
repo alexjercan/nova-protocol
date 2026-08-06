@@ -9,7 +9,7 @@
 //!   sets its own sink volume every frame, so [`crate::audio`] scales that by
 //!   [`MasterVolume`] directly. Both output paths go through
 //!   [`MasterVolume::output_gain`], which [`HarnessMute`] masks to silence in
-//!   scripted runs (smoke suite, probe, screenshot captures) - the SETTING
+//!   scripted runs (probe sweeps, screenshot captures) - the SETTING
 //!   stays untouched, so persistence and the menu never see the mute.
 //! - [`GraphicsQuality`] is a three-tier preset. It maps onto two things through
 //!   the single `apply_graphics_quality` seam: the combat juice
@@ -74,13 +74,13 @@ impl MasterVolume {
     }
 }
 
-/// Zero audio output for scripted runs - nobody listens to a smoke test, and
+/// Zero audio output for scripted runs - nobody listens to an autopilot run, and
 /// Xvfb hides the window but not the speakers. Resolved from the environment
 /// ONCE at [`NovaSettingsPlugin`] build (a run's mute state cannot change
 /// mid-session): `NOVA_MUTE` set and not `"0"` mutes any run, `NOVA_MUTE=0`
 /// forces sound even under a harness, and with `NOVA_MUTE` unset a run is
 /// muted iff a harness env (`NOVA_AUTOPILOT`/`NOVA_SHOT`/`NOVA_CAPTURE`) is
-/// active - which covers the smoke suite and probe with no changes there.
+/// active - which covers every probe and capture run with no changes there.
 /// Tests inject the resource directly (insert after the plugin) instead of
 /// touching process env, so parallel tests cannot race on it.
 #[derive(Resource, Clone, Copy, Default, Debug, PartialEq)]

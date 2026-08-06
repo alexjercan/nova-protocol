@@ -17,9 +17,9 @@ generic over the app's state type, and that generic is what keeps
 **Read this page as the crate's contract.** Nova's own examples and
 `nova_probe` all run these drivers, reaching them through the `nova_debug`
 prelude and the `nova_debug::harness` presets - the Nova-flavored adapter, not a
-second implementation. `tests/examples_smoke.rs` fails any example that names a
-driver unqualified, because the shared `bevy_common_systems` prelude still
-exports same-named types that would resolve to an inert twin.
+second implementation. An example that names a driver unqualified no longer
+compiles: nova's prelude stopped re-exporting the `bevy_common_systems` one,
+whose same-named types would otherwise resolve to an inert twin.
 
 ## What it drives
 

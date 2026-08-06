@@ -5,8 +5,9 @@
 //! (`autoexamples = false`), so the catalog is the SINGLE source of truth
 //! for what "an example" is - probe's multi-run
 //! specs (`probe run ui`, `--all`) resolve against it, and the root
-//! package's `catalog_matches_disk` drift test calls the same parser so
-//! the two consumers can never disagree about the format.
+//! crate's `catalog_matches_disk` drift test (`tests/catalog_drift.rs`)
+//! calls the same parser so the two consumers can never disagree about
+//! the format.
 //!
 //! The catalog answers WHAT the examples are. What probe DOES with one is
 //! no longer a table here: the example declares its own capabilities at

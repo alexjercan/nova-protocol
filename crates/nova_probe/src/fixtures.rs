@@ -7,10 +7,10 @@
 //! DECISION.md D1).
 //!
 //! They live in `nova_probe` rather than under `examples/` because
-//! `tests/examples_smoke.rs::catalog_matches_disk` scans every `.rs` directly
-//! under `examples/*/` and demands a catalog block plus a probe policy row for
-//! each, so a shared `examples/support/` module could only exist by hiding from
-//! that scan. `nova_probe` already depends on the game stack and is already an
+//! `tests/catalog_drift.rs::catalog_matches_disk` scans every `.rs` directly
+//! under `examples/*/` and demands a catalog block for each, so a shared
+//! `examples/support/` module could only exist by hiding from that scan.
+//! `nova_probe` already depends on the game stack and is already an
 //! unconditional dev-dependency of the root package, so every example can reach
 //! it for free.
 //!

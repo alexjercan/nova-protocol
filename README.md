@@ -57,7 +57,8 @@ install the pinned nightly toolchain and Bevy's Linux dependencies yourself.
 git clone https://github.com/alexjercan/nova-protocol && cd nova-protocol
 
 cargo run                           # 1. play the game (boots into the main menu)
-cargo test --workspace --features debug   # 2. run the tests (windowed smoke test needs a display; else it self-skips)
+cargo test --workspace --features debug   # 2. run the tests (headless; no display needed)
+cargo run -p nova_probe -- run --all     #    ...and the windowed sweep over every example
 
 cd web && npm install && npm run serve    # 3. serve the content site (prints its port)
 ```

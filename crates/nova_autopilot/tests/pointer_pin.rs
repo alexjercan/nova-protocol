@@ -5,7 +5,7 @@
 //! between a press beat and its release beat takes the hover off the widget and
 //! the click is never emitted - a button acting on `Activate` simply never
 //! fires, with no warning and no error. On a shared display that made the
-//! `examples_smoke` suite fail roughly one run in three.
+//! windowed example suite fail roughly one run in three.
 //!
 //! Its own test BINARY because it arms `NOVA_AUTOPILOT` process-wide.
 //!

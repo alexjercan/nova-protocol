@@ -79,7 +79,7 @@ Fresh clone: run `scripts/setup-hooks.sh`. Pre-commit blocks Rust changes when
 - Reference tests: `crates/nova_assets/tests/gauntlet_course.rs`,
   `crates/nova_assets/tests/ledger_ch2_encounter.rs`.
 - Example catalog: root `Cargo.toml`; categories under `examples/`.
-- Category smoke: `cargo test --test examples_smoke <category>`.
+- Category run: `cargo run -p nova_probe -- run <category>` (or `--all`).
 - Touched tests: run `cargo test --lib -p <crate>`. No feature-unification workaround.
   `--lib` is load-bearing: bare `-p nova_assets` also links its 22 integration
   test binaries. Add `--test <name>` to reach one integration guard.
@@ -88,8 +88,10 @@ Fresh clone: run `scripts/setup-hooks.sh`. Pre-commit blocks Rust changes when
 - Full `cargo test` and `cargo clippy`: do not run locally unless asked. CI owns both. State when skipped.
 - If asked to run the full suite, use the CI-equivalent headless form:
   `env -u DISPLAY -u WAYLAND_DISPLAY cargo test --workspace --features debug`
-  (no DISPLAY makes `examples_smoke` skip loudly; test apps use `MinimalPlugins`,
-  so no audio device is touched). Never raise `-j` past the `.cargo/config.toml`
+  (nothing in the suite opens a window now that probe owns the run gate; test
+  apps use `MinimalPlugins`, so no audio device is touched). The windowed half
+  is `cargo run -p nova_probe -- run --all`, which CI runs as its own step.
+  Never raise `-j` past the `.cargo/config.toml`
   cap - concurrent rust-lld links are what OOMs the box.
 
 Probe details: `.claude/skills/probe/SKILL.md` and the dev wiki Performance

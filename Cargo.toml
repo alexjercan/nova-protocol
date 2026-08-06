@@ -16,18 +16,18 @@ publish = false
 # examples/*.rs and examples/*/main.rs. Discovery off makes the [[example]]
 # catalog below the SINGLE source of truth: a stray file can never become a
 # phantom target, and a missing block means the example does not build at all
-# (the catalog_matches_disk test in tests/examples_smoke.rs pins catalog ==
-# disk == smoke lists). Task 20260719-193728.
+# (the catalog_matches_disk test in crates/nova_probe/tests/catalog_drift.rs
+# pins catalog == disk). Task 20260719-193728.
 autoexamples = false
 
 [lib]
 path = "src/lib.rs"
 
 # THE EXAMPLE-CATEGORY CONTRACT (see autoexamples above). A category is a
-# promise about what its examples prove and what probe does with them; the
-# run policy half is the table in crates/nova_probe/src/catalog.rs, and
-# tests/examples_smoke.rs::every_category_has_a_probe_policy fails a
-# category that has no row. The five settled categories:
+# promise about what its examples prove. It is NOT a run policy: every
+# cataloged example is a probe target, and what one can be JUDGED on is its
+# own runtime declaration (nova_probe::contract), not its directory. The five
+# settled categories:
 #
 #   sections/    proves one ship section's behavior end to end.
 #                probe: correctness passes only.
@@ -47,9 +47,9 @@ path = "src/lib.rs"
 #                not this category: anything whose subject is simulation
 #                rather than the interface over it.
 #   screenshots/ produces frames for the website and the wiki.
-#                probe: NOT a probe target - `probe run screenshots` is an
-#                error, and `--all` records the category as excluded. These
-#                are judged by their PNGs and human eyes.
+#                probe: correctness passes only - the WALK is graded like any
+#                other autopilot script; the FRAME it captures is judged by
+#                human eyes, which is a claim probe never makes.
 #                not this category: anything that asserts, rather than
 #                captures.
 #
@@ -173,20 +173,16 @@ nova_core = { path = "crates/nova_core" }
 [dev-dependencies]
 avian3d = { version = "0.7" }
 bevy = { version = "0.19.0" }
-# `tests/examples_smoke.rs` names a signal death with `exit::describe` - a
-# `None` exit code says nothing about the SIGSEGV behind it. Unconditional, like
-# nova_debug below: the catalog/drift tests must keep compiling on a bare
-# `cargo test`.
+# The examples build their step timelines on `AutopilotPlugin` directly.
 nova_autopilot = { path = "crates/nova_autopilot" }
 # The stress/ examples use the frame-time capture harness, and the
 # autopilot examples push run-timeline markers - both live in nova_probe (the
 # run-harness dev tool, not shipped with the game binary). serde_json builds
 # the markers' payloads (the timeline speaks JSON).
 nova_probe = { path = "crates/nova_probe" }
-# `tests/examples_smoke.rs` greps runs for `harness::REACHED_PLAYING`. It is
-# reached DIRECTLY rather than through `nova_protocol::nova_debug`, which only
-# exists under the `debug` feature - the catalog/drift tests in that file must
-# keep compiling on a bare `cargo test`.
+# The harness presets and `shoot`, the one capture idiom. Reached DIRECTLY
+# rather than through `nova_protocol::nova_debug`, which only exists under the
+# `debug` feature.
 nova_debug = { path = "crates/nova_debug" }
 # widget_zoo example renders the nova_ui skin-aware widget set directly.
 nova_ui = { path = "crates/nova_ui" }

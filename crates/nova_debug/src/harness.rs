@@ -35,7 +35,7 @@
 //! done when the step ends. The `nova harness: reached Playing` line (emitted by
 //! [`DebugPlugin`](crate::DebugPlugin) under the autopilot) confirms the loader
 //! got there before the exit, so a run that silently never leaves `Loading`
-//! fails the smoke test instead of passing.
+//! fails probe's `reached_playing` check instead of passing.
 //!
 //! ## Usage
 //!
@@ -138,14 +138,14 @@ pub const SHOT_DEADLINE_SECS: f32 = 20.0;
 pub const NOVA_AUTOPILOT_STEP: &str = "nova: play the loading-gated window";
 
 /// The line a harnessed run logs once its app has reached gameplay state, and
-/// the line `tests/examples_smoke.rs` greps for.
+/// the line probe's `reached_playing` check greps a run log for.
 ///
 /// [`DebugPlugin`](crate::DebugPlugin) emits it for every app that carries the
 /// nova debug layer; an app that does NOT carry it (the `widget_zoo` showcase
 /// runs a bare `App` on the widget library alone) emits it itself on entering
-/// its own `Playing`, and means by it "the library is up", not "gameplay". Three
-/// callers across two crates and a test are exactly why the string is a const:
-/// a literal duplicated that widely drifts.
+/// its own `Playing`, and means by it "the library is up", not "gameplay".
+/// Several callers across two crates are exactly why the string is a const: a
+/// literal duplicated that widely drifts.
 pub const REACHED_PLAYING: &str = "nova harness: reached Playing";
 
 /// Env-gated autopilot preset for nova examples.
