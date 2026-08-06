@@ -130,3 +130,37 @@ impl RunManifest {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_manifest_round_trips_through_json() {
+        let manifest = RunManifest {
+            example: "playable".into(),
+            started_unix: 1789000123,
+            git_sha: "abc123".into(),
+            full_git_sha: "abc123def".into(),
+            host: "devbox".into(),
+            armed_timeline: true,
+            armed_invariants: true,
+            armed_fps: true,
+            fps_skipped: Some("narrative scenario".into()),
+            passes: vec![
+                PassRecord {
+                    name: "clean".into(),
+                    success: false,
+                    timed_out: true,
+                },
+                PassRecord {
+                    name: "profiled".into(),
+                    success: true,
+                    timed_out: false,
+                },
+            ],
+        };
+        let parsed = RunManifest::from_json(&manifest.to_json().to_string()).expect("round-trips");
+        assert_eq!(parsed, manifest);
+    }
+}
