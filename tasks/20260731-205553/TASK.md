@@ -2,9 +2,9 @@
 
 - PRIORITY: 50
 - TAGS: v0.10.0, quality, docs, warnings
-- ACTIVITY: REVIEWING
-- GATES: PLAN
-- RESOLUTION: -
+- ACTIVITY: COMPOUNDING
+- GATES: PLAN REVIEW RETRO
+- RESOLUTION: DONE
 - PARENT: 20260802-115955
 
 ## Story
@@ -35,16 +35,23 @@ v0.10.0 automation work. CI retains ownership of the full Clippy run.
 
 ## Steps
 
-- [ ] Inventory every first-party warning from rustc, rustdoc and clippy on a
+- [x] Inventory every first-party warning from rustc, rustdoc and clippy on a
       clean tree; record counts and per-lint breakdown in NOTES.
-- [ ] Clear the 28 rustdoc warnings: drop brackets on public-to-private and
-      unresolved links, disambiguate `nova_autopilot`, remove the redundant
-      explicit link target. Never widen an item to satisfy a link.
-- [ ] Clear the 71 `doc_lazy_continuation` warnings by indenting wrapped list
-      continuations.
-- [ ] Clear the remaining 34 clippy warnings site by site, including removing
+- [x] Clear the 28 rustdoc warnings, choosing the fix by why resolution failed:
+      drop the brackets where the target is private or not a dependency, give
+      an explicit path where it is public but out of scope, disambiguate
+      `nova_autopilot`, remove the redundant explicit target. Never widen an
+      item to satisfy a link.
+      (Amended: the original text said to drop brackets on ALL unresolved
+      links. Review round 1 showed five had reachable public targets and needed
+      relinking, not de-linking.)
+- [x] Clear the 71 `doc_lazy_continuation` warnings at their cause - prose
+      punctuation (`-`, `+`) starting a wrapped line, read as a list marker -
+      by moving it up a line; indent only genuine list continuations.
+      (Amended: the original text assumed indentation was the fix throughout.)
+- [x] Clear the remaining 34 clippy warnings site by site, including removing
       the two stale `#[expect(...)]` attributes. No broad `allow`.
-- [ ] Re-run all three sweeps with warnings denied and confirm zero.
+- [x] Re-run all three sweeps with warnings denied and confirm zero.
 
 ## Definition of Done
 
