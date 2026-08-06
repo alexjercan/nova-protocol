@@ -9,15 +9,25 @@
 //! camera enum. Built on `bevy_common_systems`' `ChaseCamera` /
 //! `PointRotation` rigs.
 
-use bevy::{prelude::*, transform::TransformSystems};
-use bevy_common_systems::prelude::*;
+use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 
+mod authority;
 mod framing;
 mod handback;
 mod mode;
 mod rig;
 
+pub use self::{
+    authority::{CameraAuthority, CameraAuthorityPlugin},
+    handback::CameraHandbackBlend,
+    mode::{SpaceshipCameraControlMode, WeaponsRaised},
+    rig::{
+        ActiveLookRay, SpaceshipCameraController, SpaceshipCameraFreeLookInputMarker,
+        SpaceshipCameraInputMarker, SpaceshipCameraNormalInputMarker,
+        SpaceshipCameraTurretInputMarker, SpaceshipRotationInputActiveMarker,
+    },
+};
 use self::{
     framing::{update_camera_rig, update_chase_camera_input},
     handback::on_autopilot_disengaged,
@@ -30,24 +40,16 @@ use self::{
         insert_camera_turret, insert_player_input, PlayerInputMarker,
     },
 };
-pub use self::{
-    handback::CameraHandbackBlend,
-    mode::{SpaceshipCameraControlMode, WeaponsRaised},
-    rig::{
-        ActiveLookRay, SpaceshipCameraController, SpaceshipCameraFreeLookInputMarker,
-        SpaceshipCameraInputMarker, SpaceshipCameraNormalInputMarker,
-        SpaceshipCameraTurretInputMarker, SpaceshipRotationInputActiveMarker,
-    },
-};
 
 /// Glob-import surface: `use nova_gameplay::camera_controller::prelude::*`
 /// re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
-        ActiveLookRay, NovaCameraSystems, SpaceshipCameraControlMode, SpaceshipCameraController,
-        SpaceshipCameraControllerPlugin, SpaceshipCameraFreeLookInputMarker,
-        SpaceshipCameraInputMarker, SpaceshipCameraNormalInputMarker,
-        SpaceshipCameraTurretInputMarker, SpaceshipRotationInputActiveMarker, WeaponsRaised,
+        ActiveLookRay, CameraAuthority, CameraAuthorityPlugin, NovaCameraSystems,
+        SpaceshipCameraControlMode, SpaceshipCameraController, SpaceshipCameraControllerPlugin,
+        SpaceshipCameraFreeLookInputMarker, SpaceshipCameraInputMarker,
+        SpaceshipCameraNormalInputMarker, SpaceshipCameraTurretInputMarker,
+        SpaceshipRotationInputActiveMarker, WeaponsRaised,
     };
 }
 
@@ -103,14 +105,12 @@ impl Plugin for SpaceshipCameraControllerPlugin {
                 .in_set(NovaCameraSystems),
         );
 
-        // bcs moves the camera Transform in PostUpdate but leaves its order
-        // against Bevy's transform propagation AMBIGUOUS - if propagation wins
-        // the race, the frame renders with LAST frame's camera pose (a
-        // per-build coin flip). Pin it from nova via the exported set so the
-        // rendered camera is always this frame's.
-        app.configure_sets(
-            PostUpdate,
-            ChaseCameraSystems::Sync.before(TransformSystems::Propagate),
-        );
+        // Every camera-Transform writer in the app - bcs's three and nova's
+        // scripted pose - is ordered by this one chain. Guarded because
+        // nova_scenario adds it too when it is the only camera consumer, and
+        // plugin add order between the two crates is the app's business.
+        if !app.is_plugin_added::<CameraAuthorityPlugin>() {
+            app.add_plugins(CameraAuthorityPlugin);
+        }
     }
 }

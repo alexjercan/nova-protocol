@@ -1361,7 +1361,7 @@ mod tests {
     fn indicator_projects_with_the_frames_final_camera_pose() {
         use core::time::Duration;
 
-        use bevy::{time::TimeUpdateStrategy, transform::TransformSystems};
+        use bevy::time::TimeUpdateStrategy;
         use bevy_common_systems::prelude::{ChaseCamera, ChaseCameraInput, ChaseCameraPlugin};
 
         #[derive(Component)]
@@ -1390,14 +1390,9 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, TransformPlugin, ChaseCameraPlugin));
         app.add_plugins(ScreenIndicatorPlugin);
-        // Mirror the production pin from nova's camera controller: the
-        // chase move lands before propagation, so the rendered camera pose
-        // is this frame's.
-        app.configure_sets(
-            PostUpdate,
-            bevy_common_systems::prelude::ChaseCameraSystems::Sync
-                .before(TransformSystems::Propagate),
-        );
+        // The production camera-write order: the chase move lands before
+        // propagation, so the rendered camera pose is this frame's.
+        app.add_plugins(crate::camera_controller::CameraAuthorityPlugin);
         app.add_systems(Update, (move_ship, drive_camera_input).chain());
         app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
             1.0 / 60.0,

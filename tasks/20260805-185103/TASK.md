@@ -224,7 +224,7 @@ Each step below becomes its own child task at planning time.
         duplicate. Its `fn tail` stopped being a copy the moment
         `examples_smoke.rs` was deleted; the comment pointing at the dead file
         was removed.
-- [ ] 7. **Camera authority sets.** Independent of 1-6; touches no automation
+- [x] 7. **Camera authority sets.** Independent of 1-6; touches no automation
       code. One nova-owned set chain in `PostUpdate`:
       `CameraShakeSystems::Restore -> CameraAuthority::Solve` (chase + WASD
       sync) `-> ::Override` (`enforce_scripted_camera_pose`) `-> ::Additive`
@@ -233,6 +233,7 @@ Each step below becomes its own child task at planning time.
       two missing `Propagate` edges, and the duplicate edge registration at
       `camera_controller/mod.rs:112-114` / `framing.rs:475`. Highest
       value-to-effort in the whole investigation.
+      commits: `PENDING`
 - [ ] 8. **Then, independently** (each its own child, no ordering between them):
       move bcs `integrity` + `ui/health_display.rs` to nova and scrub the nova
       task IDs from `bcs/src/physics/pd_controller.rs:535`; use bcs `persist`
@@ -696,3 +697,102 @@ catalog, and the honest expectation is that it is where the runtime budget gets
 measured for real. The 60-minute job timeout is unchanged and was sized for a
 comparable number of `cargo run` example spawns, so the shape should hold; if
 it does not, the fix is a narrower spec, not a longer timeout.
+
+## Close-out - step 7: camera authority sets
+
+**What.** One nova-owned chain now declares who writes the camera `Transform`
+and in what order. New module `crates/nova_gameplay/src/camera_controller/authority.rs`:
+
+- `CameraAuthority { Solve, Override, Additive }` - the phases, exported from
+  `nova_gameplay`'s camera_controller prelude.
+- `CameraAuthorityPlugin` - two `configure_sets` calls and nothing else. First,
+  `(CameraShakeSystems::Restore, Solve, Override, Additive).chain()
+  .before(TransformSystems::Propagate)`. Second, the fold of bcs's writers into
+  the phases as SET-IN-SET, not bare edges:
+  `(ChaseCameraSystems::Sync, WASDCameraSystems::Sync).in_set(Solve)` and
+  `CameraShakeSystems::Apply.in_set(Additive)`.
+- `enforce_scripted_camera_pose` (`crates/nova_scenario/src/loader/mod.rs`)
+  drops `.after(WASDCameraSystems::Sync)` for `.in_set(CameraAuthority::Override)`.
+- The plugin is added by `SpaceshipCameraControllerPlugin` and by
+  `ScenarioLoaderPlugin`, each behind `is_plugin_added` (the `juice.rs`
+  precedent for `CameraShakePlugin`). Either crate can be the only camera
+  consumer in a test app, and plugin add order between them is the app's
+  business, not the plugin's.
+- The two hand-written duplicates of the propagate edge are gone: the
+  `camera_framing_is_speed_invariant` rig (`framing.rs`) and the
+  `indicator_projects_with_the_frames_final_camera_pose` rig
+  (`hud/screen_indicator.rs`) now add `CameraAuthorityPlugin` instead of
+  re-declaring `ChaseCameraSystems::Sync.before(Propagate)` by hand - so a test
+  exercises the production ordering rather than a copy of it.
+
+ZERO bcs changes, as the step required.
+
+**Why.** The camera Transform had four writers and a PARTIAL ordering lattice;
+the rest was executor readiness, i.e. a per-frame coin flip. The scripted pose
+was ordered only against WASD sync, but `loader/lifecycle.rs` swaps the player
+onto `SpaceshipCameraController` on spawn, so the writer it actually races is
+CHASE - unordered against it. That race is the flicker. Two edges were missing
+outright: neither `CameraShakeSystems::Apply` nor the scripted pose had any edge
+to `TransformSystems::Propagate`, so a frame could render last frame's pose.
+
+**Alternatives.** (a) Add `.after(ChaseCameraSystems::Sync)` beside the existing
+WASD edge - rejected: it fixes the one race that was noticed and leaves the
+lattice partial, which is the failure mode being closed. It also does nothing
+for the two propagate edges. (b) `run_if`-gate the chase/WASD writers off while
+a `ScriptedCameraPose` exists - rejected under the boundary rule "order, don't
+disable": a gate breaks silently when bcs adds a writer, whereas an ordered
+loser still runs, still writes, and is still overwritten. (c) Put the phases in
+`nova_scenario` next to the override - rejected: `nova_scenario` depends on
+`nova_gameplay`, so the set would be invisible to the crate that owns the chase
+camera. (d) Bare ordering edges (`Chase::Sync.before(Override)`) instead of
+set-in-set - rejected: set-in-set orders a bcs writer against every phase at
+once, so a phase added later needs no second edit at each writer.
+
+**Difficulties.** The set-in-set fold has to stay consistent with the edges bcs
+declares for ITSELF (`Restore.before(Chase::Sync)`,
+`Apply.after(Chase::Sync)`, `WASD::Sync.before(Propagate)`); an inconsistency is
+a schedule cycle, which panics at the first `PostUpdate` and only in an app that
+adds all three plugins. That is what
+`the_chain_composes_with_every_bcs_camera_plugin` exists to catch, and it is why
+`CameraShakeSystems::Restore` sits in the chain as itself rather than inside a
+fourth phase - it must precede every base writer, and bcs pins it before
+`Chase::Sync` only, which is no edge at all when the chase plugin is absent.
+
+**Evidence.**
+
+- FAIL-FIRST, not just green: `override_wins_the_frame_against_the_chase_camera`
+  drives a real `ChaseCameraPlugin` + `CameraShakePlugin` app for 8 frames with
+  an `Override` writer. With `CameraAuthorityPlugin` removed and the `in_set`
+  dropped it FAILS on frame 1 (`assert_failed`, the chase camera overwrote the
+  pose); restored, it passes. That is the flicker, reproduced and closed in a
+  unit-shaped seam.
+- `the_chain_composes_with_every_bcs_camera_plugin` - all three bcs camera
+  plugins plus the chain, one `update()`. Passes; a cycle would panic here.
+- `cargo test -p nova_gameplay --lib camera` 33/33 (includes the two rigs whose
+  hand-written edge was replaced); `--lib screen_indicator` 27/27;
+  `cargo test -p nova_scenario --lib loader` 27/27.
+- `cargo check --workspace --all-targets --features debug` clean, zero new
+  warnings; `cargo fmt --all -- --check` clean.
+- RUN, not just checked (Xvfb `:99`,
+  `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 cargo run --features debug --example
+  screenshot_combat`): exit 0, all 13 PNGs written, twice. The FIRST posed shot
+  (`wiki-radar.png`, the one the owner reported flickering) has an IDENTICAL
+  camera pose across the two runs - same framing, same ship placement; the only
+  differences are asteroid positions and the fps counter, i.e. physics timing,
+  not camera authority.
+
+**Reflection.** The step's "highest value-to-effort" claim held: the fix is two
+`configure_sets` calls and one `in_set` swap, and it deletes more than it adds
+(two hand-copied edges in test rigs, one stale `.after` in the shipping
+enforcer). The non-obvious part was not the ordering, it was WHERE the chain can
+live - it needs a crate both the chase camera and the scripted override can see,
+which is `nova_gameplay`, and it needs to survive being added from either side,
+which is what the `is_plugin_added` guard buys.
+
+One thing deliberately NOT changed, noted so it is not re-derived: HUD screen
+indicators still run `.after(ChaseCameraSystems::Sync)`
+(`hud/screen_indicator.rs`), which is now INSIDE `Solve` - so under a scripted
+pose they can project against the pre-override camera. Nothing observed it, the
+capture scripts hide the HUD for most shots, and re-slotting a HUD consumer is a
+different change from declaring the writer order. If it ever shows, the fix is
+one edge: `ScreenIndicatorSystems.after(CameraAuthority::Additive)`.

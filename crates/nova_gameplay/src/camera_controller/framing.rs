@@ -235,9 +235,7 @@ pub(super) fn update_camera_rig(
 
 #[cfg(test)]
 mod tests {
-    use bevy::transform::TransformSystems;
-
-    use super::*;
+    use super::{super::CameraAuthorityPlugin, *};
 
     /// The chase anchor is the ship's live center of mass, not the root
     /// origin: the origin is where the first sections were built and never
@@ -467,13 +465,9 @@ mod tests {
 
         let converged_ship_in_camera_space = |speed: f32| -> Vec3 {
             let mut app = unfinished_integrity_physics_app();
-            app.add_plugins(ChaseCameraPlugin);
+            app.add_plugins((ChaseCameraPlugin, CameraAuthorityPlugin));
             app.init_resource::<SpaceshipCameraControlMode>();
             app.add_systems(Update, (drive_camera_input, update_camera_rig).chain());
-            app.configure_sets(
-                PostUpdate,
-                ChaseCameraSystems::Sync.before(TransformSystems::Propagate),
-            );
             app.finish();
 
             let ship = app

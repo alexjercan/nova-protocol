@@ -1,6 +1,5 @@
 /// Scenario loader plugin and related types
 use bevy::{platform::collections::HashMap, prelude::*};
-use bevy_common_systems::prelude::*;
 use bevy_enhanced_input::prelude::*;
 use nova_gameplay::prelude::*;
 
@@ -367,15 +366,24 @@ impl Plugin for ScenarioLoaderPlugin {
 
         // Scripted-camera override (photo mode / the capture scripts): the
         // `SetCamera` action pins a `ScriptedCameraPose` on the scenario camera;
-        // enforce it in PostUpdate AFTER the WASD sync so the scripted pose wins
-        // the last write before render. The free-fly controller's state machine
-        // keeps writing the camera Transform every frame (and removing the
-        // controller does not stop it - the private state components survive), so
-        // a one-shot Transform set would be immediately overwritten; running last
-        // is what makes the pose stick.
+        // enforce it in `CameraAuthority::Override`, the phase that runs after
+        // every base writer - WASD sync AND chase sync - and before propagation.
+        // Both controllers keep writing the camera Transform every frame (and
+        // removing a controller does not stop it - the private state components
+        // survive), so a one-shot Transform set would be immediately
+        // overwritten; running in the override phase is what makes the pose
+        // stick, on every frame rather than on the frames the executor happened
+        // to schedule it last.
+        //
+        // The chain is normally declared by nova_gameplay's camera controller;
+        // add it when that plugin is absent (a scenario-only test app) so the
+        // override phase is never an unordered set.
+        if !app.is_plugin_added::<CameraAuthorityPlugin>() {
+            app.add_plugins(CameraAuthorityPlugin);
+        }
         app.add_systems(
             PostUpdate,
-            enforce_scripted_camera_pose.after(WASDCameraSystems::Sync),
+            enforce_scripted_camera_pose.in_set(CameraAuthority::Override),
         );
     }
 }
@@ -393,8 +401,8 @@ pub struct ScriptedCameraPose {
     pub look_at: Vec3,
 }
 
-/// Pin every camera carrying a [`ScriptedCameraPose`] to that pose. Ordered
-/// after `WASDCameraSystems::Sync` so it wins the frame's last write to the
+/// Pin every camera carrying a [`ScriptedCameraPose`] to that pose. Runs in
+/// [`CameraAuthority::Override`] so it wins the frame's last base write to the
 /// camera Transform.
 fn enforce_scripted_camera_pose(mut cameras: Query<(&mut Transform, &ScriptedCameraPose)>) {
     for (mut transform, pose) in &mut cameras {
