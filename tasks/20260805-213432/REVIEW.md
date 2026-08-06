@@ -162,7 +162,18 @@ Re-verified: nova_scenario 152 pass, nova_assets 97 pass, `content gen` +
 `scene_baseline --fps --scenario shakedown_run --preset high` OK with all six
 scatters placing their full count (0 drops, 0 panic/ERROR lines).
 
-F3-F7 remain open; they were not in the fix request.
+### F4 - fixed
+
+`CHANGELOG.md:36`: `160-rock` -> `78-rock`
+(`5 * BELT_KNOTS.count + BELT_FAR_COUNT`), the "empty black sky" rationale cut
+per `AGENTS.md:177`, and "its well sized down" replaced by the number
+(mass 27 000). The narrative lands in `web/src/news/0.10.0.md`, which does not
+exist yet - the release cuts it.
+
+`~760u` left as authored: the true distance is 751.8u, but `shakedown/mod.rs`
+says `~760u` too and F4 did not flag it. Fix both together or neither.
+
+F3 and F5-F7 remain open; they were not in the fix request.
 
 ## Judged and accepted
 

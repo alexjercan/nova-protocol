@@ -33,11 +33,10 @@ tagged **(breaking)**.
   its own three-point key/rim/fill rig. Third-party mods must add a light to
   each scenario.
 
-- Shakedown Run is dressed: the planetoid moves in to ~760u of the spawn (its
-  well sized down to keep the crate beat gravity-free) and a 160-rock slalom
-  belt bends around it - five near knots plus a far parallax ring - so the
-  starter scenario stops reading as empty black sky. Every knot keeps the beat
-  pockets clear.
+- Shakedown Run is dressed: the planetoid moves in to ~760u of the spawn (mass
+  27 000, keeping the crate beat gravity-free) and a 78-rock slalom belt bends
+  around it - five near `BELT_KNOTS` plus a far parallax ring, every knot
+  clear of the beat pockets.
 - `ScatterRegion::Ring` gains an optional `center`, so a belt can circle a body
   that does not sit at the world origin. Omitted, it is the origin as before.
 - `ScatterObjects` gains an optional `min_separation`: scattered bodies are kept
