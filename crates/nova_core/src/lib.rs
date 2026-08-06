@@ -64,14 +64,13 @@ pub fn editor_app(render: bool) -> App {
 /// Composition root that assembles the full plugin stack into a runnable [`App`].
 ///
 /// Holds the in-progress [`App`] plus the choices ([`with_game_plugins`](Self::with_game_plugins),
-/// [`with_rendering`](Self::with_rendering), [`with_main_menu`](Self::with_main_menu)) that
-/// [`build`](Self::build) resolves into the concrete plugin set; with no game plugins it defaults
-/// to the editor app fronted by the main menu.
+/// [`with_rendering`](Self::with_rendering)) that [`build`](Self::build) resolves into the
+/// concrete plugin set; with no game plugins it defaults to the editor app fronted by the
+/// main menu.
 pub struct AppBuilder {
     app: App,
     use_default_plugins: bool,
     render: bool,
-    main_menu: Option<bool>,
 }
 
 impl Default for AppBuilder {
@@ -104,13 +103,11 @@ impl AppBuilder {
             app,
             use_default_plugins: true,
             render: true,
-            main_menu: None,
         }
     }
 
     /// Supply custom game plugins in place of the default editor app; this also
-    /// suppresses the main menu unless [`with_main_menu`](Self::with_main_menu)
-    /// re-enables it (the examples use this to boot straight into gameplay).
+    /// suppresses the main menu, so the examples boot straight into gameplay.
     pub fn with_game_plugins<M>(mut self, plugins: impl Plugins<M>) -> Self {
         self.app.add_plugins(plugins);
         self.use_default_plugins = false;
@@ -121,16 +118,6 @@ impl AppBuilder {
     /// plugins so headless runs (tests, the probe harness) skip GPU work.
     pub fn with_rendering(mut self, render: bool) -> Self {
         self.render = render;
-        self
-    }
-
-    /// Override whether the app boots into the main menu.
-    ///
-    /// By default the menu comes up only for the default (editor) app: examples that
-    /// supply their own game plugins via [`with_game_plugins`](Self::with_game_plugins)
-    /// go straight `Loading -> Playing` as before, so they need no changes.
-    pub fn with_main_menu(mut self, main_menu: bool) -> Self {
-        self.main_menu = Some(main_menu);
         self
     }
 
@@ -161,7 +148,9 @@ impl AppBuilder {
             self.app.add_plugins(NovaEditorPlugin);
         }
 
-        let main_menu = self.main_menu.unwrap_or(self.use_default_plugins);
+        // The menu fronts the default (editor) app only: an example that supplies
+        // its own game plugins goes straight `Loading -> Playing`.
+        let main_menu = self.use_default_plugins;
         if main_menu {
             self.app.add_plugins(NovaMenuPlugin);
         }

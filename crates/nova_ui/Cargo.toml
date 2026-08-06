@@ -17,5 +17,4 @@ serde = { version = "1", features = ["derive"], optional = true }
 workspace = true
 
 [features]
-debug = []
 serde = ["dep:serde"]
