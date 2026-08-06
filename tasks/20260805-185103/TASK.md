@@ -57,6 +57,7 @@ Each step below becomes its own child task at planning time.
       instance's `BufWriter` holds its own offset. Two recorders, one path.
       Small, and load-bearing for steps 4-6, which make the timeline the sole
       verdict.
+      commits: `faa4011d`
 - [x] 2. **Stop leaking the bcs prelude.**
       `crates/nova_gameplay/src/lib.rs:70` is the ONLY
       `pub use bevy_common_systems::prelude::*` in the workspace (the other 35
@@ -69,6 +70,7 @@ Each step below becomes its own child task at planning time.
       `examples_name_drivers_through_the_nova_harness` (`:227`). Front half of
       the `20260731-205553` warning cleanup: the prelude is why that task is
       stalled.
+      commits: `26bc29e0`
 - [x] 3. **One capture idiom: promote `shoot`, delete the reel.** Promote
       `shoot` to `nova_debug::harness::shoot` (collapses three copies:
       `screenshot_flight.rs:646`, `screenshot_nova_os.rs:282`,
@@ -83,6 +85,7 @@ Each step below becomes its own child task at planning time.
       `crates/nova_autopilot/tests/reel.rs` and `nova_reel()`
       (`crates/nova_debug/src/harness.rs:372-392`). **Keep `capture_window`** -
       it is the primitive `shoot` wraps.
+      commits: `63cc7bd2`
 - [ ] 4. **Capture ack + one uniform scene settle.** `capture_window` becomes a
       completion collector / emits a per-shot ack; steps use
       `until(shot_written(name))`. That deletes the save-latency settle outright
@@ -136,6 +139,16 @@ Each step below becomes its own child task at planning time.
       and delete the misaligned test at `:772-786`, moving its rationale comment
       onto the ship/asteroid bundles; the env-var pass; the `hud/mod.rs`
       registry refactor; the M9 dead-code sweep.
+- [ ] 9. **Move the whole run onto a branch and review it.** Steps 1-8 land
+      directly on `master`, so there is no branch for `/review` to diff. Cut
+      `task/20260805-185103` from the commit BEFORE this run's first work commit
+      (`cafae048`, the task record), cherry-pick every commit listed in the
+      `commits:` lines above onto it in order, reset `master` back to that same
+      base, then run `/review` against the branch and drive it to a verdict.
+      Do this LAST - each step above appends its hashes as it lands, and the
+      branch is only complete once step 8's children are in. Record the branch
+      name and the review verdict here.
+      commits: `cafae048` (task record; the branch base is its parent)
 
 ## Definition of Done
 
