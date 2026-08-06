@@ -129,7 +129,8 @@ which is how you deliberately probe your real installed mods.
   (the smoke contract), `invariants_held` (violations counted per name;
   one stuck entity violates every frame), `fps_within_baseline` (soft
   gate; only REGRESSIONS beyond the threshold WARN - improvements PASS),
-  `log_clean` (ANSI-stripped, whole-word ERROR). Each check carries a
+  `log_clean` (ANSI-stripped, whole-word ERROR, plus command errors at ANY
+  level - `remove`/`despawn` log theirs at WARN). Each check carries a
   structured `data` object; the top-level `run` object is the manifest.
 - SKIPPED means NOT MEASURED and N/A means NOT CLAIMED; neither ever means
   "held". Zero measured checks = verdict NO_DATA. A run that measured

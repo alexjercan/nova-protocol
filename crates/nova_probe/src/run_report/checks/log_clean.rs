@@ -1,12 +1,24 @@
-//! `log_clean`: panics and ERROR-level lines are hard failures.
+//! `log_clean`: panics, ERROR-level lines, and command errors at ANY level are
+//! hard failures.
 //!
 //! The level token is matched as a whole word after ANSI stripping - a
 //! substring match missed line-initial ERROR and false-positived on payloads
 //! (a word merely containing "ERROR").
+//!
+//! Command errors need their own rule because the level alone does not catch
+//! them (task 20260713-203709): `remove`/`despawn` bake in the WARN handler at
+//! queue time (bevy_ecs `commands/mod.rs`, `queue_handled(_, warn)`), so a
+//! stale-entity command logs a WARN and sails past the ERROR gate. The matched
+//! prefix is the one both flavors share (bevy_ecs `error/handler.rs`), so a
+//! teardown-race regression fails the run instead of scrolling by.
 
 use super::{Check, CheckStatus, RunArtifacts};
 
-const THRESHOLD: &str = "no panics / ERROR lines";
+const THRESHOLD: &str = "no panics / ERROR lines / command errors";
+
+/// The bevy_ecs command-error prefix, logged at the handler's level (WARN for
+/// `remove`/`despawn`, ERROR for the rest).
+const COMMAND_ERROR: &str = "Encountered an error in command";
 
 /// How much of an offending line the report quotes.
 const SAMPLE_CHARS: usize = 160;
@@ -37,7 +49,9 @@ fn strip_ansi(line: &str) -> String {
 
 /// Whether a stripped line is a failure.
 fn is_offending(line: &str) -> bool {
-    line.contains("panicked at") || line.split_whitespace().any(|token| token == "ERROR")
+    line.contains("panicked at")
+        || line.contains(COMMAND_ERROR)
+        || line.split_whitespace().any(|token| token == "ERROR")
 }
 
 fn clip(line: &str) -> String {
@@ -66,7 +80,7 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
         Check {
             name: "log_clean",
             status: CheckStatus::Pass,
-            value: "0 panic/ERROR lines".into(),
+            value: "0 offending lines".into(),
             threshold: THRESHOLD.into(),
             detail: "log scanned clean".into(),
             data: serde_json::json!({ "offending": 0 }),
@@ -123,6 +137,19 @@ mod tests {
         let c = scan("ERROR boot diagnostics failed\nnoting TERRORD is fine\n");
         assert_eq!(c.status, CheckStatus::Fail, "{c:?}");
         assert_eq!(c.data["offending"], 1, "TERRORD must not count: {c:?}");
+    }
+
+    #[test]
+    fn a_warn_level_command_error_fails() {
+        // The class the ERROR gate cannot see: `despawn` on a stale entity
+        // logs at WARN, so only the command-error rule catches it.
+        let c = scan(
+            "INFO fine\n2026-08-06T10:00:00Z  WARN bevy_ecs::error::handler: \
+             Encountered an error in command `bevy_ecs::system::commands::despawn`: \
+             The entity 42v1 does not exist\n",
+        );
+        assert_eq!(c.status, CheckStatus::Fail, "{c:?}");
+        assert_eq!(c.data["offending"], 1, "{c:?}");
     }
 
     #[test]
