@@ -203,7 +203,7 @@ Each step below becomes its own child task at planning time.
       smoke test" step is now "Probe correctness sweep" -
       `cargo run -p nova_probe --features nova-protocol/debug -- run --all`
       under `xvfb-run`, with the run dirs uploaded as an artifact.
-      commits: `d86f8dd0`
+      commits: `b3e82bb5`
 
       Two items in the step text were written against a tree that has since
       moved, and are recorded here rather than silently dropped:
