@@ -57,12 +57,12 @@
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - reach Playing, drive the whole
 //!   script, exit clean, capturing nothing.
-//! - `NOVA_AUTOPILOT=1 NOVA_REEL=1`: also capture the shots (staged under
+//! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also capture the shots (staged under
 //!   `NOVA_SHOT_DIR`).
 //!
 //! Capture (windowed, real GPU):
 //! ```text
-//! NOVA_SHOT_DIR=target/reel NOVA_AUTOPILOT=1 NOVA_REEL=1 \
+//! NOVA_SHOT_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
 //!   cargo run --example screenshot_flight --features debug
 //! ```
 //!
@@ -175,7 +175,7 @@ fn main() -> bevy::app::AppExit {
 
     #[cfg(feature = "debug")]
     {
-        let capturing = std::env::var_os(nova_protocol::nova_debug::harness::REEL_ENV).is_some();
+        let capturing = capturing();
         // One step per beat, and every capture gets its OWN step: Bevy services
         // one primary-window capture per frame, so the rule is structural here
         // rather than a guard inside a shared step.
@@ -223,7 +223,7 @@ fn main() -> bevy::app::AppExit {
                 .until(elapsed(0.3))
                 .add()
                 .step("capture the insertion burn")
-                .on_enter(move |world| shoot(world, capturing, "variant-autopilot-ring.png"))
+                .on_enter(move |world| shoot(world, "variant-autopilot-ring.png"))
                 .until(elapsed(0.2))
                 .add()
                 // Circularized: the verb reports Hold once the velocity error is
@@ -271,7 +271,7 @@ fn main() -> bevy::app::AppExit {
                 .until(elapsed(0.4))
                 .add()
                 .step("capture the orbit shot")
-                .on_enter(move |world| shoot(world, capturing, "tutorial-orbit.png"))
+                .on_enter(move |world| shoot(world, "tutorial-orbit.png"))
                 .until(elapsed(0.2))
                 .add()
                 // The limb: from outside the ring, looking in past the ship at
@@ -300,7 +300,7 @@ fn main() -> bevy::app::AppExit {
                 .until(elapsed(0.5))
                 .add()
                 .step("capture the limb")
-                .on_enter(move |world| shoot(world, capturing, "variant-flight-limb.png"))
+                .on_enter(move |world| shoot(world, "variant-flight-limb.png"))
                 .until(elapsed(0.2))
                 .add()
                 // The chase: behind and above the ship, canted inboard. The
@@ -329,7 +329,7 @@ fn main() -> bevy::app::AppExit {
                 .until(elapsed(0.5))
                 .add()
                 .step("capture the chase")
-                .on_enter(move |world| shoot(world, capturing, "variant-flight-chase.png"))
+                .on_enter(move |world| shoot(world, "variant-flight-chase.png"))
                 .until(elapsed(0.2))
                 .add()
                 // ACT 2 - the departure. ORBIT is a held state and its shots are
@@ -367,7 +367,7 @@ fn main() -> bevy::app::AppExit {
                 .until(elapsed(0.3))
                 .add()
                 .step("capture the departure burn")
-                .on_enter(move |world| shoot(world, capturing, "feature-autopilot.png"))
+                .on_enter(move |world| shoot(world, "feature-autopilot.png"))
                 .until(elapsed(0.2))
                 .add()
                 // The same burn, wide and clean: back along the ship's own radius
@@ -393,7 +393,7 @@ fn main() -> bevy::app::AppExit {
                 .until(elapsed(0.4))
                 .add()
                 .step("capture the departure wide")
-                .on_enter(move |world| shoot(world, capturing, "variant-flight-departure.png"))
+                .on_enter(move |world| shoot(world, "variant-flight-departure.png"))
                 .until(elapsed(0.2))
                 .add()
                 // Coast, then the flip: the computer swings the ship end-for-end
@@ -432,7 +432,7 @@ fn main() -> bevy::app::AppExit {
                 .until(elapsed(0.3))
                 .add()
                 .step("capture the flip")
-                .on_enter(move |world| shoot(world, capturing, "wiki-flight.png"))
+                .on_enter(move |world| shoot(world, "wiki-flight.png"))
                 .until(elapsed(0.2))
                 .add()
                 // The arrival: the leg ends parked off the beacon, which is the
@@ -464,26 +464,17 @@ fn main() -> bevy::app::AppExit {
                 .until(elapsed(0.4))
                 .add()
                 .step("capture the arrival")
-                .on_enter(move |world| shoot(world, capturing, "variant-flight-arrival.png"))
+                .on_enter(move |world| shoot(world, "variant-flight-arrival.png"))
                 .until(frames(capture_settle_frames(capturing)))
                 .add(),
         );
-        app.add_systems(Startup, (force_resolution, hide_dev_overlays));
+        app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
         // The leg camera re-solves against the ship every frame; it is inert
         // until a beat installs a [`LegCamera`].
         app.add_systems(Update, drive_leg_camera);
     }
 
     app.run()
-}
-
-/// Force the window to 1920x1080 (the 16:9 the web figures use) at startup.
-#[cfg(feature = "debug")]
-fn force_resolution(mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>) {
-    if let Ok(mut window) = windows.single_mut() {
-        window.resolution.set(1920.0, 1080.0);
-        window.resizable = false;
-    }
 }
 
 fn custom_plugin(app: &mut App) {
@@ -645,21 +636,10 @@ fn hud_cinematic(world: &mut World) {
     }
 }
 
-/// Request one shot of the primary window. Captures only when `NOVA_REEL` is
-/// set, so the plain autopilot smoke run drives the same path without writing
-/// files.
-#[cfg(feature = "debug")]
-fn shoot(world: &mut World, capturing: bool, path: &str) {
-    if capturing {
-        capture_window(world, path);
-        info!("flight capture: {path}");
-    }
-}
-
 /// Pin the camera for a framing the follow camera does not give.
 #[cfg(feature = "debug")]
 fn pose(world: &mut World, position: Vec3, look_at: Vec3) {
-    reel_pose_camera(world, position, look_at);
+    pose_camera(world, position, look_at);
 }
 
 /// Pin a STILL framing: the pose, plus stopping any leg camera that would

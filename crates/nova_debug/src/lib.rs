@@ -3,10 +3,10 @@
 //! the world inspector and dev overlays (gravity, section wireframes); the
 //! `harness` module is the Nova adapter over the `nova_autopilot` drivers,
 //! providing the headless-run presets the examples and the `nova_probe`
-//! run-harness drive - `nova_autopilot` (scripted play), `nova_screenshot`
-//! (settled-frame capture) and `nova_reel` (multi-shot reel). Import the presets
-//! from the prelude; the raw driver types stay reachable under
-//! `nova_debug::harness::`.
+//! run-harness drive - `nova_autopilot` (scripted play) and `nova_screenshot`
+//! (settled-frame capture) - plus the one capture idiom the screenshot examples
+//! script their shots with (`shoot`). Import the presets from the prelude; the
+//! raw driver types stay reachable under `nova_debug::harness::`.
 
 #![warn(missing_docs)]
 
@@ -31,10 +31,10 @@ pub mod sections;
 
 /// Glob-import surface: `use nova_debug::prelude::*` brings the harness presets
 /// ([`nova_autopilot`](harness::nova_autopilot),
-/// [`nova_screenshot`](harness::nova_screenshot),
-/// [`nova_reel`](harness::nova_reel)) and [`DebugPlugin`] into scope; the raw
-/// driver types stay under `nova_debug::harness::` to avoid clashing with Bevy's
-/// own `ScreenshotPlugin`.
+/// [`nova_screenshot`](harness::nova_screenshot)), the capture idiom
+/// ([`shoot`](harness::shoot) and its scene dressing) and [`DebugPlugin`] into
+/// scope; the raw driver types stay under `nova_debug::harness::` to avoid
+/// clashing with Bevy's own `ScreenshotPlugin`.
 pub mod prelude {
     // Only the presets are the intended entry point. The raw `AutopilotPlugin` /
     // `ScreenshotPlugin` types stay reachable via `nova_debug::harness::` for the
@@ -56,10 +56,10 @@ pub mod prelude {
     pub use super::{
         debugdump,
         harness::{
-            assert_scenario_loaded, capture_window, hide_dev_overlays, nova_autopilot, nova_reel,
-            nova_screenshot, player_ship_present, reel_beat, reel_pose_camera,
-            scenario_variable_is, script_reports_done, section_gone, ReelBeat, ReelCamera,
-            NOVA_AUTOPILOT_STEP,
+            assert_scenario_loaded, capture_window, capturing, force_capture_resolution,
+            freeze_bodies, hide_dev_overlays, hide_hud, nova_autopilot, nova_screenshot,
+            player_ship_present, pose_camera, scenario_camera_present, scenario_variable_is,
+            script_reports_done, section_gone, shoot, NOVA_AUTOPILOT_STEP,
         },
         screenshot::{ScreenshotHotkeyPlugin, SCREENSHOT_KEYCODE},
         DebugPlugin,

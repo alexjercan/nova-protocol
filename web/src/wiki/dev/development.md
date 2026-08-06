@@ -249,7 +249,7 @@ the `nova_autopilot` crate and are documented on
 recipes; that page is the contract.
 
 Harness runs are SILENT: any harness env (`NOVA_AUTOPILOT`, `NOVA_SHOT`,
-`NOVA_REEL`) zeroes the audio output via `HarnessMute` - Xvfb hides the
+`NOVA_CAPTURE`) zeroes the audio output via `HarnessMute` - Xvfb hides the
 window but not the speakers, and nobody listens to a smoke test. The
 volume SETTING is untouched (persistence and the settings menu never see
 the mute). `NOVA_MUTE=0` forces sound through a harness run;
@@ -407,15 +407,16 @@ Capture (needs a display + GPU; headless CI-style is Xvfb + lavapipe) into a
 staging dir, then package into `web/src/assets/`:
 
 ```sh
-export NOVA_SHOT_DIR=target/reel
-NOVA_REEL=1                  cargo run --example screenshot_scene  --features debug
-NOVA_AUTOPILOT=1 NOVA_REEL=1 cargo run --example screenshot_ui     --features debug
-NOVA_AUTOPILOT=1 NOVA_REEL=1 cargo run --example screenshot_combat --features debug
+export NOVA_SHOT_DIR=target/shots
+NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 cargo run --example screenshot_scene  --features debug
+NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 cargo run --example screenshot_ui     --features debug
+NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 cargo run --example screenshot_combat --features debug
 python3 scripts/gen-web-screenshots.py   # validate + copy; build composites; write the 44x44 icons
 ```
 
-The capture examples run headless under `NOVA_AUTOPILOT`; the reel poses a
-free-fly camera per beat and captures 1920x1080 PNGs. The Python step validates
+The capture examples run headless under `NOVA_AUTOPILOT`: each is one autopilot
+script whose steps pose the camera and shoot, and `NOVA_CAPTURE` is what makes
+those shot steps write 1920x1080 PNGs rather than drive straight through. The Python step validates
 each shot is 16:9, copies it in, builds the composite shots a single capture
 cannot make (e.g. `devlog5-radar-stance-slots`, two lock stances side by side)
 with a stdlib PNG codec, generates the section icons, and reports which shots

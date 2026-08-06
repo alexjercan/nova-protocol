@@ -27,7 +27,7 @@ exports same-named types that would resolve to an inert twin.
 | --- | --- | --- |
 | `AutopilotPlugin` | Walks a list of named steps, each advancing when its predicate over the world holds | Headless smoke runs, driving a scenario while something else measures |
 | `ScreenshotPlugin` | Advances to a target state, settles N frames, captures the primary window to a PNG | One-off visual checks (a phone-width layout regression) |
-| `ScreenshotReelPlugin` | Walks an ordered list of beats - apply, settle, capture, wait for the PNG, advance | The web figures and thumbnails, captured at 1920x1080 |
+| `capture_window` | Writes the primary window to a PNG. Not a driver - the primitive a script's shot step calls | The web figures and thumbnails, captured at 1920x1080 |
 | `completion` | The registration and exit protocol every driver reports to | Ending a run once, when everyone is finished |
 
 `nova_probe` is the layer above: it arms the harness variables, runs an example
@@ -46,12 +46,12 @@ so.
 | --- | --- | --- | --- |
 | `NOVA_AUTOPILOT` | the scripted state driver | `AutopilotPlugin` | any (presence only) |
 | `NOVA_SHOT` | the single settled-frame capture - but it is ignored when `NOVA_AUTOPILOT` is also set: both drivers write `NextState`, so the autopilot wins and `ScreenshotPlugin` stands down with a warning | `ScreenshotPlugin` | `WxH` (for example `390x844`) overrides the window size; anything else is a plain toggle |
-| `NOVA_REEL` | the multi-shot reel | `ScreenshotReelPlugin` | any (presence only) |
-| `NOVA_SHOT_DIR` | nothing on its own | `ScreenshotReelPlugin` and `capture_window` | directory that relative beat paths resolve under; absolute paths ignore it |
+| `NOVA_CAPTURE` | the CAPTURE path of a script that has one: its shot steps write PNGs instead of driving straight through | `capturing()`, which a script reads while building its steps | any (presence only) |
+| `NOVA_SHOT_DIR` | nothing on its own | `capture_window` | directory that relative capture paths resolve under; absolute paths ignore it |
 | `NOVA_AUTOPILOT_DEADLINE` | nothing on its own | the completion watcher | seconds before the run gives up and error-exits naming the laggards (default 120); the RUN-level backstop under a script's own per-step deadlines |
 
-`NOVA_SHOT` and `NOVA_REEL` are deliberately separate: a reel run and a one-off
-capture must never fight over the same window.
+`NOVA_SHOT` and `NOVA_CAPTURE` are deliberately separate: a scripted capture
+run and a one-off snapshot must never fight over the same window.
 
 The table above is the whole contract. These names replaced an older set from
 when the drivers lived in `bevy-common-systems`, and the swap was not purely a
@@ -62,8 +62,8 @@ spellings.
 
 ## The completion protocol
 
-One run can carry several collectors - an autopilot timeline, a frame capture,
-a reel - each finishing on its own clock. Before the protocol, whichever
+One run can carry several collectors - an autopilot timeline, a frame capture -
+each finishing on its own clock. Before the protocol, whichever
 finished first wrote `AppExit` and discarded everyone else's data; that is how
 an 11-frames-short capture silently lost 229 samples. So the exit is negotiated
 instead. Two rules:
@@ -226,6 +226,44 @@ the beat booleans, the per-example `AppExit` guard that panicked when the runway
 expired with beats unplayed, and the runway itself. A step that stalls is now
 the driver's job to report, by name.
 
+### Capturing: one idiom
+
+There is one way to take a screenshot from a script, and it is a step. A shot
+step calls `shoot(world, "name.png")` from `on_enter`, so the act, the framing
+and the shot it produces read top-to-bottom in the step list:
+
+```rust
+.step("frame the planetoid")
+.on_enter(|world| pose_camera(world, EYE, LOOK))
+.until(frames(settle))
+.add()
+.step("shoot wiki-gravity.png")
+.on_enter(|world| shoot(world, "wiki-gravity.png"))
+.until(frames(after_shot))
+.add()
+```
+
+`shoot` is its own gate: it captures only when `NOVA_CAPTURE` is set, so the
+SAME script is both the capture run and the smoke run. Read `capturing()` once
+while building the steps to size the settles - a capture run must let the scene
+still and the PNG land, a smoke run drives straight through, which is what a
+software-rendered CI GPU needs.
+
+`shoot` is asynchronous (the PNG lands at the end of a later frame), which is
+why the shot step holds instead of ending immediately: move the camera in the
+same frame and the pending capture renders the NEXT framing.
+
+The scene dressing is separate from the steps and lives in `nova_debug::harness`
+too: `force_capture_resolution` (a known 16:9 for every shot in the fleet),
+`hide_dev_overlays` / `hide_hud`, and `freeze_bodies` for a posed set that must
+not drift between framings.
+
+There used to be a second idiom - `ScreenshotReelPlugin`, a driver walking a
+list of beats. It was deleted: the beat list was built away from the script that
+produced the state each beat framed, so timing and framing lived in different
+places. `ScreenshotPlugin` is the only capture DRIVER left, and it is for the
+one-shot case with no script at all.
+
 ### Deadlines
 
 A step's `deadline` is IN-STEP seconds and is unset by default, leaving
@@ -254,7 +292,8 @@ Then arm it from the shell - `driven_app` is the crate's own example, the
 ```sh
 NOVA_AUTOPILOT=1 cargo run -p nova_autopilot --example driven_app
 NOVA_SHOT=390x844 cargo run --example scenario_grammar
-NOVA_REEL=1 NOVA_SHOT_DIR=web/figures cargo run --example scenario_grammar
+NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_SHOT_DIR=web/figures \
+  cargo run --example screenshot_scene --features debug
 ```
 
 `crates/nova_autopilot/examples/driven_app.rs` is the end-to-end read: a

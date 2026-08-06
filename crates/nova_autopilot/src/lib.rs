@@ -4,9 +4,10 @@
 //!
 //! ## Ownership boundary
 //!
-//! This crate owns the drivers (scripted autopilot, settled-frame screenshot,
-//! screenshot reel) and the completion protocol that reports when a run has
-//! finished. It does not own anything Nova-specific: the adapters - scenario
+//! This crate owns the drivers (scripted autopilot, settled-frame screenshot),
+//! the [`capture`] primitive their scripts shoot with, and the completion
+//! protocol that reports when a run has finished. It does not own anything
+//! Nova-specific: the adapters - scenario
 //! presets, camera posing, rigid-body freezing, overlay hiding - stay in
 //! `nova_debug` and reach in through caller hooks. The same line runs through
 //! the script vocabulary: generic predicates ([`predicate`]) and generic
@@ -40,17 +41,17 @@
 //! | --- | --- | --- | --- |
 //! | `NOVA_AUTOPILOT` ([`AUTOPILOT_ENV`](autopilot::AUTOPILOT_ENV)) | the scripted state driver | [`AutopilotPlugin`](autopilot::AutopilotPlugin) | any (presence only) |
 //! | `NOVA_SHOT` ([`SCREENSHOT_ENV`](screenshot::SCREENSHOT_ENV)) | the single settled-frame capture, UNLESS `NOVA_AUTOPILOT` is also set - both drivers write `NextState`, so the autopilot wins and [`ScreenshotPlugin`](screenshot::ScreenshotPlugin) stands down with a warning | [`ScreenshotPlugin`](screenshot::ScreenshotPlugin) | `WxH` overrides the window size; anything else is a plain toggle |
-//! | `NOVA_REEL` ([`REEL_ENV`](reel::REEL_ENV)) | the multi-shot reel | [`ScreenshotReelPlugin`](reel::ScreenshotReelPlugin) | any (presence only) |
-//! | `NOVA_SHOT_DIR` ([`SHOT_DIR_ENV`](reel::SHOT_DIR_ENV)) | nothing on its own | [`ScreenshotReelPlugin`](reel::ScreenshotReelPlugin) and [`capture_window`](reel::capture_window) | directory RELATIVE beat paths resolve under; absolute paths ignore it |
+//! | `NOVA_CAPTURE` ([`CAPTURE_ENV`](capture::CAPTURE_ENV)) | the CAPTURE path of a script that has one - it takes its shots instead of driving straight through | [`capturing`](capture::capturing), which the script reads while building its steps | any (presence only) |
+//! | `NOVA_SHOT_DIR` ([`SHOT_DIR_ENV`](capture::SHOT_DIR_ENV)) | nothing on its own | [`capture_window`](capture::capture_window) | directory RELATIVE capture paths resolve under; absolute paths ignore it |
 //! | `NOVA_AUTOPILOT_DEADLINE` ([`DEADLINE_ENV`](completion::DEADLINE_ENV)) | nothing on its own | the [`completion`] watcher | seconds before the run error-exits naming the laggards (default [`DEFAULT_DEADLINE_SECS`](completion::DEFAULT_DEADLINE_SECS)); the RUN-level backstop under a script's own per-step [`deadline`](autopilot::StepBuilder::deadline)s |
 //!
-//! `NOVA_SHOT` and `NOVA_REEL` are deliberately distinct: a reel run and a
-//! one-off capture must never fight over the same window.
+//! `NOVA_SHOT` and `NOVA_CAPTURE` are deliberately distinct: a scripted
+//! capture run and a one-off snapshot must never fight over the same window.
 //!
 //! ## The completion protocol
 //!
 //! One run can carry several collectors (a scripted autopilot, a frame
-//! capture, a reel), each finishing on its own clock. Whoever exits first used
+//! capture), each finishing on its own clock. Whoever exits first used
 //! to discard everyone else's data, so the exit is negotiated instead - see
 //! [`completion`]. Two rules:
 //!
@@ -81,19 +82,22 @@
 // links (`AppExit`, `AUTOPILOT_ENV`, `SCREENSHOT_ENV`) in THIS module's scope,
 // where they do not exist. See 20260802-183340 REVIEW.md R1.3.
 pub mod autopilot;
+pub mod capture;
 pub mod completion;
 pub mod exit;
 pub mod input;
 #[cfg(test)]
 mod log_capture;
 pub mod predicate;
-pub mod reel;
 pub mod screenshot;
 
 /// Glob-import surface: `use nova_autopilot::prelude::*`.
 ///
 /// Every public item of the six modules is re-exported here verbatim, so a
 /// caller never needs a module path.
+///
+/// [`capture_window`](capture::capture_window) is deliberately in here next to
+/// the step vocabulary: shooting is a step's business, not a driver's.
 ///
 /// Names are re-exported unaliased. Two share a name with something outside
 /// `bevy::prelude` or inside it:
@@ -109,19 +113,15 @@ pub mod screenshot;
 pub mod prelude {
     pub use crate::{
         autopilot::{AutopilotLoop, AutopilotPlugin, StepBuilder, AUTOPILOT_ENV},
+        capture::{capture_window, capturing, CAPTURE_ENV, CAPTURE_RESOLUTION, SHOT_DIR_ENV},
         completion::{
-            register, HarnessCompletion, AUTOPILOT, DEADLINE_ENV, DEFAULT_DEADLINE_SECS, REEL,
-            SCREENSHOT,
+            register, HarnessCompletion, AUTOPILOT, DEADLINE_ENV, DEFAULT_DEADLINE_SECS, SCREENSHOT,
         },
         input::{
             click_at, click_named, hover_named, move_cursor, press_key, press_mouse, release_key,
             release_mouse, ui_node_centre, ui_node_rect,
         },
         predicate::{and, any_entity, elapsed, frames, not, resource_where, state_is, Predicate},
-        reel::{
-            capture_window, ReelBeat, ScreenshotReelPlugin, REEL_CAPTURE_RESOLUTION, REEL_ENV,
-            SHOT_DIR_ENV,
-        },
         screenshot::{ScreenshotPlugin, MAX_WAIT_FRAMES, SCREENSHOT_ENV},
     };
 }

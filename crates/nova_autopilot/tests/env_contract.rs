@@ -8,11 +8,8 @@ use nova_autopilot::prelude::*;
 fn the_env_contract_names_are_the_documented_ones() {
     assert_eq!(AUTOPILOT_ENV, "NOVA_AUTOPILOT");
     assert_eq!(SCREENSHOT_ENV, "NOVA_SHOT");
-    assert_eq!(REEL_ENV, "NOVA_REEL");
+    assert_eq!(CAPTURE_ENV, "NOVA_CAPTURE");
     assert_eq!(SHOT_DIR_ENV, "NOVA_SHOT_DIR");
     assert_eq!(DEADLINE_ENV, "NOVA_AUTOPILOT_DEADLINE");
-    assert_eq!(
-        (AUTOPILOT, SCREENSHOT, REEL),
-        ("autopilot", "screenshot", "reel")
-    );
+    assert_eq!((AUTOPILOT, SCREENSHOT), ("autopilot", "screenshot"));
 }

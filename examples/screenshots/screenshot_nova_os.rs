@@ -15,7 +15,7 @@
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - reach Playing, open the computer,
 //!   run the command script, exit clean, capturing nothing.
-//! - `NOVA_AUTOPILOT=1 NOVA_REEL=1`: also capture the shots (staged under
+//! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also capture the shots (staged under
 //!   `NOVA_SHOT_DIR`).
 //!
 //! The beats are autopilot STEPS, so the driver owns completion: it reports done
@@ -31,7 +31,7 @@
 //!
 //! Capture (windowed, real GPU):
 //! ```text
-//! NOVA_SHOT_DIR=target/reel NOVA_AUTOPILOT=1 NOVA_REEL=1 \
+//! NOVA_SHOT_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
 //!   cargo run --example screenshot_nova_os --features debug
 //! ```
 
@@ -56,7 +56,7 @@ fn main() -> bevy::app::AppExit {
 
     #[cfg(feature = "debug")]
     {
-        let capturing = std::env::var_os(nova_protocol::nova_debug::harness::REEL_ENV).is_some();
+        let capturing = capturing();
         // The per-beat settle counts are LOAD-BEARING for the capture path: a
         // beat must be still before its shot, and `save_to_disk` must land
         // before the next beat navigates away. Carried over from the stage
@@ -95,7 +95,7 @@ fn main() -> bevy::app::AppExit {
                 .until(frames(settle))
                 .add()
                 .step("capture the terminal")
-                .on_enter(move |world| shoot(world, capturing, "news-090-nova-os-terminal.png"))
+                .on_enter(move |world| shoot(world, "news-090-nova-os-terminal.png"))
                 .until(frames(after_capture))
                 .add()
                 // Flush the leftover `lo` prefix, then type `map`.
@@ -130,23 +130,14 @@ fn main() -> bevy::app::AppExit {
                 // registers it as a completion collector and the driver reports
                 // done the moment this step ends.
                 .step("capture the ship app")
-                .on_enter(move |world| shoot(world, capturing, "news-090-nova-os-apps.png"))
+                .on_enter(move |world| shoot(world, "news-090-nova-os-apps.png"))
                 .until(frames(after_capture))
                 .add(),
         );
-        app.add_systems(Startup, (force_resolution, hide_dev_overlays));
+        app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
     }
 
     app.run()
-}
-
-/// Force the window to 1920x1080 (the 16:9 the web figures use) at startup.
-#[cfg(feature = "debug")]
-fn force_resolution(mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>) {
-    if let Ok(mut window) = windows.single_mut() {
-        window.resolution.set(1920.0, 1080.0);
-        window.resizable = false;
-    }
 }
 
 fn custom_plugin(app: &mut App) {
@@ -304,15 +295,4 @@ fn press_enter(world: &mut World) {
 fn run_command(world: &mut World, command: &str) {
     type_word(world, command);
     press_enter(world);
-}
-
-/// Request one shot of the primary window. Captures only when `NOVA_REEL` is
-/// set, so the plain autopilot smoke run drives the same beats without writing
-/// files.
-#[cfg(feature = "debug")]
-fn shoot(world: &mut World, capturing: bool, path: &str) {
-    if capturing {
-        capture_window(world, path);
-        info!("nova os capture: {path}");
-    }
 }

@@ -28,7 +28,7 @@
 //! #           on the last selection, so the smoke suite can run it)
 //! ```
 //!
-//! With `NOVA_REEL=1` it also captures `scenarios-picker-<id>.png` per selection
+//! With `NOVA_CAPTURE=1` it also shoots `scenarios-picker-<id>.png` per selection
 //! (staged under `NOVA_SHOT_DIR`), so the campaign indentation and the held
 //! split can be EYEBALLED and not just measured.
 
@@ -262,9 +262,9 @@ fn scenarios_autopilot(world: &mut World, _elapsed: f32) {
         if let (Some(list), Some(details)) = (list, details) {
             info!("scenarios pane widths: list={list:.1} details={details:.1} after {last}");
             state.pending_measure = None;
-            if std::env::var_os("NOVA_REEL").is_some() {
+            if capturing() {
                 let id = last.trim_start_matches("Scenario Row: ");
-                capture_window(world, &format!("scenarios-picker-{id}.png"));
+                shoot(world, &format!("scenarios-picker-{id}.png"));
                 // Let the PNG land BEFORE the next row is clicked: the
                 // capture resolves at the end of the frame, so clicking on
                 // through in this same frame renders the NEXT selection into

@@ -71,15 +71,28 @@ tagged **(breaking)**.
   config-file entry conflicts with the env one and panics Trunk.
 - Dev shell: added `watchexec`.
 - New `nova_autopilot` crate: the automation drivers (autopilot timeline,
-  screenshot, reel) and the run-completion protocol, depending on `bevy` alone.
-  `nova_debug`, `nova_probe` and every example now drive it instead of the
-  `bevy_common_systems` harness copy.
+  screenshot), the `capture` primitive and the run-completion protocol,
+  depending on `bevy` alone. `nova_debug`, `nova_probe` and every example now
+  drive it instead of the `bevy_common_systems` harness copy.
 - Harness environment variables renamed `BCS_* -> NOVA_*`: `BCS_AUTOPILOT ->
-  NOVA_AUTOPILOT`, `BCS_SHOT -> NOVA_SHOT`, `BCS_REEL -> NOVA_REEL`, and
+  NOVA_AUTOPILOT`, `BCS_SHOT -> NOVA_SHOT`, `BCS_REEL -> NOVA_CAPTURE`, and
   `BCS_HARNESS_DEADLINE -> NOVA_AUTOPILOT_DEADLINE` (the deadline's stem moved
   too, so it is not a pure prefix swap). `NOVA_SHOT_DIR` was always spelled
   that way and is unchanged. Any scripted run pinned to the old names arms
   nothing and silently does a plain play-through. **(breaking)**
+- One capture idiom: the screenshot reel is deleted
+  (`ScreenshotReelPlugin`, `ReelBeat`, `nova_reel`, `reel_beat`, `ReelCamera`,
+  `completion::REEL`). A capturing example is now an ordinary autopilot script
+  whose steps call `nova_debug::harness::shoot`, so the act, the framing and the
+  shot read in step order instead of the beat list being built away from the
+  script that produced the state it framed. `screenshot_sections` and
+  `screenshot_scene` were rewritten onto steps; `shoot`,
+  `force_capture_resolution`, `hide_hud`, `freeze_bodies`, `pose_camera` (was
+  `reel_pose_camera`) and the `scenario_camera_present` predicate are the shared
+  pieces. `NOVA_CAPTURE` arms the capture path of a script that has one, so the
+  same file is also the smoke run. `capture_window` stays as the primitive - and
+  `widget_zoo` now shoots through it instead of resolving `NOVA_SHOT_DIR` a
+  second time. **(breaking)**
 - Dev wiki: "Automation harness" page for the `nova_autopilot` drivers.
 - `nova_autopilot`: curated prelude, crate-level env contract table, and a
   `completion` doc example.

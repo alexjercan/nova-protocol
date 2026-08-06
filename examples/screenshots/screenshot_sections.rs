@@ -1,10 +1,10 @@
 //! screenshot_sections: capture the wiki ship-section detail shots - a
-//! closeup of each section type on one built ship - using the screenshot reel.
+//! closeup of each section type on one built ship.
 //!
 //! It builds a ship carrying all five section types (controller, hull, thruster,
-//! turret, torpedo bay) and steps the reel camera to a closeup of each, writing
-//! `wiki-section-<kind>.png`. The scenario camera is posed per beat by the reel
-//! plugin, and the scene is frozen so every section sits still for its shot.
+//! turret, torpedo bay) and drives an autopilot script that turns the ship and
+//! frames a closeup of each, writing `wiki-section-<kind>.png`. The scene is
+//! frozen so every section sits still for its shot.
 //!
 //! The ship is the ENGINE's own section prototypes, not a Kenney hull: these
 //! shots document what each section type IS, so a reader has to be able to tell
@@ -17,9 +17,17 @@
 //! yaws to bring each section round to it, so all five closeups get the same
 //! key, the same rim and the same read.
 //!
+//! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`) - the script is
+//! the whole example, and `NOVA_CAPTURE` only decides whether its shot steps
+//! write a PNG:
+//! - `NOVA_AUTOPILOT=1` alone: the smoke path - turn the ship through every
+//!   closeup, reach Playing, exit clean, capturing nothing.
+//! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also shoot each closeup (staged under
+//!   `NOVA_SHOT_DIR`).
+//!
 //! Capture (windowed, real GPU):
 //! ```text
-//! NOVA_SHOT_DIR=target/reel NOVA_REEL=1 \
+//! NOVA_SHOT_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
 //!   cargo run --example screenshot_sections --features debug
 //! ```
 //!
@@ -48,10 +56,20 @@ fn main() -> bevy::app::AppExit {
 
     #[cfg(feature = "debug")]
     {
-        // Smoke path: reach Playing on the built scene and exit clean.
-        app.add_plugins(nova_autopilot());
-        // Capture path: pose the camera at each section and shoot.
-        app.add_plugins(nova_reel(section_beats()));
+        // Clean frames at a known 16:9: force the window size, drop the dev
+        // overlays and the HUD chrome (the showcase carries no player HUD, so
+        // the fps/version bar is just clutter).
+        app.add_systems(
+            Startup,
+            (force_capture_resolution, hide_dev_overlays, hide_hud),
+        );
+        // The turntable sets the ship's rotation per shot, so nothing may push
+        // it back - but only on a capture run, so a plain `cargo run` keeps its
+        // physics.
+        if capturing() {
+            app.add_systems(Update, freeze_bodies);
+        }
+        app.add_plugins(section_script());
     }
 
     app.run()
@@ -66,7 +84,7 @@ fn setup_ship(mut commands: Commands, game_assets: Res<GameAssets>, sections: Re
 }
 
 /// A single ship carrying every section type, laid out along its axis so each
-/// sits at a known spot the reel camera can frame:
+/// sits at a known spot the script's camera can frame:
 /// torpedo(-2) turret(-1) controller(0) hull(+1) thruster(+2).
 fn section_ship(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
     let section = |id: &str| {
@@ -192,11 +210,18 @@ struct SectionShot {
     path: &'static str,
 }
 
+/// Seconds a step may sit before it is called a stall. Sized with headroom for
+/// a slow software-rendered CI GPU (llvmpipe). An expiry is an error exit
+/// naming the step, so a run that never loads the showcase fails loudly instead
+/// of producing an unframed shot.
+#[cfg(feature = "debug")]
+const STEP_DEADLINE_SECS: f32 = 30.0;
+
 /// A closeup of each section: the ship yaws to present it, the camera holds one
 /// bearing. Mount points match the ship layout in `section_ship`.
 #[cfg(feature = "debug")]
-fn section_beats() -> Vec<ReelBeat> {
-    let shots = [
+fn section_shots() -> [SectionShot; 5] {
+    [
         // Controller: the bridge, read across the spine from the front quarter.
         SectionShot {
             mount: Vec3::ZERO,
@@ -236,22 +261,65 @@ fn section_beats() -> Vec<ReelBeat> {
             distance: 4.0,
             path: "wiki-section-torpedo-bay.png",
         },
-    ];
-    shots.into_iter().map(section_beat).collect()
+    ]
+}
+
+/// The whole driven walk: wait for the showcase, then present-settle-shoot each
+/// section in turn.
+///
+/// Written as autopilot steps rather than a beat list so the turn, the framing
+/// and the shot they produce read top-to-bottom in one place, and so the smoke
+/// path and the capture path are the SAME walk - the only difference is whether
+/// `shoot` is armed.
+#[cfg(feature = "debug")]
+fn section_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
+    let capturing = capturing();
+    // Frames a closeup settles before its shot, and frames the shot is given to
+    // land before the ship turns again. The smoke path writes nothing, so it
+    // drives straight through on minimal waits.
+    let settle = if capturing { 30 } else { 2 };
+    let after_shot = if capturing { 20 } else { 0 };
+
+    let mut script = nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+        // The showcase is live once the loader has spawned its camera; posing
+        // before that poses nothing.
+        .step("wait for the section showcase")
+        .enter(GameStates::Loading)
+        .until(and(
+            state_is(GameStates::Playing),
+            scenario_camera_present(),
+        ))
+        .deadline(STEP_DEADLINE_SECS)
+        .add();
+
+    for shot in section_shots() {
+        let path = shot.path;
+        script = script
+            .step(format!("present {path}"))
+            .on_enter(move |world: &mut World| present_section(world, &shot))
+            .until(frames(settle))
+            .add()
+            // The hold is what gives `save_to_disk` room to land: `shoot` is
+            // asynchronous, and the next turn would otherwise swing the ship
+            // out from under the pending PNG.
+            .step(format!("shoot {path}"))
+            .on_enter(move |world: &mut World| shoot(world, path))
+            .until(frames(after_shot))
+            .add();
+    }
+    script
 }
 
 /// Turn the ship so `shot.faces` points at the camera, then frame the section.
 #[cfg(feature = "debug")]
-fn section_beat(shot: SectionShot) -> ReelBeat {
-    ReelBeat::new(shot.path).apply(move |world: &mut World| {
-        let yaw = presenting_yaw(shot.faces);
-        yaw_ship(world, yaw);
-        // The mount rides round with the hull, so the framed point is the
-        // yawed one - not the authored coordinate.
-        let subject = yaw * shot.mount;
-        let eye = subject + CAMERA_BEARING.normalize() * shot.distance;
-        reel_pose_camera(world, eye, subject);
-    })
+fn present_section(world: &mut World, shot: &SectionShot) {
+    let yaw = presenting_yaw(shot.faces);
+    yaw_ship(world, yaw);
+    // The mount rides round with the hull, so the framed point is the yawed one
+    // - not the authored coordinate.
+    let subject = yaw * shot.mount;
+    let eye = subject + CAMERA_BEARING.normalize() * shot.distance;
+    pose_camera(world, eye, subject);
 }
 
 /// The yaw that brings `faces` round to the camera. Both vectors are flattened
@@ -268,8 +336,8 @@ fn presenting_yaw(faces: Vec3) -> Quat {
     Quat::from_rotation_arc(from, to)
 }
 
-/// Set the showcase ship's rotation. The scene is frozen for the reel, so this
-/// sticks for the beat's settle frames and nothing drifts it back.
+/// Set the showcase ship's rotation. The scene is frozen on a capture run, so
+/// this sticks for the step's settle frames and nothing drifts it back.
 #[cfg(feature = "debug")]
 fn yaw_ship(world: &mut World, yaw: Quat) {
     let mut ships = world.query_filtered::<&mut Transform, With<SpaceshipRootMarker>>();

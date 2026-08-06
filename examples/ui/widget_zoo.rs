@@ -12,7 +12,9 @@
 //! Interactive run:  `cargo run --example widget_zoo`  (drag the slider, click
 //! the Skin control / checks / toggles; `S` also flips the skin).
 //! Capture both skins: `NOVA_ZOO_CAPTURE=1 NOVA_SHOT_DIR=target/zoo cargo run
-//! --example widget_zoo` -> widget_zoo-{phosphor,hardware}.png then exit.
+//! --example widget_zoo --features debug` -> widget_zoo-{phosphor,hardware}.png
+//! then exit. (`--features debug` because the shot goes through the fleet's
+//! shared `capture_window`.)
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
@@ -31,7 +33,6 @@
 use bevy::{
     picking::hover::Hovered,
     prelude::*,
-    render::view::screenshot::{save_to_disk, Screenshot},
     ui_widgets::{
         observe, slider_self_update, Activate, Slider, SliderRange, SliderStep, SliderValue,
         TrackClick, ValueChange,
@@ -78,6 +79,7 @@ fn main() -> AppExit {
     app.init_resource::<DemoLevel>();
     app.init_resource::<ZooChecks>();
     app.insert_resource(ZooSliderValue(0.66));
+    #[cfg(feature = "debug")]
     app.init_resource::<Capture>();
     // The state machine the shared harness drives, and the one-shot transition
     // that satisfies it (DECISION D3). Unconditional: the interactive run must
@@ -89,9 +91,13 @@ fn main() -> AppExit {
         (
             rebuild_body.run_if(resource_changed::<UiSkin>.or_else(resource_changed::<ZooChecks>)),
             toggle_skin_key,
-            drive_capture,
         ),
     );
+    // The two-skin capture pass. Behind `debug` because it shoots through the
+    // shared `capture_window`, which is where `NOVA_SHOT_DIR` is resolved for
+    // the whole fleet - the zoo used to resolve it a second time itself.
+    #[cfg(feature = "debug")]
+    app.add_systems(Update, drive_capture);
 
     // Headless smoke-test harness: inert in a normal run (gated on NOVA_AUTOPILOT).
     #[cfg(feature = "debug")]
@@ -557,12 +563,14 @@ fn flow_row() -> Node {
 
 // ------------------------------- capture ------------------------------------
 
+#[cfg(feature = "debug")]
 #[derive(Resource, Default)]
 struct Capture {
     stage: u32,
     wait: u32,
 }
 
+#[cfg(feature = "debug")]
 fn drive_capture(
     mut commands: Commands,
     mut cap: ResMut<Capture>,
@@ -602,15 +610,18 @@ fn drive_capture(
     }
 }
 
+/// Capture the window to `name` (relative paths stage under `NOVA_SHOT_DIR`).
+///
+/// Queued as a command rather than spawned here: `capture_window` is the
+/// fleet's one capture primitive and takes `&mut World`, which is also what
+/// resolves `NOVA_SHOT_DIR` in exactly one place.
+#[cfg(feature = "debug")]
 fn shoot(name: &str, commands: &mut Commands) {
-    let path = match std::env::var("NOVA_SHOT_DIR") {
-        Ok(dir) if !dir.is_empty() => std::path::Path::new(&dir).join(name),
-        _ => std::path::PathBuf::from(name),
-    };
-    commands
-        .spawn(Screenshot::primary_window())
-        .observe(save_to_disk(path));
-    info!("widget_zoo capture: {name}");
+    let name = name.to_string();
+    commands.queue(move |world: &mut World| {
+        nova_protocol::prelude::capture_window(world, &name);
+        info!("widget_zoo capture: {name}");
+    });
 }
 
 // ------------------------------- harness ------------------------------------

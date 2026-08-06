@@ -77,12 +77,12 @@ pub mod prelude {
     pub use bevy_common_systems::prelude::{
         destructible_body, status_bar, status_bar_item, status_fps_color_fn, status_fps_value_fn,
         status_version_color_fn, status_version_value_fn, CameraShake, CameraShakeInput,
-        CameraShakePlugin, ChaseCamera, ChaseCameraInput, GameObjectives, Health,
-        HealthApplyDamage, HealthZeroMarker, IntegrityDestroyMarker, Objective, ObjectivesPlugin,
-        PDController, PDControllerInput, PDControllerPlugin, PDControllerSystems,
-        PDControllerTarget, PlaySfx, PointRotationOutput, PostProcessingCamera, SfxCommandsExt,
-        SfxPlugin, SkyboxConfig, SoundBank, StatusBarItemConfig, StatusBarRootConfig,
-        WASDCameraController,
+        CameraShakePlugin, ChaseCamera, ChaseCameraInput, DirectionalSphereOrbitOutput,
+        GameObjectives, Health, HealthApplyDamage, HealthZeroMarker, IntegrityDestroyMarker,
+        Objective, ObjectivesPlugin, PDController, PDControllerInput, PDControllerPlugin,
+        PDControllerSystems, PDControllerTarget, PlaySfx, PointRotation, PointRotationOutput,
+        PostProcessingCamera, SfxCommandsExt, SfxPlugin, SkyboxConfig, SoundBank,
+        StatusBarItemConfig, StatusBarRootConfig, WASDCameraController,
     };
 
     pub use super::{

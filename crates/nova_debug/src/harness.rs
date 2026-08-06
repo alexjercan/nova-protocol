@@ -1,11 +1,21 @@
 //! Nova adapter layer over the [`nova_autopilot`] drivers.
 //!
-//! The drivers themselves (scripted autopilot, settled-frame screenshot,
-//! screenshot reel) live in `nova_autopilot`, which depends on `bevy` alone and
-//! knows nothing about Nova. Everything Nova-shaped they need is a caller hook,
-//! and this module is what fills those hooks: the [`GameStates`] presets, the
-//! [`ScenarioLoaded`] smoke assertion, camera posing, body freezing and overlay
-//! hiding. The example fleet talks to this module, not to the crate.
+//! The drivers themselves (scripted autopilot, settled-frame screenshot) live
+//! in `nova_autopilot`, which depends on `bevy` alone and knows nothing about
+//! Nova. Everything Nova-shaped they need is a caller hook, and this module is
+//! what fills those hooks: the [`GameStates`] presets, the [`ScenarioLoaded`]
+//! smoke assertion, camera posing, body freezing and overlay hiding. The
+//! example fleet talks to this module, not to the crate.
+//!
+//! ## One capture idiom
+//!
+//! A capturing example is an ordinary autopilot script whose steps call
+//! [`shoot`] from an `on_enter` hook - act, frame, shoot, in step order. The
+//! same file is also the smoke path: [`shoot`] captures only when
+//! [`capturing`] says the run is armed, so an unarmed run walks the identical
+//! steps and writes nothing. [`force_capture_resolution`], [`hide_dev_overlays`],
+//! [`hide_hud`] and [`freeze_bodies`] are the scene dressing every capturing
+//! example needs; none of them is a driver.
 //!
 //! Both presets are inert unless their env var is set (`NOVA_AUTOPILOT` /
 //! `NOVA_SHOT`), so an example adds them permanently and pays nothing in a
@@ -64,10 +74,12 @@
 use std::sync::Arc;
 
 use avian3d::prelude::RigidBody;
-use bevy::prelude::*;
+use bevy::{prelude::*, window::PrimaryWindow};
 use bevy_common_systems::prelude::WASDCameraController;
+use nova_autopilot::predicate::{any_entity, resource_where};
 pub use nova_autopilot::{
     autopilot::{AutopilotLoop, AutopilotPlugin},
+    capture::{capture_window, capturing, CAPTURE_ENV, CAPTURE_RESOLUTION, SHOT_DIR_ENV},
     // The self-ending examples (menu_scenarios) report the autopilot collector
     // done early rather than idling out the runway. They must reach the SAME
     // protocol instance the drivers register with, so it is re-exported here
@@ -79,12 +91,7 @@ pub use nova_autopilot::{
     // `nova_autopilot` directly (only on `nova_debug` and `nova_probe`), which
     // is why re-exporting it is the route rather than a third path dependency.
     predicate::{not, Predicate},
-    reel::{capture_window, ReelBeat, REEL_ENV},
     screenshot::ScreenshotPlugin,
-};
-use nova_autopilot::{
-    predicate::{any_entity, resource_where},
-    reel::ScreenshotReelPlugin,
 };
 use nova_events::prelude::EntityId;
 use nova_gameplay::{
@@ -324,93 +331,55 @@ fn assert_scenario_loaded_fired(assertion: Res<ScenarioLoadAssertion>) {
     );
 }
 
-/// A camera pose for a reel beat: where the camera sits and what it looks at
-/// (up is +Y), the same framing the `SetCamera` scenario action takes.
+/// Capture the primary window to `path`, but only when this run is on the
+/// capture path ([`capturing`]).
 ///
-/// Nova-only, which is why it never moved into `nova_autopilot`: position +
-/// look-at means nothing there without [`ScenarioCameraMarker`] and
-/// [`ScriptedCameraPose`] to apply it to.
-#[derive(Clone, Copy, Debug)]
-pub struct ReelCamera {
-    /// World-space camera position.
-    pub position: Vec3,
-    /// World-space point the camera looks at.
-    pub look_at: Vec3,
+/// THE capture idiom: a script's shot step is `on_enter(|world| shoot(world,
+/// "wiki-gravity.png"))`, so the same file drives both the capture run and the
+/// smoke run - unarmed, this is a logged no-op and the walk carries on.
+///
+/// Asynchronous, like the [`capture_window`] it wraps: the step must hold long
+/// enough for the PNG to land before the script frames anything else.
+pub fn shoot(world: &mut World, path: &str) {
+    if !capturing() {
+        return;
+    }
+    capture_window(world, path);
+    info!("nova capture: {path}");
 }
 
-impl ReelCamera {
-    /// Construct a pose from a position looking at a target.
-    pub fn new(position: Vec3, look_at: Vec3) -> Self {
-        Self { position, look_at }
+/// Advance once the scenario is live - its camera has spawned.
+///
+/// The scene-is-dressed gate for a capturing script: the scenario camera is
+/// spawned by the loader after the asset load, and a framing step that poses
+/// before it exists poses nothing (see [`pose_camera`]).
+pub fn scenario_camera_present() -> Arc<Predicate> {
+    any_entity::<With<ScenarioCameraMarker>>()
+}
+
+/// Force the primary window to [`CAPTURE_RESOLUTION`] and pin it there, so
+/// every shot in the fleet lands at the same known 16:9 the web figures use.
+/// A `Startup` system; non-resizable so a tiling WM cannot reflow it mid-run.
+pub fn force_capture_resolution(mut windows: Query<&mut Window, With<PrimaryWindow>>) {
+    if let Ok(mut window) = windows.single_mut() {
+        window
+            .resolution
+            .set(CAPTURE_RESOLUTION.0, CAPTURE_RESOLUTION.1);
+        window.resizable = false;
     }
 }
 
-/// A reel beat that poses the scenario camera and captures to `path`: the Nova
-/// filling of [`ReelBeat::apply`], which the driver runs on beat entry.
-///
-/// A beat that keeps the previous framing (two shots of the same view) is a
-/// plain [`ReelBeat::new`] with no `apply` hook.
-pub fn reel_beat(camera: ReelCamera, path: impl Into<String>) -> ReelBeat {
-    ReelBeat::new(path).apply(move |world: &mut World| {
-        reel_pose_camera(world, camera.position, camera.look_at);
-    })
-}
-
-/// Env-gated reel-capture preset for nova examples: once the scenario is live
-/// (its camera exists), step an ordered list of [`ReelBeat`]s - pose, settle,
-/// capture - then report done. Inert unless `NOVA_REEL` is set.
-///
-/// This is the Nova wiring of [`ScreenshotReelPlugin`]: the `ready` predicate is
-/// "a scenario camera exists", the `hide_overlay` hook clears the dev overlays
-/// and drops the HUD to [`HudVisibility::Cinematic`], and [`reel_freeze_bodies`]
-/// pins the scene still for the whole reel. Build the beats with [`reel_beat`].
-///
-/// UI/state-dependent shots (menu, editor, HUD, combat) are NOT expressible as a
-/// [`ReelBeat`] (they need button clicks / state changes); those are driven by
-/// the example's own autopilot script, reusing [`reel_pose_camera`] and
-/// [`capture_window`].
-pub fn nova_reel(beats: Vec<ReelBeat>) -> NovaReelPlugin {
-    NovaReelPlugin { beats }
-}
-
-/// Plugin returned by [`nova_reel`]. Construct it through that preset rather
-/// than directly.
-pub struct NovaReelPlugin {
-    beats: Vec<ReelBeat>,
-}
-
-impl Plugin for NovaReelPlugin {
-    fn build(&self, app: &mut App) {
-        // The driver is inert without the env var on its own, but the freeze
-        // system is ours: gate it here so a normal run keeps its physics.
-        if std::env::var(REEL_ENV).is_err() {
-            return;
-        }
-        app.add_plugins(
-            ScreenshotReelPlugin::new(self.beats.clone())
-                .ready(scenario_camera_present)
-                .hide_overlay(hide_reel_chrome),
-        );
-        app.add_systems(Update, reel_freeze_bodies);
-    }
-}
-
-/// The reel's readiness gate: the scenario is live once its camera has spawned.
-/// A `&World` predicate polled every frame, so it stays a cheap query.
-fn scenario_camera_present(world: &World) -> bool {
-    world
-        .iter_entities()
-        .any(|entity| entity.contains::<ScenarioCameraMarker>())
-}
-
-/// Freeze the scene so every beat is a deterministic still: make every dynamic
+/// Freeze the scene so every shot is a deterministic still: make every dynamic
 /// body static. Scenario props are dynamic rigidbodies, so a spawn impulse or an
-/// idle thruster would drift them across the reel (in zero-g nothing damps the
-/// motion) and a later beat would frame empty space. Pinning them static holds
-/// every position for the whole reel while leaving visuals intact - the
+/// idle thruster would drift them between shots (in zero-g nothing damps the
+/// motion) and a later framing would catch empty space. Pinning them static
+/// holds every position for the whole run while leaving visuals intact - the
 /// photo-mode "freeze the scene" behaviour. Idempotent (only rewrites dynamic
 /// bodies), so it costs nothing once the scene has settled.
-fn reel_freeze_bodies(mut commands: Commands, bodies: Query<(Entity, &RigidBody)>) {
+///
+/// An `Update` system a capturing example adds behind its own [`capturing`]
+/// check, so a normal run keeps its physics.
+pub fn freeze_bodies(mut commands: Commands, bodies: Query<(Entity, &RigidBody)>) {
     for (entity, body) in &bodies {
         // NOTE: RigidBody is an immutable component, so swap it via a command
         // insert.
@@ -447,12 +416,13 @@ pub fn hide_dev_overlays(world: &mut World) {
     }
 }
 
-/// The reel's `hide_overlay` hook: [`hide_dev_overlays`] plus the HUD chrome
-/// (the reel scenes carry no player HUD, so the fps/version bar is just
-/// clutter). Kept out of [`hide_dev_overlays`] so a HUD-showcase capture can
-/// keep the HUD up.
-fn hide_reel_chrome(world: &mut World) {
-    hide_dev_overlays(world);
+/// Drop the HUD to [`HudVisibility::Cinematic`] so the fps/version bar is out
+/// of shot. Kept OUT of [`hide_dev_overlays`] so a HUD-showcase capture can
+/// hide the dev chrome and keep the HUD up; a scene shot calls both.
+///
+/// Called right before a shot rather than once at `Startup` in the examples
+/// that enter the editor or a new scenario, which re-raise the HUD.
+pub fn hide_hud(world: &mut World) {
     if let Some(mut hud) = world.get_resource_mut::<HudVisibility>() {
         *hud = HudVisibility::Cinematic;
     }
@@ -462,16 +432,17 @@ fn hide_reel_chrome(world: &mut World) {
 /// looking at `look_at` by pinning a [`ScriptedCameraPose`] on it (and dropping
 /// [`WASDCameraController`] so free-fly input stops). The loader's enforcer
 /// applies the pose after the WASD sync every frame, so it holds. The world-level
-/// twin of the `SetCamera` scenario action, for examples that script beats from
-/// their own autopilot closure (the UI/combat shots). A no-op with a warning
-/// when no scenario camera is present yet.
-pub fn reel_pose_camera(world: &mut World, position: Vec3, look_at: Vec3) {
+/// twin of the `SetCamera` scenario action, and the framing half of every
+/// capture step. A no-op with a warning when no scenario camera is present yet -
+/// gate the script on [`scenario_camera_present`] to make that a stall the
+/// harness names rather than an unframed shot.
+pub fn pose_camera(world: &mut World, position: Vec3, look_at: Vec3) {
     let camera = {
         let mut query = world.query_filtered::<Entity, With<ScenarioCameraMarker>>();
         query.iter(world).next()
     };
     let Some(camera) = camera else {
-        warn!("reel_pose_camera: no scenario camera present yet");
+        warn!("pose_camera: no scenario camera present yet");
         return;
     };
     if let Ok(mut entity) = world.get_entity_mut(camera) {
@@ -514,10 +485,10 @@ mod tests {
         });
     }
 
-    /// `reel_pose_camera` moves the scenario camera onto the scripted pose and
+    /// `pose_camera` moves the scenario camera onto the scripted pose and
     /// drops WASD control so the free-fly controller cannot overwrite it.
     #[test]
-    fn reel_pose_camera_pins_a_pose_and_drops_wasd() {
+    fn pose_camera_pins_a_pose_and_drops_wasd() {
         let mut world = World::new();
         let camera = world
             .spawn((
@@ -527,7 +498,7 @@ mod tests {
             ))
             .id();
 
-        reel_pose_camera(&mut world, Vec3::new(3.0, 4.0, 5.0), Vec3::ZERO);
+        pose_camera(&mut world, Vec3::new(3.0, 4.0, 5.0), Vec3::ZERO);
 
         let pose = world
             .get::<ScriptedCameraPose>(camera)
@@ -540,36 +511,48 @@ mod tests {
         );
     }
 
-    /// `reel_pose_camera` with no scenario camera is a warn-and-continue no-op.
+    /// `pose_camera` with no scenario camera is a warn-and-continue no-op.
     #[test]
-    fn reel_pose_camera_without_a_camera_is_harmless() {
+    fn pose_camera_without_a_camera_is_harmless() {
         let mut world = World::new();
         let bystander = world.spawn(Transform::default()).id();
-        reel_pose_camera(&mut world, Vec3::ONE, Vec3::ZERO);
+        pose_camera(&mut world, Vec3::ONE, Vec3::ZERO);
         assert!(world.get_entity(bystander).is_ok());
     }
 
-    /// The reel's readiness gate is exactly "the scenario camera spawned": false
-    /// on an empty world, true once the marker exists. The driver polls this
-    /// every frame to hold the first beat until the scene is live.
+    /// The scene-is-dressed gate is exactly "the scenario camera spawned":
+    /// false on a world without one, true once the marker exists. A capturing
+    /// script holds its first framing step on it, because `pose_camera` before
+    /// that point poses nothing.
     #[test]
     fn scenario_camera_present_gates_on_the_marker() {
         let mut world = World::new();
         world.spawn(Transform::default());
-        assert!(!scenario_camera_present(&world));
+        let present = scenario_camera_present();
+        assert!(!present(&world));
 
         world.spawn((ScenarioCameraMarker, Transform::default()));
-        assert!(scenario_camera_present(&world));
+        assert!(present(&world));
     }
 
-    /// `reel_beat` carries the path through to the driver. The pose it wires
-    /// into the beat's `apply` hook is `reel_pose_camera`, pinned by its own
-    /// tests above; the crate's `apply` field is private, so the wiring itself
-    /// is proved end to end by the reel run in the task's manual proof.
+    /// `shoot` on an UNARMED run captures nothing: no `Screenshot` request is
+    /// spawned, so the smoke path of a capturing example walks the identical
+    /// steps and writes no PNG. (The armed branch spawns a bare `Screenshot`
+    /// that only a real render app resolves, so it is proved by the capture
+    /// run in the task's manual proof.)
     #[test]
-    fn reel_beat_carries_the_output_path() {
-        let beat = reel_beat(ReelCamera::new(Vec3::ONE, Vec3::ZERO), "shot.png");
-        assert_eq!(beat.path, "shot.png");
-        assert_eq!(beat.settle_frames, NOVA_SCREENSHOT_SETTLE_FRAMES);
+    fn shoot_captures_nothing_when_the_run_is_not_armed() {
+        // The test binary never sets `NOVA_CAPTURE`, and `capturing()` reads
+        // the process env - so this is the unarmed branch by construction.
+        assert!(!capturing(), "the test binary must not arm {CAPTURE_ENV}");
+
+        let mut world = World::new();
+        shoot(&mut world, "never-written.png");
+
+        let requests = world
+            .query::<&bevy::render::view::screenshot::Screenshot>()
+            .iter(&world)
+            .count();
+        assert_eq!(requests, 0, "an unarmed shoot spawns no capture request");
     }
 }

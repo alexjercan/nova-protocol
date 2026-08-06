@@ -20,11 +20,19 @@
 //! (these shots illustrate gravity, so the body in them had better be one),
 //! and at this range it pulls the yard at about 0.01 u/s^2 - metres of drift
 //! over a long free-fly look, nothing over a capture, which freezes the scene
-//! anyway (`reel_freeze_bodies`).
+//! anyway (`freeze_bodies`).
+//!
+//! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`) - the script
+//! below is the whole example, and `NOVA_CAPTURE` only decides whether its
+//! shot steps write a PNG:
+//! - `NOVA_AUTOPILOT=1` alone: the smoke path - walk every framing, reach
+//!   Playing, exit clean, capturing nothing.
+//! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also shoot each framing (staged under
+//!   `NOVA_SHOT_DIR`).
 //!
 //! Capture (windowed, real GPU):
 //! ```text
-//! NOVA_SHOT_DIR=target/reel NOVA_REEL=1 \
+//! NOVA_SHOT_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
 //!   cargo run --example screenshot_scene --features debug
 //! ```
 //!
@@ -69,10 +77,20 @@ fn main() -> bevy::app::AppExit {
 
     #[cfg(feature = "debug")]
     {
-        // Smoke path: reach Playing on the built scene and exit clean.
-        app.add_plugins(nova_autopilot());
-        // Capture path: pose the camera at each beat and shoot.
-        app.add_plugins(nova_reel(scene_beats()));
+        // Clean frames at a known 16:9: force the window size, drop the dev
+        // overlays and the HUD chrome (this set carries no player HUD, so the
+        // fps/version bar is just clutter).
+        app.add_systems(
+            Startup,
+            (force_capture_resolution, hide_dev_overlays, hide_hud),
+        );
+        // The scene is posed, so it must not drift between framings - but only
+        // on a capture run, so a plain `cargo run` keeps its physics and the
+        // yard really does drift.
+        if capturing() {
+            app.add_systems(Update, freeze_bodies);
+        }
+        app.add_plugins(scene_script());
     }
 
     app.run()
@@ -230,32 +248,92 @@ fn ship(
     })
 }
 
-/// The three pure-3D beats this set produces. First-pass framings: the capture
-/// step reviews them at the site's 16:9 page crop and tunes them here.
+/// Seconds a step may sit before it is called a stall. Sized with headroom for
+/// a slow software-rendered CI GPU (llvmpipe). An expiry is an error exit
+/// naming the step, so a run that never loads the scene fails loudly instead of
+/// producing an unframed shot.
 #[cfg(feature = "debug")]
-fn scene_beats() -> Vec<ReelBeat> {
-    let beat = |eye: Vec3, look: Vec3, name: &str| reel_beat(ReelCamera::new(eye, look), name);
-    vec![
-        // The gravity feature: hero in the near left, the planetoid behind it
-        // down-right, belt rocks between the two for depth.
-        beat(
-            Vec3::new(-6.5, 2.6, 9.5),
-            Vec3::new(0.0, 0.0, -2.0),
-            "feature-gravity.png",
-        ),
-        // The planetoid as the subject: closer in, the body filling the lower
-        // half with the yard's rocks passing in front of it.
-        beat(
-            Vec3::new(40.0, -6.0, -110.0),
-            PLANETOID_POSITION,
-            "wiki-gravity.png",
-        ),
-        // The hero, close: a three-quarter beauty pass where the hull's
-        // sections read.
-        beat(
-            Vec3::new(7.0, 2.5, 9.0),
-            Vec3::new(0.0, 0.2, 0.0),
-            "wiki-sections.png",
-        ),
-    ]
+const STEP_DEADLINE_SECS: f32 = 30.0;
+
+/// One framing of the set: where the camera stands, what it looks at, and the
+/// PNG it produces.
+#[cfg(feature = "debug")]
+struct SceneShot {
+    eye: Vec3,
+    look: Vec3,
+    path: &'static str,
+}
+
+/// The three pure-3D framings this set produces. First-pass framings: the
+/// capture step reviews them at the site's 16:9 page crop and tunes them here.
+#[cfg(feature = "debug")]
+const SCENE_SHOTS: [SceneShot; 3] = [
+    // The gravity feature: hero in the near left, the planetoid behind it
+    // down-right, belt rocks between the two for depth.
+    SceneShot {
+        eye: Vec3::new(-6.5, 2.6, 9.5),
+        look: Vec3::new(0.0, 0.0, -2.0),
+        path: "feature-gravity.png",
+    },
+    // The planetoid as the subject: closer in, the body filling the lower half
+    // with the yard's rocks passing in front of it.
+    SceneShot {
+        eye: Vec3::new(40.0, -6.0, -110.0),
+        look: PLANETOID_POSITION,
+        path: "wiki-gravity.png",
+    },
+    // The hero, close: a three-quarter beauty pass where the hull's sections
+    // read.
+    SceneShot {
+        eye: Vec3::new(7.0, 2.5, 9.0),
+        look: Vec3::new(0.0, 0.2, 0.0),
+        path: "wiki-sections.png",
+    },
+];
+
+/// The whole driven walk: wait for the scene, then pose-settle-shoot each
+/// framing in turn.
+///
+/// Written as autopilot steps rather than a beat list so the framing and the
+/// shot it produces read top-to-bottom in one place, and so the smoke path and
+/// the capture path are the SAME walk - the only difference is whether `shoot`
+/// is armed.
+#[cfg(feature = "debug")]
+fn scene_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
+    let capturing = capturing();
+    // Frames a framing settles before its shot, and frames the shot is given to
+    // land before the camera moves on. The smoke path writes nothing, so it
+    // drives straight through on minimal waits - which is what a slow
+    // software-rendered CI GPU needs.
+    let settle = if capturing { 30 } else { 2 };
+    let after_shot = if capturing { 20 } else { 0 };
+
+    let mut script = nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+        // The scene is live once the loader has spawned its camera; posing
+        // before that poses nothing.
+        .step("wait for the drydock scene")
+        .enter(GameStates::Loading)
+        .until(and(
+            state_is(GameStates::Playing),
+            scenario_camera_present(),
+        ))
+        .deadline(STEP_DEADLINE_SECS)
+        .add();
+
+    for shot in SCENE_SHOTS {
+        let (eye, look, path) = (shot.eye, shot.look, shot.path);
+        script = script
+            .step(format!("frame {path}"))
+            .on_enter(move |world: &mut World| pose_camera(world, eye, look))
+            .until(frames(settle))
+            .add()
+            // The hold is what gives `save_to_disk` room to land: `shoot` is
+            // asynchronous, and the next framing would otherwise move the
+            // camera out from under the pending PNG.
+            .step(format!("shoot {path}"))
+            .on_enter(move |world: &mut World| shoot(world, path))
+            .until(frames(after_shot))
+            .add();
+    }
+    script
 }

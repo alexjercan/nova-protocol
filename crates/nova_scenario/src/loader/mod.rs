@@ -365,7 +365,7 @@ impl Plugin for ScenarioLoaderPlugin {
         app.register_type::<PendingSkyboxSwap>();
         app.add_systems(Update, apply_pending_skybox_swaps.run_if(scenario_is_live));
 
-        // Scripted-camera override (photo mode / the screenshot reel): the
+        // Scripted-camera override (photo mode / the capture scripts): the
         // `SetCamera` action pins a `ScriptedCameraPose` on the scenario camera;
         // enforce it in PostUpdate AFTER the WASD sync so the scripted pose wins
         // the last write before render. The free-fly controller's state machine
@@ -382,8 +382,9 @@ impl Plugin for ScenarioLoaderPlugin {
 
 /// A scripted camera pose that overrides the free-fly WASD controller, applied
 /// every frame by `enforce_scripted_camera_pose`. Set by the `SetCamera`
-/// scenario action (photo mode) and the screenshot reel; while present it pins
-/// the [`ScenarioCameraMarker`] camera at `position` looking at `look_at`.
+/// scenario action (photo mode) and the capture scripts (`pose_camera`); while
+/// present it pins the [`ScenarioCameraMarker`] camera at `position` looking at
+/// `look_at`.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct ScriptedCameraPose {
     /// World-space camera position.

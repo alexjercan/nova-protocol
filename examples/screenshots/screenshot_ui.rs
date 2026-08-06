@@ -1,5 +1,5 @@
 //! screenshot_ui: capture the UI/state-dependent web screenshots that a
-//! scenario reel cannot make - the menu, its two panels and the sandbox editor -
+//! pure scene capture cannot make - the menu, its two panels and the editor -
 //! by driving the shipped app (`editor_app`) through an autopilot script.
 //!
 //! The pure-3D scene shots live in `screenshot_scene`; this example covers the
@@ -23,12 +23,12 @@
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - drive the whole walk, reach
 //!   Playing, exit clean, capturing nothing.
-//! - `NOVA_AUTOPILOT=1 NOVA_REEL=1`: also capture each beat's PNG (staged under
+//! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also capture each beat's PNG (staged under
 //!   `NOVA_SHOT_DIR`).
 //!
 //! Capture (windowed, real GPU):
 //! ```text
-//! NOVA_SHOT_DIR=target/reel NOVA_AUTOPILOT=1 NOVA_REEL=1 \
+//! NOVA_SHOT_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
 //!   cargo run --example screenshot_ui --features debug
 //! ```
 //!
@@ -91,7 +91,7 @@ const EDITOR_EYE: Vec3 = Vec3::new(4.44, 3.17, 7.25);
 const EDITOR_LOOK: Vec3 = Vec3::new(0.62, 0.25, 0.5);
 
 /// Frames a beat settles before its shot. The long settles matter ONLY for the
-/// capture path (`NOVA_REEL`): the scene/UI must be still and the PNG must land
+/// capture path (`NOVA_CAPTURE`): the scene/UI must be still and the PNG must land
 /// before we navigate away. The smoke path (`NOVA_AUTOPILOT` alone) captures
 /// nothing, so it drives straight through on minimal waits - just enough frames
 /// for the next button to spawn and the state transition to apply. That keeps
@@ -150,7 +150,7 @@ fn main() -> bevy::app::AppExit {
         // Clean frames at a known 16:9 size: force the window resolution and drop
         // the dev overlays. The HUD chrome is re-hidden right before each capture
         // (entering the editor re-raises it).
-        app.add_systems(Startup, (force_resolution, hide_dev_overlays));
+        app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
         app.add_plugins(ui_script());
     }
 
@@ -161,15 +161,14 @@ fn main() -> bevy::app::AppExit {
 /// shot per state.
 #[cfg(feature = "debug")]
 fn ui_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
-    let capturing = std::env::var_os(nova_protocol::nova_debug::harness::REEL_ENV).is_some();
-    let settle = Settle::new(capturing);
-    let shoot = move |path: &'static str| {
+    let settle = Settle::new(capturing());
+    // The HUD is re-raised by entering the editor, so it is dropped again right
+    // before every shot rather than once at `Startup`. `shoot` itself is the
+    // capture gate: unarmed, this whole walk runs and writes nothing.
+    let shot = |path: &'static str| {
         move |world: &mut World| {
-            if capturing {
-                hide_hud(world);
-                capture_window(world, path);
-                info!("ui capture: {path}");
-            }
+            hide_hud(world);
+            shoot(world, path);
         }
     };
 
@@ -185,7 +184,7 @@ fn ui_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates
         // Hide the HUD first, and let the PNG land BEFORE navigating away:
         // clicking on in the same frame captured a black mid-teardown frame.
         .step("capture the main menu")
-        .on_enter(shoot("tutorial-menu.png"))
+        .on_enter(shot("tutorial-menu.png"))
         .until(frames(settle.after_capture))
         .add()
         // The Settings panel: an overlay over the menu, not its own state.
@@ -204,7 +203,7 @@ fn ui_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates
         .until(frames(1))
         .add()
         .step("capture the settings panel")
-        .on_enter(shoot("wiki-settings.png"))
+        .on_enter(shot("wiki-settings.png"))
         .until(frames(settle.after_capture))
         .add()
         .click("close Settings", "Settings Back Button", settle)
@@ -238,7 +237,7 @@ fn ui_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates
         .until(frames(1))
         .add()
         .step("capture the scenarios picker")
-        .on_enter(shoot("news-090-scenario-campaigns.png"))
+        .on_enter(shot("news-090-scenario-campaigns.png"))
         .until(frames(settle.after_capture))
         .add()
         .click("leave the picker", "Scenarios Back Button", settle)
@@ -309,33 +308,15 @@ fn ui_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates
         // registers it as a completion collector and the driver reports done the
         // moment this step ends.
         .step("capture the editor with the built ship")
-        .on_enter(shoot("feature-editor.png"))
+        .on_enter(shot("feature-editor.png"))
         .until(frames(settle.after_capture))
         .add()
-}
-
-/// Force the window to 1920x1080 (the 16:9 the web figures use) at startup.
-#[cfg(feature = "debug")]
-fn force_resolution(mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>) {
-    if let Ok(mut window) = windows.single_mut() {
-        window.resolution.set(1920.0, 1080.0);
-        window.resizable = false;
-    }
-}
-
-/// Set the HUD to its clean tier so the fps/version bar is out of shot. Called
-/// right before each capture because entering the editor re-raises the HUD.
-#[cfg(feature = "debug")]
-fn hide_hud(world: &mut World) {
-    if let Some(mut hud) = world.get_resource_mut::<HudVisibility>() {
-        *hud = HudVisibility::Cinematic;
-    }
 }
 
 /// Put the editor's camera on [`EDITOR_EYE`] and PIN it there.
 ///
 /// Pinned with a `ScriptedCameraPose` - the same component the scenario
-/// `SetCamera` action and the screenshot reel use - rather than by writing the
+/// `SetCamera` action and the scene captures use - rather than by writing the
 /// Transform once. The editor camera is a free-fly WASD camera, and that
 /// controller's state machine rewrites the Transform every frame whether or not
 /// any key is down (removing the component does not stop it: its private state

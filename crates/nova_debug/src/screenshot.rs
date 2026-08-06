@@ -3,7 +3,7 @@
 //! Under the `debug` feature, pressing [`SCREENSHOT_KEYCODE`] (F12) captures the
 //! primary window and writes it to the user's Downloads directory as
 //! `<unix-millis>.png`. It reuses Bevy's `Screenshot::primary_window()` +
-//! `save_to_disk` primitive (the same one the reel harness and the `Screenshot`
+//! `save_to_disk` primitive (the same one the capture harness and the `Screenshot`
 //! scenario action use), driven straight from a `Commands` system rather than an
 //! exclusive-`World` one.
 //!

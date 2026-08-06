@@ -69,7 +69,7 @@ Each step below becomes its own child task at planning time.
       `examples_name_drivers_through_the_nova_harness` (`:227`). Front half of
       the `20260731-205553` warning cleanup: the prelude is why that task is
       stalled.
-- [ ] 3. **One capture idiom: promote `shoot`, delete the reel.** Promote
+- [x] 3. **One capture idiom: promote `shoot`, delete the reel.** Promote
       `shoot` to `nova_debug::harness::shoot` (collapses three copies:
       `screenshot_flight.rs:646`, `screenshot_nova_os.rs:282`,
       `screenshot_combat.rs:856`); fold `examples/ui/widget_zoo.rs:605` and
@@ -376,3 +376,128 @@ real dependency that the glob was hiding, and it is the kind of thing a future
 step can move to `nova_core` depending on bcs directly. The step's estimate
 that the blast radius was unmeasurable was right, and the measurement cost five
 builds; nothing outside the workspace broke, which is the useful finding.
+
+## Close-out - step 3: one capture idiom
+
+**What.** The screenshot reel is deleted and `shoot` is the fleet's single
+capture idiom.
+
+- `crates/nova_autopilot/src/reel.rs` and `tests/reel.rs` are gone. The
+  primitive they carried moved to a new `crates/nova_autopilot/src/capture.rs`:
+  `capture_window`, the `NOVA_SHOT_DIR` resolution and its unit test,
+  `CAPTURE_RESOLUTION`, and a new `capturing()` reading `CAPTURE_ENV`.
+  `ScreenshotReelPlugin`, `ReelBeat` and `completion::REEL` are gone with the
+  driver.
+- `nova_debug::harness` gains `shoot(world, path)` - capture + log, gated on
+  `capturing()` - which collapses the three identical `fn shoot(world,
+  capturing, path)` copies (`screenshot_flight`, `screenshot_nova_os`,
+  `screenshot_combat`) and `screenshot_ui`'s closure. `nova_reel`,
+  `NovaReelPlugin`, `reel_beat`, `ReelCamera` and `hide_reel_chrome` are gone;
+  `reel_pose_camera -> pose_camera` and `reel_freeze_bodies -> freeze_bodies`
+  (now public) survive the driver they were named for, and
+  `scenario_camera_present` became a public `Predicate` builder so a script can
+  hold a step on it.
+- The reel's non-beat responsibilities became named, shared pieces rather than
+  plugin internals: `force_capture_resolution` (collapsing FOUR copies of
+  `fn force_resolution`), `hide_hud` (from `screenshot_ui`'s local copy plus
+  `hide_reel_chrome`'s HUD half), `freeze_bodies`.
+- `screenshot_sections.rs` and `screenshot_scene.rs` are rewritten from
+  `nova_reel(beats)` onto autopilot steps - the real cost of the step. Each is
+  now one script (`section_script` / `scene_script`) that waits on
+  `scenario_camera_present()`, then walks present/frame -> settle -> shoot per
+  shot. Both files lost `nova_autopilot()`: the ONE script is now both paths.
+- `examples/ui/widget_zoo.rs` shoots through `capture_window` (queued as a
+  command, since the driving system holds `Commands`), deleting its own
+  `NOVA_SHOT_DIR` resolution; its capture pass moved behind `--features debug`
+  because `capture_window` lives there. `examples/ui/menu_scenarios.rs` uses
+  `capturing()` + `shoot`.
+- **Env rename, `NOVA_REEL -> NOVA_CAPTURE`** (`REEL_ENV -> CAPTURE_ENV`), and
+  the staging dir in the docs/script `target/reel -> target/shots`. Also
+  `HarnessMute`'s env list (`nova_gameplay/src/settings.rs`), the wiki
+  automation-harness + development pages (with a new "Capturing: one idiom"
+  section), `scripts/gen-web-screenshots.py`, and the CHANGELOG's
+  still-Unreleased `BCS_* -> NOVA_*` entry, amended in place rather than given a
+  second breaking note.
+- Out of scope but found on the way: master did not compile. Step 2's prelude
+  narrowing dropped two names still used by examples, so `cargo check --features
+  debug --examples` failed on `screenshot_combat` (`PointRotation`) and
+  `hud_range` (`DirectionalSphereOrbitOutput`). Both added to nova_gameplay's
+  explicit bcs list - step 2's own stated procedure, just missed.
+
+**Why.** A beat list is built away from the script that produces the state each
+beat frames, so timing and framing lived in different files; as steps they read
+act -> frame -> shoot in source order. `NOVA_REEL` naming the capture flag was a
+lie once the reel was gone, and it had never shipped (the rename entry is still
+under `[Unreleased]`), so amending it costs no released consumer.
+
+**Alternatives.** (a) Keep `REEL_ENV`'s value and rename only the const -
+rejected: a const/value mismatch is worse drift than either name alone.
+(b) Give scene/sections a small "capture preset" plugin carrying the resolution,
+chrome and freeze wiring - rejected as a mini-reel; the three pieces are three
+named functions an example adds itself, which is what makes the file readable.
+(c) Make `shoot` take `capturing: bool` like the copies it replaces - rejected:
+every caller passed the same expression, so the gate belongs inside.
+(d) Fold `crates/nova_scenario/src/actions/view.rs`'s third `NOVA_SHOT_DIR`
+resolution onto `capture_window` - **NOT DONE**, see below.
+
+**Deliberately not done.** `crates/nova_scenario/src/actions/view.rs:70` still
+resolves `NOVA_SHOT_DIR` itself. `nova_scenario` is a SHIPPING crate and does
+not depend on `nova_autopilot`; folding it would put an automation-driver crate
+into the game binary to save a six-line path join. The task text flags it
+parenthetically as a known third copy rather than instructing the fold, and this
+reading is recorded here so the reviewer can overrule it cheaply.
+
+**Difficulties.** The reel owned four things, not one, and only the beat cadence
+was dead: the window resize, the overlay/HUD hide, the body freeze and the
+scene-ready gate all had to land somewhere before the driver could go. The
+freeze and the gate are the load-bearing ones - without the freeze the posed set
+drifts between shots, and without the gate `pose_camera` warns and poses nothing
+(the step then shoots an unframed frame rather than failing). Both converted
+scripts hold their first step on `and(state_is(Playing),
+scenario_camera_present())` for exactly that reason.
+
+The first headless run appeared to prove the conversion broken - `step 'wait for
+the drydock scene' stalled after 30.0s, state Loading`. It was the rig, not the
+code: running `./target/debug/examples/screenshot_scene` directly resolves
+assets against the binary's directory, so the load never completed. Under
+`cargo run` from the repo root both examples pass.
+
+**Evidence.**
+- `cargo check --workspace --features debug --all-targets` clean;
+  `cargo fmt --all` clean. `cargo doc --no-deps -p nova_autopilot -p nova_debug`
+  produces the SAME 5 pre-existing `nova_autopilot is both a function and a
+  crate` warnings as master (counted on both trees) - no new rustdoc warning.
+- `cargo test -p nova_autopilot --lib capture` 1/1;
+  `--test env_contract` 1/1 (rewritten for `CAPTURE_ENV`, `REEL` collector
+  dropped); `cargo test -p nova_debug --lib harness` 5/5, including the new
+  `shoot_captures_nothing_when_the_run_is_not_armed`.
+- RUN, not just checked (Xvfb `:99`, `cargo run --features debug`):
+  - `screenshot_scene` capture path (`NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`): exit 0,
+    `reached Playing`, `cycle complete, no panic (t=5.6s)`, all three PNGs on
+    disk at 1920x1080.
+  - `screenshot_sections` capture path: exit 0, `cycle complete (t=8.1s)`, all
+    five section PNGs at 1920x1080.
+  - Both SMOKE paths (`NOVA_AUTOPILOT=1` alone): exit 0, `cycle complete
+    (t=1.7s)` each, ZERO `nova capture` lines and the shot dir never created -
+    the one script really is both paths, and the smoke path is ~3-5x shorter.
+  - Framing preserved across the rewrite: the new `feature-gravity.png` is the
+    shipped `web/src/assets/feature-gravity.png` framing (same camera, same hero
+    placement); the differences are rock mesh/lighting from the intervening
+    gravity and scenario-lighting tasks, not from this step.
+- DoD proof `test ! -f crates/nova_autopilot/src/reel.rs` passes. The companion
+  grep `! rg -n "ScreenshotReelPlugin|ReelBeat" crates examples` has ONE
+  surviving hit, reported rather than papered over:
+  `crates/nova_gameplay/src/lib.rs:73`, the comment naming the bcs harness twins
+  that must never be re-exported. `bevy_common_systems` still ships that type;
+  the comment is a guard on the explicit list, so it stays.
+- The step-4 proof `! rg -n "if capturing" examples/screenshots` still fails, as
+  expected: the per-path settle split is exactly what step 4 unifies.
+
+**Reflection.** The step's cost estimate was right about which part was
+expensive and wrong about why. The two file rewrites were mechanical once the
+step shape was settled; the expensive part was inventorying what the plugin did
+BESIDES walk beats, because none of it was in the plugin's name. A driver that
+also owns window sizing, chrome, physics and a readiness gate does not announce
+those in its type - the only way to find them was to read `build`. Worth
+remembering when the next "delete the driver" step is scoped: budget for the
+driver's undeclared side jobs, not for its headline behaviour.

@@ -63,12 +63,12 @@
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - reach Playing, drive the whole
 //!   script, exit clean, capturing nothing.
-//! - `NOVA_AUTOPILOT=1 NOVA_REEL=1`: also capture the shots (staged under
+//! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also capture the shots (staged under
 //!   `NOVA_SHOT_DIR`).
 //!
 //! Capture (windowed, real GPU):
 //! ```text
-//! NOVA_SHOT_DIR=target/reel NOVA_AUTOPILOT=1 NOVA_REEL=1 \
+//! NOVA_SHOT_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
 //!   cargo run --example screenshot_combat --features debug
 //! ```
 //!
@@ -180,7 +180,7 @@ fn main() -> bevy::app::AppExit {
 
     #[cfg(feature = "debug")]
     {
-        let capturing = std::env::var_os(nova_protocol::nova_debug::harness::REEL_ENV).is_some();
+        let capturing = capturing();
         // One step per beat, and every capture gets its OWN step: Bevy services
         // one primary-window capture per frame, so the rule is structural here
         // rather than a guard inside a shared step.
@@ -207,7 +207,7 @@ fn main() -> bevy::app::AppExit {
                 .deadline(12.0)
                 .add()
                 .step("capture the radar lock")
-                .on_enter(move |world| shoot(world, capturing, "tutorial-radar-lock.png"))
+                .on_enter(move |world| shoot(world, "tutorial-radar-lock.png"))
                 .until(elapsed(0.2))
                 .add()
                 // The radar instrument as its own subject: the same latched nav
@@ -223,7 +223,7 @@ fn main() -> bevy::app::AppExit {
                 .until(elapsed(0.4))
                 .add()
                 .step("capture the radar")
-                .on_enter(move |world| shoot(world, capturing, "wiki-radar.png"))
+                .on_enter(move |world| shoot(world, "wiki-radar.png"))
                 .until(elapsed(0.2))
                 .add()
                 // Hand the camera back before the leg: it is flown over the
@@ -306,7 +306,7 @@ fn main() -> bevy::app::AppExit {
                 .step("capture the contextual HUD")
                 .on_enter(move |world| {
                     hud_instrument(world);
-                    shoot(world, capturing, "news-090-contextual-hud.png");
+                    shoot(world, "news-090-contextual-hud.png");
                 })
                 .until(elapsed(0.3))
                 .add()
@@ -331,14 +331,14 @@ fn main() -> bevy::app::AppExit {
                 .step("capture the combat frame")
                 .on_enter(move |world| {
                     hud_instrument(world);
-                    shoot(world, capturing, "feature-combat.png");
+                    shoot(world, "feature-combat.png");
                 })
                 .until(elapsed(0.2))
                 .add()
                 .step("capture the combat lock")
                 .on_enter(move |world| {
                     hud_instrument(world);
-                    shoot(world, capturing, "tutorial-combat-lock.png");
+                    shoot(world, "tutorial-combat-lock.png");
                 })
                 .until(elapsed(0.2))
                 .add()
@@ -351,7 +351,7 @@ fn main() -> bevy::app::AppExit {
                 .step("capture the HUD in combat")
                 .on_enter(move |world| {
                     hud_instrument(world);
-                    shoot(world, capturing, "feature-hud.png");
+                    shoot(world, "feature-hud.png");
                 })
                 .until(elapsed(0.2))
                 .add()
@@ -364,7 +364,7 @@ fn main() -> bevy::app::AppExit {
                 .step("capture the HUD reference")
                 .on_enter(move |world| {
                     hud_instrument(world);
-                    shoot(world, capturing, "wiki-hud.png");
+                    shoot(world, "wiki-hud.png");
                 })
                 .until(elapsed(0.2))
                 .add()
@@ -382,7 +382,7 @@ fn main() -> bevy::app::AppExit {
                 .until(elapsed(0.5))
                 .add()
                 .step("capture the exchange")
-                .on_enter(move |world| shoot(world, capturing, "wiki-combat.png"))
+                .on_enter(move |world| shoot(world, "wiki-combat.png"))
                 .until(elapsed(0.2))
                 .add()
                 // The receiving end: past the raider's shoulder back down the
@@ -400,7 +400,7 @@ fn main() -> bevy::app::AppExit {
                 .until(elapsed(0.5))
                 .add()
                 .step("capture the readability shot")
-                .on_enter(move |world| shoot(world, capturing, "news-090-combat-readability.png"))
+                .on_enter(move |world| shoot(world, "news-090-combat-readability.png"))
                 .until(elapsed(0.2))
                 .add()
                 // The juice: one section blown off the raider through the
@@ -424,7 +424,7 @@ fn main() -> bevy::app::AppExit {
                 .until(frames(12))
                 .add()
                 .step("capture the juice")
-                .on_enter(move |world| shoot(world, capturing, "feature-juice.png"))
+                .on_enter(move |world| shoot(world, "feature-juice.png"))
                 .until(elapsed(0.2))
                 .add()
                 // ACT 3 - the ordnance, and the set's variant frames. A dead
@@ -476,7 +476,7 @@ fn main() -> bevy::app::AppExit {
                 .deadline(12.0)
                 .add()
                 .step("capture the torpedo run")
-                .on_enter(move |world| shoot(world, capturing, "wiki-combat-torpedo.png"))
+                .on_enter(move |world| shoot(world, "wiki-combat-torpedo.png"))
                 .until(elapsed(0.2))
                 .add()
                 .step("wait for the detonation")
@@ -503,7 +503,7 @@ fn main() -> bevy::app::AppExit {
                 .until(elapsed(0.5))
                 .add()
                 .step("capture the aftermath")
-                .on_enter(move |world| shoot(world, capturing, "wiki-combat-aftermath.png"))
+                .on_enter(move |world| shoot(world, "wiki-combat-aftermath.png"))
                 .until(elapsed(0.2))
                 .add()
                 // The exchange again, tighter and lower: the wide `wiki-combat`
@@ -520,29 +520,21 @@ fn main() -> bevy::app::AppExit {
                 .until(elapsed(0.4))
                 .add()
                 .step("capture the tight exchange")
-                .on_enter(move |world| shoot(world, capturing, "variant-combat-tight.png"))
+                .on_enter(move |world| shoot(world, "variant-combat-tight.png"))
                 .until(frames(capture_settle_frames(capturing)))
                 .add(),
         );
-        app.add_systems(Startup, (force_resolution, hide_dev_overlays));
+        app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
         // Only under the script (`NOVA_AUTOPILOT`, named literally - the
-        // harness re-exports `REEL_ENV` but not the autopilot's own): a plain
-        // run is the owner flying this set, and a pinned ship cannot be flown.
+        // harness re-exports `CAPTURE_ENV` but not the autopilot's own): a
+        // plain run is the owner flying this set, and a pinned ship cannot be
+        // flown.
         if std::env::var_os("NOVA_AUTOPILOT").is_some() {
             app.add_systems(Update, pin_player.run_if(resource_exists::<HoldStation>));
         }
     }
 
     app.run()
-}
-
-/// Force the window to 1920x1080 (the 16:9 the web figures use) at startup.
-#[cfg(feature = "debug")]
-fn force_resolution(mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>) {
-    if let Ok(mut window) = windows.single_mut() {
-        window.resolution.set(1920.0, 1080.0);
-        window.resizable = false;
-    }
 }
 
 fn custom_plugin(app: &mut App) {
@@ -855,21 +847,10 @@ fn hud_cinematic(world: &mut World) {
     }
 }
 
-/// Request one shot of the primary window. Captures only when `NOVA_REEL` is
-/// set, so the plain autopilot smoke run drives the same path without writing
-/// files.
-#[cfg(feature = "debug")]
-fn shoot(world: &mut World, capturing: bool, path: &str) {
-    if capturing {
-        capture_window(world, path);
-        info!("combat capture: {path}");
-    }
-}
-
 /// Pin the camera for a framing the follow camera does not give.
 #[cfg(feature = "debug")]
 fn pose(world: &mut World, position: Vec3, look_at: Vec3) {
-    reel_pose_camera(world, position, look_at);
+    pose_camera(world, position, look_at);
 }
 
 /// Hand the camera back to the game.

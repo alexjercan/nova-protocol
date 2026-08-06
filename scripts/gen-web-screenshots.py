@@ -36,11 +36,11 @@ without any GPU-captured asset.
 Capturing the screenshots (needs a display + a GPU; use Xvfb + lavapipe headless)
 into the staging dir, then packaging them:
 
-    NOVA_SHOT_DIR=target/reel NOVA_REEL=1 \\
+    NOVA_SHOT_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \\
         cargo run --example screenshot_scene --features debug
-    NOVA_SHOT_DIR=target/reel NOVA_AUTOPILOT=1 NOVA_REEL=1 \\
+    NOVA_SHOT_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \\
         cargo run --example screenshot_ui --features debug
-    NOVA_SHOT_DIR=target/reel NOVA_AUTOPILOT=1 NOVA_REEL=1 \\
+    NOVA_SHOT_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \\
         cargo run --example screenshot_combat --features debug
     python3 scripts/gen-web-screenshots.py            # stage -> web/src/assets
 
@@ -60,7 +60,7 @@ import sys
 import zlib
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_STAGE = os.path.join(REPO_ROOT, "target", "reel")
+DEFAULT_STAGE = os.path.join(REPO_ROOT, "target", "shots")
 WEB_SRC = os.path.join(REPO_ROOT, "web", "src")
 WEB_ASSETS = os.path.join(REPO_ROOT, "web", "src", "assets")
 
@@ -135,7 +135,7 @@ THUMBNAILS = [
 # site references neither (task 20260805-105154).
 COMPOSITES = []
 
-# Composite output frame (16:9, the figure resolution the capture reel uses).
+# Composite output frame (16:9, the figure resolution the capture examples use).
 COMPOSITE_SIZE = (1920, 1080)
 
 # Wiki mechanic pages that reuse a captured shot of the same subject (no separate

@@ -108,7 +108,7 @@ pub fn aimed_light_base(
     }
 }
 
-/// The key/rim/fill offsets, colors and illuminances the screenshot reel was
+/// The key/rim/fill offsets, colors and illuminances the screenshot set was
 /// shot with (`examples/screenshots/shared/kit.rs`, before this task moved the
 /// rig into authored content). Offsets are unit-scale: a scene multiplies them
 /// by [`ThreePointRig::scale`].
@@ -159,7 +159,7 @@ pub struct ThreePointRig {
     pub prefix: String,
     /// The world point all three lights aim at.
     pub target: Vec3,
-    /// Multiplier on the rig's unit offsets. `1.0` is the screenshot reel's
+    /// Multiplier on the rig's unit offsets. `1.0` is the screenshot set's
     /// original hero-shot rig verbatim.
     pub scale: f32,
 }
