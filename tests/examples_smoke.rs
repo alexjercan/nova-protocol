@@ -75,17 +75,15 @@ const SCREENSHOTS: &[&str] = &[
     "screenshot_sections",
     "screenshot_flight",
     "screenshot_nova_os",
+    "render_scale_shot",
 ];
 
 /// Cataloged examples deliberately NOT in any smoke list - each entry is a
 /// decision, not an omission. `catalog_matches_disk` fails if an example is
 /// neither smoked nor listed here.
-/// - render_scale_shot: NOVA_SHOT-driven single capture on a real GPU (its
-///   point is pixels, which Xvfb + a warmed-up autopilot cycle cannot judge);
-///   verified by eyeballing the PNGs (task 20260718-004723).
 /// - scene_baseline: not harnessed - probe owns it (`probe run scene_baseline
 ///   --fps`), and a smoke pass would only measure noise.
-const NOT_SMOKED: &[&str] = &["render_scale_shot", "scene_baseline"];
+const NOT_SMOKED: &[&str] = &["scene_baseline"];
 
 #[test]
 fn sections_reach_playing_without_panic() {

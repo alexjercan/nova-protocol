@@ -204,7 +204,7 @@ What is on disk today, in curriculum reading order:
   `screenshot_nova_os` (the Tab ship-computer, captured for HTML fidelity
   work against `web/design/nova_os_terminal_poc.html`), and
   `render_scale_shot` (a real-GPU window capture proving the render-scale
-  lever draws a correct frame).
+  lever draws a correct frame, including after a LIVE preset switch).
 - `stress/` - the only category that carries frame-time windows:
   `scene_baseline` (the release-over-release measurement scene the probe sweep
   runs), plus the scale sweeps `many_bodies` (N asteroids under physics +
@@ -223,7 +223,7 @@ hud_range; 10_gameplay into hull_section + playable; 07b_slicer's
 subject lives in bevy-common-systems; 04_asteroids' slider tuning tool was
 dropped.)
 
-Every example except `scene_baseline` and `render_scale_shot` is HARNESSED: it
+Every example except `scene_baseline` is HARNESSED: it
 drives itself under `NOVA_AUTOPILOT=1`, and
 `tests/examples_smoke.rs` runs each category headless as a regression suite,
 one test per category - `cargo test --test examples_smoke sections` (or
@@ -235,14 +235,16 @@ backstops (a stalled script fails instead of passing vacuously), except
 `editor`, which asserts at the reach-gameplay level. The `sections/` rosters
 are pinned by the display-free `sections_assert_their_invariant_roster`, so an
 invariant cannot be deleted into a still-green run. The screenshot examples
-only drive the shipped scenes to capture frames: they assert nothing, and
-every one of them walks an `AutopilotPlugin` step timeline, so a beat that
-never resolves is an error exit naming that step. Disk, catalog and smoke
+carry no behavior assertions of their own - they drive the shipped scenes to
+capture frames - but every one walks an `AutopilotPlugin` step timeline, so a
+beat that never resolves is an error exit naming that step, and every one
+wires `nova_timeline` + `nova_invariants`, so a probe run grades the walk on
+the engine invariants. Disk, catalog and smoke
 lists cannot drift: the
 display-free `catalog_matches_disk` test fails a bare `cargo test` when a
 new example misses its `[[example]]` block or its category's smoke list
-(`render_scale_shot` and `scene_baseline` are deliberately unsmoked; the
-`NOT_SMOKED` list records why).
+(`scene_baseline` is deliberately unsmoked; the `NOT_SMOKED` list records
+why).
 
 The drivers themselves - `AutopilotPlugin`, the screenshot and reel captures,
 the completion protocol, and the full `NOVA_*` environment contract - live in
@@ -641,8 +643,7 @@ per label - and `report` only accepts dirs probe itself produced
 `nova_probe` also records WHAT HAPPENED during a run: set
 `NOVA_PERF_TIMELINE=<out.jsonl>` on any example that adds
 `nova_probe::nova_timeline()` - since the fleet wiring (task
-20260719-210443) that is EVERY cataloged example except
-`render_scale_shot` - and the run appends one JSON object per line - every `GameStates`/pause transition, every fired scenario
+20260719-210443) that is EVERY cataloged example - and the run appends one JSON object per line - every `GameStates`/pause transition, every fired scenario
 event with its payload (kills, area enter/exit, locks), every scenario-variable
 change (old/new), plus the beats the autopilot script pushes itself via
 `nova_probe::probe_marker`. Entries are flushed as written, so a panicked run
