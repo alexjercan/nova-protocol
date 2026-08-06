@@ -23,8 +23,8 @@ cargo run -p nova_probe -- run <example> --fps        # + DEDICATED capture-only
 cargo run -p nova_probe -- run <example> --baseline <storage-base>  # FPS deltas
 cargo run -p nova_probe -- run <example> --out <dir>  # storage base (default probe-runs)
 cargo run -p nova_probe -- run player_path,scenario_grammar      # comma list
-cargo run -p nova_probe -- run ui                     # a whole PROBED category
-cargo run -p nova_probe -- run --all                  # the catalog minus unprobed categories
+cargo run -p nova_probe -- run ui                     # a whole category
+cargo run -p nova_probe -- run --all                  # the whole catalog
 cargo run -p nova_probe -- run scene_baseline --fps --release \
   --render gpu --scenario asteroid_field --preset high --preset low  # perf sweep (matrix)
 cargo run -p nova_probe -- run <scenario> --platform web  # web/WebGPU frame capture
@@ -57,18 +57,13 @@ A check whose capability is undeclared reports that the example makes no such
 claim, naming the call that would make it. A capability that IS declared,
 WAS armed, and produced nothing is a FAILURE, not a shrug.
 
-The only launch-side opinion left is what to SPAWN, which cannot be runtime:
-`NOT_PROBED_CATEGORIES` in
-`crates/nova_probe/src/bin/probe/native/spec.rs`, each entry carrying its
-reason. There is no per-EXAMPLE opt-out - an example that cannot survive a
-probe run FAILS, in the report, rather than being quietly listed away. `screenshots/` is out of probe's scope entirely: `--all` skips it and
-records the absence, and a bare `probe run screenshots` ERRORS rather than
-expanding to an empty run.
-
-One skip axis, carrying its reason into the report's "Not probed
-(deliberately)" list: unprobed CATEGORIES, recorded once by category
-(`crates/nova_probe/src/bin/probe/native/spec.rs`). An explicit
-`probe run <name>` still runs a member of one - the operator asked for it.
+There is no launch-side opinion left at all: every cataloged example is a
+probe target, `--all` is the catalog with nothing subtracted, and every
+category expands - `screenshots/` included, since a capture producer is an
+autopilot walk like any other. There is no opt-out, per-example or
+per-category: an example that cannot survive a probe run FAILS, in the
+report, rather than being quietly listed away, and one that declares no
+capability grades UNPROBEABLE.
 
 ## Specs, run dirs, and baselines
 
@@ -178,8 +173,9 @@ which is how you deliberately probe your real installed mods.
 ## Wired today
 
 The WHOLE fleet carries timeline + invariants + frame capture (inert
-without probe's env); `render_scale_shot` alone is unwired (real-GPU pixel
-capture, and `screenshots/` is not a probe target). Depth beyond the generic
+without probe's env). The `screenshots/` producers wire timeline +
+invariants but no frame capture: a posed walk has no steady-state window,
+so a captured fps would measure the script. Depth beyond the generic
 checks:
 
 | Example | extra depth |

@@ -1,18 +1,6 @@
 //! Spec resolution: an example name or a category dir resolved against the
 //! Cargo.toml example catalog.
 
-/// Categories `--all` and bare category expansion SKIP, each with its
-/// reason. This is the ONE launch-side opinion left: what an example can be
-/// judged on is now its own runtime declaration
-/// (`nova_probe::contract`), but whether to SPAWN it at all cannot be - that
-/// answer is needed before the process exists. There is no per-EXAMPLE
-/// opt-out: an example that cannot survive a probe run FAILS, loudly.
-pub(crate) const NOT_PROBED_CATEGORIES: &[(&str, &str)] = &[(
-    "screenshots",
-    "capture producers, judged by their PNGs and human eyes: a probe \
-     verdict on one would assert nothing",
-)];
-
 /// A spec resolved against the example catalog.
 #[derive(Debug, PartialEq)]
 pub(crate) struct Resolved {
@@ -23,16 +11,6 @@ pub(crate) struct Resolved {
     pub multi: bool,
     /// The spec as given, for the aggregate manifest ("--all", "ui", ...).
     pub spec_display: String,
-    /// What expansion skipped, with reasons (empty for explicit names).
-    /// Entries carry the contract's trailing slash (`screenshots/`) so a
-    /// skipped category can never be read as an example name.
-    pub excluded: Vec<(String, String)>,
-}
-
-/// Why an unprobed category is absent from an expansion - the category
-/// side of `excluded`, phrased for the aggregate report.
-fn unprobed_reason(category: &str, reason: &str) -> String {
-    format!("category `{category}/` is not a probe target - {reason}")
 }
 
 /// Resolve spec tokens against the catalog: an exact example name wins,
@@ -40,42 +18,20 @@ fn unprobed_reason(category: &str, reason: &str) -> String {
 /// lists the catalog. Pure - the catalog is injected (the probe-env
 /// pattern), so every branch is unit-testable.
 ///
-/// One exclusion axis, injected and recorded in `excluded` so the aggregate
-/// report shows an absence as a decision: [`NOT_PROBED_CATEGORIES`]. An
-/// explicit example name overrides it - the operator asked for it by name.
+/// There is no exclusion axis: every cataloged example is a probe target.
+/// What an example can be JUDGED on is its own runtime declaration
+/// (`nova_probe::contract`) - an example that declares nothing is graded
+/// UNPROBEABLE, which is an answer, not a reason to skip the spawn.
 pub(crate) fn resolve_spec(
     tokens: &[String],
     all: bool,
     catalog: &[nova_probe::CatalogExample],
-    not_probed_categories: &[(&str, &str)],
 ) -> Result<Resolved, String> {
-    let category_reason = |category: &str| {
-        not_probed_categories
-            .iter()
-            .find(|(n, _)| *n == category)
-            .map(|(_, reason)| unprobed_reason(category, reason))
-    };
     if all {
-        let mut excluded = Vec::new();
-        let mut examples = Vec::new();
-        for example in catalog {
-            // The category comes first: an unprobed one is out wholesale,
-            // recorded once by CATEGORY rather than once per member (the
-            // decision was made about the category).
-            if let Some(reason) = category_reason(&example.category) {
-                let entry = (format!("{}/", example.category), reason);
-                if !excluded.contains(&entry) {
-                    excluded.push(entry);
-                }
-                continue;
-            }
-            examples.push(example.name.clone());
-        }
         return Ok(Resolved {
-            examples,
+            examples: catalog.iter().map(|e| e.name.clone()).collect(),
             multi: true,
             spec_display: "--all".into(),
-            excluded,
         });
     }
     if tokens.is_empty() {
@@ -89,18 +45,10 @@ pub(crate) fn resolve_spec(
     let mut multi = tokens.len() > 1;
     for token in tokens {
         if catalog.iter().any(|example| example.name == *token) {
-            // An explicit name runs even from an unprobed category - the
-            // operator asked for it.
             if !examples.contains(token) {
                 examples.push(token.clone());
             }
         } else if categories.contains(&token.as_str()) {
-            // A bare unprobed category ERRORS rather than expanding to an
-            // empty run: "not a probe target" is the honest answer, and a
-            // silent no-op would read as a pass.
-            if let Some(reason) = category_reason(token) {
-                return Err(format!("{reason}\n{}", spec_help(catalog)));
-            }
             multi = true;
             for example in catalog.iter().filter(|e| e.category == *token) {
                 if !examples.contains(&example.name) {
@@ -118,9 +66,6 @@ pub(crate) fn resolve_spec(
         examples,
         multi,
         spec_display: tokens.join(","),
-        // A named spec excludes nothing: an unprobed category errors above
-        // rather than shrinking, and a name always runs.
-        excluded: Vec::new(),
     })
 }
 
@@ -147,131 +92,79 @@ mod tests {
     use super::*;
     use crate::native::fixtures::{catalog, s};
 
-    /// The one exclusion axis, injected the way production injects it.
-    const EXCLUDED_CATEGORIES: &[(&str, &str)] = &[("screenshots", "judged by their PNGs")];
-
     #[test]
     fn resolve_single_name_stays_single() {
-        let resolved =
-            resolve_spec(&s(&["scenario"]), false, &catalog(), EXCLUDED_CATEGORIES).unwrap();
+        let resolved = resolve_spec(&s(&["scenario"]), false, &catalog()).unwrap();
         assert_eq!(resolved.examples, s(&["scenario"]));
         assert!(!resolved.multi, "a bare name keeps single-run semantics");
-        assert!(resolved.excluded.is_empty());
     }
 
     #[test]
     fn resolve_list_and_category_expand() {
-        let resolved = resolve_spec(
-            &s(&["playable", "scenario"]),
-            false,
-            &catalog(),
-            EXCLUDED_CATEGORIES,
-        )
-        .unwrap();
+        let resolved = resolve_spec(&s(&["playable", "scenario"]), false, &catalog()).unwrap();
         assert_eq!(resolved.examples, s(&["playable", "scenario"]));
         assert!(resolved.multi);
 
-        let resolved =
-            resolve_spec(&s(&["gameplay"]), false, &catalog(), EXCLUDED_CATEGORIES).unwrap();
+        let resolved = resolve_spec(&s(&["gameplay"]), false, &catalog()).unwrap();
         assert_eq!(
             resolved.examples,
             s(&["scenario", "playable"]),
-            "a probed category expands to ALL its members - there is no \
-             per-example opt-out any more"
+            "a category expands to ALL its members - there is no opt-out any more"
         );
         assert!(
             resolved.multi,
             "a category is a multi spec even with one member"
         );
-        assert!(resolved.excluded.is_empty());
     }
 
-    /// An unprobed category leaves probe's scope entirely: `--all` records
-    /// the absence as a decision instead of quietly shrinking, and a bare
-    /// expansion errors instead of running nothing. What a probed example is
-    /// JUDGED on is no longer decided here - the example declares it.
+    /// Every category expands, `screenshots` included: capture producers are
+    /// autopilot walks like any other, and what one is JUDGED on is its own
+    /// runtime declaration, not a launch-side opinion.
     #[test]
-    fn an_unprobed_category_is_recorded_never_silently_dropped() {
-        let resolved = resolve_spec(&[], true, &catalog(), EXCLUDED_CATEGORIES).unwrap();
-        assert!(
-            !resolved
-                .examples
-                .iter()
-                .any(|e| e.starts_with("screenshot")),
-            "--all skips an unprobed category: {:?}",
-            resolved.examples
-        );
-        // Exact, not `contains`: the fixture has TWO screenshots members, so
-        // this pins the dedupe - recorded ONCE, by category, named with the
-        // contract's trailing slash so it cannot be read as an example.
+    fn the_screenshots_category_expands_like_any_other() {
+        let resolved = resolve_spec(&s(&["screenshots"]), false, &catalog()).unwrap();
         assert_eq!(
-            resolved.excluded,
-            vec![(
-                "screenshots/".to_string(),
-                unprobed_reason("screenshots", EXCLUDED_CATEGORIES[0].1),
-            )]
+            resolved.examples,
+            s(&["screenshot_scene", "render_scale_shot"])
         );
-
-        // Bare expansion is gated by the same boolean: an error, never an
-        // empty run that reads as a pass.
-        let err =
-            resolve_spec(&s(&["screenshots"]), false, &catalog(), EXCLUDED_CATEGORIES).unwrap_err();
-        assert!(
-            err.contains("`screenshots/` is not a probe target"),
-            "{err}"
-        );
-        assert!(err.contains("examples by category"), "{err}");
-
-        // An explicit member still runs - the operator asked by name.
-        let resolved = resolve_spec(
-            &s(&["render_scale_shot"]),
-            false,
-            &catalog(),
-            EXCLUDED_CATEGORIES,
-        )
-        .unwrap();
-        assert_eq!(resolved.examples, s(&["render_scale_shot"]));
+        assert!(resolved.multi);
     }
 
     #[test]
-    fn resolve_all_runs_every_probed_example() {
-        let resolved = resolve_spec(&[], true, &catalog(), EXCLUDED_CATEGORIES).unwrap();
+    fn resolve_all_runs_the_whole_catalog() {
+        let resolved = resolve_spec(&[], true, &catalog()).unwrap();
         assert_eq!(
             resolved.examples,
             s(&[
                 "controller_section",
                 "scenario",
                 "playable",
+                "screenshot_scene",
+                "render_scale_shot",
                 "scene_baseline",
                 "many_bodies",
                 "outcomes"
             ]),
-            "--all is the catalog minus unprobed CATEGORIES, nothing else"
+            "--all is the catalog, nothing subtracted"
         );
         assert_eq!(resolved.spec_display, "--all");
     }
 
     #[test]
     fn resolve_errors_list_the_catalog() {
-        let err = resolve_spec(&[], false, &catalog(), EXCLUDED_CATEGORIES).unwrap_err();
+        let err = resolve_spec(&[], false, &catalog()).unwrap_err();
         assert!(err.contains("examples by category"), "{err}");
         assert!(err.contains("gameplay: scenario, playable"), "{err}");
         assert!(err.contains("--all"), "{err}");
 
-        let err = resolve_spec(&s(&["typo"]), false, &catalog(), EXCLUDED_CATEGORIES).unwrap_err();
+        let err = resolve_spec(&s(&["typo"]), false, &catalog()).unwrap_err();
         assert!(err.contains("unknown example or category `typo`"), "{err}");
         assert!(err.contains("examples by category"), "{err}");
     }
 
     #[test]
     fn resolve_dedupes_overlapping_tokens() {
-        let resolved = resolve_spec(
-            &s(&["playable", "gameplay"]),
-            false,
-            &catalog(),
-            EXCLUDED_CATEGORIES,
-        )
-        .unwrap();
+        let resolved = resolve_spec(&s(&["playable", "gameplay"]), false, &catalog()).unwrap();
         assert_eq!(
             resolved.examples,
             s(&["playable", "scenario"]),

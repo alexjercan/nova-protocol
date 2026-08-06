@@ -133,15 +133,15 @@ example PROVES, not by what it happens to spawn.
 | `systems/` | a whole system's behavior on a code-built fixture | correctness passes only | needs shipped content to stand up, or measures instead of asserting |
 | `stress/` | a frame-time claim: a steady-state scene built to be measured | correctness **+ the `--fps` frame-time pass** | ends on a script instead of holding a load (it cannot fill a capture window) |
 | `ui/` | a staged UI flow - layout, navigation, real text measure | correctness passes only | its subject is the simulation, not the interface over it |
-| `screenshots/` | frames for the website and the wiki | **not a probe target**: `probe run screenshots` is an error, and `--all` records the category as excluded | asserts instead of capturing |
+| `screenshots/` | frames for the website and the wiki | correctness passes only (the walk is graded; the frame is judged by human eyes) | asserts instead of capturing |
 
 The run-policy half of that table is no longer a table. What an example can
 be judged on is DECLARED by the example, at runtime, through the probe
 plugins it wires (`nova_probe::contract`), and probe reads it back from
-`probe-contract.json`. The one launch-side decision that cannot be runtime -
-whether to spawn a category at all - is `NOT_PROBED_CATEGORIES` in
-`crates/nova_probe/src/bin/probe/native/spec.rs`, one row with its reason.
-The prose half - what each
+`probe-contract.json`. Nothing is left on the launch side: every cataloged
+example is spawned, `--all` is the catalog with nothing subtracted, and an
+example that declares no capability grades UNPROBEABLE rather than being
+listed away. The prose half - what each
 category proves - is the table above and the per-block comments in the root
 `Cargo.toml`; review enforces it, because judging whether an example asserts
 enough is a reading task, not a test.
@@ -523,7 +523,7 @@ cargo run -p nova_probe -- run player_path --samply   # + named flamegraph
 cargo run -p nova_probe -- run player_path --baseline probe-runs  # FPS deltas vs nearest prior commit
 cargo run -p nova_probe -- run player_path,scenario_grammar   # comma list -> aggregate index
 cargo run -p nova_probe -- run systems            # a whole category
-cargo run -p nova_probe -- run --all               # the fleet (minus unprobed categories)
+cargo run -p nova_probe -- run --all               # the whole fleet
 ```
 
 It runs the example headless (throwaway Xvfb; `--display :0` to reuse yours),
@@ -546,9 +546,9 @@ catalog and run sequentially with continue-on-failure. The status index lives
 above the example dirs: `index.html` (one row per example - verdict, measured
 n/total, the six check statuses, duration, a link to its report), `index.json`
 (the machine mirror), and `probe-all.json` (the re-render gate). The aggregate
-verdict is the WORST row; the exit code mirrors it. `--all` skips the unprobed
-categories, which the report lists with their reasons - and a bare `probe run`
-errors with the catalog rather than starting a fleet sweep by accident.
+verdict is the WORST row; the exit code mirrors it. `--all` runs the whole
+catalog, and a bare `probe run` errors with the catalog listing rather than
+starting a fleet sweep by accident.
 Categories take single-digit minutes warm; `--all` is the pre-release/nightly
 sweep (roughly half an hour). `--baseline <base>` searches `<base>` for the
 nearest previous commit-hash directory in git history, ignoring compatibility

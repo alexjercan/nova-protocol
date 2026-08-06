@@ -51,13 +51,6 @@ pub struct AllManifest {
     pub full_git_sha: String,
     /// The host the sweep ran on.
     pub host: String,
-    /// (name, reason) pairs deliberately not probed by --all/category
-    /// expansion - listed in the report so absence reads as a decision.
-    ///
-    /// The name is a CATEGORY, carrying a trailing slash and recorded once
-    /// rather than once per member, so a consumer joining against the
-    /// example catalog must tolerate a name that is not in it.
-    pub excluded: Vec<(String, String)>,
     /// One [`AllRow`] per probed example.
     pub rows: Vec<AllRow>,
 }
@@ -71,9 +64,6 @@ impl AllManifest {
             "git_sha": self.git_sha,
             "full_git_sha": self.full_git_sha,
             "host": self.host,
-            "excluded": self.excluded.iter().map(|(example, reason)| {
-                serde_json::json!({ "example": example, "reason": reason })
-            }).collect::<Vec<_>>(),
             "rows": self.rows.iter().map(|row| serde_json::json!({
                 "example": row.example,
                 "category": row.category,
@@ -144,21 +134,6 @@ impl AllManifest {
                 .unwrap_or_else(|| value.get("git_sha").and_then(|v| v.as_str()).unwrap_or(""))
                 .to_string(),
             host: str_field(value, "host")?,
-            excluded: value
-                .get("excluded")
-                .and_then(|e| e.as_array())
-                .map(|entries| {
-                    entries
-                        .iter()
-                        .filter_map(|entry| {
-                            Some((
-                                entry.get("example")?.as_str()?.to_string(),
-                                entry.get("reason")?.as_str()?.to_string(),
-                            ))
-                        })
-                        .collect()
-                })
-                .unwrap_or_default(),
             rows,
         })
     }
@@ -326,17 +301,6 @@ pub fn render_index(manifest: &AllManifest) -> String {
     }
     html.push_str("</tbody></table>\n");
 
-    if !manifest.excluded.is_empty() {
-        html.push_str("<h2>Not probed (deliberately)</h2>\n<ul>\n");
-        for (example, reason) in &manifest.excluded {
-            html.push_str(&format!(
-                "<li><code>{}</code> - {}</li>\n",
-                escape(example),
-                escape(reason)
-            ));
-        }
-        html.push_str("</ul>\n");
-    }
     html.push_str(
         "<footer>nova_probe aggregate - per-example evidence lives in each row's \
          own run dir.</footer>\n</body>\n</html>\n",
@@ -411,7 +375,6 @@ mod tests {
             git_sha: "abc1234".into(),
             full_git_sha: "abc1234def".into(),
             host: "workstation".into(),
-            excluded: vec![("render_scale_shot".into(), "real-GPU capture".into())],
             rows: vec![AllRow {
                 error: Some("build failed".into()),
                 ..row("scenario", "ERROR")
@@ -429,7 +392,6 @@ mod tests {
             git_sha: "abc".into(),
             full_git_sha: "abcdef".into(),
             host: "h".into(),
-            excluded: vec![("render_scale_shot".into(), "needs a real GPU".into())],
             rows: vec![row("editor", "OK"), row("hud_range", "FAIL")],
         };
         let html = render_index(&manifest);
@@ -441,10 +403,6 @@ mod tests {
         assert!(
             html.contains("hud_range/report.html"),
             "rows link their reports"
-        );
-        assert!(
-            html.contains("Not probed (deliberately)") && html.contains("needs a real GPU"),
-            "exclusions listed with reasons"
         );
         assert!(
             html.contains("neither means \"held\"") && html.contains("UNPROBEABLE means"),

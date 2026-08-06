@@ -11,7 +11,7 @@ use super::{
         resolve_baseline_root, resolve_full_git_sha,
     },
     run::run,
-    spec::{resolve_spec, Resolved, NOT_PROBED_CATEGORIES},
+    spec::{resolve_spec, Resolved},
     supervise::ensure_display,
 };
 
@@ -36,7 +36,7 @@ pub(crate) fn run_spec(
     }
     let root = repo_root();
     let catalog = nova_probe::load_example_catalog(&root)?;
-    let resolved = resolve_spec(tokens, all, &catalog, NOT_PROBED_CATEGORIES)?;
+    let resolved = resolve_spec(tokens, all, &catalog)?;
     // Multi gates: these flags are single-example concerns.
     if resolved.multi && (!base.scenarios.is_empty() || !base.presets.is_empty()) {
         return Err(
@@ -164,7 +164,6 @@ fn run_many(
         git_sha,
         full_git_sha,
         host,
-        excluded: resolved.excluded.clone(),
         rows,
     };
     write_aggregate(&out_root, &manifest)?;
@@ -261,9 +260,6 @@ pub(crate) fn print_aggregate(out_base: &Path, manifest: &nova_probe::AllManifes
             "  {:<24} {:<8} measured {:>4}  {}s",
             row.example, row.verdict, row.measured, row.duration_secs
         );
-    }
-    for (example, reason) in &manifest.excluded {
-        println!("  {example:<24} NOT PROBED - {reason}");
     }
 }
 

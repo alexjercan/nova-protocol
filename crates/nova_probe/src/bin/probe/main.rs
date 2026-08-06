@@ -8,7 +8,7 @@
 //! cargo run -p nova_probe -- run player_path --profile  # + traced pass
 //! cargo run -p nova_probe -- run player_path,scenario_grammar   # comma list -> aggregate
 //! cargo run -p nova_probe -- run ui                  # a category dir's examples
-//! cargo run -p nova_probe -- run --all               # the catalog minus unprobed categories
+//! cargo run -p nova_probe -- run --all               # the whole catalog
 //! cargo run -p nova_probe -- report <run-dir>           # re-render (manifest-gated)
 //! ```
 //!
