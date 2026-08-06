@@ -243,16 +243,6 @@ Each step below becomes its own child task at planning time.
       and delete the misaligned test at `:772-786`, moving its rationale comment
       onto the ship/asteroid bundles; the env-var pass; the `hud/mod.rs`
       registry refactor; the M9 dead-code sweep.
-- [ ] 9. **Move the whole run onto a branch and review it.** Steps 1-8 land
-      directly on `master`, so there is no branch for `/review` to diff. Cut
-      `task/20260805-185103` from the commit BEFORE this run's first work commit
-      (`cafae048`, the task record), cherry-pick every commit listed in the
-      `commits:` lines above onto it in order, reset `master` back to that same
-      base, then run `/review` against the branch and drive it to a verdict.
-      Do this LAST - each step above appends its hashes as it lands, and the
-      branch is only complete once step 8's children are in. Record the branch
-      name and the review verdict here.
-      commits: `cafae048` (task record; the branch base is its parent)
 
 ## Definition of Done
 
