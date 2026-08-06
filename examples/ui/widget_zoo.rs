@@ -11,7 +11,7 @@
 //!
 //! Interactive run:  `cargo run --example widget_zoo`  (drag the slider, click
 //! the Skin control / checks / toggles; `S` also flips the skin).
-//! Capture both skins: `NOVA_ZOO_CAPTURE=1 NOVA_SHOT_DIR=target/zoo cargo run
+//! Capture both skins: `NOVA_CAPTURE=1 NOVA_SHOT_DIR=target/zoo cargo run
 //! --example widget_zoo --features debug` -> widget_zoo-{phosphor,hardware}.png
 //! then exit. (`--features debug` because the shot goes through the fleet's
 //! shared `capture_window`.)
@@ -583,7 +583,7 @@ fn drive_capture(
     mut exit: MessageWriter<AppExit>,
     log: Option<Res<nova_protocol::prelude::CaptureLog>>,
 ) {
-    if std::env::var_os("NOVA_ZOO_CAPTURE").is_none() {
+    if !nova_protocol::prelude::capturing() {
         return;
     }
     if cap.wait > 0 {

@@ -567,14 +567,15 @@ fn inject_dwell(world: &mut World) {
 
 /// Capture a real loaded frame (scene up, lock focused, inset rendering) to a
 /// PNG, so the RTT inset can be eyeballed headlessly. Inert unless
-/// `NOVA_INSET_SHOT` is set. `NOVA_SHOT` itself captures black here because it
-/// force-advances to Playing and shoots before async asset loading has a scene;
-/// injecting the screenshot mid-run from the settled script avoids that (task
+/// `NOVA_CAPTURE` is set - the documented capture gate every other example
+/// uses. `NOVA_SHOT` would NOT work here: it force-advances to Playing and
+/// shoots before async asset loading has a scene, so the frame is black.
+/// Injecting the screenshot mid-run from the settled script avoids that (task
 /// 20260710-104421 verify note).
 #[cfg(feature = "debug")]
 fn request_inset_shot(world: &mut World) {
     use bevy::render::view::screenshot::{save_to_disk, Screenshot};
-    if std::env::var_os("NOVA_INSET_SHOT").is_none() {
+    if !capturing() {
         return;
     }
     world

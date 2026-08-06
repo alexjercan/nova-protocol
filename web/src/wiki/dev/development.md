@@ -245,7 +245,7 @@ a bare `cargo test` when a new example misses its `[[example]]` block. That is
 the case nothing else catches - with auto-discovery off, an uncataloged example
 file does not build at all and no other tool says so.
 
-The drivers themselves - `AutopilotPlugin`, the screenshot and reel captures,
+The drivers themselves - `AutopilotPlugin`, the screenshot capture,
 the completion protocol, and the full `NOVA_*` environment contract - live in
 the `nova_autopilot` crate and are documented on
 [The automation harness](../automation-harness/). This page only shows the run
