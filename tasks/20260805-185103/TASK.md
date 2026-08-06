@@ -104,6 +104,34 @@ Each step below becomes its own child task at planning time.
       (owner's call): the ack already turns a missing declared shot into a hard
       run failure, and the manifest stays advisory per the asset-coverage rule.
       commits: `20fcb406`
+- [x] 4.1. **Runtime coverage: the example declares by WIRING.** Replace
+      probe's hand-maintained coverage tables with a runtime declaration - the
+      example declares what it can be judged on by the probe plugins it wires
+      ("if it adds the frametime plugin it does frametime, simple as that").
+      Design and reviewer rounds in `PROTOTYPE-runtime-coverage.md`.
+      `contract::declare` runs at the TOP of each plugin's `build()`, above the
+      arming guard, and the first call registers the Startup system that writes
+      `probe-contract.json`. Checks resolve on a 2x2 - contract (what the
+      example WIRED) x `RunManifest::armed_*` (what probe ARMED): undeclared or
+      unarmed is N/A carrying its reason as a value, declared + armed + silent
+      is a FAIL. `CategoryPolicy`/`CATEGORY_POLICIES`, `fps_skip_reason`,
+      `RunManifest::fps_skipped` and `NOT_PROBED` are all deleted;
+      `NOT_PROBED_CATEGORIES` stays as the one launch-side opinion (whether to
+      SPAWN cannot be runtime - the answer is needed before the process
+      exists). The fold gains UNPROBEABLE: `process_exit` and `log_clean` need
+      no plugin, so an unwired example used to pass those two and print OK at
+      `measured 2/6`. Two owner questions settled in the prototype: `NOT_PROBED`
+      goes (option 3, let it fail - an example that cannot survive a probe run
+      FAILS instead of being listed away), and `armed_*` survives as the second
+      axis (arming happens before the child exists, so the contract cannot
+      drive it; `--fps` stays an operator flag). Questions 3 (which examples
+      keep a real frame-time claim - the 12 `nova_frametime()` lines are now
+      LIVE under `--fps`) and 4 (`probe_marker` as a `Capability`) are left
+      open. NOTE for step 5: its first sentence is obsolete - there is no
+      `catalog.rs` policy to flip any more, and its `CheckStatus::Skipped`
+      requirement is now met.
+      commits: `6b84fef7`, `b63e3735`, `08acead5`, `af4e2c16`, `c62436a8`,
+      `a7cb6fbf`, `cd8bcfea`, `6f88e1d2`
 - [ ] 5. **Make probe cover the `screenshots/` category.**
       `crates/nova_probe/src/catalog.rs:181-188` -> `probed: true,
       frame_time: false`, and rewrite the comment (its claim is true only of
