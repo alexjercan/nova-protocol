@@ -66,9 +66,7 @@ fn main() -> bevy::app::AppExit {
         // The turntable sets the ship's rotation per shot, so nothing may push
         // it back - but only on a capture run, so a plain `cargo run` keeps its
         // physics.
-        if capturing() {
-            app.add_systems(Update, freeze_bodies);
-        }
+        app.add_systems(Update, freeze_bodies.run_if(capturing));
         app.add_plugins(section_script());
     }
 
@@ -273,13 +271,6 @@ fn section_shots() -> [SectionShot; 5] {
 /// `shoot` is armed.
 #[cfg(feature = "debug")]
 fn section_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
-    let capturing = capturing();
-    // Frames a closeup settles before its shot, and frames the shot is given to
-    // land before the ship turns again. The smoke path writes nothing, so it
-    // drives straight through on minimal waits.
-    let settle = if capturing { 30 } else { 2 };
-    let after_shot = if capturing { 20 } else { 0 };
-
     let mut script = nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
         // The showcase is live once the loader has spawned its camera; posing
         // before that poses nothing.
@@ -297,14 +288,14 @@ fn section_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         script = script
             .step(format!("present {path}"))
             .on_enter(move |world: &mut World| present_section(world, &shot))
-            .until(frames(settle))
+            .until(frames(SETTLE_FRAMES))
             .add()
-            // The hold is what gives `save_to_disk` room to land: `shoot` is
-            // asynchronous, and the next turn would otherwise swing the ship
-            // out from under the pending PNG.
+            // The shot step holds until the PNG is on disk, so the next turn
+            // cannot swing the ship out from under a pending write.
             .step(format!("shoot {path}"))
             .on_enter(move |world: &mut World| shoot(world, path))
-            .until(frames(after_shot))
+            .until(shot_written(path))
+            .deadline(SHOT_DEADLINE_SECS)
             .add();
     }
     script

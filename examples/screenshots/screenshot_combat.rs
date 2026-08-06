@@ -160,27 +160,12 @@ const ENGAGE_DELAY: f32 = 3.0;
 /// its ships instead of watching them leave.
 const AI_LEASH: f32 = 320.0;
 
-/// Frames a capture step holds after requesting its PNG. `capture_window`
-/// spawns a bare `Screenshot` and is NOT a completion collector, so the last
-/// step's hold is the only thing giving `save_to_disk` room to land before the
-/// driver reports done and the app exits. A smoke run captures nothing and only
-/// needs the step to be observable.
-#[cfg(feature = "debug")]
-fn capture_settle_frames(capturing: bool) -> u32 {
-    if capturing {
-        20
-    } else {
-        2
-    }
-}
-
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
     #[cfg(feature = "debug")]
     {
-        let capturing = capturing();
         // One step per beat, and every capture gets its OWN step: Bevy services
         // one primary-window capture per frame, so the rule is structural here
         // rather than a guard inside a shared step.
@@ -208,7 +193,8 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("capture the radar lock")
                 .on_enter(move |world| shoot(world, "tutorial-radar-lock.png"))
-                .until(elapsed(0.2))
+                .until(shot_written("tutorial-radar-lock.png"))
+                .deadline(SHOT_DEADLINE_SECS)
                 .add()
                 // The radar instrument as its own subject: the same latched nav
                 // sweep from a tighter, lower camera.
@@ -224,7 +210,8 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("capture the radar")
                 .on_enter(move |world| shoot(world, "wiki-radar.png"))
-                .until(elapsed(0.2))
+                .until(shot_written("wiki-radar.png"))
+                .deadline(SHOT_DEADLINE_SECS)
                 .add()
                 // Hand the camera back before the leg: it is flown over the
                 // game's own follow camera, because a pinned world pose watches a
@@ -308,7 +295,8 @@ fn main() -> bevy::app::AppExit {
                     hud_instrument(world);
                     shoot(world, "news-090-contextual-hud.png");
                 })
-                .until(elapsed(0.3))
+                .until(shot_written("news-090-contextual-hud.png"))
+                .deadline(SHOT_DEADLINE_SECS)
                 .add()
                 // Raise weapons (RMB), then hold radar (CTRL) a beat later - the
                 // natural order. At the hold threshold the radar latches the
@@ -333,14 +321,16 @@ fn main() -> bevy::app::AppExit {
                     hud_instrument(world);
                     shoot(world, "feature-combat.png");
                 })
-                .until(elapsed(0.2))
+                .until(shot_written("feature-combat.png"))
+                .deadline(SHOT_DEADLINE_SECS)
                 .add()
                 .step("capture the combat lock")
                 .on_enter(move |world| {
                     hud_instrument(world);
                     shoot(world, "tutorial-combat-lock.png");
                 })
-                .until(elapsed(0.2))
+                .until(shot_written("tutorial-combat-lock.png"))
+                .deadline(SHOT_DEADLINE_SECS)
                 .add()
                 // The same fight from the ship's shoulder: the HUD showcase,
                 // every situational readout up with the hull in frame.
@@ -353,7 +343,8 @@ fn main() -> bevy::app::AppExit {
                     hud_instrument(world);
                     shoot(world, "feature-hud.png");
                 })
-                .until(elapsed(0.2))
+                .until(shot_written("feature-hud.png"))
+                .deadline(SHOT_DEADLINE_SECS)
                 .add()
                 .step("frame the HUD reference")
                 .on_enter(|world| {
@@ -366,7 +357,8 @@ fn main() -> bevy::app::AppExit {
                     hud_instrument(world);
                     shoot(world, "wiki-hud.png");
                 })
-                .until(elapsed(0.2))
+                .until(shot_written("wiki-hud.png"))
+                .deadline(SHOT_DEADLINE_SECS)
                 .add()
                 // The wide beats: the HUD goes cinematic and the camera leaves
                 // the player, so the chrome would be reading a ship the frame
@@ -383,7 +375,8 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("capture the exchange")
                 .on_enter(move |world| shoot(world, "wiki-combat.png"))
-                .until(elapsed(0.2))
+                .until(shot_written("wiki-combat.png"))
+                .deadline(SHOT_DEADLINE_SECS)
                 .add()
                 // The receiving end: past the raider's shoulder back down the
                 // stream, so the frame is bullets, impact flashes and a hull
@@ -401,7 +394,8 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("capture the readability shot")
                 .on_enter(move |world| shoot(world, "news-090-combat-readability.png"))
-                .until(elapsed(0.2))
+                .until(shot_written("news-090-combat-readability.png"))
+                .deadline(SHOT_DEADLINE_SECS)
                 .add()
                 // The juice: one section blown off the raider through the
                 // production damage path, shot while the hit rings are still
@@ -425,7 +419,8 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("capture the juice")
                 .on_enter(move |world| shoot(world, "feature-juice.png"))
-                .until(elapsed(0.2))
+                .until(shot_written("feature-juice.png"))
+                .deadline(SHOT_DEADLINE_SECS)
                 .add()
                 // ACT 3 - the ordnance, and the set's variant frames. A dead
                 // section is a graded hull; a torpedo is the engine's loudest
@@ -477,7 +472,8 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("capture the torpedo run")
                 .on_enter(move |world| shoot(world, "wiki-combat-torpedo.png"))
-                .until(elapsed(0.2))
+                .until(shot_written("wiki-combat-torpedo.png"))
+                .deadline(SHOT_DEADLINE_SECS)
                 .add()
                 .step("wait for the detonation")
                 .until(no_torpedo_in_flight())
@@ -504,7 +500,8 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("capture the aftermath")
                 .on_enter(move |world| shoot(world, "wiki-combat-aftermath.png"))
-                .until(elapsed(0.2))
+                .until(shot_written("wiki-combat-aftermath.png"))
+                .deadline(SHOT_DEADLINE_SECS)
                 .add()
                 // The exchange again, tighter and lower: the wide `wiki-combat`
                 // framing reads as a diorama at the site's 16:9 crop, so this is
@@ -521,7 +518,8 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("capture the tight exchange")
                 .on_enter(move |world| shoot(world, "variant-combat-tight.png"))
-                .until(frames(capture_settle_frames(capturing)))
+                .until(shot_written("variant-combat-tight.png"))
+                .deadline(SHOT_DEADLINE_SECS)
                 .add(),
         );
         app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));

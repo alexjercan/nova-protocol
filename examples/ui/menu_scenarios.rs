@@ -122,6 +122,10 @@ struct ScenariosAutopilot {
     /// on `Activate`, which fires on RELEASE over the same node, so every click
     /// this walk makes spans two frames.
     pending_release: bool,
+    /// A shot whose PNG is still being written: the walk holds here until
+    /// `CaptureLog` acks it, so the next row is never clicked into a pending
+    /// capture.
+    pending_shot: Option<String>,
     wait: u32,
 }
 
@@ -219,6 +223,18 @@ fn scenarios_autopilot(world: &mut World, _elapsed: f32) {
         return;
     }
 
+    // Hold for the ack rather than for a guessed number of frames: the capture
+    // resolves at the end of a later frame, and clicking on through before it
+    // does renders the NEXT selection into the shot (it did - the first cut of
+    // this rig produced shots one selection ahead of their filename).
+    if let Some(shot) = state.pending_shot.clone() {
+        if !world.resource::<CaptureLog>().wrote(&shot) {
+            world.insert_resource(state);
+            return;
+        }
+        state.pending_shot = None;
+    }
+
     // Let go of the press made on a previous frame; THIS is what fires
     // `Activate` on the widget under the pointer.
     if state.pending_release {
@@ -262,19 +278,10 @@ fn scenarios_autopilot(world: &mut World, _elapsed: f32) {
         if let (Some(list), Some(details)) = (list, details) {
             info!("scenarios pane widths: list={list:.1} details={details:.1} after {last}");
             state.pending_measure = None;
-            if capturing() {
-                let id = last.trim_start_matches("Scenario Row: ");
-                shoot(world, &format!("scenarios-picker-{id}.png"));
-                // Let the PNG land BEFORE the next row is clicked: the
-                // capture resolves at the end of the frame, so clicking on
-                // through in this same frame renders the NEXT selection into
-                // the shot (it did - the first cut of this rig produced
-                // shots one selection ahead of their filename).
-                state.measured.push((last, list, details));
-                state.wait = 4;
-                world.insert_resource(state);
-                return;
-            }
+            let id = last.trim_start_matches("Scenario Row: ").to_string();
+            let shot = format!("scenarios-picker-{id}.png");
+            shoot(world, &shot);
+            state.pending_shot = capturing().then_some(shot);
             state.measured.push((last, list, details));
         } else {
             // The click LANDED (asserted above) but a pane has not laid out, so

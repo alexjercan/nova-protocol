@@ -568,6 +568,11 @@ fn flow_row() -> Node {
 struct Capture {
     stage: u32,
     wait: u32,
+    /// A shot whose PNG is still being written. The machine holds here until
+    /// `CaptureLog` acks it, rather than counting off a guessed number of
+    /// frames - the last one gates `AppExit`, so a short guess exits the app
+    /// out from under the write.
+    pending: Option<String>,
 }
 
 #[cfg(feature = "debug")]
@@ -576,6 +581,7 @@ fn drive_capture(
     mut cap: ResMut<Capture>,
     mut skin: ResMut<UiSkin>,
     mut exit: MessageWriter<AppExit>,
+    log: Option<Res<nova_protocol::prelude::CaptureLog>>,
 ) {
     if std::env::var_os("NOVA_ZOO_CAPTURE").is_none() {
         return;
@@ -584,6 +590,12 @@ fn drive_capture(
         cap.wait -= 1;
         return;
     }
+    if let Some(shot) = cap.pending.clone() {
+        if !log.is_some_and(|log| log.wrote(&shot)) {
+            return;
+        }
+        cap.pending = None;
+    }
     match cap.stage {
         0 => {
             cap.stage = 1;
@@ -591,8 +603,8 @@ fn drive_capture(
         }
         1 => {
             shoot("widget_zoo-phosphor.png", &mut commands);
+            cap.pending = Some("widget_zoo-phosphor.png".to_string());
             cap.stage = 2;
-            cap.wait = 20;
         }
         2 => {
             *skin = UiSkin::Hardware;
@@ -601,8 +613,8 @@ fn drive_capture(
         }
         3 => {
             shoot("widget_zoo-hardware.png", &mut commands);
+            cap.pending = Some("widget_zoo-hardware.png".to_string());
             cap.stage = 4;
-            cap.wait = 20;
         }
         _ => {
             exit.write(AppExit::Success);

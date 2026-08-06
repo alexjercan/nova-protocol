@@ -113,7 +113,9 @@ pub mod screenshot;
 pub mod prelude {
     pub use crate::{
         autopilot::{AutopilotLoop, AutopilotPlugin, StepBuilder, AUTOPILOT_ENV},
-        capture::{capture_window, capturing, CAPTURE_ENV, CAPTURE_RESOLUTION, SHOT_DIR_ENV},
+        capture::{
+            capture_window, capturing, CaptureLog, CAPTURE_ENV, CAPTURE_RESOLUTION, SHOT_DIR_ENV,
+        },
         completion::{
             register, HarnessCompletion, AUTOPILOT, DEADLINE_ENV, DEFAULT_DEADLINE_SECS, SCREENSHOT,
         },
@@ -121,7 +123,10 @@ pub mod prelude {
             click_at, click_named, hover_named, move_cursor, press_key, press_mouse, release_key,
             release_mouse, ui_node_centre, ui_node_rect,
         },
-        predicate::{and, any_entity, elapsed, frames, not, resource_where, state_is, Predicate},
+        predicate::{
+            and, any_entity, elapsed, frames, not, resource_where, shot_written, state_is,
+            Predicate,
+        },
         screenshot::{ScreenshotPlugin, MAX_WAIT_FRAMES, SCREENSHOT_ENV},
     };
 }

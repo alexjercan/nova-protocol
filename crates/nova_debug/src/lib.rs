@@ -50,7 +50,7 @@ pub mod prelude {
             click_at, click_named, hover_named, move_cursor, press_key, press_mouse, release_key,
             release_mouse, ui_node_centre, ui_node_rect,
         },
-        predicate::{and, any_entity, elapsed, frames, resource_where, state_is},
+        predicate::{and, any_entity, elapsed, frames, resource_where, shot_written, state_is},
     };
 
     pub use super::{
@@ -59,7 +59,8 @@ pub mod prelude {
             assert_scenario_loaded, capture_window, capturing, force_capture_resolution,
             freeze_bodies, hide_dev_overlays, hide_hud, nova_autopilot, nova_screenshot,
             player_ship_present, pose_camera, scenario_camera_present, scenario_variable_is,
-            script_reports_done, section_gone, shoot, NOVA_AUTOPILOT_STEP,
+            script_reports_done, section_gone, shoot, CaptureLog, NOVA_AUTOPILOT_STEP,
+            SETTLE_FRAMES, SHOT_DEADLINE_SECS,
         },
         screenshot::{ScreenshotHotkeyPlugin, SCREENSHOT_KEYCODE},
         DebugPlugin,

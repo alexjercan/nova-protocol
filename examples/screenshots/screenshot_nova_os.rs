@@ -56,13 +56,6 @@ fn main() -> bevy::app::AppExit {
 
     #[cfg(feature = "debug")]
     {
-        let capturing = capturing();
-        // The per-beat settle counts are LOAD-BEARING for the capture path: a
-        // beat must be still before its shot, and `save_to_disk` must land
-        // before the next beat navigates away. Carried over from the stage
-        // machine this replaced, not re-derived.
-        let settle = if capturing { 40 } else { 6 };
-        let after_capture = if capturing { 20 } else { 2 };
         app.add_plugins(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
                 // Wait for the ship to EXIST: the computer keys off the player
@@ -75,7 +68,7 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("open the computer")
                 .on_enter(press_tab)
-                .until(frames(settle))
+                .until(frames(SETTLE_FRAMES))
                 .add()
                 // Run `help` then `ship view` so command-output formatting is
                 // on screen (bare `ship` now LAUNCHES the app; `ship view` is
@@ -92,11 +85,12 @@ fn main() -> bevy::app::AppExit {
                 // completion ghost.
                 .step("leave an inline-completion prefix")
                 .on_enter(|world| type_word(world, "lo"))
-                .until(frames(settle))
+                .until(frames(SETTLE_FRAMES))
                 .add()
                 .step("capture the terminal")
                 .on_enter(move |world| shoot(world, "news-090-nova-os-terminal.png"))
-                .until(frames(after_capture))
+                .until(shot_written("news-090-nova-os-terminal.png"))
+                .deadline(SHOT_DEADLINE_SECS)
                 .add()
                 // Flush the leftover `lo` prefix, then type `map`.
                 .step("type the map command")
@@ -108,7 +102,7 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("launch the map app")
                 .on_enter(press_enter)
-                .until(frames(settle))
+                .until(frames(SETTLE_FRAMES))
                 .add()
                 // Leave the map app back to the prompt, then type `ship`.
                 .step("type the ship command")
@@ -123,15 +117,14 @@ fn main() -> bevy::app::AppExit {
                 // wgsl/render panic would fail the run).
                 .step("launch the ship app")
                 .on_enter(press_enter)
-                .until(frames(settle))
+                .until(frames(SETTLE_FRAMES))
                 .add()
-                // The last step's hold is what gives `save_to_disk` room to
-                // land: `capture_window` spawns a bare `Screenshot`, so nothing
-                // registers it as a completion collector and the driver reports
-                // done the moment this step ends.
+                // The last step holds until the PNG is on disk, so the driver
+                // cannot report done out from under a pending write.
                 .step("capture the ship app")
                 .on_enter(move |world| shoot(world, "news-090-nova-os-apps.png"))
-                .until(frames(after_capture))
+                .until(shot_written("news-090-nova-os-apps.png"))
+                .deadline(SHOT_DEADLINE_SECS)
                 .add(),
         );
         app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));

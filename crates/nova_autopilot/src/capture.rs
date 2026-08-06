@@ -18,12 +18,17 @@
 //!
 //! Relative paths resolve under [`SHOT_DIR_ENV`], so a whole run stages into
 //! one folder; an absolute path is used as-is.
+//!
+//! Every shot ACKS: [`capture_window`] records the path in [`CaptureLog`] once
+//! the PNG is on disk, and a step waits for that with
+//! [`shot_written`](crate::predicate::shot_written) instead of guessing a hold
+//! long enough for the write to land.
 
-use std::path::PathBuf;
+use std::{collections::HashSet, path::PathBuf};
 
 use bevy::{
     prelude::*,
-    render::view::screenshot::{save_to_disk, Screenshot},
+    render::view::screenshot::{save_to_disk, Screenshot, ScreenshotCaptured},
 };
 
 /// Environment variable that puts a run on the CAPTURE path: its scripts take
@@ -53,19 +58,55 @@ pub fn capturing() -> bool {
     std::env::var_os(CAPTURE_ENV).is_some()
 }
 
+/// Every shot this run has finished writing, keyed by the path the CALLER
+/// asked for - not the resolved one, so a step waits on the same string it
+/// shot with.
+///
+/// The ack side of [`capture_window`]. `save_to_disk` writes the file inside
+/// its observer, so a name is in here only once the PNG is on disk, which is
+/// what makes [`shot_written`](crate::predicate::shot_written) an await rather
+/// than another guess.
+#[derive(Resource, Default)]
+pub struct CaptureLog {
+    written: HashSet<String>,
+}
+
+impl CaptureLog {
+    /// Record `path` as written. Called from the capture observer.
+    pub fn mark(&mut self, path: &str) {
+        self.written.insert(path.to_string());
+    }
+
+    /// Whether `path` has landed on disk this run.
+    pub fn wrote(&self, path: &str) -> bool {
+        self.written.contains(path)
+    }
+}
+
 /// Capture the primary window to `path` (relative paths resolve under
 /// [`SHOT_DIR_ENV`]), creating the parent directory if needed.
 ///
 /// ASYNCHRONOUS: it spawns a bare `Screenshot` request, and the PNG lands at
-/// the end of a later frame. Nothing here registers a completion collector, so
-/// a caller must hold its step open long enough for the write to finish before
-/// navigating away or ending the run.
+/// the end of a later frame. The caller does NOT guess how long that takes -
+/// the request acks into [`CaptureLog`] when the write completes, and the step
+/// holds on [`shot_written`](crate::predicate::shot_written).
 pub fn capture_window(world: &mut World, path: &str) {
     let resolved = capture_path(path);
     create_capture_dir(&resolved);
-    world
-        .spawn(Screenshot::primary_window())
-        .observe(save_to_disk(resolved));
+    // The ack must not outrun the write, so it is chained BEHIND the save in
+    // one observer rather than registered as a second one: `save_to_disk`
+    // writes the file synchronously inside its own closure, so by the time it
+    // returns the PNG is on disk. Two independent observers on the same entity
+    // have no ordering between them.
+    let mut save = save_to_disk(resolved);
+    let acked = path.to_string();
+    world.init_resource::<CaptureLog>();
+    world.spawn(Screenshot::primary_window()).observe(
+        move |captured: On<ScreenshotCaptured>, mut log: ResMut<CaptureLog>| {
+            save(captured);
+            log.mark(&acked);
+        },
+    );
 }
 
 /// Create the parent directory of a resolved capture path. A failure warns and

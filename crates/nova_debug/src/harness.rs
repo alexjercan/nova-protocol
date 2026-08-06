@@ -79,7 +79,9 @@ use bevy_common_systems::prelude::WASDCameraController;
 use nova_autopilot::predicate::{any_entity, resource_where};
 pub use nova_autopilot::{
     autopilot::{AutopilotLoop, AutopilotPlugin},
-    capture::{capture_window, capturing, CAPTURE_ENV, CAPTURE_RESOLUTION, SHOT_DIR_ENV},
+    capture::{
+        capture_window, capturing, CaptureLog, CAPTURE_ENV, CAPTURE_RESOLUTION, SHOT_DIR_ENV,
+    },
     // The self-ending examples (menu_scenarios) report the autopilot collector
     // done early rather than idling out the runway. They must reach the SAME
     // protocol instance the drivers register with, so it is re-exported here
@@ -111,6 +113,25 @@ pub const NOVA_AUTOPILOT_SECS: f32 = 6.0;
 /// Settle frames the [`nova_screenshot`] preset waits after `Playing` is
 /// reached, so the scene and UI have a few frames to render before the capture.
 pub const NOVA_SCREENSHOT_SETTLE_FRAMES: u32 = 30;
+
+/// Frames a beat settles before its shot: long enough for the scene to come to
+/// rest, the UI to lay out and the render to reach the frame the shot wants.
+///
+/// ONE value for every capture example and BOTH paths. The per-example splits
+/// this replaced (90/6, 40/6, 30/2, 20/2) were not disagreements about
+/// stillness - they were each absorbing the PNG write latency on top of it,
+/// with a `capturing` branch to keep the smoke walk short. [`shoot`] acks now
+/// ([`shot_written`](nova_autopilot::predicate::shot_written)), so what is left
+/// is the stillness figure alone, and it is the same on both paths.
+pub const SETTLE_FRAMES: u32 = 30;
+
+/// In-step seconds a shot gets to land before the run ABORTS naming the step.
+///
+/// The ack turns a lost capture into a step that never advances, and a step
+/// with no deadline hangs the whole run silently. Generous against a
+/// software-rendered GPU reading back a 1920x1080 frame, far under the
+/// completion deadline, and never reached by a capture that works.
+pub const SHOT_DEADLINE_SECS: f32 = 20.0;
 
 /// The name of the single step [`nova_autopilot`] builds, so a caller can
 /// [`loop_from`](AutopilotPlugin::loop_from) it without repeating the string.
@@ -338,8 +359,9 @@ fn assert_scenario_loaded_fired(assertion: Res<ScenarioLoadAssertion>) {
 /// "wiki-gravity.png"))`, so the same file drives both the capture run and the
 /// smoke run - unarmed, this is a logged no-op and the walk carries on.
 ///
-/// Asynchronous, like the [`capture_window`] it wraps: the step must hold long
-/// enough for the PNG to land before the script frames anything else.
+/// Asynchronous, like the [`capture_window`] it wraps, but it ACKS: the shot
+/// step holds on `until(shot_written(path))` rather than on a guessed number of
+/// frames, and that predicate is already satisfied on the smoke path.
 pub fn shoot(world: &mut World, path: &str) {
     if !capturing() {
         return;

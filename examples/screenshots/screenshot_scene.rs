@@ -87,9 +87,7 @@ fn main() -> bevy::app::AppExit {
         // The scene is posed, so it must not drift between framings - but only
         // on a capture run, so a plain `cargo run` keeps its physics and the
         // yard really does drift.
-        if capturing() {
-            app.add_systems(Update, freeze_bodies);
-        }
+        app.add_systems(Update, freeze_bodies.run_if(capturing));
         app.add_plugins(scene_script());
     }
 
@@ -300,14 +298,6 @@ const SCENE_SHOTS: [SceneShot; 3] = [
 /// is armed.
 #[cfg(feature = "debug")]
 fn scene_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
-    let capturing = capturing();
-    // Frames a framing settles before its shot, and frames the shot is given to
-    // land before the camera moves on. The smoke path writes nothing, so it
-    // drives straight through on minimal waits - which is what a slow
-    // software-rendered CI GPU needs.
-    let settle = if capturing { 30 } else { 2 };
-    let after_shot = if capturing { 20 } else { 0 };
-
     let mut script = nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
         // The scene is live once the loader has spawned its camera; posing
         // before that poses nothing.
@@ -325,14 +315,14 @@ fn scene_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         script = script
             .step(format!("frame {path}"))
             .on_enter(move |world: &mut World| pose_camera(world, eye, look))
-            .until(frames(settle))
+            .until(frames(SETTLE_FRAMES))
             .add()
-            // The hold is what gives `save_to_disk` room to land: `shoot` is
-            // asynchronous, and the next framing would otherwise move the
-            // camera out from under the pending PNG.
+            // The shot step holds until the PNG is on disk, so the next
+            // framing cannot move the camera out from under a pending write.
             .step(format!("shoot {path}"))
             .on_enter(move |world: &mut World| shoot(world, path))
-            .until(frames(after_shot))
+            .until(shot_written(path))
+            .deadline(SHOT_DEADLINE_SECS)
             .add();
     }
     script

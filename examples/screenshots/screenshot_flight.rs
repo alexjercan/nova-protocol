@@ -155,27 +155,12 @@ const BEACON_SIGNATURE: f32 = 40.0;
 #[cfg(feature = "debug")]
 const STEADY_SECS: f32 = 2.0;
 
-/// Frames a capture step holds after requesting its PNG. `capture_window`
-/// spawns a bare `Screenshot` and is NOT a completion collector, so the last
-/// step's hold is the only thing giving `save_to_disk` room to land before the
-/// driver reports done and the app exits. A smoke run captures nothing and only
-/// needs the step to be observable.
-#[cfg(feature = "debug")]
-fn capture_settle_frames(capturing: bool) -> u32 {
-    if capturing {
-        20
-    } else {
-        2
-    }
-}
-
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
     #[cfg(feature = "debug")]
     {
-        let capturing = capturing();
         // One step per beat, and every capture gets its OWN step: Bevy services
         // one primary-window capture per frame, so the rule is structural here
         // rather than a guard inside a shared step.
@@ -224,7 +209,8 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("capture the insertion burn")
                 .on_enter(move |world| shoot(world, "variant-autopilot-ring.png"))
-                .until(elapsed(0.2))
+                .until(shot_written("variant-autopilot-ring.png"))
+                .deadline(SHOT_DEADLINE_SECS)
                 .add()
                 // Circularized: the verb reports Hold once the velocity error is
                 // inside the hold tolerance. A long deadline, because the
@@ -272,7 +258,8 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("capture the orbit shot")
                 .on_enter(move |world| shoot(world, "tutorial-orbit.png"))
-                .until(elapsed(0.2))
+                .until(shot_written("tutorial-orbit.png"))
+                .deadline(SHOT_DEADLINE_SECS)
                 .add()
                 // The limb: from outside the ring, looking in past the ship at
                 // the planetoid it is falling around. The camera leaves the
@@ -301,7 +288,8 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("capture the limb")
                 .on_enter(move |world| shoot(world, "variant-flight-limb.png"))
-                .until(elapsed(0.2))
+                .until(shot_written("variant-flight-limb.png"))
+                .deadline(SHOT_DEADLINE_SECS)
                 .add()
                 // The chase: behind and above the ship, canted inboard. The
                 // height is the point - level with the plane, the holo ring
@@ -330,7 +318,8 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("capture the chase")
                 .on_enter(move |world| shoot(world, "variant-flight-chase.png"))
-                .until(elapsed(0.2))
+                .until(shot_written("variant-flight-chase.png"))
+                .deadline(SHOT_DEADLINE_SECS)
                 .add()
                 // ACT 2 - the departure. ORBIT is a held state and its shots are
                 // of a ship sitting on a ring; the flight computer's loud beats
@@ -368,7 +357,8 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("capture the departure burn")
                 .on_enter(move |world| shoot(world, "feature-autopilot.png"))
-                .until(elapsed(0.2))
+                .until(shot_written("feature-autopilot.png"))
+                .deadline(SHOT_DEADLINE_SECS)
                 .add()
                 // The same burn, wide and clean: back along the ship's own radius
                 // so the planetoid it is climbing away from sits behind it in
@@ -394,7 +384,8 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("capture the departure wide")
                 .on_enter(move |world| shoot(world, "variant-flight-departure.png"))
-                .until(elapsed(0.2))
+                .until(shot_written("variant-flight-departure.png"))
+                .deadline(SHOT_DEADLINE_SECS)
                 .add()
                 // Coast, then the flip: the computer swings the ship end-for-end
                 // and lights the drive back down the path. The wait is on the
@@ -433,7 +424,8 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("capture the flip")
                 .on_enter(move |world| shoot(world, "wiki-flight.png"))
-                .until(elapsed(0.2))
+                .until(shot_written("wiki-flight.png"))
+                .deadline(SHOT_DEADLINE_SECS)
                 .add()
                 // The arrival: the leg ends parked off the beacon, which is the
                 // only frame in the set that shows a flight-computer leg being
@@ -465,7 +457,8 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("capture the arrival")
                 .on_enter(move |world| shoot(world, "variant-flight-arrival.png"))
-                .until(frames(capture_settle_frames(capturing)))
+                .until(shot_written("variant-flight-arrival.png"))
+                .deadline(SHOT_DEADLINE_SECS)
                 .add(),
         );
         app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));

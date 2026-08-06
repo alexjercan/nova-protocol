@@ -86,13 +86,24 @@ Each step below becomes its own child task at planning time.
       (`crates/nova_debug/src/harness.rs:372-392`). **Keep `capture_window`** -
       it is the primitive `shoot` wraps.
       commits: `63cc7bd2`
-- [ ] 4. **Capture ack + one uniform scene settle.** `capture_window` becomes a
+- [x] 4. **Capture ack + one uniform scene settle.** `capture_window` becomes a
       completion collector / emits a per-shot ack; steps use
       `until(shot_written(name))`. That deletes the save-latency settle outright
       - it was never a duration, it was a missing await
       (`screenshot_combat.rs:161-165` says so). Then ONE scene-settle value on
       both paths, replacing the 90/6, 40/6 and 20/2 splits. Also makes the
       `FIGURES` manifest at `scripts/gen-web-screenshots.py:74-105` checkable.
+      Done as the ACK alone, not a collector: once every shot step awaits its
+      own write, a run cannot exit with a capture pending, and a collector whose
+      pending set starts empty would be a second, ambiguous mechanism.
+      `SETTLE_FRAMES` = 30, verified by capture runs of all six examples (the
+      90 and 40 were carrying write latency on top of stillness). Shot steps
+      carry `SHOT_DEADLINE_SECS`, so a lost capture aborts NAMING the step
+      instead of hanging. `menu_scenarios` and `widget_zoo` had the same guessed
+      hold in hand-rolled rigs and wait on the ack too. FIGURES left implicit
+      (owner's call): the ack already turns a missing declared shot into a hard
+      run failure, and the manifest stays advisory per the asset-coverage rule.
+      commits: `37afde1c`
 - [ ] 5. **Make probe cover the `screenshots/` category.**
       `crates/nova_probe/src/catalog.rs:181-188` -> `probed: true,
       frame_time: false`, and rewrite the comment (its claim is true only of

@@ -119,6 +119,25 @@ pub fn any_entity<F: QueryFilter + 'static>() -> Arc<Predicate> {
     })
 }
 
+/// Advance once the shot named `path` is on disk - the await that replaces a
+/// hand-guessed hold after a capture step.
+///
+/// `path` is the string the step shot with, matched against
+/// [`CaptureLog`](crate::capture::CaptureLog).
+///
+/// On the SMOKE path it holds immediately. An unarmed run shoots nothing, so
+/// waiting for a write that will never happen would hang the walk - and this
+/// is the only place that difference belongs: the same
+/// `.until(shot_written(path))` line then drives both paths, with no example
+/// branching its step timing on whether it is capturing.
+pub fn shot_written(path: impl Into<String>) -> Arc<Predicate> {
+    if !crate::capture::capturing() {
+        return Arc::new(|_: &World| true);
+    }
+    let path = path.into();
+    resource_where::<crate::capture::CaptureLog>(move |log| log.wrote(&path))
+}
+
 /// Advance once both predicates hold.
 pub fn and(a: Arc<Predicate>, b: Arc<Predicate>) -> Arc<Predicate> {
     Arc::new(move |world: &World| a(world) && b(world))
@@ -175,6 +194,42 @@ mod tests {
         let world = World::new();
         assert!(!elapsed(0.0)(&world));
         assert!(!frames(0)(&world));
+    }
+
+    /// The ack a shot step waits on: false until the write lands, true after.
+    /// Built the way `shot_written` builds it on the ARMED path - the env gate
+    /// itself is asserted below, because arming it here would race the other
+    /// tests sharing this binary.
+    #[test]
+    fn a_shot_ack_holds_only_once_the_write_has_landed() {
+        let ack = resource_where::<crate::capture::CaptureLog>(|log| log.wrote("wiki-hud.png"));
+        let mut world = World::new();
+        assert!(!ack(&world), "no log yet is not a written shot");
+
+        world.init_resource::<crate::capture::CaptureLog>();
+        assert!(!ack(&world), "an empty log is not a written shot");
+
+        world
+            .resource_mut::<crate::capture::CaptureLog>()
+            .mark("feature-hud.png");
+        assert!(!ack(&world), "another shot's ack is not this one's");
+
+        world
+            .resource_mut::<crate::capture::CaptureLog>()
+            .mark("wiki-hud.png");
+        assert!(ack(&world));
+    }
+
+    /// The smoke path shoots nothing, so an ack that waited would hang the
+    /// walk on a write that is never coming. `NOVA_CAPTURE` is unset under
+    /// `cargo test`, which is exactly the unarmed case.
+    #[test]
+    fn a_shot_ack_holds_immediately_when_the_run_is_not_armed() {
+        assert!(
+            !crate::capture::capturing(),
+            "this test asserts the UNARMED branch; something set NOVA_CAPTURE"
+        );
+        assert!(shot_written("never-written.png")(&World::new()));
     }
 
     #[test]

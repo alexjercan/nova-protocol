@@ -27,7 +27,7 @@ exports same-named types that would resolve to an inert twin.
 | --- | --- | --- |
 | `AutopilotPlugin` | Walks a list of named steps, each advancing when its predicate over the world holds | Headless smoke runs, driving a scenario while something else measures |
 | `ScreenshotPlugin` | Advances to a target state, settles N frames, captures the primary window to a PNG | One-off visual checks (a phone-width layout regression) |
-| `capture_window` | Writes the primary window to a PNG. Not a driver - the primitive a script's shot step calls | The web figures and thumbnails, captured at 1920x1080 |
+| `capture_window` | Writes the primary window to a PNG and acks it into `CaptureLog`. Not a driver - the primitive a script's shot step calls | The web figures and thumbnails, captured at 1920x1080 |
 | `completion` | The registration and exit protocol every driver reports to | Ending a run once, when everyone is finished |
 
 `nova_probe` is the layer above: it arms the harness variables, runs an example
@@ -235,23 +235,30 @@ and the shot it produces read top-to-bottom in the step list:
 ```rust
 .step("frame the planetoid")
 .on_enter(|world| pose_camera(world, EYE, LOOK))
-.until(frames(settle))
+.until(frames(SETTLE_FRAMES))
 .add()
 .step("shoot wiki-gravity.png")
 .on_enter(|world| shoot(world, "wiki-gravity.png"))
-.until(frames(after_shot))
+.until(shot_written("wiki-gravity.png"))
+.deadline(SHOT_DEADLINE_SECS)
 .add()
 ```
 
 `shoot` is its own gate: it captures only when `NOVA_CAPTURE` is set, so the
-SAME script is both the capture run and the smoke run. Read `capturing()` once
-while building the steps to size the settles - a capture run must let the scene
-still and the PNG land, a smoke run drives straight through, which is what a
-software-rendered CI GPU needs.
+SAME script is both the capture run and the smoke run.
 
 `shoot` is asynchronous (the PNG lands at the end of a later frame), which is
 why the shot step holds instead of ending immediately: move the camera in the
-same frame and the pending capture renders the NEXT framing.
+same frame and the pending capture renders the NEXT framing. It holds on the
+ACK, not on a guessed number of frames - `capture_window` records the path in
+`CaptureLog` once the write completes, and `shot_written` reads that. On the
+smoke path, which shoots nothing, the same predicate holds immediately, so a
+script never branches its step timing on `capturing()`.
+
+That leaves ONE settle in a capture script, the same on both paths:
+`SETTLE_FRAMES`, the frames a beat needs to come to rest before its shot. The
+per-example splits that preceded it were each carrying the write latency on top
+of the stillness, which is why they disagreed.
 
 The scene dressing is separate from the steps and lives in `nova_debug::harness`
 too: `force_capture_resolution` (a known 16:9 for every shot in the fleet),

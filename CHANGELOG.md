@@ -93,6 +93,14 @@ tagged **(breaking)**.
   same file is also the smoke run. `capture_window` stays as the primitive - and
   `widget_zoo` now shoots through it instead of resolving `NOVA_SHOT_DIR` a
   second time. **(breaking)**
+- Every shot ACKS: `capture_window` records the path in a new `CaptureLog` once
+  the PNG is on disk, and a shot step holds on `until(shot_written(name))`
+  instead of a guessed frame count. That deletes the save-latency settle
+  outright and collapses the per-example scene settles (90/6, 40/6, 30/2, 20/2)
+  onto one `SETTLE_FRAMES`, the same on the capture and the smoke path - no
+  example branches its step timing on `capturing()` any more. A shot that never
+  lands is now an error exit naming the step (`SHOT_DEADLINE_SECS`) rather than
+  a missing file. `menu_scenarios` and `widget_zoo` wait on the ack too.
 - Dev wiki: "Automation harness" page for the `nova_autopilot` drivers.
 - `nova_autopilot`: curated prelude, crate-level env contract table, and a
   `completion` doc example.

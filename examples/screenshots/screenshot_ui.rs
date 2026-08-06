@@ -90,47 +90,13 @@ const EDITOR_EYE: Vec3 = Vec3::new(4.44, 3.17, 7.25);
 #[cfg(feature = "debug")]
 const EDITOR_LOOK: Vec3 = Vec3::new(0.62, 0.25, 0.5);
 
-/// Frames a beat settles before its shot. The long settles matter ONLY for the
-/// capture path (`NOVA_CAPTURE`): the scene/UI must be still and the PNG must land
-/// before we navigate away. The smoke path (`NOVA_AUTOPILOT` alone) captures
-/// nothing, so it drives straight through on minimal waits - just enough frames
-/// for the next button to spawn and the state transition to apply. That keeps
-/// the menu -> editor -> Playing walk short in FRAMES, which is what a slow
-/// software-rendered CI GPU (llvmpipe) needs (task 20260716).
+/// Frames a pointer gesture on the SHIP gets: the picking backend needs a
+/// frame to raycast the new pointer position and the editor's observers a
+/// frame to react. Never shorter than the walk's other settles - a click that
+/// lands before the raycast has moved places nothing, and this is the one part
+/// of the walk that silently produces a thinner ship rather than failing.
 #[cfg(feature = "debug")]
-#[derive(Clone, Copy)]
-struct Settle {
-    scene: u32,
-    after_capture: u32,
-    after_nav: u32,
-    /// Frames a pointer gesture on the SHIP gets: the picking backend needs a
-    /// frame to raycast the new pointer position and the editor's observers a
-    /// frame to react. Never as short as `after_nav` - a click that lands
-    /// before the raycast has moved places nothing, and this is the one part of
-    /// the walk that silently produces a thinner ship rather than failing.
-    gesture: u32,
-}
-
-#[cfg(feature = "debug")]
-impl Settle {
-    fn new(capturing: bool) -> Self {
-        if capturing {
-            Self {
-                scene: 90,
-                after_capture: 20,
-                after_nav: 30,
-                gesture: 12,
-            }
-        } else {
-            Self {
-                scene: 6,
-                after_capture: 0,
-                after_nav: 6,
-                gesture: 10,
-            }
-        }
-    }
-}
+const GESTURE_FRAMES: u32 = 12;
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
@@ -161,7 +127,6 @@ fn main() -> bevy::app::AppExit {
 /// shot per state.
 #[cfg(feature = "debug")]
 fn ui_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
-    let settle = Settle::new(capturing());
     // The HUD is re-raised by entering the editor, so it is dropped again right
     // before every shot rather than once at `Startup`. `shoot` itself is the
     // capture gate: unarmed, this whole walk runs and writes nothing.
@@ -179,18 +144,19 @@ fn ui_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates
         .deadline(STEP_DEADLINE_SECS)
         .add()
         .step("settle the menu and its ambience backdrop")
-        .until(frames(settle.scene))
+        .until(frames(SETTLE_FRAMES))
         .add()
         // Hide the HUD first, and let the PNG land BEFORE navigating away:
         // clicking on in the same frame captured a black mid-teardown frame.
         .step("capture the main menu")
         .on_enter(shot("tutorial-menu.png"))
-        .until(frames(settle.after_capture))
+        .until(shot_written("tutorial-menu.png"))
+        .deadline(SHOT_DEADLINE_SECS)
         .add()
         // The Settings panel: an overlay over the menu, not its own state.
-        .click("open Settings", "Settings Button", settle)
+        .click("open Settings", "Settings Button")
         .step("settle the settings panel")
-        .until(frames(settle.after_nav))
+        .until(frames(SETTLE_FRAMES))
         .add()
         .step("the settings panel is up")
         .on_enter(|world: &mut World| {
@@ -204,17 +170,18 @@ fn ui_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates
         .add()
         .step("capture the settings panel")
         .on_enter(shot("wiki-settings.png"))
-        .until(frames(settle.after_capture))
+        .until(shot_written("wiki-settings.png"))
+        .deadline(SHOT_DEADLINE_SECS)
         .add()
-        .click("close Settings", "Settings Back Button", settle)
+        .click("close Settings", "Settings Back Button")
         // The Scenarios picker: the campaign header and its indented chapters.
-        .click("open Scenarios", "Scenarios Button", settle)
+        .click("open Scenarios", "Scenarios Button")
         .step("settle the scenarios picker")
-        .until(frames(settle.after_nav))
+        .until(frames(SETTLE_FRAMES))
         .add()
-        .click("select a campaign chapter", CAMPAIGN_CHAPTER_ROW, settle)
+        .click("select a campaign chapter", CAMPAIGN_CHAPTER_ROW)
         .step("settle the selected chapter's details pane")
-        .until(frames(settle.after_nav))
+        .until(frames(SETTLE_FRAMES))
         .add()
         .step("the chapter is the selected row")
         .on_enter(|world: &mut World| {
@@ -238,49 +205,35 @@ fn ui_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates
         .add()
         .step("capture the scenarios picker")
         .on_enter(shot("news-090-scenario-campaigns.png"))
-        .until(frames(settle.after_capture))
+        .until(shot_written("news-090-scenario-campaigns.png"))
+        .deadline(SHOT_DEADLINE_SECS)
         .add()
-        .click("leave the picker", "Scenarios Back Button", settle)
+        .click("leave the picker", "Scenarios Back Button")
         // The editor: reached the way a player reaches it.
-        .click("leave for the editor", "Sandbox Button", settle)
+        .click("leave for the editor", "Sandbox Button")
         .step("reach the editor")
-        .until(and(state_is(GameStates::Playing), frames(settle.after_nav)))
+        .until(and(state_is(GameStates::Playing), frames(SETTLE_FRAMES)))
         .deadline(STEP_DEADLINE_SECS)
         .add()
         .step("pose the editor camera off the axis")
         .on_enter(pose_editor_camera)
-        .until(frames(settle.after_nav))
+        .until(frames(SETTLE_FRAMES))
         .add()
-        .click("create the ship", "Create New Spaceship Button V2", settle)
+        .click("create the ship", "Create New Spaceship Button V2")
         .step("settle the new ship and its colliders")
-        .until(frames(settle.scene))
+        .until(frames(SETTLE_FRAMES))
         .add()
         // Build it: arm a card, then click the ship itself through the real
         // picking pipeline. A placed section lands at the hit section's position
         // plus the hit FACE normal, so each beat below names the section it
         // grows from and the face it grows out of.
-        .click("arm the hull", "Reinforced Hull Section", settle)
-        .place("hull ahead of the controller", Vec3::ZERO, Vec3::X, settle)
-        .place(
-            "hull ahead of that",
-            Vec3::new(1.0, 0.0, 0.0),
-            Vec3::X,
-            settle,
-        )
-        .click("arm the thruster", "Basic Thruster Section", settle)
-        .place(
-            "thruster on the tail",
-            Vec3::new(2.0, 0.0, 0.0),
-            Vec3::X,
-            settle,
-        )
-        .click("arm the turret", "Better Turret Section", settle)
-        .place(
-            "turret on the spine",
-            Vec3::new(1.0, 0.0, 0.0),
-            Vec3::Y,
-            settle,
-        )
+        .click("arm the hull", "Reinforced Hull Section")
+        .place("hull ahead of the controller", Vec3::ZERO, Vec3::X)
+        .place("hull ahead of that", Vec3::new(1.0, 0.0, 0.0), Vec3::X)
+        .click("arm the thruster", "Basic Thruster Section")
+        .place("thruster on the tail", Vec3::new(2.0, 0.0, 0.0), Vec3::X)
+        .click("arm the turret", "Better Turret Section")
+        .place("turret on the spine", Vec3::new(1.0, 0.0, 0.0), Vec3::Y)
         .step("the ship was built")
         .on_enter(|world: &mut World| {
             // The controller the New Ship button spawns, plus the four sections
@@ -301,15 +254,14 @@ fn ui_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates
         // a reader would mistake for part of the built ship.
         .step("park the pointer clear of the ship")
         .on_enter(|world: &mut World| move_cursor(Vec2::new(1720.0, 960.0))(world))
-        .until(frames(settle.after_nav))
+        .until(frames(SETTLE_FRAMES))
         .add()
-        // The last step's hold is the only thing giving `save_to_disk` room to
-        // land: `capture_window` spawns a bare `Screenshot`, so nothing
-        // registers it as a completion collector and the driver reports done the
-        // moment this step ends.
+        // The last step holds until the PNG is on disk, so the driver cannot
+        // report done out from under a pending write.
         .step("capture the editor with the built ship")
         .on_enter(shot("feature-editor.png"))
-        .until(frames(settle.after_capture))
+        .until(shot_written("feature-editor.png"))
+        .deadline(SHOT_DEADLINE_SECS)
         .add()
 }
 
@@ -379,42 +331,42 @@ fn aim_at_face(world: &mut World, section: Vec3, face: Vec3) -> Vec2 {
 trait Gestures {
     /// Press and release the pointer over the named widget. Widgets act on
     /// `Activate`, which fires on RELEASE over the same node.
-    fn click(self, label: &str, name: &str, settle: Settle) -> Self;
+    fn click(self, label: &str, name: &str) -> Self;
 
     /// Place a section on the ship: aim at the `face` face of the section
     /// mounted at `on`, press, release. The editor acts on `Pointer<Press>`, so
     /// the press does the work and the release only lets go.
-    fn place(self, label: &str, on: Vec3, face: Vec3, settle: Settle) -> Self;
+    fn place(self, label: &str, on: Vec3, face: Vec3) -> Self;
 }
 
 #[cfg(feature = "debug")]
 impl Gestures for nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
-    fn click(self, label: &str, name: &str, settle: Settle) -> Self {
+    fn click(self, label: &str, name: &str) -> Self {
         self.step(format!("{label}: press"))
             .on_enter(click_named(name.to_string()))
-            .until(frames(settle.gesture))
+            .until(frames(GESTURE_FRAMES))
             .add()
             .step(format!("{label}: release"))
             .on_enter(release_mouse(MouseButton::Left))
-            .until(frames(settle.gesture))
+            .until(frames(GESTURE_FRAMES))
             .add()
     }
 
-    fn place(self, label: &str, on: Vec3, face: Vec3, settle: Settle) -> Self {
+    fn place(self, label: &str, on: Vec3, face: Vec3) -> Self {
         self.step(format!("{label}: aim"))
             .on_enter(move |world: &mut World| {
                 let at = aim_at_face(world, on, face);
                 move_cursor(at)(world);
             })
-            .until(frames(settle.gesture))
+            .until(frames(GESTURE_FRAMES))
             .add()
             .step(format!("{label}: press"))
             .on_enter(press_mouse(MouseButton::Left))
-            .until(frames(settle.gesture))
+            .until(frames(GESTURE_FRAMES))
             .add()
             .step(format!("{label}: release"))
             .on_enter(release_mouse(MouseButton::Left))
-            .until(frames(settle.gesture))
+            .until(frames(GESTURE_FRAMES))
             .add()
             // Per-gesture, not just the total at the end: a short final count
             // says the build missed, this says WHICH gesture missed.
