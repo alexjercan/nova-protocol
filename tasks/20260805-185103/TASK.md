@@ -233,7 +233,7 @@ Each step below becomes its own child task at planning time.
       two missing `Propagate` edges, and the duplicate edge registration at
       `camera_controller/mod.rs:112-114` / `framing.rs:475`. Highest
       value-to-effort in the whole investigation.
-      commits: `PENDING`
+      commits: `c944b4d1`
 - [ ] 8. **Then, independently** (each its own child, no ordering between them):
       move bcs `integrity` + `ui/health_display.rs` to nova and scrub the nova
       task IDs from `bcs/src/physics/pd_controller.rs:535`; use bcs `persist`
