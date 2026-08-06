@@ -2,7 +2,6 @@
 //! (`OnOrbit`, `OnTravelLock`, `OnCombatLock`) a scenario can react to.
 
 use bevy::prelude::*;
-use bevy_common_systems::prelude::*;
 use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 
@@ -245,7 +244,8 @@ mod tests {
         use core::time::Duration;
 
         use bevy::time::TimeUpdateStrategy;
-        use bevy_common_systems::prelude::{EventHandler, GameEventsPlugin, GameObjectives};
+        use bevy_common_systems::prelude::GameObjectives;
+        use nova_events::prelude::{EventHandler, GameEventsPlugin};
         use nova_gameplay::prelude::{Autopilot, AutopilotAction, SpaceshipRootMarker};
 
         let mut app = App::new();
@@ -371,7 +371,8 @@ mod tests {
         use core::time::Duration;
 
         use bevy::time::TimeUpdateStrategy;
-        use bevy_common_systems::prelude::{EventHandler, GameEventsPlugin, GameObjectives};
+        use bevy_common_systems::prelude::GameObjectives;
+        use nova_events::prelude::{EventHandler, GameEventsPlugin};
         use nova_gameplay::prelude::{Autopilot, AutopilotAction, SpaceshipRootMarker};
 
         let mut app = App::new();
@@ -523,7 +524,8 @@ mod tests {
         use core::time::Duration;
 
         use bevy::time::TimeUpdateStrategy;
-        use bevy_common_systems::prelude::{EventHandler, GameEventsPlugin, GameObjectives};
+        use bevy_common_systems::prelude::GameObjectives;
+        use nova_events::prelude::{EventHandler, GameEventsPlugin};
         use nova_gameplay::prelude::{
             CombatLock, PlayerSpaceshipMarker, SpaceshipRootMarker, TravelLock,
         };

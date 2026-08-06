@@ -23,9 +23,9 @@
 use std::hint::black_box;
 
 use bevy::prelude::*;
-use bevy_common_systems::{modding::events::GameEventQueue, prelude::*};
+use bevy_common_systems::prelude::GameObjectives;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use nova_events::prelude::*;
+use nova_events::{engine::GameEventQueue, prelude::*};
 use nova_scenario::prelude::*;
 
 /// Every non-`OnUpdate` event kind, so the synthetic scenario can pad itself

@@ -21,12 +21,11 @@
 //! (`cargo test -p nova_assets --test final_tally_claim`).
 
 use bevy::{ecs::system::RunSystemOnce, math::Vec3, prelude::*};
-use bevy_common_systems::prelude::{
-    CommandsGameEventExt, EventHandler, GameEventsPlugin, GameObjectives,
-};
+use bevy_common_systems::prelude::GameObjectives;
 use nova_events::prelude::{
-    EntityId, OnDestroyedEvent, OnDestroyedEventInfo, OnTravelLockEvent, OnTravelLockEventInfo,
-    OnUpdateEvent, OnUpdateEventInfo,
+    CommandsGameEventExt, EntityId, EventHandler, GameEventsPlugin, OnDestroyedEvent,
+    OnDestroyedEventInfo, OnTravelLockEvent, OnTravelLockEventInfo, OnUpdateEvent,
+    OnUpdateEventInfo,
 };
 use nova_gameplay::prelude::GravitySettings;
 use nova_modding::prelude::Content;

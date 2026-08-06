@@ -2,7 +2,6 @@
 //! scenario for the next, plus the scenario-liveness system gating.
 
 use bevy::prelude::*;
-use bevy_common_systems::prelude::*;
 use bevy_enhanced_input::prelude::*;
 use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
@@ -713,7 +712,8 @@ mod tests {
     /// bcs panel does.
     #[test]
     fn objective_text_repaints_after_restarting_the_same_scenario() {
-        use bevy_common_systems::prelude::{GameEventsPlugin, GameObjectives};
+        use bevy_common_systems::prelude::GameObjectives;
+        use nova_events::prelude::GameEventsPlugin;
 
         #[derive(Resource, Default)]
         struct ObjectiveRepaints(usize);
@@ -788,9 +788,7 @@ mod tests {
 
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
-        app.add_plugins(bevy_common_systems::prelude::GameEventsPlugin::<
-            NovaEventWorld,
-        >::default());
+        app.add_plugins(nova_events::prelude::GameEventsPlugin::<NovaEventWorld>::default());
         app.init_resource::<NovaEventWorld>();
         app.init_resource::<bevy_common_systems::prelude::GameObjectives>();
         app.init_resource::<StoryFeed>();

@@ -25,12 +25,10 @@
 //! `cargo test -p nova_assets --test ledger_ch2_encounter`).
 
 use bevy::{ecs::system::RunSystemOnce, math::Vec3, prelude::*};
-use bevy_common_systems::prelude::{
-    CommandsGameEventExt, EventHandler, GameEventsPlugin, GameObjectives,
-};
+use bevy_common_systems::prelude::GameObjectives;
 use nova_events::prelude::{
-    OnDestroyedEvent, OnDestroyedEventInfo, OnNeutralizedEvent, OnNeutralizedEventInfo,
-    OnUpdateEvent, OnUpdateEventInfo,
+    CommandsGameEventExt, EventHandler, GameEventsPlugin, OnDestroyedEvent, OnDestroyedEventInfo,
+    OnNeutralizedEvent, OnNeutralizedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
 };
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::*;

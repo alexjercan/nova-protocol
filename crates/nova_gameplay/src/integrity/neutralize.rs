@@ -15,8 +15,7 @@
 //! [`glue`]: super::glue
 
 use bevy::prelude::*;
-use bevy_common_systems::prelude::CommandsGameEventExt;
-use nova_events::prelude::*;
+use nova_events::prelude::{CommandsGameEventExt, *};
 
 use super::core::prelude::*;
 use crate::prelude::{
@@ -155,7 +154,7 @@ fn detect_neutralized(
 
 #[cfg(test)]
 mod tests {
-    use bevy_common_systems::prelude::GameEvent;
+    use nova_events::prelude::GameEvent;
 
     use super::*;
     use crate::{

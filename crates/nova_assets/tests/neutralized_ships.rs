@@ -14,11 +14,10 @@
 //! act guards give once-semantics so a later real destruction cannot double-fire.
 
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
-use bevy_common_systems::prelude::{
-    CommandsGameEventExt, EventHandler, GameEventsPlugin, GameObjectives,
-};
+use bevy_common_systems::prelude::GameObjectives;
 use nova_events::prelude::{
-    OnNeutralizedEvent, OnNeutralizedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
+    CommandsGameEventExt, EventHandler, GameEventsPlugin, OnNeutralizedEvent,
+    OnNeutralizedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
 };
 use nova_scenario::prelude::*;
 

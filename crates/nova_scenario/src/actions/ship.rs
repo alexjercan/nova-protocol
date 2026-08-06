@@ -2,7 +2,6 @@
 //! per-verb controller flags.
 
 use bevy::prelude::*;
-use bevy_common_systems::prelude::*;
 use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 
@@ -188,7 +187,7 @@ mod tests {
     /// bystander ship's controller would flip too and this test would fail.
     #[test]
     fn set_controller_verb_flips_only_the_scoped_ship() {
-        use bevy_common_systems::prelude::EventWorld;
+        use nova_events::prelude::EventWorld;
 
         let mut world = World::new();
         world.init_resource::<NovaEventWorld>();
@@ -265,7 +264,7 @@ mod tests {
     /// grants it) reflects the change no matter which controller it samples.
     #[test]
     fn set_controller_verb_writes_all_controllers_on_the_ship() {
-        use bevy_common_systems::prelude::EventWorld;
+        use nova_events::prelude::EventWorld;
 
         let mut world = World::new();
         world.init_resource::<NovaEventWorld>();
@@ -332,7 +331,7 @@ mod tests {
     /// unknown id warns and does not panic.
     #[test]
     fn set_allegiance_flips_the_scoped_ship() {
-        use bevy_common_systems::prelude::EventWorld;
+        use nova_events::prelude::EventWorld;
 
         let mut world = World::new();
         world.init_resource::<NovaEventWorld>();

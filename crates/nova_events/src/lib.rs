@@ -5,17 +5,30 @@
 //! `OnCombatLockEvent` - and the entity-identity components that tag scenario
 //! objects so filters can find them (`EntityId`, `EntityTypeName`). It is
 //! engine-light glue: `nova_gameplay` emits these events and `nova_scenario`
-//! filters and dispatches on them.
+//! filters and dispatches on them. It also owns the [`engine`] that queues and
+//! dispatches those events.
 #![warn(missing_docs)]
 
 use bevy::prelude::*;
-use bevy_common_systems::prelude::*;
+use nova_events_macros::EventKind;
+
+use crate::engine::*;
+
+pub mod engine;
 
 /// Glob-import surface: `use nova_events::prelude::*` brings the entity-identity
-/// components, every `On*Event`/`On*EventInfo` pair, and the reflect-field name
-/// constants into scope.
+/// components, every `On*Event`/`On*EventInfo` pair, the reflect-field name
+/// constants, and the event engine into scope.
 pub mod prelude {
+    // NOTE: the derive expands to `impl EventKind for #name`, so the TRAIT must
+    // be in scope wherever the derive is used. Keep the two exported together.
+    pub use nova_events_macros::EventKind;
+
     pub use super::{
+        engine::{
+            CommandsGameEventExt, EventAction, EventFilter, EventHandler, EventHandlerIndex,
+            EventKind, EventWorld, GameEvent, GameEventInfo, GameEventsPlugin,
+        },
         EntityId, EntityTypeName, OnCombatLockEvent, OnCombatLockEventInfo, OnDestroyedEvent,
         OnDestroyedEventInfo, OnEnterEvent, OnEnterEventInfo, OnExitEvent, OnExitEventInfo,
         OnNeutralizedEvent, OnNeutralizedEventInfo, OnOrbitEvent, OnOrbitEventInfo, OnStartEvent,

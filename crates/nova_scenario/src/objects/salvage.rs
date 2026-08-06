@@ -340,7 +340,8 @@ mod tests {
         use core::time::Duration;
 
         use bevy::time::TimeUpdateStrategy;
-        use bevy_common_systems::prelude::{EventHandler, GameEventsPlugin, GameObjectives};
+        use bevy_common_systems::prelude::GameObjectives;
+        use nova_events::prelude::{EventHandler, GameEventsPlugin};
 
         let mut app = App::new();
         app.add_plugins((

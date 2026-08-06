@@ -1,7 +1,6 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use bevy_common_systems::prelude::CommandsGameEventExt;
-use nova_events::prelude::*;
+use nova_events::prelude::{CommandsGameEventExt, *};
 
 /// Glob-import surface: `use crate::objects::area::prelude::*` re-exports the public API of this module.
 pub mod prelude {
@@ -167,7 +166,8 @@ mod tests {
 
     use avian3d::prelude::{ColliderDensity, Gravity, PhysicsPlugins};
     use bevy::time::TimeUpdateStrategy;
-    use bevy_common_systems::prelude::{EventHandler, GameEventsPlugin, GameObjectives};
+    use bevy_common_systems::prelude::GameObjectives;
+    use nova_events::prelude::{EventHandler, GameEventsPlugin};
 
     use super::*;
     use crate::prelude::*;

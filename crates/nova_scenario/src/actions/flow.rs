@@ -1,7 +1,7 @@
 //! Scenario-flow actions: how a scenario ends and what comes next.
 
 use bevy::prelude::*;
-use bevy_common_systems::prelude::*;
+use nova_events::prelude::*;
 
 use crate::prelude::*;
 
@@ -138,6 +138,8 @@ impl EventAction<NovaEventWorld> for NextScenarioActionConfig {
 
 #[cfg(test)]
 mod tests {
+    use bevy_common_systems::prelude::GameObjectives;
+
     use super::*;
 
     /// The transition-pacing fields parse in their documented strict-RON shapes

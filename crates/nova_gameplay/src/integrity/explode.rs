@@ -10,9 +10,7 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use bevy_common_systems::prelude::{
-    CommandsGameEventExt, ExplodeFragments, ExplodeMesh, TempEntity,
-};
+use bevy_common_systems::prelude::{ExplodeFragments, ExplodeMesh, TempEntity};
 use bevy_rand::prelude::*;
 use nova_events::prelude::*;
 use rand::RngExt;

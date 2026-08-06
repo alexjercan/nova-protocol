@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use bevy::{ecs::world::CommandQueue, platform::collections::HashMap, prelude::*};
-use bevy_common_systems::prelude::EventWorld;
+use nova_events::prelude::EventWorld;
 use nova_gameplay::prelude::*;
 
 use crate::prelude::*;
@@ -435,7 +435,7 @@ mod tests {
                 linger: false,
                 delay: Some(2.0),
             };
-            use bevy_common_systems::prelude::EventAction;
+            use nova_events::prelude::EventAction;
             action.action(&mut world, &default());
         }
 
@@ -489,7 +489,7 @@ mod tests {
 
         {
             let mut world = app.world_mut().resource_mut::<NovaEventWorld>();
-            use bevy_common_systems::prelude::EventAction;
+            use nova_events::prelude::EventAction;
             NextScenarioActionConfig {
                 scenario_id: "never_loads".to_string(),
                 linger: false,
@@ -514,7 +514,7 @@ mod tests {
     /// finite-checks and caps it.
     #[test]
     fn absurd_delays_are_capped_not_panics() {
-        use bevy_common_systems::prelude::EventAction;
+        use nova_events::prelude::EventAction;
         let mut world = NovaEventWorld::default();
         NextScenarioActionConfig {
             scenario_id: "x".to_string(),
@@ -541,7 +541,7 @@ mod tests {
     /// the beat instead of a silent no-op.
     #[test]
     fn release_skips_the_pending_delay() {
-        use bevy_common_systems::prelude::EventAction;
+        use nova_events::prelude::EventAction;
         let mut world = NovaEventWorld::default();
         NextScenarioActionConfig {
             scenario_id: "x".to_string(),
@@ -561,7 +561,7 @@ mod tests {
     #[test]
     fn clear_drops_the_pending_delayed_cut() {
         let mut world = NovaEventWorld::default();
-        use bevy_common_systems::prelude::EventAction;
+        use nova_events::prelude::EventAction;
         NextScenarioActionConfig {
             scenario_id: "x".to_string(),
             linger: false,

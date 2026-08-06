@@ -66,7 +66,7 @@ removes only the names it has just given a nova home and leaves the BCS import
 standing. A surviving `bevy_common_systems` hit in a file a step touched is
 expected until step 10, not evidence the step was left incomplete.
 
-- [ ] 1. **Event engine -> `nova_events` + new `nova_events_macros`.**
+- [x] 1. **Event engine -> `nova_events` + new `nova_events_macros`.**
       Prototype 01. `nova_events` is a leaf; nothing else can drop the dep
       first.
       - a. New crate `crates/nova_events_macros/{Cargo.toml,src/lib.rs}` from
@@ -702,3 +702,50 @@ collapse, the `ObjectiveMarkerTarget` -> `ObjectiveMarker` rename, the
 `bevy_rand` rewire, and the dead-code sweep over `CameraShakeOutput`,
 `WASDCamera`, `EventHandlerIndex`, `BlastDamageConfig` and the unused `*Systems`
 sets.
+
+## Progress
+
+### Step 1 - DONE (`nova_events` + `nova_events_macros`)
+
+**What.** `modding/events.rs` -> `crates/nova_events/src/engine.rs`;
+`bevy_common_systems_macros` -> `crates/nova_events_macros` (workspace member,
+`publish = false`); `registry.rs` dropped; `nova_events` swapped
+`bevy_common_systems` for `serde_json` + `nova_events_macros` and lost its
+no-op `debug` feature. Every pure-engine callsite repointed, every mixed one
+narrowed.
+
+**One hazard the plan did not name, and how it was resolved.** Adding the
+engine names to `nova_events::prelude` made them collide with the still-standing
+`use bevy_common_systems::prelude::*;` in ~11 `nova_scenario` files that ALSO
+glob `nova_events::prelude::*` - `E0659 ambiguous name`, not a silent failure.
+The plan's "narrow globs, never delete them" rule still governs; the fix was to
+narrow each one to the non-engine names it actually supplied. Probing that (drop
+the glob, compile, read the unresolved list) showed the BCS glob in
+`nova_scenario/src/{lib,events,actions/*,loader/*}.rs` supplied **only** engine
+names, so it narrows to nothing there; `actions/flow.rs` and
+`benches/scenario_dispatch.rs` needed a test-scoped `GameObjectives` kept.
+Expect the same probe to be the cheapest way to narrow a glob in Steps 3-9.
+
+**Two plan corrections.**
+
+- `engine.rs:251` called `init_resource::<super::registry::EventHandlerRegistry>`
+  inside `GameEventsPlugin::build`. Dropping `registry.rs` (1c) means dropping
+  that line too - the prototype does not mention it. Nothing reads the resource.
+- The Step 1 DoD grep `! grep -rn bevy_common_systems crates/nova_events/` also
+  catches the **nova ownership docstring** the conventions ask for. Both
+  docstrings say why nova owns the engine without naming the crate it came from,
+  which is what `crates/nova_gameplay/src/integrity/mod.rs` does anyway.
+- `walk.rs:5`'s `CommandsGameEventExt` became a redundant import (the name now
+  arrives through the `use super::*` chain) and was dropped from the braced list.
+
+**Evidence.** `cargo check --workspace --all-targets` clean; `cargo fmt --check`
+clean; `clippy -p nova_events -p nova_events_macros --all-targets` clean;
+`nova_events --lib` 4/4 (the `:417` derive included); `nova_events --doc` 1/1;
+`nova_scenario --lib filters::` 3/3; `check -p nova_scenario --benches` clean;
+`Cargo.lock` gained exactly one package, `nova_events_macros`.
+`examples/stress/many_sections.rs`'s unused-import warning is pre-existing
+(confirmed against a stashed tree), not from this step.
+
+### Next
+
+Step 2 (status bar + tween -> `nova_ui`), prototype 02.

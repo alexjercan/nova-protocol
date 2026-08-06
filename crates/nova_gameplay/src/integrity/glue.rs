@@ -607,9 +607,8 @@ mod physics_tests {
 /// pins (null-result-becomes-a-pin).
 #[cfg(test)]
 mod ghost_ship_tests {
-    use bevy_common_systems::prelude::GameEvent;
     use bevy_rand::prelude::*;
-    use nova_events::prelude::{EntityId, EntityTypeName};
+    use nova_events::prelude::{EntityId, EntityTypeName, GameEvent};
 
     use super::*;
     use crate::integrity::test_support::{settle, unfinished_integrity_physics_app};

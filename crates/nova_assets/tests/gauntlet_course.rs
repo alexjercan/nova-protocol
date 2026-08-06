@@ -22,12 +22,10 @@ use bevy::{
     math::Vec3,
     prelude::*,
 };
-use bevy_common_systems::prelude::{
-    CommandsGameEventExt, EventHandler, GameEventsPlugin, GameObjectives,
-};
+use bevy_common_systems::prelude::GameObjectives;
 use nova_events::prelude::{
-    OnDestroyedEvent, OnDestroyedEventInfo, OnEnterEvent, OnEnterEventInfo, OnUpdateEvent,
-    OnUpdateEventInfo,
+    CommandsGameEventExt, EventHandler, GameEventsPlugin, OnDestroyedEvent, OnDestroyedEventInfo,
+    OnEnterEvent, OnEnterEventInfo, OnUpdateEvent, OnUpdateEventInfo,
 };
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::*;

@@ -2,7 +2,6 @@
 //! marker/keybind emphasis a beat points the player at.
 
 use bevy::prelude::*;
-use bevy_common_systems::prelude::*;
 use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 
@@ -570,7 +569,7 @@ mod tests {
     /// re-attach updates the label in place.
     #[test]
     fn objective_marker_attach_and_detach_drive_the_component() {
-        use bevy_common_systems::prelude::EventWorld;
+        use nova_events::prelude::EventWorld;
 
         let mut world = World::new();
         world.init_resource::<NovaEventWorld>();
@@ -625,7 +624,7 @@ mod tests {
     /// (crate picked up before its detach action runs).
     #[test]
     fn objective_marker_actions_with_missing_id_are_harmless() {
-        use bevy_common_systems::prelude::EventWorld;
+        use nova_events::prelude::EventWorld;
 
         let mut world = World::new();
         world.init_resource::<NovaEventWorld>();
@@ -657,7 +656,7 @@ mod tests {
     /// scenario rigs) both are warn-and-continue no-ops.
     #[test]
     fn hint_emphasis_actions_drive_the_resource() {
-        use bevy_common_systems::prelude::EventWorld;
+        use nova_events::prelude::EventWorld;
 
         let mut world = World::new();
         world.init_resource::<NovaEventWorld>();

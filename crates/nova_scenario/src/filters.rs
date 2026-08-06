@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy_common_systems::modding::prelude::*;
 use nova_events::prelude::*;
 
 use crate::prelude::*;
@@ -199,9 +198,8 @@ impl EventFilter<NovaEventWorld> for ExpressionFilterConfig {
 #[cfg(test)]
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
-    use bevy_common_systems::prelude::{
-        CommandsGameEventExt, EventHandler, GameEventsPlugin, GameObjectives,
-    };
+    use bevy_common_systems::prelude::GameObjectives;
+    use nova_events::prelude::{CommandsGameEventExt, EventHandler, GameEventsPlugin};
 
     use super::*;
 

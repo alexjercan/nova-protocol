@@ -3,7 +3,6 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use bevy_common_systems::prelude::*;
 use nova_events::prelude::*;
 
 use crate::prelude::*;
@@ -543,7 +542,7 @@ mod tests {
     /// unscoped match would rip that section out of every ship.
     #[test]
     fn despawn_action_removes_the_scoped_object_by_id() {
-        use bevy_common_systems::prelude::EventWorld;
+        use nova_events::prelude::EventWorld;
 
         let mut world = World::new();
         world.init_resource::<NovaEventWorld>();
@@ -584,7 +583,7 @@ mod tests {
     /// unrelated entities survive (double-despawn / typo path).
     #[test]
     fn despawn_action_with_missing_id_is_harmless() {
-        use bevy_common_systems::prelude::EventWorld;
+        use nova_events::prelude::EventWorld;
 
         let mut world = World::new();
         world.init_resource::<NovaEventWorld>();

@@ -2,7 +2,7 @@
 //! scenario's handlers registered exactly as `on_load_scenario` registers
 //! them, driven through all five beats.
 
-use bevy_common_systems::prelude::{CommandsGameEventExt, EventHandler, GameEventsPlugin};
+use nova_events::prelude::{EventHandler, GameEventsPlugin};
 
 use super::*;
 

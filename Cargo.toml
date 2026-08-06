@@ -328,6 +328,8 @@ members = [
   "crates/nova_debug",
   "crates/nova_editor",
   "crates/nova_events",
+  # The `EventKind` derive for `nova_events::engine`, and its only consumer.
+  "crates/nova_events_macros",
   "crates/nova_gameplay",
   "crates/nova_info",
   "crates/nova_menu",

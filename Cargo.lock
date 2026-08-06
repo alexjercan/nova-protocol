@@ -4644,8 +4644,18 @@ name = "nova_events"
 version = "0.9.1"
 dependencies = [
  "bevy",
- "bevy_common_systems",
+ "nova_events_macros",
  "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "nova_events_macros"
+version = "0.9.1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

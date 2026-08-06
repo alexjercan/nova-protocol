@@ -7,7 +7,7 @@ use bevy::{
         view::screenshot::{save_to_disk, Screenshot},
     },
 };
-use bevy_common_systems::prelude::*;
+use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 
 use crate::prelude::*;
@@ -528,7 +528,8 @@ mod tests {
     /// fire into a `NovaEventWorld`, drain, assert on the world.
     #[test]
     fn set_camera_pins_a_scripted_pose_and_drops_wasd() {
-        use bevy_common_systems::prelude::{EventWorld, WASDCameraController};
+        use bevy_common_systems::prelude::WASDCameraController;
+        use nova_events::prelude::EventWorld;
 
         use crate::prelude::{ScenarioCameraMarker, ScriptedCameraPose};
 
@@ -567,7 +568,7 @@ mod tests {
     /// no-op, not a panic (a headless rig without the loader's camera).
     #[test]
     fn set_camera_without_a_camera_is_harmless() {
-        use bevy_common_systems::prelude::EventWorld;
+        use nova_events::prelude::EventWorld;
 
         let mut world = World::new();
         world.init_resource::<NovaEventWorld>();
@@ -591,7 +592,7 @@ mod tests {
     /// filename has no parent dir, so the action writes nothing to disk here.
     #[test]
     fn screenshot_action_queues_a_capture_without_render() {
-        use bevy_common_systems::prelude::EventWorld;
+        use nova_events::prelude::EventWorld;
 
         let mut world = World::new();
         world.init_resource::<NovaEventWorld>();

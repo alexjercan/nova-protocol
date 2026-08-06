@@ -1,9 +1,9 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use bevy_common_systems::prelude::{CommandsGameEventExt, TriangleMeshBuilder};
+use bevy_common_systems::prelude::TriangleMeshBuilder;
 use bevy_rand::prelude::*;
 use noise::{Fbm, MultiFractal, NoiseFn, Perlin};
-use nova_events::prelude::*;
+use nova_events::prelude::{CommandsGameEventExt, *};
 use nova_gameplay::prelude::*;
 use rand::Rng;
 
@@ -760,7 +760,8 @@ mod tests {
     /// id, through the real handler pipeline.
     #[test]
     fn destroying_an_asteroid_node_fires_on_destroyed_for_the_root() {
-        use bevy_common_systems::prelude::{EventHandler, GameEventsPlugin, GameObjectives};
+        use bevy_common_systems::prelude::GameObjectives;
+        use nova_events::prelude::{EventHandler, GameEventsPlugin};
 
         use crate::prelude::*;
 

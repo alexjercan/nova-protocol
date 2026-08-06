@@ -48,14 +48,11 @@
 //! standalone: `cargo test -p nova_assets --test ledger_ch3_channel`).
 
 use bevy::{ecs::system::RunSystemOnce, math::Vec3, prelude::*};
-use bevy_common_systems::prelude::{
-    CommandsGameEventExt, EventAction, EventHandler, GameEventInfo, GameEventsPlugin,
-    GameObjectives,
-};
+use bevy_common_systems::prelude::GameObjectives;
 use nova_events::prelude::{
-    EntityId, OnCombatLockEvent, OnCombatLockEventInfo, OnDestroyedEvent, OnDestroyedEventInfo,
-    OnEnterEvent, OnEnterEventInfo, OnNeutralizedEvent, OnNeutralizedEventInfo, OnUpdateEvent,
-    OnUpdateEventInfo,
+    CommandsGameEventExt, EntityId, EventAction, EventHandler, GameEventInfo, GameEventsPlugin,
+    OnCombatLockEvent, OnCombatLockEventInfo, OnDestroyedEvent, OnDestroyedEventInfo, OnEnterEvent,
+    OnEnterEventInfo, OnNeutralizedEvent, OnNeutralizedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
 };
 use nova_gameplay::prelude::Allegiance;
 use nova_modding::prelude::Content;
