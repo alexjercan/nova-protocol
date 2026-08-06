@@ -234,7 +234,7 @@ Each step below becomes its own child task at planning time.
       `camera_controller/mod.rs:112-114` / `framing.rs:475`. Highest
       value-to-effort in the whole investigation.
       commits: `c944b4d1`
-- [ ] 8. **Then, independently** (each its own child, no ordering between them):
+- [x] 8. **Then, independently** (each its own child, no ordering between them):
       move bcs `integrity` + `ui/health_display.rs` to nova and scrub the nova
       task IDs from `bcs/src/physics/pd_controller.rs:535`; use bcs `persist`
       and delete nova's two copies plus the shadowed `feedback::flash`
@@ -244,10 +244,10 @@ Each step below becomes its own child task at planning time.
       onto the ship/asteroid bundles; the env-var pass; the `hud/mod.rs`
       registry refactor; the M9 dead-code sweep.
 
-      PARTIAL. Four of the six items landed, plus half of a fifth. Three
-      owner rulings reshaped the step before implementation, and four of the
-      investigation's claims did not survive contact with the tree. Both are
-      recorded below rather than silently absorbed.
+      DONE. Three owner rulings reshaped the step before implementation, and
+      four of the investigation's claims did not survive contact with the tree;
+      both are recorded below. Three
+      more items landed in a second pass after the first report.
 
       **Owner rulings (asked because the step text was falsified by the code):**
 
@@ -341,21 +341,70 @@ Each step below becomes its own child task at planning time.
         `engages()` stub, so deleting it is a breaking API change for a
         cosmetic gain. Flagged, not swept.
 
-      **NOT DONE - each is its own task's worth of work:**
+      **Landed in the second pass:**
 
-      - Re-implement `integrity` inside nova (the owner's ruling above). Nova
-        currently consumes bcs `IntegrityPlugin` + `HealthPlugin` across
-        `nova_gameplay/src/integrity/`, `nova_scenario/src/objects/asteroid.rs`
-        and the section pipeline; owning damage types and health is a new
-        subsystem, not a move.
-      - The hand-rolled `time::Cooldown`. Seventeen `Timer::from_seconds(..,
-        Once)` sites, several immediately calling `finish()` to work around the
-        exact backwards-default bcs `Cooldown` exists to fix - but two are
-        PUBLIC components (`TurretSectionBarrelFireState(pub Timer)`,
-        `TorpedoSectionSpawnerFireState(pub Timer)`), so the migration changes
-        a public API and every firing test that reads them.
-      - The `hud/mod.rs` registry refactor (1463 lines, the highest-churn file
-        in the workspace).
+      - `5b26c501` - the hand-rolled `time::Cooldown`. Six components spelled a
+        cooldown as `Timer::from_seconds(.., Once)` plus a workaround for the
+        one thing a `Once` timer gets backwards: a fresh one is NOT finished, so
+        a weapon built on it starts unable to fire. Three called
+        `tick(duration())` at construction and two called `finish()`.
+        `TorpedoSectionSpawnerFireState`, `AITorpedoBay::cooldown`,
+        `AIThreat::damage_memory`, `AIEvade::duration` + `::cooldown`,
+        `AIEngageGrace::timer` and `AIFireCadence::timer` are now `Cooldown`.
+        `AIFireCadence` stops rebuilding its timer per phase flip and uses
+        `trigger_for`; the engage grace's "pin to finished" hack (tick by
+        `remaining`, because only `tick` updates Bevy's finished flag) becomes
+        `trigger_for(0.0)`.
+
+        Three timers deliberately stay: `AIEvade::jink` is `Repeating`; the
+        `flow`/`outcome`/`objective_feedback` timers are one-shot DELAYS, not
+        gates; and `TurretSectionBarrelFireState` needs `elapsed`-before-tick
+        (the sub-tick lead that keeps the bullet stream uniformly spaced under
+        ship motion) plus `set_duration` (live fire-rate retune), neither of
+        which `Cooldown` has. Its docstring now says so.
+
+      - `29cba4f7` - the `hud/mod.rs` registry. Eleven Add/Remove observer
+        pairs, of which seven remove bodies were byte-identical modulo one
+        marker type, four setup bodies identical modulo a tier and a bundle fn,
+        and `remove_hud_flight_status` open-coded the same despawn loop eight
+        more times. Three primitives replace them: `despawn_player_hud::<M>`
+        (used fifteen times), `add_player_hud::<M, _>(app, tier, build)` for a
+        widget with no spawn-time dependency, and `is_player_ship_root` for the
+        guard every setup shares. The exceptions each say why they are one - a
+        resource at spawn, a back-pointer that must filter by target, or three
+        entity kinds no single marker covers. 1463 -> 1337 lines.
+
+      - `5f67c75a` - nova owns its health and destruction pipeline. NOT a move:
+        `integrity::health`, `integrity::components` and `integrity::core` are
+        new, and bcs keeps its own copies for its own example.
+
+        Both workarounds this deletes were already written down in the tree.
+        `damage.rs` said *"bcs carries NO damage type, and Bevy 0.19 gives no
+        ordering between observers of one event"*, so nova pre-scaled at every
+        call site to avoid racing a subtractor it did not own; the subtractor is
+        nova's now. And the ram formula's three constants were hand-copied with
+        the note *"nova must not modify bcs, so the constants are duplicated
+        here with this citation"* - there is one definition now, and
+        `representative_kinetic_damage` IS `impact_damage`, so the turret's
+        authored damage cannot drift from the ram it was authored against.
+
+        Impact damage also became TYPED: a ram is `DamageType::Kinetic` and now
+        meets the same per-section resistance table a slug does. It used to
+        bypass it entirely.
+
+        Two regressions from `c4c58d06` surfaced here and are fixed:
+        `scenario_bodies_move_between_fixed_ticks` and three asteroid test rigs
+        asserted on, or duplicated, the `RigidBody` that commit moved onto the
+        per-kind bundles. Both were invisible to `cargo check` - the asteroid
+        one was a duplicate-component PANIC - and neither crate's tests were run
+        for that commit. The interpolation test now spawns an asteroid, which
+        owns the pair.
+
+      Verification for the pass: `cargo check --workspace --all-targets
+      --features debug` and `cargo fmt --check` clean. Tests: nova_gameplay
+      798/798, nova_scenario 151/151, nova_assets 97/97, nova_menu 76/76,
+      nova_ui 21/21, nova_debug 12/12, nova_core 2/2. Probe: all of `sections`
+      (5), `systems` (3), `stress` (4) and `ui` (5) graded OK.
 
 ## Definition of Done
 
