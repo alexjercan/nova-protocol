@@ -17,13 +17,16 @@ re-export:
 | 478 | `use nova_gameplay::bevy_common_systems::modding::events::GameEventInfo;` (test-local) |
 
 Both become `nova_events::engine::{GameEvent, GameEventInfo}` (prototype 01).
-`nova_probe` already depends on `nova_events`? **Verify** - `Cargo.toml:44`
-mentions reaching event types "re-exported through nova_gameplay", which
-suggests it does not. If it does not, adding `nova_events` is a new graph edge
-- but a legal one: `nova_probe` is a leaf consumer and `nova_events` is the
-workspace's event vocabulary. Record it as the one intentional exception to
-"zero new edges", and update the manifest comments at `Cargo.toml:37-44` which
-currently explain the re-export routing.
+
+**Add `nova_events` to `crates/nova_probe/Cargo.toml` as a direct dependency.**
+Owner's ruling: the recorder's job is to record game events, so the event
+vocabulary is a first-class dep of `nova_probe`, not something to reach through
+`nova_gameplay`'s re-export. This is one of the two intended new graph edges
+for the whole task (the other is `nova_events -> nova_events_macros`).
+
+Rewrite the manifest comments at `Cargo.toml:37-44` while you are there - they
+currently explain the re-export routing ("re-exported through nova_gameplay, so
+the bcs version stays unified") and that reasoning is retired.
 
 `recorder.rs:26` has a doc line about accessors that "landed in
 bevy_common_systems" - reword.
@@ -173,10 +176,9 @@ nix develop --command cargo fmt --check
 ```
 
 Crate-graph check: `cargo tree -p nova_gameplay` (etc.) before and after the
-whole task. The only new edges permitted are
-`nova_events -> nova_events_macros` and, if it turns out to be needed,
-`nova_probe -> nova_events`. Anything else means a module landed in the wrong
-crate.
+whole task. Exactly two new edges are permitted, both intended:
+`nova_events -> nova_events_macros` and `nova_probe -> nova_events`. Anything
+else means a module landed in the wrong crate.
 
 **Run** the full example catalog under Xvfb `:99`, not just check it. This is
 the step where a plugin registered twice or a component inserted twice finally
@@ -189,7 +191,7 @@ baseline in `tasks/20260805-185103/` - that record has the last full pass
 
 - Both greps come back empty.
 - Workspace check + debug check + clippy + fmt all clean.
-- Crate graph gained only the permitted edges.
+- Crate graph gained exactly the two permitted edges.
 - Every example RUNS.
 - Probe verdicts match the `20260805-185103` baseline.
 - `Cargo.lock` lost exactly two packages.

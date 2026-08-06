@@ -54,3 +54,8 @@ surprise you.
    rewire onto `bevy_rand` to match `integrity/explode.rs`.
 3. **Single task, not an epic.** Planned so it can run as a loop: all ten steps
    coded straight through, review at the end over the finished refactor.
+4. **`nova_probe` takes `nova_events` directly.** The recorder records game
+   events, so the event vocabulary is a first-class dep of it - not something
+   to reach through `nova_gameplay`'s re-export. One of the two new graph
+   edges this task adds; the other is `nova_events -> nova_events_macros`.
+   Everything else stays edge-neutral.

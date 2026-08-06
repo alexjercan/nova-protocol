@@ -77,9 +77,16 @@ sets). Removing them while moving them makes the diff unreviewable.
 
 ## Consequences
 
-- The workspace graph gains exactly one edge, `nova_events ->
-  nova_events_macros`, plus possibly `nova_probe -> nova_events`. Anything else
-  means a module landed in the wrong crate.
+- The workspace graph gains exactly **two** edges, both intended:
+  `nova_events -> nova_events_macros` (the derive's only user) and
+  `nova_probe -> nova_events`. Anything else means a module landed in the wrong
+  crate.
+- `nova_probe` takes `nova_events` **directly**, confirmed by the owner: the
+  run recorder's job is to record game events, so the event vocabulary is a
+  first-class dependency of it, not something to reach through
+  `nova_gameplay`'s re-export. This retires the routing comment at
+  `nova_probe/Cargo.toml:37-44`, which currently explains why the types are
+  reached through `nova_gameplay` instead. Prototype 10a.
 - Three deps move rather than appear: `serde_json` -> `nova_events`,
   `noise 0.9` -> `nova_gameplay`, `bevy-inspector-egui 0.37` -> `nova_debug`.
   `Cargo.lock` should lose exactly two packages.
@@ -92,5 +99,3 @@ sets). Removing them while moving them makes the diff unreviewable.
   under Xvfb `:99` - `cargo check` cannot see a plugin registered twice.
 - The probe baseline to hold against is `tasks/20260805-185103/` (sections 5,
   systems 3, stress 4, ui 5, all OK).
-- Open assumption: `nova_probe` may need `nova_events` directly
-  (prototype 10a). Cheap to settle at that step; nothing earlier depends on it.
