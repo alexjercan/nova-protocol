@@ -253,7 +253,7 @@ the captured stdio, which probe owns for every run.
 parser - spec resolution still needs to know what an example is. It loses every
 opinion about what probe does with one.
 
-## Retiring `NOT_PROBED` - open, not settled `[R1]`
+## Retiring `NOT_PROBED` - SETTLED: option 3, shipped in `c62436a8`
 
 `render_scale_shot` must not be launched by `--all`: it only exits under
 `NOVA_SHOT`, so under probe's Xvfb it runs to the deadline. Draft 1 proposed
@@ -289,6 +289,17 @@ Three ways out, owner picks:
 
 Recommend 2 if the supervisor change is acceptable, else 1. Do not ship draft
 1's version.
+
+**Owner picked 3.** `NOT_PROBED`, its `resolve_spec` parameter, the
+`excluded_reason` branch and the sweep's printed note are deleted; only
+`NOT_PROBED_CATEGORIES` remains. The two consequences the reviewer listed are
+accepted rather than answered: an example that cannot survive a probe run FAILS
+in the report instead of being listed away, and `--all` may be non-green by
+construction. The fleet is unchanged TODAY - `render_scale_shot` was the list's
+only member and it lives in `screenshots/`, which `--all` already skips by
+category - so the change is latent until an unprobeable example lands in a
+probed category. Option 2 stays available if that day comes: nothing here
+forecloses `SelfEnding` + `RunOutcome::Unprobeable`.
 
 ## What the first draft missed `[R1]`
 
@@ -367,7 +378,7 @@ step 6's deletion of the invariant roster.
 1. Does `armed_*` survive as the second axis (recommended), or does the
    contract drive arming - i.e. probe arms `NOVA_PERF` whenever the contract
    declares `FrameTime`, and `--fps` becomes implied?
-2. `NOT_PROBED`: option 1, 2 or 3 above?
+2. ~~`NOT_PROBED`: option 1, 2 or 3 above?~~ ANSWERED: option 3, let it fail.
 3. Do `systems/` (`player_path`, `outcomes`) keep a real frame-time claim, or
    is `stress/` the only home, as the current table asserts? This decides which
    of the 12 `nova_frametime()` lines are deleted.
