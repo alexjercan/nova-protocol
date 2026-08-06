@@ -368,7 +368,7 @@ fn hull_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         }),
         // A four-section spine plus ONE side-mounted hull, not a five-section
         // line. `hull3` has to be a graph LEAF for round 1 to destroy it:
-        // `handle_destroy` is leaf-gated, so a hull with the thruster hanging
+        // `destroy_a_disabled_leaf` is leaf-gated, so a hull with the thruster hanging
         // off its rear is only ever DISABLED, never despawned, and the
         // `section_gone` beat stalls out (integrity/glue.rs:118-124). Mounted
         // beside `hull2` it carries a single connection and dies properly,

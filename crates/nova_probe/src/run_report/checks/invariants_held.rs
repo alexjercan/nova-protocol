@@ -111,11 +111,29 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
     let checks_run = summary
         .map(|s| s.data["checks"].as_u64().unwrap_or(0))
         .unwrap_or(0);
+    // Subject peaks: how many entities each entity-shaped invariant actually
+    // examined. "0 violations" reads identically for a bound that held and for
+    // a query that matched nothing, and the second has shipped - see
+    // `InvariantState::health_subjects`. Reported, never gated: a UI example
+    // with no ships legitimately has none.
+    let subjects = |key: &str| summary.and_then(|s| s.data[key].as_u64());
+    let health_subjects = subjects("health_subjects");
+    let velocity_subjects = subjects("velocity_subjects");
     let counts = serde_json::json!({
         "violations": violations,
         "checked_frames": checks_run,
         "by_name": by_name,
+        "health_subjects": health_subjects,
+        "velocity_subjects": velocity_subjects,
     });
+    let subject_detail = match (health_subjects, velocity_subjects) {
+        (None, None) => String::new(),
+        (h, v) => format!(
+            "; peak subjects: {} health, {} velocity",
+            h.unwrap_or(0),
+            v.unwrap_or(0)
+        ),
+    };
 
     if violations == 0 {
         Check {
@@ -123,7 +141,7 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
             status: CheckStatus::Pass,
             value: format!("0 violations over {checks_run} checked frames"),
             threshold: THRESHOLD.into(),
-            detail: "every engine-guaranteed bound held".into(),
+            detail: format!("every engine-guaranteed bound held{subject_detail}"),
             data: counts,
         }
     } else {
@@ -137,7 +155,7 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
             value: format!("{violations} violation entries"),
             threshold: THRESHOLD.into(),
             detail: format!(
-                "by name (a persisting violation repeats per frame): {}",
+                "by name (a persisting violation repeats per frame): {}{subject_detail}",
                 names.join(", ")
             ),
             data: counts,

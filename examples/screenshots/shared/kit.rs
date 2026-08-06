@@ -7,7 +7,7 @@
 //!
 //! Included by each `examples/screenshots/*.rs` producer with
 //! `#[path = "shared/kit.rs"] mod kit;`. It lives one level down on purpose -
-//! `catalog_matches_disk` (`tests/examples_smoke.rs`) treats every `.rs`
+//! `catalog_matches_disk` (`crates/nova_probe/tests/catalog_drift.rs`) treats every `.rs`
 //! DIRECTLY under a category dir as a cataloged example, so a sibling
 //! `kit.rs` would fail the catalog check.
 //!

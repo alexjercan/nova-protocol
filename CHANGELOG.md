@@ -159,7 +159,7 @@ tagged **(breaking)**.
   of the physical-to-logical pixel conversion, and it warns when two laid-out
   nodes share a name rather than pointing at an arbitrary one silently.
 - `nova_debug::harness::REACHED_PLAYING`: the smoke sentinel is a const, named
-  by its two emitters and the test that greps for it.
+  by its two emitters.
 - **(breaking)** `tests/examples_smoke.rs` is deleted and CI's windowed smoke
   step becomes the probe correctness sweep (`probe run --all` under Xvfb), which
   asserts a superset of it. Its two drift guards moved to
@@ -170,9 +170,9 @@ tagged **(breaking)**.
   executor readiness, which is what made a scripted pose flicker between runs.
 - Nova owns its health pool, damage typing and destruction pipeline
   (`nova_gameplay::integrity`) rather than importing them. Impact (ram) damage
-  is now typed `Kinetic` and meets the per-section resistance table it
-  previously bypassed, so ramming a Hull and ramming a Turret no longer deal the
-  same damage.
+  now routes through the typed path instead of bypassing it. No numbers move
+  today - Kinetic is the 1.0 reference column on every section - but a ram is
+  now subject to the same table every other weapon meets.
 - One persistence store (`nova_assets::persist`) replaces the two hand-rolled
   copies behind the mod set and the settings menu. Storage locations are
   unchanged, so saved mods and settings survive the swap.

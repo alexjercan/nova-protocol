@@ -127,6 +127,8 @@ impl Plugin for InvariantsPlugin {
             monotonic_last: HashMap::new(),
             checks: 0,
             violations: 0,
+            health_subjects: 0,
+            velocity_subjects: 0,
         });
         // In Last, BEFORE the recorder's variable-diff + run_end chain, so
         // the exit frame's violations land on the timeline before the
@@ -158,8 +160,9 @@ fn forget_monotonic_on_load(_: On<ScenarioLoaded>, mut state: ResMut<InvariantSt
 }
 
 /// On the first `AppExit`, write one `invariant_summary` timeline entry
-/// (frames checked, total violations) so the report reads the verdict off
-/// the timeline itself, right before the recorder's `run_end` bracket.
+/// (frames checked, total violations, and the per-invariant subject peaks) so
+/// the report reads the verdict off the timeline itself, right before the
+/// recorder's `run_end` bracket.
 fn record_invariant_summary(
     mut exits: MessageReader<AppExit>,
     time: Res<Time<Real>>,
@@ -184,6 +187,8 @@ fn record_invariant_summary(
         data: serde_json::json!({
             "checks": state.checks,
             "violations": state.violations,
+            "health_subjects": state.health_subjects,
+            "velocity_subjects": state.velocity_subjects,
         }),
     });
 }
@@ -200,6 +205,18 @@ pub struct InvariantState {
     pub checks: u64,
     /// Total violations recorded.
     pub violations: u64,
+    /// Most entities the health-bounds query examined in a single frame.
+    ///
+    /// A DELIVERY GUARD, not an invariant. "0 violations" is equally true of a
+    /// bound that held and of a query that matched nothing, and the second is
+    /// not hypothetical: this check ran over zero entities for a whole task
+    /// after `Health` moved crates and the import here kept naming the old
+    /// path. Both types compiled, so nothing failed. A subject count of 0 on a
+    /// run that has ships is the symptom.
+    pub health_subjects: u64,
+    /// Most entities the velocity-sanity query examined in a single frame. Same
+    /// guard, same reason.
+    pub velocity_subjects: u64,
 }
 
 /// One violation, on its way to the log/timeline/panic.
@@ -216,6 +233,9 @@ fn check_invariants(world: &mut World) {
     // (a) Health bounds: finite, 0 <= current <= max.
     {
         let mut healths = world.query::<(Entity, &Health)>();
+        let seen = healths.iter(world).count() as u64;
+        let mut state = world.resource_mut::<InvariantState>();
+        state.health_subjects = state.health_subjects.max(seen);
         for (entity, health) in healths.iter(world) {
             let ok = health.current.is_finite()
                 && health.max.is_finite()
@@ -237,6 +257,9 @@ fn check_invariants(world: &mut World) {
     // (b) Velocity sanity: finite always; absurd-speed vs a soft cap.
     {
         let mut velocities = world.query::<(Entity, &LinearVelocity, Option<&FlightSpeedCap>)>();
+        let seen = velocities.iter(world).count() as u64;
+        let mut state = world.resource_mut::<InvariantState>();
+        state.velocity_subjects = state.velocity_subjects.max(seen);
         for (entity, velocity, cap) in velocities.iter(world) {
             if !velocity.0.is_finite() {
                 violations.push(Violation {
@@ -407,6 +430,40 @@ mod tests {
         app.update();
         assert_eq!(violations(&app), 0);
         assert!(app.world().resource::<InvariantState>().checks >= 2);
+    }
+
+    /// The delivery guard for `healthy_world_records_zero_violations`: that
+    /// test's "0 violations" is equally true of a query that matched nothing,
+    /// which is how a wrong `Health` import hid for a whole task. The subject
+    /// peaks separate the two, and an empty world reads 0 rather than looking
+    /// like a clean pass.
+    #[test]
+    fn subject_peaks_separate_a_bound_that_held_from_a_query_that_matched_nothing() {
+        let mut app = rig();
+        app.world_mut().spawn(Health {
+            current: 50.0,
+            max: 100.0,
+        });
+        app.world_mut().spawn(Health {
+            current: 10.0,
+            max: 10.0,
+        });
+        app.world_mut()
+            .spawn(LinearVelocity(Vec3::new(3.0, 0.0, 0.0)));
+        app.update();
+        let state = app.world().resource::<InvariantState>();
+        assert_eq!(state.violations, 0);
+        assert_eq!(state.health_subjects, 2, "both pools were examined");
+        assert_eq!(state.velocity_subjects, 1);
+
+        let mut empty = rig();
+        empty.update();
+        let state = empty.world().resource::<InvariantState>();
+        assert_eq!(state.violations, 0, "an empty world violates nothing...");
+        assert_eq!(
+            state.health_subjects, 0,
+            "...but it also checked nothing, and that is now visible"
+        );
     }
 
     #[test]

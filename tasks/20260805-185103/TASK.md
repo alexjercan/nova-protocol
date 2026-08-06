@@ -983,16 +983,17 @@ that would have caught it, and step 8 did not run one.
 **Fixed this round.** Both blockers, and 20 of the remaining 21 findings: the
 DoD proofs that could never pass as written (both were matching guard comments,
 not code), four false and five missing `[Unreleased]` CHANGELOG entries
-including the ram-damage balance change, a dead `HealthSystems` set, ~20
+including the ram-damage typing, a dead `HealthSystems` set, ~20
 rustdoc sites still crediting bcs for code nova now owns, the untested
 persistence key/path derivation, two destruction-pipeline tests the port
 dropped, and the stale doc surfaces (`release`/`probe` skills, two wiki pages,
 the harness env table).
 
-**Not fixed, and why.** R1.19 is refused with reasoning - the
-suggested fix does not compile across the crate boundary. R1.20 is answered
-with an `## Amendment` section on the existing `DECISION.md` rather than a
-second decision file, which no task in `tasks/` has.
+**Answered rather than applied.** R1.19 is refused with reasoning - the
+suggested fix does not compile across the crate boundary. R1.20 is fixed, but
+not the suggested way: an `## Amendment` section on the existing `DECISION.md`
+rather than a second decision file, which no task in `tasks/` has. Round 2
+accepted both arguments.
 
 **Evidence.** All four `cmd:` proofs pass (two only after being re-anchored).
 `cargo check --workspace --all-targets --features debug` and
@@ -1000,6 +1001,56 @@ second decision file, which no task in `tasks/` has.
 pre-existing), nova_probe 99, nova_assets 98, nova_scenario 151, nova_menu 76,
 nova_ui 21, nova_debug 12, nova_core 2, nova_autopilot 45. Probe under Xvfb
 with the health invariant actually live for the first time: `stress` 4/4 OK,
-`sections` 5/5 OK, zero invariant violations across 2616 checked frames. The
+`sections` 5/5 OK, zero invariant violations across 3821 checked frames (1205
+`stress` + 2616 `sections`). The
 new leaf-derivation test was sabotage-checked - it fails with its `try_remove`
 branch deleted.
+
+## Review round 2 (20260806)
+
+One out-of-context reviewer re-verified round 1's 23 responses against
+`261c7e71` and `427bd2bb`: 20 confirmed fixed, both pushbacks accepted (R1.19's
+cross-crate visibility argument, R1.20's one-DECISION.md-per-task convention),
+three partial. Seven new findings, one MAJOR. All seven are fixed; details and
+per-finding responses in `REVIEW.md`.
+
+**The MAJOR is the interesting one, and it is the round-1 blocker's second
+half.** Repointing the `Health` import made the invariant correct, but
+`invariants_held` still printed `PASS / 0 violations over N checked frames`
+whether the query matched 17 entities or none - which is precisely how the
+original bug survived a whole task. A fix that restores a check without
+restoring the ability to SEE the check running leaves the trap armed.
+
+So the check now carries a delivery guard: `InvariantState` tracks
+`health_subjects` and `velocity_subjects` (per-run peaks), they ride on the
+`invariant_summary` timeline entry, and `invariants_held` reports them in its
+`data` and its detail line. Reported, never gated - a UI example with no ships
+legitimately has zero subjects, so a gate would be noise, but a zero is now
+visible instead of indistinguishable from a clean pass. The paired test asserts
+both the populated and the empty case.
+
+The live numbers are the proof the blocker is actually fixed, not just
+recompiled - `probe run sections`, per example: controller 4, thruster 4, hull
+6, turret 10, torpedo 17 health subjects. Before `261c7e71` every one of those
+was 0 and the check still said PASS.
+
+**Two of my round-1 responses overclaimed** and are corrected in place in
+`REVIEW.md`. R1.14 said "a repo-wide grep for `examples_smoke` is now empty" and
+R1.9 said the bcs-credit sweep "also caught the stale function names" - both
+were true of `crates/` and false of `examples/`, which I never swept. Round 2
+found the four leftovers. A sweep that claims repo-wide scope should be recorded
+as the command that produced it.
+
+One round-2 finding also corrected something I had told the owner directly:
+the CHANGELOG claimed ram damage now differs per section, and I had flagged that
+to them as a play-test risk. It is false - `damage.rs:110` is
+`(_, Kinetic) => 1.0` for every section, by design, as the feel-preserving
+reference column. Routing ram through the typed path changes no numbers today;
+it makes a ram subject to the same table every other weapon meets.
+
+**Evidence.** All four `cmd:` proofs pass. `cargo check --workspace
+--all-targets --features debug` and `cargo fmt --all -- --check` clean. Lib
+suites: nova_probe 100, nova_gameplay 801 (+1 ignored, pre-existing), nova_assets
+98, nova_scenario 151, nova_menu 76, nova_ui 21, nova_debug 12, nova_core 2,
+nova_autopilot 45. `probe run sections` 5/5 OK under Xvfb, 2573 checked frames,
+zero violations, with the subject counts above.

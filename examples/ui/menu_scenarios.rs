@@ -386,8 +386,8 @@ fn assert_selection_landed(world: &mut World, name: &str) {
 /// same pane widths.
 ///
 /// Under `NOVA_AUTOPILOT` this is an in-example ASSERTION, not just a log line:
-/// the smoke suite (`tests/examples_smoke.rs`) only greps for reach-Playing and
-/// a clean exit, so a rig that merely logged `CHANGED` would let the exact
+/// the probe sweep only grades reach-Playing, a clean exit and the invariant
+/// set, so a rig that merely logged `CHANGED` would let the exact
 /// regression this example exists to catch pass CI green (review R1.3).
 ///
 /// A thin run fails the same way. The property is a COMPARISON across
