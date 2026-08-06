@@ -23,11 +23,11 @@
 //!
 //! # Animation clock
 //!
-//! The slide is driven by [`Time<Real>`], NOT the bcs `Tween` (which advances
-//! on the default `Res<Time>` = `Time<Virtual>`). Opening the NOVA OS PAUSES
-//! virtual time, so a virtual-clocked tween would freeze mid-slide; the slide
-//! must keep moving while the sim is frozen, so it reads real time
-//! (`verify-engine-guarantees-in-source`: bcs `tween::advance_tweens` uses
+//! The slide is driven by [`Time<Real>`], NOT `nova_ui`'s `Tween` (which
+//! advances on the default `Res<Time>` = `Time<Virtual>`). Opening the NOVA OS
+//! PAUSES virtual time, so a virtual-clocked tween would freeze mid-slide; the
+//! slide must keep moving while the sim is frozen, so it reads real time
+//! (`verify-engine-guarantees-in-source`: `nova_ui::tween::advance_tween` uses
 //! `Res<Time>`).
 //!
 //! # Module layout

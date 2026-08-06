@@ -296,9 +296,9 @@ impl Plugin for NovaHudPlugin {
         // objectives panel any more: objectives surface via the objective stack
         // (`objective_stack`) and the NOVA OS monitor.
         app.add_plugins(ObjectivesPlugin);
-        // bcs tween advancement for HUD fades; registered here once for every
+        // Tween advancement for HUD fades; registered here once for every
         // HUD widget.
-        app.add_plugins(bevy_common_systems::prelude::TweenPlugin);
+        app.add_plugins(nova_ui::tween::TweenPlugin);
         app.add_plugins(comms_panel::CommsPanelPlugin);
         // The Tab ship-computer NOVA OS shell.
         app.add_plugins(nova_os::NovaOsPlugin);

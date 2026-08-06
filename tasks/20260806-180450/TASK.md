@@ -120,7 +120,7 @@ expected until step 10, not evidence the step was left incomplete.
         for `nova_assets/Cargo.toml:72` is wrong.
       - j. `cargo fmt`, verify, commit.
 
-- [ ] 2. **Status bar + tween -> `nova_ui`.** Prototype 02. Independent of
+- [x] 2. **Status bar + tween -> `nova_ui`.** Prototype 02. Independent of
       01; slots anywhere before 10.
       - a. Copy BCS `src/ui/status.rs` -> `crates/nova_ui/src/status_bar.rs`
         verbatim, keeping the exclusive-`&mut World` staging guard comment.
@@ -746,6 +746,92 @@ clean; `clippy -p nova_events -p nova_events_macros --all-targets` clean;
 `examples/stress/many_sections.rs`'s unused-import warning is pre-existing
 (confirmed against a stashed tree), not from this step.
 
+### Step 2 - DONE (status bar + tween -> `nova_ui`)
+
+**What.** BCS `ui/status.rs` -> `crates/nova_ui/src/status_bar.rs` and
+`tween/mod.rs` -> `crates/nova_ui/src/tween.rs`, both verbatim (the exclusive-
+`&mut World` guard comment, the `try_*` despawn-race NOTE and all 11 tween
+tests included). Both wired as `pub mod`; the eight status names nova calls
+moved from the `nova_gameplay` BCS re-export list into `nova_ui::prelude`; no
+tween name entered any prelude. `StatusBarPlugin` re-registered from
+`plugin.rs` and `TweenPlugin` from `hud/mod.rs` on `nova_ui::` paths - same
+file, same count. `nova_core` now names `nova_ui::status_bar` directly instead
+of inheriting the names through `nova_gameplay::prelude`.
+
+**Three plan corrections.**
+
+- **2c is wrong about the doctests.** It says rewrite both to
+  `use nova_ui::prelude::*;`, but 2f caps the prelude at the eight names nova
+  calls - which excludes `status_bar_with_fps` (the very item the `status.rs`
+  doctest demonstrates) and every tween name. Both doctests use the module path
+  (`nova_ui::status_bar::*`, `nova_ui::tween::*`) instead. That keeps 2f's
+  narrow prelude and still proves the copied code compiles on a nova path.
+- **The Step 2 DoD's clippy line does not run:** `nova_ui` has no `debug`
+  feature, so `clippy -p nova_ui --all-targets --features debug` is a hard
+  cargo error, not a lint failure. Ran `clippy -p nova_ui --all-targets`
+  instead; `--features debug` only ever meant the workspace-wide CI pass.
+- **Every "run the example" DoD command in this plan is missing what makes the
+  run terminate**, and Steps 3-10 will hit it too. The recorded form is
+  `xvfb-run -a --server-num=99 cargo run --example <x>`; the autopilot harness
+  is inert unless `NOVA_AUTOPILOT` is set AND the crate is built with
+  `--features debug` (`nova_debug/src/harness.rs:20,43,153`). Without both, the
+  example boots correctly and then idles forever - it does not fail, which is
+  the trap. Cost 30 wasted minutes here. The working form is
+  `NOVA_AUTOPILOT=1 xvfb-run -a --server-num=99 cargo run --example <x> --features debug`.
+  Second trap in the same command: **the exit code is not the verdict.** This
+  `xvfb-run` wrapper fails its own teardown `kill` and returns 1 even for
+  `xvfb-run -a --server-num=99 true` (verified). Read the app log for
+  `autopilot: cycle complete, no panic` and the beat `PASS` lines instead; a
+  DoD line that shells the command and trusts `$?` reports every run red.
+- **Moving code out of BCS silently drops its logs, and no step in the plan
+  owns that.** `nova_core`'s `log_filter_str` (`:229-238`) names crates
+  explicitly, and `bevy_common_systems=debug/trace` is on that list while
+  `nova_ui` is not - so `StatusBarPlugin: build` and the item `trace!`s
+  vanished the moment the module changed crates. Caught only by grepping the
+  harness log for `StatusBar` and getting zero hits. Added `nova_ui` to both
+  filter strings here. **Every later step must do the same check**, and Step
+  10d - which currently says only "delete the `bevy_common_systems=` terms" -
+  should be read as: the deletion is safe only once each moved module's new
+  crate is on the list. `nova_gameplay`, `nova_debug` and `nova_events` are
+  already on it, so Steps 3-9 are covered; Step 10a's `nova_probe` is not.
+  (Six workspace crates are absent from the filter for unrelated historical
+  reasons - `nova_editor`, `nova_menu`, `nova_modding`, `nova_mod_format`,
+  `nova_os`, `nova_probe`. Pre-existing, deliberately not widened here.)
+- **One prose line outside the plan's callsite list named the crate**:
+  `hud/nova_os/mod.rs:26`'s animation-clock rationale cited "the bcs `Tween`"
+  and `bcs tween::advance_tweens`. It is this step's subject, the fn name was
+  wrong anyway (`advance_tween`), and leaving it would only defer the same edit
+  to Step 10e - reworded here.
+
+**The `missing_docs` sweep was the bulk of the diff**, as 2e predicted:
+~19 undocumented pub items in `status_bar.rs` (both `prelude` blocks, the five
+`StatusBarItemConfig` fields, the five type-erased item components, the store
+field, the `Sync` set variant and the four `status_*_fn` helpers). `tween.rs`
+needed only its `prelude` block - BCS documented that file properly.
+
+**Evidence.** `cargo check --workspace --all-targets` clean;
+`cargo fmt --check` clean; `clippy -p nova_ui --all-targets` and
+`cargo doc -p nova_ui --no-deps` add zero warnings (the 4 clippy +
+2 rustdoc hits are pre-existing, in `hud.rs`/`widget`/`font`, none in the two
+copied files - so the de-linked `crate::meth::lerp::LerpSnap` /
+`crate::transform` rustdoc links left nothing broken behind);
+`nova_ui --lib tween::` 11/11 unmodified; `nova_ui --doc` 5/5 including both
+rewritten doctests; `! grep 'status_bar\|StatusBar' nova_gameplay/src/lib.rs`
+holds; `git diff --exit-code crates/nova_ui/Cargo.toml` clean - no new dep, no
+new graph edge.
+
+`examples/ui/hud_range.rs` RAN under Xvfb `:99` with the autopilot harness and
+reported `PASS - indicators track their anchors and hide when they die` /
+`autopilot: cycle complete, no panic (t=5.8s)`. The registration move is proved
+positively, not just by absence of a panic: the log carries exactly one
+`nova_ui::status_bar: StatusBarPlugin: build` and one
+`nova_ui::tween: TweenPlugin: build` - right crate path, once each.
+
+**Not run:** the workspace-wide `clippy --workspace --all-targets --features
+debug` (CI's lint gate) and any test outside `nova_ui`, per the standing
+skip-local-suite instruction; `check --workspace --all-targets` covers
+compilation and CI owns the rest.
+
 ### Next
 
-Step 2 (status bar + tween -> `nova_ui`), prototype 02.
+Step 3 (camera rigs + `math` -> `nova_gameplay`), prototype 03.

@@ -7,14 +7,17 @@
 //! `widget` holds the skin-aware themed button + selection machinery and small
 //! layout helpers; `hud` holds the flight-HUD chip language (phosphor-only
 //! chrome projected over the world); `font` holds the shared UI typeface handle
-//! preloaded at startup.
+//! preloaded at startup; `status_bar` holds the top-right metrics bar; `tween`
+//! holds the duration-based value tween the HUD fades run on.
 
 #![warn(missing_docs)]
 
 pub mod font;
 pub mod hud;
 pub mod skin;
+pub mod status_bar;
 pub mod theme;
+pub mod tween;
 pub mod units;
 pub mod widget;
 
@@ -22,12 +25,21 @@ pub mod widget;
 /// the [`UiSkin`](skin::UiSkin) selector, the [`units`] formatters and the
 /// themed-button widgets ([`themed_button`](widget::themed_button),
 /// [`ThemedButton`](widget::ThemedButton), [`Selected`](widget::Selected), ...)
-/// into scope.
+/// into scope, plus the [`status_bar`] names the composition root spawns.
+///
+/// The tween names are deliberately absent: one caller registers
+/// [`TweenPlugin`](tween::TweenPlugin) by crate path, so a prelude entry would
+/// carry no weight.
 pub mod prelude {
     pub use crate::{
         font::UiFont,
         hud::{chip_node, chip_paint, quiet_chip, text_chip, ChipTone},
         skin::UiSkin,
+        status_bar::{
+            status_bar, status_bar_item, status_fps_color_fn, status_fps_value_fn,
+            status_version_color_fn, status_version_value_fn, StatusBarItemConfig,
+            StatusBarRootConfig,
+        },
         theme, units,
         widget::{
             badge, button, button_on_setting, checkbox, checkbox_colors, checkbox_glyph, list_row,

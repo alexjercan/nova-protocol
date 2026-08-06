@@ -102,7 +102,7 @@ impl Plugin for NovaGameplayPlugin {
         app.add_plugins(bevy_common_systems::prelude::PDControllerPlugin);
 
         // UI Plugins
-        app.add_plugins(bevy_common_systems::prelude::StatusBarPlugin);
+        app.add_plugins(nova_ui::status_bar::StatusBarPlugin);
 
         // Core Plugins for simulation
         app.add_plugins(crate::input::SpaceshipInputPlugin);
