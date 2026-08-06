@@ -132,22 +132,67 @@ Each step below becomes its own child task at planning time.
       requirement is now met.
       commits: `6b84fef7`, `b63e3735`, `08acead5`, `af4e2c16`, `c62436a8`,
       `a7cb6fbf`, `cd8bcfea`, `6f88e1d2`
-- [ ] 5. **Make probe cover the `screenshots/` category.**
-      `crates/nova_probe/src/catalog.rs:181-188` -> `probed: true,
-      frame_time: false`, and rewrite the comment (its claim is true only of
-      frame-time). **Wire `nova_timeline` into all six screenshot examples** -
-      none has it today, and probe's `reached_playing`
-      (`run_report/checks.rs:279-315`) returns `Skipped` without a timeline, so
-      probe would run them and assert NOTHING. **Port the WARN command-error
-      gate into `log_clean`**: fail on `"Encountered an error in command"` at
-      any level - the one assertion probe lacks, and the reason it exists is
-      that `remove`/`despawn` bake in the WARN handler at queue time
-      (`examples_smoke.rs:338-346`, task `20260713-203709`). Also:
-      `CheckStatus::Skipped` must never fold into a passing verdict and
-      `CheckStatus::Warn` must stop being a category that never fails
-      (`checks.rs:36`, `:393`), or this step rebuilds "green and wrong" one
-      layer down. Confirm `scene_baseline` and `render_scale_shot` (both in
-      `NOT_SMOKED`) are covered by policy rather than by omission.
+- [x] 5. **Make probe cover the `screenshots/` category.** DONE - the plan
+      changed on contact and the record below is what shipped, not what was
+      written. The `catalog.rs` policy table it opened against was deleted in
+      step 4.1 (an example DECLARES what it can be judged on), and the
+      `Skipped`/`Warn` fold it asked for landed in `cd8bcfea`, so what was
+      left was: make the producers declarable, and delete the last
+      launch-side opinion.
+      - `e81a466f` - the six `screenshot_*` walks each add
+        `nova_timeline()` + `nova_invariants()`. Both are inert without
+        their `NOVA_PERF_*` env, so a capture run is unchanged. NO
+        `nova_frametime()`: a posed walk has no steady-state window, so a
+        captured fps would measure the script, not the engine -
+        `scene_baseline --fps` owns that claim.
+      - `1f4db201` - `render_scale_shot` converted to the one capture
+        idiom. It was the last example driven by `nova_screenshot()`, which
+        forces `Playing` on frame one, races the asset load, and never
+        self-ends under probe - a probe run hit the 180s deadline and was
+        KILLED (FAIL, measured 2/6, 188s). It is now an autopilot script
+        waiting on `player_ship_present()` and ending on
+        `shoot`/`shot_written`, which also cuts the settle from 240 frames
+        to 120. The live preset switch became a STEP whose `on_enter`
+        no-ops when `NOVA_SWITCH_QUALITY` is unset, so both modes walk the
+        same beats and the two shots stay comparable. It joins the smoke
+        suite; `scene_baseline` is now the only deliberate `NOT_SMOKED`
+        entry, and it is one because probe owns it.
+      - `de288622` - `log_clean` fails on `"Encountered an error in
+        command"` at ANY level, the smoke suite's one unique assertion
+        (task `20260713-203709`). No recorded run under `probe-runs/`
+        contains the line, so the wider gate fails nothing that passed
+        before. This is the precondition for step 6.
+      - `cf28c543` - `NOT_PROBED_CATEGORIES` deleted, and with it the whole
+        exclusion axis (`Resolved.excluded`, `AllManifest.excluded`, its
+        `probe-all.json` field and round-trip, the sweep print, the index's
+        "Not probed (deliberately)" section) - nothing could populate it
+        any more. `--all` is the catalog with nothing subtracted and
+        `probe run screenshots` expands like any other category. An example
+        that declares nothing grades UNPROBEABLE, which is an answer, not a
+        reason to skip the spawn.
+
+      Verification: `probe run screenshots` resolves and runs all 7
+      members. A full sweep graded 6/7 OK (`screenshot_combat` FAIL, see
+      below); a solo re-run of that example came back OK, and a second
+      sweep was OK through its first five rows - `screenshot_combat`
+      included - before it was terminated, so the 7-row green sweep is NOT
+      yet on record. Every graded row read `measured 5/6` with
+      `fps_within_baseline` N/A ("the example wires no
+      `nova_probe::nova_frametime()`"), which is the contract handshake
+      reading correctly. `cargo check --workspace --all-targets
+      --features debug` clean; `nova_probe` lib 99/99, bins 27/27, fmt
+      clean.
+
+      One finding, NOT caused by this step: `screenshot_combat` is an
+      INTERMITTENT - once in three graded runs its `track the torpedoes
+      in` step
+      stalled at its 12s deadline and the run error-exited (`process_exit`,
+      `run_completed` and `log_clean` all caught it). The example completes
+      with the evidence plugins inert AND armed, and the passing probe runs
+      clear that step in 4.2s, so the failure is a missed intercept rather
+      than slow frames or the new wiring. Probe EXPOSED a pre-existing
+      flake; filed as `20260806-140928` rather than papered over with a
+      wider deadline.
 - [ ] 6. **Delete the smoke suite; converge the verdicts.** Move
       `catalog_matches_disk` (`:119`) and `every_category_has_a_probe_policy`
       (`:195`) to `crates/nova_probe/tests/`, deriving the repo root as
