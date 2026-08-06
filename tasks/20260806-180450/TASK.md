@@ -402,7 +402,7 @@ expected until step 10, not evidence the step was left incomplete.
         name set.
       - h. `missing_docs` + `cargo fmt`, verify, **run** examples, commit.
 
-- [ ] 9. **Inspector + wireframe -> `nova_debug`.** Prototype 09. Carries the
+- [x] 9. **Inspector + wireframe -> `nova_debug`.** Prototype 09. Carries the
       `bevy-inspector-egui` dep move.
       - a. `crates/nova_debug/Cargo.toml`: add
         `bevy-inspector-egui = { version = "0.37" }`, non-optional
@@ -1249,11 +1249,61 @@ outside the filters above, per the standing skip-local-suite instruction. The
 evidence above plus the untouched `is_plugin_added` guard is what to judge it
 on.
 
+### Step 9 - DONE (inspector + wireframe -> `nova_debug`)
+
+**What.** BCS `debug/{inspector,wireframe}.rs` are now
+`crates/nova_debug/src/{inspector,wireframe}.rs`, declared `pub mod` beside
+`gravity/harness/screenshot/sections`. The `use bevy_common_systems::{debug::{...},
+prelude::{...}};` block at `lib.rs:17-23` - the half Step 3 left standing -
+became `use crate::{inspector::{DebugEnabled as InspectorEnabled,
+InspectorDebugPlugin}, wireframe::{...}};`, so the aliases Step 3 preserved are
+now sourced locally. `bevy-inspector-egui = "0.37"` is a direct non-optional
+dep. Prelude exports are untouched; neither copied `DEBUG_TOGGLE_KEYCODE` is
+re-exported, so the three consts coexist module-scoped as 9d predicted.
+
+**9e held.** `add_plugins(InspectorDebugPlugin)` / `(WireframeDebugPlugin)` still
+run at `:99,100` and the three `insert_resource(*Enabled(DEBUG_LAYER_STARTS_ON))`
+overrides still run after them at `:120-122`. Only the import source changed;
+the `build` body was not reordered, so F11 still boots the whole layer OFF.
+
+**Difficulties.** Two small corrections to 9a/9g:
+- **`-p nova_debug --features debug` is a hard cargo error, not a lint result** -
+  `nova_debug` has no `debug` feature (it is compiled only *under* the workspace
+  one). Same trap Step 2 hit with `nova_ui`. Verified with plain
+  `check/clippy -p nova_debug --all-targets`, and separately with the real CI
+  invocation `clippy --workspace --all-targets --features debug`.
+- 9a's justification for the non-optional dep is confirmed: `inspector.rs`'s
+  test module reaches `bevy_inspector_egui::bevy_egui::*`, so `--all-targets`
+  needs it unconditionally.
+
+**Evidence.** `check --workspace --all-targets --features debug` reports **zero**
+errors; `fmt --check` clean. `clippy --workspace --all-targets --features debug`
+(the exact CI pass) reports **no warning in either copied file** - no
+`missing_docs`, so BCS's own rustdoc was already complete here. The single
+`nova_debug` clippy warning is pre-existing (`lib.rs:224`, a constant-value
+assertion, untouched by this step). Tests: `inspector::` 4/4, including
+`rehome_hazard_tests::a_demoted_holder_sheds_the_whole_egui_cluster`. `cmd:`
+proofs: `! grep -rn 'bevy_common_systems::debug' crates/` passes; no
+`AutopilotPlugin|harness` string in either copied file; `bevy-inspector-egui`
+present in the manifest.
+
+`Cargo.lock` gained **one line** - the `bevy-inspector-egui` edge under
+`nova_debug` - and **no new package**, confirming 9a's "dep move, not a new
+package": BCS already pulled the same 0.37. `NOVA_AUTOPILOT=1 xvfb-run -a
+--server-num=99 cargo run --example controller_section --features debug` reached
+`autopilot: cycle complete, no panic (t=11.4s)`.
+
+**Not run:** any test outside the filters above, per the standing
+skip-local-suite instruction. The F11 layer-behaviour DoD line is `manual:`; the
+preserved insert ordering shown above is what to judge it on.
+
 ### Next
 
-Step 9 (inspector + wireframe -> `nova_debug`), prototype 09. Nothing in
-`nova_gameplay` names BCS after this step, so the remaining surface is
-`nova_debug`'s `debug::{...}` half (Step 9) and the manifests, log filter and
-prose (Step 10). Watch 9e: both copied plugins `insert_resource(DebugEnabled(true))`
-in `build`, and `lib.rs:120-121` only wins because it runs after `:99,100` -
-reordering silently inverts F11.
+Step 10 (delete the dependency), prototype 10. Nothing is copied. Two carried
+notes: **Step 7 already did 10c's `plugin.rs:20`** (`use crate::prelude::*;`)
+and de-linked the `bevy_common_systems` intra-doc reference at `plugin.rs:6`, so
+10c asserts rather than redoes those - `plugin.rs:49`'s comment is still open.
+**Step 7 also already did 10e's `base_section.rs:324`.** `lib.rs:77-86`'s BCS
+`pub use` block in `nova_gameplay` is already gone (emptied by Steps 7 and 8),
+so 10b is down to deleting `pub use bevy_common_systems;` at `:32` and rewording
+the crate docstring.

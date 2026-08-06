@@ -4614,6 +4614,7 @@ version = "0.9.1"
 dependencies = [
  "avian3d",
  "bevy",
+ "bevy-inspector-egui",
  "bevy_common_systems",
  "bevy_mod_debugdump",
  "dirs",

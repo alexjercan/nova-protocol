@@ -14,20 +14,21 @@ use bevy::{
     prelude::*,
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
-use bevy_common_systems::{
-    debug::{
-        inspector::DebugEnabled as InspectorEnabled, wireframe::DebugEnabled as WireframeEnabled,
-    },
-    prelude::{InspectorDebugPlugin, WireframeDebugPlugin},
-};
 use nova_autopilot::autopilot::AUTOPILOT_ENV;
 use nova_gameplay::{prelude::PlayerSpaceshipMarker, GameStates, PauseStates};
 use nova_scenario::prelude::CurrentOutcome;
 
+use crate::{
+    inspector::{DebugEnabled as InspectorEnabled, InspectorDebugPlugin},
+    wireframe::{DebugEnabled as WireframeEnabled, WireframeDebugPlugin},
+};
+
 pub mod gravity;
 pub mod harness;
+pub mod inspector;
 pub mod screenshot;
 pub mod sections;
+pub mod wireframe;
 
 /// Glob-import surface: `use nova_debug::prelude::*` brings the harness presets
 /// ([`nova_autopilot`](harness::nova_autopilot),
