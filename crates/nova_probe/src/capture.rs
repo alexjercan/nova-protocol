@@ -19,11 +19,11 @@ use bevy::{
     winit::WinitSettings,
 };
 use nova_autopilot::completion::{self, HarnessCompletion};
-// Health is re-exported by nova_gameplay, so nova_probe pins the same
-// bevy_common_systems version the game uses (no direct bcs dep, no version skew).
+// `Health` comes from nova_gameplay's prelude, the same path the game's own
+// code resolves it through: naming any other path is how this query silently
+// stopped matching once nova took ownership of the type.
 use nova_gameplay::{
-    bevy_common_systems::health::Health,
-    prelude::{GraphicsBudget, PlayerSpaceshipMarker, WeaponsHot},
+    prelude::{GraphicsBudget, Health, PlayerSpaceshipMarker, WeaponsHot},
     GameStates,
 };
 

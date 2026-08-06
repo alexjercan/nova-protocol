@@ -18,8 +18,7 @@ use bevy::prelude::*;
 /// Glob-import surface: `use nova_gameplay::integrity::health::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
-        destructible_body, Health, HealthApplyDamage, HealthSystems, HealthZeroMarker,
-        NovaHealthPlugin,
+        destructible_body, Health, HealthApplyDamage, HealthZeroMarker, NovaHealthPlugin,
     };
 }
 
@@ -65,13 +64,6 @@ pub struct HealthApplyDamage {
     pub source: Option<Entity>,
     /// Hit points to spend, already resistance-scaled.
     pub amount: f32,
-}
-
-/// System set for the health store, so gameplay can order around it.
-#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum HealthSystems {
-    /// Applies damage and marks depleted nodes.
-    Sync,
 }
 
 /// Registers the health store: the [`on_damage`] observer and the reflected types.
@@ -126,6 +118,23 @@ fn on_damage(
         health.current = 0.0;
         commands.entity(entity).insert(HealthZeroMarker);
     }
+}
+
+/// The common makeup of a destructible physics body: a health pool and a physics
+/// density, visible by default.
+///
+/// Pair it with a [`Collider`](avian3d::prelude::Collider) (whose shape varies
+/// per object) on an entity parented to a `RigidBody`. This is the physics/health
+/// half; the destruction behaviour is the other half - add
+/// [`ConnectedTo`](super::components::ConnectedTo), mark the body
+/// [`IntegrityRoot`](super::components::IntegrityRoot), and react to
+/// `On<Add, IntegrityDestroyMarker>`.
+pub fn destructible_body(health: f32, density: f32) -> impl Bundle {
+    (
+        Health::new(health),
+        avian3d::prelude::ColliderDensity(density),
+        Visibility::Inherited,
+    )
 }
 
 #[cfg(test)]
@@ -210,21 +219,30 @@ mod tests {
 
         assert_eq!(app.world().get::<Health>(root).unwrap().current, 170.0);
     }
-}
 
-/// The common makeup of a destructible physics body: a health pool and a physics
-/// density, visible by default.
-///
-/// Pair it with a [`Collider`](avian3d::prelude::Collider) (whose shape varies
-/// per object) on an entity parented to a `RigidBody`. This is the physics/health
-/// half; the destruction behaviour is the other half - add
-/// [`ConnectedTo`](super::components::ConnectedTo), mark the body
-/// [`IntegrityRoot`](super::components::IntegrityRoot), and react to
-/// `On<Add, IntegrityDestroyMarker>`.
-pub fn destructible_body(health: f32, density: f32) -> impl Bundle {
-    (
-        Health::new(health),
-        avian3d::prelude::ColliderDensity(density),
-        Visibility::Inherited,
-    )
+    /// The overkill clamp must not become a shield: when the parent's pool
+    /// equals the child's, a lethal hit on the child still zeroes BOTH. The
+    /// clamp caps the propagated amount at what landed, and what landed is
+    /// exactly enough.
+    #[test]
+    fn a_lethal_hit_still_bubbles_to_zero_a_matching_parent() {
+        let mut app = health_app();
+        let parent = app.world_mut().spawn(Health::new(100.0)).id();
+        let child = app
+            .world_mut()
+            .spawn((Health::new(100.0), ChildOf(parent)))
+            .id();
+
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: child,
+            source: None,
+            amount: 1000.0,
+        });
+        app.world_mut().flush();
+
+        assert_eq!(app.world().get::<Health>(child).unwrap().current, 0.0);
+        assert_eq!(app.world().get::<Health>(parent).unwrap().current, 0.0);
+        assert!(app.world().get::<HealthZeroMarker>(child).is_some());
+        assert!(app.world().get::<HealthZeroMarker>(parent).is_some());
+    }
 }

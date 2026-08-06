@@ -90,8 +90,9 @@ AppBuilder::new()                 // Bevy DefaultPlugins + window/log/asset/rend
 `build()` inits `GameStates` + `PauseStates`, then adds, in order:
 `EnhancedInputPlugin`, `GameAssetsPlugin`, `NovaGameplayPlugin`,
 `NovaScenarioPlugin`, then `NovaEditorPlugin` and `NovaMenuPlugin` (both only when
-no custom game plugins were supplied; `with_main_menu(bool)` overrides the menu
-default), and finally `DebugPlugin` under the `debug` feature. On
+no custom game plugins were supplied - the menu fronts the default app and
+nothing else, so an example that brings its own game plugins goes straight
+`Loading -> Playing`), and finally `DebugPlugin` under the `debug` feature. On
 `OnEnter(GameAssetsStates::Loaded)` it hands off to `MainMenu` (or straight to
 `Playing` when the menu is off) and spawns the status UI.
 

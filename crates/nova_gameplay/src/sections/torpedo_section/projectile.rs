@@ -92,10 +92,9 @@ pub(super) fn torpedo_detonate_system(
         // Proximity fuze: fire within half the blast radius of the target.
         if distance < blast.radius * 0.5 {
             commands.entity(torpedo).despawn();
-            // A nova typed blast (Explosive), not bcs's untyped `blast_damage`:
-            // nova owns the falloff + trigger so the blast obeys the resistance
-            // table. It carries no bcs BlastDamageMarker, so bcs's blast observer
-            // stays dormant and the damage is not double-counted.
+            // A nova typed blast (Explosive): nova owns the falloff + trigger
+            // so the blast obeys the resistance table, and it is the only blast
+            // path in the app, so the damage is not double-counted.
             let mut blast_entity = commands.spawn((
                 nova_blast(blast.radius, blast.damage, DamageType::Explosive),
                 Transform::from_translation(torpedo_transform.translation),
@@ -345,7 +344,7 @@ mod tests {
         // the torpedo: nova's typed blast puts the blast collider into
         // HealthApplyDamage.source, and the AI threat model resolves it to
         // a shooter through ProjectileOwner. The blast is a NovaBlast
-        // (Explosive), not bcs's untyped BlastDamageMarker volume.
+        // (Explosive), the only blast volume the game spawns.
         let mut app = App::new();
         app.add_systems(Update, torpedo_detonate_system);
 

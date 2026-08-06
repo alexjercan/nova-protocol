@@ -110,10 +110,6 @@ use nova_scenario::prelude::{
 /// its own) so the run spends real time in `Playing` before the clean exit.
 pub const NOVA_AUTOPILOT_SECS: f32 = 6.0;
 
-/// Settle frames the [`nova_screenshot`] preset waits after `Playing` is
-/// reached, so the scene and UI have a few frames to render before the capture.
-pub const NOVA_SCREENSHOT_SETTLE_FRAMES: u32 = 30;
-
 /// Frames a beat settles before its shot: long enough for the scene to come to
 /// rest, the UI to lay out and the render to reach the frame the shot wants.
 ///
@@ -228,7 +224,7 @@ pub fn player_ship_present() -> Arc<Predicate> {
 }
 
 /// Env-gated screenshot preset for nova examples: advance to `Playing`, settle
-/// [`NOVA_SCREENSHOT_SETTLE_FRAMES`] frames, hide the dev overlays, capture the
+/// [`SETTLE_FRAMES`] frames, hide the dev overlays, capture the
 /// primary window to a PNG, and report done. Inert unless `NOVA_SHOT` is set (a
 /// `WxH` value also overrides the window resolution). See [`ScreenshotPlugin`].
 ///
@@ -239,7 +235,7 @@ pub fn player_ship_present() -> Arc<Predicate> {
 /// forced transition would run before `GameAssets` is ready.
 pub fn nova_screenshot() -> ScreenshotPlugin<GameStates> {
     ScreenshotPlugin::new(GameStates::Playing)
-        .settle_frames(NOVA_SCREENSHOT_SETTLE_FRAMES)
+        .settle_frames(SETTLE_FRAMES)
         .hide_overlay(hide_dev_overlays)
 }
 

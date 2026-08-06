@@ -135,3 +135,40 @@ hangs forever - is narrower and lands in step 8.
   `/tmp/nova-invest/` and is not retained. Anything not carried into `NOTES.md`
   is lost, including the corrections list - which exists specifically so the
   four wrong conclusions are not re-derived by a later reader.
+
+## Amendment (20260806, during step 8)
+
+Three further owner rulings reverse this record on the duplicated-capability
+question. They are recorded here rather than in a second decision file because
+they change THIS decision's answer, not a later one, and a reader who finds only
+the original would build the wrong thing.
+
+1. **Nova RE-IMPLEMENTS integrity and health; nothing moves out of bcs.** The
+   original plan was to move bcs's `integrity` module and `ui/health_display.rs`
+   into nova and delete them upstream. That is impossible as written: bcs's
+   `examples/15_integrity.rs` is a live consumer, so the move would break the
+   library's own example. The owner's reason for owning the code is stronger
+   than de-duplication anyway - full control over damage types and the health
+   pool. `nova_gameplay::integrity::{health, core, components}` is a port, not a
+   move, and both copies now exist permanently.
+
+   The port pays for itself immediately: `damage.rs` used to pre-scale every hit
+   at the call site because it could not own the subtractor without racing it
+   (Bevy 0.19 orders two observers of one event arbitrarily), and it hand-copied
+   three impact constants with a written apology for duplicating them. Both
+   workarounds are deleted, and impact (ram) damage is finally typed, so it
+   meets the per-section resistance table it used to bypass.
+
+2. **Nova writes its own persistence store rather than adopting bcs's
+   `PersistPlugin`.** The plugin shape fits the case where a Bevy resource IS
+   the stored value. Neither nova caller is that: the settings menu debounces a
+   slider drag into one write and snapshots four resources into one blob, and
+   the mod set sorts a `HashSet` for a diff-friendly file. Both would have to
+   bypass a load-on-build / save-on-`resource_changed` plugin. The owner asked
+   for direct load/write access instead, so `nova_assets::persist` is a store of
+   two functions, modelled on bcs's but not importing it.
+
+3. **bcs gets commits, not a tag.** The bcs-side work in this run
+   (`e5da687`, a comment scrub) stays unpushed and untagged - the owner tags and
+   pushes. Nova's pin therefore stays at `v0.19.5` for the whole run, and no
+   step may bump it.

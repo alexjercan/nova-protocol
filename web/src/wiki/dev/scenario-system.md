@@ -158,7 +158,9 @@ flowchart LR
   example or a packaging script can redirect all captures to a staging folder),
   else it is relative to the working directory; the parent dir is created if
   missing. Pair `SetCamera` (pose) + settle frames + `Screenshot` (capture) to
-  script a framed shot; the screenshot-reel example drives exactly this.
+  script a framed shot; the `screenshots/` examples drive exactly this, through
+  the autopilot's `pose_camera` + settle + `shoot` step idiom (see the
+  "Automation harness" page).
 - `SetSkybox { cubemap, brightness? }` - swap the scenario's skybox cubemap
   mid-scenario (a modding hook). `cubemap` is authored as an asset path (the same
   `AssetRef` layer the scenario's initial `cubemap` uses); `brightness` is

@@ -22,7 +22,8 @@ impl Plugin for IntegrityGluePlugin {
 }
 
 /// A disabled section that is not (yet) a leaf is visually/functionally deactivated but kept
-/// in place. A disabled leaf is instead destroyed (see `handle_destroy` in the core).
+/// in place. A disabled leaf is instead destroyed (see
+/// [`destroy_a_disabled_leaf`](super::core)).
 fn on_section_disable(
     add: On<Add, IntegrityDisabledMarker>,
     mut commands: Commands,
@@ -116,13 +117,14 @@ fn build_integrity_relations(
 /// recomputes the root's health every frame as the sum of its living sections. When the sum
 /// hits zero, the fatal damage that removed the last section also bubbles up to the root
 /// (`HealthApplyDamage` auto-propagates through `ChildOf`), marking it with `HealthZeroMarker`
-/// which flows through disable -> destroy (bcs `on_health_depleted_insert_disabled` ->
-/// `handle_parent_destroy`, the ROOT-specific hop: roots carry no `ConnectedTo`, are never
-/// leaves, so the leaf-gated `handle_destroy` cannot fire for them); the meshless root is then
+/// which flows through disable -> destroy ([`on_health_depleted_insert_disabled`](super::core) ->
+/// [`destroy_the_structure_of_a_disabled_root`](super::core), the ROOT-specific hop: roots carry
+/// no `ConnectedTo`, are never leaves, so the leaf-gated
+/// [`destroy_a_disabled_leaf`](super::core) cannot fire for them); the meshless root is then
 /// despawned and the ship dies (its `PlayerSpaceshipMarker` is removed, reverting the camera
 /// and clearing the HUDs).
 ///
-/// The bubbled amount is *clamped to what actually landed on the section*: bcs's `on_damage`
+/// The bubbled amount is *clamped to what actually landed on the section*: [`on_damage`](super::health)
 /// propagates `min(amount, section.current)`, not the raw hit. That is why overkill on one
 /// section cannot kill the ship (a 1000-damage hit on a 100 hp section costs the root 100, not
 /// 1000), while the last-section case still works - there the aggregate
@@ -153,7 +155,7 @@ fn aggregate_ship_health(
         }
 
         // NOTE: structural death backstop (the 0-HP ghost).
-        // `HealthZeroMarker` only ever comes from the damage path (bcs
+        // `HealthZeroMarker` only ever comes from the damage path (nova's
         // `on_damage`), so a ship that loses its last section WITHOUT a
         // final bubble reaching the root (a direct destroy, a detach, any
         // future scripted removal) would sit here forever as an unmarked
@@ -491,7 +493,7 @@ mod physics_tests {
     /// A 1000-damage hit on a 100 hp section used to
     /// propagate its full amount to the root aggregate (200 -> -800 -> zeroed),
     /// dragging an otherwise-healthy ship through disable -> destroy. With the
-    /// bcs clamp, the root is charged only the section's remaining 100, so the
+    /// overkill clamp, the root is charged only the section's remaining 100, so the
     /// other section and the ship root survive.
     #[test]
     fn overkill_on_one_section_does_not_kill_the_ship() {
@@ -598,7 +600,7 @@ mod physics_tests {
 /// The ghost-ship boundary rig: a playtest saw an enemy "survive" its
 /// shootdown as an empty 0-HP hull. Root death depends
 /// on the fatal hit's bubble reaching the root with a nonzero amount
-/// (HealthZeroMarker comes ONLY from bcs on_damage), while the aggregate
+/// (HealthZeroMarker comes ONLY from `on_damage`), while the aggregate
 /// recompute writes marker-less zeros - these tests walk every path a ship
 /// can reach "all sections dead" and assert the root actually dies
 /// (despawns) within a frame budget. Cases that were never buggy stay as

@@ -5,9 +5,9 @@
 //! `damage` (health, disable, destroy), `flight` and `gravity` (the diegetic
 //! controller, autopilot verbs, and gravity wells), `input` (player, AI, and
 //! radar targeting), `hud`, `camera_controller`, `audio`, `juice` (camera
-//! shake and hit feedback), and `settings` (volume + graphics presets). It
-//! builds on the reusable `bevy_common_systems` layer for integrity, health,
-//! and blast mechanics.
+//! shake and hit feedback), and `settings` (volume + graphics presets). Nova
+//! owns its health pool, damage typing and destruction pipeline (`integrity`);
+//! `bevy_common_systems` supplies the engine-level layers around them.
 #![warn(missing_docs)]
 
 use bevy::prelude::*;

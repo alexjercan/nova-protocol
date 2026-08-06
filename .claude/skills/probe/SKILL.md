@@ -183,7 +183,7 @@ checks:
 | systems/scenario_grammar | monotonics: beat, rocks_destroyed, round, area_entries, area_exits, escort_neutralized, ring_cleared |
 | systems/player_path | monotonics: target_down, leg + per-beat markers |
 | systems/outcomes | monotonic: hostile_down + distinct beat markers per cycle (kill -> defeat overlay -> activate -> kill -> activate -> done) |
-| sections/* | one `outcome: <slug>` marker per asserted invariant, **27** across the five ranges, pinned both ways by `sections_assert_their_invariant_roster` (tests/examples_smoke.rs): a roster slug with no marker is a removed invariant, a marker with no slug is one added without saying so |
+| sections/* | one `outcome: <slug>` marker per asserted invariant, **27** across the five ranges, pinned both ways by `sections_assert_their_invariant_roster` (crates/nova_probe/tests/catalog_drift.rs): a roster slug with no marker is a removed invariant, a marker with no slug is one added without saying so |
 | stress/* | stage markers (setup/steady/teardown) around the measured window; `scene_baseline` is the unmarked reference scene |
 
 The ui/ flows carry no extra markers on purpose: they are state-transition

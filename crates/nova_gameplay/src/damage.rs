@@ -84,12 +84,13 @@ pub enum SectionDamageClass {
     Torpedo,
 }
 
-/// Physical mass given to a turret bullet so bcs's emergent kinetic term rounds
+/// Physical mass given to a turret bullet so the emergent kinetic term rounds
 /// to nothing.
 ///
-/// bcs's `on_impact_collision_deal_damage` computes damage from `effective_mass
-/// = m_bullet * m_ship / (m_bullet + m_ship)` (~ `m_bullet` since a ship is far
-/// heavier), so a near-zero bullet mass makes bcs's contribution negligible
+/// [`on_impact_collision_deal_damage`](crate::integrity::core) computes damage
+/// from `effective_mass = m_bullet * m_ship / (m_bullet + m_ship)` (~ `m_bullet`
+/// since a ship is far heavier), so a near-zero bullet mass makes the impact
+/// contribution negligible
 /// next to nova's authored [`ProjectileDamage`], leaving the typed amount as
 /// the only weapon damage. Gravity is unaffected: `gravity_well_system` applies
 /// a mass-INDEPENDENT acceleration (`forces.apply_linear_acceleration`), and
@@ -166,10 +167,11 @@ pub fn scaled_amount(class: Option<SectionDamageClass>, damage: ProjectileDamage
 ///
 /// `target` is the hit collider (whose [`SectionDamageClass`], if any, keys the
 /// table); `source` is the projectile/blast collider for threat attribution.
-/// bcs's `on_damage` then subtracts the pre-scaled `amount` and drives the
-/// destruction pipeline unchanged - no observer race, because nova already did
-/// the scaling before triggering. This is the single application point, so every
-/// weapon scales identically.
+/// [`on_damage`](crate::integrity::health) then subtracts the pre-scaled
+/// `amount` and drives the destruction pipeline - no observer race, because the
+/// scaling happens before the trigger rather than in a second observer of the
+/// same event. This is the single application point, so every weapon scales
+/// identically.
 pub fn apply_typed_damage(
     commands: &mut Commands,
     target: Entity,
@@ -185,7 +187,7 @@ pub fn apply_typed_damage(
     });
 }
 
-/// The per-hit kinetic damage bcs's emergent model dealt for a bullet of `mass`
+/// The per-hit kinetic damage the emergent impact model deals for a bullet of `mass`
 /// striking at relative speed `speed`, approximating `effective_mass ~ mass`
 /// (a target ship is far heavier than a bullet, so the effective mass is within
 /// a few percent of the bullet mass across every ship).
@@ -218,10 +220,9 @@ pub struct NovaBlast {
     pub kind: DamageType,
 }
 
-/// Bundle for a nova typed blast volume. Mirrors bcs's `blast_damage` collider
-/// setup - a Static sensor sphere that owns its collision events so it raises
-/// `CollisionStart` against every overlapped collider - but routes damage
-/// through `on_nova_blast_collision`. Spawn with a `Transform` at the centre
+/// Bundle for a nova typed blast volume: a Static sensor sphere that owns its
+/// collision events, so it raises `CollisionStart` against every overlapped
+/// collider, and routes damage through `on_nova_blast_collision`. Spawn with a `Transform` at the centre
 /// and a short `TempEntity` so it cleans itself up.
 pub fn nova_blast(radius: f32, max_damage: f32, kind: DamageType) -> impl Bundle {
     (
@@ -337,7 +338,7 @@ mod tests {
 
     /// A ship-shaped target: a RigidBody parent with a single child collider that
     /// carries the Health (and optional damage class), mirroring how nova ships
-    /// hold section colliders under a root body. Returns `(body, collider)`; bcs
+    /// hold section colliders under a root body. Returns `(body, collider)`; avian
     /// reports the parent as `body*` and the child as `collider*` in a
     /// CollisionStart, and damage lands on (and health lives on) the child.
     fn spawn_target(
@@ -439,12 +440,12 @@ mod tests {
     }
 
     #[test]
-    fn neutralized_bullet_mass_makes_bcs_emergent_kinetic_negligible() {
-        // Drive the REAL bcs impact observer against a neutralized-mass bullet
+    fn neutralized_bullet_mass_makes_the_emergent_kinetic_negligible() {
+        // Drive the REAL impact observer against a neutralized-mass bullet
         // and confirm the emergent kinetic it deals is negligible, then A/B the
         // same rig at the old 0.1 mass to prove the test can fail (the old mass
         // deals ~20). This is the neutralization the typed path depends on.
-        fn bcs_impact_damage(bullet_mass: f32) -> f32 {
+        fn emergent_impact_damage(bullet_mass: f32) -> f32 {
             let mut app = integrity_physics_app();
             let (target_body, target_collider) = spawn_target(&mut app, Vec3::ZERO, 1000.0, None);
             let bullet = app
@@ -465,7 +466,7 @@ mod tests {
                 .get_mut::<LinearVelocity>(target_body)
                 .unwrap()
                 .0 = Vec3::ZERO;
-            // Target is collider1/body1 so bcs applies the impact to the section.
+            // Target is collider1/body1 so the impact lands on the section.
             app.world_mut().trigger(CollisionStart {
                 collider1: target_collider,
                 collider2: bullet,
@@ -476,8 +477,8 @@ mod tests {
             1000.0 - health(&app, target_collider)
         }
 
-        let neutralized = bcs_impact_damage(NEUTRALIZED_BULLET_MASS);
-        let old = bcs_impact_damage(0.1);
+        let neutralized = emergent_impact_damage(NEUTRALIZED_BULLET_MASS);
+        let old = emergent_impact_damage(0.1);
         assert!(
             neutralized < 1.0e-2,
             "neutralized bullet must deal ~0 emergent kinetic, got {neutralized}"
@@ -490,9 +491,9 @@ mod tests {
     }
 
     #[test]
-    fn bcs_subtracts_the_prescaled_amount_nova_triggers() {
+    fn the_health_store_subtracts_exactly_the_prescaled_amount() {
         // The own-the-trigger contract end to end: nova triggers a HealthApplyDamage
-        // carrying the ALREADY-scaled amount, and bcs's on_damage subtracts exactly
+        // carrying the ALREADY-scaled amount, and on_damage subtracts exactly
         // that - no second scaling, no race.
         let mut app = integrity_physics_app();
         let (_body, target) = spawn_target(
@@ -524,9 +525,9 @@ mod tests {
     fn nova_blast_deals_typed_falloff_once() {
         // A real sensor overlap fires the nova blast observer, which scales the
         // linear falloff by the Explosive column and applies it once. The target
-        // is a Turret section (Explosive x0.5), and because the nova blast has no
-        // bcs BlastDamageMarker, bcs's blast observer never fires - so the drop is
-        // exactly the single typed amount, not doubled.
+        // is a Turret section (Explosive x0.5), and the typed blast is the only
+        // blast path in the app - so the drop is exactly the single typed
+        // amount, not doubled.
         let mut app = integrity_physics_app();
         // `integrity_physics_app` deliberately does NOT include NovaDamagePlugin,
         // so this is the ONLY registration of the blast observer. That matters:

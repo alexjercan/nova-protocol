@@ -34,6 +34,18 @@ pub fn save<T: Serialize>(key: &str, value: &T) {
     backend::save(key, value)
 }
 
+/// The `localStorage` key for `key`. Namespaced so it cannot collide with other
+/// app state.
+///
+/// Lives outside the wasm backend, and is therefore dead code on native, so the
+/// derivation stays under test on the only target CI builds: a typo here
+/// silently orphans every value a web player has saved, and no wasm test would
+/// catch it.
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+fn storage_key(key: &str) -> String {
+    format!("nova_protocol.{key}")
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 mod backend {
     use std::path::{Path, PathBuf};
@@ -54,7 +66,7 @@ mod backend {
     }
 
     /// `<config_dir>/nova-protocol/<key>.ron`.
-    fn config_path(key: &str) -> Option<PathBuf> {
+    pub(super) fn config_path(key: &str) -> Option<PathBuf> {
         dirs::config_dir().map(|d| d.join("nova-protocol").join(format!("{key}.ron")))
     }
 
@@ -89,11 +101,7 @@ mod backend {
     use bevy::prelude::*;
     use serde::{de::DeserializeOwned, Serialize};
 
-    /// The localStorage key for `key`. Namespaced so it cannot collide with
-    /// other app state.
-    fn storage_key(key: &str) -> String {
-        format!("nova_protocol.{key}")
-    }
+    use super::storage_key;
 
     fn storage() -> Option<web_sys::Storage> {
         // `local_storage()` is `Result<Option<Storage>>`: Err if disabled by the
@@ -145,7 +153,25 @@ pub fn save_to<T: Serialize>(path: &std::path::Path, value: &T) {
 // this path; keep it a minimal mirror of the native backend.
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
-    use super::{load_from, save_to};
+    use super::{backend::config_path, load_from, save_to, storage_key};
+
+    /// The two locations the store inherited from the modules it replaced. A
+    /// change here is a silent data loss for every existing player, so both are
+    /// pinned as literals rather than derived from the code under test.
+    #[test]
+    fn the_storage_locations_match_the_stores_this_replaced() {
+        let path = config_path("enabled_mods").expect("a config dir on the test host");
+        assert!(
+            path.ends_with("nova-protocol/enabled_mods.ron"),
+            "native mod prefs moved: {}",
+            path.display()
+        );
+        assert!(config_path("settings")
+            .expect("a config dir on the test host")
+            .ends_with("nova-protocol/settings.ron"));
+        assert_eq!(storage_key("enabled_mods"), "nova_protocol.enabled_mods");
+        assert_eq!(storage_key("settings"), "nova_protocol.settings");
+    }
 
     /// A unique temp path per test (no tempfile crate); the test cleans it up.
     fn temp_path(name: &str) -> std::path::PathBuf {

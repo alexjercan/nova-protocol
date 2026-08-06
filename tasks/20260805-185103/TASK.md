@@ -416,9 +416,9 @@ Each step below becomes its own child task at planning time.
       correctness pass covering the `screenshots/` category.
       (cmd: `test ! -f tests/examples_smoke.rs && rg -q "nova_probe" .github/workflows/ci.yaml`)
 - [ ] Nova's prelude no longer re-exports the bcs prelude.
-      (cmd: `! rg -n "pub use bevy_common_systems::prelude" crates`)
+      (cmd: `! rg -n '^\s*pub use bevy_common_systems::prelude::\*' crates`)
 - [ ] The screenshot reel is gone and `shoot` is the single capture idiom.
-      (cmd: `test ! -f crates/nova_autopilot/src/reel.rs && ! rg -n "ScreenshotReelPlugin|ReelBeat" crates examples`)
+      (cmd: `test ! -f crates/nova_autopilot/src/reel.rs && ! rg -n '^[^/]*ScreenshotReelPlugin|^[^/]*ReelBeat' crates examples`)
 - [ ] No example branches its step timing on whether it is capturing.
       (cmd: `! rg -n "if capturing" examples/screenshots`)
 
@@ -948,3 +948,53 @@ pose they can project against the pre-override camera. Nothing observed it, the
 capture scripts hide the HUD for most shots, and re-slotting a HUD consumer is a
 different change from declaring the writer order. If it ever shows, the fix is
 one edge: `ScreenIndicatorSystems.after(CameraAuthority::Additive)`.
+
+## Review round 1 (20260806)
+
+Three out-of-context lanes (behavior/proofs, correctness/security,
+design/standards/docs) over the 33 commits carrying this task's ID, plus bcs
+`e5da687`. 23 findings; verdict REQUEST_CHANGES. Full text and per-finding
+responses in `REVIEW.md`.
+
+**The blocker was mine, and `cargo check` could not see it.** Step 8 made nova
+own `Health`, but `nova_probe` kept importing
+`nova_gameplay::bevy_common_systems::health::Health`. Both types exist and both
+compile, so nothing failed - the two consumers just stopped matching anything.
+`invariants.rs`'s health-bounds check ran over zero entities in every run
+(including the CI sweep step 6 had just made the sole correctness gate), and
+`capture.rs`'s `combat_burst_driver` stopped healing combatants, so its
+documented "keeps every combatant alive" guarantee was silently off under every
+frame-time measurement. All three lanes found it independently by reading the
+type paths; no run reported anything.
+
+The generalisable part: a type-ownership move is invisible to the compiler when
+the old type still exists, and its stale consumers can live in a crate the step
+never names. A cross-crate grep for the moved symbol's OLD path is the check
+that would have caught it, and step 8 did not run one.
+
+**Fixed this round.** Both blockers, and 19 of the remaining 21 findings: the
+DoD proofs that could never pass as written (both were matching guard comments,
+not code), four false and five missing `[Unreleased]` CHANGELOG entries
+including the ram-damage balance change, a dead `HealthSystems` set, ~20
+rustdoc sites still crediting bcs for code nova now owns, the untested
+persistence key/path derivation, two destruction-pipeline tests the port
+dropped, and the stale doc surfaces (`release`/`probe` skills, two wiki pages,
+the harness env table).
+
+**Not fixed, and why.** R1.7 is held for an owner clarification: the camera
+chain order the record contradicts is a deliberate change (`cd1bff21`), but the
+code's own docs describe the opposite intent, so which way the record gets
+corrected is not mine to decide. R1.19 is refused with reasoning - the
+suggested fix does not compile across the crate boundary. R1.20 is answered
+with an `## Amendment` section on the existing `DECISION.md` rather than a
+second decision file, which no task in `tasks/` has.
+
+**Evidence.** All four `cmd:` proofs pass (two only after being re-anchored).
+`cargo check --workspace --all-targets --features debug` and
+`cargo fmt --all -- --check` clean. Lib suites: nova_gameplay 801 (+1 ignored,
+pre-existing), nova_probe 99, nova_assets 98, nova_scenario 151, nova_menu 76,
+nova_ui 21, nova_debug 12, nova_core 2, nova_autopilot 45. Probe under Xvfb
+with the health invariant actually live for the first time: `stress` 4/4 OK,
+`sections` 5/5 OK, zero invariant violations across 2616 checked frames. The
+new leaf-derivation test was sabotage-checked - it fails with its `try_remove`
+branch deleted.

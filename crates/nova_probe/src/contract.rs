@@ -96,18 +96,6 @@ impl ProbeContract {
         self.declared.contains(&capability)
     }
 
-    /// The declared capabilities, in enum order.
-    pub fn iter(&self) -> impl Iterator<Item = Capability> + '_ {
-        self.declared.iter().copied()
-    }
-
-    /// Whether the app claims nothing at all. Only reachable for a contract
-    /// built by hand: the writer is registered by [`declare`], so a real run
-    /// that wired no probe plugin produces no file rather than an empty one.
-    pub fn is_empty(&self) -> bool {
-        self.declared.is_empty()
-    }
-
     /// Serialize for `probe-contract.json`.
     pub fn to_json(&self) -> serde_json::Value {
         serde_json::json!({
@@ -220,9 +208,12 @@ mod tests {
         declare(&mut app, Capability::Timeline);
         declare(&mut app, Capability::Invariants);
         let contract = app.world().resource::<ProbeContract>();
+        assert!(contract.declares(Capability::Timeline));
+        assert!(contract.declares(Capability::Invariants));
+        // Serialized in enum order, and the repeat left no duplicate.
         assert_eq!(
-            contract.iter().collect::<Vec<_>>(),
-            vec![Capability::Timeline, Capability::Invariants]
+            contract.to_json()["declared"],
+            serde_json::json!(["timeline", "invariants"])
         );
     }
 

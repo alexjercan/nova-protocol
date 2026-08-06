@@ -18,7 +18,7 @@
 //! (rule-inputs-rederive-from-engine):
 //!
 //! - **Health bounds**: every [`Health`] holds finite values with
-//!   `0 <= current <= max` - bcs's `on_damage` clamps to exactly this, so a
+//!   `0 <= current <= max` - nova's `on_damage` clamps to exactly this, so a
 //!   violation means some code path bypassed the clamp.
 //! - **Velocity sanity**: every avian [`LinearVelocity`] is finite (NaN =
 //!   the physics exploded). When the entity carries [`FlightSpeedCap`], the
@@ -41,7 +41,7 @@ use std::collections::HashMap;
 
 use avian3d::prelude::LinearVelocity;
 use bevy::{diagnostic::FrameCount, prelude::*};
-use nova_gameplay::{bevy_common_systems::health::Health, flight::FlightSpeedCap};
+use nova_gameplay::{flight::FlightSpeedCap, prelude::Health};
 use nova_scenario::{loader::ScenarioLoaded, variables::VariableLiteral, world::NovaEventWorld};
 
 use crate::{

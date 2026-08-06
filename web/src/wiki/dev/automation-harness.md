@@ -48,6 +48,7 @@ so.
 | `NOVA_SHOT` | the single settled-frame capture - but it is ignored when `NOVA_AUTOPILOT` is also set: both drivers write `NextState`, so the autopilot wins and `ScreenshotPlugin` stands down with a warning | `ScreenshotPlugin` | `WxH` (for example `390x844`) overrides the window size; anything else is a plain toggle |
 | `NOVA_CAPTURE` | the CAPTURE path of a script that has one: its shot steps write PNGs instead of driving straight through | `capturing()`, which a script reads while building its steps | any (presence only) |
 | `NOVA_SHOT_DIR` | nothing on its own | `capture_window` | directory that relative capture paths resolve under; absolute paths ignore it |
+| `NOVA_PERF_CONTRACT` | the contract writer | `ProbeContract` | file path the run writes its declared capabilities to (probe passes `probe-contract.json`), so the grader can tell an unwired capability from a failed one. Unset - a hand-run example - writes nothing |
 | `NOVA_AUTOPILOT_DEADLINE` | nothing on its own | the completion watcher | seconds before the run gives up and error-exits naming the laggards (default 120); the RUN-level backstop under a script's own per-step deadlines |
 
 `NOVA_SHOT` and `NOVA_CAPTURE` are deliberately separate: a scripted capture

@@ -301,6 +301,34 @@ mod tests {
         assert!(app.world().get::<IntegrityDestroyMarker>(node).is_some());
     }
 
+    /// Leafness is DERIVED, not latched: a node that gains a second neighbour
+    /// loses the marker again. Without the removal branch a node welded into
+    /// the middle of a structure would stay destroyable as a leaf.
+    #[test]
+    fn a_leaf_that_gains_a_second_neighbour_stops_being_one() {
+        let mut app = integrity_core_app();
+        let world = app.world_mut();
+        let hub = world.spawn(ConnectedTo(vec![])).id();
+        let first = world.spawn(ConnectedTo(vec![hub])).id();
+        world.entity_mut(hub).insert(ConnectedTo(vec![first]));
+        app.update();
+        assert!(
+            app.world().get::<IntegrityLeafMarker>(hub).is_some(),
+            "one neighbour is a leaf"
+        );
+
+        let second = app.world_mut().spawn(ConnectedTo(vec![hub])).id();
+        app.world_mut()
+            .entity_mut(hub)
+            .insert(ConnectedTo(vec![first, second]));
+        app.update();
+
+        assert!(
+            app.world().get::<IntegrityLeafMarker>(hub).is_none(),
+            "two neighbours is not a leaf any more"
+        );
+    }
+
     /// An INTERIOR node is disabled but not destroyed: a dead section still
     /// holds the structure together until it is pruned into a leaf.
     #[test]

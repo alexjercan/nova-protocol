@@ -15,11 +15,11 @@ use crate::sections::local_pose_in_root;
 /// TANGIBLE.
 ///
 /// Nova OWNS the damage here: the bullet is a near-zero-mass Sensor (see the
-/// spawn bundle), so bcs's emergent kinetic term is negligible; instead this
+/// spawn bundle), so the emergent kinetic term is negligible; instead this
 /// scales the bullet's authored [`ProjectileDamage`] by the hit section's
 /// resistance and triggers `HealthApplyDamage` itself, which sidesteps Bevy
-/// 0.19's arbitrary observer order - bcs's subtractor just subtracts what nova
-/// decided. The despawn keeps a sensor round from
+/// 0.19's arbitrary observer order - the health store just subtracts what the
+/// weapon already decided. The despawn keeps a sensor round from
 /// crossing the target and dealing damage again against every event-enabled
 /// collider along its line.
 ///
@@ -247,13 +247,13 @@ pub(super) fn shoot_spawn_projectile(
                     // collider behind the first. CollisionEventsEnabled is
                     // carried by the BULLET because the other side may not
                     // have it: an invulnerable planetoid's collider has no
-                    // Health, so bcs never enables events on it, and an
+                    // Health, so collision events are never enabled on it, and an
                     // event-less sensor pair raises nothing - rounds tunneled
                     // straight through solid cover (review R1.2 MAJOR).
                     // Nested tuple: bundle arity.
                     (Collider::sphere(0.05), Sensor, CollisionEventsEnabled),
                     ActiveCollisionHooks::FILTER_PAIRS,
-                    // Near-zero mass so bcs's emergent kinetic term (mass x velocity)
+                    // Near-zero mass so the emergent kinetic term (mass x velocity)
                     // vanishes; nova's authored ProjectileDamage is the only weapon
                     // damage. Gravity is mass-independent, so flight is unaffected.
                     // Nested tuple: bundle arity.
@@ -919,7 +919,7 @@ mod tests {
     /// hit (playtest round 2 finding 2). Before the Sensor change, a
     /// solid 0.1-mass round at 100 u/s shoved a unit-cube target ~2.5+
     /// u/s per hit (momentum 10 into the target mass, amplified by
-    /// restitution 0.5) - "1 bullet sends you off like crazy". The bcs
+    /// restitution 0.5) - "1 bullet sends you off like crazy". The emergent
     /// damage observer computes from masses and velocities, not the
     /// solver contact, so removing the contact response leaves damage
     /// intact. Delivery guards: the health drop proves the hit landed
@@ -955,7 +955,7 @@ mod tests {
 
         // A bullet with the OLD emergent-kinetic shape (Mass 0.1, no
         // ProjectileDamage) on purpose: this test isolates the physics-contact
-        // behavior - knockback and no-tunnel-through - so it drives bcs's
+        // behavior - knockback and no-tunnel-through - so it drives the
         // emergent damage rather than the typed path. The production bullet now
         // spawns near-zero mass + ProjectileDamage; its typed damage is covered
         // by `typed_bullet_applies_resistance_scaled_damage`.
@@ -1003,7 +1003,7 @@ mod tests {
     }
 
     /// Production-faithful typed damage: a bullet as the turret now spawns it -
-    /// near-zero mass (so bcs's emergent kinetic is negligible) plus an authored
+    /// near-zero mass (so the emergent kinetic is negligible) plus an authored
     /// [`ProjectileDamage`] - hits a section and `despawn_bullet_on_hit` applies
     /// `amount x resistance(class, kind)` through the owned trigger. Proven
     /// across the table: Kinetic is unscaled everywhere (1.0), AP is amplified on
@@ -1072,7 +1072,7 @@ mod tests {
         };
 
         // Kinetic: 1.0 on every section (feel-preserving). Tolerance covers the
-        // ~2e-4 bcs residual from the neutralized mass.
+        // ~2e-4 emergent residual from the neutralized mass.
         assert!(
             (hit_drop(SectionDamageClass::Turret, kinetic) - amount).abs() < 0.05,
             "Kinetic must be unscaled on the Turret"
@@ -1093,7 +1093,7 @@ mod tests {
     /// beacon sphere - Sensor + events, no solidity) must SURVIVE, or the
     /// pirate goes un-hittable while patrolling near a beacon; and a round
     /// into an event-less solid (an invulnerable planetoid's collider has
-    /// no Health, so bcs never enables events on it) must still expend
+    /// no Health, so collision events are never enabled on it) must still expend
     /// instead of tunneling through cover - the bullet carries its own
     /// CollisionEventsEnabled for exactly that pair.
     #[test]

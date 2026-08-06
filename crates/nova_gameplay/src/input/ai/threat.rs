@@ -131,7 +131,7 @@ impl Default for AIEvade {
     }
 }
 
-/// Resolve a damage source (the hitting collider bcs puts in
+/// Resolve a damage source (the hitting collider the impact path puts in
 /// `HealthApplyDamage.source`) to the attacking ship root and the
 /// allegiance governing the hit, walking `ChildOf` ancestors: a turret
 /// bullet carries [`ProjectileOwner`] on the collider itself, a torpedo
@@ -171,7 +171,7 @@ fn resolve_damage_attacker(
 /// Record hostile hits into the damaged ship's [`AIThreat`].
 ///
 /// `HealthApplyDamage` propagates from the hit section up through `ChildOf`
-/// to the ship root (bcs), so this fires once the event reaches an entity
+/// to the ship root, so this fires once the event reaches an entity
 /// carrying `AIThreat` - the AI root. Only hits whose resolved allegiance is
 /// hostile count: the ship's own torpedo blast catching it (blast damage
 /// deliberately affects the owner) must not spook it into evading itself.
@@ -183,7 +183,7 @@ pub(super) fn on_damage_track_threat(
     q_parent: Query<&ChildOf>,
     q_ship_root: Query<(), With<SpaceshipRootMarker>>,
 ) {
-    // A zero amount is a hit on a corpse (bcs zeroes absorbed damage), not
+    // A zero amount is a hit on a corpse (`on_damage` zeroes absorbed damage), not
     // fire worth reacting to.
     if damage.amount <= 0.0 {
         return;
@@ -204,7 +204,7 @@ pub(super) fn on_damage_track_threat(
 
 #[cfg(test)]
 mod threat_tests {
-    // Damage attribution into the threat memory: bcs populates
+    // Damage attribution into the threat memory: the weapon populates
     // HealthApplyDamage.source with the hitting collider, and the observer
     // resolves it to the firing ship root through ProjectileOwner.
     use super::*;
@@ -273,7 +273,7 @@ mod threat_tests {
 
     #[test]
     fn a_hit_on_a_section_propagates_to_the_root_threat() {
-        // The production path: bcs triggers the event on the HIT SECTION and
+        // The production path: the weapon triggers the event on the HIT SECTION and
         // it propagates through ChildOf to the root. The observer must catch
         // it at the root hop.
         let (mut world, ship) = threat_world();

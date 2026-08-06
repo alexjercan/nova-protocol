@@ -52,8 +52,8 @@ release". This skill is that checklist plus the guardrails learned in practice.
   be reflected in CHANGELOG + news; anything missing gets written now. A change
   that landed without a changelog line is the common gap.
 - **master is green:** `.github/workflows/ci.yaml` owns the test suite (fmt,
-  clippy, `cargo test --workspace --features debug`, the windowed
-  `examples_smoke` run under Xvfb, and the license gate). Confirm the last
+  clippy, `cargo test --workspace --features debug`, the windowed probe
+  correctness sweep under Xvfb, and the license gate). Confirm the last
   `master` run passed - `gh run list --workflow=ci --branch master -L 3`. Do not
   run the full suite locally to substitute for it. If a job is red, cite the job
   LOG's result line, not the run conclusion.

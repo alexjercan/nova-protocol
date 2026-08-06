@@ -120,15 +120,16 @@ tagged **(breaking)**.
   agreed happened rather than on a guessed duration. `hull_section`,
   `hud_range` and `player_path` are rewritten onto them, dropping their beat
   offsets, boolean stage trackers and per-example completion guards.
-- Every example category carries an explicit contract, and `nova_probe`
-  resolves what to run from it (`CategoryPolicy { probed, frame_time }`)
-  instead of a `perf`-vs-everything split plus the hand-listed `fps_exempt`
-  key. Only a frame-time category (`stress/`, and `perf/` until it is
-  absorbed) carries the `--fps` pass; anywhere else the run records why it did
-  not. `--all` skips unprobed categories and records each as excluded, and a
-  bare `probe run screenshots` now errors instead of expanding to a no-op.
-- `checks.json`: the run manifest's `fps_exempt` field is renamed
-  `fps_skipped`, with no compatibility shim. **(breaking)**
+- **(breaking)** Probe coverage is a HANDSHAKE, not a table: every probe plugin
+  declares its capability into `probe-contract.json` (`NOVA_PERF_CONTRACT`), and
+  each check resolves against that declaration instead of against the example's
+  category. A check whose capability was never wired reports
+  `N/A (not declared)` rather than passing on absent evidence, and a run that
+  declares nothing at all grades `UNPROBEABLE` instead of `OK`. The launch-side
+  `CategoryPolicy { probed, frame_time }` table, the per-example `NOT_PROBED`
+  opt-out, the `NOT_PROBED_CATEGORIES` list and the `checks.json` `fps_exempt` /
+  `fps_skipped` manifest field are all gone with no shim - there is no
+  launch-side way to exempt an example from a check any more.
 - New `examples/systems/` category: code-built `ScenarioConfig` fixtures for
   the cross-cutting systems, reaching no shipped story content. `scenario`
   becomes `systems/scenario_grammar` and `playable` becomes
@@ -149,7 +150,7 @@ tagged **(breaking)**.
   placement clicks on the ship - instead of triggering widget observers, and
   check the live tree after every rebuild. `hud_range` stays predicate-driven;
   its subject is where an indicator lands on screen, not what a pointer does to
-  it. `widget_zoo` joined the CI smoke list; `menu_newgame` narrowed to the
+  it. `menu_newgame` narrowed to the
   boot flow (`NOVA_MENU_PATH=editorplay` is gone - `editor` owns that
   sequence).
 - `nova_autopilot::input`: `click_named` / `hover_named` / `ui_node_centre` /
@@ -159,6 +160,24 @@ tagged **(breaking)**.
   nodes share a name rather than pointing at an arbitrary one silently.
 - `nova_debug::harness::REACHED_PLAYING`: the smoke sentinel is a const, named
   by its two emitters and the test that greps for it.
+- **(breaking)** `tests/examples_smoke.rs` is deleted and CI's windowed smoke
+  step becomes the probe correctness sweep (`probe run --all` under Xvfb), which
+  asserts a superset of it. Its two drift guards moved to
+  `crates/nova_probe/tests/catalog_drift.rs`.
+- One camera-authority chain (`CameraAuthority { Solve, Additive, Override }`)
+  declares who writes the camera `Transform` and in what order, folding bcs's
+  chase, WASD and shake writers into it. The missing edges used to be filled by
+  executor readiness, which is what made a scripted pose flicker between runs.
+- Nova owns its health pool, damage typing and destruction pipeline
+  (`nova_gameplay::integrity`) rather than importing them. Impact (ram) damage
+  is now typed `Kinetic` and meets the per-section resistance table it
+  previously bypassed, so ramming a Hull and ramming a Turret no longer deal the
+  same damage.
+- One persistence store (`nova_assets::persist`) replaces the two hand-rolled
+  copies behind the mod set and the settings menu. Storage locations are
+  unchanged, so saved mods and settings survive the swap.
+- `AppBuilder::with_main_menu` and `nova_ui`'s `debug` feature are deleted; the
+  menu fronts the default app and nothing else. **(breaking)**
 
 ## [0.9.1] - 2026-08-02
 
