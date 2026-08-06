@@ -113,6 +113,57 @@ because a rejected sample still advances the seeded RNG". Determinism comes from
 the fixed seed plus a deterministic algorithm. Reword to "the same seed yields
 the same layout, drops included".
 
+## Responses - F1 and F2 (owner asked for these two only)
+
+### F1 - fixed
+
+`pins.rs` now measures clearance the way a rock sees it: `distance_to_box`
+(point to AABB surface) minus the pocket radius minus
+`BELT_ROCK_RADIUS.1 * ASTEROID_GEOMETRIC_FACTOR_MAX`, with `POCKET_MARGIN` on
+top. The autopilot loop got the same correction via `segment_distance_to_box`
+(ternary search - distance to a convex set composed with an affine segment is
+convex, so it lands on the true minimum). `distance_to_segment` is gone; it had
+one caller.
+
+Guard against a vacuous pass: restoring knot 2's old centre fails with
+`belt_k2_ leaves beacon 1 only -6u of air`, matching the -5.8u computed in F1.
+
+Layout retuned to satisfy the corrected rule, minimally and shape-preserving:
+
+| knot | was | now | moved | slack over the 20u floor |
+| --- | --- | --- | --- | --- |
+| k1 | (55, -20, -160) | (55, -20, -170) | 10u | 8.0 |
+| k2 | (140, 35, -450) | (170, 35, -460) | 32u | 5.7 |
+| k3 | (285, 45, -365) | (245, 45, -380) | 43u | 7.5 |
+| k4 | (170, 20, -560) | unchanged | 0 | 32.3 |
+| k5 | (20, 15, -540) | (20, 15, -545) | 5u | 8.0 |
+
+### F2 - fixed in the engine, not the content
+
+Separation is a property of the FIELD, not of one action, so
+`NovaEventWorld` now owns the placed set (`scatter_placements`, cleared in
+`clear()` at teardown) and `ScatterObjectsConfig::action` seeds its rejection
+sampler from it. Sibling scatters over abutting regions can no longer put rocks
+inside each other, and no new config knob was added.
+
+The geometric alternative (require a 32u gap between knot boxes) was tried and
+rejected: a search over the corridor showed five full-size knots cannot satisfy
+it without pushing k1 to x=-85 and k4 to z=-770, i.e. destroying the authored
+slalom. The overlap is the design; the engine was the wrong place to be strict.
+
+Pinned by `separation_holds_across_sibling_scatters` (two scatters over the
+SAME box, all 16 placed, every pair >= 40u, and teardown empties the set).
+
+Docs: the `min_separation` field doc, the wiki ScatterObjects section and the
+CHANGELOG line now state the cross-scatter contract.
+
+Re-verified: nova_scenario 152 pass, nova_assets 97 pass, `content gen` +
+`lint` 0/0 (14 scenarios), `cargo check --workspace --all-targets` clean, probe
+`scene_baseline --fps --scenario shakedown_run --preset high` OK with all six
+scatters placing their full count (0 drops, 0 panic/ERROR lines).
+
+F3-F7 remain open; they were not in the fix request.
+
 ## Judged and accepted
 
 - `min_separation` landing in this task rather than a split: correct. The belt

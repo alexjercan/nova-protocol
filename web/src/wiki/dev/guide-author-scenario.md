@@ -329,8 +329,11 @@ ScatterObjects((
 )),
 ```
 
-`min_separation` (optional) is the smallest centre-to-centre distance between
-two copies of this scatter. Set it on any field of solid bodies: uniform
+`min_separation` (optional) is the smallest centre-to-centre distance between a
+copy of this scatter and every body already scattered in the scenario - this
+scatter's earlier copies AND every earlier scatter's, so a belt authored as
+several knots stays safe where two knot regions abut. Set it on any field of
+solid bodies: uniform
 sampling WILL place rocks inside each other, and two overlapping dynamic bodies
 are shoved apart on the first physics step hard enough to damage or destroy
 each other - a field that explodes as it spawns. Size it as the two widest

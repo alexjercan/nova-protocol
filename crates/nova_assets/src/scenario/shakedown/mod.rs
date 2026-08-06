@@ -145,41 +145,43 @@ struct BeltKnot {
 /// tail around the planetoid. The scenario used to read as empty black sky with
 /// 9 rocks in it; these give the early legs something to fly THROUGH.
 ///
-/// Every knot obeys the pocket rule - its half-extent plus 20u clears the
-/// player spawn, every beacon trigger, the debris cluster, the derelict and the
-/// planetoid's widest orbit ring - so no beat loses the air it needs. The same
-/// rule holds against every AUTOPILOT leg (the GOTO to beacon 3, the waypoint
-/// run to beacon 4, the run in to the orbit): the player is hands-off there and
-/// cannot dodge, so those corridors carry no rock. Both pinned by
-/// `belt_knots_keep_every_beat_pocket_clear`.
+/// Every knot obeys the pocket rule - its BOX SURFACE, plus a rock's own
+/// collider, plus 20u, clears the player spawn, every beacon trigger, the
+/// debris cluster, the derelict and the planetoid's widest orbit ring - so no
+/// beat loses the air it needs. The same rule holds against every AUTOPILOT leg
+/// (the GOTO to beacon 3, the waypoint run to beacon 4, the run in to the
+/// orbit): the player is hands-off there and cannot dodge, so those corridors
+/// carry no rock. Both pinned by `belt_knots_keep_every_beat_pocket_clear`.
+///
+/// The knot boxes MAY abut: separation is shared across scatters, so the seam
+/// between two knots is as safe as the inside of one.
 ///
 /// Counts are owner round-2 numbers: the round-1 26-per-knot belt read as
 /// cluttered.
 const BELT_KNOTS: [BeltKnot; 5] = [
     BeltKnot {
         id_prefix: "belt_k1_",
-        center: Vec3::new(55.0, -20.0, -160.0),
+        center: Vec3::new(55.0, -20.0, -170.0),
         half_extent: Vec3::new(70.0, 35.0, 70.0),
         seed: 20260805_001,
         count: 12,
     },
     BeltKnot {
         id_prefix: "belt_k2_",
-        center: Vec3::new(140.0, 35.0, -450.0),
+        center: Vec3::new(170.0, 35.0, -460.0),
         half_extent: Vec3::new(70.0, 35.0, 70.0),
         seed: 20260805_002,
         count: 12,
     },
     BeltKnot {
         id_prefix: "belt_k3_",
-        center: Vec3::new(285.0, 45.0, -365.0),
+        center: Vec3::new(245.0, 45.0, -380.0),
         half_extent: Vec3::new(70.0, 35.0, 70.0),
         seed: 20260805_003,
         count: 12,
     },
-    // NOTE: 170 on x, not the sketched 200: at 200 this knot's pocket margin
-    // against the planetoid's widest orbit ring was under a unit, so the pin
-    // would have passed by accident.
+    // NOTE: 170 on x, not the sketched 200: at 200 this knot's box runs into
+    // the planetoid's widest orbit ring.
     BeltKnot {
         id_prefix: "belt_k4_",
         center: Vec3::new(170.0, 20.0, -560.0),
@@ -189,7 +191,7 @@ const BELT_KNOTS: [BeltKnot; 5] = [
     },
     BeltKnot {
         id_prefix: "belt_k5_",
-        center: Vec3::new(20.0, 15.0, -540.0),
+        center: Vec3::new(20.0, 15.0, -545.0),
         half_extent: Vec3::new(85.0, 40.0, 85.0),
         seed: 20260805_005,
         count: 12,

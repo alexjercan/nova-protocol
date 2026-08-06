@@ -261,8 +261,10 @@ pub struct ScatterObjectsConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub asteroid_radius: Option<(f32, f32)>,
-    /// Minimum centre-to-centre distance (world units) between two copies from
-    /// THIS scatter. Uniform sampling puts bodies on top of each other, and
+    /// Minimum centre-to-centre distance (world units) between a copy of this
+    /// scatter and EVERY body already scattered this scenario - this action's
+    /// earlier copies and every earlier scatter's. Uniform sampling puts bodies
+    /// on top of each other, and
     /// overlapping DYNAMIC bodies (a scattered rock is one) are shoved apart on
     /// the first physics step hard enough to damage or destroy each other - a
     /// field that explodes as it spawns. Author it as the widest two bodies
@@ -315,7 +317,9 @@ impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
             count, self.id_prefix, self.seed
         );
 
-        let mut placed: Vec<Vec3> = Vec::new();
+        // Seeded with what earlier scatters placed, so abutting sibling fields
+        // (a belt's knots) cannot drop rocks into each other.
+        let mut placed: Vec<Vec3> = world.scatter_placements().to_vec();
         for i in 0..count {
             let mut object = self.template.clone();
             object.base.id = format!("{}{}", self.id_prefix, i);
@@ -332,6 +336,7 @@ impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
                 continue;
             };
             placed.push(position);
+            world.push_scatter_placement(position);
             object.base.position = position;
 
             if let (Some((lo, hi)), ScenarioObjectKind::Asteroid(asteroid)) =
@@ -731,6 +736,68 @@ mod tests {
 
         // No separation authored: every copy is placed, as before the field.
         assert_eq!(scatter(40, None).len(), 40);
+    }
+
+    /// Separation holds ACROSS scatters, not just within one. A belt is
+    /// authored as sibling knots whose boxes abut - if each scatter only
+    /// checked its own copies, the seam between two knots would spawn rocks
+    /// inside each other, which is the whole failure `min_separation` exists to
+    /// prevent. Two scatters over the SAME box is the worst case.
+    #[test]
+    fn separation_holds_across_sibling_scatters() {
+        let separation = 40.0;
+        let scatter = |id_prefix: &str, seed: u64| ScatterObjectsConfig {
+            id_prefix: id_prefix.to_string(),
+            count: 8,
+            seed,
+            region: ScatterRegion::Box {
+                min: Vec3::new(-100.0, -20.0, -100.0),
+                max: Vec3::new(100.0, 20.0, 100.0),
+            },
+            template: ScenarioObjectConfig {
+                base: BaseScenarioObjectConfig {
+                    id: "rock".to_string(),
+                    name: "Rock".to_string(),
+                    position: Vec3::ZERO,
+                    rotation: Quat::IDENTITY,
+                },
+                kind: ScenarioObjectKind::Light(LightConfig::Directional {
+                    illuminance: 1000.0,
+                    color: Color::WHITE,
+                    shadows: false,
+                    aim: None,
+                }),
+            },
+            asteroid_radius: None,
+            min_separation: Some(separation),
+        };
+
+        let mut event_world = NovaEventWorld::default();
+        scatter("knot_a_", 11).action(&mut event_world, &GameEventInfo::default());
+        let after_first = event_world.scatter_placements().len();
+        scatter("knot_b_", 22).action(&mut event_world, &GameEventInfo::default());
+
+        let placed = event_world.scatter_placements();
+        assert_eq!(after_first, 8, "the first scatter placed all 8");
+        assert_eq!(
+            placed.len(),
+            16,
+            "both scatters placed all 8, got {placed:?}"
+        );
+        for (i, a) in placed.iter().enumerate() {
+            for b in placed.iter().skip(i + 1) {
+                assert!(
+                    a.distance(*b) >= separation,
+                    "two copies landed {:.1}u apart, under the {separation}u separation",
+                    a.distance(*b)
+                );
+            }
+        }
+
+        // Teardown drops them, or the next load of the same scenario would
+        // scatter around a field that no longer exists.
+        event_world.clear();
+        assert!(event_world.scatter_placements().is_empty());
     }
 
     /// `center` is `serde(default)`, so mod RON written before the field

@@ -41,8 +41,8 @@ tagged **(breaking)**.
 - `ScatterRegion::Ring` gains an optional `center`, so a belt can circle a body
   that does not sit at the world origin. Omitted, it is the origin as before.
 - `ScatterObjects` gains an optional `min_separation`: scattered bodies are kept
-  that far apart instead of being sampled on top of each other, which spawned
-  overlapping rocks that blasted each other apart on the first physics step.
+  that far apart from every body scattered so far in the scenario, across
+  sibling scatters, instead of being sampled on top of each other.
 
 ### Modding & Mod Portal
 

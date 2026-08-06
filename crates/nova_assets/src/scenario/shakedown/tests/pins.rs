@@ -585,23 +585,40 @@ fn crates_are_spaced_for_distinct_pickups() {
     }
 }
 
-/// Distance from a point to a segment - an autopilot leg is a line the ship
-/// actually flies, not two endpoints.
-fn distance_to_segment(point: Vec3, from: Vec3, to: Vec3) -> f32 {
-    let leg = to - from;
-    let length_sq = leg.length_squared();
-    if length_sq <= f32::EPSILON {
-        return point.distance(from);
-    }
-    let t = ((point - from).dot(leg) / length_sq).clamp(0.0, 1.0);
-    point.distance(from + leg * t)
+/// Distance from a point to the SURFACE of an axis-aligned knot box (0 inside).
+/// A rock is sampled uniformly in the whole box, so the box - not its centre -
+/// is what has to stay off a pocket.
+fn distance_to_box(point: Vec3, center: Vec3, half_extent: Vec3) -> f32 {
+    ((point - center).abs() - half_extent)
+        .max(Vec3::ZERO)
+        .length()
 }
 
-/// The slalom belt must not fill the air a beat needs. Every knot's box, plus
-/// a 20u margin, clears the player spawn, each beacon trigger, the debris
-/// cluster, the derelict and the planetoid's widest orbit ring - the sketch's
-/// first knot 5 sat INSIDE beacon 1's trigger, which is exactly what this
-/// catches. Second half: the far parallax layer stays under
+/// Distance from a segment to a knot box - an autopilot leg is a line the ship
+/// actually flies, not two endpoints. Distance to a convex set is convex and
+/// the segment is affine in `t`, so the composition is convex and a ternary
+/// search lands on the true minimum.
+fn segment_distance_to_box(from: Vec3, to: Vec3, center: Vec3, half_extent: Vec3) -> f32 {
+    let at = |t: f32| distance_to_box(from.lerp(to, t), center, half_extent);
+    let (mut lo, mut hi) = (0.0f32, 1.0f32);
+    for _ in 0..80 {
+        let third = (hi - lo) / 3.0;
+        if at(lo + third) < at(hi - third) {
+            hi -= third;
+        } else {
+            lo += third;
+        }
+    }
+    at(lo)
+}
+
+/// The slalom belt must not fill the air a beat needs. Measured as the ROCK
+/// sees it: the distance from the pocket to the knot BOX surface, minus the
+/// widest rock's collider (`BELT_ROCK_RADIUS.1 * ASTEROID_GEOMETRIC_FACTOR_MAX`,
+/// not its nominal radius), must leave a 20u margin. A centre-to-centre check
+/// against the widest half-extent is not the same test - it passed knot 2 by
+/// 16u while that box's worst-case rock reached 6u INSIDE beacon 1's trigger.
+/// Second half: the far parallax layer stays under
 /// `GravitySettings::min_well_radius`, so no belt rock gets the default well
 /// and sprays gravity over the legs authored to be gravity-free.
 #[test]
@@ -624,18 +641,21 @@ fn belt_knots_keep_every_beat_pocket_clear() {
         ("the planetoid orbit ring", PLANETOID_POS, widest_ring),
     ];
 
+    // A rock's own body, not its authored radius: the noise mesh reaches up to
+    // ASTEROID_GEOMETRIC_FACTOR_MAX times nominal.
+    let rock_reach = BELT_ROCK_RADIUS.1 * ASTEROID_GEOMETRIC_FACTOR_MAX;
+
     for knot in &BELT_KNOTS {
-        // The knot's own reach: its widest half-extent, so one number holds
-        // whichever way the pocket lies.
-        let reach = knot.half_extent.max_element();
         for (name, center, radius) in &pockets {
-            let distance = knot.center.distance(*center);
-            let needed = reach + POCKET_MARGIN + radius;
+            let clearance =
+                distance_to_box(*center, knot.center, knot.half_extent) - radius - rock_reach;
             assert!(
-                distance > needed,
-                "{} ({distance:.0}u from {name}) must leave it clear: its box reaches \
-                 {reach:.0}u and {name} needs {radius:.0}u, so {needed:.0}u is the floor",
-                knot.id_prefix
+                clearance > POCKET_MARGIN,
+                "{} leaves {name} only {clearance:.0}u of air (its box surface is \
+                 {:.0}u out, {name} needs {radius:.0}u and a rock reaches \
+                 {rock_reach:.0}u) - the floor is {POCKET_MARGIN:.0}u",
+                knot.id_prefix,
+                distance_to_box(*center, knot.center, knot.half_extent)
             );
         }
     }
@@ -649,14 +669,13 @@ fn belt_knots_keep_every_beat_pocket_clear() {
         ("the run in to the orbit", BEACON_4_POS, PLANETOID_POS),
     ];
     for knot in &BELT_KNOTS {
-        let reach = knot.half_extent.max_element();
         for (name, from, to) in &legs {
-            let distance = distance_to_segment(knot.center, *from, *to);
-            let needed = reach + POCKET_MARGIN;
+            let clearance =
+                segment_distance_to_box(*from, *to, knot.center, knot.half_extent) - rock_reach;
             assert!(
-                distance > needed,
-                "{} sits {distance:.0}u off {name} - an autopilot corridor needs \
-                 {needed:.0}u of air (the knot reaches {reach:.0}u)",
+                clearance > POCKET_MARGIN,
+                "{} leaves {name} only {clearance:.0}u of air - an autopilot corridor \
+                 needs {POCKET_MARGIN:.0}u the player cannot dodge into",
                 knot.id_prefix
             );
         }

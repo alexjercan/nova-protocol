@@ -25,6 +25,13 @@ pub struct NovaEventWorld {
     /// frame. Cleared at teardown with the rest of the event world.
     hud_readouts: Vec<HudReadoutActionConfig>,
     variables: HashMap<String, VariableLiteral>,
+    /// Every position a `ScatterObjects` action has placed this scenario, in
+    /// placement order. Separation is a property of the FIELD, not of one
+    /// action: a belt is authored as sibling scatters whose regions abut, and a
+    /// per-action set would let two of them put rocks inside each other - the
+    /// exact overlap `min_separation` exists to prevent. Cleared at teardown
+    /// with the rest of the event world.
+    scatter_placements: Vec<Vec3>,
     /// The queued scenario switch, if a `NextScenario` action has requested one.
     pub next_scenario: Option<NextScenarioActionConfig>,
     /// The delayed non-lingering cut's clock: armed by the NextScenario action,
@@ -256,8 +263,22 @@ impl NovaEventWorld {
         self.story_messages.clear();
         self.hud_readouts.clear();
         self.variables.clear();
+        self.scatter_placements.clear();
         self.next_scenario = None;
         self.next_scenario_delay = None;
+    }
+
+    /// Every position scattered so far this scenario, across ALL
+    /// `ScatterObjects` actions. A scatter rejects a candidate that crowds any
+    /// of them, so sibling fields with overlapping regions still spawn clear of
+    /// each other.
+    pub fn scatter_placements(&self) -> &[Vec3] {
+        &self.scatter_placements
+    }
+
+    /// Record a position a scatter placed, so later scatters keep clear of it.
+    pub fn push_scatter_placement(&mut self, position: Vec3) {
+        self.scatter_placements.push(position);
     }
 
     /// Defer a closure that needs real Bevy world access; it runs at frame end
