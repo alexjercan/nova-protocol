@@ -226,6 +226,27 @@ mod tests {
         );
     }
 
+    /// The point of the whole module: an UNARMED plugin still declares. Each
+    /// of these three returns early without env, and the claim survives it.
+    #[test]
+    fn wiring_a_plugin_declares_even_when_the_run_arms_nothing() {
+        let mut app = App::new();
+        app.add_plugins((
+            crate::nova_timeline(),
+            crate::nova_invariants(),
+            crate::nova_frametime(),
+        ));
+        let contract = app.world().resource::<ProbeContract>().clone();
+        assert_eq!(
+            contract,
+            ProbeContract::of([
+                Capability::Timeline,
+                Capability::Invariants,
+                Capability::FrameTime
+            ])
+        );
+    }
+
     #[test]
     fn the_write_is_atomic_and_leaves_no_temp_behind() {
         let dir = scratch("write");

@@ -332,6 +332,9 @@ struct PerfState {
 
 impl Plugin for FrameTimePlugin {
     fn build(&self, app: &mut App) {
+        // Declared by WIRING, above the arming guard: adding this plugin IS
+        // the frame-time claim, whether or not this run armed the capture.
+        crate::contract::declare(app, crate::contract::Capability::FrameTime);
         if !perf_armed() {
             return;
         }

@@ -81,6 +81,7 @@ impl RunRecorderPlugin {
 
 impl Plugin for RunRecorderPlugin {
     fn build(&self, app: &mut App) {
+        crate::contract::declare(app, crate::contract::Capability::Timeline);
         let Some(path) = self
             .out
             .clone()

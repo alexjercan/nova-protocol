@@ -108,6 +108,7 @@ impl InvariantsPlugin {
 
 impl Plugin for InvariantsPlugin {
     fn build(&self, app: &mut App) {
+        crate::contract::declare(app, crate::contract::Capability::Invariants);
         let param = perf_param(INVARIANTS_PARAM);
         let armed = self.armed_override.unwrap_or(param.is_some());
         if !armed {
