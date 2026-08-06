@@ -28,6 +28,7 @@ pub mod content_report;
 pub mod mod_cache;
 pub mod mod_prefs;
 pub mod mod_refs;
+pub mod persist;
 pub mod portal;
 
 /// The balance audit over shipped scenario content: derives fairness metrics
