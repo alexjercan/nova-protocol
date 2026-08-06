@@ -5,20 +5,62 @@
 //! means a panicked/killed run leaves a bracket-less file: that IS the crash
 //! signal, by design.
 
-use super::{timeline_skip_detail, Check, CheckStatus, RunArtifacts};
+use super::{timeline_skip_detail, Check, CheckStatus, NotApplicable, RunArtifacts};
+use crate::{contract::Capability, run_report::artifacts::Input};
 
 const THRESHOLD: &str = "run_end present + AppExit Success + entry count consistent";
 
 pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
-    let Some(timeline) = artifacts.timeline.as_ref() else {
-        return Check {
-            name: "run_completed",
-            status: CheckStatus::Skipped,
-            value: "no timeline".into(),
-            threshold: THRESHOLD.into(),
-            detail: timeline_skip_detail(artifacts.manifest.as_ref()),
-            data: serde_json::Value::Null,
-        };
+    let no_input = |status, value: &str, detail: String| Check {
+        name: "run_completed",
+        status,
+        value: value.into(),
+        threshold: THRESHOLD.into(),
+        detail,
+        data: serde_json::Value::Null,
+    };
+    let timeline = match artifacts.resolve(Capability::Timeline, artifacts.timeline.as_ref()) {
+        Input::Present(timeline) => timeline,
+        Input::NotDeclared(capability) => {
+            return no_input(
+                CheckStatus::NotApplicable(NotApplicable::NotDeclared(capability)),
+                "not claimed",
+                format!(
+                    "the example wires no {} - nothing recorded the run, so there \
+                     is no bracket to close",
+                    capability.wiring()
+                ),
+            )
+        }
+        Input::NotArmed(capability) => {
+            return no_input(
+                CheckStatus::NotApplicable(NotApplicable::NotArmed(capability)),
+                "not armed",
+                format!(
+                    "the example wires {} but this run did not arm it (see the \
+                     manifest's armed flags)",
+                    capability.wiring()
+                ),
+            )
+        }
+        Input::ArmedButAbsent(capability) => {
+            return no_input(
+                CheckStatus::Fail,
+                "armed and silent",
+                format!(
+                    "the example declares {} and probe armed it, but no \
+                     timeline.jsonl was written - the run recorded nothing",
+                    capability.wiring()
+                ),
+            )
+        }
+        Input::Unknown(_) => {
+            return no_input(
+                CheckStatus::Skipped,
+                "no timeline",
+                timeline_skip_detail(artifacts.manifest.as_ref()),
+            )
+        }
     };
 
     match timeline.iter().rev().find(|e| e.kind == "run_end") {
@@ -126,9 +168,9 @@ mod tests {
         assert_eq!(c.status, CheckStatus::Skipped);
         assert!(c.detail.contains("not wired with"), "{}", c.detail);
         assert!(c.detail.contains("controller_section"), "{}", c.detail);
-        // And the verdict is OK-with-coverage (process_exit measured PASS),
-        // not NO_DATA and not the old evidence-free OK.
-        assert_eq!(overall_verdict(&checks), "OK");
+        // process_exit measured PASS, so this is not NO_DATA - but no CLAIM
+        // was graded, so it is not OK either.
+        assert_eq!(overall_verdict(&checks), "UNPROBEABLE");
         assert_eq!(measured_count(&checks), 1);
     }
 

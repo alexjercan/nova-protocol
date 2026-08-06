@@ -31,8 +31,8 @@ mod manifest;
 
 pub use artifacts::{Input, RunArtifacts};
 pub use checks::{
-    checks_json, evaluate_checks, measured_count, overall_verdict, print_checks, Check,
-    CheckStatus, FPS_WARN_THRESHOLD_PCT,
+    checks_json, evaluate_checks, measured_count, overall_verdict, print_checks, status_class,
+    Check, CheckStatus, NotApplicable, FPS_WARN_THRESHOLD_PCT,
 };
 pub use html::render_run_report;
 pub use manifest::{run_identity, PassRecord, RunManifest};

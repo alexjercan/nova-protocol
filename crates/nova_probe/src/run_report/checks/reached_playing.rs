@@ -4,7 +4,7 @@
 //! An app that exits cleanly while still Loading (graceful asset failure)
 //! must not pass unnoticed.
 
-use super::{timeline_skip_detail, Check, CheckStatus, RunArtifacts};
+use super::{timeline_skip_detail, Check, CheckStatus, NotApplicable, RunArtifacts};
 use crate::{contract::Capability, run_report::artifacts::Input};
 
 const THRESHOLD: &str = "a GameStates transition entered Playing";
@@ -22,7 +22,7 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
         Input::Present(timeline) => timeline,
         Input::NotDeclared(capability) => {
             return no_input(
-                CheckStatus::Skipped,
+                CheckStatus::NotApplicable(NotApplicable::NotDeclared(capability)),
                 "not claimed",
                 format!(
                     "the example wires no {} - it makes no timeline claim, so \
@@ -33,7 +33,7 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
         }
         Input::NotArmed(capability) => {
             return no_input(
-                CheckStatus::Skipped,
+                CheckStatus::NotApplicable(NotApplicable::NotArmed(capability)),
                 "not armed",
                 format!(
                     "the example wires {} but this run did not arm it (see the \
@@ -149,7 +149,7 @@ mod tests {
     /// An example that wires no recorder is not judged on one - and the row
     /// names the call it would take to make the claim.
     #[test]
-    fn an_undeclared_timeline_skips_and_names_the_missing_wiring() {
+    fn an_undeclared_timeline_is_not_applicable_and_names_the_missing_wiring() {
         let dir = scratch_run_dir();
         std::fs::remove_file(dir.join("timeline.jsonl")).unwrap();
         write_contract(&dir, [Capability::FrameTime]);
@@ -162,7 +162,11 @@ mod tests {
         let artifacts = RunArtifacts::load(&dir, None).unwrap();
         let checks = evaluate_checks(&artifacts);
         let c = check(&checks, "reached_playing");
-        assert_eq!(c.status, CheckStatus::Skipped, "{c:?}");
+        assert_eq!(
+            c.status,
+            CheckStatus::NotApplicable(NotApplicable::NotDeclared(Capability::Timeline)),
+            "{c:?}"
+        );
         assert!(c.detail.contains("nova_timeline()"), "{c:?}");
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -170,7 +174,7 @@ mod tests {
     /// A declared capability this run did not arm is not a gap either - the
     /// sweep cells and every run without --fps live here.
     #[test]
-    fn a_declared_but_unarmed_timeline_skips_rather_than_failing() {
+    fn a_declared_but_unarmed_timeline_is_not_applicable_rather_than_failing() {
         let dir = scratch_run_dir();
         std::fs::remove_file(dir.join("timeline.jsonl")).unwrap();
         write_contract(&dir, [Capability::Timeline]);
@@ -183,7 +187,11 @@ mod tests {
         let artifacts = RunArtifacts::load(&dir, None).unwrap();
         let checks = evaluate_checks(&artifacts);
         let c = check(&checks, "reached_playing");
-        assert_eq!(c.status, CheckStatus::Skipped, "{c:?}");
+        assert_eq!(
+            c.status,
+            CheckStatus::NotApplicable(NotApplicable::NotArmed(Capability::Timeline)),
+            "{c:?}"
+        );
         assert_eq!(c.value, "not armed", "{c:?}");
         let _ = std::fs::remove_dir_all(&dir);
     }

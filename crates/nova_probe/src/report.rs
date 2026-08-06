@@ -253,6 +253,8 @@ td.status-pass { color: #087f23; font-weight: 600; }
 td.status-warn { color: #b8860b; font-weight: 600; }
 td.status-fail { color: #b00020; font-weight: 600; }
 td.status-skipped { color: #999; }
+td.status-na { color: #999; font-style: italic; }
+td.status-unknown { color: #999; }
 .profile { font-size: 0.75em; padding: 0.05rem 0.3rem; border-radius: 3px; }
 .profile.dev { background: #fff3d6; color: #7a5b00; }
 .profile.release { background: #e3f4e6; color: #0b6623; }

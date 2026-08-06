@@ -62,10 +62,11 @@ pub(crate) fn report(dir: &Path, baseline: Option<&Path>) -> Result<ExitCode, St
     .map_err(|e| format!("could not write checks.json: {e}"))?;
     println!("probe: {verdict} - {}", dir.join("report.html").display());
     print_checks(&checks);
-    Ok(if verdict == "FAIL" || verdict == "NO_DATA" {
-        ExitCode::FAILURE
-    } else {
-        ExitCode::SUCCESS
+    // Fail-closed, the same rule the aggregate uses: only a graded run that
+    // came out OK or WARN exits zero. FAIL, NO_DATA and UNPROBEABLE do not.
+    Ok(match verdict {
+        "OK" | "WARN" => ExitCode::SUCCESS,
+        _ => ExitCode::FAILURE,
     })
 }
 
@@ -140,7 +141,11 @@ mod tests {
         }
 
         let dirs = vec![base.join("playable"), base.join("scenario")];
-        assert_eq!(report_many(&dirs, None), Ok(ExitCode::SUCCESS));
+        // FAILURE, and correctly so: these dirs hold a manifest that armed
+        // nothing and no artifacts, so every capability check is N/A and the
+        // runs graded no claim. Re-rendering them still produces both files -
+        // which is what this test is about.
+        assert_eq!(report_many(&dirs, None), Ok(ExitCode::FAILURE));
         assert!(base.join("playable").join("report.html").is_file());
         assert!(base.join("scenario").join("checks.json").is_file());
         let _ = std::fs::remove_dir_all(&base);

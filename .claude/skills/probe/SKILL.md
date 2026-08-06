@@ -99,7 +99,8 @@ outcomes), `timeline.jsonl`, `run.log` (or `run-<n>.log` per sweep cell),
 `report.html`, `checks.json`, plus `trace.json`/`trace-run.log` (--profile),
 `samply-profile.json.gz` (--samply), `frametime.csv` (--fps on a stress
 example, or the sweep/web captures), `web-run.log` (--platform web). Exit code
-mirrors the verdict (FAIL and NO_DATA = 1). Probe spawns its own Xvfb
+mirrors the verdict: only OK and WARN exit 0 (FAIL, NO_DATA and UNPROBEABLE
+are 1). Probe spawns its own Xvfb
 (pid-derived display) and times out hung runs - a timed-out run still produces
 a FAILing report.
 
@@ -130,12 +131,13 @@ which is how you deliberately probe your real installed mods.
   gate; only REGRESSIONS beyond the threshold WARN - improvements PASS),
   `log_clean` (ANSI-stripped, whole-word ERROR). Each check carries a
   structured `data` object; the top-level `run` object is the manifest.
-- SKIPPED means NOT MEASURED, never "held". Zero measured checks =
-  verdict NO_DATA and a nonzero exit. An OK on an UNWIRED example is
-  OK-with-coverage: it proves the example's own assertions (exit status)
-  only - gameplay-verification claims require `run_completed` and
-  `invariants_held` MEASURED, and the skip details say when an example
-  simply is not wired.
+- SKIPPED means NOT MEASURED and N/A means NOT CLAIMED; neither ever means
+  "held". Zero measured checks = verdict NO_DATA. A run that measured
+  something but graded no CLAIM = verdict UNPROBEABLE - `process_exit` and
+  `log_clean` need no plugin, so an example that wires none of them still
+  passes those two, and two rows about the process say nothing about the
+  run. Both exit nonzero. An OK therefore always covers at least one
+  declared capability; read `measured` for how much more.
 - The profile table RANKS systems; shares overlap (parent and child spans
   both count) so they are never summed, and traced-run numbers never compare
   against the clean pass.

@@ -342,10 +342,11 @@ fn finish_report(
 
     println!("probe: {verdict} - {}", out.join("report.html").display());
     print_checks(&checks);
-    Ok(if verdict == "FAIL" || verdict == "NO_DATA" {
-        ExitCode::FAILURE
-    } else {
-        ExitCode::SUCCESS
+    // Fail-closed, the same rule the aggregate uses: only a graded run that
+    // came out OK or WARN exits zero. FAIL, NO_DATA and UNPROBEABLE do not.
+    Ok(match verdict {
+        "OK" | "WARN" => ExitCode::SUCCESS,
+        _ => ExitCode::FAILURE,
     })
 }
 

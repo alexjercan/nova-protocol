@@ -508,8 +508,8 @@ captures the run timeline + continuous invariants + the log into
 `<out-base>/<short-commit>/<example>/` with `--out <out-base>`), optionally
 adds the profiled and samply passes (separate builds - tracing overhead never
 touches the clean numbers), and renders `report.html` + `checks.json` with a
-provisional OK/WARN/FAIL/NO_DATA the reviewer confirms. Every run dir carries a
-`probe-run.json` manifest (identity, full git SHA, passes, outcomes); `probe
+provisional OK/WARN/FAIL/NO_DATA/UNPROBEABLE the reviewer confirms. Every
+run dir carries a `probe-run.json` manifest (identity, full git SHA, passes, outcomes); `probe
 report` only re-renders dirs that have one. The commit root also gets
 `index.html`, `index.json`, and `probe-all.json`, even when the spec names one
 example. Two verbs is the whole surface - `run` and `report`; the transitional
@@ -648,12 +648,14 @@ optional) - into a self-contained `report.html` plus a machine-readable
 cargo run -p nova_probe -- report <run-dir>... [--baseline <old-run-dir>]
 ```
 
-Auto checks produce a provisional OK/WARN/FAIL/NO_DATA (process exit from
-the run manifest, run completed, reached Playing, invariants held, FPS vs
-baseline as a soft gate, log scan); missing artifacts are SKIPPED - "not
-measured", never "held" - and `checks.json` pairs the verdict with a
-`measured: n/total` figure plus per-check structured data. Zero evidence is
-NO_DATA (nonzero exit), FPS improvements PASS (only regressions WARN -
+Auto checks produce a provisional OK/WARN/FAIL/NO_DATA/UNPROBEABLE (process
+exit from the run manifest, run completed, reached Playing, invariants held,
+FPS vs baseline as a soft gate, log scan); a check whose capability the
+example never declared is N/A - "not claimed" - and an unresolvable one is
+SKIPPED - "not measured"; neither means "held". `checks.json` pairs the
+verdict with a `measured: n/total` figure plus per-check structured data.
+Zero evidence is NO_DATA and a run that graded no declared capability is
+UNPROBEABLE (both nonzero exit), FPS improvements PASS (only regressions WARN -
 frame numbers are host-noisy), a hung run is killed and still produces a
 FAILing report, and the report ends with a reviewer checklist: the final
 OK/NOT-OK is a human's or an agent's call, off `checks.json` without

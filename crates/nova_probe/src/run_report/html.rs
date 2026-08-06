@@ -43,8 +43,8 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
         "<div class=\"banner {banner_class}\">Provisional verdict: {verdict} \
          ({} of {} checks measured)\
          <span class=\"confirm\">Auto checks only - a reviewer (human or agent) \
-         must confirm via the checklist at the bottom. SKIPPED = not measured, \
-         never held.</span></div>\n",
+         must confirm via the checklist at the bottom. SKIPPED = not measured \
+         and N/A = nothing claimed; neither ever means \"held\".</span></div>\n",
         measured_count(checks),
         checks.len(),
     ));
@@ -53,7 +53,7 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
         html.push_str(&format!(
             "<tr><td>{}</td><td class=\"status-{}\">{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
             check.name,
-            check.status.as_str().to_lowercase(),
+            crate::run_report::status_class(check.status.as_str()),
             check.status.as_str(),
             escape(&check.value),
             escape(&check.threshold),
@@ -284,7 +284,9 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
     html.push_str(
         "<h2>What to check (reviewer)</h2>\n<ol class=\"checklist\">\n\
          <li>Does the verdict banner match your reading of the rows? A SKIPPED \
-         check means NOT MEASURED, never \"held\".</li>\n\
+         check means NOT MEASURED and an N/A one means the example claims no \
+         such thing - neither means \"held\". An UNPROBEABLE verdict means the \
+         run graded no claim at all.</li>\n\
          <li>If <code>fps_within_baseline</code> is WARN: was the host quiet? Is the \
          delta consistent across labels, or one noisy row?</li>\n\
          <li>Scan the timeline: do the script beats and scenario events tell the \

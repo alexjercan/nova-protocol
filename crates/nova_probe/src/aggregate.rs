@@ -23,8 +23,9 @@ pub struct AllRow {
     pub example: String,
     /// The category the example belongs to (from the sweep driver).
     pub category: String,
-    /// OK | WARN | FAIL | NO_DATA | ERROR (ERROR: the run never produced
-    /// checks.json - build failure, probe error - message in `error`).
+    /// OK | WARN | FAIL | NO_DATA | UNPROBEABLE | ERROR (ERROR: the run
+    /// never produced checks.json - build failure, probe error - message in
+    /// `error`).
     pub verdict: String,
     /// "n/total" from checks.json, or "-" for ERROR rows.
     pub measured: String,
@@ -163,21 +164,29 @@ impl AllManifest {
     }
 }
 
-/// Verdict severity for the worst-of aggregation. NO_DATA ranks between
-/// WARN and FAIL on purpose: an example that produced zero evidence is a
-/// failure of the evaluation, not a soft skip (the per-run exit code
-/// already treats it as one). Unrecognized verdicts rank as FAIL -
-/// fail-closed.
+/// Verdict severity for the worst-of aggregation. NO_DATA and UNPROBEABLE
+/// rank between WARN and FAIL on purpose: an example that produced zero
+/// evidence, or that graded no claim at all, is a failure of the evaluation
+/// rather than a soft skip (the per-run exit code already treats it as one).
+/// Unrecognized verdicts rank as FAIL - fail-closed.
+///
+/// UNPROBEABLE is deliberately not silent: an example that wires no probe
+/// plugin cannot be quietly listed away any more (there is no per-example
+/// opt-out), so it shows up here and the sweep exits non-zero.
 pub fn verdict_severity(verdict: &str) -> u8 {
     match verdict {
         "OK" => 0,
         "WARN" => 1,
+        "UNPROBEABLE" => 2,
         "NO_DATA" => 2,
         _ => 3, // FAIL, ERROR, anything unrecognized
     }
 }
 
-/// The aggregate verdict: the WORST row. An empty run is NO_DATA.
+/// The aggregate verdict: the WORST row. An empty run is NO_DATA. A tie at
+/// the NO_DATA/UNPROBEABLE rank reports NO_DATA unless every row at that
+/// rank is UNPROBEABLE - the two are equally severe, so the banner names
+/// whichever the rows actually are.
 pub fn overall_verdict(rows: &[AllRow]) -> &'static str {
     let worst = rows
         .iter()
@@ -187,6 +196,15 @@ pub fn overall_verdict(rows: &[AllRow]) -> &'static str {
     match worst {
         0 => "OK",
         1 => "WARN",
+        // An EMPTY sweep is NO_DATA, not unprobeable: there were no rows to
+        // ask. `all` over nothing is vacuously true, so guard it.
+        2 if !rows.is_empty()
+            && rows
+                .iter()
+                .all(|row| verdict_severity(&row.verdict) < 2 || row.verdict == "UNPROBEABLE") =>
+        {
+            "UNPROBEABLE"
+        }
         2 => "NO_DATA",
         _ => "FAIL",
     }
@@ -246,15 +264,19 @@ pub fn render_index(manifest: &AllManifest) -> String {
     };
     html.push_str(&format!(
         "<div class=\"banner {banner_class}\">Aggregate verdict: {overall} \
-         ({} example(s): {} OK, {} WARN, {} FAIL, {} NO_DATA, {} ERROR)\
+         ({} example(s): {} OK, {} WARN, {} FAIL, {} NO_DATA, {} UNPROBEABLE, \
+         {} ERROR)\
          <span class=\"confirm\">The verdict is the WORST row. A row's verdict only \
-         means what its measured column covers - SKIPPED checks were NOT measured, \
-         never \"held\". Open a row's report for the evidence.</span></div>\n",
+         means what its measured column covers - SKIPPED checks were NOT measured \
+         and N/A ones were never claimed; neither means \"held\". UNPROBEABLE means \
+         the example graded no claim at all. Open a row's report for the \
+         evidence.</span></div>\n",
         manifest.rows.len(),
         totals("OK"),
         totals("WARN"),
         totals("FAIL"),
         totals("NO_DATA"),
+        totals("UNPROBEABLE"),
         totals("ERROR"),
     ));
 
@@ -290,7 +312,7 @@ pub fn render_index(manifest: &AllManifest) -> String {
                 .unwrap_or("-");
             html.push_str(&format!(
                 "<td class=\"status-{}\">{}</td>",
-                status.to_lowercase(),
+                crate::run_report::status_class(status),
                 if status == "SKIPPED" { "skip" } else { status }
             ));
         }
@@ -355,6 +377,32 @@ mod tests {
         assert_eq!(overall_verdict(&[]), "NO_DATA");
     }
 
+    /// An example that graded no claim is never quietly aggregated away:
+    /// it outranks WARN, it does not outrank FAIL, and a sweep carrying one
+    /// exits non-zero.
+    #[test]
+    fn an_unprobeable_row_is_never_aggregated_away() {
+        assert_eq!(
+            overall_verdict(&[row("a", "OK"), row("b", "UNPROBEABLE")]),
+            "UNPROBEABLE"
+        );
+        assert_eq!(
+            overall_verdict(&[row("a", "WARN"), row("b", "UNPROBEABLE")]),
+            "UNPROBEABLE",
+            "a soft gate does not outrank a run that proved nothing"
+        );
+        assert_eq!(
+            overall_verdict(&[row("a", "UNPROBEABLE"), row("b", "FAIL")]),
+            "FAIL"
+        );
+        assert_eq!(
+            overall_verdict(&[row("a", "UNPROBEABLE"), row("b", "NO_DATA")]),
+            "NO_DATA",
+            "equal rank, but the banner names the rows that are actually there"
+        );
+        assert!(verdict_severity("UNPROBEABLE") > verdict_severity("WARN"));
+    }
+
     #[test]
     fn manifest_roundtrips_through_json() {
         let manifest = AllManifest {
@@ -399,8 +447,8 @@ mod tests {
             "exclusions listed with reasons"
         );
         assert!(
-            html.contains("never \"held\""),
-            "the SKIPPED honesty note is on the page"
+            html.contains("neither means \"held\"") && html.contains("UNPROBEABLE means"),
+            "the SKIPPED/N/A honesty note is on the page"
         );
     }
 }

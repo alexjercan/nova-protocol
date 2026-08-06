@@ -3,7 +3,8 @@
 //! An improvement is a PASS with the delta noted, never a warning - an
 //! automated caller must not read a speedup as a regression flag.
 
-use super::{Check, CheckStatus, RunArtifacts};
+use super::{Check, CheckStatus, NotApplicable, RunArtifacts};
+use crate::{contract::Capability, run_report::artifacts::Input};
 
 /// Soft FPS gate: the worst same-label mean-frame-time delta against the
 /// baseline may move this many percent before the check turns WARN. One
@@ -16,15 +17,64 @@ fn threshold() -> String {
 }
 
 pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
-    let (Some(runs), Some(baseline)) = (&artifacts.runs, &artifacts.baseline) else {
-        return Check {
-            name: "fps_within_baseline",
-            status: CheckStatus::Skipped,
-            value: "missing capture or baseline".into(),
-            threshold: threshold(),
-            detail: "needs both frametime.csv and --baseline <dir>".into(),
-            data: serde_json::Value::Null,
-        };
+    let no_input = |status, value: &str, detail: String| Check {
+        name: "fps_within_baseline",
+        status,
+        value: value.into(),
+        threshold: threshold(),
+        detail,
+        data: serde_json::Value::Null,
+    };
+    let runs = match artifacts.resolve(Capability::FrameTime, artifacts.runs.as_ref()) {
+        Input::Present(runs) => runs,
+        Input::NotDeclared(capability) => {
+            return no_input(
+                CheckStatus::NotApplicable(NotApplicable::NotDeclared(capability)),
+                "not claimed",
+                format!(
+                    "the example wires no {} - it makes no frame-cost assertion, \
+                     so there is nothing to compare",
+                    capability.wiring()
+                ),
+            )
+        }
+        Input::NotArmed(capability) => {
+            return no_input(
+                CheckStatus::NotApplicable(NotApplicable::NotArmed(capability)),
+                "not armed",
+                format!(
+                    "the example wires {} but this run did not arm the capture \
+                     (pass --fps)",
+                    capability.wiring()
+                ),
+            )
+        }
+        Input::ArmedButAbsent(capability) => {
+            return no_input(
+                CheckStatus::Fail,
+                "armed and silent",
+                format!(
+                    "the example declares {} and probe armed the capture, but no \
+                     frametime.csv was written",
+                    capability.wiring()
+                ),
+            )
+        }
+        Input::Unknown(_) => {
+            return no_input(
+                CheckStatus::Skipped,
+                "no capture",
+                "frametime.csv not captured (arm NOVA_PERF)".into(),
+            )
+        }
+    };
+    // The operator's half: a baseline is an argument, not a capability.
+    let Some(baseline) = &artifacts.baseline else {
+        return no_input(
+            CheckStatus::NotApplicable(NotApplicable::InputNotSupplied("--baseline")),
+            "no baseline",
+            "a delta needs a baseline capture: pass --baseline <dir>".into(),
+        );
     };
 
     let mut worst_regression: Option<(String, f64)> = None;
@@ -47,16 +97,13 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
     }
 
     if matched == 0 {
-        return Check {
-            name: "fps_within_baseline",
-            status: CheckStatus::Skipped,
-            value: "no matching labels".into(),
-            threshold: threshold(),
-            detail: "baseline shares no run labels with this capture (baselines are \
-                     only valid probe-run-vs-probe-run or sweep-vs-sweep)"
+        return no_input(
+            CheckStatus::NotApplicable(NotApplicable::InputNotComparable("baseline labels")),
+            "no matching labels",
+            "baseline shares no run labels with this capture (baselines are \
+             only valid probe-run-vs-probe-run or sweep-vs-sweep)"
                 .into(),
-            data: serde_json::Value::Null,
-        };
+        );
     }
 
     match worst_regression {
@@ -117,6 +164,37 @@ mod tests {
         dir
     }
 
+    /// An example that wires no frame-time capture makes no frame-cost
+    /// assertion: the row is N/A and names the call that would make one.
+    #[test]
+    fn an_undeclared_frame_time_claim_is_not_applicable() {
+        let dir = scratch_run_dir();
+        let _ = std::fs::remove_file(dir.join("frametime.csv"));
+        std::fs::write(
+            dir.join("probe-contract.json"),
+            crate::contract::ProbeContract::of([crate::contract::Capability::Timeline])
+                .to_json()
+                .to_string(),
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("probe-run.json"),
+            manifest_ok().to_json().to_string(),
+        )
+        .unwrap();
+
+        let artifacts = RunArtifacts::load(&dir, None).unwrap();
+        let checks = evaluate_checks(&artifacts);
+        let c = check(&checks, "fps_within_baseline");
+        assert_eq!(
+            c.status,
+            CheckStatus::NotApplicable(NotApplicable::NotDeclared(Capability::FrameTime)),
+            "{c:?}"
+        );
+        assert!(c.detail.contains("nova_frametime()"), "{c:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn fps_gate_warns_beyond_threshold_and_passes_within() {
         let base_dir = baseline_dir();
@@ -170,7 +248,7 @@ mod tests {
     }
 
     #[test]
-    fn a_baseline_sharing_no_labels_skips_rather_than_passing() {
+    fn a_baseline_sharing_no_labels_is_not_applicable_rather_than_passing() {
         let base_dir = baseline_dir();
         let dir = scratch_run_dir();
         write_csv(
@@ -180,7 +258,11 @@ mod tests {
         let artifacts = RunArtifacts::load(&dir, Some(&base_dir)).unwrap();
         let checks = evaluate_checks(&artifacts);
         let c = check(&checks, "fps_within_baseline");
-        assert_eq!(c.status, CheckStatus::Skipped, "{c:?}");
+        assert_eq!(
+            c.status,
+            CheckStatus::NotApplicable(NotApplicable::InputNotComparable("baseline labels")),
+            "{c:?}"
+        );
         assert!(c.value.contains("no matching labels"), "{c:?}");
         let _ = std::fs::remove_dir_all(&dir);
         let _ = std::fs::remove_dir_all(&base_dir);

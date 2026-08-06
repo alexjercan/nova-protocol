@@ -7,8 +7,8 @@
 
 use std::collections::BTreeMap;
 
-use super::{timeline_skip_detail, Check, CheckStatus, RunArtifacts};
-use crate::recorder::TimelineEvent;
+use super::{timeline_skip_detail, Check, CheckStatus, NotApplicable, RunArtifacts};
+use crate::{contract::Capability, recorder::TimelineEvent, run_report::artifacts::Input};
 
 const THRESHOLD: &str = "0 violations";
 
@@ -25,15 +25,78 @@ pub(in crate::run_report) fn violations_by_name(
 }
 
 pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
-    let Some(timeline) = artifacts.timeline.as_ref() else {
-        return Check {
-            name: "invariants_held",
-            status: CheckStatus::Skipped,
-            value: "no timeline".into(),
-            threshold: THRESHOLD.into(),
-            detail: timeline_skip_detail(artifacts.manifest.as_ref()),
-            data: serde_json::Value::Null,
-        };
+    let no_input = |status, value: &str, detail: String| Check {
+        name: "invariants_held",
+        status,
+        value: value.into(),
+        threshold: THRESHOLD.into(),
+        detail,
+        data: serde_json::Value::Null,
+    };
+    // The invariant evidence rides IN the timeline, so the artifact this
+    // capability owes is not the file - it is invariant entries inside it. A
+    // timeline with none is exactly as silent as no timeline at all.
+    let evidence = artifacts.timeline.as_ref().filter(|timeline| {
+        timeline
+            .iter()
+            .any(|e| e.kind == "invariant" || e.kind == "invariant_summary")
+    });
+    let timeline = match artifacts.resolve(Capability::Invariants, evidence) {
+        Input::Present(timeline) => timeline,
+        Input::NotDeclared(capability) => {
+            return no_input(
+                CheckStatus::NotApplicable(NotApplicable::NotDeclared(capability)),
+                "not claimed",
+                format!(
+                    "the example wires no {} - it asserts no engine-guaranteed \
+                     bounds, so there are none to hold",
+                    capability.wiring()
+                ),
+            )
+        }
+        Input::NotArmed(capability) => {
+            return no_input(
+                CheckStatus::NotApplicable(NotApplicable::NotArmed(capability)),
+                "not armed",
+                format!(
+                    "the example wires {} but this run did not arm it (see the \
+                     manifest's armed flags)",
+                    capability.wiring()
+                ),
+            )
+        }
+        // Claimed, armed, and no invariant entry in the timeline: the checks
+        // never ran. A coverage gap, not a clean bill of health.
+        Input::ArmedButAbsent(capability) => {
+            return no_input(
+                CheckStatus::Fail,
+                "no invariant entries",
+                format!(
+                    "the example declares {} and probe armed it, but the run \
+                     recorded no invariant entries - nothing was checked",
+                    capability.wiring()
+                ),
+            )
+        }
+        Input::Unknown(_) => {
+            return no_input(
+                CheckStatus::Skipped,
+                "no invariant entries",
+                // No contract to resolve against, so the manifest's armed
+                // flag is the only clue - the pre-contract wording, kept.
+                match artifacts.manifest.as_ref() {
+                    Some(m) if m.armed_invariants => format!(
+                        "probe armed the checks but {} is not wired with \
+                         nova_probe::nova_invariants()",
+                        m.example
+                    ),
+                    _ if artifacts.timeline.is_none() => {
+                        timeline_skip_detail(artifacts.manifest.as_ref())
+                    }
+                    _ => "invariants not armed (arm NOVA_PERF_INVARIANTS)".into(),
+                },
+            );
+        }
     };
 
     let summary = timeline
@@ -41,26 +104,6 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
         .rev()
         .find(|e| e.kind == "invariant_summary");
     let by_name = violations_by_name(timeline);
-
-    // No summary AND no violation entries: the checks never ran at all.
-    // That is a coverage gap, not a clean bill of health.
-    if summary.is_none() && by_name.is_empty() {
-        return Check {
-            name: "invariants_held",
-            status: CheckStatus::Skipped,
-            value: "no invariant entries".into(),
-            threshold: THRESHOLD.into(),
-            detail: match artifacts.manifest.as_ref() {
-                Some(m) if m.armed_invariants => format!(
-                    "probe armed the checks but {} is not wired with \
-                     nova_probe::nova_invariants()",
-                    m.example
-                ),
-                _ => "invariants not armed (arm NOVA_PERF_INVARIANTS)".into(),
-            },
-            data: serde_json::Value::Null,
-        };
-    }
 
     let violations = summary
         .map(|s| s.data["violations"].as_u64().unwrap_or(0))
@@ -105,7 +148,10 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::run_report::{checks::evaluate_checks, fixtures::*};
+    use crate::{
+        contract::ProbeContract,
+        run_report::{checks::evaluate_checks, fixtures::*},
+    };
 
     #[test]
     fn violations_fail_invariants_with_per_name_counts() {
@@ -133,6 +179,68 @@ mod tests {
         let c = check(&checks, "invariants_held");
         assert_eq!(c.status, CheckStatus::Fail);
         assert!(c.detail.contains("health_bounds x2"), "{c:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Declared, armed, and the timeline holds not one invariant entry: the
+    /// checks never ran, which is a gap and not a clean bill of health.
+    #[test]
+    fn an_armed_and_silent_invariants_claim_fails_instead_of_skipping() {
+        let dir = scratch_run_dir();
+        let path = dir.join("timeline.jsonl");
+        let contents = std::fs::read_to_string(&path).unwrap();
+        let kept: Vec<&str> = contents
+            .lines()
+            .filter(|l| !l.contains("\"invariant"))
+            .collect();
+        std::fs::write(&path, kept.join("\n")).unwrap();
+        std::fs::write(
+            dir.join("probe-contract.json"),
+            ProbeContract::of([Capability::Invariants])
+                .to_json()
+                .to_string(),
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("probe-run.json"),
+            manifest_ok().to_json().to_string(),
+        )
+        .unwrap();
+
+        let artifacts = RunArtifacts::load(&dir, None).unwrap();
+        let checks = evaluate_checks(&artifacts);
+        let c = check(&checks, "invariants_held");
+        assert_eq!(c.status, CheckStatus::Fail, "{c:?}");
+        assert!(c.detail.contains("nova_invariants()"), "{c:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// An example that asserts no bounds is not judged on them - and the row
+    /// is N/A, so it never counts toward coverage.
+    #[test]
+    fn an_undeclared_invariants_claim_is_not_applicable() {
+        let dir = scratch_run_dir();
+        std::fs::write(
+            dir.join("probe-contract.json"),
+            ProbeContract::of([Capability::Timeline])
+                .to_json()
+                .to_string(),
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("probe-run.json"),
+            manifest_ok().to_json().to_string(),
+        )
+        .unwrap();
+
+        let artifacts = RunArtifacts::load(&dir, None).unwrap();
+        let checks = evaluate_checks(&artifacts);
+        let c = check(&checks, "invariants_held");
+        assert_eq!(
+            c.status,
+            CheckStatus::NotApplicable(NotApplicable::NotDeclared(Capability::Invariants)),
+            "{c:?}"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
