@@ -73,9 +73,8 @@ pub struct ScenarioLightConfig(pub LightConfig);
 /// Build the light bundle from a [`LightConfig`]: the marker, the authored
 /// config, and a body that holds its pose.
 ///
-/// `RigidBody::Static` overrides the shared base bundle's `Dynamic` - a light is
-/// posed, not simulated. Same override `beacon_scenario_object` makes, for the
-/// same reason.
+/// `RigidBody::Static` because a light is posed, not simulated. Same choice
+/// `beacon_scenario_object` makes, for the same reason.
 pub fn light_scenario_object(config: LightConfig) -> impl Bundle {
     debug!("light_scenario_object: config {:?}", config);
 
@@ -286,9 +285,8 @@ mod tests {
     /// `SpawnScenarioObject` action does, into an app carrying [`LightPlugin`]
     /// at the given `render` setting.
     ///
-    /// Spawn-then-insert, not one combined bundle: the light bundle OVERRIDES
-    /// the base's `RigidBody::Dynamic`, and a single spawn of both is a
-    /// duplicate-component panic rather than an override.
+    /// Spawn-then-insert, not one combined bundle, so the rig composes the two
+    /// bundles the same way the action does.
     ///
     /// The app carries the REAL physics plugins and ticks several times, same
     /// shape as the `spawn` action's own harness (`MeshPlugin` because avian's

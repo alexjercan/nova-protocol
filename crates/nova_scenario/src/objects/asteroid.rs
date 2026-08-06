@@ -106,6 +106,13 @@ pub fn asteroid_scenario_object(config: AsteroidConfig) -> impl Bundle {
         // Asteroids are worth scoping in the target inset (a physical combat
         // body, unlike a nav beacon), so flag them zoomable.
         InsetZoomable,
+        RigidBody::Dynamic,
+        // Physics advances Transform only on fixed ticks (64 Hz by default);
+        // everything watched by the render-rate camera must interpolate between
+        // them or it stair-steps. A field rock drifts and tumbles under the
+        // smoothed chase camera, so it needs this even though the well sources
+        // insert_asteroid_gravity_well puts on rails do not.
+        TransformInterpolation,
         // BodyRadius (the surface the GOTO standoff and the orbit band
         // measure from) is NOT authored here: the noise-displaced mesh
         // reaches past the nominal radius, so insert_asteroid_collider
@@ -255,8 +262,8 @@ fn despawn_asteroid_husk(mut commands: Commands, q_husk: Query<Entity, With<Aste
 /// qualification stays keyed on the nominal radius (the designation intent,
 /// seed-independent). The well goes on the asteroid root - which never carries
 /// `GravityAffected`, so wells stay one-way and the field cannot clump - and
-/// the source is put on rails (`RigidBody::Static`, overriding the base
-/// scenario bundle's Dynamic): a well that rams, blasts, or recoil could shove
+/// the source is put on rails (`RigidBody::Static`, overriding the asteroid
+/// bundle's Dynamic): a well that rams, blasts, or recoil could shove
 /// around would drag its SOI and every orbit in it along (spike option B,
 /// "bodies on rails"). Small well-less rocks stay dynamic.
 fn insert_asteroid_gravity_well(

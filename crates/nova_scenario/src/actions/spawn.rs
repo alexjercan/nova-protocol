@@ -93,21 +93,16 @@ pub struct BaseScenarioObjectConfig {
 }
 
 /// Build the shared bundle every scenario object spawns with: scoped marker,
-/// identity, interpolated transform, dynamic body, and visibility.
+/// identity, transform, and visibility.
+///
+/// Deliberately carries NO body: a body is a per-kind decision, and three of the
+/// five kinds are static. Each kind's bundle declares its own `RigidBody`.
 pub fn base_scenario_object(config: &BaseScenarioObjectConfig) -> impl Bundle {
     (
         ScenarioScopedMarker,
         Name::new(config.name.clone()),
         EntityId::new(config.id.clone()),
         Transform::from_translation(config.position).with_rotation(config.rotation),
-        RigidBody::Dynamic,
-        // Physics advances Transform only on fixed ticks (64 Hz by default);
-        // everything watched by the render-rate camera must interpolate between
-        // them or it stair-steps. Invisible while the chase camera was bolted
-        // rigidly to the ship (both stepped together), but the camera smoothing
-        // from the flight-feel retune eases at render rate and exposed the
-        // steps as twitch.
-        TransformInterpolation,
         Visibility::Visible,
     )
 }
@@ -1024,21 +1019,5 @@ mod tests {
             spawned as u32, authored_count,
             "scatter spawns the full authored count ({authored_count}) even on Low - it is never thinned"
         );
-    }
-
-    /// Every dynamic scenario body must interpolate its Transform between fixed
-    /// physics ticks, or it stair-steps under the smoothed chase camera.
-    #[test]
-    fn scenario_objects_interpolate_their_transforms() {
-        let mut world = World::new();
-        let entity = world
-            .spawn(base_scenario_object(&BaseScenarioObjectConfig {
-                id: "test".to_string(),
-                name: "Test".to_string(),
-                position: Vec3::ZERO,
-                rotation: Quat::IDENTITY,
-            }))
-            .id();
-        assert!(world.get::<TransformInterpolation>(entity).is_some());
     }
 }

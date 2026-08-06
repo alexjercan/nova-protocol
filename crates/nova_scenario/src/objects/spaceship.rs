@@ -1,3 +1,4 @@
+use avian3d::prelude::*;
 use bevy::{platform::collections::HashMap, prelude::*};
 use bevy_enhanced_input::prelude::*;
 use nova_events::prelude::*;
@@ -252,6 +253,14 @@ pub fn spaceship_scenario_object(config: SpaceshipConfig) -> impl Bundle {
         EntityTypeName::new(SPACESHIP_TYPE_NAME),
         config.controller,
         SpaceshipSectionsConfig(config.sections),
+        RigidBody::Dynamic,
+        // Physics advances Transform only on fixed ticks (64 Hz by default);
+        // everything watched by the render-rate camera must interpolate between
+        // them or it stair-steps. Invisible while the chase camera was bolted
+        // rigidly to the ship (both stepped together), but the camera smoothing
+        // from the flight-feel retune eases at render rate and exposed the
+        // steps as twitch.
+        TransformInterpolation,
     )
 }
 
