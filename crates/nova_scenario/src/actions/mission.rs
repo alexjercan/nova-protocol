@@ -81,21 +81,16 @@ impl EventAction<NovaEventWorld> for StoryMessageActionConfig {
 /// one-to-one onto nova_gameplay's `HudReadoutFormat` at sync time (the HUD
 /// cannot depend on nova_scenario, so the enum is mirrored, the same split as
 /// `StoryMessageActionConfig` -> `StoryLine`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum HudReadoutFormat {
     /// One decimal place, e.g. `12.3`.
+    #[default]
     Number,
     /// No decimals (rounded), e.g. `12`.
     Integer,
     /// Minutes and seconds, `mm:ss.s` (e.g. `01:23.4`) - the time-trial clock.
     Time,
-}
-
-impl Default for HudReadoutFormat {
-    fn default() -> Self {
-        HudReadoutFormat::Number
-    }
 }
 
 /// Show, update, or clear a named HUD readout bound to a scenario variable -

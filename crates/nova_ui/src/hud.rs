@@ -1,12 +1,12 @@
 //! The flight-HUD chrome language: the phosphor **chip**.
 //!
 //! Every readout the flight HUD projects over the world - speed, autopilot
-//! mode, target distance, objective name, beacon range, comms card, status bar
-//! - is the same shape: a dark translucent slab with a 1px accent border, the
-//! accent's text on it and a dimmer tone for unit suffixes. The look is carried
-//! verbatim from the accepted demo `web/design/hud_rework_poc.html` (its
-//! `.chip` rule); this module is the ONE place it is expressed so the sites
-//! stay in a family instead of drifting apart.
+//! mode, target distance, objective name, beacon range, comms card, status
+//! bar - is the same shape: a dark translucent slab with a 1px accent border,
+//! the accent's text on it and a dimmer tone for unit suffixes. The look is
+//! carried verbatim from the accepted demo `web/design/hud_rework_poc.html`
+//! (its `.chip` rule); this module is the ONE place it is expressed so the
+//! sites stay in a family instead of drifting apart.
 //!
 //! HUD chrome is **phosphor-only** - there is no [`crate::skin::UiSkin`] toggle
 //! here. The casing skin is a NOVA OS / menu / editor concern; nothing in the

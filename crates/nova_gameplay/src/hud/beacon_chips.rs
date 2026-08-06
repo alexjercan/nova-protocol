@@ -21,10 +21,6 @@ pub mod prelude {
     };
 }
 
-/// The chip hugs its own text (`Content` sizing): with a visible fill and
-/// border a fixed footprint would either clip a long beacon name or hang an
-/// empty slab off a short one.
-
 /// The chip floats above the beacon so the label never sits on the mesh.
 const CHIP_OFFSET: Vec2 = Vec2::new(0.0, -28.0);
 
@@ -78,6 +74,9 @@ fn beacon_chip_hud(beacon: Entity, suppressed: bool) -> impl Bundle {
             screen_indicator_node(
                 ScreenIndicatorConfig {
                     anchor: (!suppressed).then_some(ScreenIndicatorAnchorKind::Entity(beacon)),
+                    // The chip hugs its own text: with a visible fill and
+                    // border a fixed footprint would either clip a long beacon
+                    // name or hang an empty slab off a short one.
                     size: ScreenIndicatorSize::Content,
                     offset: CHIP_OFFSET,
                     offscreen: ScreenIndicatorOffscreen::ClampToEdge {

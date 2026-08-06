@@ -339,7 +339,7 @@ fn rejection_gates_all_fail_nonzero() {
     let shipped = shipped_catalog();
     for case in reject_cases() {
         let (source, out) = (case.build)();
-        let shipped_arg = case.with_shipped.then(|| shipped.as_path());
+        let shipped_arg = case.with_shipped.then_some(shipped.as_path());
         let output = run_gen(source.path(), shipped_arg, out.path());
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(

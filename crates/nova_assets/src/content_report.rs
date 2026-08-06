@@ -231,9 +231,9 @@ impl ContentReport {
     pub fn to_html(&self) -> String {
         let mut html = String::new();
         html.push_str("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n");
-        let _ = write!(
+        let _ = writeln!(
             html,
-            "<title>Content lint - {}</title>\n",
+            "<title>Content lint - {}</title>",
             escape(&self.scope())
         );
         html.push_str(STYLE);
@@ -251,11 +251,11 @@ impl ContentReport {
         } else {
             "ok"
         };
-        let _ = write!(
+        let _ = writeln!(
             html,
             "<div class=\"banner {banner}\">{} error(s), {} warning(s) across {} finding(s)\
              <span class=\"confirm\">{} combat scenario(s) balance-audited, {} acknowledged \
-             exception(s)</span></div>\n",
+             exception(s)</span></div>",
             self.error_count(),
             self.warn_count(),
             self.findings.len(),
@@ -286,10 +286,10 @@ impl ContentReport {
                             escape(fix)
                         );
                     }
-                    let _ = write!(
+                    let _ = writeln!(
                         html,
                         "<tr><td class=\"{cls}\">{}</td><td>{}</td><td><code>{}</code></td>\
-                         <td><code>{}</code></td><td>{}</td></tr>\n",
+                         <td><code>{}</code></td><td>{}</td></tr>",
                         f.severity.tag(),
                         f.category.label(),
                         escape(file),
@@ -308,10 +308,10 @@ impl ContentReport {
             );
             for a in &self.acked {
                 let file = a.file.as_deref().unwrap_or("(unknown file)");
-                let _ = write!(
+                let _ = writeln!(
                     html,
                     "<tr><td>{}</td><td><code>{}</code></td><td><code>{}</code></td><td>{}</td>\
-                     <td class=\"note\">{}: {}</td></tr>\n",
+                     <td class=\"note\">{}: {}</td></tr>",
                     escape(&a.bundle),
                     escape(file),
                     escape(&a.element),

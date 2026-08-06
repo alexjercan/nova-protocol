@@ -6,7 +6,7 @@
 //! glyphs).
 //!
 //! This module owns the mapping, and with it the explicit asset path list that
-//! [`nova_assets`]'s `GameAssets::key_glyphs` collection preloads: the glyphs
+//! `nova_assets`'s `GameAssets::key_glyphs` collection preloads: the glyphs
 //! load and load-gate like every other static asset, the same as the UI SFX,
 //! never lazily per chip. A FOLDER
 //! collection cannot be used - folder collections do not work on wasm - so the

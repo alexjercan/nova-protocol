@@ -560,9 +560,9 @@ fn assert_seed(world: &mut World) {
     info!("scenario probe: variables seeded");
 }
 
-/// Push the contained rock out of the trigger volume, so the area's OTHER half
-/// - `OnExit` - fires. It has to MOVE: avian reports no `CollisionEnd` for a
-/// collider that was despawned, so destroying the rock would never exit.
+/// Push the contained rock out of the trigger volume, so the area's OTHER
+/// half - `OnExit` - fires. It has to MOVE: avian reports no `CollisionEnd`
+/// for a collider that was despawned, so destroying the rock would never exit.
 #[cfg(feature = "debug")]
 fn push_rock_out(world: &mut World) {
     let id = format!("rock_{AREA_ROCK}");

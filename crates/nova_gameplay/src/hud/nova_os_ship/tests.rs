@@ -947,7 +947,7 @@ fn blip_is_status_dot_with_labelled_marker() {
         .map(|text| text.0.clone())
         .collect();
     assert!(
-        texts.iter().any(|t| *t == label),
+        texts.contains(&label),
         "the blip label reads '{label}', got {texts:?}",
     );
     assert!(

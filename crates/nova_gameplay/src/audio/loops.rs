@@ -241,10 +241,10 @@ pub(super) fn ensure_rcs_loops(
 /// controller section's authored `rcs_loop` handle. CONTROLLER-based and
 /// DRIVER-agnostic: the intent is written by the player's SHIFT modal OR the
 /// autopilot (ORBIT trim, STOP/GOTO settle), so both make the same sound. Gated
-/// on the controller granting [`FlightVerb::Rcs`], mirroring `rcs_burn_system`
-/// - a hull that cannot RCS makes no RCS hiss. Per-ship attribution,
-/// loudest-wins-per-handle, distance attenuation (player exempt) and
-/// exponential smoothing all match [`compute_thruster_hum_volume`].
+/// on the controller granting [`FlightVerb::Rcs`], mirroring
+/// `rcs_burn_system` - a hull that cannot RCS makes no RCS hiss. Per-ship
+/// attribution, loudest-wins-per-handle, distance attenuation (player exempt)
+/// and exponential smoothing all match [`compute_thruster_hum_volume`].
 pub(super) fn compute_rcs_loop_volume(
     time: Res<Time>,
     asset_server: Res<AssetServer>,

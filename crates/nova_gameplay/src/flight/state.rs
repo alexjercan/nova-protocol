@@ -176,11 +176,11 @@ pub struct ManeuverTelemetry {
     /// Where the leg comes to rest, world coordinates: `goal` pulled back along
     /// the closing line by the effective standoff
     /// ([`FlightSettings::arrival_standoff`] plus the resolved target radius).
-    /// At or inside the park envelope it degenerates to the ship's own position
-    /// - the computer will not fly back out, and the instruments must not draw
-    /// a leg it will not fly. Equals `goal` for STOP (the predicted rest point
-    /// IS the park point). The trajectory ribbon terminates here, not at the
-    /// goal center.
+    /// At or inside the park envelope it degenerates to the ship's own
+    /// position - the computer will not fly back out, and the instruments must
+    /// not draw a leg it will not fly. Equals `goal` for STOP (the predicted
+    /// rest point IS the park point). The trajectory ribbon terminates here,
+    /// not at the goal center.
     pub park_point: Vec3,
     /// Distance to the goal SURFACE, world units: the center distance minus the
     /// target's resolved radius ([`BodyRadius`] / `GravityWell::body_radius`,

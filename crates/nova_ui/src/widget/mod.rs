@@ -56,7 +56,7 @@ use crate::{font::UiFont, skin::UiSkin};
 pub struct Selected;
 
 /// Marks any text span whose face should route through [`UiFont`] (Iosevka
-/// Term). [`apply_ui_font`] fills the handle once the resource exists.
+/// Term). `apply_ui_font` fills the handle once the resource exists.
 #[derive(Component)]
 pub struct UiText;
 

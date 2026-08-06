@@ -157,8 +157,8 @@ pub fn build_mod_catalog(
 /// Reconcile [`EnabledMods`] with the catalog: union `base: true` ids in, strip
 /// `hidden` (non-base) ids out.
 ///
-/// The UNION keeps base enabled regardless of what `load_enabled_mods` restored
-/// - base is locked on in the UI, so it must always be active - while
+/// The UNION keeps base enabled regardless of what `load_enabled_mods`
+/// restored - base is locked on in the UI, so it must always be active - while
 /// preserving any persisted or toggled non-base choices. The STRIP makes a
 /// hidden (dev/tooling) mod's enablement SESSION-ONLY: without it, an example
 /// run that enables a hidden mod persists the id, and a later normal run would

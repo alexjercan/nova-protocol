@@ -430,8 +430,8 @@ mod behavior_state_tests {
     }
 
     /// Leash hysteresis: combat breaks off strictly beyond the radius, but a
-    /// passive ship only re-engages once well back inside the re-engage band
-    /// - between the two thresholds an engaged ship keeps fighting and a
+    /// passive ship only re-engages once well back inside the re-engage
+    /// band - between the two thresholds an engaged ship keeps fighting and a
     /// passive one keeps walking home, so a hostile parked at the boundary
     /// cannot ping-pong the state.
     #[test]

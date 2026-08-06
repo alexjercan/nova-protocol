@@ -14,8 +14,8 @@
 //!   `assets/base/**/*.content.ron` the game loads. Run it (and commit the
 //!   result) after any builder change - the `content_ron_parity` test
 //!   asserts the files match and names this command when they drift.
-//! - `lint` runs EVERY content check in one pass: the identifier + geometry
-//!   + resource checks the load/publish gates cannot make (unknown section
+//! - `lint` runs EVERY content check in one pass: the identifier + geometry +
+//!   resource checks the load/publish gates cannot make (unknown section
 //!   prototypes, dangling NextScenario targets, unspawnable filter targets,
 //!   duplicate ids, mount-base adjacency, resource-ref membership, canonical
 //!   schemes), the combat balance/fairness audit (spawned-dead ERROR,

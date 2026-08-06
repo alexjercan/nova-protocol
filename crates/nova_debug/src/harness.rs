@@ -1,4 +1,4 @@
-//! Nova adapter layer over the [`nova_autopilot`] drivers.
+//! Nova adapter layer over the [`mod@nova_autopilot`] drivers.
 //!
 //! The drivers themselves (scripted autopilot, settled-frame screenshot) live
 //! in `nova_autopilot`, which depends on `bevy` alone and knows nothing about
@@ -107,7 +107,7 @@ use nova_scenario::prelude::{
     VariableLiteral,
 };
 
-/// Seconds the [`nova_autopilot`] preset holds `Loading` before exiting. Must
+/// Seconds the [`nova_autopilot()`] preset holds `Loading` before exiting. Must
 /// comfortably outlast asset loading (the loader drives `Loading -> Playing` on
 /// its own) so the run spends real time in `Playing` before the clean exit.
 pub const NOVA_AUTOPILOT_SECS: f32 = 6.0;
@@ -131,7 +131,7 @@ pub const SETTLE_FRAMES: u32 = 30;
 /// completion deadline, and never reached by a capture that works.
 pub const SHOT_DEADLINE_SECS: f32 = 20.0;
 
-/// The name of the single step [`nova_autopilot`] builds, so a caller can
+/// The name of the single step [`nova_autopilot()`] builds, so a caller can
 /// [`loop_from`](AutopilotPlugin::loop_from) it without repeating the string.
 pub const NOVA_AUTOPILOT_STEP: &str = "nova: play the loading-gated window";
 
@@ -230,7 +230,7 @@ pub fn player_ship_present() -> Arc<Predicate> {
 /// primary window to a PNG, and report done. Inert unless `NOVA_SHOT` is set (a
 /// `WxH` value also overrides the window resolution). See [`ScreenshotPlugin`].
 ///
-/// Unlike [`nova_autopilot`], this force-advances to `Playing` on the first
+/// Unlike [`nova_autopilot()`], this force-advances to `Playing` on the first
 /// frame, so it is best used with examples that set their scene up in
 /// `OnEnter(GameAssetsStates::Loaded)` (the nova scenario convention, e.g.
 /// `scenario`) rather than `OnEnter(GameStates::Playing)`, which the early
@@ -250,7 +250,7 @@ pub fn nova_screenshot() -> ScreenshotPlugin<GameStates> {
 /// wrong scenario id, zero event handlers, or zero objects -- and, via a `fired`
 /// flag checked on entering `Playing`, when the event never fires at all.
 ///
-/// Add it under the `debug` feature next to [`nova_autopilot`], passing the id
+/// Add it under the `debug` feature next to [`nova_autopilot()`], passing the id
 /// the example expects to load:
 ///
 /// ```no_run

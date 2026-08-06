@@ -473,7 +473,10 @@ fn record_run_end(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::{
+        path::Path,
+        sync::atomic::{AtomicU32, Ordering},
+    };
 
     use bevy::state::app::StatesPlugin;
     use nova_events::engine::GameEventInfo;
@@ -493,14 +496,14 @@ mod tests {
     /// Production-faithful rig: the real plugin over the real GameStates /
     /// PauseStates and a real NovaEventWorld resource; only the window/render
     /// stack is absent (the recorder never touches it).
-    fn rig(path: &PathBuf) -> App {
+    fn rig(path: &Path) -> App {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
         app.add_plugins(StatesPlugin);
         app.init_state::<GameStates>();
         app.init_state::<PauseStates>();
         app.init_resource::<NovaEventWorld>();
-        app.add_plugins(nova_timeline().out(path.clone()));
+        app.add_plugins(nova_timeline().out(path));
         app
     }
 

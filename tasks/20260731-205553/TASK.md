@@ -2,8 +2,8 @@
 
 - PRIORITY: 50
 - TAGS: v0.10.0, quality, docs, warnings
-- ACTIVITY: PLANNING
-- GATES: -
+- ACTIVITY: WORKING
+- GATES: PLAN
 - RESOLUTION: -
 - PARENT: 20260802-115955
 
@@ -35,14 +35,16 @@ v0.10.0 automation work. CI retains ownership of the full Clippy run.
 
 ## Steps
 
-- [ ] Reproduce the known `nova_gameplay` check and private-link rustdoc
-      warnings on the current tree.
-- [ ] Fix import visibility without changing public paths or prelude exports.
-- [ ] Drop the invalid rustdoc link markup without widening the private item.
-- [ ] Run workspace check and documentation with warnings denied; fix every
-      first-party warning in scope.
-- [ ] Confirm the existing CI Clippy pass remains the full-suite warning check;
-      fix any CI warning reported for this release without adding broad allows.
+- [ ] Inventory every first-party warning from rustc, rustdoc and clippy on a
+      clean tree; record counts and per-lint breakdown in NOTES.
+- [ ] Clear the 28 rustdoc warnings: drop brackets on public-to-private and
+      unresolved links, disambiguate `nova_autopilot`, remove the redundant
+      explicit link target. Never widen an item to satisfy a link.
+- [ ] Clear the 71 `doc_lazy_continuation` warnings by indenting wrapped list
+      continuations.
+- [ ] Clear the remaining 34 clippy warnings site by site, including removing
+      the two stale `#[expect(...)]` attributes. No broad `allow`.
+- [ ] Re-run all three sweeps with warnings denied and confirm zero.
 
 ## Definition of Done
 
@@ -50,10 +52,16 @@ v0.10.0 automation work. CI retains ownership of the full Clippy run.
   (cmd: `nix develop --command env RUSTFLAGS=-Dwarnings cargo check --workspace --all-targets --features debug`)
 - Workspace rustdoc warnings are zero.
   (cmd: `nix develop --command env RUSTDOCFLAGS=-Dwarnings cargo doc --workspace --no-deps`)
-- Public paths and crate preludes remain unchanged except additive exports
-  required by planned new crates. (manual: review public API and prelude diff)
+- Workspace clippy warnings are zero under the existing workspace lint config.
+  (cmd: `nix develop --command cargo clippy --workspace --all-targets --features debug -- -Dwarnings`)
+- Public paths and crate preludes remain unchanged; no new `allow` attribute
+  widens a lint beyond a single justified site. (manual: review the diff)
 
 ## Notes
 
-- Do not run full local Clippy or the full test suite unless requested. CI owns
-  both per repository policy.
+- Local clippy is run for this task only because the owner asked for a
+  whole-project warning sweep. CI still owns the standing check.
+- Do not run the full local test suite.
+- `type_complexity` and `too_many_arguments` stay `allow` in
+  `[workspace.lints.clippy]`; they are Bevy signature noise, not defects.
+- The `proc-macro-error2` future-incompat note is third-party. Out of scope.

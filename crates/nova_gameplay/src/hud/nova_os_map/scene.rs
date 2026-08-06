@@ -20,8 +20,6 @@ use crate::{
 };
 
 /// Spawn the schematic scene + camera on map open, tear it down on close.
-#[allow(clippy::too_many_arguments)]
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn manage_map_scene(
     mut commands: Commands,
     pause: Res<State<PauseStates>>,

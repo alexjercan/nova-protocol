@@ -40,7 +40,7 @@
 //!
 //! CONTEXTUAL: the gauges are not on whenever a weapon
 //! has ammo - the layer carries a [`HudContextGate`] driven by
-//! [`sync_ammo_gate`], so they surface while the weapons are hot or a group is
+//! `sync_ammo_gate`, so they surface while the weapons are hot or a group is
 //! nearly dry, and stay out of the way in idle cruise. Low ammo forces them
 //! visible on its own, because a dry magazine is news before you pull the
 //! trigger, not after.

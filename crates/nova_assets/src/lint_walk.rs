@@ -1,7 +1,7 @@
 //! The content-lint walk: reads a mod tree (or single target) off disk, parses
 //! every bundle's content, runs the reference/geometry, balance and
 //! input-overlap checks, and assembles the unified
-//! [`ContentReport`](crate::content_report::ContentReport). Used by the
+//! [`ContentReport`]. Used by the
 //! `content lint` CLI and the CI gate test; not part of the game runtime.
 
 use std::{

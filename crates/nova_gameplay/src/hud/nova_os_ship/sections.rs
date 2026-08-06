@@ -12,7 +12,7 @@ use crate::{
 
 /// A short, stable, human-typeable handle for a ship section (`HULL-3`, `PDC-1`),
 /// the CLI/label identity the viewer and the `ship <verb> <id>` commands use.
-/// Assigned per session by [`assign_section_codes`] from the section kind + a
+/// Assigned per session by `assign_section_codes` from the section kind + a
 /// stable index; the underlying grid `EntityId` stays the section's real identity.
 #[derive(Component, Clone, Debug, PartialEq, Eq)]
 pub struct SectionCode(pub String);

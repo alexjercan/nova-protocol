@@ -206,10 +206,10 @@ impl Plugin for AsteroidPlugin {
 ///
 /// The EVENT must fire from here: the integrity pipeline's own bridge
 /// (nova_gameplay explode.rs `on_destroyed_entity`) reads `EntityId` off the
-/// MARKED entity, and for asteroids the marked entity is the id-less child node
-/// - so no asteroid ever fired OnDestroyed, and the shakedown's derelict beat
-/// soft-locked on a kill the script never heard about. Putting the marker on
-/// the root instead would fire the bridge but ALSO trip the meshless
+/// MARKED entity, and for asteroids the marked entity is the id-less child
+/// node - so no asteroid ever fired OnDestroyed, and the shakedown's derelict
+/// beat soft-locked on a kill the script never heard about. Putting the marker
+/// on the root instead would fire the bridge but ALSO trip the meshless
 /// insta-despawn observer, racing the fragment spawn this deferral protects.
 fn on_asteroid_node_destroyed(
     add: On<Add, IntegrityDestroyMarker>,

@@ -267,9 +267,9 @@ pub enum CombatLockDrop {
     TargetGone,
     /// The target is still a lockable body but no longer passes the
     /// candidate gate - in practice its range gate, widened for the incumbent
-    /// by [`TargetingSettings::range_hysteresis`]. (The gate's other rejects
-    /// - the ship itself, an uncommitted torpedo - cannot hold a lock in the
-    /// first place, so they never reach this branch.)
+    /// by [`TargetingSettings::range_hysteresis`]. (The gate's other
+    /// rejects - the ship itself, an uncommitted torpedo - cannot hold a lock
+    /// in the first place, so they never reach this branch.)
     OutOfRange,
     /// A hostile target turned non-hostile - a scripted surrender must not
     /// keep the guns hot.

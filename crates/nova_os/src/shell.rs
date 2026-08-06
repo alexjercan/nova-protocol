@@ -72,9 +72,10 @@ pub enum CommandDispatch {
     Cli(CliOutput),
     /// Hand the parsed invocation (name + argument words) to the gameplay layer,
     /// which applies it against the live world and appends the result rows. The
-    /// pure terminal only records the invocation (it cannot reach the ECS itself)
-    /// - this is the seam the arg-bearing ship verbs (`ship section/reload/repair
-    /// <id>`) dispatch through, and the same seam a future queued/over-time,
+    /// pure terminal only records the invocation (it cannot reach the ECS
+    /// itself) - this is the seam the arg-bearing ship verbs (`ship
+    /// section/reload/repair <id>`) dispatch through, and the same seam a
+    /// future queued/over-time,
     /// resource-costed action model plugs into. See
     /// [`crate::terminal::NovaOsTerminal::take_pending_invocation`].
     Gameplay,

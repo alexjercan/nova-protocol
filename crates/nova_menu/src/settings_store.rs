@@ -219,8 +219,10 @@ mod tests {
         let path = temp_path("ui_skin");
         let _ = std::fs::remove_dir_all(path.parent().unwrap());
 
-        let mut settings = PersistedSettings::default();
-        settings.ui_skin = UiSkin::Hardware;
+        let settings = PersistedSettings {
+            ui_skin: UiSkin::Hardware,
+            ..PersistedSettings::default()
+        };
         save_to(&path, &settings);
         assert_eq!(
             load_from::<PersistedSettings>(&path).map(|s| s.ui_skin),

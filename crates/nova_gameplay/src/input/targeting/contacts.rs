@@ -84,20 +84,20 @@ pub(super) type LockableQuery<'w, 's> = Query<
 /// pick, lock validity, the threat set) inherits it:
 ///
 /// - Only physical, movable bodies are lockable. This skips static sensor
-/// volumes such as scenario trigger areas (`RigidBody::Static`), which are
-/// invisible and must never be locked. Two exceptions sit on rails (Static)
-/// yet are visible things the player navigates by: gravity-well sources and
-/// bodies with an AUTHORED LockSignature (nav beacons) - trigger areas
-/// never carry a signature, so the invisible-statics rule holds.
+///   volumes such as scenario trigger areas (`RigidBody::Static`), which are
+///   invisible and must never be locked. Two exceptions sit on rails (Static)
+///   yet are visible things the player navigates by: gravity-well sources and
+///   bodies with an AUTHORED LockSignature (nav beacons) - trigger areas
+///   never carry a signature, so the invisible-statics rule holds.
 /// - A freshly launched torpedo that has not committed its target yet is
-/// skipped (it spawns right on the aim ray); once committed it is a normal
-/// lockable body.
+///   skipped (it spawns right on the aim ray); once committed it is a normal
+///   lockable body.
 /// - Range: well bodies and ships return a signature at any range; committed
-/// torpedoes at combat range; signed bodies at `signature * range/unit`
-/// (floored at the debris range); unsigned debris only point-blank.
+///   torpedoes at combat range; signed bodies at `signature * range/unit`
+///   (floored at the debris range); unsigned debris only point-blank.
 /// - `incumbents` (current locks / the radar candidate) hold a little beyond
-/// their gate ([`TargetingSettings::range_hysteresis`]) so a body at the
-/// boundary cannot strobe its lock as the ship drifts.
+///   their gate ([`TargetingSettings::range_hysteresis`]) so a body at the
+///   boundary cannot strobe its lock as the ship drifts.
 pub(super) fn collect_lockable(
     q_candidates: &LockableQuery,
     settings: &TargetingSettings,

@@ -158,7 +158,7 @@ pub enum HudTier {
 /// anchor/visibility (the mode chip, the reticle, the target inset).
 ///
 /// Written by the widget's OWN driver from [`HudSituations`], enforced centrally
-/// in [`apply_hud_visibility`] - because a projected indicator re-asserts
+/// in `apply_hud_visibility` - because a projected indicator re-asserts
 /// `Visibility::Visible` every frame downstream of any Update-schedule writer,
 /// exactly like the level enforcement it rides along with.
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug, Reflect)]

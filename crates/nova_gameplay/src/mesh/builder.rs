@@ -249,9 +249,9 @@ impl TriangleMeshBuilder {
         let center = boundary.iter().fold(Vec3::ZERO, |acc, v| acc + v) / (boundary.len() as f32);
 
         // NOTE: boundary vertices come in pairs (each triangle split pushes two), and
-        // `chunks_exact(2)` ignores a trailing unpaired one, so a malformed boundary
-        // cannot panic.
-        for pair in boundary.chunks_exact(2) {
+        // `as_chunks` drops a trailing unpaired one into the remainder we ignore, so a
+        // malformed boundary cannot panic.
+        for pair in boundary.as_chunks::<2>().0 {
             let t = Triangle3d::new(pair[0], pair[1], center);
             self.add_triangle(t);
         }
@@ -425,7 +425,9 @@ impl TriangleMeshBuilder {
         };
 
         let triangles = indices
-            .chunks_exact(3)
+            .as_chunks::<3>()
+            .0
+            .iter()
             .filter_map(|c| {
                 Some(Triangle3d::new(
                     *positions.get(c[0] as usize)?,

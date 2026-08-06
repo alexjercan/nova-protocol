@@ -80,9 +80,7 @@ pub(crate) fn build_example(
         let flags = std::env::var("RUSTFLAGS").unwrap_or_default();
         cmd.env(
             "RUSTFLAGS",
-            format!("{} -C force-frame-pointers=yes", flags)
-                .trim()
-                .to_string(),
+            format!("{flags} -C force-frame-pointers=yes").trim(),
         );
     }
     let status = cmd

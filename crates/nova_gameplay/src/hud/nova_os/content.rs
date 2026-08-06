@@ -343,22 +343,24 @@ pub(crate) fn section_kind_from_markers(
     turret: bool,
     torpedo: bool,
 ) -> Option<SectionDamageClass> {
-    class.copied().or_else(|| {
-        if hull {
-            Some(SectionDamageClass::Hull)
-        } else if controller {
-            Some(SectionDamageClass::Controller)
-        } else if thruster {
-            Some(SectionDamageClass::Thruster)
-        } else if turret {
-            Some(SectionDamageClass::Turret)
-        } else if torpedo {
-            Some(SectionDamageClass::Torpedo)
-        } else {
-            None
-        }
-    })
+    if let Some(class) = class {
+        return Some(*class);
+    }
+    if hull {
+        Some(SectionDamageClass::Hull)
+    } else if controller {
+        Some(SectionDamageClass::Controller)
+    } else if thruster {
+        Some(SectionDamageClass::Thruster)
+    } else if turret {
+        Some(SectionDamageClass::Turret)
+    } else if torpedo {
+        Some(SectionDamageClass::Torpedo)
+    } else {
+        None
+    }
 }
+
 /// The separator that fronts the FPS segment in the topbar status line. The drive
 /// system rewrites everything from this marker on, leaving the `SHIP:`/`LINK:`
 /// head (which never changes after spawn) untouched.

@@ -753,7 +753,7 @@ fn instruction_objectives_land_mid_read_not_after_the_full_reveal_gap() {
 
     // Just past INSTRUCTION_GAP but well short of REVEAL_GAP: it posts NOW.
     // A uniform REVEAL_GAP (the pre-split behavior) would still be waiting.
-    assert!(
+    const _: () = assert!(
         INSTRUCTION_GAP + 1.0 < REVEAL_GAP,
         "the instruction gap must be strictly shorter than the reveal gap for this pin to bite"
     );

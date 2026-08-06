@@ -41,7 +41,6 @@ use crate::{
 };
 
 /// A headless app with just the states + the NOVA OS toggle, enough to drive
-
 /// the interaction-model state machine.
 fn toggle_app() -> App {
     let mut app = App::new();

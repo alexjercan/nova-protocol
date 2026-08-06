@@ -98,11 +98,7 @@ pub fn state_is<S: States>(state: S) -> Arc<Predicate> {
 pub fn resource_where<R: Resource>(
     f: impl Fn(&R) -> bool + Send + Sync + 'static,
 ) -> Arc<Predicate> {
-    Arc::new(move |world: &World| {
-        world
-            .get_resource::<R>()
-            .is_some_and(|resource| f(resource))
-    })
+    Arc::new(move |world: &World| world.get_resource::<R>().is_some_and(&f))
 }
 
 /// Advance once at least one entity matches the query filter `F`

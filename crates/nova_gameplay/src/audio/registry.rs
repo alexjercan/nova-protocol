@@ -49,7 +49,7 @@ use bevy::prelude::*;
 pub trait SoundKey: Copy + Eq + Hash + Debug + Send + Sync + 'static {}
 impl<T: Copy + Eq + Hash + Debug + Send + Sync + 'static> SoundKey for T {}
 
-/// A registry of loaded audio handles keyed by a game-defined [`SoundKey`] enum.
+/// A registry of loaded audio handles keyed by a game-defined `SoundKey` enum.
 ///
 /// Build it with [`load`](Self::load) (or [`load_paths`](Self::load_paths)) and
 /// read handles with [`get`](Self::get). Insert it as a resource

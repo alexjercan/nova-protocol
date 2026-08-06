@@ -50,8 +50,8 @@ pub mod prelude {
 }
 
 /// Arrival grace: a telegraphed ship holds its PASSIVE routine
-/// (patrol/orbit/idle) and refuses the engage pull until this timer runs out
-/// - enemies ARRIVE instead of appearing hot. Being shot ends the grace
+/// (patrol/orbit/idle) and refuses the engage pull until this timer runs
+/// out - enemies ARRIVE instead of appearing hot. Being shot ends the grace
 /// immediately and PERMANENTLY (the ticking system pins the timer to
 /// finished), mirroring the leash's damage override. Point defense is
 /// untouched: a graced ship still swats inbound ordnance (the PD path

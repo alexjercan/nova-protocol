@@ -235,9 +235,10 @@ pub(crate) fn setup_nova_os(
                                     // Screen surface = the offscreen image sampled
                                     // through the CRT shader. Terminal content is
                                     // populated into the content root below.
-                                    let mut material = NovaOsCrtMaterial::default();
-                                    material.source = image.clone();
-                                    let handle = crt_materials.add(material);
+                                    let handle = crt_materials.add(NovaOsCrtMaterial {
+                                        source: image.clone(),
+                                        ..default()
+                                    });
                                     screen.spawn((
                                         Name::new("NovaOsCrtSurface"),
                                         NovaOsSamplingSurfaceMarker,

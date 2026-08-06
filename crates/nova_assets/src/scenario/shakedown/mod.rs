@@ -158,6 +158,12 @@ struct BeltKnot {
 ///
 /// Counts are owner round-2 numbers: the round-1 26-per-knot belt read as
 /// cluttered.
+// The seeds read `<date>_<index>`, not a magnitude. Thousands separators would
+// destroy that, so the grouping stays as authored.
+#[expect(
+    clippy::inconsistent_digit_grouping,
+    reason = "seeds are date_index, not magnitudes"
+)]
 const BELT_KNOTS: [BeltKnot; 5] = [
     BeltKnot {
         id_prefix: "belt_k1_",
@@ -214,6 +220,10 @@ const BELT_ROCK_SEPARATION: f32 = 32.0;
 /// every beat. Pinned.
 const BELT_FAR_PREFIX: &str = "belt_far_";
 const BELT_FAR_COUNT: u32 = 18;
+#[expect(
+    clippy::inconsistent_digit_grouping,
+    reason = "seeds are date_index, not magnitudes"
+)]
 const BELT_FAR_SEED: u64 = 20260805_100;
 const BELT_FAR_RING: (f32, f32) = (1050.0, 1450.0);
 const BELT_FAR_Y_SPREAD: f32 = 200.0;

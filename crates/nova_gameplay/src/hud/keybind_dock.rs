@@ -10,7 +10,7 @@
 //!   [`super::key_glyphs`]) plus a short verb word. It replaces the
 //!   lower-left text cluster, which carried the bulk of the HUD's on-screen
 //!   text. A verb you cannot press right now is not on screen at all (see
-//!   [`chip_visible`]), so the dock reads as "these are your options NOW".
+//!   `chip_visible`), so the dock reads as "these are your options NOW".
 //!   In normal play a docked chip reads in two states - available (full
 //!   phosphor) and hot (inverted, the verb is what the ship is doing) - plus
 //!   the dim band a scenario spotlight can reveal (below).
@@ -96,7 +96,7 @@ const HOT_CHIP_EMPHASIS: f32 = 1.08;
 pub struct KeybindDockMarker;
 
 /// One dock chip; the index picks the verb (see [`DOCK_VERBS`] and
-/// [`verb_hint`]). Public so range examples and screenshot rigs can assert on
+/// `verb_hint`). Public so range examples and screenshot rigs can assert on
 /// the dock's contents.
 #[derive(Component, Debug, Clone, Copy, Deref, DerefMut, Reflect)]
 pub struct DockChip(pub usize);
@@ -107,7 +107,7 @@ pub struct DockChip(pub usize);
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default, Reflect)]
 pub enum DockChipState {
     /// Pressing it now would do nothing. In the normal path such a chip is not
-    /// rendered at all ([`chip_visible`]); it stays a state rather than becoming
+    /// rendered at all (`chip_visible`); it stays a state rather than becoming
     /// "absent" because a scenario spotlight can still show it, pulsing in the
     /// unavailable alpha band, and because a hidden chip must remember the base
     /// paint a running pulse has to restore.
@@ -230,7 +230,7 @@ fn glyph_tint(state: DockChipState) -> Color {
 /// UI bundle for the keybind dock: one row of icon chips, bottom-centre (demo 2
 /// `.dock`).
 ///
-/// The chips spawn EMPTY - no keycap, no key text, collapsed. [`update_dock`]
+/// The chips spawn EMPTY - no keycap, no key text, collapsed. `update_dock`
 /// fills them, and its `Added<DockChip>` gate makes that happen on the same
 /// frame they appear. Resolving the art here as well would mean guessing each
 /// verb's key at spawn time, and the binding is only knowable from the live
@@ -684,7 +684,6 @@ fn emphasis_color(available: bool, wave: f32) -> Color {
 /// the availability paint stays the base; on any emphasis change every chip's
 /// base is restored first, so a cleared emphasis cannot leave a chip stuck
 /// mid-pulse.
-#[expect(clippy::type_complexity, reason = "chip and its label text")]
 fn pulse_emphasized_chips(
     time: Res<Time>,
     emphasis: Res<HintEmphasis>,
@@ -924,9 +923,7 @@ mod tests {
             let entity = app.world().entity(child);
             let image = entity.get::<ImageNode>()?;
             entity.get::<Node>()?;
-            if entity.get::<ChipGlyph>().is_none() {
-                return None;
-            }
+            entity.get::<ChipGlyph>()?;
             Some(image.image.path()?.to_string())
         })
     }

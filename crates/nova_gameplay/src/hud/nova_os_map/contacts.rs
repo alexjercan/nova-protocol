@@ -89,7 +89,7 @@ pub(crate) fn ship_contact_kind(allegiance: Option<&Allegiance>) -> MapContactKi
 
 /// A short, stable, human-typeable handle for a map contact (`SELF`, `HOST-1`,
 /// `AST-2`), the LABEL shown in `map view` and the id `map goto <label>` resolves.
-/// Minted once per entity per session by [`assign_map_contact_codes`] from the
+/// Minted once per entity per session by `assign_map_contact_codes` from the
 /// contact kind + a stable index; never reassigned. The own ship is always
 /// `SELF` (there is exactly one); every other kind gets a `PREFIX-n` code.
 #[derive(Component, Clone, Debug, PartialEq, Eq)]

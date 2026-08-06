@@ -39,7 +39,7 @@ impl Health {
     }
 }
 
-/// Marks a node whose health has reached zero. Inserted by [`on_damage`]; the
+/// Marks a node whose health has reached zero. Inserted by `on_damage`; the
 /// integrity core turns it into [`IntegrityDisabledMarker`](super::components::IntegrityDisabledMarker).
 #[derive(Component, Clone, Debug, Reflect)]
 #[reflect(Component)]
@@ -66,7 +66,7 @@ pub struct HealthApplyDamage {
     pub amount: f32,
 }
 
-/// Registers the health store: the [`on_damage`] observer and the reflected types.
+/// Registers the health store: the `on_damage` observer and the reflected types.
 #[derive(Default)]
 pub struct NovaHealthPlugin;
 

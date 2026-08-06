@@ -24,7 +24,7 @@ use std::collections::BTreeSet;
 
 use bevy::prelude::*;
 
-/// Param (via [`perf_param`], so `NOVA_PERF_CONTRACT` on native) naming the
+/// Param (via `perf_param`, so `NOVA_PERF_CONTRACT` on native) naming the
 /// path the contract is written to. Unset - a hand-run example - writes
 /// nothing.
 pub const CONTRACT_PARAM: &str = "contract";

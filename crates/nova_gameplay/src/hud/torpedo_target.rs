@@ -327,7 +327,6 @@ impl Plugin for TorpedoTargetHudPlugin {
 /// weapons are hot, and the reticle pulses while the trigger is actually down.
 /// Two nodes, one situation source, so they cannot disagree about what "in
 /// combat" means.
-#[expect(clippy::type_complexity, reason = "the reticle and its readout")]
 fn emphasize_lock_on_weapons_hot(
     situations: Res<HudSituations>,
     mut q_readout: Query<&mut HudEmphasis, With<TorpedoTargetReadoutMarker>>,

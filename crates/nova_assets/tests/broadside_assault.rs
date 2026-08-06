@@ -309,11 +309,12 @@ fn a_trade_after_the_players_death_cannot_overwrite_the_defeat() {
     }
 }
 
-/// Review (original slice) + split: a death AFTER the win (act 2 in either part
-/// - a death blast, a rock under the gold banner) declares NOTHING and pushes
-/// NOTHING - the earned Victory must not flip to Defeat, and the hauler's
-/// soft-fail objective must not appear under the overlay. The act-1 tests above
-/// are the delivery guards: the same destroys on a live act do declare/push.
+/// Review (original slice) + split: a death AFTER the win (act 2 in either
+/// part - a death blast, a rock under the gold banner) declares NOTHING and
+/// pushes NOTHING - the earned Victory must not flip to Defeat, and the
+/// hauler's soft-fail objective must not appear under the overlay. The act-1
+/// tests above are the delivery guards: the same destroys on a live act do
+/// declare/push.
 #[test]
 fn player_death_after_the_win_declares_nothing() {
     for ron in [BROADSIDE_RON, BROADSIDE_GUNSHIP_RON] {

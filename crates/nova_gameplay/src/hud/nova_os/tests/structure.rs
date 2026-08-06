@@ -170,8 +170,7 @@ fn nova_os_monitor_has_physical_casing_details() {
         .world_mut()
         .query_filtered::<&BorderColor, With<NovaOsScreenMarker>>()
         .single(app.world())
-        .expect("one screen")
-        .clone();
+        .expect("one screen");
     assert_eq!(
         screen_border.top,
         NOVA_OS_CASE_EDGE.with_alpha(0.85),

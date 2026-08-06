@@ -5,7 +5,7 @@
 //! The lifecycle, all observer-driven:
 //!
 //! - a fast impact between two rigid bodies deals kinetic damage scaled by
-//!   relative velocity and effective mass ([`on_impact_collision_deal_damage`]);
+//!   relative velocity and effective mass (`on_impact_collision_deal_damage`);
 //! - a node whose health hits zero is disabled;
 //! - a disabled LEAF - or a disabled [`IntegrityRoot`] - is destroyed, which is
 //!   the [`IntegrityDestroyMarker`] seam nova's [`explode`](super::explode)

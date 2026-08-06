@@ -27,17 +27,17 @@
 //!    paint both fire SetAllegiance -> Enemy on BOTH ships (asserted on the
 //!    live Allegiance COMPONENT, spawned through the real spawn action and
 //!    flushed by the production state_to_world sync) and stamp `spotted`.
-//! 5b. The overspeed provocation: burning over 8 u/s
-//!    is the fifth wake path, warn-then-trip on the reserved `player_speed`
-//!    readout - the first breach only WARNS (pickets stay Neutral), and
-//!    tripping needs a FRESH breach after slowing under the 7 u/s rearm band,
-//!    so one continuous burn cannot warn-and-trip. All three OnUpdate handlers
-//!    gate `spotted == 0`, so a prior wake disarms them and a trip disarms the
-//!    other four - the same one-shot contract.
-//! 6. Watch-zone geometry: every detection bubble stays clear of the pinch
+//! 6. The overspeed provocation: burning over 8 u/s is the fifth wake path,
+//!    warn-then-trip on the reserved `player_speed` readout - the first breach
+//!    only WARNS (pickets stay Neutral), and tripping needs a FRESH breach
+//!    after slowing under the 7 u/s rearm band, so one continuous burn cannot
+//!    warn-and-trip. All three OnUpdate handlers gate `spotted == 0`, so a
+//!    prior wake disarms them and a trip disarms the other four - the same
+//!    one-shot contract.
+//! 7. Watch-zone geometry: every detection bubble stays clear of the pinch
 //!    safe lane (the NAV-1 -> NAV-2 leg) AND covers the wide swing around
 //!    its boulder - sneaking through the pinch is how you stay unseen.
-//! 7. Reaching YARD with `spotted == 0` lands Vesh's payoff line first and
+//! 8. Reaching YARD with `spotted == 0` lands Vesh's payoff line first and
 //!    the Victory a beat later (the ch2b deferred-victory idiom) with the
 //!    Magpies STILL Neutral; `spotted == 1` wins on the spot (the shipped
 //!    flow). Both chain Victory -> ledger_ch4_the_buyer; player death

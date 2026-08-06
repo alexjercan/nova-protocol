@@ -25,9 +25,9 @@ pub(super) const SFX_FAR_DISTANCE: f32 = 320.0;
 /// far end (before the final remap to true zero).
 const SFX_ROLLOFF_FLOOR: f32 = 0.05;
 
-/// Below this final (attenuated) linear volume a one-shot is not worth spawning
-/// - it would be inaudible. Skipping it avoids audio-entity churn for far
-/// events.
+/// Below this final (attenuated) linear volume a one-shot is not worth
+/// spawning - it would be inaudible. Skipping it avoids audio-entity churn for
+/// far events.
 const SFX_AUDIBLE_THRESHOLD: f32 = 0.01;
 
 /// Minimum seconds between successive turret-fire and impact one-shots. Without

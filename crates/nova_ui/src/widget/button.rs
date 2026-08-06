@@ -590,7 +590,7 @@ impl ButtonSpec {
 /// Build the button bundle from a [`ButtonSpec`]. Spawns the label span, plus an
 /// optional block cursor and key-chip, as children; the initial colours are the
 /// phosphor idle face and get corrected to the live skin by
-/// [`reconcile_button_skins`] on the frame it appears.
+/// `reconcile_button_skins` on the frame it appears.
 pub fn button(spec: ButtonSpec) -> impl Bundle {
     let ButtonSpec {
         text,

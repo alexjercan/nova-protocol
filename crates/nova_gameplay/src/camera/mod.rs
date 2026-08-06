@@ -66,12 +66,12 @@ pub mod prelude {
 }
 
 /// System set holding the camera-rig sync and look-input systems, ordered after
-/// the hud set by [`SpaceshipSystems`].
+/// the hud set by `SpaceshipSystems`.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NovaCameraSystems;
 
 /// Wires the player chase camera, its mode/stance derivation and the look ray.
-/// Added by [`NovaGameplayPlugin`].
+/// Added by `NovaGameplayPlugin`.
 pub struct SpaceshipCameraControllerPlugin;
 
 impl Plugin for SpaceshipCameraControllerPlugin {

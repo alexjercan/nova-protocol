@@ -2,14 +2,14 @@
 //!
 //! This is the visual counterpart of the `map view` CLI built-in. Both read the
 //! same `MapContacts` model (player, allies, enemies, asteroids, objective
-//! markers with live range/bearing). The app renders a small schematic 3D scene
-//! - concentric distance rings and a central hub - through a dedicated
+//! markers with live range/bearing). The app renders a small schematic 3D
+//! scene - concentric distance rings and a central hub - through a dedicated
 //! [`Camera3d`] on its own `RenderLayers` into an offscreen image, shown in the
 //! app body; the interactive CONTACTS ride on top as projected clickable UI
 //! blips (a nested 3D mesh would not be pickable through the NOVA OS CRT
 //! composite, but UI buttons are).
 //!
-//! The camera is a [`MapOrbit`] you drive with the keyboard (Q/E turn, R/F tilt)
+//! The camera is a `MapOrbit` you drive with the keyboard (Q/E turn, R/F tilt)
 //! plus WASD (move the focus around) and the wheel (zoom). Selecting a contact fills a
 //! readout with kind / name / range / bearing; `G` sets a flight [`Autopilot`]
 //! GOTO on the player ship that persists after the computer closes.

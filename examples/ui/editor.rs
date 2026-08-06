@@ -155,7 +155,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             let hull = world.resource::<EditorProbe>().hull.clone();
             let named = tooltip_text(world);
             assert!(
-                named.iter().any(|line| *line == hull),
+                named.contains(&hull),
                 "hovering the `{hull}` card must raise a tooltip naming it; the \
                  tooltip read {named:?}"
             );

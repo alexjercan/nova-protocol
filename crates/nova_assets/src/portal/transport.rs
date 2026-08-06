@@ -39,6 +39,6 @@ impl PortalTransport for EhttpTransport {
 }
 
 /// The swappable transport handle. Production inserts [`EhttpTransport`];
-/// tests replace the resource with a mock after adding [`PortalPlugin`].
+/// tests replace the resource with a mock after adding `PortalPlugin`.
 #[derive(Resource, Clone)]
 pub struct PortalClient(pub Arc<dyn PortalTransport>);

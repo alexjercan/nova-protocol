@@ -38,7 +38,7 @@ fn terminal_log_command_prints_flight_log_rows() {
         .map(|row| row.text.as_str())
         .collect();
     // HTML-style numbered rows, no header.
-    assert!(!printed.iter().any(|row| *row == "Flight log:"));
+    assert!(!printed.contains(&"Flight log:"));
     assert!(printed.contains(&"0001 COMMS CONTROL > Hold course."));
     assert!(printed.contains(&"0002 OBJ + Burn for Beacon 1"));
     assert!(printed.contains(&"0003 OBJ x Burn for Beacon 1"));
@@ -65,7 +65,7 @@ fn terminal_objectives_command_prints_active_objectives() {
         .map(|row| row.text.as_str())
         .collect();
     // HTML-style `OBJ + <message>` rows, no header.
-    assert!(!printed.iter().any(|row| *row == "Active objectives:"));
+    assert!(!printed.contains(&"Active objectives:"));
     assert!(printed.contains(&"OBJ + Recover the beacon"));
     assert!(printed.contains(&"OBJ + Dock at the relay"));
 

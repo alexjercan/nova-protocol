@@ -89,7 +89,7 @@ pub fn sense_hud_situations(
                 low_ammo |= ammo.is_some_and(super::ammo_readout::is_low_ammo);
             }
             HudSituations {
-                maneuver: autopilot.map(|autopilot| maneuver_verb(autopilot)),
+                maneuver: autopilot.map(maneuver_verb),
                 combat_lock: combat.is_some_and(|combat| combat.0.is_some()),
                 weapons_hot,
                 firing,

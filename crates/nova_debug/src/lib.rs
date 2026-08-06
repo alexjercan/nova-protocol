@@ -221,7 +221,7 @@ mod tests {
     /// its own `f11_flips_the_ammo_debug_flag`.
     #[test]
     fn the_debug_layer_boots_off() {
-        assert!(
+        const _: () = assert!(
             !DEBUG_LAYER_STARTS_ON,
             "the debug layer must boot off; keep the ammo mirror in phase"
         );
