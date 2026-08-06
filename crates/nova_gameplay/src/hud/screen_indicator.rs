@@ -19,7 +19,8 @@
 
 use avian3d::prelude::*;
 use bevy::{prelude::*, ui::UiSystems};
-use bevy_common_systems::prelude::ChaseCameraSystems;
+
+use crate::camera::chase::ChaseCameraSystems;
 
 /// Glob-import surface: `use nova_gameplay::hud::screen_indicator::prelude::*` re-exports the public API of this module.
 pub mod prelude {
@@ -223,7 +224,7 @@ impl Plugin for ScreenIndicatorPlugin {
         debug!("ScreenIndicatorPlugin: build");
 
         // NOTE: projection must sample the SAME camera pose the frame renders
-        // with. In Update the chase camera has not moved yet (bcs moves it
+        // with. In Update the chase camera has not moved yet (the rig moves it
         // in PostUpdate), so indicators lagged the world by one frame of
         // camera motion - a visible HUD twitch. The slot is: after the chase
         // camera writes the camera Transform, before UI layout consumes the
@@ -1362,7 +1363,8 @@ mod tests {
         use core::time::Duration;
 
         use bevy::time::TimeUpdateStrategy;
-        use bevy_common_systems::prelude::{ChaseCamera, ChaseCameraInput, ChaseCameraPlugin};
+
+        use crate::camera::chase::{ChaseCamera, ChaseCameraInput, ChaseCameraPlugin};
 
         #[derive(Component)]
         struct CruisingShip;
@@ -1392,7 +1394,7 @@ mod tests {
         app.add_plugins(ScreenIndicatorPlugin);
         // The production camera-write order: the chase move lands before
         // propagation, so the rendered camera pose is this frame's.
-        app.add_plugins(crate::camera_controller::CameraAuthorityPlugin);
+        app.add_plugins(crate::camera::CameraAuthorityPlugin);
         app.add_systems(Update, (move_ship, drive_camera_input).chain());
         app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
             1.0 / 60.0,

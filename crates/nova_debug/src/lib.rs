@@ -18,7 +18,7 @@ use bevy_common_systems::{
     debug::{
         inspector::DebugEnabled as InspectorEnabled, wireframe::DebugEnabled as WireframeEnabled,
     },
-    prelude::*,
+    prelude::{InspectorDebugPlugin, WireframeDebugPlugin},
 };
 use nova_autopilot::autopilot::AUTOPILOT_ENV;
 use nova_gameplay::{prelude::PlayerSpaceshipMarker, GameStates, PauseStates};

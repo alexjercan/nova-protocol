@@ -6,17 +6,27 @@
 //!
 //! Touch this module for camera framing and look-input routing. Gameplay
 //! consumers should read [`WeaponsRaised`] / [`ActiveLookRay`], never the raw
-//! camera enum. Built on `bevy_common_systems`' `ChaseCamera` /
-//! `PointRotation` rigs.
+//! camera enum.
+//!
+//! Nova owns the rigs the controller is built on, too: [`chase`], [`shake`],
+//! [`skybox`], [`post`], [`wasd`] and [`wasd_controller`]. They used to live in
+//! an engine crate, which made the `authority` ordering contract a cross-crate
+//! promise. It is a module-local one now.
 
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 
 mod authority;
+pub mod chase;
 mod framing;
 mod handback;
 mod mode;
+pub mod post;
 mod rig;
+pub mod shake;
+pub mod skybox;
+pub mod wasd;
+pub mod wasd_controller;
 
 pub use self::{
     authority::{CameraAuthority, CameraAuthorityPlugin},
@@ -41,12 +51,14 @@ use self::{
     },
 };
 
-/// Glob-import surface: `use nova_gameplay::camera_controller::prelude::*`
-/// re-exports the public API of this module.
+/// Glob-import surface: `use nova_gameplay::camera::prelude::*` re-exports the
+/// public API of this module and of the six rigs it is built on.
 pub mod prelude {
     pub use super::{
-        ActiveLookRay, CameraAuthority, CameraAuthorityPlugin, NovaCameraSystems,
-        SpaceshipCameraControlMode, SpaceshipCameraController, SpaceshipCameraControllerPlugin,
+        chase::prelude::*, post::prelude::*, shake::prelude::*, skybox::prelude::*,
+        wasd::prelude::*, wasd_controller::prelude::*, ActiveLookRay, CameraAuthority,
+        CameraAuthorityPlugin, NovaCameraSystems, SpaceshipCameraControlMode,
+        SpaceshipCameraController, SpaceshipCameraControllerPlugin,
         SpaceshipCameraFreeLookInputMarker, SpaceshipCameraInputMarker,
         SpaceshipCameraNormalInputMarker, SpaceshipCameraTurretInputMarker,
         SpaceshipRotationInputActiveMarker, WeaponsRaised,
@@ -105,8 +117,8 @@ impl Plugin for SpaceshipCameraControllerPlugin {
                 .in_set(NovaCameraSystems),
         );
 
-        // Every camera-Transform writer in the app - bcs's three and nova's
-        // scripted pose - is ordered by this one chain. Guarded because
+        // Every camera-Transform writer in the app - nova's three rigs and
+        // nova's scripted pose - is ordered by this one chain. Guarded because
         // nova_scenario adds it too when it is the only camera consumer, and
         // plugin add order between the two crates is the app's business.
         if !app.is_plugin_added::<CameraAuthorityPlugin>() {

@@ -2,9 +2,9 @@
 //! subsystem plugin (input, sections, hud, camera, integrity, damage, flight,
 //! gravity, relations, audio, juice, settings) plus the third-party plugins
 //! they depend on (avian3d physics with [`ProjectileHooks`] collision hooks,
-//! `bevy_hanabi` particles, `bevy_rand` entropy, and the
-//! [`bevy_common_systems`] camera/UI
-//! layer; health and integrity are nova's own). It also pins the top-level [`SpaceshipSystems`] set ordering that
+//! `bevy_hanabi` particles, `bevy_rand` entropy, and what is left of the
+//! [`bevy_common_systems`] engine layer; health, integrity and the camera rigs
+//! are nova's own). It also pins the top-level [`SpaceshipSystems`] set ordering that
 //! the per-subsystem sets chain inside.
 //!
 //! The one dependency it does NOT add itself is
@@ -77,14 +77,14 @@ impl Plugin for NovaGameplayPlugin {
         // backend (compute shaders; see nova_core's wasm webgpu feature).
         app.add_plugins(bevy_hanabi::HanabiPlugin);
 
-        // Bevy Common Systems - WASD Camera
-        app.add_plugins(bevy_common_systems::prelude::WASDCameraPlugin);
-        app.add_plugins(bevy_common_systems::prelude::WASDCameraControllerPlugin);
+        // WASD free-fly camera and the input controller over it
+        app.add_plugins(crate::camera::wasd::WASDCameraPlugin);
+        app.add_plugins(crate::camera::wasd_controller::WASDCameraControllerPlugin);
         // Chase Camera Plugin to have a 3rd person camera following the spaceship
-        app.add_plugins(bevy_common_systems::prelude::ChaseCameraPlugin);
-        // Bevy Common Systems - Rendering
-        app.add_plugins(bevy_common_systems::prelude::SkyboxPlugin);
-        app.add_plugins(bevy_common_systems::prelude::PostProcessingDefaultPlugin);
+        app.add_plugins(crate::camera::chase::ChaseCameraPlugin);
+        // Skybox and post-processing
+        app.add_plugins(crate::camera::skybox::SkyboxPlugin);
+        app.add_plugins(crate::camera::post::PostProcessingDefaultPlugin);
         // Point Rotation Plugin to convert linear movement to a target rotation
         app.add_plugins(bevy_common_systems::prelude::PointRotationPlugin);
         // for debug to have a random orbiting object
@@ -110,7 +110,7 @@ impl Plugin for NovaGameplayPlugin {
             render: self.render,
         });
         app.add_plugins(crate::hud::NovaHudPlugin);
-        app.add_plugins(crate::camera_controller::SpaceshipCameraControllerPlugin);
+        app.add_plugins(crate::camera::SpaceshipCameraControllerPlugin);
         app.add_plugins(crate::integrity::NovaIntegrityPlugin);
         app.add_plugins(crate::damage::NovaDamagePlugin);
         app.add_plugins(crate::flight::NovaFlightPlugin);

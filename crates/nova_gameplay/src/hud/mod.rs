@@ -583,7 +583,7 @@ fn is_player_ship_root(
 }
 
 fn add_screen_indicator_camera(
-    add: On<Add, crate::camera_controller::SpaceshipCameraController>,
+    add: On<Add, crate::camera::SpaceshipCameraController>,
     mut commands: Commands,
 ) {
     debug!("add_screen_indicator_camera: entity {:?}", add.entity);
@@ -594,7 +594,7 @@ fn add_screen_indicator_camera(
 /// the WASD camera after the player ship dies), so indicators hide instead of
 /// projecting through a free camera.
 fn remove_screen_indicator_camera(
-    remove: On<Remove, crate::camera_controller::SpaceshipCameraController>,
+    remove: On<Remove, crate::camera::SpaceshipCameraController>,
     mut commands: Commands,
 ) {
     debug!("remove_screen_indicator_camera: entity {:?}", remove.entity);

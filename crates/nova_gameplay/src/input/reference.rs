@@ -96,7 +96,7 @@ pub const KEYBINDS: &[KeybindEntry] = &[
         keyboard: "[ / Scroll Down",
         gamepad: "D-Pad Left",
     },
-    // CAMERA - the chase-camera controller rig in camera_controller/.
+    // CAMERA - the chase-camera controller rig in camera/.
     KeybindEntry {
         section: "CAMERA",
         action: "Free Look",

@@ -4,7 +4,7 @@
 //! The applier's deferred install is already unit-tested in `actions.rs`
 //! (`skybox_swap_waits_for_load_then_installs`), but that rig uses a synthetic
 //! `Image::default` and stops at the `SkyboxConfig` insert. It never reaches
-//! the LAST bridge: bevy_common_systems' `SkyboxPlugin` runs an `On<Insert,
+//! the LAST bridge: nova_gameplay's `SkyboxPlugin` runs an `On<Insert,
 //! SkyboxConfig>` observer that reads the loaded image, reinterprets the
 //! stacked cubemap, and attaches a bevy `Skybox` to the camera. This test
 //! drives the whole chain on the real `textures/cubemap_alt.png` file:
@@ -26,11 +26,12 @@ use bevy::{
     prelude::*,
     render::render_resource::TextureViewDimension,
 };
-use bevy_common_systems::prelude::{GameObjectives, SkyboxConfig, SkyboxPlugin};
+use bevy_common_systems::prelude::GameObjectives;
 use nova_events::prelude::{EventAction, GameEventInfo, GameEventsPlugin};
+use nova_gameplay::camera::skybox::{SkyboxConfig, SkyboxPlugin};
 use nova_scenario::prelude::*;
 
-/// A headless app that loads real PNGs and runs the full skybox-swap chain: the bcs
+/// A headless app that loads real PNGs and runs the full skybox-swap chain: the
 /// `SkyboxPlugin` observer, the real event flush (`GameEventsPlugin::<NovaEventWorld>`
 /// runs `state_to_world_system` in `PostUpdate`), and `apply_pending_skybox_swaps`.
 ///
@@ -98,7 +99,7 @@ fn set_skybox_swaps_a_real_cubemap_on_the_scenario_camera() {
         ))
         .id();
 
-    // The bcs observer attaches a `Skybox` off the initial `SkyboxConfig`.
+    // The skybox observer attaches a `Skybox` off the initial `SkyboxConfig`.
     app.update();
     assert_eq!(
         app.world()
@@ -186,7 +187,7 @@ fn set_skybox_swaps_a_real_cubemap_on_the_scenario_camera() {
     // And the swapped image is actually renderable as a skybox: 6 array layers
     // (here from the `.meta` array_layout - this rig's default meta_check reads
     // every meta) AND a Cube texture view. The view is the applier's job: an
-    // already-arrayed image skips the bcs observer's fallback branch that used
+    // already-arrayed image skips the skybox observer's fallback branch that used
     // to be the only place the view was set, and bevy's skybox sanity check
     // refuses a non-Cube view (warn_once) and silently skips rendering the sky.
     let images = app.world().resource::<Assets<Image>>();

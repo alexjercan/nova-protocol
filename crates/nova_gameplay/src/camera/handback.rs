@@ -4,7 +4,6 @@
 
 use avian3d::prelude::Rotation;
 use bevy::prelude::*;
-use bevy_common_systems::prelude::*;
 
 use super::rig::{
     SpaceshipCameraController, SpaceshipCameraNormalInputMarker, SpaceshipRotationInputActiveMarker,
@@ -101,9 +100,7 @@ pub(super) fn on_autopilot_disengaged(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::camera_controller::{
-        framing::update_chase_camera_input, SpaceshipCameraInputMarker,
-    };
+    use crate::camera::{framing::update_chase_camera_input, SpaceshipCameraInputMarker};
 
     #[test]
     fn handback_anchor_rot_eases_from_held_to_live() {
@@ -181,7 +178,7 @@ mod tests {
             .expect("the rig is re-seeded instantly");
         assert_eq!(reseeded.initial_rotation, hull);
 
-        // Simulate bcs snapping the rig output to the re-seed (the real
+        // Simulate the rig snapping its output to the re-seed (the real
         // PointRotation plugin is not in this harness).
         **app.world_mut().get_mut::<PointRotationOutput>(rig).unwrap() = hull;
 

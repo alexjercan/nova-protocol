@@ -21,7 +21,7 @@
 //!   listening to the mouse (the manual rotation copy is gated off), which
 //!   makes the mouse camera-only free-look for free; any flight input
 //!   disengages, and disengaging re-seeds the mouse rig from the ship's
-//!   current facing so nothing lurches (see `camera_controller/`).
+//!   current facing so nothing lurches (see `camera/`).
 //!
 //! Capability comes from the live sections: the main drive is the summed
 //! magnitude of forward-aligned live thrusters, and the flight computer *is*

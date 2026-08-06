@@ -287,7 +287,7 @@ pub fn apply_pending_skybox_swaps(
 mod tests {
     use super::*;
 
-    /// The skybox swap is two-step on purpose: the bcs skybox setup observer
+    /// The skybox swap is two-step on purpose: the skybox setup observer
     /// reads the cubemap out of `Assets<Image>` the instant a `SkyboxConfig` is
     /// inserted and panics on an unloaded handle, so
     /// `apply_pending_skybox_swaps` holds the `PendingSkyboxSwap` until the
@@ -528,7 +528,6 @@ mod tests {
     /// fire into a `NovaEventWorld`, drain, assert on the world.
     #[test]
     fn set_camera_pins_a_scripted_pose_and_drops_wasd() {
-        use bevy_common_systems::prelude::WASDCameraController;
         use nova_events::prelude::EventWorld;
 
         use crate::prelude::{ScenarioCameraMarker, ScriptedCameraPose};

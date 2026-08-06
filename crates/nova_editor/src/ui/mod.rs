@@ -111,7 +111,7 @@ pub(crate) fn setup_editor_scene(
         // NOTE: direct SkyboxConfig insert (no PendingSkyboxSwap) is safe
         // because `game_assets.cubemap` already has its Cube view.
         // `prepare_cubemap_view` (nova_assets) sets it at startup, before any
-        // camera spawns, so the bcs SkyboxPlugin observer - which only sets the
+        // camera spawns, so the SkyboxPlugin observer - which only sets the
         // view on its single-layer fallback branch - sees a ready 6-layer + Cube
         // image and just attaches Skybox. Pinned by
         // prepare_cubemap_view_sets_cube_view_on_the_game_assets_cubemap.

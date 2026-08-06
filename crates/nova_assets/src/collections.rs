@@ -336,7 +336,7 @@ mod tests {
     /// `GameAssets` cubemap - `nova_editor::setup_editor_scene`) relies on
     /// `prepare_cubemap_view` having already set the Cube texture view at
     /// startup. It runs in `OnEnter(GameAssetsStates::Processing)`, before any
-    /// camera spawns, so the bcs `SkyboxPlugin` observer - which sets the view
+    /// camera spawns, so the `SkyboxPlugin` observer - which sets the view
     /// only on its single-layer fallback branch - sees a ready 6-layer + Cube
     /// image and just attaches `Skybox`. Task suspected the editor was missing
     /// this view; the investigation found this system already covers it. This

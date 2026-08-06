@@ -177,7 +177,7 @@ pub(super) fn on_load_scenario(
     // camera deliberately never carries it.
     //
     // The skybox goes on DEFERRED (PendingSkyboxSwap, the SetSkybox action's
-    // applier): the bcs skybox setup observer reads the image out of
+    // applier): the skybox setup observer reads the image out of
     // `Assets<Image>` the instant a `SkyboxConfig` lands and panics on a
     // not-yet-loaded handle. Preloaded cubemaps (the GameAssets set) apply on
     // the next frame; a cubemap the collection does NOT preload - broadside's
@@ -494,7 +494,7 @@ mod tests {
         );
         assert!(
             installed.is_none(),
-            "no eager SkyboxConfig: the bcs observer would panic on an unloaded image"
+            "no eager SkyboxConfig: the skybox observer would panic on an unloaded image"
         );
     }
 

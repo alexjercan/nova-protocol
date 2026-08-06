@@ -75,7 +75,6 @@ use std::sync::Arc;
 
 use avian3d::prelude::RigidBody;
 use bevy::{prelude::*, window::PrimaryWindow};
-use bevy_common_systems::prelude::WASDCameraController;
 use nova_autopilot::predicate::{any_entity, resource_where};
 pub use nova_autopilot::{
     autopilot::{AutopilotLoop, AutopilotPlugin},
@@ -97,7 +96,10 @@ pub use nova_autopilot::{
 };
 use nova_events::prelude::EntityId;
 use nova_gameplay::{
-    prelude::{HudVisibility, PlayerSpaceshipMarker, SectionMarker, SpaceshipRootMarker},
+    prelude::{
+        HudVisibility, PlayerSpaceshipMarker, SectionMarker, SpaceshipRootMarker,
+        WASDCameraController,
+    },
     GameStates,
 };
 use nova_scenario::prelude::{

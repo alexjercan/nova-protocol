@@ -3,10 +3,10 @@
 //! it, and the live look ray gameplay reads.
 
 use bevy::prelude::*;
-use bevy_common_systems::prelude::*;
 use bevy_enhanced_input::prelude::*;
 
-use super::handback::CameraHandbackBlend;
+use super::{chase::ChaseCamera, handback::CameraHandbackBlend};
+use crate::prelude::*;
 
 /// Marker component to identify the camera controller for the player's
 /// spaceship.

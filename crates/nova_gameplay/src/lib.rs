@@ -4,7 +4,8 @@
 //! playable surface - `sections` (the modular ship parts), `integrity` and
 //! `damage` (health, disable, destroy), `flight` and `gravity` (the diegetic
 //! controller, autopilot verbs, and gravity wells), `input` (player, AI, and
-//! radar targeting), `hud`, `camera_controller`, `audio`, `juice` (camera
+//! radar targeting), `hud`, `camera` (the controller and the rigs under it),
+//! `audio`, `juice` (camera
 //! shake and hit feedback), and `settings` (volume + graphics presets). Nova
 //! owns its health pool, damage typing and destruction pipeline (`integrity`);
 //! `bevy_common_systems` supplies the engine-level layers around them.
@@ -15,7 +16,7 @@ use bevy::prelude::*;
 pub mod asset_ref;
 pub mod audio;
 pub mod beacon;
-pub mod camera_controller;
+pub mod camera;
 pub mod damage;
 pub mod flight;
 pub mod gravity;
@@ -23,6 +24,7 @@ pub mod hud;
 pub mod input;
 pub mod integrity;
 pub mod juice;
+pub mod math;
 pub mod objective_marker;
 pub mod plugin;
 pub mod relations;
@@ -75,11 +77,10 @@ pub mod prelude {
     // example INERT (task 20260802-183403). Keep this list explicit: adding a
     // name here is a decision, and the twins are never on it.
     pub use bevy_common_systems::prelude::{
-        CameraShake, CameraShakeInput, CameraShakePlugin, ChaseCamera, ChaseCameraInput, Cooldown,
-        DirectionalSphereOrbitOutput, GameObjectives, Objective, ObjectivesPlugin, PDController,
-        PDControllerInput, PDControllerPlugin, PDControllerSystems, PDControllerTarget, PlaySfx,
-        PointRotation, PointRotationOutput, PostProcessingCamera, SfxCommandsExt, SfxPlugin,
-        SkyboxConfig, SoundBank, WASDCameraController,
+        Cooldown, DirectionalSphereOrbitOutput, GameObjectives, Objective, ObjectivesPlugin,
+        PDController, PDControllerInput, PDControllerPlugin, PDControllerSystems,
+        PDControllerTarget, PlaySfx, PointRotation, PointRotationOutput, SfxCommandsExt, SfxPlugin,
+        SoundBank,
     };
 
     pub use super::{
@@ -89,7 +90,7 @@ pub mod prelude {
             UI_SFX_FILES, UI_TOGGLE_VOLUME,
         },
         beacon::prelude::*,
-        camera_controller::prelude::*,
+        camera::prelude::*,
         damage::prelude::*,
         flight::prelude::*,
         gravity::prelude::*,

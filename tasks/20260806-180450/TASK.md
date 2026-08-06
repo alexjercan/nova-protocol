@@ -168,7 +168,7 @@ expected until step 10, not evidence the step was left incomplete.
       - j. Confirm `crates/nova_ui/Cargo.toml` is untouched. `cargo fmt`,
         verify, commit.
 
-- [ ] 3. **Camera rigs + `math` -> `nova_gameplay`.** Prototype 03. Lands
+- [x] 3. **Camera rigs + `math` -> `nova_gameplay`.** Prototype 03. Lands
       `math` for Steps 4 and 5. Carries one of the three `rand` ports.
       - a. Copy `src/meth/{lerp,sphere}.rs` (143 L) ->
         `crates/nova_gameplay/src/math.rs`; drop the 70-line difficulty-ramp
@@ -832,6 +832,96 @@ debug` (CI's lint gate) and any test outside `nova_ui`, per the standing
 skip-local-suite instruction; `check --workspace --all-targets` covers
 compilation and CI owns the rest.
 
+### Step 3 - DONE (camera rigs + `math` -> `nova_gameplay`)
+
+**What.** BCS `meth/{lerp,sphere}.rs` -> `crates/nova_gameplay/src/math.rs` (the
+`powi(7)` NOTE and both sphere tests kept, the 70-line difficulty-ramp doc
+dropped, all four symbols exported including `direction_to_spherical`). The six
+rigs -> `camera_controller/` as `chase/shake/skybox/post/wasd/wasd_controller.rs`,
+then `git mv camera_controller camera` in the same commit. The five camera
+registrations moved off `plugin.rs:81-87` onto `crate::camera::` paths; the
+eight camera names moved out of `lib.rs`'s BCS re-export list and now arrive
+through `camera::prelude::*`. `camera/mod.rs` folds the six rig preludes into
+its own.
+
+**Four plan corrections.**
+
+- **3f is short two files and the two it names hardest are the ones that
+  matter.** `hud/screen_indicator.rs:22,1365` are *explicit* BCS imports
+  (`ChaseCameraSystems`, and `ChaseCamera`/`ChaseCameraInput`/`ChaseCameraPlugin`
+  in a test) - and so is `camera/authority.rs:86`'s test module, which the plan
+  does not list at all. Left alone they still COMPILE: they resolve to BCS's
+  types, so the authority test would have gone on ordering BCS's `SystemSet`s
+  while the app ordered nova's, and it would still have passed. `cargo check` is
+  blind to this whole class. The Step 3 DoD grep
+  (`bevy_common_systems.*(chase|shake|...)`) is what caught all three - it is the
+  only proof in this step that finds a silent divergence, not a compile error.
+  Every later step should run its own name-scoped version of it.
+- **`camera/rig.rs` had no `crate::prelude::*`**, only the BCS glob (the plan
+  treats all four in-crate glob users the same). Narrowing it needed
+  `use super::chase::ChaseCamera;` PLUS a new `use crate::prelude::*;` for
+  `PointRotationOutput`.
+- **`camera/mode.rs` still needs one BCS name**, `PointRotationInput` (Step 4's).
+  Its glob narrows to that single import, not to nothing.
+- **`nova_debug/src/lib.rs:17-23` supplies two names, not just the `debug::`
+  half** the plan's 3h names: `InspectorDebugPlugin` and `WireframeDebugPlugin`
+  at `:96-97`. Narrowed to both halves; Step 9 replaces the `debug::` aliases and
+  Step 10 the two plugins.
+
+**Hazards met.** The E0659 wave Step 1 predicted landed again, this time in
+`camera/{framing,handback,mode,rig}.rs` (both globs live, `ChaseCamera*`
+ambiguous). Step 1's probe - drop the glob, compile, read the unresolved list -
+was again the cheapest fix and is now used three times. Six `camera_controller`
+path references outside the module (`hud/mod.rs` x2,
+`hud/screen_indicator.rs:1395`, `camera/{handback,mode}.rs` test mods) plus three
+prose ones needed the rename chased; `git mv` early, before wiring, made the
+compiler name every one.
+
+**Prose swept here rather than deferred to 10e**, on Step 2's precedent (the
+subject moved, so the sentence is wrong now, not at Step 10): all 12 `bcs` lines
+in `camera/authority.rs` (including the test name
+`the_chain_composes_with_every_bcs_camera_plugin`), `camera/framing.rs` x4,
+`camera/{handback,mode}.rs` x3, `hud/screen_indicator.rs:226`, `juice.rs:11`,
+`plugin.rs:6`, and the eight skybox-observer mentions across `nova_scenario`,
+`nova_editor`, `nova_core` and `nova_assets`. Also
+`web/src/wiki/dev/architecture.md:18`, which named `camera_controller` in the
+crate table - a wiki row 10g's greps would have caught, but the rename makes it
+stale NOW.
+
+**Log filter.** No action needed (the Step 2 check): the rigs moved into
+`nova_gameplay`, which is already on both `log_filter_str` lists. Confirmed
+positively in the run log, not by absence.
+
+**Evidence.** `cargo check --workspace --all-targets` clean; `cargo fmt --check`
+clean; `clippy -p nova_gameplay --all-targets` adds zero warnings (all 34 are
+pre-existing, none in `camera/` or `math.rs`); `cargo doc -p nova_gameplay
+--no-deps` likewise (the two unresolved links in `camera/mod.rs:69,74` predate
+this step). `nova_gameplay --lib camera::` 28/28 including
+`the_chain_composes_with_every_camera_plugin` and the two `authority` ordering
+tests; `--lib math::` 2/2; `--lib juice` 22/22; `--doc camera` 5/5 (all five
+rewritten doctests); `nova_scenario --lib actions::view` 10/10;
+`nova_scenario --test skybox_swap_e2e` 1/1. `git diff --exit-code
+crates/nova_gameplay/Cargo.toml Cargo.lock` clean - no new dep, no new edge.
+
+The `cd1bff21` ordering survives byte-identically: the only diff in
+`authority.rs` outside comments is the two import blocks and the test rename;
+both `configure_sets` calls are unchanged.
+
+`examples/screenshots/screenshot_scene.rs` and `examples/sections/hull_section.rs`
+RAN under Xvfb `:99` with the harness, both `autopilot: cycle complete, no
+panic`. The registration move is proved positively: the log carries exactly one
+`build` line for each of `WASDCameraPlugin`, `WASDCameraControllerPlugin`,
+`ChaseCameraPlugin`, `SkyboxPlugin`, `PostProcessingDefaultPlugin`,
+`CameraShakePlugin`, `SpaceshipCameraControllerPlugin` and
+`CameraAuthorityPlugin`, every one on a `nova_gameplay::camera::*` path, and zero
+`bevy_common_systems::camera` lines.
+
+**Not run:** the workspace-wide `clippy --features debug` CI gate and any test
+outside the filters above, per the standing skip-local-suite instruction. No
+probe - Step 3's DoD does not ask for one (Steps 5, 7 and 10 do).
+
 ### Next
 
-Step 3 (camera rigs + `math` -> `nova_gameplay`), prototype 03.
+Step 4 (transform rigs -> `nova_gameplay`), prototype 04. `crate::math` is in
+place with all four symbols, so 4b's three `crate::meth::prelude::*` rewrites
+have a target.

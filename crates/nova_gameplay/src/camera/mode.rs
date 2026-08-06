@@ -3,7 +3,7 @@
 //! marker to match, and route the look input onto whichever rig is live.
 
 use bevy::prelude::*;
-use bevy_common_systems::prelude::*;
+use bevy_common_systems::prelude::PointRotationInput;
 use bevy_enhanced_input::prelude::*;
 
 use super::rig::{
@@ -124,7 +124,7 @@ pub(super) fn sync_spaceship_control_mode(
     }
     // The ChaseCamera fields themselves (offset/focus/smoothing) are owned by
     // `update_camera_rig`, chained after this system - never re-inserted (an
-    // insert would fire bcs's observer and reset the anchor to the origin for
+    // insert would fire the chase rig's observer and reset the anchor to the origin for
     // a frame, the visible snap this system's history fixed), and never
     // written only-on-change (a respawned camera would lose them).
 }
@@ -233,7 +233,7 @@ mod tests {
     use bevy::input::InputPlugin;
 
     use super::*;
-    use crate::camera_controller::{
+    use crate::camera::{
         framing::{update_camera_rig, CAMERA_SMOOTHING},
         rig::PlayerInputMarker,
         SpaceshipCameraController,
@@ -241,7 +241,7 @@ mod tests {
 
     /// Switching camera mode must retune the chase offsets without resetting
     /// the anchor to the origin. Re-inserting `ChaseCamera` (the previous
-    /// approach) fired bcs's insert observer, which reset `ChaseCameraInput` to
+    /// approach) fired the chase rig's insert observer, which reset `ChaseCameraInput` to
     /// the origin for a frame - the visible one-frame snap.
     #[test]
     fn switching_camera_mode_keeps_the_anchor_off_origin() {

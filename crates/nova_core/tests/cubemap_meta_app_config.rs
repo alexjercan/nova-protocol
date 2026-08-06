@@ -10,7 +10,7 @@
 //! cubemap's meta, they fail.
 //!
 //! A cubemap whose meta is ignored loads as a single-layer 4096x24576 image.
-//! The bcs SkyboxPlugin fallback reinterpret hides that in the normal path, but
+//! The SkyboxPlugin fallback reinterpret hides that in the normal path, but
 //! a scenario teardown during the PNG decode leaves the raw stacked image to be
 //! uploaded as-is - over the 16384 texture limit of llvmpipe/WebGL2-class GPUs,
 //! a fatal wgpu validation error. `cubemap_alt.png` is pinned alongside

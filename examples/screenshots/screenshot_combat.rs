@@ -876,7 +876,7 @@ fn unpose(world: &mut World) {
 ///
 /// Re-seeding the rig is not optional. A GOTO ends nose-RETROGRADE (it braked
 /// facing back down its own path), and the disengage re-seeds the mouse rig
-/// from that attitude (`camera_controller/handback.rs`) - so pinning the hull
+/// from that attitude (`camera/handback.rs`) - so pinning the hull
 /// square without re-seeding leaves the camera parked on the wrong side of the
 /// ship, filming the combat act over its shoulder from in front.
 #[cfg(feature = "debug")]

@@ -1,7 +1,7 @@
 //! Who owns the camera `Transform` this frame, and in what order.
 //!
-//! The camera Transform has four independent writers - bcs chase sync, bcs WASD
-//! sync, bcs camera shake (`Restore`/`Apply`) and nova's
+//! The camera Transform has four independent writers - chase sync, WASD
+//! sync, camera shake (`Restore`/`Apply`) and
 //! `enforce_scripted_camera_pose` - and until this module existed the lattice
 //! between them was PARTIAL. The missing edges were filled in by executor
 //! readiness, i.e. a per-frame coin flip, which is what made the scripted pose
@@ -11,25 +11,26 @@
 //! the capture scripts, the cinematic framings) must be steady even when combat
 //! next to the camera is feeding trauma.
 //!
-//! [`CameraAuthorityPlugin`] declares the total order once, in nova, using only
-//! the `SystemSet`s bcs already exports. Nothing in bcs changes and no writer is
+//! [`CameraAuthorityPlugin`] declares the total order once, using only the
+//! `SystemSet`s the rigs already export. No rig changes and no writer is
 //! disabled - a loser still runs and still writes, it is simply overwritten in
 //! the same order every frame ("order, don't disable").
 
 use bevy::{prelude::*, transform::TransformSystems};
-use bevy_common_systems::prelude::{CameraShakeSystems, ChaseCameraSystems, WASDCameraSystems};
+
+use super::{chase::ChaseCameraSystems, shake::CameraShakeSystems, wasd::WASDCameraSystems};
 
 /// The camera-`Transform` write order in `PostUpdate`, from the base pose to
 /// the pose the frame renders with.
 ///
-/// Every camera writer belongs to exactly one phase. bcs's own sets are folded
-/// into these by [`CameraAuthorityPlugin`], so a nova system joins the chain by
-/// naming a phase and nothing else.
+/// Every camera writer belongs to exactly one phase. The rigs' own sets are
+/// folded into these by [`CameraAuthorityPlugin`], so a system joins the chain
+/// by naming a phase and nothing else.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CameraAuthority {
-    /// Solve the base pose from game state: bcs chase sync and WASD sync.
+    /// Solve the base pose from game state: chase sync and WASD sync.
     Solve,
-    /// Add an offset on top of the solved pose: bcs camera shake `Apply`.
+    /// Add an offset on top of the solved pose: camera shake `Apply`.
     Additive,
     /// Overwrite the pose with a scripted one (photo mode, the capture
     /// scripts). Runs LAST, so the script wins the frame and a posed shot is
@@ -49,10 +50,11 @@ impl Plugin for CameraAuthorityPlugin {
         debug!("CameraAuthorityPlugin: build");
 
         // `Restore` un-applies the previous frame's shake offset and so must
-        // precede every base writer - bcs pins it before `ChaseCameraSystems::Sync`
-        // only, which is nothing when the chase plugin is absent.
+        // precede every base writer - `shake` pins it before
+        // `ChaseCameraSystems::Sync` only, which is nothing when the chase
+        // plugin is absent.
         //
-        // The `.before(Propagate)` on the tail is the edge bcs never had for
+        // The `.before(Propagate)` on the tail is the edge the rigs never had for
         // shake or for a scripted pose: without it the frame can propagate
         // LAST frame's camera pose (a per-build coin flip). WASD sync carries
         // its own such edge; being inside `Solve` keeps it.
@@ -68,9 +70,9 @@ impl Plugin for CameraAuthorityPlugin {
                 .before(TransformSystems::Propagate),
         );
 
-        // Fold bcs's writers into the phases. Set-in-set rather than a bare
-        // ordering edge: a bcs writer is then ordered against every phase at
-        // once, including phases added later.
+        // Fold the rigs' writers into the phases. Set-in-set rather than a
+        // bare ordering edge: a rig writer is then ordered against every phase
+        // at once, including phases added later.
         app.configure_sets(
             PostUpdate,
             (
@@ -83,19 +85,21 @@ impl Plugin for CameraAuthorityPlugin {
 
 #[cfg(test)]
 mod tests {
-    use bevy_common_systems::prelude::{
-        CameraShake, CameraShakeInput, CameraShakePlugin, ChaseCamera, ChaseCameraPlugin,
-        WASDCameraPlugin,
+    use super::{
+        super::{
+            chase::{ChaseCamera, ChaseCameraPlugin},
+            shake::{CameraShake, CameraShakeInput, CameraShakePlugin},
+            wasd::WASDCameraPlugin,
+        },
+        *,
     };
 
-    use super::*;
-
-    /// The chain must be ACYCLIC against the edges bcs declares for itself
+    /// The chain must be ACYCLIC against the edges the rigs declare for themselves
     /// (`Restore.before(Chase::Sync)`, `Apply.after(Chase::Sync)`,
     /// `WASD::Sync.before(Propagate)`) - a cycle would panic the schedule on
     /// the first `PostUpdate` run, and every camera writer runs there.
     #[test]
-    fn the_chain_composes_with_every_bcs_camera_plugin() {
+    fn the_chain_composes_with_every_camera_plugin() {
         let mut app = App::new();
         app.add_plugins((
             MinimalPlugins,

@@ -8,7 +8,7 @@
 //! - a section/asteroid destroyed or a torpedo detonating -> a big camera-shake
 //!   kick + a destruction flash (`On<Add, IntegrityDestroyMarker>`).
 //!
-//! **Camera shake** reuses the generic trauma model from `bevy_common_systems`
+//! **Camera shake** reuses the generic trauma model from [`camera::shake`](crate::camera::shake)
 //! ([`CameraShakePlugin`]): it is drift-free (offset is un-applied and re-applied
 //! around the base-writing driver) and already orders itself around the chase
 //! camera. This module only *feeds* it trauma; `ensure_camera_shake` attaches a

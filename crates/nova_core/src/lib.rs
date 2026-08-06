@@ -259,7 +259,7 @@ fn log_filter_str<'a>() -> &'a str {
 /// pinned rev). Native pays only a filesystem stat.
 ///
 /// A cubemap whose `.meta` `array_layout` applied arrives already 6-layer, which
-/// SKIPS the bcs SkyboxPlugin fallback branch that also set the Cube texture
+/// SKIPS the SkyboxPlugin fallback branch that also set the Cube texture
 /// view - the swap applier (`nova_scenario::apply_pending_skybox_swaps`) sets the
 /// view for that case; keep the two in sync.
 ///

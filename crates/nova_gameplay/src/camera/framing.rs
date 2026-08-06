@@ -5,7 +5,6 @@
 
 use avian3d::prelude::{ComputedCenterOfMass, LinearVelocity};
 use bevy::prelude::*;
-use bevy_common_systems::prelude::*;
 
 use super::{
     handback::{handback_anchor_rot, CameraHandbackBlend, HANDBACK_BLEND_SECONDS},
@@ -73,14 +72,14 @@ pub(super) fn update_chase_camera_input(
     };
 }
 
-/// Chase smoothing for the gameplay camera modes (bcs `ChaseCamera::smoothing`;
+/// Chase smoothing for the gameplay camera modes (`ChaseCamera::smoothing`;
 /// 0.0 = bolted on). Gives the camera weight: it trails the hull into and out
 /// of maneuvers instead of teleporting with it. Deliberate default from the
 /// flight-feel retune.
 pub(super) const CAMERA_SMOOTHING: f32 = 0.15;
 
 /// Seconds of velocity lead that cancel the chase lerp's steady-state lag at
-/// the given smoothing and frame delta. bcs `lerp_and_snap` keeps `r =
+/// the given smoothing and frame delta. `lerp_and_snap` keeps `r =
 /// (smoothing^7)^dt` of the remaining error each frame, so a camera tracking an
 /// anchor that advances `v * dt` per frame settles `v * dt * r / (1 - r)`
 /// BEHIND its rig position - about 20 u at 300 u/s and 60 fps with the shipped
@@ -216,8 +215,8 @@ pub(super) fn update_camera_rig(
     };
     // Velocity lead: cancel the chase lerp's steady-state lag (see
     // chase_lag_tau) so the camera holds the rig distance at any cruise speed.
-    // Expressed in the anchor rotation frame because bcs re-rotates the offset
-    // by anchor_rot; the bcs offset convention is world = rot * (x, y, -z),
+    // Expressed in the anchor rotation frame because the chase rig re-rotates
+    // the offset by anchor_rot; the offset convention is world = rot * (x, y, -z),
     // hence the z sign flip. The lead moves only the CAMERA - focus_offset
     // stays untouched, so the look-at point (and the ship's framing) is
     // identical at every speed.
