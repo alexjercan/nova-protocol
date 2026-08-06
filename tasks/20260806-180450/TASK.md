@@ -224,7 +224,7 @@ expected until step 10, not evidence the step was left incomplete.
         survives byte-identically. `cargo fmt`, verify, **run** examples,
         commit.
 
-- [ ] 4. **Transform rigs -> `nova_gameplay`.** Prototype 04. Needs Step 3's
+- [x] 4. **Transform rigs -> `nova_gameplay`.** Prototype 04. Needs Step 3's
       `math`.
       - a. Copy the five rig files + `mod.rs` (837 L) ->
         `crates/nova_gameplay/src/transform/`; rewrite `mod.rs`'s doc as a nova
@@ -920,8 +920,77 @@ panic`. The registration move is proved positively: the log carries exactly one
 outside the filters above, per the standing skip-local-suite instruction. No
 probe - Step 3's DoD does not ask for one (Steps 5, 7 and 10 do).
 
+### Step 4 - DONE (transform rigs -> `nova_gameplay`)
+
+**What.** The five BCS rigs + `mod.rs` -> `crates/nova_gameplay/src/transform/`
+verbatim (823 L, `point_rotation`'s 5 tests included). `mod.rs` carries a nova
+ownership docstring saying these drive `Transform` as *outputs* and why the
+smoothing constants are gameplay decisions. Five registrations moved off
+`plugin.rs:88-96` onto `crate::transform::prelude::` (the "for debug to have a
+random orbiting object" comment kept). `PointRotation`, `PointRotationOutput`
+and `DirectionalSphereOrbitOutput` left `lib.rs`'s BCS re-export list and now
+arrive through `transform::prelude::*`. `SphereRandomOrbitPlugin` keeps its
+inconsistent name, per the prototype.
+
+**Two plan corrections.**
+
+- **4b names one `crate::meth::prelude::*` import as needing
+  `spherical_to_cartesian`; all three also need `LerpSnap`.** The glob supplied
+  it invisibly. `sphere_orbit.rs:116-117` and
+  `directional_sphere_orbit.rs:117-118` call `lerp_and_snap` on `f32`, so both
+  imports are `crate::math::{spherical_to_cartesian, LerpSnap}` (plus
+  `direction_to_spherical` in the directional one). `random_sphere_orbit.rs`
+  genuinely needs only `spherical_to_cartesian`.
+- **4f under-counts the glob users by one and over-counts by three.**
+  `camera/mode.rs:6` is the extra: Step 3 narrowed it to exactly
+  `PointRotationInput`, which is a transform name, so it is Step 4's to
+  repoint - and it is the ONLY site the DoD grep caught, because it compiled
+  fine pointing at BCS's type while the app registered nova's plugin. The same
+  silent-divergence class Step 3 flagged. Going the other way,
+  `input/player/intent.rs`, `turret_section/setup.rs` and `input/player/hints.rs`
+  needed no narrowed BCS import at all: with the transform names gone their
+  remaining BCS names (`PDController` and friends) already arrive through
+  `crate::prelude`'s by-name list, so the glob was deleted outright rather than
+  shrunk. `hud/velocity.rs` narrows to `TriangleMeshBuilder` alone (Step 5's)
+  and gains `transform::prelude::*`; `turret_section/aim.rs` narrows to
+  `rigid_body_point_velocity` alone (Step 7's).
+
+**Hazards met.** The E0659 wave landed a third time, in the four files that
+glob both preludes. Step 1's probe (replace the BCS glob with a marker, compile,
+read the unresolved list, put back only those names) resolved it in one pass and
+is now the standard move for this plan. `random_sphere_orbit.rs:7`'s
+`use rand::prelude::*;` compiled unchanged against rand 0.10.2 exactly as
+prototype 04 predicted - verified, not assumed.
+
+**missing_docs sweep.** Nine items: the five `pub mod prelude` blocks, the five
+`*Systems` enums and their `Sync` variants, `RandomSphereOrbitOutput`,
+`SphereOrbitOutput`, and `SphereOrbitInput` + both its fields.
+
+**Evidence.** `cargo check --workspace --all-targets` clean;
+`cargo fmt --check` clean; `clippy -p nova_gameplay --all-targets --features
+debug` adds zero warnings. `--lib transform::` 5/5, `--lib
+sections::turret_section::aim` 11/11, `--doc` 5/5. Both absence proofs green:
+the transform-name grep over `crates/ examples/` is empty, and
+`git diff --exit-code crates/nova_gameplay/Cargo.toml Cargo.lock` is clean - no
+new dep, no new edge. `examples/sections/turret_section.rs` RAN under Xvfb `:99`
+and converged to a 0.2 deg aim error, exit 0 - the sharpest proof, since
+`SmoothLookRotation` drives turret facing. `controller_section`, `player_path`
+and `scene_baseline` also RAN with zero panic / duplicate-plugin lines (they
+have no exit condition, so each was cut at its timeout after booting through
+registration).
+
+**Not run:** the workspace-wide `clippy --features debug` CI gate and any test
+outside the filters above, per the standing skip-local-suite instruction. No
+probe - Step 4's DoD does not ask for one.
+
+One pre-existing warning is NOT from this step and was confirmed against a
+clean stash: `examples/stress/many_sections.rs:37` unused `ComputedMass` /
+`ComputedCenterOfMass`.
+
 ### Next
 
-Step 4 (transform rigs -> `nova_gameplay`), prototype 04. `crate::math` is in
-place with all four symbols, so 4b's three `crate::meth::prelude::*` rewrites
-have a target.
+Step 5 (mesh builder / explode / slice -> `nova_gameplay`), prototype 06.
+`crate::math::slerp` is in place for `builder.rs`. Step 5 adds the `noise` dep
+and finally gives `hud/velocity.rs:16` and `sections/thruster_section.rs:10` a
+nova home for `TriangleMeshBuilder`, which are the last two names holding those
+BCS imports open.

@@ -3,7 +3,6 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use bevy_common_systems::prelude::*;
 #[cfg(test)]
 use bevy_enhanced_input::prelude::*;
 

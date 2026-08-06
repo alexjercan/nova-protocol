@@ -3,7 +3,7 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use bevy_common_systems::prelude::*;
+use bevy_common_systems::prelude::rigid_body_point_velocity;
 
 use super::*;
 
@@ -485,7 +485,8 @@ mod tests {
     /// manual clock, so a stepped turret converges its muzzle onto a target.
     fn aim_convergence_app() -> App {
         use bevy::time::TimeUpdateStrategy;
-        use bevy_common_systems::prelude::SmoothLookRotationPlugin;
+
+        use crate::transform::prelude::SmoothLookRotationPlugin;
 
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, TransformPlugin, SmoothLookRotationPlugin));

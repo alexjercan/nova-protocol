@@ -30,6 +30,7 @@ pub mod plugin;
 pub mod relations;
 pub mod sections;
 pub mod settings;
+pub mod transform;
 
 pub use bevy_common_systems;
 
@@ -77,10 +78,9 @@ pub mod prelude {
     // example INERT (task 20260802-183403). Keep this list explicit: adding a
     // name here is a decision, and the twins are never on it.
     pub use bevy_common_systems::prelude::{
-        Cooldown, DirectionalSphereOrbitOutput, GameObjectives, Objective, ObjectivesPlugin,
-        PDController, PDControllerInput, PDControllerPlugin, PDControllerSystems,
-        PDControllerTarget, PlaySfx, PointRotation, PointRotationOutput, SfxCommandsExt, SfxPlugin,
-        SoundBank,
+        Cooldown, GameObjectives, Objective, ObjectivesPlugin, PDController, PDControllerInput,
+        PDControllerPlugin, PDControllerSystems, PDControllerTarget, PlaySfx, SfxCommandsExt,
+        SfxPlugin, SoundBank,
     };
 
     pub use super::{
@@ -105,6 +105,7 @@ pub mod prelude {
         settings::{
             GraphicsBudget, GraphicsQuality, HarnessMute, MasterVolume, NovaSettingsPlugin,
         },
+        transform::prelude::*,
         GameMode, GameStates, PauseStates,
     };
 }

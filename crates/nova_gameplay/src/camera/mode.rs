@@ -3,7 +3,6 @@
 //! marker to match, and route the look input onto whichever rig is live.
 
 use bevy::prelude::*;
-use bevy_common_systems::prelude::PointRotationInput;
 use bevy_enhanced_input::prelude::*;
 
 use super::rig::{
@@ -11,7 +10,7 @@ use super::rig::{
     SpaceshipCameraInputMarker, SpaceshipCameraNormalInputMarker, SpaceshipCameraTurretInputMarker,
     SpaceshipRotationInputActiveMarker,
 };
-use crate::prelude::*;
+use crate::{prelude::*, transform::prelude::PointRotationInput};
 
 /// The mode that the camera is currently in for controlling the spaceship.
 ///

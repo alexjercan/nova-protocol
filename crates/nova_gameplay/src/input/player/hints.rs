@@ -2,7 +2,6 @@
 //! what key each is bound to, resolved from the live rig for the HUD.
 
 use bevy::prelude::*;
-use bevy_common_systems::prelude::*;
 use bevy_enhanced_input::prelude::*;
 
 #[cfg(test)]

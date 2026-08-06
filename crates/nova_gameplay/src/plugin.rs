@@ -86,14 +86,14 @@ impl Plugin for NovaGameplayPlugin {
         app.add_plugins(crate::camera::skybox::SkyboxPlugin);
         app.add_plugins(crate::camera::post::PostProcessingDefaultPlugin);
         // Point Rotation Plugin to convert linear movement to a target rotation
-        app.add_plugins(bevy_common_systems::prelude::PointRotationPlugin);
+        app.add_plugins(crate::transform::prelude::PointRotationPlugin);
         // for debug to have a random orbiting object
-        app.add_plugins(bevy_common_systems::prelude::SphereRandomOrbitPlugin);
+        app.add_plugins(crate::transform::prelude::SphereRandomOrbitPlugin);
         // Rotation Plugin for the turret facing direction
-        app.add_plugins(bevy_common_systems::prelude::SmoothLookRotationPlugin);
+        app.add_plugins(crate::transform::prelude::SmoothLookRotationPlugin);
         // Sphere Orbit Plugin
-        app.add_plugins(bevy_common_systems::prelude::SphereOrbitPlugin);
-        app.add_plugins(bevy_common_systems::prelude::DirectionalSphereOrbitPlugin);
+        app.add_plugins(crate::transform::prelude::SphereOrbitPlugin);
+        app.add_plugins(crate::transform::prelude::DirectionalSphereOrbitPlugin);
         // Other helper plugins
         app.add_plugins(bevy_common_systems::prelude::TempEntityPlugin);
         app.add_plugins(bevy_common_systems::prelude::DespawnEntityPlugin);
