@@ -106,6 +106,13 @@ fn main() -> bevy::app::AppExit {
 
     #[cfg(feature = "debug")]
     {
+        // Probe wiring (each plugin is inert without its NOVA_PERF_* env):
+        // run timeline + engine-bound invariants, so `probe run` grades this
+        // example instead of asserting nothing. No frame-time capture - the
+        // walk is a sequence of posed framings with no steady-state window,
+        // so a captured fps would measure the script, not the engine.
+        app.add_plugins(nova_probe::nova_timeline());
+        app.add_plugins(nova_probe::nova_invariants());
         if std::env::var_os("NOVA_AUTOPILOT").is_some() {
             // Turn command errors (despawned-entity targets on the menu/editor
             // teardown) into panics so the run fails loudly on them (as 12 does).
