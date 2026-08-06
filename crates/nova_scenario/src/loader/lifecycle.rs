@@ -697,7 +697,7 @@ mod tests {
 
     /// Restarting the SAME scenario must re-show its objective text. The
     /// objectives panel is despawned+respawned on every (re)load (it rides the
-    /// player ship), and bevy_common_systems repaints its lines only when
+    /// player ship), and the objectives panel repaints its lines only when
     /// `GameObjectives` is `resource_changed` (see
     /// `world::tests::unchanged_objectives_do_not_flag_the_resource`). A restart
     /// re-posts IDENTICAL objectives, so unless teardown resets `GameObjectives`

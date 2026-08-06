@@ -45,7 +45,6 @@ graph TD
     editor --> ui
     core --> debug["nova_debug"]
     core --> info["nova_info"]
-    gameplay --> bcs["bevy_common_systems (external)"]
 ```
 
 Every crate exposes a `pub mod prelude`. Import from the prelude
@@ -53,13 +52,17 @@ Every crate exposes a `pub mod prelude`. Import from the prelude
 re-exports all sub-crate preludes, so top-level code and examples usually just do
 `use nova_protocol::prelude::*`.
 
-### External shared crate: `bevy-common-systems`
+### Generic helpers live here too
 
-Generic, non-Nova Bevy helpers (WASD/chase cameras, skybox, post-processing, mesh
-explode, PD controller, health, status bar, the generic game-event queue
-`GameEventsPlugin`/`EventWorld`) live in a separate repo, `bevy-common-systems`,
-pinned as a git dependency (rev in `crates/nova_gameplay/Cargo.toml`) and re-exported
-through `nova_gameplay::prelude`. If a helper feels "generic", it lives there.
+The generic, non-Nova Bevy helpers (WASD/chase cameras, skybox, post-processing,
+mesh explode, PD controller, health, status bar, the generic game-event queue
+`GameEventsPlugin`/`EventWorld`) are nova's own: the camera and transform rigs,
+the mesh toolkit and the PD controller in `nova_gameplay`, the status bar and
+tween in `nova_ui`, the event engine in `nova_events`, the inspector and
+wireframe layers in `nova_debug`. They used to live in a separate pinned repo;
+task 20260806-180450 vendored them in, because splitting them out before the
+game was done produced generic-looking code shaped by one game's needs. Whether
+any of it deserves extracting is a question for after the game ships.
 
 The generic `HealthDisplay` bar stays here (still available for other games and
 for non-player entities), but Nova's player-ship health readout is no longer that
@@ -71,9 +74,9 @@ things at different layers.
 
 Boundary policy, from most game-agnostic to most game-specific:
 
-1. `bevy_common_systems` (external) - fully reusable Bevy primitives.
-2. `nova_gameplay` - Nova gameplay, plus generic-leaning helpers not yet ready for
-   promotion (promotion is a deliberate cross-repo change, not automatic).
+1. The generic-leaning modules named above - reusable Bevy primitives that
+   happen to live in a nova crate; keep them free of game-specific types.
+2. `nova_gameplay` - Nova gameplay.
 3. `nova_core` - wiring only.
 
 ## App assembly
@@ -98,9 +101,8 @@ nothing else, so an example that brings its own game plugins goes straight
 
 `NovaGameplayPlugin` pulls in avian3d `PhysicsPlugins` (zero gravity, projectile
 collision hooks), `bevy_rand`, `bevy_hanabi` particles (on wasm via the WebGPU
-backend), the
-`bevy_common_systems` helper plugins, and the Nova sub-plugins: input, sections,
-hud, camera controller, integrity, damage, flight, gravity, relations, audio, juice.
+backend), and the Nova sub-plugins: input, sections, hud, camera controller,
+integrity, damage, flight, gravity, physics, relations, audio, juice.
 
 ## States
 

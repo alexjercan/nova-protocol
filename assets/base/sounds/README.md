@@ -6,9 +6,9 @@ sweeps and a steady hum) produced by `scripts/gen-placeholder-sounds.py` so the
 game is audible and wired end to end out of the box. They are not the final
 sound design.
 
-The audio layer itself is the reusable `SfxPlugin` / `SoundBank` from
-`bevy-common-systems`; Nova only owns the mapping from gameplay events to these
-files (see `crates/nova_gameplay/src/audio.rs`).
+The audio layer itself is the generic `SfxPlugin` / `SoundBank`; Nova owns
+both it and the mapping from gameplay events to these files (see
+`crates/nova_gameplay/src/audio/`).
 
 These files live UNDER `assets/base/` because the base game is just a mod
 (task 20260717-002228) and these are its WORLD/GAMEPLAY cues - the sounds of

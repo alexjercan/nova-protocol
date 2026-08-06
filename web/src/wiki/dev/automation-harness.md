@@ -18,7 +18,7 @@ generic over the app's state type, and that generic is what keeps
 `nova_probe` all run these drivers, reaching them through the `nova_debug`
 prelude and the `nova_debug::harness` presets - the Nova-flavored adapter, not a
 second implementation. An example that names a driver unqualified no longer
-compiles: nova's prelude stopped re-exporting the `bevy_common_systems` one,
+compiles: nova's prelude stopped re-exporting the shared-helpers crate's one,
 whose same-named types would otherwise resolve to an inert twin.
 
 ## What it drives
@@ -55,7 +55,7 @@ so.
 run and a one-off snapshot must never fight over the same window.
 
 The table above is the whole contract. These names replaced an older set from
-when the drivers lived in `bevy-common-systems`, and the swap was not purely a
+when the drivers lived in the shared-helpers crate, and the swap was not purely a
 prefix change - the deadline's stem moved too. A scripted run still pinned to
 the old names arms nothing and silently does a plain play-through, so check
 yours against this table; the CHANGELOG's breaking entry spells out the old

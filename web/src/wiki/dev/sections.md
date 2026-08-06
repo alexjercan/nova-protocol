@@ -68,9 +68,9 @@ damage pipeline.
 
 ## Integrity: damage -> disable -> destroy
 
-The generic destruction core lives in the `bevy_common_systems` (bcs) crate
-(`IntegrityPlugin`). Nova wraps it in `NovaIntegrityPlugin`
-(`crates/nova_gameplay/src/integrity/`) and adds two nova-specific pieces:
+The generic destruction core (`IntegrityPlugin`) is nova's own, in
+`crates/nova_gameplay/src/integrity/`. `NovaIntegrityPlugin` composes it with
+two nova-specific pieces:
 
 - `glue.rs` - builds the graph and rolls section health up to the ship root.
 - `explode.rs` - reacts to destruction: debris, mesh fragments, `OnDestroyedEvent`.

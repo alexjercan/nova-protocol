@@ -1,6 +1,6 @@
 //! `nova_autopilot` is the standalone home for Nova Protocol's automation
 //! drivers and the completion protocol they share. It depends on `bevy` only:
-//! no `nova_*` crate, no `bevy_common_systems`, no `avian3d`.
+//! no `nova_*` crate, no `avian3d`, no game code at all.
 //!
 //! ## Ownership boundary
 //!

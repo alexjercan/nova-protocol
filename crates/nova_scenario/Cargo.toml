@@ -12,7 +12,6 @@ bevy = { version = "0.19.0" }
 bevy_enhanced_input = { version = "0.26.0" }
 rand = { version = "0.10.2" }
 noise = { version = "0.9" }
-bevy_common_systems = { git = "https://github.com/alexjercan/bevy-common-systems", tag = "v0.19.5" }
 bevy_rand = { version = "0.15.0", default-features = false, features = ["chacha20", "wyrand"] }
 nova_events = { path = "../nova_events" }
 nova_gameplay = { path = "../nova_gameplay" }
@@ -39,7 +38,6 @@ nova_scenario = { path = ".", features = ["serde"] }
 workspace = true
 
 [features]
-debug = ["bevy/track_location", "bevy_common_systems/debug"]
 serde = ["dep:serde", "bevy/serialize", "nova_gameplay/serde"]
 
 # Baseline + regression benchmark for the scenario dispatch hot path (task

@@ -232,9 +232,9 @@ fn log_filter_str<'a>() -> &'a str {
             .unwrap_or_default()
             .contains("trace")
         {
-            "wgpu=error,bevy_render=info,bevy_ecs=warn,bevy_time=warn,naga=warn,bevy_common_systems=trace,nova_assets=trace,nova_autopilot=trace,nova_core=trace,nova_debug=trace,nova_events=trace,nova_gameplay=trace,nova_info=trace,nova_scenario=trace,nova_ui=trace"
+            "wgpu=error,bevy_render=info,bevy_ecs=warn,bevy_time=warn,naga=warn,nova_assets=trace,nova_autopilot=trace,nova_core=trace,nova_debug=trace,nova_events=trace,nova_gameplay=trace,nova_info=trace,nova_scenario=trace,nova_ui=trace"
         } else {
-            "wgpu=error,bevy_render=info,bevy_ecs=warn,bevy_time=warn,naga=warn,bevy_common_systems=debug,nova_assets=debug,nova_autopilot=debug,nova_core=debug,nova_debug=debug,nova_events=debug,nova_gameplay=debug,nova_info=debug,nova_scenario=debug,nova_ui=debug"
+            "wgpu=error,bevy_render=info,bevy_ecs=warn,bevy_time=warn,naga=warn,nova_assets=debug,nova_autopilot=debug,nova_core=debug,nova_debug=debug,nova_events=debug,nova_gameplay=debug,nova_info=debug,nova_scenario=debug,nova_ui=debug"
         }
     } else {
         "wgpu=error,bevy_render=warn,bevy_ecs=warn,bevy_time=warn,naga=warn"

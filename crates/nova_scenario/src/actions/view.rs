@@ -143,7 +143,7 @@ const DEFAULT_SKYBOX_BRIGHTNESS: f32 = 1000.0;
 /// `cubemap`.
 ///
 /// The cubemap cannot be applied synchronously: the skybox setup observer in
-/// `bevy_common_systems` reads the image out of `Assets<Image>` the instant a
+/// `nova_gameplay::camera::skybox` reads the image out of `Assets<Image>` the instant a
 /// `SkyboxConfig` is inserted and panics if it is not loaded yet - and a
 /// freshly-referenced modder path is not. So the action only *tags* the
 /// scenario camera with a [`PendingSkyboxSwap`]; [`apply_pending_skybox_swaps`]

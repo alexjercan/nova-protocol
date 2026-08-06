@@ -10,9 +10,10 @@
 //! shake and hit feedback), `objectives` (the mission objective list, its panel
 //! and the conveyance tags), `lifetime` and `cooldown` (transient entities and
 //! the countdowns that gate actions), and `settings` (volume + graphics
-//! presets). Nova owns its health pool, damage typing and destruction pipeline
-//! (`integrity`); `bevy_common_systems` supplies the engine-level layers around
-//! them.
+//! presets). Nova owns all of it, engine layers included: health, damage and
+//! destruction (`integrity`), the camera and transform rigs, the mesh toolkit,
+//! the PD attitude controller (`physics`) and SFX playback were vendored in
+//! from the shared-helpers crate and are nova's to shape now.
 #![warn(missing_docs)]
 
 use bevy::prelude::*;
@@ -39,8 +40,6 @@ pub mod relations;
 pub mod sections;
 pub mod settings;
 pub mod transform;
-
-pub use bevy_common_systems;
 
 /// Test-only helper for asserting on log output: a shared in-memory sink
 /// installed as the thread's tracing subscriber. `EntityCommands::remove` and
@@ -77,14 +76,13 @@ pub(crate) mod test_log {
 /// Glob-import surface: `use nova_gameplay::prelude::*` re-exports the public API
 /// of this crate's submodules plus the top-level game-state enums.
 pub mod prelude {
-    // The `bevy_common_systems` names nova's own gameplay code is written in,
-    // re-exported BY NAME. A glob (`pub use bevy_common_systems::prelude::*`)
-    // used to stand here, and it also dragged in the retired bcs harness twins
-    // - `AutopilotPlugin`, `AutopilotLoop`, `ScreenshotPlugin`,
-    // `ScreenshotReelPlugin`, `HarnessCompletion` - which shadow nova's
-    // harness at every example's `use nova_protocol::prelude::*` and boot the
-    // example INERT (task 20260802-183403). Keep this list explicit: adding a
-    // name here is a decision, and the twins are never on it.
+    // Re-export BY NAME, never by glob. A glob over a vendored engine prelude
+    // used to stand here, and it dragged in the retired harness twins -
+    // `AutopilotPlugin`, `AutopilotLoop`, `ScreenshotPlugin`,
+    // `ScreenshotReelPlugin`, `HarnessCompletion` - which shadow nova's harness
+    // at every example's `use nova_protocol::prelude::*` and boot the example
+    // INERT (task 20260802-183403). The glob is gone with the dependency, but
+    // the lesson outlives it: adding a name below is a decision.
     pub use super::{
         asset_ref::prelude::*,
         audio::{

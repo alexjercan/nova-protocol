@@ -23,8 +23,8 @@
 //! - `scenario_event` - every fired scenario [`GameEvent`] (kill, area
 //!   enter/exit, orbit hold, travel/combat lock, the per-frame update pulse),
 //!   name + payload, observed via `On<GameEvent>` WITHOUT touching the
-//!   dispatch queue (the read accessors landed in bevy_common_systems
-//!   v0.19.2 for exactly this).
+//!   dispatch queue (the read accessors exist in `nova_events::engine` for
+//!   exactly this).
 //! - `variable` - every scenario-variable change (old/new), from a per-frame
 //!   snapshot diff of [`NovaEventWorld`]'s variables that mirrors the
 //!   engine's own write-on-diff logging (world.rs) and likewise ignores the
@@ -46,7 +46,8 @@ use std::{
 };
 
 use bevy::{diagnostic::FrameCount, prelude::*, state::state::StateTransitionEvent};
-use nova_gameplay::{bevy_common_systems::modding::events::GameEvent, GameStates, PauseStates};
+use nova_events::engine::GameEvent;
+use nova_gameplay::{GameStates, PauseStates};
 use nova_scenario::{
     loader::SCENARIO_ELAPSED_VAR, variables::VariableLiteral, world::NovaEventWorld,
 };
@@ -475,7 +476,7 @@ mod tests {
     use std::sync::atomic::{AtomicU32, Ordering};
 
     use bevy::state::app::StatesPlugin;
-    use nova_gameplay::bevy_common_systems::modding::events::GameEventInfo;
+    use nova_events::engine::GameEventInfo;
 
     use super::*;
 

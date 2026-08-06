@@ -26,15 +26,12 @@ Root crate: CLI entry and `nova_core` re-export. Main assembly:
 | `nova_editor` | Ship editor and play-test transition. |
 | `nova_ui` | Shared theme and widgets. Must not depend on `nova_os`. |
 | `nova_events` | Game event kinds and entity identity components. |
+| `nova_events_macros` | The `EventKind` derive; `nova_events` is its only consumer. |
 | `nova_info` | `APP_VERSION` from `build.rs`. |
 | `nova_debug` | `debug`-gated inspector, wireframe, overlays. |
 | `nova_probe` | Autopilot run harness and performance reports. |
 | `nova_autopilot` | Automation drivers and the run-completion protocol; `bevy`-only. |
 | `nova_meta_gen` | Web asset `.meta` generator under `tools/`; no game dependency. |
-
-Shared Bevy helpers: pinned `bevy-common-systems` dependency. Local checkout:
-`~/personal/bevy-common-systems`. Change there first; follow the same task flow;
-then bump `crates/nova_gameplay/Cargo.toml`.
 
 Assembly order: Bevy -> enhanced input -> assets -> gameplay -> scenario ->
 editor/menu -> debug tooling. States: `GameStates::{Loading, MainMenu, Playing}`

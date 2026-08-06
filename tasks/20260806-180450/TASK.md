@@ -433,7 +433,7 @@ expected until step 10, not evidence the step was left incomplete.
         owns it.
       - g. `cargo fmt`, verify under `--features debug`, commit.
 
-- [ ] 10. **Delete the dependency.** Prototype 10. Nothing is copied. Do not
+- [x] 10. **Delete the dependency.** Prototype 10. Nothing is copied. Do not
       start until Steps 1-9 have landed.
       - a. **10a `nova_probe`:** `recorder.rs:49,478` ->
         `nova_events::engine::{GameEvent, GameEventInfo}`; reword the doc at
@@ -1297,13 +1297,119 @@ package": BCS already pulled the same 0.37. `NOVA_AUTOPILOT=1 xvfb-run -a
 skip-local-suite instruction. The F11 layer-behaviour DoD line is `manual:`; the
 preserved insert ordering shown above is what to judge it on.
 
+### Step 10 - DONE (delete the dependency)
+
+**What.** `bevy_common_systems` is gone from the workspace: no code path, no
+manifest, no `Cargo.lock` entry, no prose outside the task records and the
+historical CHANGELOG/news posts. Ten steps and roughly 6.5k LOC later, nova owns
+every layer it runs on.
+
+- **10a** `nova_probe/src/recorder.rs` names `nova_events::engine::{GameEvent,
+  GameEventInfo}` directly; `nova_events` is a **direct** dep of `nova_probe`
+  (the second of the two intended new edges) with the routing comment rewritten
+  to say why it is direct rather than reached through `nova_gameplay`. The
+  `invariants.rs` / `capture.rs` stragglers were confirmed already fixed in
+  `261c7e71` and **not** re-fixed.
+- **10b** `nova_gameplay/src/lib.rs` lost `pub use bevy_common_systems;`. The
+  by-name re-export block was already empty (Steps 7 and 8 took the last names),
+  so 10b was just that line plus the crate docstring and the explicit-list
+  comment - reworded to carry the harness-twins lesson forward without naming
+  the dead crate, and **not** opportunistically switched to a glob.
+- **10c** was already done by Step 7 (`plugin.rs:20` -> `use crate::prelude::*;`
+  and the `:6` intra-doc de-link, forced there by an `unused_imports` warning).
+  This step asserted it and reworded `:49`. No BCS path survives `:81-105`.
+- **10d** deleted the two `bevy_common_systems=` log-filter terms only.
+- **10e/10g** reworded 18 prose sites across `crates/`, `scripts/`,
+  `AGENTS.md`, `assets/base/sounds/README.md` and six wiki pages.
+  `base_section.rs:324` was **not** redone (Step 7 owns it).
+- **10f** deleted the dep from the three manifests that still carried it
+  (`nova_gameplay`, `nova_scenario`, `nova_debug`) - not five: `nova_events`
+  lost it in Step 1 and `nova_assets` in Step 6. Each `debug` feature is down to
+  `["bevy/track_location"]`.
+
+**Difficulties and deviations.**
+- **`Cargo.lock` lost six packages, not two, and that is correct.** Alongside
+  `bevy_common_systems` and `bevy_common_systems_macros` it dropped
+  `rand 0.9.2`, `rand_chacha 0.9.0`, `rand_core 0.9.3` and `ppv-lite86 0.2.21` -
+  the rand 0.9 line **only BCS pulled**. Nova's own `rand 0.10.2` (and the
+  `rand 0.8.5` some other dep carries) are untouched, which is exactly why
+  `DECISION.md` insisted on the single-rand port in Steps 3, 4 and 5. The DoD's
+  "exactly two packages" expectation is wrong; the reviewable claim is "two BCS
+  packages plus the four transitive crates nothing else in the workspace
+  needed", and the diff shows precisely that.
+- **The third-party licence manifest was NOT unchanged, and 10h's premise is
+  wrong twice over.** `credits/THIRD-PARTY-LICENSES.md` listed
+  `bevy_common_systems 0.0.1` *and* the four rand-0.9 packages, so the removal
+  is visible in it. It is also **gitignored** (`.gitignore:19`) and regenerated
+  at release time, so nothing is committed here.
+  `cargo-about` was not installed; it was installed and
+  `./scripts/gen-licenses.sh` re-run, which now writes a manifest naming none of
+  the six removed packages and passing the `about.toml` licence gate.
+  `nova_events_macros` is `publish = false`, so it stays out, as required.
+- **Two DoD greps contradict 10g, and the greps won.** 10g says to keep
+  `nova_assets/src/persist.rs:16`'s "Modelled on `bevy_common_systems::persist`"
+  citation, but both the code-and-manifest grep and the docs grep scope only
+  `tasks/`, `CHANGELOG.md` and `news/` as historical - so that one line kept
+  both proofs red. Reworded to keep the design reasoning (this store is the
+  deliberate counterpart to the load-on-build/save-on-changed plugin shape)
+  while dropping the name of a crate no longer reachable from this repo.
+  **This is a knowing deviation from 10g**, reversible in one edit if the
+  reviewer prefers the citation and an amended DoD line instead.
+- **One orphan feature deleted, per 10f's "delete any feature left with no
+  caller".** `nova_scenario`'s `debug` had no selector anywhere in the workspace
+  (`nova_core`'s `debug` lists `nova_gameplay`, `nova_editor`, `nova_info`,
+  `nova_menu` and `nova_debug`, not `nova_scenario`), so once BCS left it was a
+  no-op knob. `nova_gameplay`'s is kept - four crates select it.
+- **10d's "check the crate list against the workspace members" turned up a
+  pre-existing gap that was left alone.** `log_filter_str` names nine crates and
+  omits `nova_menu`, `nova_editor`, `nova_os` and `nova_probe`. That predates
+  this task and adding them would change log volume, which no step authorises.
+  Flagging it rather than fixing it; it is worth its own task.
+- `AGENTS.md` lost the "Shared Bevy helpers" pointer (a local checkout, a change
+  -there-first rule and a `rev` bump that no longer exist) and gained the
+  `nova_events_macros` row its crate table was missing since Step 1.
+
+**Evidence.** Both absence greps are **empty**:
+`! grep -rn bevy_common_systems crates/ examples/ Cargo.toml Cargo.lock` and
+`! grep -rniE 'bevy.common.systems' . --exclude-dir=tasks --exclude-dir=.git
+--exclude-dir=target --exclude-dir=news --exclude=CHANGELOG.md`.
+`check --workspace --all-targets` and `check --workspace --all-targets
+--features debug` both report **zero** errors; `fmt --check` clean;
+`clippy --workspace --all-targets --features debug` (the CI pass) reports zero
+errors and no warning in any file this task created.
+
+**Crate graph: exactly the two intended edges and nothing else.**
+`cargo tree -p nova_events --depth 1` shows `nova_events_macros` (Step 1);
+`cargo tree -p nova_probe --depth 1` shows `nova_events` (10a). `Cargo.lock` is
+`1 insertion, 72 deletions` - the insertion is Step 9's `bevy-inspector-egui`
+edge under `nova_debug`, the deletions are the six packages above.
+
+**Every harnessed example RUNS: 23/23 PASS, zero panics.** Ran as
+`NOVA_AUTOPILOT=1 xvfb-run -a --server-num=99 cargo run --example <x>
+--features debug`, verdict read from `autopilot: cycle complete, no panic` in
+the app log rather than the exit code (the nix `xvfb-run` wrapper always returns
+1). Full list: controller_section, thruster_section, hull_section,
+turret_section, torpedo_section, scenario_grammar, player_path, outcomes,
+widget_zoo, editor, hud_range, menu_newgame, menu_scenarios, many_bodies,
+many_sections, many_projectiles, screenshot_scene, screenshot_ui,
+screenshot_combat, screenshot_nova_os, screenshot_sections, screenshot_flight,
+render_scale_shot. `scene_baseline` is the one example that is deliberately NOT
+harnessed (`web/src/wiki/dev/development.md`), so it cannot self-terminate and
+was covered by `probe run stress` instead, where it passes.
+
+**Probe: all four suites match the `tasks/20260805-185103` baseline exactly.**
+sections **5/5 OK**, systems **3/3 OK**, stress **4/4 OK**, ui **5/5 OK**, every
+one `measured 5/6` - the same 17 examples, the same verdicts, the same measured
+counts as before the ten-step lift began.
+
+**Not run:** the full `cargo test` suite (`bcs-no-full-test-suite`: it OOMs the
+box). Every step verified with `-p <crate> --lib <filter>`; the aggregate
+correctness evidence for the whole task is the 17-example probe sweep above,
+which is the harness this repo actually regresses against.
+
 ### Next
 
-Step 10 (delete the dependency), prototype 10. Nothing is copied. Two carried
-notes: **Step 7 already did 10c's `plugin.rs:20`** (`use crate::prelude::*;`)
-and de-linked the `bevy_common_systems` intra-doc reference at `plugin.rs:6`, so
-10c asserts rather than redoes those - `plugin.rs:49`'s comment is still open.
-**Step 7 also already did 10e's `base_section.rs:324`.** `lib.rs:77-86`'s BCS
-`pub use` block in `nova_gameplay` is already gone (emptied by Steps 7 and 8),
-so 10b is down to deleting `pub use bevy_common_systems;` at `:32` and rewording
-the crate docstring.
+All ten Steps are complete and the workspace is BCS-free. The task is ready for
+review. Two things a reviewer should look at first: the knowing 10g deviation on
+`nova_assets/src/persist.rs` (above), and the `log_filter_str` crate-list gap
+10d surfaced, which is flagged for its own task rather than fixed here.

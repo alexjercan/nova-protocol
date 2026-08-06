@@ -8,7 +8,7 @@
 missions, objectives, and reactive world behavior. A scenario is a list of
 event handlers; each pairs an event with filters (all must pass) and actions
 (run in order). It builds on `GameEventsPlugin`/`EventWorld` from
-`bevy-common-systems`; nova provides `NovaEventWorld` and the enums below.
+`nova_events`; nova_scenario provides `NovaEventWorld` and the enums below.
 
 ## Scenario structure
 

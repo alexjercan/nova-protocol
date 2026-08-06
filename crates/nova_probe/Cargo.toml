@@ -40,9 +40,11 @@ nova_autopilot = { path = "../nova_autopilot" }
 # The capture plugin reads GameStates / WeaponsHot / PlayerSpaceshipMarker and
 # tops up Health (nova's own, out of nova_gameplay::integrity::health).
 nova_gameplay = { path = "../nova_gameplay" }
-# The run-timeline recorder observes the scenario's GameEvent stream (bcs
-# re-exported through nova_gameplay) and snapshot-diffs NovaEventWorld's
-# variables; nova_events carries the typed event vocabulary in its docs.
+# The run-timeline recorder observes the scenario's GameEvent stream, named
+# directly out of the engine that owns it rather than re-exported through
+# nova_gameplay - the same probe -> dependency direction as nova_autopilot.
+nova_events = { path = "../nova_events" }
+# ... and snapshot-diffs NovaEventWorld's variables.
 nova_scenario = { path = "../nova_scenario" }
 # Timeline entries carry the events' serde_json payloads (GameEventInfo::data),
 # so the JSONL sink serializes with serde_json rather than hand-rolling.

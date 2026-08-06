@@ -15,7 +15,7 @@ Design (see tasks/20260717-220919/SPIKE.md, option A2 + B1):
 
 - Grid clipping is a true partition: total fragment area equals the original,
   so placing every cube back at its grid position reproduces the ship exactly.
-  The split mirrors bevy-common-systems `src/mesh/builder.rs` `triangle_slice`.
+  The split mirrors `crates/nova_gameplay/src/mesh/slice.rs` `triangle_slice`.
 - A hand-rolled glTF 2.0 binary writer, standard library only (no trimesh, no
   Blender), matching the repo's stdlib-only asset-script convention.
 """
@@ -231,7 +231,7 @@ def cell_of(point, cell):
 
 # --- Grid slicing (clip triangles at cube boundaries so each fragment is
 # strictly inside one cube - the "cut the floor tile to fit" model). The split
-# mirrors bevy-common-systems' `triangle_slice` (src/mesh/builder.rs): classify
+# mirrors `triangle_slice` (crates/nova_gameplay/src/mesh/slice.rs): classify
 # each vertex by the signed distance to the plane, then, when the triangle
 # straddles it, cut off the lonely vertex into one fragment and the opposite
 # edge into two, preserving winding so normals stay outward. We do not cap the

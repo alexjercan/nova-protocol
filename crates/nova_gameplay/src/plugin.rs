@@ -2,9 +2,8 @@
 //! subsystem plugin (input, sections, hud, camera, integrity, damage, flight,
 //! gravity, relations, audio, juice, settings) plus the third-party plugins
 //! they depend on (avian3d physics with [`ProjectileHooks`] collision hooks,
-//! `bevy_hanabi` particles, `bevy_rand` entropy, and what is left of the
-//! `bevy_common_systems` engine layer; health, integrity, the camera rigs and
-//! the PD controller are nova's own). It also pins the top-level [`SpaceshipSystems`] set ordering that
+//! `bevy_hanabi` particles, and `bevy_rand` entropy). Every gameplay layer it
+//! composes is nova's own. It also pins the top-level [`SpaceshipSystems`] set ordering that
 //! the per-subsystem sets chain inside.
 //!
 //! The one dependency it does NOT add itself is
@@ -45,8 +44,8 @@ pub struct NovaGameplayPlugin {
 impl Plugin for NovaGameplayPlugin {
     fn build(&self, app: &mut App) {
         // Fail fast on the one external dependency this plugin does NOT add itself.
-        // NovaGameplayPlugin brings its own physics, particles, rng and
-        // bevy_common_systems plugins, but the spaceship input system is built on
+        // NovaGameplayPlugin brings its own physics, particles and rng
+        // plugins, but the spaceship input system is built on
         // bevy_enhanced_input, which the host app must add first (AppBuilder does). If it
         // is missing, panic here at startup with a clear message rather than failing
         // obscurely later when input contexts are registered.

@@ -220,7 +220,7 @@ When adding a substantial feature, add or extend the example that drives it.
 (Consolidated over time: 01_scene/03_scenario merged into scenario;
 02_thruster_shader into thruster_section; 05_directional into
 hud_range; 10_gameplay into hull_section + playable; 07b_slicer's
-subject lives in bevy-common-systems; 04_asteroids' slider tuning tool was
+subject is the mesh toolkit's own tests; 04_asteroids' slider tuning tool was
 dropped.)
 
 Every example except `scene_baseline` is HARNESSED: it

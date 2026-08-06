@@ -14,7 +14,7 @@
 //!   filters).
 //! * `dispatch/*` - the whole `GameEventsPlugin` loop for one `OnUpdate` frame
 //!   against N handlers, most of them for *other* event names (so the linear
-//!   O(all handlers) name scan in `bevy-common-systems` is exercised).
+//!   O(all handlers) name scan in `nova_events::engine` is exercised).
 //!
 //! Run with `cargo bench -p nova_scenario`; HTML lands in `target/criterion/`.
 //! To profile: `samply record -- cargo bench -p nova_scenario --bench

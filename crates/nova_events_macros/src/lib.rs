@@ -1,8 +1,8 @@
 //! Procedural macros for the Nova Protocol event engine.
 //!
 //! Nova owns this crate because it owns the event engine it serves
-//! (`nova_events::engine`); it was vendored out of `bevy_common_systems_macros`
-//! so the engine and its derive live in one workspace. `nova_events` is its
+//! (`nova_events::engine`); both were vendored into this workspace by task
+//! 20260806-180450 so the engine and its derive live together. `nova_events` is its
 //! only consumer - the derive expands to `impl EventKind for #name`, so the
 //! trait must be in scope at the derive site, and `nova_events::prelude`
 //! re-exports the two together.

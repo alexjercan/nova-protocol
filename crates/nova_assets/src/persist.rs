@@ -13,8 +13,9 @@
 //! debounces a slider drag into one write and snapshots four resources into one
 //! blob, the mod set sorts a `HashSet` for a diff-friendly file - so a
 //! load-on-build / save-on-`resource_changed` plugin would have to be bypassed
-//! by both. Modelled on `bevy_common_systems::persist`, which owns that plugin
-//! shape for the case where the resource IS the stored value.
+//! by both. Modelled as the deliberate counterpart to the load-on-build /
+//! save-on-`resource_changed` plugin shape, which fits the case where the
+//! resource IS the stored value and neither caller here is.
 //!
 //! Hand-rolled rather than taken from a persistence crate for the same reason
 //! the two stores it replaces were: Bevy 0.19 is bleeding-edge, and this is a
