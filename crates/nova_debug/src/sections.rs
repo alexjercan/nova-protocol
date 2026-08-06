@@ -113,7 +113,7 @@ fn draw_torpedo_spawner(
         let origin = transform.translation();
         let dir = transform.forward() * 2.0;
 
-        let color = if input.is_finished() {
+        let color = if input.ready() {
             tailwind::GREEN_500
         } else {
             tailwind::YELLOW_500

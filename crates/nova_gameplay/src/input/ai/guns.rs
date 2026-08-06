@@ -74,7 +74,7 @@ pub(super) fn update_turret_target_input(
 #[reflect(Component)]
 pub struct AIFireCadence {
     /// Time left in the current phase.
-    timer: Timer,
+    timer: Cooldown,
     /// Whether the current phase is a fire window (else a hold).
     pub(crate) firing: bool,
 }
@@ -84,7 +84,7 @@ impl Default for AIFireCadence {
         // Starts in a fire window so an AI ship dropped into a fight shoots
         // immediately, matching pre-cadence behavior at spawn.
         Self {
-            timer: Timer::from_seconds(AI_BURST_FIRE_SECS, TimerMode::Once),
+            timer: Cooldown::started(AI_BURST_FIRE_SECS),
             firing: true,
         }
     }
@@ -92,16 +92,18 @@ impl Default for AIFireCadence {
 
 impl AIFireCadence {
     /// Advance the cycle, flipping between fire and hold phases.
-    pub(crate) fn tick(&mut self, delta: core::time::Duration) {
+    pub(crate) fn tick(&mut self, delta: f32) {
         self.timer.tick(delta);
-        if self.timer.is_finished() {
+        if self.timer.ready() {
             self.firing = !self.firing;
             let phase = if self.firing {
                 AI_BURST_FIRE_SECS
             } else {
                 AI_BURST_HOLD_SECS
             };
-            self.timer = Timer::from_seconds(phase, TimerMode::Once);
+            // trigger_for, not trigger: the two phases have different lengths,
+            // so the wait is set per phase rather than from one duration.
+            self.timer.trigger_for(phase);
         }
     }
 }
@@ -114,7 +116,7 @@ pub(super) fn update_fire_cadence(
     mut q_spaceship: Query<&mut AIFireCadence, With<AISpaceshipMarker>>,
 ) {
     for mut cadence in &mut q_spaceship {
-        cadence.tick(time.delta());
+        cadence.tick(time.delta_secs());
     }
 }
 
@@ -388,15 +390,11 @@ mod fire_discipline_tests {
         assert!(cadence.firing, "spawns in a fire window");
 
         // Tick past the fire window: the hold begins.
-        cadence.tick(core::time::Duration::from_secs_f32(
-            AI_BURST_FIRE_SECS + 0.01,
-        ));
+        cadence.tick(AI_BURST_FIRE_SECS + 0.01);
         assert!(!cadence.firing, "fire window over: hold");
 
         // Tick past the hold: firing resumes.
-        cadence.tick(core::time::Duration::from_secs_f32(
-            AI_BURST_HOLD_SECS + 0.01,
-        ));
+        cadence.tick(AI_BURST_HOLD_SECS + 0.01);
         assert!(cadence.firing, "hold over: next burst");
     }
 
@@ -411,9 +409,7 @@ mod fire_discipline_tests {
             .unwrap();
         let mut cadence = world.entity_mut(ship);
         let mut cadence = cadence.get_mut::<AIFireCadence>().unwrap();
-        cadence.tick(core::time::Duration::from_secs_f32(
-            AI_BURST_FIRE_SECS + 0.01,
-        ));
+        cadence.tick(AI_BURST_FIRE_SECS + 0.01);
         assert!(!cadence.firing);
 
         world.run_system_once(on_projectile_input).unwrap();

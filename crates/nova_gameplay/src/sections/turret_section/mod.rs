@@ -150,6 +150,13 @@ pub struct TurretSectionConfigHelper(pub TurretSectionConfig);
 /// Per-barrel-muzzle fire cooldown timer, snapshotted from the turret's fire
 /// rate when the turret is built. The muzzle system ticks it down and resets
 /// it on each shot, gating the barrel's cadence.
+///
+/// A `Timer` and NOT a `Cooldown` (which the torpedo bay's equivalent uses):
+/// the muzzle needs two things `Cooldown` does not have. It reads `elapsed`
+/// BEFORE the tick to recover how far past due a shot came within the tick
+/// window - that is what makes the bullet stream uniformly spaced at any ship
+/// velocity - and `apply_turret_config` calls `set_duration` to retune the fire
+/// rate live from the turret range example's sliders.
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct TurretSectionBarrelFireState(pub Timer);
 

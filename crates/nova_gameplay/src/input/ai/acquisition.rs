@@ -932,9 +932,7 @@ mod point_defense_tests {
         {
             let mut entity = world.entity_mut(ai_ship);
             let mut cadence = entity.get_mut::<AIFireCadence>().unwrap();
-            cadence.tick(core::time::Duration::from_secs_f32(
-                AI_BURST_FIRE_SECS + 0.01,
-            ));
+            cadence.tick(AI_BURST_FIRE_SECS + 0.01);
             assert!(!cadence.firing);
         }
 

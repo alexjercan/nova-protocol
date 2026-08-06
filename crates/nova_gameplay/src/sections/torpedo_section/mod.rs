@@ -261,11 +261,15 @@ pub struct TorpedoBlastEffectMarker;
 #[derive(Component, Clone, Debug, Deref, Reflect)]
 pub struct TorpedoSectionConfigHelper(TorpedoSectionConfig);
 
-/// The bay's launch cooldown timer, carried on the spawner and seeded from the
-/// config fire rate (`1/fire_rate` seconds, starting finished). The fire
-/// system ticks it and resets it on each launch to gate the bay's cadence.
+/// The bay's launch cooldown, carried on the spawner and seeded from the config
+/// fire rate (`1/fire_rate` seconds). The fire system ticks it and triggers it
+/// on each launch to gate the bay's cadence.
+///
+/// A [`Cooldown`], not a `Timer`: a fresh bay must be READY to launch, which is
+/// a `Once` timer's exact opposite and used to need a `finish()` at every
+/// construction site.
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-pub struct TorpedoSectionSpawnerFireState(pub Timer);
+pub struct TorpedoSectionSpawnerFireState(pub Cooldown);
 
 /// Back-pointer from a bay's spawned entities (spawner, body, projectile,
 /// blast) to the torpedo SECTION they belong to. Pub so the AI input side

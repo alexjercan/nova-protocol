@@ -704,7 +704,7 @@ mod tests {
             },
         );
         let grace = world.entity(graced).get::<AIEngageGrace>().unwrap();
-        assert!((grace.timer.duration().as_secs_f32() - 5.0).abs() < f32::EPSILON);
+        assert!((grace.timer.duration() - 5.0).abs() < f32::EPSILON);
 
         let zero = spawn(
             &mut world,

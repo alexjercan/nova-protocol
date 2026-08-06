@@ -58,8 +58,8 @@ pub(super) const AI_THREAT_ATTACKER_DISCOUNT: f32 = 0.5;
 #[derive(Component, Debug, Clone, Reflect)]
 #[reflect(Component)]
 pub struct AIThreat {
-    /// Time left in the recent-damage memory; finished = not under fire.
-    pub(crate) damage_memory: Timer,
+    /// Time left in the recent-damage memory; ready = not under fire.
+    pub(crate) damage_memory: Cooldown,
     /// The ship root behind the remembered damage (a hit's source resolved
     /// through [`ProjectileOwner`]). May be despawned by read time; the
     /// picker simply no longer finds it, while the memory still evades.
@@ -68,11 +68,9 @@ pub struct AIThreat {
 
 impl Default for AIThreat {
     fn default() -> Self {
-        // Starts expired: a freshly spawned ship has not been shot yet.
-        let mut damage_memory = Timer::from_seconds(AI_THREAT_DAMAGE_MEMORY_SECS, TimerMode::Once);
-        damage_memory.tick(damage_memory.duration());
         Self {
-            damage_memory,
+            // A fresh Cooldown is ready: a freshly spawned ship has not been shot yet.
+            damage_memory: Cooldown::new(AI_THREAT_DAMAGE_MEMORY_SECS),
             attacker: None,
         }
     }
@@ -83,13 +81,13 @@ impl AIThreat {
     /// attacker. An unattributed hit (no resolvable owner) keeps the
     /// previous attacker - the shooter most likely has not changed.
     pub(crate) fn record(&mut self, attacker: Option<Entity>) {
-        self.damage_memory.reset();
+        self.damage_memory.trigger();
         self.attacker = attacker.or(self.attacker);
     }
 
     /// Whether a hostile hit landed within the memory window.
     pub(crate) fn recently_damaged(&self) -> bool {
-        !self.damage_memory.is_finished()
+        !self.damage_memory.ready()
     }
 
     /// The remembered attacker, while the memory window is open.
@@ -106,12 +104,12 @@ impl AIThreat {
 #[derive(Component, Debug, Clone, Reflect)]
 #[reflect(Component)]
 pub struct AIEvade {
-    /// Time left in the current evade cycle. Reset on entering Evade;
+    /// Time left in the current evade cycle. Triggered on entering Evade;
     /// ticks only while evading; expiry decays the state back to Engage.
-    pub(crate) duration: Timer,
-    /// Refractory period after an evade cycle. Reset on leaving Evade;
-    /// starts elapsed so a fresh ship's first threat evades immediately.
-    pub(crate) cooldown: Timer,
+    pub(crate) duration: Cooldown,
+    /// Refractory period after an evade cycle. Triggered on leaving Evade;
+    /// starts ready so a fresh ship's first threat evades immediately.
+    pub(crate) cooldown: Cooldown,
     /// Cadence of the jink pattern: each completion turns onto the next leg.
     pub(crate) jink: Timer,
     /// The jink pattern leg currently being flown (see
@@ -121,11 +119,12 @@ pub struct AIEvade {
 
 impl Default for AIEvade {
     fn default() -> Self {
-        let mut cooldown = Timer::from_seconds(AI_EVADE_COOLDOWN_SECS, TimerMode::Once);
-        cooldown.tick(cooldown.duration());
         Self {
-            duration: Timer::from_seconds(AI_EVADE_SECS, TimerMode::Once),
-            cooldown,
+            duration: Cooldown::started(AI_EVADE_SECS),
+            // A fresh Cooldown is ready, so the first threat evades immediately.
+            cooldown: Cooldown::new(AI_EVADE_COOLDOWN_SECS),
+            // Repeating, and therefore NOT a Cooldown: the jink cadence rolls
+            // over on its own to turn onto the next leg.
             jink: Timer::from_seconds(AI_JINK_INTERVAL_SECS, TimerMode::Repeating),
             leg: 0,
         }
@@ -346,9 +345,7 @@ mod threat_tests {
 
         threat
             .damage_memory
-            .tick(core::time::Duration::from_secs_f32(
-                AI_THREAT_DAMAGE_MEMORY_SECS + 0.01,
-            ));
+            .tick(AI_THREAT_DAMAGE_MEMORY_SECS + 0.01);
         assert_eq!(threat.recent_attacker(), None, "the window closed");
     }
 }

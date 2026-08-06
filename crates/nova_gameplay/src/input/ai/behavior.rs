@@ -289,25 +289,23 @@ pub(super) fn update_behavior_state(
         mut grace,
     ) in &mut q_spaceship
     {
-        threat.damage_memory.tick(time.delta());
+        threat.damage_memory.tick(time.delta_secs());
         let grace_held = match grace.as_deref_mut() {
             Some(grace) => {
-                grace.timer.tick(time.delta());
-                if threat.recently_damaged() && !grace.timer.is_finished() {
-                    // Shot during the entrance: the courtesy is over for good
-                    // (a finished timer never holds again). Tick to the end
-                    // rather than set_elapsed - only tick updates the
-                    // finished flag (Bevy Timer semantics).
-                    let remaining = grace.timer.remaining();
-                    grace.timer.tick(remaining);
+                grace.timer.tick(time.delta_secs());
+                if threat.recently_damaged() && !grace.timer.ready() {
+                    // Shot during the entrance: the courtesy is over for good.
+                    // Burn the whole window now, so a ready cooldown can never
+                    // hold again.
+                    grace.timer.trigger_for(0.0);
                 }
-                !grace.timer.is_finished()
+                !grace.timer.ready()
             }
             None => false,
         };
-        evade.cooldown.tick(time.delta());
+        evade.cooldown.tick(time.delta_secs());
         if *state == AIBehaviorState::Evade {
-            evade.duration.tick(time.delta());
+            evade.duration.tick(time.delta_secs());
             if evade.jink.tick(time.delta()).just_finished() {
                 evade.leg = evade.leg.wrapping_add(1);
             }
@@ -337,8 +335,8 @@ pub(super) fn update_behavior_state(
         let signals = ThreatSignals {
             recently_damaged: threat.recently_damaged(),
             aimed_at,
-            evade_ready: evade.cooldown.is_finished(),
-            evade_expired: evade.duration.is_finished(),
+            evade_ready: evade.cooldown.ready(),
+            evade_expired: evade.duration.ready(),
         };
 
         let beyond_leash = leash
@@ -358,11 +356,11 @@ pub(super) fn update_behavior_state(
             // on entry, the refractory cooldown on ANY exit (expiry, target
             // loss, a future retreat).
             if next == AIBehaviorState::Evade {
-                evade.duration.reset();
+                evade.duration.trigger();
                 evade.jink.reset();
             }
             if *state == AIBehaviorState::Evade {
-                evade.cooldown.reset();
+                evade.cooldown.trigger();
             }
             *state = next;
         }
@@ -971,8 +969,8 @@ mod engage_grace_tests {
                 .get::<AIEngageGrace>()
                 .unwrap()
                 .timer
-                .is_finished(),
-            "the grace is pinned finished - it can never re-hold"
+                .ready(),
+            "the grace is pinned ready - it can never re-hold"
         );
     }
 

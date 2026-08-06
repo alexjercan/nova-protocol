@@ -60,15 +60,16 @@ pub mod prelude {
 #[derive(Component, Debug, Clone, Reflect)]
 #[reflect(Component)]
 pub struct AIEngageGrace {
-    /// Time left before the ship may engage.
-    pub timer: Timer,
+    /// Time left before the ship may engage. Starts counting down: the grace
+    /// is running from the moment the ship arrives.
+    pub timer: Cooldown,
 }
 
 impl AIEngageGrace {
     /// Builds an arrival grace with `seconds` before the ship may engage.
     pub fn new(seconds: f32) -> Self {
         Self {
-            timer: Timer::from_seconds(seconds, TimerMode::Once),
+            timer: Cooldown::started(seconds),
         }
     }
 }

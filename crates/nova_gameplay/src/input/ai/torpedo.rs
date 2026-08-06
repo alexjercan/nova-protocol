@@ -41,16 +41,16 @@ const AI_TORPEDO_ALIGNMENT_COS: f32 = 0.5;
 #[derive(Component, Debug, Clone, Reflect)]
 #[reflect(Component)]
 pub struct AITorpedoBay {
-    /// Time until this bay may launch again. Starts elapsed: the first
-    /// launch of a fight comes as soon as the envelope opens.
-    cooldown: Timer,
+    /// Time until this bay may launch again. A fresh [`Cooldown`] is READY, so
+    /// the first launch of a fight comes as soon as the envelope opens.
+    cooldown: Cooldown,
 }
 
 impl Default for AITorpedoBay {
     fn default() -> Self {
-        let mut cooldown = Timer::from_seconds(AI_TORPEDO_COOLDOWN_SECS, TimerMode::Once);
-        cooldown.tick(cooldown.duration());
-        Self { cooldown }
+        Self {
+            cooldown: Cooldown::new(AI_TORPEDO_COOLDOWN_SECS),
+        }
     }
 }
 
@@ -155,9 +155,9 @@ pub(super) fn update_torpedo_section_input(
             // The cadence elapses unconditionally - maneuvering outside
             // the envelope between launches is part of the cadence, not a
             // pause of it.
-            bay.cooldown.tick(time.delta());
+            bay.cooldown.tick(time.delta_secs());
             let launch = engaged
-                && bay.cooldown.is_finished()
+                && bay.cooldown.ready()
                 && target_anchor.is_some_and(|anchor| {
                     ai_torpedo_envelope(
                         anchor - own_anchor,
@@ -221,7 +221,7 @@ pub(super) fn update_torpedo_target_input(
             torpedo_commands.insert(TorpedoTargetEntity(target_entity));
         }
         if let Ok(mut bay) = q_bay.get_mut(**part_of) {
-            bay.cooldown.reset();
+            bay.cooldown.trigger();
         }
     }
 }
@@ -404,7 +404,7 @@ mod torpedo_tests {
             .get_mut::<AITorpedoBay>()
             .unwrap()
             .cooldown
-            .reset();
+            .trigger();
 
         world.run_system_once(update_torpedo_section_input).unwrap();
         assert!(
@@ -445,7 +445,7 @@ mod torpedo_tests {
                 .get::<AITorpedoBay>()
                 .unwrap()
                 .cooldown
-                .is_finished(),
+                .ready(),
             "an actual launch burns the bay's cadence"
         );
     }

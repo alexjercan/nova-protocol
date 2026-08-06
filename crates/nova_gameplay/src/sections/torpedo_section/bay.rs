@@ -61,15 +61,13 @@ pub(super) fn insert_torpedo_section(
     };
 
     let interval = 1.0 / config.fire_rate;
-    let mut timer = Timer::from_seconds(interval, TimerMode::Once);
-    timer.finish();
 
     let spawner = commands
         .spawn((
             Name::new("Torpedo Section Spawner"),
             TorpedoSectionSpawnerMarker,
             TorpedoSectionPartOf(entity),
-            TorpedoSectionSpawnerFireState(timer),
+            TorpedoSectionSpawnerFireState(Cooldown::new(interval)),
             TorpedoSectionSpawnerEffect(config.launch_effect.clone()),
             TorpedoSectionLaunchSound(config.launch_sound.clone()),
             Transform::from_translation(config.spawn_offset).with_rotation(config.spawn_rotation),
@@ -117,7 +115,7 @@ pub(super) fn update_spawner_fire_state(
     time: Res<Time>,
 ) {
     for mut fire_state in &mut q_spawner {
-        fire_state.tick(time.delta());
+        fire_state.tick(time.delta_secs());
     }
 }
 
@@ -183,7 +181,7 @@ pub(super) fn shoot_spawn_projectile(
             continue;
         };
 
-        if !fire_state.is_finished() {
+        if !fire_state.ready() {
             continue;
         }
 
@@ -383,8 +381,8 @@ pub(super) fn shoot_spawn_projectile(
             ammo.try_consume();
         }
 
-        // Reset the fire state timer
-        fire_state.reset();
+        // Start the next launch wait.
+        fire_state.trigger();
     }
 }
 
@@ -427,8 +425,6 @@ mod tests {
             ..TorpedoSectionConfig::default()
         };
         let interval = 1.0 / config.fire_rate;
-        let mut timer = Timer::from_seconds(interval, TimerMode::Once);
-        timer.finish();
 
         let world = app.world_mut();
         let ship = world
@@ -453,7 +449,7 @@ mod tests {
         let spawner = world
             .spawn((
                 TorpedoSectionSpawnerMarker,
-                TorpedoSectionSpawnerFireState(timer),
+                TorpedoSectionSpawnerFireState(Cooldown::new(interval)),
                 Transform::default(),
                 ChildOf(section),
             ))
@@ -743,12 +739,8 @@ mod tests {
                 TorpedoSectionSpawnerMarker,
                 ChildOf(section),
                 Transform::default(),
-                {
-                    // Pre-expired so the very first run fires.
-                    let mut timer = Timer::from_seconds(0.1, TimerMode::Once);
-                    timer.tick(std::time::Duration::from_secs(1));
-                    TorpedoSectionSpawnerFireState(timer)
-                },
+                // A fresh Cooldown is ready, so the very first run fires.
+                TorpedoSectionSpawnerFireState(Cooldown::new(0.1)),
             ))
             .id();
         world
