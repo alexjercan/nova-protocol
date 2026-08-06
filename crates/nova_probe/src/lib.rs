@@ -84,6 +84,10 @@ pub mod aggregate;
 pub mod capture;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod catalog;
+// What an example CLAIMS, declared by the plugins it wires. Both targets: the
+// frame-time capture builds for wasm and declares like the rest (only the
+// filesystem write is native-only).
+pub mod contract;
 pub mod profile;
 // The child-run profile sandbox is host tooling: it builds the environment
 // probe spawns native runs with, so it is native-only like the runner.
@@ -152,6 +156,7 @@ pub use catalog::{
     categories, category_policy, load_example_catalog, parse_example_catalog, CatalogExample,
     CategoryPolicy, CATEGORY_POLICIES,
 };
+pub use contract::{Capability, ProbeContract};
 #[cfg(not(target_arch = "wasm32"))]
 pub use invariants::{nova_invariants, InvariantState, InvariantsPlugin};
 pub use profile::{aggregate_system_costs, render_top_table, SystemCost};
