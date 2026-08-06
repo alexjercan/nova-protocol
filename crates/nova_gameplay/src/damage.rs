@@ -1,22 +1,25 @@
 //! Nova's typed-damage layer: authored weapon damage scaled by a per-section
 //! resistance table, applied by OWNING the `HealthApplyDamage` trigger.
 //!
-//! bevy_common_systems (bcs) owns the generic HP + integrity store: its single
-//! `on_damage` observer subtracts `HealthApplyDamage.amount`, marks the node at
-//! zero, and re-propagates up `ChildOf`. bcs carries NO damage type, and Bevy
-//! 0.19 gives no ordering between observers of one event - so a nova observer
-//! that tried to scale `amount` would race bcs's subtractor and lose half the
-//! time. Instead nova owns the trigger: it computes the
-//! already-resistance-scaled amount at the weapon-hit callsite and only THEN
-//! triggers `HealthApplyDamage`, so bcs just subtracts what nova decided. This
-//! module is the shared vocabulary the turret and torpedo callsites use:
-//! [`DamageType`], the [`ProjectileDamage`] a projectile carries, the
-//! [`SectionDamageClass`] a hit resolves to, the [`resistance`] table, and the
-//! one [`apply_typed_damage`] application helper.
+//! [`crate::integrity::health`] owns the HP store: one `on_damage` observer
+//! subtracts `HealthApplyDamage.amount`, marks the node at zero, and propagates
+//! up `ChildOf`. `HealthApplyDamage` carries no damage type, and Bevy 0.19 gives
+//! no ordering between two observers of one event - so an observer that tried to
+//! scale `amount` would race the subtractor and lose half the time. The trigger
+//! is owned instead: the already-resistance-scaled amount is computed at the
+//! hit callsite and only THEN triggered, so the store subtracts what this layer
+//! decided.
+//!
+//! This module is the shared vocabulary every hit goes through - the turret, the
+//! torpedo, a torpedo's blast, and a ram: [`DamageType`], the
+//! [`ProjectileDamage`] a projectile carries, the [`SectionDamageClass`] a hit
+//! resolves to, the [`resistance`] table, and the one [`apply_typed_damage`]
+//! application helper.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use bevy_common_systems::prelude::HealthApplyDamage;
+
+use crate::integrity::health::prelude::HealthApplyDamage;
 
 /// Glob-import surface: `use nova_gameplay::damage::prelude::*` re-exports the public API of this module.
 pub mod prelude {
@@ -190,25 +193,21 @@ pub fn apply_typed_damage(
 /// Used to AUTHOR the turret's fixed Kinetic `amount` so the typed system
 /// preserves the old feel at a representative engagement speed (the design
 /// deliberately trades velocity-dependent damage for a fixed authored amount).
-/// Mirrors bcs integrity/plugin.rs:143-150 (RESTITUTION 0.5, IMPULSE_MOD 0.1,
-/// ENERGY_MOD 0.05); nova must not modify bcs, so the constants are duplicated
-/// here with this citation.
+///
+/// It IS the ram formula - [`impact_damage`](crate::integrity::core::impact_damage),
+/// which nova owns - so the two can no longer drift. It used to be a hand copy
+/// of the same constants out of a third-party crate, carrying an apology for
+/// duplicating them.
 pub fn representative_kinetic_damage(mass: f32, speed: f32) -> f32 {
-    const RESTITUTION: f32 = 0.5;
-    const IMPULSE_MOD: f32 = 0.1;
-    const ENERGY_MOD: f32 = 0.05;
-    let impulse = mass * (1.0 + RESTITUTION) * speed;
-    let energy = 0.5 * mass * (1.0 - RESTITUTION * RESTITUTION) * speed * speed;
-    impulse * IMPULSE_MOD + energy * ENERGY_MOD
+    crate::integrity::core::impact_damage(mass, speed)
 }
 
-/// A nova-owned radial blast volume, the typed replacement for bcs's
-/// `blast_damage`.
+/// A radial blast volume: a static sensor sphere that damages everything it
+/// overlaps, falling off linearly to zero at `radius`.
 ///
-/// bcs's blast observer applies its blast UNTYPED; a torpedo wants Explosive
-/// typing, so nova spawns THIS instead and applies the falloff through the typed
-/// path. It carries NO bcs `BlastDamageMarker`, so bcs's blast observer stays
-/// dormant for it and the damage is never double-counted.
+/// Typed, so a torpedo's Explosive blast meets the same per-section resistance
+/// table a slug does. Pair it with a short `TempEntity` so the volume cleans
+/// itself up after the frame it fires.
 #[derive(Component, Clone, Copy, Debug, Reflect)]
 pub struct NovaBlast {
     /// Bodies beyond this take no damage.
@@ -240,8 +239,7 @@ pub fn nova_blast(radius: f32, max_damage: f32, kind: DamageType) -> impl Bundle
     )
 }
 
-/// Linear falloff to zero at `radius`, mirroring bcs `calculate_blast_damage`
-/// (integrity/plugin.rs:229).
+/// Linear falloff to zero at `radius`.
 fn blast_falloff(distance: f32, radius: f32, max_damage: f32) -> f32 {
     if distance >= radius {
         0.0
@@ -252,13 +250,13 @@ fn blast_falloff(distance: f32, radius: f32, max_damage: f32) -> f32 {
 
 /// Apply nova typed blast damage to every body a [`NovaBlast`] sensor overlaps.
 ///
-/// Mirrors bcs `on_blast_collision_deal_damage`: the blast is the `body1`/self
-/// side (it carries the events), and the swapped `{body1 = target}` ordering is
-/// ignored because `q_blast.get(blast)` fails on the target side - so each
-/// overlap deals damage exactly once. Unlike bcs it scales by [`resistance`] and
-/// triggers the TYPED damage. `source` is the blast collider, matching bcs, so
-/// the AI threat model still resolves it to the shooter via the blast entity's
-/// `ProjectileOwner`.
+/// The blast is the `body1`/self side of the event - it owns the collision
+/// events (see [`nova_blast`]), so avian raises `CollisionStart` against every
+/// collider it overlaps regardless of the target's own configuration. The
+/// swapped `{body1 = target}` ordering is ignored because `q_blast.get(blast)`
+/// fails on the target side, so each overlap deals damage exactly once and never
+/// double-dips. `source` is the blast collider, so the AI threat model resolves
+/// it to the shooter through the blast entity's `ProjectileOwner`.
 fn on_nova_blast_collision(
     collision: On<CollisionStart>,
     mut commands: Commands,
@@ -326,10 +324,12 @@ impl Plugin for NovaDamagePlugin {
 
 #[cfg(test)]
 mod tests {
-    use bevy_common_systems::prelude::Health;
 
     use super::*;
-    use crate::integrity::test_support::{integrity_physics_app, settle};
+    use crate::integrity::{
+        health::prelude::Health,
+        test_support::{integrity_physics_app, settle},
+    };
 
     fn health(app: &App, entity: Entity) -> f32 {
         app.world().get::<Health>(entity).unwrap().current

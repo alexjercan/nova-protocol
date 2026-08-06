@@ -10,7 +10,6 @@ use core::time::Duration;
 
 use avian3d::prelude::*;
 use bevy::{prelude::*, time::TimeUpdateStrategy};
-use bevy_common_systems::prelude::*;
 
 use super::NovaIntegrityPlugin;
 
@@ -47,7 +46,8 @@ pub(crate) fn unfinished_integrity_physics_app_with(physics: impl PluginGroup) -
         bevy::mesh::MeshPlugin,
     ));
     app.add_plugins(physics);
-    app.add_plugins((HealthPlugin, NovaIntegrityPlugin));
+    // NovaIntegrityPlugin brings the health store with it.
+    app.add_plugins(NovaIntegrityPlugin);
     app.insert_resource(Gravity(Vec3::ZERO));
     app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
         1.0 / 60.0,

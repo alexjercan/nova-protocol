@@ -579,7 +579,7 @@ mod tests {
         // and assert the torpedo dies QUIETLY - no blast_damage entity.
         // Defeating the warhead is the point of shooting it down.
         let mut app = App::new();
-        app.add_plugins(HealthPlugin);
+        app.add_plugins(crate::integrity::health::NovaHealthPlugin);
         app.add_observer(on_torpedo_body_destroyed);
         app.add_systems(Update, despawn_shot_down_torpedoes);
         let root = app

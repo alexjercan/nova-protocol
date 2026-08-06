@@ -1,6 +1,6 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use bevy_common_systems::prelude::*;
+use bevy_common_systems::prelude::{CommandsGameEventExt, TriangleMeshBuilder};
 use bevy_rand::prelude::*;
 use noise::{Fbm, MultiFractal, NoiseFn, Perlin};
 use nova_events::prelude::*;
@@ -907,19 +907,16 @@ mod tests {
 
         let spawn = |app: &mut App, invulnerable: bool| -> Entity {
             app.world_mut()
-                .spawn((
-                    RigidBody::Dynamic,
-                    asteroid_scenario_object(AsteroidConfig {
-                        impact_sound: None,
-                        destroy_sound: None,
-                        radius: 20.0,
-                        texture: AssetRef::default(),
-                        health: 2000.0,
-                        mass: Some(45_000.0),
-                        invulnerable,
-                        lock_signature: None,
-                    }),
-                ))
+                .spawn(asteroid_scenario_object(AsteroidConfig {
+                    impact_sound: None,
+                    destroy_sound: None,
+                    radius: 20.0,
+                    texture: AssetRef::default(),
+                    health: 2000.0,
+                    mass: Some(45_000.0),
+                    invulnerable,
+                    lock_signature: None,
+                }))
                 .id()
         };
         let tough = spawn(&mut app, true);
@@ -953,19 +950,16 @@ mod tests {
     /// tests that run the real collider derivation.
     fn spawn_asteroid_underived(app: &mut App, radius: f32, mass: Option<f32>) -> Entity {
         app.world_mut()
-            .spawn((
-                RigidBody::Dynamic,
-                asteroid_scenario_object(AsteroidConfig {
-                    impact_sound: None,
-                    destroy_sound: None,
-                    radius,
-                    texture: AssetRef::default(),
-                    health: 100.0,
-                    mass,
-                    invulnerable: false,
-                    lock_signature: None,
-                }),
-            ))
+            .spawn(asteroid_scenario_object(AsteroidConfig {
+                impact_sound: None,
+                destroy_sound: None,
+                radius,
+                texture: AssetRef::default(),
+                health: 100.0,
+                mass,
+                invulnerable: false,
+                lock_signature: None,
+            }))
             .id()
     }
 
@@ -984,7 +978,6 @@ mod tests {
     fn spawn_asteroid(app: &mut App, radius: f32, mass: Option<f32>) -> Entity {
         app.world_mut()
             .spawn((
-                RigidBody::Dynamic,
                 asteroid_scenario_object(AsteroidConfig {
                     impact_sound: None,
                     destroy_sound: None,

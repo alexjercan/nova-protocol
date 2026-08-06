@@ -462,13 +462,16 @@ mod tests {
         );
     }
 
-    /// The behavior the component buys: a moving scenario body's Transform
+    /// The behaviour the physics pair buys: a moving scenario body's Transform
     /// advances on EVERY render frame, not just on fixed physics ticks. 4 ms
     /// frames against the 15.6 ms tick mean at most one tick lands inside any
     /// 3-frame span - without easing at least two consecutive frames would show
     /// identical translations.
+    ///
+    /// Spawned as an ASTEROID, not as the bare base bundle: the body and the
+    /// interpolation are a per-kind decision now, and the base carries neither.
     #[test]
-    fn scenario_bodies_move_between_fixed_ticks() {
+    fn dynamic_scenario_bodies_move_between_fixed_ticks() {
         use core::time::Duration;
 
         use bevy::time::TimeUpdateStrategy;
@@ -497,6 +500,16 @@ mod tests {
                     name: "Mover".to_string(),
                     position: Vec3::ZERO,
                     rotation: Quat::IDENTITY,
+                }),
+                asteroid_scenario_object(AsteroidConfig {
+                    impact_sound: None,
+                    destroy_sound: None,
+                    radius: 1.0,
+                    texture: AssetRef::default(),
+                    health: 100.0,
+                    mass: None,
+                    invulnerable: false,
+                    lock_signature: None,
                 }),
                 Collider::cuboid(1.0, 1.0, 1.0),
                 ColliderDensity(1.0),

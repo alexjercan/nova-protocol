@@ -40,9 +40,11 @@
 //! load, so reading the root's allegiance at capture time is safe.
 
 use bevy::prelude::*;
-use bevy_common_systems::prelude::Health;
 
-use crate::prelude::{Allegiance, SectionInactiveMarker, SectionMarker};
+use crate::{
+    integrity::health::prelude::Health,
+    prelude::{Allegiance, SectionInactiveMarker, SectionMarker},
+};
 
 /// Glob-import surface: `use nova_gameplay::sections::damage_tint::prelude::*` re-exports the public API of this module.
 pub mod prelude {

@@ -100,7 +100,6 @@ impl Plugin for NovaGameplayPlugin {
         app.add_plugins(bevy_common_systems::prelude::ExplodeMeshPlugin);
         // Core Mechanics
         app.add_plugins(bevy_common_systems::prelude::PDControllerPlugin);
-        app.add_plugins(bevy_common_systems::prelude::HealthPlugin);
 
         // UI Plugins
         app.add_plugins(bevy_common_systems::prelude::StatusBarPlugin);

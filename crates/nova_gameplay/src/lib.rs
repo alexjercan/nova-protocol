@@ -75,14 +75,13 @@ pub mod prelude {
     // example INERT (task 20260802-183403). Keep this list explicit: adding a
     // name here is a decision, and the twins are never on it.
     pub use bevy_common_systems::prelude::{
-        destructible_body, status_bar, status_bar_item, status_fps_color_fn, status_fps_value_fn,
+        status_bar, status_bar_item, status_fps_color_fn, status_fps_value_fn,
         status_version_color_fn, status_version_value_fn, CameraShake, CameraShakeInput,
         CameraShakePlugin, ChaseCamera, ChaseCameraInput, Cooldown, DirectionalSphereOrbitOutput,
-        GameObjectives, Health, HealthApplyDamage, HealthZeroMarker, IntegrityDestroyMarker,
-        Objective, ObjectivesPlugin, PDController, PDControllerInput, PDControllerPlugin,
-        PDControllerSystems, PDControllerTarget, PlaySfx, PointRotation, PointRotationOutput,
-        PostProcessingCamera, SfxCommandsExt, SfxPlugin, SkyboxConfig, SoundBank,
-        StatusBarItemConfig, StatusBarRootConfig, WASDCameraController,
+        GameObjectives, Objective, ObjectivesPlugin, PDController, PDControllerInput,
+        PDControllerPlugin, PDControllerSystems, PDControllerTarget, PlaySfx, PointRotation,
+        PointRotationOutput, PostProcessingCamera, SfxCommandsExt, SfxPlugin, SkyboxConfig,
+        SoundBank, StatusBarItemConfig, StatusBarRootConfig, WASDCameraController,
     };
 
     pub use super::{

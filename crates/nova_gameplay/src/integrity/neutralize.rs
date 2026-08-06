@@ -15,9 +15,10 @@
 //! [`glue`]: super::glue
 
 use bevy::prelude::*;
-use bevy_common_systems::prelude::*;
+use bevy_common_systems::prelude::CommandsGameEventExt;
 use nova_events::prelude::*;
 
+use super::core::prelude::*;
 use crate::prelude::{
     AINonCombatant, AISpaceshipMarker, SectionInactiveMarker, SpaceshipRootMarker,
     ThrusterSectionMarker, TorpedoSectionMarker, TurretSectionMarker,
@@ -154,9 +155,12 @@ fn detect_neutralized(
 
 #[cfg(test)]
 mod tests {
+    use bevy_common_systems::prelude::GameEvent;
+
     use super::*;
     use crate::{
-        integrity::test_support::unfinished_integrity_physics_app, prelude::SectionMarker,
+        integrity::{health::prelude::Health, test_support::unfinished_integrity_physics_app},
+        prelude::SectionMarker,
     };
 
     /// Counts every fired [`GameEvent`]. As in the ghost-ship rig, the ROOT is

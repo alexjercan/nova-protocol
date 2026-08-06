@@ -1,12 +1,12 @@
-//! Section-specific "glue" between the generic integrity core (in `bevy_common_systems`) and
+//! Section-specific "glue" between the generic integrity core ([`super::core`]) and
 //! the spaceship sections. These systems know about `SectionMarker` and the ship hierarchy;
 //! the integrity core itself only deals with generic nodes ([`ConnectedTo`]) and roots
 //! ([`IntegrityRoot`]). Keeping them here stops the core from depending on sections.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use bevy_common_systems::prelude::*;
 
+use super::{components::prelude::*, core::prelude::*, health::prelude::*};
 use crate::prelude::{SectionInactiveMarker, SectionMarker, SpaceshipRootMarker};
 
 pub(super) struct IntegrityGluePlugin;
@@ -605,6 +605,7 @@ mod physics_tests {
 /// pins (null-result-becomes-a-pin).
 #[cfg(test)]
 mod ghost_ship_tests {
+    use bevy_common_systems::prelude::GameEvent;
     use bevy_rand::prelude::*;
     use nova_events::prelude::{EntityId, EntityTypeName};
 

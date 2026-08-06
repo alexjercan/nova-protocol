@@ -80,11 +80,12 @@ impl CollisionHooks for ProjectileHooks<'_, '_> {
 /// intermediate collision events.
 #[cfg(test)]
 mod physics_tests {
-    use bevy_common_systems::prelude::*;
-
     use super::*;
     use crate::{
-        integrity::test_support::{settle, unfinished_integrity_physics_app_with},
+        integrity::{
+            health::prelude::*,
+            test_support::{settle, unfinished_integrity_physics_app_with},
+        },
         prelude::{SectionMarker, SpaceshipRootMarker},
     };
 

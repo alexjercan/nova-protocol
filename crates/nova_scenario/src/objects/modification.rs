@@ -15,8 +15,7 @@
 //! component + observer, no central match to grow.
 
 use bevy::{ecs::system::EntityCommands, platform::collections::HashSet, prelude::*};
-use bevy_common_systems::prelude::Health;
-use nova_gameplay::prelude::{FlightVerb, WithheldVerbs};
+use nova_gameplay::prelude::{FlightVerb, Health, WithheldVerbs};
 
 /// Glob-import surface: `use crate::objects::modification::prelude::*` re-exports the public API of this module.
 pub mod prelude {

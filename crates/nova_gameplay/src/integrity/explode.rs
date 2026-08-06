@@ -5,16 +5,19 @@
 //!
 //! Touch this module to change how wrecks come apart (fragment count, spread,
 //! lifetime). The health/disable/destroy bookkeeping lives in the sibling
-//! `glue` module and the generic [`bevy_common_systems`]
+//! `glue` module and the generic [`core`](super::core)
 //! integrity layer.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use bevy_common_systems::prelude::*;
+use bevy_common_systems::prelude::{
+    CommandsGameEventExt, ExplodeFragments, ExplodeMesh, TempEntity,
+};
 use bevy_rand::prelude::*;
 use nova_events::prelude::*;
 use rand::RngExt;
 
+use super::components::prelude::*;
 use crate::prelude::SectionMarker;
 
 /// Glob-import surface: `use nova_gameplay::integrity::explode::prelude::*` re-exports the public API of this module.

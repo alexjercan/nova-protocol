@@ -13,7 +13,7 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use bevy_common_systems::prelude::*;
+use bevy_common_systems::prelude::{rigid_body_point_velocity, TempEntity};
 use bevy_hanabi::prelude::*;
 use bevy_transform_interpolation::{RotationEasingState, TranslationEasingState};
 
