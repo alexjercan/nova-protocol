@@ -3,8 +3,8 @@
 //! gravity, relations, audio, juice, settings) plus the third-party plugins
 //! they depend on (avian3d physics with [`ProjectileHooks`] collision hooks,
 //! `bevy_hanabi` particles, `bevy_rand` entropy, and the
-//! [`bevy_common_systems`] camera/health/UI
-//! layer). It also pins the top-level [`SpaceshipSystems`] set ordering that
+//! [`bevy_common_systems`] camera/UI
+//! layer; health and integrity are nova's own). It also pins the top-level [`SpaceshipSystems`] set ordering that
 //! the per-subsystem sets chain inside.
 //!
 //! The one dependency it does NOT add itself is

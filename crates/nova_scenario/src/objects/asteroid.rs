@@ -347,7 +347,8 @@ fn insert_asteroid_collider(
             AsteroidRenderMesh(mesh.clone()),
             collider,
             destructible_body(**health, 1.0),
-            // destructible_body (bevy_common_systems) is Health + density + visibility; add
+            // destructible_body (nova_gameplay::integrity::health) is Health +
+            // density + visibility; add
             // ExplodableEntity so the asteroid enters nova's explode pipeline on destruction.
             ExplodableEntity,
         )],));

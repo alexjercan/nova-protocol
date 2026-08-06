@@ -38,7 +38,7 @@ bevy = { version = "0.19.0" }
 # probe -> autopilot, never the reverse.
 nova_autopilot = { path = "../nova_autopilot" }
 # The capture plugin reads GameStates / WeaponsHot / PlayerSpaceshipMarker and
-# tops up Health (re-exported by nova_gameplay, so the bcs version stays unified).
+# tops up Health (nova's own, out of nova_gameplay::integrity::health).
 nova_gameplay = { path = "../nova_gameplay" }
 # The run-timeline recorder observes the scenario's GameEvent stream (bcs
 # re-exported through nova_gameplay) and snapshot-diffs NovaEventWorld's

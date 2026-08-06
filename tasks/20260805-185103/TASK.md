@@ -412,14 +412,14 @@ Each step below becomes its own child task at planning time.
       when the children do. (manual: owner confirms the child set is complete)
 - [ ] The flicker is gone: `screenshot_combat`'s first `pose` holds a stable
       frame across repeated runs. (manual: owner watches the capture run)
-- [ ] `tests/examples_smoke.rs` no longer exists, and CI runs a probe
+- [x] `tests/examples_smoke.rs` no longer exists, and CI runs a probe
       correctness pass covering the `screenshots/` category.
       (cmd: `test ! -f tests/examples_smoke.rs && rg -q "nova_probe" .github/workflows/ci.yaml`)
-- [ ] Nova's prelude no longer re-exports the bcs prelude.
+- [x] Nova's prelude no longer re-exports the bcs prelude.
       (cmd: `! rg -n '^\s*pub use bevy_common_systems::prelude::\*' crates`)
-- [ ] The screenshot reel is gone and `shoot` is the single capture idiom.
+- [x] The screenshot reel is gone and `shoot` is the single capture idiom.
       (cmd: `test ! -f crates/nova_autopilot/src/reel.rs && ! rg -n '^[^/]*ScreenshotReelPlugin|^[^/]*ReelBeat' crates examples`)
-- [ ] No example branches its step timing on whether it is capturing.
+- [x] No example branches its step timing on whether it is capturing.
       (cmd: `! rg -n "if capturing" examples/screenshots`)
 
 ## Notes

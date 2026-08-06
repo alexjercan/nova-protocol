@@ -40,7 +40,7 @@ Scope: the 33 commits carrying this task's ID between `cafae048` and
   intent (no glob) is delivered, but the proof as written can never pass.
   Narrow it to `! rg -n 'pub use bevy_common_systems::prelude::\*' crates`.
   - Response: fixed in this round's commit - the proof is now `! rg -n '^\s*pub use bevy_common_systems::prelude::\*' crates`. Anchored to line start because the guard comment at `lib.rs:70` quotes the glob form deliberately. Runs clean.
-- [ ] R1.5 (MAJOR) CHANGELOG.md:123 - three `[Unreleased]` entries are false
+- [x] R1.5 (MAJOR) CHANGELOG.md:123 - three `[Unreleased]` entries are false
   after steps 4.1 and 5: `CategoryPolicy { probed, frame_time }`, "`--all`
   skips unprobed categories and records each as excluded" and "a bare
   `probe run screenshots` now errors" (`af4e2c16`, `cf28c543`), plus `:131`'s
@@ -71,7 +71,7 @@ Scope: the 33 commits carrying this task's ID between `cafae048` and
   `NovaHealthPlugin::build` registers types and one observer, and no system in
   the workspace orders against it. Delete the enum and its prelude entry.
   - Response: fixed in this round's commit - `HealthSystems` and its prelude entry are deleted. It was never applied to a system nor ordered against.
-- [ ] R1.9 (MAJOR) crates/nova_gameplay/src/lib.rs:9 - the run took ownership of
+- [x] R1.9 (MAJOR) crates/nova_gameplay/src/lib.rs:9 - the run took ownership of
   health and integrity but left the rustdoc crediting bcs for nova's own code:
   the crate doc still says nova "builds on the reusable `bevy_common_systems`
   layer for integrity, health"; `integrity/glue.rs:119,125` attribute
@@ -108,7 +108,7 @@ Scope: the 33 commits carrying this task's ID between `cafae048` and
   was not ported. Add a test that a 1-neighbour node gains the marker and loses
   it on a 2nd neighbour.
   - Response: fixed in this round's commit - `a_leaf_that_gains_a_second_neighbour_stops_being_one`. Sabotage-checked: deleting the `try_remove` branch fails it.
-- [ ] R1.14 (MINOR) .claude/skills/release/SKILL.md:56 - tells the operator to
+- [x] R1.14 (MINOR) .claude/skills/release/SKILL.md:56 - tells the operator to
   confirm CI's "windowed `examples_smoke` run under Xvfb"; step 6 replaced that
   step with the probe correctness sweep (`.github/workflows/ci.yaml:101`).
   `.claude/skills/probe/SKILL.md:186` likewise cites
@@ -229,7 +229,7 @@ Two of my round-1 responses overclaimed and are corrected in place: R1.14's
 "the grep is now empty" and R1.9's "the sweep caught them" were both true of
 `crates/` and false of `examples/`.
 
-- [ ] R2.1 (MAJOR) crates/nova_probe/src/invariants.rs:216 - the health-bounds
+- [x] R2.1 (MAJOR) crates/nova_probe/src/invariants.rs:216 - the health-bounds
   check still reports `PASS / 0 violations over N checked frames` when its query
   matches nothing, which is exactly how R1.1 hid for a whole task; the fix
   repointed the type but added no delivery guard. Record the matched-entity
@@ -243,7 +243,7 @@ Two of my round-1 responses overclaimed and are corrected in place: R1.14's
     has zero, so a gate would be noise. Pinned by
     `subject_peaks_separate_a_bound_that_held_from_a_query_that_matched_nothing`,
     which asserts both the populated and the empty case.
-- [ ] R2.2 (MINOR) examples/ui/menu_scenarios.rs:389 and
+- [x] R2.2 (MINOR) examples/ui/menu_scenarios.rs:389 and
   examples/screenshots/shared/kit.rs:10 - both still cite
   `tests/examples_smoke.rs`, so R1.14's response claim is false. Repoint both.
   - Response: fixed in this round's commit. `kit.rs` points at
@@ -252,7 +252,7 @@ Two of my round-1 responses overclaimed and are corrected in place: R1.14's
     than about a file. A grep across `crates/`, `examples/`, `web/`, `.claude/`,
     `README.md` and `AGENTS.md` now returns one hit, `catalog_drift.rs:3`, which
     names the deleted file correctly as history.
-- [ ] R2.3 (MINOR) CHANGELOG.md:174 - "ramming a Hull and ramming a Turret no
+- [x] R2.3 (MINOR) CHANGELOG.md:174 - "ramming a Hull and ramming a Turret no
   longer deal the same damage" is false: `damage.rs:110` is `(_, Kinetic) => 1.0`
   for every section, so typed ram damage is identical across sections. Drop the
   clause.
@@ -261,20 +261,20 @@ Two of my round-1 responses overclaimed and are corrected in place: R1.14's
     entry now says impact damage routes through the typed path, that no numbers
     move today because Kinetic is the 1.0 reference column, and that a ram is
     now subject to the same table as every other weapon.
-- [ ] R2.4 (MINOR) CHANGELOG.md:162 - "named by its two emitters and the test
+- [x] R2.4 (MINOR) CHANGELOG.md:162 - "named by its two emitters and the test
   that greps for it": no test greps `REACHED_PLAYING` any more. Drop the clause.
   - Response: fixed in this round's commit - the entry ends at "its two
     emitters". The grepping test went with the smoke suite in step 6.
-- [ ] R2.5 (NIT) examples/sections/hull_section.rs:371 - names bcs's
+- [x] R2.5 (NIT) examples/sections/hull_section.rs:371 - names bcs's
   `handle_destroy`; nova's is `destroy_a_disabled_leaf`. Rename in the comment.
   - Response: fixed in this round's commit.
-- [ ] R2.6 (NIT) tasks/20260805-185103/TASK.md:983 - "20 of the remaining 21
+- [x] R2.6 (NIT) tasks/20260805-185103/TASK.md:983 - "20 of the remaining 21
   findings" counts R1.20 as fixed while the next paragraph lists it under "Not
   fixed, and why". Make it consistent.
   - Response: fixed in this round's commit - the count stands at 20 and the
     paragraph is retitled "Answered rather than applied", which is what R1.19
     and R1.20 actually are.
-- [ ] R2.7 (NIT) tasks/20260805-185103/TASK.md:1003 - "2616 checked frames" is
+- [x] R2.7 (NIT) tasks/20260805-185103/TASK.md:1003 - "2616 checked frames" is
   the `sections` total alone; `stress` adds 1205. Use 3821 or attribute 2616.
   - Response: fixed in this round's commit - 3821, with the split named. Both
     figures re-derived from the run logs.
@@ -285,3 +285,129 @@ as the command that produced it, not as prose.
 
 Out of scope: `crates/nova_probe/tests/catalog_drift.rs:3` and the released
 CHANGELOG entry naming `examples_smoke` are correct history, not stale mentions.
+
+## Round 3
+
+- REVIEWER: out-of-context (single reviewer, verifying rounds 1-2 responses plus
+  an independent pass)
+- VERDICT: APPROVE
+
+All ten previously-unticked findings verify fixed against the tree, so R1.5,
+R1.9, R1.14 and R2.1 through R2.7 are ticked above on this round's confirmation.
+Six new findings, all MINOR/NIT - none blocking.
+
+- [ ] R3.1 (MINOR) crates/nova_probe/src/capture.rs:571 - `combat_burst_driver`'s
+  restored guarantee "**Keeps every combatant alive**" still does not hold, now
+  for a second reason. `integrity/health.rs:117-119` inserts `HealthZeroMarker`
+  the instant `current <= 0.0` and `integrity/core.rs:170` runs it into the
+  destruction pipeline on the marker's INSERTION, before the driver's next-frame
+  top-up. A single overkill hit still kills, and the top-up then writes
+  `current = max` onto an already-destroyed entity - full HP plus
+  `HealthZeroMarker`, a state the health-bounds invariant reads as clean. R1.2
+  was ticked on the claim that this guarantee was restored; it is half restored.
+  - Response: fixed in this round's commit, and the reviewer's first option
+    (`try_remove::<HealthZeroMarker>()`) was the wrong half of the alternative -
+    re-derived before choosing. Destruction is an `On<Add, _>` observer, so by
+    the time the driver next runs it has ALREADY fired; removing the marker
+    cannot revive the entity, it only hides the corpse from `on_damage`'s
+    `destroyed` guard at `health.rs:108`. The top-up is now
+    `query_filtered::<&mut Health, Without<HealthZeroMarker>>`, so spent pools
+    are skipped rather than forged into full-HP-yet-destroyed, and the doc is
+    narrowed to what a once-per-frame post-damage pass can actually promise: a
+    top-up between hits, explicitly NOT immortality.
+- [ ] R3.2 (MINOR) crates/nova_probe/src/invariants.rs:235-238 and :259-262 - the
+  subject counts re-walk each query a second time per frame (`.count()` then
+  `iter` again) inside the system whose other job is measuring frame time and
+  grading `fps_within_baseline`. Count into a local inside the existing loop.
+  - Response: fixed in this round's commit - both blocks count with `seen += 1`
+    in the loop they already run and write `state.*_subjects` after it, so the
+    invariant pass walks each query once. The resource borrow that motivated the
+    split is not needed once the write happens post-loop.
+- [ ] R3.3 (MINOR) crates/nova_probe/src/run_report/checks/invariants_held.rs:119-136 -
+  R2.1's emission path is unpinned: no test asserts the `health_subjects` key in
+  `data` or the `peak subjects` detail, so the plumbing from `invariant_summary`
+  into `checks.json` can break silently while `invariants.rs`'s own test stays
+  green.
+  - Response: fixed in this round's commit.
+    `violations_fail_invariants_with_per_name_counts` now asserts both keys and
+    the detail on the failing path, and a new
+    `subject_peaks_reach_checks_json_on_the_passing_path` covers the passing one
+    - including the two cases that matter most: a summary predating the fields
+    omits them (no false 0), and a present-and-zero count passes while putting
+    the 0 on the record. Sabotage-checked: renaming the looked-up key to
+    `health_subjectsX` fails both tests.
+- [ ] R3.4 (MINOR) three bcs credits for nova-owned code that R1.9's sweep
+  declared clean: `crates/nova_probe/Cargo.toml:41` ("so the bcs version stays
+  unified" - there is no bcs version any more),
+  `crates/nova_gameplay/src/plugin.rs:6` (crate-root rustdoc crediting the
+  "`bevy_common_systems` camera/health/UI layer"), and
+  `crates/nova_scenario/src/objects/asteroid.rs:350` ("destructible_body
+  (bevy_common_systems)", which is `integrity/health.rs:132`).
+  - Response: fixed in this round's commit - all three name nova's module. Camera
+    and UI stay credited to bcs on `plugin.rs` because those layers really are
+    still bcs; only `health` is struck from that list.
+- [ ] R3.5 (NIT) .claude/skills/probe/SKILL.md:124 - the `checks.json` reader's
+  description of `invariants_held` predates R2.1's fields, and this skill is the
+  only doc surface for `checks.json`.
+  - Response: fixed in this round's commit - the entry now names
+    `health_subjects` / `velocity_subjects`, says they are reported and never
+    gated, and spells out the reading that motivated them: a `sections` run at 0
+    health subjects examined nothing rather than holding a bound.
+- [ ] R3.6 (NIT) examples/screenshots/shared/kit.rs:10 - the repointed line is 90
+  columns in a file otherwise wrapped near 80 (same class as R1.23).
+  - Response: fixed in this round's commit.
+
+Process signal: `master` moved past the reviewed ref mid-review with two
+scope-less commits, `515bac06` "docs: add a note" and `65185069` "fix". The
+second is the owner's own and commits a 244-line deletion of
+`tasks/20260806-121625/NOTES.md` - another task's record. Round 1 raised the
+same signal for four in-range commits; two rounds later it has not stuck on the
+tail of the run.
+
+Process signal: third consecutive round in which a doc sweep declared complete
+left residue (R3.4), and twice now at sites in the very modules the step took
+ownership of. Round 2's own remedy - record the sweep as the command that
+produced it - was applied to R2.2 but never retrofitted to R1.9.
+
+Out of scope: R2.1's guard is report-only by design, so a `sections` run whose
+health invariant examines zero entities still grades green in CI; only a human
+reading `checks.json` sees the 0. A gate is possible (`catalog_drift.rs` already
+knows which examples own a combat roster) but no step asks for one.
+
+Out of scope: `crates/nova_assets/src/portal/catalog.rs`'s third private
+`load_from` / `save_to` pair, unchanged since round 1.
+
+Out of scope: `catalog_drift.rs:3`, `CHANGELOG.md:163` and
+`.github/workflows/ci.yaml:89` name `tests/examples_smoke.rs` as history,
+correctly.
+
+Pending user checks (both `manual:` DoD items, not resolvable by review):
+
+- Owner confirms the child set is complete.
+- Owner watches the capture run and confirms the flicker is gone.
+
+Re-derived by the recording pass, not taken on the reviewer's word: R3.1's whole
+chain (`on_damage` inserts the marker at zero, `:108` then zeroes all subsequent
+damage, and destruction observes the INSERT - which is what makes the reviewer's
+suggested `try_remove` fix wrong); the bcs `Health` path having zero hits left in
+`crates` and `examples`; R2.1's fields end-to-end from `invariants.rs:216-262`
+through `invariants_held.rs:119-136`; the `examples_smoke` sweep re-run to its
+three historical hits; R1.5's amended CHANGELOG entry; R1.14's two skill strings;
+and the bcs pin at `v0.19.5` in `Cargo.lock` against an unpushed, untagged
+sibling checkout at `6f09461`.
+
+Checks run by the recording pass, after this round's fixes: `cargo check
+--workspace --all-targets --features debug` clean, `cargo fmt --all -- --check`
+clean, and `--lib` suites green for all 15 crates - nova_gameplay 801 (1
+pre-existing ignored), nova_probe 101 (was 100; R3.3 adds one), nova_scenario
+151, nova_assets 98, nova_menu 76, nova_autopilot 45, nova_ui 21, nova_os 20,
+nova_editor 13, nova_debug 12, nova_mod_format 9, nova_core 2, nova_modding 1,
+nova_events and nova_info 0. All four `cmd:` DoD proofs exit 0.
+
+Unlike rounds 1 and 2, this round re-ran the runtime verdict rather than
+standing on the record: `probe run sections` grades aggregate OK, 5/5, zero
+invariant violations. The subject peaks are the evidence R1.1/R1.2 never had -
+`checks.json` reports 4, 6, 4, 17 and 10 health subjects across the five
+sections, so the repointed `Health` demonstrably matches live entities at
+runtime. Before the fix every one of those would have read 0 while still
+printing PASS.

@@ -233,10 +233,9 @@ fn check_invariants(world: &mut World) {
     // (a) Health bounds: finite, 0 <= current <= max.
     {
         let mut healths = world.query::<(Entity, &Health)>();
-        let seen = healths.iter(world).count() as u64;
-        let mut state = world.resource_mut::<InvariantState>();
-        state.health_subjects = state.health_subjects.max(seen);
+        let mut seen: u64 = 0;
         for (entity, health) in healths.iter(world) {
+            seen += 1;
             let ok = health.current.is_finite()
                 && health.max.is_finite()
                 && health.current >= 0.0
@@ -252,15 +251,16 @@ fn check_invariants(world: &mut World) {
                 });
             }
         }
+        let mut state = world.resource_mut::<InvariantState>();
+        state.health_subjects = state.health_subjects.max(seen);
     }
 
     // (b) Velocity sanity: finite always; absurd-speed vs a soft cap.
     {
         let mut velocities = world.query::<(Entity, &LinearVelocity, Option<&FlightSpeedCap>)>();
-        let seen = velocities.iter(world).count() as u64;
-        let mut state = world.resource_mut::<InvariantState>();
-        state.velocity_subjects = state.velocity_subjects.max(seen);
+        let mut seen: u64 = 0;
         for (entity, velocity, cap) in velocities.iter(world) {
+            seen += 1;
             if !velocity.0.is_finite() {
                 violations.push(Violation {
                     name: "velocity_finite",
@@ -287,6 +287,8 @@ fn check_invariants(world: &mut World) {
                 }
             }
         }
+        let mut state = world.resource_mut::<InvariantState>();
+        state.velocity_subjects = state.velocity_subjects.max(seen);
     }
 
     // (c) Scenario variables: Numbers finite; registered monotonic keys

@@ -23,7 +23,7 @@ use nova_autopilot::completion::{self, HarnessCompletion};
 // code resolves it through: naming any other path is how this query silently
 // stopped matching once nova took ownership of the type.
 use nova_gameplay::{
-    prelude::{GraphicsBudget, Health, PlayerSpaceshipMarker, WeaponsHot},
+    prelude::{GraphicsBudget, Health, HealthZeroMarker, PlayerSpaceshipMarker, WeaponsHot},
     GameStates,
 };
 
@@ -568,17 +568,23 @@ fn sanitize(label: &str) -> String {
 ///    headless fire chain from the weapon-range examples (raise, wait for
 ///    [`WeaponsHot`], then hold, because the safety denies a press that lands
 ///    while cold). The player's turrets then fire continuously.
-/// 2. **Keeps every combatant alive** (tops up [`Health`] to full). A kill would
-///    end the burst early and can advance/reload the scenario mid-capture; the
-///    top-up pins a steady-state burst for the whole window. Detonations still
-///    fire (torpedoes blast on proximity, not only on kill), so the blast
-///    particles are still measured. AI hostiles engage on their own and add
-///    return fire and torpedo blasts on top.
+/// 2. **Tops surviving combatants back up** to full [`Health`] between hits, so
+///    a burst of ordinary fire does not whittle the scene down and fizzle the
+///    window. This is a top-up, NOT immortality: the pass runs once a frame,
+///    after damage, so a single overkill hit (a torpedo blast on a section pool)
+///    still kills, and a kill can advance/reload the scenario mid-capture.
+///    Entities already spent carry [`HealthZeroMarker`] and are skipped - the
+///    destruction pipeline observes the marker's insertion, so refilling their
+///    pool would not revive them, only forge a full-HP-yet-destroyed entity that
+///    reads as clean to the health-bounds invariant. Detonations still fire
+///    (torpedoes blast on proximity, not only on kill), so the blast particles
+///    are still measured. AI hostiles engage on their own and add return fire
+///    and torpedo blasts on top.
 pub fn combat_burst_driver(world: &mut World, _frame: u32) {
-    // Sustain: no combatant dies, so the burst does not fizzle and no kill
-    // advances the scenario out from under the capture.
+    // Sustain: ordinary fire does not whittle the scene down, so the burst does
+    // not fizzle. Spent pools are left alone - see the doc above.
     {
-        let mut healths = world.query::<&mut Health>();
+        let mut healths = world.query_filtered::<&mut Health, Without<HealthZeroMarker>>();
         for mut health in healths.iter_mut(world) {
             if health.current < health.max {
                 health.current = health.max;

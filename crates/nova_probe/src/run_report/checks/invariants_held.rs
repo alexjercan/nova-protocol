@@ -188,7 +188,7 @@ mod tests {
         );
         contents = contents.replace(
             "\"data\":{\"checks\":120,\"violations\":0}",
-            "\"data\":{\"checks\":120,\"violations\":2}",
+            "\"data\":{\"checks\":120,\"violations\":2,\"health_subjects\":7,\"velocity_subjects\":9}",
         );
         std::fs::write(&path, contents).unwrap();
 
@@ -197,6 +197,53 @@ mod tests {
         let c = check(&checks, "invariants_held");
         assert_eq!(c.status, CheckStatus::Fail);
         assert!(c.detail.contains("health_bounds x2"), "{c:?}");
+        assert!(
+            c.detail.contains("peak subjects: 7 health, 9 velocity"),
+            "{c:?}"
+        );
+        assert_eq!(c.data["health_subjects"], 7);
+        assert_eq!(c.data["velocity_subjects"], 9);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The subject peaks have to survive the trip from the `invariant_summary`
+    /// timeline entry into `checks.json`, on the PASSING path too - that is the
+    /// path a zero-subject run takes, and reading the 0 is the whole point of
+    /// recording it. A summary predating the fields omits them rather than
+    /// claiming 0, so an old run does not read as a query that matched nothing.
+    #[test]
+    fn subject_peaks_reach_checks_json_on_the_passing_path() {
+        let dir = scratch_run_dir();
+        let path = dir.join("timeline.jsonl");
+
+        // Absent on an older summary: no counts in `data`, nothing appended to
+        // the detail line.
+        let artifacts = RunArtifacts::load(&dir, None).unwrap();
+        let checks = evaluate_checks(&artifacts);
+        let c = check(&checks, "invariants_held");
+        assert_eq!(c.status, CheckStatus::Pass);
+        assert!(c.data["health_subjects"].is_null(), "{c:?}");
+        assert!(!c.detail.contains("peak subjects"), "{c:?}");
+
+        // Present, and zero: the bound "held" over 120 frames while examining
+        // no entity at all. It still passes - the count is reported, never
+        // gated - but the 0 is now on the record instead of invisible.
+        let contents = std::fs::read_to_string(&path).unwrap().replace(
+            "\"data\":{\"checks\":120,\"violations\":0}",
+            "\"data\":{\"checks\":120,\"violations\":0,\"health_subjects\":0,\"velocity_subjects\":4}",
+        );
+        std::fs::write(&path, contents).unwrap();
+
+        let artifacts = RunArtifacts::load(&dir, None).unwrap();
+        let checks = evaluate_checks(&artifacts);
+        let c = check(&checks, "invariants_held");
+        assert_eq!(c.status, CheckStatus::Pass);
+        assert_eq!(c.data["health_subjects"], 0);
+        assert_eq!(c.data["velocity_subjects"], 4);
+        assert!(
+            c.detail.contains("peak subjects: 0 health, 4 velocity"),
+            "{c:?}"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 

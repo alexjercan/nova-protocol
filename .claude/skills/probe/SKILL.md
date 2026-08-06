@@ -122,7 +122,10 @@ which is how you deliberately probe your real installed mods.
   TRUNCATED timeline means the run died - entries are flushed as written -
   and the bracket's entry count must match the file), `reached_playing`
   (the smoke contract), `invariants_held` (violations counted per name;
-  one stuck entity violates every frame), `fps_within_baseline` (soft
+  one stuck entity violates every frame - plus per-invariant subject peaks
+  `health_subjects` / `velocity_subjects`, reported and never gated: a
+  `sections` run reading 0 health subjects means the check examined
+  nothing, not that the bound held), `fps_within_baseline` (soft
   gate; only REGRESSIONS beyond the threshold WARN - improvements PASS),
   `log_clean` (ANSI-stripped, whole-word ERROR, plus command errors at ANY
   level - `remove`/`despawn` log theirs at WARN). Each check carries a
