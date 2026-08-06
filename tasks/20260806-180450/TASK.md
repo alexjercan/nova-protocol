@@ -252,7 +252,7 @@ expected until step 10, not evidence the step was left incomplete.
         `point_rotation.rs` carries tests (5), so pair the `transform::` filter
         with the turret filter.
 
-- [ ] 5. **Mesh builder / explode / slice -> `nova_gameplay`.** Prototype 06.
+- [x] 5. **Mesh builder / explode / slice -> `nova_gameplay`.** Prototype 06.
       Needs Step 3's `math`. Carries the `noise` dep move and one `rand` port.
       - a. Copy `src/mesh/{builder,explode,slice,mod}.rs` (987 L) ->
         `crates/nova_gameplay/src/mesh/`, all 10 tests included (builder 3,
@@ -987,10 +987,86 @@ One pre-existing warning is NOT from this step and was confirmed against a
 clean stash: `examples/stress/many_sections.rs:37` unused `ComputedMass` /
 `ComputedCenterOfMass`.
 
+### Step 5 - DONE (mesh builder / explode / slice -> `nova_gameplay`)
+
+**What.** BCS `mesh/{builder,explode,slice,mod}.rs` ->
+`crates/nova_gameplay/src/mesh/` verbatim, `slice` kept PRIVATE as prototype 06
+insists (`builder.rs:28` is its only user and it is in no prelude). `noise =
+"0.9"` moved onto `nova_gameplay` - the one dependency change in this step.
+`builder.rs` swapped `crate::meth::prelude::*` for `crate::math::slerp` (Step
+3's module); `explode.rs` took the two rand 0.10.2 edits (`use rand::RngExt`
+and `fn random_unit_vector(rng: &mut impl RngExt)`) and nothing else - no
+`bevy_rand` rewire. `ExplodeMeshPlugin` moved off `plugin.rs:100` onto
+`crate::mesh::prelude::`. `mesh::prelude::*` joined `lib.rs`'s `super::` block;
+nothing left `lib.rs`'s BCS by-name list, which had no mesh name (5f).
+
+**Three plan corrections.**
+
+- **The test count is 9, not 10.** 5a says "builder 3, explode 3, slice 4";
+  `slice.rs` has 3 (`test_edge_plane_intersection`, `test_triangle_slice`,
+  `test_edge_plane_intersection_parallel_is_finite`), verified against
+  `6f09461`. All 9 pass unmodified; the DoD line "the ten copied mesh tests
+  pass" is satisfied by 9/9 copied tests, not by a missing tenth.
+- **`sections/thruster_section.rs:10`'s BCS glob had to be DELETED, not
+  narrowed** - the opposite of the plan's standing rule, for the reason the
+  rule exists. `TriangleMeshBuilder` was the only name it supplied; leaving the
+  glob standing after the name found a nova home is a live
+  `unused_imports` warning, not a harmless leftover. Same outcome Step 4 hit in
+  three files. `hud/velocity.rs:16` was already narrowed to
+  `TriangleMeshBuilder` alone by Step 4, so it too became a deletion.
+- **`nova_scenario/src/objects/asteroid.rs:3` needed no replacement import.**
+  The file already globs `nova_gameplay::prelude::*` (`:7`), and 5f puts
+  `mesh::prelude::*` in that prelude, so the explicit BCS line was deleted
+  rather than repointed. An explicit re-import would have shadowed the glob
+  with the same item for no gain.
+
+**No E0659 wave this time**, unlike Steps 1, 3 and 4: the two remaining
+`TriangleMeshBuilder` users reach the name through `crate::prelude`'s by-name
+list and `integrity/explode.rs` names its imports explicitly, so nothing globs
+both preludes for a mesh name.
+
+**Log filter.** No action needed (the Step 2 check): `mesh` landed in
+`nova_gameplay`, already on both `log_filter_str` lists (`nova_core/src/lib.rs:235,237`).
+Confirmed positively in the probe logs, not by absence.
+
+**Two clippy warnings arrive with the verbatim copy** -
+`clippy::chunks_exact_to_as_chunks` at `builder.rs:254,428`. Left as-is: the
+conventions say logic is verbatim, CI's clippy pass carries no `-D warnings`,
+and rewriting BCS code inside a mechanical lift is what this plan forbids. They
+belong to the deferred style/dead-code sweep.
+
+**Evidence.** `cargo check --workspace --all-targets` clean; `cargo fmt
+--check` clean; `clippy -p nova_gameplay --all-targets --features debug` adds
+exactly the two warnings above and nothing else in `src/mesh/`.
+`nova_gameplay --lib mesh` 9/9 (builder 3, explode 3, slice 3);
+`nova_gameplay --doc mesh` 1/1 (the rewritten `builder.rs:16` doctest);
+`nova_scenario --lib objects::asteroid` 10/10. Both absence proofs green:
+`grep -rnE 'bevy_common_systems.*(Explode|TriangleMeshBuilder)' crates/ examples/`
+is empty, and `cargo tree -p nova_gameplay -i noise` resolves exactly one
+version (0.9.0, the same one `nova_scenario` pins). `Cargo.lock` gained one
+line - `noise` under `nova_gameplay` - and nothing else.
+
+`probe run systems` at `a0064581`: **3/3 OK**, measured 5/6 each
+(`fps_within_baseline` is N/A - the `systems/` walks declare no frame capture),
+matching the `tasks/20260805-185103` baseline's systems 3/3. The registration
+move is proved positively, not by absence of a panic: each of the three run
+logs carries exactly one `nova_gameplay::mesh::explode: ExplodeMeshPlugin:
+build` and zero `bevy_common_systems::mesh` lines. `scenario_grammar` walks the
+rocks_destroyed monotonic, so asteroid geometry (noise-displaced icosphere via
+`TriangleMeshBuilder` + `slerp`) and destruction debris both ran with
+`invariants_held` PASS and `log_clean` PASS. The DoD's "debris geometry
+unchanged" line stays `manual:` - it is the owner's eye, not a check.
+
+**Not run:** the workspace-wide `clippy --features debug` CI gate and any test
+outside the filters above, per the standing skip-local-suite instruction. No
+Xvfb `cargo run --example` pass: `probe run systems` IS the run harness and
+supersedes it (and it spawns its own display, avoiding the
+`NOVA_AUTOPILOT`/`--features debug` trap Step 2 recorded).
+
 ### Next
 
-Step 5 (mesh builder / explode / slice -> `nova_gameplay`), prototype 06.
-`crate::math::slerp` is in place for `builder.rs`. Step 5 adds the `noise` dep
-and finally gives `hud/velocity.rs:16` and `sections/thruster_section.rs:10` a
-nova home for `TriangleMeshBuilder`, which are the last two names holding those
-BCS imports open.
+Step 6 (lifetime, cooldown, objectives -> `nova_gameplay`), prototype 08. It is
+the biggest callsite sweep left and the one that finally frees
+`nova_assets`'s dev-dep (6g, deferred from Step 1). Expect the E0659 wave back:
+`GameObjectives` is braced with engine names in nine `nova_assets/tests/*.rs`
+and reached through globs across `nova_scenario/src/actions/`.

@@ -25,6 +25,7 @@ pub mod input;
 pub mod integrity;
 pub mod juice;
 pub mod math;
+pub mod mesh;
 pub mod objective_marker;
 pub mod plugin;
 pub mod relations;
@@ -98,6 +99,7 @@ pub mod prelude {
         input::prelude::*,
         integrity::prelude::*,
         juice::prelude::*,
+        mesh::prelude::*,
         objective_marker::prelude::*,
         plugin::{NovaGameplayPlugin, SpaceshipSystems},
         relations::prelude::*,

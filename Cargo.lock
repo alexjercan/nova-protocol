@@ -4669,6 +4669,7 @@ dependencies = [
  "bevy_hanabi",
  "bevy_rand",
  "bevy_transform_interpolation",
+ "noise",
  "nova_events",
  "nova_info",
  "nova_os",

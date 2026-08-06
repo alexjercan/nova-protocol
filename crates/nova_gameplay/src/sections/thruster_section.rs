@@ -7,11 +7,10 @@ use bevy::{
     render::render_resource::AsBindGroup,
     shader::ShaderRef,
 };
-use bevy_common_systems::prelude::*;
 
 use crate::prelude::{
     AssetRef, RenderMeshTransform, SectionDamageClass, SectionInactiveMarker,
-    SectionRenderMeshTransform, SectionRenderOf,
+    SectionRenderMeshTransform, SectionRenderOf, TriangleMeshBuilder,
 };
 
 /// Glob-import surface: `use nova_gameplay::sections::thruster_section::prelude::*` re-exports the public API of this module.

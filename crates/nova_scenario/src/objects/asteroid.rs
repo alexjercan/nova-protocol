@@ -1,6 +1,5 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use bevy_common_systems::prelude::TriangleMeshBuilder;
 use bevy_rand::prelude::*;
 use noise::{Fbm, MultiFractal, NoiseFn, Perlin};
 use nova_events::prelude::{CommandsGameEventExt, *};

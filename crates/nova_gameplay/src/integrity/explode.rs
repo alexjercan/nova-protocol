@@ -10,13 +10,16 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use bevy_common_systems::prelude::{ExplodeFragments, ExplodeMesh, TempEntity};
+use bevy_common_systems::prelude::TempEntity;
 use bevy_rand::prelude::*;
 use nova_events::prelude::*;
 use rand::RngExt;
 
 use super::components::prelude::*;
-use crate::prelude::SectionMarker;
+use crate::{
+    mesh::prelude::{ExplodeFragments, ExplodeMesh},
+    prelude::SectionMarker,
+};
 
 /// Glob-import surface: `use nova_gameplay::integrity::explode::prelude::*` re-exports the public API of this module.
 pub mod prelude {

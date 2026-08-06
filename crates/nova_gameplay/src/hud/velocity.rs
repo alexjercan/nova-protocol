@@ -13,9 +13,11 @@ use bevy::{
     render::render_resource::AsBindGroup,
     shader::ShaderRef,
 };
-use bevy_common_systems::prelude::TriangleMeshBuilder;
 
-use crate::{flight::prelude::*, gravity::prelude::*, transform::prelude::*};
+use crate::{
+    flight::prelude::*, gravity::prelude::*, mesh::prelude::TriangleMeshBuilder,
+    transform::prelude::*,
+};
 
 /// Glob-import surface: `use nova_gameplay::hud::velocity::prelude::*` re-exports the public API of this module.
 pub mod prelude {
