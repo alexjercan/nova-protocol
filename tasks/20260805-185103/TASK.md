@@ -244,6 +244,119 @@ Each step below becomes its own child task at planning time.
       onto the ship/asteroid bundles; the env-var pass; the `hud/mod.rs`
       registry refactor; the M9 dead-code sweep.
 
+      PARTIAL. Four of the six items landed, plus half of a fifth. Three
+      owner rulings reshaped the step before implementation, and four of the
+      investigation's claims did not survive contact with the tree. Both are
+      recorded below rather than silently absorbed.
+
+      **Owner rulings (asked because the step text was falsified by the code):**
+
+      - bcs `integrity` + `ui/health_display.rs` do NOT move as-is: both have a
+        live bcs consumer (`examples/15_integrity.rs` wires `IntegrityPlugin`
+        AND `HealthDisplayPlugin`) and both modules are generic. The ruling is
+        to RE-IMPLEMENT integrity inside nova, so nova owns its damage types
+        and health, and to scrub the nova vocabulary out of bcs. NOT DONE - see
+        the remainder below.
+      - bcs gets commits only; no tag, no push, no pin bump. Nova stays on
+        `v0.19.5`, so nothing in this run can consume a bcs change.
+      - Persistence is nova's OWN layer modelled on bcs `persist`, exposing
+        load/write and not only a plugin - not a swap onto `PersistPlugin`.
+        This also keeps the RON format and the config-dir location, so no
+        player loses a saved setting or mod set.
+
+      **Landed:**
+
+      - `e5da687` (bcs master) - the nova scrub, wider than the step named.
+        Nine sites across five files, not one: `pd_controller.rs` (two task
+        IDs plus "nova's flight tests" / "nova's test-rig"), `camera/shake.rs`
+        (a `tasks/*/RETRO.md` path), `debug/inspector.rs` (three
+        "nova-protocol task ..." citations) and `modding/events.rs` (a
+        benchmarking task ID). Every comment kept its reasoning; only the
+        pointer a bcs reader cannot resolve went. Also documents integrity's
+        three damage constants as feel defaults and generalises
+        `health_display`'s ship/section vocabulary. fmt + `cargo check
+        --all-targets` clean.
+      - `c4c58d06` - the physics pair off `base_scenario_object` onto the ship
+        and asteroid bundles. The misaligned test went with it: its docstring
+        said "every dynamic scenario body" but it asserted on the BASE bundle
+        that the static kinds also use, so it pinned the defect. Four stale
+        "overrides the base bundle's Dynamic" comments in `beacon.rs`,
+        `light.rs` and `asteroid.rs` were corrected too. Verified by
+        `probe run hull_section` (OK; the example asserts the live player root
+        still carries `TransformInterpolation` after section loss - the better
+        behavioural pin NOTES named) and a green `probe run systems` 3/3.
+      - `4526c050` - the env-var pass. The concrete defect was three capture
+        gates where the docs promise one: `widget_zoo` invented
+        `NOVA_ZOO_CAPTURE` and `hud_range` invented `NOVA_INSET_SHOT` while
+        `menu_scenarios` used the documented `NOVA_CAPTURE`, and
+        `automation-harness.md:247` already states the rule ("`shoot` is its
+        own gate: it captures only when `NOVA_CAPTURE` is set"). Both now read
+        `capturing()`. Probe never sets `NOVA_CAPTURE`, so probe runs are
+        byte-identical - confirmed by a green `probe run ui` 5/5. Also drops
+        the deleted reel from `development.md`'s driver list.
+      - `4de50263` - the dead-code sweep, which mostly DISCONFIRMED the
+        investigation. Two real deletions: `AppBuilder::with_main_menu` (zero
+        callers; its `Option<bool>` collapses to `use_default_plugins`, which
+        is what every caller already got) and `nova_ui`'s `debug = []` feature
+        (empty, named by no `Cargo.toml`, no `cfg` in the crate).
+      - `79ccd26f` - one persistence store, two callers. `mod_prefs` and
+        `settings_store` carried byte-identical backends (~180 duplicated
+        lines). `nova_assets::persist` now owns them, keyed by name and generic
+        over the value, with `load`/`save`/`load_from`/`save_to` as the
+        surface. Both keys resolve to the exact paths and localStorage keys
+        used before. A store and NOT a plugin, deliberately: both callers
+        project resources through a policy the value type cannot know (the
+        settings menu debounces a slider drag into one write and folds four
+        resources into one blob; the mod set sorts a `HashSet` for a
+        diff-friendly file), so a load-on-build/save-on-change plugin would be
+        bypassed by both. `nova_menu` drops `ron`, `dirs` and `web-sys`. Tests:
+        `nova_assets` persist 3/3, `nova_menu` settings_store 5/5 - now
+        value-shaped only (field round-trips, and the serde-default path an
+        older store takes).
+      - The `feedback::flash` shadow is ALREADY GONE, closed by step 2. bcs's
+        `Flash`/`FlashPlugin` has zero references anywhere in nova now, and
+        `juice.rs`'s `Flash` is a PRIVATE struct for an expanding world-space
+        ring (position, start time, kind, distance strength) - a different
+        thing from bcs's material hit-flash, which clones a `StandardMaterial`
+        and eases its emissive back. It shadowed a preluded name while the bcs
+        prelude leaked; it shadows nothing now. No change needed.
+
+      **Claims that did not reproduce**, checked against the tree before acting:
+
+      - `--samply` is not dead: eight probe files reference it.
+      - `nova_info`'s `debug` feature is not dead: `build.rs` reads
+        `CARGO_FEATURE_DEBUG` to pick the version string.
+      - `nova_probe/src/bin/probe/native/perf_web.rs` does not exist.
+      - The god-mode residual is a non-defect. `capture.rs`'s unconditional
+        force-heal is inside `combat_burst_driver`, an OPT-IN driver an example
+        passes to `FrameTimePlugin::drive` - which IS the per-example flag the
+        residual asked for. A scenario measuring death cost simply does not
+        wire that driver.
+      - The `fps_within_baseline` deletion the owner folded in is moot: step
+        4.1's contract handshake already fixed the stated defect ("armed and
+        always skips while the run prints OK"). It now reads N/A with its
+        reason and is counted out of `measured`, so the check no longer lies.
+      - `AIBehaviorState::Retreat` is speculative but is left alone: it is a
+        `Reflect`-registered public variant with a written rationale and an
+        `engages()` stub, so deleting it is a breaking API change for a
+        cosmetic gain. Flagged, not swept.
+
+      **NOT DONE - each is its own task's worth of work:**
+
+      - Re-implement `integrity` inside nova (the owner's ruling above). Nova
+        currently consumes bcs `IntegrityPlugin` + `HealthPlugin` across
+        `nova_gameplay/src/integrity/`, `nova_scenario/src/objects/asteroid.rs`
+        and the section pipeline; owning damage types and health is a new
+        subsystem, not a move.
+      - The hand-rolled `time::Cooldown`. Seventeen `Timer::from_seconds(..,
+        Once)` sites, several immediately calling `finish()` to work around the
+        exact backwards-default bcs `Cooldown` exists to fix - but two are
+        PUBLIC components (`TurretSectionBarrelFireState(pub Timer)`,
+        `TorpedoSectionSpawnerFireState(pub Timer)`), so the migration changes
+        a public API and every firing test that reads them.
+      - The `hud/mod.rs` registry refactor (1463 lines, the highest-churn file
+        in the workspace).
+
 ## Definition of Done
 
 - [ ] Every step above has a child task, each with its own DoD. This task closes
