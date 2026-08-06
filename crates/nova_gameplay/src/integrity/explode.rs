@@ -10,13 +10,13 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use bevy_common_systems::prelude::TempEntity;
 use bevy_rand::prelude::*;
 use nova_events::prelude::*;
 use rand::RngExt;
 
 use super::components::prelude::*;
 use crate::{
+    lifetime::TempEntity,
     mesh::prelude::{ExplodeFragments, ExplodeMesh},
     prelude::SectionMarker,
 };

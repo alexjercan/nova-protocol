@@ -95,8 +95,8 @@ impl Plugin for NovaGameplayPlugin {
         app.add_plugins(crate::transform::prelude::SphereOrbitPlugin);
         app.add_plugins(crate::transform::prelude::DirectionalSphereOrbitPlugin);
         // Other helper plugins
-        app.add_plugins(bevy_common_systems::prelude::TempEntityPlugin);
-        app.add_plugins(bevy_common_systems::prelude::DespawnEntityPlugin);
+        app.add_plugins(crate::lifetime::TempEntityPlugin);
+        app.add_plugins(crate::lifetime::DespawnEntityPlugin);
         app.add_plugins(crate::mesh::prelude::ExplodeMeshPlugin);
         // Core Mechanics
         app.add_plugins(bevy_common_systems::prelude::PDControllerPlugin);

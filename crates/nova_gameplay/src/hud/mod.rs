@@ -290,7 +290,7 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(maneuver_instruments::ManeuverInstrumentsPlugin);
         app.add_plugins(keybind_dock::KeybindDockPlugin);
         app.add_plugins(holo_instruments::HoloInstrumentsPlugin);
-        // The bcs ObjectivesPlugin owns the `GameObjectives` resource (the
+        // The ObjectivesPlugin owns the `GameObjectives` resource (the
         // NOVA OS + the objective stack read it) and its `rebuild_lines`
         // no-ops when no objectives panel exists. There is no always-on compact
         // objectives panel any more: objectives surface via the objective stack

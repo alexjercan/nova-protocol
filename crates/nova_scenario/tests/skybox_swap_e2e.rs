@@ -26,9 +26,11 @@ use bevy::{
     prelude::*,
     render::render_resource::TextureViewDimension,
 };
-use bevy_common_systems::prelude::GameObjectives;
 use nova_events::prelude::{EventAction, GameEventInfo, GameEventsPlugin};
-use nova_gameplay::camera::skybox::{SkyboxConfig, SkyboxPlugin};
+use nova_gameplay::{
+    camera::skybox::{SkyboxConfig, SkyboxPlugin},
+    prelude::GameObjectives,
+};
 use nova_scenario::prelude::*;
 
 /// A headless app that loads real PNGs and runs the full skybox-swap chain: the

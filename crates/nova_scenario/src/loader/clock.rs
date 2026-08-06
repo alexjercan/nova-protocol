@@ -118,8 +118,8 @@ mod tests {
     /// variable - a handler that could not fire without the pulse.
     #[test]
     fn on_update_pulses_only_while_a_scenario_is_live() {
-        use bevy_common_systems::prelude::GameObjectives;
         use nova_events::prelude::{EventHandler, GameEventsPlugin};
+        use nova_gameplay::prelude::GameObjectives;
 
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
@@ -172,8 +172,8 @@ mod tests {
     #[test]
     fn on_update_pulse_freezes_while_paused_and_resumes_on_unpause() {
         use bevy::state::app::StatesPlugin;
-        use bevy_common_systems::prelude::GameObjectives;
         use nova_events::prelude::{EventHandler, GameEventsPlugin};
+        use nova_gameplay::prelude::GameObjectives;
 
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
@@ -270,8 +270,8 @@ mod tests {
         use core::time::Duration;
 
         use bevy::time::TimeUpdateStrategy;
-        use bevy_common_systems::prelude::GameObjectives;
         use nova_events::prelude::{EventHandler, GameEventsPlugin};
+        use nova_gameplay::prelude::GameObjectives;
 
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
@@ -343,8 +343,8 @@ mod tests {
         use core::time::Duration;
 
         use bevy::time::TimeUpdateStrategy;
-        use bevy_common_systems::prelude::GameObjectives;
         use nova_events::prelude::GameEventsPlugin;
+        use nova_gameplay::prelude::GameObjectives;
 
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
@@ -433,9 +433,8 @@ mod tests {
         use core::time::Duration;
 
         use bevy::time::TimeUpdateStrategy;
-        use bevy_common_systems::prelude::GameObjectives;
         use nova_events::prelude::GameEventsPlugin;
-        use nova_gameplay::prelude::{PlayerSpaceshipMarker, SpaceshipRootMarker};
+        use nova_gameplay::prelude::{GameObjectives, PlayerSpaceshipMarker, SpaceshipRootMarker};
 
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);

@@ -33,11 +33,10 @@
 //! posting and no handover gate stands between the two.
 
 use bevy::prelude::*;
-use bevy_common_systems::prelude::GameObjectives;
 use nova_ui::hud::{chip_node, ChipTone};
 
 use super::{emphasis::prelude::*, HudTier, NovaHudAssets, NovaHudSystems};
-use crate::prelude::*;
+use crate::{objectives::GameObjectives, prelude::*};
 
 /// Glob-import surface: `use nova_gameplay::hud::objective_stack::prelude::*` re-exports the public API of this module.
 pub mod prelude {
@@ -554,9 +553,9 @@ mod tests {
     use core::time::Duration;
 
     use bevy::{state::app::StatesPlugin, time::TimeUpdateStrategy};
-    use bevy_common_systems::prelude::Objective;
 
     use super::*;
+    use crate::objectives::Objective;
 
     /// Virtual time each `app.update()` actually advances in this rig.
     /// MEASURED, not assumed (`manual-time-rig` lesson): the strategy below
@@ -960,12 +959,14 @@ mod tests {
 #[cfg(test)]
 mod tab_footer_sizing_tests {
     use bevy::ecs::system::RunSystemOnce;
-    use bevy_common_systems::prelude::Objective;
 
     use super::*;
-    use crate::hud::{
-        chip_layout_rig::{chip_layout_app, load_png, measure, settle},
-        key_glyphs::{KeyGlyphs, KEY_GLYPH_DIR},
+    use crate::{
+        hud::{
+            chip_layout_rig::{chip_layout_app, load_png, measure, settle},
+            key_glyphs::{KeyGlyphs, KEY_GLYPH_DIR},
+        },
+        objectives::Objective,
     };
 
     /// Tab's opaque bounds inside its canvas, measured OUTSIDE this code base

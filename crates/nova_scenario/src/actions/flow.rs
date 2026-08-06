@@ -138,7 +138,7 @@ impl EventAction<NovaEventWorld> for NextScenarioActionConfig {
 
 #[cfg(test)]
 mod tests {
-    use bevy_common_systems::prelude::GameObjectives;
+    use nova_gameplay::prelude::GameObjectives;
 
     use super::*;
 

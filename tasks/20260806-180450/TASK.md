@@ -285,7 +285,7 @@ expected until step 10, not evidence the step was left incomplete.
         `:183,185,220`) and `hud/velocity.rs:16` (use at `:559`).
       - h. `cargo fmt`, verify, **run** examples, probe, commit.
 
-- [ ] 6. **Lifetime, cooldown, objectives -> `nova_gameplay`.** Prototype 08.
+- [x] 6. **Lifetime, cooldown, objectives -> `nova_gameplay`.** Prototype 08.
       Runs before Step 7 so the co-imported `use` lines are edited once.
       - a. Copy BCS `helpers/temp.rs` + `helpers/despawn.rs` ->
         `crates/nova_gameplay/src/lifetime.rs`; `pub mod lifetime;` + prelude
@@ -558,7 +558,7 @@ Step 6:
   (test: `objectives::`)
 - The HUD readers still pass (test: `hud::nova_os`)
 - `objective_marker.rs` is gone and nothing still names it
-  (cmd: `test ! -e crates/nova_gameplay/src/objective_marker.rs && ! grep -rn objective_marker crates/`)
+  (cmd: `test ! -e crates/nova_gameplay/src/objective_marker.rs && ! grep -rnE 'objective_marker(::|;|\.rs)' crates/`)
 - No lifetime/cooldown/objectives name reaches BCS
   (cmd: `! grep -rnE 'bevy_common_systems.*(TempEntity|DespawnEntity|Cooldown|GameObjectives|Objective)' crates/`)
 - `nova_assets` no longer dev-depends on BCS
@@ -1063,10 +1063,77 @@ Xvfb `cargo run --example` pass: `probe run systems` IS the run harness and
 supersedes it (and it spawns its own display, avoiding the
 `NOVA_AUTOPILOT`/`--features debug` trap Step 2 recorded).
 
+### Step 6 - DONE (lifetime, cooldown, objectives -> `nova_gameplay`)
+
+**What.** BCS `helpers/temp.rs` + `helpers/despawn.rs` ->
+`crates/nova_gameplay/src/lifetime.rs` (the `helpers` name is gone as a
+concept); `time/cooldown.rs` -> `cooldown.rs` (BCS's `time/mod.rs` dropped);
+`ui/objectives.rs` -> `objectives.rs`, **whole, panel half included** per
+6d, merged with the old `objective_marker.rs`, which is deleted. All three
+wired as `pub mod` + prelude; `Cooldown`, `GameObjectives`, `Objective` and
+`ObjectivesPlugin` left the BCS re-export list and now resolve through the new
+module preludes, so the ~40 `Cooldown` consumers took zero import churn.
+`TempEntityPlugin`/`DespawnEntityPlugin` re-registered from `plugin.rs:98-99`
+and `ObjectivesPlugin` from `hud/mod.rs:298` on local paths - same files, same
+count. 6g landed: `nova_assets` no longer dev-depends on BCS.
+
+**The E0659 wave did not arrive.** Steps 1-5 had already narrowed every BCS
+glob in `nova_scenario` and `nova_assets` down to explicit braced lists, so
+this step was a mechanical `use` rewrite (BCS path -> `crate::objectives` inside
+`nova_gameplay`, -> `nova_gameplay::prelude` outside it) with no ambiguity
+errors at all. The predicted "biggest callsite sweep left" was real in volume
+(~40 files) and trivial in kind.
+
+**Two plan corrections.**
+
+- **The Step 6 DoD's `objective_marker` grep can never pass as written.**
+  `! grep -rn objective_marker crates/` also matches the pre-existing, unrelated
+  `hud/objective_markers.rs` chip module (33 hits) and two `nova_scenario` test
+  names. Tightened to the module path it actually means:
+  `! grep -rnE 'objective_marker(::|;|\.rs)' crates/`, which passes. The
+  intent - "the module file is gone and nothing names it" - is unchanged.
+- **6e's reword had to go further than "stop naming a crate the workspace will
+  not have".** 6d copies `ObjectiveMarker` **in**, so the comment's reason
+  survives verbatim in substance but changes referent: the name is taken by the
+  panel's text lines *in this same module* now, not by BCS. Reworded to say
+  that and to record the rename as deferred, per 6e's instruction to keep the
+  reason true.
+
+**Evidence.** `check -p nova_gameplay --all-targets` and
+`check --workspace --all-targets` clean; `fmt --check` clean;
+`clippy -p nova_gameplay -p nova_scenario -p nova_assets -p nova_probe
+--all-targets --features debug` reports **zero** warnings in the three new
+files (no `missing_docs` on the copied prelude blocks or the `*Systems`
+variants - each got a `///`). Tests: `objectives::` 1/1 (BCS's
+`the_panel_renders_one_line_per_objective`, which only exists because 6d kept
+the panel), `cooldown::` 5/5, `hud::objective` 23/23, `hud::nova_os` 103/103,
+`nova_scenario --lib` 151/151, `nova_scenario --lib actions::` 37/37,
+`nova_assets --test broadside_assault` 15/15, `nova_gameplay --doc` 9/9 (the
+three new module doctests included, all on `nova_gameplay::prelude`). All four
+`cmd:` proofs green.
+
+`probe run systems` at `87b5da57`: **3/3 OK**, measured 5/6 each, matching the
+`tasks/20260805-185103` baseline. The registration move is proved positively:
+each run log carries exactly one `nova_gameplay::lifetime: TempEntityPlugin:
+build`, one `DespawnEntityPlugin: build` and one `nova_gameplay::objectives:
+ObjectivesPlugin: build`, and zero `bevy_common_systems::{helpers,time,ui}`
+lines. The only BCS modules still logging are `::audio` (Step 8) and
+`::physics::pd_controller` (Step 7) - exactly the two left.
+
+**Not run:** the workspace-wide `clippy --features debug` CI gate and any test
+outside the filters above, per the standing skip-local-suite instruction. A raw
+`xvfb-run cargo run --example torpedo_section --features debug` with
+`NOVA_AUTOPILOT=1` was also run and reached `autopilot: cycle complete, no
+panic`; it exits non-zero only because the nix `xvfb-run` wrapper kills an
+already-gone server. `probe run` is the harness that matters and it supersedes
+this.
+
 ### Next
 
-Step 6 (lifetime, cooldown, objectives -> `nova_gameplay`), prototype 08. It is
-the biggest callsite sweep left and the one that finally frees
-`nova_assets`'s dev-dep (6g, deferred from Step 1). Expect the E0659 wave back:
-`GameObjectives` is braced with engine names in nine `nova_assets/tests/*.rs`
-and reached through globs across `nova_scenario/src/actions/`.
+Step 7 (PD controller + point velocity -> `nova_gameplay`), prototype 05. The
+two section files this step touched (`torpedo_section/mod.rs:16`,
+`turret_section/firing.rs:8`) now hold a bare
+`use bevy_common_systems::prelude::rigid_body_point_velocity;` line each -
+Step 7 rewrites exactly those two lines, which is the sequencing 08-before-05
+bought. Watch the registration count: `PDControllerPlugin` is added from three
+places, and a fourth panics the run.

@@ -67,9 +67,6 @@ avian3d = { version = "0.7" }
 bevy_rand = { version = "0.15.0", default-features = false, features = [
     "wyrand",
 ] }
-# gauntlet_race.rs drives the real scenario event bridge (EventHandler /
-# GameEventsPlugin), matching nova_scenario's own dep pin.
-bevy_common_systems = { git = "https://github.com/alexjercan/bevy-common-systems", tag = "v0.19.5" }
 nova_events = { path = "../nova_events" }
 # The portal e2e (portal_install.rs) and the publish-gate test
 # (gen_portal_gate.rs) serve/exercise a real portal tree built by the production

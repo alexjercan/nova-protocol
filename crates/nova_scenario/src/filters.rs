@@ -198,8 +198,8 @@ impl EventFilter<NovaEventWorld> for ExpressionFilterConfig {
 #[cfg(test)]
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
-    use bevy_common_systems::prelude::GameObjectives;
     use nova_events::prelude::{CommandsGameEventExt, EventHandler, GameEventsPlugin};
+    use nova_gameplay::prelude::GameObjectives;
 
     use super::*;
 

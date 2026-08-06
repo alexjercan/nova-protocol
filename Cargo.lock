@@ -4560,7 +4560,6 @@ dependencies = [
  "avian3d",
  "bevy",
  "bevy_asset_loader",
- "bevy_common_systems",
  "bevy_rand",
  "clap",
  "dirs",

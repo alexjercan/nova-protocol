@@ -16,12 +16,11 @@
 //! the neighboring scenarios.
 
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
-use bevy_common_systems::prelude::GameObjectives;
 use nova_events::prelude::{
     CommandsGameEventExt, EntityId, EventHandler, GameEventsPlugin, OnDestroyedEvent,
     OnDestroyedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
 };
-use nova_gameplay::prelude::{Allegiance, SectionConfig, SectionKind};
+use nova_gameplay::prelude::{Allegiance, GameObjectives, SectionConfig, SectionKind};
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::*;
 

@@ -244,9 +244,10 @@ mod tests {
         use core::time::Duration;
 
         use bevy::time::TimeUpdateStrategy;
-        use bevy_common_systems::prelude::GameObjectives;
         use nova_events::prelude::{EventHandler, GameEventsPlugin};
-        use nova_gameplay::prelude::{Autopilot, AutopilotAction, SpaceshipRootMarker};
+        use nova_gameplay::prelude::{
+            Autopilot, AutopilotAction, GameObjectives, SpaceshipRootMarker,
+        };
 
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
@@ -371,9 +372,10 @@ mod tests {
         use core::time::Duration;
 
         use bevy::time::TimeUpdateStrategy;
-        use bevy_common_systems::prelude::GameObjectives;
         use nova_events::prelude::{EventHandler, GameEventsPlugin};
-        use nova_gameplay::prelude::{Autopilot, AutopilotAction, SpaceshipRootMarker};
+        use nova_gameplay::prelude::{
+            Autopilot, AutopilotAction, GameObjectives, SpaceshipRootMarker,
+        };
 
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
@@ -524,10 +526,9 @@ mod tests {
         use core::time::Duration;
 
         use bevy::time::TimeUpdateStrategy;
-        use bevy_common_systems::prelude::GameObjectives;
         use nova_events::prelude::{EventHandler, GameEventsPlugin};
         use nova_gameplay::prelude::{
-            CombatLock, PlayerSpaceshipMarker, SpaceshipRootMarker, TravelLock,
+            CombatLock, GameObjectives, PlayerSpaceshipMarker, SpaceshipRootMarker, TravelLock,
         };
 
         let mut app = App::new();

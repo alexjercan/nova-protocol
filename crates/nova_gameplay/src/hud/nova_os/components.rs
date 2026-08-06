@@ -1,8 +1,7 @@
 use bevy::prelude::*;
-use bevy_common_systems::prelude::Objective;
 
 use super::style::*;
-use crate::prelude::*;
+use crate::{objectives::Objective, prelude::*};
 
 /// The NOVA OS UI root whose visibility is driven by [`NovaOsOpenness`].
 #[derive(Component)]

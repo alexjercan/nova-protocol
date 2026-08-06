@@ -166,8 +166,8 @@ mod tests {
 
     use avian3d::prelude::{ColliderDensity, Gravity, PhysicsPlugins};
     use bevy::time::TimeUpdateStrategy;
-    use bevy_common_systems::prelude::GameObjectives;
     use nova_events::prelude::{EventHandler, GameEventsPlugin};
+    use nova_gameplay::prelude::GameObjectives;
 
     use super::*;
     use crate::prelude::*;

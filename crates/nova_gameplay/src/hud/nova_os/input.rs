@@ -6,7 +6,7 @@ use bevy::{
     picking::hover::Hovered,
     prelude::*,
 };
-use bevy_common_systems::prelude::{GameObjectives, SoundBank};
+use bevy_common_systems::prelude::SoundBank;
 use nova_os::prelude::*;
 
 use super::{components::*, content::*, sound::*, style::*};
@@ -16,6 +16,7 @@ use crate::{
         NOVA_OS_ERROR_VOLUME, NOVA_OS_KEY_MIN_INTERVAL, NOVA_OS_KEY_VOLUME, NOVA_OS_OK_VOLUME,
         NOVA_OS_TICK_VOLUME,
     },
+    objectives::GameObjectives,
     prelude::*,
     PauseStates,
 };

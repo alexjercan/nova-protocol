@@ -6,9 +6,12 @@
 //! controller, autopilot verbs, and gravity wells), `input` (player, AI, and
 //! radar targeting), `hud`, `camera` (the controller and the rigs under it),
 //! `audio`, `juice` (camera
-//! shake and hit feedback), and `settings` (volume + graphics presets). Nova
-//! owns its health pool, damage typing and destruction pipeline (`integrity`);
-//! `bevy_common_systems` supplies the engine-level layers around them.
+//! shake and hit feedback), `objectives` (the mission objective list, its panel
+//! and the conveyance tags), `lifetime` and `cooldown` (transient entities and
+//! the countdowns that gate actions), and `settings` (volume + graphics
+//! presets). Nova owns its health pool, damage typing and destruction pipeline
+//! (`integrity`); `bevy_common_systems` supplies the engine-level layers around
+//! them.
 #![warn(missing_docs)]
 
 use bevy::prelude::*;
@@ -17,6 +20,7 @@ pub mod asset_ref;
 pub mod audio;
 pub mod beacon;
 pub mod camera;
+pub mod cooldown;
 pub mod damage;
 pub mod flight;
 pub mod gravity;
@@ -24,9 +28,10 @@ pub mod hud;
 pub mod input;
 pub mod integrity;
 pub mod juice;
+pub mod lifetime;
 pub mod math;
 pub mod mesh;
-pub mod objective_marker;
+pub mod objectives;
 pub mod plugin;
 pub mod relations;
 pub mod sections;
@@ -79,9 +84,8 @@ pub mod prelude {
     // example INERT (task 20260802-183403). Keep this list explicit: adding a
     // name here is a decision, and the twins are never on it.
     pub use bevy_common_systems::prelude::{
-        Cooldown, GameObjectives, Objective, ObjectivesPlugin, PDController, PDControllerInput,
-        PDControllerPlugin, PDControllerSystems, PDControllerTarget, PlaySfx, SfxCommandsExt,
-        SfxPlugin, SoundBank,
+        PDController, PDControllerInput, PDControllerPlugin, PDControllerSystems,
+        PDControllerTarget, PlaySfx, SfxCommandsExt, SfxPlugin, SoundBank,
     };
 
     pub use super::{
@@ -92,6 +96,7 @@ pub mod prelude {
         },
         beacon::prelude::*,
         camera::prelude::*,
+        cooldown::prelude::*,
         damage::prelude::*,
         flight::prelude::*,
         gravity::prelude::*,
@@ -99,8 +104,9 @@ pub mod prelude {
         input::prelude::*,
         integrity::prelude::*,
         juice::prelude::*,
+        lifetime::prelude::*,
         mesh::prelude::*,
-        objective_marker::prelude::*,
+        objectives::prelude::*,
         plugin::{NovaGameplayPlugin, SpaceshipSystems},
         relations::prelude::*,
         sections::prelude::*,

@@ -759,8 +759,8 @@ mod tests {
     /// id, through the real handler pipeline.
     #[test]
     fn destroying_an_asteroid_node_fires_on_destroyed_for_the_root() {
-        use bevy_common_systems::prelude::GameObjectives;
         use nova_events::prelude::{EventHandler, GameEventsPlugin};
+        use nova_gameplay::prelude::GameObjectives;
 
         use crate::prelude::*;
 

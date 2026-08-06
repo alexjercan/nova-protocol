@@ -1,10 +1,13 @@
 use bevy::prelude::*;
-use bevy_common_systems::prelude::{GameObjectives, Objective};
 use nova_os::prelude::*;
 use nova_ui::theme;
 
 use super::{components::*, content::*, style::*};
-use crate::{prelude::*, PauseStates};
+use crate::{
+    objectives::{GameObjectives, Objective},
+    prelude::*,
+    PauseStates,
+};
 
 /// Update the NOVA OS's combined left-panel flight log from the story feed and
 /// active objective list.

@@ -9,7 +9,7 @@ use crate::prelude::*;
 
 /// A scenario action that adds an objective to the HUD.
 ///
-/// The objective *data* (id + message) is the generic `bevy_common_systems` `Objective`, but
+/// The objective *data* (id + message) is `nova_gameplay`'s `Objective`, but
 /// this scenario-action wrapper stays nova-local because it implements the (foreign)
 /// `EventAction` trait - which the orphan rule forbids implementing on the foreign
 /// `Objective` type directly.

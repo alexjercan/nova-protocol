@@ -14,11 +14,11 @@
 //! act guards give once-semantics so a later real destruction cannot double-fire.
 
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
-use bevy_common_systems::prelude::GameObjectives;
 use nova_events::prelude::{
     CommandsGameEventExt, EventHandler, GameEventsPlugin, OnNeutralizedEvent,
     OnNeutralizedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
 };
+use nova_gameplay::prelude::GameObjectives;
 use nova_scenario::prelude::*;
 
 const BROADSIDE_RON: &str = include_str!("../../../assets/base/scenarios/broadside.content.ron");

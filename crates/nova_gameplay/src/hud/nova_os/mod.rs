@@ -60,7 +60,6 @@ mod style;
 mod tests;
 
 use bevy::{prelude::*, ui_render::prelude::UiMaterialPlugin};
-use bevy_common_systems::prelude::GameObjectives;
 use nova_os::prelude::{NovaOsCommandRegistry, NovaOsTerminal};
 
 pub use self::components::NovaOsMonitorSettings;
@@ -109,7 +108,7 @@ pub(crate) use self::{
     style::{NOVA_OS_CRT_OVERSCAN, NOVA_OS_CRT_WARP},
 };
 use super::NovaHudSystems;
-use crate::{prelude::StoryFeed, GameStates, PauseStates};
+use crate::{objectives::GameObjectives, prelude::StoryFeed, GameStates, PauseStates};
 
 /// Wires the Tab NOVA OS shell: the toggle, the slide and the objectives section.
 /// Registered by [`super::NovaHudPlugin`].

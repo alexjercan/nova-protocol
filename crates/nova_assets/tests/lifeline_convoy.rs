@@ -22,12 +22,11 @@
 //! lifeline_convoy`).
 
 use bevy::{ecs::system::RunSystemOnce, math::Vec3, prelude::*};
-use bevy_common_systems::prelude::GameObjectives;
 use nova_events::prelude::{
     CommandsGameEventExt, EntityId, EventHandler, GameEventsPlugin, OnDestroyedEvent,
     OnDestroyedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
 };
-use nova_gameplay::prelude::Allegiance;
+use nova_gameplay::prelude::{Allegiance, GameObjectives};
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::*;
 

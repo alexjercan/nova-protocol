@@ -55,7 +55,7 @@ impl EventWorld for NovaEventWorld {
 
     fn state_to_world_system(world: &mut World) {
         // Copy the objectives to the bevy world, mapping nova's scenario-action
-        // config to the generic bevy_common_systems Objective the HUD renders.
+        // config to the nova_gameplay Objective the HUD renders.
         // Write-on-diff, not a blind clear+extend: this system now runs every
         // frame (the OnUpdate pulse keeps the event queue warm), and an
         // unconditional write would flag GameObjectives changed every frame -
@@ -408,7 +408,7 @@ mod tests {
             0.5,
         )));
         app.init_resource::<NovaEventWorld>();
-        app.init_resource::<bevy_common_systems::prelude::GameObjectives>();
+        app.init_resource::<nova_gameplay::prelude::GameObjectives>();
         app.init_resource::<Loads>();
         let mut scenarios = GameScenarios::default();
         scenarios.insert(
@@ -482,7 +482,7 @@ mod tests {
             0.5,
         )));
         app.init_resource::<NovaEventWorld>();
-        app.init_resource::<bevy_common_systems::prelude::GameObjectives>();
+        app.init_resource::<nova_gameplay::prelude::GameObjectives>();
         app.init_resource::<Applied>();
         app.insert_resource(GameScenarios::default());
         app.add_systems(Update, NovaEventWorld::state_to_world_system);

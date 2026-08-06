@@ -35,7 +35,7 @@
 //!
 //! Deliberately NOT in v1: the ship-root-equals-section-sum health aggregate
 //! (mid-despawn frames make it schedule-flaky) and projectile lifetimes
-//! (the DespawnEntityPlugin's own contract, pinned in bcs).
+//! (the DespawnEntityPlugin's own contract, pinned in `nova_gameplay::lifetime`).
 
 use std::collections::HashMap;
 

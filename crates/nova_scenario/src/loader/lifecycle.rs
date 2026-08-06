@@ -712,8 +712,8 @@ mod tests {
     /// bcs panel does.
     #[test]
     fn objective_text_repaints_after_restarting_the_same_scenario() {
-        use bevy_common_systems::prelude::GameObjectives;
         use nova_events::prelude::GameEventsPlugin;
+        use nova_gameplay::prelude::GameObjectives;
 
         #[derive(Resource, Default)]
         struct ObjectiveRepaints(usize);
@@ -790,7 +790,7 @@ mod tests {
         app.add_plugins(MinimalPlugins);
         app.add_plugins(nova_events::prelude::GameEventsPlugin::<NovaEventWorld>::default());
         app.init_resource::<NovaEventWorld>();
-        app.init_resource::<bevy_common_systems::prelude::GameObjectives>();
+        app.init_resource::<nova_gameplay::prelude::GameObjectives>();
         app.init_resource::<StoryFeed>();
         app.init_resource::<CurrentScenario>();
         app.add_observer(unload_scenario);

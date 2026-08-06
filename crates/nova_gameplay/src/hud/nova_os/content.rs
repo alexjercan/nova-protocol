@@ -1,9 +1,8 @@
 use bevy::prelude::*;
-use bevy_common_systems::prelude::GameObjectives;
 use nova_os::prelude::*;
 
 use super::components::*;
-use crate::prelude::*;
+use crate::{objectives::GameObjectives, prelude::*};
 
 // Order and summaries mirror `nova_os_terminal_poc.html`'s command list. `map`
 // and `ship viewer` from the PoC stay out until their stretch app tasks land.
