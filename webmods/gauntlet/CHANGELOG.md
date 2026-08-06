@@ -3,6 +3,13 @@
 All notable changes to the Gauntlet Run mod. Versions are the `meta.version`
 in `gauntlet.bundle.ron`; the portal keeps every published version.
 
+## 1.6.0
+
+- The mod ships its OWN picker thumbnail instead of borrowing base's asteroid
+  texture, so the Scenarios picker shows the course rather than a rock every
+  other scenario also showed. Placeholder art for now: real art overwrites the
+  same path.
+
 ## 1.5.0
 
 - The act-3 gravity well is authored by MASS, matching the base game's new

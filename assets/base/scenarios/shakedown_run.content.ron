@@ -4,7 +4,7 @@
         name: "Shakedown Run",
         description: "First flight: beacons, salvage, orbit - and one scavenger.",
         cubemap: "self://textures/cubemap.png",
-        thumbnail: Some("self://banner.png"),
+        thumbnail: Some("self://thumbnails/shakedown_run.png"),
         events: [
             (
                 name: OnStart,

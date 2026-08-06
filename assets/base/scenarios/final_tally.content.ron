@@ -4,7 +4,7 @@
         name: "Final Tally",
         description: "The trace ends at the gang\'s claim: survey the anchorage, break the orbital picket, and finish the Final Tally in its own gravity well. Chapter three of the base storyline, part two.",
         cubemap: "self://textures/cubemap_alt.png",
-        thumbnail: Some("self://banner.png"),
+        thumbnail: Some("self://thumbnails/final_tally.png"),
         hidden: true,
         events: [
             (

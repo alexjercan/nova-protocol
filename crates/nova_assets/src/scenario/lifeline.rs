@@ -796,8 +796,9 @@ pub(crate) fn lifeline(
             .to_string(),
         cubemap,
         // The chapter head: picker-visible, like Broadside.
-        // TODO(20260715-220011): placeholder thumbnail; real per-scenario art pending.
-        thumbnail: Some(AssetRef::from("self://banner.png")),
+        // Generated placeholder art (scripts/gen-scenario-thumbnails.py);
+        // real art overwrites this same path with no code change.
+        thumbnail: Some(AssetRef::from("self://thumbnails/lifeline.png")),
         hidden: false,
         menu_backdrop: false,
         // Chapter three of the Nova Protocol campaign. Membership + order now

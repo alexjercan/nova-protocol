@@ -23,7 +23,7 @@
         name: "The Buyer",
         description: "Everyone wants the box. Decide who gets it - then survive the decision. Chapter four of The Ledger.",
         cubemap: "dep://base/textures/cubemap.png",
-        thumbnail: Some("dep://base/textures/asteroid.png"),
+        thumbnail: Some("self://thumbnails/ledger_ch4_the_buyer.png"),
         hidden: true,
         events: [
             (

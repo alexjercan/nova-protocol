@@ -16,7 +16,7 @@
         name: "Dead Weight",
         description: "Mesa Verde Reclamation contract 4471: strip the freighter Ceres Matron for a three-crate quota. Chapter one of The Ledger.",
         cubemap: "dep://base/textures/cubemap.png",
-        thumbnail: Some("dep://base/textures/asteroid.png"),
+        thumbnail: Some("self://thumbnails/ledger_ch1_dead_weight.png"),
         events: [
             (
                 name: OnStart,

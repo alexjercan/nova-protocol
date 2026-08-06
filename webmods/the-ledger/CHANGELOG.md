@@ -3,6 +3,12 @@
 All notable changes to The Ledger campaign mod. Versions are the `meta.version`
 in `the-ledger.bundle.ron`; the portal keeps every published version.
 
+## 1.17.0
+
+- Every chapter ships its OWN picker thumbnail instead of borrowing base's
+  asteroid texture, so the Scenarios picker tells the six chapters apart.
+  Placeholder art for now: real art overwrites the same paths.
+
 ## 1.16.0
 
 - The Raid's planetoid wells are authored by MASS, matching the base game's new

@@ -724,8 +724,9 @@ pub(crate) fn final_tally(
         cubemap,
         // A mid-story continuation reached from Lifeline's victory chain (the
         // Broadside-gunship precedent).
-        // TODO(20260715-220011): placeholder thumbnail; real art pending.
-        thumbnail: Some(AssetRef::from("self://banner.png")),
+        // Generated placeholder art (scripts/gen-scenario-thumbnails.py);
+        // real art overwrites this same path with no code change.
+        thumbnail: Some(AssetRef::from("self://thumbnails/final_tally.png")),
         // Hidden from the flat picker, but a member of the `nova_protocol`
         // campaign mapping so the finale is replayable from the campaign
         // header.

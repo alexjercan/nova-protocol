@@ -1381,8 +1381,9 @@ pub(crate) fn shakedown_run(
         description: "First flight: beacons, salvage, orbit - and one scavenger.".to_string(),
         cubemap,
         // The main-story entry point: listed in the Scenarios picker.
-        // TODO(20260715-220011): placeholder thumbnail; real per-scenario art pending.
-        thumbnail: Some(AssetRef::from("self://banner.png")),
+        // Generated placeholder art (scripts/gen-scenario-thumbnails.py);
+        // real art overwrites this same path with no code change.
+        thumbnail: Some(AssetRef::from("self://thumbnails/shakedown_run.png")),
         // Chapter one of the Nova Protocol campaign; membership + order now
         // live in the `nova_protocol` campaign mapping.
         events,

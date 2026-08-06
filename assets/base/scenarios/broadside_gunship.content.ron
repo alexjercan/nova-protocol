@@ -4,7 +4,7 @@
         name: "Broadside: Rust Tally",
         description: "The gang\'s gunship burns in to finish the job: screen its torpedoes with your PDC and break it section by section. Chapter two of the base storyline, part two.",
         cubemap: "self://textures/cubemap_alt.png",
-        thumbnail: Some("self://banner.png"),
+        thumbnail: Some("self://thumbnails/broadside_gunship.png"),
         hidden: true,
         events: [
             (

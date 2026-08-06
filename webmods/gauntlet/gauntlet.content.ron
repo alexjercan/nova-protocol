@@ -39,7 +39,7 @@
         cubemap: "dep://base/textures/cubemap.png",
         // A 2D image: a UI thumbnail must NOT be the skybox cubemap (that Image
         // is reinterpreted to a Cube texture, which the UI pipeline cannot bind).
-        thumbnail: Some("dep://base/textures/asteroid.png"),
+        thumbnail: Some("self://thumbnails/gauntlet_run.png"),
         events: [
             (
                 name: OnStart,

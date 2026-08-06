@@ -424,8 +424,9 @@ pub(crate) fn asteroid_field(
         // scenario until the shakedown replaced it, and nothing but its own
         // asteroid_next relay ever chained here. Unhidden; the player wiki
         // advertises it as a picker sandbox.
-        // TODO(20260715-220011): placeholder thumbnail; real art pending.
-        thumbnail: Some(AssetRef::from("self://banner.png")),
+        // Generated placeholder art (scripts/gen-scenario-thumbnails.py);
+        // real art overwrites this same path with no code change.
+        thumbnail: Some(AssetRef::from("self://thumbnails/asteroid_field.png")),
         events,
         ..Default::default()
     }

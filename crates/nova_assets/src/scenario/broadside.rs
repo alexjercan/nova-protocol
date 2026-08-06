@@ -587,8 +587,9 @@ pub(crate) fn broadside(
                       Chapter two of the base storyline, part one."
             .to_string(),
         cubemap,
-        // TODO(20260715-220011): placeholder thumbnail; real per-scenario art pending.
-        thumbnail: Some(AssetRef::from("self://banner.png")),
+        // Generated placeholder art (scripts/gen-scenario-thumbnails.py);
+        // real art overwrites this same path with no code change.
+        thumbnail: Some(AssetRef::from("self://thumbnails/broadside.png")),
         hidden: false,
         menu_backdrop: false,
         // Chapter two of the Nova Protocol campaign. Membership + order now
@@ -827,8 +828,9 @@ pub(crate) fn broadside_gunship(
                       section. Chapter two of the base storyline, part two."
             .to_string(),
         cubemap,
-        // TODO(20260715-220011): placeholder thumbnail; real per-scenario art pending.
-        thumbnail: Some(AssetRef::from("self://banner.png")),
+        // Generated placeholder art (scripts/gen-scenario-thumbnails.py);
+        // real art overwrites this same path with no code change.
+        thumbnail: Some(AssetRef::from("self://thumbnails/broadside_gunship.png")),
         // Hidden from the flat picker, but a member of the `nova_protocol`
         // campaign mapping so it is replayable from the campaign header.
         hidden: true,

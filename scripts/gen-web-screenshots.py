@@ -28,6 +28,9 @@ owner class - `capturable` (a game render some example can produce), `manual`
 (authored art: post cards, icons, diagrams) or `historical` (a figure for an
 older shipped version, at best approximated by the current build). It runs no
 capture and NEVER fails: a missing image is a worklist item, not a broken build.
+It closes with the GAME's half of the same worklist: every Scenarios-picker
+thumbnail still on generated placeholder art (`manual` - real scenario art is
+authored, not captured), read from `scripts/gen-scenario-thumbnails.py`.
 
 `--self-test` round-trips synthetic images through the PNG codec (all five row
 filters, RGB + RGBA) and exits, so the decode/resize/compose path is checkable
@@ -52,6 +55,7 @@ and composites.
 """
 
 import argparse
+import importlib.util
 import os
 import re
 import shutil
@@ -204,8 +208,12 @@ def png_dimensions(path):
     return width, height
 
 
-def write_png(path, width, height, pixels):
-    """Write an 8-bit RGBA PNG from a flat bytes buffer (row-major RGBA)."""
+def encode_png(width, height, pixels):
+    """Encode a flat row-major RGBA buffer as 8-bit RGBA PNG file bytes.
+
+    Deterministic (fixed filter byte, fixed zlib level), so a caller that
+    regenerates an image can compare the bytes with a committed file -
+    `scripts/gen-scenario-thumbnails.py --check` relies on that."""
 
     def chunk(tag, data):
         body = tag + data
@@ -218,14 +226,15 @@ def write_png(path, width, height, pixels):
         raw.append(0)
         raw.extend(pixels[y * stride:(y + 1) * stride])
 
-    signature = b"\x89PNG\r\n\x1a\n"
     ihdr = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
-    idat = zlib.compress(bytes(raw), 9)
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr)
+            + chunk(b"IDAT", zlib.compress(bytes(raw), 9)) + chunk(b"IEND", b""))
+
+
+def write_png(path, width, height, pixels):
+    """Write an 8-bit RGBA PNG from a flat bytes buffer (row-major RGBA)."""
     with open(path, "wb") as handle:
-        handle.write(signature)
-        handle.write(chunk(b"IHDR", ihdr))
-        handle.write(chunk(b"IDAT", idat))
-        handle.write(chunk(b"IEND", b""))
+        handle.write(encode_png(width, height, pixels))
 
 
 def decode_png(path):
@@ -700,6 +709,33 @@ def shipped_sizes(assets_dir):
     return sizes
 
 
+def scenario_thumbnail_rows():
+    """[(scenario id, path)] for every picker thumbnail still on generated art.
+
+    The GAME's half of the same worklist. Scenario thumbnails are `manual` -
+    real per-scenario art is authored, never captured (task 20260715-220011) -
+    so until it lands `scripts/gen-scenario-thumbnails.py` writes a deterministic
+    placeholder at the path. That determinism is also how the two are told
+    apart with no marker file: a file that still matches a fresh render is a
+    placeholder; real art dropped at the same path stops matching and drops off
+    this list. Advisory, like everything else in the report.
+
+    Returns [] if the generator cannot be loaded - the report never fails."""
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "gen_scenario_thumbnails",
+            os.path.join(REPO_ROOT, "scripts", "gen-scenario-thumbnails.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    except (OSError, ImportError):
+        return []
+    return [
+        (scenario_id, rel)
+        for scenario_id, title, rel in module.SCENARIOS
+        if module.is_generated_placeholder(scenario_id, title, os.path.join(REPO_ROOT, rel))
+    ]
+
+
 def report(stage_dir):
     """Print the advisory coverage worklist. Runs no capture, never fails."""
     declared = manifest_owners()
@@ -733,11 +769,19 @@ def report(stage_dir):
             for name in undeclared:
                 print(f"  {name}")
 
+    scenario_rows = scenario_thumbnail_rows()
+    if scenario_rows:
+        print("\nScenario picker thumbnails still on generated placeholder art:")
+        width = max(len(rel) for _s, rel in scenario_rows)
+        for scenario_id, rel in scenario_rows:
+            print(f"  {'manual':<12} {rel:<{width}}  {scenario_id}")
+
     counts = {owner: sum(1 for row in rows if row[0] == owner) for owner in OWNERS}
     unclassified = len(rows) - sum(counts.values())
     tail = f", {unclassified} unclassified" if unclassified else ""
     print(f"\n{len(rows)} outstanding: "
           + ", ".join(f"{counts[owner]} {owner}" for owner in OWNERS) + tail
+          + f"; {len(scenario_rows)} scenario thumbnail(s) awaiting real art (manual)"
           + "  (advisory - exit 0)")
 
 

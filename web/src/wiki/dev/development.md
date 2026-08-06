@@ -447,6 +447,28 @@ PNGs the manifest does not declare print the same way. The report is ADVISORY:
 it copies nothing and always exits 0, so it is a worklist (for the owner: what
 art to draw; for automation: what a producer could capture), never a gate.
 
+It closes with the GAME's half of the same worklist: every Scenarios-picker
+thumbnail still on generated placeholder art, classed `manual`.
+
+### Scenario picker thumbnails
+
+Every picker-visible scenario shows its own image in the details pane. Real
+per-scenario art is authored, not captured, so until it exists each scenario
+carries a deterministic placeholder - a 320x180 phosphor plate of its own title:
+
+```sh
+python3 scripts/gen-scenario-thumbnails.py           # write every PNG
+python3 scripts/gen-scenario-thumbnails.py --check   # verify, write nothing
+```
+
+The PNG lands in the OWNING mod's tree (`assets/base/thumbnails/<id>.png`,
+`webmods/<mod>/thumbnails/<id>.png`) and is referenced as
+`self://thumbnails/<id>.png` - never `dep://` another mod's art. Drop real art
+at the same path and nothing else changes; the report stops listing it, because
+the file no longer matches a fresh render. A new scenario adds one row to
+`SCENARIOS` in the script and one entry to its bundle's `resources`; a scenario
+with no art of its own is what the coverage report lists.
+
 ### Eyeballing the site
 
 `npm run ci` proves the bundle compiles and the theme tokens are in sync; it

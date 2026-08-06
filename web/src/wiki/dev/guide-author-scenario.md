@@ -42,11 +42,17 @@ The `ScenarioConfig` fields (`loader.rs`):
   handle at load time).
 - `thumbnail` (optional) - an image path shown in the main-menu Scenarios
   picker's details pane. Authored exactly like `cubemap` but wrapped in the
-  `Option` variant (strict RON, never bare): `thumbnail: Some("dep://base/banner.png")`.
+  `Option` variant (strict RON, never bare):
+  `thumbnail: Some("self://thumbnails/my_scenario.png")`.
   Omit it for no thumbnail. It MUST be a plain 2D image - NOT a skybox cubemap
   (a cubemap is a Cube texture the UI cannot bind; the picker skips a non-2D
   thumbnail with a warning rather than crashing). Point it at a regular
   screenshot/art PNG, not the `cubemap` path.
+  Give each scenario its OWN image - the picker's details pane is how a player
+  tells one scenario from another, so a shared banner tells them nothing. Until
+  real art exists, `scripts/gen-scenario-thumbnails.py` writes a deterministic
+  placeholder plate per scenario; add your id to its `SCENARIOS` list and the
+  file to your bundle's `resources`.
 - `hidden` (optional, default `false`) - when `true`, the scenario is kept out
   of the Scenarios picker (the menu backdrop, mid-story continuations reached
   only via `NextScenario`). Author as `hidden: true`; omit it to be listed.
