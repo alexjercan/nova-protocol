@@ -135,11 +135,13 @@ example PROVES, not by what it happens to spawn.
 | `ui/` | a staged UI flow - layout, navigation, real text measure | correctness passes only | its subject is the simulation, not the interface over it |
 | `screenshots/` | frames for the website and the wiki | **not a probe target**: `probe run screenshots` is an error, and `--all` records the category as excluded | asserts instead of capturing |
 
-The run-policy half of that table is code: `CATEGORY_POLICIES` in
-`crates/nova_probe/src/catalog.rs`, two booleans per category (`probed`,
-`frame_time`). A category with no row fails
-`every_category_has_a_probe_policy` in `tests/examples_smoke.rs`, so a new
-category states its contract before it can ship. The prose half - what each
+The run-policy half of that table is no longer a table. What an example can
+be judged on is DECLARED by the example, at runtime, through the probe
+plugins it wires (`nova_probe::contract`), and probe reads it back from
+`probe-contract.json`. The one launch-side decision that cannot be runtime -
+whether to spawn a category at all - is `NOT_PROBED_CATEGORIES` in
+`crates/nova_probe/src/bin/probe/native/spec.rs`, one row with its reason.
+The prose half - what each
 category proves - is the table above and the per-block comments in the root
 `Cargo.toml`; review enforces it, because judging whether an example asserts
 enough is a reading task, not a test.
@@ -565,16 +567,13 @@ enrolled scenes (a script `loop_from` point) reload + replay so the window
 measures activity - reload intervals are excluded from the stats and
 reported as their own line.
 
-Which runs get that pass is **category policy**, not a per-example opt-out:
-only a frame-time category (`stress/`) carries the `--fps` pass. Everywhere
-else `--fps` runs the clean + profiled
-CORRECTNESS passes and the report records WHY the frame-time section is empty
-("category `ui/` carries no frame-time pass") instead of timing out on a
-window the example was never built to fill. See
-[the category contract](#the-category-contract); the table lives in
-`CATEGORY_POLICIES` (`crates/nova_probe/src/catalog.rs`). If your example
-needs a frame-time number, it belongs in `stress/` - that is what the
-category means.
+Which runs get that pass is the EXAMPLE's own answer: it wired
+`nova_probe::nova_frametime()`, or it did not. `--fps` arms the capture for
+every run; an example that wired no capture is inert under it, and its
+contract tells the report the frame-time section is empty because the example
+makes no frame-cost claim - not because a capture went missing. Frame-time
+claims still belong in `stress/`: that is what the category means, and it is
+now enforced by the wiring rather than by a table.
 
 The capture window is the capture crate's full 180/900 baseline for every run
 that captures at all, so probe numbers stay comparable with the sweep's; your

@@ -18,38 +18,6 @@ const FPS_FLOOR: f64 = 2.0;
 /// Extra seconds added to the sized deadline for scene load + asset warm.
 const FPS_LOAD_MARGIN_SECS: u64 = 45;
 
-/// Why the frame-time pass is skipped for `category`, or `None` when the
-/// category carries one. The reason NAMES the category, because that is
-/// where the decision actually lives - it is a property of the contract the
-/// example was written against, not a per-example opt-out.
-pub(crate) fn fps_skip_reason(category: &str) -> Option<String> {
-    (!nova_probe::category_policy(category).frame_time).then(|| {
-        format!(
-            "category `{category}/` carries no frame-time pass - it proves \
-             behavior, not frame cost, and has no steady-state window to \
-             measure (frame-time claims live in `stress/`)"
-        )
-    })
-}
-
-/// The frame-time skip reason for an EXAMPLE, resolved through its category
-/// in the catalog.
-///
-/// Fail-OPEN when the category cannot be resolved (catalog read error, or an
-/// example not in it): `None`, so the capture still runs. Spec resolution
-/// validates names against a loaded catalog, so this is a shape rather than a
-/// live path - but a catalog hiccup must never silently suppress a real
-/// capture, and formatting an unresolved category into the reason would
-/// print a meaningless ``category `/` ...``.
-pub(crate) fn example_fps_skip_reason(root: &Path, example: &str) -> Option<String> {
-    let category = nova_probe::load_example_catalog(root)
-        .ok()?
-        .iter()
-        .find(|entry| entry.name == example)
-        .map(|entry| entry.category.clone())?;
-    fps_skip_reason(&category)
-}
-
 /// Read an env var as u32 (empty/unparseable -> None). Reads probe's own
 /// environment, which the child inherits, so operator overrides are honored.
 fn env_u32(key: &str) -> Option<u32> {
@@ -102,9 +70,12 @@ pub(crate) fn fps_window_and_deadline_env() -> (Vec<(String, String)>, u64) {
 }
 
 /// Environment for the CLEAN pass: autopilot + recorder + invariants
-/// always; the frame-time capture only on request (`--fps`) since only
-/// the wired examples (stress/) read it - elsewhere it is a
-/// harmless no-op env. Plus the profile sandbox, so the run cannot read
+/// always; the frame-time capture only on request (`--fps`). Arming is free
+/// for an example that wired no such plugin - the plugin is inert and its
+/// contract simply does not declare the capability, so the report says so.
+/// The clean pass OWNS the contract: the trace and samply passes must not
+/// name a path, or a later pass would rewrite the claim.
+/// Plus the profile sandbox, so the run cannot read
 /// the operator's mod cache, enabled mods or settings
 /// ([`nova_probe::profile_sandbox`]).
 pub(crate) fn clean_pass_env(
@@ -123,6 +94,10 @@ pub(crate) fn clean_pass_env(
             out.join("timeline.jsonl").display().to_string(),
         ),
         ("NOVA_PERF_INVARIANTS".into(), "1".into()),
+        (
+            "NOVA_PERF_CONTRACT".into(),
+            out.join("probe-contract.json").display().to_string(),
+        ),
     ]);
     if fps {
         env.push(("NOVA_PERF".into(), "1".into()));
@@ -264,24 +239,6 @@ mod tests {
                     nova_probe::DEFAULT_WARMUP_FRAMES,
                     nova_probe::DEFAULT_CAPTURE_FRAMES
                 )
-            );
-        }
-    }
-
-    #[test]
-    fn frame_time_categories_capture_and_the_rest_record_a_reason() {
-        // The consumer side of the policy: only a frame-time category runs
-        // the fps pass; every other one gets a reason NAMING the category,
-        // so the report says why rather than showing a hole.
-        assert_eq!(fps_skip_reason("stress"), None);
-        // `gameplay` is retired and has no policy row, so it also exercises
-        // the unknown-category backstop: even there the report says why.
-        for category in ["sections", "systems", "ui", "gameplay"] {
-            let reason = fps_skip_reason(category)
-                .unwrap_or_else(|| panic!("{category} must record a skip reason"));
-            assert!(
-                reason.contains(&format!("`{category}/`")),
-                "the reason must name the category: {reason}"
             );
         }
     }

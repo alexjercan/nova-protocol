@@ -100,7 +100,6 @@ mod tests {
             armed_timeline: true,
             armed_invariants: true,
             armed_fps: true,
-            fps_skipped: Some("narrative scenario".into()),
             passes: vec![
                 PassRecord {
                     name: "clean".into(),

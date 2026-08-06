@@ -152,10 +152,7 @@ pub use capture::{
     DEFAULT_CAPTURE_FRAMES, DEFAULT_RESOLUTION, DEFAULT_WARMUP_FRAMES, PERF_ENV,
 };
 #[cfg(not(target_arch = "wasm32"))]
-pub use catalog::{
-    categories, category_policy, load_example_catalog, parse_example_catalog, CatalogExample,
-    CategoryPolicy, CATEGORY_POLICIES,
-};
+pub use catalog::{categories, load_example_catalog, parse_example_catalog, CatalogExample};
 pub use contract::{Capability, ProbeContract};
 #[cfg(not(target_arch = "wasm32"))]
 pub use invariants::{nova_invariants, InvariantState, InvariantsPlugin};

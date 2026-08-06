@@ -178,21 +178,21 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
 
     // 4. Performance (the absorbed perf_report as a section).
     html.push_str("<h2>Performance</h2>\n");
-    let fps_skipped = artifacts
-        .manifest
+    // A capture the example never claimed is not a missing one. The contract
+    // says which, so a reader does not chase a number this example was never
+    // written to produce.
+    let unclaimed = artifacts
+        .contract
         .as_ref()
-        .and_then(|m| m.fps_skipped.as_deref());
-    match (&artifacts.runs, fps_skipped) {
-        // The frame-time pass was deliberately skipped, not missing. Say so,
-        // so a reader does not chase a capture the example's category never
-        // promised.
-        (None, Some(reason)) => html.push_str(&format!(
-            "<p class=\"note\">no frame-time pass: {}. This example runs for \
-             correctness only (clean + profiled passes). The per-category run \
-             policy is the example-category contract; see the dev wiki.</p>\n",
-            crate::report::escape(reason),
+        .is_some_and(|c| !c.declares(crate::contract::Capability::FrameTime));
+    match (&artifacts.runs, unclaimed) {
+        (None, true) => html.push_str(&format!(
+            "<p class=\"note\">no frame-time claim: this example wires no \
+             <code>{}</code>, so it makes no frame-cost assertion and there is \
+             no window to measure. It runs for correctness only.</p>\n",
+            crate::report::escape(crate::contract::Capability::FrameTime.wiring()),
         )),
-        (None, None) => html.push_str(
+        (None, false) => html.push_str(
             "<p>No frame-time capture in this run dir - probe run --fps (a \
              wired example) or the sweep matrix flags produce frametime.csv.</p>\n",
         ),
@@ -312,10 +312,10 @@ mod tests {
         super::{
             checks::{evaluate_checks, CheckStatus},
             fixtures::*,
-            manifest::RunManifest,
         },
         *,
     };
+    use crate::contract::{Capability, ProbeContract};
 
     #[test]
     fn report_html_carries_every_section_and_skip_reasons() {
@@ -344,36 +344,33 @@ mod tests {
     }
 
     #[test]
-    fn fps_skipped_renders_an_honest_note_not_a_missing_capture() {
-        // No frametime.csv (runs = None) AND fps_skipped set: the Performance
-        // section must say the pass was skipped by policy, not the generic
-        // "no capture" line, so a reader is not sent hunting for a window the
-        // example's category never promised.
-        let manifest = RunManifest {
-            fps_skipped: Some("category `ui/` carries no frame-time pass".into()),
-            ..manifest_ok()
-        };
+    fn an_unclaimed_frame_time_renders_an_honest_note_not_a_missing_capture() {
+        // No frametime.csv (runs = None) AND a contract that declares no
+        // FrameTime: the Performance section must say the example makes no
+        // such claim, not the generic "no capture" line, so a reader is not
+        // sent hunting for a window this example never promised.
         let artifacts = RunArtifacts {
             reloads: Vec::new(),
-            manifest: Some(manifest),
+            manifest: Some(manifest_ok()),
+            contract: Some(ProbeContract::of([Capability::Timeline])),
             ..Default::default()
         };
         let checks = evaluate_checks(&artifacts);
         let html = render_run_report(Path::new("probe-runs/editor"), &artifacts, &checks);
         assert!(
-            html.contains("no frame-time pass"),
-            "policy note missing: {html}"
+            html.contains("no frame-time claim"),
+            "the contract note is missing: {html}"
         );
         assert!(
-            html.contains("carries no frame-time pass"),
-            "the recorded reason must reach the reader: {html}"
+            html.contains("nova_frametime()"),
+            "the note must name the wiring that would make the claim: {html}"
         );
         assert!(
             !html.contains("No frame-time capture in this run dir"),
-            "the generic no-capture message should be replaced by the policy note"
+            "the generic no-capture message should be replaced by the contract note"
         );
-        // process_exit must not FAIL: a skipped fps pass never ran, so there
-        // is no failed/timed-out pass to flip the verdict.
+        // process_exit must not FAIL: no fps pass ran, so there is no
+        // failed/timed-out pass to flip the verdict.
         assert_ne!(check(&checks, "process_exit").status, CheckStatus::Fail);
     }
 }

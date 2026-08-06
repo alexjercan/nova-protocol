@@ -8,8 +8,10 @@
 //! package's `catalog_matches_disk` drift test calls the same parser so
 //! the two consumers can never disagree about the format.
 //!
-//! The catalog answers WHAT the examples are; [`CATEGORY_POLICIES`] answers
-//! what probe DOES with each category.
+//! The catalog answers WHAT the examples are. What probe DOES with one is
+//! no longer a table here: the example declares its own capabilities at
+//! runtime (see `nova_probe::contract`), and the only remaining launch-side
+//! opinion lives with the spec resolver that needs it.
 
 use std::path::Path;
 
@@ -114,100 +116,6 @@ pub fn load_example_catalog(root: &Path) -> Result<Vec<CatalogExample>, String> 
     parse_example_catalog(&manifest)
 }
 
-/// What probe does with a whole category - the run policy side of the
-/// example-category contract (the prose side lives in the root Cargo.toml's
-/// per-category comments and the dev wiki's category table).
-///
-/// Two axes, because two is all the contract has: whether probe runs the
-/// category at all, and whether running it carries a frame-time pass.
-/// "Runs correctness" and "is in `--all`" are the same column here - there
-/// is no category that runs under an explicit spec but not under `--all`,
-/// so they stay one boolean until a caller needs them apart.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CategoryPolicy {
-    /// Probe runs this category at all: gates both `--all` and bare category
-    /// expansion. False means the category leaves probe's scope entirely -
-    /// `probe run <category>` is an error, not an empty run.
-    pub probed: bool,
-    /// Running it carries the `--fps` frame-time pass. False means `--fps`
-    /// records a skip reason instead: the category makes no frame-time claim,
-    /// so there is no window to measure and nothing to compare against.
-    pub frame_time: bool,
-}
-
-/// The policy table: one explicit row per category on disk.
-///
-/// A table rather than scattered predicates so that a new category is a
-/// compile-time edit next to [`CatalogExample`], and so the root package's
-/// `every_category_has_a_probe_policy` can enumerate it and turn a missing
-/// row into a red test rather than a silent [`category_policy`] default.
-pub const CATEGORY_POLICIES: &[(&str, CategoryPolicy)] = &[
-    // sections/ - one test range per ship section. Correctness curriculum:
-    // it asserts behavior, never frame cost.
-    (
-        "sections",
-        CategoryPolicy {
-            probed: true,
-            frame_time: false,
-        },
-    ),
-    // systems/ - code-built fixtures for whole-system behavior. Correctness,
-    // like sections/, at a coarser grain.
-    (
-        "systems",
-        CategoryPolicy {
-            probed: true,
-            frame_time: false,
-        },
-    ),
-    // stress/ - the ONLY home for frame-time claims: steady-state scenes
-    // built to be measured and compared against a baseline.
-    (
-        "stress",
-        CategoryPolicy {
-            probed: true,
-            frame_time: true,
-        },
-    ),
-    // ui/ - staged UI flows. Correctness of layout and flow; a UI example's
-    // frame cost is not a claim anyone reads.
-    (
-        "ui",
-        CategoryPolicy {
-            probed: true,
-            frame_time: false,
-        },
-    ),
-    // screenshots/ - capture producers, judged by their PNGs and human eyes.
-    // Outside probe's scope: a probe verdict on one would assert nothing.
-    (
-        "screenshots",
-        CategoryPolicy {
-            probed: false,
-            frame_time: false,
-        },
-    ),
-];
-
-/// The run policy for a category.
-///
-/// An unlisted category falls back to probed-without-frame-time: probe still
-/// runs it (the conservative choice - a new category is more likely a
-/// correctness one than a no-op), but claims no frame-time window for it.
-/// That default is a backstop, never a design: the root package's
-/// `every_category_has_a_probe_policy` fails if any category on disk reaches
-/// it.
-pub fn category_policy(category: &str) -> CategoryPolicy {
-    CATEGORY_POLICIES
-        .iter()
-        .find(|(name, _)| *name == category)
-        .map(|(_, policy)| *policy)
-        .unwrap_or(CategoryPolicy {
-            probed: true,
-            frame_time: false,
-        })
-}
-
 /// The distinct categories, in catalog order.
 pub fn categories(catalog: &[CatalogExample]) -> Vec<&str> {
     let mut seen = Vec::new();
@@ -297,33 +205,5 @@ path = "src/lib.rs"
         assert!(parse_example_catalog(&collide)
             .unwrap_err()
             .contains("collides with a category"));
-    }
-
-    #[test]
-    fn the_policy_table_has_no_duplicate_rows() {
-        // A duplicate would make the table's second row unreachable and the
-        // contract ambiguous about which one is the contract.
-        for (i, (name, _)) in CATEGORY_POLICIES.iter().enumerate() {
-            assert!(
-                !CATEGORY_POLICIES[..i]
-                    .iter()
-                    .any(|(prior, _)| prior == name),
-                "duplicate policy row for category {name}"
-            );
-        }
-    }
-
-    #[test]
-    fn an_unlisted_category_gets_the_conservative_default() {
-        // The backstop, pinned so the fallback stays a KNOWN shape (probed,
-        // no frame-time claim) - `every_category_has_a_probe_policy` is what
-        // keeps any real category from reaching it.
-        assert_eq!(
-            category_policy("not_a_category"),
-            CategoryPolicy {
-                probed: true,
-                frame_time: false,
-            }
-        );
     }
 }

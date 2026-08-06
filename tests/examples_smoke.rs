@@ -182,32 +182,6 @@ fn catalog_matches_disk() {
     );
 }
 
-/// Every category on disk has an EXPLICIT row in probe's policy table, so
-/// the unknown-category default in `nova_probe::category_policy` can never
-/// quietly apply to a real category.
-///
-/// The default is a backstop (probed, no frame-time claim), not a design: a
-/// new category dir that skipped the contract would otherwise be probed on a
-/// guess. It lives here, beside `catalog_matches_disk`, because
-/// `CARGO_MANIFEST_DIR` is the repo root in this target - probe's own tests
-/// cannot see the real catalog. Display-free, like its neighbor.
-#[test]
-fn every_category_has_a_probe_policy() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let catalog = nova_probe::load_example_catalog(root)
-        .expect("the [[example]] catalog must parse (and autoexamples must stay off)");
-    for category in nova_probe::categories(&catalog) {
-        assert!(
-            nova_probe::CATEGORY_POLICIES
-                .iter()
-                .any(|(name, _)| *name == category),
-            "category `{category}/` has no row in nova_probe::CATEGORY_POLICIES - \
-             a new category states its contract (probed? frame-time?) there \
-             rather than inheriting the unknown-category default"
-        );
-    }
-}
-
 /// Run each harnessed example headless and assert it reaches gameplay and exits
 /// without panic. Sequential on purpose: each spawns a `cargo run`, and running
 /// them one at a time avoids piling up concurrent builds/windows.

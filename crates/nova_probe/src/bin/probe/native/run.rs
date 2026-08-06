@@ -14,8 +14,8 @@ use nova_probe::{
 use super::{
     cli::{Platform, RunOptions},
     env::{
-        clean_pass_env, example_fps_skip_reason, fps_window_and_deadline_env, matrix_cells,
-        samply_pass_env, sweep_cell_env, trace_pass_env,
+        clean_pass_env, fps_window_and_deadline_env, matrix_cells, samply_pass_env, sweep_cell_env,
+        trace_pass_env,
     },
     paths::{default_output_root, repo_root, resolve_full_git_sha},
     supervise::{build_example, ensure_display, run_supervised},
@@ -26,8 +26,9 @@ use super::{
 /// at the start of a run so nothing stale (an old trace, a previous
 /// checks.json) can present as this run's evidence. NOTE: never a recursive
 /// wipe - the dir may be user-supplied.
-const RUN_ARTIFACTS: [&str; 11] = [
+const RUN_ARTIFACTS: [&str; 12] = [
     "timeline.jsonl",
+    "probe-contract.json",
     "run.log",
     "fps-run.log",
     "trace.json",
@@ -58,10 +59,6 @@ fn clean_out_dir(out: &Path) -> Result<(), String> {
 
 pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
     let root = repo_root();
-    // The frame-time pass runs only for a frame-time CATEGORY; anywhere
-    // else this is the reason it did not, recorded for the report (the
-    // correctness passes are unaffected).
-    let fps_skipped = example_fps_skip_reason(&root, &opts.example);
     let out = opts.out.clone().unwrap_or_else(|| {
         let (git_sha, _) = run_identity();
         default_output_root(&root, None, &git_sha).join(&opts.example)
@@ -103,7 +100,6 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
             started_unix,
             passes,
             /*armed_native*/ false,
-            /*fps_skipped*/ None,
         );
     }
 
@@ -117,7 +113,7 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
     let sweeping = !opts.scenarios.is_empty() || !opts.presets.is_empty();
     eprintln!(
         "probe: [1/{}] clean pass: building {}{}",
-        passes_total(opts, fps_skipped.is_some()),
+        passes_total(opts),
         opts.example,
         if opts.release { " (release)" } else { "" }
     );
@@ -171,15 +167,11 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
     // FPS pass (optional, non-sweep): the dedicated capture-only run -
     // same binary as the clean pass, recorder/invariants OFF the frame
     // path, its own log. The completion protocol keeps the app alive
-    // until the capture window closes. SKIPPED outside a frame-time
-    // category: an example with no steady-state window would idle to the
-    // deadline, hard-timeout, and bare-FAIL the run - it runs the clean +
-    // profiled correctness passes only, and the report says which category
-    // policy skipped it instead of "no capture".
+    // until the capture window closes. Whether there is anything to
+    // capture is the EXAMPLE's answer (it wired nova_frametime(), or it
+    // did not), and its contract tells the report which.
     if opts.fps && !sweeping {
-        if let Some(reason) = &fps_skipped {
-            eprintln!("probe: fps pass skipped for {}: {reason}", opts.example);
-        } else {
+        {
             eprintln!(
                 "probe: fps pass: capture-only -> {}",
                 out.join("fps-run.log").display()
@@ -222,7 +214,7 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
     if opts.profile {
         eprintln!(
             "probe: [2/{}] profiled pass: building with tracing",
-            passes_total(opts, fps_skipped.is_some())
+            passes_total(opts)
         );
         match build_example(&root, &opts.example, "debug,trace", None) {
             Err(e) => {
@@ -261,10 +253,7 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
     // profiler never fails the check; supervised so a hung sampled run
     // cannot wedge probe either).
     if opts.samply {
-        eprintln!(
-            "probe: [{n}/{n}] samply pass",
-            n = passes_total(opts, fps_skipped.is_some())
-        );
+        eprintln!("probe: [{n}/{n}] samply pass", n = passes_total(opts));
         match build_example(&root, &opts.example, "debug", Some("profiling")) {
             Err(e) => eprintln!("probe: samply build failed ({e}); flamegraph skipped"),
             Ok(()) => {
@@ -307,10 +296,6 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
         started_unix,
         passes,
         /*armed_native*/ !sweeping,
-        // Only record the skip when the operator actually asked for fps: a
-        // plain `probe run <example>` shows the normal no-capture line, not
-        // a policy note for a pass nobody requested.
-        fps_skipped.filter(|_| opts.fps && !sweeping),
     )
 }
 
@@ -321,7 +306,6 @@ fn finish_report(
     started_unix: u64,
     passes: Vec<PassRecord>,
     armed_native: bool,
-    fps_skipped: Option<String>,
 ) -> Result<ExitCode, String> {
     let (git_sha, host) = run_identity();
     let full_git_sha = resolve_full_git_sha(&repo_root());
@@ -333,10 +317,7 @@ fn finish_report(
         host,
         armed_timeline: armed_native,
         armed_invariants: armed_native,
-        // A skipped frame-time pass never armed the capture, so armed_fps
-        // is false (the fps_skipped reason carries the "why").
-        armed_fps: (opts.fps && fps_skipped.is_none()) || opts.platform == Platform::Web,
-        fps_skipped,
+        armed_fps: opts.fps || opts.platform == Platform::Web,
         passes,
     };
     std::fs::write(
@@ -368,11 +349,7 @@ fn finish_report(
     })
 }
 
-fn passes_total(opts: &RunOptions, fps_skipped: bool) -> usize {
+fn passes_total(opts: &RunOptions) -> usize {
     let sweeping = !opts.scenarios.is_empty() || !opts.presets.is_empty();
-    // A skipped fps pass does not run, so it does not count toward the
-    // progress total (keeps the [n/N] labels honest).
-    1 + usize::from(opts.fps && !sweeping && !fps_skipped)
-        + usize::from(opts.profile)
-        + usize::from(opts.samply)
+    1 + usize::from(opts.fps && !sweeping) + usize::from(opts.profile) + usize::from(opts.samply)
 }

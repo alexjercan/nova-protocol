@@ -43,28 +43,26 @@ stand-in), `--platform native|web`.
 ## Categories - what probe does with each
 
 The `[[example]]` catalog in the root Cargo.toml is the single source of
-truth; the RUN POLICY per category is `CATEGORY_POLICIES` in
-`crates/nova_probe/src/catalog.rs`, two booleans each:
+truth for WHAT the examples are. What an example can be JUDGED on is no
+longer a table: the example DECLARES it at runtime by the probe plugins it
+wires, and probe reads the declaration back from `probe-contract.json`.
 
-| Category | probed | frame_time (`--fps`) | Examples |
-|---|---|---|---|
-| `sections/` | yes | no | controller, thruster, hull, turret, torpedo |
-| `systems/` | yes | no | scenario_grammar, player_path, outcomes |
-| `stress/` | yes | **YES** | scene_baseline, many_bodies, many_sections, many_projectiles |
-| `ui/` | yes | no | widget_zoo, editor, hud_range, menu_newgame, menu_scenarios |
-| `screenshots/` | **no** | no | the seven `screenshot_*` + render_scale_shot |
+| Wiring | Declares | The checks it feeds |
+|---|---|---|
+| `nova_probe::nova_timeline()` | `Timeline` | run_completed, reached_playing |
+| `nova_probe::nova_invariants()` | `Invariants` | invariants_held |
+| `nova_probe::nova_frametime()` | `FrameTime` | fps_within_baseline |
 
-`stress/` is the ONLY frame-time category. Everywhere else `--fps` runs the
-clean + profiled CORRECTNESS passes and the report records WHY the frame-time
-section is empty ("category `ui/` carries no frame-time pass") instead of
-hard-timing-out on a window the example was never built to fill. If your
-example needs a frame-time number, it belongs in `stress/`.
+A check whose capability is undeclared reports that the example makes no such
+claim, naming the call that would make it. A capability that IS declared,
+WAS armed, and produced nothing is a FAILURE, not a shrug.
 
-`screenshots/` is out of probe's scope entirely: `--all` skips it and records
-the absence, and a bare `probe run screenshots` ERRORS rather than expanding
-to an empty run. `tests/examples_smoke.rs::every_category_has_a_probe_policy`
-fails a category with no policy row, so a new category is a compile-time
-decision, not a silent default.
+The only launch-side opinion left is what to SPAWN, which cannot be runtime:
+`NOT_PROBED_CATEGORIES` and `NOT_PROBED` in
+`crates/nova_probe/src/bin/probe/native/spec.rs`, each entry carrying its
+reason. `screenshots/` is out of probe's scope entirely: `--all` skips it and
+records the absence, and a bare `probe run screenshots` ERRORS rather than
+expanding to an empty run.
 
 Two orthogonal skip axes, each carrying its reason into the report's "Not
 probed (deliberately)" list: unprobed CATEGORIES (recorded once by category)
