@@ -18,11 +18,13 @@
 use std::collections::VecDeque;
 
 use bevy::prelude::*;
-use bevy_common_systems::prelude::{SfxCommandsExt, SoundBank};
 use nova_ui::{hud::ChipTone, theme};
 
 use super::{emphasis::prelude::*, HudSelfDrivenVisibility, HudTier};
-use crate::{asset_ref::AssetRef, audio::UiSfx};
+use crate::{
+    asset_ref::AssetRef,
+    audio::{SfxCommandsExt, SoundBank, UiSfx},
+};
 
 /// Glob-import surface: `use nova_gameplay::hud::comms_panel::prelude::*` re-exports the public API of this module.
 pub mod prelude {

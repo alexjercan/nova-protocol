@@ -85,13 +85,12 @@ pub mod prelude {
     // harness at every example's `use nova_protocol::prelude::*` and boot the
     // example INERT (task 20260802-183403). Keep this list explicit: adding a
     // name here is a decision, and the twins are never on it.
-    pub use bevy_common_systems::prelude::{PlaySfx, SfxCommandsExt, SfxPlugin, SoundBank};
-
     pub use super::{
         asset_ref::prelude::*,
         audio::{
-            NovaAudioPlugin, SfxListenerMarker, UiSfx, MENU_SELECT_VOLUME, SALVAGE_PICKUP_VOLUME,
-            UI_SFX_FILES, UI_TOGGLE_VOLUME,
+            sounds_loaded, NovaAudioPlugin, PlaySfx, SfxCommandsExt, SfxListenerMarker,
+            SfxMasterVolume, SfxPlugin, SoundBank, UiSfx, MENU_SELECT_VOLUME,
+            SALVAGE_PICKUP_VOLUME, UI_SFX_FILES, UI_TOGGLE_VOLUME,
         },
         beacon::prelude::*,
         camera::prelude::*,

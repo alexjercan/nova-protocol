@@ -369,7 +369,7 @@ expected until step 10, not evidence the step was left incomplete.
         it is handled here, so Step 10 must not redo it. `missing_docs` +
         `cargo fmt`, verify, **run** examples, probe, commit.
 
-- [ ] 8. **SFX playback + sound bank -> `nova_gameplay`.** Prototype 07.
+- [x] 8. **SFX playback + sound bank -> `nova_gameplay`.** Prototype 07.
       - a. Copy BCS `src/audio/registry.rs` ->
         `crates/nova_gameplay/src/audio/registry.rs` with its 4 tests; repoint
         the doctests at `:18,130`; drop its `pub mod prelude`.
@@ -1197,12 +1197,63 @@ is what a reviewer should judge it on. A pre-existing `unused_imports` warning
 in `examples/stress/many_sections.rs:37` is **not** from this step - verified by
 stashing the working tree and re-running the workspace check on `cb56bcaf`.
 
+### Step 8 - DONE (SFX playback + sound bank -> `nova_gameplay`)
+
+**What.** BCS `audio/registry.rs` (4 tests) and `audio/mod.rs` are now
+`crates/nova_gameplay/src/audio/{registry,sfx}.rs`, wired the local way -
+private `mod registry; mod sfx;` beside `combat/cues/loops/mixing`, with an
+explicit `pub use self::{...}` re-export. `plugin.rs` is untouched: `SfxPlugin`
+is still added inside `NovaAudioPlugin::build` behind its
+`if !app.is_plugin_added::<SfxPlugin>()` guard, which is kept verbatim. `lib.rs`
+lost the last four names in the BCS by-name list; that whole `pub use
+bevy_common_systems::prelude::{...}` block is now **gone**, and the names live
+in the `audio::{...}` prelude entry.
+
+**Difficulties and deviations.**
+- **`sounds_loaded` had to be exported, and 8d's five-name list is six.** BCS
+  put `sounds_loaded` in `registry::prelude`; nobody in nova calls it. Dropping
+  it would delete surface (against the dead-surface ruling) and keeping it
+  inside a *private* `mod registry` made it a hard `dead_code` warning, which no
+  step may leave standing. Exported alongside `SoundBank`. This is the same
+  shape as Step 2's `TweenPlugin` ruling, resolved the only way a private module
+  allows.
+- **`sounds_loaded` also carries a doctest, and it needed a `lib.rs` prelude
+  entry, not just a `mod.rs` one.** The copied doctest is
+  `use nova_gameplay::prelude::*` + `.run_if(sounds_loaded::<Sfx>)`, so
+  re-exporting from `audio` alone still failed to compile it. `sounds_loaded` is
+  therefore in the crate prelude too. Caught only by
+  `cargo test --doc audio`; `cargo check --all-targets` is blind to it.
+- 8g's "three keep a shrunken BCS import for `GameObjectives`/`Objective`" was
+  already false - Step 6 took those lines all the way down, so all five
+  callsites were bare SFX imports and became plain `use crate::audio::{...}`.
+  No BCS import survives in any of the five.
+
+**Evidence.** `check --workspace --all-targets` reports **zero** errors;
+`fmt --check` clean; `check -p nova_gameplay --all-targets` emits no warnings at
+all. Tests: `audio::registry::tests` 4/4, `hud::nova_os` 103/103,
+`--doc audio` 3/3 (both copied doctests plus `sounds_loaded`'s, all on the
+`nova_gameplay` path). `cmd:` proofs: `^mod sfx;` present in `audio/mod.rs`;
+`! grep -rnE 'bevy_common_systems.*(SoundBank|PlaySfx|Sfx)' crates/` passes;
+`check -p nova_assets -p nova_menu --all-targets` zero errors.
+
+`NOVA_AUTOPILOT=1 xvfb-run -a --server-num=99 cargo run --example turret_section
+--features debug` reached `autopilot: cycle complete, no panic (t=10.2s)`. The
+guard is proved positively in that log: exactly **one**
+`nova_gameplay::audio::sfx` build line and **zero** `bevy_common_systems` lines
+of any kind - the module that logged `bevy_common_systems::audio` through
+Step 7 is now silent, which is the whole before/after this step promised.
+
+**Not run:** the workspace-wide `clippy --features debug` CI gate and any test
+outside the filters above, per the standing skip-local-suite instruction. The
+"sound plays once, not twice" DoD line is `manual:`; the single-build-line
+evidence above plus the untouched `is_plugin_added` guard is what to judge it
+on.
+
 ### Next
 
-Step 8 (SFX playback + sound bank -> `nova_gameplay`), prototype 07. It is the
-last module move; after it the only BCS surface left is the debug half
-(Step 9) and the dependency itself (Step 10). Note 8f: registration does **not**
-move - `SfxPlugin` is already added inside `NovaAudioPlugin::build` behind an
-`is_plugin_added` guard, so `plugin.rs` is not touched. The probe run logs above
-are the before-picture: `bevy_common_systems::audio` should be the only BCS
-module name that disappears from them.
+Step 9 (inspector + wireframe -> `nova_debug`), prototype 09. Nothing in
+`nova_gameplay` names BCS after this step, so the remaining surface is
+`nova_debug`'s `debug::{...}` half (Step 9) and the manifests, log filter and
+prose (Step 10). Watch 9e: both copied plugins `insert_resource(DebugEnabled(true))`
+in `build`, and `lib.rs:120-121` only wins because it runs after `:99,100` -
+reordering silently inverts F11.

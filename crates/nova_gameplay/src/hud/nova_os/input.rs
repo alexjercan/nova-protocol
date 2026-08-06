@@ -6,13 +6,12 @@ use bevy::{
     picking::hover::Hovered,
     prelude::*,
 };
-use bevy_common_systems::prelude::SoundBank;
 use nova_os::prelude::*;
 
 use super::{components::*, content::*, sound::*, style::*};
 use crate::{
     audio::{
-        UiSfx, NOVA_OS_BACK_VOLUME, NOVA_OS_COIL_VOLUME, NOVA_OS_ENTER_VOLUME,
+        SoundBank, UiSfx, NOVA_OS_BACK_VOLUME, NOVA_OS_COIL_VOLUME, NOVA_OS_ENTER_VOLUME,
         NOVA_OS_ERROR_VOLUME, NOVA_OS_KEY_MIN_INTERVAL, NOVA_OS_KEY_VOLUME, NOVA_OS_OK_VOLUME,
         NOVA_OS_TICK_VOLUME,
     },

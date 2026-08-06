@@ -1,11 +1,10 @@
 use bevy::{prelude::*, ui_widgets::Activate};
-use bevy_common_systems::prelude::SoundBank;
 use nova_os::prelude::*;
 use nova_ui::{font::UiFont, theme};
 
 use super::{casing::*, components::*, content::*, sound::*, style::*};
 use crate::{
-    audio::{UiSfx, NOVA_OS_COIL_VOLUME},
+    audio::{SoundBank, UiSfx, NOVA_OS_COIL_VOLUME},
     PauseStates,
 };
 

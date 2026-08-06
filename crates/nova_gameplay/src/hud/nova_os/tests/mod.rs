@@ -26,7 +26,6 @@ use bevy::{
     ui_render::prelude::MaterialNode,
     ui_widgets::{Activate, Button},
 };
-use bevy_common_systems::prelude::{PlaySfx, SoundBank};
 use nova_os::prelude::*;
 use nova_ui::theme;
 
@@ -34,7 +33,7 @@ use super::{
     components::*, content::*, crt::*, input::*, lists::*, shell::*, sound::*, spawn::*, style::*,
 };
 use crate::{
-    audio::{UiSfx, NOVA_OS_BED_VOLUME},
+    audio::{PlaySfx, SoundBank, UiSfx, NOVA_OS_BED_VOLUME},
     hud::nova_os_ship::prelude::SectionCode,
     objectives::{GameObjectives, Objective},
     prelude::*,

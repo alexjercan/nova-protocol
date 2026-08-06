@@ -1,9 +1,8 @@
 use bevy::{audio::Volume, prelude::*};
-use bevy_common_systems::prelude::{SfxCommandsExt, SoundBank};
 
 use super::components::*;
 use crate::{
-    audio::{UiSfx, NOVA_OS_BED_VOLUME, NOVA_OS_POWER_VOLUME},
+    audio::{SfxCommandsExt, SoundBank, UiSfx, NOVA_OS_BED_VOLUME, NOVA_OS_POWER_VOLUME},
     settings::{HarnessMute, MasterVolume},
 };
 

@@ -1,10 +1,11 @@
 //! Nova's audio wiring: map gameplay events to placeholder sound effects.
 //!
-//! The generic playback machinery lives in `bevy_common_systems`: [`SfxPlugin`]
-//! spawns a self-despawning audio entity for every [`PlaySfx`], and
-//! [`SoundBank`] is a keyed registry of loaded handles. This module owns only
-//! the *game-specific* part - the mapping from Nova gameplay events to sounds -
-//! so the reusable half stays promotable and this half stays Nova's.
+//! The generic playback machinery is nova's too, in the private `sfx` and
+//! `registry` submodules: [`SfxPlugin`] spawns a self-despawning audio entity
+//! for every [`PlaySfx`], and [`SoundBank`] is a keyed registry of loaded
+//! handles. The rest of this module is the *game-specific* part - the mapping
+//! from Nova gameplay events to sounds - and the split is kept so the reusable
+//! half stays extractable once the game is done.
 //!
 //! Four cues are one-shots fired from existing seams via observers, so no
 //! gameplay system has to know about audio:
@@ -46,11 +47,12 @@ mod combat;
 mod cues;
 mod loops;
 mod mixing;
+mod registry;
+mod sfx;
 
 #[cfg(test)]
 mod test_support;
 
-pub use self::mixing::SfxListenerMarker;
 use self::{
     combat::{
         on_damage_play_impact, on_destroyed_play_explosion, on_torpedo_launch_play_sfx,
@@ -63,6 +65,11 @@ use self::{
         resume_loops, RcsLoopVolume, ThrusterHumVolume,
     },
     mixing::{prune_sfx_throttle, SfxThrottle},
+};
+pub use self::{
+    mixing::SfxListenerMarker,
+    registry::{sounds_loaded, SoundBank},
+    sfx::{PlaySfx, SfxCommandsExt, SfxMasterVolume, SfxPlugin},
 };
 
 /// Keys for the game's UI/interface sound effects - engine chrome, like
