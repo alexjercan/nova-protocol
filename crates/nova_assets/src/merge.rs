@@ -35,7 +35,9 @@ use crate::{
 /// ENABLED DOWNLOADED bundles ([`DownloadedMods`]) merge AFTER the shipped ones,
 /// in cache-index order, through the same overlay rules. They sit outside the
 /// collection gate (loaded async via `mods://`), so a still-loading bundle is
-/// skipped with a warning; `mark_downloaded_bundles_loaded` re-triggers this
+/// skipped with a warning;
+/// [`mark_downloaded_bundles_loaded`](crate::mark_downloaded_bundles_loaded)
+/// re-triggers this
 /// system when the load lands, and a `DownloadedMods` change (install/uninstall)
 /// re-triggers it too.
 pub fn register_bundles(

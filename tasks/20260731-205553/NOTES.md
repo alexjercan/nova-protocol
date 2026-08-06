@@ -161,11 +161,19 @@ Notable non-mechanical edits:
 | `nova_probe/src/recorder.rs` | Test `rig(&PathBuf)` -> `rig(&Path)`. |
 | `nova_gameplay/src/hud/beacon_chips.rs` | An orphaned doc comment documented nothing; moved to the `ScreenIndicatorSize::Content` site as a plain comment. |
 | `keybind_dock.rs`, `torpedo_target.rs` | Removed two `#[expect(clippy::type_complexity)]` that could never fire - the lint is `allow` workspace-wide. |
-| `nova_os_map/scene.rs` | Removed a duplicated (and workspace-redundant) `#[allow(clippy::too_many_arguments)]`. |
+| `nova_os_map/scene.rs` | Removed both copies of a duplicated `#[allow(clippy::too_many_arguments)]` - the lint is allow workspace-wide, so neither could fire. |
 
 The rest is doc rewrapping: a hyphen or `+` at the start of a wrapped line reads
 as a markdown list marker, so most of the 71 `doc_lazy_continuation` hits were
 fixed by moving the punctuation up one line rather than by indenting.
+
+Not every broken link was dropped. Five named a real, reachable public item
+under a path rustdoc could not resolve from the doc's own scope, so they were
+RELINKED with an explicit path rather than de-linked: `PortalPlugin`
+(`super::`), `EnabledMods` and `mark_downloaded_bundles_loaded` (`crate::`),
+`SpaceshipSystems` and `NovaGameplayPlugin` (`crate::plugin::`), and
+`perf_param` (`crate::capture::`). Brackets were dropped only where the target
+is private, `pub(crate)`/`pub(super)`, or not a dependency at all.
 
 The `nova_debug` `nova_autopilot` links resolve to the FUNCTION
 (`nova_autopilot()`), except the module doc's "over the nova_autopilot drivers",

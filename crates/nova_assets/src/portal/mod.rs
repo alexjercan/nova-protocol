@@ -27,7 +27,8 @@
 //! success the record joins [`DownloadedMods`] and the EXISTING load/mark/merge
 //! machinery takes over; installs stay DISABLED until the player enables them.
 //!
-//! UNINSTALL reverses install and also strips the id from `EnabledMods`
+//! UNINSTALL reverses install and also strips the id from
+//! [`EnabledMods`](crate::EnabledMods)
 //! (persisted by the existing save system), resolving: a reinstall starts
 //! disabled, matching the documented install default.
 //!

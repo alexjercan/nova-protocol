@@ -75,8 +75,7 @@ pub enum CommandDispatch {
     /// pure terminal only records the invocation (it cannot reach the ECS
     /// itself) - this is the seam the arg-bearing ship verbs (`ship
     /// section/reload/repair <id>`) dispatch through, and the same seam a
-    /// future queued/over-time,
-    /// resource-costed action model plugs into. See
+    /// future queued/over-time, resource-costed action model plugs into. See
     /// [`crate::terminal::NovaOsTerminal::take_pending_invocation`].
     Gameplay,
 }
