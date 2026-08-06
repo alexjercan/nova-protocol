@@ -339,27 +339,46 @@ impl Plugin for NovaHudPlugin {
         app.add_observer(add_screen_indicator_camera);
         app.add_observer(remove_screen_indicator_camera);
 
-        // Setup and remove HUDs when player spaceship is added/removed
+        // The player-scoped HUD: every widget below spawns when the player ship
+        // appears and despawns when it goes. The ones whose bundle needs
+        // nothing at spawn time are registered whole by `add_player_hud`; the
+        // rest keep a setup observer for their resource and pair it with
+        // `despawn_player_hud` for the teardown.
+        add_player_hud::<TurretLeadHudMarker, _>(app, HudTier::Instrument, turret_lead_hud);
+        add_player_hud::<AmmoReadoutHudMarker, _>(app, HudTier::Instrument, ammo_readout_hud);
+        add_player_hud::<ComponentLockHudMarker, _>(app, HudTier::Chrome, component_lock_hud);
+        add_player_hud::<EdgeIndicatorsHudMarker, _>(app, HudTier::Chrome, edge_indicators_hud);
+
+        app.add_observer(setup_hud_lock_dwell_ring);
+        app.add_observer(despawn_player_hud::<LockDwellRingHudMarker>);
+        app.add_observer(setup_hud_lock_crosshairs);
+        app.add_observer(despawn_player_hud::<LockCrosshairsHudMarker>);
+        app.add_observer(setup_hud_torpedo_target);
+        app.add_observer(despawn_player_hud::<TorpedoTargetHudMarker>);
+
+        // Target-filtered teardown: these widgets carry a back-pointer to the
+        // ship they track, so they despawn only the nodes aimed at the ship
+        // that left. `despawn_player_hud` would take a second player's HUD too.
         app.add_observer(setup_hud_velocity);
         app.add_observer(remove_hud_velocity);
         app.add_observer(setup_hud_flight_status);
         app.add_observer(remove_hud_flight_status);
-        app.add_observer(setup_hud_torpedo_target);
-        app.add_observer(remove_hud_torpedo_target);
-        app.add_observer(setup_hud_turret_lead);
-        app.add_observer(remove_hud_turret_lead);
-        app.add_observer(setup_hud_ammo_readout);
-        app.add_observer(remove_hud_ammo_readout);
-        app.add_observer(setup_hud_component_lock);
-        app.add_observer(remove_hud_component_lock);
-        app.add_observer(setup_hud_lock_dwell_ring);
-        app.add_observer(remove_hud_lock_dwell_ring);
-        app.add_observer(setup_hud_lock_crosshairs);
-        app.add_observer(remove_hud_lock_crosshairs);
+        // The flight-status widget spawns a fleet of unowned companion nodes;
+        // each tears down on its own marker.
+        app.add_observer(despawn_player_hud::<AutopilotDestinationHudMarker>);
+        app.add_observer(despawn_player_hud::<KeybindDockMarker>);
+        app.add_observer(despawn_player_hud::<VerbCuesHudMarker>);
+        app.add_observer(despawn_player_hud::<ManeuverInstrumentsHudMarker>);
+        app.add_observer(despawn_player_hud::<OrbitRingMarker>);
+        app.add_observer(despawn_player_hud::<RadiusSpokeMarker>);
+        app.add_observer(despawn_player_hud::<TrajectoryRibbonSegment>);
+        app.add_observer(despawn_player_hud::<FlipGateMarker>);
+
+        // The inset owns three entity kinds (panel, camera, highlight) that no
+        // single marker covers.
         app.add_observer(setup_hud_target_inset);
         app.add_observer(remove_hud_target_inset);
-        app.add_observer(setup_hud_edge_indicators);
-        app.add_observer(remove_hud_edge_indicators);
+
         app.add_observer(objective_stack::setup_objective_stack);
         app.add_observer(objective_stack::remove_objective_stack);
     }
@@ -502,6 +521,67 @@ fn resolve_chain(
 
 /// Tag the spaceship chase camera as the projection camera for screen
 /// indicators.
+/// Spawn every `M` under `tier` when the player ship appears and despawn them
+/// when it goes - the whole lifecycle of a player-scoped HUD widget that needs
+/// nothing but its bundle at spawn time.
+///
+/// Widgets whose bundle reads a resource (a sprite handle, a material) keep
+/// their own `On<Add, ..>` observer and pair it with
+/// [`despawn_player_hud`] directly; only the spawn half differs.
+fn add_player_hud<M: Component, B: Bundle>(app: &mut App, tier: HudTier, build: fn() -> B) {
+    app.add_observer(
+        move |add: On<Add, PlayerSpaceshipMarker>,
+              mut commands: Commands,
+              q_spaceship: Query<
+            Entity,
+            (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+        >| {
+            if !is_player_ship_root(add.entity, &q_spaceship) {
+                return;
+            }
+            commands.spawn((tier, build()));
+        },
+    );
+    app.add_observer(despawn_player_hud::<M>);
+}
+
+/// Despawn every entity carrying `M` when the player ship goes away.
+///
+/// The teardown half of a player-scoped widget. A widget whose nodes point BACK
+/// at a specific ship (`VelocityHudTargetEntity`, `FlightStatusHudTargetEntity`)
+/// cannot use this - it must despawn only the nodes aimed at the ship that left,
+/// or a second player ship's HUD goes with the first one's.
+fn despawn_player_hud<M: Component>(
+    remove: On<Remove, PlayerSpaceshipMarker>,
+    mut commands: Commands,
+    q_hud: Query<Entity, With<M>>,
+) {
+    debug!(
+        "despawn_player_hud<{}>: player {:?}",
+        core::any::type_name::<M>(),
+        remove.entity
+    );
+
+    for hud_entity in &q_hud {
+        commands.entity(hud_entity).despawn();
+    }
+}
+
+/// The guard every `On<Add, PlayerSpaceshipMarker>` HUD setup shares: the marker
+/// alone does not prove the entity is a ship ROOT, and a HUD built against a
+/// non-root would target the wrong transform. Logs and returns false when it is
+/// not.
+fn is_player_ship_root(
+    entity: Entity,
+    q_spaceship: &Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+) -> bool {
+    if q_spaceship.get(entity).is_err() {
+        error!("hud setup: entity {:?} is not a player ship root", entity);
+        return false;
+    }
+    true
+}
+
 fn add_screen_indicator_camera(
     add: On<Add, crate::camera_controller::SpaceshipCameraController>,
     mut commands: Commands,
@@ -628,18 +708,13 @@ fn setup_hud_flight_status(
     }
 }
 
+/// Despawn the flight-status readout aimed at the ship that left. The companion
+/// nodes it spawns (dock, cues, instruments, orbit ring, spokes, ribbon, gate)
+/// carry no back-pointer and tear down through `despawn_player_hud` instead.
 fn remove_hud_flight_status(
     remove: On<Remove, PlayerSpaceshipMarker>,
     mut commands: Commands,
     q_hud: Query<(Entity, &FlightStatusHudTargetEntity), With<FlightStatusHudMarker>>,
-    q_destination: Query<Entity, With<AutopilotDestinationHudMarker>>,
-    q_dock: Query<Entity, With<KeybindDockMarker>>,
-    q_cues: Query<Entity, With<VerbCuesHudMarker>>,
-    q_instruments: Query<Entity, With<ManeuverInstrumentsHudMarker>>,
-    q_ring: Query<Entity, With<OrbitRingMarker>>,
-    q_spoke: Query<Entity, With<RadiusSpokeMarker>>,
-    q_ribbon: Query<Entity, With<TrajectoryRibbonSegment>>,
-    q_gate: Query<Entity, With<FlipGateMarker>>,
 ) {
     let entity = remove.entity;
     debug!("remove_hud_flight_status: entity {:?}", entity);
@@ -648,120 +723,6 @@ fn remove_hud_flight_status(
         if **target == entity {
             commands.entity(hud_entity).despawn();
         }
-    }
-    for hud_entity in &q_destination {
-        commands.entity(hud_entity).despawn();
-    }
-    for hud_entity in &q_dock {
-        commands.entity(hud_entity).despawn();
-    }
-    for hud_entity in &q_cues {
-        commands.entity(hud_entity).despawn();
-    }
-    for hud_entity in &q_instruments {
-        commands.entity(hud_entity).despawn();
-    }
-    for hud_entity in &q_ring {
-        commands.entity(hud_entity).despawn();
-    }
-    for hud_entity in q_spoke.iter().chain(q_ribbon.iter()).chain(&q_gate) {
-        commands.entity(hud_entity).despawn();
-    }
-}
-
-fn setup_hud_turret_lead(
-    add: On<Add, PlayerSpaceshipMarker>,
-    mut commands: Commands,
-    q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
-) {
-    let entity = add.entity;
-    debug!("setup_hud_turret_lead: entity {:?}", entity);
-
-    let Ok(_spaceship) = q_spaceship.get(entity) else {
-        error!(
-            "setup_hud_turret_lead: entity {:?} not found in q_spaceship",
-            entity
-        );
-        return;
-    };
-
-    commands.spawn((HudTier::Instrument, turret_lead_hud()));
-}
-
-fn remove_hud_turret_lead(
-    remove: On<Remove, PlayerSpaceshipMarker>,
-    mut commands: Commands,
-    q_hud: Query<Entity, With<TurretLeadHudMarker>>,
-) {
-    let entity = remove.entity;
-    debug!("remove_hud_turret_lead: entity {:?}", entity);
-
-    for hud_entity in &q_hud {
-        commands.entity(hud_entity).despawn();
-    }
-}
-
-fn setup_hud_ammo_readout(
-    add: On<Add, PlayerSpaceshipMarker>,
-    mut commands: Commands,
-    q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
-) {
-    let entity = add.entity;
-    debug!("setup_hud_ammo_readout: entity {:?}", entity);
-
-    let Ok(_spaceship) = q_spaceship.get(entity) else {
-        error!(
-            "setup_hud_ammo_readout: entity {:?} not found in q_spaceship",
-            entity
-        );
-        return;
-    };
-
-    commands.spawn((HudTier::Instrument, ammo_readout_hud()));
-}
-
-fn remove_hud_ammo_readout(
-    remove: On<Remove, PlayerSpaceshipMarker>,
-    mut commands: Commands,
-    q_hud: Query<Entity, With<AmmoReadoutHudMarker>>,
-) {
-    let entity = remove.entity;
-    debug!("remove_hud_ammo_readout: entity {:?}", entity);
-
-    for hud_entity in &q_hud {
-        commands.entity(hud_entity).despawn();
-    }
-}
-
-fn setup_hud_component_lock(
-    add: On<Add, PlayerSpaceshipMarker>,
-    mut commands: Commands,
-    q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
-) {
-    let entity = add.entity;
-    debug!("setup_hud_component_lock: entity {:?}", entity);
-
-    let Ok(_spaceship) = q_spaceship.get(entity) else {
-        error!(
-            "setup_hud_component_lock: entity {:?} not found in q_spaceship",
-            entity
-        );
-        return;
-    };
-
-    commands.spawn((HudTier::Chrome, component_lock_hud()));
-}
-
-fn remove_hud_component_lock(
-    remove: On<Remove, PlayerSpaceshipMarker>,
-    mut commands: Commands,
-    q_hud: Query<Entity, With<ComponentLockHudMarker>>,
-) {
-    let entity = remove.entity;
-    debug!("remove_hud_component_lock: entity {:?}", entity);
-
-    for hud_entity in &q_hud {
-        commands.entity(hud_entity).despawn();
     }
 }
 
@@ -774,29 +735,12 @@ fn setup_hud_lock_dwell_ring(
     let entity = add.entity;
     debug!("setup_hud_lock_dwell_ring: entity {:?}", entity);
 
-    if q_spaceship.get(entity).is_err() {
-        error!(
-            "setup_hud_lock_dwell_ring: entity {:?} not found in q_spaceship",
-            entity
-        );
+    if !is_player_ship_root(entity, &q_spaceship) {
         return;
     }
 
     let material = materials.add(LockDwellRingMaterial::default());
     commands.spawn((HudTier::Chrome, lock_dwell_ring_hud(material)));
-}
-
-fn remove_hud_lock_dwell_ring(
-    remove: On<Remove, PlayerSpaceshipMarker>,
-    mut commands: Commands,
-    q_hud: Query<Entity, With<LockDwellRingHudMarker>>,
-) {
-    let entity = remove.entity;
-    debug!("remove_hud_lock_dwell_ring: entity {:?}", entity);
-
-    for hud_entity in &q_hud {
-        commands.entity(hud_entity).despawn();
-    }
 }
 
 fn setup_hud_lock_crosshairs(
@@ -808,31 +752,14 @@ fn setup_hud_lock_crosshairs(
     let entity = add.entity;
     debug!("setup_hud_lock_crosshairs: entity {:?}", entity);
 
-    let Ok(_spaceship) = q_spaceship.get(entity) else {
-        error!(
-            "setup_hud_lock_crosshairs: entity {:?} not found in q_spaceship",
-            entity
-        );
+    if !is_player_ship_root(entity, &q_spaceship) {
         return;
-    };
+    }
 
     commands.spawn((
         HudTier::Instrument,
         lock_crosshairs_hud(assets.target_sprite.clone()),
     ));
-}
-
-fn remove_hud_lock_crosshairs(
-    remove: On<Remove, PlayerSpaceshipMarker>,
-    mut commands: Commands,
-    q_hud: Query<Entity, With<LockCrosshairsHudMarker>>,
-) {
-    let entity = remove.entity;
-    debug!("remove_hud_lock_crosshairs: entity {:?}", entity);
-
-    for hud_entity in &q_hud {
-        commands.entity(hud_entity).despawn();
-    }
 }
 
 /// Build the target-inset render target + highlight assets (Assets exist at
@@ -851,13 +778,9 @@ fn setup_hud_target_inset(
     let entity = add.entity;
     debug!("setup_hud_target_inset: entity {:?}", entity);
 
-    let Ok(_spaceship) = q_spaceship.get(entity) else {
-        error!(
-            "setup_hud_target_inset: entity {:?} not found in q_spaceship",
-            entity
-        );
+    if !is_player_ship_root(entity, &q_spaceship) {
         return;
-    };
+    }
 
     let image = target_inset::create_render_target(&mut images);
     **render_target = Some(image.clone());
@@ -892,38 +815,6 @@ fn remove_hud_target_inset(
     commands.remove_resource::<TargetInsetHighlightAssets>();
 }
 
-fn setup_hud_edge_indicators(
-    add: On<Add, PlayerSpaceshipMarker>,
-    mut commands: Commands,
-    q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
-) {
-    let entity = add.entity;
-    debug!("setup_hud_edge_indicators: entity {:?}", entity);
-
-    let Ok(_spaceship) = q_spaceship.get(entity) else {
-        error!(
-            "setup_hud_edge_indicators: entity {:?} not found in q_spaceship",
-            entity
-        );
-        return;
-    };
-
-    commands.spawn((HudTier::Chrome, edge_indicators_hud()));
-}
-
-fn remove_hud_edge_indicators(
-    remove: On<Remove, PlayerSpaceshipMarker>,
-    mut commands: Commands,
-    q_hud: Query<Entity, With<EdgeIndicatorsHudMarker>>,
-) {
-    let entity = remove.entity;
-    debug!("remove_hud_edge_indicators: entity {:?}", entity);
-
-    for hud_entity in &q_hud {
-        commands.entity(hud_entity).despawn();
-    }
-}
-
 fn setup_hud_torpedo_target(
     add: On<Add, PlayerSpaceshipMarker>,
     mut commands: Commands,
@@ -933,13 +824,9 @@ fn setup_hud_torpedo_target(
     let entity = add.entity;
     debug!("setup_hud_torpedo_target: entity {:?}", entity);
 
-    let Ok(_spaceship) = q_spaceship.get(entity) else {
-        error!(
-            "setup_hud_torpedo_target: entity {:?} not found in q_spaceship",
-            entity
-        );
+    if !is_player_ship_root(entity, &q_spaceship) {
         return;
-    };
+    }
 
     commands.spawn((
         HudTier::Instrument,
@@ -947,19 +834,6 @@ fn setup_hud_torpedo_target(
             target_sprite: assets.target_sprite.clone(),
         }),
     ));
-}
-
-fn remove_hud_torpedo_target(
-    remove: On<Remove, PlayerSpaceshipMarker>,
-    mut commands: Commands,
-    q_hud: Query<Entity, With<TorpedoTargetHudMarker>>,
-) {
-    let entity = remove.entity;
-    debug!("remove_hud_torpedo_target: entity {:?}", entity);
-
-    for hud_entity in &q_hud {
-        commands.entity(hud_entity).despawn();
-    }
 }
 
 #[cfg(test)]
