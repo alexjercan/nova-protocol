@@ -367,7 +367,8 @@ impl Plugin for ScenarioLoaderPlugin {
         // Scripted-camera override (photo mode / the capture scripts): the
         // `SetCamera` action pins a `ScriptedCameraPose` on the scenario camera;
         // enforce it in `CameraAuthority::Override`, the phase that runs after
-        // every base writer - WASD sync AND chase sync - and before propagation.
+        // every base writer - WASD sync, chase sync AND camera shake - and
+        // before propagation.
         // Both controllers keep writing the camera Transform every frame (and
         // removing a controller does not stop it - the private state components
         // survive), so a one-shot Transform set would be immediately
@@ -402,8 +403,8 @@ pub struct ScriptedCameraPose {
 }
 
 /// Pin every camera carrying a [`ScriptedCameraPose`] to that pose. Runs in
-/// [`CameraAuthority::Override`] so it wins the frame's last base write to the
-/// camera Transform.
+/// [`CameraAuthority::Override`] so it wins the frame's last write to the
+/// camera Transform, shake offset included.
 fn enforce_scripted_camera_pose(mut cameras: Query<(&mut Transform, &ScriptedCameraPose)>) {
     for (mut transform, pose) in &mut cameras {
         *transform = Transform::from_translation(pose.position).looking_at(pose.look_at, Vec3::Y);

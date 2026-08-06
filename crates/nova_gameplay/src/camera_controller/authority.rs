@@ -7,6 +7,10 @@
 //! readiness, i.e. a per-frame coin flip, which is what made the scripted pose
 //! in the capture scripts flicker: some frames the chase camera wrote last.
 //!
+//! Shake sits BEFORE the scripted pose on purpose: a posed shot (photo mode,
+//! the capture scripts, the cinematic framings) must be steady even when combat
+//! next to the camera is feeding trauma.
+//!
 //! [`CameraAuthorityPlugin`] declares the total order once, in nova, using only
 //! the `SystemSet`s bcs already exports. Nothing in bcs changes and no writer is
 //! disabled - a loser still runs and still writes, it is simply overwritten in
@@ -25,12 +29,13 @@ use bevy_common_systems::prelude::{CameraShakeSystems, ChaseCameraSystems, WASDC
 pub enum CameraAuthority {
     /// Solve the base pose from game state: bcs chase sync and WASD sync.
     Solve,
-    /// Overwrite the solved pose with a scripted one (photo mode, the capture
-    /// scripts). Runs after every base writer, so the script wins the frame.
-    Override,
-    /// Add an offset on top of whatever pose won: bcs camera shake `Apply`.
-    /// Additive, so it composes with either of the two above.
+    /// Add an offset on top of the solved pose: bcs camera shake `Apply`.
     Additive,
+    /// Overwrite the pose with a scripted one (photo mode, the capture
+    /// scripts). Runs LAST, so the script wins the frame and a posed shot is
+    /// shake-free - trauma from nearby combat must not jitter a cinematic
+    /// framing or a screenshot.
+    Override,
 }
 
 /// Declares the [`CameraAuthority`] chain. Added by
@@ -56,8 +61,8 @@ impl Plugin for CameraAuthorityPlugin {
             (
                 CameraShakeSystems::Restore,
                 CameraAuthority::Solve,
-                CameraAuthority::Override,
                 CameraAuthority::Additive,
+                CameraAuthority::Override,
             )
                 .chain()
                 .before(TransformSystems::Propagate),
@@ -79,7 +84,8 @@ impl Plugin for CameraAuthorityPlugin {
 #[cfg(test)]
 mod tests {
     use bevy_common_systems::prelude::{
-        CameraShake, CameraShakePlugin, ChaseCamera, ChaseCameraPlugin, WASDCameraPlugin,
+        CameraShake, CameraShakeInput, CameraShakePlugin, ChaseCamera, ChaseCameraPlugin,
+        WASDCameraPlugin,
     };
 
     use super::*;
@@ -145,6 +151,57 @@ mod tests {
             assert_eq!(
                 pose.translation, SCRIPTED,
                 "the chase camera overwrote the scripted pose"
+            );
+        }
+    }
+
+    /// Trauma must not jitter a scripted pose: shake is `Additive`, which runs
+    /// BEFORE `Override`, so a posed screenshot or cinematic shot is steady
+    /// while combat next to the camera keeps feeding the shake.
+    #[test]
+    fn shake_does_not_jitter_a_scripted_pose() {
+        const SCRIPTED: Vec3 = Vec3::new(11.0, 22.0, 33.0);
+
+        fn pin_scripted_pose(mut cameras: Query<&mut Transform, With<CameraShake>>) {
+            for mut transform in &mut cameras {
+                transform.translation = SCRIPTED;
+            }
+        }
+
+        fn feed_trauma(mut inputs: Query<&mut CameraShakeInput>) {
+            for mut input in &mut inputs {
+                input.add_trauma += 1.0;
+            }
+        }
+
+        let mut app = App::new();
+        app.add_plugins((
+            MinimalPlugins,
+            TransformPlugin,
+            CameraShakePlugin,
+            CameraAuthorityPlugin,
+        ));
+        app.add_systems(Update, feed_trauma);
+        app.add_systems(
+            PostUpdate,
+            pin_scripted_pose.in_set(CameraAuthority::Override),
+        );
+
+        let camera = app
+            .world_mut()
+            .spawn((
+                Transform::default(),
+                CameraShake::default(),
+                CameraShakeInput::default(),
+            ))
+            .id();
+
+        for _ in 0..8 {
+            app.update();
+            let pose = app.world().get::<Transform>(camera).expect("camera pose");
+            assert_eq!(
+                pose.translation, SCRIPTED,
+                "camera shake moved the scripted pose"
             );
         }
     }
