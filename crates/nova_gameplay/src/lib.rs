@@ -3,7 +3,8 @@
 //! the top-level [`GameStates`] state machine. The modules span the whole
 //! playable surface - `sections` (the modular ship parts), `integrity` and
 //! `damage` (health, disable, destroy), `flight` and `gravity` (the diegetic
-//! controller, autopilot verbs, and gravity wells), `input` (player, AI, and
+//! controller, autopilot verbs, and gravity wells), `physics` (the PD attitude
+//! controller and the point-velocity relation), `input` (player, AI, and
 //! radar targeting), `hud`, `camera` (the controller and the rigs under it),
 //! `audio`, `juice` (camera
 //! shake and hit feedback), `objectives` (the mission objective list, its panel
@@ -32,6 +33,7 @@ pub mod lifetime;
 pub mod math;
 pub mod mesh;
 pub mod objectives;
+pub mod physics;
 pub mod plugin;
 pub mod relations;
 pub mod sections;
@@ -83,10 +85,7 @@ pub mod prelude {
     // harness at every example's `use nova_protocol::prelude::*` and boot the
     // example INERT (task 20260802-183403). Keep this list explicit: adding a
     // name here is a decision, and the twins are never on it.
-    pub use bevy_common_systems::prelude::{
-        PDController, PDControllerInput, PDControllerPlugin, PDControllerSystems,
-        PDControllerTarget, PlaySfx, SfxCommandsExt, SfxPlugin, SoundBank,
-    };
+    pub use bevy_common_systems::prelude::{PlaySfx, SfxCommandsExt, SfxPlugin, SoundBank};
 
     pub use super::{
         asset_ref::prelude::*,
@@ -107,6 +106,7 @@ pub mod prelude {
         lifetime::prelude::*,
         mesh::prelude::*,
         objectives::prelude::*,
+        physics::prelude::*,
         plugin::{NovaGameplayPlugin, SpaceshipSystems},
         relations::prelude::*,
         sections::prelude::*,

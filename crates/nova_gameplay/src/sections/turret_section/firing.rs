@@ -5,11 +5,12 @@ use std::time::Duration;
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use bevy_common_systems::prelude::rigid_body_point_velocity;
 use bevy_transform_interpolation::{RotationEasingState, TranslationEasingState};
 
 use super::*;
-use crate::{lifetime::TempEntity, sections::local_pose_in_root};
+use crate::{
+    lifetime::TempEntity, physics::prelude::rigid_body_point_velocity, sections::local_pose_in_root,
+};
 
 /// A bullet deals its typed damage and dies on its first contact with something
 /// TANGIBLE.

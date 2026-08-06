@@ -3,8 +3,8 @@
 //! gravity, relations, audio, juice, settings) plus the third-party plugins
 //! they depend on (avian3d physics with [`ProjectileHooks`] collision hooks,
 //! `bevy_hanabi` particles, `bevy_rand` entropy, and what is left of the
-//! [`bevy_common_systems`] engine layer; health, integrity and the camera rigs
-//! are nova's own). It also pins the top-level [`SpaceshipSystems`] set ordering that
+//! `bevy_common_systems` engine layer; health, integrity, the camera rigs and
+//! the PD controller are nova's own). It also pins the top-level [`SpaceshipSystems`] set ordering that
 //! the per-subsystem sets chain inside.
 //!
 //! The one dependency it does NOT add itself is
@@ -17,7 +17,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_rand::prelude::*;
 
-use crate::{bevy_common_systems, prelude::*};
+use crate::prelude::*;
 
 /// Top-level ordering brackets for gameplay: every per-subsystem set
 /// ([`SpaceshipInputSystems`], [`SpaceshipSectionSystems`], and the rest)
@@ -99,7 +99,7 @@ impl Plugin for NovaGameplayPlugin {
         app.add_plugins(crate::lifetime::DespawnEntityPlugin);
         app.add_plugins(crate::mesh::prelude::ExplodeMeshPlugin);
         // Core Mechanics
-        app.add_plugins(bevy_common_systems::prelude::PDControllerPlugin);
+        app.add_plugins(crate::physics::prelude::PDControllerPlugin);
 
         // UI Plugins
         app.add_plugins(nova_ui::status_bar::StatusBarPlugin);

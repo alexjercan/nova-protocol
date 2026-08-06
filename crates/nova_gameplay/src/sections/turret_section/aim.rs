@@ -3,9 +3,9 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use bevy_common_systems::prelude::rigid_body_point_velocity;
 
 use super::*;
+use crate::physics::prelude::rigid_body_point_velocity;
 
 /// System set for the PostUpdate aim chain (intercept solve + rotator
 /// targets), so HUD consumers can order same-frame readers after it (the

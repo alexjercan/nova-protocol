@@ -321,8 +321,8 @@ pub fn base_section(config: BaseSectionConfig) -> impl Bundle {
         // (`aabb_half_extents`) without decoding the avian collider.
         collider,
         destructible_body(config.health, config.mass),
-        // bevy_common_systems' destructible_body is the generic Health + density + visibility
-        // bundle; nova adds ExplodableEntity so the section enters the explode pipeline.
+        // destructible_body is the generic Health + density + visibility bundle;
+        // ExplodableEntity is what puts the section into the explode pipeline.
         ExplodableEntity,
         ImpactDestroySounds {
             impact: config.impact_sound.clone(),

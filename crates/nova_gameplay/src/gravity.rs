@@ -28,8 +28,8 @@
 //! anywhere in 3.5-6.0x the authored radius depending on the seed.
 //!
 //! The math lives in pure helpers ([`well_accel`], [`circular_orbit_speed`],
-//! [`dominant_well`]) so the well-force core stays game-agnostic - a future
-//! bevy_common_systems promotion candidate - and so the ORBIT autopilot verb
+//! [`dominant_well`]) so the well-force core stays game-agnostic - a candidate
+//! for extraction once the game is done - and so the ORBIT autopilot verb
 //! can plan with the same formulas the force system integrates.
 
 use avian3d::prelude::*;

@@ -332,7 +332,7 @@ expected until step 10, not evidence the step was left incomplete.
         `nova_probe/src/invariants.rs:38`. `cargo fmt`, verify, **run**
         examples, commit.
 
-- [ ] 7. **PD controller + point velocity -> `nova_gameplay`.** Prototype 05.
+- [x] 7. **PD controller + point velocity -> `nova_gameplay`.** Prototype 05.
       After Step 6.
       - a. Copy `physics/pd_controller.rs` (575 L) ->
         `crates/nova_gameplay/src/physics/pd_controller.rs` verbatim, 13 tests
@@ -1128,12 +1128,81 @@ panic`; it exits non-zero only because the nix `xvfb-run` wrapper kills an
 already-gone server. `probe run` is the harness that matters and it supersedes
 this.
 
+### Step 7 - DONE (PD controller + point velocity -> `nova_gameplay`)
+
+**What.** `crates/nova_gameplay/src/physics/` now holds `pd_controller.rs`
+(575 L verbatim, 13 tests), a partial `rigid_body.rs` (`rigid_body_point_velocity`
+plus its doctest only) and a new `mod.rs` whose prelude re-exports the seven
+names. `lib.rs` gained `pub mod physics;` and `physics::prelude::*`; the five PD
+names left the BCS by-name list, which is now down to the four Sfx names.
+`plugin.rs:102` registers `crate::physics::prelude::PDControllerPlugin`.
+
+**Why partial.** `destructible_body` and its `use crate::health::prelude::*` did
+not come across: nova already owns both in `integrity/health.rs` (`5f67c75a`),
+and re-importing the BCS `Health` would reintroduce the type-shadowing bug
+`261c7e71` fixed. `doom_controller.rs` and BCS's 60-line radial-gravity module
+header were also left behind - nova's radial gravity is `gravity.rs`.
+
+**Difficulties and deviations.**
+- **7e's "three registrations to repoint" was wrong in the useful direction.**
+  `PDControllerPlugin` is added from six places, not three
+  (`plugin.rs`, `input/ai/passive.rs`, `input/ai/maneuver.rs` x2,
+  `flight/tests/{support,control}.rs`) - but only `plugin.rs:102` spelled a
+  `bevy_common_systems::` path. The other five reach it through
+  `crate::prelude::*` and needed **no edit**. The plan's real intent - "no
+  fourth *live* registration" - is proved by the probe logs below.
+- **7f's glob list was one file short and one file wrong.**
+  `input/player/test_support.rs:5` also carried the BCS glob and produced the
+  same E0659 ambiguity; `turret_section/aim.rs:6` was a bare explicit import,
+  not a glob. `input/player/hints.rs` needed nothing - it reaches `PDController`
+  through `super::*`. Three globs (`controller_section.rs:5`,
+  `flight_rig.rs:6`, `test_support.rs:5`) had nothing left to supply after the
+  PD names moved, so they were deleted rather than narrowed. That is the
+  narrow-never-delete rule reaching its end state, not a violation of it:
+  narrowing to the empty set *is* deletion.
+- **`controller_section.rs` imports by name, not by glob**, so it took an
+  additive edit (five PD names into the existing `use crate::prelude::{...}`)
+  where the plan expected a subtractive one.
+- **Step 10c's `plugin.rs:20` edit had to land here.** Dropping the last BCS
+  path from `plugin.rs` made `use crate::{bevy_common_systems, prelude::*};` an
+  `unused_imports` warning, which no step may leave standing. Changed to
+  `use crate::prelude::*;` - exactly 10c's prescription - and de-linked the
+  `[`bevy_common_systems`]` intra-doc link at `:6` that the import resolved.
+  **Step 10c must assert these, not redo them.** `plugin.rs:49`'s comment is
+  still 10c's.
+- 7h's two prose sites (`base_section.rs:324`, `gravity.rs:32`) are reworded, so
+  Step 10e must not redo `base_section.rs:324` (the plan already says so).
+
+**Evidence.** `check -p nova_gameplay --all-targets` and
+`check --workspace --all-targets` clean; `fmt --check` clean. Tests:
+`physics::` 13/13, `sections::` 100/100, `flight::` 75/75,
+`--doc rigid_body` 1/1 on the `nova_gameplay::prelude` path. `cmd:` proofs:
+`PDControllerOutput` present in `physics/mod.rs`; no `fn destructible_body` and
+no `use crate::health` under `physics/`; `PDControllerPlugin` present in
+`plugin.rs`. `NOVA_AUTOPILOT=1 xvfb-run -a --server-num=99 cargo run --example
+controller_section --features debug` reached `autopilot: cycle complete, no
+panic (t=11.4s)` - no duplicate-registration panic.
+
+`probe run systems` at `cb56bcaf`: **3/3 OK**, measured 5/6 each, matching the
+`tasks/20260805-185103` baseline (scenario_grammar, player_path, outcomes).
+The move is proved positively in the run logs: each of the three runs carries
+exactly **one** `nova_gameplay::physics::pd_controller` build line and **zero**
+`bevy_common_systems::physics` lines. The only BCS module still logging is
+`::audio` - Step 8, the last one.
+
+**Not run:** the workspace-wide `clippy --features debug` CI gate and any test
+outside the filters above, per the standing skip-local-suite instruction. The
+attitude-drift DoD line is `manual:` and stays pending; the probe evidence above
+is what a reviewer should judge it on. A pre-existing `unused_imports` warning
+in `examples/stress/many_sections.rs:37` is **not** from this step - verified by
+stashing the working tree and re-running the workspace check on `cb56bcaf`.
+
 ### Next
 
-Step 7 (PD controller + point velocity -> `nova_gameplay`), prototype 05. The
-two section files this step touched (`torpedo_section/mod.rs:16`,
-`turret_section/firing.rs:8`) now hold a bare
-`use bevy_common_systems::prelude::rigid_body_point_velocity;` line each -
-Step 7 rewrites exactly those two lines, which is the sequencing 08-before-05
-bought. Watch the registration count: `PDControllerPlugin` is added from three
-places, and a fourth panics the run.
+Step 8 (SFX playback + sound bank -> `nova_gameplay`), prototype 07. It is the
+last module move; after it the only BCS surface left is the debug half
+(Step 9) and the dependency itself (Step 10). Note 8f: registration does **not**
+move - `SfxPlugin` is already added inside `NovaAudioPlugin::build` behind an
+`is_plugin_added` guard, so `plugin.rs` is not touched. The probe run logs above
+are the before-picture: `bevy_common_systems::audio` should be the only BCS
+module name that disappears from them.

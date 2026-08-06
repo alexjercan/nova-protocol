@@ -13,12 +13,11 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use bevy_common_systems::prelude::rigid_body_point_velocity;
 use bevy_hanabi::prelude::*;
 use bevy_transform_interpolation::{RotationEasingState, TranslationEasingState};
 
 use super::local_pose_in_root;
-use crate::{lifetime::TempEntity, prelude::*};
+use crate::{lifetime::TempEntity, physics::prelude::rigid_body_point_velocity, prelude::*};
 
 /// Building the bay, its fire timer, and the launch that spawns a torpedo.
 mod bay;

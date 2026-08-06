@@ -2,7 +2,6 @@
 //! actions bound as in the real rig, and a flyable ship on it.
 
 use bevy::prelude::*;
-use bevy_common_systems::prelude::*;
 use bevy_enhanced_input::prelude::*;
 
 use super::flight_rig::{
