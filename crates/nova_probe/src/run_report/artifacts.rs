@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use super::manifest::RunManifest;
 use crate::{
+    contract::{Capability, ProbeContract},
     profile::{aggregate_system_costs, SystemCost},
     recorder::{parse_timeline, TimelineEvent},
     stats::{parse_frametime_csv, PerfRun},
@@ -26,6 +27,10 @@ pub struct RunArtifacts {
     pub baseline: Option<Vec<PerfRun>>,
     /// Parsed `probe-run.json` (present in probe-produced dirs).
     pub manifest: Option<RunManifest>,
+    /// Parsed `probe-contract.json`: what the EXAMPLE claimed, by wiring.
+    /// `None` for a dir that predates the contract and for a web run (no
+    /// filesystem) - absent is NOT "declares nothing", see [`Input::Unknown`].
+    pub contract: Option<ProbeContract>,
     /// Reload intervals per run label (from each `<label>.json` sidecar's
     /// `reload_ms`, written by looped captures) - excluded from the frame
     /// stats by the capture, shown as their own line.
@@ -93,6 +98,9 @@ impl RunArtifacts {
         let manifest = read_opt("probe-run.json")?
             .map(|s| RunManifest::from_json(&s))
             .transpose()?;
+        let contract = read_opt("probe-contract.json")?
+            .map(|s| ProbeContract::from_json(&s))
+            .transpose()?;
         // Reload sidecars: each run label may have a <label>.json whose
         // reload_ms array records looped-capture reload intervals.
         let mut reloads: Vec<(String, Vec<f64>)> = Vec::new();
@@ -132,7 +140,68 @@ impl RunArtifacts {
             log,
             baseline,
             manifest,
+            contract,
             reloads,
         })
     }
+
+    /// What a check may conclude about the capability it needs, from the two
+    /// halves of the handshake: the contract (what the example WIRED) and the
+    /// manifest (what probe ARMED). See [`Input`].
+    pub fn resolve<'a, T>(&self, capability: Capability, artifact: Option<&'a T>) -> Input<'a, T> {
+        if self
+            .contract
+            .as_ref()
+            .is_some_and(|c| !c.declares(capability))
+        {
+            return Input::NotDeclared(capability);
+        }
+        if self.armed(capability) == Some(false) {
+            return Input::NotArmed(capability);
+        }
+        match artifact {
+            Some(artifact) => Input::Present(artifact),
+            // Only a run that both claimed the capability and was armed for
+            // it owes an artifact. Anything less is unknowable, not a gap.
+            None if self.contract.is_some() && self.armed(capability) == Some(true) => {
+                Input::ArmedButAbsent(capability)
+            }
+            None => Input::Unknown(capability),
+        }
+    }
+
+    /// Whether probe armed `capability` for this run. `None` when there is no
+    /// manifest to say.
+    fn armed(&self, capability: Capability) -> Option<bool> {
+        let manifest = self.manifest.as_ref()?;
+        Some(match capability {
+            Capability::Timeline => manifest.armed_timeline,
+            Capability::Invariants => manifest.armed_invariants,
+            Capability::FrameTime => manifest.armed_fps,
+        })
+    }
+}
+
+/// What a check can do with the capability it needs. Only [`Present`] grades
+/// and only [`ArmedButAbsent`] fails; the rest are reasons the check does not
+/// apply, each naming its capability so the row says WHY.
+///
+/// [`Present`]: Input::Present
+/// [`ArmedButAbsent`]: Input::ArmedButAbsent
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Input<'a, T> {
+    /// The example wires no such plugin: it makes no claim, so there is
+    /// nothing to hold it to.
+    NotDeclared(Capability),
+    /// Wired, but this run did not arm it - no `--fps`, or a sweep cell that
+    /// strips the recorder on purpose.
+    NotArmed(Capability),
+    /// Claimed, armed, and silent. The one state that is a failure.
+    ArmedButAbsent(Capability),
+    /// Nothing to resolve against: a run dir that predates the contract, a
+    /// web run (no filesystem to write one), or a dir with no manifest. Not
+    /// evidence of anything, in either direction.
+    Unknown(Capability),
+    /// The artifact is there. Grade it.
+    Present(&'a T),
 }

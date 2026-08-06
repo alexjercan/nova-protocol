@@ -5,19 +5,63 @@
 //! must not pass unnoticed.
 
 use super::{timeline_skip_detail, Check, CheckStatus, RunArtifacts};
+use crate::{contract::Capability, run_report::artifacts::Input};
 
 const THRESHOLD: &str = "a GameStates transition entered Playing";
 
 pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
-    let Some(timeline) = artifacts.timeline.as_ref() else {
-        return Check {
-            name: "reached_playing",
-            status: CheckStatus::Skipped,
-            value: "no timeline".into(),
-            threshold: THRESHOLD.into(),
-            detail: timeline_skip_detail(artifacts.manifest.as_ref()),
-            data: serde_json::Value::Null,
-        };
+    let no_input = |status, value: &str, detail: String| Check {
+        name: "reached_playing",
+        status,
+        value: value.into(),
+        threshold: THRESHOLD.into(),
+        detail,
+        data: serde_json::Value::Null,
+    };
+    let timeline = match artifacts.resolve(Capability::Timeline, artifacts.timeline.as_ref()) {
+        Input::Present(timeline) => timeline,
+        Input::NotDeclared(capability) => {
+            return no_input(
+                CheckStatus::Skipped,
+                "not claimed",
+                format!(
+                    "the example wires no {} - it makes no timeline claim, so \
+                     reaching Playing is not observable",
+                    capability.wiring()
+                ),
+            )
+        }
+        Input::NotArmed(capability) => {
+            return no_input(
+                CheckStatus::Skipped,
+                "not armed",
+                format!(
+                    "the example wires {} but this run did not arm it (see the \
+                     manifest's armed flags)",
+                    capability.wiring()
+                ),
+            )
+        }
+        // Claimed it, was armed for it, wrote nothing: the one state the
+        // contract turns from a shrug into a failure.
+        Input::ArmedButAbsent(capability) => {
+            return no_input(
+                CheckStatus::Fail,
+                "armed and silent",
+                format!(
+                    "the example declares {} and probe armed it, but no \
+                     timeline.jsonl was written - the run recorded nothing",
+                    capability.wiring()
+                ),
+            )
+        }
+        Input::Unknown(_) => {
+            return no_input(
+                CheckStatus::Skipped,
+                "no timeline",
+                timeline_skip_detail(artifacts.manifest.as_ref()),
+            )
+        }
     };
 
     let entered = timeline.iter().find(|e| {
@@ -48,7 +92,18 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::run_report::{checks::evaluate_checks, fixtures::*};
+    use crate::{
+        contract::ProbeContract,
+        run_report::{checks::evaluate_checks, fixtures::*, manifest::RunManifest},
+    };
+
+    fn write_contract(dir: &std::path::Path, declared: impl IntoIterator<Item = Capability>) {
+        std::fs::write(
+            dir.join("probe-contract.json"),
+            ProbeContract::of(declared).to_json().to_string(),
+        )
+        .unwrap();
+    }
 
     #[test]
     fn reached_playing_fails_when_the_run_never_left_loading() {
@@ -67,6 +122,90 @@ mod tests {
         let artifacts = RunArtifacts::load(&dir, None).unwrap();
         let checks = evaluate_checks(&artifacts);
         assert_eq!(check(&checks, "reached_playing").status, CheckStatus::Fail);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The green-and-wrong case the contract exists to kill: probe armed the
+    /// recorder, the example claims one, and nothing was written.
+    #[test]
+    fn an_armed_and_silent_timeline_fails_instead_of_skipping() {
+        let dir = scratch_run_dir();
+        std::fs::remove_file(dir.join("timeline.jsonl")).unwrap();
+        write_contract(&dir, [Capability::Timeline]);
+        std::fs::write(
+            dir.join("probe-run.json"),
+            manifest_ok().to_json().to_string(),
+        )
+        .unwrap();
+
+        let artifacts = RunArtifacts::load(&dir, None).unwrap();
+        let checks = evaluate_checks(&artifacts);
+        let c = check(&checks, "reached_playing");
+        assert_eq!(c.status, CheckStatus::Fail, "{c:?}");
+        assert!(c.detail.contains("nova_timeline()"), "{c:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// An example that wires no recorder is not judged on one - and the row
+    /// names the call it would take to make the claim.
+    #[test]
+    fn an_undeclared_timeline_skips_and_names_the_missing_wiring() {
+        let dir = scratch_run_dir();
+        std::fs::remove_file(dir.join("timeline.jsonl")).unwrap();
+        write_contract(&dir, [Capability::FrameTime]);
+        std::fs::write(
+            dir.join("probe-run.json"),
+            manifest_ok().to_json().to_string(),
+        )
+        .unwrap();
+
+        let artifacts = RunArtifacts::load(&dir, None).unwrap();
+        let checks = evaluate_checks(&artifacts);
+        let c = check(&checks, "reached_playing");
+        assert_eq!(c.status, CheckStatus::Skipped, "{c:?}");
+        assert!(c.detail.contains("nova_timeline()"), "{c:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A declared capability this run did not arm is not a gap either - the
+    /// sweep cells and every run without --fps live here.
+    #[test]
+    fn a_declared_but_unarmed_timeline_skips_rather_than_failing() {
+        let dir = scratch_run_dir();
+        std::fs::remove_file(dir.join("timeline.jsonl")).unwrap();
+        write_contract(&dir, [Capability::Timeline]);
+        let manifest = RunManifest {
+            armed_timeline: false,
+            ..manifest_ok()
+        };
+        std::fs::write(dir.join("probe-run.json"), manifest.to_json().to_string()).unwrap();
+
+        let artifacts = RunArtifacts::load(&dir, None).unwrap();
+        let checks = evaluate_checks(&artifacts);
+        let c = check(&checks, "reached_playing");
+        assert_eq!(c.status, CheckStatus::Skipped, "{c:?}");
+        assert_eq!(c.value, "not armed", "{c:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A run dir that predates the contract keeps its old reading: absent is
+    /// unknowable, never "declares nothing".
+    #[test]
+    fn a_dir_without_a_contract_still_skips_not_fails() {
+        let dir = scratch_run_dir();
+        std::fs::remove_file(dir.join("timeline.jsonl")).unwrap();
+        std::fs::write(
+            dir.join("probe-run.json"),
+            manifest_ok().to_json().to_string(),
+        )
+        .unwrap();
+
+        let artifacts = RunArtifacts::load(&dir, None).unwrap();
+        let checks = evaluate_checks(&artifacts);
+        assert_eq!(
+            check(&checks, "reached_playing").status,
+            CheckStatus::Skipped
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 

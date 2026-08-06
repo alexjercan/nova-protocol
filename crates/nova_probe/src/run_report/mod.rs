@@ -29,7 +29,7 @@ mod fixtures;
 mod html;
 mod manifest;
 
-pub use artifacts::RunArtifacts;
+pub use artifacts::{Input, RunArtifacts};
 pub use checks::{
     checks_json, evaluate_checks, measured_count, overall_verdict, print_checks, Check,
     CheckStatus, FPS_WARN_THRESHOLD_PCT,
