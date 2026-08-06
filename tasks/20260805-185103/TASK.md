@@ -103,7 +103,7 @@ Each step below becomes its own child task at planning time.
       hold in hand-rolled rigs and wait on the ack too. FIGURES left implicit
       (owner's call): the ack already turns a missing declared shot into a hard
       run failure, and the manifest stays advisory per the asset-coverage rule.
-      commits: `37afde1c`
+      commits: `20fcb406`
 - [ ] 5. **Make probe cover the `screenshots/` category.**
       `crates/nova_probe/src/catalog.rs:181-188` -> `probed: true,
       frame_time: false`, and rewrite the comment (its claim is true only of
