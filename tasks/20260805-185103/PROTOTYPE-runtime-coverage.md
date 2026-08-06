@@ -375,9 +375,15 @@ step 6's deletion of the invariant roster.
 
 ## Open questions for the owner
 
-1. Does `armed_*` survive as the second axis (recommended), or does the
-   contract drive arming - i.e. probe arms `NOVA_PERF` whenever the contract
-   declares `FrameTime`, and `--fps` becomes implied?
+1. ~~Does `armed_*` survive as the second axis (recommended), or does the
+   contract drive arming?~~ ANSWERED: `armed_*` survives, shipped in
+   `cd8bcfea`. Arming happens BEFORE the child exists and the contract is not
+   written until its Startup runs, so contract-driven arming would need a
+   throwaway first run, a cached (= stale, hand-maintained) contract, or
+   arming everything unconditionally. The axes also differ on purpose: sweep
+   cells strip the recorder and invariants (`run.rs:149-154`) and the fps pass
+   strips them again, so those runs declare three capabilities and arm one.
+   `--fps` stays an operator flag.
 2. ~~`NOT_PROBED`: option 1, 2 or 3 above?~~ ANSWERED: option 3, let it fail.
 3. Do `systems/` (`player_path`, `outcomes`) keep a real frame-time claim, or
    is `stress/` the only home, as the current table asserts? This decides which
