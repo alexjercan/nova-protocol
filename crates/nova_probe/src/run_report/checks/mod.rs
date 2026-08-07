@@ -6,6 +6,7 @@
 //! the status enum, the skip-detail wording, the verdict fold, and the
 //! [`CHECKS`] table that names them in report order.
 
+mod artifacts_loadable;
 mod fps_within_baseline;
 mod invariants_held;
 mod log_clean;
@@ -106,8 +107,9 @@ pub fn status_class(status: &str) -> &'static str {
 }
 
 /// Every check, in report order: its name, the capability it grades (`None`
-/// for the two that need no plugin - probe owns the exit status and the
-/// captured stdio for every run), and its evaluator. Adding a check is
+/// for the three that need no plugin - probe owns the exit status, the
+/// captured stdio and the artifacts themselves for every run), and its
+/// evaluator. Adding a check is
 /// adding a module and a row here - the aggregation holds no per-check
 /// knowledge.
 const CHECKS: &[(&str, Option<Capability>, fn(&RunArtifacts) -> Check)] = &[
@@ -133,7 +135,17 @@ const CHECKS: &[(&str, Option<Capability>, fn(&RunArtifacts) -> Check)] = &[
         fps_within_baseline::evaluate,
     ),
     ("log_clean", None, log_clean::evaluate),
+    // Last because it grades the EVIDENCE rather than the run: when it fails,
+    // it is the reason the rows above read the way they do.
+    ("artifacts_loadable", None, artifacts_loadable::evaluate),
 ];
+
+/// Every check's name, in report order. The aggregate table renders one
+/// column per entry, so a check added to [`CHECKS`] appears there too rather
+/// than needing a second list that can silently fall behind.
+pub fn check_names() -> impl Iterator<Item = &'static str> {
+    CHECKS.iter().map(|(name, _, _)| *name)
+}
 
 /// Evaluate every auto check against the loaded artifacts.
 pub fn evaluate_checks(artifacts: &RunArtifacts) -> Vec<Check> {
@@ -197,9 +209,16 @@ pub fn overall_verdict(checks: &[Check]) -> &'static str {
 /// Why a timeline-fed check has no input. "Not captured" means different
 /// things depending on whether probe ARMED the surface: an armed-but-silent
 /// run is a WIRING gap in the example, and saying "arm NOVA_PERF_TIMELINE"
-/// there sends the reader after the wrong thing.
-fn timeline_skip_detail(manifest: Option<&RunManifest>) -> String {
-    match manifest {
+/// there sends the reader after the wrong thing. A timeline that WAS captured
+/// and would not parse is a third thing again, and the loudest of the three.
+fn timeline_skip_detail(artifacts: &RunArtifacts) -> String {
+    if let Some(failure) = artifacts.failure_for("timeline.jsonl") {
+        return format!(
+            "timeline.jsonl is present but unloadable: {}",
+            failure.reason
+        );
+    }
+    match artifacts.manifest.as_ref() {
         Some(m) if m.armed_timeline => format!(
             "probe armed the recorder but {} is not wired with nova_probe::nova_timeline()",
             m.example
@@ -266,8 +285,12 @@ mod tests {
             CheckStatus::NotApplicable(NotApplicable::InputNotSupplied("--baseline"))
         );
         assert_eq!(check(&checks, "log_clean").status, CheckStatus::Pass);
+        assert_eq!(
+            check(&checks, "artifacts_loadable").status,
+            CheckStatus::Pass
+        );
         assert_eq!(overall_verdict(&checks), "OK");
-        assert_eq!(measured_count(&checks), 4);
+        assert_eq!(measured_count(&checks), 5);
     }
 
     #[test]
@@ -311,7 +334,12 @@ mod tests {
         let checks = evaluate_checks(&artifacts);
         assert_eq!(check(&checks, "process_exit").status, CheckStatus::Pass);
         assert_eq!(check(&checks, "log_clean").status, CheckStatus::Pass);
-        assert_eq!(measured_count(&checks), 2);
+        // The contract and the manifest are themselves loadable artifacts.
+        assert_eq!(
+            check(&checks, "artifacts_loadable").status,
+            CheckStatus::Pass
+        );
+        assert_eq!(measured_count(&checks), 3);
         assert_eq!(overall_verdict(&checks), "UNPROBEABLE");
         for name in ["run_completed", "reached_playing", "invariants_held"] {
             let c = check(&checks, name);
@@ -371,7 +399,7 @@ mod tests {
         };
         let json = checks_json(&checks, Some(&manifest));
         assert_eq!(json["verdict"], "OK");
-        assert_eq!(json["measured"], "4/6");
+        assert_eq!(json["measured"], "5/7");
         assert_eq!(json["reviewer_confirmation_required"], true);
         assert_eq!(json["run"]["example"], "playable");
         assert_eq!(json["run"]["passes"][0]["name"], "clean");

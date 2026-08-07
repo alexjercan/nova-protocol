@@ -165,14 +165,11 @@ fn ui_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates
         .step("settle the settings panel")
         .until(frames(SETTLE_FRAMES))
         .add()
+        // The panel is toggled by Visibility alone, so this has to assert
+        // VISIBLE, not merely laid out: the shot is otherwise the main menu
+        // again under a different name.
         .step("the settings panel is up")
-        .on_enter(|world: &mut World| {
-            assert!(
-                ui_node_rect(world, "Settings Panel").is_some(),
-                "the click on Settings must open its panel; without it the shot \
-                 is the main menu again under a different name"
-            );
-        })
+        .on_enter(assert_named_visible("Settings Panel"))
         .until(frames(1))
         .add()
         .step("capture the settings panel")

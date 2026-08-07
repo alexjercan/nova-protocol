@@ -126,18 +126,27 @@ pub fn click_at(
 /// each call site.
 ///
 /// `None` until the node has been through a layout pass - a UI entity spawned
-/// this frame has no transform to point at yet.
+/// this frame has no transform to point at yet, and likewise `None` for a node
+/// its ancestry has HIDDEN. A hidden node keeps its layout, so resolving one
+/// meant a script could click a panel nobody could see and an assertion on a
+/// toggled-by-[`Visibility`] overlay could not fail (a settings-panel
+/// screenshot shipped as the bare main menu at exit 0).
 ///
 /// A name two laid-out nodes share resolves to whichever the query yields
 /// first, which is arbitrary - so it WARNS. A driven run silently clicking a
 /// ghost is the exact failure naming targets exists to make visible (review
 /// R1.5).
 pub fn ui_node_rect(world: &mut World, name: &str) -> Option<Rect> {
-    let mut query = world.query::<(&Name, &UiGlobalTransform, &ComputedNode)>();
+    let mut query = world.query::<(
+        &Name,
+        &UiGlobalTransform,
+        &ComputedNode,
+        &InheritedVisibility,
+    )>();
     let rects: Vec<Rect> = query
         .iter(world)
-        .filter(|(node_name, _, _)| node_name.as_str() == name)
-        .map(|(_, transform, computed)| {
+        .filter(|(node_name, _, _, visibility)| node_name.as_str() == name && visibility.get())
+        .map(|(_, transform, computed, _)| {
             let scale = computed.inverse_scale_factor();
             Rect::from_center_size(transform.translation * scale, computed.size() * scale)
         })
@@ -155,6 +164,25 @@ pub fn ui_node_rect(world: &mut World, name: &str) -> Option<Rect> {
 /// one - [`ui_node_rect`]'s centre, and what the pointer beats aim at.
 pub fn ui_node_centre(world: &mut World, name: &str) -> Option<Vec2> {
     ui_node_rect(world, name).map(|rect| rect.center())
+}
+
+/// A beat that PANICS unless the UI node called `name` is laid out AND
+/// visible.
+///
+/// The deliberate counterpart to [`click_named`]'s warn-and-continue: a
+/// gesture that misses its target is one lost beat, but a script asserting the
+/// screen it has just navigated to must take the run down rather than let the
+/// next beat capture the wrong screen.
+pub fn assert_named_visible(
+    name: impl Into<String>,
+) -> impl Fn(&mut World) + Send + Sync + 'static {
+    let name = name.into();
+    move |world: &mut World| {
+        assert!(
+            ui_node_rect(world, &name).is_some(),
+            "no laid-out, visible UI node named `{name}`"
+        );
+    }
 }
 
 /// Move the pointer to the centre of the UI node called `name` and press the
@@ -619,6 +647,33 @@ mod tests {
     /// the `ComputedNode` carrying the scale factor back to logical. Spawned by
     /// hand because `MinimalPlugins` runs no layout pass.
     fn spawn_named_node_at_scale(app: &mut App, name: &str, centre: Vec2, scale_factor: f32) {
+        spawn_node(
+            app,
+            name,
+            centre,
+            scale_factor,
+            InheritedVisibility::VISIBLE,
+        );
+    }
+
+    /// The same at scale factor 1, where physical and logical coincide.
+    fn spawn_named_node(app: &mut App, name: &str, centre: Vec2) {
+        spawn_named_node_at_scale(app, name, centre, 1.0);
+    }
+
+    /// A node laid out exactly like the others but hidden by its ancestry -
+    /// what a [`Visibility`]-toggled panel looks like while it is closed.
+    fn spawn_hidden_node(app: &mut App, name: &str, centre: Vec2) {
+        spawn_node(app, name, centre, 1.0, InheritedVisibility::HIDDEN);
+    }
+
+    fn spawn_node(
+        app: &mut App,
+        name: &str,
+        centre: Vec2,
+        scale_factor: f32,
+        visibility: InheritedVisibility,
+    ) {
         app.world_mut().spawn((
             Name::new(name.to_string()),
             UiGlobalTransform::from_translation(centre * scale_factor),
@@ -627,12 +682,56 @@ mod tests {
                 size: NODE_SIZE * scale_factor,
                 ..default()
             },
+            visibility,
         ));
     }
 
-    /// The same at scale factor 1, where physical and logical coincide.
-    fn spawn_named_node(app: &mut App, name: &str, centre: Vec2) {
-        spawn_named_node_at_scale(app, name, centre, 1.0);
+    /// A node its ancestry has hidden keeps its layout, so a resolve that only
+    /// asked for one would hand back the rect of a panel nobody can see.
+    #[test]
+    fn a_hidden_node_does_not_resolve() {
+        let mut app = app();
+        spawn_hidden_node(&mut app, "Settings Panel", Vec2::new(400.0, 120.0));
+
+        assert_eq!(ui_node_rect(app.world_mut(), "Settings Panel"), None);
+    }
+
+    /// The duplicate-name path and the hidden path must not cancel out: a
+    /// closed panel and the open one share a name while the toggle animates.
+    #[test]
+    fn a_hidden_node_does_not_shadow_its_visible_namesake() {
+        let mut app = app();
+        spawn_hidden_node(&mut app, "Settings Panel", Vec2::new(10.0, 20.0));
+        spawn_named_node(&mut app, "Settings Panel", Vec2::new(400.0, 120.0));
+
+        let (centre, logs) = capturing_logs(|| ui_node_centre(app.world_mut(), "Settings Panel"));
+
+        assert_eq!(centre, Some(Vec2::new(400.0, 120.0)));
+        assert!(
+            !logs.contains("laid-out UI nodes are named"),
+            "the hidden node is not a candidate, so there is no ambiguity: {logs}"
+        );
+    }
+
+    /// The assertion beat is the counterpart to `click_named`'s
+    /// warn-and-continue: it must take the run DOWN on a hidden target, which
+    /// is the screenshot bug it exists to catch.
+    #[test]
+    #[should_panic(expected = "no laid-out, visible UI node named `Settings Panel`")]
+    fn asserting_a_hidden_node_takes_the_run_down() {
+        let mut app = app();
+        spawn_hidden_node(&mut app, "Settings Panel", Vec2::new(400.0, 120.0));
+
+        assert_named_visible("Settings Panel")(app.world_mut());
+    }
+
+    /// The complement, so the assertion cannot be a blanket panic.
+    #[test]
+    fn asserting_a_visible_node_passes() {
+        let mut app = app();
+        spawn_named_node(&mut app, "Settings Panel", Vec2::new(400.0, 120.0));
+
+        assert_named_visible("Settings Panel")(app.world_mut());
     }
 
     /// The physical-vs-logical trap, pinned: a hi-dpi window lays the node out

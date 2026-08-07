@@ -671,3 +671,104 @@ are judgement calls against an anchor table and swing by up to 0.27 on identical
 input. **Read the after-run delta from Completeness**; grade the other two k=3
 and average (`H1`). Grading is a small container against the key with no source
 tree, so three passes cost a fraction of one persona run.
+
+## L1 - the gate is unblind, and four plan details were wrong
+
+Every finding in the lane landed. What follows is only where the code and the
+plan disagreed, plus the verdicts the plan asked for by name.
+
+### F70 is NOT retired by F01 - the plan's one open question, answered
+
+The plan said to re-assess the duplicated CSV append after F01 lands, on the
+theory that a schema mismatch is catastrophic only because `load` destroys the
+whole report. **F01 does downgrade the blast radius, and the duplication is
+still a defect.** `emit_stats` writes `frametime.csv` from INSIDE the game
+process; `append_frametime_row` is the public writer that refuses to mix
+schemas, and it comments on exactly this case. Two writers of one file, one of
+which knows a rule the other does not, is the bug - independent of what the
+reader later does with the result. Routed through the public writer, and
+`CSV_HEADER` is no longer imported by `capture.rs`.
+
+### `load_one<T>` became a `Loader` struct
+
+The plan specified a free `load_one(failures, name, raw, parse)`. Four
+arguments, three of them threaded through every call site, and the raw read
+had its own error path that the signature did not cover. It is a `Loader`
+owning `dir` and `failures`, with `read` (raw, reports unreadable) and `load`
+(read + parse, reports either). Same isolation, half the noise at the call
+sites, and the cell-log loop can use it too - which the free function could
+not, because those names are globbed rather than literal.
+
+### One silent drop survives, deliberately
+
+The reload sidecars (`<label>.json`, `artifacts.rs:159-179`) still `continue`
+past a parse failure. Pre-existing, out of F01's scope, and the sidecar is a
+decoration on a chart rather than evidence a check reads. Recorded here
+because it is now the ONLY artifact that can vanish without a `failures` entry.
+`--baseline` also stays a hard error, and the doc comment now says why: it is
+an operator argument, not evidence the run produced.
+
+### F76's blast radius was bigger than one example
+
+Adding `InheritedVisibility` to `ui_node_rect`'s query broke **8 existing
+tests** across `nova_autopilot` - every one of them hand-spawns a UI node in an
+app that runs no visibility propagation, so the component was simply absent and
+the node stopped resolving. The fix is in the fixtures (`spawn_node` now takes
+the visibility, `pointer_pin.rs`'s target spawns `VISIBLE`), not in the query.
+Four new tests pin the actual new behavior, which nothing covered: a hidden
+node does not resolve, a hidden node does not shadow its visible namesake or
+trip the duplicate warning, and `assert_named_visible` panics on hidden and
+passes on visible.
+
+**This is the finding most likely to break a real run**, because any example
+aiming at a node that is laid out but hidden now fails where it used to pass -
+which is the point, but it means the `--all` sweep is the real proof, not the
+unit tests.
+
+### F77 collapsed rather than extracted
+
+The plan wanted `release_all_held_keys` extracted and called from BOTH
+`reload_the_run` and `replay_the_run`. `replay_the_run` was only ever
+"release, then reload", so once the release moved into `reload_the_run` the
+wrapper had nothing left. Deleted, and its one caller in `main` re-pointed at
+`reload_the_run`.
+
+### F02 needed the stamp to be comparable, not just present
+
+`RunStamp` is a borrowed struct in `sweep.rs`, not a new serialized type: the
+identity it compares (`git_sha`, `started_unix`) was ALREADY in every
+checks.json under `run`, written from the manifest. Nothing new is written to
+disk. `probe report` re-renders history, where every checks.json is older than
+now by definition, so it passes `started_not_before: 0` and matches on the
+revision alone.
+
+### F78 exposed a false invariant rather than breaking one
+
+Narrowing `tag_gate` to the `RANGE_GATES` roster turned `turret_section` from
+OK to FAIL - intermittently, on round 1 or round 2 depending on the sweep
+phase. Attributed by probing the same tree twice with only the F78 diff
+reverted: HEAD OK, F78 tree FAIL.
+
+The cause is not the tagging. `turret_section` is the BULLET-GRAVITY range: a
+30 000-mass planetoid sits under the firing lane and bends rounds down, and the
+turret aims straight. A barrel converged to 0.5 deg with 12-16 rounds in flight
+fires for 11 continuous seconds - a full sweep period - and still lands nothing
+on a gate. Invariant 2 ("a gate actually took hits") is not a property this
+range has. It only ever passed because `tag_gate` marked the planetoid a gate
+too, so the rock the rounds DO hit answered for the gates they miss.
+
+Two dead ends before the diagnosis, both recorded because the reasoning looked
+sound: widening `HIT_SETTLE_SECS` 4 -> 12 (still FAIL - not a timing problem),
+and moving invariant 2 behind the tracking beat so it judged a CONVERGED barrel
+(2 of 3, then 1 of 4 - convergence is not what lands the hit).
+
+Resolved with the owner (option A of three): the planetoid gets its own
+`RangeBackstopMarker`, `RangeGateMarker` stays the 5-gate roster so F78's count
+fix stands, and invariant 2 states what it observes - "a turret round connected
+with a range target". The coverage task 20260712-211352 added (a turret that
+never connects must not pass) is unchanged; only the claim's wording now
+matches the geometry. 4/4 probe repeats OK at 17-18s, the pre-F78 baseline.
+
+The lesson is the finding, not the fix: an assertion that passes for a reason
+nobody named is indistinguishable from one that passes for the right reason,
+until something narrows the population it reads.

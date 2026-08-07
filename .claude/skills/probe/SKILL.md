@@ -81,7 +81,7 @@ report). The commit-keyed layer is what makes baselines work; the aggregate
 dirs **even for a single example**, so `index.json` is always the one file that
 answers "does everything still work". The aggregate verdict is the WORST row
 and the exit code mirrors it; each row shows verdict + measured n/total + the
-six check statuses + a link to that example's own report.
+one column per check + a link to that example's own report.
 
 `--baseline` names a STORAGE BASE, not a run dir: probe searches it for the
 nearest previous commit dir and compares each example against
@@ -128,7 +128,11 @@ which is how you deliberately probe your real installed mods.
   nothing, not that the bound held), `fps_within_baseline` (soft
   gate; only REGRESSIONS beyond the threshold WARN - improvements PASS),
   `log_clean` (ANSI-stripped, whole-word ERROR, plus command errors at ANY
-  level - `remove`/`despawn` log theirs at WARN). Each check carries a
+  level - `remove`/`despawn` log theirs at WARN), `artifacts_loadable` (an
+  artifact that was PRESENT and would not read or parse - it degrades to
+  absent, keeps the other artifacts, and FAILS here with the reason instead of
+  aborting the report; graded last, so when it fails it is why the rows above
+  read as they do). Each check carries a
   structured `data` object; the top-level `run` object is the manifest.
 - SKIPPED means NOT MEASURED and N/A means NOT CLAIMED; neither ever means
   "held". Zero measured checks = verdict NO_DATA. A run that measured

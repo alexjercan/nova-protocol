@@ -136,10 +136,14 @@ impl Plugin for InvariantsPlugin {
         // includes the exit frame. (before() a system the app may not have -
         // the recorder can be unarmed - is fine: ordering against an absent
         // system is a no-op.)
+        // record_invariant_summary drains AppExit too, so it joins the same
+        // RunEnd set and inherits its edge onto the exit writer.
+        crate::recorder::order_run_end(app);
         app.add_systems(
             Last,
             (check_invariants, record_invariant_summary)
                 .chain()
+                .in_set(crate::recorder::ProbeRecorderSystems::RunEnd)
                 .before(crate::recorder::record_variable_changes),
         );
         app.add_observer(forget_monotonic_on_load);

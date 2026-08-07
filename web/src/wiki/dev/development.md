@@ -543,7 +543,7 @@ Every run spec resolves to a list. A single example is just a one-item list;
 comma lists, category dir names, and `--all` expand against the `[[example]]`
 catalog and run sequentially with continue-on-failure. The status index lives
 above the example dirs: `index.html` (one row per example - verdict, measured
-n/total, the six check statuses, duration, a link to its report), `index.json`
+n/total, one column per check, duration, a link to its report), `index.json`
 (the machine mirror), and `probe-all.json` (the re-render gate). The aggregate
 verdict is the WORST row; the exit code mirrors it. `--all` runs the whole
 catalog, and a bare `probe run` errors with the catalog listing rather than
@@ -672,10 +672,13 @@ cargo run -p nova_probe -- report <run-dir>... [--baseline <old-run-dir>]
 
 Auto checks produce a provisional OK/WARN/FAIL/NO_DATA/UNPROBEABLE (process
 exit from the run manifest, run completed, reached Playing, invariants held,
-FPS vs baseline as a soft gate, log scan); a check whose capability the
-example never declared is N/A - "not claimed" - and an unresolvable one is
-SKIPPED - "not measured"; neither means "held". `checks.json` pairs the
-verdict with a `measured: n/total` figure plus per-check structured data.
+FPS vs baseline as a soft gate, log scan, artifacts loadable); a check whose
+capability the example never declared is N/A - "not claimed" - and an
+unresolvable one is SKIPPED - "not measured"; neither means "held".
+`checks.json` pairs the verdict with a `measured: n/total` figure plus
+per-check structured data. A present-but-unloadable artifact degrades that one
+artifact to absent and FAILS `artifacts_loadable` with the reason, rather than
+aborting the report the failure would have been visible in.
 Zero evidence is NO_DATA and a run that graded no declared capability is
 UNPROBEABLE (both nonzero exit), FPS improvements PASS (only regressions WARN -
 frame numbers are host-noisy), a hung run is killed and still produces a

@@ -58,6 +58,12 @@ review time. Findings are `notes/16-findings-master.md` ids; per-lane detail is
 in the linked file. Rationale is in `DECISION.md` and `notes/17-lanes.md` - do
 not re-derive it.
 
+WORKFLOW (owner directive, 2026-08-07): one SPROUT per lane, off master, to
+keep each unit of work small. A lane LANDS on master as soon as its own steps
+and proofs are green - do not hold lanes for each other. Review runs ONCE at
+the end, over everything landed, not per lane. The task stays `WORKING` until
+the last lane lands.
+
 ### Lane00 - "FIX THE MAP, CLOSE THE CI GAPS" - tasks/20260806-121625/plan/lane00.md
 
 Blocks the baseline, lands BEFORE it. First commit of the epic.
@@ -136,63 +142,108 @@ Blocks the baseline, lands BEFORE it. First commit of the epic.
 NEUTRAL. Goes first among the code work; every other lane is verified by the
 gate it repairs. No module renamed - that is L8.
 
-- [ ] Read `RunArtifacts::load`'s doc comment at `artifacts.rs:41-43` first -
+- [x] Read `RunArtifacts::load`'s doc comment at `artifacts.rs:41-43` first -
       hard-erroring on a corrupt-but-present artifact is deliberate and must
       survive. Only the failure's SCOPE is wrong.
-- [ ] F01 - add `pub struct ArtifactFailure { name, reason }` and a
+      The intent survives, moved into the `artifacts_loadable` check. The one
+      remaining hard error is `--baseline`, and the doc now says why: it is an
+      operator argument, not evidence the run produced.
+- [x] F01 - add `pub struct ArtifactFailure { name, reason }` and a
       `failures: Vec<ArtifactFailure>` field to `RunArtifacts`.
-- [ ] F01 - add the `load_one<T>` helper and route every artifact through it;
+- [x] F01 - add the `load_one<T>` helper and route every artifact through it;
       per-artifact parse errors degrade to `None` plus a recorded reason
       instead of `?`-propagating.
-- [ ] F01 - add `check_artifacts_loadable` to the checks roster so a present
+      **A `Loader` struct, not a free `load_one`.** It owns `dir` and
+      `failures`, so the four threaded arguments collapse to two methods
+      (`read` raw, `load` read+parse) - and the globbed cell logs can use it,
+      which the free function's `raw: Option<String>` shape could not.
+- [x] F01 - add `check_artifacts_loadable` to the checks roster so a present
       unloadable artifact FAILS the run rather than deleting the report.
-- [ ] F03 - push `web-run.log` into `log_parts` at `artifacts.rs:65-70`; it is
+      Landed as `checks/artifacts_loadable.rs`, LAST in the roster: it grades
+      the evidence, so when it fails it is the reason the rows above read the
+      way they do.
+- [x] F03 - push `web-run.log` into `log_parts` at `artifacts.rs:65-70`; it is
       both chromium's output and the game's (`stats.rs:708` parses `nova perf:`
       out of an `INFO:CONSOLE` line).
-- [ ] F03 - forbid `log_clean` from SKIPPING on a run whose manifest says a web
+- [x] F03 - forbid `log_clean` from SKIPPING on a run whose manifest says a web
       pass happened. A SKIP on a platform that produced a log is the defect.
-- [ ] F05 - add `stale_cell_logs(out) -> Vec<PathBuf>` beside
+- [x] F05 - add `stale_cell_logs(out) -> Vec<PathBuf>` beside
       `bin/probe/native/run.rs:29` and have `clean_out_dir` (`run.rs:43`) remove
       those too; the comment at `run.rs:26` already claims this happens.
-- [ ] F02 - rewrite `build_row` (`sweep.rs:181,187`) so a run with
+- [x] F02 - rewrite `build_row` (`sweep.rs:181,187`) so a run with
       `run_error: Some(..)` cannot verdict better than ERROR.
-- [ ] F02 - add `RunStamp { git_sha, started_unix }` to `checks.json` and reject
+- [x] F02 - add `RunStamp { git_sha, started_unix }` to `checks.json` and reject
       a stamp that is not this run's; `run_identity()` and `sweep` already hold
       both values.
-- [ ] F04 - declare `ProbeRecorderSystems::RunEnd` in `nova_probe/src/recorder.rs`
+      **Nothing new is written to disk.** Both values were ALREADY in every
+      checks.json under `run`, from the manifest; `RunStamp` is a borrowed
+      comparison type in `sweep.rs`. `probe report` re-renders history, so it
+      passes `started_not_before: 0` and matches on the revision alone.
+- [x] F04 - declare `ProbeRecorderSystems::RunEnd` in `nova_probe/src/recorder.rs`
       and `configure_sets(Last, RunEnd.after(AutopilotCompletionSystems))`.
-- [ ] F04 - write the test that FAILS if that edge is removed. The current
+      The edge needed a set on the OTHER side too: `AutopilotCompletionSystems`
+      is new in `nova_autopilot/src/completion.rs`. `InvariantsPlugin` joins
+      the same set - it drains `AppExit` as well, and either plugin can be
+      armed without the other, so both call `order_run_end`.
+- [x] F04 - write the test that FAILS if that edge is removed. The current
       behavior is accidentally correct on today's executor.
-- [ ] F58 - replace the `if let Ok(..)` swallow at
+      `run_end_sees_the_exit_the_completion_watch_writes`: registers the reader
+      FIRST and pins a `SingleThreadedExecutor`, so insertion order alone runs
+      it before the writer. Fails without `order_run_end`.
+- [x] F58 - replace the `if let Ok(..)` swallow at
       `nova_events_macros/src/lib.rs:37` and `:42` with a `compile_error!`, so
       `#[event_name = "x"]` stops compiling to the lowercased ident.
-- [ ] F63 - guard the empty-slice mean at `run_report/html.rs:217`; copy the
+- [x] F63 - guard the empty-slice mean at `run_report/html.rs:217`; copy the
       guarded form already at `capture.rs:499`. It prints NaN today.
-- [ ] F70 - route the in-app CSV append at `capture.rs:522` through
+- [x] F70 - route the in-app CSV append at `capture.rs:522` through
       `append_frametime_row` (`stats.rs:415-426`) instead of re-implementing it.
-- [ ] F70 - re-assess AFTER F01 lands; fixing the bigger bug may retire it.
+- [x] F70 - re-assess AFTER F01 lands; fixing the bigger bug may retire it.
       Record the verdict either way.
-- [ ] F71 - add `NOVA_PERF_CONTRACT` to the `env.retain` filter at
+      **NOT retired.** F01 downgrades the blast radius; it does not make two
+      writers of one file - one of which knows a schema rule the other does not
+      - correct. Detail in NOTES.
+- [x] F71 - add `NOVA_PERF_CONTRACT` to the `env.retain` filter at
       `bin/probe/native/run.rs:180` so the fps pass stops rewriting
       `probe-contract.json`.
-- [ ] F76 - add `InheritedVisibility` to `ui_node_rect`'s query
+- [x] F76 - add `InheritedVisibility` to `ui_node_rect`'s query
       (`nova_autopilot/src/input.rs:135-151`) and reject hidden nodes; add
       `assert_named_visible`. Fix the harness, not the one example that noticed.
-- [ ] F76 - re-point `examples/screenshots/screenshot_ui.rs:171` at the new
+      **It broke 8 existing `nova_autopilot` tests**, all of which hand-spawn
+      UI nodes in apps that run no visibility propagation. Fixed in the
+      fixtures, never in the query. Four new tests pin the new behavior, which
+      nothing covered.
+- [x] F76 - re-point `examples/screenshots/screenshot_ui.rs:171` at the new
       assertion; `wiki-settings.png` currently ships as the bare main menu at
       exit 0.
-- [ ] F77 - extract `release_all_held_keys` and call it from
+- [x] F77 - extract `release_all_held_keys` and call it from
       `reload_the_run` (`player_path.rs:379`) as well as `replay_the_run`
       (`:537-543`).
-- [ ] F78 - gate `tag_gate` (`examples/sections/turret_section.rs:404-406`) on
+      `replay_the_run` was only ever "release, then reload", so once the
+      release moved into `reload_the_run` the wrapper held nothing. Deleted,
+      and its one caller in `main` re-pointed.
+- [x] F78 - gate `tag_gate` (`examples/sections/turret_section.rs:404-406`) on
       the spawner's own marker so the gravity planetoid stops being tagged a
       range gate; `report_status` prints 6 gates for 5.
-- [ ] Build the gate fixture suite: truncated `trace.json`, torn
+      Gated on a `RANGE_GATES` roster const rather than a marker: the same
+      roster now spawns the gates, so the spawn list and the tag list cannot
+      drift apart at all.
+- [x] Build the gate fixture suite: truncated `trace.json`, torn
       `timeline.jsonl`, non-UTF-8 `run.log`, `web-run.log`-only run, stale
       `run-<n>.log`, pre-existing `checks.json` plus an errored run. Each
       asserts the verdict the gate SHOULD produce.
-- [ ] Byte-compare `probe run --all` verdicts before and after on a healthy
+      All six, beside the code they grade: 4 in `checks/artifacts_loadable.rs`,
+      2 in `checks/log_clean.rs`, 1 in `native/run.rs`, 3 in `native/sweep.rs`.
+      `fixtures.rs` grew `write_contract`/`write_manifest`, which three
+      modules were each open-coding.
+- [x] Byte-compare `probe run --all` verdicts before and after on a healthy
       tree - the fixes must not change a healthy run's answer.
+      Before: master `e43d128f` in a throwaway sprout. After: this branch.
+      24 rows each, same example set, ZERO verdict differences and zero status
+      differences on any shared check. The one difference is the check L1 adds:
+      `artifacts_loadable`, PASS on all 24 (measured 5/6 -> 6/7).
+      Not clean on the first try - F78 turned `turret_section` FAIL, which is
+      the false-invariant finding written up in NOTES. Fixed, then 4/4 repeats
+      OK at the pre-F78 runtime before this sweep ran.
 
 ### Lane02 - "BUILD AND BASELINE THE BENCHMARK" - tasks/20260806-121625/plan/lane02.md
 

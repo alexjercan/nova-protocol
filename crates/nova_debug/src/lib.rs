@@ -48,8 +48,8 @@ pub mod prelude {
     // so a caller that wants it names `nova_autopilot::predicate::not`.
     pub use nova_autopilot::{
         input::{
-            click_at, click_named, hover_named, move_cursor, press_key, press_mouse, release_key,
-            release_mouse, ui_node_centre, ui_node_rect,
+            assert_named_visible, click_at, click_named, hover_named, move_cursor, press_key,
+            press_mouse, release_key, release_mouse, ui_node_centre, ui_node_rect,
         },
         predicate::{and, any_entity, elapsed, frames, resource_where, shot_written, state_is},
     };

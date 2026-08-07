@@ -29,10 +29,10 @@ mod fixtures;
 mod html;
 mod manifest;
 
-pub use artifacts::{Input, RunArtifacts};
+pub use artifacts::{ArtifactFailure, Input, RunArtifacts};
 pub use checks::{
-    checks_json, evaluate_checks, measured_count, overall_verdict, print_checks, status_class,
-    Check, CheckStatus, NotApplicable, FPS_WARN_THRESHOLD_PCT,
+    check_names, checks_json, evaluate_checks, measured_count, overall_verdict, print_checks,
+    status_class, Check, CheckStatus, NotApplicable, FPS_WARN_THRESHOLD_PCT,
 };
 pub use html::render_run_report;
 pub use manifest::{run_identity, PassRecord, RunManifest};

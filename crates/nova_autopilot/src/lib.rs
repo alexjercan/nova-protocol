@@ -120,8 +120,8 @@ pub mod prelude {
             register, HarnessCompletion, AUTOPILOT, DEADLINE_ENV, DEFAULT_DEADLINE_SECS, SCREENSHOT,
         },
         input::{
-            click_at, click_named, hover_named, move_cursor, press_key, press_mouse, release_key,
-            release_mouse, ui_node_centre, ui_node_rect,
+            assert_named_visible, click_at, click_named, hover_named, move_cursor, press_key,
+            press_mouse, release_key, release_mouse, ui_node_centre, ui_node_rect,
         },
         predicate::{
             and, any_entity, elapsed, frames, not, resource_where, shot_written, state_is,

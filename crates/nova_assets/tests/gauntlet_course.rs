@@ -32,6 +32,7 @@ use nova_scenario::prelude::*;
 
 const GAUNTLET_RON: &str = include_str!("../../../webmods/gauntlet/gauntlet.content.ron");
 const GAUNTLET_BUNDLE_RON: &str = include_str!("../../../webmods/gauntlet/gauntlet.bundle.ron");
+const GAUNTLET_CHANGELOG: &str = include_str!("../../../webmods/gauntlet/CHANGELOG.md");
 
 /// Ship clearance margin (world units) required between the racing line and any
 /// asteroid's worst-case body. The racer is ~4u long; this leaves comfortable
@@ -661,16 +662,40 @@ fn on_start_spawns_the_full_gate_run() {
     }
 }
 
-/// The bundle ships the bumped version and lists the content file - an
-/// unbumped or unlisted mod is a broken publish.
+/// The bundle ships a documented, bumped version and lists the content file -
+/// an unbumped or unlisted mod is a broken publish. Without a NEW version
+/// string the portal serves the republished files under the old
+/// `<id>/<version>/` path and an installed copy is never offered the update.
+///
+/// That intent is "the version CHANGED since the content did", which a frozen
+/// literal cannot express: it reds on every LEGITIMATE republish and gets
+/// "fixed" by bumping the literal, which is the same as deleting the test. So
+/// this pins what survives a bump - the version is past the pre-rework 1.0.0,
+/// and the publish it names carries its own CHANGELOG entry (the record a
+/// forgotten bump has nothing new to write).
 #[test]
-fn bundle_ships_the_bumped_version() {
+fn bundle_ships_a_documented_bumped_version() {
+    let version = GAUNTLET_BUNDLE_RON
+        .split("version: \"")
+        .nth(1)
+        .and_then(|rest| rest.split('"').next())
+        .expect("the bundle declares a version");
+    let parts: Vec<u32> = version
+        .split('.')
+        .map(|p| p.parse().expect("numeric version parts"))
+        .collect();
     assert!(
-        GAUNTLET_BUNDLE_RON.contains("version: \"1.4.0\""),
-        "the bundle is bumped to 1.4.0 for the authored-lighting republish - \
-         without a NEW version string the portal serves the relit files under \
-         the old <id>/<version>/ path and an installed copy is never offered \
-         the update, so it renders black forever"
+        parts.as_slice() > [1, 0, 0].as_slice(),
+        "the bundle ({version}) is bumped past the pre-rework 1.0.0"
+    );
+    assert!(
+        GAUNTLET_CHANGELOG
+            .lines()
+            .filter_map(|line| line.strip_prefix("## "))
+            .any(|heading| heading.split_whitespace().next() == Some(version)),
+        "the mod CHANGELOG documents the published version ({version}) under \
+         its own `## {version}` heading - every republish records what changed \
+         against the version string it ships under"
     );
     assert!(
         GAUNTLET_BUNDLE_RON.contains("gauntlet.content.ron"),

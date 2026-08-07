@@ -214,6 +214,9 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
             // their own number - scene-loading cost stays visible instead
             // of smearing someone else's percentile tail.
             for (label, intervals) in &artifacts.reloads {
+                if intervals.is_empty() {
+                    continue;
+                }
                 let mean = intervals.iter().sum::<f64>() / intervals.len() as f64;
                 let max = intervals.iter().cloned().fold(0.0_f64, f64::max);
                 html.push_str(&format!(

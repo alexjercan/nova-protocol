@@ -10,7 +10,7 @@ use nova_probe::run_report::{
     checks_json, evaluate_checks, overall_verdict, print_checks, render_run_report, RunArtifacts,
 };
 
-use super::sweep::{aggregate_exit, build_row, print_aggregate, write_aggregate};
+use super::sweep::{aggregate_exit, build_row, print_aggregate, write_aggregate, RunStamp};
 
 /// `probe report`: re-render an existing run dir - GATED on the
 /// manifest, so a report can only ever be built from a dir `probe run`
@@ -81,6 +81,13 @@ fn report_aggregate(dir: &Path) -> Result<ExitCode, String> {
     let value: serde_json::Value = serde_json::from_str(&contents)
         .map_err(|e| format!("probe-all.json is not valid JSON: {e}"))?;
     let mut manifest = nova_probe::AllManifest::from_json(&value)?;
+    // Re-rendering history: every row's checks.json is by definition older
+    // than now, so only the revision has to match.
+    let git_sha = manifest.git_sha.clone();
+    let stamp = RunStamp {
+        git_sha: &git_sha,
+        started_not_before: 0,
+    };
     manifest.rows = manifest
         .rows
         .iter()
@@ -91,6 +98,7 @@ fn report_aggregate(dir: &Path) -> Result<ExitCode, String> {
                 &dir.join(&row.example),
                 row.error.clone(),
                 row.duration_secs,
+                &stamp,
             );
             if refreshed.checks.is_empty() && !row.checks.is_empty() {
                 row.clone()

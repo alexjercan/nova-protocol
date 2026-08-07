@@ -12,6 +12,18 @@ use crate::{
     stats::{parse_frametime_csv, PerfRun},
 };
 
+/// A present-but-unloadable artifact. Never silently dropped: [`RunArtifacts::load`]
+/// leaves the field `None` and records the reason here, and the
+/// `artifacts_loadable` check turns it into a FAILED row so the run cannot
+/// verdict OK on it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArtifactFailure {
+    /// The artifact's filename, as it sits in the run dir.
+    pub name: String,
+    /// Why it could not be read or parsed.
+    pub reason: String,
+}
+
 /// Everything a run directory yielded (each artifact optional).
 #[derive(Default)]
 pub struct RunArtifacts {
@@ -35,41 +47,84 @@ pub struct RunArtifacts {
     /// `reload_ms`, written by looped captures) - excluded from the frame
     /// stats by the capture, shown as their own line.
     pub reloads: Vec<(String, Vec<f64>)>,
+    /// Artifacts that were present and could not be loaded. Each one is a
+    /// field above left `None` for a reason that is NOT "not captured".
+    pub failures: Vec<ArtifactFailure>,
+}
+
+/// The per-artifact reader behind [`RunArtifacts::load`]: it owns the run dir
+/// and the failure list, so a bad read or a bad parse degrades that ONE
+/// artifact instead of discarding the other eleven.
+struct Loader<'a> {
+    dir: &'a Path,
+    failures: Vec<ArtifactFailure>,
+}
+
+impl Loader<'_> {
+    /// The raw contents of `name`, or `None` when it is absent (nothing to
+    /// report) or unreadable (reported).
+    fn read(&mut self, name: &str) -> Option<String> {
+        let path = self.dir.join(name);
+        if !path.exists() {
+            return None;
+        }
+        match std::fs::read_to_string(&path) {
+            Ok(contents) => Some(contents),
+            Err(error) => {
+                self.fail(name, format!("could not read: {error}"));
+                None
+            }
+        }
+    }
+
+    /// `name` read and parsed, or `None` with the reason recorded.
+    fn load<T>(&mut self, name: &str, parse: impl FnOnce(&str) -> Result<T, String>) -> Option<T> {
+        let contents = self.read(name)?;
+        match parse(&contents) {
+            Ok(value) => Some(value),
+            Err(reason) => {
+                self.fail(name, reason);
+                None
+            }
+        }
+    }
+
+    fn fail(&mut self, name: &str, reason: String) {
+        self.failures.push(ArtifactFailure {
+            name: name.to_string(),
+            reason,
+        });
+    }
 }
 
 impl RunArtifacts {
-    /// Load whatever exists in `dir`. Unreadable-but-present artifacts are
-    /// hard errors (a corrupt file must not read as "not captured");
-    /// absent files are simply `None`.
+    /// Load whatever exists in `dir`. A present-but-unloadable artifact is
+    /// never read as "not captured": its field stays `None` and the reason
+    /// lands in [`failures`], which the `artifacts_loadable` check turns into
+    /// a FAILED row. Absent files are simply `None`.
+    ///
+    /// Only the operator's own `--baseline` is still a hard error - it is an
+    /// argument, not evidence the run produced, and a bad one must not
+    /// degrade into a quietly missing comparison.
+    ///
+    /// [`failures`]: RunArtifacts::failures
     pub fn load(dir: &Path, baseline_dir: Option<&Path>) -> Result<Self, String> {
-        let read_opt = |name: &str| -> Result<Option<String>, String> {
-            let path = dir.join(name);
-            if !path.exists() {
-                return Ok(None);
-            }
-            std::fs::read_to_string(&path)
-                .map(Some)
-                .map_err(|e| format!("could not read {}: {e}", path.display()))
+        let mut loader = Loader {
+            dir,
+            failures: Vec::new(),
         };
-        let timeline = read_opt("timeline.jsonl")?
-            .map(|s| parse_timeline(&s).map_err(|e| format!("timeline.jsonl: {e}")))
-            .transpose()?;
-        let runs = read_opt("frametime.csv")?
-            .map(|s| parse_frametime_csv(&s).map_err(|e| format!("frametime.csv: {e}")))
-            .transpose()?;
-        let costs = read_opt("trace.json")?
-            .map(|s| aggregate_system_costs(&s).map_err(|e| format!("trace.json: {e}")))
-            .transpose()?;
-        // The game's logs: run.log (single run) plus run-<n>.log (sweep
-        // cells), concatenated in cell order. web-run.log stays OUT - it is
-        // chromium's own output, not the game's.
+        let timeline = loader.load("timeline.jsonl", parse_timeline);
+        let runs = loader.load("frametime.csv", parse_frametime_csv);
+        let costs = loader.load("trace.json", aggregate_system_costs);
+        // The game's logs: run.log (single run), fps-run.log (the fps pass is
+        // a real game run too; its panics/errors gate), web-run.log (chromium's
+        // output AND the game's - stats.rs parses `nova perf:` out of its
+        // INFO:CONSOLE lines), plus run-<n>.log (sweep cells) in cell order.
         let mut log_parts: Vec<String> = Vec::new();
-        if let Some(main_log) = read_opt("run.log")? {
-            log_parts.push(main_log);
-        }
-        // The fps pass is a real game run too; its panics/errors gate.
-        if let Some(fps_log) = read_opt("fps-run.log")? {
-            log_parts.push(fps_log);
+        for name in ["run.log", "fps-run.log", "web-run.log"] {
+            if let Some(contents) = loader.read(name) {
+                log_parts.push(contents);
+            }
         }
         let mut cell_logs: Vec<PathBuf> = std::fs::read_dir(dir)
             .map(|entries| {
@@ -85,22 +140,20 @@ impl RunArtifacts {
             .unwrap_or_default();
         cell_logs.sort();
         for path in cell_logs {
-            log_parts.push(
-                std::fs::read_to_string(&path)
-                    .map_err(|e| format!("could not read {}: {e}", path.display()))?,
-            );
+            let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+                continue;
+            };
+            if let Some(contents) = loader.read(name) {
+                log_parts.push(contents);
+            }
         }
         let log = if log_parts.is_empty() {
             None
         } else {
             Some(log_parts.join("\n"))
         };
-        let manifest = read_opt("probe-run.json")?
-            .map(|s| RunManifest::from_json(&s))
-            .transpose()?;
-        let contract = read_opt("probe-contract.json")?
-            .map(|s| ProbeContract::from_json(&s))
-            .transpose()?;
+        let manifest = loader.load("probe-run.json", RunManifest::from_json);
+        let contract = loader.load("probe-contract.json", ProbeContract::from_json);
         // Reload sidecars: each run label may have a <label>.json whose
         // reload_ms array records looped-capture reload intervals.
         let mut reloads: Vec<(String, Vec<f64>)> = Vec::new();
@@ -142,6 +195,7 @@ impl RunArtifacts {
             manifest,
             contract,
             reloads,
+            failures: loader.failures,
         })
     }
 
@@ -168,6 +222,25 @@ impl RunArtifacts {
             }
             None => Input::Unknown(capability),
         }
+    }
+
+    /// The recorded failure for `name`, if that artifact was present and
+    /// would not load. What lets a skip detail say "unloadable" instead of
+    /// sending the reader after an env var that was set all along.
+    pub(super) fn failure_for(&self, name: &str) -> Option<&ArtifactFailure> {
+        self.failures.iter().find(|failure| failure.name == name)
+    }
+
+    /// Whether the dir yielded anything at all, loaded or failed. What tells
+    /// "there was nothing to load" apart from "everything loaded".
+    pub(super) fn any_present(&self) -> bool {
+        !self.failures.is_empty()
+            || self.timeline.is_some()
+            || self.runs.is_some()
+            || self.costs.is_some()
+            || self.log.is_some()
+            || self.manifest.is_some()
+            || self.contract.is_some()
     }
 
     /// Whether probe armed `capability` for this run. `None` when there is no

@@ -75,6 +75,52 @@ const INDESTRUCTIBLE_HEALTH: f32 = 100_000.0;
 /// Centre of the sweeping gate's path.
 const MOVING_GATE_ORIGIN: Vec3 = Vec3::new(-35.0, 6.0, -55.0);
 
+/// Every authored range gate: id, display name, position, health. The single
+/// roster - the scenario spawns exactly these and [`tag_gate`] tags exactly
+/// these, so the range's OTHER asteroid (the gravity planetoid) cannot drift
+/// into the gate count.
+const RANGE_GATES: [(&str, &str, Vec3, f32); 5] = [
+    (
+        "gate_front",
+        "Front Gate",
+        Vec3::new(0.0, 3.0, -55.0),
+        GATE_HEALTH,
+    ),
+    (
+        "gate_left",
+        "Left Gate",
+        Vec3::new(-32.0, 4.0, -45.0),
+        GATE_HEALTH,
+    ),
+    (
+        "gate_right",
+        "Right Gate",
+        Vec3::new(30.0, 3.0, -48.0),
+        GATE_HEALTH,
+    ),
+    (
+        "gate_high",
+        "High Gate",
+        Vec3::new(6.0, 26.0, -40.0),
+        GATE_HEALTH,
+    ),
+    // The sweeping gate is the one target the script REQUIRES alive: the
+    // tracking beat waits on its live position, so its despawn stalls the run
+    // outright. It is also the most punished object on the range - it is what
+    // the turret aims at, and its sweep drives it through the static gates'
+    // lane, where contact damage alone took it from full to destroyed inside
+    // one round. The single-round version of this range ended before that
+    // mattered; a multi-round one has to outlast it, so this gate gets the
+    // planetoid's durability rather than a gate's. Still damageable, which is
+    // what invariant 2 observes.
+    (
+        MOVING_GATE_ID,
+        "Moving Gate",
+        MOVING_GATE_ORIGIN,
+        INDESTRUCTIBLE_HEALTH,
+    ),
+];
+
 /// Half-width of the sweep, in world units. Chosen so the path stays clear of
 /// the static gates - `gate_front` sits at x = 0, and a sweep that reached it
 /// put the two within their combined radii once per pass, where contact damage
@@ -90,8 +136,9 @@ fn main() -> bevy::app::AppExit {
 
     // Headless smoke-test harness: inert in a normal run. Under NOVA_AUTOPILOT
     // it holds the fire key and asserts the range's PURPOSE: rounds left the
-    // barrel, a gate actually took hits (task 20260712-211352 - reach-Playing
-    // alone let a turret that never connects pass), and the barrel converged
+    // barrel, a range target actually took hits (task 20260712-211352 -
+    // reach-Playing alone let a turret that never connects pass), and the
+    // barrel converged
     // on a MOVING target. Scene is built on `GameAssetsStates::Loaded` so the
     // screenshot's forced Playing does not re-run setup.
     #[cfg(feature = "debug")]
@@ -110,23 +157,23 @@ fn main() -> bevy::app::AppExit {
         // and into the planetoid, and that collision damage tripped this flag
         // within a frame of the range loading - long before any round could
         // cross the ~55 u to the nearest gate. Requiring the source to be a
-        // turret round is what makes "a gate took hits" a claim about the
+        // turret round is what makes "a target took hits" a claim about the
         // turret. `apply_typed_damage` passes the bullet's body as `source`
         // (nova_gameplay/src/damage.rs:162-183).
         app.add_observer(
             |damage: On<HealthApplyDamage>,
-             q_gate: Query<(), With<RangeGateMarker>>,
+             q_target: Query<(), Or<(With<RangeGateMarker>, With<RangeBackstopMarker>)>>,
              q_bullet: Query<(), With<TurretBulletProjectileMarker>>,
              mut outcome: ResMut<RangeOutcome>| {
-                if q_gate.contains(damage.entity)
+                if q_target.contains(damage.entity)
                     && damage
                         .source
                         .is_some_and(|source| q_bullet.contains(source))
                 {
-                    if !outcome.gate_damaged {
-                        info!("range: a turret round connected with a gate");
+                    if !outcome.target_hit {
+                        info!("range: a turret round connected with a range target");
                     }
-                    outcome.gate_damaged = true;
+                    outcome.target_hit = true;
                 }
             },
         );
@@ -202,6 +249,18 @@ fn track_aim_settle(world: &mut World) {
 /// Marks an asteroid the range treats as a target gate.
 #[derive(Component)]
 struct RangeGateMarker;
+
+/// Marks the gravity planetoid - a range target, but not a gate.
+///
+/// Separate from [`RangeGateMarker`] because the two answer different
+/// questions. The gate marker is the aim roster and the gate COUNT; the backstop
+/// is where the range's whole point sends most rounds. The turret aims straight
+/// and the well bends its rounds down, so a barrel converged to 0.5 deg puts
+/// 12-16 rounds a second UNDER the gate and into this rock. Tagging the
+/// planetoid a gate hid both facts at once: `report_status` printed 6 gates for
+/// 5, and "a gate took hits" was answered by a rock.
+#[derive(Component)]
+struct RangeBackstopMarker;
 
 /// Marks the gate that sweeps across the front (the turret's tracking target).
 #[derive(Component)]
@@ -302,55 +361,21 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
         }),
     };
 
-    let objects = vec![
-        ScenarioObjectConfig {
-            base: BaseScenarioObjectConfig {
-                id: "player_ship".to_string(),
-                name: "Turret Ship".to_string(),
-                position: Vec3::ZERO,
-                rotation: Quat::IDENTITY,
-            },
-            kind: ScenarioObjectKind::Spaceship(ship),
+    let mut objects = vec![ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: "player_ship".to_string(),
+            name: "Turret Ship".to_string(),
+            position: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
         },
-        gate(
-            "gate_front",
-            "Front Gate",
-            Vec3::new(0.0, 3.0, -55.0),
-            GATE_HEALTH,
-        ),
-        gate(
-            "gate_left",
-            "Left Gate",
-            Vec3::new(-32.0, 4.0, -45.0),
-            GATE_HEALTH,
-        ),
-        gate(
-            "gate_right",
-            "Right Gate",
-            Vec3::new(30.0, 3.0, -48.0),
-            GATE_HEALTH,
-        ),
-        gate(
-            "gate_high",
-            "High Gate",
-            Vec3::new(6.0, 26.0, -40.0),
-            GATE_HEALTH,
-        ),
-        // The sweeping gate is the one target the script REQUIRES alive: the
-        // tracking beat waits on its live position, so its despawn stalls the
-        // run outright. It is also the most punished object on the range - it
-        // is what the turret aims at, and its sweep drives it through the
-        // static gates' lane, where contact damage alone took it from full to
-        // destroyed inside one round. The single-round version of this range
-        // ended before that mattered; a multi-round one has to outlast it, so
-        // this gate gets the planetoid's durability rather than a gate's. Still
-        // damageable, which is what invariant 2 observes.
-        gate(
-            MOVING_GATE_ID,
-            "Moving Gate",
-            MOVING_GATE_ORIGIN,
-            INDESTRUCTIBLE_HEALTH,
-        ),
+        kind: ScenarioObjectKind::Spaceship(ship),
+    }];
+    objects.extend(
+        RANGE_GATES
+            .iter()
+            .map(|(id, name, position, health)| gate(id, name, *position, *health)),
+    );
+    objects.push(
         // A gravity planetoid slung below the firing lane so rounds crossing
         // its sphere of influence curve downward toward it - the range is where
         // you eyeball bullet gravity (docs/spikes/20260712-112113). It is
@@ -376,7 +401,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
                 lock_signature: None,
             }),
         },
-    ];
+    );
 
     let events = vec![ScenarioEventConfig {
         name: EventConfig::OnStart,
@@ -400,16 +425,26 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
     }
 }
 
-/// Tag each spawned asteroid as a gate, and single out the sweeping one.
+/// Tag each spawned range asteroid as a GATE or the BACKSTOP, and single out the
+/// sweeping gate.
+///
+/// Split by the roster rather than tagging every `Add<AsteroidMarker>` a gate:
+/// the gravity planetoid is an asteroid too, so one marker for both made
+/// `report_status` print 6 gates for 5 and let the rock answer the
+/// "a round connected with a gate" claim. Both are still range TARGETS, which is
+/// what invariant 2 observes - see [`RangeBackstopMarker`].
 fn tag_gate(add: On<Add, AsteroidMarker>, mut commands: Commands, q_id: Query<&EntityId>) {
     let entity = add.entity;
+    let Ok(id) = q_id.get(entity) else {
+        return;
+    };
+    if !RANGE_GATES.iter().any(|(gate_id, ..)| *gate_id == id.0) {
+        commands.entity(entity).insert(RangeBackstopMarker);
+        return;
+    }
     commands.entity(entity).insert(RangeGateMarker);
 
-    if q_id
-        .get(entity)
-        .map(|id| id.0 == MOVING_GATE_ID)
-        .unwrap_or(false)
-    {
+    if id.0 == MOVING_GATE_ID {
         // `RigidBody::Kinematic` is load-bearing, not a tweak: it is what makes
         // the gate follow the path `drive_moving_gate` authors instead of
         // negotiating with the solver. As a dynamic body it was pulled by the
@@ -585,7 +620,10 @@ fn report_status(
 #[derive(Resource, Default)]
 struct RangeOutcome {
     fired: bool,
-    gate_damaged: bool,
+    /// A turret round damaged a range target - a gate or the backstop. Not
+    /// "a gate", because the range's own gravity demo sends most rounds into the
+    /// planetoid; see [`RangeBackstopMarker`].
+    target_hit: bool,
     /// The moving gate's position when the round's fire beat opened, so the
     /// aim assertion can show the turret converged on a target that MOVED.
     gate_at_round_start: Option<Vec3>,
@@ -918,7 +956,16 @@ fn gate_travel(world: &World) -> Option<f32> {
     Some(moving_gate_position(world)?.distance(start))
 }
 
-/// Invariants 1 and 2: rounds left the barrel, and a gate actually took hits.
+/// Invariants 1 and 2: rounds left the barrel, and one of them connected with a
+/// range target.
+///
+/// Invariant 2 is "a target took hits", not "a GATE took hits": the well bends
+/// the rounds down, so a barrel converged to 0.5 deg still lands most of them on
+/// the planetoid, and 11s of continuous fire over a full sweep period reaches a
+/// gate only about half the time. What the invariant is for (task
+/// 20260712-211352 - reach-Playing alone let a turret that never connects pass)
+/// is answered either way: rounds are hitting the range rather than flying
+/// through it.
 #[cfg(feature = "debug")]
 fn assert_fired_and_connected(world: &mut World, round: &str) {
     let outcome = world.resource::<RangeOutcome>();
@@ -927,11 +974,11 @@ fn assert_fired_and_connected(world: &mut World, round: &str) {
         "range ({round}): no turret round fired in the window"
     );
     assert!(
-        outcome.gate_damaged,
-        "range ({round}): no gate took turret hits in the window"
+        outcome.target_hit,
+        "range ({round}): no turret round connected with a range target in the window"
     );
     let elapsed = world.resource::<Time>().elapsed_secs();
-    info!("range: {round} - fired -> gate damaged, all observed");
+    info!("range: {round} - fired -> target hit, all observed");
     nova_probe::probe_marker(
         world,
         "outcome: turret fired",
@@ -939,7 +986,7 @@ fn assert_fired_and_connected(world: &mut World, round: &str) {
     );
     nova_probe::probe_marker(
         world,
-        "outcome: gate damaged",
+        "outcome: range target hit",
         serde_json::json!({ "t": elapsed, "round": round }),
     );
 }

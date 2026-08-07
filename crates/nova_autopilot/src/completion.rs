@@ -66,6 +66,19 @@
 
 use bevy::prelude::*;
 
+/// The completion protocol's own systems in `Last`.
+///
+/// Named so that anything READING [`AppExit`] can order itself after the
+/// writer. Bevy exits after the frame in which `AppExit` is written - there is
+/// no next frame to catch up in - so an unordered reader in the same schedule
+/// misses the exit entirely on an unfavourable ordering.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum AutopilotCompletionSystems {
+    /// Writes [`AppExit`] once the pending set empties or the deadline
+    /// expires.
+    Watch,
+}
+
 /// Collector name the scripted autopilot driver registers under.
 pub const AUTOPILOT: &str = "autopilot";
 
@@ -149,7 +162,10 @@ pub fn register(app: &mut App, name: &'static str) {
     }
     completion.pending.push(name);
     if first {
-        app.add_systems(Last, completion_watch);
+        app.add_systems(
+            Last,
+            completion_watch.in_set(AutopilotCompletionSystems::Watch),
+        );
     }
 }
 

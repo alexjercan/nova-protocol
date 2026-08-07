@@ -185,17 +185,13 @@ pub fn overall_verdict(rows: &[AllRow]) -> &'static str {
     }
 }
 
-/// The check columns every row renders, in per-run report order. A run
-/// missing a check (older checks.json) renders "-" instead of shifting
+/// The check columns every row renders, in per-run report order - taken from
+/// the check roster itself, so a new check cannot be missing a column here. A
+/// run missing a check (older checks.json) renders "-" instead of shifting
 /// columns.
-const CHECK_COLUMNS: &[&str] = &[
-    "process_exit",
-    "run_completed",
-    "reached_playing",
-    "invariants_held",
-    "fps_within_baseline",
-    "log_clean",
-];
+fn check_columns() -> Vec<&'static str> {
+    crate::run_report::check_names().collect()
+}
 
 /// The machine mirror (index.json): everything an agent needs to answer
 /// "does every feature still work" from one file.
@@ -259,7 +255,8 @@ pub fn render_index(manifest: &AllManifest) -> String {
         "<table>\n<thead><tr><th>example</th><th>category</th><th>verdict</th>\
          <th>measured</th>",
     );
-    for column in CHECK_COLUMNS {
+    let columns = check_columns();
+    for column in &columns {
         html.push_str(&format!("<th>{}</th>", column.replace('_', " ")));
     }
     html.push_str("<th>duration</th></tr></thead>\n<tbody>\n");
@@ -278,7 +275,7 @@ pub fn render_index(manifest: &AllManifest) -> String {
             row.verdict,
             escape(&row.measured),
         ));
-        for column in CHECK_COLUMNS {
+        for column in &columns {
             let status = row
                 .checks
                 .iter()

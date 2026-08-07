@@ -101,7 +101,7 @@ fn main() -> bevy::app::AppExit {
                 // teardown fails the next round's beats, which is the point.
                 script = script
                     .step(format!("round {round}: reload the run"))
-                    .on_enter(replay_the_run)
+                    .on_enter(reload_the_run)
                     .until(and(
                         player_ship_present(),
                         scenario_variable_is("target_down", 0.0),
@@ -370,14 +370,27 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
     }
 }
 
-/// Restart the cycle on an autopilot loop: mark the reload interval and
-/// re-trigger the same run (task 20260720-000616). The step that follows the
-/// reload closes the interval once the scenario has re-seeded itself.
+/// Let go of everything the last round left held. GOTO is the one that
+/// matters - a still-pressed G would re-engage the autopilot on the fresh ship
+/// before its beat, and the run would prove the chain on a lock it never took.
+#[cfg(feature = "debug")]
+fn release_all_held_keys(world: &mut World) {
+    release_key(KeyCode::KeyG)(world);
+    release_key(KeyCode::ControlLeft)(world);
+    release_mouse(MouseButton::Left)(world);
+    release_mouse(MouseButton::Right)(world);
+}
+
+/// Restart the cycle on an autopilot loop: release the held inputs, mark the
+/// reload interval and re-trigger the same run (task 20260720-000616). The
+/// step that follows the reload closes the interval once the scenario has
+/// re-seeded itself.
 ///
 /// Silently does nothing before the loader has inserted the asset resources -
 /// a loop cannot happen that early, but reading them unguarded would panic.
 #[cfg(feature = "debug")]
 fn reload_the_run(world: &mut World) {
+    release_all_held_keys(world);
     let (Some(game_assets), Some(sections)) = (
         world.get_resource::<GameAssets>().cloned(),
         world.get_resource::<GameSections>().cloned(),
@@ -528,17 +541,4 @@ fn variable(world: &World, key: &str) -> Option<f64> {
         Some(VariableLiteral::Number(value)) => Some(*value),
         _ => None,
     }
-}
-
-/// Start the next round: release everything the last round left held and
-/// reload the scenario. GOTO is the one that matters - a still-pressed G would
-/// re-engage the autopilot on the fresh ship before its beat, and the run
-/// would prove the chain on a lock it never took.
-#[cfg(feature = "debug")]
-fn replay_the_run(world: &mut World) {
-    release_key(KeyCode::KeyG)(world);
-    release_key(KeyCode::ControlLeft)(world);
-    release_mouse(MouseButton::Left)(world);
-    release_mouse(MouseButton::Right)(world);
-    reload_the_run(world);
 }

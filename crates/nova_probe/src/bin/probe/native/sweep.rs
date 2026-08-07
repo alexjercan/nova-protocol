@@ -100,10 +100,7 @@ fn run_many(
         ),
     }
     let (display, _xvfb) = ensure_display(base.display.as_deref())?;
-    let started_unix = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
+    let started_unix = unix_now();
     let total = resolved.examples.len();
     let mut rows = Vec::new();
     let mut baseline_matches = 0usize;
@@ -129,6 +126,9 @@ fn run_many(
             )
         });
         let started = Instant::now();
+        // Sampled BEFORE the run, so a checks.json stamped earlier than this
+        // cannot be this example's.
+        let cell_started_unix = unix_now();
         let run_error = match run(&opts) {
             Ok(_) => None,
             Err(message) => {
@@ -147,6 +147,10 @@ fn run_many(
             &out_root.join(example),
             run_error,
             started.elapsed().as_secs(),
+            &RunStamp {
+                git_sha: &git_sha,
+                started_not_before: cell_started_unix,
+            },
         ));
     }
     if let Some(root) = &baseline_root {
@@ -171,21 +175,76 @@ fn run_many(
     Ok(aggregate_exit(&manifest))
 }
 
+/// Wall-clock unix seconds, the same stamp `run` writes into the manifest.
+fn unix_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+/// Who a row's checks.json must belong to. A run that fails BEFORE
+/// `clean_out_dir` leaves the PREVIOUS run's checks.json on disk, and
+/// nothing in the file itself says which run wrote it.
+pub(crate) struct RunStamp<'a> {
+    /// The revision under test. Every row of one sweep shares it.
+    pub git_sha: &'a str,
+    /// Earliest start the checks.json may record. `0` accepts any, for
+    /// re-rendering a dir whose runs are already history.
+    pub started_not_before: u64,
+}
+
+impl RunStamp<'_> {
+    /// Whether `checks` was written by the run this row is about. The
+    /// identity lives in the manifest probe embeds under `run`; a checks.json
+    /// without one cannot vouch for itself.
+    fn matches(&self, checks: &serde_json::Value) -> bool {
+        let run = &checks["run"];
+        run.get("git_sha").and_then(|v| v.as_str()) == Some(self.git_sha)
+            && run
+                .get("started_unix")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0)
+                >= self.started_not_before
+    }
+}
+
 /// One aggregate row, read back from the run's own checks.json. A run
 /// that never produced one (build failure, probe error) becomes an
 /// ERROR row carrying the message - the sweep must show it, not skip it.
+///
+/// A run that ERRORED cannot verdict better than ERROR whatever is on disk,
+/// and a checks.json that fails `stamp` is a previous run's: both used to
+/// present a stale OK, and `aggregate_exit` returned SUCCESS on a commit
+/// that was never probed.
 pub(crate) fn build_row(
     example: &str,
     category: &str,
     dir: &Path,
     run_error: Option<String>,
     duration_secs: u64,
+    stamp: &RunStamp<'_>,
 ) -> nova_probe::AllRow {
-    let checks = std::fs::read_to_string(dir.join("checks.json"))
+    let on_disk = std::fs::read_to_string(dir.join("checks.json"))
         .ok()
         .and_then(|contents| serde_json::from_str::<serde_json::Value>(&contents).ok());
-    match checks {
-        Some(value) => nova_probe::AllRow {
+    let error_row = |reason: String| nova_probe::AllRow {
+        example: example.into(),
+        category: category.into(),
+        verdict: "ERROR".into(),
+        measured: "-".into(),
+        checks: Vec::new(),
+        duration_secs,
+        error: Some(reason),
+    };
+    match (on_disk, run_error) {
+        (_, Some(error)) => error_row(error),
+        (None, None) => error_row("the run produced no checks.json".into()),
+        (Some(value), None) if !stamp.matches(&value) => error_row(format!(
+            "{} holds an earlier run's checks.json; this run wrote none",
+            dir.display()
+        )),
+        (Some(value), None) => nova_probe::AllRow {
             example: example.into(),
             category: category.into(),
             verdict: value
@@ -214,16 +273,7 @@ pub(crate) fn build_row(
                 })
                 .unwrap_or_default(),
             duration_secs,
-            error: run_error,
-        },
-        None => nova_probe::AllRow {
-            example: example.into(),
-            category: category.into(),
-            verdict: "ERROR".into(),
-            measured: "-".into(),
-            checks: Vec::new(),
-            duration_secs,
-            error: Some(run_error.unwrap_or_else(|| "the run produced no checks.json".into())),
+            error: None,
         },
     }
 }
@@ -267,5 +317,101 @@ pub(crate) fn aggregate_exit(manifest: &nova_probe::AllManifest) -> ExitCode {
     match nova_probe::aggregate_verdict(&manifest.rows) {
         "OK" | "WARN" => ExitCode::SUCCESS,
         _ => ExitCode::FAILURE,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SHA: &str = "61675034";
+
+    /// A cell dir holding the PREVIOUS run's green checks.json, which is what
+    /// is on disk whenever `run` fails before `clean_out_dir` gets to it.
+    fn stale_cell(name: &str, started_unix: u64) -> std::path::PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("nova_probe_row_{}_{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("checks.json"),
+            serde_json::json!({
+                "verdict": "OK",
+                "measured": "5/7",
+                "checks": [{ "name": "process_exit", "status": "PASS" }],
+                "run": { "git_sha": SHA, "started_unix": started_unix },
+            })
+            .to_string(),
+        )
+        .unwrap();
+        dir
+    }
+
+    fn stamp(started_not_before: u64) -> RunStamp<'static> {
+        RunStamp {
+            git_sha: SHA,
+            started_not_before,
+        }
+    }
+
+    /// The green-and-wrong row: the run failed, but the previous run's OK is
+    /// still on disk. Reading it verbatim is how the sweep exited SUCCESS on a
+    /// commit that was never probed.
+    #[test]
+    fn an_errored_run_verdicts_error_over_a_leftover_green_checks_json() {
+        let dir = stale_cell("errored", 100);
+        let row = build_row(
+            "playable",
+            "gameplay",
+            &dir,
+            Some("the build failed".into()),
+            3,
+            &stamp(200),
+        );
+        assert_eq!(row.verdict, "ERROR");
+        assert_eq!(row.error.as_deref(), Some("the build failed"));
+        assert!(
+            row.checks.is_empty(),
+            "a stale run's checks are not evidence"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The other half: no error was reported, so only the stamp can tell that
+    /// the checks.json predates this run.
+    #[test]
+    fn a_checks_json_older_than_the_run_cannot_stand_in_for_it() {
+        let dir = stale_cell("stale", 100);
+        let row = build_row("playable", "gameplay", &dir, None, 3, &stamp(200));
+        assert_eq!(row.verdict, "ERROR");
+        let reason = row.error.unwrap_or_default();
+        assert!(reason.contains("earlier run's checks.json"), "{reason}");
+
+        // Written by this run, and the same row reads normally.
+        let fresh = stale_cell("fresh", 300);
+        let row = build_row("playable", "gameplay", &fresh, None, 3, &stamp(200));
+        assert_eq!(row.verdict, "OK");
+        assert_eq!(row.error, None);
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&fresh);
+    }
+
+    /// A different revision's checks.json is never this run's, however recent.
+    #[test]
+    fn a_checks_json_from_another_revision_is_rejected() {
+        let dir = stale_cell("other_sha", 300);
+        let row = build_row(
+            "playable",
+            "gameplay",
+            &dir,
+            None,
+            3,
+            &RunStamp {
+                git_sha: "deadbeef",
+                started_not_before: 0,
+            },
+        );
+        assert_eq!(row.verdict, "ERROR");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

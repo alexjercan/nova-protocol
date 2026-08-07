@@ -1,7 +1,11 @@
 //! One example through the harness passes: clean, fps, profiled, samply,
 //! then the run report.
 
-use std::{path::Path, process::ExitCode, time::Duration};
+use std::{
+    path::{Path, PathBuf},
+    process::ExitCode,
+    time::Duration,
+};
 
 use nova_probe::{
     profile_sandbox,
@@ -41,18 +45,34 @@ const RUN_ARTIFACTS: [&str; 12] = [
     "checks.json",
 ];
 
+/// The sweep-cell logs already in `out`. They are NUMBERED, so they cannot be
+/// listed in [`RUN_ARTIFACTS`] - and `RunArtifacts::load` globs and
+/// concatenates exactly this set, so a previous sweep's cell logs present as
+/// this run's evidence unless `clean_out_dir` removes them too.
+fn stale_cell_logs(out: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(out) else {
+        return Vec::new();
+    };
+    entries
+        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+        .filter(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with("run-") && name.ends_with(".log"))
+        })
+        .collect()
+}
+
 fn clean_out_dir(out: &Path) -> Result<(), String> {
-    for name in RUN_ARTIFACTS {
-        let path = out.join(name);
+    let named = RUN_ARTIFACTS
+        .iter()
+        .map(|name| out.join(name))
+        .chain(std::iter::once(out.join("probe-run.json")));
+    for path in named.chain(stale_cell_logs(out)) {
         if path.exists() {
             std::fs::remove_file(&path)
                 .map_err(|e| format!("could not clear stale {}: {e}", path.display()))?;
         }
-    }
-    let manifest = out.join("probe-run.json");
-    if manifest.exists() {
-        std::fs::remove_file(&manifest)
-            .map_err(|e| format!("could not clear stale {}: {e}", manifest.display()))?;
     }
     Ok(())
 }
@@ -176,8 +196,17 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
                 "probe: fps pass: capture-only -> {}",
                 out.join("fps-run.log").display()
             );
+            // NOVA_PERF_CONTRACT too: the CLEAN pass owns probe-contract.json,
+            // and letting the fps pass rewrite it makes the report's "what the
+            // example wired" half describe the wrong run the moment the two
+            // passes diverge.
             let mut env = clean_pass_env(&root, &out, &display, true);
-            env.retain(|(k, _)| k != "NOVA_PERF_TIMELINE" && k != "NOVA_PERF_INVARIANTS");
+            env.retain(|(k, _)| {
+                !matches!(
+                    k.as_str(),
+                    "NOVA_PERF_TIMELINE" | "NOVA_PERF_INVARIANTS" | "NOVA_PERF_CONTRACT"
+                )
+            });
             // The baseline capture window + a completion deadline SIZED to
             // it, so a slow-but-progressing capture (a heavy dev scene under
             // software rendering) completes instead of tripping the flat
@@ -353,4 +382,35 @@ fn finish_report(
 fn passes_total(opts: &RunOptions) -> usize {
     let sweeping = !opts.scenarios.is_empty() || !opts.presets.is_empty();
     1 + usize::from(opts.fps && !sweeping) + usize::from(opts.profile) + usize::from(opts.samply)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A sweep's numbered cell logs are read back as this run's log, so
+    /// leaving them behind lets a previous sweep's output be scanned as the
+    /// current run's - and the surgical removal must still not touch anything
+    /// probe did not write.
+    #[test]
+    fn cleaning_removes_stale_cell_logs_and_nothing_else() {
+        let out = std::env::temp_dir().join(format!("nova_probe_clean_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&out);
+        std::fs::create_dir_all(&out).unwrap();
+        for name in ["run-1.log", "run-12.log", "checks.json", "run.log"] {
+            std::fs::write(out.join(name), "stale\n").unwrap();
+        }
+        std::fs::write(out.join("notes.txt"), "the operator's own file\n").unwrap();
+
+        clean_out_dir(&out).unwrap();
+
+        for name in ["run-1.log", "run-12.log", "checks.json", "run.log"] {
+            assert!(!out.join(name).exists(), "{name} survived the clean");
+        }
+        assert!(
+            out.join("notes.txt").is_file(),
+            "the clean is surgical, never a recursive wipe of a user-supplied dir"
+        );
+        let _ = std::fs::remove_dir_all(&out);
+    }
 }

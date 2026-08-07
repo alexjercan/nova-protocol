@@ -59,7 +59,7 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
             return no_input(
                 CheckStatus::Skipped,
                 "no timeline",
-                timeline_skip_detail(artifacts.manifest.as_ref()),
+                timeline_skip_detail(artifacts),
             )
         }
     };
@@ -92,18 +92,7 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        contract::ProbeContract,
-        run_report::{checks::evaluate_checks, fixtures::*, manifest::RunManifest},
-    };
-
-    fn write_contract(dir: &std::path::Path, declared: impl IntoIterator<Item = Capability>) {
-        std::fs::write(
-            dir.join("probe-contract.json"),
-            ProbeContract::of(declared).to_json().to_string(),
-        )
-        .unwrap();
-    }
+    use crate::run_report::{checks::evaluate_checks, fixtures::*, manifest::RunManifest};
 
     #[test]
     fn reached_playing_fails_when_the_run_never_left_loading() {
@@ -132,11 +121,7 @@ mod tests {
         let dir = scratch_run_dir();
         std::fs::remove_file(dir.join("timeline.jsonl")).unwrap();
         write_contract(&dir, [Capability::Timeline]);
-        std::fs::write(
-            dir.join("probe-run.json"),
-            manifest_ok().to_json().to_string(),
-        )
-        .unwrap();
+        write_manifest(&dir, &manifest_ok());
 
         let artifacts = RunArtifacts::load(&dir, None).unwrap();
         let checks = evaluate_checks(&artifacts);
@@ -153,11 +138,7 @@ mod tests {
         let dir = scratch_run_dir();
         std::fs::remove_file(dir.join("timeline.jsonl")).unwrap();
         write_contract(&dir, [Capability::FrameTime]);
-        std::fs::write(
-            dir.join("probe-run.json"),
-            manifest_ok().to_json().to_string(),
-        )
-        .unwrap();
+        write_manifest(&dir, &manifest_ok());
 
         let artifacts = RunArtifacts::load(&dir, None).unwrap();
         let checks = evaluate_checks(&artifacts);
@@ -182,7 +163,7 @@ mod tests {
             armed_timeline: false,
             ..manifest_ok()
         };
-        std::fs::write(dir.join("probe-run.json"), manifest.to_json().to_string()).unwrap();
+        write_manifest(&dir, &manifest);
 
         let artifacts = RunArtifacts::load(&dir, None).unwrap();
         let checks = evaluate_checks(&artifacts);
@@ -202,11 +183,7 @@ mod tests {
     fn a_dir_without_a_contract_still_skips_not_fails() {
         let dir = scratch_run_dir();
         std::fs::remove_file(dir.join("timeline.jsonl")).unwrap();
-        std::fs::write(
-            dir.join("probe-run.json"),
-            manifest_ok().to_json().to_string(),
-        )
-        .unwrap();
+        write_manifest(&dir, &manifest_ok());
 
         let artifacts = RunArtifacts::load(&dir, None).unwrap();
         let checks = evaluate_checks(&artifacts);

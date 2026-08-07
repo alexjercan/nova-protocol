@@ -10,6 +10,7 @@ use super::{
     checks::Check,
     manifest::{PassRecord, RunManifest},
 };
+use crate::contract::{Capability, ProbeContract};
 
 pub fn fixture() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/run-mini")
@@ -27,6 +28,22 @@ pub fn scratch_run_dir() -> PathBuf {
         std::fs::copy(entry.path(), dir.join(entry.file_name())).unwrap();
     }
     dir
+}
+
+/// Declare `capabilities` in `dir`, the example's half of the coverage
+/// handshake. Without it every capability check is N/A and nothing grades.
+pub fn write_contract(dir: &Path, declared: impl IntoIterator<Item = Capability>) {
+    std::fs::write(
+        dir.join("probe-contract.json"),
+        ProbeContract::of(declared).to_json().to_string(),
+    )
+    .unwrap();
+}
+
+/// Write `manifest` as the run's own `probe-run.json` - probe's half of the
+/// handshake.
+pub fn write_manifest(dir: &Path, manifest: &RunManifest) {
+    std::fs::write(dir.join("probe-run.json"), manifest.to_json().to_string()).unwrap();
 }
 
 pub fn check<'a>(checks: &'a [Check], name: &str) -> &'a Check {

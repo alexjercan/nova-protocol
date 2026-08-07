@@ -20,6 +20,9 @@ const THRESHOLD: &str = "no panics / ERROR lines / command errors";
 /// `remove`/`despawn`, ERROR for the rest).
 const COMMAND_ERROR: &str = "Encountered an error in command";
 
+/// The web pass's name in the manifest (`native/web.rs`).
+const WEB_PASS: &str = "web";
+
 /// How much of an offending line the report quotes.
 const SAMPLE_CHARS: usize = 160;
 
@@ -60,12 +63,28 @@ fn clip(line: &str) -> String {
 
 pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
     let Some(log) = artifacts.log.as_ref() else {
+        // A web pass ALWAYS writes web-run.log, so a web run with no log is a
+        // lost capture, not an unknowable one. The distinction is what a
+        // panicking wasm app used to hide behind: no run.log on a browser
+        // platform meant SKIPPED, and the run verdicted OK at exit 0.
+        let web_ran = artifacts
+            .manifest
+            .as_ref()
+            .is_some_and(|manifest| manifest.passes.iter().any(|pass| pass.name == WEB_PASS));
         return Check {
             name: "log_clean",
-            status: CheckStatus::Skipped,
-            value: "no run.log".into(),
+            status: if web_ran {
+                CheckStatus::Fail
+            } else {
+                CheckStatus::Skipped
+            },
+            value: "no log".into(),
             threshold: THRESHOLD.into(),
-            detail: "log not captured alongside the run".into(),
+            detail: if web_ran {
+                "the manifest records a web pass but no web-run.log was captured".into()
+            } else {
+                "log not captured alongside the run".into()
+            },
             data: serde_json::Value::Null,
         };
     };
@@ -103,7 +122,11 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::run_report::{checks::evaluate_checks, fixtures::*};
+    use crate::run_report::{
+        checks::evaluate_checks,
+        fixtures::*,
+        manifest::{PassRecord, RunManifest},
+    };
 
     /// Scan `log` as if it were the run's captured output.
     fn scan(log: &str) -> Check {
@@ -150,6 +173,45 @@ mod tests {
         );
         assert_eq!(c.status, CheckStatus::Fail, "{c:?}");
         assert_eq!(c.data["offending"], 1, "{c:?}");
+    }
+
+    /// A web run has no run.log; its log is the browser's captured console,
+    /// which carries the game's own output. Scanning it is the only thing
+    /// standing between a panicking wasm app and a green exit 0.
+    #[test]
+    fn a_web_run_log_is_scanned_like_any_other() {
+        let dir = scratch_run_dir();
+        std::fs::remove_file(dir.join("run.log")).unwrap();
+        std::fs::write(
+            dir.join("web-run.log"),
+            "INFO:CONSOLE thread 'main' panicked at src/x.rs:1:1:\n",
+        )
+        .unwrap();
+        let artifacts = RunArtifacts::load(&dir, None).unwrap();
+        let c = check(&evaluate_checks(&artifacts), "log_clean").clone();
+        assert_eq!(c.status, CheckStatus::Fail, "{c:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A web run that captured no log is a lost capture, not an unknowable
+    /// one: SKIPPING here is what let a panicking wasm app exit 0.
+    #[test]
+    fn a_web_run_with_no_log_fails_rather_than_skips() {
+        let dir = scratch_run_dir();
+        std::fs::remove_file(dir.join("run.log")).unwrap();
+        let manifest = RunManifest {
+            passes: vec![PassRecord {
+                name: WEB_PASS.into(),
+                success: true,
+                timed_out: false,
+            }],
+            ..manifest_ok()
+        };
+        write_manifest(&dir, &manifest);
+        let artifacts = RunArtifacts::load(&dir, None).unwrap();
+        let c = check(&evaluate_checks(&artifacts), "log_clean").clone();
+        assert_eq!(c.status, CheckStatus::Fail, "{c:?}");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

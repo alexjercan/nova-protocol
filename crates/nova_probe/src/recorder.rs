@@ -46,6 +46,7 @@ use std::{
 };
 
 use bevy::{diagnostic::FrameCount, prelude::*, state::state::StateTransitionEvent};
+use nova_autopilot::completion::AutopilotCompletionSystems;
 use nova_events::engine::GameEvent;
 use nova_gameplay::{GameStates, PauseStates};
 use nova_scenario::{
@@ -78,6 +79,33 @@ impl RunRecorderPlugin {
         self.out = Some(path.into());
         self
     }
+}
+
+/// The recorder's `Last` systems, as a set the run-end edge can name.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ProbeRecorderSystems {
+    /// Everything that drains `AppExit` to close the run out: the variable
+    /// diff, the run bracket, and the invariant summary. MUST run after every
+    /// writer of `AppExit`.
+    RunEnd,
+}
+
+/// Order [`ProbeRecorderSystems::RunEnd`] after the completion protocol's
+/// exit write.
+///
+/// Bevy exits after the frame in which `AppExit` is written, so there is no
+/// next frame for a reader that missed it: an unordered `record_run_end`
+/// leaves a healthy run reporting "timeline truncated (no run_end)" and takes
+/// the whole sweep non-zero with it. Today's executor happens to schedule them
+/// in the right order; nothing MAKES it, which is what this edge fixes.
+///
+/// Called by every plugin that puts a system in the set - the recorder may be
+/// unarmed while the invariants surface is not, and vice versa.
+pub(crate) fn order_run_end(app: &mut App) {
+    app.configure_sets(
+        Last,
+        ProbeRecorderSystems::RunEnd.after(AutopilotCompletionSystems::Watch),
+    );
 }
 
 impl Plugin for RunRecorderPlugin {
@@ -123,7 +151,13 @@ impl Plugin for RunRecorderPlugin {
         // Variable diff runs in Last so it sees everything PostUpdate
         // wrote (the scenario clock, action writes) in the same frame;
         // run_end runs after it so final changes precede the bracket.
-        app.add_systems(Last, (record_variable_changes, record_run_end).chain());
+        order_run_end(app);
+        app.add_systems(
+            Last,
+            (record_variable_changes, record_run_end)
+                .chain()
+                .in_set(ProbeRecorderSystems::RunEnd),
+        );
     }
 }
 
@@ -688,6 +722,46 @@ mod tests {
         ProbeTimeline::create(path.clone()).expect("re-arms after the holder drops");
 
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// The edge itself. The reader is added BEFORE the completion watcher, so
+    /// an unordered `Last` runs it first and it never sees the exit - which is
+    /// exactly the frame the run bracket has to be written in, because bevy
+    /// exits after it. Delete `order_run_end` and this fails.
+    #[test]
+    fn run_end_sees_the_exit_the_completion_watch_writes() {
+        use bevy::ecs::schedule::SingleThreadedExecutor;
+
+        const COLLECTOR: &str = "ordering test";
+
+        #[derive(Resource, Default)]
+        struct SawExit(bool);
+
+        fn watch_for_exit(mut exits: MessageReader<AppExit>, mut saw: ResMut<SawExit>) {
+            saw.0 |= exits.read().next().is_some();
+        }
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.init_resource::<SawExit>();
+        order_run_end(&mut app);
+        app.add_systems(Last, watch_for_exit.in_set(ProbeRecorderSystems::RunEnd));
+        // Registered second, so insertion order alone would run the watcher
+        // after the reader.
+        nova_autopilot::completion::register(&mut app, COLLECTOR);
+        app.world_mut()
+            .resource_mut::<nova_autopilot::completion::HarnessCompletion>()
+            .done(COLLECTOR);
+        app.edit_schedule(Last, |schedule| {
+            schedule.set_executor(SingleThreadedExecutor::new());
+        });
+
+        app.update();
+        assert!(
+            app.world().resource::<SawExit>().0,
+            "run_end read AppExit before the completion watch wrote it: the \
+             bracket would be missing from a healthy run's timeline"
+        );
     }
 
     #[test]

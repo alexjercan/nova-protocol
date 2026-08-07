@@ -27,7 +27,7 @@ use nova_gameplay::{
     GameStates,
 };
 
-use crate::stats::{FrameStats, RunMeta, CSV_HEADER};
+use crate::stats::{FrameStats, RunMeta};
 
 /// Environment variable that arms [`nova_frametime`] on native. Any value (even
 /// empty) enables it; when unset the plugin adds nothing. On wasm the arm is the
@@ -519,25 +519,12 @@ fn emit_stats(config: &PerfConfig, stats: &FrameStats, meta: &RunMeta, reload_ms
         info!("nova perf: wrote {:?}", json_path);
     }
 
+    // Through the public writer, not a second copy of the append: it is the
+    // one that refuses to mix schemas, which a manual NOVA_PERF_OUT into an
+    // older results dir is exactly the case for.
     let csv_path = dir.join("frametime.csv");
-    let need_header = !csv_path.exists();
-    match std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&csv_path)
-    {
-        Ok(mut file) => {
-            use std::io::Write;
-            let mut buf = String::new();
-            if need_header {
-                buf.push_str(CSV_HEADER);
-            }
-            buf.push_str(&stats.to_csv_row(&config.label, meta));
-            if let Err(error) = file.write_all(buf.as_bytes()) {
-                warn!("nova perf: could not append {:?}: {error}", csv_path);
-            }
-        }
-        Err(error) => warn!("nova perf: could not open {:?}: {error}", csv_path),
+    if let Err(error) = crate::stats::append_frametime_row(&csv_path, &config.label, stats, meta) {
+        warn!("nova perf: {error}");
     }
 }
 

@@ -72,8 +72,8 @@ tell a release apart at a glance:
 - a reskin or bug fix that does not change what content exists -> bump the PATCH,
   e.g. `1.0.1`.
 
-Gauntlet has walked `1.0.0 -> 1.1.0 -> 1.2.0 -> 1.3.0 -> 1.4.0` and The Ledger
-`1.0.0 -> 1.14.0 -> 1.15.0` this way.
+Gauntlet and The Ledger have both walked several minor releases this way; each
+mod's own `CHANGELOG.md` is the record of the walk.
 
 `version` matters even though nothing parses it. The portal publishes each
 release under `<id>/<version>/`, so the string is how a republish is
@@ -81,9 +81,12 @@ distinguished from the one before it (the update the player sees), and it is the
 anchor a changelog entry associates with. FORGETTING to bump on a republish is
 the silent failure: the new bytes land under the same `<version>` directory and
 the update is indistinguishable from the old one. Because of that a mod's test
-may PIN its version - `crates/nova_assets/tests/gauntlet_course.rs` asserts the
-bundle `contains("version: \"1.4.0\"")` (`bundle_ships_the_bumped_version`) so a
-content change that ships without a bump fails CI instead of shipping silently.
+may GUARD its version - `crates/nova_assets/tests/gauntlet_course.rs`
+(`bundle_ships_a_documented_bumped_version`) reads the version out of the bundle
+and asserts it is bumped past the pre-rework `1.0.0` AND has its own
+`## <version>` heading in the mod's `CHANGELOG.md`. Do NOT pin the version as a
+literal string: a literal reds on every legitimate republish, and "fixing" it by
+bumping the literal is the same as deleting the test.
 
 Lint your mod while you work: `cargo run -p nova_assets --bin
 content -- lint --target path/to/your-mod` (or an in-repo id like

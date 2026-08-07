@@ -132,7 +132,8 @@ fn app(pinned: bool) -> App {
 
 /// The target as the resolve sees it: a `Name` to aim at, a laid-out rect to
 /// aim INTO, and the button behaviour under test. Spawned by hand because this
-/// app runs no layout pass.
+/// app runs no layout pass - including the visibility the resolve now demands,
+/// which no propagation would write here.
 fn spawn_target(mut commands: Commands) {
     commands
         .spawn((
@@ -144,6 +145,7 @@ fn spawn_target(mut commands: Commands) {
                 size: SIZE,
                 ..default()
             },
+            InheritedVisibility::VISIBLE,
         ))
         .observe(|_: On<Activate>, mut activated: ResMut<Activated>| {
             activated.0 = true;

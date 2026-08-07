@@ -32,15 +32,34 @@ pub fn derive_event_kind(input: TokenStream) -> TokenStream {
     // `attribute_less_derive_defaults_to_no_payload` in `nova_events::engine`).
     let mut event_info = quote! { () };
 
+    // A malformed attribute is a compile error, never a silent fallback: an
+    // `#[event_name = "x"]` typo used to expand to the LOWERCASED IDENT, and
+    // because dispatch matches itself nothing broke loudly - only every
+    // literal-name consumer quietly stopped matching.
     for attr in &input.attrs {
         if attr.path().is_ident("event_name") {
-            if let Ok(syn::Lit::Str(s)) = &attr.parse_args() {
-                let s = s.value();
-                event_name = quote! { #s };
+            match attr.parse_args() {
+                Ok(syn::Lit::Str(s)) => {
+                    let s = s.value();
+                    event_name = quote! { #s };
+                }
+                _ => {
+                    return syn::Error::new_spanned(
+                        attr,
+                        "expected #[event_name(\"the-event-name\")]",
+                    )
+                    .to_compile_error()
+                    .into()
+                }
             }
         } else if attr.path().is_ident("event_info") {
-            if let Ok(syn::TypePath { path, .. }) = &attr.parse_args() {
-                event_info = quote! { #path };
+            match attr.parse_args() {
+                Ok(syn::TypePath { path, .. }) => event_info = quote! { #path },
+                _ => {
+                    return syn::Error::new_spanned(attr, "expected #[event_info(PayloadType)]")
+                        .to_compile_error()
+                        .into()
+                }
             }
         }
     }

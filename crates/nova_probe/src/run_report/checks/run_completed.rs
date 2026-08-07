@@ -58,7 +58,7 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
             return no_input(
                 CheckStatus::Skipped,
                 "no timeline",
-                timeline_skip_detail(artifacts.manifest.as_ref()),
+                timeline_skip_detail(artifacts),
             )
         }
     };
@@ -171,7 +171,9 @@ mod tests {
         // process_exit measured PASS, so this is not NO_DATA - but no CLAIM
         // was graded, so it is not OK either.
         assert_eq!(overall_verdict(&checks), "UNPROBEABLE");
-        assert_eq!(measured_count(&checks), 1);
+        // process_exit and artifacts_loadable, both about the run rather than
+        // any claim it made.
+        assert_eq!(measured_count(&checks), 2);
     }
 
     #[test]
