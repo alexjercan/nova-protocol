@@ -108,8 +108,10 @@ pub fn lint_section_config(config: &SectionConfig, source: &str) -> Vec<LintIssu
 /// Walk a turret's joint tree and flag authoring mistakes the parser accepts but
 /// the runtime cannot use: a hinge with a degenerate (zero or non-finite) axis
 /// or a non-positive traverse speed can never aim, min > max locks the hinge
-/// shut, and a tree with no muzzle can never fire (the spawn observer rejects it
-/// at runtime). Cheap: one DFS. `min`/`max`/a non-default `speed` on a FIXED
+/// shut, a non-positive `fire_rate` used to panic the spawn outright (the
+/// runtime now clamps it, so this is the early, named report), and a tree with
+/// no muzzle can never fire (the spawn observer rejects it at runtime). Cheap:
+/// one DFS. `min`/`max`/a non-default `speed` on a FIXED
 /// node (no `axis`) is a soft warning - harmless (the runtime ignores them) but
 /// usually a forgotten `axis`.
 fn check_turret_tree(
@@ -125,6 +127,18 @@ fn check_turret_tree(
         issues: &mut Vec<LintIssue>,
     ) -> usize {
         let mut muzzles = usize::from(joint.muzzle.is_some());
+        if let Some(muzzle) = &joint.muzzle {
+            if !muzzle.fire_rate.is_finite() || muzzle.fire_rate <= 0.0 {
+                issues.push(LintIssue::error(
+                    source,
+                    format!(
+                        "section '{section_id}': turret muzzle fire_rate must be a positive, \
+                         finite number of shots/s, got {}",
+                        muzzle.fire_rate
+                    ),
+                ));
+            }
+        }
         match joint.axis {
             Some(axis) => {
                 if !axis.is_finite() || axis.length_squared() < 1e-12 {
@@ -873,6 +887,23 @@ mod tests {
             issues.iter().any(|i| i.message.contains("no `axis`")),
             "{issues:?}"
         );
+
+        // F10: a non-positive fire_rate used to panic the ship spawn outright
+        // (`1.0 / 0.0` into `Duration::from_secs_f32`). The runtime clamps it
+        // now, so authoring it must fail HERE, with the field named, rather
+        // than silently firing at the clamp's absurd rate.
+        for rate in [0.0, -1.0, f32::NAN] {
+            let mut leaf = joint(None, None, None, true, vec![]);
+            leaf.muzzle.as_mut().unwrap().fire_rate = rate;
+            let bad = joint(Some(Vec3::Y), None, None, false, vec![leaf]);
+            let issues = lint_section_config(&turret(bad), "s");
+            assert!(
+                errors(&issues)
+                    .iter()
+                    .any(|i| i.message.contains("fire_rate")),
+                "fire_rate {rate} must be a lint error: {issues:?}"
+            );
+        }
     }
 
     /// `KnownSections::from_configs` classifies turret/torpedo kinds as

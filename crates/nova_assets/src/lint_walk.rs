@@ -377,7 +377,12 @@ fn scenario_input_overlaps(scenario: &ScenarioConfig) -> Vec<(String, InputSourc
             let SpaceshipController::Player(player) = &ship.controller else {
                 continue;
             };
-            for (section_id, bindings) in &player.input_mapping {
+            // Sorted: `input_mapping` is a `HashMap`, so iterating it raw makes
+            // the findings (and the report file the CI diff compares) come out
+            // in a different order every run.
+            let mut sections: Vec<_> = player.input_mapping.iter().collect();
+            sections.sort_by_key(|(id, _)| *id);
+            for (section_id, bindings) in sections {
                 for binding in bindings {
                     if let Some(source) = binding_source(binding) {
                         if let Some(verb) = reserved.get(&source) {

@@ -6,7 +6,7 @@ use crate::prelude::*;
 pub mod prelude {
     pub use super::{
         VariableConditionNode, VariableError, VariableExpressionNode, VariableFactorNode,
-        VariableLiteral, VariableTermNode,
+        VariableLiteral, VariableTermNode, EQUAL_EPSILON,
     };
 }
 
@@ -211,6 +211,14 @@ impl VariableExpressionNode {
     }
 }
 
+/// How close two numbers must be for the DSL's `Equal` to call them equal.
+///
+/// `Equal` was exact float equality, so an author writing
+/// `Equal(hull_fraction, 0.5)` saw the condition essentially never fire, with
+/// no error and no warning. The DSL's numbers are fractions, seconds and
+/// counts - all small - so an absolute tolerance is the right shape.
+pub const EQUAL_EPSILON: f64 = 1e-6;
+
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// A boolean condition in the variables DSL: two expressions compared, the
@@ -267,7 +275,9 @@ impl VariableConditionNode {
                 let left_val = left.evaluate(world)?;
                 let right_val = right.evaluate(world)?;
                 match (left_val, right_val) {
-                    (VariableLiteral::Number(l), VariableLiteral::Number(r)) => Ok(l == r),
+                    (VariableLiteral::Number(l), VariableLiteral::Number(r)) => {
+                        Ok((l - r).abs() <= EQUAL_EPSILON)
+                    }
                     (VariableLiteral::Boolean(l), VariableLiteral::Boolean(r)) => Ok(l == r),
                     (VariableLiteral::String(l), VariableLiteral::String(r)) => Ok(l == r),
                     (left_val, right_val) => Err(VariableError::TypeMismatch(
@@ -276,5 +286,76 @@ impl VariableConditionNode {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `Term(Factor(Parens(` ... `)))` repeated `levels` times around a literal.
+    fn nested_expr_ron(levels: usize) -> String {
+        let mut out = String::new();
+        for _ in 0..levels {
+            out.push_str("Term(Factor(Parens(");
+        }
+        out.push_str("Term(Factor(Literal(Number(1.0))))");
+        for _ in 0..levels {
+            out.push_str(")))");
+        }
+        out
+    }
+
+    /// F09 - RULED NOT A DEFECT, pinned so it stays that way.
+    ///
+    /// The variables DSL is `Box`-recursive with no depth field of its own, so
+    /// authored content looks able to overflow the stack inside the decode, on
+    /// the asset-loader task, during boot. It cannot: `ron::de::from_bytes`
+    /// (the call every production decode site uses -
+    /// `nova_modding/src/lib.rs:194,234,340`) runs under `Options::default()`,
+    /// whose `recursion_limit` is `Some(128)`. Deep nesting is a parse ERROR.
+    ///
+    /// This test fails if someone reaches for `without_recursion_limit()` or
+    /// swaps in a format with no bound - which is the only way the overflow
+    /// becomes real. Bounding the grammar itself would be dead machinery.
+    #[test]
+    fn a_decode_deeper_than_rons_recursion_limit_is_refused_not_walked() {
+        let deep = nested_expr_ron(4096);
+        assert!(
+            ron::de::from_bytes::<VariableExpressionNode>(deep.as_bytes()).is_err(),
+            "an over-deep authored expression is refused at decode"
+        );
+        assert!(
+            ron::de::from_bytes::<VariableExpressionNode>(nested_expr_ron(4).as_bytes()).is_ok(),
+            "nesting an author would actually write still decodes"
+        );
+    }
+
+    /// F61: `Equal` was exact float equality, so a condition an author wrote
+    /// against a computed fraction essentially never fired.
+    #[test]
+    fn equal_compares_numbers_within_an_epsilon() {
+        let world = NovaEventWorld::default();
+        let lit = |n: f64| {
+            VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                VariableFactorNode::new_literal(VariableLiteral::Number(n)),
+            ))
+        };
+
+        // 0.1 + 0.2 != 0.3 exactly. This is the shape authored content hits.
+        let sum = VariableExpressionNode::new_add(
+            VariableTermNode::new_factor(VariableFactorNode::new_literal(VariableLiteral::Number(
+                0.1,
+            ))),
+            lit(0.2),
+        );
+        assert!(VariableConditionNode::new_equals(sum, lit(0.3))
+            .evaluate(&world)
+            .expect("evaluates"));
+
+        // Still a comparison, not "always true".
+        assert!(!VariableConditionNode::new_equals(lit(0.5), lit(0.6))
+            .evaluate(&world)
+            .expect("evaluates"));
     }
 }

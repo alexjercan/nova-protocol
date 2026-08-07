@@ -2,7 +2,11 @@
 //! memory under size/sha256 verification, commit the cache all-or-nothing,
 //! and reverse all of it on uninstall. Also owns the stalled-fetch recovery.
 
-use std::{collections::HashMap, sync::mpsc::Sender, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::mpsc::Sender,
+    time::Duration,
+};
 
 use bevy::{platform::time::Instant, prelude::*};
 use nova_mod_format::PortalEntry;
@@ -84,9 +88,32 @@ pub(super) struct ActiveInstall {
 pub(super) struct ActiveInstalls {
     pub(super) jobs: HashMap<String, ActiveInstall>,
     next_job: u64,
+    /// dependency id -> the mods whose install pulled it in. A dependency's
+    /// job is keyed under the DEPENDENCY, so without this reverse edge a
+    /// failed dep leaves no surface on the row the player actually clicked.
+    dependents: HashMap<String, HashSet<String>>,
 }
 
 impl ActiveInstalls {
+    /// Record that `dependent`'s install pulled in `dep`.
+    pub(super) fn pulled_in(&mut self, dep: &str, dependent: &str) {
+        self.dependents
+            .entry(dep.to_string())
+            .or_default()
+            .insert(dependent.to_string());
+    }
+
+    /// The mods that pulled `dep` in, dropping the edge as it is reported.
+    fn dependents_of(&mut self, dep: &str) -> Vec<String> {
+        let mut out: Vec<String> = self
+            .dependents
+            .remove(dep)
+            .map(|set| set.into_iter().collect())
+            .unwrap_or_default();
+        out.sort();
+        out
+    }
+
     /// Register a fresh job for `entry` and return its generation.
     pub(super) fn begin(&mut self, entry: PortalEntry) -> u64 {
         let job = self.next_job;
@@ -170,7 +197,7 @@ pub(super) fn timeout_wedged_fetches(
 /// menu's update choreography uses it as its second guard: an update's install
 /// must not fire while the id's uninstall removal is still in flight.
 #[derive(Resource, Default)]
-pub struct PendingRemovals(pub std::collections::HashSet<String>);
+pub struct PendingRemovals(pub HashSet<String>);
 
 /// Anti-absurdity caps on a portal entry, NOT quotas: installs stage every
 /// verified file in memory, so a hostile catalog must not be able to command
@@ -244,7 +271,7 @@ fn validate_entry(entry: &PortalEntry) -> Result<(), String> {
             entry.files.len()
         ));
     }
-    let mut seen_paths = std::collections::HashSet::new();
+    let mut seen_paths = HashSet::new();
     let mut total: u64 = 0;
     for file in &entry.files {
         if !mod_cache::is_safe_rel_path(&file.path) || !is_url_safe_path(&file.path) {
@@ -284,6 +311,14 @@ pub(super) fn fail_install(
 ) {
     warn!("portal: install of '{id}' failed: {reason}");
     active.jobs.remove(id);
+    // Key the failure under every mod that pulled this one in as well: their
+    // installs may have succeeded, but they are not usable without it.
+    for dependent in active.dependents_of(id) {
+        jobs.0.insert(
+            dependent,
+            InstallStatus::Failed(format!("dependency '{id}' failed: {reason}")),
+        );
+    }
     jobs.0.insert(id.to_string(), InstallStatus::Failed(reason));
 }
 
@@ -431,7 +466,13 @@ pub(super) fn on_install_portal_mod(
         downloaded.0.iter().any(|m| m.record.id == dep)
             || shipped.entries.iter().any(|e| e.decl.id == dep)
     };
-    let needed = nova_mod_format::deps::transitive_deps(&graph, &id);
+    let needed = match nova_mod_format::deps::transitive_deps(&graph, &id) {
+        Ok(needed) => needed,
+        Err(e) => {
+            fail_install(&mut jobs, &mut active, &id, e.to_string());
+            return;
+        }
+    };
     // Fail fast if any transitive dependency is neither installed nor in the
     // portal (`base` is implicit and always shipped).
     for dep in &needed {
@@ -460,6 +501,10 @@ pub(super) fn on_install_portal_mod(
         if dep == "base" || is_installed(dep) {
             continue;
         }
+        // Record the dependency under THIS mod's id too. The dep's own job is
+        // keyed under the dep, so a failure there had no surface on the row the
+        // player actually clicked.
+        active.pulled_in(dep, &id);
         commands.trigger(InstallPortalMod { id: dep.clone() });
     }
 

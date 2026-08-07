@@ -185,6 +185,33 @@ pub struct PortalCatalog {
     pub entries: Vec<PortalEntry>,
 }
 
+/// Largest `catalog.json` body a client will decode.
+///
+/// The real catalog is a few KiB. The body is untrusted and is parsed TWICE
+/// (schema probe, then the full shape), so the cap is what stops a hostile
+/// server from making a client allocate without bound.
+pub const MAX_CATALOG_BYTES: usize = 1 << 20;
+
+/// Largest number of entries a `catalog.json` may declare.
+///
+/// The per-entry file cap bounds files PER ENTRY, not entries, so without this
+/// a catalog of a million one-file entries passes every other gate.
+pub const MAX_CATALOG_ENTRIES: usize = 4096;
+
+impl PortalCatalog {
+    /// Reject a catalog whose entry count is not plausibly a real portal's.
+    /// Runs after decode, before anything walks `entries`.
+    pub fn check_size(&self) -> Result<(), String> {
+        if self.entries.len() > MAX_CATALOG_ENTRIES {
+            return Err(format!(
+                "portal catalog lists {} entries (max {MAX_CATALOG_ENTRIES})",
+                self.entries.len()
+            ));
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

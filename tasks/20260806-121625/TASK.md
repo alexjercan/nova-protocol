@@ -321,71 +321,79 @@ Depends on L0 only. The owner starts and runs it.
 NEUTRAL. Depends on L1. Mod content is untrusted input: a reachable panic, OOM
 or stack overflow is a defect, not an upheld invariant.
 
-- [ ] F06 - replace `read_index_at`'s `Option` (`mod_cache.rs:512`) with
+- [x] F06 - replace `read_index_at`'s `Option` (`mod_cache.rs:512`) with
       `enum IndexRead { Absent, Loaded(..), Corrupt(String) }`; `None` currently
       conflates "no index yet" with "corrupt".
-- [ ] F06 - make `install_local_at` (`mod_cache.rs:582`) refuse on
+- [x] F06 - make `install_local_at` (`mod_cache.rs:582`) refuse on
       `Corrupt`: side-band the file to `installed.mods.ron.bad` and return
       `Err`. Never clobber - it erases every other installed mod and orphans
       their bytes where `remove_mod` can never sweep them.
-- [ ] F07 - add `write_atomic(path, bytes)` to `nova_assets/src/persist.rs`
+- [x] F07 - add `write_atomic(path, bytes)` to `nova_assets/src/persist.rs`
       (temp + fsync + rename), modelled on `nova_probe/src/recorder.rs:213` and
       `contract.rs:164`.
-- [ ] F07 - route the four bare `std::fs::write` sites through it:
+- [x] F07 - route the four bare `std::fs::write` sites through it:
       `mod_cache.rs:521`, `persist.rs:91`, `portal/catalog.rs:197`,
       `bin/content.rs:103`.
-- [ ] F07 - land it as the change that INTRODUCES L10's `Storage::write`
+- [x] F07 - land it as the change that INTRODUCES L10's `Storage::write`
       contract, not a free helper L10 then has to absorb. See lane10.
-- [ ] F06+F07 - one kill-mid-write-then-install test covering both. They are
+- [x] F06+F07 - one kill-mid-write-then-install test covering both. They are
       one failure mode in two halves; neither fix alone stops the loss.
-- [ ] F22 - add a settings flush system in `Last`, ordered before the AppExit
+- [x] F22 - add a settings flush system in `Last`, ordered before the AppExit
       drain. `settings.rs:247` debounces 15 idle frames with no shutdown flush,
       and `menu_ui.rs:564` writes AppExit immediately.
-- [ ] F08 - bound `deps.rs:25 visit()` with `MAX_DEP_DEPTH = 64` and a
+- [x] F08 - bound `deps.rs:25 visit()` with `MAX_DEP_DEPTH = 64` and a
       `Result` return; it recurses over untrusted `catalog.json`
       (`install.rs:425`) before `validate_entry`'s caps, and a stack overflow
       ABORTS the process uncatchably.
-- [ ] F08 - add an entry-count cap to `PortalCatalog`; `MAX_FILE_COUNT` bounds
+- [x] F08 - add an entry-count cap to `PortalCatalog`; `MAX_FILE_COUNT` bounds
       files per entry, not entries.
-- [ ] F09 - add `MAX_EXPR_DEPTH = 32` to `variables.rs:66` and
-      `filters.rs:164`, enforced in the RON decode AND in `evaluate()`. Deep
-      nesting overflows the stack on the asset-loader task during boot, with
-      the mod never enabled.
-- [ ] F12 - cap `ScatterObjectsConfig::count` (`spawn.rs:317`, field at `:244`)
+- [x] F09 - RULED NOT A DEFECT while implementing, and pinned rather than
+      capped. Every production RON decode goes through `ron::de::from_bytes`
+      under `Options::default()`, whose `recursion_limit` is `Some(128)`, so
+      deep nesting is a parse error and never a stack overflow. A second
+      `MAX_EXPR_DEPTH` in `variables.rs`/`filters.rs` would be a redundant
+      bound on an already-bounded path, so the ruling is held by a test that
+      fails if that limit is ever lifted.
+- [x] F12 - cap `ScatterObjectsConfig::count` (`spawn.rs:317`, field at `:244`)
       at `MAX_SCATTER_COUNT = 4096`, add the matching lint rule, and cap the
       `min_separation` rejection sampler's iterations (currently O(count^2)).
-- [ ] F13 - add `MAX_CATALOG_BYTES = 1 << 20` and bound the read at
-      `transport.rs:31`, before either of `catalog.rs:71`'s two parses.
-- [ ] F10 - apply `.max(f32::EPSILON)` at `turret_section/setup.rs:64`, the
+- [x] F13 - add `MAX_CATALOG_BYTES = 1 << 20` and bound the body before either
+      of `catalog.rs:71`'s two parses, plus `MAX_CATALOG_ENTRIES` (the existing
+      `MAX_FILE_COUNT` bounds files PER ENTRY, not entries). NOT at
+      `transport.rs:31` as planned: `ehttp` buffers a whole response body
+      before it calls back, so the transport never sees a bound-able read.
+      `decode_catalog` is the earliest point the client controls, and the code
+      records why.
+- [x] F10 - apply `.max(f32::EPSILON)` at `turret_section/setup.rs:64`, the
       guarded form already present at `:192`. `fire_rate: 0.0` panics the
       instant the ship spawns.
-- [ ] F10 - lint `fire_rate` in `lint/ship.rs`, which lints the hinge axis and
+- [x] F10 - lint `fire_rate` in `lint/ship.rs`, which lints the hinge axis and
       muzzle presence but not this.
-- [ ] F14 - log the serde failure at `engine.rs:170`; `data: None` reads as
+- [x] F14 - log the serde failure at `engine.rs:170`; `data: None` reads as
       "does not match" in `filters.rs:71`, so an entity-filtered handler stops
       firing permanently and silently.
-- [ ] F56 - push undeclared-ref violations for EVERY content kind at
+- [x] F56 - push undeclared-ref violations for EVERY content kind at
       `merge.rs:214`, not just `Content::Scenario`; the doc at `:145-148`
       already claims this.
-- [ ] F57 - replace the `HashMap` at `objects/binding_input.rs:83` with a
+- [x] F57 - replace the `HashMap` at `objects/binding_input.rs:83` with a
       `BTreeMap` or sorted-key `serialize_map`; same class at
       `lint_walk.rs:380,532`.
-- [ ] F57 - regenerate `assets/base/**/*.content.ron` via the builders plus
+- [x] F57 - regenerate `assets/base/**/*.content.ron` via the builders plus
       `content -- gen` (never a hand-edit) AS ITS OWN COMMIT, so the generated
       churn does not hide a real diff.
-- [ ] F59 - use `get(index)` at `portal/mod.rs:176`; the `install.files.len()
+- [x] F59 - use `get(index)` at `portal/mod.rs:176`; the `install.files.len()
       != index` guard does not bound `index` against `entry.files.len()`.
-- [ ] F60 - dedup `ids` before the `order.len() != ids.len()` cycle test at
+- [x] F60 - dedup `ids` before the `order.len() != ids.len()` cycle test at
       `deps.rs:104`, and reject duplicate ids in `mod_set.rs:222`.
-- [ ] F68 - membership-gate the `self://` rewrite at `mod_refs.rs:75` the same
+- [x] F68 - membership-gate the `self://` rewrite at `mod_refs.rs:75` the same
       way `dep://` is gated. Defense in depth only.
-- [ ] F69 - key a failed dependency install at `portal/install.rs:459` under
+- [x] F69 - key a failed dependency install at `portal/install.rs:459` under
       BOTH the dependency's id and the dependent's, so the UI has a surface.
-- [ ] F61 - implement an epsilon compare inside `variables.rs:270`'s `Equal`
+- [x] F61 - implement an epsilon compare inside `variables.rs:270`'s `Equal`
       node. RULED: not a second `ApproxEqual` node, not a documented sharp edge.
       Pick the epsilon from what the DSL's values are and name it as a constant
       beside the node.
-- [ ] Build the hostile-RON corpus: malformed bundles, oversized catalogs,
+- [x] Build the hostile-RON corpus: malformed bundles, oversized catalogs,
       deeply nested DSL expressions, duplicate ids, degenerate `fire_rate`.
 
 ### Lane04 - "RECONCILER DISCIPLINE AND TERMINAL INPUT" - tasks/20260806-121625/plan/lane04.md
@@ -1004,3 +1012,129 @@ One thing to carry into L5: `CONVENTIONS.md` overshot its 120-150 line budget
 by 17% because twelve rules with a snippet and rationale each have a floor of
 about twelve lines apiece. A future line budget for a rules document should be
 set from `rules x 12 + sections`, not chosen first.
+
+## Close-out - L3 (2026-08-08)
+
+### What and why
+
+L3 is behavior-only and NEUTRAL on the benchmark. Its frame is that mod content
+is untrusted input - it arrives from a remote portal catalog and from files the
+player may have edited - so a reachable panic, OOM or permanent data loss is a
+defect, not an upheld invariant. Sixteen findings, five commits.
+
+| Commit | Findings |
+| --- | --- |
+| F06+F07+F22 | the three persistence defects, landed together |
+| input caps, portal indexing, epsilon Equal | F08, F13, F59, F60, F68, F69, F61, and the F09 ruling |
+| authored-value caps and silent-failure logs | F10, F12, F14, F56 |
+| F57 deterministic map serialization | F57 |
+| the fire_rate lint | F10's second half |
+
+**F06 and F07 landed as one change on purpose.** F07 produces the corrupt file;
+F06 turns it into permanent loss on the next install. `read_index_at` returned
+`Option`, conflating "no index yet" with "the index is corrupt", and
+`install_local_at` folded both into `Vec::new()` - so one torn write erased
+every *other* installed mod from the index and orphaned their bytes on disk
+where `remove_mod` could never sweep them. `IndexRead { Absent, Loaded,
+Corrupt }` makes the two cases different, a `Corrupt` index side-bands to
+`installed.mods.ron.bad` and fails the install loudly, and `write_atomic`
+(temp + fsync + rename) stops producing the torn file in the first place.
+
+`write_atomic` is deliberately written as the crate's write *contract* rather
+than a free helper, because L10 extracts exactly these four call sites into a
+`Storage` trait. Its doc says so; L10 moves it, it does not re-litigate it.
+
+### Alternatives considered
+
+- **A depth cap for F09** (`MAX_EXPR_DEPTH = 32` in `variables.rs` and
+  `filters.rs`), as the plan specified. Rejected on measurement: every
+  production RON decode goes through `ron::de::from_bytes` under
+  `Options::default()`, whose `recursion_limit` is `Some(128)`. Deep nesting is
+  already a parse error, never a stack overflow, and the plan's premise - that
+  it overflows on the asset-loader task during boot - does not hold. A second
+  bound on an already-bounded path is dead code that reads as protection. The
+  ruling is pinned by a test that fails if that limit is ever lifted.
+- **A second `ApproxEqual` DSL node for F61**, or documenting the sharp edge.
+  Both were ruled out by the owner on 2026-08-07; `Equal` compares within
+  `EQUAL_EPSILON = 1e-6`, named as a constant beside the node.
+- **Bounding the F13 catalog read at `transport.rs:31`**, as the plan
+  specified. Not possible as written: `ehttp` buffers a whole response body
+  before it invokes the callback, so the transport seam never sees a
+  bound-able read. The cap sits at the earliest point the client does control,
+  `decode_catalog`, ahead of BOTH parses, and the code records why.
+- **Rejecting an over-cap `ScatterObjects` at runtime** rather than clamping.
+  Clamping plus a warn keeps a scenario playable; the lint is what fails the
+  author early, which is where an absurd count should be caught.
+
+### Difficulties and diagnosis
+
+**F10 is two halves and only one was findable from the runtime.** The clamp at
+`turret_section/setup.rs:64` stops the panic, but a clamped `fire_rate: 0.0`
+then fires at `1.0 / f32::EPSILON` shots/s - absurd, silent, and now
+unreachable by the crash that used to report it. The lint half
+(`lint/ship.rs`) is what keeps the fix from trading a loud defect for a quiet
+one. It was missing from the first pass and caught by re-reading the step's
+clauses against the tree rather than against the diff.
+
+**F22 needed a resource, not a `Local`.** The debounce countdown lived in a
+`Local<Option<u32>>`, which no other system can observe, so a flush system had
+nothing to flush. It became `PendingSettingsSave`; `flush_settings_on_exit`
+runs in `Last` and writes only when a save is actually owed.
+
+**Testing the settings flush would have overwritten the developer's real
+settings.** `persist.rs` resolved `dirs::config_dir()` unconditionally. Added
+`NOVA_CONFIG_ROOT`, the exact twin of the existing `NOVA_MOD_CACHE_ROOT`
+override and for the same reason.
+
+**F57's risk was the generated tree, not the code.** `input_mapping` serialized
+straight from a `HashMap` into the GENERATED `assets/base/**/*.content.ron`, so
+`content -- gen` could write different bytes each run. Fixed via `BTreeMap` and
+landed as its own commit; re-running `content -- gen` reproduces the tree
+byte-identically, so no generated churn hides a real diff.
+
+### Evidence
+
+- `cargo test -p nova_assets -p nova_mod_format -p nova_scenario -p nova_events
+  -p nova_menu --lib` - 349 passed, 0 failed.
+- New tests, all fail-first against the pre-fix code: `a_torn_index_survives_the_next_install`,
+  `corrupt_index_reads_corrupt_not_absent`, `missing_index_reads_absent`,
+  `a_failed_atomic_write_leaves_the_previous_contents`,
+  `the_index_write_leaves_no_temp_file_behind`,
+  `a_setting_edited_just_before_quitting_is_still_saved`,
+  `a_chain_deeper_than_the_cap_is_refused_not_walked`,
+  `decode_catalog_refuses_an_oversized_body_and_an_absurd_entry_count`,
+  `duplicate_ids_are_not_a_cycle`, `a_degenerate_fire_rate_does_not_panic_the_spawn`,
+  `an_absurd_scatter_count_is_a_lint_error`,
+  `a_section_ref_to_an_undeclared_resource_is_a_violation`,
+  `equal_compares_numbers_within_an_epsilon`, and
+  `a_decode_deeper_than_rons_recursion_limit_is_refused_not_walked` (the F09
+  ruling's pin).
+- `cargo clippy -p nova_assets -p nova_scenario -p nova_mod_format -p nova_events
+  -p nova_menu --all-targets -- -D warnings` - exit 0.
+- `cargo fmt --all --check` - exit 0.
+- `content -- lint` - 0 errors, 0 warnings, 0 findings, 14 scenarios
+  balance-audited, 1 acked. (DoD proof: content gates pass after L3.)
+- `content -- gen` - zero diff in `assets/`, so F57's serialization is
+  reproducible.
+- `probe run --all` at `29e2a8fa` - **24/24 OK**, every example `6/7 measured`
+  (`fps_within_baseline` N/A, not claimed). Same 24 rows and the same per-row
+  shape as L1's landed run, including `artifacts_loadable` PASS everywhere. The
+  lane touches the scenario spawn path, the turret spawn path and four
+  persistence sites, and none of them moved a verdict.
+
+### Reflection
+
+The hostile-RON corpus paid for itself the way the lane predicted: every
+finding here is "authored data reaches code that assumed it was sensible", so
+one fixture idea covered most of the lane. What it did NOT cover is the half of
+a fix that lives in the linter, which is a different artifact with a different
+test. Two findings in this lane (F10, F12) are runtime-clamp plus lint-rule
+pairs, and both were at risk of shipping as clamp-only. For the remaining lanes:
+when a fix clamps an authored value, the clamp is half the change - the lint
+rule that names the field is the other half, and the step should be read as
+two.
+
+The F09 ruling is worth carrying forward too. The plan's finding list was
+written from reading the code, and one of its premises was simply false about
+the library underneath. Re-deriving the mechanism before implementing a cap
+turned an unnecessary bound into a test that documents why none is needed.

@@ -173,7 +173,18 @@ fn poll_portal_messages(
                 if install.job != job || install.files.len() != index {
                     continue; // stale callback of a superseded job
                 }
-                let expected = install.entry.files[index].clone();
+                // `install.files.len() != index` above bounds the callback
+                // against progress so far, NOT against the entry's file list -
+                // a wire-supplied index past its end used to panic here.
+                let Some(expected) = install.entry.files.get(index).cloned() else {
+                    fail_install(
+                        &mut jobs,
+                        &mut active,
+                        &id,
+                        format!("file callback index {index} is outside the entry's file list"),
+                    );
+                    continue;
+                };
                 let bytes = match result {
                     Ok(bytes) => bytes,
                     Err(error) => {

@@ -814,7 +814,17 @@ pub(crate) fn on_mod_toggle(
     } else {
         // Enable: this mod plus all of its (transitive) dependencies.
         enabled.0.insert(toggle.id.clone());
-        for dep in nova_mod_format::deps::transitive_deps(&graph, &toggle.id) {
+        let deps = match nova_mod_format::deps::transitive_deps(&graph, &toggle.id) {
+            Ok(deps) => deps,
+            Err(e) => {
+                // Refusing the enable is the safe answer: the dependency set is
+                // unknown, so enabling would load an unresolvable mod.
+                warn!("cannot enable mod '{}': {e}", toggle.id);
+                enabled.0.remove(&toggle.id);
+                return;
+            }
+        };
+        for dep in deps {
             if dep == "base" {
                 continue; // base is implicit, always on
             }

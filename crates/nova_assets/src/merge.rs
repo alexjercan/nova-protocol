@@ -144,8 +144,9 @@ pub fn register_bundles(
     //
     // A ref that names no declared resource (a `self:/` file the mod does not
     // ship, or a `dep:/` file/dependency it may not reach) is recorded as an
-    // Error content issue for the owning scenario (below) so the runtime gate
-    // refuses it, mirroring the portal generator's and static lint's checks.
+    // Error content issue against the owning item's id - section, scenario or
+    // campaign alike (below) - so the runtime gate refuses it, mirroring the
+    // portal generator's and static lint's checks.
     // The topological order guarantees a dependency is flattened before its
     // dependents, so its `resource_base`/`resources` are already loaded here.
     let mut bundle_items: Vec<Vec<Content>> = Vec::new();
@@ -211,9 +212,15 @@ pub fn register_bundles(
             for item in &content.0 {
                 for message in mod_refs::resource_ref_violations(item, &scope) {
                     error!("register_bundles: content {message}");
-                    if let Content::Scenario(cfg) = item {
-                        undeclared_ref_issues.push((cfg.id.clone(), message));
-                    }
+                    // Every kind, not just scenarios: a section or campaign
+                    // with a bad ref was logged and merged anyway, so the
+                    // runtime gate never saw it.
+                    let id = match item {
+                        Content::Section(cfg) => cfg.base.id.clone(),
+                        Content::Scenario(cfg) => cfg.id.clone(),
+                        Content::Campaign(cfg) => cfg.id.clone(),
+                    };
+                    undeclared_ref_issues.push((id, message));
                 }
                 items.push(mod_refs::rewrite_refs(item, &scope));
             }
@@ -306,16 +313,16 @@ pub fn register_bundles(
         }
     }
     // Fold in the resource-ref findings gathered while flattening (undeclared
-    // `self://` and ungated `dep://<id>/` refs): an Error per (scenario, message)
-    // so the gate refuses the scenario.
-    for (scenario_id, message) in undeclared_ref_issues {
+    // `self://` and ungated `dep://<id>/` refs): an Error per (content id,
+    // message) so the gate refuses that item.
+    for (content_id, message) in undeclared_ref_issues {
         content_issues
             .0
-            .entry(scenario_id.clone())
+            .entry(content_id.clone())
             .or_default()
             .push(nova_scenario::prelude::LintIssue {
                 severity: nova_scenario::prelude::LintSeverity::Error,
-                scenario: scenario_id,
+                scenario: content_id,
                 message,
             });
     }

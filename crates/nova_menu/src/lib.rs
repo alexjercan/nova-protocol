@@ -65,8 +65,8 @@ use scenarios::{
     PendingScenarioThumbnail, SelectedScenarioId,
 };
 use settings::{
-    load_persisted_settings, on_volume_slider_change, persist_settings_on_change,
-    sync_volume_slider,
+    flush_settings_on_exit, load_persisted_settings, on_volume_slider_change,
+    persist_settings_on_change, sync_volume_slider, PendingSettingsSave,
 };
 use widgets::{on_menu_button_activate, scroll_menu_lists};
 
@@ -113,7 +113,9 @@ impl Plugin for NovaMenuPlugin {
         app.add_observer(button_on_setting::<UiSkin>);
         app.add_systems(Update, sync_volume_slider);
         app.add_systems(Startup, load_persisted_settings);
+        app.init_resource::<PendingSettingsSave>();
         app.add_systems(Update, persist_settings_on_change);
+        app.add_systems(Last, flush_settings_on_exit);
 
         app.add_systems(
             OnEnter(GameStates::MainMenu),

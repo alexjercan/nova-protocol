@@ -226,3 +226,42 @@ fn the_old_coming_soon_button_is_gone() {
         "the old standalone button entity is gone"
     );
 }
+
+/// F22: a value edited inside the debounce window survives quitting.
+///
+/// `SETTINGS_SAVE_DEBOUNCE_FRAMES` is ~0.25s of idle frames and the Exit
+/// button writes `AppExit` the same frame it is clicked, so without the `Last`
+/// flush the pending write is simply never made. Delete
+/// `flush_settings_on_exit` and the store stays at the pre-edit value.
+#[test]
+fn a_setting_edited_just_before_quitting_is_still_saved() {
+    let store = std::env::temp_dir().join(format!("nova_menu_exit_flush_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&store);
+    // SAFETY-BY-CONVENTION: the only test in this binary that writes the
+    // settings store, and it must not touch the developer's real one.
+    unsafe { std::env::set_var("NOVA_CONFIG_ROOT", &store) };
+
+    let mut app = mods_app();
+    app.world_mut().insert_resource(MasterVolume(0.42));
+    app.update();
+    assert!(
+        !store.join("settings.ron").exists(),
+        "the debounce has not elapsed, so nothing is written yet"
+    );
+
+    app.world_mut().write_message(AppExit::Success);
+    app.update();
+
+    let saved = nova_assets::persist::load_from::<crate::settings_store::PersistedSettings>(
+        &store.join("settings.ron"),
+    )
+    .expect("the exit flush wrote the pending settings");
+    assert!(
+        (saved.master_volume - 0.42).abs() < 1e-6,
+        "the edited value is the one persisted (got {})",
+        saved.master_volume
+    );
+
+    unsafe { std::env::remove_var("NOVA_CONFIG_ROOT") };
+    let _ = std::fs::remove_dir_all(&store);
+}

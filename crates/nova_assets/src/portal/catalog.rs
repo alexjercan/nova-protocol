@@ -3,7 +3,7 @@
 //! fallback.
 
 use bevy::prelude::*;
-use nova_mod_format::{PortalCatalog, PORTAL_SCHEMA_VERSION};
+use nova_mod_format::{PortalCatalog, MAX_CATALOG_BYTES, PORTAL_SCHEMA_VERSION};
 
 use super::{transport::FetchResult, PortalChannel, PortalMsg};
 use crate::portal::{config::PortalConfig, transport::PortalClient};
@@ -75,6 +75,15 @@ pub(super) fn decode_catalog(result: FetchResult) -> RemoteCatalogState {
             return RemoteCatalogState::Error(format!("portal catalog fetch failed: {error}"))
         }
     };
+    // The size gate runs before EITHER parse. `ehttp` buffers a whole response
+    // body before the callback, so this is the earliest point the client
+    // controls - bounding the decode, not the socket read.
+    if bytes.len() > MAX_CATALOG_BYTES {
+        return RemoteCatalogState::Error(format!(
+            "portal catalog is {} bytes (max {MAX_CATALOG_BYTES}); refusing to parse it",
+            bytes.len()
+        ));
+    }
     #[derive(serde::Deserialize)]
     struct SchemaProbe {
         schema_version: u32,
@@ -93,7 +102,10 @@ pub(super) fn decode_catalog(result: FetchResult) -> RemoteCatalogState {
         ));
     }
     match serde_json::from_slice::<PortalCatalog>(&bytes) {
-        Ok(catalog) => RemoteCatalogState::Ready(catalog),
+        Ok(catalog) => match catalog.check_size() {
+            Ok(()) => RemoteCatalogState::Ready(catalog),
+            Err(error) => RemoteCatalogState::Error(error),
+        },
         Err(error) => RemoteCatalogState::Error(format!("portal catalog does not parse: {error}")),
     }
 }
@@ -188,13 +200,7 @@ pub(super) mod last_good_store {
                 );
                 return;
             }
-            if let Some(parent) = path.parent() {
-                if let Err(e) = std::fs::create_dir_all(parent) {
-                    warn!("portal: could not create {}: {e}", parent.display());
-                    return;
-                }
-            }
-            if let Err(e) = std::fs::write(path, bytes) {
+            if let Err(e) = crate::persist::write_atomic(path, bytes) {
                 warn!("portal: could not write {}: {e}", path.display());
             }
         }
@@ -297,6 +303,42 @@ mod tests {
             decode_catalog(Err("connection refused".to_string())),
             RemoteCatalogState::Error(_)
         ));
+    }
+
+    /// F13: the body is untrusted and was read fully into memory and parsed
+    /// TWICE with no size bound at all - the 256 KiB cap in `last_good_store`
+    /// gates persistence only, never the fetch. Both caps refuse BEFORE either
+    /// parse walks the body.
+    #[test]
+    fn decode_catalog_refuses_an_oversized_body_and_an_absurd_entry_count() {
+        let mut oversized = catalog_json(PORTAL_SCHEMA_VERSION);
+        oversized.resize(MAX_CATALOG_BYTES + 1, b' ');
+        match decode_catalog(Ok(oversized)) {
+            RemoteCatalogState::Error(error) => assert!(
+                error.contains("bytes"),
+                "the error must name the size: {error}"
+            ),
+            other => panic!("an oversized catalog must be an Error, got {other:?}"),
+        }
+
+        let many = serde_json::to_vec(&PortalCatalog {
+            schema_version: PORTAL_SCHEMA_VERSION,
+            entries: (0..nova_mod_format::MAX_CATALOG_ENTRIES + 1)
+                .map(|i| entry(&format!("m{i}"), "1.0.0", "b.bundle.ron", &[]))
+                .collect(),
+        })
+        .unwrap();
+        assert!(
+            many.len() <= MAX_CATALOG_BYTES,
+            "the entry-count case must not be caught by the byte cap instead"
+        );
+        match decode_catalog(Ok(many)) {
+            RemoteCatalogState::Error(error) => assert!(
+                error.contains("entries"),
+                "the error must name the entry count: {error}"
+            ),
+            other => panic!("an over-count catalog must be an Error, got {other:?}"),
+        }
     }
 
     fn entry(

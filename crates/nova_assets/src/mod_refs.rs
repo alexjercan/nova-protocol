@@ -65,13 +65,20 @@ pub struct RefScope<'a> {
 
 impl RefScope<'_> {
     /// The concrete asset path a resource-ref leaf rewrites to, or `None` to
-    /// leave the leaf literal. `self://` ALWAYS rewrites (an undeclared own
-    /// resource still resolves to the mod folder and fails to load loudly, so the
-    /// violation scan - not the rewrite - is what gates it). `dep://` rewrites
-    /// ONLY when the target is a declared, available dependency; an ungated
-    /// `dep://` is left literal (an unknown `dep` source that fails loudly).
+    /// leave the leaf literal. BOTH schemes rewrite only what they are allowed
+    /// to name: `self://` only a DECLARED own resource, `dep://` only a
+    /// declared, available dependency's. An ungated ref is left literal (an
+    /// unknown asset source that fails loudly) and the violation scan reports
+    /// it by name.
+    ///
+    /// Defense in depth: containment rests on `UnapprovedPathMode::Forbid` and
+    /// the sandboxed reader, not on this. The gate is here so the two schemes
+    /// cannot drift apart.
     fn rewrite_leaf(&self, s: &str) -> Option<String> {
         if let Some(rest) = s.strip_prefix(SELF_SCHEME) {
+            if !self.self_resources.iter().any(|x| x == strip_label(rest)) {
+                return None;
+            }
             return Some(join_base(self.self_base, rest));
         }
         if let Some(rest) = s.strip_prefix(DEP_SCHEME) {
@@ -549,6 +556,24 @@ mod tests {
         ron::from_str(&ron).expect("turret section parses")
     }
 
+    /// F56: `register_bundles` only turned a violation into a gate-blocking
+    /// content issue for `Content::Scenario`, so a SECTION with a bad ref was
+    /// logged and merged anyway. The detector always covered every kind - the
+    /// generic walk is over the serialized `Content` - which is what makes the
+    /// scenario-only filter on the push side a defect rather than a gap here.
+    #[test]
+    fn a_section_ref_to_an_undeclared_resource_is_a_violation() {
+        let content = turret_section_with_fire_sound("self://sounds/nope.wav");
+        let scope = self_only_scope("mods/consumer", &[]);
+        let violations = resource_ref_violations(&content, &scope);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.contains("self://sounds/nope.wav")),
+            "a section's undeclared ref is reported: {violations:?}"
+        );
+    }
+
     #[test]
     fn a_mod_turret_references_a_base_sound_via_dep_base() {
         // The mod-shippable audio round-trip: a mod turret declares its fire
@@ -859,6 +884,21 @@ mod tests {
                 .iter()
                 .any(|v| v.contains("self://icons/okono.png")),
             "missing icon resource is reported: {violations:?}"
+        );
+
+        // F68: reporting it is not enough - an undeclared `self://` must also
+        // be left literal, the way an ungated `dep://` already is. Rewriting it
+        // hands an untrusted string to the path join.
+        let Content::Scenario(cfg) = rewrite_refs(&content, &missing_scope) else {
+            panic!("still a scenario");
+        };
+        let EventActionConfig::StoryMessage(own) = &cfg.events[0].actions[0] else {
+            panic!("first action is StoryMessage");
+        };
+        assert_eq!(
+            own.icon.as_ref().and_then(|icon| icon.path()),
+            Some("self://icons/okono.png"),
+            "an undeclared self:// ref stays literal"
         );
     }
 

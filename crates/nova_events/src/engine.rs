@@ -166,8 +166,22 @@ pub struct GameEventInfo {
 
 impl GameEventInfo {
     /// Create an event info from serializable data.
+    ///
+    /// A serialization failure yields `data: None`, which every entity filter
+    /// reads as "does not match" - so the handler stops firing PERMANENTLY
+    /// rather than erroring. Loud, because nothing downstream can tell the two
+    /// apart.
     pub fn from_data<T: serde::Serialize>(data: T) -> Self {
-        let json_value = serde_json::to_value(data).ok();
+        let json_value = match serde_json::to_value(data) {
+            Ok(value) => Some(value),
+            Err(e) => {
+                error!(
+                    "GameEventInfo::from_data: {e} - entity-filtered handlers for this event \
+                     will stop matching"
+                );
+                None
+            }
+        };
         Self { data: json_value }
     }
 }

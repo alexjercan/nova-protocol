@@ -7,8 +7,9 @@
 //! - The INDEX is a RON `Vec<InstalledModRecord>` of DOWNLOADED mods only (the
 //!   shipped `mods.catalog.ron` stays the other half of the installed set).
 //!   Native: `<data_root>/installed.mods.ron`. Web: `window.localStorage` under
-//!   `nova_protocol.installed_mods`. Best-effort like mod_prefs: missing or
-//!   corrupt reads as `None`, write failures are logged.
+//!   `nova_protocol.installed_mods`. Best-effort like mod_prefs for READERS:
+//!   missing or corrupt reads as `None`, write failures are logged. WRITERS
+//!   must distinguish the two - see [`IndexRead`].
 //! - The FILE BYTES live at `<data_root>/mods/<id>/<path>` on native, and in
 //!   IndexedDB (database `nova-protocol`, object store `mod-files`, key
 //!   `<id>/<path>`) on the web.
@@ -46,6 +47,7 @@ use std::path::Path;
 
 #[cfg(target_arch = "wasm32")]
 pub use backend::read_all_files;
+use bevy::log::{error, warn};
 use serde::{Deserialize, Serialize};
 
 /// The `mods://` asset source id, registered by [`register_mods_source`].
@@ -70,11 +72,51 @@ pub struct InstalledModRecord {
     pub bundle: String,
 }
 
+/// What a read of the downloaded-mods index found.
+///
+/// [`Absent`](Self::Absent) and [`Corrupt`](Self::Corrupt) must stay
+/// distinguishable at the write path: a first install may legitimately create
+/// the index, but overwriting an unreadable one erases every OTHER installed
+/// mod's record and orphans their bytes on disk where `remove_mod` can never
+/// sweep them.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum IndexRead {
+    /// No index stored yet. A first install writes a fresh one.
+    Absent,
+    /// The index decoded cleanly.
+    Loaded(Vec<InstalledModRecord>),
+    /// Present and unreadable, with the decode or io failure that said so.
+    Corrupt(String),
+}
+
+impl IndexRead {
+    /// The records, treating both "nothing saved" and "unreadable" as no
+    /// downloaded mods. Read-only callers only - a writer must match on the
+    /// variants instead.
+    pub fn records_or_default(self) -> Vec<InstalledModRecord> {
+        match self {
+            Self::Loaded(records) => records,
+            Self::Absent => Vec::new(),
+            Self::Corrupt(reason) => {
+                warn!("mod cache: the installed-mods index is unreadable ({reason}); treating it as empty");
+                Vec::new()
+            }
+        }
+    }
+}
+
 /// The saved downloaded-mods index, or `None` if nothing has been saved yet
 /// (or the store is unreadable/corrupt). `None` degrades to "no downloaded
 /// mods", never a panic.
 pub fn read_index() -> Option<Vec<InstalledModRecord>> {
-    backend::read_index()
+    match backend::read_index() {
+        IndexRead::Loaded(records) => Some(records),
+        IndexRead::Absent => None,
+        IndexRead::Corrupt(reason) => {
+            warn!("mod cache: the installed-mods index is unreadable: {reason}");
+            None
+        }
+    }
 }
 
 /// `<data_root>/portal_catalog.json` - where the portal client's last-good
@@ -101,7 +143,9 @@ pub fn write_index(records: &[InstalledModRecord]) {
 /// commit (native goes through [`install_local`], whose `io::Result` carries
 /// the stricter files-first-index-last discipline end to end).
 pub fn upsert_index_record(record: InstalledModRecord) {
-    let mut records = read_index().unwrap_or_default();
+    let Some(mut records) = writable_index("upsert") else {
+        return;
+    };
     match records.iter_mut().find(|r| r.id == record.id) {
         Some(existing) => *existing = record,
         None => records.push(record),
@@ -109,12 +153,30 @@ pub fn upsert_index_record(record: InstalledModRecord) {
     write_index(&records);
 }
 
+/// The index as a base for a read-modify-write, or `None` when it is present
+/// but unreadable. Refusing is the point: see [`IndexRead`].
+fn writable_index(what: &str) -> Option<Vec<InstalledModRecord>> {
+    match backend::read_index() {
+        IndexRead::Loaded(records) => Some(records),
+        IndexRead::Absent => Some(Vec::new()),
+        IndexRead::Corrupt(reason) => {
+            error!(
+                "mod cache: refusing to {what} the installed-mods index - it is unreadable \
+                 ({reason}); overwriting it would erase every other installed mod"
+            );
+            None
+        }
+    }
+}
+
 /// Drop `id`'s record from the downloaded-mods index (absent is fine).
 /// Best-effort like [`write_index`]. The UNINSTALL flow removes the index
 /// entry FIRST, files second - the reverse of the install order, so the index
 /// never references files that are already gone.
 pub fn remove_index_record(id: &str) {
-    let mut records = read_index().unwrap_or_default();
+    let Some(mut records) = writable_index("rewrite") else {
+        return;
+    };
     records.retain(|r| r.id != id);
     write_index(&records);
 }
@@ -411,7 +473,7 @@ mod backend {
 
     use bevy::log::warn;
 
-    use super::{is_safe_id, is_safe_rel_path, InstalledModRecord};
+    use super::{is_safe_id, is_safe_rel_path, IndexRead, InstalledModRecord};
 
     /// `<data_root>`: `$NOVA_MOD_CACHE_ROOT` if set (the test/tooling override,
     /// see the module doc), else `dirs::data_dir()/nova-protocol`.
@@ -438,8 +500,11 @@ mod backend {
         data_root().map(|d| d.join("portal_catalog.json"))
     }
 
-    pub fn read_index() -> Option<Vec<InstalledModRecord>> {
-        read_index_at(&data_root()?)
+    pub fn read_index() -> IndexRead {
+        match data_root() {
+            Some(root) => read_index_at(&root),
+            None => IndexRead::Absent,
+        }
     }
 
     pub fn write_index(records: &[InstalledModRecord]) {
@@ -509,16 +574,35 @@ mod backend {
     // callable directly (tests, the 163508 installer), so the fs layer must
     // not rely on the caller having gone through the wrappers.
 
-    pub fn read_index_at(root: &Path) -> Option<Vec<InstalledModRecord>> {
-        let bytes = std::fs::read(root.join("installed.mods.ron")).ok()?;
-        ron::de::from_bytes::<Vec<InstalledModRecord>>(&bytes).ok()
+    pub fn index_path(root: &Path) -> PathBuf {
+        root.join("installed.mods.ron")
+    }
+
+    pub fn read_index_at(root: &Path) -> IndexRead {
+        let path = index_path(root);
+        let bytes = match std::fs::read(&path) {
+            Ok(bytes) => bytes,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return IndexRead::Absent,
+            Err(e) => return IndexRead::Corrupt(e.to_string()),
+        };
+        match ron::de::from_bytes::<Vec<InstalledModRecord>>(&bytes) {
+            Ok(records) => IndexRead::Loaded(records),
+            Err(e) => IndexRead::Corrupt(e.to_string()),
+        }
     }
 
     pub fn write_index_at(root: &Path, records: &[InstalledModRecord]) -> std::io::Result<()> {
-        std::fs::create_dir_all(root)?;
         let ron = ron::ser::to_string(records)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        std::fs::write(root.join("installed.mods.ron"), ron)
+        crate::persist::write_atomic(&index_path(root), ron.as_bytes())
+    }
+
+    /// Rename the unreadable index to `installed.mods.ron.bad` so the next
+    /// install starts from `Absent` instead of failing forever, and the bytes
+    /// stay recoverable by hand.
+    fn side_band_bad_index(root: &Path) -> std::io::Result<()> {
+        let path = index_path(root);
+        std::fs::rename(&path, path.with_extension("ron.bad"))
     }
 
     pub fn read_mod_file_at(root: &Path, id: &str, path: &str) -> Option<Vec<u8>> {
@@ -589,8 +673,23 @@ mod backend {
         if !is_safe_rel_path(bundle) {
             return Err(bad_input("bundle path", bundle));
         }
+        // Read the index BEFORE storing bytes: an install that cannot commit
+        // its record must not leave files behind either.
+        let mut records = match read_index_at(root) {
+            IndexRead::Loaded(records) => records,
+            IndexRead::Absent => Vec::new(),
+            IndexRead::Corrupt(reason) => {
+                side_band_bad_index(root)?;
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!(
+                        "mod cache: the installed-mods index is unreadable ({reason}); moved to \
+                         installed.mods.ron.bad rather than overwriting it"
+                    ),
+                ));
+            }
+        };
         store_mod_files_at(root, id, files)?;
-        let mut records = read_index_at(root).unwrap_or_default();
         let record = InstalledModRecord {
             id: id.to_string(),
             version: version.to_string(),
@@ -635,7 +734,7 @@ mod backend {
     use bevy::log::warn;
     use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 
-    use super::InstalledModRecord;
+    use super::{IndexRead, InstalledModRecord};
 
     /// The localStorage key for the downloaded-mods index.
     const INDEX_KEY: &str = "nova_protocol.installed_mods";
@@ -649,9 +748,18 @@ mod backend {
         web_sys::window()?.local_storage().ok()?
     }
 
-    pub fn read_index() -> Option<Vec<InstalledModRecord>> {
-        let raw = storage()?.get_item(INDEX_KEY).ok()??;
-        ron::de::from_str::<Vec<InstalledModRecord>>(&raw).ok()
+    pub fn read_index() -> IndexRead {
+        let Some(storage) = storage() else {
+            return IndexRead::Absent;
+        };
+        match storage.get_item(INDEX_KEY) {
+            Ok(Some(raw)) => match ron::de::from_str::<Vec<InstalledModRecord>>(&raw) {
+                Ok(records) => IndexRead::Loaded(records),
+                Err(e) => IndexRead::Corrupt(e.to_string()),
+            },
+            Ok(None) => IndexRead::Absent,
+            Err(_) => IndexRead::Corrupt("localStorage read failed".to_string()),
+        }
     }
 
     pub fn write_index(records: &[InstalledModRecord]) {
@@ -954,7 +1062,7 @@ mod tests {
             install_local_at, read_index_at, read_mod_file_at, remove_mod_at, remove_mod_files_at,
             store_mod_files_at, write_index_at,
         },
-        InstalledModRecord,
+        IndexRead, InstalledModRecord,
     };
 
     fn record(id: &str, version: &str) -> InstalledModRecord {
@@ -972,29 +1080,35 @@ mod tests {
         write_index_at(root.path(), &records).unwrap();
         assert_eq!(
             read_index_at(root.path()),
-            Some(records),
+            IndexRead::Loaded(records),
             "the records round-trip through RON"
         );
     }
 
     #[test]
-    fn missing_index_reads_none() {
+    fn missing_index_reads_absent() {
         let root = tempfile::tempdir().unwrap();
         assert_eq!(
             read_index_at(root.path()),
-            None,
+            IndexRead::Absent,
             "no index file reads as no downloaded mods"
         );
     }
 
+    /// A corrupt index must NOT read as `Absent`: the write path tells the two
+    /// apart, and conflating them is how an install erases every other mod.
     #[test]
-    fn corrupt_index_reads_none() {
+    fn corrupt_index_reads_corrupt_not_absent() {
         let root = tempfile::tempdir().unwrap();
         std::fs::write(root.path().join("installed.mods.ron"), b"not ron {{{").unwrap();
+        assert!(
+            matches!(read_index_at(root.path()), IndexRead::Corrupt(_)),
+            "corrupt data is reported as corrupt (not a panic, and not Absent)"
+        );
         assert_eq!(
-            read_index_at(root.path()),
-            None,
-            "corrupt data reads as no downloaded mods (not a panic)"
+            read_index_at(root.path()).records_or_default(),
+            Vec::new(),
+            "read-only callers still degrade to no downloaded mods"
         );
     }
 
@@ -1064,7 +1178,7 @@ mod tests {
         install_local_at(root.path(), "pack", "1.0.0", "pack.bundle.ron", &files).unwrap();
         assert_eq!(
             read_index_at(root.path()),
-            Some(vec![InstalledModRecord {
+            IndexRead::Loaded(vec![InstalledModRecord {
                 id: "pack".to_string(),
                 version: "1.0.0".to_string(),
                 bundle: "pack.bundle.ron".to_string(),
@@ -1075,9 +1189,59 @@ mod tests {
         // Re-installing the same id REPLACES its record (an update), never
         // duplicates it.
         install_local_at(root.path(), "pack", "2.0.0", "pack.bundle.ron", &files).unwrap();
-        let records = read_index_at(root.path()).unwrap();
+        let records = read_index_at(root.path()).records_or_default();
         assert_eq!(records.len(), 1, "same id upserts, not appends");
         assert_eq!(records[0].version, "2.0.0", "the newer version wins");
+    }
+
+    /// F06 + F07, the two halves of one data loss, exercised end to end: a
+    /// process killed mid-write leaves a truncated index, and the NEXT install
+    /// must refuse rather than replace it with a one-record file.
+    ///
+    /// The kill is simulated the only way a unit test can - by writing the
+    /// half-file `write_atomic` is what prevents - and the atomicity of the
+    /// real write is asserted separately below.
+    #[test]
+    fn a_torn_index_survives_the_next_install() {
+        let root = tempfile::tempdir().unwrap();
+        let files = vec![("pack.bundle.ron".to_string(), b"v1".to_vec())];
+        install_local_at(root.path(), "pack", "1.0.0", "pack.bundle.ron", &files).unwrap();
+        install_local_at(root.path(), "other", "1.0.0", "other.bundle.ron", &files).unwrap();
+
+        // What a kill mid-serialize used to leave behind.
+        let index = root.path().join("installed.mods.ron");
+        let torn = &std::fs::read(&index).unwrap()[..20];
+        std::fs::write(&index, torn).unwrap();
+
+        let refused =
+            install_local_at(root.path(), "third", "1.0.0", "third.bundle.ron", &files).is_err();
+        assert!(refused, "an install onto a corrupt index must fail loudly");
+        assert_eq!(
+            std::fs::read(index.with_extension("ron.bad")).unwrap(),
+            torn,
+            "the unreadable bytes are side-banded, not destroyed"
+        );
+        assert!(
+            !root.path().join("mods").join("third").exists(),
+            "a refused install stores no files either"
+        );
+    }
+
+    /// `write_index_at` publishes by rename, so no reader ever observes a
+    /// partial index and a failed write leaves the previous one intact.
+    #[test]
+    fn the_index_write_leaves_no_temp_file_behind() {
+        let root = tempfile::tempdir().unwrap();
+        write_index_at(root.path(), &[record("pack_a", "1.0.0")]).unwrap();
+        let strays: Vec<_> = std::fs::read_dir(root.path())
+            .unwrap()
+            .filter_map(|e| e.ok().map(|e| e.file_name().to_string_lossy().into_owned()))
+            .filter(|name| name.ends_with(".tmp"))
+            .collect();
+        assert!(
+            strays.is_empty(),
+            "the temp file is renamed away: {strays:?}"
+        );
     }
 
     /// The sandbox pinned at the READER layer, where it is the ONLY guard: the

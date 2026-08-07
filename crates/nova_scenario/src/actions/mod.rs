@@ -31,7 +31,8 @@ pub mod prelude {
         ScenarioObjectKind, ScenarioOutcomeKind, ScreenshotActionConfig, SetAllegianceActionConfig,
         SetCameraActionConfig, SetControllerVerbActionConfig, SetSkyboxActionConfig,
         SetSpeedCapActionConfig, StoryMessageActionConfig, VariableSetActionConfig,
-        NEXT_SCENARIO_DELAY_MAX_SECS, NEXT_SCENARIO_DELAY_WARN_SECS, OUTCOME_AUTO_ADVANCE_MAX_SECS,
+        MAX_SCATTER_COUNT, NEXT_SCENARIO_DELAY_MAX_SECS, NEXT_SCENARIO_DELAY_WARN_SECS,
+        OUTCOME_AUTO_ADVANCE_MAX_SECS,
     };
 }
 

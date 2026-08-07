@@ -249,7 +249,7 @@ pub(crate) fn persist_settings_on_change(
     quality: Res<GraphicsQuality>,
     skin: Res<UiSkin>,
     monitor: Res<NovaOsMonitorSettings>,
-    mut idle_frames: Local<Option<u32>>,
+    mut pending: ResMut<PendingSettingsSave>,
 ) {
     let edited = (volume.is_changed() && !volume.is_added())
         || (quality.is_changed() && !quality.is_added())
@@ -258,19 +258,51 @@ pub(crate) fn persist_settings_on_change(
     if edited {
         // A fresh edit: (re)start the debounce, coalescing a drag's per-frame
         // changes into one pending save.
-        *idle_frames = Some(0);
+        pending.idle_frames = Some(0);
         return;
     }
-    if let Some(frames) = *idle_frames {
+    if let Some(frames) = pending.idle_frames {
         if frames + 1 >= SETTINGS_SAVE_DEBOUNCE_FRAMES {
             save_settings(&PersistedSettings::from_resources(
                 *volume, *quality, *skin, *monitor,
             ));
-            *idle_frames = None;
+            pending.idle_frames = None;
         } else {
-            *idle_frames = Some(frames + 1);
+            pending.idle_frames = Some(frames + 1);
         }
     }
+}
+
+/// The debounce countdown, as a resource rather than a `Local` so
+/// [`flush_settings_on_exit`] can see that a write is owed. `None` = nothing
+/// pending, `Some(n)` = `n` idle frames so far.
+#[derive(Resource, Default)]
+pub(crate) struct PendingSettingsSave {
+    idle_frames: Option<u32>,
+}
+
+/// Write an owed settings save before the process goes away.
+///
+/// The debounce is [`SETTINGS_SAVE_DEBOUNCE_FRAMES`] (~0.25s) and the Exit
+/// button writes [`AppExit`] the same frame it is clicked, so a value edited
+/// just before quitting is otherwise lost. Runs in `Last`, which the app
+/// runner drains `AppExit` after.
+pub(crate) fn flush_settings_on_exit(
+    mut exits: MessageReader<AppExit>,
+    volume: Res<MasterVolume>,
+    quality: Res<GraphicsQuality>,
+    skin: Res<UiSkin>,
+    monitor: Res<NovaOsMonitorSettings>,
+    mut pending: ResMut<PendingSettingsSave>,
+) {
+    if exits.is_empty() || pending.idle_frames.is_none() {
+        return;
+    }
+    exits.clear();
+    save_settings(&PersistedSettings::from_resources(
+        *volume, *quality, *skin, *monitor,
+    ));
+    pending.idle_frames = None;
 }
 
 /// Mirror the volume slider's value onto [`MasterVolume`] as it is dragged.

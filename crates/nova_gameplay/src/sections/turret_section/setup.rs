@@ -61,7 +61,10 @@ fn spawn_turret_joint(
     }
 
     if let Some(muzzle) = &joint.muzzle {
-        let interval = 1.0 / muzzle.fire_rate;
+        // `fire_rate` is an unvalidated authored f32: 0.0 gives +inf, and
+        // `Duration::from_secs_f32(inf)` PANICS the moment the ship spawns.
+        // Same clamp the retune path already carried.
+        let interval = 1.0 / muzzle.fire_rate.max(f32::EPSILON);
         let mut timer = Timer::from_seconds(interval, TimerMode::Once);
         timer.finish(); // Ready to fire immediately
         entity.insert((
@@ -418,5 +421,41 @@ mod tests {
             app.world().get::<Transform>(yaw).unwrap().translation,
             Vec3::new(0.0, 0.1, 0.0)
         );
+    }
+
+    /// F10: `fire_rate` is a plain required f32 on the serde-deserialized
+    /// turret config. `0.0` gives `1.0 / 0.0 == +inf`, and
+    /// `Duration::from_secs_f32(inf)` PANICS - so authored content took the
+    /// game down the moment the ship spawned. The retune path one function
+    /// away already carried the clamp; the spawn path did not.
+    #[test]
+    fn a_degenerate_fire_rate_does_not_panic_the_spawn() {
+        fn set_fire_rate(joint: &mut TurretJoint, rate: f32) {
+            if let Some(muzzle) = &mut joint.muzzle {
+                muzzle.fire_rate = rate;
+            }
+            for child in &mut joint.children {
+                set_fire_rate(child, rate);
+            }
+        }
+
+        for rate in [0.0, -1.0] {
+            let mut app = App::new();
+            app.add_observer(insert_turret_section);
+
+            let mut config = TurretSectionConfig::default();
+            set_fire_rate(&mut config.root, rate);
+            let turret = spawn_real_turret(&mut app, config);
+
+            let muzzle = muzzle_entity(&app, turret);
+            let state = app
+                .world()
+                .get::<TurretSectionBarrelFireState>(muzzle)
+                .expect("the muzzle still spawns with a fire timer");
+            assert!(
+                state.0.duration().as_secs_f32().is_finite(),
+                "fire_rate {rate} yields a finite interval"
+            );
+        }
     }
 }

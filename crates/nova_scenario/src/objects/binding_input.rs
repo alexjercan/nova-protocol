@@ -68,6 +68,8 @@ impl TryFrom<&Binding> for BindingInput {
 /// binding is not authorable (see [`BindingInput::try_from`]).
 #[cfg(feature = "serde")]
 pub(crate) mod binding_map_serde {
+    use std::collections::BTreeMap;
+
     use bevy::platform::collections::HashMap;
     use bevy_enhanced_input::prelude::Binding;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -75,11 +77,15 @@ pub(crate) mod binding_map_serde {
     use super::BindingInput;
     use crate::objects::spaceship::SectionId;
 
+    /// Serialized through a `BTreeMap`, not the live `HashMap`: this writes
+    /// `input_mapping:` into the GENERATED `assets/base/**/*.content.ron`, so
+    /// a hash-ordered map makes `content -- gen` produce a different file every
+    /// run and the parity check compare noise.
     pub(crate) fn serialize<S: Serializer>(
         map: &HashMap<SectionId, Vec<Binding>>,
         serializer: S,
     ) -> Result<S::Ok, S::Error> {
-        let mut authored: HashMap<SectionId, Vec<BindingInput>> = HashMap::default();
+        let mut authored: BTreeMap<SectionId, Vec<BindingInput>> = BTreeMap::new();
         for (section, bindings) in map.iter() {
             let mut inputs = Vec::with_capacity(bindings.len());
             for binding in bindings {

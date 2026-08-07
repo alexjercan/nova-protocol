@@ -18,25 +18,65 @@ fn direct<'a>(graph: &'a DepGraph, id: &str) -> &'a [String] {
     graph.get(id).map(Vec::as_slice).unwrap_or(&[])
 }
 
+/// The deepest dependency chain [`transitive_deps`] will walk.
+///
+/// The walk recurses once per level, and the graph is built from UNTRUSTED
+/// input (a portal `catalog.json`, a hand-edited bundle), so an unbounded
+/// chain is a stack overflow - which aborts the process and cannot be caught.
+/// 64 is far past any real mod stack and far short of the stack limit.
+pub const MAX_DEP_DEPTH: usize = 64;
+
+/// Why a dependency walk refused to finish. Refusing is the answer for
+/// untrusted input: a truncated dependency list would read as complete.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DepError {
+    /// The chain reached [`MAX_DEP_DEPTH`] at this id without terminating.
+    DepthExceeded {
+        /// The id the walk was standing on when it gave up.
+        at: String,
+    },
+}
+
+impl std::fmt::Display for DepError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::DepthExceeded { at } => {
+                write!(f, "dependency chain deeper than {MAX_DEP_DEPTH} at '{at}'",)
+            }
+        }
+    }
+}
+
 /// Every TRANSITIVE dependency of `id` (NOT including `id` itself), in DFS
 /// post-order so a dependency always appears before the mods that need it.
 /// Cycle-tolerant: each id is visited once. Unknown ids contribute nothing.
-pub fn transitive_deps(graph: &DepGraph, id: &str) -> Vec<String> {
-    fn visit(graph: &DepGraph, id: &str, seen: &mut HashSet<String>, out: &mut Vec<String>) {
+/// Chains deeper than [`MAX_DEP_DEPTH`] are refused, never truncated.
+pub fn transitive_deps(graph: &DepGraph, id: &str) -> Result<Vec<String>, DepError> {
+    fn visit(
+        graph: &DepGraph,
+        id: &str,
+        depth: usize,
+        seen: &mut HashSet<String>,
+        out: &mut Vec<String>,
+    ) -> Result<(), DepError> {
+        if depth >= MAX_DEP_DEPTH {
+            return Err(DepError::DepthExceeded { at: id.to_string() });
+        }
         for dep in direct(graph, id) {
             if seen.insert(dep.clone()) {
-                visit(graph, dep, seen, out);
+                visit(graph, dep, depth + 1, seen, out)?;
                 out.push(dep.clone());
             }
         }
+        Ok(())
     }
     let mut seen = HashSet::new();
     // NOTE: seeding with `id` is what makes a self-edge (or a cycle back to the
     // root) ignored and keeps the root out of its own list.
     seen.insert(id.to_string());
     let mut out = Vec::new();
-    visit(graph, id, &mut seen, &mut out);
-    out
+    visit(graph, id, 0, &mut seen, &mut out)?;
+    Ok(out)
 }
 
 /// The result of [`topological_order`]: the ordered ids, plus whether a
@@ -60,6 +100,18 @@ pub struct TopoOrder {
 /// result). A cycle emits its members in input order and sets `cycle`.
 /// Deterministic.
 pub fn topological_order(ids: &[String], graph: &DepGraph) -> TopoOrder {
+    // A repeated id is emitted once, so `order.len() != ids.len()` would report
+    // a cycle for a duplicate-carrying set with no dependencies at all. Dedup
+    // first, keeping input order, and the length compare means what it says.
+    let mut deduped: Vec<String> = Vec::with_capacity(ids.len());
+    let mut distinct: HashSet<&str> = HashSet::new();
+    for id in ids {
+        if distinct.insert(id.as_str()) {
+            deduped.push(id.clone());
+        }
+    }
+    let ids: &[String] = &deduped;
+
     let in_set: HashSet<&str> = ids.iter().map(String::as_str).collect();
 
     let mut indegree: HashMap<&str, usize> = ids.iter().map(|id| (id.as_str(), 0usize)).collect();
@@ -150,18 +202,18 @@ mod tests {
             ("d", &["b", "e"]),
             ("e", &["a"]),
         ]);
-        assert_eq!(transitive_deps(&g, "c"), vec!["a", "b"]);
+        assert_eq!(transitive_deps(&g, "c").unwrap(), vec!["a", "b"]);
         // NOTE: post-order, each dep once - b's subtree (a, b) then e's (e, with
         // a already seen).
-        assert_eq!(transitive_deps(&g, "d"), vec!["a", "b", "e"]);
-        assert_eq!(transitive_deps(&g, "a"), Vec::<String>::new());
+        assert_eq!(transitive_deps(&g, "d").unwrap(), vec!["a", "b", "e"]);
+        assert_eq!(transitive_deps(&g, "a").unwrap(), Vec::<String>::new());
     }
 
     #[test]
     fn transitive_deps_tolerates_a_cycle() {
         let g = graph(&[("a", &["b"]), ("b", &["a"])]);
         // NOTE: b only - the `b -> a` edge back to the root is ignored.
-        assert_eq!(transitive_deps(&g, "a"), vec!["b"]);
+        assert_eq!(transitive_deps(&g, "a").unwrap(), vec!["b"]);
     }
 
     #[test]
@@ -198,6 +250,47 @@ mod tests {
         assert!(topo.cycle, "a<->b is a cycle");
         assert!(topo.order.contains(&"c".to_string()));
         assert_eq!(topo.order.len(), 3, "all ids present despite the cycle");
+    }
+
+    /// F08: an untrusted catalog can declare an arbitrarily long chain, and
+    /// the walk recurses once per level. Refuse past `MAX_DEP_DEPTH` rather
+    /// than overflowing the stack - an overflow ABORTS the process. Remove the
+    /// depth argument and this test blows the test thread's stack.
+    #[test]
+    fn a_chain_deeper_than_the_cap_is_refused_not_walked() {
+        let chain: Vec<(String, Vec<String>)> = (0..MAX_DEP_DEPTH * 4)
+            .map(|i| (format!("m{i}"), vec![format!("m{}", i + 1)]))
+            .collect();
+        let g: DepGraph = chain.into_iter().collect();
+        assert!(
+            matches!(
+                transitive_deps(&g, "m0"),
+                Err(DepError::DepthExceeded { .. })
+            ),
+            "an over-deep chain is refused"
+        );
+
+        // The cap does not fire on a chain that fits: MAX_DEP_DEPTH levels of
+        // recursion below the root.
+        let ok: DepGraph = (0..MAX_DEP_DEPTH - 1)
+            .map(|i| (format!("m{i}"), vec![format!("m{}", i + 1)]))
+            .collect();
+        assert_eq!(
+            transitive_deps(&ok, "m0").unwrap().len(),
+            MAX_DEP_DEPTH - 1,
+            "a chain within the cap still resolves in full"
+        );
+    }
+
+    /// F60: two records with the same id used to make `order.len() != ids.len()`
+    /// true, reporting "a dependency cycle" for a set with zero dependencies.
+    #[test]
+    fn duplicate_ids_are_not_a_cycle() {
+        let g = graph(&[]);
+        let ids = vec!["a".to_string(), "b".to_string(), "a".to_string()];
+        let topo = topological_order(&ids, &g);
+        assert!(!topo.cycle, "duplicates are not a cycle");
+        assert_eq!(topo.order, vec!["a".to_string(), "b".to_string()]);
     }
 
     #[test]

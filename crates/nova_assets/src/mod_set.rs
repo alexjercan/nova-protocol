@@ -224,9 +224,20 @@ fn start_downloaded_loads(
     asset_server: &AssetServer,
     downloaded: &mut DownloadedMods,
 ) {
+    // Ids key the enable set and the merge namespace, so a duplicate is not a
+    // harmless repeat: two records under one id make "which bundle is this
+    // mod" unanswerable, and downstream it reads as a dependency cycle.
+    let mut seen_ids = std::collections::HashSet::new();
     downloaded.0 = records
         .into_iter()
         .filter_map(|record| {
+            if !seen_ids.insert(record.id.clone()) {
+                warn!(
+                    "mod cache: skipping a second downloaded mod record for id '{}'",
+                    record.id
+                );
+                return None;
+            }
             if !mod_cache::is_safe_id(&record.id) || !mod_cache::is_safe_rel_path(&record.bundle) {
                 warn!(
                     "mod cache: skipping downloaded mod record with an unsafe id or bundle \

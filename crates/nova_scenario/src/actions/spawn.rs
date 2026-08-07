@@ -230,6 +230,14 @@ impl ScatterRegion {
     }
 }
 
+/// The most objects one `ScatterObjects` action will spawn.
+///
+/// `count` is an unvalidated authored `u32`, and the spawn loop allocates an
+/// entity per iteration - so without this an authored `count: 50000000` OOMs
+/// from content that passed both the static lint and the runtime gate. An
+/// anti-absurdity cap, not a quota: the densest shipped field is far below it.
+pub const MAX_SCATTER_COUNT: u32 = 4096;
+
 /// Spawn `count` copies of a template object scattered through a region, with a
 /// deterministic seed so the layout is reproducible across loads. Each copy is a
 /// clone of `template` with `base.id = "{id_prefix}{i}"` and a sampled position;
@@ -240,7 +248,7 @@ impl ScatterRegion {
 pub struct ScatterObjectsConfig {
     /// The id prefix each copy gets (`"{id_prefix}{i}"`).
     pub id_prefix: String,
-    /// How many copies to spawn.
+    /// How many copies to spawn, capped at [`MAX_SCATTER_COUNT`].
     pub count: u32,
     /// The RNG seed, so the layout is reproducible across loads.
     pub seed: u64,
@@ -303,9 +311,17 @@ impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
     fn action(&self, world: &mut NovaEventWorld, info: &GameEventInfo) {
         use rand::{RngExt, SeedableRng};
         let mut rng = rand::rngs::StdRng::seed_from_u64(self.seed);
-        // NOTE: always the authored count. Scatter is gameplay content
-        // (asteroid / debris fields), so no graphics-quality tier thins it.
-        let count = self.count;
+        // NOTE: always the authored count, never thinned by a graphics-quality
+        // tier - scatter is gameplay content (asteroid / debris fields).
+        // Bounded, though: `count` is an unvalidated authored u32 driving a
+        // spawn loop, so an absurd one OOMs from data that passed every gate.
+        let count = self.count.min(MAX_SCATTER_COUNT);
+        if count != self.count {
+            warn!(
+                "ScatterObjects: '{}' asks for {} objects; clamped to {MAX_SCATTER_COUNT}",
+                self.id_prefix, self.count
+            );
+        }
         debug!(
             "ScatterObjects: scattering {} '{}' objects (seed {})",
             count, self.id_prefix, self.seed

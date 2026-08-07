@@ -285,6 +285,18 @@ fn check_action(
             // The template is a full object config too - a scattered ship with
             // a bad prototype is the same bug one wrapper deeper.
             check_object_prototypes(&config.template, scenario, sections, issues);
+            // The runtime clamps rather than OOMs, but a clamped field is not
+            // the field the author wrote - say so before it ships.
+            if config.count > MAX_SCATTER_COUNT {
+                issues.push(LintIssue::error(
+                    scenario,
+                    format!(
+                        "ScatterObjects '{}' count {} exceeds the {MAX_SCATTER_COUNT} cap \
+                         and will be clamped at runtime",
+                        config.id_prefix, config.count
+                    ),
+                ));
+            }
         }
         EventActionConfig::Outcome(config) => {
             if let Some(secs) = config.auto_advance_secs {
@@ -691,6 +703,41 @@ mod tests {
         assert!(errors(&issues).is_empty(), "warn-only: {issues:?}");
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("mutually exclusive"));
+    }
+
+    /// F12: `count` is an unvalidated authored u32 driving a spawn loop. The
+    /// runtime clamps it, but the author should never get that far - a field
+    /// the engine will not honor is a content error.
+    #[test]
+    fn an_absurd_scatter_count_is_a_lint_error() {
+        let s = scenario(
+            vec![EventActionConfig::ScatterObjects(ScatterObjectsConfig {
+                id_prefix: "rock_".to_string(),
+                count: 50_000_000,
+                seed: 1,
+                region: ScatterRegion::Ring {
+                    center: Vec3::ZERO,
+                    inner: 10.0,
+                    outer: 20.0,
+                    y_min: -1.0,
+                    y_max: 1.0,
+                },
+                template: match spawn_object("rock_") {
+                    EventActionConfig::SpawnScenarioObject(config) => config,
+                    _ => unreachable!(),
+                },
+                asteroid_radius: None,
+                min_separation: None,
+            })],
+            vec![],
+        );
+        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        assert!(
+            errors(&issues)
+                .iter()
+                .any(|i| i.message.contains("exceeds the")),
+            "an over-cap scatter count is an error: {issues:?}"
+        );
     }
 
     #[test]
