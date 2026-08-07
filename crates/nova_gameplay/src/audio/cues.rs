@@ -95,11 +95,19 @@ pub(super) fn play_safety_engaged_cue(
     asset_server: Res<AssetServer>,
     q_controller: Query<(&ControllerSectionSounds, &ChildOf)>,
     q_player_sounds: Query<(), With<PlayerSpaceshipMarker>>,
-    q_player: Query<&WeaponsHot, (With<PlayerSpaceshipMarker>, Changed<WeaponsHot>)>,
+    q_player: Query<Ref<WeaponsHot>, (With<PlayerSpaceshipMarker>, Changed<WeaponsHot>)>,
     mut was_hot: Local<bool>,
 ) {
     for hot in &q_player {
         let is_hot = hot.0;
+        // The `Local` is process-global and outlives the ship it tracked: dying
+        // while hot left it `true`, and the replacement ship's default `false`
+        // read as a hot -> cold edge on its very first frame. A fresh
+        // `WeaponsHot` starts from its own state instead.
+        if hot.is_added() {
+            *was_hot = is_hot;
+            continue;
+        }
         if *was_hot && !is_hot {
             // AUTHORED-OR-SILENT: the click is the player controller's own
             // authored safety_on ref (the weapons computer's voice).
@@ -146,6 +154,10 @@ pub(super) fn play_dry_fire_cue(
     q_ship: Query<&WeaponsHot, With<PlayerSpaceshipMarker>>,
     mut latched: Local<HashMap<Entity, bool>>,
 ) {
+    // Rebuilt rather than updated in place: a despawned turret's latch would
+    // otherwise stay in the map for the rest of the session. Every turret the cue
+    // can fire for is visited below, so the new map is exactly the live set.
+    let mut live: HashMap<Entity, bool> = HashMap::with_capacity(latched.len());
     for (turret, input, ammo, dry_sound, ChildOf(ship)) in &q_turret {
         // Dry-firing = trigger held, weapons hot, magazine present and empty,
         // on the player's ship. `q_ship` matches only the player, so a
@@ -153,8 +165,8 @@ pub(super) fn play_dry_fire_cue(
         let hot = q_ship.get(*ship).is_ok_and(|weapons| weapons.0);
         let empty = ammo.is_some_and(SectionAmmo::is_empty);
         let dry = **input && hot && empty;
-        let was = latched.entry(turret).or_insert(false);
-        if dry && !*was {
+        let was = latched.get(&turret).copied().unwrap_or(false);
+        if dry && !was {
             if let Some(handle) = dry_sound
                 .and_then(|s| s.0.as_ref())
                 .map(|r| r.resolve(&asset_server))
@@ -162,8 +174,9 @@ pub(super) fn play_dry_fire_cue(
                 commands.play_sfx_volume(handle, DRY_FIRE_VOLUME);
             }
         }
-        *was = dry;
+        live.insert(turret, dry);
     }
+    *latched = live;
 }
 
 #[cfg(test)]

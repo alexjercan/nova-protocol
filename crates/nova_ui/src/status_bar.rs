@@ -192,16 +192,22 @@ fn update_status_bar_item_ui(
         &StatusBarItemColorFnBoxed,
     )>,
 ) {
+    // Runs every frame for every item, and an item usually reports the same value
+    // for seconds at a time. Both writes are guarded so an unchanged item does not
+    // mark its `Text` changed and force a text re-layout plus a UI batch upload.
     for (value, mut text, mut color, color_fn) in &mut items {
-        **text = value
+        let next = value
             .as_ref()
             .map_or_else(|| "N/A".to_string(), |v| v.to_string());
+        if **text != next {
+            **text = next;
+        }
 
         if let Some(v) = value.as_ref() {
             let v: &dyn Any = v.as_ref();
 
             if let Some(new_color) = (color_fn)(Box::new(v)) {
-                **color = new_color;
+                color.set_if_neq(TextColor(new_color));
             }
         }
     }
@@ -362,4 +368,73 @@ pub fn status_version_value_fn(
 pub fn status_version_color_fn() -> impl Fn(Box<&dyn Any>) -> Option<Color> + Send + Sync + 'static
 {
     move |_value: Box<&dyn Any>| Some(Color::srgb(1.0, 1.0, 1.0))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Counts the frames on which the reconciler marked an item's text changed.
+    #[derive(Resource, Default)]
+    struct Rewrites {
+        text: usize,
+        color: usize,
+    }
+
+    fn count_rewrites(
+        mut rewrites: ResMut<Rewrites>,
+        q_text: Query<(), Changed<Text>>,
+        q_color: Query<(), Changed<TextColor>>,
+    ) {
+        rewrites.text += q_text.iter().count();
+        rewrites.color += q_color.iter().count();
+    }
+
+    /// The reconciler runs every frame for every item, so the assertion that
+    /// matters is a change-detection one: with the value unchanged, the second
+    /// frame must not mark `Text` or `TextColor` changed. Asserting on the
+    /// rendered string alone passes with unconditional writes.
+    #[test]
+    fn an_unchanged_status_item_is_not_rewritten() {
+        let mut app = App::new();
+        app.init_resource::<Rewrites>();
+        app.add_systems(Update, (update_status_bar_item_ui, count_rewrites).chain());
+
+        let item = app
+            .world_mut()
+            .spawn((
+                StatusBarItemValue(Some(Arc::new("42".to_string()))),
+                Text::new(String::new()),
+                TextColor(Color::BLACK),
+                StatusBarItemColorFnBoxed(Arc::new(|_| Some(Color::WHITE))),
+            ))
+            .id();
+
+        // Frame 1 writes the new value and colour in.
+        app.update();
+        assert_eq!(app.world().get::<Text>(item).unwrap().0, "42");
+        let after_first = (
+            app.world().resource::<Rewrites>().text,
+            app.world().resource::<Rewrites>().color,
+        );
+        assert_eq!(after_first, (1, 1), "the first frame writes both");
+
+        // Frame 2 sees the same value and must touch neither.
+        app.update();
+        assert_eq!(
+            (
+                app.world().resource::<Rewrites>().text,
+                app.world().resource::<Rewrites>().color,
+            ),
+            after_first,
+            "an unchanged value must not mark Text or TextColor changed",
+        );
+
+        // A real change still lands.
+        **app.world_mut().get_mut::<StatusBarItemValue>(item).unwrap() =
+            Some(Arc::new("43".to_string()));
+        app.update();
+        assert_eq!(app.world().get::<Text>(item).unwrap().0, "43");
+        assert_eq!(app.world().resource::<Rewrites>().text, after_first.0 + 1);
+    }
 }

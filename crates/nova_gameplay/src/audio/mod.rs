@@ -62,7 +62,7 @@ use self::{
     loops::{
         apply_rcs_loop_volume, apply_thruster_loop_volume, compute_rcs_loop_volume,
         compute_thruster_hum_volume, ensure_rcs_loops, ensure_thruster_loops, pause_loops,
-        resume_loops, RcsLoopVolume, ThrusterHumVolume,
+        resume_loops, silence_loops_on_scenario_unload, RcsLoopVolume, ThrusterHumVolume,
     },
     mixing::{prune_sfx_throttle, SfxThrottle},
 };
@@ -229,6 +229,10 @@ impl Plugin for NovaAudioPlugin {
         app.add_systems(OnExit(crate::PauseStates::Paused), resume_loops);
         app.add_systems(OnEnter(crate::PauseStates::NovaOs), pause_loops);
         app.add_systems(OnExit(crate::PauseStates::NovaOs), resume_loops);
+        app.add_systems(
+            OnExit(crate::GameStates::Playing),
+            silence_loops_on_scenario_unload,
+        );
 
         app.add_observer(on_destroyed_play_explosion);
         app.add_observer(on_damage_play_impact);

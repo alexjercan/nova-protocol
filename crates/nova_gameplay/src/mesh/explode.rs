@@ -122,12 +122,16 @@ fn handle_explosion(
 
     let mut fragment_meshes = Vec::new();
     for (mesh_entity, mesh3d) in mesh_entities.into_iter() {
+        // One bad mesh among many must not abort the whole explosion: the
+        // fragment handler is the wreck's only despawn path
+        // (`integrity/explode.rs` skips anything `With<Mesh3d>`), so returning
+        // early left a zero-health wreck lingering with its collider live.
         let Some(mesh) = meshes.get(&**mesh3d) else {
             error!(
                 "handle_explosion: mesh_entity {:?} has no mesh data.",
                 mesh_entity
             );
-            return;
+            continue;
         };
 
         trace!(
@@ -138,10 +142,10 @@ fn handle_explosion(
 
         let Some(fragments) = explode_mesh(&mesh.clone(), fragment_count, MAX_ITERATIONS) else {
             error!(
-                "explode_mesh: entity {:?} failed to slice mesh into fragments.",
-                entity
+                "explode_mesh: mesh_entity {:?} failed to slice mesh into fragments.",
+                mesh_entity
             );
-            return;
+            continue;
         };
 
         for (mesh, normal) in fragments {

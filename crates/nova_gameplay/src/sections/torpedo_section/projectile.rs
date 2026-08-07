@@ -13,10 +13,10 @@ pub(super) fn update_target_position(
         ),
         With<TorpedoProjectileMarker>,
     >,
-    q_target: Query<&Transform>,
+    q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
 ) {
     for (torpedo, torpedo_target_position, target_entity) in &mut q_torpedo {
-        let Ok(target_transform) = q_target.get(**target_entity) else {
+        let Ok((target_transform, target_com)) = q_target.get(**target_entity) else {
             // The target died mid-flight. Don't delete the torpedo - that reads as
             // it blinking out of existence. Instead drop the dead target link and
             // let it keep flying toward the last known position (frozen in
@@ -31,14 +31,20 @@ pub(super) fn update_target_position(
             continue;
         };
 
+        // Home on the live structure, not the root origin: the origin is only the
+        // build spot of the ship's first sections, so shooting away a large
+        // enemy's forward half leaves the torpedo flying at empty space. Every
+        // other aim consumer follows the same rule (`sections/mod.rs`).
+        let anchor = live_structure_anchor(target_transform, target_com);
+
         // The position component is added on first lock and updated in place after,
         // so a never-locked torpedo has no `TorpedoTargetPosition` and flies straight.
         match torpedo_target_position {
-            Some(mut position) => **position = target_transform.translation,
+            Some(mut position) => **position = anchor,
             None => {
                 commands
                     .entity(torpedo)
-                    .insert(TorpedoTargetPosition(target_transform.translation));
+                    .insert(TorpedoTargetPosition(anchor));
             }
         }
     }
@@ -427,6 +433,35 @@ mod tests {
         assert!(
             app.world().get::<TorpedoTargetEntity>(torpedo).is_none(),
             "the dead target link should be removed"
+        );
+    }
+
+    #[test]
+    fn torpedo_homes_on_the_live_structure_anchor() {
+        // The root origin is the build spot of the ship's first sections; once
+        // those die the live structure sits somewhere else entirely, and a torpedo
+        // aimed at the origin has to reach within its fuze radius of empty space.
+        let mut app = App::new();
+        app.add_systems(Update, update_target_position);
+
+        let target = app
+            .world_mut()
+            .spawn((
+                Transform::from_translation(Vec3::new(0.0, 0.0, -100.0)),
+                ComputedCenterOfMass(Vec3::new(0.0, 0.0, -40.0)),
+            ))
+            .id();
+        let torpedo = app
+            .world_mut()
+            .spawn((TorpedoProjectileMarker, TorpedoTargetEntity(target)))
+            .id();
+
+        app.update();
+
+        assert_eq!(
+            **app.world().get::<TorpedoTargetPosition>(torpedo).unwrap(),
+            Vec3::new(0.0, 0.0, -140.0),
+            "the torpedo should home on the COM-lifted anchor, not the root origin"
         );
     }
 

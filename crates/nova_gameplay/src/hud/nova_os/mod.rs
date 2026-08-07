@@ -77,10 +77,10 @@ use self::{
     shell::{
         begin_nova_os_boot, blink_nova_os_caret, drain_nova_os_boot, drive_nova_os_power_led,
         drive_nova_os_slide, drive_nova_os_topbar_fps, mark_nova_os_events_seen,
-        nova_os_footer_just_spawned, nova_os_header_just_spawned, nova_os_lists_just_spawned,
-        position_nova_os_block_caret, rebuild_nova_os_footer_hints, rebuild_terminal_ui,
-        reconcile_nova_os_header, sync_nova_os_app_ui, sync_nova_os_monitor_controls,
-        terminal_ui_just_spawned,
+        normalize_nova_os_scroll, nova_os_footer_just_spawned, nova_os_header_just_spawned,
+        nova_os_lists_just_spawned, position_nova_os_block_caret, rebuild_nova_os_footer_hints,
+        rebuild_terminal_ui, reconcile_nova_os_header, sync_nova_os_app_ui,
+        sync_nova_os_monitor_controls, terminal_ui_just_spawned,
     },
     sound::{
         apply_nova_os_bed_volume, play_nova_os_power_down, start_nova_os_sound, stop_nova_os_bed,
@@ -90,6 +90,7 @@ use self::{
 pub(crate) use self::{
     content::{section_kind_from_markers, section_kind_label},
     crt::{forward_nova_os_pointer, NovaOsRtt},
+    input::control_held,
     style::{
         nova_os_font, nova_os_text_font, DRAWER_EXEMPT_Z, DRAWER_LINE_FONT_PX, NOVA_OS_AMBER,
         NOVA_OS_PHOSPHOR, NOVA_OS_PHOSPHOR_DIM, NOVA_OS_PHOSPHOR_MUTED, NOVA_OS_SCREEN,
@@ -169,6 +170,16 @@ impl Plugin for NovaOsPlugin {
             scroll_nova_os_panels
                 .run_if(in_state(PauseStates::NovaOs))
                 .run_if(resource_exists::<Messages<bevy::input::mouse::MouseWheel>>)
+                .in_set(NovaHudSystems),
+        );
+        // Turn a satisfied scroll-to-bottom request back into a real position
+        // before anything subtracts a page or a wheel delta from it.
+        app.add_systems(
+            Update,
+            normalize_nova_os_scroll
+                .before(scroll_nova_os_panels)
+                .before(handle_terminal_keyboard)
+                .run_if(in_state(PauseStates::NovaOs))
                 .in_set(NovaHudSystems),
         );
         app.add_systems(

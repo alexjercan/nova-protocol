@@ -216,13 +216,20 @@ pub(crate) fn reconcile_nova_os_target(
         cam.is_active = open > f32::EPSILON;
     }
     if let Ok((mut node, mut vis)) = q_root.single_mut() {
-        node.width = Val::Px(desired.x as f32);
-        node.height = Val::Px(desired.y as f32);
-        *vis = if open > f32::EPSILON {
+        // This system's only gate is `resource_exists::<NovaOsRtt>`, which holds
+        // from ship spawn to despawn - so it runs every frame the player is flying,
+        // over a subtree of hundreds of `Text` children. An unguarded `Node` write
+        // re-lays out all of them for a size that almost never changes.
+        let (width, height) = (Val::Px(desired.x as f32), Val::Px(desired.y as f32));
+        if node.width != width || node.height != height {
+            node.width = width;
+            node.height = height;
+        }
+        vis.set_if_neq(if open > f32::EPSILON {
             Visibility::Inherited
         } else {
             Visibility::Hidden
-        };
+        });
     }
 }
 

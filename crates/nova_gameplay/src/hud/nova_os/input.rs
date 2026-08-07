@@ -51,6 +51,14 @@ pub(crate) fn toggle_nova_os(
         PauseStates::NovaOs | PauseStates::Paused => {}
     }
 }
+/// Whether either Control key is down. Three NOVA OS keyboard handlers ask this
+/// same question - the prompt, the app router and the back-out owner - and they
+/// must agree, or one of them types a literal character for a chord another one
+/// is about to consume.
+pub(crate) fn control_held(keys: &ButtonInput<KeyCode>) -> bool {
+    keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight)
+}
+
 pub(crate) fn close_nova_os_from_menu_keys(
     keys: Res<ButtonInput<KeyCode>>,
     gamepad: Option<Res<ButtonInput<GamepadButton>>>,
@@ -73,7 +81,7 @@ pub(crate) fn close_nova_os_from_menu_keys(
         .unwrap_or(false);
     let escape = keys.just_pressed(KeyCode::Escape) || start;
     let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
-    let ctrl = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
+    let ctrl = control_held(&keys);
     // Ctrl+C / Ctrl+[ exit a running app back to the terminal (PoC's chord).
     let ctrl_exit =
         ctrl && (keys.just_pressed(KeyCode::KeyC) || keys.just_pressed(KeyCode::BracketLeft));
@@ -115,6 +123,7 @@ pub(crate) fn close_nova_os_from_menu_keys(
 pub(crate) fn handle_terminal_keyboard(
     mut keyboard: MessageReader<KeyboardInput>,
     pause: Res<State<PauseStates>>,
+    keys: Res<ButtonInput<KeyCode>>,
     log: Res<NovaOsFlightLog>,
     objectives: Res<GameObjectives>,
     q_player: Query<
@@ -264,6 +273,12 @@ pub(crate) fn handle_terminal_keyboard(
                         (scroll.0.y + delta).clamp(0.0, max_nova_os_scroll_y(computed_node));
                 }
             }
+            // A held Control makes this an app-exit / readline chord, owned by
+            // `close_nova_os_from_menu_keys`. Without the guard Ctrl+C, Ctrl+U,
+            // Ctrl+W, Ctrl+A and Ctrl+K all insert a literal character at the
+            // prompt. The chords themselves are not implemented - not typing the
+            // letter is the fix; kill-line and friends are their own change.
+            Key::Character(_) | Key::Space if control_held(&keys) => {}
             Key::Character(_) | Key::Space => {
                 if let Some(text) = &event.text {
                     terminal.insert_text(text);
@@ -352,7 +367,7 @@ pub(crate) fn handle_nova_os_app_keyboard(
     // ALL Ctrl+<key> presses from reaching apps, not just Ctrl+C/[; a future app
     // wanting its own Ctrl shortcut must revisit this guard (and the owner) so the
     // exit chord and the shortcut do not both fire on one press.
-    let ctrl_held = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
+    let ctrl_held = control_held(&keys);
     let live = match terminal.active_mode() {
         TerminalMode::App { id } if in_nova_os => Some(id),
         _ => None,

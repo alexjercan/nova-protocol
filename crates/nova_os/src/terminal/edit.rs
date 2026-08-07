@@ -4,7 +4,9 @@
 use bevy::prelude::*;
 
 use super::{
-    state::{NovaOsCommandInvocation, TerminalParseStatus, TerminalRow, TerminalRowKind},
+    state::{
+        parsed_prompt, NovaOsCommandInvocation, TerminalParseStatus, TerminalRow, TerminalRowKind,
+    },
     view::{command_help_rows, nova_os_version_rows, terminal_help_rows},
     NovaOsTerminal, TerminalCommandSnapshot, TerminalMode,
 };
@@ -14,6 +16,11 @@ use crate::shell::{
 };
 
 const NOVA_OS_PROMPT_PREFIX: &str = "nova> ";
+
+/// The most command lines the history keeps. Only `reset_session` ever clears
+/// it, so an unbounded history is both an unbounded allocation and an unusable
+/// Up-arrow: 200 repeats of `log` means 200 presses to reach anything else.
+const MAX_HISTORY: usize = 200;
 
 /// The semantic result of a [`NovaOsTerminal::submit`], so the bevy layer can
 /// pick the sound cue without the pure model knowing about audio.
@@ -102,11 +109,11 @@ impl NovaOsTerminal {
             return TerminalSubmitOutcome::Empty;
         }
 
-        self.scrollback.push(TerminalRow {
+        self.push_row(TerminalRow {
             kind: TerminalRowKind::Input,
             text: format!("{NOVA_OS_PROMPT_PREFIX}{command_line}"),
         });
-        self.history.push(command_line.clone());
+        self.push_history(command_line.clone());
         self.history_cursor = None;
         self.cycle_stem = None;
 
@@ -122,7 +129,7 @@ impl NovaOsTerminal {
                 dispatch: CommandDispatch::App,
                 ..
             } => {
-                self.scrollback.push(TerminalRow {
+                self.push_row(TerminalRow {
                     kind: TerminalRowKind::Info,
                     text: format!("launching {name} ..."),
                 });
@@ -146,23 +153,24 @@ impl NovaOsTerminal {
                 ..
             } => {
                 match output {
-                    CliOutput::Help => self.scrollback.extend(terminal_help_rows(&self.commands)),
-                    CliOutput::Version => self.scrollback.extend(nova_os_version_rows()),
+                    CliOutput::Help => {
+                        self.extend_scrollback(terminal_help_rows(&self.commands));
+                    }
+                    CliOutput::Version => self.extend_scrollback(nova_os_version_rows()),
                     CliOutput::Clear => self.reset_scrollback_to_welcome(snapshot),
                     CliOutput::Exit => self.pending_close = true,
                     // Snapshot commands (log/objectives/ship/map view) print the
                     // rows `nova_gameplay` placed under their name.
-                    CliOutput::Snapshot => self.scrollback.extend(snapshot.output(name)),
+                    CliOutput::Snapshot => self.extend_scrollback(snapshot.output(name)),
                 }
                 TerminalSubmitOutcome::Ran
             }
             ResolvedCommand::Usage { name } => {
-                self.scrollback
-                    .extend(command_help_rows(name, &self.commands));
+                self.extend_scrollback(command_help_rows(name, &self.commands));
                 TerminalSubmitOutcome::Ran
             }
             ResolvedCommand::Version => {
-                self.scrollback.extend(nova_os_version_rows());
+                self.extend_scrollback(nova_os_version_rows());
                 TerminalSubmitOutcome::Ran
             }
             ResolvedCommand::UnexpectedArguments {
@@ -176,7 +184,7 @@ impl NovaOsTerminal {
                 // (`map: unknown subcommand 'v'`). Otherwise it took an argument it
                 // does not accept (`help: takes no arguments`).
                 let subs = subcommands_of(&command, &self.commands);
-                self.scrollback.push(TerminalRow {
+                self.push_row(TerminalRow {
                     kind: TerminalRowKind::Error,
                     text: if subs.is_empty() {
                         format!("{command}: {}", arity.rejection())
@@ -185,8 +193,7 @@ impl NovaOsTerminal {
                         format!("{command}: unknown subcommand '{bad}'")
                     },
                 });
-                self.scrollback
-                    .extend(command_help_rows(&command, &self.commands));
+                self.extend_scrollback(command_help_rows(&command, &self.commands));
                 TerminalSubmitOutcome::Errored
             }
             ResolvedCommand::Unknown {
@@ -195,17 +202,17 @@ impl NovaOsTerminal {
             } => {
                 // Shell-style not-found: the error line, the optional did-you-mean,
                 // then a pointer back at `help` (a real shell points at its usage).
-                self.scrollback.push(TerminalRow {
+                self.push_row(TerminalRow {
                     kind: TerminalRowKind::Error,
                     text: format!("command not found: {command}"),
                 });
                 if let Some(suggestion) = suggestion {
-                    self.scrollback.push(TerminalRow {
+                    self.push_row(TerminalRow {
                         kind: TerminalRowKind::Warn,
                         text: format!("did you mean {suggestion}?"),
                     });
                 }
-                self.scrollback.push(TerminalRow {
+                self.push_row(TerminalRow {
                     kind: TerminalRowKind::Dim,
                     text: "Type 'help' for a list of commands.".to_string(),
                 });
@@ -239,7 +246,7 @@ impl NovaOsTerminal {
         // The first Tab on an ambiguous stem lists the candidates (PoC prints the
         // match row before jumping to the first match).
         if matches.len() > 1 && !cycling {
-            self.scrollback.push(TerminalRow {
+            self.push_row(TerminalRow {
                 kind: TerminalRowKind::Dim,
                 text: matches.join("   "),
             });
@@ -301,7 +308,25 @@ impl NovaOsTerminal {
                 }
             }
         }
+        // `arg_completions` is a `HashMap`, so the injected candidates arrive in a
+        // per-process random order and Tab would cycle differently between runs.
+        // Sorting is also what makes the dedup below a single pass.
+        matches.sort_unstable();
+        matches.dedup();
         matches
+    }
+
+    /// Record a submitted command line, skipping an immediate repeat and
+    /// dropping the oldest entries past [`MAX_HISTORY`].
+    fn push_history(&mut self, command_line: String) {
+        if self.history.last() == Some(&command_line) {
+            return;
+        }
+        self.history.push(command_line);
+        let excess = self.history.len().saturating_sub(MAX_HISTORY);
+        if excess > 0 {
+            self.history.drain(..excess);
+        }
     }
 
     /// Recall the previous command from history into the prompt.
@@ -335,7 +360,7 @@ impl NovaOsTerminal {
 
     /// Re-evaluate the prompt's parse status and completion hint.
     pub fn refresh_parse(&mut self) {
-        let trimmed = self.prompt.trim();
+        let trimmed = parsed_prompt(&self.prompt);
         if trimmed.is_empty() {
             self.parse_status = TerminalParseStatus::Empty;
             self.completion_hint = Some("type help".to_string());
@@ -412,6 +437,7 @@ mod tests {
     use crate::terminal::{
         fixtures::{app_spec, cli_spec, core_with, gameplay_spec, type_text},
         nova_os_welcome_rows, prompt_completion_ghost,
+        state::MAX_SCROLLBACK_ROWS,
     };
 
     #[test]
@@ -441,14 +467,14 @@ mod tests {
         type_text(&mut terminal, "help");
         terminal.submit(&TerminalCommandSnapshot::default());
         assert!(
-            terminal.scrollback.len() > nova_os_welcome_rows().len(),
+            terminal.scrollback().len() > nova_os_welcome_rows().len(),
             "help adds rows after the welcome block"
         );
 
         type_text(&mut terminal, "clear");
         terminal.submit(&TerminalCommandSnapshot::default());
 
-        assert_eq!(terminal.scrollback, nova_os_welcome_rows());
+        assert_eq!(terminal.scrollback(), nova_os_welcome_rows());
         assert_eq!(terminal.prompt, "");
         assert_eq!(terminal.completion_hint.as_deref(), Some("type help"));
     }
@@ -466,7 +492,7 @@ mod tests {
         terminal.submit(&TerminalCommandSnapshot::default());
         // Shell-style rows: the error line, the suggestion, then a pointer at help.
         let rows: Vec<(TerminalRowKind, &str)> = terminal
-            .scrollback
+            .scrollback()
             .iter()
             .map(|row| (row.kind, row.text.as_str()))
             .collect();
@@ -483,7 +509,7 @@ mod tests {
         type_text(&mut terminal, "xyzzy");
         terminal.submit(&TerminalCommandSnapshot::default());
         let rows: Vec<(TerminalRowKind, &str)> = terminal
-            .scrollback
+            .scrollback()
             .iter()
             .map(|row| (row.kind, row.text.as_str()))
             .collect();
@@ -510,14 +536,14 @@ mod tests {
         // block (so the player sees how to use it).
         assert!(
             terminal
-                .scrollback
+                .scrollback()
                 .iter()
                 .any(|row| row.text == "help: takes no arguments"),
             "the rejection names the command and reason",
         );
         assert!(
             terminal
-                .scrollback
+                .scrollback()
                 .iter()
                 .any(|row| row.text == "Usage: help"),
             "the rejection is followed by the command's usage",
@@ -526,12 +552,12 @@ mod tests {
         type_text(&mut terminal, "clear garbage");
         terminal.submit(&TerminalCommandSnapshot::default());
         assert!(
-            !terminal.scrollback.is_empty(),
+            !terminal.scrollback().is_empty(),
             "clear with unexpected arguments reports an error instead of clearing scrollback"
         );
         assert!(
             terminal
-                .scrollback
+                .scrollback()
                 .iter()
                 .any(|row| row.text == "clear: takes no arguments"),
             "clear rejects its argument with a reason",
@@ -579,7 +605,7 @@ mod tests {
         terminal.submit(&TerminalCommandSnapshot::default());
         assert!(
             terminal
-                .scrollback
+                .scrollback()
                 .iter()
                 .any(|row| row.text.starts_with("NOVA OS v")),
             "map version prints the NOVA OS version",
@@ -610,7 +636,7 @@ mod tests {
         // The echoed command line is in the scrollback (the result rows are the
         // gameplay layer's to append).
         assert!(terminal
-            .scrollback
+            .scrollback()
             .iter()
             .any(|row| row.text == "nova> ship repair HULL-3"));
     }
@@ -662,36 +688,143 @@ mod tests {
         ]));
         terminal.insert_text("sh");
 
-        // First Tab lists the matches and jumps to the first.
+        // First Tab lists the matches (sorted) and jumps to the first.
         assert!(terminal.complete());
         assert_eq!(
-            terminal.scrollback.last().map(|row| row.text.as_str()),
-            Some("ship   shield   shells"),
+            terminal.scrollback().last().map(|row| row.text.as_str()),
+            Some("shells   shield   ship"),
             "the first Tab on an ambiguous stem lists the matches",
         );
-        assert_eq!(terminal.prompt, "ship");
+        assert_eq!(terminal.prompt, "shells");
 
         // Repeat presses cycle through the rest, then wrap.
         terminal.complete();
         assert_eq!(terminal.prompt, "shield");
         terminal.complete();
-        assert_eq!(terminal.prompt, "shells");
+        assert_eq!(terminal.prompt, "ship");
         terminal.complete();
         assert_eq!(
-            terminal.prompt, "ship",
+            terminal.prompt, "shells",
             "cycling wraps back to the first match"
         );
 
         // The match list is printed once, not on every cycle press.
         let listings = terminal
-            .scrollback
+            .scrollback()
             .iter()
-            .filter(|row| row.text == "ship   shield   shells")
+            .filter(|row| row.text == "shells   shield   ship")
             .count();
         assert_eq!(listings, 1);
 
         // Any edit resets the cycle (PoC `resetCycle`).
         terminal.insert_text("x");
         assert!(terminal.cycle_stem.is_none(), "editing resets the cycle");
+    }
+
+    /// Injected argument candidates come out of a `HashMap`, so without an
+    /// explicit order the Tab cycle differs between processes. The matches are
+    /// sorted and deduplicated, so the same stem always cycles the same way.
+    #[test]
+    fn nova_os_completion_matches_are_sorted_and_deduplicated() {
+        let mut terminal = NovaOsTerminal::default();
+        terminal.set_commands(core_with([
+            app_spec("ship", ""),
+            gameplay_spec("ship repair"),
+        ]));
+        terminal.merge_arg_completions([(
+            "ship repair",
+            vec![
+                "PDC-1".to_string(),
+                "HULL-3".to_string(),
+                "HULL-1".to_string(),
+                // A duplicate candidate must not become a duplicate Tab stop.
+                "HULL-1".to_string(),
+            ],
+        )]);
+
+        let matches = terminal.completion_matches("ship repair ");
+        assert_eq!(
+            matches,
+            vec![
+                "ship repair HULL-1".to_string(),
+                "ship repair HULL-3".to_string(),
+                "ship repair PDC-1".to_string(),
+                // The universal sub-verbs are offered past the command name too.
+                "ship repair help".to_string(),
+                "ship repair version".to_string(),
+            ],
+        );
+    }
+
+    /// History is bounded and never records an immediate repeat, so Up-arrow
+    /// stays usable after a long session of the same command.
+    #[test]
+    fn nova_os_history_is_bounded_and_skips_repeats() {
+        let mut terminal = NovaOsTerminal::default();
+        for _ in 0..3 {
+            type_text(&mut terminal, "help");
+            terminal.submit(&TerminalCommandSnapshot::default());
+        }
+        assert_eq!(
+            terminal.history,
+            vec!["help".to_string()],
+            "a repeat of the last entry is not recorded again",
+        );
+
+        // Alternating lines are all distinct entries, so only the cap can trim.
+        for index in 0..MAX_HISTORY + 20 {
+            type_text(&mut terminal, &format!("help {index}"));
+            terminal.submit(&TerminalCommandSnapshot::default());
+        }
+        assert_eq!(terminal.history.len(), MAX_HISTORY);
+        assert_eq!(
+            terminal.history.last().map(String::as_str),
+            Some(format!("help {}", MAX_HISTORY + 19).as_str()),
+            "the newest entry survives; the oldest are dropped",
+        );
+    }
+
+    /// The scrollback is bounded, and its revision changes only when the ROWS
+    /// change - the UI rebuilds one entity per row off that counter, so a caret
+    /// move must not move it.
+    #[test]
+    fn nova_os_scrollback_is_bounded_and_revisioned() {
+        let mut terminal = NovaOsTerminal::default();
+        let before = terminal.scrollback_revision();
+        terminal.insert_text("help");
+        terminal.move_cursor_left();
+        assert_eq!(
+            terminal.scrollback_revision(),
+            before,
+            "prompt edits do not touch the scrollback",
+        );
+
+        terminal.submit(&TerminalCommandSnapshot::default());
+        assert_ne!(terminal.scrollback_revision(), before);
+
+        for index in 0..MAX_SCROLLBACK_ROWS {
+            terminal.extend_scrollback([TerminalRow {
+                kind: TerminalRowKind::Output,
+                text: format!("row {index}"),
+            }]);
+        }
+        assert_eq!(terminal.scrollback().len(), MAX_SCROLLBACK_ROWS);
+        assert_eq!(
+            terminal.scrollback().last().map(|row| row.text.as_str()),
+            Some(format!("row {}", MAX_SCROLLBACK_ROWS - 1).as_str()),
+            "the newest rows survive the cap",
+        );
+    }
+
+    /// A leading space is stripped by the parser, so the ghost must strip it too
+    /// (it greened the prompt with no completion behind it).
+    #[test]
+    fn nova_os_ghost_survives_a_leading_space() {
+        let mut terminal = NovaOsTerminal::default();
+        terminal.set_commands(core_with([app_spec("map", "Open the local-space map")]));
+        type_text(&mut terminal, " ma");
+
+        assert_eq!(terminal.parse_status, TerminalParseStatus::ValidPrefix);
+        assert_eq!(prompt_completion_ghost(&terminal), "p");
     }
 }

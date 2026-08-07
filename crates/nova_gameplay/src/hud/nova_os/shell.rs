@@ -2,7 +2,9 @@ use bevy::{prelude::*, ui_widgets::Activate};
 use nova_os::prelude::*;
 use nova_ui::{font::UiFont, theme};
 
-use super::{casing::*, components::*, content::*, sound::*, style::*};
+use super::{
+    casing::*, components::*, content::*, input::max_nova_os_scroll_y, sound::*, style::*,
+};
 use crate::{
     audio::{SoundBank, UiSfx, NOVA_OS_COIL_VOLUME},
     PauseStates,
@@ -341,10 +343,19 @@ pub(crate) fn rebuild_nova_os_footer_hints(
     }
 }
 
+/// Reconcile the terminal surface with [`NovaOsTerminal`]: respawn the scrollback
+/// rows when the rows changed, and refresh the four prompt-line texts. The
+/// resource is marked changed by every prompt edit - including caret movement,
+/// which changes nothing on screen - so the row loop is keyed on the scrollback's
+/// own revision instead, and the prompt writes go through `set_if_neq`. Rebuilding
+/// on the resource alone respawned every row on each keystroke.
 pub(crate) fn rebuild_terminal_ui(
     mut commands: Commands,
     terminal: Res<NovaOsTerminal>,
     ui_font: Option<Res<UiFont>>,
+    // A freshly spawned scrollback carries no rows, so it must rebuild whatever
+    // the `Local`s remember from the shell it replaced.
+    q_added: Query<(), Added<NovaOsTerminalScrollbackMarker>>,
     mut q_scrollback: Query<
         (Entity, Option<&Children>, &mut ScrollPosition),
         With<NovaOsTerminalScrollbackMarker>,
@@ -355,53 +366,97 @@ pub(crate) fn rebuild_terminal_ui(
         Query<(&mut Text, &mut TextColor), With<NovaOsTerminalHintMarker>>,
         Query<(&mut Text, &mut TextColor), With<NovaOsTerminalGhostMarker>>,
     )>,
-    // The scrollback length last time we rebuilt, so we only auto-scroll to the
-    // bottom when NEW output arrived. The terminal resource changes for many
-    // reasons (prompt edits, app-command mirroring, seen-events); pinning to the
-    // bottom on every one of those yanked a manual PageUp/wheel scroll straight
-    // back down (owner playtest).
+    // The scrollback revision and length last time we rebuilt. The length gates
+    // the auto-scroll, so we only pin to the bottom when NEW output arrived:
+    // pinning on every terminal change yanked a manual PageUp/wheel scroll
+    // straight back down (owner playtest).
+    mut last_revision: Local<Option<u64>>,
     mut last_len: Local<usize>,
 ) {
     let font = nova_os_font(ui_font.as_deref());
     if let Ok((list, children, mut scroll)) = q_scrollback.single_mut() {
-        if let Some(children) = children {
-            for &child in children {
-                commands.entity(child).despawn();
+        // `reset_session` (a respawned ship) rewinds the scrollback to the welcome
+        // rows while the `Local`s still hold the dead session's counts, which left
+        // auto-scroll dead for the next ~190 rows.
+        let just_spawned = !q_added.is_empty();
+        let revision = terminal.scrollback_revision();
+        if just_spawned || *last_revision != Some(revision) {
+            if let Some(children) = children {
+                for &child in children {
+                    commands.entity(child).despawn();
+                }
             }
-        }
-        commands.entity(list).with_children(|parent| {
-            for row in terminal.scrollback() {
-                spawn_terminal_row(parent, row, font.clone());
+            commands.entity(list).with_children(|parent| {
+                for row in terminal.scrollback() {
+                    spawn_terminal_row(parent, row, font.clone());
+                }
+            });
+            let len = terminal.scrollback().len();
+            let previous = if just_spawned { 0 } else { *last_len };
+            if len > previous {
+                // Request the bottom; `normalize_nova_os_scroll` turns this into
+                // the real maximum once layout has measured the new rows.
+                scroll.0.y = SCROLL_TO_BOTTOM;
             }
-        });
-        let len = terminal.scrollback().len();
-        if len > *last_len {
-            scroll.0.y = f32::MAX;
+            *last_len = len;
+            *last_revision = Some(revision);
         }
-        *last_len = len;
     }
 
     let prompt_color = prompt_color(&terminal);
     for (mut text, mut color) in &mut text_targets.p0() {
-        text.0 = prompt_before_cursor(&terminal);
-        color.0 = prompt_color;
+        set_text_if_neq(&mut text, prompt_before_cursor(&terminal));
+        color.set_if_neq(TextColor(prompt_color));
     }
     for (mut text, mut color) in &mut text_targets.p1() {
-        text.0 = prompt_after_cursor(&terminal);
-        color.0 = prompt_color;
+        set_text_if_neq(&mut text, prompt_after_cursor(&terminal));
+        color.set_if_neq(TextColor(prompt_color));
     }
     for (mut text, mut color) in &mut text_targets.p2() {
-        text.0 = prompt_hint_display(&terminal);
+        set_text_if_neq(&mut text, prompt_hint_display(&terminal));
         let hint_color = match terminal.parse_status() {
             TerminalParseStatus::Invalid => theme::semantic::THREAT,
             TerminalParseStatus::ValidPrefix => NOVA_OS_PHOSPHOR_MUTED,
             TerminalParseStatus::Empty | TerminalParseStatus::Valid => NOVA_OS_PHOSPHOR_DIM,
         };
-        color.0 = hint_color;
+        color.set_if_neq(TextColor(hint_color));
     }
     for (mut text, mut color) in &mut text_targets.p3() {
-        text.0 = prompt_completion_ghost(&terminal);
-        color.0 = NOVA_OS_TEXT.with_alpha(0.34);
+        set_text_if_neq(&mut text, prompt_completion_ghost(&terminal));
+        color.set_if_neq(TextColor(NOVA_OS_TEXT.with_alpha(0.34)));
+    }
+}
+
+/// The "scroll to the bottom" request written by [`rebuild_terminal_ui`]. Bevy
+/// clamps `ScrollPosition` during layout but writes the clamped value only into
+/// `ComputedNode`, so the request stays in the component until
+/// [`normalize_nova_os_scroll`] replaces it with the measured maximum.
+const SCROLL_TO_BOTTOM: f32 = f32::MAX;
+
+/// Replace a satisfied [`SCROLL_TO_BOTTOM`] request (and any other overshoot)
+/// with the real maximum, now that layout has measured the content. Without this
+/// the stored position stays `f32::MAX` for ever - `f32::MAX - page` is still
+/// `f32::MAX` - so the first PageUp after a command did nothing. Runs before the
+/// keyboard and wheel handlers so they subtract from a real number.
+pub(crate) fn normalize_nova_os_scroll(
+    mut q_panels: Query<(&mut ScrollPosition, &ComputedNode), With<NovaOsScrollViewportMarker>>,
+) {
+    for (mut scroll, computed_node) in &mut q_panels {
+        let clamped = scroll
+            .0
+            .y
+            .clamp(0.0, max_nova_os_scroll_y(Some(computed_node)));
+        if scroll.0.y != clamped {
+            scroll.0.y = clamped;
+        }
+    }
+}
+
+/// `Text` is not `PartialEq`, so `set_if_neq` cannot be used on it directly:
+/// compare the string and only then take the `DerefMut`.
+fn set_text_if_neq(text: &mut Mut<Text>, next: String) {
+    if text.0 != next {
+        text.0 = next;
     }
 }
 
@@ -438,8 +493,13 @@ pub(crate) fn position_nova_os_block_caret(
         return;
     };
     let width = before.size().x * before.inverse_scale_factor();
+    let left = Val::Px(width);
     for mut node in &mut q_caret {
-        node.left = Val::Px(width);
+        // Runs every frame the computer is open, so an unguarded write would mark
+        // the caret's `Node` changed - and re-lay out its parent - every frame.
+        if node.left != left {
+            node.left = left;
+        }
     }
 }
 

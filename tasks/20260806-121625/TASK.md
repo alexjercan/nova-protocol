@@ -403,71 +403,120 @@ in `notes/10-review-hud-nova-os.md` has to be re-derived after 14.3k lines
 shift. `hud/keybind_dock.rs` is the reference implementation - every fix here
 is "make the site look like keybind_dock".
 
-- [ ] F19 - add an `Added<NovaOsTerminalRootMarker>` override to
+- [x] F19 - add an `Added<NovaOsTerminalRootMarker>` override to
       `rebuild_terminal_ui` (`hud/nova_os/shell.rs:344,363`) so a just-spawned
       terminal treats `last_len` as 0. Its two siblings at `:288` and `:320`
       already carry it; `reset_session` leaves auto-scroll dead for ~190 rows.
-- [ ] F18 - replace the `f32::MAX` sentinel at `shell.rs:379` with a real clamp
+      **Keyed on `Added<NovaOsTerminalScrollbackMarker>`, not the root marker.**
+      The `Local`s belong to the scrollback list this system writes; the root
+      is a different entity and the two are not guaranteed to spawn on the
+      same frame.
+- [x] F18 - replace the `f32::MAX` sentinel at `shell.rs:379` with a real clamp
       at the point of writing. Bevy never writes the clamped value back, so
       PageUp after a command needs two presses.
-- [ ] F40 - rebuild scrollback rows only when `scrollback().len()` or the tail
+      The clamp cannot happen at the write: the new rows are spawned as
+      commands and have no `ComputedNode` until layout has run, so the maximum
+      is not yet knowable. `SCROLL_TO_BOTTOM` stays the request, and the new
+      `normalize_nova_os_scroll` converts it to the measured maximum, ordered
+      `.before()` both the keyboard and wheel handlers so they subtract from a
+      real number.
+- [x] F40 - rebuild scrollback rows only when `scrollback().len()` or the tail
       content changed; caret movement must not reach the row loop
       (`shell.rs:344`, 4,800 entities per 12 keystrokes today).
-- [ ] F40 - bound `scrollback` in `nova_os::Terminal`; nothing trims it today.
-- [ ] F40 - route the prompt/hint/ghost writes at `shell.rs:385-400` through
-      `set_if_neq`.
-- [ ] F39 - guard the `node.width`/`node.height` writes in
+      Done with a `scrollback_revision` counter on `NovaOsTerminal` rather than
+      a len/tail comparison: every mutation funnels through one private method,
+      so a rewrite in the middle of the buffer cannot slip past a tail check.
+- [x] F40 - bound `scrollback` in `nova_os::Terminal`; nothing trims it today.
+      `MAX_SCROLLBACK_ROWS = 500`. The field is now private, so the cap and the
+      revision cannot be bypassed by a new caller.
+- [x] F40 - route the prompt/hint/ghost writes at `shell.rs:385-400` through
+      `set_if_neq`. `Text` is not `PartialEq`, so those four go through a local
+      `set_text_if_neq`; the colours use `set_if_neq` directly.
+- [x] F39 - guard the `node.width`/`node.height` writes in
       `reconcile_nova_os_target` (`hud/nova_os/crt.rs:219`); its only gate lives
       from ship spawn to despawn, so it runs every frame while flying over a
-      subtree of hundreds of `Text` children.
-- [ ] F42 - guard `node.left` in `position_nova_os_block_caret`
+      subtree of hundreds of `Text` children. The `Visibility` write next to it
+      was unguarded too and is now `set_if_neq`.
+- [x] F42 - guard `node.left` in `position_nova_os_block_caret`
       (`shell.rs:442`).
-- [ ] F42 - guard the `TextColor`/`BorderColor`/`BackgroundColor` writes at
+- [x] F42 - guard the `TextColor`/`BorderColor`/`BackgroundColor` writes at
       `nova_os_ship/scene.rs:750,772`; the same function already guards its
       `Text` write two lines above.
-- [ ] F20 - key `play_safety_engaged_cue`'s `Local<bool>`
+- [x] F20 - key `play_safety_engaged_cue`'s `Local<bool>`
       (`audio/cues.rs:99`) on the ship `Entity`, or add an `Added<>` override.
       It is process-global today and contradicts its own doc at `:93`.
-- [ ] F75 - add `prune_dry_fire_state` for `play_dry_fire_cue`'s
+      Took the `Added<>` arm: the query reads `Ref<WeaponsHot>` and a component
+      that `is_added()` seeds `was_hot` from its own state instead of edging
+      against the dead ship's. Cheaper than a keyed map for a single player.
+- [x] F75 - add `prune_dry_fire_state` for `play_dry_fire_cue`'s
       `Local<HashMap<Entity, bool>>` (`audio/cues.rs:147`), modelled on
       `mixing.rs:195 prune_sfx_throttle`.
-- [ ] F15 - skip `Key::Character(_) | Key::Space` when Control is held at
+      **No separate system.** `prune_sfx_throttle` exists because the throttle
+      is keyed on sounds nothing else enumerates; this map is keyed on turrets
+      the cue already visits in full every frame, so the loop rebuilds it and
+      the live set is exact by construction. A second system would add a
+      schedule edge to re-derive what the first one already knows.
+- [x] F15 - skip `Key::Character(_) | Key::Space` when Control is held at
       `hud/nova_os/input.rs:267`, matching `handle_nova_os_app_keyboard`
       (`:355,:374`). Ctrl+C/U/W/A/K insert literal characters at the prompt
       today - the finding most likely to be hit by a real player.
-- [ ] F15 - add a shared `control_held(&KeyboardInput) -> bool`; three handlers
+- [x] F15 - add a shared `control_held(&KeyboardInput) -> bool`; three handlers
       now ask the same question. Implementing the chords themselves is OPTIONAL
       scope - decide and record.
-- [ ] F34 - route `ship_input` (`nova_os_ship/scene.rs:397`) through the app
+      Signature is `control_held(&ButtonInput<KeyCode>)`, not `&KeyboardInput`:
+      all three callers hold the resource and one of them (`ship_input`) has no
+      `KeyboardInput` at all. **The chords are DEFERRED.** Not typing the letter
+      is the whole defect; kill-line, kill-word and friends are a readline
+      feature with their own design surface (word boundaries, an undo/yank
+      buffer) and belong in their own task, not smuggled into a guard fix.
+- [x] F34 - route `ship_input` (`nova_os_ship/scene.rs:397`) through the app
       router's Control guard instead of raw `ButtonInput<KeyCode>`; Ctrl+[ both
       exits the app and cycles selection back.
-- [ ] F33 - give `prompt_completion_ghost` (`nova_os/terminal/view.rs:222`) and
+- [x] F33 - give `prompt_completion_ghost` (`nova_os/terminal/view.rs:222`) and
       `refresh_parse` (`edit.rs:338`) one shared accessor for "the prompt as
       parsed"; a leading space greens the prompt with no ghost.
-- [ ] F73 - collect, sort and dedup in `completion_matches`
+- [x] F73 - collect, sort and dedup in `completion_matches`
       (`edit.rs:293`); Tab-cycle order varies between processes today.
-- [ ] F74 - add `MAX_HISTORY = 200` at `edit.rs:109` and skip a submit equal to
+      This changes the authored cycle order of the existing Tab test, which is
+      the point: the old expectation was whatever the `HashMap` happened to
+      yield.
+- [x] F74 - add `MAX_HISTORY = 200` at `edit.rs:109` and skip a submit equal to
       the last entry.
-- [ ] F16 - change `return` to `continue` at `mesh/explode.rs:130` and `:144`,
+- [x] F16 - change `return` to `continue` at `mesh/explode.rs:130` and `:144`,
       and fix the second `error!` to name `mesh_entity`. One still-loading
       `Mesh3d` currently produces NO fragments and leaves a zero-health wreck
       lingering with its collider live.
-- [ ] F21 - add `silence_loops_on_scenario_unload` on `OnExit`
+- [x] F21 - add `silence_loops_on_scenario_unload` on `OnExit`
       (`audio/loops.rs:188,313`); loop sinks are session-persistent and the
       engine hum roars through the whole scenario load.
-- [ ] F23 - home `update_target_position`
+      On `OnExit(GameStates::Playing)`. It despawns the sink entities and
+      clears the smoothed volume maps - keeping the levels would bring the
+      respawned loops back at the volume they died at.
+- [x] F23 - home `update_target_position`
       (`torpedo_section/projectile.rs:37`) on `live_structure_anchor` rather
       than the target root's raw `Transform::translation`. `sections/mod.rs:38-43`
       states the rule and every other consumer follows it.
-- [ ] F41 - guard the unconditional `Text`/`TextColor` writes at
+- [x] F41 - guard the unconditional `Text`/`TextColor` writes at
       `nova_ui/src/status_bar.rs:196`. F46 and F51 are deletions in the SAME
       365-line untested file and wait for the baseline - read the file once and
       hold that commit for L5's window.
-- [ ] Assert change-detection, not just behavior: run two frames with no input
+      Guard landed here; F46/F51 untouched and still L5's.
+- [x] Assert change-detection, not just behavior: run two frames with no input
       and assert the component is not marked changed on the second.
-- [ ] DECIDE the L7 escape hatch: if L2's ratification drags, land F17's unit
+      `an_unchanged_status_item_is_not_rewritten` in `status_bar.rs` - the first
+      test in that 365-line file. It counts `Changed<Text>`/`Changed<TextColor>`
+      hits from a detector system chained after the reconciler; an out-of-schedule
+      `is_changed()` on an `EntityRef` compares against the world's stale
+      `last_change_tick` and passes either way (verified - the first draft of
+      this test passed with the guard removed).
+- [x] DECIDE the L7 escape hatch: if L2's ratification drags, land F17's unit
       conversion and F28's shrink clamp in place here (~10 lines, no file
       moved), or defer with reason. Owner's call.
+      **DEFERRED to L7.** The trigger is false: L2 ratified, ran and baselined
+      in full (`notes/18-benchmark-baseline.md`, findings B1-B6), so the hatch
+      it exists to open is not needed. Landing F17 here would also put a unit
+      fix on `max_nova_os_scroll_y` in the same commit that changes who calls
+      it, for no schedule gain.
 
 ### Lane05 - "DELETE THE DEAD AND LYING SURFACE" - tasks/20260806-121625/plan/lane05.md
 
@@ -1138,3 +1187,124 @@ The F09 ruling is worth carrying forward too. The plan's finding list was
 written from reading the code, and one of its premises was simply false about
 the library underneath. Re-deriving the mechanism before implementing a cap
 turned an unnecessary bound into a test that documents why none is needed.
+
+## Close-out - L4 (2026-08-08)
+
+### What and why
+
+L4 is behavior-only and NEUTRAL on the benchmark. Twenty-two findings across
+three concerns that share one shape: **a system that runs every frame, or holds
+state across a respawn, and does not check whether anything actually changed.**
+`hud/keybind_dock.rs` was the reference; every site here was made to look like
+it. The lane also had to land before L9 moves the NOVAOS seam, or all 22
+citations would need re-deriving against 14.3k shifted lines.
+
+| Concern | Findings |
+| --- | --- |
+| Unguarded per-frame writes | F39, F40, F41, F42 |
+| Stale `Local<T>` across a respawn | F19, F20, F75 |
+| Missing Control guards | F15, F34 |
+| Terminal model | F18, F33, F73, F74 |
+| Standalone | F16 (aborted explosion), F21 (loops through load), F23 (torpedo anchor) |
+
+**F40 drove the shape of the whole terminal change.** `rebuild_terminal_ui`
+despawned and respawned every scrollback row whenever `NovaOsTerminal` was
+marked changed, and every prompt edit goes through `ResMut`, so a caret keypress
+- which changes nothing on screen - respawned ~400 entities. The plan proposed
+comparing `scrollback().len()` and the tail. That is a heuristic: a rewrite in
+the middle of the buffer passes both checks. Instead `scrollback` became a
+private field with a `scrollback_revision` counter, and every mutation - push,
+extend, replace, the boot reveal, `clear`, `reset_session` - funnels through one
+private method that bumps the revision and applies `MAX_SCROLLBACK_ROWS`. The
+cap (F40's second half) and the revision are then unbypassable by a future
+caller, which a tail comparison in the UI layer would not be.
+
+**F18 could not be fixed where the plan said.** The sentinel is written right
+after the new rows are queued as commands, so those rows have no `ComputedNode`
+yet and the real maximum is not knowable at the write. `SCROLL_TO_BOTTOM` stays
+the request; the new `normalize_nova_os_scroll` runs `.before()` both the
+keyboard and the wheel handler and replaces any overshoot with the measured
+maximum, so PageUp always subtracts from a real number instead of from
+`f32::MAX`.
+
+### Alternatives considered
+
+- **F75 as a separate `prune_dry_fire_state` system** (what the plan asked for,
+  modelled on `prune_sfx_throttle`). Rejected. `prune_sfx_throttle` exists
+  because its map is keyed on sounds nothing else enumerates. This map is keyed
+  on turrets that `play_dry_fire_cue` already visits in full every frame, so
+  rebuilding it in the loop makes the live set exact by construction. A second
+  system would buy a schedule edge to re-derive what the first already knows.
+- **F20 keyed on the ship `Entity`** rather than an `Added<>` override. Rejected:
+  there is exactly one player ship, so a map would carry one entry and need its
+  own prune - the `Ref<WeaponsHot>::is_added()` arm is the same fix in one line.
+- **Implementing the readline chords under F15.** Deferred, recorded in the
+  step. Not typing a literal character is the whole defect; Ctrl+U/W/A/K are a
+  feature with their own design surface (word boundaries, a yank buffer).
+- **Opening the L7 escape hatch.** Declined: L2 ratified and baselined in full,
+  so the condition that would open it never occurred.
+
+### Difficulties and diagnosis
+
+**The first change-detection test passed against the unfixed code.** It asserted
+`entity.get_ref::<Text>().unwrap().is_changed()` after `app.update()`. Outside a
+system that compares the component tick against the world's `last_change_tick`,
+which the schedule leaves stale, so it read false whether or not the reconciler
+had written. Verified by deleting the guard and watching the test still pass.
+The working form is a detector system with `Changed<Text>` / `Changed<TextColor>`
+queries chained after the reconciler, counting hits into a resource: system-local
+`last_run` ticks are the only reliable frame boundary. It then failed correctly
+(2,2 vs 1,1) with the guards removed. **Any future "assert it did not change"
+test in this repo should use the detector-system form, not `is_changed()` on an
+`EntityRef`.**
+
+**F73 changed an existing test's expectations, correctly.** `completion_matches`
+iterated a `HashMap`, so `nova_os_tab_cycles_ambiguous_completions` had pinned
+whatever order that yielded on the authoring machine. Sorting made the authored
+order wrong and the new order right; the old assertion was never evidence of
+anything.
+
+**`git checkout <file>` cost a redo.** Reverting a probe edit on an uncommitted
+file discarded the real work in it too. Falsification passes on uncommitted work
+need a scratch copy, not a checkout.
+
+### Evidence
+
+- `cargo test -p nova_os --lib` - 24 passed, 0 failed.
+- `cargo test -p nova_ui --lib status_bar` - 1 passed. Fails (2,2 vs 1,1) with
+  the F41 guards removed.
+- `cargo test -p nova_gameplay --lib torpedo` - 76 passed, 0 failed, including
+  the new `torpedo_homes_on_the_live_structure_anchor`.
+- New tests: `an_unchanged_status_item_is_not_rewritten` (nova_ui - the first
+  test in that 365-line file), `torpedo_homes_on_the_live_structure_anchor`,
+  `nova_os_completion_matches_are_sorted_and_deduplicated`,
+  `nova_os_history_is_bounded_and_skips_repeats`,
+  `nova_os_scrollback_is_bounded_and_revisioned`,
+  `nova_os_ghost_survives_a_leading_space`.
+- `cargo check --workspace --all-targets` - exit 0.
+- `cargo fmt --all --check` - exit 0.
+- `probe run --all` at `826c8bb4` - **24/24 OK**, every example `6/7 measured`
+  (`fps_within_baseline` N/A, not claimed). Same 24 rows and the same per-row
+  shape as L1's and L3's landed runs. The lane touches the HUD reconcilers,
+  the audio cue/loop systems and the torpedo homing path; `screenshot_nova_os`,
+  `screenshot_ui`, `torpedo_section` and `screenshot_combat` all held.
+- Full suite and clippy: CI's job (`skip-local-tests-and-clippy`), per the
+  lane assumption in NOTES.
+
+### Reflection
+
+The lane's premise - "every fix is make the site look like keybind_dock" - held
+for the eight guard sites and broke for the three state sites. A guard is local
+and the reference implementation transfers directly. Stale `Local<T>` is not
+local: F19 needed a revision counter on a type in a different crate, and F40's
+cap had to move into the model to be unbypassable. **For the remaining lanes:
+when a plan step names a reference implementation, that is evidence the fix is
+local; when the fix needs a new field on a shared type, the reference has
+stopped applying and the step deserves re-reading.**
+
+The other carry-forward is that the plan's proof shape ("run two frames and
+assert not changed") named the right assertion but not the right mechanism, and
+the wrong mechanism was silently green. Behaviour tests fail loudly when wrong;
+change-detection tests fail silently. Every one of them should be run once
+against the unfixed code before it is trusted - which is what the DoD's
+fail-first rule already says, and which is cheap only if it is done at the time.

@@ -340,6 +340,26 @@ pub(super) fn pause_loops(
     }
 }
 
+/// Tear the loop sinks down when gameplay ends. The sink entities are session
+/// persistent (nothing despawns them with the ship) while their volume is only
+/// driven inside `SpaceshipSectionSystems`, which is gated on a live scenario -
+/// so between one scenario ending and the next becoming live, the last engine
+/// hum kept roaring at its final volume through the whole load. The smoothed
+/// levels go with them, or the respawned loops would come back at that volume.
+pub(super) fn silence_loops_on_scenario_unload(
+    mut commands: Commands,
+    mut hum: ResMut<ThrusterHumVolume>,
+    mut rcs: ResMut<RcsLoopVolume>,
+    q_thruster: Query<Entity, With<ThrusterLoopSfx>>,
+    q_rcs: Query<Entity, With<RcsLoopSfx>>,
+) {
+    for entity in q_thruster.iter().chain(&q_rcs) {
+        commands.entity(entity).despawn();
+    }
+    hum.hums.clear();
+    rcs.loops.clear();
+}
+
 pub(super) fn resume_loops(
     q_thruster: Query<&AudioSink, With<ThrusterLoopSfx>>,
     q_rcs: Query<&AudioSink, With<RcsLoopSfx>>,

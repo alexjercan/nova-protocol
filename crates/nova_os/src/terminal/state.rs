@@ -10,6 +10,11 @@ use bevy::prelude::*;
 use super::view::{nova_os_boot_banner_rows, nova_os_welcome_rows};
 use crate::{command::core_command_specs, shell::TerminalCommandSpec};
 
+/// The most scrollback rows the terminal keeps. The UI spawns one `Text` entity
+/// per row on every rebuild, so an unbounded scrollback is an unbounded entity
+/// count for a session that never ends; the oldest rows are dropped past this.
+pub const MAX_SCROLLBACK_ROWS: usize = 500;
+
 /// The NOVA OS command prompt: the typed line, its parse state and completion
 /// cycle, the rendered scrollback, the command history, and the boot-banner
 /// queue. `nova_gameplay` inserts this as a bevy `Resource`, drives it from the
@@ -19,7 +24,12 @@ use crate::{command::core_command_specs, shell::TerminalCommandSpec};
 pub struct NovaOsTerminal {
     pub(super) prompt: String,
     pub(super) cursor: usize,
-    pub(super) scrollback: Vec<TerminalRow>,
+    scrollback: Vec<TerminalRow>,
+    /// Bumped by every scrollback mutation. The UI rebuilds one `Text` entity per
+    /// row, so it needs to know when the ROWS changed rather than when anything on
+    /// the resource did - a caret move marks the whole resource changed and must
+    /// not reach the row loop.
+    scrollback_revision: u64,
     pub(super) history: Vec<String>,
     pub(super) history_cursor: Option<usize>,
     pub(super) completion_hint: Option<String>,
@@ -180,6 +190,7 @@ impl Default for NovaOsTerminal {
             prompt: String::new(),
             cursor: 0,
             scrollback: nova_os_welcome_rows(),
+            scrollback_revision: 0,
             history: Vec::new(),
             history_cursor: None,
             completion_hint: Some("type help".to_string()),
@@ -200,21 +211,66 @@ impl Default for NovaOsTerminal {
     }
 }
 
+/// How the parser strips a raw prompt line. The single definition behind
+/// [`NovaOsTerminal::parsed_prompt`]; `refresh_parse` calls it on the field
+/// directly because it writes the parse result back in the same statement.
+pub(super) fn parsed_prompt(prompt: &str) -> &str {
+    prompt.trim()
+}
+
 impl NovaOsTerminal {
     /// The rendered scrollback rows, oldest first.
     pub fn scrollback(&self) -> &[TerminalRow] {
         &self.scrollback
     }
 
+    /// A counter that changes exactly when the scrollback rows change. The UI
+    /// keys its row rebuild on this so prompt edits and caret moves - which mark
+    /// the whole resource changed - do not respawn every row.
+    pub fn scrollback_revision(&self) -> u64 {
+        self.scrollback_revision
+    }
+
     /// Append rows to the scrollback (e.g. an objective completion announced
     /// while the prompt is open).
     pub fn extend_scrollback(&mut self, rows: impl IntoIterator<Item = TerminalRow>) {
         self.scrollback.extend(rows);
+        self.after_scrollback_change();
+    }
+
+    /// Append one row to the scrollback.
+    pub(super) fn push_row(&mut self, row: TerminalRow) {
+        self.scrollback.push(row);
+        self.after_scrollback_change();
+    }
+
+    /// Replace the whole scrollback (the `clear` command and a session reset).
+    pub(super) fn replace_scrollback(&mut self, rows: Vec<TerminalRow>) {
+        self.scrollback = rows;
+        self.after_scrollback_change();
+    }
+
+    /// Bump the revision and drop the oldest rows past [`MAX_SCROLLBACK_ROWS`].
+    /// Every scrollback mutation ends here, so neither the cap nor the revision
+    /// can be bypassed by a new caller.
+    fn after_scrollback_change(&mut self) {
+        self.scrollback_revision = self.scrollback_revision.wrapping_add(1);
+        let excess = self.scrollback.len().saturating_sub(MAX_SCROLLBACK_ROWS);
+        if excess > 0 {
+            self.scrollback.drain(..excess);
+        }
     }
 
     /// The current prompt text.
     pub fn prompt(&self) -> &str {
         &self.prompt
+    }
+
+    /// The prompt as the parser sees it. Every reader of the parse result - the
+    /// status, the hint and the inline ghost - must strip the prompt the same way
+    /// the parse did, or a leading space greens the prompt with no ghost.
+    pub fn parsed_prompt(&self) -> &str {
+        parsed_prompt(&self.prompt)
     }
 
     /// The caret's byte offset within the prompt.
@@ -327,7 +383,7 @@ impl NovaOsTerminal {
     /// queue `rows` for [`Self::reveal_next_boot_row`] to reveal one-by-one.
     pub fn begin_boot(&mut self, rows: Vec<TerminalRow>) {
         self.booted = true;
-        self.scrollback.clear();
+        self.replace_scrollback(Vec::new());
         self.pending_rows = rows;
     }
 
@@ -343,7 +399,7 @@ impl NovaOsTerminal {
             return false;
         }
         let row = self.pending_rows.remove(0);
-        self.scrollback.push(row);
+        self.push_row(row);
         true
     }
 
@@ -357,8 +413,10 @@ impl NovaOsTerminal {
     /// Reprint the boot banner instantly (PoC `clear` -> `printBanner(true)`),
     /// including the current unread-events line from `snapshot`.
     pub(super) fn reset_scrollback_to_welcome(&mut self, snapshot: &TerminalCommandSnapshot) {
-        self.scrollback =
-            nova_os_boot_banner_rows(snapshot.unread_events, snapshot.unread_hook.clone());
+        self.replace_scrollback(nova_os_boot_banner_rows(
+            snapshot.unread_events,
+            snapshot.unread_hook.clone(),
+        ));
     }
 
     /// Return from an active app to the command terminal. The scrollback and
@@ -381,7 +439,7 @@ impl NovaOsTerminal {
     pub fn reset_session(&mut self) {
         self.prompt.clear();
         self.cursor = 0;
-        self.scrollback = nova_os_welcome_rows();
+        self.replace_scrollback(nova_os_welcome_rows());
         self.history.clear();
         self.history_cursor = None;
         self.cycle_stem = None;

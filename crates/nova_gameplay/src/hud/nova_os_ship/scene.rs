@@ -13,8 +13,8 @@ use nova_ui::font::UiFont;
 use super::{sections::*, *};
 use crate::{
     hud::nova_os::{
-        nova_os_font, nova_os_text_font, NOVA_OS_AMBER, NOVA_OS_PHOSPHOR, NOVA_OS_PHOSPHOR_MUTED,
-        NOVA_OS_SCREEN, NOVA_OS_TEXT,
+        control_held, nova_os_font, nova_os_text_font, NOVA_OS_AMBER, NOVA_OS_PHOSPHOR,
+        NOVA_OS_PHOSPHOR_MUTED, NOVA_OS_SCREEN, NOVA_OS_TEXT,
     },
     prelude::*,
 };
@@ -351,6 +351,14 @@ pub(crate) fn ship_input(
     let motion_delta: Vec2 = motion.read().map(|m| m.delta).sum();
     let wheel_delta: f32 = wheel.read().map(|w| w.y).sum();
     let dt = time.delta_secs().max(1.0 / 240.0);
+    // Reading `ButtonInput` directly bypasses `handle_nova_os_app_keyboard`, which
+    // withholds every key from the app while Control is held because that is the
+    // exit chord - so Ctrl+[ both exited the app and cycled the selection back.
+    // These two closures are the router's guard, applied to every key this app
+    // reads.
+    let app_owns_keys = !control_held(&keys);
+    let pressed = |key| app_owns_keys && keys.pressed(key);
+    let just_pressed = |key| app_owns_keys && keys.just_pressed(key);
 
     if let Some((_, remaining)) = runtime.note.as_mut() {
         *remaining -= dt;
@@ -361,16 +369,16 @@ pub(crate) fn ship_input(
 
     if let Ok(mut orbit) = q_camera.single_mut() {
         let turn = 1.6 * dt;
-        if keys.pressed(KeyCode::KeyQ) {
+        if pressed(KeyCode::KeyQ) {
             orbit.theta += turn;
         }
-        if keys.pressed(KeyCode::KeyE) {
+        if pressed(KeyCode::KeyE) {
             orbit.theta -= turn;
         }
-        if keys.pressed(KeyCode::KeyR) {
+        if pressed(KeyCode::KeyR) {
             orbit.phi = (orbit.phi + turn).min(1.45);
         }
-        if keys.pressed(KeyCode::KeyF) {
+        if pressed(KeyCode::KeyF) {
             orbit.phi = (orbit.phi - turn).max(0.12);
         }
         // Mouse drag orbits, RIGHT button ONLY. LMB is the blip-select click (the
@@ -392,8 +400,8 @@ pub(crate) fn ship_input(
         return;
     }
     // Cycle the selection with [ and ].
-    let forward = keys.just_pressed(KeyCode::BracketRight);
-    let backward = keys.just_pressed(KeyCode::BracketLeft);
+    let forward = just_pressed(KeyCode::BracketRight);
+    let backward = just_pressed(KeyCode::BracketLeft);
     if forward || backward {
         let current = runtime
             .selected
@@ -411,7 +419,7 @@ pub(crate) fn ship_input(
     // the single funnel for `[`/`]`, blip clicks, and the default selection: each
     // caller only sets `runtime.selected`, and the center chases it here.
     if let Ok(mut orbit) = q_camera.single_mut() {
-        if keys.just_pressed(KeyCode::KeyT) {
+        if just_pressed(KeyCode::KeyT) {
             // Reset re-frames the whole ship: restore the default angles and
             // retarget the center home. Consuming the current selection
             // (centered_on = selected) makes the reframe STICK - the change check
@@ -436,13 +444,13 @@ pub(crate) fn ship_input(
     // Actions on the selected section: L reload, P repair. Route through the same
     // message the panel buttons raise and the mutation handler applies.
     if let Some(sel) = runtime.selected {
-        if keys.just_pressed(KeyCode::KeyL) {
+        if just_pressed(KeyCode::KeyL) {
             commands.write(ShipSectionCommand {
                 target: sel,
                 action: ShipAction::Reload,
             });
         }
-        if keys.just_pressed(KeyCode::KeyP) {
+        if just_pressed(KeyCode::KeyP) {
             commands.write(ShipSectionCommand {
                 target: sel,
                 action: ShipAction::Repair,
@@ -755,7 +763,7 @@ pub(crate) fn update_ship_panel(
         if text.0 != *value {
             text.0 = value.clone();
         }
-        color.0 = tint;
+        color.set_if_neq(TextColor(tint));
     }
 
     for (button, mut border, mut background) in &mut q_button {
@@ -768,8 +776,11 @@ pub(crate) fn update_ship_panel(
         } else {
             (NOVA_OS_PHOSPHOR_MUTED.with_alpha(0.35), NOVA_OS_SCREEN)
         };
-        *border = BorderColor::all(border_color);
-        background.0 = background_color;
+        // Runs every frame the app owns the screen, so both writes are guarded
+        // like the `Text` write above: an unguarded colour write marks the node
+        // changed and re-uploads its UI batch each frame.
+        border.set_if_neq(BorderColor::all(border_color));
+        background.set_if_neq(BackgroundColor(background_color));
     }
 }
 

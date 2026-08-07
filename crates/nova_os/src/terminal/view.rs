@@ -215,11 +215,13 @@ pub fn prompt_completion_ghost(terminal: &NovaOsTerminal) -> String {
     }
     // On a valid prefix `completion_hint` holds the full command name the input is
     // completing toward (built-in or app launch word, single- or multi-word); the
-    // ghost is the suffix past what has been typed.
+    // ghost is the suffix past what has been typed. Stripping the PARSED prompt,
+    // not the raw one, is what keeps a leading space from greening the prompt
+    // with no ghost behind it.
     terminal
         .completion_hint
         .as_deref()
-        .and_then(|name| name.strip_prefix(terminal.prompt.as_str()))
+        .and_then(|name| name.strip_prefix(terminal.parsed_prompt()))
         .unwrap_or_default()
         .to_string()
 }
@@ -244,7 +246,7 @@ mod tests {
 
         // The default terminal carries only the core builtins; app commands (and
         // their subcommands like `map view`) appear once their tree is registered.
-        let help_rows = &terminal.scrollback[nova_os_welcome_rows().len() + 1..];
+        let help_rows = &terminal.scrollback()[nova_os_welcome_rows().len() + 1..];
         assert_eq!(
             help_rows,
             &[
@@ -302,7 +304,7 @@ mod tests {
         type_text(&mut terminal, "help");
         terminal.submit(&TerminalCommandSnapshot::default());
         let listed: Vec<String> = terminal
-            .scrollback
+            .scrollback()
             .iter()
             .filter_map(|row| {
                 let trimmed = row.text.trim_start();
@@ -353,7 +355,7 @@ mod tests {
         type_text(&mut terminal, "help");
         terminal.submit(&TerminalCommandSnapshot::default());
         let listed: Vec<String> = terminal
-            .scrollback
+            .scrollback()
             .iter()
             .filter_map(|row| {
                 let trimmed = row.text.trim_start();
@@ -381,7 +383,7 @@ mod tests {
         type_text(&mut terminal, "map help");
         terminal.submit(&TerminalCommandSnapshot::default());
         let text = |t: &NovaOsTerminal| {
-            t.scrollback
+            t.scrollback()
                 .iter()
                 .map(|row| row.text.clone())
                 .collect::<Vec<_>>()
@@ -395,7 +397,7 @@ mod tests {
         assert!(out.contains("Subcommands:"), "{out}");
         assert!(
             terminal
-                .scrollback
+                .scrollback()
                 .iter()
                 .any(|row| row.text == "  map view  Print local-space contacts"),
             "{out}",
@@ -406,7 +408,7 @@ mod tests {
         terminal.submit(&TerminalCommandSnapshot::default());
         assert!(
             terminal
-                .scrollback
+                .scrollback()
                 .iter()
                 .any(|row| row.text == "map: unknown subcommand 'v'"),
             "map v names the bad sub-command",
@@ -417,7 +419,7 @@ mod tests {
         terminal.submit(&TerminalCommandSnapshot::default());
         assert!(
             terminal
-                .scrollback
+                .scrollback()
                 .iter()
                 .any(|row| row.text.starts_with("NOVA OS v")),
             "version prints the NOVA OS version",
@@ -457,7 +459,7 @@ mod tests {
             type_text(terminal, line);
             terminal.submit(&TerminalCommandSnapshot::default());
             let rows = terminal
-                .scrollback
+                .scrollback()
                 .iter()
                 .map(|row| row.text.clone())
                 .collect::<Vec<_>>();
