@@ -530,6 +530,7 @@ fn freeze_spawn_com(
     *previous = Some((root, com.0));
 }
 
+#[cfg(feature = "debug")]
 /// Live COM (world), attached-section centroid (world), and the ship root's
 /// GlobalTransform.
 fn com_snapshot(world: &World) -> Option<(Vec3, Vec3, GlobalTransform)> {
@@ -542,6 +543,7 @@ fn com_snapshot(world: &World) -> Option<(Vec3, Vec3, GlobalTransform)> {
     (total > 0.0).then(|| (world_com, acc / total, root_gt))
 }
 
+#[cfg(feature = "debug")]
 /// Mass-weighted position sum and total density of the sections still attached
 /// to `root`, in world space.
 fn attached_section_moment(world: &World, root: Entity) -> Option<(Vec3, f32)> {
@@ -559,6 +561,7 @@ fn attached_section_moment(world: &World, root: Entity) -> Option<(Vec3, f32)> {
     Some((acc, total))
 }
 
+#[cfg(feature = "debug")]
 /// The chase camera's orbit anchor, if a chase camera is up.
 fn camera_anchor(world: &World) -> Option<Vec3> {
     world
@@ -570,7 +573,10 @@ fn camera_anchor(world: &World) -> Option<Vec3> {
 
 /// RED = avian's live COM, GREEN = attached-section centroid, GRAY = the
 /// spawn-time COM carried along with the hull.
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "one query per center-of-mass gizmo input"
+)]
 fn draw_com_gizmos(
     mut gizmos: Gizmos,
     spawn_com: Res<SpawnLocalCom>,
@@ -617,7 +623,10 @@ fn draw_com_gizmos(
 }
 
 /// One status line per second: live mass and the COM-vs-centroid distance.
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "one query term per logged mass quantity"
+)]
 fn log_com_status(
     time: Res<Time>,
     mut last: Local<f32>,

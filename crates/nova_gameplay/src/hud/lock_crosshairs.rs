@@ -244,7 +244,6 @@ fn drive_travel_crosshair(
 /// identical for both slots: name + distance read as clutter, and
 /// combat/travel behaving differently read as a bug; the target's name lives
 /// on the inset viewfinder's faction line and the readout.
-#[allow(clippy::type_complexity)]
 fn drive_radar_candidate(
     q_player: Query<
         (

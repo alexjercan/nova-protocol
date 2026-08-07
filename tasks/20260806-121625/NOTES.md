@@ -554,3 +554,61 @@ trait's write method.
 | A `cast_*` truncation cleanup pass | 37 of clippy's 51 "real signal" hits. Sampled from two directions - clippy-side and grep-side - and every float-to-int cast read was clamped within 2 lines, several with a comment naming the reason. Measured clean. |
 | Fixing the clippy style bucket (`map_unwrap_or` 190, `suboptimal_flops` 205, `wildcard_imports` 47, ...) in this epic | These are "is this our house style?" questions, which is what the CONVENTIONS workstream exists to answer. Route the list there; each candidate rule arrives with a free violation count from the 2026-08-07 run. |
 | Deriving CONVENTIONS rules from what "sounds like good Rust" | Two independent sweeps measured the suspected patterns - `as` casts, float equality, division by zero, unwrap/panic as a class, unbounded indexing, duplicate system registrations, dead `pub` items - and found **0 genuinely bad** in nearly all of them. A rule adopted without a violation count will land on a clean codebase and produce only false positives. |
+
+## L0 - what `--features debug` actually builds (F79, and half of F52)
+
+Measured 2026-08-07 while gating the 11 dead default-feature example items.
+F52 (L5) is the same question from the crate side; do not re-derive this half.
+
+The feature is declared in **six** crates and fans out from `nova_core`:
+
+| Crate | `debug =` |
+| --- | --- |
+| root | `nova_core/debug`, `bevy/track_location`; `dev` is an alias |
+| `nova_core` | `nova_debug` (optional dep), `bevy/track_location`, `nova_editor/debug`, `nova_gameplay/debug`, `nova_info/debug`, `nova_menu/debug` |
+| `nova_assets` / `nova_editor` / `nova_menu` | `bevy/track_location`, `nova_gameplay/debug` - pure forwarders, 0 `cfg` sites |
+| `nova_gameplay` | `bevy/track_location` - the only crate with real `cfg` sites (13) |
+| `nova_info` | `[]` - **a dead flag.** 0 sites, forwards nothing |
+
+`nova_debug` declares no feature at all: it is "debug-gated" by being an
+optional dependency of `nova_core`, while hard-forcing `nova_gameplay/debug` in
+its own manifest.
+
+**Where the sites actually are.** 402 of the 421 `cfg(feature = "debug")` sites
+in the tree are in `examples/` - 24 of 26 example files. The library total is
+19 (gameplay 13, core 4, probe 1, root `main.rs` 4 for `--norender`/
+`--debugdump`). So `debug` is overwhelmingly an EXAMPLE-harness switch, not a
+game switch, which is the shape F52 has to explain.
+
+**Why the default-features CI job was needed at all.** Root lists `nova_debug`
+as an unconditional dev-dependency, so every `cargo test` and every probe run
+already compiles the debug graph. Nothing in the previous CI ever built the
+examples with the feature OFF, and 11 items had rotted into that gap
+undetected: 8 constants, 2 functions, 1 enum variant, plus 1 unused import.
+
+**One item was not a clean gate.** `controller_section.rs`'s `Layout::B` is
+constructed only under `debug` but pattern-matched in two ungated places, so it
+needs the attribute on the variant, on its `match` arm, and on the `if
+matches!` that pushes the off-axis hull. That last gate makes `ship_sections`
+non-`mut` without the feature, hence the `cfg_attr(not(debug), expect(
+unused_mut))` beside it. A cleaner fix is to stop threading `Layout` through
+`attitude_rig` at all - out of scope here; note it for whoever touches the file.
+
+## L0 - F80 measured, and the plan's count was wrong twice
+
+The plan said 38 sites with 2 known-stale. Measured: **37** sites, and
+converting all 37 to `#[expect(clippy::type_complexity, reason = "...")]` made
+clippy report **12** unfulfilled expectations, not 2.
+
+That is the whole argument for the rule, made on its first use: the two the
+plan nominated by eye were `ammo_readout.rs:325` and `:510`, and only `:510`
+was actually stale. `:325` is live. Ten more were dead and nobody had spotted
+them. The 12 deleted:
+
+`nova_ui/widget/panel.rs`, `nova_scenario/render_scale.rs`,
+`nova_gameplay/audio/loops.rs`, `hud/ammo_readout.rs:510`,
+`hud/component_lock.rs`, `hud/lock_crosshairs.rs`, `hud/nova_os/crt.rs` (x2),
+`hud/nova_os_map/scene.rs` (x2), `hud/nova_os_ship/scene.rs`,
+`hud/turret_lead.rs`.
+
+25 conversions survive, plus the 4 pre-existing `#[expect]` sites = 29.

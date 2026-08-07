@@ -462,7 +462,7 @@ fn health_color(fraction: f32) -> Color {
 /// closing line, a target without `Health` hides the bar. With no lock the
 /// readout is not updated at all - it is a child of the reticle indicator,
 /// which the widget already hides.
-#[allow(clippy::type_complexity)]
+#[expect(clippy::type_complexity, reason = "one query per readout part")]
 fn update_target_readout(
     ship: Single<
         (&GlobalTransform, Option<&LinearVelocity>, &CombatLock),

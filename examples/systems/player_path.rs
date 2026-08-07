@@ -47,6 +47,7 @@ struct Cli;
 
 const SCENARIO_ID: &str = "playable_run";
 
+#[cfg(feature = "debug")]
 /// How many times the script plays the whole gesture chain, each round after
 /// the first re-entered through a scenario reload. Two, not more: every round
 /// is a real flight leg driven through the input pipeline, and under llvmpipe

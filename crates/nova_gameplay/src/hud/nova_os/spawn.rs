@@ -689,7 +689,10 @@ pub(crate) fn spawn_nova_os_footer(parent: &mut ChildSpawnerCommands, font: Hand
 }
 
 /// Despawn the NOVA OS shell when the player ship goes away.
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "one Or term per NOVA OS part the teardown despawns"
+)]
 pub(crate) fn remove_nova_os(
     _remove: On<Remove, PlayerSpaceshipMarker>,
     mut commands: Commands,

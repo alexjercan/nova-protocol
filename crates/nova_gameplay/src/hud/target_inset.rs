@@ -503,7 +503,10 @@ enum InsetPanelState {
 /// the explosion fragments, then close. A fresh framable lock preempts the
 /// linger instantly; hiding the HUD chrome tears everything down at once.
 /// Presentation-only: no lock/safety/turret state is touched.
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "disjoint anchor/player/camera queries need explicit Without filters"
+)]
 fn drive_inset_camera(
     mut commands: Commands,
     time: Res<Time>,
@@ -671,7 +674,10 @@ fn drive_inset_camera(
 /// RICH surface the information the retired reticle relation-tint carried.
 /// The gesture-time name+distance caption is gone (it read as clutter);
 /// distance rides the radar box next to the bracket instead.
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "disjoint frame/tick queries need explicit Without filters"
+)]
 fn drive_inset_frame_state(
     q_player: Query<
         (Option<&Allegiance>, &WeaponsHot, &CombatLock),

@@ -62,55 +62,74 @@ not re-derive it.
 
 Blocks the baseline, lands BEFORE it. First commit of the epic.
 
-- [ ] Rewrite the `nova_modding` row in `AGENTS.md` - bundle merge, portal
+- [x] Rewrite the `nova_modding` row in `AGENTS.md` - bundle merge, portal
       client and downloads all live in `nova_assets`; name what `nova_modding`
       actually owns.
-- [ ] Reword `AGENTS.md:102` so the `nova_events` line reads as the
+- [x] Reword `AGENTS.md:102` so the `nova_events` line reads as the
       scenario/modding vocabulary, not a general no-direct-coupling mandate.
-- [ ] Add the LOC share to the `AGENTS.md` crate table so `nova_gameplay` being
-      half the workspace is visible.
-- [ ] Write repo-root `CONVENTIONS.md`: 12 imperative `##` rules, one real
+- [x] Add the LOC share to the `AGENTS.md` crate table so `nova_gameplay` being
+      half the workspace is visible. Landed as a percentage share (54%) of the
+      142,845 `crates/*/src` lines, and the table is now ordered by it.
+- [x] Write repo-root `CONVENTIONS.md`: 12 imperative `##` rules, one real
       in-repo snippet and one or two sentences of rationale each, 120-150 lines.
       A rewrite of `CONVENTIONS.md` in this task folder, never a copy.
-- [ ] Add the `## Tools that would undo these conventions` section
+      **175 lines, not 150.** Twelve rules each carrying a snippet plus
+      rationale, and the two mandated closing sections, do not fit 150 without
+      dropping required content. Two tightening passes took it from 194.
+- [x] Add the `## Tools that would undo these conventions` section
       (`wildcard_imports`, `redundant_pub_crate`, `needless_pass_by_value`,
       pedantic/nursery).
-- [ ] Add the `## Not yet true` section: rule 3 (80 sites, L5/L7/L8/L9/L10),
+- [x] Add the `## Not yet true` section: rule 3 (80 sites, L5/L7/L8/L9/L10),
       rule 4 (36, with rule 3), rule 10 (84, L9 per seam), rule 1 (28, L5).
-- [ ] Shrink `AGENTS.md`'s `## Code rules` to a pointer at the new file.
-- [ ] F79 - add `#[cfg(feature = "debug")]` to the 11 dead items in
+- [x] Shrink `AGENTS.md`'s `## Code rules` to a pointer at the new file.
+- [x] F79 - add `#[cfg(feature = "debug")]` to the 11 dead items in
       `examples/sections/hull_section.rs:535,547,563`,
       `torpedo_section.rs:69,349`, `controller_section.rs:64`,
       `screenshots/screenshot_combat.rs:128,134`,
       `screenshot_sections.rs:199`, `systems/player_path.rs:55`,
       `sections/many_sections.rs:37`. No body changes.
-- [ ] Record in NOTES what `--features debug` actually builds while doing F79 -
+      Two corrections to the plan, both from the compiler: the last file is
+      `examples/stress/many_sections.rs` (an unused IMPORT, not a dead item),
+      and `controller_section.rs:64` is the `Layout::B` variant, whose two
+      ungated pattern uses and one `unused_mut` had to be gated with it.
+- [x] Record in NOTES what `--features debug` actually builds while doing F79 -
       F52 in L5 is the same investigation from the other end.
-- [ ] F80 - convert the 38 `#[allow(clippy::type_complexity)]` sites to
+- [x] F80 - convert the 38 `#[allow(clippy::type_complexity)]` sites to
       `#[expect(clippy::type_complexity, reason = "...")]`, modelled on
       `hints.rs:200` and `keybind_dock.rs:569,737,790`.
-- [ ] Delete rather than convert the two known-stale suppressions at
+      **37 sites, not 38.**
+- [x] Delete rather than convert the two known-stale suppressions at
       `ammo_readout.rs:325` and `ammo_readout.rs:510`.
-- [ ] Gate `crates/nova_probe/src/report.rs` behind
+      **Wrong on both counts, corrected on evidence.** All 37 were converted,
+      then clippy reported **12** unfulfilled expectations. `:510` is stale;
+      `:325` is NOT. The 12 measured-stale sites were deleted, 25 conversions
+      survive. Detail in NOTES.
+- [x] Gate `crates/nova_probe/src/report.rs` behind
       `#[cfg(not(target_arch = "wasm32"))]` beside its siblings at
       `lib.rs:82-109`. No code inside `report.rs` changes.
-- [ ] `MOVE tasks/20260806-121625/benchmark/` to `<root>/benchmark/`.
-- [ ] Replace the hardcoded `^tasks/` filter in `benchmark/sandbox.sh:38-42`
+- [x] `MOVE tasks/20260806-121625/benchmark/` to `<root>/benchmark/`.
+- [x] Replace the hardcoded `^tasks/` filter in `benchmark/sandbox.sh:38-42`
       `repo_files()` with one named exclusion list covering `tasks/` AND
       `benchmark/` - the single chokepoint for both the tar copy and `TREE.txt`.
-- [ ] `.gitignore benchmark/results/`, keeping `aggregate.json`,
-      `aggregate.csv` and `report.html` tracked.
-- [ ] Run `./sandbox.sh build tree` and inspect `TREE.txt` - zero `benchmark/`
+- [x] `.gitignore benchmark/results/`, keeping `aggregate.json`,
+      `aggregate.csv` and `report.html` tracked. The 9 already-committed
+      transcript/payload files under `results/smoke/` were `git rm --cached`ed,
+      or the new ignore would have been inert on them.
+- [x] Run `./sandbox.sh build tree` and inspect `TREE.txt` - zero `benchmark/`
       paths. A wrong exclusion ships `keys/tier1.json` inside `blind`'s image
-      and fails silently.
-- [ ] Add `-D warnings` to the clippy step at `.github/workflows/ci.yaml:70`.
+      and fails silently. 950 lines, 0 `^benchmark/`, 0 `^tasks/`, 0 `keys/`.
+- [x] Add `-D warnings` to the clippy step at `.github/workflows/ci.yaml:70`.
       Free today - 0 warnings measured at that configuration.
-- [ ] Add the default-features CI job (`cargo check --workspace --all-targets`)
-      AFTER F79 has landed.
-- [ ] Add the wasm CI job (`cargo check --workspace --target
+- [x] Add the default-features CI job (`cargo check --workspace --all-targets`)
+      AFTER F79 has landed. `-D warnings` arrives via `RUSTFLAGS`; `cargo
+      check` takes no `-- <flags>`.
+- [x] Add the wasm CI job (`cargo check --workspace --target
       wasm32-unknown-unknown`) AFTER the `report.rs` gate has landed.
-- [ ] Re-read `AGENTS.md` against `notes/02-workspace-map.md` and confirm every
-      row is true.
+- [x] Re-read `AGENTS.md` against `notes/02-workspace-map.md` and confirm every
+      row is true. Two further rows were wrong and were fixed: `nova_ui` has
+      zero `nova_*` deps (not just "must not depend on `nova_os`"), and
+      `nova_modding` re-exports four named `nova_mod_format` items, not the
+      crate wholesale as the note claims.
 
 ### Lane01 - "UNBLIND THE PROBE GATE" - tasks/20260806-121625/plan/lane01.md
 
@@ -776,3 +795,123 @@ check, so its evidence is only meaningful once the gate is trustworthy.
   verification is the evidence each lane needs to land, not a coverage push.
 - Never hand-edit `assets/base/**/*.content.ron`; F57 regenerates it via the
   builders plus `content -- gen`, in its own commit.
+
+## Close-out - L0 (2026-08-07)
+
+### What and why
+
+L0 is the epic's first commit and lands before the benchmark baseline because
+every item changes what the baseline measures: the docs a persona reads, the
+file list a persona is given, and the CI configuration every later lane is
+graded by.
+
+Three groups, one commit:
+
+| Group | Change |
+| --- | --- |
+| The map | `AGENTS.md` crate table re-ordered by LOC share with 5 wrong or misleading rows fixed; the `nova_events` line reworded to say it is the modding vocabulary; `## Code rules` reduced to a pointer |
+| The style | new repo-root `CONVENTIONS.md`, a 175-line rewrite of the 655-line evidence record in this task folder |
+| The gates | `-D warnings` on clippy, plus default-features and wasm32 `cargo check` jobs, plus the two source fixes (F79, the `report.rs` wasm gate) those jobs would otherwise fail on, plus F80 |
+
+The benchmark moved to `<root>/benchmark/` in the same commit because
+`TREE.txt` is a persona's entire information channel and its contents are
+decided by `repo_files()`.
+
+### Alternatives considered
+
+- **Copying the task-folder `CONVENTIONS.md` to the root.** Rejected by the
+  plan and it was right: the 655-line file is an evidence record (violation
+  counts, counter-example file lists, rejected proposals, the owner's
+  `RULED 2026-08-07` annotations). None of that is what a contributor needs at
+  the root, and the two files now have different jobs.
+- **A second clippy pass for default features and wasm** instead of two `check`
+  jobs. Rejected on cost: clippy would pay a near-full second build for lint
+  coverage of `cfg(not(feature = "debug"))` branches, when what was actually
+  missing was rustc's own `dead_code`/`unused_imports` in two never-built
+  configurations. `check` under `RUSTFLAGS=-D warnings` buys that for less.
+- **Deleting the 37 `#[allow(clippy::type_complexity)]` outright** rather than
+  converting them. They suppress a lint the workspace already allows, so
+  deletion is behaviour-identical and shorter. Rejected: `#[expect]` re-enables
+  the lint at the site, which is what turns each one into a claim that fails
+  when it stops being true. The conversion immediately proved its own worth.
+- **Reworking `attitude_rig` to stop threading `Layout`** so `Layout::B` could
+  be gated cleanly. Out of scope for a lane whose F79 brief says "no body
+  changes"; noted in NOTES for whoever next touches the file.
+
+### Difficulties and diagnosis
+
+**The plan's F80 counts were wrong, and the mechanism found it.** The plan said
+38 sites with 2 stale by eye. Measurement: 37 sites, and after converting all
+37, clippy reported **12** unfulfilled expectations. Of the plan's two named
+candidates only one (`ammo_readout.rs:510`) was actually stale; `:325` is live.
+Diagnosis was free - convert everything, let `unfulfilled_lint_expectations`
+adjudicate, delete what it flags. This is rule 8's argument demonstrated on its
+first use.
+
+**Two of F79's eleven sites were mis-specified.** `sections/many_sections.rs:37`
+is `stress/many_sections.rs:37` and is an unused *import*, not a dead item.
+`controller_section.rs:64` is the `Layout::B` enum variant, which is
+constructed only under `debug` but pattern-matched in two ungated places, so
+the attribute had to go on the variant, on its `match` arm, and on the `if
+matches!` that pushes the off-axis hull. Gating that `if` then made
+`ship_sections` non-`mut` without the feature - caught only by running the new
+CI job locally, which is the argument for the job.
+
+**`cargo check` rejects `-- -D warnings`.** The plan wrote both new jobs in
+clippy's flag form. `RUSTFLAGS` is the working equivalent.
+
+**The `.gitignore` alone would have been inert.** Nine transcript and payload
+files under `results/smoke/` were already tracked, and gitignore does not
+untrack. They were `git rm --cached`ed; the three rollups stay.
+
+### Evidence
+
+Fail-first, measured on the tree before any edit:
+
+| Configuration | Before | After |
+| --- | --- | --- |
+| `cargo check --workspace --all-targets` | **11 warnings** (8 const, 2 fn, 1 variant, 1 unused import) | 0, exit 0 under `RUSTFLAGS=-D warnings` |
+| `cargo check --workspace --target wasm32-unknown-unknown` | **7 warnings**, all from `report.rs` | 0, exit 0 under `RUSTFLAGS=-D warnings` |
+| `cargo clippy --workspace --all-targets --features debug -- -D warnings` | 0 | 0, exit 0 |
+| `#[expect(clippy::type_complexity)]` unfulfilled | n/a | **12 found, 12 deleted**; 25 conversions + 4 pre-existing survive |
+
+Also run:
+
+- `cargo fmt --check` - clean.
+- `cd benchmark && ./sandbox.sh build tree && ./sandbox.sh inspect tree` -
+  `TREE.txt` is 950 lines with **0** `^benchmark/`, **0** `^tasks/` and **0**
+  `keys/` paths. The single `benchmark` string in the file is its own header
+  sentence. (DoD proof 6.)
+- `cd web && npm run ci` - compiled successfully, after updating the now-stale
+  CI paragraph in `web/src/wiki/dev/development.md`.
+- `probe run controller_section` - the one example where live control flow was
+  gated. **OK, 5/6** (fps not armed): `run_completed` at frame 657,
+  `reached_playing` at frame 30, 0 invariant violations over 657 frames,
+  0 offending log lines.
+- `AGENTS.md` re-read row by row against `notes/02-workspace-map.md` and against
+  the tree. Every crate row's claim was checked against a real path.
+  (DoD proof 11.)
+
+Not run and not applicable to L0: DoD proofs 2 (`gh run list` - needs the push),
+3, 4, 5, 7, 8 (later lanes), and 10 (`grep -c 'Not yet true' CONVENTIONS.md`
+must be **0** only at the epic's LAST commit; today it is 1, deliberately).
+
+### Reflection
+
+The lane's own thesis - that a refactor silently produces dead code and stale
+suppressions, and that CI should report both - was confirmed before the lane
+finished. The tree already held 11 dead example items and 12 stale
+suppressions, accumulated with no refactor in progress at all. Both classes
+were invisible because no CI configuration ever built them.
+
+The transferable lesson is about the shape of the audit, not the counts: the
+plan's hand-counted numbers (38 sites, 2 stale) were produced by an agent
+reading files, and were wrong in both directions. The numbers that survived
+came from making the compiler answer. Where a lane can be phrased as "turn on
+the check and delete what it flags", phrase it that way; the by-eye version
+costs the same and is wrong.
+
+One thing to carry into L5: `CONVENTIONS.md` overshot its 120-150 line budget
+by 17% because twelve rules with a snippet and rationale each have a floor of
+about twelve lines apiece. A future line budget for a rules document should be
+set from `rules x 12 + sections`, not chosen first.

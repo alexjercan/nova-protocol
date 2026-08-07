@@ -171,7 +171,10 @@ pub(crate) fn sync_ship_arg_completions(
 /// `SectionAmmo`, so the `&mut` health/ammo queries it also holds do not conflict
 /// (a `ShipSections` here would read those components immutably and deadlock the
 /// scheduler); integrity/ammo are read back through the mutable queries' `get`.
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "one query term per section field the CLI prints"
+)]
 pub(crate) fn apply_ship_cli_commands(
     mut terminal: ResMut<NovaOsTerminal>,
     q_player: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,

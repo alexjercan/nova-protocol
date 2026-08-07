@@ -80,7 +80,10 @@ fn ai_torpedo_envelope(to_target: Vec3, forward: Vec3, blast_radius: f32) -> boo
 /// torpedo spent on the cover between the bay and the target. Per bay: the
 /// launch cadence elapsed and the envelope ([`ai_torpedo_envelope`]) open
 /// from the ship's anchor.
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "one query per torpedo-bay lifecycle stage"
+)]
 pub(super) fn update_torpedo_section_input(
     time: Res<Time>,
     mut commands: Commands,

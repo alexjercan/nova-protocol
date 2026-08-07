@@ -100,7 +100,10 @@ fn cycle_order(sections: &mut [(Entity, Vec3)]) {
 /// Maintain the component fine-lock: valid only while focused on the locked
 /// ship and while the section stays attached; a pin expires by deadline or
 /// with its section; snap follows the crosshair ray otherwise.
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "one query term per component-lock input"
+)]
 pub(super) fn update_component_lock(
     time: Res<Time>,
     q_sections: Query<(Entity, &ChildOf, &GlobalTransform), With<SectionMarker>>,

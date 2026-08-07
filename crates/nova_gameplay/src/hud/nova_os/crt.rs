@@ -171,7 +171,6 @@ pub(crate) fn nova_os_new_target_image(size: UVec2) -> Image {
 /// content root sized to match, so window resizes / relayouts never show a
 /// stretched frame (mirrors `render_scale.rs`). Deactivate the offscreen pass and
 /// hide the content while the NOVA OS is fully closed so it costs nothing.
-#[allow(clippy::type_complexity)]
 pub(crate) fn reconcile_nova_os_target(
     rtt: Option<Res<NovaOsRtt>>,
     mut images: ResMut<Assets<Image>>,
@@ -237,7 +236,6 @@ pub(crate) fn reconcile_nova_os_target(
 /// displays with, fed the same uniforms - so the pointer lands on the thing the
 /// player sees under the cursor. NOTE: applying the barrel INVERSE, or skipping
 /// the overscan, puts clicks up to 27 px from their target at the screen corners.
-#[allow(clippy::type_complexity)]
 pub(crate) fn forward_nova_os_pointer(
     rtt: Option<Res<NovaOsRtt>>,
     windows: Query<&Window, With<bevy::window::PrimaryWindow>>,

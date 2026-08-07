@@ -120,7 +120,6 @@ fn drive_pip_hot_tint(
 /// system rather than add/remove observers: turret sections can be destroyed
 /// mid-fight and ships can gain their sections after the player marker, and
 /// one idempotent pass covers every ordering without observer choreography.
-#[allow(clippy::type_complexity)]
 fn sync_turret_pips(
     mut commands: Commands,
     q_layer: Query<Entity, With<TurretLeadHudMarker>>,

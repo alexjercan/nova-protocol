@@ -130,7 +130,10 @@ fn pick_ai_target(
 /// hostile ship root or committed hostile torpedo inside acquisition range
 /// is a candidate; [`pick_ai_target`] scores them. Runs first in the AI
 /// chain - acquisition drives engagement, so a ship in `Idle` still scans.
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "one query term per target-selection input"
+)]
 pub(super) fn update_ai_target(
     q_candidates: Query<(
         Entity,
@@ -245,7 +248,10 @@ fn pick_point_defense_target(
 /// torpedoes inside point-defense range, preferring ones whose
 /// [`TorpedoTargetEntity`] is this ship. Runs right after primary
 /// acquisition; the turret systems consume the override the same frame.
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "one query term per point-defense target input"
+)]
 pub(super) fn update_point_defense_target(
     q_torpedoes: Query<
         (

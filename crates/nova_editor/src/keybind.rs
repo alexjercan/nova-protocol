@@ -97,7 +97,10 @@ pub(crate) fn sync_section_keybind_labels(
 /// WASD camera moves). If labels ever need to track fast motion exactly, move
 /// this to `PostUpdate` after transform propagation (and mind bevy_ui layout
 /// ordering, as `screen_indicator` does).
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "one optional binding component per section kind"
+)]
 pub(crate) fn position_section_keybind_labels(
     rebind: Res<EditorRebind>,
     camera: Single<(&Camera, &GlobalTransform), With<WASDCameraController>>,

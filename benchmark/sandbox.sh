@@ -29,15 +29,25 @@ COMMIT="$(git -C "$REPO" rev-parse --short HEAD)"
 say() { printf '  %s\n' "$*"; }
 die() { echo "sandbox.sh: $*" >&2; exit 1; }
 
-# `tasks/` never enters any image. After the refactor it holds records naming
-# exactly what moved, which would answer most of tier 1 outright.
+# Directories that never enter any image, and the single chokepoint that drops
+# them. `tasks/` holds records naming exactly what moved, which would answer
+# most of tier 1 outright; `benchmark/` holds this harness, its question sets
+# and `keys/`, so shipping it would hand a persona the answer key.
 #
+# Both the tar payload and TREE.txt go through `repo_files`, so one list covers
+# both. Do NOT add a second filter anywhere downstream.
+EXCLUDED_PREFIXES=(tasks/ benchmark/)
+
 # The file set is git's, not find's: tracked files plus untracked ones git would
 # not ignore. That is what a fresh clone shows. A hand-maintained prune list
 # would drift, and drift here silently changes what the benchmark measures.
 repo_files() {
+    local prefix filter=''
+    for prefix in "${EXCLUDED_PREFIXES[@]}"; do
+        filter+="${filter:+|}^${prefix}"
+    done
     git -C "$REPO" ls-files --cached --others --exclude-standard "$@" \
-        | grep -v '^tasks/' \
+        | grep -Ev "$filter" \
         | LC_ALL=C sort
 }
 
@@ -81,8 +91,8 @@ stage_tree() {
     {
         echo "# Nova Protocol - file listing"
         echo "# Every file a fresh clone has (git-tracked plus non-ignored),"
-        echo "# minus tasks/. Names only. No file contents exist in this"
-        echo "# sandbox; there is nothing else to open."
+        echo "# minus tasks/ and benchmark/. Names only. No file contents exist"
+        echo "# in this sandbox; there is nothing else to open."
         echo
         repo_files
     } > "$p/TREE.txt"

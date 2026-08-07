@@ -441,7 +441,10 @@ fn indicator_size(
 /// hides the node), project through the [`ScreenIndicatorCamera`], size the
 /// node, apply the pixel offset, and apply the off-screen policy including
 /// the direction arrow.
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "one query term per anchor placement input"
+)]
 fn update_screen_indicators(
     mut q_indicator: Query<
         (

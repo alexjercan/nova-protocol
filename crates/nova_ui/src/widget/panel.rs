@@ -69,7 +69,6 @@ fn panel_paint(skin: UiSkin) -> (Color, Color, BoxShadow, BackgroundGradient) {
 pub struct PanelSkin;
 
 /// Restyle LIVE panels on a `UiSkin` change (and paint just-spawned ones).
-#[allow(clippy::type_complexity)]
 pub(super) fn reconcile_panel_skins(
     skin: Res<UiSkin>,
     mut commands: Commands,

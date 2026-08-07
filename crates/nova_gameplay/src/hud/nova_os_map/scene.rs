@@ -155,7 +155,6 @@ pub(crate) fn manage_map_scene(
 
 /// Keep the offscreen image sized 1:1 to the viewport node and the camera pass
 /// active; patch the viewport `ImageNode` with the RTT handle.
-#[allow(clippy::type_complexity)]
 pub(crate) fn reconcile_map_target(
     runtime: Res<MapRuntime>,
     mut images: Option<ResMut<Assets<Image>>>,
@@ -387,7 +386,6 @@ pub(crate) fn map_input(
 
 /// Project each contact through the map camera into the viewport and keep a
 /// clickable UI blip per contact in sync (position, color, selection ring).
-#[allow(clippy::type_complexity)]
 pub(crate) fn project_map_blips(
     mut commands: Commands,
     mut runtime: ResMut<MapRuntime>,

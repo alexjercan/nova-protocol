@@ -123,9 +123,11 @@ const RAIDER_ID: &str = "hollow_raider";
 /// Where it appears: dead ahead of the parked player, far enough back that the
 /// frame has depth between the two hulls, close enough that the target reads.
 const RAIDER_POSITION: Vec3 = Vec3::new(0.0, 0.6, -34.0);
+#[cfg(feature = "debug")]
 /// The raider section the scripted blow takes off - a forward hull cube on the
 /// camera's side of the ship, so the fragments and the hole are both in frame.
 const RAIDER_BLOWN_SECTION: &str = "racer_cube_i0_j0_km2";
+#[cfg(feature = "debug")]
 /// The section the torpedo beat takes off, on the raider's upper deck where a
 /// blast arriving from above lands. A torpedo alone will NOT do this: the fuze
 /// goes 15 units out, and 100 blast damage with falloff at half the blast radius

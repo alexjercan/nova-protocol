@@ -61,6 +61,7 @@ enum Layout {
     /// Controller + one hull, in a line along +Z.
     A,
     /// Layout A plus a hull mounted beside the first one, off the +Z axis.
+    #[cfg(feature = "debug")]
     B,
 }
 
@@ -70,6 +71,7 @@ impl Layout {
     fn scenario_id(self) -> &'static str {
         match self {
             Layout::A => "controller_rig_a",
+            #[cfg(feature = "debug")]
             Layout::B => "controller_rig_b",
         }
     }
@@ -255,10 +257,16 @@ fn attitude_rig(
         modifications: vec![],
     };
 
+    // Only layout B pushes onto this, and layout B is debug-only.
+    #[cfg_attr(
+        not(feature = "debug"),
+        expect(unused_mut, reason = "the only push is behind `debug`")
+    )]
     let mut ship_sections = vec![
         at("controller", "basic_controller_section", Vec3::ZERO),
         at("hull", "reinforced_hull_section", Vec3::new(0.0, 0.0, 1.0)),
     ];
+    #[cfg(feature = "debug")]
     if matches!(layout, Layout::B) {
         // Mounted BESIDE the first hull (adjacent, so the structure stays
         // connected) rather than behind it: an off-axis mass moves the

@@ -189,6 +189,7 @@ fn section_ship(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
     }
 }
 
+#[cfg(feature = "debug")]
 /// Where the camera stands, as a direction from the section it is framing.
 ///
 /// Picked off the rig in `shared/kit.rs`, not off the ship: the key comes from

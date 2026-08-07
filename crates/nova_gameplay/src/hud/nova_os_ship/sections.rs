@@ -69,7 +69,10 @@ pub(crate) fn kind_index(kind: SectionDamageClass) -> usize {
 /// deferred spawn inside the ship-root `Add` observer
 /// (`require-default-lands-after-root-add-observer`). Existing codes are never
 /// reassigned; a newly appearing section takes the next free index for its kind.
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "one query term per section kind the code assignment reads"
+)]
 pub(crate) fn assign_section_codes(
     mut commands: Commands,
     q_player: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,

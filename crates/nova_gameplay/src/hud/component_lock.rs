@@ -103,7 +103,6 @@ impl Plugin for ComponentLockHudPlugin {
 /// focus dwell is complete, and none otherwise. A reconcile system, like the
 /// turret pips: sections die mid-fight and the lock/focus state changes
 /// freely, and one idempotent pass covers every ordering.
-#[allow(clippy::type_complexity)]
 fn sync_component_markers(
     mut commands: Commands,
     q_ship: Query<(&CombatLock, &LockFocus), With<PlayerSpaceshipMarker>>,

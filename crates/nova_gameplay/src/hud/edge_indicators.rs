@@ -255,7 +255,10 @@ fn arrow_color(kind: EdgeIndicatorKind) -> Color {
 /// kind change (a candidate becomes the lock) respawns the indicator - it
 /// is a different pointer, and lock switches are rare enough that the churn
 /// is irrelevant.
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "one query per indicated entity kind"
+)]
 fn sync_edge_indicators(
     mut commands: Commands,
     q_layer: Query<Entity, With<EdgeIndicatorsHudMarker>>,
@@ -318,7 +321,10 @@ fn sync_edge_indicators(
 /// edge. The widget owns the ARROW's visibility (Inherited while clamped,
 /// Hidden on-screen); the label follows it, and its text is the straight-
 /// line distance from the player ship, `{:.0}m` like the lock readout.
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "disjoint arrow/label queries need explicit Without filters"
+)]
 fn update_edge_labels(
     q_player: Query<&GlobalTransform, With<PlayerSpaceshipMarker>>,
     q_indicators: Query<(&EdgeIndicatorTarget, &Children), With<EdgeIndicatorMarker>>,

@@ -97,7 +97,6 @@ struct RenderScaleUpscaleSprite;
 /// Reconcile the render-scale setup against the current [`GraphicsBudget`] and
 /// window size. Idempotent: it only mutates on a real diff, so any ordering of
 /// quality changes, scenario (re)loads and window resizes converges.
-#[allow(clippy::type_complexity)]
 fn reconcile_render_scale(
     mut commands: Commands,
     budget: Res<GraphicsBudget>,

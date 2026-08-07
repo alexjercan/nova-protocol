@@ -139,6 +139,9 @@ pub mod recorder {
     /// No-op on wasm.
     pub fn probe_marker(_world: &mut World, _name: &str, _data: serde_json::Value) {}
 }
+// The HTML run report writes files and is read only by the native bin and by
+// `aggregate`, so it is native-only with them.
+#[cfg(not(target_arch = "wasm32"))]
 pub mod report;
 pub mod stats;
 

@@ -427,7 +427,10 @@ pub(super) fn button_on_interaction<E: EntityEvent, C: Component>(
 /// otherwise paint only the just-spawned ones (`Added<ThemedButton>`, an
 /// override that must defer past the deferred-spawn flush - hence a SYSTEM, not
 /// an `Add` observer - per lesson mode-keyed-reconciler-just-spawned-override).
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "one query term per button visual state"
+)]
 pub(super) fn reconcile_button_skins(
     skin: Res<UiSkin>,
     mut commands: Commands,

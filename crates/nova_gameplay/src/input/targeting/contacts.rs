@@ -164,7 +164,10 @@ pub(super) fn collect_lockable(
 /// when a hostile target turns non-hostile, tick the [`CombatDecay`] idle
 /// clock, and maintain the ranked hostile [`ThreatContacts`]
 /// for the edge indicators.
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "one query term per contact and lock input"
+)]
 pub(super) fn update_contacts_and_locks(
     time: Res<Time>,
     look_ray: ActiveLookRay,

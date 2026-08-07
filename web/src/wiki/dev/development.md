@@ -818,12 +818,19 @@ The everyday loop for landing a change:
    isolated unit test.
 4. **Open a PR.** CI (`.github/workflows/ci.yaml`) runs on every PR and push to
    `master`: `cargo fmt --check`, `cargo clippy --workspace --all-targets
-   --features debug`, `cargo test --workspace --features debug`, then the
-   windowed `probe run --all` sweep under Xvfb/lavapipe, plus a
-   dependency-license gate. All of it must be green to merge.
+   --features debug -- -D warnings`, `cargo test --workspace --features debug`,
+   then the windowed `probe run --all` sweep under Xvfb/lavapipe. Three more
+   jobs run in parallel with that one: a default-features
+   `cargo check --workspace --all-targets`, a
+   `cargo check --workspace --target wasm32-unknown-unknown`, and a
+   dependency-license gate. The two `check` jobs run under `RUSTFLAGS=-D
+   warnings` and exist to catch dead code and unused imports that only appear
+   with `debug` off or on wasm - neither configuration is otherwise built. All
+   of it must be green to merge.
 
-Commit messages are plain and use ASCII punctuation only. Releases are a
-separate, tagged flow (see [Cutting a release](#cutting-a-release)).
+Rust house style is [`CONVENTIONS.md`](https://github.com/alexjercan/nova-protocol/blob/master/CONVENTIONS.md)
+at the repo root. Commit messages are plain and use ASCII punctuation only.
+Releases are a separate, tagged flow (see [Cutting a release](#cutting-a-release)).
 
 ## Task tracking
 

@@ -63,6 +63,7 @@ const CROSSER_ID: &str = "crosser";
 /// The scenario id the gate scene loads under.
 const RANGE_ID: &str = "torpedo_range";
 
+#[cfg(feature = "debug")]
 /// The scenario id the crossing scene loads under. DISTINCT from [`RANGE_ID`]
 /// so the script's scene-change gate can observe WHICH scene is live rather
 /// than guessing from world contents.
@@ -340,6 +341,7 @@ fn torpedo_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
     }
 }
 
+#[cfg(feature = "debug")]
 /// Scene 2: the crossing range - the same ship against ONE target crossing
 /// laterally, fast, some way ahead. This is the scene built to answer one
 /// question the gate scene cannot: does the torpedo LEAD a mover?

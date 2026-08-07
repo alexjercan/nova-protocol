@@ -92,7 +92,10 @@ pub(super) fn list_row_on_interaction<E: EntityEvent, C: Component>(
 
 /// Restyle LIVE list rows on a `UiSkin` change, and paint just-spawned rows
 /// (`Added<ListRow>`) - the same override the button reconciler uses.
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "one query per skin input plus the just-added set"
+)]
 pub(super) fn reconcile_list_row_skins(
     skin: Res<UiSkin>,
     mut q: Query<

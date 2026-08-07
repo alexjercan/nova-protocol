@@ -34,6 +34,7 @@
 //! cargo run -p nova_probe -- run many_sections --fps --release
 //! ```
 
+#[cfg(feature = "debug")]
 use avian3d::prelude::{ComputedCenterOfMass, ComputedMass};
 use bevy::prelude::*;
 use clap::Parser;

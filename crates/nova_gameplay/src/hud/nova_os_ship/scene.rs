@@ -278,7 +278,6 @@ pub(crate) fn manage_ship_scene(
 
 /// Keep the offscreen image sized 1:1 to the viewport node and patch the image
 /// handle onto the viewport.
-#[allow(clippy::type_complexity)]
 pub(crate) fn reconcile_ship_target(
     runtime: Res<ShipRuntime>,
     mut images: Option<ResMut<Assets<Image>>>,

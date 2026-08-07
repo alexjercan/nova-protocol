@@ -261,7 +261,10 @@ pub fn shipped_acks() -> Vec<BalanceAck> {
 /// Split `(bundle, finding)` pairs into (active, acked) under `acks`, and
 /// return the stale acks (matched nothing). Only WARN-grade findings can
 /// match an ack; every stale ack must be surfaced by the caller.
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "the three partitions are the return contract"
+)]
 pub fn partition_findings(
     findings: Vec<(String, BalanceFinding)>,
     acks: &[BalanceAck],

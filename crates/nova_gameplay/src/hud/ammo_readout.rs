@@ -322,7 +322,10 @@ fn spawn_torpedo_readout(commands: &mut Commands, layer: Entity, torpedo: Entity
 /// player marker, and a section can lose its ammo component, so one idempotent
 /// pass covers every ordering. Sections without `SectionAmmo` (infinite ammo)
 /// never match, so they draw nothing.
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "one query per weapon kind plus the readout layer"
+)]
 fn sync_ammo_readouts(
     mut commands: Commands,
     q_layer: Query<Entity, With<AmmoReadoutHudMarker>>,
@@ -507,7 +510,6 @@ fn drive_ammo_readouts(
 /// while [`AmmoReadoutDebug`] is on. Debug-only: compiled out of release builds
 /// so the exact count is never a gameplay affordance.
 #[cfg(feature = "debug")]
-#[allow(clippy::type_complexity)]
 fn drive_ammo_readout_numbers(
     debug: Res<AmmoReadoutDebug>,
     q_readouts: Query<(&AmmoReadoutSection, &Children), With<AmmoReadoutMarker>>,

@@ -154,7 +154,10 @@ fn owning_section(
 /// allegiance gate happen here, once per mesh; the actual material clone is
 /// deferred to `resolve_pending_tints` so a not-yet-loaded asset does not drop
 /// the mesh.
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "the Added filter carries its own Without guards"
+)]
 fn mark_section_meshes(
     mut commands: Commands,
     q_new: Query<

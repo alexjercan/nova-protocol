@@ -127,7 +127,6 @@ pub(super) fn compute_thruster_hum_volume(
     // contributes to no hum. Resolving here is idempotent (the asset server
     // dedups by path), so thrusters authoring the same ref share one handle and
     // one loop entity.
-    #[allow(clippy::type_complexity)]
     let mut per_pair: HashMap<(Handle<AudioSource>, Entity), (f32, u32)> = HashMap::new();
     for (thruster, input, loop_sound) in &q_thrusters {
         let Some(handle) = loop_sound.0.as_ref().map(|r| r.resolve(&asset_server)) else {

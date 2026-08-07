@@ -63,11 +63,16 @@ jobs:
       # One clippy pass, workspace-wide, with the debug feature on. `debug`
       # fans out to every crate's debug feature (nova_debug has none - it IS
       # the debug tooling - and cargo is fine with that), so this lints the
-      # debug-gated code too. A second default-features pass would only add
-      # coverage of `cfg(not(feature = "debug"))` branches (one trivial one
-      # exists) and costs a near-full second check build on 2 cores.
+      # debug-gated code too. The default-features and wasm gaps are covered by
+      # the two cheap `check` jobs below rather than by a second clippy pass,
+      # which would cost a near-full second build on 2 cores.
+      #
+      # `-D warnings` is what makes this a gate rather than a report, and it is
+      # what catches the unused imports and dead code a refactor leaves behind.
+      # It also promotes `unfulfilled_lint_expectations`, so a stale
+      # `#[expect(..)]` fails here - see CONVENTIONS.md rule 8.
       - name: Clippy
-        run: cargo clippy --workspace --all-targets --features debug
+        run: cargo clippy --workspace --all-targets --features debug -- -D warnings
 
       # Every crate's tests, with the same feature set the smoke examples use.
       # That feature match is the whole point: `debug` flips bevy/track_location,
@@ -135,6 +140,57 @@ jobs:
         env:
           RUST_BACKTRACE: full
         run: xvfb-run --auto-servernum cargo test -p nova_autopilot --test autopilot_example
+
+  # The two configurations the `check` job above cannot see, each a plain
+  # `cargo check` rather than a clippy pass: they exist to catch dead code and
+  # unused imports that only appear OUTSIDE `--features debug` on the host
+  # target, which is precisely what a large refactor produces. They run in
+  # parallel with the 60-minute gate above, so they cost no wall clock.
+  #
+  # Neither shares a build with `check`: `debug` flips bevy/track_location, and
+  # wasm is a different target, so both would pay a full build inside that job
+  # anyway. Separate jobs at least parallelise it.
+  default-features:
+    name: check / default features
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      # Build-tier deps only. Nothing here opens a window or renders, so the
+      # runtime tier (Vulkan, mesa, Xvfb) the probe sweep needs is not required.
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      # --all-targets is load-bearing: the dead items this catches live in
+      # examples/, which a bare `cargo check` never compiles.
+      - name: Check default features
+        env:
+          RUSTFLAGS: -D warnings
+        run: cargo check --workspace --all-targets
+
+  wasm:
+    name: check / wasm32
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install wasm target
+        run: rustup target add wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      # No --all-targets: the examples are native harnesses and do not build
+      # for wasm. This checks the lib graph the trunk bundle actually ships,
+      # where an ungated host-only module shows up as dead code.
+      - name: Check wasm32
+        env:
+          RUSTFLAGS: -D warnings
+        run: cargo check --workspace --target wasm32-unknown-unknown
 
   # The dependency-license gate. The shipped manifest
   # (credits/THIRD-PARTY-LICENSES.md) is GENERATED at build/release time, not

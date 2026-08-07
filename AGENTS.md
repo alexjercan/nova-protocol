@@ -13,25 +13,29 @@ Start here:
 Root crate: CLI entry and `nova_core` re-export. Main assembly:
 `crates/nova_core/src/lib.rs` -> `AppBuilder`.
 
-| Crate | Handles |
-| --- | --- |
-| `nova_core` | Plugin assembly. Start here. |
-| `nova_gameplay` | Sections, integrity, input, HUD, targeting, flight, AI, camera, NOVA OS UI bridges, `GameStates`. |
-| `nova_os` | Terminal model, shell, app runtime. No UI ownership. |
-| `nova_scenario` | Actions, events, filters, variables, objects, content lint. |
-| `nova_assets` | Assets, content builders, `content` CLI. |
-| `nova_modding` | Bundle merge, catalog, portal client, downloads. |
-| `nova_mod_format` | Engine-free mod wire and serde types. |
-| `nova_menu` | Main/pause menus, settings, mods, scenario picker. |
-| `nova_editor` | Ship editor and play-test transition. |
-| `nova_ui` | Shared theme and widgets. Must not depend on `nova_os`. |
-| `nova_events` | Game event kinds and entity identity components. |
-| `nova_events_macros` | The `EventKind` derive; `nova_events` is its only consumer. |
-| `nova_info` | `APP_VERSION` from `build.rs`. |
-| `nova_debug` | `debug`-gated inspector, wireframe, overlays. |
-| `nova_probe` | Autopilot run harness and performance reports. |
-| `nova_autopilot` | Automation drivers and the run-completion protocol; `bevy`-only. |
-| `nova_meta_gen` | Web asset `.meta` generator under `tools/`; no game dependency. |
+Share is that crate's percentage of the 142,845 `crates/*/src` lines
+(2026-08-07). It is here so the size distribution is visible before you plan
+anything: `nova_gameplay` is over half the workspace on its own.
+
+| Crate | Share | Handles |
+| --- | --- | --- |
+| `nova_gameplay` | 54% | Sections, integrity, input, HUD, targeting, flight, AI, camera, NOVA OS UI bridges, `GameStates`. |
+| `nova_assets` | 12% | Assets, content builders, `content` CLI, bundle merge, mod cache/downloads, portal client, catalog builder. |
+| `nova_scenario` | 10% | Actions, events, filters, variables, objects, content lint. |
+| `nova_probe` | 7% | Autopilot run harness and performance reports. |
+| `nova_menu` | 6% | Main/pause menus, settings, mods, portal UI, scenario picker. |
+| `nova_ui` | 3% | Shared theme and widgets. Zero `nova_*` dependencies - keep it that way. |
+| `nova_autopilot` | 2% | Automation drivers and the run-completion protocol; `bevy`-only. |
+| `nova_os` | 2% | Terminal model, shell, app runtime. No UI ownership. |
+| `nova_editor` | 2% | Ship editor and play-test transition. |
+| `nova_debug` | 1% | `debug`-gated inspector, wireframe, overlays, and the example test harness. |
+| `nova_events` | <1% | Game event kinds and entity identity components. |
+| `nova_core` | <1% | Plugin assembly. Start here. |
+| `nova_mod_format` | <1% | Engine-free mod wire and serde types. |
+| `nova_modding` | <1% | Bevy asset loaders for the RON mod format: `ContentAsset`, `BundleAsset`, `InstalledCatalog`. One file. Not bundle merge, downloads or the portal - those are `nova_assets`. |
+| `nova_events_macros` | <1% | The `EventKind` derive; `nova_events` is its only consumer. |
+| `nova_info` | <1% | `APP_VERSION` from `build.rs`. |
+| `nova_meta_gen` | - | Web asset `.meta` generator under `tools/`; no game dependency. |
 
 Assembly order: Bevy -> enhanced input -> assets -> gameplay -> scenario ->
 editor/menu -> debug tooling. States: `GameStates::{Loading, MainMenu, Playing}`
@@ -96,15 +100,17 @@ section.
 
 ## Code rules
 
+Rust house style is `CONVENTIONS.md` at the repo root. Read it before writing
+code. Only what is not style lives here:
+
 - Global `~/AGENTS.md` applies.
 - ASCII punctuation only. No AI commit attribution.
-- One plugin per subsystem; group systems with `SystemSet`.
-- Cross-subsystem communication through `nova_events`, not direct coupling.
-- Imports through crate `prelude`; avoid deep public paths.
+- `nova_events` is the scenario/modding event vocabulary - the game-event kinds
+  a RON scenario can react to. Adding one exposes it to modders. It is not a
+  general "no direct coupling" mandate: in-code gameplay wiring uses observers
+  and direct calls, and that is correct.
 - Base `assets/base/**/*.content.ron`: generated. Edit Rust builders, run
   `content -- gen`, commit both. Never hand-edit generated RON.
-- Rustdoc: crate-level ownership paragraph; public items explain what and why.
-- Rustdoc: intra-doc links for reachable types; wiki links for concepts.
 - `#![warn(missing_docs)]`: enable only on a fully documented crate.
 - Keep `cargo doc --workspace --no-deps` warning-free.
 

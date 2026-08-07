@@ -30,7 +30,10 @@ pub(crate) struct RadarClearInput;
 /// decided here - it latches at the hold threshold, in the live search
 /// (Q1a). Gated on the computer's Lock capability and, like every intent
 /// observer, on the pause overlay.
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "the controller query filters on two markers at once"
+)]
 pub(super) fn on_radar_start(
     _: On<Start<RadarHoldInput>>,
     mut commands: Commands,
@@ -122,7 +125,10 @@ pub(super) fn on_radar_cancel(
 /// else the travel lock (disengaging an engaged GOTO with it); raised - only
 /// ever the combat lock. Emits [`LockClearedToast`] so the mode-scoped
 /// gesture is legible on the HUD.
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "one query term per lock the tap clears"
+)]
 pub(super) fn on_lock_clear_tap(
     _: On<Fire<RadarClearInput>>,
     mut commands: Commands,

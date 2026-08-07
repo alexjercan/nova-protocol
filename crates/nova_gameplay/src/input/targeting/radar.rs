@@ -36,7 +36,10 @@ const RADAR_PICK_HYSTERESIS: f32 = 0.75;
 /// so the tap window (pre-Fired) and an empty sweep both leave the slots
 /// alone. Runs inside the pause-gated input set, so a pause freezes the
 /// writes while the release observers still tear the search down.
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "one query term per radar search input"
+)]
 pub(super) fn update_radar_search(
     look_ray: ActiveLookRay,
     time: Res<Time>,
