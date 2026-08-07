@@ -50,6 +50,18 @@ required surfaces named over the anchor row when the two disagree. Cost of
 arrival is a ratio against the owner's count, so interpolate it rather than
 rounding to an anchor.
 
+**Cost of arrival is null when there is no owner count.** The owner has no
+container and no transcript, and works in an editor rather than a tool loop, so
+for most tasks the denominator this dimension is defined as does not exist and
+never will. When `/grade/owner-tool-calls.txt` reads `not recorded`, write
+`null` and say so in the citation. Do **not** substitute an absolute judgement
+of the respondent's count, and do not fall back on the 0.67 anchor as a
+"neutral default" - both were done in the baseline, inconsistently, across
+eleven of twelve cells, which put a quarter of every tier 2 headline on a
+number nobody measured. The headline is then the mean of the dimensions that
+were scored. The raw tool-call count is reported beside the score regardless;
+it is the honest form of this metric and it needs no rubric.
+
 Report per persona: four scores, the tool-call count, and the reviewer's
 citations. The headline number is the mean of the four, also `0.00` to `1.00`.
 
@@ -68,6 +80,30 @@ Each list separates:
 An agent that names a file NOT on either list is not automatically wrong -
 the reviewer judges whether it is defensible. Inventing a path that does not
 exist is a phantom-structure deduction regardless.
+
+## Channel scope
+
+A Required surface only counts against a persona that had some way to learn the
+surface exists. `blind`'s image has every `.md` deleted and `rustdoc`'s holds
+the rendered crate API and nothing else, so both were being marked down on
+Completeness for not naming `CHANGELOG.md` and `web/src/wiki/**` - files
+physically absent from their containers. That measures the sandbox, not the
+codebase.
+
+This is the tier 2 form of what `grade.sh` already does for tier 1, where the
+key is filtered to the questions the persona was actually asked.
+
+| Persona | Out of channel |
+| --- | --- |
+| `blind` | every `*.md` row - `CHANGELOG.md`, `web/src/wiki/**`. Nothing else; source, `Cargo.toml` and `assets/**` are all present |
+| `rustdoc` | every row outside the rendered crate API - `*.md`, `web/**`, `assets/**`, `examples/**`, `Cargo.toml` |
+| `tree` | none. `TREE.txt` lists every filename, so every Required path is nameable |
+| `docs` | none. `CHANGELOG.md` is not staged, but `AGENTS.md`'s Documentation table names it, so the surface is knowable |
+| `owner` | none |
+
+Out-of-channel surfaces leave the Completeness denominator. They are reported
+under `out_of_channel`, never `missed_required`, so a channel gap stays
+readable as a channel gap.
 
 ---
 

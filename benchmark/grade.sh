@@ -53,20 +53,10 @@ rm -rf "$OUT"; mkdir -p "$OUT"
 if [ "$PAPER" = "tier1" ]; then
     [ -f "$RES/answers.json" ] || die "no answers.json in $RES"
     # The key is filtered to the questions this persona was actually asked, so
-    # the grader never marks a persona down for a question it never saw.
-    python3 - "$HERE/keys/tier1.json" "$PERSONA" "$GRADE_IN/key.json" <<'PY'
-import json, sys
-key_path, persona, out = sys.argv[1:4]
-key = json.load(open(key_path))
-subset = key["_owner_subset"] if persona == "owner" else None
-qs = [
-    q for q in key["questions"]
-    if (q.get("personas") is None or persona in q["personas"])
-    and (subset is None or q["id"] in subset)
-]
-json.dump({"questions": qs}, open(out, "w"), indent=2)
-print(f"  key filtered to {len(qs)} questions for {persona}")
-PY
+    # the grader never marks a persona down for a question it never saw. Same
+    # rule `make-papers.py` generates the paper from - one implementation.
+    python3 "$HERE/persona_filter.py" \
+        "$HERE/keys/tier1.json" "$PERSONA" "$GRADE_IN/key.json"
     cp "$RES/answers.json" "$GRADE_IN/answers.json"
     PAPER_FILE="$HERE/papers/grade-tier1.md"
 else
@@ -74,9 +64,28 @@ else
     cp "$HERE/keys/tier2.md" "$GRADE_IN/key.md"
     cp "$RES/NOTES.md" "$GRADE_IN/NOTES.md"
     echo "$PAPER" > "$GRADE_IN/task.txt"
+    # The key's Channel scope table drops Required surfaces the persona's image
+    # never held, the tier 2 form of the question filtering done above.
+    echo "$PERSONA" > "$GRADE_IN/persona.txt"
 
-    tc() { [ -f "$1/meta.json" ] && jq -r '.tool_calls // "unknown"' "$1/meta.json" 2>/dev/null || echo unknown; }
+    # Counted from the transcript, never the agent's self-report. The two
+    # differ by up to 2x (blind/tier2a self-reported 14 against 28 actual), and
+    # the self-report was what fed Cost of arrival for the whole baseline.
+    # `parse_transcript` is aggregate.py's, so there is one counter.
+    tc() {
+        python3 - "$HERE" "$1/transcript.jsonl" <<'PY'
+import pathlib, sys
+sys.path.insert(0, sys.argv[1])
+from aggregate import parse_transcript
+p = pathlib.Path(sys.argv[2])
+print(parse_transcript(p)["tool_calls"] if p.exists() else "not recorded")
+PY
+    }
     tc "$RES" > "$GRADE_IN/tool-calls.txt"
+    # The owner has no container and no transcript, and works in an editor
+    # rather than a tool loop, so this is "not recorded" by construction - not
+    # a missing file to be filled in later. See the Cost of arrival rule in the
+    # grader's paper: unanchored means null, never an improvised anchor.
     tc "$HERE/results/$RUN/owner/$PAPER" > "$GRADE_IN/owner-tool-calls.txt"
     PAPER_FILE="$HERE/papers/grade-tier2.md"
 fi

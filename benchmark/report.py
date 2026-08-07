@@ -235,12 +235,12 @@ def tier2(agg, cmp_agg):
                    "<th class='num'>Ownership</th><th class='num'>Completeness</th>"
                    "<th class='num'>No phantom</th><th class='num'>Cost of arrival</th>"
                    "<th class='num'>Mean</th><th class='num'>Tool calls</th>"
-                   "<th>Missed required</th><th>Phantom paths</th>"
+                   "<th>Missed required</th><th>Out of channel</th><th>Phantom paths</th>"
                    "</tr></thead><tbody>")
         for persona, r in rows.items():
             t = r.get("tier2")
             if not t:
-                out.append(f"<tr><td><b>{esc(persona)}</b></td><td colspan='8' class='g-na'>"
+                out.append(f"<tr><td><b>{esc(persona)}</b></td><td colspan='9' class='g-na'>"
                            f"{'not graded' if r.get('has_notes') else 'no NOTES.md'}</td></tr>")
                 continue
             s = t["scores"]
@@ -253,6 +253,7 @@ def tier2(agg, cmp_agg):
                   f"{delta_cell(t.get('score'), old.get('score'), digits=2)}</td>"
                 + f"<td class='num'>{fmt(r.get('tool_calls'))}</td>"
                 + f"<td class='q mono'>{esc(', '.join(t.get('missed_required') or []) or '-')}</td>"
+                + f"<td class='q mono g-na'>{esc(', '.join(t.get('out_of_channel') or []) or '-')}</td>"
                 + f"<td class='q mono flag'>{esc(', '.join(t.get('phantom_paths') or []) or '-')}</td>"
                 + "</tr>"
             )

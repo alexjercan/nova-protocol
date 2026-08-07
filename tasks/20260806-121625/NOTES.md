@@ -615,3 +615,59 @@ them. The 12 deleted:
 `hud/turret_lead.rs`.
 
 25 conversions survive, plus the 4 pre-existing `#[expect]` sites = 29.
+
+## L2 - the baseline ran, and three harness defects it found
+
+Numbers, findings `B1`-`B6` and the harness recommendations `H1`-`H6` are in
+`notes/18-benchmark-baseline.md`. Not repeated here. The headline for planning:
+**tier 1 is at ceiling** (`blind` 0.97 at 40 tool calls for 30 questions), so it
+is a regression guard and the after-run's headline has to be tier 2.
+
+Three defects were found by running the lane's own review steps against real
+artifacts rather than reading the code. All three would have corrupted the
+number every structural lane is measured against, and none failed loudly:
+
+1. **Tier 2 Completeness was scoring the sandbox.** The grader deducted from
+   `blind` and `rustdoc` for not naming `CHANGELOG.md` and `web/src/wiki/**` -
+   files deleted from those images. It was 100% confined to those two personas
+   (9 and 7 entries; 0 for `tree`). Before the fix all four personas sat in
+   0.763-0.787, indistinguishable; after it and the Cost of arrival fix below,
+   `blind` 0.91 and `rustdoc` 0.88 lead the two derived channels (`tree` 0.74,
+   `docs` 0.73). The bug was flattening the only ranking tier 2 produces.
+   Fixed by `## Channel scope` in `keys/tier2.md`.
+
+2. **A dropped question silently shrank the denominator.** `rustdoc` answered
+   `t1-018`; the grader never returned it; `aggregate.py` computed `asked` from
+   the grades, so 27 answers were averaged over 26. Now `asked` comes from the
+   key and a gap prints UNGRADED QUESTIONS.
+
+3. **`rustdoc`'s `[source]` hrefs outlived the pages they pointed at.**
+   `../src/nova_mod_format/lib.rs.html#139` is a file:line answer at tier 1
+   grain. The baseline never touched them, so it stands; `stage_rustdoc` now
+   strips them so the after-run cannot.
+
+The persona filter that decides all of this was implemented twice with nothing
+catching drift. It is now `benchmark/persona_filter.py`, imported by
+`make-papers.py` and shelled to by `grade.sh`.
+
+4. **Cost of arrival was never computable.** It is a ratio against the owner's
+   tool-call count; the owner works in an editor and has no transcript, so the
+   denominator does not exist for any task. Eleven of twelve graders said so in
+   their own citations and scored it anyway. A quarter of every tier 2 headline
+   was unmeasured. Now null when unanchored; the headline is a 3-dimension mean.
+
+5. **The grader was fed self-reported tool counts** for that same dimension.
+   `blind/tier2a` self-reported 14 against 28 actual. `grade.sh` now counts via
+   `aggregate.parse_transcript`.
+
+### The grader noise floor bounds what the after-run can prove, and it is not uniform
+
+`tree` and `docs` were graded three times on identical notes. Mean spread
+**0.097** across 18 dimension-cells, but concentrated: Completeness 0.047 (max
+0.08), Ownership 0.110 (max 0.27), No phantom structure 0.133 (max 0.25).
+
+Completeness is stable because it counts against a Required list. The other two
+are judgement calls against an anchor table and swing by up to 0.27 on identical
+input. **Read the after-run delta from Completeness**; grade the other two k=3
+and average (`H1`). Grading is a small container against the key with no source
+tree, so three passes cost a fraction of one persona run.

@@ -18,11 +18,21 @@ import json
 import pathlib
 import sys
 
+from persona_filter import tier1_ids
+
 HERE = pathlib.Path(__file__).resolve().parent
 RESULTS = HERE / "results"
 
 # A persona is scored against the questions it was asked, never against 30.
+# `persona_filter` is the one implementation of which those are; the key is the
+# authority on how many questions a score is a mean over, so a grader that
+# drops one is caught here instead of quietly shrinking the denominator.
 ORDER = ["blind", "tree", "docs", "rustdoc", "modder", "owner"]
+
+try:
+    TIER1_KEY = json.loads((HERE / "keys" / "tier1.json").read_text())
+except (OSError, json.JSONDecodeError):
+    TIER1_KEY = None
 
 # Both tiers are scored continuously in [0, 1]. Runs graded before that change
 # carry the tier 1 four-way enum and the tier 2 0-3 integers instead; map both
@@ -112,7 +122,7 @@ def grade_score(g):
     return LEGACY_GRADE_POINTS.get(legacy, 0.0), legacy == "gave-up"
 
 
-def score_tier1(answers, grades):
+def score_tier1(answers, grades, key=None, persona=None):
     """Per-question rows plus the headline band counts."""
     by_id = {a.get("id"): a for a in (answers or {}).get("answers", []) or []}
     rows, tally = [], {"full": 0, "partial": 0, "zero": 0, "gave-up": 0}
@@ -144,14 +154,26 @@ def score_tier1(answers, grades):
             }
         )
 
-    asked = len(rows) or len(by_id)
+    # `asked` comes from the key, never from the grades. Deriving it from the
+    # grades let a grader that silently dropped a question shrink the
+    # denominator instead of failing - it cost rustdoc/t1-018 in the baseline,
+    # averaging 27 answered questions over the 26 the grader happened to return.
+    expected = tier1_ids(key, persona) if key else []
+    graded_ids = [r["id"] for r in rows]
+    ungraded = [q for q in expected if q not in graded_ids]
+    asked = len(expected) or len(rows) or len(by_id)
     points = round(sum(r["score"] for r in rows), 2)
     return {
         "asked": asked,
+        "graded": len(rows),
+        "ungraded": ungraded,
         "answered": len(by_id),
         "tally": tally,
         "points": points,
-        "score": round(points / asked, 2) if asked else None,
+        # Mean over what was actually graded. An ungraded question is a harness
+        # failure, not a wrong answer, so it must not score 0 - but it must not
+        # pass unnoticed either, hence `ungraded` above and the warning below.
+        "score": round(points / len(rows), 2) if rows else None,
         "self_tool_calls_total": sum(
             r["self_tool_calls"] or 0 for r in rows if isinstance(r["self_tool_calls"], int)
         ),
@@ -193,9 +215,13 @@ def score_tier2(grades):
         # `total` is the sum over the four dimensions, `score` their mean - the
         # headline. Both are 0-1 per dimension, so max is 4.0 and 1.0.
         "total": round(sum(have), 2),
-        "max": float(len(TIER2_DIMS)),
+        # Over the dimensions actually scored. Cost of arrival is null wherever
+        # the owner reference does not exist, and a 3-dimension cell must not
+        # read as 2.7 out of 4.
+        "max": float(len(have)),
         "score": round(sum(have) / len(have), 2) if have else None,
         "missed_required": grades.get("missed_required", []),
+        "out_of_channel": grades.get("out_of_channel", []),
         "phantom_paths": grades.get("phantom_paths", []),
         "citations": grades.get("citations", {}),
     }
@@ -231,7 +257,7 @@ def collect(run_dir):
             grades = read_json(paper_dir / "grade" / "grades.json")
             if paper == "tier1":
                 answers = read_json(paper_dir / "answers.json")
-                row["tier1"] = score_tier1(answers, grades)
+                row["tier1"] = score_tier1(answers, grades, TIER1_KEY, persona)
                 if row["tool_calls_self"] is None:
                     row["tool_calls_self"] = row["tier1"]["self_tool_calls_total"] or None
                 row["graded"] = grades is not None
@@ -350,6 +376,15 @@ def main(argv):
             print("  ungraded: " + ", ".join(ungraded))
         if flagged:
             print("  NETWORK HITS (check before trusting): " + ", ".join(flagged))
+
+        # A question the key asked and the grader never returned. The score is a
+        # mean over fewer questions than the persona answered, so it is not
+        # comparable until the cell is regraded.
+        for r in rows:
+            miss = (r.get("tier1") or {}).get("ungraded")
+            if miss:
+                print(f"  UNGRADED QUESTIONS in {r['persona']}/{r['paper']}: "
+                      f"{', '.join(miss)} - regrade before trusting this score")
     return 0
 
 

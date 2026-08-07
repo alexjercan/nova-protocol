@@ -35,6 +35,7 @@ Absorbed into the tree, 2026-08-07:
 | --- | --- |
 | `16-findings-master.md` | **the one ranked list a planner works from.** 86 deduplicated findings, every `file:line` re-verified against the tree, ranked by expected harm. Ends with 17 corrections/withdrawals and a "do not re-audit" list |
 | `17-lanes.md` | the 12 lanes, each with dependencies, verification and a **BLOCKS BASELINE / NEUTRAL** marking. Names 14 clusters of findings that are cheaper together than apart |
+| `18-benchmark-baseline.md` | the Lane02 baseline reading. **Tier 1 is at ceiling and cannot measure the epic**; the after-run headline is tier 2. Six findings `B1`-`B6` for the epic to move, and the grader noise floor that bounds what a delta can prove |
 
 `00` through `08` were written before the review and now carry dated
 amendments where it contradicted them. **The original claim is always still

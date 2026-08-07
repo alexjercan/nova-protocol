@@ -120,6 +120,12 @@ stage_rustdoc() {
     # Left in, this persona would collapse into `blind`.
     rm -rf "$p/src"
     find "$p" -name '*.rs.html' -delete
+    # Deleting the pages leaves the [source] hrefs pointing at them, and the
+    # href itself carries file AND line - `../src/nova_mod_format/lib.rs.html#139`
+    # is a tier 1 answer at the grain the paper asks for. Dead links, but a
+    # readable file:line map of the whole public API. Rewrite them to nothing.
+    find "$p" -name '*.html' -exec \
+        sed -i -E 's#href="[^"]*src/nova_[^"]*\.rs\.html[^"]*"#href="#g' {} +
 
     local crates
     crates=$(find "$p" -maxdepth 1 -type d -name 'nova_*' | wc -l)

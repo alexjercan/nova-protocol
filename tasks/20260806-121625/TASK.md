@@ -199,33 +199,71 @@ gate it repairs. No module renamed - that is L8.
 Not code. This is the gate that makes L5-L10 provable rather than churn.
 Depends on L0 only. The owner starts and runs it.
 
-- [ ] OWNER - ratify `benchmark/keys/tier1.json` (30 locate questions).
-- [ ] OWNER - ratify `benchmark/keys/tier2.md` (3 design tasks + rubric).
-- [ ] OWNER - ratify `benchmark/keys/tier3.md` (mod brief + pass criteria).
-- [ ] Review `aggregate.py` tool-call counting against a REAL stream-json
+- [x] OWNER - ratify `benchmark/keys/tier1.json` (30 locate questions).
+- [x] OWNER - ratify `benchmark/keys/tier2.md` (3 design tasks + rubric).
+      The `## Channel scope` table was added AFTER ratification, to fix the
+      scoring bug below. It changes what Completeness counts, not a question.
+- [x] OWNER - ratify `benchmark/keys/tier3.md` (mod brief + pass criteria).
+- [x] Review `aggregate.py` tool-call counting against a REAL stream-json
       transcript; it has only run on synthetic data.
-- [ ] Verify a persona can never be handed a paper for a question it was not
+      Recounted `tool_use` blocks independently across all 17 baseline
+      transcripts: **17/17 exact, 0 mismatches.**
+- [x] Verify a persona can never be handed a paper for a question it was not
       asked - `make-papers.py --check` guards generation, not the wiring.
-- [ ] Verify `grade.sh` never marks a persona down for a question it never saw.
+      Expected id set re-derived from the key per persona and diffed against
+      the 5 generated papers: **0 leaked, 0 missing** (30/27/19/27/8).
+- [x] Verify `grade.sh` never marks a persona down for a question it never saw.
       The persona-filter rule is implemented twice (`make-papers.py:151`,
       `grade.sh:59-66`) and nothing fails loudly if they drift; make one the
       source of truth.
-- [ ] Confirm `[source]` is unreachable from every `rustdoc` page after `src/`
+      Clean in the stated direction. **The inverse defect was real and is the
+      more damaging one:** the grader silently dropped `rustdoc`'s `t1-018`,
+      and `aggregate.py` derived `asked` from the grades, so the denominator
+      shrank to 26 and nothing failed. `asked` now comes from the key,
+      `ungraded` is reported per row, and `aggregate.py` prints a loud
+      UNGRADED QUESTIONS line. Filter deduplicated into `persona_filter.py`,
+      imported by `make-papers.py` and shelled to by `grade.sh`.
+- [x] Confirm `[source]` is unreachable from every `rustdoc` page after `src/`
       is stripped, not merely delinked.
-- [ ] Confirm the `docs` image now picks up the repo-root `CONVENTIONS.md`
+      Unreachable: 0 `.rs.html`, 0 `src/` dirs across 5,599 pages. **But the
+      hrefs survived**, and `../src/nova_mod_format/lib.rs.html#139` is a
+      file:line answer at the grain tier 1 asks for - a readable map of the
+      public API left inside the channel. The baseline did not exploit it
+      (0 tool calls reference it), so the baseline stands. `stage_rustdoc` now
+      rewrites those hrefs away, so the after-run cannot.
+- [x] Confirm the `docs` image now picks up the repo-root `CONVENTIONS.md`
       landed in L0; a baseline without it under-measures `docs`.
-- [ ] Use Claude on the host once before the batch - the container throws away
+      Present at 175 lines, with `AGENTS.md`, `README.md` and 32 wiki pages.
+- [x] Use Claude on the host once before the batch - the container throws away
       its refreshed OAuth token and the host copy can go stale.
-- [ ] Smoke run: one persona, one paper, end to end. Nothing has run yet.
-- [ ] OWNER - baseline: `./run.sh baseline all tier1`, then each tier 2 paper,
-      then tier 3.
-- [ ] `./grade.sh baseline all`, `./aggregate.py baseline`,
+- [x] Smoke run: one persona, one paper, end to end. Nothing has run yet.
+      Done; it produced the 9 `results/smoke/` files L0 `git rm --cached`ed.
+- [x] OWNER - baseline: `./run.sh baseline all tier1`, then each tier 2 paper,
+      then tier 3. 17 containers, exit 0, 0 network hits, $27.14, 59 minutes.
+- [x] `./grade.sh baseline all`, `./aggregate.py baseline`,
       `./report.py baseline`; commit `aggregate.json`, `aggregate.csv`,
       `report.html`.
-- [ ] OWNER - run the `owner` persona by hand: the fixed 8-question tier 1
+      **The commit half is void**, superseded by the `results/` gitignore
+      ruling recorded later in `plan/lane02.md` and implemented at
+      `.gitignore:258`. Nothing a run produces is stored; the baseline lives
+      only on the owner's disk until `./report.py after baseline` renders both.
+- [x] OWNER - run the `owner` persona by hand: the fixed 8-question tier 1
       subset plus one tier 2 task, timed.
-- [ ] Record the baseline numbers in NOTES. Every structural lane is measured
-      against them.
+      Tier 1: 0.75 (4 full, 4 partial). Tier 2a written and timed at 619s.
+      Both transcribed verbatim beside the `.md` they were written in; the
+      owner records elapsed time, not tool calls, so `tool_calls` is null
+      rather than estimated.
+      **This exposed that Cost of arrival was never computable.** It is defined
+      as a ratio against the owner's tool-call count, and the owner works in an
+      editor, so the denominator does not exist for any task - including the
+      one now done. Eleven of twelve baseline graders said so in their own
+      citations and improvised anyway, some defaulting to the 0.67 anchor,
+      others scoring the respondent's count absolutely. A quarter of every
+      tier 2 headline was a number nobody measured. The dimension is now null
+      when unanchored and the headline is the mean of what was scored.
+- [x] Record the baseline numbers in NOTES. Every structural lane is measured
+      against them. `notes/18-benchmark-baseline.md`, indexed in
+      `notes/00-index.md`. Findings `B1`-`B6` are what the after-run must move.
 
 ### Lane03 - "UNTRUSTED INPUT, DATA LOSS AND PERSISTENCE" - tasks/20260806-121625/plan/lane03.md
 

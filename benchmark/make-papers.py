@@ -19,6 +19,8 @@ import json
 import pathlib
 import sys
 
+from persona_filter import tier1_questions
+
 HERE = pathlib.Path(__file__).resolve().parent
 KEY = HERE / "keys" / "tier1.json"
 SRC = HERE / "papers" / "src"
@@ -161,24 +163,6 @@ ASKED = {
     "modder": ["tier3"],
     "owner": ["tier1", "tier2a", "tier2b", "tier2c"],
 }
-
-
-def tier1_questions(key, persona):
-    """The questions this persona is asked, in order.
-
-    A missing `personas` field means all of them. `owner` answers a fixed
-    subset instead of all 30.
-    """
-    subset = key["_owner_subset"] if persona == "owner" else None
-    out = []
-    for q in key["questions"]:
-        allowed = q.get("personas")
-        if allowed is not None and persona not in allowed:
-            continue
-        if subset is not None and q["id"] not in subset:
-            continue
-        out.append(q)
-    return out
 
 
 def render_tier1(key, persona):
