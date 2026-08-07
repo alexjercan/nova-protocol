@@ -2,7 +2,7 @@
 
 - PRIORITY: 40
 - TAGS: v0.10.0, refactoring, project
-- ACTIVITY: UNDERSTANDING
+- ACTIVITY: PLANNING
 - GATES: -
 - RESOLUTION: -
 

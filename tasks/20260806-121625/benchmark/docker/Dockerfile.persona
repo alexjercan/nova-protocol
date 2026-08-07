@@ -1,0 +1,16 @@
+# One persona image = the base runtime plus one payload directory.
+#
+# The payload is staged on the host by sandbox.sh; see the per-persona stage_*
+# functions there for what each one contains and why.
+
+ARG BASE=nova-bench:base
+FROM ${BASE}
+
+ARG PERSONA=unknown
+ARG BUILT_FROM=unknown
+
+COPY --chown=node:node payload/ /work/
+
+ENV NOVA_BENCH_PERSONA=${PERSONA}
+LABEL nova.bench.persona="${PERSONA}"
+LABEL nova.bench.built_from="${BUILT_FROM}"

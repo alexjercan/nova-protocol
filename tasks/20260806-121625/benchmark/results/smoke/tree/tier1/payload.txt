@@ -1,0 +1,3 @@
+persona: tree
+payload:
+  /work/TREE.txt

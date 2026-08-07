@@ -1,0 +1,142 @@
+<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Nova navigability - smoke</title><style>
+:root {
+  --bg: #ffffff; --fg: #16181d; --muted: #6b7280; --line: #e3e6ea;
+  --panel: #f7f8fa; --accent: #2d5bd7;
+  --right: #1f9d55; --partial: #c98a00; --wrong: #d33a35; --gaveup: #9aa0a6;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #14161a; --fg: #e6e8ec; --muted: #9aa0a6; --line: #2a2e35;
+          --panel: #1b1e24; --accent: #7ea2ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 2rem 1.25rem 5rem; background: var(--bg); color: var(--fg);
+  font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1100px; margin: 0 auto; }
+h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
+h2 { font-size: 1.1rem; margin: 2.5rem 0 .5rem; padding-bottom: .3rem;
+  border-bottom: 1px solid var(--line); }
+h3 { font-size: .95rem; margin: 1.5rem 0 .4rem; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .04em; }
+p, li { color: var(--fg); }
+.sub { color: var(--muted); margin: 0 0 1.5rem; font-size: .9rem; }
+.note { background: var(--panel); border-left: 3px solid var(--accent);
+  padding: .7rem .9rem; margin: 1rem 0; font-size: .9rem; color: var(--muted); }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .88rem; }
+th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--line);
+  white-space: nowrap; }
+th { color: var(--muted); font-weight: 600; font-size: .78rem;
+  text-transform: uppercase; letter-spacing: .04em; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tbody tr:hover { background: var(--panel); }
+code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; }
+.cell { display: inline-block; width: 1.6rem; text-align: center; border-radius: 3px;
+  font-weight: 700; font-size: .78rem; color: #fff; }
+.g-right { background: var(--right); } .g-partial { background: var(--partial); }
+.g-wrong { background: var(--wrong); } .g-gaveup { background: var(--gaveup); }
+.g-na { color: var(--muted); }
+.bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden;
+  min-width: 90px; }
+.bar > i { display: block; height: 100%; background: var(--accent); }
+.up { color: var(--right); } .down { color: var(--wrong); }
+.flag { color: var(--wrong); font-weight: 600; }
+.q { white-space: normal; max-width: 46ch; color: var(--muted); font-size: .82rem; }
+.legend { font-size: .82rem; color: var(--muted); display: flex; gap: 1rem;
+  flex-wrap: wrap; margin: .6rem 0 0; }
+footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--line);
+  color: var(--muted); font-size: .82rem; }
+</style></head><body><main><h1>Nova Protocol navigability - smoke</h1>
+<p class="sub">1 results &middot; model default &middot; images built from <span class='mono'>4a8b55aa</span></p>
+<div class="note">Each persona isolates one information channel; the deltas between them matter more than any single score. A refactor that raises <b>docs</b> but not <b>blind</b> or <b>tree</b> is the shuffling-code failure this benchmark exists to catch.</div>
+<h2>Key deltas</h2><div class="scroll"><table><tbody><tr><td><b>blind</b></td><td class='num'>-</td><td class='q'>the number the epic must move</td></tr><tr><td><b>tree</b></td><td class='num'>0.85</td><td class='q'>the literal test - can folder structure alone answer it</td></tr><tr><td><b>docs - blind</b></td><td class='num'>-</td><td class='q'>how much prose is carrying; should SHRINK</td></tr><tr><td><b>owner - docs</b></td><td class='num'>-</td><td class='q'>what is in the owner&#x27;s head and written down nowhere</td></tr></tbody></table></div><div class="note">docs_minus_blind should SHRINK after the refactor: the tree starts answering what prose was carrying. tree_score rising is the literal target. docs rising alone is the failure mode.</div>
+<h2>Tier 1 - locate</h2>
+<div class="scroll"><table><thead><tr>
+<th>Persona</th><th class='num'>Asked</th><th class='num'>Score</th>
+<th>Spread</th><th class='num'>Right</th><th class='num'>Partial</th>
+<th class='num'>Wrong</th><th class='num'>Gave up</th>
+<th class='num'>Tool calls</th><th class='num'>Self-reported</th>
+<th class='num'>Cost $</th></tr></thead><tbody>
+<tr><td><b>tree</b></td><td class='num'>20</td><td class='num'>0.85</td><td><div class='bar'><i style='width:85%'></i></div></td><td class='num'>16</td><td class='num'>2</td><td class='num'>1</td><td class='num'>1</td><td class='num'>6</td><td class='num'>23</td><td class='num'>0.838</td></tr>
+</tbody></table></div>
+<div class="note">Score is <code>(right + 0.5 x partial) / asked</code>, each persona against the questions it was asked - never against 30. <b>Tool calls is the primary metric</b>: an agent can answer correctly before and after while the cost drops from 12 calls to 2. The self-reported column is the agent's own count; a wide gap is a finding about the agent, not the codebase.</div>
+<h2>Per-question matrix</h2>
+<div class="scroll"><table><thead><tr>
+<th>ID</th><th>Area</th><th>Question</th>
+<th>tree</th>
+</tr></thead><tbody>
+<tr><td class="mono">t1-001</td><td class="mono">nova_os_hud_seam</td><td class="q">Which module owns the terminal and windowing runtime that draws the in-game NOVA OS screens?</td><td><span class="cell g-right" title="right: Names crates/nova_gameplay/src/hud/nova_os/ exactly as expect, and correctly separates it from the model-only nova_os crate.
+
+answered: crates/nova_gameplay/src/hud/nova_os/ — the module nova_gameplay::hud::nova_os. It is the render/runtime side of NOVA OS: casing.rs (bezel/window chrome), crt.rs (CRT screen effect, paired with assets/shaders/nova_os_crt.wgsl), spawn.rs, style.rs, components.rs, content.rs, lists.rs, input.rs, shell.rs, sound.rs, plus tests/. The engine-free terminal *model* it drives lives in the separate nova_os crate (see t1-009).">R</span></td></tr>
+<tr><td class="mono">t1-002</td><td class="mono">workspace</td><td class="q">Where is mod bundle merging implemented - the code that flattens and overlays bundles into GameSections and GameScenarios?</td><td><span class="cell g-right" title="right: Names crates/nova_assets/src/merge.rs at file grain, not nova_modding.
+
+answered: crates/nova_assets/src/merge.rs. Neighbours that feed it: mod_set.rs (which bundles are active/ordered), collections.rs (the GameSections/GameScenarios collection types the merge flattens into), mod_refs.rs (cross-bundle references).">R</span></td></tr>
+<tr><td class="mono">t1-003</td><td class="mono">nova_probe</td><td class="q">Which file holds the roster that decides what a probe run is checked against?</td><td><span class="cell g-right" title="right: Leads with the check roster in crates/nova_probe/src/run_report/checks/mod.rs as expect requires; the catalog.rs caveat is a secondary hedge, not the answer.
+
+answered: crates/nova_probe/src/run_report/checks/mod.rs — the roster of checks a run is graded against (fps_within_baseline.rs, invariants_held.rs, log_clean.rs, process_exit.rs, reached_playing.rs, run_completed.rs are the individual entries). Caveat: from names alone I cannot rule out crates/nova_probe/src/catalog.rs, which is guarded by tests/catalog_drift.rs and could instead be the roster of per-scene baselines the run is compared against. If &#x27;checked against&#x27; means baseline numbers rather than the check list, catalog.rs is the answer.">R</span></td></tr>
+<tr><td class="mono">t1-004</td><td class="mono">nova_probe</td><td class="q">Where does a probe run write frametime.csv, and which process writes it - the game under test or the harness that launched it?</td><td><span class="cell g-right" title="right: Second half is correct - written by the game under test in-process, explicitly not the harness/CLI - and capture.rs is named as the writing code, though diluted by also citing paths.rs and recorder.rs.
+
+answered: Where: into the per-run artifact directory, alongside run.log / timeline.jsonl / trace.json — the shape is pinned by the fixture crates/nova_probe/tests/fixtures/run-mini/frametime.csv, and the directory layout is decided by crates/nova_probe/src/bin/probe/native/paths.rs; run_report/artifacts.rs + manifest.rs read it back. Who writes it: the game under test, in-process, via the nova_probe library the game links (recorder.rs / capture.rs) — not the supervising harness. The harness (bin/probe/native/supervise.rs) launches the process and owns run.log (captured stdout/stderr); a frametime series can only come from inside the frame loop. Confidence is limited: this is inferred from crate/binary split, not from contents.">R</span></td></tr>
+<tr><td class="mono">t1-005</td><td class="mono">controls</td><td class="q">Which crate owns the colour palette the HUD draws with?</td><td><span class="cell g-right" title="right: Names crates/nova_ui/src/theme.rs as expect, with the HUD consuming it.
+
+answered: crates/nova_ui — the nova_ui crate (src/theme.rs, with src/skin.rs for the applied styling). nova_gameplay&#x27;s hud/ modules consume it rather than defining their own palette.">R</span></td></tr>
+<tr><td class="mono">t1-006</td><td class="mono">composition_features</td><td class="q">You need to change the order in which gameplay plugins are added to the app. Which files decide that order?</td><td><span class="cell g-partial" title="partial: Per notes, partial for naming only one of the two files: plugin.rs is right, but the second file given is /work/src/lib.rs rather than crates/nova_core/src/lib.rs AppBuilder (new() and build()).
+
+answered: Two files: crates/nova_gameplay/src/plugin.rs (NovaGameplayPlugin::build — the order the gameplay sub-plugins are added in) and /work/src/lib.rs (the app assembly, where NovaGameplayPlugin is ordered relative to nova_core / nova_ui / nova_menu / nova_scenario / nova_debug plugins); src/main.rs is the thin entry point into that. If you only need to reorder gameplay-internal systems, plugin.rs alone is enough.">P</span></td></tr>
+<tr><td class="mono">t1-007</td><td class="mono">nova_os_hud_seam</td><td class="q">The NOVA OS monitor has brightness, scanline and sound settings. Which file declares that settings type, which crate registers it as a resource, and which file persists it?</td><td class="g-na">n/a</td></tr>
+<tr><td class="mono">t1-008</td><td class="mono">nova_os_hud_seam</td><td class="q">What is in the folder crates/nova_gameplay/src/hud/? Give the rough size split of what lives there.</td><td><span class="cell g-right" title="right: Names the NOVA OS runtime as the larger-than-expected half (~30 of 58 files across nova_os/, nova_os_map/, nova_os_ship/) with a file-count split, which notes accept in place of line counts.
+
+answered: 58 .rs files. Roughly a 50/50 split between the classic overlay HUD and the in-game NOVA OS screens. (a) 28 files directly in hud/ — the overlay HUD: allegiance_markers, ammo_readout, beacon_chips, chip_layout_rig, comms_panel, component_lock, edge_indicators, emphasis, flight_status, holo_instruments, item_highlights, key_glyphs, keybind_dock, lock_crosshairs, lock_dwell_ring, maneuver_instruments, objective_feedback, objective_markers, objective_stack, readout, screen_indicator, situation, target_inset, torpedo_target, turret_lead, velocity, nova_os_pointer_rig, mod.rs. (b) 30 files in three NOVA OS subdirectories: hud/nova_os/ 20 files (11 implementation: casing, components, content, crt, input, lists, mod, shell, sound, spawn, style + 9 test modules), hud/nova_os_map/ 5 (app, contacts, scene, mod, tests), hud/nova_os_ship/ 5 (app, scene, sections, mod, tests). So: ~28 overlay-HUD files, ~19 NOVA OS implementation files, ~11 NOVA OS test files.">R</span></td></tr>
+<tr><td class="mono">t1-009</td><td class="mono">nova_os_hud_seam</td><td class="q">Which crate owns the NOVA OS terminal model, the shell command matcher and the app runtime - and does that crate draw any of it?</td><td><span class="cell g-right" title="right: Both halves match expect: crates/nova_os owns terminal/shell/app, and it draws none of it - drawing lives in hud/nova_os/.
+
+answered: crates/nova_os. It holds terminal/ (state.rs, edit.rs, view.rs, mod.rs, fixtures.rs), command.rs (shell command matcher), shell.rs, and app.rs (app runtime). No, it does not draw any of it — there is no renderer, shader, material or widget file in the crate, and all NOVA OS drawing lives in crates/nova_gameplay/src/hud/nova_os/ (casing, crt, spawn, style) plus assets/shaders/nova_os_crt.wgsl. The one name that could mislead is terminal/view.rs; by position it is a scrollback/viewport model, not a draw path — but that specific reading is inference from the name, not verified.">R</span></td></tr>
+<tr><td class="mono">t1-010</td><td class="mono">nova_os_hud_seam</td><td class="q">The NOVA OS map app and the ship-viewer app each draw a 3D orbit-camera scene with blips. Name every file that implements that scene code.</td><td><span class="cell g-right" title="right: Names both nova_os_map/scene.rs and nova_os_ship/scene.rs and states they are duplicated rather than layered, as notes require.
+
+answered: Two files, one per app — the scene code is duplicated, not shared: crates/nova_gameplay/src/hud/nova_os_map/scene.rs and crates/nova_gameplay/src/hud/nova_os_ship/scene.rs. There is no common scene/orbit-camera module between them. The blip *sources* are separate again: nova_os_map/contacts.rs and nova_os_ship/sections.rs.">R</span></td></tr>
+<tr><td class="mono">t1-011</td><td class="mono">nova_probe</td><td class="q">A probe run measures a running game. Which file starts that process, and how is the process told to collect anything?</td><td class="g-na">n/a</td></tr>
+<tr><td class="mono">t1-012</td><td class="mono">nova_probe</td><td class="q">How does an example opt into probe collection today? Name what it has to add.</td><td class="g-na">n/a</td></tr>
+<tr><td class="mono">t1-013</td><td class="mono">nova_probe</td><td class="q">crates/nova_probe/src/fixtures.rs - what does it contain, and why is it in nova_probe?</td><td class="g-na">n/a</td></tr>
+<tr><td class="mono">t1-014</td><td class="mono">assets_scenario</td><td class="q">Where are the built-in ship sections&#x27; stats authored - the health, fire-rate and thrust numbers for the stock hull, turret, thruster, torpedo and controller sections?</td><td><span class="cell g-right" title="right: Names crates/nova_assets/src/sections.rs as the authored source and correctly ranks assets/base/**.content.ron as the emitted copy rather than the authoring site.
+
+answered: Two places that mirror each other: crates/nova_assets/src/sections.rs (the Rust-authored built-in GameSections for hull, turret, thruster, torpedo bay, controller) and assets/base/sections/base.content.ron (the RON form shipped in the base bundle). crates/nova_assets/tests/content_ron_parity.rs exists to keep the two in agreement, and src/scenario_generation.rs looks like the generator between them — so sections.rs is very likely the authored source and base.content.ron the emitted copy, but which direction is authoritative is inference from the test/generator names, not verified. Balance thresholds/acknowledgements sit alongside in src/balance.rs + balance_acks.ron.">R</span></td></tr>
+<tr><td class="mono">t1-015</td><td class="mono">assets_scenario</td><td class="q">Where do the built-in (non-mod) scenario scripts live - the shakedown campaign and its siblings?</td><td><span class="cell g-right" title="right: Names crates/nova_assets/src/scenario/ plus src/scenario.rs as expect, and does not answer nova_scenario.
+
+answered: Again two mirrored homes. Rust: crates/nova_assets/src/scenario/ — shakedown/ (mod.rs + tests/{pins,walk}.rs), broadside.rs, lifeline.rs, final_tally.rs, menu.rs, plus the supporting cast.rs, craft.rs, pacing.rs, with the module root at src/scenario.rs. RON: assets/base/scenarios/*.content.ron (shakedown_run, broadside, broadside_gunship, lifeline, final_tally, asteroid_field, asteroid_next, menu_ambience, menu_scrapyard, menu_waystation) and the campaign spine at assets/base/campaigns/nova_protocol.content.ron. tests/content_ron_parity.rs ties them together and src/scenario_generation.rs appears to generate one from the other. Mod scenarios, by contrast, live under webmods/ (gauntlet, the-ledger).">R</span></td></tr>
+<tr><td class="mono">t1-016</td><td class="mono">assets_scenario</td><td class="q">Name every module that implements author-time content lint - everything `content -- lint` runs.</td><td><span class="cell g-right" title="right: Names both crates as notes require - crates/nova_scenario/src/lint/ and crates/nova_assets/src/lint_walk.rs - driven by bin/content.rs; omitting balance.rs/content_report.rs is a stated uncertainty, not a miss of a crate.
+
+answered: Entry point: crates/nova_assets/src/bin/content.rs. Lint implementation spans two crates: (1) crates/nova_assets/src/lint_walk.rs — the walk over authored content that drives the lint; (2) crates/nova_scenario/src/lint/ — mod.rs, scenario.rs, ship.rs (fixtures.rs is test data). Likely also consulted: crates/nova_assets/src/mod_refs.rs (cross-bundle reference resolution) and crates/nova_assets/src/merge.rs, since linting a bundle set requires resolving it. Gated in CI by crates/nova_assets/tests/content_lint_gate.rs. Note: src/balance.rs (+ balance_acks.ron, tests/balance_audit_gate.rs) and src/content_report.rs (+ content_report_gate.rs) are sibling `content` subcommands — audit and report — and I cannot tell from names whether `lint` also runs them.">R</span></td></tr>
+<tr><td class="mono">t1-017</td><td class="mono">assets_scenario</td><td class="q">Which file downloads installed mods, caches them on disk and maintains the installed index?</td><td><span class="cell g-right" title="right: Names crates/nova_assets/src/mod_cache.rs at file grain, not nova_modding.
+
+answered: crates/nova_assets/src/mod_cache.rs (exercised by tests/mod_cache_install.rs and tests/mod_binary_resources.rs). The remote side it pulls through is crates/nova_assets/src/portal/{transport,install,catalog}.rs; user-facing enable/disable state is mod_prefs.rs.">R</span></td></tr>
+<tr><td class="mono">t1-018</td><td class="mono">assets_scenario</td><td class="q">What does crates/nova_scenario/src/render_scale.rs do, and is it scenario vocabulary?</td><td><span class="cell g-right" title="right: Gets the discriminating second half - not scenario vocabulary, misplaced in nova_scenario - and describes it as a render-resolution/display-scale lever.
+
+answered: From names alone: it is a render-resolution / display-scale knob — a graphics setting, not scenario vocabulary. Its only visible companion in the repo is examples/screenshots/render_scale_shot.rs, a screenshot example, and it sits flat in crates/nova_scenario/src/ next to the actual scenario vocabulary directories (actions/, objects/, filters.rs, events.rs, variables.rs, world.rs, loader/, lint/) without belonging to any of them. So: no, it is not scenario vocabulary — it looks misplaced in nova_scenario and would sit more naturally in nova_core or nova_ui alongside the other render/display settings. The &#x27;what it does&#x27; half is an inference from the filename plus that one example; I have not verified it.">R</span></td></tr>
+<tr><td class="mono">t1-019</td><td class="mono">workspace</td><td class="q">Which crate contains the mod portal network client - the code that talks to the remote catalog and installs from it?</td><td><span class="cell g-right" title="right: Names crates/nova_assets/src/portal/ with its files, explicitly ruling out nova_modding.
+
+answered: crates/nova_assets — specifically the module crates/nova_assets/src/portal/ (transport.rs = network client, catalog.rs = remote catalog, install.rs = install from it, config.rs = endpoint config, mod.rs). Not nova_modding, and not nova_mod_format (which only holds the wire types). Backed by tests/portal_install.rs and tests/gen_portal_gate.rs, and scripts/gen-portal.py / scripts/serve-mods.sh serve the fixture portal.">R</span></td></tr>
+<tr><td class="mono">t1-020</td><td class="mono">workspace</td><td class="q">What is actually in crates/nova_modding?</td><td><span class="cell g-partial" title="partial: Gets the absence half right (no merge, cache or portal in the crate) but fails expect&#x27;s requirement to name the asset-loader role, instead asserting a facade/re-export shim that the citation contradicts.
+
+answered: Essentially nothing: the crate is exactly two files, Cargo.toml and src/lib.rs. No modules, no tests, no fixtures. Structurally it can only be a facade/re-export shim (or a docs-and-prelude crate) over the crates that hold the real modding implementation — nova_assets (merge.rs, mod_set.rs, mod_cache.rs, mod_prefs.rs, mod_refs.rs, portal/) and nova_mod_format (the serde wire types). The name promises a subsystem the file listing does not show. What lib.rs actually contains I cannot see; that it cannot contain a modding subsystem is certain from the listing.">P</span></td></tr>
+<tr><td class="mono">t1-021</td><td class="mono">workspace</td><td class="q">crates/nova_debug is described as debug-gated tooling. Is everything in it debug tooling?</td><td><span class="cell g-right" title="right: Answers No and names harness.rs with what it is used for (examples and integration tests build on it), which notes require above partial.
+
+answered: No. Four of the six modules are debug tooling — gravity.rs, inspector.rs, wireframe.rs, sections.rs (debug visualisation/overlays). The other two are automation and capture infrastructure that shipped tooling depends on, not debug-gated inspection: harness.rs (app-construction/test harness scaffolding, the kind of thing examples/ and integration tests build on) and screenshot.rs (screenshot capture — the repo has a whole examples/screenshots/ tree plus scripts/gen-web-screenshots.py and shoot-web-pages.sh feeding web/src/assets/, and nova_autopilot has its own screenshot.rs/capture.rs alongside). If nova_debug is compiled out in release, that capture and harness code goes with it. This is a naming/neighbourhood inference — I have not read the files.">R</span></td></tr>
+<tr><td class="mono">t1-022</td><td class="mono">workspace</td><td class="q">What is nova_events for? Should a gameplay system use it to notify another gameplay system in the same crate?</td><td class="g-na">n/a</td></tr>
+<tr><td class="mono">t1-023</td><td class="mono">ui_layer</td><td class="q">The mods screen, the scenarios screen and the portal Explore tab all render a list plus a details pane. Where does that shared composition live?</td><td><span class="cell g-wrong" title="wrong: Asserts a shared home at crates/nova_menu/src/widgets.rs when expect is &#x27;nowhere shared&#x27;; it lists mods.rs/scenarios.rs/portal.rs only as consumers, never as the three separate implementations.
+
+answered: The only plausible shared home is crates/nova_menu/src/widgets.rs — the one non-screen module sitting beside the three screens (mods.rs, scenarios.rs, portal.rs) that all three could pull the list+details composition from; the primitives underneath it are crates/nova_ui/src/widget/ (list_row.rs, panel.rs, chrome.rs). But I want to be explicit: names cannot tell me whether widgets.rs actually holds the composition or only leaf widgets, and &#x27;nowhere — each of the three screens composes its own&#x27; is a real possibility this listing does not exclude. Treat widgets.rs as the place to look first, not as a verified answer.">X</span></td></tr>
+<tr><td class="mono">t1-024</td><td class="mono">ui_layer</td><td class="q">Which file or files compute the maximum scroll offset for a scrollable list?</td><td class="g-na">n/a</td></tr>
+<tr><td class="mono">t1-025</td><td class="mono">ui_layer</td><td class="q">Which file owns the shared button widget, and how many distinct paint backends does it contain?</td><td class="g-na">n/a</td></tr>
+<tr><td class="mono">t1-026</td><td class="mono">composition_features</td><td class="q">NovaGameplayPlugin has a `render: bool` field documented as controlling whether the render-side plugins - meshes, HUD, particles - are added. Which plugins does it actually control?</td><td><span class="cell g-gaveup" title="gave-up: Answer states &#x27;gave-up&#x27; as an honest refusal, declining to guess which plugins the render flag gates.
+
+answered: gave-up. This asks what a boolean field actually gates versus what its doc comment claims — that is a contents question, answerable only by reading crates/nova_gameplay/src/plugin.rs, and no file contents exist in this sandbox. The listing tells me which plugin sets are candidates (mesh/, hud/, camera/post.rs and skybox.rs, sections/*/render.rs, juice.rs) but not which ones the flag branches on, and the whole point of the question is that the doc comment and the code disagree. Guessing a subset would be fabrication.">-</span></td></tr>
+<tr><td class="mono">t1-027</td><td class="mono">composition_features</td><td class="q">Which builds compile nova_gameplay with its `debug` feature enabled?</td><td class="g-na">n/a</td></tr>
+<tr><td class="mono">t1-028</td><td class="mono">controls</td><td class="q">Which nova_* crates does nova_ui depend on?</td><td class="g-na">n/a</td></tr>
+<tr><td class="mono">t1-029</td><td class="mono">controls</td><td class="q">Which crate holds the engine-free serde types for the mod wire format - the bundle manifest, the installed catalog and the mod metadata?</td><td><span class="cell g-right" title="right: Names crates/nova_mod_format (lib.rs, deps.rs) as the engine-free serde wire types, not nova_modding.
+
+answered: crates/nova_mod_format — a two-module crate (src/lib.rs, src/deps.rs) with no engine dependency, holding the bundle manifest (*.bundle.ron), installed catalog (assets/mods.catalog.ron) and mod metadata types; deps.rs covers inter-mod dependency declarations. nova_assets consumes these types for merging, caching and portal install.">R</span></td></tr>
+<tr><td class="mono">t1-030</td><td class="mono">controls</td><td class="q">Which files in crates/nova_os spawn bevy UI nodes?</td><td class="g-na">n/a</td></tr>
+</tbody></table></div>
+<div class="legend"><span><span class="cell g-right">R</span> right</span><span><span class="cell g-partial">P</span> partial</span><span><span class="cell g-wrong">X</span> wrong</span><span><span class="cell g-gaveup">-</span> gave up</span><span><span class="g-na">n/a</span> not asked of this persona</span><span>hover a cell for the grader's reason and the answer given</span></div>
+<h2>Integrity</h2>
+<div class="note">Isolation is enforced by the image, not by instructions: a persona cannot read what is not in its container, and the repository is never mounted. The network stays up because the agent talks to the API over it - the repo is a private remote and the container holds no key for it, so these checks are belt and braces.</div>
+<p><span class='up'>Clean.</span> No network fetches, every run has a transcript.</p>
+<footer>Generated by report.py from aggregate.json. Questions and answer key: <span class='mono'>keys/tier1.json</span>. Rubric and ground truth: <span class='mono'>keys/tier2.md</span>.</footer></main></body></html>

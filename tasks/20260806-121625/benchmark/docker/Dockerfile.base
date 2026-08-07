@@ -1,0 +1,33 @@
+# Shared base for every persona image: an agent runtime and nothing else.
+#
+# No repo, no wiki, no rustdoc. Each persona image adds exactly one payload on
+# top of this, so the only thing that ever differs between personas is the
+# information channel under test.
+
+FROM node:22-bookworm-slim
+
+# ripgrep and git are the tools an agent reaches for first. They are here so a
+# missing tool never masquerades as a navigability failure.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates git ripgrep jq less \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG CLAUDE_CODE_VERSION=latest
+RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
+    && npm cache clean --force
+
+COPY bench-run /usr/local/bin/bench-run
+RUN chmod 0555 /usr/local/bin/bench-run
+
+# The container runs as the HOST user's uid so that bind-mounted results are
+# owned by whoever launched the run. That uid is not known at build time and is
+# often not `node`, so the directories it must write are world-writable. The
+# container is ephemeral and holds no secret beyond the mounted token, so this
+# costs nothing.
+RUN mkdir -p /home/node/.claude /work /out \
+    && chown -R node:node /home/node /work /out \
+    && chmod -R 0777 /home/node /work /out
+
+USER node
+WORKDIR /work
+ENTRYPOINT ["/usr/local/bin/bench-run"]

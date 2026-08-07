@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Container entrypoint. Runs one paper against one persona payload.
+#
+# Contract:
+#   /paper.md                  the exam paper, mounted read-only
+#   /work                      the persona payload, baked into the image
+#   /out                       bind-mounted result dir; the ONLY durable output
+#   /run/secrets/credentials.json   optional, copied to ~/.claude
+#
+# Everything the agent writes outside /out dies with the container. That is the
+# point: no cleanup step, and no way for one run to contaminate the next.
+
+set -uo pipefail
+
+PERSONA="${NOVA_BENCH_PERSONA:-unknown}"
+
+# The container runs as the host user's uid, which has no passwd entry here, so
+# HOME would default to /. Claude Code keeps its state under $HOME.
+export HOME=/home/node
+
+if [ ! -f /paper.md ]; then
+    echo "bench-run: no /paper.md mounted" >&2
+    exit 2
+fi
+
+# Copied, not mounted in place: Claude Code refreshes its OAuth token and a
+# read-only bind mount would make that fail mid-run.
+if [ -f /run/secrets/credentials.json ]; then
+    cp /run/secrets/credentials.json /home/node/.claude/.credentials.json
+    chmod 0600 /home/node/.claude/.credentials.json
+elif [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+    echo "bench-run: no credentials and no ANTHROPIC_API_KEY" >&2
+    exit 2
+fi
+
+mkdir -p /out
+cd /work || exit 2
+
+# The listing goes in the transcript so a reviewer can see exactly what this
+# persona had, without trusting the build script's own log.
+{
+    echo "persona: $PERSONA"
+    echo "payload:"
+    find /work -type f | LC_ALL=C sort | sed 's/^/  /'
+} > /out/payload.txt
+
+MODEL_ARGS=()
+if [ -n "${NOVA_BENCH_MODEL:-}" ]; then
+    MODEL_ARGS=(--model "$NOVA_BENCH_MODEL")
+fi
+
+# stream-json is what makes tool_calls an objective metric instead of a
+# self-report. aggregate.py counts tool_use blocks out of this file.
+claude -p "$(cat /paper.md)" \
+    --output-format stream-json --verbose \
+    --add-dir /out \
+    --dangerously-skip-permissions \
+    "${MODEL_ARGS[@]}" \
+    > /out/transcript.jsonl
+status=$?
+
+echo "$status" > /out/exit-code
+echo "bench-run: $PERSONA finished with status $status"
+exit "$status"

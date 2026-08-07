@@ -1,0 +1,104 @@
+{
+  "grades": [
+    {
+      "id": "t1-001",
+      "grade": "right",
+      "why": "Names crates/nova_gameplay/src/hud/nova_os/ exactly as expect, and correctly separates it from the model-only nova_os crate."
+    },
+    {
+      "id": "t1-002",
+      "grade": "right",
+      "why": "Names crates/nova_assets/src/merge.rs at file grain, not nova_modding."
+    },
+    {
+      "id": "t1-003",
+      "grade": "right",
+      "why": "Leads with the check roster in crates/nova_probe/src/run_report/checks/mod.rs as expect requires; the catalog.rs caveat is a secondary hedge, not the answer."
+    },
+    {
+      "id": "t1-004",
+      "grade": "right",
+      "why": "Second half is correct - written by the game under test in-process, explicitly not the harness/CLI - and capture.rs is named as the writing code, though diluted by also citing paths.rs and recorder.rs."
+    },
+    {
+      "id": "t1-005",
+      "grade": "right",
+      "why": "Names crates/nova_ui/src/theme.rs as expect, with the HUD consuming it."
+    },
+    {
+      "id": "t1-006",
+      "grade": "partial",
+      "why": "Per notes, partial for naming only one of the two files: plugin.rs is right, but the second file given is /work/src/lib.rs rather than crates/nova_core/src/lib.rs AppBuilder (new() and build())."
+    },
+    {
+      "id": "t1-008",
+      "grade": "right",
+      "why": "Names the NOVA OS runtime as the larger-than-expected half (~30 of 58 files across nova_os/, nova_os_map/, nova_os_ship/) with a file-count split, which notes accept in place of line counts."
+    },
+    {
+      "id": "t1-009",
+      "grade": "right",
+      "why": "Both halves match expect: crates/nova_os owns terminal/shell/app, and it draws none of it - drawing lives in hud/nova_os/."
+    },
+    {
+      "id": "t1-010",
+      "grade": "right",
+      "why": "Names both nova_os_map/scene.rs and nova_os_ship/scene.rs and states they are duplicated rather than layered, as notes require."
+    },
+    {
+      "id": "t1-014",
+      "grade": "right",
+      "why": "Names crates/nova_assets/src/sections.rs as the authored source and correctly ranks assets/base/**.content.ron as the emitted copy rather than the authoring site."
+    },
+    {
+      "id": "t1-015",
+      "grade": "right",
+      "why": "Names crates/nova_assets/src/scenario/ plus src/scenario.rs as expect, and does not answer nova_scenario."
+    },
+    {
+      "id": "t1-016",
+      "grade": "right",
+      "why": "Names both crates as notes require - crates/nova_scenario/src/lint/ and crates/nova_assets/src/lint_walk.rs - driven by bin/content.rs; omitting balance.rs/content_report.rs is a stated uncertainty, not a miss of a crate."
+    },
+    {
+      "id": "t1-017",
+      "grade": "right",
+      "why": "Names crates/nova_assets/src/mod_cache.rs at file grain, not nova_modding."
+    },
+    {
+      "id": "t1-018",
+      "grade": "right",
+      "why": "Gets the discriminating second half - not scenario vocabulary, misplaced in nova_scenario - and describes it as a render-resolution/display-scale lever."
+    },
+    {
+      "id": "t1-019",
+      "grade": "right",
+      "why": "Names crates/nova_assets/src/portal/ with its files, explicitly ruling out nova_modding."
+    },
+    {
+      "id": "t1-020",
+      "grade": "partial",
+      "why": "Gets the absence half right (no merge, cache or portal in the crate) but fails expect's requirement to name the asset-loader role, instead asserting a facade/re-export shim that the citation contradicts."
+    },
+    {
+      "id": "t1-021",
+      "grade": "right",
+      "why": "Answers No and names harness.rs with what it is used for (examples and integration tests build on it), which notes require above partial."
+    },
+    {
+      "id": "t1-023",
+      "grade": "wrong",
+      "why": "Asserts a shared home at crates/nova_menu/src/widgets.rs when expect is 'nowhere shared'; it lists mods.rs/scenarios.rs/portal.rs only as consumers, never as the three separate implementations."
+    },
+    {
+      "id": "t1-026",
+      "grade": "gave-up",
+      "why": "Answer states 'gave-up' as an honest refusal, declining to guess which plugins the render flag gates."
+    },
+    {
+      "id": "t1-029",
+      "grade": "right",
+      "why": "Names crates/nova_mod_format (lib.rs, deps.rs) as the engine-free serde wire types, not nova_modding."
+    }
+  ]
+}

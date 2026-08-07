@@ -1,0 +1,144 @@
+{
+  "answers": [
+    {
+      "id": "t1-001",
+      "answer": "crates/nova_gameplay/src/hud/nova_os/ — the module nova_gameplay::hud::nova_os. It is the render/runtime side of NOVA OS: casing.rs (bezel/window chrome), crt.rs (CRT screen effect, paired with assets/shaders/nova_os_crt.wgsl), spawn.rs, style.rs, components.rs, content.rs, lists.rs, input.rs, shell.rs, sound.rs, plus tests/. The engine-free terminal *model* it drives lives in the separate nova_os crate (see t1-009).",
+      "tool_calls": 1,
+      "detours": [],
+      "confidence": "high"
+    },
+    {
+      "id": "t1-002",
+      "answer": "crates/nova_assets/src/merge.rs. Neighbours that feed it: mod_set.rs (which bundles are active/ordered), collections.rs (the GameSections/GameScenarios collection types the merge flattens into), mod_refs.rs (cross-bundle references).",
+      "tool_calls": 1,
+      "detours": [],
+      "confidence": "high"
+    },
+    {
+      "id": "t1-003",
+      "answer": "crates/nova_probe/src/run_report/checks/mod.rs — the roster of checks a run is graded against (fps_within_baseline.rs, invariants_held.rs, log_clean.rs, process_exit.rs, reached_playing.rs, run_completed.rs are the individual entries). Caveat: from names alone I cannot rule out crates/nova_probe/src/catalog.rs, which is guarded by tests/catalog_drift.rs and could instead be the roster of per-scene baselines the run is compared against. If 'checked against' means baseline numbers rather than the check list, catalog.rs is the answer.",
+      "tool_calls": 1,
+      "detours": [],
+      "confidence": "low"
+    },
+    {
+      "id": "t1-004",
+      "answer": "Where: into the per-run artifact directory, alongside run.log / timeline.jsonl / trace.json — the shape is pinned by the fixture crates/nova_probe/tests/fixtures/run-mini/frametime.csv, and the directory layout is decided by crates/nova_probe/src/bin/probe/native/paths.rs; run_report/artifacts.rs + manifest.rs read it back. Who writes it: the game under test, in-process, via the nova_probe library the game links (recorder.rs / capture.rs) — not the supervising harness. The harness (bin/probe/native/supervise.rs) launches the process and owns run.log (captured stdout/stderr); a frametime series can only come from inside the frame loop. Confidence is limited: this is inferred from crate/binary split, not from contents.",
+      "tool_calls": 1,
+      "detours": [],
+      "confidence": "medium"
+    },
+    {
+      "id": "t1-005",
+      "answer": "crates/nova_ui — the nova_ui crate (src/theme.rs, with src/skin.rs for the applied styling). nova_gameplay's hud/ modules consume it rather than defining their own palette.",
+      "tool_calls": 1,
+      "detours": [],
+      "confidence": "high"
+    },
+    {
+      "id": "t1-006",
+      "answer": "Two files: crates/nova_gameplay/src/plugin.rs (NovaGameplayPlugin::build — the order the gameplay sub-plugins are added in) and /work/src/lib.rs (the app assembly, where NovaGameplayPlugin is ordered relative to nova_core / nova_ui / nova_menu / nova_scenario / nova_debug plugins); src/main.rs is the thin entry point into that. If you only need to reorder gameplay-internal systems, plugin.rs alone is enough.",
+      "tool_calls": 1,
+      "detours": [],
+      "confidence": "medium"
+    },
+    {
+      "id": "t1-008",
+      "answer": "58 .rs files. Roughly a 50/50 split between the classic overlay HUD and the in-game NOVA OS screens. (a) 28 files directly in hud/ — the overlay HUD: allegiance_markers, ammo_readout, beacon_chips, chip_layout_rig, comms_panel, component_lock, edge_indicators, emphasis, flight_status, holo_instruments, item_highlights, key_glyphs, keybind_dock, lock_crosshairs, lock_dwell_ring, maneuver_instruments, objective_feedback, objective_markers, objective_stack, readout, screen_indicator, situation, target_inset, torpedo_target, turret_lead, velocity, nova_os_pointer_rig, mod.rs. (b) 30 files in three NOVA OS subdirectories: hud/nova_os/ 20 files (11 implementation: casing, components, content, crt, input, lists, mod, shell, sound, spawn, style + 9 test modules), hud/nova_os_map/ 5 (app, contacts, scene, mod, tests), hud/nova_os_ship/ 5 (app, scene, sections, mod, tests). So: ~28 overlay-HUD files, ~19 NOVA OS implementation files, ~11 NOVA OS test files.",
+      "tool_calls": 2,
+      "detours": [],
+      "confidence": "high"
+    },
+    {
+      "id": "t1-009",
+      "answer": "crates/nova_os. It holds terminal/ (state.rs, edit.rs, view.rs, mod.rs, fixtures.rs), command.rs (shell command matcher), shell.rs, and app.rs (app runtime). No, it does not draw any of it — there is no renderer, shader, material or widget file in the crate, and all NOVA OS drawing lives in crates/nova_gameplay/src/hud/nova_os/ (casing, crt, spawn, style) plus assets/shaders/nova_os_crt.wgsl. The one name that could mislead is terminal/view.rs; by position it is a scrollback/viewport model, not a draw path — but that specific reading is inference from the name, not verified.",
+      "tool_calls": 1,
+      "detours": [],
+      "confidence": "medium"
+    },
+    {
+      "id": "t1-010",
+      "answer": "Two files, one per app — the scene code is duplicated, not shared: crates/nova_gameplay/src/hud/nova_os_map/scene.rs and crates/nova_gameplay/src/hud/nova_os_ship/scene.rs. There is no common scene/orbit-camera module between them. The blip *sources* are separate again: nova_os_map/contacts.rs and nova_os_ship/sections.rs.",
+      "tool_calls": 1,
+      "detours": [],
+      "confidence": "high"
+    },
+    {
+      "id": "t1-014",
+      "answer": "Two places that mirror each other: crates/nova_assets/src/sections.rs (the Rust-authored built-in GameSections for hull, turret, thruster, torpedo bay, controller) and assets/base/sections/base.content.ron (the RON form shipped in the base bundle). crates/nova_assets/tests/content_ron_parity.rs exists to keep the two in agreement, and src/scenario_generation.rs looks like the generator between them — so sections.rs is very likely the authored source and base.content.ron the emitted copy, but which direction is authoritative is inference from the test/generator names, not verified. Balance thresholds/acknowledgements sit alongside in src/balance.rs + balance_acks.ron.",
+      "tool_calls": 2,
+      "detours": [],
+      "confidence": "medium"
+    },
+    {
+      "id": "t1-015",
+      "answer": "Again two mirrored homes. Rust: crates/nova_assets/src/scenario/ — shakedown/ (mod.rs + tests/{pins,walk}.rs), broadside.rs, lifeline.rs, final_tally.rs, menu.rs, plus the supporting cast.rs, craft.rs, pacing.rs, with the module root at src/scenario.rs. RON: assets/base/scenarios/*.content.ron (shakedown_run, broadside, broadside_gunship, lifeline, final_tally, asteroid_field, asteroid_next, menu_ambience, menu_scrapyard, menu_waystation) and the campaign spine at assets/base/campaigns/nova_protocol.content.ron. tests/content_ron_parity.rs ties them together and src/scenario_generation.rs appears to generate one from the other. Mod scenarios, by contrast, live under webmods/ (gauntlet, the-ledger).",
+      "tool_calls": 2,
+      "detours": [],
+      "confidence": "medium"
+    },
+    {
+      "id": "t1-016",
+      "answer": "Entry point: crates/nova_assets/src/bin/content.rs. Lint implementation spans two crates: (1) crates/nova_assets/src/lint_walk.rs — the walk over authored content that drives the lint; (2) crates/nova_scenario/src/lint/ — mod.rs, scenario.rs, ship.rs (fixtures.rs is test data). Likely also consulted: crates/nova_assets/src/mod_refs.rs (cross-bundle reference resolution) and crates/nova_assets/src/merge.rs, since linting a bundle set requires resolving it. Gated in CI by crates/nova_assets/tests/content_lint_gate.rs. Note: src/balance.rs (+ balance_acks.ron, tests/balance_audit_gate.rs) and src/content_report.rs (+ content_report_gate.rs) are sibling `content` subcommands — audit and report — and I cannot tell from names whether `lint` also runs them.",
+      "tool_calls": 1,
+      "detours": [],
+      "confidence": "medium"
+    },
+    {
+      "id": "t1-017",
+      "answer": "crates/nova_assets/src/mod_cache.rs (exercised by tests/mod_cache_install.rs and tests/mod_binary_resources.rs). The remote side it pulls through is crates/nova_assets/src/portal/{transport,install,catalog}.rs; user-facing enable/disable state is mod_prefs.rs.",
+      "tool_calls": 1,
+      "detours": [],
+      "confidence": "medium"
+    },
+    {
+      "id": "t1-018",
+      "answer": "From names alone: it is a render-resolution / display-scale knob — a graphics setting, not scenario vocabulary. Its only visible companion in the repo is examples/screenshots/render_scale_shot.rs, a screenshot example, and it sits flat in crates/nova_scenario/src/ next to the actual scenario vocabulary directories (actions/, objects/, filters.rs, events.rs, variables.rs, world.rs, loader/, lint/) without belonging to any of them. So: no, it is not scenario vocabulary — it looks misplaced in nova_scenario and would sit more naturally in nova_core or nova_ui alongside the other render/display settings. The 'what it does' half is an inference from the filename plus that one example; I have not verified it.",
+      "tool_calls": 1,
+      "detours": [],
+      "confidence": "medium"
+    },
+    {
+      "id": "t1-019",
+      "answer": "crates/nova_assets — specifically the module crates/nova_assets/src/portal/ (transport.rs = network client, catalog.rs = remote catalog, install.rs = install from it, config.rs = endpoint config, mod.rs). Not nova_modding, and not nova_mod_format (which only holds the wire types). Backed by tests/portal_install.rs and tests/gen_portal_gate.rs, and scripts/gen-portal.py / scripts/serve-mods.sh serve the fixture portal.",
+      "tool_calls": 1,
+      "detours": [],
+      "confidence": "high"
+    },
+    {
+      "id": "t1-020",
+      "answer": "Essentially nothing: the crate is exactly two files, Cargo.toml and src/lib.rs. No modules, no tests, no fixtures. Structurally it can only be a facade/re-export shim (or a docs-and-prelude crate) over the crates that hold the real modding implementation — nova_assets (merge.rs, mod_set.rs, mod_cache.rs, mod_prefs.rs, mod_refs.rs, portal/) and nova_mod_format (the serde wire types). The name promises a subsystem the file listing does not show. What lib.rs actually contains I cannot see; that it cannot contain a modding subsystem is certain from the listing.",
+      "tool_calls": 1,
+      "detours": [],
+      "confidence": "medium"
+    },
+    {
+      "id": "t1-021",
+      "answer": "No. Four of the six modules are debug tooling — gravity.rs, inspector.rs, wireframe.rs, sections.rs (debug visualisation/overlays). The other two are automation and capture infrastructure that shipped tooling depends on, not debug-gated inspection: harness.rs (app-construction/test harness scaffolding, the kind of thing examples/ and integration tests build on) and screenshot.rs (screenshot capture — the repo has a whole examples/screenshots/ tree plus scripts/gen-web-screenshots.py and shoot-web-pages.sh feeding web/src/assets/, and nova_autopilot has its own screenshot.rs/capture.rs alongside). If nova_debug is compiled out in release, that capture and harness code goes with it. This is a naming/neighbourhood inference — I have not read the files.",
+      "tool_calls": 1,
+      "detours": [],
+      "confidence": "low"
+    },
+    {
+      "id": "t1-023",
+      "answer": "The only plausible shared home is crates/nova_menu/src/widgets.rs — the one non-screen module sitting beside the three screens (mods.rs, scenarios.rs, portal.rs) that all three could pull the list+details composition from; the primitives underneath it are crates/nova_ui/src/widget/ (list_row.rs, panel.rs, chrome.rs). But I want to be explicit: names cannot tell me whether widgets.rs actually holds the composition or only leaf widgets, and 'nowhere — each of the three screens composes its own' is a real possibility this listing does not exclude. Treat widgets.rs as the place to look first, not as a verified answer.",
+      "tool_calls": 1,
+      "detours": [],
+      "confidence": "low"
+    },
+    {
+      "id": "t1-026",
+      "answer": "gave-up. This asks what a boolean field actually gates versus what its doc comment claims — that is a contents question, answerable only by reading crates/nova_gameplay/src/plugin.rs, and no file contents exist in this sandbox. The listing tells me which plugin sets are candidates (mesh/, hud/, camera/post.rs and skybox.rs, sections/*/render.rs, juice.rs) but not which ones the flag branches on, and the whole point of the question is that the doc comment and the code disagree. Guessing a subset would be fabrication.",
+      "tool_calls": 1,
+      "detours": [],
+      "confidence": "low"
+    },
+    {
+      "id": "t1-029",
+      "answer": "crates/nova_mod_format — a two-module crate (src/lib.rs, src/deps.rs) with no engine dependency, holding the bundle manifest (*.bundle.ron), installed catalog (assets/mods.catalog.ron) and mod metadata types; deps.rs covers inter-mod dependency declarations. nova_assets consumes these types for merging, caching and portal install.",
+      "tool_calls": 1,
+      "detours": [],
+      "confidence": "high"
+    }
+  ]
+}
