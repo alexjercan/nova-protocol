@@ -1,6 +1,7 @@
 {
-  "_comment": "Tier 1 locate set, 30 questions. Every citation re-opened against the tree at HEAD 4a8b55aa on 2026-08-07. Owner ratifies before the baseline run.",
+  "_comment": "Tier 1 locate set, 30 questions. Every citation re-opened against the tree at HEAD 1eef94a3 on 2026-08-07, after L0 landed (AGENTS.md map fix, CONVENTIONS.md, clippy -D warnings, dead-code sweep). Owner ratifies before the baseline run.",
   "_grain": "crate | module | file | symbol - the granularity at which an answer counts as 'right'",
+  "_scoring": "Grades are continuous 0-1. The right/partial/wrong wording below is the anchor set: right=1.0, the partial case `notes` describes=0.5, wrong=0.0. Where `notes` pins a value it overrides any fraction the grader would compute; where `notes` grants no partial case the question is 1.0 or 0.0. See papers/grade-tier1.md.",
   "_personas": "omit the field to mean all of blind, docs, tree, rustdoc, owner",
   "_coverage": {
     "nova_os_hud_seam": [
@@ -58,7 +59,7 @@
     "t1-005",
     "t1-029"
   ],
-  "_owner_subset_note": "The fixed subset the owner and any human respondent answer instead of all 30: one per coverage area plus two controls (t1-005, t1-029). Keep at least one control - an owner run with no control cannot distinguish 'the owner knows everything' from 'the questions are too easy'.",
+  "_owner_subset_note": "The fixed subset the owner answers instead of all 30: one per coverage area plus two controls (t1-005, t1-029). Keep at least one control - an owner run with no control cannot distinguish 'the owner knows everything' from 'the questions are too easy'.",
   "questions": [
     {
       "id": "t1-001",
@@ -67,7 +68,7 @@
       "expect": "crates/nova_gameplay/src/hud/nova_os/",
       "citation": "crates/nova_gameplay/src/hud/nova_os/ - casing.rs, components.rs, content.rs, crt.rs, input.rs, lists.rs, mod.rs, shell.rs, sound.rs, spawn.rs, style.rs, tests/",
       "why_this_question": "The name says hud. It is a 14,274-line windowing runtime across nova_os/, nova_os_map/, nova_os_ship/ and nova_os_pointer_rig.rs. Directly tests a folder name that lies. A wrong answer at baseline proves the tree does not disclose where the biggest single feature in the crate lives.",
-      "notes": "Partial for naming crates/nova_gameplay/src/hud/ without the nova_os subtree. Naming the crate nova_os is WRONG, not partial - that crate holds no drawing code (see t1-009)."
+      "notes": "Partial for naming crates/nova_gameplay/src/hud/ without the nova_os subtree. Naming the crate nova_os is WRONG, not partial - that crate holds no drawing code (see t1-009). DOCS CUE (L0): CONVENTIONS.md rule 4 uses `use crate::hud::nova_os::shell::*;` as its bad-import example, which discloses the hud/nova_os/ path. A docs `right` here is doc-cued; weigh blind and tree as the structure signal."
     },
     {
       "id": "t1-002",
@@ -75,7 +76,7 @@
       "grain": "file",
       "expect": "crates/nova_assets/src/merge.rs",
       "citation": "crates/nova_assets/src/merge.rs, 701 lines",
-      "why_this_question": "AGENTS.md's crate table attributes bundle merge to nova_modding, which is 439 lines of asset loaders and contains none of it. This is the question where the docs persona should score WORSE than blind at baseline. Keep it after the AGENTS.md fix - it then measures whether the corrected table is actually usable.",
+      "why_this_question": "AGENTS.md's crate table USED to attribute bundle merge to nova_modding, which is 439 lines of asset loaders and contains none of it. L0 corrected the row to nova_assets. Post-L0 the table names the crate but not the file, so a docs persona should reach PARTIAL and no higher - the question now measures whether the corrected table is actually usable, not whether prose was lying.",
       "notes": "Answering crates/nova_modding/ is wrong, not partial. Naming crates/nova_assets/ without the file is partial."
     },
     {
@@ -101,7 +102,7 @@
       "question": "Which crate owns the colour palette the HUD draws with?",
       "grain": "file",
       "expect": "crates/nova_ui/src/theme.rs",
-      "citation": "crates/nova_ui/src/theme.rs; HUD reaches it by deep path, e.g. nova_ui::theme::AMBER_NOVA at crates/nova_gameplay/src/hud/ammo_readout.rs:480",
+      "citation": "crates/nova_ui/src/theme.rs; HUD reaches it by deep path, e.g. nova_ui::theme::AMBER_NOVA at crates/nova_gameplay/src/hud/ammo_readout.rs:483",
       "why_this_question": "CONTROL. This boundary is currently correct and must stay correct. A regression here means the refactor broke something that worked, and it is what makes a flat overall score readable.",
       "notes": null
     },
@@ -134,8 +135,8 @@
       "id": "t1-008",
       "question": "What is in the folder crates/nova_gameplay/src/hud/? Give the rough size split of what lives there.",
       "grain": "module",
-      "expect": "33,756 lines - 43% of nova_gameplay. Roughly 19k of actual HUD widgets, plus a 14,274-line NOVA OS terminal/windowing runtime in nova_os/, nova_os_map/, nova_os_ship/ and nova_os_pointer_rig.rs",
-      "citation": "find crates/nova_gameplay/src/hud -name '*.rs' | xargs wc -l -> 33756; the nova_os/, nova_os_map/, nova_os_ship/ subtrees plus nova_os_pointer_rig.rs (396) -> 14274; crates/nova_gameplay total 77761",
+      "expect": "33,774 lines - 43% of nova_gameplay. Roughly 19k of actual HUD widgets, plus a 14,674-line NOVA OS terminal/windowing runtime in nova_os/, nova_os_map/, nova_os_ship/ and nova_os_pointer_rig.rs",
+      "citation": "find crates/nova_gameplay/src/hud -name '*.rs' | xargs wc -l -> 33774; the nova_os/ (8573), nova_os_map/ (2455) and nova_os_ship/ (3250) subtrees plus nova_os_pointer_rig.rs (396) -> 14674; crates/nova_gameplay total 77805",
       "why_this_question": "Aimed squarely at a name that lies, and the only question that asks for a proportion. An agent that answers 'HUD widgets' and stops has been misled by the folder name. A wrong answer proves the tree hides that 43% of the workspace's largest crate is one folder, and that most of what is under it is not a HUD.",
       "notes": "Right = names the NOVA OS runtime as the larger-than-expected half. Partial = says 'HUD widgets and NOVA OS' with no sense of the split. Wrong = 'HUD widgets' alone. Order-of-magnitude accuracy on the numbers is enough; do not grade exact line counts. The tree persona has names only (owner ruling 2026-08-07: no line counts in TREE.txt), so grade it on file COUNTS rather than line counts - it can see three nova_os* subtrees and nova_os_pointer_rig.rs, which is enough to reach partial and, with the file counts, right."
     },
@@ -152,8 +153,8 @@
       "id": "t1-010",
       "question": "The NOVA OS map app and the ship-viewer app each draw a 3D orbit-camera scene with blips. Name every file that implements that scene code.",
       "grain": "file",
-      "expect": "crates/nova_gameplay/src/hud/nova_os_map/scene.rs (616 lines) and crates/nova_gameplay/src/hud/nova_os_ship/scene.rs (840 lines) - two near-parallel implementations, 1,456 lines total",
-      "citation": "wc -l crates/nova_gameplay/src/hud/nova_os_ship/scene.rs -> 840; crates/nova_gameplay/src/hud/nova_os_map/scene.rs -> 616",
+      "expect": "crates/nova_gameplay/src/hud/nova_os_map/scene.rs (614 lines) and crates/nova_gameplay/src/hud/nova_os_ship/scene.rs (839 lines) - two near-parallel implementations, 1,453 lines total",
+      "citation": "wc -l crates/nova_gameplay/src/hud/nova_os_ship/scene.rs -> 839; crates/nova_gameplay/src/hud/nova_os_map/scene.rs -> 614",
       "why_this_question": "Catches agents that stop at the first answer, and it is the deletion target's largest single duplication site. A one-file answer proves the tree gives no hint that the second implementation exists.",
       "notes": "Naming one of the two is partial. Right requires both AND the observation that they are near-parallel rather than layered."
     },
@@ -181,7 +182,7 @@
         "owner"
       ],
       "expect": "Three independent add_plugins calls inside #[cfg(feature = \"debug\")]: nova_probe::nova_timeline(), nova_probe::nova_invariants(), nova_probe::nova_frametime(). There is no NovaProbePlugin.",
-      "citation": "examples/systems/player_path.rs:190 nova_timeline(), :197 nova_invariants().monotonic([\"target_down\", \"leg\"]), :200 nova_frametime(); the three are free functions returning plugins at crates/nova_probe/src/recorder.rs:64, invariants.rs:70, capture.rs:105",
+      "citation": "examples/systems/player_path.rs:191 nova_timeline(), :198 nova_invariants().monotonic([\"target_down\", \"leg\"]), :201 nova_frametime(); the three are free functions returning plugins at crates/nova_probe/src/recorder.rs:64, invariants.rs:70, capture.rs:105",
       "why_this_question": "Tests whether the collection-side entry point is discoverable, and whether the agent asserts a NovaProbePlugin that does not exist. Inventing one is the phantom-structure failure in miniature, and it is the exact shape the restructure proposes to create - so a baseline invention is evidence the name is the obvious one.",
       "notes": "Naming a nonexistent NovaProbePlugin is WRONG, not partial. Naming one or two of the three is partial. tree excluded - no file listing discloses plugin registration."
     },
@@ -212,7 +213,7 @@
       "id": "t1-015",
       "question": "Where do the built-in (non-mod) scenario scripts live - the shakedown campaign and its siblings?",
       "grain": "module",
-      "expect": "crates/nova_assets/src/scenario/ plus crates/nova_assets/src/scenario.rs, roughly 4,500 lines",
+      "expect": "crates/nova_assets/src/scenario/ plus crates/nova_assets/src/scenario.rs, roughly 7,650 lines",
       "citation": "crates/nova_assets/src/scenario/ - broadside.rs, cast.rs, craft.rs, final_tally.rs, lifeline.rs, menu.rs, pacing.rs, shakedown/; plus crates/nova_assets/src/scenario.rs",
       "why_this_question": "There is a crate called nova_scenario, and the built-in scenarios are not in it. Tests whether crate names distinguish engine from content. A nova_scenario answer proves they do not.",
       "notes": "Answering crates/nova_scenario/ is wrong, not partial. Partial for naming crates/nova_assets/ without the scenario subtree."
@@ -232,15 +233,15 @@
       "grain": "file",
       "expect": "crates/nova_assets/src/mod_cache.rs (1,178 lines)",
       "citation": "crates/nova_assets/src/mod_cache.rs, 1,178 lines; also the source of register_mods_source called from crates/nova_core/src/lib.rs:96",
-      "why_this_question": "AGENTS.md's crate table attributes downloads to nova_modding. Paired with t1-002 and t1-019 it measures whether the corrected table is trusted and used, or whether agents fall back to grep regardless.",
+      "why_this_question": "AGENTS.md's crate table USED to attribute downloads to nova_modding; L0 moved 'mod cache/downloads' onto the nova_assets row. Paired with t1-002 and t1-019 it measures whether the corrected table is trusted and used, or whether agents fall back to grep regardless. The row names the crate only, so docs tops out at PARTIAL.",
       "notes": "Answering crates/nova_modding/ is wrong, not partial. Partial for naming crates/nova_assets/ without the file."
     },
     {
       "id": "t1-018",
       "question": "What does crates/nova_scenario/src/render_scale.rs do, and is it scenario vocabulary?",
       "grain": "file",
-      "expect": "A 523-line Bevy render lever: it draws the view into a reduced-resolution offscreen target and upscales it to the window. It is not scenario vocabulary - no RON author can reach it. It is here only because it scales 'the scenario view'",
-      "citation": "crates/nova_scenario/src/render_scale.rs:1-6 module doc ('Render-scale lever: draw the scenario view into a reduced-resolution offscreen target and upscale it to the window'), 523 lines",
+      "expect": "A 522-line Bevy render lever: it draws the view into a reduced-resolution offscreen target and upscales it to the window. It is not scenario vocabulary - no RON author can reach it. It is here only because it scales 'the scenario view'",
+      "citation": "crates/nova_scenario/src/render_scale.rs:1-6 module doc ('Render-scale lever: draw the scenario view into a reduced-resolution offscreen target and upscale it to the window'), 522 lines",
       "why_this_question": "Where would you add Y, inverted: it asks whether an existing placement is justified. An agent that answers 'yes, it is part of the scenario system' has trusted crate membership as evidence of ownership, which is the habit the refactor has to break.",
       "notes": "Describing what it does but answering 'yes, scenario vocabulary' is partial. The second half is the discriminating one."
     },
@@ -250,8 +251,8 @@
       "grain": "module",
       "expect": "crates/nova_assets/src/portal/ (1,866 lines: mod.rs, catalog.rs, config.rs, install.rs, transport.rs). The menu UI for it is crates/nova_menu/src/portal.rs",
       "citation": "crates/nova_assets/src/portal/ - catalog.rs, config.rs, install.rs, mod.rs, transport.rs; crates/nova_menu/src/portal.rs",
-      "why_this_question": "The third of the three items AGENTS.md's nova_modding row gets wrong. Together with t1-002 and t1-017 it tests whether one stale table row costs three separate lookups.",
-      "notes": "Answering crates/nova_modding/ is wrong, not partial. Naming crates/nova_assets/ without portal/ is partial. Naming only nova_menu/src/portal.rs is partial - that is the UI, not the client."
+      "why_this_question": "The third of the three items AGENTS.md's nova_modding row USED to get wrong; L0 moved 'portal client' onto the nova_assets row. Together with t1-002 and t1-017 it tests whether one corrected table row saves three separate lookups.",
+      "notes": "Answering crates/nova_modding/ is wrong, not partial. Naming crates/nova_assets/ without portal/ is partial. Naming only nova_menu/src/portal.rs is partial - that is the UI, not the client. DOCS CUE (L0): CONVENTIONS.md rule 8 names `nova_assets/src/portal/mod.rs` verbatim as the one `#[allow(missing_docs)]` exception, so a docs `right` here is doc-cued, not structure-derived. Flag it in the report rather than reading it as navigability."
     },
     {
       "id": "t1-020",
@@ -259,7 +260,7 @@
       "grain": "crate",
       "expect": "One file, src/lib.rs, 439 lines: the Content enum and three asset loaders (ContentAssetLoader:179, BundleAssetLoader:219, CatalogLoader:325) plus NovaModdingPlugin:363. No bundle merge, no portal client, no downloads",
       "citation": "crates/nova_modding/src/lib.rs, 439 lines; :179 ContentAssetLoader, :219 BundleAssetLoader, :325 CatalogLoader, :363 NovaModdingPlugin; crate doc at :1 calls it 'RON scenario/mod format', contradicting AGENTS.md's row",
-      "why_this_question": "The inverse of t1-002/t1-017/t1-019 - not 'where is X' but 'what does this name contain'. Answering from the AGENTS.md row is the failure. A baseline where docs beats blind here and loses on t1-002 is the clearest possible evidence that prose was carrying a false map.",
+      "why_this_question": "The inverse of t1-002/t1-017/t1-019 - not 'where is X' but 'what does this name contain'. PRE-L0, answering from the AGENTS.md row was the failure. L0's replacement row states the loaders, 'One file', and the three absences outright, so docs now gets this FREE. Kept as a docs-channel calibrator: a docs `right` here alongside docs `partial` on t1-002/017/019 shows the table answers what-is-in-X but not where-is-X. Read the blind/tree/rustdoc scores as the structure signal.",
       "notes": "Listing bundle merge, portal or downloads as contents is WRONG. Right requires naming the asset-loader role. Naming the loaders without noticing the absence of merge/portal/downloads is partial."
     },
     {
@@ -268,7 +269,7 @@
       "grain": "file",
       "expect": "No. crates/nova_debug/src/harness.rs is 574 of the crate's 1,643 lines and is the shared example test harness - used by 20+ examples and by nova_probe, not by the inspector/wireframe/overlay tooling",
       "citation": "crates/nova_debug/src/ - gravity.rs, harness.rs (574 lines), inspector.rs, lib.rs, screenshot.rs, sections.rs, wireframe.rs; harness consumers include examples/systems/player_path.rs, examples/sections/*.rs, examples/screenshots/*.rs (20+ files)",
-      "why_this_question": "A crate whose name describes a third of its contents. It is also the mechanism behind t1-027 - the harness is why the debug feature leaks into every build. A 'yes' answer proves the crate name is taken at face value.",
+      "why_this_question": "A crate whose name describes a third of its contents. It is also the mechanism behind t1-027 - the harness is why the debug feature leaks into every build. A 'yes' answer proves the crate name is taken at face value. DOCS CUE (L0): the nova_debug row now ends 'and the example test harness', so docs is cued toward PARTIAL for free; only the consumer list lifts it to right.",
       "notes": "'Yes' is wrong. Naming harness.rs without saying what it is used for is partial."
     },
     {
@@ -283,7 +284,7 @@
       ],
       "expect": "It is the event vocabulary shared between gameplay and the scenario engine - the game-event kinds a scenario reacts to. No: intra-crate gameplay code correctly uses observer-on-marker (On<Add|Remove|Insert, T>), used in 31 files under crates/nova_gameplay/src; nova_events appears in only 8 non-test sites there, all scenario-observable moments",
       "citation": "crates/nova_events/src/lib.rs:1-9 crate doc; nova_events use sites in gameplay: integrity/explode.rs:14, integrity/neutralize.rs:18, integrity/glue.rs:611, hud/nova_os_map/contacts.rs:2, hud/nova_os_ship/sections.rs:2, input/ai/passive.rs:7, input/ai/behavior.rs:7; grep -rl 'On<Add' crates/nova_gameplay/src -> 31 files",
-      "why_this_question": "AGENTS.md's 'Cross-subsystem communication through nova_events, not direct coupling' reads as a general architecture mandate and is not one. A 'yes' answer here is the docs persona being actively misled, and it is the single line most likely to make an agent propose a wrong design in tier 2. Keep it after the wording fix - it then measures whether the correction landed.",
+      "why_this_question": "AGENTS.md's 'Cross-subsystem communication through nova_events, not direct coupling' READ as a general architecture mandate and was not one; a 'yes' was the docs persona being actively misled. L0 replaced the line with an explicit 'It is not a general no-direct-coupling mandate'. Docs now gets both halves free - the question has flipped from measuring a doc lie to verifying the correction landed. A docs 'yes' post-L0 means the fix is not readable; blind/rustdoc remain the structure signal.",
       "notes": "'Yes, route it through nova_events' is WRONG, not partial. Right requires both halves. tree excluded - no file listing can answer the second half."
     },
     {
@@ -320,15 +321,21 @@
         "rustdoc",
         "owner"
       ],
-      "expect": "crates/nova_ui/src/widget/button.rs, 863 lines, two paint backends: phosphor_paint at :115 and hardware_paint at :178",
-      "citation": "crates/nova_ui/src/widget/button.rs, 863 lines; :115 fn phosphor_paint, :178 fn hardware_paint, :496 pub fn button_on_setting",
-      "why_this_question": "The file is in the right crate - this half is not the failure. The second half tests whether a 863-line file discloses that it holds two full skin implementations plus a builder plus a generic settings binder. A 'one' answer proves file size is hiding structure that should be three files.",
+      "expect": "crates/nova_ui/src/widget/button.rs, 866 lines, two paint backends: phosphor_paint at :115 and hardware_paint at :178",
+      "citation": "crates/nova_ui/src/widget/button.rs, 866 lines; :115 fn phosphor_paint, :178 fn hardware_paint, :499 pub fn button_on_setting",
+      "why_this_question": "The file is in the right crate - this half is not the failure. The second half tests whether a 866-line file discloses that it holds two full skin implementations plus a builder plus a generic settings binder. A 'one' answer proves file size is hiding structure that should be three files.",
       "notes": "File right, backend count wrong or unstated = partial. Naming any other crate is wrong. tree excluded - a listing cannot answer the count."
     },
     {
       "id": "t1-026",
       "question": "NovaGameplayPlugin has a `render: bool` field documented as controlling whether the render-side plugins - meshes, HUD, particles - are added. Which plugins does it actually control?",
       "grain": "symbol",
+      "personas": [
+        "blind",
+        "docs",
+        "rustdoc",
+        "owner"
+      ],
       "expect": "Exactly one: SpaceshipSectionPlugin at crates/nova_gameplay/src/plugin.rs:109. Hanabi particles (:77), skybox (:85), post-processing (:86) and the entire HUD (:111) are added unconditionally. The advertised headless mode does not exist",
       "citation": "crates/nova_gameplay/src/plugin.rs:39-41 the field and its doc; :77 HanabiPlugin, :85 SkyboxPlugin, :86 PostProcessingDefaultPlugin, :109 render: self.render, :111 NovaHudPlugin",
       "why_this_question": "The clearest instance of lying surface in the tree: a documented capability with one twentieth of the wiring. Answering the doc comment is the failure the deletion sweep exists to prevent, and after the fix this question should become trivially right for every persona.",
@@ -359,7 +366,7 @@
       ],
       "expect": "None. crates/nova_ui/Cargo.toml declares only bevy and an optional serde",
       "citation": "crates/nova_ui/Cargo.toml:9-14 [dependencies] bevy, serde (optional); :19-20 [features] serde = [\"dep:serde\"]",
-      "why_this_question": "CONTROL. nova_ui having zero nova dependencies is the one stated invariant in AGENTS.md that holds cleanly, and it is the invariant most at risk from a nova_ui::screen extraction that pulls menu or HUD types down with it. A regression here is a real break, not a wash.",
+      "why_this_question": "CONTROL. nova_ui having zero nova dependencies is the one stated invariant in AGENTS.md that holds cleanly, and it is the invariant most at risk from a nova_ui::screen extraction that pulls menu or HUD types down with it. A regression here is a real break, not a wash. L0 restated the row as 'Zero nova_* dependencies - keep it that way', so docs answers from the table; that is fine for a control.",
       "notes": "Naming nova_os is wrong - AGENTS.md's rule is 'must not depend on nova_os', and a persona repeating the rule as a dependency is a misread. tree and rustdoc excluded - neither channel contains manifest contents."
     },
     {
@@ -381,7 +388,7 @@
         "owner"
       ],
       "expect": "None. The crate contains no bevy UI symbols. The only view-construction seam is the spawn_body method on the NovaOsAppRuntime trait at crates/nova_os/src/app.rs:54, which every implementor defines outside the crate",
-      "citation": "grep -rn 'Node\\b|BackgroundColor|Text(' crates/nova_os/src/ returns nothing; crates/nova_os/src/app.rs:54 fn spawn_body(&self, body: &mut ChildSpawnerCommands, font: Handle<Font>); implementors at crates/nova_gameplay/src/hud/nova_os_map/app.rs:107 and nova_os_ship/app.rs:15",
+      "citation": "grep -rn 'Node\\b|BackgroundColor|Text(' crates/nova_os/src/ returns nothing; crates/nova_os/src/app.rs:54 fn spawn_body(&self, body: &mut ChildSpawnerCommands, font: Handle<Font>); implementors at crates/nova_gameplay/src/hud/nova_os_map/app.rs:117 and nova_os_ship/app.rs:25",
       "why_this_question": "CONTROL. 'nova_os owns no UI' is honored today and must stay honored through the NOVAOS seam move, which is the single change most likely to break it by pulling drawing code down into the crate. A question with 'none' as the correct answer also catches agents that manufacture a plausible file.",
       "notes": "Naming any file as a UI spawner is WRONG. Naming app.rs:54 as the seam while saying the crate draws nothing is right. tree excluded (needs contents); docs excluded (AGENTS.md states the rule, so the docs persona would be graded on repeating a rule rather than checking it)."
     }

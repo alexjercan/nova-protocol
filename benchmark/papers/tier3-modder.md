@@ -7,6 +7,16 @@ what a real modder starts from.
 
 Write your output to `/out`. Nothing else you write is kept.
 
+## Style
+
+Be terse. Fragments over sentences, bullets over prose. No preamble, no
+restating the question, no summary of what you are about to do. Name the thing
+and stop.
+
+Length is not evidence. An answer that names the right path in one line scores
+exactly what a page naming the same path scores. Padding a thin answer does not
+move it: the grader scores what you located, never how much you wrote.
+
 ## Task
 
 You are writing a mod for Nova Protocol, a 3D space shooter. Mods are RON data

@@ -24,8 +24,8 @@ KEY = HERE / "keys" / "tier1.json"
 SRC = HERE / "papers" / "src"
 OUT = HERE / "papers"
 
-# Every persona that answers a paper, including the two with no image.
-PERSONAS = ["blind", "docs", "tree", "rustdoc", "modder", "owner", "human"]
+# Every persona that answers a paper, including `owner`, which has no image.
+PERSONAS = ["blind", "docs", "tree", "rustdoc", "modder", "owner"]
 
 # What the persona will find when it looks. Stated up front so that discovering
 # the shape of the sandbox does not itself cost tool calls - tool calls are the
@@ -54,7 +54,6 @@ what a real modder starts from.""",
     "owner": """You are working in the repository itself, with everything you already know
 about it. You are the control: your job is to establish the ceiling and to
 validate that the questions are answerable at all.""",
-    "human": """You are working in the repository itself. You are the human control.""",
 }
 
 ENVELOPE_HEAD = """# {title}
@@ -62,14 +61,28 @@ ENVELOPE_HEAD = """# {title}
 {payload}
 
 Write your output to `/out`. Nothing else you write is kept.
+
+## Style
+
+Be terse. Fragments over sentences, bullets over prose. No preamble, no
+restating the question, no summary of what you are about to do. Name the thing
+and stop.
+
+Length is not evidence. An answer that names the right path in one line scores
+exactly what a page naming the same path scores. Padding a thin answer does not
+move it: the grader scores what you located, never how much you wrote.
 """
 
 TIER1_HOWTO = """
 ## How to answer
 
 Answer at the grain the question asks for - crate, module, file or symbol. Some
-questions have two or three parts; answer every part, they are graded
+questions have two or three parts; answer every part, they are scored
 separately. "None" and "nowhere" are legitimate answers to some of these.
+
+**Keep `answer` under 40 words.** Paths and symbols, plus at most one clause of
+justification. Do not describe what each file does, do not explain how you
+found it, do not hedge in both directions.
 
 If you cannot answer, use `"gave-up"` as the answer and record the tool calls
 you spent getting there.
@@ -110,7 +123,10 @@ TIER_OUTPUT = {
 
 Write two files:
 
-- `/out/NOTES.md` - your answer, in the two sections described above.
+- `/out/NOTES.md` - your answer, in the two sections described above. **Bullets
+  and tables, not paragraphs. Target 400 words; 800 is the ceiling.** One line
+  per file: the path, then what changes. A note that names every surface in 300
+  words outscores one that names half of them in 2,000.
 - `/out/meta.json` - `{"tool_calls": <your count>, "confidence": "high|medium|low"}`
 
 The harness counts tool calls independently from the transcript. Report yours
@@ -144,17 +160,16 @@ ASKED = {
     "rustdoc": ["tier1", "tier2a", "tier2b", "tier2c"],
     "modder": ["tier3"],
     "owner": ["tier1", "tier2a", "tier2b", "tier2c"],
-    "human": ["tier1"],
 }
 
 
 def tier1_questions(key, persona):
     """The questions this persona is asked, in order.
 
-    A missing `personas` field means all of them. `owner` and `human` answer a
-    fixed subset instead of all 30.
+    A missing `personas` field means all of them. `owner` answers a fixed
+    subset instead of all 30.
     """
-    subset = key["_owner_subset"] if persona in ("owner", "human") else None
+    subset = key["_owner_subset"] if persona == "owner" else None
     out = []
     for q in key["questions"]:
         allowed = q.get("personas")

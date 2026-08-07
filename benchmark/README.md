@@ -20,7 +20,6 @@ more than any single score.
 | `rustdoc` | `cargo doc --workspace --no-deps`, `[source]` pages stripped | is the public API self-documenting |
 | `modder` | 4 wiki modding pages + `webmods/` | external contract regression guard |
 | `owner` | prior knowledge + the repo | control/ceiling; validates the questions |
-| `human` | the repo | optional second control, same papers |
 
 Key deltas:
 
@@ -88,11 +87,11 @@ After the epic, the same with `after` as the run id, then:
 ./report.py after baseline          # every headline number gains a delta column
 ```
 
-`owner` and `human` have no image. `./run.sh baseline owner tier1` sets the
-result directory up and points at the paper; the answers are filled in by hand
-into the same `answers.json` an agent would write, so everything downstream
-treats them identically. Their rows carry no transcript, so the report marks
-their tool-call counts as self-reported.
+`owner` has no image. `./run.sh baseline owner tier1` sets the result directory
+up and points at the paper; the answers are filled in by hand into the same
+`answers.json` an agent would write, so everything downstream treats them
+identically. The row carries no transcript, so the report marks its tool-call
+counts as self-reported.
 
 `NOVA_BENCH_MODEL` selects the model. Recording it matters: a benchmark of
 navigability is only comparable across runs that used the same agent.
@@ -133,8 +132,8 @@ have to measure navigating the codebase.
 
 | Paper | Personas | Questions |
 | --- | --- | --- |
-| `tier1` | blind 30, docs 27, tree 20, rustdoc 27 | locate |
-| `tier1` | owner 8, human 8 | the fixed control subset |
+| `tier1` | blind 30, docs 27, tree 19, rustdoc 27 | locate |
+| `tier1` | owner 8 | the fixed control subset |
 | `tier2a/b/c` | blind, docs, tree, rustdoc, owner | design |
 | `tier3` | modder | build a mod |
 
@@ -144,14 +143,25 @@ Short questions, one answer each. Recorded per question:
 
 | Field | Values |
 | --- | --- |
-| `grade` | `right` / `partial` (only where the key's `notes` define one) / `wrong` / `gave-up` |
+| `score` | `0.0` to `1.0`. `1.0` matches `expect` at the stated `grain`; `0.5` is the partial case the key's `notes` define; `0.0` is wrong. A multi-part question the notes do not pin scores the fraction of parts right |
+| `gave_up` | an honest refusal. Scores `0.0`, but counted apart from a confident wrong answer - same points, different finding |
 | `tool_calls` | counted from the transcript, **not** self-reported. The primary metric - continuous, and the closest proxy to "every change starts with a grep" |
 | `detours` | files opened that were not on the path. Measures how misleading current names are |
 | `confidence` | self-report before checking. Colour, not a metric |
 
-Score is `(right + 0.5 x partial) / asked`, each persona against the questions
-it was asked. `tool_calls` is expected to move most: an agent can answer
-correctly before and after while the cost drops from 12 calls to 2.
+Score is the mean of the per-question scores, each persona against the
+questions it was asked. `tool_calls` is expected to move most: an agent can
+answer correctly before and after while the cost drops from 12 calls to 2.
+
+The key still speaks in `right` / `partial` / `wrong`, and it still rules -
+those words are the anchors of the 0-1 scale, and where `notes` pins a value it
+wins over any fraction the grader would otherwise compute. The scale exists so
+a two-of-three answer reads as `0.67` instead of collapsing into the same
+bucket as a one-of-three answer. See `papers/grade-tier1.md`.
+
+Answers are capped at 40 words and graded on what they locate, never on length.
+Every paper carries the same style block; the graders are told in as many words
+not to reward volume.
 
 The agent's self-reported count is kept beside the transcript count. A wide gap
 is a finding about the agent, not about the codebase.

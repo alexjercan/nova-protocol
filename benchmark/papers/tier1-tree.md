@@ -7,14 +7,28 @@ Answer from the structure or say you cannot.
 
 Write your output to `/out`. Nothing else you write is kept.
 
-There are **20** questions. They are numbered non-consecutively;
+## Style
+
+Be terse. Fragments over sentences, bullets over prose. No preamble, no
+restating the question, no summary of what you are about to do. Name the thing
+and stop.
+
+Length is not evidence. An answer that names the right path in one line scores
+exactly what a page naming the same path scores. Padding a thin answer does not
+move it: the grader scores what you located, never how much you wrote.
+
+There are **19** questions. They are numbered non-consecutively;
 that is expected and means nothing.
 
 ## How to answer
 
 Answer at the grain the question asks for - crate, module, file or symbol. Some
-questions have two or three parts; answer every part, they are graded
+questions have two or three parts; answer every part, they are scored
 separately. "None" and "nowhere" are legitimate answers to some of these.
+
+**Keep `answer` under 40 words.** Paths and symbols, plus at most one clause of
+justification. Do not describe what each file does, do not explain how you
+found it, do not hedge in both directions.
 
 If you cannot answer, use `"gave-up"` as the answer and record the tool calls
 you spent getting there.
@@ -83,7 +97,5 @@ Record `confidence` before you check anything. It is colour, not a score.
 **t1-021.** crates/nova_debug is described as debug-gated tooling. Is everything in it debug tooling?
 
 **t1-023.** The mods screen, the scenarios screen and the portal Explore tab all render a list plus a details pane. Where does that shared composition live?
-
-**t1-026.** NovaGameplayPlugin has a `render: bool` field documented as controlling whether the render-side plugins - meshes, HUD, particles - are added. Which plugins does it actually control?
 
 **t1-029.** Which crate holds the engine-free serde types for the mod wire format - the bundle manifest, the installed catalog and the mod metadata?

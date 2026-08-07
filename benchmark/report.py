@@ -18,14 +18,24 @@ import sys
 HERE = pathlib.Path(__file__).resolve().parent
 RESULTS = HERE / "results"
 
-GRADE_CLASS = {"right": "g-right", "partial": "g-partial", "wrong": "g-wrong", "gave-up": "g-gaveup"}
-GRADE_MARK = {"right": "R", "partial": "P", "wrong": "X", "gave-up": "-"}
+def band(score, gave_up):
+    """Colour band for a 0-1 question score. Display only; `score` is the number."""
+    if gave_up:
+        return "g-gaveup"
+    if score >= 1.0:
+        return "g-right"
+    if score >= 0.5:
+        return "g-partial"
+    if score > 0.0:
+        return "g-low"
+    return "g-wrong"
 
 CSS = """
 :root {
   --bg: #ffffff; --fg: #16181d; --muted: #6b7280; --line: #e3e6ea;
   --panel: #f7f8fa; --accent: #2d5bd7;
-  --right: #1f9d55; --partial: #c98a00; --wrong: #d33a35; --gaveup: #9aa0a6;
+  --right: #1f9d55; --partial: #c98a00; --low: #e06c1f; --wrong: #d33a35;
+  --gaveup: #9aa0a6;
 }
 @media (prefers-color-scheme: dark) {
   :root { --bg: #14161a; --fg: #e6e8ec; --muted: #9aa0a6; --line: #2a2e35;
@@ -53,9 +63,10 @@ th { color: var(--muted); font-weight: 600; font-size: .78rem;
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 tbody tr:hover { background: var(--panel); }
 code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; }
-.cell { display: inline-block; width: 1.6rem; text-align: center; border-radius: 3px;
-  font-weight: 700; font-size: .78rem; color: #fff; }
+.cell { display: inline-block; width: 2.1rem; text-align: center; border-radius: 3px;
+  font-weight: 700; font-size: .78rem; color: #fff; font-variant-numeric: tabular-nums; }
 .g-right { background: var(--right); } .g-partial { background: var(--partial); }
+.g-low { background: var(--low); }
 .g-wrong { background: var(--wrong); } .g-gaveup { background: var(--gaveup); }
 .g-na { color: var(--muted); }
 .bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden;
@@ -113,8 +124,8 @@ def headline(agg, cmp_agg):
 
     out = ["<h2>Tier 1 - locate</h2>", '<div class="scroll"><table><thead><tr>',
            "<th>Persona</th><th class='num'>Asked</th><th class='num'>Score</th>",
-           "<th>Spread</th><th class='num'>Right</th><th class='num'>Partial</th>",
-           "<th class='num'>Wrong</th><th class='num'>Gave up</th>",
+           "<th>Spread</th><th class='num'>Full</th><th class='num'>Partial</th>",
+           "<th class='num'>Zero</th><th class='num'>Gave up</th>",
            "<th class='num'>Tool calls</th><th class='num'>Self-reported</th>",
            "<th class='num'>Cost $</th></tr></thead><tbody>"]
 
@@ -129,9 +140,9 @@ def headline(agg, cmp_agg):
             f"<td class='num'>{fmt(s.get('asked'))}</td>"
             f"<td class='num'>{fmt(score)}{delta_cell(score, old)}</td>"
             f"<td><div class='bar'><i style='width:{pct}%'></i></div></td>"
-            f"<td class='num'>{fmt(tally.get('right'))}</td>"
+            f"<td class='num'>{fmt(tally.get('full'))}</td>"
             f"<td class='num'>{fmt(tally.get('partial'))}</td>"
-            f"<td class='num'>{fmt(tally.get('wrong'))}</td>"
+            f"<td class='num'>{fmt(tally.get('zero'))}</td>"
             f"<td class='num'>{fmt(tally.get('gave-up'))}</td>"
             f"<td class='num'>{fmt(r.get('tool_calls'))}"
             f"{delta_cell(r.get('tool_calls'), (c1.get(persona) or {}).get('tool_calls'), lower_is_better=True, digits=0)}</td>"
@@ -140,8 +151,11 @@ def headline(agg, cmp_agg):
         )
     out.append("</tbody></table></div>")
     out.append(
-        '<div class="note">Score is <code>(right + 0.5 x partial) / asked</code>, each '
+        '<div class="note">Score is the mean of the per-question 0-1 scores, each '
         "persona against the questions it was asked - never against 30. "
+        "<b>Full</b> is 1.0, <b>Partial</b> is anything between, <b>Zero</b> is a "
+        "confident wrong answer; gave-up is split out because it is the same points "
+        "and a different finding. "
         "<b>Tool calls is the primary metric</b>: an agent can answer correctly before and "
         "after while the cost drops from 12 calls to 2. The self-reported column is the "
         "agent's own count; a wide gap is a finding about the agent, not the codebase.</div>"
@@ -176,9 +190,10 @@ def matrix(agg, key):
             if not g:
                 cells.append('<td class="g-na">n/a</td>')
                 continue
-            cls = GRADE_CLASS.get(g["grade"], "g-gaveup")
-            mark = GRADE_MARK.get(g["grade"], "?")
-            tip = f"{g['grade']}: {g.get('why') or ''}\n\nanswered: {g.get('answer') or ''}"
+            score, gave_up = g.get("score") or 0.0, g.get("gave_up")
+            cls = band(score, gave_up)
+            mark = "-" if gave_up else f"{score:.2f}".rstrip("0").rstrip(".")
+            tip = f"{score:.2f}: {g.get('why') or ''}\n\nanswered: {g.get('answer') or ''}"
             cells.append(
                 f'<td><span class="cell {cls}" title="{esc(tip)}">{mark}</span></td>'
             )
@@ -190,9 +205,10 @@ def matrix(agg, key):
     out.append("</tbody></table></div>")
     out.append(
         '<div class="legend">'
-        '<span><span class="cell g-right">R</span> right</span>'
-        '<span><span class="cell g-partial">P</span> partial</span>'
-        '<span><span class="cell g-wrong">X</span> wrong</span>'
+        '<span><span class="cell g-right">1</span> full</span>'
+        '<span><span class="cell g-partial">0.5</span> half or better</span>'
+        '<span><span class="cell g-low">0.25</span> below half</span>'
+        '<span><span class="cell g-wrong">0</span> wrong</span>'
         '<span><span class="cell g-gaveup">-</span> gave up</span>'
         '<span><span class="g-na">n/a</span> not asked of this persona</span>'
         "<span>hover a cell for the grader's reason and the answer given</span>"

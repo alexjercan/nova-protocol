@@ -55,7 +55,6 @@ are structured data plus a generated HTML report.
 | `rustdoc` | `cargo doc`, `[source]` pages stripped | yes |
 | `modder` | 4 wiki modding pages + `webmods/` | yes |
 | `owner` | prior knowledge + the repo, timed | no - the control |
-| `human` | the repo. Optional second control | no |
 
 **Deltas are the signal, not absolute scores.** A question every persona fails
 measures the question, not the tree.

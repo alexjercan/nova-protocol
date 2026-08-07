@@ -30,7 +30,10 @@ Read the key's Required / Credit split carefully:
   exists; if you cannot tell, say so in `uncertain` rather than guessing.
 
 Grade the plan, not the prose. A terse note that names every surface beats a
-long one that does not.
+long one that does not. Length is never evidence: a note is scored on the
+surfaces it names and the structure it asserts, never on how much it wrote
+about them. Do not treat hedging at length as coverage - a surface is named or
+it is not.
 
 ## Output
 

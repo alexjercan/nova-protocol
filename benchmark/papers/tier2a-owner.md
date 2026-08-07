@@ -6,6 +6,16 @@ validate that the questions are answerable at all.
 
 Write your output to `/out`. Nothing else you write is kept.
 
+## Style
+
+Be terse. Fragments over sentences, bullets over prose. No preamble, no
+restating the question, no summary of what you are about to do. Name the thing
+and stop.
+
+Length is not evidence. An answer that names the right path in one line scores
+exactly what a page naming the same path scores. Padding a thin answer does not
+move it: the grader scores what you located, never how much you wrote.
+
 ## Task
 
 Nova Protocol ships have modular sections: hull, thruster, controller, turret,
@@ -35,7 +45,10 @@ omitting one. Inventing a path that does not exist costs you the most.
 
 Write two files:
 
-- `/out/NOTES.md` - your answer, in the two sections described above.
+- `/out/NOTES.md` - your answer, in the two sections described above. **Bullets
+  and tables, not paragraphs. Target 400 words; 800 is the ceiling.** One line
+  per file: the path, then what changes. A note that names every surface in 300
+  words outscores one that names half of them in 2,000.
 - `/out/meta.json` - `{"tool_calls": <your count>, "confidence": "high|medium|low"}`
 
 The harness counts tool calls independently from the transcript. Report yours

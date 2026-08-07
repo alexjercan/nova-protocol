@@ -12,8 +12,8 @@
 #   ./sandbox.sh inspect <persona>       # the payload file list
 #   ./sandbox.sh clean                   # remove all nova-bench images
 #
-# `owner` and `human` have no image. They work in the repo, and their whole
-# purpose is to be the unrestricted control.
+# `owner` has no image. It works in the repo, and its whole purpose is to be
+# the unrestricted control.
 #
 # NixOS: rustdoc is generated through `nix develop --command cargo`.
 
@@ -175,9 +175,14 @@ cmd_build() {
     command -v docker >/dev/null || die "docker not found"
     build_base
     for persona in "${personas[@]}"; do
+        # `owner` is checked before the case: the case subject is the padded
+        # SANDBOXED list, so an `owner)` arm there could never match.
+        if [ "$persona" = owner ]; then
+            echo "==> owner works in the repo; no image"
+            continue
+        fi
         case " ${SANDBOXED[*]} " in
             *" $persona "*) build_persona "$persona" ;;
-            owner|human) echo "==> $persona works in the repo; no image" ;;
             *) die "unknown persona: $persona" ;;
         esac
     done

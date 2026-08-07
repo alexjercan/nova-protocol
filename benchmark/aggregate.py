@@ -22,8 +22,12 @@ HERE = pathlib.Path(__file__).resolve().parent
 RESULTS = HERE / "results"
 
 # A persona is scored against the questions it was asked, never against 30.
-ORDER = ["blind", "tree", "docs", "rustdoc", "modder", "owner", "human"]
-GRADE_POINTS = {"right": 1.0, "partial": 0.5, "wrong": 0.0, "gave-up": 0.0}
+ORDER = ["blind", "tree", "docs", "rustdoc", "modder", "owner"]
+
+# Tier 1 grades are continuous in [0, 1]. Runs graded before that change carry
+# the four-way enum instead; map it onto the same scale so an old run stays
+# comparable rather than silently reading as all-zero.
+LEGACY_GRADE_POINTS = {"right": 1.0, "partial": 0.5, "wrong": 0.0, "gave-up": 0.0}
 
 # Reaching the network is not forbidden - the agent talks to the API over it -
 # but pulling repository content over it would invalidate a run. The repo is a
@@ -88,19 +92,47 @@ def parse_transcript(path):
     return out
 
 
+def grade_score(g):
+    """The grader's 0-1 score for one question, plus whether it gave up.
+
+    Continuous, so a three-part question answered two-thirds reads as 0.67
+    rather than collapsing into the same bucket as a one-third answer. The
+    key's `notes` still pin the common cases to 0.5 - see papers/grade-tier1.md.
+    """
+    if "score" in g:
+        try:
+            score = min(1.0, max(0.0, float(g["score"])))
+        except (TypeError, ValueError):
+            score = 0.0
+        return round(score, 3), bool(g.get("gave_up"))
+    legacy = g.get("grade", "wrong")
+    return LEGACY_GRADE_POINTS.get(legacy, 0.0), legacy == "gave-up"
+
+
 def score_tier1(answers, grades):
-    """Per-question rows plus the headline right/partial/wrong split."""
+    """Per-question rows plus the headline band counts."""
     by_id = {a.get("id"): a for a in (answers or {}).get("answers", []) or []}
-    rows, tally = [], {"right": 0, "partial": 0, "wrong": 0, "gave-up": 0}
+    rows, tally = [], {"full": 0, "partial": 0, "zero": 0, "gave-up": 0}
 
     for g in (grades or {}).get("grades", []) or []:
-        grade = g.get("grade", "wrong")
-        tally[grade] = tally.get(grade, 0) + 1
+        score, gave_up = grade_score(g)
+        # Bands are for the report only; `score` is the number that counts.
+        # gave-up is split out of zero because an honest refusal and a
+        # confident wrong answer are the same points and a different finding.
+        if gave_up:
+            tally["gave-up"] += 1
+        elif score >= 1.0:
+            tally["full"] += 1
+        elif score > 0.0:
+            tally["partial"] += 1
+        else:
+            tally["zero"] += 1
         a = by_id.get(g.get("id"), {})
         rows.append(
             {
                 "id": g.get("id"),
-                "grade": grade,
+                "score": score,
+                "gave_up": gave_up,
                 "why": g.get("why"),
                 "answer": a.get("answer"),
                 "self_tool_calls": a.get("tool_calls"),
@@ -110,7 +142,7 @@ def score_tier1(answers, grades):
         )
 
     asked = len(rows) or len(by_id)
-    points = sum(GRADE_POINTS.get(r["grade"], 0.0) for r in rows)
+    points = round(sum(r["score"] for r in rows), 3)
     return {
         "asked": asked,
         "answered": len(by_id),
@@ -233,7 +265,7 @@ def deltas(rows):
 def write_csv(path, rows):
     cols = [
         "persona", "paper", "model", "tool_calls", "tool_calls_self",
-        "duration_s", "cost_usd", "score", "right", "partial", "wrong",
+        "duration_s", "cost_usd", "score", "full", "partial", "zero",
         "gave_up", "tier2_total", "tier3_verdict", "network_hits",
     ]
     with path.open("w", newline="") as fh:
@@ -252,9 +284,9 @@ def write_csv(path, rows):
                     "duration_s": r["duration_s"],
                     "cost_usd": r["cost_usd"],
                     "score": t1.get("score"),
-                    "right": tally.get("right"),
+                    "full": tally.get("full"),
                     "partial": tally.get("partial"),
-                    "wrong": tally.get("wrong"),
+                    "zero": tally.get("zero"),
                     "gave_up": tally.get("gave-up"),
                     "tier2_total": (r.get("tier2") or {}).get("total"),
                     "tier3_verdict": (r.get("tier3") or {}).get("verdict"),

@@ -7,14 +7,28 @@ removed. Code and filenames are all you have.
 
 Write your output to `/out`. Nothing else you write is kept.
 
+## Style
+
+Be terse. Fragments over sentences, bullets over prose. No preamble, no
+restating the question, no summary of what you are about to do. Name the thing
+and stop.
+
+Length is not evidence. An answer that names the right path in one line scores
+exactly what a page naming the same path scores. Padding a thin answer does not
+move it: the grader scores what you located, never how much you wrote.
+
 There are **30** questions. They are numbered non-consecutively;
 that is expected and means nothing.
 
 ## How to answer
 
 Answer at the grain the question asks for - crate, module, file or symbol. Some
-questions have two or three parts; answer every part, they are graded
+questions have two or three parts; answer every part, they are scored
 separately. "None" and "nowhere" are legitimate answers to some of these.
+
+**Keep `answer` under 40 words.** Paths and symbols, plus at most one clause of
+justification. Do not describe what each file does, do not explain how you
+found it, do not hedge in both directions.
 
 If you cannot answer, use `"gave-up"` as the answer and record the tool calls
 you spent getting there.

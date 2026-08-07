@@ -58,7 +58,7 @@ if [ "$PAPER" = "tier1" ]; then
 import json, sys
 key_path, persona, out = sys.argv[1:4]
 key = json.load(open(key_path))
-subset = key["_owner_subset"] if persona in ("owner", "human") else None
+subset = key["_owner_subset"] if persona == "owner" else None
 qs = [
     q for q in key["questions"]
     if (q.get("personas") is None or persona in q["personas"])

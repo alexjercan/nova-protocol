@@ -48,8 +48,8 @@ citations. The headline number is the total out of 12.
 ## Ground-truth surface lists
 
 These are the answer keys. They are what the reviewer scores Completeness
-against. Every path was re-opened against the tree at HEAD `4a8b55aa` on
-2026-08-07.
+against. Every path was re-opened against the tree at HEAD `1eef94a3` on 2026-08-07,
+after L0 landed.
 
 Each list separates:
 
@@ -82,7 +82,7 @@ exist is a phantom-structure deduction regardless.
 | --- | --- |
 | `crates/nova_gameplay/src/sections/base_section.rs:270` | new `SectionKind` variant; the doc at `:265-266` already states the three-part rule (variant + config module + plugin) |
 | `crates/nova_gameplay/src/sections/` | new `shield_section` module (behaviour, config struct, plugin) |
-| `crates/nova_gameplay/src/sections/mod.rs:6-14` | module declaration; `:17` prelude re-export; `:133-149` plugin registration inside `SpaceshipSectionPlugin` |
+| `crates/nova_gameplay/src/sections/mod.rs:6-14` | module declaration; `:17-25` prelude re-export; `:133-149` plugin registration inside `SpaceshipSectionPlugin` |
 | `crates/nova_gameplay/src/input/` | the toggle intent - player input lives under `input/player/`, and `input/mod.rs` is the one plugin/one set model in the crate |
 | `crates/nova_gameplay/src/hud/` | the charge readout, a new sibling of `ammo_readout.rs` / `flight_status.rs` |
 | `crates/nova_assets/src/sections.rs:173` | `build_sections` - the authored stats for the stock shield section |
@@ -104,7 +104,8 @@ exist is a phantom-structure deduction regardless.
 
 ### Why this task discriminates
 
-`SectionKind` is matched in **22 files across 8 crates**. Adding a variant is a
+`SectionKind` is matched in **27 files: 23 across 5 crates, plus 4 examples**.
+Adding a variant is a
 non-exhaustive-match cascade, and nothing in the folder structure discloses its
 reach. The plan's Completeness score is a direct measure of how far a reader
 can see from `sections/`.

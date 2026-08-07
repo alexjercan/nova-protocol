@@ -14,29 +14,46 @@ Two files are mounted:
 
 ## Rules
 
-Grade each answer `right`, `partial`, `wrong` or `gave-up`.
+Score each answer from `0.0` to `1.0`.
 
-- `right` - matches `expect` at the stated `grain`, or is an equivalent
-  statement of the same thing. Wording does not matter. A more specific answer
-  than `grain` asks for is still `right`.
-- `partial` - **only** as `notes` for that question defines it. If `notes` does
-  not describe a partial case, there is no partial credit for that question:
-  it is `right` or `wrong`. Where `notes` names something as WRONG rather than
-  partial, honour that.
-- `wrong` - names the wrong crate, module or file, or asserts something the
-  citation contradicts.
-- `gave-up` - the answer says so. An answer that hedges into uselessness
-  ("somewhere in the gameplay crate, possibly") is `wrong`, not `gave-up`;
-  `gave-up` is for an honest refusal.
+The key is written in the older `right` / `partial` / `wrong` vocabulary. It
+still rules; those words are the anchors of the scale:
 
-Multi-part questions: grade the whole entry by its weakest part, and say in
-`why` which part failed.
+| Key says | Score |
+| --- | --- |
+| matches `expect` at the stated `grain`, or is an equivalent statement of it | `1.0` |
+| the partial case `notes` describes for that question | `0.5` |
+| wrong crate, module or file; or contradicted by `citation`; or named WRONG in `notes` | `0.0` |
 
-Do not reward confidence and do not penalise brevity. Judge only whether the
-answer locates the thing.
+Rules that constrain the scale:
 
-Missing entries: if a question in the key has no matching answer, grade it
-`gave-up` with `why: "no answer submitted"`.
+- **Where `notes` fixes a value, it wins.** "Any two of three is partial" is
+  `0.5`, not `0.67`. "Both halves must be right" means either half failing is
+  `0.0`. Something `notes` calls WRONG rather than partial is `0.0` however
+  close it looks.
+- **Where `notes` describes no partial case, the question is `1.0` or `0.0`.**
+  Do not invent partial credit the key did not grant.
+- **Multi-part questions `notes` does not pin:** score the fraction of parts
+  answered correctly - two of three is `0.67`. Say in `why` which part failed.
+- **Between the anchors:** `0.25` and `0.75` are available for an answer that
+  is clearly weaker or stronger than the `0.5` case `notes` describes. Use them
+  sparingly and justify them. Do not reach for two decimal places outside a
+  part fraction.
+- **Wording does not matter.** A more specific answer than `grain` asks for is
+  still `1.0`.
+
+Set `gave_up: true` when the answer is an honest refusal - it says it does not
+know. Score it `0.0`. An answer that hedges into uselessness ("somewhere in the
+gameplay crate, possibly") is `0.0` with `gave_up: false`: a confident wrong
+answer and an honest refusal are the same points and a different finding.
+
+Missing entries: if a question in the key has no matching answer, score `0.0`,
+`gave_up: true`, `why: "no answer submitted"`.
+
+**Do not reward length and do not penalise brevity.** A one-line answer naming
+the right path is `1.0`. A page of prose that names the same path is also
+`1.0` - no more. Judge only whether the answer locates the thing. Ignore
+everything the answer says about how it was found.
 
 ## Output
 
@@ -47,7 +64,8 @@ Write `/out/grades.json`:
   "grades": [
     {
       "id": "t1-001",
-      "grade": "right | partial | wrong | gave-up",
+      "score": 0.5,
+      "gave_up": false,
       "why": "one sentence, citing the key's expect or notes"
     }
   ]

@@ -28,8 +28,8 @@ CREDS="${HOME}/.claude/.credentials.json"
 
 die() { echo "run.sh: $*" >&2; exit 1; }
 
-# Which personas each paper is put to. `owner` and `human` are run by hand
-# against the same papers; they have no image, so they are not listed here.
+# Which personas each paper is put to. `owner` is run by hand against the same
+# papers; it has no image, so it is not listed here.
 paper_personas() {
     case "$1" in
         tier1)               echo "blind docs tree rustdoc" ;;
@@ -59,17 +59,17 @@ OUT="$HERE/results/$RUN/$PERSONA/$PAPER"
 [ -e "$OUT" ] && die "$OUT already exists; pick a new run id or remove it"
 mkdir -p "$OUT"
 
-# `owner` and `human` have no image - they are the unrestricted controls and
-# they work in the repo. Set the result dir up and hand over the paper; they
-# fill in the same files an agent would, so everything downstream is identical.
-if [ "$PERSONA" = "owner" ] || [ "$PERSONA" = "human" ]; then
+# `owner` has no image - it is the unrestricted control and it works in the
+# repo. Set the result dir up and hand over the paper; the same files an agent
+# would write get filled in by hand, so everything downstream is identical.
+if [ "$PERSONA" = "owner" ]; then
     printf '{\n  "run": "%s",\n  "persona": "%s",\n  "paper": "%s",\n  "model": "human",\n  "exit_code": 0\n}\n' \
         "$RUN" "$PERSONA" "$PAPER" > "$OUT/run.json"
     echo "==> $PERSONA works in the repo. No container."
     echo "  paper:  $PAPER_FILE"
     echo "  answer: $OUT/$([ "$PAPER" = tier1 ] && echo answers.json || echo NOTES.md)"
     echo
-    echo "  There is no transcript for a human run, so tool calls are"
+    echo "  There is no transcript for a hand-entered run, so tool calls are"
     echo "  self-reported only. The report says so on the row."
     exit 0
 fi
