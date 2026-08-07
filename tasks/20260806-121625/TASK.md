@@ -2,8 +2,8 @@
 
 - PRIORITY: 40
 - TAGS: v0.10.0, refactoring, project
-- ACTIVITY: PLANNING
-- GATES: -
+- ACTIVITY: WORKING
+- GATES: PLAN
 - RESOLUTION: -
 
 PROBLEM: The `nova_probe` crate feels messy and hacked together; I have the
@@ -49,3 +49,730 @@ only for public APIs (make clippy happy). But in code comments should be kept
 minimal and only for actually important things "comment why not what". First
 step of understanding should be collecting all the context then figuring out
 what to do with it.
+
+## Steps
+
+Lane order is the schedule. `L0 -> L2 baseline -> everything else -> final
+run`. Behavior-only lanes (L1, L3, L4, L6, L11) run in parallel with owner
+review time. Findings are `notes/16-findings-master.md` ids; per-lane detail is
+in the linked file. Rationale is in `DECISION.md` and `notes/17-lanes.md` - do
+not re-derive it.
+
+### Lane00 - "FIX THE MAP, CLOSE THE CI GAPS" - tasks/20260806-121625/plan/lane00.md
+
+Blocks the baseline, lands BEFORE it. First commit of the epic.
+
+- [ ] Rewrite the `nova_modding` row in `AGENTS.md` - bundle merge, portal
+      client and downloads all live in `nova_assets`; name what `nova_modding`
+      actually owns.
+- [ ] Reword `AGENTS.md:102` so the `nova_events` line reads as the
+      scenario/modding vocabulary, not a general no-direct-coupling mandate.
+- [ ] Add the LOC share to the `AGENTS.md` crate table so `nova_gameplay` being
+      half the workspace is visible.
+- [ ] Write repo-root `CONVENTIONS.md`: 12 imperative `##` rules, one real
+      in-repo snippet and one or two sentences of rationale each, 120-150 lines.
+      A rewrite of `CONVENTIONS.md` in this task folder, never a copy.
+- [ ] Add the `## Tools that would undo these conventions` section
+      (`wildcard_imports`, `redundant_pub_crate`, `needless_pass_by_value`,
+      pedantic/nursery).
+- [ ] Add the `## Not yet true` section: rule 3 (80 sites, L5/L7/L8/L9/L10),
+      rule 4 (36, with rule 3), rule 10 (84, L9 per seam), rule 1 (28, L5).
+- [ ] Shrink `AGENTS.md`'s `## Code rules` to a pointer at the new file.
+- [ ] F79 - add `#[cfg(feature = "debug")]` to the 11 dead items in
+      `examples/sections/hull_section.rs:535,547,563`,
+      `torpedo_section.rs:69,349`, `controller_section.rs:64`,
+      `screenshots/screenshot_combat.rs:128,134`,
+      `screenshot_sections.rs:199`, `systems/player_path.rs:55`,
+      `sections/many_sections.rs:37`. No body changes.
+- [ ] Record in NOTES what `--features debug` actually builds while doing F79 -
+      F52 in L5 is the same investigation from the other end.
+- [ ] F80 - convert the 38 `#[allow(clippy::type_complexity)]` sites to
+      `#[expect(clippy::type_complexity, reason = "...")]`, modelled on
+      `hints.rs:200` and `keybind_dock.rs:569,737,790`.
+- [ ] Delete rather than convert the two known-stale suppressions at
+      `ammo_readout.rs:325` and `ammo_readout.rs:510`.
+- [ ] Gate `crates/nova_probe/src/report.rs` behind
+      `#[cfg(not(target_arch = "wasm32"))]` beside its siblings at
+      `lib.rs:82-109`. No code inside `report.rs` changes.
+- [ ] `MOVE tasks/20260806-121625/benchmark/` to `<root>/benchmark/`.
+- [ ] Replace the hardcoded `^tasks/` filter in `benchmark/sandbox.sh:38-42`
+      `repo_files()` with one named exclusion list covering `tasks/` AND
+      `benchmark/` - the single chokepoint for both the tar copy and `TREE.txt`.
+- [ ] `.gitignore benchmark/results/`, keeping `aggregate.json`,
+      `aggregate.csv` and `report.html` tracked.
+- [ ] Run `./sandbox.sh build tree` and inspect `TREE.txt` - zero `benchmark/`
+      paths. A wrong exclusion ships `keys/tier1.json` inside `blind`'s image
+      and fails silently.
+- [ ] Add `-D warnings` to the clippy step at `.github/workflows/ci.yaml:70`.
+      Free today - 0 warnings measured at that configuration.
+- [ ] Add the default-features CI job (`cargo check --workspace --all-targets`)
+      AFTER F79 has landed.
+- [ ] Add the wasm CI job (`cargo check --workspace --target
+      wasm32-unknown-unknown`) AFTER the `report.rs` gate has landed.
+- [ ] Re-read `AGENTS.md` against `notes/02-workspace-map.md` and confirm every
+      row is true.
+
+### Lane01 - "UNBLIND THE PROBE GATE" - tasks/20260806-121625/plan/lane01.md
+
+NEUTRAL. Goes first among the code work; every other lane is verified by the
+gate it repairs. No module renamed - that is L8.
+
+- [ ] Read `RunArtifacts::load`'s doc comment at `artifacts.rs:41-43` first -
+      hard-erroring on a corrupt-but-present artifact is deliberate and must
+      survive. Only the failure's SCOPE is wrong.
+- [ ] F01 - add `pub struct ArtifactFailure { name, reason }` and a
+      `failures: Vec<ArtifactFailure>` field to `RunArtifacts`.
+- [ ] F01 - add the `load_one<T>` helper and route every artifact through it;
+      per-artifact parse errors degrade to `None` plus a recorded reason
+      instead of `?`-propagating.
+- [ ] F01 - add `check_artifacts_loadable` to the checks roster so a present
+      unloadable artifact FAILS the run rather than deleting the report.
+- [ ] F03 - push `web-run.log` into `log_parts` at `artifacts.rs:65-70`; it is
+      both chromium's output and the game's (`stats.rs:708` parses `nova perf:`
+      out of an `INFO:CONSOLE` line).
+- [ ] F03 - forbid `log_clean` from SKIPPING on a run whose manifest says a web
+      pass happened. A SKIP on a platform that produced a log is the defect.
+- [ ] F05 - add `stale_cell_logs(out) -> Vec<PathBuf>` beside
+      `bin/probe/native/run.rs:29` and have `clean_out_dir` (`run.rs:43`) remove
+      those too; the comment at `run.rs:26` already claims this happens.
+- [ ] F02 - rewrite `build_row` (`sweep.rs:181,187`) so a run with
+      `run_error: Some(..)` cannot verdict better than ERROR.
+- [ ] F02 - add `RunStamp { git_sha, started_unix }` to `checks.json` and reject
+      a stamp that is not this run's; `run_identity()` and `sweep` already hold
+      both values.
+- [ ] F04 - declare `ProbeRecorderSystems::RunEnd` in `nova_probe/src/recorder.rs`
+      and `configure_sets(Last, RunEnd.after(AutopilotCompletionSystems))`.
+- [ ] F04 - write the test that FAILS if that edge is removed. The current
+      behavior is accidentally correct on today's executor.
+- [ ] F58 - replace the `if let Ok(..)` swallow at
+      `nova_events_macros/src/lib.rs:37` and `:42` with a `compile_error!`, so
+      `#[event_name = "x"]` stops compiling to the lowercased ident.
+- [ ] F63 - guard the empty-slice mean at `run_report/html.rs:217`; copy the
+      guarded form already at `capture.rs:499`. It prints NaN today.
+- [ ] F70 - route the in-app CSV append at `capture.rs:522` through
+      `append_frametime_row` (`stats.rs:415-426`) instead of re-implementing it.
+- [ ] F70 - re-assess AFTER F01 lands; fixing the bigger bug may retire it.
+      Record the verdict either way.
+- [ ] F71 - add `NOVA_PERF_CONTRACT` to the `env.retain` filter at
+      `bin/probe/native/run.rs:180` so the fps pass stops rewriting
+      `probe-contract.json`.
+- [ ] F76 - add `InheritedVisibility` to `ui_node_rect`'s query
+      (`nova_autopilot/src/input.rs:135-151`) and reject hidden nodes; add
+      `assert_named_visible`. Fix the harness, not the one example that noticed.
+- [ ] F76 - re-point `examples/screenshots/screenshot_ui.rs:171` at the new
+      assertion; `wiki-settings.png` currently ships as the bare main menu at
+      exit 0.
+- [ ] F77 - extract `release_all_held_keys` and call it from
+      `reload_the_run` (`player_path.rs:379`) as well as `replay_the_run`
+      (`:537-543`).
+- [ ] F78 - gate `tag_gate` (`examples/sections/turret_section.rs:404-406`) on
+      the spawner's own marker so the gravity planetoid stops being tagged a
+      range gate; `report_status` prints 6 gates for 5.
+- [ ] Build the gate fixture suite: truncated `trace.json`, torn
+      `timeline.jsonl`, non-UTF-8 `run.log`, `web-run.log`-only run, stale
+      `run-<n>.log`, pre-existing `checks.json` plus an errored run. Each
+      asserts the verdict the gate SHOULD produce.
+- [ ] Byte-compare `probe run --all` verdicts before and after on a healthy
+      tree - the fixes must not change a healthy run's answer.
+
+### Lane02 - "BUILD AND BASELINE THE BENCHMARK" - tasks/20260806-121625/plan/lane02.md
+
+Not code. This is the gate that makes L5-L10 provable rather than churn.
+Depends on L0 only. The owner starts and runs it.
+
+- [ ] OWNER - ratify `benchmark/keys/tier1.json` (30 locate questions).
+- [ ] OWNER - ratify `benchmark/keys/tier2.md` (3 design tasks + rubric).
+- [ ] OWNER - ratify `benchmark/keys/tier3.md` (mod brief + pass criteria).
+- [ ] Review `aggregate.py` tool-call counting against a REAL stream-json
+      transcript; it has only run on synthetic data.
+- [ ] Verify a persona can never be handed a paper for a question it was not
+      asked - `make-papers.py --check` guards generation, not the wiring.
+- [ ] Verify `grade.sh` never marks a persona down for a question it never saw.
+      The persona-filter rule is implemented twice (`make-papers.py:151`,
+      `grade.sh:59-66`) and nothing fails loudly if they drift; make one the
+      source of truth.
+- [ ] Confirm `[source]` is unreachable from every `rustdoc` page after `src/`
+      is stripped, not merely delinked.
+- [ ] Confirm the `docs` image now picks up the repo-root `CONVENTIONS.md`
+      landed in L0; a baseline without it under-measures `docs`.
+- [ ] Use Claude on the host once before the batch - the container throws away
+      its refreshed OAuth token and the host copy can go stale.
+- [ ] Smoke run: one persona, one paper, end to end. Nothing has run yet.
+- [ ] OWNER - baseline: `./run.sh baseline all tier1`, then each tier 2 paper,
+      then tier 3.
+- [ ] `./grade.sh baseline all`, `./aggregate.py baseline`,
+      `./report.py baseline`; commit `aggregate.json`, `aggregate.csv`,
+      `report.html`.
+- [ ] OWNER - run the `owner` persona by hand: the fixed 8-question tier 1
+      subset plus one tier 2 task, timed.
+- [ ] Record the baseline numbers in NOTES. Every structural lane is measured
+      against them.
+
+### Lane03 - "UNTRUSTED INPUT, DATA LOSS AND PERSISTENCE" - tasks/20260806-121625/plan/lane03.md
+
+NEUTRAL. Depends on L1. Mod content is untrusted input: a reachable panic, OOM
+or stack overflow is a defect, not an upheld invariant.
+
+- [ ] F06 - replace `read_index_at`'s `Option` (`mod_cache.rs:512`) with
+      `enum IndexRead { Absent, Loaded(..), Corrupt(String) }`; `None` currently
+      conflates "no index yet" with "corrupt".
+- [ ] F06 - make `install_local_at` (`mod_cache.rs:582`) refuse on
+      `Corrupt`: side-band the file to `installed.mods.ron.bad` and return
+      `Err`. Never clobber - it erases every other installed mod and orphans
+      their bytes where `remove_mod` can never sweep them.
+- [ ] F07 - add `write_atomic(path, bytes)` to `nova_assets/src/persist.rs`
+      (temp + fsync + rename), modelled on `nova_probe/src/recorder.rs:213` and
+      `contract.rs:164`.
+- [ ] F07 - route the four bare `std::fs::write` sites through it:
+      `mod_cache.rs:521`, `persist.rs:91`, `portal/catalog.rs:197`,
+      `bin/content.rs:103`.
+- [ ] F07 - land it as the change that INTRODUCES L10's `Storage::write`
+      contract, not a free helper L10 then has to absorb. See lane10.
+- [ ] F06+F07 - one kill-mid-write-then-install test covering both. They are
+      one failure mode in two halves; neither fix alone stops the loss.
+- [ ] F22 - add a settings flush system in `Last`, ordered before the AppExit
+      drain. `settings.rs:247` debounces 15 idle frames with no shutdown flush,
+      and `menu_ui.rs:564` writes AppExit immediately.
+- [ ] F08 - bound `deps.rs:25 visit()` with `MAX_DEP_DEPTH = 64` and a
+      `Result` return; it recurses over untrusted `catalog.json`
+      (`install.rs:425`) before `validate_entry`'s caps, and a stack overflow
+      ABORTS the process uncatchably.
+- [ ] F08 - add an entry-count cap to `PortalCatalog`; `MAX_FILE_COUNT` bounds
+      files per entry, not entries.
+- [ ] F09 - add `MAX_EXPR_DEPTH = 32` to `variables.rs:66` and
+      `filters.rs:164`, enforced in the RON decode AND in `evaluate()`. Deep
+      nesting overflows the stack on the asset-loader task during boot, with
+      the mod never enabled.
+- [ ] F12 - cap `ScatterObjectsConfig::count` (`spawn.rs:317`, field at `:244`)
+      at `MAX_SCATTER_COUNT = 4096`, add the matching lint rule, and cap the
+      `min_separation` rejection sampler's iterations (currently O(count^2)).
+- [ ] F13 - add `MAX_CATALOG_BYTES = 1 << 20` and bound the read at
+      `transport.rs:31`, before either of `catalog.rs:71`'s two parses.
+- [ ] F10 - apply `.max(f32::EPSILON)` at `turret_section/setup.rs:64`, the
+      guarded form already present at `:192`. `fire_rate: 0.0` panics the
+      instant the ship spawns.
+- [ ] F10 - lint `fire_rate` in `lint/ship.rs`, which lints the hinge axis and
+      muzzle presence but not this.
+- [ ] F14 - log the serde failure at `engine.rs:170`; `data: None` reads as
+      "does not match" in `filters.rs:71`, so an entity-filtered handler stops
+      firing permanently and silently.
+- [ ] F56 - push undeclared-ref violations for EVERY content kind at
+      `merge.rs:214`, not just `Content::Scenario`; the doc at `:145-148`
+      already claims this.
+- [ ] F57 - replace the `HashMap` at `objects/binding_input.rs:83` with a
+      `BTreeMap` or sorted-key `serialize_map`; same class at
+      `lint_walk.rs:380,532`.
+- [ ] F57 - regenerate `assets/base/**/*.content.ron` via the builders plus
+      `content -- gen` (never a hand-edit) AS ITS OWN COMMIT, so the generated
+      churn does not hide a real diff.
+- [ ] F59 - use `get(index)` at `portal/mod.rs:176`; the `install.files.len()
+      != index` guard does not bound `index` against `entry.files.len()`.
+- [ ] F60 - dedup `ids` before the `order.len() != ids.len()` cycle test at
+      `deps.rs:104`, and reject duplicate ids in `mod_set.rs:222`.
+- [ ] F68 - membership-gate the `self://` rewrite at `mod_refs.rs:75` the same
+      way `dep://` is gated. Defense in depth only.
+- [ ] F69 - key a failed dependency install at `portal/install.rs:459` under
+      BOTH the dependency's id and the dependent's, so the UI has a surface.
+- [ ] F61 - implement an epsilon compare inside `variables.rs:270`'s `Equal`
+      node. RULED: not a second `ApproxEqual` node, not a documented sharp edge.
+      Pick the epsilon from what the DSL's values are and name it as a constant
+      beside the node.
+- [ ] Build the hostile-RON corpus: malformed bundles, oversized catalogs,
+      deeply nested DSL expressions, duplicate ids, degenerate `fire_rate`.
+
+### Lane04 - "RECONCILER DISCIPLINE AND TERMINAL INPUT" - tasks/20260806-121625/plan/lane04.md
+
+NEUTRAL. Depends on L1. MUST precede L9's NOVAOS seam move, or every citation
+in `notes/10-review-hud-nova-os.md` has to be re-derived after 14.3k lines
+shift. `hud/keybind_dock.rs` is the reference implementation - every fix here
+is "make the site look like keybind_dock".
+
+- [ ] F19 - add an `Added<NovaOsTerminalRootMarker>` override to
+      `rebuild_terminal_ui` (`hud/nova_os/shell.rs:344,363`) so a just-spawned
+      terminal treats `last_len` as 0. Its two siblings at `:288` and `:320`
+      already carry it; `reset_session` leaves auto-scroll dead for ~190 rows.
+- [ ] F18 - replace the `f32::MAX` sentinel at `shell.rs:379` with a real clamp
+      at the point of writing. Bevy never writes the clamped value back, so
+      PageUp after a command needs two presses.
+- [ ] F40 - rebuild scrollback rows only when `scrollback().len()` or the tail
+      content changed; caret movement must not reach the row loop
+      (`shell.rs:344`, 4,800 entities per 12 keystrokes today).
+- [ ] F40 - bound `scrollback` in `nova_os::Terminal`; nothing trims it today.
+- [ ] F40 - route the prompt/hint/ghost writes at `shell.rs:385-400` through
+      `set_if_neq`.
+- [ ] F39 - guard the `node.width`/`node.height` writes in
+      `reconcile_nova_os_target` (`hud/nova_os/crt.rs:219`); its only gate lives
+      from ship spawn to despawn, so it runs every frame while flying over a
+      subtree of hundreds of `Text` children.
+- [ ] F42 - guard `node.left` in `position_nova_os_block_caret`
+      (`shell.rs:442`).
+- [ ] F42 - guard the `TextColor`/`BorderColor`/`BackgroundColor` writes at
+      `nova_os_ship/scene.rs:750,772`; the same function already guards its
+      `Text` write two lines above.
+- [ ] F20 - key `play_safety_engaged_cue`'s `Local<bool>`
+      (`audio/cues.rs:99`) on the ship `Entity`, or add an `Added<>` override.
+      It is process-global today and contradicts its own doc at `:93`.
+- [ ] F75 - add `prune_dry_fire_state` for `play_dry_fire_cue`'s
+      `Local<HashMap<Entity, bool>>` (`audio/cues.rs:147`), modelled on
+      `mixing.rs:195 prune_sfx_throttle`.
+- [ ] F15 - skip `Key::Character(_) | Key::Space` when Control is held at
+      `hud/nova_os/input.rs:267`, matching `handle_nova_os_app_keyboard`
+      (`:355,:374`). Ctrl+C/U/W/A/K insert literal characters at the prompt
+      today - the finding most likely to be hit by a real player.
+- [ ] F15 - add a shared `control_held(&KeyboardInput) -> bool`; three handlers
+      now ask the same question. Implementing the chords themselves is OPTIONAL
+      scope - decide and record.
+- [ ] F34 - route `ship_input` (`nova_os_ship/scene.rs:397`) through the app
+      router's Control guard instead of raw `ButtonInput<KeyCode>`; Ctrl+[ both
+      exits the app and cycles selection back.
+- [ ] F33 - give `prompt_completion_ghost` (`nova_os/terminal/view.rs:222`) and
+      `refresh_parse` (`edit.rs:338`) one shared accessor for "the prompt as
+      parsed"; a leading space greens the prompt with no ghost.
+- [ ] F73 - collect, sort and dedup in `completion_matches`
+      (`edit.rs:293`); Tab-cycle order varies between processes today.
+- [ ] F74 - add `MAX_HISTORY = 200` at `edit.rs:109` and skip a submit equal to
+      the last entry.
+- [ ] F16 - change `return` to `continue` at `mesh/explode.rs:130` and `:144`,
+      and fix the second `error!` to name `mesh_entity`. One still-loading
+      `Mesh3d` currently produces NO fragments and leaves a zero-health wreck
+      lingering with its collider live.
+- [ ] F21 - add `silence_loops_on_scenario_unload` on `OnExit`
+      (`audio/loops.rs:188,313`); loop sinks are session-persistent and the
+      engine hum roars through the whole scenario load.
+- [ ] F23 - home `update_target_position`
+      (`torpedo_section/projectile.rs:37`) on `live_structure_anchor` rather
+      than the target root's raw `Transform::translation`. `sections/mod.rs:38-43`
+      states the rule and every other consumer follows it.
+- [ ] F41 - guard the unconditional `Text`/`TextColor` writes at
+      `nova_ui/src/status_bar.rs:196`. F46 and F51 are deletions in the SAME
+      365-line untested file and wait for the baseline - read the file once and
+      hold that commit for L5's window.
+- [ ] Assert change-detection, not just behavior: run two frames with no input
+      and assert the component is not marked changed on the second.
+- [ ] DECIDE the L7 escape hatch: if L2's ratification drags, land F17's unit
+      conversion and F28's shrink clamp in place here (~10 lines, no file
+      moved), or defer with reason. Owner's call.
+
+### Lane05 - "DELETE THE DEAD AND LYING SURFACE" - tasks/20260806-121625/plan/lane05.md
+
+BLOCKS the baseline, lands AFTER it - deletion count is success criterion #2
+and lines deleted before the baseline never enter the ledger. Depends on L2.
+
+- [ ] F45 - delete `crates/nova_ui/src/tween.rs` (421 lines, 11 tests), its
+      `pub mod tween;` and prelude re-exports in `lib.rs`, and the
+      `.add_plugins(TweenPlugin)` at `hud/mod.rs:301`. Zero consumers
+      workspace-wide. DO THIS FIRST inside the lane - it makes F55 a two-plugin
+      merge and retires `TweenSystems` before L9 counts rule 10's sets.
+- [ ] F46 - delete `StatusBarStore` (`status_bar.rs:131-136`) and its
+      `init_resource` at `:153`. Declared, never read or written.
+- [ ] F51 - rebuild `insert_status_bar_item` (`status_bar.rs:238`) so the
+      caller's entity is the live one; today the observer copies the data into
+      a new child and leaves the caller's entity a permanent orphan with no
+      `Node`. `nova_core/src/lib.rs:290,297` spawns two.
+- [ ] F47 - RULED make it real: gate hanabi (`plugin.rs:77`), skybox (`:85`),
+      post (`:86`) and the HUD (`:111`) on `NovaGameplayPlugin::render`, so the
+      documented headless mode exists.
+- [ ] F48 - delete `objectives.rs:123 rebuild_lines` and `ObjectivesPlugin`;
+      `ObjectivesPanelMarker` appears only inside `objectives.rs` and the live
+      objectives HUD is `nova_scenario/src/loader/lifecycle.rs:49-63`.
+- [ ] F49 - either tag the spawner so `Without<SectionInactiveMarker>`
+      (`torpedo_section/bay.rs:112`) is real, or delete it. It reads as a live
+      safety gate and does nothing; a disabled bay keeps ticking to ready.
+- [ ] F50 - honor the `_skin` parameter in `panel_head`
+      (`nova_ui/src/widget/panel.rs:112`); `:121` hardcodes the phosphor band.
+      Deleting the parameter is the wrong fix - every call site believes it
+      does something.
+- [ ] F52 - stop `nova_debug/Cargo.toml:18` and root `Cargo.toml:224` forcing
+      `nova_gameplay/debug` on every test and example build. Read the L0 notes
+      rather than repeating the investigation.
+- [ ] F52 - delete `nova_info`'s `debug = []` feature outright; zero cfg sites.
+- [ ] F54 - delete two of the three private `toggle_debug_mode` fns
+      (`nova_debug/src/lib.rs:124`, `inspector.rs:180`, `wireframe.rs:66`). A
+      fourth sub-plugin silently breaks F11.
+- [ ] F55 - add `pub struct NovaUiPlugin`, delete the first-caller-wins
+      `widget::register` fn and `WidgetObserversRegistered`, and fold
+      `StatusBarPlugin` (`status_bar.rs:147`) into it.
+- [ ] Rule 2 - delete the 69 boilerplate `/// Glob-import surface: ...` prelude
+      doc lines. Keep the 37 that say something specific
+      (`nova_ui/src/lib.rs:24-31` is the model).
+- [ ] Rule 1 - write the 28 missing module `//!` docs, each with a "touch this
+      module when ..." line. COUNT THIS SEPARATELY - it adds lines and nets
+      against criterion #2; report two numbers, not one.
+- [ ] Rule 5 - rewrite the 26 docs that cite a task artifact (`DECISION.md`,
+      bare task ids) into constraints.
+- [ ] Rule 7 - add one comment per bare hand-written trait impl (6 sites)
+      saying why it is not a derive.
+- [ ] Rule 9 - rename `HudSituationSensing` -> `HudSituationSensingSystems` and
+      `CameraAuthority` -> `CameraAuthoritySystems`.
+- [ ] Rules 3+4 - add the 19 orphaned module preludes in the crates no
+      structural lane opens: `nova_autopilot` 7, `nova_debug` 6, `nova_os` 4,
+      `nova_mod_format` 2. One prelude module plus a one-line doc naming its
+      contents - never the boilerplate sentence rule 2 deletes.
+- [ ] Run `probe run --all` for F47 - making the headless mode real changes
+      what a run builds, so the compiler is not the verification.
+- [ ] Double-registration check in the menu and editor apps for F55.
+- [ ] Record the two deletion numbers (removed, added) in NOTES.
+
+### Lane06 - "NOVA_EDITOR" - tasks/20260806-121625/plan/lane06.md
+
+NEUTRAL. Depends on L1. Five defects in 2,378 LOC - worst defect density in the
+workspace, and the crate was not on the original list. One lane, one reader.
+
+- [ ] F11 - add `required_section(sections, id, kind) -> Option<&SectionConfig>`
+      and route the FIVE panic sites at `placement.rs:42,46,100,104,205` through
+      it. A mod overlay redefining either seeded id panics "New Hull Ship"
+      today; every other catalog lookup in the codebase logs and skips.
+- [ ] F11 - test that a missing catalog id logs and skips rather than
+      panicking.
+- [ ] F29 - add `capture_binding(input, reserved) -> Option<KeyCode>` at
+      `placement.rs:315`: exclude the editor camera keys, take `just_pressed`
+      not `pressed`, and sort before picking. Hold W while placing a turret and
+      it fires on every burn.
+- [ ] F30 - add `Pickable::IGNORE` to the keybind chips at `keybind.rs:60`;
+      copy the constant `card.rs:24` and `tooltip.rs:22` already use.
+- [ ] F31 - DECIDE which behavior is intended - reset `PlayerSpaceshipConfig`
+      on entry, or rebuild the preview from it - then add
+      `rebuild_editor_preview_on_enter` at `lib.rs:110`. The bug is that
+      NEITHER happens.
+- [ ] F32 - add `binding_conflict(config, key)` at `keybind.rs:187`, calling
+      `scenario_input_overlaps` directly if it accepts a runtime config. A
+      second implementation of "do these bindings overlap" is how the editor
+      and the lint drift apart.
+- [ ] Write one test per finding - 13 existing tests and no in-workspace
+      dependents means almost no safety net. Budget for the tests, not just the
+      fixes.
+
+### Lane07 - "NOVA_UI::SCREEN EXTRACTION" - tasks/20260806-121625/plan/lane07.md
+
+BLOCKS the baseline, lands AFTER it. Depends on L2. One extraction closes four
+defects; fixing the two unit bugs separately means writing the
+physical-to-logical conversion twice, which is how they diverged.
+
+- [ ] Read the `mods` / `scenarios` / `portal` call sites in `nova_menu`
+      together FIRST - the `list_detail_screen` signature falls out of that
+      reading, it is not a decision to make in advance.
+- [ ] Create `crates/nova_ui/src/screen/mod.rs` with `prelude`, `scroll` and
+      `list` submodules.
+- [ ] F17 - add `screen::scroll::max_scroll_y(node)` converting `ComputedNode`
+      physical px to the logical px `ScrollPosition` uses, via
+      `inverse_scale_factor()` as `shell.rs:440` and `screen_indicator.rs:418`
+      already do. On a 2x display the current maximum is twice the real one.
+- [ ] F17 - add `page_step(node)` in logical px, replacing the physical
+      `size.y * 0.8` at `nova_os/input.rs:257` that makes one PageUp jump 1.6
+      viewports.
+- [ ] F28 - add `ScrollViewport`, `scroll_viewports` (wheel, clamped both ends)
+      and `clamp_viewports` (re-clamp every frame after layout), ordered AFTER
+      `ui_layout_system` or it clamps against last frame's `ComputedNode`.
+- [ ] Delete `nova_menu/src/widgets.rs:66 max_menu_scroll_y`,
+      `:75 scroll_menu_lists` and `ScrollableList`.
+- [ ] Delete `nova_gameplay/src/hud/nova_os/input.rs:430 max_nova_os_scroll_y`.
+- [ ] Repoint `nova_os/input.rs:255` (PageUp/PageDown) and `:426` (wheel,
+      keeping its `any_hovered` precedence) at the new module.
+- [ ] Adopt `ScrollViewport` in the unclamped `nova_editor` scroll variant.
+- [ ] Repoint L4's F18 clamp at `screen::max_scroll_y`. Expected and cheap if
+      L4 ran first.
+- [ ] Add `list_detail_screen` and collapse the `mods`/`scenarios`/`portal`
+      triplication onto it.
+- [ ] Rules 3+4 - add 6 module preludes (`font.rs` and 5 siblings) plus
+      `screen/prelude.rs`, and collapse `nova_ui/src/lib.rs:32-51`'s 40-odd
+      hand-listed items to `<module>::prelude::*` lines. Whole crate in one pass.
+- [ ] Add a scale-factor test for F17 - the defect is invisible at scale 1.0.
+
+### Lane08 - "NOVA_PROBE RESTRUCTURE" - tasks/20260806-121625/plan/lane08.md
+
+BLOCKS the baseline, lands AFTER it. Depends on L1 (hard) and L2. No findings -
+L1 already fixed the defects; this lane is the structure. Do not let the rename
+absorb the fixes, or the fixes drift into a rename.
+
+- [ ] Carve `nova_probe_cli` out with module names UNCHANGED, so the commit is
+      a pure move and reviewable as one.
+- [ ] Split at the real process boundary: `nova_probe` is the in-game
+      collection library (wasm-clean, links into examples); `nova_probe_cli` is
+      the host harness (spawns children, reads artifacts, renders reports).
+- [ ] Keep `contract.rs` and `stats.rs` as the shared wire format in
+      `nova_probe`, with `nova_probe_cli` depending on it. No third crate until
+      a second consumer exists.
+- [ ] Rename in a SECOND commit: `capture.rs` -> `capabilities/frametime.rs`,
+      `recorder.rs` -> `capabilities/timeline.rs`, `invariants.rs` ->
+      `capabilities/invariants.rs`, `profile.rs` -> `capabilities/profile.rs`.
+- [ ] Rename `run_report/` -> `evaluation/` (artifacts, checks) + `report/`
+      (html, manifest); `aggregate.rs` -> `report/aggregate.rs`; `catalog.rs`
+      -> `evaluation/catalog.rs`; `report.rs` -> `report/mod.rs`;
+      `bin/probe/` -> `main.rs` + `native/`.
+- [ ] Add `NovaProbePlugin { frametime, timeline, invariants }` on the
+      collection side - it BUNDLES the capabilities, it does not replace their
+      per-example configuration.
+- [ ] Delete the ~20 `#[cfg(not(target_arch = "wasm32"))]` attributes at
+      `lib.rs:82-163`; the crate boundary now is the cfg.
+- [ ] Rules 3+4 in a THIRD commit - one prelude per module in both crates,
+      written at the point each module is created under its new name.
+      `nova_probe` has 12 public modules, zero preludes and the workspace's
+      worst deep-import count (184).
+- [ ] Evict LAST (the only items that can be argued about): `profile_sandbox.rs`
+      beside `supervise`, `fixtures.rs` + `run_report/fixtures.rs` to
+      `#[cfg(test)]` or a dev-dependency, `bin/perf_web.rs` as a separate tool.
+- [ ] Move the `Cargo.toml` workspace members, the root dev-dependency and the
+      `[[bin]]` entries (`nova_probe/Cargo.toml:18-30`).
+- [ ] Update every caller of `cargo run -p nova_probe -- run --all` to
+      `-p nova_probe_cli` IN THE SAME COMMIT as the split:
+      `.github/workflows/ci.yaml`, `AGENTS.md`, any justfile/scripts, every doc
+      line quoting it.
+- [ ] `grep -rn -- '-p nova_probe' .` before declaring the lane done. This is
+      the only rename in the epic with a non-Rust consumer.
+- [ ] Byte-compare `probe run --all` verdicts before and after, and re-run L1's
+      fixture-driven gate tests.
+
+### Lane09 - "NOVA_GAMEPLAY FOUR-WAY SPLIT" - tasks/20260806-121625/plan/lane09.md
+
+BLOCKS the baseline, lands AFTER it. The bulk of the epic and its highest risk.
+Depends on L2, L4, L5, L8. Cut NOVAOS -> HUD -> FLIGHT -> CORE, outermost
+first, so each cut is against a base that has not moved.
+
+- [ ] Back-edge 1 - move the helper `camera/framing.rs:200` needs into `math`
+      (CORE, already moving).
+- [ ] Back-edge 2 - invert the scheduling edge at
+      `sections/controller_section.rs:301`; the dependency is on ordering, not
+      data.
+- [ ] Back-edge 3 - lift `plugin.rs:107,111,115` into the assembly crate. The
+      plugin wiring four crates belongs above all four.
+- [ ] Confirm all three back-edges are resolved BEFORE any file moves.
+- [ ] Seam NOVAOS - cut `hud/nova_os*` (~14.3k lines): a terminal runtime that
+      is not a HUD. Densest defect cluster and the biggest navigability win.
+- [ ] Seam HUD - cut the rest of `hud/` (43% of the crate minus NOVAOS).
+- [ ] Seam FLIGHT - cut `flight/`, `sections/`, `input/`, `camera/`,
+      `physics/`.
+- [ ] Seam CORE - `math/`, components, shared markers; everything the other
+      three import.
+- [ ] Rule 10, per seam - declare a `SystemSet` for each of the 68 plugins that
+      has none, and give each new crate a `configure_sets` block that proves the
+      seam is real and the order intentional.
+- [ ] Rule 10 first slice - order the 16 declared-but-unordered sets
+      (`DirectionalSphereOrbitSystems`, `HudSituationSensingSystems`,
+      `IntegritySystems`, `NovaOsMapSystems`, `NovaOsShipSystems`,
+      `ObjectivesPluginSystems`, `PointRotationSystems`,
+      `SmoothLookRotationSystems`, `SpaceshipTargetingSystems`,
+      `SphereOrbitSystems`, `SphereRandomOrbitSystems`,
+      `StatusBarPluginSystems`, `TempEntitySystems`, `TurretSectionAimSystems`,
+      `TweenSystems`, `WASDCameraControllerSystems`). Re-count AFTER L5 -
+      `TweenSystems`, `StatusBarPluginSystems` and `ObjectivesPluginSystems`
+      retire there.
+- [ ] F53 - the NOVAOS seam's first `configure_sets` block covers
+      `nova_os_ship/mod.rs:166` and `nova_os_map/mod.rs:139`, which are declared
+      and never ordered. The measurement shows F53 is not 2 sites, it is 16.
+- [ ] F53 follow-through - once the ordering is real, DECIDE whether
+      `peek_pending_invocation` (`nova_os_ship/app.rs:195`) is deletable; it
+      exists because of the missing edge. That is exactly the deletion criterion
+      #2 wants.
+- [ ] F81 - add `#[derive(SystemParam)] struct NovaOsAppInput` for the identical
+      6-param cluster in `map_input` (`nova_os_map/scene.rs:259`) and
+      `ship_input` (`nova_os_ship/scene.rs:336`); removes two
+      `too_many_arguments` suppressions. The struct has to sit on one side of
+      the seam regardless. Local idiom: `nova_os_ship/sections.rs:223`.
+- [ ] Audit the 633 crate-local `pub` items (nova_gameplay holds 358) as each
+      seam decides what crosses its boundary. Truly dead items: zero - this is
+      "tighten what is public", not "delete what is unused".
+- [ ] Rules 3+4 - 26 module preludes, written in the same pass as the
+      visibility audit. `math` alone is 5 of the deep-import violations and is
+      already moving.
+- [ ] Run `probe run --all` PER SEAM, not once at the end.
+- [ ] Note as you go which `keys/tier1.json` questions each move invalidates
+      (`_coverage` maps ids to areas; `nova_os_hud_seam` is 5 of 30), so L2's
+      single re-keying pass is not a reconstruction from memory.
+
+### Lane10 - "NOVA_ASSETS / NOVA_SCENARIO CLEANUP" - tasks/20260806-121625/plan/lane10.md
+
+BLOCKS the baseline, lands AFTER it. Depends on L2 and L3. Independent of L9,
+so it can run in parallel with it.
+
+- [ ] Create `nova_authoring` and move `lint_walk.rs`, `balance.rs`,
+      `content_report.rs`, `scenario_generation.rs`, `bin/content.rs` (as the
+      crate's binary) and `nova_scenario/src/lint/` into it.
+- [ ] Verify the test that justifies the move: the game binary does not link
+      the linter. Anything in the moved set reachable from a running game did
+      not belong in the move.
+- [ ] Move `assets/base/**` to sit with the tool that generates it, not the
+      runtime crate that reads it.
+- [ ] Add `crates/nova_assets/src/storage.rs` with
+      `trait Storage { read, write, remove }`, mirroring the existing
+      `PortalTransport` pattern.
+- [ ] Extend the trait's `write` from L3's F07 contract - atomic on native
+      (temp + fsync + rename), a single `set_item` on wasm - rather than
+      absorbing a free helper and rewriting the same four call sites.
+- [ ] Add `NativeStorage { root }` and `WebStorage`; the two impls already
+      exist behind `persist.rs`'s `#[cfg(target_arch = "wasm32")]` split at
+      `:75-98`, they are just not behind a trait.
+- [ ] Delete the `#[cfg(target_arch = "wasm32")]` gates the trait replaces. Do
+      NOT re-argue this from bit-rot - W3 withdrew that; all 14 crates
+      type-check clean on wasm32. The case is testability and gate removal.
+- [ ] Route the four scenario -> HUD coupling sites through `nova_events`:
+      `world.rs:138-144`, `actions/mission.rs:512,534,554`. These are the sites
+      `AGENTS.md:102` was actually about - route them because they are
+      scenario-observable moments, not because of a blanket rule.
+- [ ] Lift `render_scale` out of `nova_scenario` into whichever crate owns the
+      render settings; decide by reading its consumers, not in advance.
+- [ ] Rules 3+4 - 13 module preludes in `nova_assets` (13 public modules, 1
+      prelude today) and 2 in `nova_scenario`, each written at the moved
+      module's NEW home.
+- [ ] Confirm L3's F57 regeneration landed as its own commit BEFORE the content
+      move; otherwise the `content_ron_parity` diff is unreviewable.
+- [ ] Verify with `content -- lint`, `content_ron_parity` and the `shakedown`
+      scenario walk.
+
+### Lane11 - "PERF AND SMALL CORRECTNESS" - tasks/20260806-121625/plan/lane11.md
+
+NEUTRAL. Depends on L1 - F37 sits directly under the probe's FPS baseline
+check, so its evidence is only meaningful once the gate is trustworthy.
+
+- [ ] F37 - add a `DefaultProjectileRender { mesh, material }` resource,
+      initialized at plugin startup, and clone two handles in the `None` arm of
+      `turret_section/render.rs:126-133`. That arm is the SHIPPED path - every
+      stock turret authors no projectile mesh - so a held trigger creates 100
+      mesh and 100 material assets per second.
+- [ ] F38 - extract `spool_allocated_thrusters` from the byte-identical 16-line
+      bodies at `flight/autopilot.rs:877` and `flight/manual.rs:142`, building a
+      `HashMap<Entity, usize>` from `allocation` ONCE outside the loop. Do not
+      fix the O(ships x thrusters^2)-per-tick bug in place in two files.
+- [ ] F38 - preserve the verified invariant that `balance_throttles` always
+      returns `engines.len()` entries, so `throttles[i]` cannot panic. Do not
+      add a bounds check that hides its loss.
+- [ ] F24 - move the AI firing-gate timers (`guns.rs:119`,
+      `behavior.rs:292-308`, `torpedo.rs:158`) to `FixedUpdate` or tick them off
+      `Time<Fixed>`; the chain is registered in `Update` while the firing
+      happens in `FixedUpdate`. Decide which by reading what else the AI chain
+      needs from `Update`. The 6-vs-119 ratio is NOT a problem - do not widen.
+- [ ] F26 - add the `nova_ui::widget::UiText` marker at `settings.rs:95` and
+      `pause.rs:203,286`; they are the only menu files that never import it, so
+      those spans render in Bevy's default face. Visible in any screenshot.
+- [ ] F27 - clamp `nova_os_bright_detent` / `nova_os_scan_detent` on load at
+      `settings.rs:228`, like the volume beside it; `(99+1) % 4 == 0` jumps
+      brightest to dimmest.
+- [ ] F22 note - whoever opens `settings.rs` carries L3's F22 too. Three
+      defects, one file.
+- [ ] F25 - commit `button_on_setting` (`nova_ui/src/widget/button.rs:496`) on
+      `Activate` like every other button, not `On<Add, Pressed>`; press-drag-off
+      currently cannot be cancelled.
+- [ ] Skin-divergence pass - read the two paint backends ONCE and fix
+      `button.rs:244`, `slider.rs:26`, `slider.rs:78` alongside F25, with one
+      skin-comparison screenshot test. F50 is the same investigation and sits
+      in L5.
+- [ ] F65 - use `try_despawn` at `torpedo_section/projectile.rs:94`, or better,
+      add the missing ordering edge between `SpaceshipSectionSystems` and
+      `TempEntitySystems::Sync`. Two queued despawns HARD-PANIC under the
+      `FallbackErrorHandler(panic)` the autopilot and probe runs install.
+- [ ] F66 - RULED INTENDED. Add one comment at `projectile.rs:65` saying a
+      no-lock launch is a misfire. Behavior unchanged; without the comment the
+      next reviewer re-reports it.
+- [ ] F35 - prune `AreaOccupancy` when a body inside a live area despawns
+      (`objects/area.rs:53`), not only when the area does, and clear it in
+      `teardown_scenario_entities`. A scenario gating on `OnExit` never
+      advances today.
+- [ ] F36 - exclude `0.0` from the range checks at
+      `lint/scenario.rs:291,348`; the message already claims `(0, MAX]` and
+      `auto_advance_secs: Some(0.0)` builds a Timer that finishes on tick one.
+- [ ] F43 - move the two per-readout-per-frame `String` allocations at
+      `hud/readout.rs:207` to the right side of the `existing.0 != text`
+      compare that throws them away.
+- [ ] F44 - clear the 14 `redundant_clone` sites in per-frame HUD systems
+      (`flight_status.rs:204`, `torpedo_target.rs:180`, `turret_lead.rs:222`,
+      `damage_tint.rs:473,638`, `nova_os_map/scene.rs:104`,
+      `nova_os_ship/scene.rs:213`, ...). Mechanical.
+- [ ] F62 - replace `images.get_mut(&config.cubemap).unwrap()`
+      (`camera/skybox.rs:118`) with the `let ... else { error!; return }` form
+      used one line above.
+- [ ] F64 - fall back to `"unknown"` instead of `expect`/`unwrap` at
+      `nova_info/build.rs:11-13`; a tarball export with no git fails to build.
+- [ ] F67 - DECIDE for `sections/thruster_section.rs:353`: multiply main-drive
+      thrust by `dt`, or document why it is a raw impulse. Halving `Time<Fixed>`
+      halves every ship's linear acceleration today. Internally consistent, but
+      do not leave it undocumented.
+- [ ] F72 - add `ScenarioConfig::new(id, name, cubemap)` and delete the
+      `Default` impl at `loader/mod.rs:144`, which is invalid by its own doc at
+      `:141`. 15 sites, mechanical.
+- [ ] F82 - read the four real system params before acting
+      (`ai/behavior.rs:909`, `component_lock.rs:403`, `radar.rs:387`,
+      `turret_section/aim.rs:510`); a `&mut` that reaches a system signature
+      declares a write the scheduler serializes against.
+      `chip_layout_rig.rs:278` is verified a test helper - leave it.
+- [ ] F85 - fix the two `while_float` loops (`nova_os_map/tests.rs:842`,
+      `nova_os_ship/tests.rs:1316`), `iter_with_drain` (`mesh/explode.rs:200`)
+      and the case-sensitive extension comparison
+      (`run_report/artifacts.rs:81`).
+- [ ] F86 - fix or DROP WITH REASON: the unwrapped angle lerp
+      (`transform/directional_sphere_orbit.rs:121`), the absolute
+      `f32::EPSILON` snap threshold (`math.rs:35`), and `camera/shake.rs:295-296`
+      feeding offset and kick the same random sample. None is player-visible.
+- [ ] Measure F37 and F38 with `probe run --baseline`. Both should show a
+      measurable FPS improvement, and that measurement is the point.
+
+### Close-out - the epic's last commits
+
+- [ ] Re-key `benchmark/keys/tier1.json` ONCE, immediately before the final
+      run: question text frozen, only `expect` and `citation` change, and only
+      to the new location of the same thing.
+- [ ] Record any question whose answer no longer exists as a FINDING, never
+      retarget it at its nearest survivor.
+- [ ] Bump `_keyed_at` and re-open every touched citation against the tree.
+- [ ] OWNER - final benchmark run. Report the `blind` and `tree` deltas
+      explicitly; a refactor that raises `docs` but not `blind`/`tree` is the
+      failure this benchmark exists to catch.
+- [ ] Delete `## Not yet true` from the repo-root `CONVENTIONS.md`. Its
+      emptiness is the proof the conventions are real. THIS IS THE LAST COMMIT.
+- [ ] Create the separate tatr task for F84 (`proc-macro-error2 v2.0.1`
+      future-incompatibility) - transitive, breaks on a rustc bump, `-D warnings`
+      does not cover it.
+
+## Definition of Done
+
+- Every lane above is either landed or explicitly deferred with a reason
+  recorded in NOTES. (manual: read the Steps checkboxes)
+- CI runs clippy with `-D warnings`, a default-features check and a wasm check,
+  all green. (cmd: `gh run list --branch master --limit 1`)
+- The probe gate cannot pass an unprobed run: L1's fixture suite is red before
+  the fixes and green after. (cmd: run the fixture tests on the base branch and
+  confirm they fail)
+- `probe run --all` verdicts on a healthy tree are byte-identical before and
+  after L1 and after each L9 seam.
+  (cmd: `nix develop --command cargo run -p nova_probe_cli -- run --all`)
+- No caller of `cargo run -p nova_probe -- run --all` survives L8.
+  (cmd: `grep -rn -- '-p nova_probe ' . --exclude-dir=target`)
+- `TREE.txt` in the `tree` persona image contains no `benchmark/` and no
+  `tasks/` path. (cmd: `cd benchmark && ./sandbox.sh build tree && ./sandbox.sh
+  inspect tree`)
+- Content gates pass after L3 and L10.
+  (cmd: `nix develop --command cargo run -p nova_assets --bin content -- lint`)
+- The final benchmark run shows the `blind` and `tree` tool-call deltas against
+  the L2 baseline, reported as two numbers. (manual: `benchmark/results/*/report.html`)
+- Deletion count is reported as TWO numbers, removed and added - rule 1 adds 28
+  module docs. (manual: NOTES)
+- Repo-root `CONVENTIONS.md` has no `## Not yet true` section.
+  (cmd: `grep -c 'Not yet true' CONVENTIONS.md`)
+- `AGENTS.md` is true row by row against `notes/02-workspace-map.md`.
+  (manual: re-read both)
+
+## Notes
+
+- Assumption: lanes land as separate commits on one branch under this one tatr
+  task. Splitting into multiple tasks was rejected by the owner - the lanes
+  share one baseline and one findings list.
+- Assumption: `probe run --all` and the content gates run locally per lane; the
+  full test suite and clippy stay CI's job (`skip-local-tests-and-clippy`).
+- Assumption: the L7 escape hatch stays closed unless the owner opens it. F17
+  and F28 wait for the baseline by default.
+- OWNER GATE: the benchmark runs exactly twice and the owner starts both. A
+  lane that needs a benchmark number STOPS AND PROMPTS - it never proceeds on
+  an assumed number.
+- Risk: L9 is XL and depends on four lanes. If L4 or L5 slips, the NOVAOS seam
+  moves 14.3k lines with unfixed defects inside it and every citation in
+  `notes/10-review-hud-nova-os.md` has to be re-derived. Hold the seam, do not
+  reorder.
+- Risk: the benchmark harness has never carried a real run. A bug in
+  `aggregate.py` or `grade.sh` silently corrupts the number every structural
+  lane is measured against. That is why L2 has a review step and a smoke run
+  before the baseline.
+- Risk: one final run means a seam that is not paying for itself is invisible
+  until the epic is over. Accepted by the owner; `probe run --all` per seam
+  still covers correctness continuously.
+- Tests are NOT a lane. Owner's explicit instruction - the per-lane
+  verification is the evidence each lane needs to land, not a coverage push.
+- Never hand-edit `assets/base/**/*.content.ron`; F57 regenerates it via the
+  builders plus `content -- gen`, in its own commit.
