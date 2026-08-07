@@ -19,7 +19,8 @@ baseline runs.
 
 ## Rubric
 
-Reproduced from `README.md`. 0-3 each; the grader must justify every score
+Reproduced from `README.md`. Each dimension is one number in `[0.00, 1.00]`,
+two decimals - the same scale tier 1 uses. The grader must justify every score
 with a citation.
 
 | Dimension | Asks |
@@ -33,23 +34,30 @@ with a citation.
 contents - `hud/` holding a terminal runtime, `nova_modding` holding neither
 bundle merge nor the portal client.
 
-Scoring the four dimensions:
+Anchors for the four dimensions. They are anchors, not buckets: score between
+them where the note sits between them, and say in the citation which way you
+judged it.
 
 | Score | Ownership | Completeness | No phantom structure | Cost of arrival |
 | --- | --- | --- | --- | --- |
-| 3 | every required crate named, none spurious | every required surface named | nothing invented, no misleading name trusted | at or below the owner's count |
-| 2 | one required crate missed | one required surface missed | one hedge or soft misread, self-flagged | within 2x the owner's count |
-| 1 | two missed, or a wrong crate named as primary | two or three missed | one invented module or one name taken at face value | within 4x |
-| 0 | the primary owner is wrong | four or more missed | the plan is built on structure that does not exist | above 4x, or gave up |
+| 1.00 | every required crate named, none spurious | every required surface named | nothing invented, no misleading name trusted | at or below the owner's count |
+| 0.67 | one required crate missed | one required surface missed | one hedge or soft misread, self-flagged | within 2x the owner's count |
+| 0.33 | two missed, or a wrong crate named as primary | two or three missed | one invented module or one name taken at face value | within 4x |
+| 0.00 | the primary owner is wrong | four or more missed | the plan is built on structure that does not exist | above 4x, or gave up |
+
+Completeness has a Required list to count against, so prefer the fraction of
+required surfaces named over the anchor row when the two disagree. Cost of
+arrival is a ratio against the owner's count, so interpolate it rather than
+rounding to an anchor.
 
 Report per persona: four scores, the tool-call count, and the reviewer's
-citations. The headline number is the total out of 12.
+citations. The headline number is the mean of the four, also `0.00` to `1.00`.
 
 ## Ground-truth surface lists
 
 These are the answer keys. They are what the reviewer scores Completeness
-against. Every path was re-opened against the tree at HEAD `1eef94a3` on 2026-08-07,
-after L0 landed.
+against. Every path was re-opened against the tree at HEAD `89c049fd` on
+2026-08-07, after L0 landed.
 
 Each list separates:
 
@@ -105,9 +113,8 @@ exist is a phantom-structure deduction regardless.
 ### Why this task discriminates
 
 `SectionKind` is matched in **27 files: 23 across 5 crates, plus 4 examples**.
-Adding a variant is a
-non-exhaustive-match cascade, and nothing in the folder structure discloses its
-reach. The plan's Completeness score is a direct measure of how far a reader
+Adding a variant is a non-exhaustive-match cascade, and nothing in the folder
+structure discloses its reach. The plan's Completeness score is a direct measure of how far a reader
 can see from `sections/`.
 
 Second signal: the split between `nova_gameplay/src/sections/` (behaviour) and
@@ -217,4 +224,5 @@ routing internal gameplay signals through `nova_events`, or that puts the
 
 Second signal: the action lives in two places at once - a config struct plus a
 `match` arm plus a prelude line. Missing the `match` arm in
-`actions/mod.rs:92` is the classic partial answer.
+`actions/mod.rs:92` is the classic incomplete answer - one required surface,
+so Completeness lands near `0.67`.

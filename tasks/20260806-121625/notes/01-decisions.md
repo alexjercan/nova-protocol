@@ -103,8 +103,9 @@ Six personas: `blind`, `docs`, `tree`, `rustdoc`, `owner`, `modder`. A seventh,
 papers as `owner`.
 
 Measurements, all of: tool calls to correct answer (primary), graded correctness
-(right / partial / wrong / gave-up), wrong-path detours, self-reported
-confidence, **plus** a design tier:
+(a number `0.00`-`1.00` per question or dimension; gave-up counted separately -
+owner ruling 2026-08-07, superseding the original right / partial / wrong
+enum), wrong-path detours, self-reported confidence, **plus** a design tier:
 
 > "We also give them a coding task and they create a markdown file with
 > basically the understand step so they provide a 'NOTES.md' with what they

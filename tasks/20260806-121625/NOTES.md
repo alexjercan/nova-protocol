@@ -105,7 +105,10 @@ self-reported**), graded correctness, wrong-path detours, and confidence.
 Tier 2: three design tasks (new ship section type, new NOVA OS app, new
 scenario action + event) as three separate runs, each producing a NOTES.md
 graded by a grader agent on ownership / completeness / no-phantom-structure /
-cost of arrival. Tier 3, the modder task, has the only objective verdict in the
+cost of arrival. Both graded tiers award **one number `0.00`-`1.00`** per
+question and per dimension - no right / partial / wrong buckets; the keys fix
+the values for the cases they call out and everything else is the fraction of
+required parts answered. Tier 3, the modder task, has the only objective verdict in the
 suite - the mod either passes `content -- lint` and loads, or it does not.
 
 Papers are **generated** per persona from the answer key, so questions cannot

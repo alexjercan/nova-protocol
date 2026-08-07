@@ -143,8 +143,8 @@ Short questions, one answer each. Recorded per question:
 
 | Field | Values |
 | --- | --- |
-| `score` | `0.0` to `1.0`. `1.0` matches `expect` at the stated `grain`; `0.5` is the partial case the key's `notes` define; `0.0` is wrong. A multi-part question the notes do not pin scores the fraction of parts right |
-| `gave_up` | an honest refusal. Scores `0.0`, but counted apart from a confident wrong answer - same points, different finding |
+| `score` | any number `0.00` to `1.00`, two decimals. `1.00` matches `expect` at the stated `grain`; `0.00` is a wrong crate/module/file. In between, the key's `notes` fix the values for the cases they call out, and a multi-part question the notes do not pin scores the fraction of parts answered |
+| `gave_up` | an honest refusal. Scores `0.00`, but counted apart from a confident wrong answer - same points, different finding |
 | `tool_calls` | counted from the transcript, **not** self-reported. The primary metric - continuous, and the closest proxy to "every change starts with a grep" |
 | `detours` | files opened that were not on the path. Measures how misleading current names are |
 | `confidence` | self-report before checking. Colour, not a metric |
@@ -153,11 +153,12 @@ Score is the mean of the per-question scores, each persona against the
 questions it was asked. `tool_calls` is expected to move most: an agent can
 answer correctly before and after while the cost drops from 12 calls to 2.
 
-The key still speaks in `right` / `partial` / `wrong`, and it still rules -
-those words are the anchors of the 0-1 scale, and where `notes` pins a value it
-wins over any fraction the grader would otherwise compute. The scale exists so
-a two-of-three answer reads as `0.67` instead of collapsing into the same
-bucket as a one-of-three answer. See `papers/grade-tier1.md`.
+There are no grade names anywhere in the scale - no right / partial / wrong.
+The key states a number for every case it fixes, and where it fixes one that
+number wins over any fraction the grader would otherwise compute. Everything
+else is the fraction of required parts answered, so a two-of-three answer reads
+as `0.67` instead of collapsing into the same bucket as a one-of-three answer.
+See `papers/grade-tier1.md`.
 
 Answers are capped at 40 words and graded on what they locate, never on length.
 Every paper carries the same style block; the graders are told in as many words
@@ -184,7 +185,8 @@ Tasks (owner-selected; each crosses seams the epic cuts):
    `nova_events` vocabulary, and the gameplay emitter. Tests whether the
    events-vs-observers distinction is legible.
 
-Rubric, 0-3 each, grader must justify every score with a citation:
+Rubric, `0.00` to `1.00` each on the same continuous scale as tier 1; the
+grader must justify every score with a citation:
 
 | Dimension | Asks |
 | --- | --- |
@@ -197,7 +199,8 @@ Rubric, 0-3 each, grader must justify every score with a citation:
 contents - `hud/` holding a terminal runtime, `nova_modding` holding neither
 bundle merge nor the portal client.
 
-Ground truth and the full 0-3 scoring table: `keys/tier2.md`.
+The headline number is the mean of the four. Ground truth and the full anchor
+table: `keys/tier2.md`.
 
 ## Tier 3 - modder
 
@@ -230,6 +233,7 @@ are what make that bias auditable.
 | `keys/tier2.md` | the rubric and the ground-truth surface lists |
 | `keys/tier3.md` | the mod brief rationale and the pass criteria |
 | `papers/src/*.md` | hand-written tier 2 and tier 3 task bodies |
+| `results/<run>/` | every run artifact. **Gitignored whole** - nothing a run produces is stored. Compare two runs locally with `./report.py after baseline` |
 | `papers/*.md` | generated. Do not edit |
 | `papers/grade-tier*.md` | the grader's own papers |
 | `docker/` | base runtime image, persona image, container entrypoint |

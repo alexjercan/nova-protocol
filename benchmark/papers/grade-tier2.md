@@ -14,9 +14,12 @@ Cost of arrival dimension.
 
 ## Rules
 
-Score the four rubric dimensions 0-3 using the scoring table in the key. Every
-score needs a citation - a quote from `/grade/NOTES.md`, or the specific
-required surface that is absent from it.
+Score each of the four rubric dimensions as **one number in `[0.00, 1.00]`,
+rounded to two decimals**, using the anchor table in the key. Any value in that
+range is available - the anchors are reference points, not buckets, so a note
+between two rows scores between them. Never write a grade name into a score
+field. Every score needs a citation - a quote from `/grade/NOTES.md`, or the
+specific required surface that is absent from it.
 
 Read the key's Required / Credit split carefully:
 
@@ -43,10 +46,10 @@ Write `/out/grades.json`:
 {
   "task": "tier2a",
   "scores": {
-    "ownership": 3,
-    "completeness": 2,
-    "no_phantom_structure": 3,
-    "cost_of_arrival": 1
+    "ownership": 1.0,
+    "completeness": 0.67,
+    "no_phantom_structure": 0.9,
+    "cost_of_arrival": 0.33
   },
   "citations": {
     "ownership": "why, quoting the note or naming what is absent",
@@ -60,5 +63,6 @@ Write `/out/grades.json`:
 }
 ```
 
-The headline number is the total out of 12; the harness computes it. No prose
-outside the file.
+Every value in `scores` is a JSON number in `[0.00, 1.00]` with at most two
+decimals - never a string, never a word. The headline number is the mean of the
+four; the harness computes it. No prose outside the file.

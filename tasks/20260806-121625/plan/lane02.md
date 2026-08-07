@@ -16,8 +16,9 @@ review, a placement decision, and the run itself.
 
 | Piece | State |
 | --- | --- |
-| 30 tier 1 questions + answer key, citations re-verified against `4a8b55aa` | drafted, **awaiting ratification** |
+| 30 tier 1 questions + answer key, citations re-verified against `89c049fd` | drafted, **awaiting ratification** |
 | 3 tier 2 prompts + rubric + ground-truth surface lists | drafted, **awaiting ratification** |
+| grading scale, both tiers: one number `0.00`-`1.00` | **owner ruling 2026-08-07**, replaces right/partial/wrong |
 | tier 3 mod brief + pass criteria | drafted, **awaiting ratification** |
 | Docker isolation, one image per persona | built, all six images verified |
 | paper generation, run, grade, aggregate, report | written, exercised on synthetic data |
@@ -117,8 +118,12 @@ tar copy and `TREE.txt` go through it, so one exclusion list covers both. **A
 wrong exclusion ships `keys/tier1.json` inside `blind`'s image**, which does
 not fail loudly; it just answers most of tier 1 for free.
 
-`results/` holds transcripts and is large. Commit `aggregate.json`,
-`aggregate.csv` and `report.html`; gitignore the rest.
+`results/` is gitignored whole - **owner ruling 2026-08-07**, revising the
+earlier plan to commit the three rollups. Nothing a run produces is stored. A
+run is reproducible from the harness plus the keys, and the baseline-vs-after
+comparison is made locally: `./report.py after baseline` renders both side by
+side. The consequence to accept: the baseline number lives only on the owner's
+disk between the two runs.
 
 ## Open - review
 

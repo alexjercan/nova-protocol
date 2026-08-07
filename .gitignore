@@ -251,10 +251,8 @@ __marimo__/
 # probe-run artifacts (`cargo run -p nova_probe -- run ...` default out)
 /probe-runs/
 
-# Benchmark run output. The three rollups are the reviewable result and stay
-# tracked; the per-persona transcripts and payloads are large and are not.
-/benchmark/results/**
-!/benchmark/results/**/
-!/benchmark/results/*/aggregate.json
-!/benchmark/results/*/aggregate.csv
-!/benchmark/results/*/report.html
+# Benchmark run output - transcripts, answer sheets, rollups and reports alike.
+# Owner ruling 2026-08-07: none of it is stored. A run is reproducible from the
+# harness plus the keys, and the baseline-vs-after comparison is made locally
+# (`./report.py after baseline` renders both side by side).
+/benchmark/results/

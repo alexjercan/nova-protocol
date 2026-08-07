@@ -24,10 +24,12 @@ RESULTS = HERE / "results"
 # A persona is scored against the questions it was asked, never against 30.
 ORDER = ["blind", "tree", "docs", "rustdoc", "modder", "owner"]
 
-# Tier 1 grades are continuous in [0, 1]. Runs graded before that change carry
-# the four-way enum instead; map it onto the same scale so an old run stays
-# comparable rather than silently reading as all-zero.
+# Both tiers are scored continuously in [0, 1]. Runs graded before that change
+# carry the tier 1 four-way enum and the tier 2 0-3 integers instead; map both
+# onto the same scale so an old run stays comparable rather than silently
+# reading as all-zero (tier 1) or ten times too large (tier 2).
 LEGACY_GRADE_POINTS = {"right": 1.0, "partial": 0.5, "wrong": 0.0, "gave-up": 0.0}
+LEGACY_TIER2_MAX = 3.0
 
 # Reaching the network is not forbidden - the agent talks to the API over it -
 # but pulling repository content over it would invalidate a run. The repo is a
@@ -97,14 +99,15 @@ def grade_score(g):
 
     Continuous, so a three-part question answered two-thirds reads as 0.67
     rather than collapsing into the same bucket as a one-third answer. The
-    key's `notes` still pin the common cases to 0.5 - see papers/grade-tier1.md.
+    key's `notes` fix the values for the cases it calls out - see
+    papers/grade-tier1.md.
     """
     if "score" in g:
         try:
             score = min(1.0, max(0.0, float(g["score"])))
         except (TypeError, ValueError):
             score = 0.0
-        return round(score, 3), bool(g.get("gave_up"))
+        return round(score, 2), bool(g.get("gave_up"))
     legacy = g.get("grade", "wrong")
     return LEGACY_GRADE_POINTS.get(legacy, 0.0), legacy == "gave-up"
 
@@ -142,13 +145,13 @@ def score_tier1(answers, grades):
         )
 
     asked = len(rows) or len(by_id)
-    points = round(sum(r["score"] for r in rows), 3)
+    points = round(sum(r["score"] for r in rows), 2)
     return {
         "asked": asked,
         "answered": len(by_id),
         "tally": tally,
         "points": points,
-        "score": round(points / asked, 3) if asked else None,
+        "score": round(points / asked, 2) if asked else None,
         "self_tool_calls_total": sum(
             r["self_tool_calls"] or 0 for r in rows if isinstance(r["self_tool_calls"], int)
         ),
@@ -156,16 +159,42 @@ def score_tier1(answers, grades):
     }
 
 
+TIER2_DIMS = ["ownership", "completeness", "no_phantom_structure", "cost_of_arrival"]
+
+
+def tier2_dim(v, divisor):
+    """One dimension as a 0-1 float, or None if the grader left it out."""
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return None
+    return round(min(1.0, max(0.0, v / divisor)), 2)
+
+
 def score_tier2(grades):
     if not grades:
         return None
     s = grades.get("scores", {}) or {}
-    dims = ["ownership", "completeness", "no_phantom_structure", "cost_of_arrival"]
-    got = [s.get(d) for d in dims]
+    raw = []
+    for d in TIER2_DIMS:
+        try:
+            raw.append(float(s.get(d)))
+        except (TypeError, ValueError):
+            pass
+    # Any dimension above 1 means the whole record is a pre-continuous run's
+    # 0-3 integers; rescale the record so old and new runs sit on one axis. The
+    # decision is per record, never per dimension - a legacy 1 is 0.33, and a
+    # dimension read alone cannot tell that from a continuous 1.00.
+    divisor = LEGACY_TIER2_MAX if any(v > 1.0 for v in raw) else 1.0
+    got = {d: tier2_dim(s.get(d), divisor) for d in TIER2_DIMS}
+    have = [v for v in got.values() if v is not None]
     return {
-        "scores": {d: s.get(d) for d in dims},
-        "total": sum(v for v in got if isinstance(v, int)),
-        "max": 12,
+        "scores": got,
+        # `total` is the sum over the four dimensions, `score` their mean - the
+        # headline. Both are 0-1 per dimension, so max is 4.0 and 1.0.
+        "total": round(sum(have), 2),
+        "max": float(len(TIER2_DIMS)),
+        "score": round(sum(have) / len(have), 2) if have else None,
         "missed_required": grades.get("missed_required", []),
         "phantom_paths": grades.get("phantom_paths", []),
         "citations": grades.get("citations", {}),
@@ -246,7 +275,7 @@ def deltas(rows):
 
     def diff(a, b, fn):
         x, y = fn(a), fn(b)
-        return round(x - y, 3) if x is not None and y is not None else None
+        return round(x - y, 2) if x is not None and y is not None else None
 
     return {
         "docs_minus_blind_score": diff("docs", "blind", score),
@@ -266,7 +295,7 @@ def write_csv(path, rows):
     cols = [
         "persona", "paper", "model", "tool_calls", "tool_calls_self",
         "duration_s", "cost_usd", "score", "full", "partial", "zero",
-        "gave_up", "tier2_total", "tier3_verdict", "network_hits",
+        "gave_up", "tier2_score", "tier3_verdict", "network_hits",
     ]
     with path.open("w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=cols)
@@ -288,7 +317,7 @@ def write_csv(path, rows):
                     "partial": tally.get("partial"),
                     "zero": tally.get("zero"),
                     "gave_up": tally.get("gave-up"),
-                    "tier2_total": (r.get("tier2") or {}).get("total"),
+                    "tier2_score": (r.get("tier2") or {}).get("score"),
                     "tier3_verdict": (r.get("tier3") or {}).get("verdict"),
                     "network_hits": len(r["network_hits"]),
                 }

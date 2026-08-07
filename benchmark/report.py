@@ -234,7 +234,7 @@ def tier2(agg, cmp_agg):
         out.append('<div class="scroll"><table><thead><tr><th>Persona</th>'
                    "<th class='num'>Ownership</th><th class='num'>Completeness</th>"
                    "<th class='num'>No phantom</th><th class='num'>Cost of arrival</th>"
-                   "<th class='num'>Total /12</th><th class='num'>Tool calls</th>"
+                   "<th class='num'>Mean</th><th class='num'>Tool calls</th>"
                    "<th>Missed required</th><th>Phantom paths</th>"
                    "</tr></thead><tbody>")
         for persona, r in rows.items():
@@ -247,10 +247,10 @@ def tier2(agg, cmp_agg):
             old = (crows.get(persona) or {}).get("tier2") or {}
             out.append(
                 f"<tr><td><b>{esc(persona)}</b></td>"
-                + "".join(f"<td class='num'>{fmt(s.get(d), 0)}</td>" for d in
+                + "".join(f"<td class='num'>{fmt(s.get(d), 2)}</td>" for d in
                           ["ownership", "completeness", "no_phantom_structure", "cost_of_arrival"])
-                + f"<td class='num'><b>{fmt(t.get('total'), 0)}</b>"
-                  f"{delta_cell(t.get('total'), old.get('total'), digits=0)}</td>"
+                + f"<td class='num'><b>{fmt(t.get('score'), 2)}</b>"
+                  f"{delta_cell(t.get('score'), old.get('score'), digits=2)}</td>"
                 + f"<td class='num'>{fmt(r.get('tool_calls'))}</td>"
                 + f"<td class='q mono'>{esc(', '.join(t.get('missed_required') or []) or '-')}</td>"
                 + f"<td class='q mono flag'>{esc(', '.join(t.get('phantom_paths') or []) or '-')}</td>"
