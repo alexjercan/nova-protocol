@@ -620,27 +620,27 @@ and lines deleted before the baseline never enter the ledger. Depends on L2.
 NEUTRAL. Depends on L1. Five defects in 2,378 LOC - worst defect density in the
 workspace, and the crate was not on the original list. One lane, one reader.
 
-- [ ] F11 - add `required_section(sections, id, kind) -> Option<&SectionConfig>`
+- [x] F11 - add `required_section(sections, id, kind) -> Option<&SectionConfig>`
       and route the FIVE panic sites at `placement.rs:42,46,100,104,205` through
       it. A mod overlay redefining either seeded id panics "New Hull Ship"
       today; every other catalog lookup in the codebase logs and skips.
-- [ ] F11 - test that a missing catalog id logs and skips rather than
+- [x] F11 - test that a missing catalog id logs and skips rather than
       panicking.
-- [ ] F29 - add `capture_binding(input, reserved) -> Option<KeyCode>` at
+- [x] F29 - add `capture_binding(input, reserved) -> Option<KeyCode>` at
       `placement.rs:315`: exclude the editor camera keys, take `just_pressed`
       not `pressed`, and sort before picking. Hold W while placing a turret and
       it fires on every burn.
-- [ ] F30 - add `Pickable::IGNORE` to the keybind chips at `keybind.rs:60`;
+- [x] F30 - add `Pickable::IGNORE` to the keybind chips at `keybind.rs:60`;
       copy the constant `card.rs:24` and `tooltip.rs:22` already use.
-- [ ] F31 - DECIDE which behavior is intended - reset `PlayerSpaceshipConfig`
+- [x] F31 - DECIDE which behavior is intended - reset `PlayerSpaceshipConfig`
       on entry, or rebuild the preview from it - then add
       `rebuild_editor_preview_on_enter` at `lib.rs:110`. The bug is that
       NEITHER happens.
-- [ ] F32 - add `binding_conflict(config, key)` at `keybind.rs:187`, calling
+- [x] F32 - add `binding_conflict(config, key)` at `keybind.rs:187`, calling
       `scenario_input_overlaps` directly if it accepts a runtime config. A
       second implementation of "do these bindings overlap" is how the editor
       and the lint drift apart.
-- [ ] Write one test per finding - 13 existing tests and no in-workspace
+- [x] Write one test per finding - 13 existing tests and no in-workspace
       dependents means almost no safety net. Budget for the tests, not just the
       fixes.
 
@@ -1455,3 +1455,96 @@ The other one is about counts. Four censuses out of six were wrong, and none of
 them were wrong by much - which is worse than being wrong by a lot, because a
 count that is nearly right does not announce itself. Every future lane that
 opens with a number should carry the grep that produced it.
+
+## Close-out - L6 (2026-08-08)
+
+### What and why
+
+Five defects (F11, F29, F30, F31, F32) in the one crate small enough to hold in
+one head. The fixes turned out to share a root: `placement.rs` had five
+near-identical per-kind spawn blocks, so every rule about a placed section -
+which panic guards it, which key it binds, how it is registered in
+`PlayerSpaceshipConfig` - was written five times.
+
+| Finding | Change |
+| --- | --- |
+| F11 | `required_section` logs and returns `None`; the two seed sites add an explicit kind check. No `unwrap`/`panic!` left in the crate |
+| F29 | `capture_binding` takes `just_pressed`, filters `EDITOR_CAMERA_KEYS`, and picks the `min` - deterministic under a `HashSet` iteration |
+| F30 | `Pickable::IGNORE` on the keybind chip |
+| F31 | rebuild, not reset - `rebuild_editor_preview_on_enter` respawns the preview from the surviving config and re-keys both maps onto the new entities |
+| F32 | `binding_conflict` rejects a rebind onto a `flight_rig_reserved_sources` source or onto a key another section holds; the section stays armed |
+
+The dedupe that made F31 cheap: `spawn_preview_section` (one `SectionConfig` ->
+preview entities) plus `register_preview_section` (the config entry) are now the
+only two places that know the shape, shared by click-placement and the rebuild.
+`on_click_spaceship_section` went from 272 lines to 87. The file's
+implementation half is 517 -> 513 lines overall, because the space the dedupe
+freed went into the F31 rebuild and the new helpers' docs; 10 new tests sit on
+top of that.
+
+Two invariants got written down rather than re-derived. A preview section's
+config `id` IS its preview entity, because `sandbox_objects` keys the
+scenario's `input_mapping` by that same entity - the seeds' hand-written
+`"initial_hull"` / `"initial_controller"` ids were unreferenced anywhere in the
+repo and are gone. And the rebuild is the reason both maps must be re-keyed
+together.
+
+### Alternatives considered
+
+- **F31 as a RESET** (clear `PlayerSpaceshipConfig` on entry) instead of a
+  rebuild. Rejected: the only route into a second Editor visit is F1 from a
+  live sandbox flight, and a player who flies back to the editor wants the ship
+  they built, not an empty world. Reset also silently discards work with no
+  prompt.
+- **`required_section(sections, id, kind)` as the plan wrote it.** `SectionKind`
+  carries its per-kind config, so an "expected kind" argument needs either a
+  parallel discriminant enum - exactly the drift this lane exists to remove -
+  or a closure generic used by two callers. Kept the accessor for the lookup
+  (three call sites) and left a two-line `matches!` guard at each seed.
+- **Calling `scenario_input_overlaps` for F32.** It is private to `nova_assets`
+  and takes a `ScenarioConfig`, not a runtime config. The shared rule under it
+  is `nova_gameplay::flight_rig_reserved_sources` + `binding_source`, both
+  public; `binding_conflict` calls those, so the editor and the lint read the
+  same list.
+- **Extending the `editor` autopilot example with a Play -> F1 -> Editor round
+  trip** as e2e proof of F31. Deferred: the unit test pins the re-keying, which
+  is the part that breaks silently, and the extra beats add scenario load and
+  teardown to a run that already covers the placement pipeline.
+
+### Difficulties and diagnosis
+
+**F29's citation named one site; there are three.** `placement.rs:315` is the
+turret, but the thruster (`:240`) and torpedo (`:361`) captured input exactly
+the same way. Collapsing the five kind arms surfaced them - three copies of the
+same `get_pressed().next()` cannot hide once they are one `default_binds_for`.
+
+**The thruster's default bind is `Space`, which is both an editor camera key
+and `flight_rig_reserved_sources`' "flight burn".** So placement now refuses to
+CAPTURE Space but still falls back to it. Left alone deliberately: a thruster on
+the burn key is arguably the intent, and changing a shipped default is not this
+lane's call. Worth an owner decision.
+
+**Delete leaked input bindings.** `SectionChoice::Delete` removed the section
+from `config.sections` but not from `config.inputs`, so the handed-off
+scenario's `input_mapping` kept an entry for a section that no longer existed.
+One line, fixed in place while rewriting the branch.
+
+### Evidence
+
+- `cargo test -p nova_editor --lib` - 23 passed, 0 failed (13 before this lane).
+- `cargo clippy -p nova_editor --all-targets` - clean.
+- `NOVA_AUTOPILOT=1 DISPLAY=:99 cargo run --example editor --features debug` -
+  `autopilot: cycle complete, no panic (t=5.7s)`; every beat green, including
+  the two real pointer placements and the delete.
+- Red-before check: the two F11 tests panic on the base (`unwrap` on an empty
+  `GameSections`); the F30 test reads no `Pickable`; the F32 tests see the
+  conflicting key accepted; `rebuild_editor_preview_on_enter` did not exist.
+
+### Reflection
+
+The lane's brief said "one lane, one reader" and that was the whole trick. Four
+of the five defects were in code that had been copy-pasted five times, and each
+finding had been reported against whichever copy the reviewer happened to open.
+Reading the crate whole first, then deduping, then fixing, cost less than five
+targeted patches would have - and it is why the F31 rebuild is ~30 lines
+instead of a sixth copy of the spawn logic.

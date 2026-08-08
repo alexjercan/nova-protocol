@@ -61,6 +61,10 @@ pub(crate) fn sync_section_keybind_labels(
                 DespawnOnExit(ExampleStates::Editor),
                 SectionKeybindLabel { section },
                 Name::new("Section Keybind Label"),
+                // A chip sits over the section it labels, so without this it
+                // blocks the picking ray to that section and clicking it does
+                // nothing (`ui::card` and `ui::tooltip` do the same).
+                Pickable::IGNORE,
                 Text::new(""),
                 TextFont {
                     font_size: FontSize::Px(16.0),
@@ -146,6 +150,32 @@ pub(crate) fn position_section_keybind_labels(
     }
 }
 
+/// Why `binding` cannot be given to `section`, or `None` when it is free.
+/// Checks the same rule the content lint's input-overlap check applies to
+/// authored ships ([`flight_rig_reserved_sources`]) plus the editor's own
+/// sections - an editor-built ship is assembled at runtime and never linted, so
+/// this is the only place that catches it.
+fn binding_conflict(
+    config: &PlayerSpaceshipConfig,
+    section: Entity,
+    binding: &Binding,
+) -> Option<String> {
+    let source = binding_source(binding)?;
+    if let Some((_, verb)) = flight_rig_reserved_sources()
+        .into_iter()
+        .find(|(reserved, _)| *reserved == source)
+    {
+        return Some(format!("the flight rig's {verb}"));
+    }
+    config
+        .inputs
+        .iter()
+        .find(|(other, binds)| {
+            **other != section && binds.iter().any(|b| binding_source(b) == Some(source))
+        })
+        .map(|(other, _)| format!("section {other}"))
+}
+
 /// Consume the next key or mouse-button press to rebind the armed section (see
 /// [`EditorRebind`]). Escape cancels. The new binding replaces the section's
 /// previous PRIMARY input (keyboard or mouse button; any gamepad binding is
@@ -195,6 +225,13 @@ pub(crate) fn apply_section_rebind(
     let Some(new_binding) = new_binding else {
         return;
     };
+
+    // A conflicting key stays armed rather than being accepted: the chip keeps
+    // prompting, so the player just presses another key.
+    if let Some(taken_by) = binding_conflict(&player_config, section, &new_binding) {
+        warn!("editor: {new_binding:?} is already driven by {taken_by} - pick another key");
+        return;
+    }
 
     // Replace the PRIMARY input (keyboard OR mouse button), keep gamepad binds.
     let rebind_binds = |current: &[Binding]| -> Vec<Binding> {
@@ -325,6 +362,130 @@ mod tests {
             world.resource::<EditorRebind>().target,
             None,
             "the rebind is consumed"
+        );
+    }
+
+    /// F30: the chip is a root UI node drawn over the section it labels, so
+    /// without an IGNORE override it eats the click meant for that section.
+    #[test]
+    fn keybind_chips_do_not_block_the_picking_ray() {
+        let mut world = World::new();
+        world.spawn(SpaceshipThrusterInputBinding(vec![Binding::from(
+            KeyCode::KeyR,
+        )]));
+
+        world.run_system_once(sync_section_keybind_labels).unwrap();
+
+        let chip = world
+            .query_filtered::<Entity, With<SectionKeybindLabel>>()
+            .single(&world)
+            .unwrap();
+        assert_eq!(
+            world.entity(chip).get::<Pickable>().copied(),
+            Some(Pickable::IGNORE),
+            "the chip must not block or absorb the pointer"
+        );
+    }
+
+    /// F32: rebinding onto a source the flight rig already drives is refused -
+    /// the same rule the content lint enforces on authored ships. The section
+    /// stays armed so the next key can be tried.
+    #[test]
+    fn rebind_refuses_a_key_the_flight_rig_drives() {
+        let mut world = World::new();
+        world.init_resource::<EditorRebind>();
+        world.init_resource::<PlayerSpaceshipConfig>();
+        let section = world
+            .spawn(SpaceshipTurretInputBinding(vec![Binding::from(
+                MouseButton::Left,
+            )]))
+            .id();
+        world.resource_mut::<EditorRebind>().target = Some(section);
+        let mut input = ButtonInput::<KeyCode>::default();
+        // "autopilot goto" - see `flight_rig_reserved_sources`.
+        input.press(KeyCode::KeyG);
+        world.insert_resource(input);
+        world.init_resource::<ButtonInput<MouseButton>>();
+
+        world.run_system_once(apply_section_rebind).unwrap();
+
+        let binds = &world
+            .entity(section)
+            .get::<SpaceshipTurretInputBinding>()
+            .unwrap()
+            .0;
+        assert_eq!(
+            binds,
+            &vec![Binding::from(MouseButton::Left)],
+            "the conflicting key is not bound"
+        );
+        assert_eq!(
+            world.resource::<EditorRebind>().target,
+            Some(section),
+            "the section stays armed for another try"
+        );
+    }
+
+    /// F32: two sections must not end up on the same key either.
+    #[test]
+    fn rebind_refuses_a_key_another_section_already_holds() {
+        let mut world = World::new();
+        world.init_resource::<EditorRebind>();
+        let taken = world
+            .spawn(SpaceshipThrusterInputBinding(vec![Binding::from(
+                KeyCode::KeyR,
+            )]))
+            .id();
+        let section = world
+            .spawn(SpaceshipTurretInputBinding(vec![Binding::from(
+                MouseButton::Left,
+            )]))
+            .id();
+        let mut config = PlayerSpaceshipConfig::default();
+        config
+            .inputs
+            .insert(taken, vec![Binding::from(KeyCode::KeyR)]);
+        world.insert_resource(config);
+        world.resource_mut::<EditorRebind>().target = Some(section);
+        let mut input = ButtonInput::<KeyCode>::default();
+        input.press(KeyCode::KeyR);
+        world.insert_resource(input);
+        world.init_resource::<ButtonInput<MouseButton>>();
+
+        world.run_system_once(apply_section_rebind).unwrap();
+
+        assert_eq!(
+            &world
+                .entity(section)
+                .get::<SpaceshipTurretInputBinding>()
+                .unwrap()
+                .0,
+            &vec![Binding::from(MouseButton::Left)],
+            "the taken key is refused"
+        );
+        assert_eq!(
+            world.resource::<EditorRebind>().target,
+            Some(section),
+            "still armed"
+        );
+
+        // Delivery guard: a free key on the same setup binds normally.
+        world
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .clear_just_pressed(KeyCode::KeyR);
+        world
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyT);
+        world.run_system_once(apply_section_rebind).unwrap();
+        assert!(
+            world
+                .entity(section)
+                .get::<SpaceshipTurretInputBinding>()
+                .unwrap()
+                .0
+                .iter()
+                .any(|b| matches!(b, Binding::Keyboard { key, .. } if *key == KeyCode::KeyT)),
+            "a free key still binds"
         );
     }
 

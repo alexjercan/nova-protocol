@@ -30,7 +30,7 @@ use keybind::{
 use nova_ui::widget::button_on_setting;
 use placement::{
     on_click_spaceship_section, on_hover_spaceship_section, on_move_spaceship_section,
-    on_out_spaceship_section,
+    on_out_spaceship_section, rebuild_editor_preview_on_enter,
 };
 use scenario::setup_scenario;
 use ui::{scroll_editor_panel, setup_editor_scene};
@@ -111,6 +111,10 @@ fn editor_plugin(app: &mut App) {
         OnEnter(ExampleStates::Editor),
         (
             setup_editor_scene,
+            // The preview entities are DespawnOnExit(Editor) but the config
+            // resource survives, so a second visit must rebuild the ship the
+            // first visit built - Play spawns it either way.
+            rebuild_editor_preview_on_enter,
             setup_grab_cursor_editor,
             |mut selection: ResMut<SectionChoice>| {
                 *selection = SectionChoice::None;
@@ -143,11 +147,11 @@ fn editor_plugin(app: &mut App) {
     // every state entry (like SectionChoice).
     app.add_systems(
         OnEnter(ExampleStates::Editor),
-        |mut rebind: ResMut<EditorRebind>| rebind.target = None,
+        |mut rebind: ResMut<EditorRebind>| *rebind = EditorRebind::default(),
     );
     app.add_systems(
         OnEnter(ExampleStates::Scenario),
-        |mut rebind: ResMut<EditorRebind>| rebind.target = None,
+        |mut rebind: ResMut<EditorRebind>| *rebind = EditorRebind::default(),
     );
     app.add_systems(
         Update,
