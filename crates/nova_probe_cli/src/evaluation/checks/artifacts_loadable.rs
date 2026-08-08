@@ -8,7 +8,7 @@
 //! previous ones. The evidence is now isolated per artifact and the failure is
 //! reported here instead of deleting the report that would have shown it.
 //!
-//! [`RunArtifacts::load`]: crate::run_report::RunArtifacts::load
+//! [`RunArtifacts::load`]: crate::evaluation::RunArtifacts::load
 
 use super::{Check, CheckStatus, RunArtifacts};
 
@@ -59,7 +59,7 @@ mod tests {
     use nova_probe::contract::Capability;
 
     use super::*;
-    use crate::run_report::{
+    use crate::evaluation::{
         checks::{evaluate_checks, timeline_skip_detail},
         fixtures::*,
     };
@@ -80,7 +80,7 @@ mod tests {
         assert!(artifacts.timeline.is_some(), "timeline was discarded");
         assert!(artifacts.runs.is_some(), "frametime was discarded");
         assert_eq!(
-            crate::run_report::overall_verdict(&checks),
+            crate::evaluation::overall_verdict(&checks),
             "FAIL",
             "a run with unreadable evidence must not verdict OK"
         );
@@ -133,7 +133,7 @@ mod tests {
             "an undecodable log is not evidence"
         );
         assert_eq!(
-            crate::run_report::overall_verdict(&checks),
+            crate::evaluation::overall_verdict(&checks),
             "FAIL",
             "a run whose log could not be read must not verdict OK"
         );

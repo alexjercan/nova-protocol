@@ -4,11 +4,14 @@
 //! rendering reports) is `nova_probe_cli`; the two meet at the filesystem, so
 //! nothing here reads a run's output back.
 //!
-//! - [`capture`] - the env-gated [`nova_frametime`] plugin: drives a real
-//!   gameplay app to `Playing`, warms up, records the wall-clock delta of
-//!   every frame for a fixed window, then writes percentile stats and exits.
-//! - [`recorder`] - the run-timeline JSONL sink.
-//! - [`invariants`] - continuous invariant checks, riding that sink.
+//! - [`capabilities`] - one module per kind of evidence, each a plugin an
+//!   example wires: [`capabilities::frametime`] (the env-gated
+//!   [`nova_frametime`] capture - drives a real gameplay app to `Playing`,
+//!   warms up, records the wall-clock delta of every frame for a fixed window,
+//!   then writes percentile stats and exits), [`capabilities::timeline`] (the
+//!   run-timeline JSONL sink) and `capabilities::invariants` (continuous
+//!   invariant checks, riding that sink). [`NovaProbePlugin`] bundles all
+//!   three.
 //! - [`contract`] - what an example CLAIMS to collect, declared by the plugins
 //!   it wires.
 //! - [`stats`] - [`FrameStats`], the per-run [`RunMeta`], and the CSV/JSON
@@ -78,66 +81,29 @@
 //! | `NOVA_PERF_HOST` / `host`     | `/etc/hostname` | Overrides the recorded host tag (`browser` on wasm). |
 #![warn(missing_docs)]
 
-pub mod capture;
+pub mod capabilities;
 // What an example CLAIMS, declared by the plugins it wires. Both targets: the
 // frame-time capture builds for wasm and declares like the rest (only the
 // filesystem write is native-only).
 pub mod contract;
-// Continuous invariant checks ride the recorder's timeline sink, so they are
-// native-only with it (nothing wasm-side references them - the examples that
-// wire them never build for wasm).
-#[cfg(not(target_arch = "wasm32"))]
-pub mod invariants;
 // Scenario fixture builders shared by the examples. Native-only with the rest
 // of the example-facing harness: nothing in the wasm bundle builds a scenario
 // config by hand.
 #[cfg(not(target_arch = "wasm32"))]
 pub mod fixtures;
-// The run-timeline recorder writes a JSONL file; the browser has no
-// filesystem, so the module is native-only and wasm gets no-op stubs with the
-// same signatures, so cross-target callers compile.
-#[cfg(not(target_arch = "wasm32"))]
-pub mod recorder;
-#[cfg(target_arch = "wasm32")]
-pub mod recorder {
-    //! Wasm stubs for the native-only run-timeline recorder.
-    use bevy::prelude::*;
-
-    /// No-op on wasm (no filesystem for the JSONL sink).
-    pub fn nova_timeline() -> RunRecorderPlugin {
-        RunRecorderPlugin
-    }
-
-    /// Inert wasm stand-in for the native recorder plugin.
-    pub struct RunRecorderPlugin;
-
-    impl RunRecorderPlugin {
-        /// No-op on wasm.
-        pub fn out(self, _path: impl Into<std::path::PathBuf>) -> Self {
-            self
-        }
-    }
-
-    impl Plugin for RunRecorderPlugin {
-        fn build(&self, _app: &mut App) {}
-    }
-
-    /// No-op on wasm.
-    pub fn probe_marker(_world: &mut World, _name: &str, _data: serde_json::Value) {}
-}
 pub mod stats;
 
-pub use capture::{
+pub use capabilities::{
     capture_reload_begin, capture_reload_end, capture_reloading, combat_burst_driver,
-    nova_frametime, perf_armed, perf_param, FrameTimePlugin, PerfDriver, ReloadGate,
-    DEFAULT_CAPTURE_FRAMES, DEFAULT_RESOLUTION, DEFAULT_WARMUP_FRAMES, PERF_ENV,
+    nova_frametime, nova_timeline, perf_armed, perf_param, probe_marker, FrameTimePlugin,
+    NovaProbePlugin, PerfDriver, ReloadGate, RunRecorderPlugin, DEFAULT_CAPTURE_FRAMES,
+    DEFAULT_RESOLUTION, DEFAULT_WARMUP_FRAMES, PERF_ENV,
+};
+#[cfg(not(target_arch = "wasm32"))]
+pub use capabilities::{
+    nova_invariants, parse_timeline, InvariantState, InvariantsPlugin, ProbeTimeline, TimelineEvent,
 };
 pub use contract::{Capability, ProbeContract};
-#[cfg(not(target_arch = "wasm32"))]
-pub use invariants::{nova_invariants, InvariantState, InvariantsPlugin};
-pub use recorder::{nova_timeline, probe_marker, RunRecorderPlugin};
-#[cfg(not(target_arch = "wasm32"))]
-pub use recorder::{parse_timeline, ProbeTimeline, TimelineEvent};
 pub use stats::{
     append_frametime_row, parse_frametime_csv, parse_summary_line, FrameStats, PerfRun, RunMeta,
     CSV_HEADER, CSV_HEADER_V1,

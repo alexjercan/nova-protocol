@@ -7,7 +7,7 @@
 use nova_probe::contract::Capability;
 
 use super::{timeline_skip_detail, Check, CheckStatus, NotApplicable, RunArtifacts};
-use crate::run_report::artifacts::Input;
+use crate::evaluation::artifacts::Input;
 
 const THRESHOLD: &str = "a GameStates transition entered Playing";
 
@@ -94,7 +94,7 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::run_report::{checks::evaluate_checks, fixtures::*, manifest::RunManifest};
+    use crate::evaluation::{checks::evaluate_checks, fixtures::*, manifest::RunManifest};
 
     #[test]
     fn reached_playing_fails_when_the_run_never_left_loading() {

@@ -4,7 +4,7 @@
 //! One check per module, each exposing `evaluate(&RunArtifacts) -> Check` and
 //! owning its own tests. This file holds only what is SHARED: the row type,
 //! the status enum, the skip-detail wording, the verdict fold, and the
-//! [`CHECKS`] table that names them in report order.
+//! `CHECKS` table that names them in report order.
 
 mod artifacts_loadable;
 mod fps_within_baseline;
@@ -15,7 +15,7 @@ mod reached_playing;
 mod run_completed;
 
 pub use fps_within_baseline::FPS_WARN_THRESHOLD_PCT;
-pub(super) use invariants_held::violations_by_name;
+pub(crate) use invariants_held::violations_by_name;
 use nova_probe::contract::Capability;
 
 use super::{artifacts::RunArtifacts, manifest::RunManifest};
@@ -73,7 +73,7 @@ pub enum NotApplicable {
 }
 
 impl CheckStatus {
-    pub(super) fn as_str(self) -> &'static str {
+    pub(crate) fn as_str(self) -> &'static str {
         match self {
             CheckStatus::Pass => "PASS",
             CheckStatus::Warn => "WARN",
@@ -141,7 +141,7 @@ const CHECKS: &[(&str, Option<Capability>, fn(&RunArtifacts) -> Check)] = &[
 ];
 
 /// Every check's name, in report order. The aggregate table renders one
-/// column per entry, so a check added to [`CHECKS`] appears there too rather
+/// column per entry, so a check added to `CHECKS` appears there too rather
 /// than needing a second list that can silently fall behind.
 pub fn check_names() -> impl Iterator<Item = &'static str> {
     CHECKS.iter().map(|(name, _, _)| *name)
@@ -264,7 +264,7 @@ pub fn checks_json(checks: &[Check], manifest: Option<&RunManifest>) -> serde_js
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::run_report::{
+    use crate::evaluation::{
         fixtures::*,
         manifest::{PassRecord, RunManifest},
     };

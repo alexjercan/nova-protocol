@@ -122,7 +122,7 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::run_report::{
+    use crate::evaluation::{
         checks::evaluate_checks,
         fixtures::*,
         manifest::{PassRecord, RunManifest},

@@ -7,8 +7,9 @@ use std::{
 };
 
 use super::sweep::{aggregate_exit, build_row, print_aggregate, write_aggregate, RunStamp};
-use crate::run_report::{
-    checks_json, evaluate_checks, overall_verdict, print_checks, render_run_report, RunArtifacts,
+use crate::{
+    evaluation::{checks_json, evaluate_checks, overall_verdict, print_checks, RunArtifacts},
+    report::render_run_report,
 };
 
 /// `probe report`: re-render an existing run dir - GATED on the
@@ -114,7 +115,7 @@ fn report_aggregate(dir: &Path) -> Result<ExitCode, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::run_report::{PassRecord, RunManifest};
+    use crate::evaluation::{PassRecord, RunManifest};
 
     #[test]
     fn report_many_rerenders_multiple_run_dirs() {

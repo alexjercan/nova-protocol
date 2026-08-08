@@ -12,7 +12,7 @@ use super::{
     spec::{resolve_spec, Resolved},
     supervise::ensure_display,
 };
-use crate::run_report::run_identity;
+use crate::evaluation::run_identity;
 
 /// Dispatch a parsed run spec: resolve against the catalog, then run the
 /// resolved examples through the aggregate-shaped driver. `--platform web`

@@ -5,13 +5,13 @@
 use std::path::{Path, PathBuf};
 
 use nova_probe::{
+    capabilities::timeline::{parse_timeline, TimelineEvent},
     contract::{Capability, ProbeContract},
-    recorder::{parse_timeline, TimelineEvent},
     stats::{parse_frametime_csv, PerfRun},
 };
 
 use super::manifest::RunManifest;
-use crate::profile::{aggregate_system_costs, SystemCost};
+use crate::evaluation::profile::{aggregate_system_costs, SystemCost};
 
 /// A present-but-unloadable artifact. Never silently dropped: [`RunArtifacts::load`]
 /// leaves the field `None` and records the reason here, and the

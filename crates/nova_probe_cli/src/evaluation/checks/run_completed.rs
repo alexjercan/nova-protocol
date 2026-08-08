@@ -8,7 +8,7 @@
 use nova_probe::contract::Capability;
 
 use super::{timeline_skip_detail, Check, CheckStatus, NotApplicable, RunArtifacts};
-use crate::run_report::artifacts::Input;
+use crate::evaluation::artifacts::Input;
 
 const THRESHOLD: &str = "run_end present + AppExit Success + entry count consistent";
 
@@ -113,7 +113,7 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::run_report::{
+    use crate::evaluation::{
         checks::{evaluate_checks, measured_count, overall_verdict},
         fixtures::*,
     };

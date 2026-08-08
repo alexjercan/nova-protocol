@@ -53,7 +53,7 @@ use nova_scenario::{
     loader::SCENARIO_ELAPSED_VAR, variables::VariableLiteral, world::NovaEventWorld,
 };
 
-use crate::capture::{perf_param, resolve_git_sha, resolve_host};
+use crate::capabilities::frametime::{perf_param, resolve_git_sha, resolve_host};
 
 /// Env var (via [`perf_param`], so `NOVA_PERF_TIMELINE` on native) naming the
 /// JSONL output path that arms [`nova_timeline`].

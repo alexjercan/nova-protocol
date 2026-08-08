@@ -8,7 +8,7 @@
 //! to missing artifacts by design.
 
 use super::{Check, CheckStatus, RunArtifacts};
-use crate::run_report::manifest::PassRecord;
+use crate::evaluation::manifest::PassRecord;
 
 const THRESHOLD: &str = "every primary pass exits success, untimed";
 
@@ -83,7 +83,7 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::run_report::{
+    use crate::evaluation::{
         checks::{evaluate_checks, overall_verdict},
         fixtures::*,
         manifest::RunManifest,

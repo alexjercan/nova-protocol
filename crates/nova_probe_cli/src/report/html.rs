@@ -3,13 +3,12 @@
 
 use std::path::Path;
 
-use nova_probe::recorder::TimelineEvent;
+use nova_probe::capabilities::timeline::TimelineEvent;
 
-use super::{
-    artifacts::RunArtifacts,
-    checks::{measured_count, overall_verdict, violations_by_name, Check},
+use super::{escape, render_chart, render_table, STYLE};
+use crate::evaluation::{
+    checks::violations_by_name, measured_count, overall_verdict, Check, RunArtifacts,
 };
-use crate::report::{escape, render_chart, render_table, STYLE};
 
 fn meaningful(timeline: &[TimelineEvent]) -> Vec<&TimelineEvent> {
     timeline
@@ -52,7 +51,7 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
         html.push_str(&format!(
             "<tr><td>{}</td><td class=\"status-{}\">{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
             check.name,
-            crate::run_report::status_class(check.status.as_str()),
+            crate::evaluation::status_class(check.status.as_str()),
             check.status.as_str(),
             escape(&check.value),
             escape(&check.threshold),
@@ -314,13 +313,8 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
 mod tests {
     use nova_probe::contract::{Capability, ProbeContract};
 
-    use super::{
-        super::{
-            checks::{evaluate_checks, CheckStatus},
-            fixtures::*,
-        },
-        *,
-    };
+    use super::*;
+    use crate::evaluation::{checks::evaluate_checks, fixtures::*, CheckStatus};
 
     #[test]
     fn report_html_carries_every_section_and_skip_reasons() {

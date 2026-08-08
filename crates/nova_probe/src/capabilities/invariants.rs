@@ -44,9 +44,9 @@ use bevy::{diagnostic::FrameCount, prelude::*};
 use nova_gameplay::{flight::FlightSpeedCap, prelude::Health};
 use nova_scenario::{loader::ScenarioLoaded, variables::VariableLiteral, world::NovaEventWorld};
 
-use crate::{
-    capture::perf_param,
-    recorder::{stamp, ProbeTimeline, TimelineEvent},
+use super::{
+    frametime::perf_param,
+    timeline::{stamp, ProbeTimeline, TimelineEvent},
 };
 
 /// Env value (via [`perf_param`], so `NOVA_PERF_INVARIANTS` on native) that
@@ -138,13 +138,13 @@ impl Plugin for InvariantsPlugin {
         // system is a no-op.)
         // record_invariant_summary drains AppExit too, so it joins the same
         // RunEnd set and inherits its edge onto the exit writer.
-        crate::recorder::order_run_end(app);
+        crate::capabilities::timeline::order_run_end(app);
         app.add_systems(
             Last,
             (check_invariants, record_invariant_summary)
                 .chain()
-                .in_set(crate::recorder::ProbeRecorderSystems::RunEnd)
-                .before(crate::recorder::record_variable_changes),
+                .in_set(crate::capabilities::timeline::ProbeRecorderSystems::RunEnd)
+                .before(crate::capabilities::timeline::record_variable_changes),
         );
         app.add_observer(forget_monotonic_on_load);
     }
@@ -623,7 +623,7 @@ mod tests {
         let path = temp_timeline();
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
-        app.add_plugins(crate::recorder::nova_timeline().out(path.clone()));
+        app.add_plugins(crate::capabilities::timeline::nova_timeline().out(path.clone()));
         app.add_plugins(nova_invariants().strict(false));
         app.world_mut().spawn(Health {
             current: -5.0,
@@ -631,7 +631,7 @@ mod tests {
         });
         app.update();
 
-        let entries = crate::recorder::parse_timeline(
+        let entries = crate::capabilities::timeline::parse_timeline(
             &std::fs::read_to_string(&path).expect("timeline exists"),
         )
         .expect("timeline parses");
@@ -648,7 +648,7 @@ mod tests {
         let path = temp_timeline();
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
-        app.add_plugins(crate::recorder::nova_timeline().out(path.clone()));
+        app.add_plugins(crate::capabilities::timeline::nova_timeline().out(path.clone()));
         app.add_plugins(nova_invariants().strict(false));
         app.world_mut().spawn(Health {
             current: -1.0,
@@ -658,7 +658,7 @@ mod tests {
         app.world_mut().write_message(AppExit::Success);
         app.update();
 
-        let entries = crate::recorder::parse_timeline(
+        let entries = crate::capabilities::timeline::parse_timeline(
             &std::fs::read_to_string(&path).expect("timeline exists"),
         )
         .expect("timeline parses");

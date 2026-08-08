@@ -7,18 +7,16 @@
 
 use std::collections::BTreeMap;
 
-use nova_probe::{contract::Capability, recorder::TimelineEvent};
+use nova_probe::{capabilities::timeline::TimelineEvent, contract::Capability};
 
 use super::{timeline_skip_detail, Check, CheckStatus, NotApplicable, RunArtifacts};
-use crate::run_report::artifacts::Input;
+use crate::evaluation::artifacts::Input;
 
 const THRESHOLD: &str = "0 violations";
 
 /// Count invariant violations per name off the timeline (per-name counts,
 /// not raw totals: one stuck entity violates every frame).
-pub(in crate::run_report) fn violations_by_name(
-    timeline: &[TimelineEvent],
-) -> BTreeMap<String, u64> {
+pub(crate) fn violations_by_name(timeline: &[TimelineEvent]) -> BTreeMap<String, u64> {
     let mut counts = BTreeMap::new();
     for entry in timeline.iter().filter(|e| e.kind == "invariant") {
         *counts.entry(entry.name.clone()).or_insert(0) += 1;
@@ -168,7 +166,7 @@ mod tests {
     use nova_probe::contract::ProbeContract;
 
     use super::*;
-    use crate::run_report::{checks::evaluate_checks, fixtures::*};
+    use crate::evaluation::{checks::evaluate_checks, fixtures::*};
 
     #[test]
     fn violations_fail_invariants_with_per_name_counts() {

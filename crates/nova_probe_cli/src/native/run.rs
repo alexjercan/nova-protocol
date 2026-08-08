@@ -18,11 +18,12 @@ use super::{
     web::web_capture,
 };
 use crate::{
-    profile_sandbox,
-    run_report::{
-        checks_json, evaluate_checks, overall_verdict, print_checks, render_run_report,
-        run_identity, PassRecord, RunArtifacts, RunManifest,
+    evaluation::{
+        checks_json, evaluate_checks, overall_verdict, print_checks, run_identity, PassRecord,
+        RunArtifacts, RunManifest,
     },
+    profile_sandbox,
+    report::render_run_report,
 };
 
 /// probe's own artifact filenames: surgically removed from the out dir

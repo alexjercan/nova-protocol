@@ -179,7 +179,7 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
    the most compact of the five), plus its
    `[[example]]` block in the root Cargo.toml (auto-discovery is off; the
    catalog is the source of truth) - `catalog_matches_disk` in
-   `crates/nova_probe/tests/catalog_drift.rs` fails until disk and catalog
+   `crates/nova_probe_cli/tests/catalog_drift.rs` fails until disk and catalog
    agree, and `sections_assert_their_invariant_roster` beside it fails until
    the new range has a named invariant roster. The example builds a minimal
    `ScenarioConfig` (a controller + your section), triggers

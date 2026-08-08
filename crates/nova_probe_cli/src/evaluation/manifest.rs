@@ -47,8 +47,8 @@ pub struct PassRecord {
 /// resolvers the capture metadata uses - for the probe bin's manifest.
 pub fn run_identity() -> (String, String) {
     (
-        nova_probe::capture::resolve_git_sha(),
-        nova_probe::capture::resolve_host(),
+        nova_probe::capabilities::frametime::resolve_git_sha(),
+        nova_probe::capabilities::frametime::resolve_host(),
     )
 }
 

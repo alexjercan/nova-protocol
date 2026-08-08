@@ -1,5 +1,6 @@
-//! The unified run report: one run directory in, `report.html` +
-//! `checks.json` out - the assembly point of the run-harness.
+//! Evidence in, verdict out: one run directory becomes a graded roster of
+//! checks. Everything downstream of this module renders; nothing downstream
+//! decides.
 //!
 //! A run directory holds whatever artifacts a run produced, each OPTIONAL:
 //!
@@ -22,17 +23,20 @@
 //! (parent and child spans overlap); a truncated timeline IS the crash
 //! signal (the recorder flushes per entry).
 
-mod artifacts;
-mod checks;
+pub mod artifacts;
+pub mod catalog;
+pub mod checks;
+pub mod manifest;
+pub mod profile;
+
 #[cfg(test)]
-mod fixtures;
-mod html;
-mod manifest;
+pub(crate) mod fixtures;
 
 pub use artifacts::{ArtifactFailure, Input, RunArtifacts};
+pub use catalog::{categories, load_example_catalog, parse_example_catalog, CatalogExample};
 pub use checks::{
     check_names, checks_json, evaluate_checks, measured_count, overall_verdict, print_checks,
     status_class, Check, CheckStatus, NotApplicable, FPS_WARN_THRESHOLD_PCT,
 };
-pub use html::render_run_report;
 pub use manifest::{run_identity, PassRecord, RunManifest};
+pub use profile::{aggregate_system_costs, render_top_table, SystemCost};

@@ -6,7 +6,7 @@
 use nova_probe::contract::Capability;
 
 use super::{Check, CheckStatus, NotApplicable, RunArtifacts};
-use crate::run_report::artifacts::Input;
+use crate::evaluation::artifacts::Input;
 
 /// Soft FPS gate: the worst same-label mean-frame-time delta against the
 /// baseline may move this many percent before the check turns WARN. One
@@ -144,7 +144,7 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::run_report::{
+    use crate::evaluation::{
         checks::{evaluate_checks, overall_verdict},
         fixtures::*,
     };

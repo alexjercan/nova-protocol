@@ -1,17 +1,24 @@
-//! HTML report rendering over a results directory: turns parsed [`PerfRun`]s
-//! into one self-contained `report.html` (inline CSS + inline SVG, no external
-//! assets, so it opens offline). These are the SHARED pieces (styles, the
-//! frame-time chart and table) the unified run report composes; the
-//! standalone FPS renderer they once served retired with the perf_report
-//! bin.
+//! The last stage of the pipeline: what [`crate::evaluation`] decided, made
+//! readable. One self-contained file per run ([`html`]) plus the index over
+//! many runs ([`aggregate`]) - inline CSS and inline SVG, no external assets,
+//! so a report opens offline.
+//!
+//! This module root holds the pieces both renderers share (styles, the
+//! frame-time chart and table) over parsed [`PerfRun`]s; the standalone FPS
+//! renderer they once served retired with the perf_report bin.
 //!
 //! Renderer identity: schema-v2 rows carry their own metadata (backend,
 //! adapter, git SHA - see [`nova_probe::stats::RunMeta`]), which this renderer
 //! prefers; v1 rows (the v0.7.0 baseline) fall back to the results
 //! directory's name, the old convention (`gpu` / `sw` / `xgpu` / `web`).
 
+pub mod aggregate;
+pub mod html;
+
 use std::collections::HashMap;
 
+pub use aggregate::{index_json, overall_verdict, render_index, AllManifest, AllRow};
+pub use html::render_run_report;
 use nova_probe::stats::PerfRun;
 
 /// The renderer string shown for one run: its own metadata when known

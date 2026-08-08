@@ -190,7 +190,7 @@ pub fn overall_verdict(rows: &[AllRow]) -> &'static str {
 /// run missing a check (older checks.json) renders "-" instead of shifting
 /// columns.
 fn check_columns() -> Vec<&'static str> {
-    crate::run_report::check_names().collect()
+    crate::evaluation::check_names().collect()
 }
 
 /// The machine mirror (index.json): everything an agent needs to answer
@@ -284,7 +284,7 @@ pub fn render_index(manifest: &AllManifest) -> String {
                 .unwrap_or("-");
             html.push_str(&format!(
                 "<td class=\"status-{}\">{}</td>",
-                crate::run_report::status_class(status),
+                crate::evaluation::status_class(status),
                 if status == "SKIPPED" { "skip" } else { status }
             ));
         }

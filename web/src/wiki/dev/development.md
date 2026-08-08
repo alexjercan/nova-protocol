@@ -240,7 +240,7 @@ capture frames - but every one walks an `AutopilotPlugin` step timeline, so a
 beat that never resolves is an error exit naming that step, and every one
 wires `nova_timeline` + `nova_invariants`, so a probe run grades the walk on
 the engine invariants. Disk and catalog cannot drift: the display-free
-`catalog_matches_disk` test (`crates/nova_probe/tests/catalog_drift.rs`) fails
+`catalog_matches_disk` test (`crates/nova_probe_cli/tests/catalog_drift.rs`) fails
 a bare `cargo test` when a new example misses its `[[example]]` block. That is
 the case nothing else catches - with auto-discovery off, an uncataloged example
 file does not build at all and no other tool says so.
@@ -510,7 +510,9 @@ material token is read outside `:root`.
 
 ## Performance and run verification
 
-`nova_probe` (`crates/nova_probe/`) is the run-harness: it drives an autopilot
+The run-harness is two crates split at the process boundary: `nova_probe`
+(`crates/nova_probe/`) links into the example and collects the evidence, and
+`nova_probe_cli` (`crates/nova_probe_cli/`) is the host side. Together they drive an autopilot
 example, records what happened (correctness) and what it cost (performance),
 and assembles one reviewable report. The POST-FEATURE CHECK - "did my change
 break behavior or perf?" - is one command:
@@ -577,7 +579,7 @@ NOVA_MOD_CACHE_ROOT=~/.local/share/nova-protocol cargo run -p nova_probe_cli -- 
 `XDG_CACHE_HOME` is deliberately NOT redirected (the shader cache lives there,
 and throwing it away each run would make FPS numbers incomparable). The XDG
 pair is how the `dirs` crate resolves on Linux, the supported probe host;
-`nova_probe::profile_sandbox` has the details.
+`nova_probe_cli::profile_sandbox` has the details.
 
 Under the hood: an env-gated capture plugin drives the real gameplay app to
 `Playing`, warms up, records the wall-clock delta of every frame for a fixed

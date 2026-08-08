@@ -13,8 +13,8 @@ Start here:
 Root crate: CLI entry and `nova_core` re-export. Main assembly:
 `crates/nova_core/src/lib.rs` -> `AppBuilder`.
 
-Share is that crate's percentage of the 142,845 `crates/*/src` lines
-(2026-08-07). It is here so the size distribution is visible before you plan
+Share is that crate's percentage of the 145,611 `crates/*/src` lines
+(2026-08-08). It is here so the size distribution is visible before you plan
 anything: `nova_gameplay` is over half the workspace on its own.
 
 | Crate | Share | Handles |
@@ -22,9 +22,10 @@ anything: `nova_gameplay` is over half the workspace on its own.
 | `nova_gameplay` | 54% | Sections, integrity, input, HUD, targeting, flight, AI, camera, NOVA OS UI bridges, `GameStates`. |
 | `nova_assets` | 12% | Assets, content builders, `content` CLI, bundle merge, mod cache/downloads, portal client, catalog builder. |
 | `nova_scenario` | 10% | Actions, events, filters, variables, objects, content lint. |
-| `nova_probe` | 7% | Autopilot run harness and performance reports. |
 | `nova_menu` | 6% | Main/pause menus, settings, mods, portal UI, scenario picker. |
+| `nova_probe_cli` | 5% | Host half of the run harness: spawns runs, grades artifacts, renders reports. Never linked into a game binary. |
 | `nova_ui` | 3% | Shared theme and widgets. Zero `nova_*` dependencies - keep it that way. |
+| `nova_probe` | 2% | In-game half of the run harness: the capabilities an example wires, and the wire format they write. |
 | `nova_autopilot` | 2% | Automation drivers and the run-completion protocol; `bevy`-only. |
 | `nova_os` | 2% | Terminal model, shell, app runtime. No UI ownership. |
 | `nova_editor` | 2% | Ship editor and play-test transition. |
