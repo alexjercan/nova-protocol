@@ -29,21 +29,13 @@ use nova_ui::hud::{chip_node, chip_paint, ChipTone};
 use super::HudTier;
 
 /// Glob-import surface: `use nova_hud::readout::prelude::*`
-/// re-exports the public API of this module. `HudReadoutFormat` is deliberately
-/// NOT re-exported here: nova_scenario's prelude exports a same-named authoring
-/// enum, and nova_core globs both preludes, so re-exporting it from both is an
-/// ambiguous glob re-export. It stays `pub` and is
-/// reached by its full path from the sync in nova_scenario's world.rs.
+/// re-exports the public API of this module.
 pub mod prelude {
-    // `HudReadoutFormat` is deliberately OFF the boundary: `nova_scenario`
-    // exports an authoring twin of the same name, and `nova_core`'s prelude
-    // globs both crates. The one site that converts between them names each
-    // side's full path (`nova_scenario/src/world.rs`).
-    pub use super::{HudReadoutEntry, HudReadouts};
+    pub use super::{HudReadoutEntry, HudReadoutFormat, HudReadouts};
 }
 
 /// How a [`HudReadoutEntry`] value renders as text. The scenario-side
-/// `HudReadoutFormat` maps onto this, the same nova_scenario -> nova_gameplay
+/// `HudReadoutFormatConfig` maps onto this, the same nova_scenario -> nova_hud
 /// split as `StoryMessageActionConfig` -> `StoryLine` (the HUD cannot depend on
 /// nova_scenario).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

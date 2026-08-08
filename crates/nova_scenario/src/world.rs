@@ -143,17 +143,7 @@ impl EventWorld for NovaEventWorld {
                 .map(|(readout, value)| HudReadoutEntry {
                     slot: readout.slot,
                     label: readout.label,
-                    format: match readout.format {
-                        crate::actions::HudReadoutFormat::Number => {
-                            nova_hud::readout::HudReadoutFormat::Number
-                        }
-                        crate::actions::HudReadoutFormat::Integer => {
-                            nova_hud::readout::HudReadoutFormat::Integer
-                        }
-                        crate::actions::HudReadoutFormat::Time => {
-                            nova_hud::readout::HudReadoutFormat::Time
-                        }
-                    },
+                    format: readout.format.into(),
                     value,
                 })
                 .collect();

@@ -580,7 +580,7 @@ fn on_start_shows_the_run_timer_on_the_scenario_clock() {
     );
     assert_eq!(
         timer.format,
-        HudReadoutFormat::Time,
+        HudReadoutFormatConfig::Time,
         "the timer renders as mm:ss.s"
     );
     assert!(timer.visible, "the timer is shown, not cleared");

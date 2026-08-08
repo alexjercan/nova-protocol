@@ -1366,10 +1366,33 @@ preludes, then the three verification gates.
       The win is that no caller branches on the target and every store is
       testable through `NativeStorage::at(tmpdir)` - which is what the two
       `nova_menu` test seams now use instead of path-explicit helpers.
-- [ ] Route the four scenario -> HUD coupling sites through `nova_events`:
+- [x] Route the four scenario -> HUD coupling sites through `nova_events`:
       `world.rs:138-144`, `actions/mission.rs:512,534,554`. These are the sites
       `AGENTS.md:102` was actually about - route them because they are
       scenario-observable moments, not because of a blanket rule.
+      **PREMISE FALSIFIED; NOT routed through `nova_events`.** The four cited
+      sites are one production write plus three test reads of the SAME thing:
+      the `HudReadouts` mirror in `state_to_world_system`. That mirror is the
+      deliberate, documented pattern the same function already uses for
+      `GameObjectives` and `StoryFeed` (write-on-diff, resource-guarded); a
+      `nova_events` kind is the wrong shape for it twice over - the readout
+      value is rebuilt EVERY frame off a live variable, so an event stream
+      would be one event per readout per frame, and a `nova_events` kind is
+      something scenarios FILTER and DISPATCH on, which a presentation mirror
+      is not. The authored moment - the `HudReadout` action - already runs
+      through the event engine.
+      The real defect the finding saw was the FULL-PATH reach
+      (`nova_gameplay::hud::readout::HudReadoutFormat`), and
+      `readout.rs`'s own prelude doc already recorded its cause: a name
+      collision with nova_scenario's authoring enum, which nova_core globs
+      alongside it. Fixed at the cause - the scenario-side enum is now
+      `HudReadoutFormatConfig` (matching its `*ActionConfig` siblings and the
+      `StoryMessageActionConfig -> StoryLine` split), `HudReadoutFormat` joins
+      `hud::readout::prelude`, and the sync's 10-line inline match is a
+      `From<HudReadoutFormatConfig>` impl beside the enum it mirrors. Zero
+      full paths remain in `world.rs` and the three mission tests. The variant
+      names are what RON serializes, so no content changed -
+      `content_ron_parity` passes without regeneration.
 - [ ] Lift `render_scale` out of `nova_scenario` into whichever crate owns the
       render settings; decide by reading its consumers, not in advance.
 - [ ] Rules 3+4 - 13 module preludes in `nova_assets` (13 public modules, 1

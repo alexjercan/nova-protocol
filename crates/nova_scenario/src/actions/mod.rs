@@ -24,7 +24,7 @@ pub mod prelude {
         apply_pending_skybox_swaps, base_scenario_object, BaseScenarioObjectConfig, CurrentOutcome,
         DebugMessageActionConfig, DespawnScenarioObjectActionConfig, EventActionConfig,
         HintEmphasisClearActionConfig, HintEmphasisSetActionConfig, HudReadoutActionConfig,
-        HudReadoutFormat, NextScenarioActionConfig, ObjectiveActionConfig,
+        HudReadoutFormatConfig, NextScenarioActionConfig, ObjectiveActionConfig,
         ObjectiveCompleteActionConfig, ObjectiveMarkerAttachActionConfig,
         ObjectiveMarkerDetachActionConfig, OutcomeActionConfig, PendingSkyboxSwap,
         ScatterObjectsConfig, ScatterRegion, ScenarioAreaConfig, ScenarioObjectConfig,

@@ -281,7 +281,7 @@ fn on_start_stages_the_lane() {
         .expect("the relief countdown readout fires on start");
     assert_eq!(readout.slot, "relief");
     assert_eq!(readout.variable, "relief_remaining");
-    assert!(matches!(readout.format, HudReadoutFormat::Time));
+    assert!(matches!(readout.format, HudReadoutFormatConfig::Time));
     assert!(readout.visible);
 
     let stories: Vec<_> = start

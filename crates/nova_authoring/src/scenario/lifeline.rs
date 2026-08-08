@@ -481,7 +481,7 @@ pub(crate) fn lifeline(
         EventActionConfig::HudReadout(HudReadoutActionConfig {
             slot: "relief".to_string(),
             variable: VAR_RELIEF_REMAINING.to_string(),
-            format: HudReadoutFormat::Time,
+            format: HudReadoutFormatConfig::Time,
             label: Some("RELIEF".to_string()),
             visible: true,
         }),

@@ -81,10 +81,13 @@ impl EventAction<NovaEventWorld> for StoryMessageActionConfig {
 /// How a [`HudReadoutActionConfig`] renders its bound variable on the HUD. Maps
 /// one-to-one onto nova_gameplay's `HudReadoutFormat` at sync time (the HUD
 /// cannot depend on nova_scenario, so the enum is mirrored, the same split as
-/// `StoryMessageActionConfig` -> `StoryLine`).
+/// `StoryMessageActionConfig` -> `StoryLine`). The `Config` suffix is what keeps
+/// the two halves distinguishable: nova_core globs both crates' preludes, so a
+/// shared name would be an ambiguous glob re-export and force the sync to reach
+/// for the render enum by its full path.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum HudReadoutFormat {
+pub enum HudReadoutFormatConfig {
     /// One decimal place, e.g. `12.3`.
     #[default]
     Number,
@@ -92,6 +95,16 @@ pub enum HudReadoutFormat {
     Integer,
     /// Minutes and seconds, `mm:ss.s` (e.g. `01:23.4`) - the time-trial clock.
     Time,
+}
+
+impl From<HudReadoutFormatConfig> for HudReadoutFormat {
+    fn from(config: HudReadoutFormatConfig) -> Self {
+        match config {
+            HudReadoutFormatConfig::Number => HudReadoutFormat::Number,
+            HudReadoutFormatConfig::Integer => HudReadoutFormat::Integer,
+            HudReadoutFormatConfig::Time => HudReadoutFormat::Time,
+        }
+    }
 }
 
 /// Show, update, or clear a named HUD readout bound to a scenario variable -
@@ -124,9 +137,9 @@ pub struct HudReadoutActionConfig {
     /// The scenario variable whose value the readout shows (e.g.
     /// `"scenario_elapsed"`). Read live off the event world every frame.
     pub variable: String,
-    /// How the value renders. Omit for the default ([`HudReadoutFormat::Number`]).
+    /// How the value renders. Omit for the default ([`HudReadoutFormatConfig::Number`]).
     #[cfg_attr(feature = "serde", serde(default))]
-    pub format: HudReadoutFormat,
+    pub format: HudReadoutFormatConfig,
     /// Optional caption shown before the value (e.g. `"TIME"`).
     #[cfg_attr(
         feature = "serde",
@@ -152,7 +165,7 @@ impl HudReadoutActionConfig {
         Self {
             slot: slot.to_string(),
             variable: variable.to_string(),
-            format: HudReadoutFormat::default(),
+            format: HudReadoutFormatConfig::default(),
             label: None,
             visible: true,
         }
@@ -464,7 +477,7 @@ mod tests {
         };
         assert_eq!(config.slot, "timer");
         assert_eq!(config.variable, "scenario_elapsed");
-        assert_eq!(config.format, HudReadoutFormat::Time);
+        assert_eq!(config.format, HudReadoutFormatConfig::Time);
         assert_eq!(config.label.as_deref(), Some("TIME"));
         assert!(config.visible, "visible defaults to true when omitted");
 
@@ -475,7 +488,7 @@ mod tests {
         };
         assert_eq!(
             config_min.format,
-            HudReadoutFormat::Number,
+            HudReadoutFormatConfig::Number,
             "omitted format defaults to Number"
         );
         assert_eq!(config_min.label, None);
@@ -510,7 +523,7 @@ mod tests {
         app.add_plugins(MinimalPlugins);
         app.init_resource::<NovaEventWorld>();
         app.init_resource::<GameObjectives>();
-        app.init_resource::<nova_hud::readout::HudReadouts>();
+        app.init_resource::<HudReadouts>();
 
         // Show a Time readout bound to a variable, and set that variable.
         {
@@ -522,7 +535,7 @@ mod tests {
             let show = EventActionConfig::HudReadout(HudReadoutActionConfig {
                 slot: "timer".to_string(),
                 variable: "scenario_elapsed".to_string(),
-                format: HudReadoutFormat::Time,
+                format: HudReadoutFormatConfig::Time,
                 label: Some("TIME".to_string()),
                 visible: true,
             });
@@ -530,7 +543,7 @@ mod tests {
         }
         NovaEventWorld::state_to_world_system(app.world_mut());
 
-        let readouts = app.world().resource::<nova_hud::readout::HudReadouts>();
+        let readouts = app.world().resource::<HudReadouts>();
         assert_eq!(readouts.0.len(), 1, "the shown readout synced");
         assert_eq!(readouts.0[0].slot, "timer");
         assert_eq!(readouts.0[0].value, 83.4, "the live variable value synced");
@@ -541,7 +554,7 @@ mod tests {
             let clear = EventActionConfig::HudReadout(HudReadoutActionConfig {
                 slot: "timer".to_string(),
                 variable: "scenario_elapsed".to_string(),
-                format: HudReadoutFormat::Time,
+                format: HudReadoutFormatConfig::Time,
                 label: None,
                 visible: false,
             });
@@ -549,10 +562,7 @@ mod tests {
         }
         NovaEventWorld::state_to_world_system(app.world_mut());
         assert!(
-            app.world()
-                .resource::<nova_hud::readout::HudReadouts>()
-                .0
-                .is_empty(),
+            app.world().resource::<HudReadouts>().0.is_empty(),
             "the clear fire dropped the slot"
         );
     }

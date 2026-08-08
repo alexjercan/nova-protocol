@@ -337,7 +337,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
     start_actions.push(EventActionConfig::HudReadout(HudReadoutActionConfig {
         slot: "rocks".to_string(),
         variable: "rocks_destroyed".to_string(),
-        format: HudReadoutFormat::Integer,
+        format: HudReadoutFormatConfig::Integer,
         label: Some("ROCKS".to_string()),
         visible: true,
     }));
