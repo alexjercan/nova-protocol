@@ -76,6 +76,8 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- Probe runs declared frame-time capture and native tracing automatically;
+  `--fps` and `--profile` are removed, while slow `--samply` stays opt-in.
 - **(breaking)** `ScenarioConfig` no longer derives `Default`; build one with
   `ScenarioConfig::new(id, name, cubemap)` plus struct-update syntax. A
   defaulted `cubemap` was never a valid scenario.

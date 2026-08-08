@@ -272,8 +272,9 @@ pub enum Input<'a, T> {
     /// The example wires no such plugin: it makes no claim, so there is
     /// nothing to hold it to.
     NotDeclared(Capability),
-    /// Wired, but this run did not arm it - no `--fps`, or a sweep cell that
-    /// strips the recorder on purpose.
+    /// Wired, but this run did not arm it. Current frame-time runs do not
+    /// produce this state; old manifests and deliberately stripped recorder
+    /// surfaces can.
     NotArmed(Capability),
     /// Claimed, armed, and silent. The one state that is a failure.
     ArmedButAbsent(Capability),

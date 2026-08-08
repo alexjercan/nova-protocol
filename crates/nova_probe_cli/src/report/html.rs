@@ -196,8 +196,8 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
             crate::report::escape(Capability::FrameTime.wiring()),
         )),
         (None, false) => html.push_str(
-            "<p>No frame-time capture in this run dir - probe run --fps (a \
-             wired example) or the sweep matrix flags produce frametime.csv.</p>\n",
+            "<p>No frame-time capture in this run dir. Current runs collect it \
+             automatically when the program declares the capability.</p>\n",
         ),
         (Some(runs), _) => {
             html.push_str(&render_chart(runs));
@@ -239,8 +239,8 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
     html.push_str("<h2>Profile</h2>\n");
     match &artifacts.costs {
         None => html.push_str(
-            "<p>No trace in this run dir - probe run --profile produces \
-             trace.json; open it in Perfetto for the deep dive.</p>\n",
+            "<p>No trace in this run dir. Native runs produce trace.json \
+             automatically; inspect trace-run.log for a failed pass.</p>\n",
         ),
         Some(costs) => {
             html.push_str(

@@ -13,7 +13,7 @@
 //! this is an in-example assertion, not a probe check, because the subject is
 //! ECS entity counts rather than scenario variables).
 //!
-//! The script is enrolled in capture looping, so `--fps` measures spawn -> hold
+//! The script is enrolled in capture looping, so probe measures spawn -> hold
 //! -> teardown ACTIVITY rather than an idle tail.
 //!
 //! Count knob: `NOVA_STRESS_COUNT` overrides [`DEFAULT_COUNT`].
@@ -27,7 +27,7 @@
 //! #           `autopilot: cycle complete, no panic`
 //!
 //! # the frame-time sweep:
-//! cargo run -p nova_probe_cli -- run many_bodies --fps --release
+//! cargo run -p nova_probe_cli -- run many_bodies --release
 //! ```
 
 use bevy::prelude::*;

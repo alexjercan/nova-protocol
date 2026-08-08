@@ -45,8 +45,7 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
                 CheckStatus::NotApplicable(NotApplicable::NotArmed(capability)),
                 "not armed",
                 format!(
-                    "the example wires {} but this run did not arm the capture \
-                     (pass --fps)",
+                    "the example wires {} but this older run did not arm the capture",
                     capability.wiring()
                 ),
             )
@@ -169,7 +168,7 @@ mod tests {
     /// An example that wires no frame-time capture makes no frame-cost
     /// assertion: the row is N/A and names the call that would make one.
     #[test]
-    fn an_undeclared_frame_time_claim_is_not_applicable() {
+    fn undeclared_frame_time_is_not_applicable() {
         let dir = scratch_run_dir();
         let _ = std::fs::remove_file(dir.join("frametime.csv"));
         std::fs::write(
@@ -179,21 +178,44 @@ mod tests {
                 .to_string(),
         )
         .unwrap();
-        std::fs::write(
-            dir.join("probe-run.json"),
-            manifest_ok().to_json().to_string(),
-        )
-        .unwrap();
+        for armed_fps in [false, true] {
+            let mut manifest = manifest_ok();
+            // Matrix cells arm the environment before the runtime contract is
+            // available. Missing wiring still owns the result.
+            manifest.armed_fps = armed_fps;
+            write_manifest(&dir, &manifest);
+
+            let artifacts = RunArtifacts::load(&dir, None).unwrap();
+            let checks = evaluate_checks(&artifacts);
+            let check = check(&checks, "fps_within_baseline");
+            assert_eq!(
+                check.status,
+                CheckStatus::NotApplicable(NotApplicable::NotDeclared(Capability::FrameTime)),
+                "armed_fps={armed_fps}: {check:?}"
+            );
+            assert!(
+                check.detail.contains("nova_frametime()"),
+                "armed_fps={armed_fps}: {check:?}"
+            );
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn declared_frame_time_without_output_fails() {
+        let dir = scratch_run_dir();
+        let _ = std::fs::remove_file(dir.join("frametime.csv"));
+        write_contract(&dir, [Capability::FrameTime]);
+        let mut manifest = manifest_ok();
+        manifest.armed_fps = true;
+        write_manifest(&dir, &manifest);
 
         let artifacts = RunArtifacts::load(&dir, None).unwrap();
         let checks = evaluate_checks(&artifacts);
-        let c = check(&checks, "fps_within_baseline");
-        assert_eq!(
-            c.status,
-            CheckStatus::NotApplicable(NotApplicable::NotDeclared(Capability::FrameTime)),
-            "{c:?}"
-        );
-        assert!(c.detail.contains("nova_frametime()"), "{c:?}");
+        let check = check(&checks, "fps_within_baseline");
+        assert_eq!(check.status, CheckStatus::Fail, "{check:?}");
+        assert!(check.detail.contains("no frametime.csv"), "{check:?}");
+
         let _ = std::fs::remove_dir_all(&dir);
     }
 

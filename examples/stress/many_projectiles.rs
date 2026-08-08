@@ -25,7 +25,7 @@
 //! is a claim about the projectile lifecycle itself, which unloading the
 //! scene would hide rather than prove.
 //!
-//! The script is enrolled in capture looping, so `--fps` measures spawn ->
+//! The script is enrolled in capture looping, so probe measures spawn ->
 //! saturate -> drain -> teardown ACTIVITY rather than an idle tail.
 //!
 //! Count knob: `NOVA_STRESS_COUNT` overrides [`DEFAULT_COUNT`] (the number of
@@ -41,7 +41,7 @@
 //! #           `autopilot: cycle complete, no panic`
 //!
 //! # the frame-time sweep:
-//! cargo run -p nova_probe_cli -- run many_projectiles --fps --release
+//! cargo run -p nova_probe_cli -- run many_projectiles --release
 //! ```
 
 use bevy::{platform::collections::HashMap, prelude::*};

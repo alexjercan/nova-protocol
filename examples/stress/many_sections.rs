@@ -17,7 +17,7 @@
 //!   survived (task 20260804-094006, DECISION.md D3 - an in-example assertion,
 //!   not a probe check, because the subject is ECS entity counts).
 //!
-//! The script is enrolled in capture looping, so `--fps` measures spawn -> hold
+//! The script is enrolled in capture looping, so probe measures spawn -> hold
 //! -> teardown ACTIVITY rather than an idle tail.
 //!
 //! Count knob: `NOVA_STRESS_COUNT` overrides [`DEFAULT_COUNT`].
@@ -31,7 +31,7 @@
 //! #           `autopilot: cycle complete, no panic`
 //!
 //! # the frame-time sweep:
-//! cargo run -p nova_probe_cli -- run many_sections --fps --release
+//! cargo run -p nova_probe_cli -- run many_sections --release
 //! ```
 
 #[cfg(feature = "debug")]

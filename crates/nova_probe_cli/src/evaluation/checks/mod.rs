@@ -71,7 +71,7 @@ pub enum CheckStatus {
 pub enum NotApplicable {
     /// The example wires no such plugin - it makes no claim.
     NotDeclared(Capability),
-    /// Wired, but this run did not arm it (no `--fps`, a sweep cell).
+    /// Wired, but this run did not arm it.
     NotArmed(Capability),
     /// An operator-supplied input was not given (`--baseline`).
     InputNotSupplied(&'static str),

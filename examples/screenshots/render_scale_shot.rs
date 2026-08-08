@@ -88,7 +88,7 @@ fn main() -> bevy::app::AppExit {
         // run timeline + engine-bound invariants, so `probe run` grades this
         // example instead of asserting nothing. No frame-time capture - the
         // whole point here is the PIXELS at a preset, and the render-scale
-        // lever's cost is what `scene_baseline --fps` already measures.
+        // lever's cost is what `probe run scene_baseline` already measures.
         app.add_plugins(nova_probe::nova_timeline());
         app.add_plugins(nova_probe::nova_invariants());
         // The two shots are compared against each other, so both must be the

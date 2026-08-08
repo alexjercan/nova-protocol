@@ -38,7 +38,7 @@ path = "src/lib.rs"
 #                stand up, or that measures rather than asserts.
 #   stress/      the ONLY home for frame-time claims: a steady-state scene
 #                built to be measured and compared against a baseline.
-#                probe: correctness + the `--fps` frame-time pass.
+#                probe: correctness + an automatic frame-time pass.
 #                not this category: anything that ends on a script rather
 #                than holding a load (it cannot fill a capture window).
 #   ui/          proves a staged UI flow: layout, navigation, real text
@@ -113,7 +113,7 @@ name = "menu_scenarios"
 path = "examples/ui/menu_scenarios.rs"
 
 # stress/ - the ONLY home for frame-time claims: steady-state scenes built to be
-# measured and compared against a baseline (probe run stress --fps). Each run
+# measured and compared against a baseline (probe run stress). Each run
 # also asserts, so a scale sweep proves "nothing breaks at scale" alongside its
 # number.
 [[example]]
@@ -300,7 +300,7 @@ embed-resource = "1"
 [features]
 debug = ["nova_core/debug", "bevy/track_location"]
 dev = ["debug"]
-# The PROFILED pass (probe run --profile): bevy's per-system spans are
+# The automatic PROFILED pass: bevy's per-system spans are
 # compiled in only under bevy/trace, and bevy/trace_chrome adds the chrome-
 # trace writer (output path via the TRACE_CHROME env var). Tracing overhead
 # contaminates frame times, so never combine a trace build with an FPS

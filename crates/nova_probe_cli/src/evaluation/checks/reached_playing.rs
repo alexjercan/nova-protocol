@@ -154,8 +154,8 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// A declared capability this run did not arm is not a gap either - the
-    /// sweep cells and every run without --fps live here.
+    /// A declared capability this run did not arm is not a gap either. Sweep
+    /// cells deliberately strip the recorder surfaces.
     #[test]
     fn a_declared_but_unarmed_timeline_is_not_applicable_rather_than_failing() {
         let dir = scratch_run_dir();

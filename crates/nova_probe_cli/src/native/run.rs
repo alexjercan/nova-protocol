@@ -1,11 +1,13 @@
-//! One example through the harness passes: clean, fps, profiled, samply,
-//! then the run report.
+//! One example through the harness passes: clean, declared frame time, traced,
+//! optional samply, then the run report.
 
 use std::{
     path::{Path, PathBuf},
     process::ExitCode,
     time::Duration,
 };
+
+use nova_probe::prelude::*;
 
 use super::{
     cli::{Platform, RunOptions},
@@ -72,6 +74,34 @@ fn clean_out_dir(out: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// The clean pass owns the runtime contract. A missing or invalid contract is
+/// graded later and cannot authorize a measurement pass.
+fn declares_frametime(out: &Path) -> bool {
+    std::fs::read_to_string(out.join("probe-contract.json"))
+        .ok()
+        .and_then(|contents| ProbeContract::from_json(&contents).ok())
+        .is_some_and(|contract| contract.declares(Capability::FrameTime))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NativePass {
+    FrameTime,
+    Profiled,
+    Samply,
+}
+
+fn post_clean_passes(frametime_declared: bool, sweeping: bool, samply: bool) -> Vec<NativePass> {
+    let mut passes = Vec::with_capacity(3);
+    if frametime_declared && !sweeping {
+        passes.push(NativePass::FrameTime);
+    }
+    passes.push(NativePass::Profiled);
+    if samply {
+        passes.push(NativePass::Samply);
+    }
+    passes
+}
+
 pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
     let root = repo_root();
     let out = opts.out.clone().unwrap_or_else(|| {
@@ -115,6 +145,7 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
             started_unix,
             passes,
             /*armed_native*/ false,
+            /*armed_frametime*/ true,
         );
     }
 
@@ -127,8 +158,7 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
     let cells = matrix_cells(&opts.scenarios, &opts.presets);
     let sweeping = !opts.scenarios.is_empty() || !opts.presets.is_empty();
     eprintln!(
-        "probe: [1/{}] clean pass: building {}{}",
-        passes_total(opts),
+        "probe: clean pass: building {}{}",
         opts.example,
         if opts.release { " (release)" } else { "" }
     );
@@ -156,7 +186,7 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
             "run.log".to_string()
         };
         eprintln!("probe: {cell_name} -> {}", out.join(&log_name).display());
-        let mut env = clean_pass_env(&root, &out, &display, sweeping && opts.fps);
+        let mut env = clean_pass_env(&root, &out, &display, sweeping);
         if sweeping {
             // Sweep cells measure frames, not the recorder surfaces.
             env.retain(|(k, _)| k != "NOVA_PERF_TIMELINE" && k != "NOVA_PERF_INVARIANTS");
@@ -179,139 +209,156 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
         });
     }
 
-    // FPS pass (optional, non-sweep): the dedicated capture-only run -
+    let frametime_declared = declares_frametime(&out);
+
+    // Frame-time pass (declared, non-sweep): the dedicated capture-only run -
     // same binary as the clean pass, recorder/invariants OFF the frame
     // path, its own log. The completion protocol keeps the app alive
     // until the capture window closes. Whether there is anything to
-    // capture is the EXAMPLE's answer (it wired nova_frametime(), or it
+    // capture is the program's answer (it wired nova_frametime(), or it
     // did not), and its contract tells the report which.
-    if opts.fps && !sweeping {
-        {
-            eprintln!(
-                "probe: fps pass: capture-only -> {}",
-                out.join("fps-run.log").display()
-            );
-            // NOVA_PERF_CONTRACT too: the CLEAN pass owns probe-contract.json,
-            // and letting the fps pass rewrite it makes the report's "what the
-            // example wired" half describe the wrong run the moment the two
-            // passes diverge.
-            let mut env = clean_pass_env(&root, &out, &display, true);
-            env.retain(|(k, _)| {
-                !matches!(
-                    k.as_str(),
-                    "NOVA_PERF_TIMELINE" | "NOVA_PERF_INVARIANTS" | "NOVA_PERF_CONTRACT"
-                )
-            });
-            // The baseline capture window + a completion deadline SIZED to
-            // it, so a slow-but-progressing capture (a heavy dev scene under
-            // software rendering) completes instead of tripping the flat
-            // 120s hang detector.
-            let (window_env, deadline_secs) = fps_window_and_deadline_env();
-            env.extend(window_env);
-            // The supervisor timeout MUST exceed the in-process deadline,
-            // or probe kills the child before the deadline can complete or
-            // report; keep the operator's --timeout if it is larger.
-            let fps_timeout = Duration::from_secs((deadline_secs + 30).max(opts.timeout_secs));
-            eprintln!("probe: fps pass deadline {deadline_secs}s (window-sized)");
-            let outcome = run_supervised(
-                &bin,
-                &[],
-                &root,
-                &env,
-                &out.join("fps-run.log"),
-                fps_timeout,
-            )?;
-            if !outcome.success() {
-                eprintln!("probe: fps pass did not succeed; the report will say so");
-            }
-            passes.push(PassRecord {
-                name: "fps".into(),
-                success: outcome.success(),
-                timed_out: outcome.timed_out(),
-            });
-        }
-    }
-
-    // Pass 2: PROFILED (optional; separate build so tracing overhead
-    // never touches pass 1's numbers). Failures degrade to "no trace" -
-    // a successful clean pass is never discarded.
-    if opts.profile {
-        eprintln!(
-            "probe: [2/{}] profiled pass: building with tracing",
-            passes_total(opts)
-        );
-        match build_example(&root, &opts.example, "debug,trace", None) {
-            Err(e) => {
-                eprintln!("probe: profiled build failed ({e}); continuing without a trace");
-                passes.push(PassRecord {
-                    name: "profiled".into(),
-                    success: false,
-                    timed_out: false,
+    for pass in post_clean_passes(frametime_declared, sweeping, opts.samply) {
+        let record = match pass {
+            NativePass::FrameTime => {
+                eprintln!(
+                    "probe: fps pass: capture-only -> {}",
+                    out.join("fps-run.log").display()
+                );
+                // NOVA_PERF_CONTRACT too: the CLEAN pass owns probe-contract.json,
+                // and letting the fps pass rewrite it makes the report's "what the
+                // example wired" half describe the wrong run the moment the two
+                // passes diverge.
+                let mut env = clean_pass_env(&root, &out, &display, true);
+                env.retain(|(k, _)| {
+                    !matches!(
+                        k.as_str(),
+                        "NOVA_PERF_TIMELINE" | "NOVA_PERF_INVARIANTS" | "NOVA_PERF_CONTRACT"
+                    )
                 });
-            }
-            Ok(()) => {
-                let env = trace_pass_env(&root, &out, &display);
-                eprintln!("probe: traced run -> {}", out.join("trace.json").display());
-                // Tracing throttles the run hard; give it double time.
+                // The baseline capture window + a completion deadline SIZED to
+                // it, so a slow-but-progressing capture (a heavy dev scene under
+                // software rendering) completes instead of tripping the flat
+                // 120s hang detector.
+                let (window_env, deadline_secs) = fps_window_and_deadline_env();
+                env.extend(window_env);
+                // The supervisor timeout MUST exceed the in-process deadline,
+                // or probe kills the child before the deadline can complete or
+                // report; keep the operator's --timeout if it is larger.
+                let fps_timeout = Duration::from_secs((deadline_secs + 30).max(opts.timeout_secs));
+                eprintln!("probe: fps pass deadline {deadline_secs}s (window-sized)");
                 let outcome = run_supervised(
                     &bin,
                     &[],
                     &root,
                     &env,
-                    &out.join("trace-run.log"),
-                    timeout * 2,
+                    &out.join("fps-run.log"),
+                    fps_timeout,
                 )?;
                 if !outcome.success() {
-                    eprintln!("probe: traced run did not succeed; the trace may be partial");
+                    eprintln!("probe: fps pass did not succeed; the report will say so");
                 }
-                passes.push(PassRecord {
-                    name: "profiled".into(),
+                PassRecord {
+                    name: "fps".into(),
                     success: outcome.success(),
                     timed_out: outcome.timed_out(),
-                });
-            }
-        }
-    }
-
-    // Pass 3: samply flamegraph (optional, tolerant - a missing/blocked
-    // profiler never fails the check; supervised so a hung sampled run
-    // cannot wedge probe either).
-    if opts.samply {
-        eprintln!("probe: [{n}/{n}] samply pass", n = passes_total(opts));
-        match build_example(&root, &opts.example, "debug", Some("profiling")) {
-            Err(e) => eprintln!("probe: samply build failed ({e}); flamegraph skipped"),
-            Ok(()) => {
-                let sbin = root.join("target/profiling/examples").join(&opts.example);
-                let samply_env = samply_pass_env(&root, &out, &display);
-                let samply = Path::new("samply");
-                let profile_out = out.join("samply-profile.json.gz");
-                let outcome = run_supervised(
-                    samply,
-                    &[
-                        "record",
-                        "--save-only",
-                        "-o",
-                        &profile_out.display().to_string(),
-                        &sbin.display().to_string(),
-                    ],
-                    &root,
-                    &samply_env,
-                    &out.join("samply-run.log"),
-                    timeout * 2,
-                );
-                match outcome {
-                    Ok(o) if o.success() => eprintln!(
-                        "probe: flamegraph saved; open with: samply load {}",
-                        profile_out.display()
-                    ),
-                    Ok(_) => eprintln!(
-                        "probe: samply run failed or timed out (perms? \
-                         perf_event_paranoid/mlock_kb; see samply-run.log); skipped"
-                    ),
-                    Err(e) => eprintln!("probe: samply not runnable ({e}); skipped"),
                 }
             }
-        }
+            NativePass::Profiled => {
+                // Tracing stays separate so its overhead never touches the
+                // frame-time pass. Failures degrade to a missing trace.
+                eprintln!("probe: profiled pass: building with tracing");
+                match build_example(&root, &opts.example, "debug,trace", None) {
+                    Err(e) => {
+                        eprintln!("probe: profiled build failed ({e}); continuing without a trace");
+                        PassRecord {
+                            name: "profiled".into(),
+                            success: false,
+                            timed_out: false,
+                        }
+                    }
+                    Ok(()) => {
+                        let trace_bin = root
+                            .join("target")
+                            .join("debug")
+                            .join("examples")
+                            .join(&opts.example);
+                        let env = trace_pass_env(&root, &out, &display);
+                        eprintln!("probe: traced run -> {}", out.join("trace.json").display());
+                        // Tracing throttles the run hard; give it double time.
+                        let outcome = run_supervised(
+                            &trace_bin,
+                            &[],
+                            &root,
+                            &env,
+                            &out.join("trace-run.log"),
+                            timeout * 2,
+                        )?;
+                        if !outcome.success() {
+                            eprintln!(
+                                "probe: traced run did not succeed; the trace may be partial"
+                            );
+                        }
+                        PassRecord {
+                            name: "profiled".into(),
+                            success: outcome.success(),
+                            timed_out: outcome.timed_out(),
+                        }
+                    }
+                }
+            }
+            NativePass::Samply => {
+                // Samply is tolerant: a missing or blocked profiler records
+                // the attempted auxiliary pass but never fails a check.
+                eprintln!("probe: samply pass");
+                match build_example(&root, &opts.example, "debug", Some("profiling")) {
+                    Err(e) => {
+                        eprintln!("probe: samply build failed ({e}); flamegraph skipped");
+                        PassRecord {
+                            name: "samply".into(),
+                            success: false,
+                            timed_out: false,
+                        }
+                    }
+                    Ok(()) => {
+                        let sbin = root.join("target/profiling/examples").join(&opts.example);
+                        let samply_env = samply_pass_env(&root, &out, &display);
+                        let samply = Path::new("samply");
+                        let profile_out = out.join("samply-profile.json.gz");
+                        let outcome = run_supervised(
+                            samply,
+                            &[
+                                "record",
+                                "--save-only",
+                                "-o",
+                                &profile_out.display().to_string(),
+                                &sbin.display().to_string(),
+                            ],
+                            &root,
+                            &samply_env,
+                            &out.join("samply-run.log"),
+                            timeout * 2,
+                        );
+                        match &outcome {
+                            Ok(outcome) if outcome.success() => eprintln!(
+                                "probe: flamegraph saved; open with: samply load {}",
+                                profile_out.display()
+                            ),
+                            Ok(_) => eprintln!(
+                                "probe: samply run failed or timed out (perms? \
+                                 perf_event_paranoid/mlock_kb; see samply-run.log); skipped"
+                            ),
+                            Err(e) => eprintln!("probe: samply not runnable ({e}); skipped"),
+                        }
+                        PassRecord {
+                            name: "samply".into(),
+                            success: outcome.as_ref().is_ok_and(|outcome| outcome.success()),
+                            timed_out: outcome.as_ref().is_ok_and(|outcome| outcome.timed_out()),
+                        }
+                    }
+                }
+            }
+        };
+        passes.push(record);
     }
 
     finish_report(
@@ -320,6 +367,7 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
         started_unix,
         passes,
         /*armed_native*/ !sweeping,
+        /*armed_frametime*/ frametime_declared,
     )
 }
 
@@ -330,6 +378,7 @@ fn finish_report(
     started_unix: u64,
     passes: Vec<PassRecord>,
     armed_native: bool,
+    armed_frametime: bool,
 ) -> Result<ExitCode, String> {
     let (git_sha, host) = run_identity();
     let full_git_sha = resolve_full_git_sha(&repo_root());
@@ -341,7 +390,7 @@ fn finish_report(
         host,
         armed_timeline: armed_native,
         armed_invariants: armed_native,
-        armed_fps: opts.fps || opts.platform == Platform::Web,
+        armed_fps: armed_frametime,
         passes,
     };
     std::fs::write(
@@ -374,11 +423,6 @@ fn finish_report(
     })
 }
 
-fn passes_total(opts: &RunOptions) -> usize {
-    let sweeping = !opts.scenarios.is_empty() || !opts.presets.is_empty();
-    1 + usize::from(opts.fps && !sweeping) + usize::from(opts.profile) + usize::from(opts.samply)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -406,6 +450,57 @@ mod tests {
             out.join("notes.txt").is_file(),
             "the clean is surgical, never a recursive wipe of a user-supplied dir"
         );
+        let _ = std::fs::remove_dir_all(&out);
+    }
+
+    #[test]
+    fn default_passes_follow_the_runtime_contract() {
+        assert_eq!(
+            post_clean_passes(false, false, false),
+            vec![NativePass::Profiled]
+        );
+        assert_eq!(
+            post_clean_passes(true, false, false),
+            vec![NativePass::FrameTime, NativePass::Profiled]
+        );
+        assert_eq!(
+            post_clean_passes(true, true, false),
+            vec![NativePass::Profiled]
+        );
+        assert_eq!(
+            post_clean_passes(true, false, true),
+            vec![
+                NativePass::FrameTime,
+                NativePass::Profiled,
+                NativePass::Samply,
+            ]
+        );
+    }
+
+    #[test]
+    fn clean_contract_selects_frame_time() {
+        let out = std::env::temp_dir().join(format!("nova_probe_contract_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&out);
+        std::fs::create_dir_all(&out).unwrap();
+
+        std::fs::write(
+            out.join("probe-contract.json"),
+            ProbeContract::of([Capability::Timeline])
+                .to_json()
+                .to_string(),
+        )
+        .unwrap();
+        assert!(!declares_frametime(&out));
+
+        std::fs::write(
+            out.join("probe-contract.json"),
+            ProbeContract::of([Capability::FrameTime])
+                .to_json()
+                .to_string(),
+        )
+        .unwrap();
+        assert!(declares_frametime(&out));
+
         let _ = std::fs::remove_dir_all(&out);
     }
 }

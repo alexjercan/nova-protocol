@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 pub(crate) const USAGE: &str = "\
 usage: probe <subcommand>
-  run <spec> [--all] [--out <dir>] [--profile] [--samply] [--fps]
+  run <spec> [--all] [--out <dir>] [--samply]
   [--baseline <base-dir>] [--timeout <secs>] [--display <:N>]
   [--release] [--render gpu|sw] [--scenario <id>]... [--preset <p>]...
   [--platform native|web]
@@ -16,7 +16,7 @@ usage: probe <subcommand>
   Runs write to <out|probe-runs>/<short-commit>/<example>/ and
   write an aggregated index.html/index.json + probe-all.json above
   them, even for one example. Matrix flags (--scenario/--preset,
-  repeatable, with --fps) and --platform web (positional = scenario id)
+  repeatable) and --platform web (positional = scenario id)
   are single-example concerns. --baseline names a storage base; probe
   searches it for the nearest previous commit dir and compares each
   example against <base>/<commit>/<example>/ when it has a frametime.csv.
@@ -30,9 +30,7 @@ usage: probe <subcommand>
 pub(crate) struct RunOptions {
     pub example: String,
     pub out: Option<PathBuf>,
-    pub profile: bool,
     pub samply: bool,
-    pub fps: bool,
     pub baseline: Option<PathBuf>,
     pub timeout_secs: u64,
     pub display: Option<String>,
@@ -82,9 +80,7 @@ fn default_run(example: String) -> RunOptions {
     RunOptions {
         example,
         out: None,
-        profile: false,
         samply: false,
-        fps: false,
         baseline: None,
         timeout_secs: 180,
         display: None,
@@ -97,9 +93,9 @@ fn default_run(example: String) -> RunOptions {
 }
 
 /// Parse the CLI: `run` and `report`. (The deprecated `sweep|web|profile`
-/// aliases and the `trace` verb retired at the v0.8.0 cut - `--profile`
-/// renders the top-N table in-report, and `probe report` re-renders it from
-/// the run dir.)
+/// aliases and the `trace` verb retired at the v0.8.0 cut. Native runs render
+/// the top-N table in-report, and `probe report` re-renders it from the run
+/// dir.)
 pub(crate) fn parse(args: &[String]) -> Result<Cmd, String> {
     let mut iter = args.iter();
     match iter.next().map(String::as_str) {
@@ -130,16 +126,16 @@ pub(crate) fn parse(args: &[String]) -> Result<Cmd, String> {
         // Retired verbs get a pointed error, not a generic one: the
         // muscle-memory commands should say where they went.
         Some("trace") => Err(
-            "`trace` retired (task 20260719-211500): `--profile` renders the \
+            "`trace` retired (task 20260719-211500): native runs render the \
              top-N table into the run report, and `probe report <run-dir>` \
              re-renders it from the dir's trace.json"
                 .into(),
         ),
         Some(alias @ ("sweep" | "web" | "profile")) => Err(format!(
             "`{alias}` retired (deprecated for one cycle, removed at v0.8.0): \
-             use `probe run` - the sweep is `run scene_baseline --fps --release \
+             use `probe run` - the sweep is `run scene_baseline --release \
              --scenario ... --preset ...`, web is `run <scenario> --platform web`, \
-             profiling is `run <example> --profile [--samply]`"
+             profiling is part of `run <example>`; add `--samply` for a flamegraph"
         )),
         Some(other) => Err(format!("unknown subcommand {other}")),
         None => Err("a subcommand is required".into()),
@@ -154,9 +150,7 @@ fn parse_run(args: Vec<String>) -> Result<Cmd, String> {
     while let Some(arg) = iter.next() {
         match arg.as_str() {
             "--all" => all = true,
-            "--profile" => opts.profile = true,
             "--samply" => opts.samply = true,
-            "--fps" => opts.fps = true,
             "--release" => opts.release = true,
             "--out" => {
                 opts.out = Some(PathBuf::from(iter.next().ok_or("--out needs a directory")?));
@@ -210,18 +204,13 @@ fn parse_run(args: Vec<String>) -> Result<Cmd, String> {
     if all && example.is_some() {
         return Err("give a spec or --all, not both".into());
     }
-    // Honest-combination gates that need no catalog: the matrix is a
-    // perf sweep (needs the capture armed), and the web pipeline has no
-    // native passes. Multi-spec gates live in resolve (they need to
-    // know whether the spec expands).
+    // Honest-combination gates that need no catalog. Multi-spec gates live in
+    // resolve because they need to know whether the spec expands.
     let matrix = !opts.scenarios.is_empty() || !opts.presets.is_empty();
-    if matrix && !opts.fps {
-        return Err("--scenario/--preset form a perf sweep: add --fps".into());
-    }
-    if opts.platform == Platform::Web && (opts.profile || opts.samply || opts.fps || matrix) {
+    if opts.platform == Platform::Web && (opts.samply || matrix) {
         return Err(
             "--platform web captures the web frame line only; it does not combine \
-             with --profile/--samply/--fps/--scenario/--preset"
+             with --samply/--scenario/--preset"
                 .into(),
         );
     }
@@ -250,9 +239,7 @@ mod tests {
         let cmd = parse(&s(&[
             "run",
             "playable",
-            "--profile",
             "--samply",
-            "--fps",
             "--out",
             "runs/x",
             "--baseline",
@@ -268,7 +255,7 @@ mod tests {
         };
         assert_eq!(tokens, s(&["playable"]));
         assert!(!all);
-        assert!(base.profile && base.samply && base.fps);
+        assert!(base.samply);
         assert_eq!(base.out, Some(PathBuf::from("runs/x")));
         assert_eq!(base.baseline, Some(PathBuf::from("runs/old")));
         assert_eq!(base.timeout_secs, 60);
@@ -311,6 +298,15 @@ mod tests {
     }
 
     #[test]
+    fn removed_diagnostic_flags_are_rejected() {
+        for flag in ["--fps", "--profile"] {
+            let error = parse(&s(&["run", "playable", flag])).unwrap_err();
+            assert!(error.contains("unknown flag"), "{flag}: {error}");
+        }
+        assert!(parse(&s(&["run", "playable", "--samply"])).is_ok());
+    }
+
+    #[test]
     fn new_verbs_and_flags_parse() {
         let Ok(Cmd::Report { dirs, baseline }) = parse(&s(&[
             "report",
@@ -327,7 +323,6 @@ mod tests {
         let Ok(Cmd::RunSpec { tokens, base, .. }) = parse(&s(&[
             "run",
             "scene_baseline",
-            "--fps",
             "--release",
             "--render",
             "sw",
@@ -341,7 +336,7 @@ mod tests {
             panic!("sweep-shaped run parses");
         };
         assert_eq!(tokens, s(&["scene_baseline"]));
-        assert!(base.release && base.fps);
+        assert!(base.release);
         assert_eq!(base.render, Render::Sw);
         assert_eq!(base.scenarios, s(&["a", "b"]));
         assert_eq!(base.presets, s(&["high"]));
@@ -349,11 +344,10 @@ mod tests {
 
     #[test]
     fn honest_combination_gates() {
-        // A matrix without --fps is a sweep that measures nothing.
-        assert!(parse(&s(&["run", "x", "--scenario", "a"])).is_err());
+        // Matrix capture follows the example's runtime capability contract.
+        assert!(parse(&s(&["run", "x", "--scenario", "a"])).is_ok());
         // Web does not combine with the native-only passes.
-        assert!(parse(&s(&["run", "x", "--platform", "web", "--profile"])).is_err());
-        assert!(parse(&s(&["run", "x", "--platform", "web", "--fps"])).is_err());
+        assert!(parse(&s(&["run", "x", "--platform", "web", "--samply"])).is_err());
         // Web alone is fine (the positional is a scenario id, resolved
         // past the catalog at dispatch).
         let Ok(Cmd::RunSpec { tokens, base, .. }) =
@@ -377,7 +371,7 @@ mod tests {
         }
         let err = parse(&s(&["trace", "t.json"])).unwrap_err();
         assert!(err.contains("retired"), "{err}");
-        assert!(err.contains("--profile"), "{err}");
+        assert!(err.contains("native runs"), "{err}");
         // Genuinely unknown verbs keep the generic error.
         assert!(parse(&s(&["frobnicate"]))
             .unwrap_err()

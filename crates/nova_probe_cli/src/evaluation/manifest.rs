@@ -28,12 +28,11 @@ pub struct RunManifest {
     pub full_git_sha: String,
     /// The host the run executed on.
     pub host: String,
-    /// Which capture surfaces probe armed (timeline/invariants always; fps
-    /// only with --fps).
+    /// Whether probe armed the timeline capture surface.
     pub armed_timeline: bool,
     /// Whether the invariants capture surface was armed.
     pub armed_invariants: bool,
-    /// Whether the fps capture surface was armed (only with `--fps`).
+    /// Whether the frame-time capture surface was armed.
     pub armed_fps: bool,
     /// Per-pass outcomes, in execution order.
     pub passes: Vec<PassRecord>,
@@ -156,5 +155,29 @@ mod tests {
         };
         let parsed = RunManifest::from_json(&manifest.to_json().to_string()).expect("round-trips");
         assert_eq!(parsed, manifest);
+    }
+
+    #[test]
+    fn legacy_armed_fps_manifest_loads() {
+        let json = serde_json::json!({
+            "example": "player_path",
+            "started_unix": 1,
+            "git_sha": "abc123",
+            "host": "devbox",
+            "armed": {
+                "timeline": true,
+                "invariants": true,
+                "fps": false
+            },
+            "passes": [{
+                "name": "clean",
+                "success": true,
+                "timed_out": false
+            }]
+        });
+
+        let manifest = RunManifest::from_json(&json.to_string()).expect("legacy manifest loads");
+        assert_eq!(manifest.full_git_sha, "abc123");
+        assert!(!manifest.armed_fps);
     }
 }

@@ -69,10 +69,10 @@ pub(crate) fn fps_window_and_deadline_env() -> (Vec<(String, String)>, u64) {
     (env, deadline)
 }
 
-/// Environment for the CLEAN pass: autopilot + recorder + invariants
-/// always; the frame-time capture only on request (`--fps`). Arming is free
-/// for an example that wired no such plugin - the plugin is inert and its
-/// contract simply does not declare the capability, so the report says so.
+/// Environment for the CLEAN pass: autopilot + recorder + invariants always,
+/// with frame-time capture when the caller is a measurement pass. Arming is
+/// free for a program that wires no such plugin: the plugin is inert and its
+/// contract does not declare the capability, so the report says so.
 /// The clean pass OWNS the contract: the trace and samply passes must not
 /// name a path, or a later pass would rewrite the claim.
 /// Plus the profile sandbox, so the run cannot read
@@ -307,7 +307,7 @@ mod tests {
     }
 
     #[test]
-    fn clean_env_always_arms_recorder_and_invariants_fps_only_on_request() {
+    fn clean_env_arms_only_the_requested_capture_surfaces() {
         let root = Path::new("/repo");
         let out = Path::new("/repo/probe-runs/x");
         let env = clean_pass_env(root, out, ":97", false);
@@ -320,7 +320,7 @@ mod tests {
             Some("/repo/probe-runs/x/timeline.jsonl")
         );
         assert_eq!(get("NOVA_PERF_INVARIANTS", &env).as_deref(), Some("1"));
-        assert_eq!(get("NOVA_PERF", &env), None, "fps off by default");
+        assert_eq!(get("NOVA_PERF", &env), None, "clean pass excludes fps");
 
         let env = clean_pass_env(root, out, ":97", true);
         assert_eq!(get("NOVA_PERF", &env).as_deref(), Some("1"));
@@ -335,7 +335,7 @@ mod tests {
         assert_eq!(
             get("NOVA_PERF_LABEL", &env),
             None,
-            "label rides with --fps only"
+            "label rides with frame-time capture only"
         );
     }
 

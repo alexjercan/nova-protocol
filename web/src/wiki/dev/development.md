@@ -129,11 +129,11 @@ example PROVES, not by what it happens to spawn.
 
 | Category | What it proves | What probe does with it | Disqualifies an example |
 |-|-|-|-|
-| `sections/` | one ship section's behavior, end to end | correctness passes only | spans two sections |
-| `systems/` | a whole system's behavior on a code-built fixture | correctness passes only | needs shipped content to stand up, or measures instead of asserting |
-| `stress/` | a frame-time claim: a steady-state scene built to be measured | correctness **+ the `--fps` frame-time pass** | ends on a script instead of holding a load (it cannot fill a capture window) |
-| `ui/` | a staged UI flow - layout, navigation, real text measure | correctness passes only | its subject is the simulation, not the interface over it |
-| `screenshots/` | frames for the website and the wiki | correctness passes only (the walk is graded; the frame is judged by human eyes) | asserts instead of capturing |
+| `sections/` | one ship section's behavior, end to end | runtime contract decides; native trace is automatic | spans two sections |
+| `systems/` | a whole system's behavior on a code-built fixture | runtime contract decides; native trace is automatic | needs shipped content to stand up, or measures instead of asserting |
+| `stress/` | a frame-time claim: a steady-state scene built to be measured | runtime contract decides; native trace is automatic | ends on a script instead of holding a load (it cannot fill a capture window) |
+| `ui/` | a staged UI flow - layout, navigation, real text measure | runtime contract decides; native trace is automatic | its subject is the simulation, not the interface over it |
+| `screenshots/` | frames for the website and the wiki | runtime contract decides; native trace is automatic | asserts instead of capturing |
 
 The run-policy half of that table is no longer a table. What an example can
 be judged on is DECLARED by the example, at runtime, through the probe
@@ -518,8 +518,7 @@ and assembles one reviewable report. The POST-FEATURE CHECK - "did my change
 break behavior or perf?" - is one command:
 
 ```sh
-cargo run -p nova_probe_cli -- run player_path            # clean pass -> report
-cargo run -p nova_probe_cli -- run player_path --profile  # + traced pass (top-N systems)
+cargo run -p nova_probe_cli -- run player_path            # clean + frame time + trace -> report
 cargo run -p nova_probe_cli -- run player_path --samply   # + named flamegraph
 cargo run -p nova_probe_cli -- run player_path --baseline probe-runs  # FPS deltas vs nearest prior commit
 cargo run -p nova_probe_cli -- run player_path,scenario_grammar   # comma list -> aggregate index
@@ -584,18 +583,20 @@ pair is how the `dirs` crate resolves on Linux, the supported probe host;
 Under the hood: an env-gated capture plugin drives the real gameplay app to
 `Playing`, warms up, records the wall-clock delta of every frame for a fixed
 window, and writes percentile stats. It is inert unless `NOVA_PERF` is set,
-so the whole fleet carries it permanently. `--fps` runs it as a DEDICATED
-capture-only pass (the correctness recorder flushes per entry on the frame
-path - measurement and correctness never share a pass), the harness
+so the whole fleet carries it permanently. Probe runs it as a DEDICATED
+capture-only pass when the program declares it (the correctness recorder
+flushes per entry on the frame path - measurement and correctness never share
+a pass), the harness
 completion protocol keeps the app alive until the window closes, and
 enrolled scenes (a script `loop_from` point) reload + replay so the window
 measures activity - reload intervals are excluded from the stats and
 reported as their own line.
 
-Which runs get that pass is the EXAMPLE's own answer: it wired
-`nova_probe::nova_frametime()`, or it did not. `--fps` arms the capture for
-every run; an example that wired no capture is inert under it, and its
-contract tells the report the frame-time section is empty because the example
+Which runs get that pass is the PROGRAM's own answer: it wired
+`nova_probe::nova_frametime()`, or it did not. Probe reads the clean run's
+contract and arms the separate capture only when declared. A program that
+wired no capture is inert, and its contract tells the report the frame-time
+section is empty because the program
 makes no frame-cost claim - not because a capture went missing. Frame-time
 claims still belong in `stress/`: that is what the category means, and it is
 now enforced by the wiring rather than by a table.
@@ -606,7 +607,7 @@ own `NOVA_PERF_WARMUP` / `NOVA_PERF_FRAMES` always override it. The completion
 deadline is SIZED to that window (not a flat 120s): probe sets
 `NOVA_AUTOPILOT_DEADLINE` for the fps pass to `(warmup + frames) / ~2fps +
 margin`, so a slow-but-progressing capture (a heavy scene in a dev build under
-software rendering - `scene_baseline --fps` is the case) completes instead of
+software rendering - `scene_baseline` is the case) completes instead of
 tripping the hang detector; a genuine hang still fails at a window-appropriate
 bound, and your own `NOVA_AUTOPILOT_DEADLINE` overrides it. Every example's `main`
 returns `AppExit`, so a deadline expiry is a non-zero process exit the
@@ -618,9 +619,9 @@ frame-time capture, one labeled `frametime.csv` row per cell, release-built
 (dev-profile frame numbers are not baselines):
 
 ```sh
-cargo run -p nova_probe_cli -- run scene_baseline --fps --release \
+cargo run -p nova_probe_cli -- run scene_baseline --release \
   --scenario asteroid_field --scenario broadside --preset high --preset low
-cargo run -p nova_probe_cli -- run scene_baseline --fps --release --render sw ...  # lavapipe floor
+cargo run -p nova_probe_cli -- run scene_baseline --release --render sw ...  # lavapipe floor
 cargo run -p nova_probe_cli -- run <scenario> --platform web   # web/WebGPU capture (scraped)
 ```
 
@@ -629,7 +630,7 @@ graphics preset, git SHA, host and - schema v3 - the BUILD PROFILE) so a
 results file names its own renderer (pre-v3 files, like the v0.7.0
 baseline, still load; their profile reads `unknown`). The report badges
 each row `dev` or `release`: dev numbers are NOT baselines, and since the
-whole fleet now carries the capture (`--fps` works on any example), the
+whole fleet now carries the capture capability, the
 badge is what keeps ad-hoc dev captures from being mistaken for
 comparable measurements. The web platform
 builds the perf_web wasm app through Trunk, serves it from an embedded static
@@ -695,8 +696,8 @@ frame times, so a profiled run RANKS systems while the clean capture owns the
 FPS truth (never mix the two):
 
 ```sh
-cargo run -p nova_probe_cli -- run scenario_grammar --profile          # trace + report table
-cargo run -p nova_probe_cli -- run scenario_grammar --profile --samply # + flamegraph
+cargo run -p nova_probe_cli -- run scenario_grammar          # trace + report table
+cargo run -p nova_probe_cli -- run scenario_grammar --samply # + flamegraph
 ```
 
 The profiled pass builds with `--features debug,trace` (bevy's per-system
