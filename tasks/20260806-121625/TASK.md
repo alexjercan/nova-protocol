@@ -686,42 +686,67 @@ BLOCKS the baseline, lands AFTER it. Depends on L1 (hard) and L2. No findings -
 L1 already fixed the defects; this lane is the structure. Do not let the rename
 absorb the fixes, or the fixes drift into a rename.
 
-- [ ] Carve `nova_probe_cli` out with module names UNCHANGED, so the commit is
-      a pure move and reviewable as one.
-- [ ] Split at the real process boundary: `nova_probe` is the in-game
+- [x] Carve `nova_probe_cli` out with module names UNCHANGED, so the commit is
+      a pure move and reviewable as one. Commit L8.1.
+- [x] Split at the real process boundary: `nova_probe` is the in-game
       collection library (wasm-clean, links into examples); `nova_probe_cli` is
       the host harness (spawns children, reads artifacts, renders reports).
-- [ ] Keep `contract.rs` and `stats.rs` as the shared wire format in
+- [x] Keep `contract.rs` and `stats.rs` as the shared wire format in
       `nova_probe`, with `nova_probe_cli` depending on it. No third crate until
       a second consumer exists.
-- [ ] Rename in a SECOND commit: `capture.rs` -> `capabilities/frametime.rs`,
+- [x] Rename in a SECOND commit: `capture.rs` -> `capabilities/frametime.rs`,
       `recorder.rs` -> `capabilities/timeline.rs`, `invariants.rs` ->
       `capabilities/invariants.rs`, `profile.rs` -> `capabilities/profile.rs`.
-- [ ] Rename `run_report/` -> `evaluation/` (artifacts, checks) + `report/`
+      **`profile.rs` is the one exception, ruled against the plan on the
+      code.** It post-processes the chrome trace a finished child WROTE, so it
+      reads evidence rather than collecting it; it lives at
+      `nova_probe_cli/src/evaluation/profile.rs` with the rest of the grading.
+      A capability is a Bevy plugin an example wires; `profile.rs` is neither.
+- [x] Rename `run_report/` -> `evaluation/` (artifacts, checks) + `report/`
       (html, manifest); `aggregate.rs` -> `report/aggregate.rs`; `catalog.rs`
       -> `evaluation/catalog.rs`; `report.rs` -> `report/mod.rs`;
-      `bin/probe/` -> `main.rs` + `native/`.
-- [ ] Add `NovaProbePlugin { frametime, timeline, invariants }` on the
+      `bin/probe/` -> `main.rs` + `native/`. `manifest.rs` landed in
+      `evaluation/`, not `report/`: it is the run's identity that
+      `process_exit` and `artifacts_loadable` grade against, and the renderers
+      only print it.
+- [x] Add `NovaProbePlugin { frametime, timeline, invariants }` on the
       collection side - it BUNDLES the capabilities, it does not replace their
       per-example configuration.
-- [ ] Delete the ~20 `#[cfg(not(target_arch = "wasm32"))]` attributes at
-      `lib.rs:82-163`; the crate boundary now is the cfg.
-- [ ] Rules 3+4 in a THIRD commit - one prelude per module in both crates,
+- [x] Delete the ~20 `#[cfg(not(target_arch = "wasm32"))]` attributes at
+      `lib.rs:82-163`; the crate boundary now is the cfg. Two survive in
+      `lib.rs` (the native-only `fixtures` module) and six in
+      `capabilities/mod.rs` - the wasm timeline stub and its native twin, which
+      are a real target difference rather than a host/game confusion.
+- [x] Rules 3+4 in a THIRD commit - one prelude per module in both crates,
       written at the point each module is created under its new name.
       `nova_probe` has 12 public modules, zero preludes and the workspace's
-      worst deep-import count (184).
-- [ ] Evict LAST (the only items that can be argued about): `profile_sandbox.rs`
+      worst deep-import count (184). Both crate roots are now prelude globs.
+      Test-support modules (`#[cfg(test)] fixtures`) get none: they have no
+      public boundary, and `fixtures::*` is already the idiom at every use.
+- [x] Evict LAST (the only items that can be argued about): `profile_sandbox.rs`
       beside `supervise`, `fixtures.rs` + `run_report/fixtures.rs` to
       `#[cfg(test)]` or a dev-dependency, `bin/perf_web.rs` as a separate tool.
-- [ ] Move the `Cargo.toml` workspace members, the root dev-dependency and the
+      Two of three. `profile_sandbox.rs` -> `native/profile_sandbox.rs`;
+      `perf_web` -> the new `crates/nova_perf_web`, which also removes
+      `nova_probe`'s dependency on the root game package (a crate under
+      `crates/` depending on the binary it links into). **`nova_probe`'s
+      `fixtures.rs` is NOT evicted:** six examples build ships and asteroids
+      with it, so `#[cfg(test)]` is impossible (examples are not tests) and a
+      dev-dependency crate would have exactly one consumer. Its `nova_protocol`
+      import became `nova_core`. `evaluation/fixtures.rs`, the half the bullet
+      could reach, is already `#[cfg(test)]`.
+- [x] Move the `Cargo.toml` workspace members, the root dev-dependency and the
       `[[bin]]` entries (`nova_probe/Cargo.toml:18-30`).
-- [ ] Update every caller of `cargo run -p nova_probe -- run --all` to
+- [x] Update every caller of `cargo run -p nova_probe -- run --all` to
       `-p nova_probe_cli` IN THE SAME COMMIT as the split:
       `.github/workflows/ci.yaml`, `AGENTS.md`, any justfile/scripts, every doc
       line quoting it.
-- [ ] `grep -rn -- '-p nova_probe' .` before declaring the lane done. This is
+- [x] `grep -rn -- '-p nova_probe' .` before declaring the lane done. This is
       the only rename in the epic with a non-Rust consumer.
-- [ ] Byte-compare `probe run --all` verdicts before and after, and re-run L1's
+      Zero live hits. What remains is 100+ lines inside `tasks/` (historical
+      records of runs that really were invoked that way) and
+      `web/src/news/0.8.0.md`, a published release note - neither is rewritten.
+- [x] Byte-compare `probe run --all` verdicts before and after, and re-run L1's
       fixture-driven gate tests.
 
 ### Lane09 - "NOVA_GAMEPLAY FOUR-WAY SPLIT" - tasks/20260806-121625/plan/lane09.md
