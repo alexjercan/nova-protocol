@@ -1,192 +1,131 @@
 # AGENTS.md
 
-Nova Protocol: Bevy 0.19 3D space shooter. Modular ship editor, native and
-WASM simulation, scenario-driven combat.
+Repository guidelines. Global `~/AGENTS.md` applies.
 
-Start here:
+## Repository
 
-- Read this file.
-- Use crate preludes. New public items require prelude exports.
+Nova Protocol is a Bevy 0.19 3D space shooter with a modular ship editor,
+native and WASM simulation, and scenario-driven combat.
 
-## Code map
+- Root crate: CLI entry and `nova_core` re-export.
+- Assembly: `crates/nova_core/src/lib.rs` -> `AppBuilder`.
+- Order: Bevy -> input -> assets -> gameplay -> scenario -> editor/menu -> debug.
+- States: `GameStates::{Loading, MainMenu, Playing}` and
+  `GameAssetsStates::{Boot, Loading, Processing, Loaded}`.
+- Scenario setup usually uses `OnEnter(GameAssetsStates::Loaded)`.
+- Crate ownership: each `crates/*/src/lib.rs` module document.
+- Rust style: `CONVENTIONS.md`.
 
-Root crate: CLI entry and `nova_core` re-export. Main assembly:
-`crates/nova_core/src/lib.rs` -> `AppBuilder`.
-
-Share is that crate's percentage of the 146,424 `crates/*/src` lines
-(2026-08-08). It is here so the size distribution is visible before you plan
-anything: `nova_ship` is the biggest crate, but no longer by a multiple.
-
-| Crate | Share | Handles |
-| --- | --- | --- |
-| `nova_ship` | 23% | The ship and how it is flown: sections, player/AI input, targeting, flight, the camera rigs, the PD controller, the ship's soundtrack. |
-| `nova_hud` | 13% | The flight HUD: instruments, reticles, readouts, markers, the comms panel and the keybind dock. Reads gameplay, never drives it. |
-| `nova_assets` | 12% | Assets, content builders, `content` CLI, bundle merge, mod cache/downloads, portal client, catalog builder. |
-| `nova_os_ui` | 10% | The NOVA OS cockpit monitor: CRT terminal UI plus the `map` and `ship` apps. A peer of the HUD, not part of it. |
-| `nova_scenario` | 10% | Actions, events, filters, variables, objects, content lint. |
-| `nova_gameplay` | 7% | The shared gameplay layer under the ship: integrity, damage, gravity, the SFX engine, juice, objectives, mesh/transform rigs, the entity markers, `GameStates`. |
-| `nova_menu` | 6% | Main/pause menus, settings, mods, portal UI, scenario picker. |
-| `nova_probe_cli` | 5% | Host half of the run harness: spawns runs, grades artifacts, renders reports. Never linked into a game binary. |
-| `nova_ui` | 3% | Shared theme and widgets. Zero `nova_*` dependencies - keep it that way. |
-| `nova_probe` | 2% | In-game half of the run harness: the capabilities an example wires, and the wire format they write. |
-| `nova_autopilot` | 2% | Automation drivers and the run-completion protocol; `bevy`-only. |
-| `nova_os` | 2% | Terminal model, shell, app runtime. No UI ownership. |
-| `nova_editor` | 2% | Ship editor and play-test transition. |
-| `nova_debug` | 1% | `debug`-gated inspector, wireframe, overlays, and the example test harness. |
-| `nova_events` | <1% | Game event kinds and entity identity components. |
-| `nova_core` | <1% | Plugin assembly. Start here. |
-| `nova_mod_format` | <1% | Engine-free mod wire and serde types. |
-| `nova_modding` | <1% | Bevy asset loaders for the RON mod format: `ContentAsset`, `BundleAsset`, `InstalledCatalog`. One file. Not bundle merge, downloads or the portal - those are `nova_assets`. |
-| `nova_events_macros` | <1% | The `EventKind` derive; `nova_events` is its only consumer. |
-| `nova_perf_web` | <1% | The wasm frame-time app `probe run --platform web` measures. One bin, no lib; its own crate because it links the whole game and `nova_probe` must not. |
-| `nova_info` | <1% | `APP_VERSION` from `build.rs`. |
-| `nova_meta_gen` | - | Web asset `.meta` generator under `tools/`; no game dependency. |
-
-Assembly order: Bevy -> enhanced input -> assets -> gameplay -> scenario ->
-editor/menu -> debug tooling. States: `GameStates::{Loading, MainMenu, Playing}`
-and `GameAssetsStates::{Boot, Loading, Processing, Loaded}`.
-Scenario setup usually hooks `OnEnter(GameAssetsStates::Loaded)`.
+Use crate preludes. Export new public items from the owning prelude.
 
 ## Commands
 
-NixOS: run every Rust/Cargo command through `nix develop --command ...`, or
-enter `nix develop` first. Never share `CARGO_TARGET_DIR` across worktrees.
-`sccache` provides safe cross-worktree reuse.
+Run Rust and Cargo commands through `nix develop --command ...`, or enter
+`nix develop` first. Do not share `CARGO_TARGET_DIR` across worktrees.
 
 ```sh
 cargo run
 cargo run --features dev
 cargo run --example scenario_grammar
-trunk serve
-scripts/serve-web.sh    # live dev: site + game + portal, watched, proxied
-scripts/preview-web.sh  # one-shot static build in the real deploy layout
 cargo check
 cargo fmt
+cargo test --lib -p <crate>
 cargo run -p nova_authoring --bin content -- gen
 cargo run -p nova_authoring --bin content -- lint
-cargo run -p nova_probe_cli -- run player_path
+cargo run -p nova_probe_cli -- run <category>
+scripts/serve-web.sh
+scripts/preview-web.sh
 ```
 
-Features:
-
-- `debug`: debug tooling.
-- `dev`: alias for `debug`.
-- `--norender`, `--debugdump`: require `debug`.
-
-Fresh clone: run `scripts/setup-hooks.sh`. Pre-commit blocks Rust changes when
-`cargo fmt --check` fails.
+- `debug`: debug tooling. `dev`: alias for `debug`.
+- `--norender` and `--debugdump` require `debug`.
+- Fresh clone: run `scripts/setup-hooks.sh`.
 
 ## Testing
 
-- Harness-first. Prefer App-driven tests and `NOVA_AUTOPILOT` examples.
-- Bugs: failing current-tree harness first; record fail-first numbers in `TASK.md`.
-- Features: player-path harness coverage. Unit tests support, not replace, it.
-- Rigs: production scheduling, defaults, configuration. Extend a known-good rig.
-- Reference tests: `crates/nova_assets/tests/gauntlet_course.rs`,
-  `crates/nova_assets/tests/ledger_ch2_encounter.rs`.
-- Example catalog: root `Cargo.toml`; categories under `examples/`.
-- Category run: `cargo run -p nova_probe_cli -- run <category>` (or `--all`).
-- Touched tests: run `cargo test --lib -p <crate>`. No feature-unification workaround.
-  `--lib` is load-bearing: bare `-p nova_assets` also links its 22 integration
-  test binaries. Add `--test <name>` to reach one integration guard.
-- Gameplay changes: run `cargo run -p nova_probe_cli -- run <example>`.
-- Probe output: inspect `report.html` and `checks.json`; `SKIPPED` means unmeasured.
-- Full `cargo test` and `cargo clippy`: do not run locally unless asked. CI owns both. State when skipped.
-- If asked to run the full suite, use the CI-equivalent headless form:
-  `env -u DISPLAY -u WAYLAND_DISPLAY cargo test --workspace --features debug`
-  (nothing in the suite opens a window now that probe owns the run gate; test
-  apps use `MinimalPlugins`, so no audio device is touched). The windowed half
-  is `cargo run -p nova_probe_cli -- run --all`, which CI runs as its own step.
-  Never raise `-j` past the `.cargo/config.toml`
-  cap - concurrent rust-lld links are what OOMs the box.
+- Prefer App-driven tests and `NOVA_AUTOPILOT` examples.
+- Bugs: reproduce in the current tree first. Record fail-first proof in `TASK.md`.
+- Features: add player-path harness coverage. Unit tests do not replace it.
+- Extend a known-good rig with production scheduling, defaults, and config.
+- Example catalog: root `Cargo.toml`; categories: `examples/`.
+- Gameplay changes: `cargo run -p nova_probe_cli -- run <example>`.
+- Inspect `report.html` and `checks.json`. `SKIPPED` means unmeasured.
+- Touched crate: `cargo test --lib -p <crate>`. Use `--test <name>` for one
+  integration test. Bare `-p nova_assets` links all integration test binaries.
+- Do not run full `cargo test` or `cargo clippy` unless asked. CI owns both.
+- Requested full suite:
+  `env -u DISPLAY -u WAYLAND_DISPLAY cargo test --workspace --features debug`.
+- Windowed suite: `cargo run -p nova_probe_cli -- run --all`.
+- Do not raise `-j` above the `.cargo/config.toml` cap.
 
-Probe details: `.claude/skills/probe/SKILL.md` and the dev wiki Performance
-section.
+Probe details: `.claude/skills/probe/SKILL.md` and the dev wiki Performance page.
 
-## Code rules
+## Repository rules
 
-Rust house style is `CONVENTIONS.md` at the repo root. Read it before writing
-code. Only what is not style lives here:
-
-- Global `~/AGENTS.md` applies.
-- ASCII punctuation only. No AI commit attribution.
-- `nova_events` is the scenario/modding event vocabulary - the game-event kinds
-  a RON scenario can react to. Adding one exposes it to modders. It is not a
-  general "no direct coupling" mandate: in-code gameplay wiring uses observers
-  and direct calls, and that is correct.
-- Base `assets/base/**/*.content.ron`: generated. Edit Rust builders, run
-  `content -- gen`, commit both. Never hand-edit generated RON.
-- `#![warn(missing_docs)]`: enable only on a fully documented crate.
+- `nova_events` is the scenario and modding event vocabulary. In-code gameplay
+  wiring can use observers and direct calls.
+- `assets/base/**/*.content.ron` is generated. Edit Rust builders, run
+  `content -- gen`, and commit both. Do not edit generated RON.
+- Enable `#![warn(missing_docs)]` only on a fully documented crate.
 - Keep `cargo doc --workspace --no-deps` warning-free.
-
-Paid rules:
-
-- Prose from the final diff. Re-read every claim against shipped behavior.
-- Reproduce stale bug briefs against the current tree before scoping a fix.
-- Open rendered/generated output. Green exit codes do not prove useful output.
-- Author against measured runtime values; derive rig invariants.
-- Advertised config/UI requires verified producer, consumer, and preconditions.
+- Verify prose against shipped behavior.
+- Open rendered and generated output. Exit status alone is not proof.
+- Use measured runtime values and derive rig invariants.
+- Advertised config and UI require a verified producer, consumer, and
+  preconditions.
 
 ## Shared checkout
 
-- Worktrees: `sprout` skill only. No hand-created worktrees.
-- Main checkout before every commit: `git branch --show-current`.
-- Main checkout staging: explicit paths only. Never `git add -A`.
-- Never leave the index staged across tool calls.
-- Squash landing: one atomic `pwd && git branch --show-current && git merge --squash <branch> && git commit`.
-- Concurrent work: read repository facts with `git show HEAD:<path>`.
-- Background code edits: isolated sprout worktree. Main checkout only for task/ledger records.
-- Helper processes: record PID; kill by PID. Never `pkill -f`.
-- Piped checks: preserve exit codes with bare commands or `set -o pipefail`.
-- Edited artifacts: re-read after tool success.
+- Worktrees: use the `sprout` skill. Do not create them by hand.
+- Before each main-checkout commit: `git branch --show-current`.
+- Stage explicit paths only. Never use `git add -A`.
+- Do not leave the index staged across tool calls.
+- Concurrent reads: `git show HEAD:<path>`.
+- Background code edits: isolated sprout worktree.
+- Squash landing: one command chain with `pwd`, branch check, squash merge, and
+  commit.
 
 ## Agent workflow
 
-- Tracker/epics: `tatr` records under `tasks/`; `/flow` drives plan -> work -> review -> compound -> land.
-- Examples/retention: declared location -> existing `examples/` or `scripts/` -> task folder -> ask once and cache in the task.
-- Domain docs: durable reference under `web/src/wiki/`; routing map in `web/src/wiki/dev/keeping-docs-in-sync.md`.
-- Research/network: use `/understand`; keep `SPIKE.md` in the task folder; verify current tree before external research.
-- Checks/records: proof-bearing DoD (`test:`, `cmd:`, `manual:`); gate with `tatr check`.
-- Knowledge: central repo `/home/alex/personal/agent-knowledge`; project=nova-protocol; tags=rust,bevy,game,protocol. Advisory only; failed writes stay in RETRO.
+- Tracker: `tatr`; records under `tasks/`; `/flow` drives the full cycle.
+- Examples: declared location -> `examples/` or `scripts/` -> task folder -> ask
+  once and cache in the task.
+- Domain docs: `web/src/wiki/`; routing map:
+  `web/src/wiki/dev/keeping-docs-in-sync.md`.
+- Research: use `/understand`; keep `SPIKE.md` in the task folder; inspect the
+  current tree before network research.
+- Checks: proof-bearing DoD (`test:`, `cmd:`, `manual:`); gate with `tatr check`.
+- Knowledge: `/home/alex/personal/agent-knowledge`; project=nova-protocol;
+  tags=rust,bevy,game,protocol. Advisory only; failed writes stay in `RETRO.md`.
 
-Task scheduling:
+Each new task has one scheduling tag: `backlog` at priority 0, or the current
+`vX.Y.Z` after release-priority review. Topical tags are additional.
 
-- Every new task: exactly one scheduling tag.
-- Unscheduled: `backlog`, priority 0.
-- Scheduled: current `vX.Y.Z`; inspect release priorities before slotting.
-- Topical tags are additional.
-
-Task records:
-
-| File | Purpose |
-| --- | --- |
-| `TASK.md` | Story, Steps, DoD, Notes. |
-| `SPIKE.md` | Research. |
-| `REVIEW.md` | Review rounds and verdict. |
-| `RETRO.md` | Retrospective. |
-| `NOTES.md` | Design/fix record. |
-
-`docs/`: ephemeral scratch only. Before release: move durable reference
-material to the wiki, then clear everything under `docs/` except its `README.md`.
-Plans and durable records stay out of `docs/`.
+Task records: `TASK.md` for story, steps, DoD, and notes; `SPIKE.md` for
+research; `REVIEW.md` for review; `RETRO.md` for reflection; `NOTES.md` for the
+design or fix record.
 
 ## Documentation
 
-Code and invalidated docs ship in the same task. Full dependency map:
-`web/src/wiki/dev/keeping-docs-in-sync.md`.
+Ship code and invalidated docs together. Use
+`web/src/wiki/dev/keeping-docs-in-sync.md` for the dependency map.
 
-| Change | Required surfaces |
-| --- | --- |
-| User-visible behavior | `CHANGELOG.md`; affected player wiki; tutorial when first-flight changes. |
-| Internals or formats | Affected `web/src/wiki/dev/*.md`; mark format breaks `(breaking)`. |
-| Feature release | Changelog plus one `web/src/news/` post. |
-| Patch release | Parent feature post `## Point releases`; no separate post. |
-| New/renamed wiki page | `web/webpack.config.js`, `web/src/wiki-pages.ts`. |
-| New news post | `NEWS_POSTS`, `web/src/news.html` card. |
+- User behavior: `CHANGELOG.md`, affected player wiki, and tutorial if
+  first-flight behavior changes.
+- Internals or formats: affected `web/src/wiki/dev/*.md`; mark format breaks
+  `(breaking)`.
+- Feature release: changelog and one `web/src/news/` post.
+- Patch release: parent feature post under `## Point releases`.
+- New or renamed wiki page: `web/webpack.config.js` and `web/src/wiki-pages.ts`.
+- New news post: `NEWS_POSTS` and the `web/src/news.html` card.
+- New visual feature: `.figure` placeholder and caption.
+- Website check: `cd web && npm run ci`.
 
-CHANGELOG lines: short, subsystem-grouped, behavior plus key name. No rationale
-or worked examples. News owns narrative. New visual feature: add `.figure`
-placeholder and caption.
+Keep changelog lines short and subsystem-grouped. State behavior and the key
+name. Put rationale and examples in news.
+
+`docs/` is temporary scratch. Before release, move durable material to the wiki
+and retain only `docs/README.md`.
 
 Version: root `Cargo.toml` -> `workspace.package.version`. Release procedure:
-`web/src/wiki/dev/development.md`. Website verification: `cd web && npm run ci`.
+`web/src/wiki/dev/development.md`.
