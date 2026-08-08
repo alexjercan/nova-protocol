@@ -579,7 +579,7 @@ NOVA_MOD_CACHE_ROOT=~/.local/share/nova-protocol cargo run -p nova_probe_cli -- 
 `XDG_CACHE_HOME` is deliberately NOT redirected (the shader cache lives there,
 and throwing it away each run would make FPS numbers incomparable). The XDG
 pair is how the `dirs` crate resolves on Linux, the supported probe host;
-`nova_probe_cli::profile_sandbox` has the details.
+`nova_probe_cli::native::profile_sandbox` has the details.
 
 Under the hood: an env-gated capture plugin drives the real gameplay app to
 `Playing`, warms up, records the wall-clock delta of every frame for a fixed

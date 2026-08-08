@@ -22,8 +22,8 @@
 //! reads (`warmup`, `frames`, `label`, `res`; `perf` arms it on web).
 
 use bevy::prelude::*;
-use nova_probe::{combat_burst_driver, nova_frametime, perf_param};
-use nova_protocol::prelude::*;
+use nova_core::prelude::*;
+use nova_probe::prelude::*;
 
 fn main() {
     let scenario_id = perf_param("scenario").unwrap_or_else(|| "asteroid_field".to_string());

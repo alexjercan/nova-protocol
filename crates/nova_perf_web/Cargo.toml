@@ -1,0 +1,26 @@
+[package]
+name = "nova_perf_web"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = false
+description = "The wasm app `probe run --platform web` measures: the real game booted into a scenario with the frame-time capture armed (dev tools)"
+
+# The web/native frame-time capture app. It is an APP, not a library: it builds
+# the whole game, so it cannot live in `nova_probe` (which links INTO the game)
+# without inverting that direction. It is its own crate rather than a root
+# `[[bin]]` so the root package keeps a single bin and `cargo run` needs no
+# `--bin`. Trunk builds it for wasm via perf.html; it runs natively too.
+[[bin]]
+name = "perf_web"
+path = "src/main.rs"
+
+[dependencies]
+# The game itself: this bin boots the real app, scenarios and all.
+nova_core = { path = "../nova_core" }
+# ... with the frame-time capture armed from the cross-platform perf params.
+nova_probe = { path = "../nova_probe" }
+bevy = { version = "0.19.0" }
+
+[lints]
+workspace = true

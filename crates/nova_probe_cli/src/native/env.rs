@@ -6,7 +6,7 @@ use std::path::Path;
 use nova_autopilot::{autopilot::AUTOPILOT_ENV, completion::DEADLINE_ENV};
 
 use super::cli::Render;
-use crate::profile_sandbox;
+use crate::native::profile_sandbox;
 
 /// Conservative software-render frame-rate FLOOR (frames/sec) used to size
 /// the completion deadline to the capture window.

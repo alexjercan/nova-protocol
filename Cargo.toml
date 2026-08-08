@@ -337,6 +337,9 @@ members = [
   "crates/nova_mod_format",
   "crates/nova_modding",
   "crates/nova_os",
+  # The wasm frame-time app perf.html builds. Its own crate because it is an
+  # APP that links the whole game - `nova_probe` links INTO the game.
+  "crates/nova_perf_web",
   "crates/nova_probe",
   "crates/nova_probe_cli",
   "crates/nova_scenario",

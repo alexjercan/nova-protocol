@@ -35,6 +35,7 @@ anything: `nova_gameplay` is over half the workspace on its own.
 | `nova_mod_format` | <1% | Engine-free mod wire and serde types. |
 | `nova_modding` | <1% | Bevy asset loaders for the RON mod format: `ContentAsset`, `BundleAsset`, `InstalledCatalog`. One file. Not bundle merge, downloads or the portal - those are `nova_assets`. |
 | `nova_events_macros` | <1% | The `EventKind` derive; `nova_events` is its only consumer. |
+| `nova_perf_web` | <1% | The wasm frame-time app `probe run --platform web` measures. One bin, no lib; its own crate because it links the whole game and `nova_probe` must not. |
 | `nova_info` | <1% | `APP_VERSION` from `build.rs`. |
 | `nova_meta_gen` | - | Web asset `.meta` generator under `tools/`; no game dependency. |
 

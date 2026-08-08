@@ -1,6 +1,7 @@
 //! The native probe driver, one module per concern: the command line, spec
-//! resolution, paths, child-run environments, child-run supervision, the
-//! single-example run, the web pass, the multi-example sweep, and `report`.
+//! resolution, paths, child-run environments, the profile sandbox those
+//! environments point at, child-run supervision, the single-example run, the
+//! web pass, the multi-example sweep, and `report`.
 
 use std::process::ExitCode;
 
@@ -9,6 +10,7 @@ mod env;
 #[cfg(test)]
 mod fixtures;
 mod paths;
+pub mod profile_sandbox;
 mod report;
 mod run;
 mod spec;

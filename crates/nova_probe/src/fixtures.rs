@@ -23,7 +23,7 @@ pub mod prelude {
 }
 
 use bevy::prelude::*;
-use nova_protocol::prelude::*;
+use nova_core::prelude::*;
 
 /// One section slot on a ship built by [`ship`].
 ///

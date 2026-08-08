@@ -9,13 +9,6 @@ description = "In-game evidence collection for the Nova Protocol run-probe: fram
 [lib]
 path = "src/lib.rs"
 
-# The web/native frame-time capture binary. Lives here (not in the root package)
-# so the root has a single bin and `cargo run` needs no `--bin`. Trunk builds it
-# for wasm via perf.html; it runs natively too.
-[[bin]]
-name = "perf_web"
-path = "src/bin/perf_web.rs"
-
 [features]
 # The Bevy variant the child runs are built with: the game's `debug` feature
 # flips `bevy/track_location`, and a host harness resolved without it would
@@ -32,6 +25,10 @@ bevy = { version = "0.19.0" }
 # named directly, not reached through nova_gameplay: the direction is
 # probe -> autopilot, never the reverse.
 nova_autopilot = { path = "../nova_autopilot" }
+# The shared scenario fixtures build a game app's config, so they name the
+# assembly crate. NOT the root `nova-protocol` package: nothing under crates/
+# depends on the game binary.
+nova_core = { path = "../nova_core" }
 # The capture plugin reads GameStates / WeaponsHot / PlayerSpaceshipMarker and
 # tops up Health (nova's own, out of nova_gameplay::integrity::health).
 nova_gameplay = { path = "../nova_gameplay" }
@@ -44,10 +41,6 @@ nova_scenario = { path = "../nova_scenario" }
 # Timeline entries carry the events' serde_json payloads (GameEventInfo::data),
 # so the JSONL sink serializes with serde_json rather than hand-rolling.
 serde_json = { version = "1" }
-# The `perf_web` bin builds the real game app; it needs the full stack, but not
-# the debug overlays (the harness is not debug-gated now that it lives here).
-nova-protocol = { path = "../.." }
-
 # Wasm-only: the harness reads its config from the URL query string in the
 # browser (no process env there).
 [target.'cfg(target_arch = "wasm32")'.dependencies]
