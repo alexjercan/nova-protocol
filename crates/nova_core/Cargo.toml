@@ -13,8 +13,13 @@ nova_assets = { path = "../nova_assets" }
 nova_debug = { path = "../nova_debug", optional = true }
 nova_editor = { path = "../nova_editor" }
 nova_gameplay = { path = "../nova_gameplay" }
+nova_ship = { path = "../nova_ship" }
+nova_hud = { path = "../nova_hud" }
 nova_info = { path = "../nova_info" }
 nova_menu = { path = "../nova_menu" }
+# The NOVA OS cockpit monitor. Added HERE, not by the HUD: the monitor and the
+# flight HUD are peers, so the plugin that orders them sits above both.
+nova_os_ui = { path = "../nova_os_ui" }
 nova_scenario = { path = "../nova_scenario" }
 nova_events = { path = "../nova_events" }
 # The boot loading screen reads the preloaded `UiFont` for its phosphor text.
@@ -34,4 +39,4 @@ bevy = { version = "0.19.0", features = ["webgpu"] }
 workspace = true
 
 [features]
-debug = ["nova_debug", "bevy/track_location", "nova_editor/debug", "nova_gameplay/debug", "nova_menu/debug"]
+debug = ["nova_debug", "bevy/track_location", "nova_editor/debug", "nova_gameplay/debug", "nova_hud/debug", "nova_os_ui/debug", "nova_menu/debug"]

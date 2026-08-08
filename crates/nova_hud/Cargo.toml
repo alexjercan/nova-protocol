@@ -1,0 +1,22 @@
+[package]
+name = "nova_hud"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = false
+description = "The player's heads-up display: the diegetic instruments and overlays drawn for the player ship"
+
+[dependencies]
+avian3d = { version = "0.7" }
+bevy = { version = "0.19.0" }
+nova_events = { path = "../nova_events" }
+nova_gameplay = { path = "../nova_gameplay" }
+nova_ship = { path = "../nova_ship" }
+nova_info = { path = "../nova_info" }
+nova_ui = { path = "../nova_ui" }
+
+[lints]
+workspace = true
+
+[features]
+debug = ["bevy/track_location", "nova_gameplay/debug"]

@@ -4536,9 +4536,11 @@ dependencies = [
  "js-sys",
  "nova_events",
  "nova_gameplay",
+ "nova_hud",
  "nova_mod_format",
  "nova_modding",
  "nova_scenario",
+ "nova_ship",
  "nova_ui",
  "ron",
  "serde",
@@ -4571,9 +4573,12 @@ dependencies = [
  "nova_editor",
  "nova_events",
  "nova_gameplay",
+ "nova_hud",
  "nova_info",
  "nova_menu",
+ "nova_os_ui",
  "nova_scenario",
+ "nova_ship",
  "nova_ui",
 ]
 
@@ -4590,7 +4595,9 @@ dependencies = [
  "nova_autopilot",
  "nova_events",
  "nova_gameplay",
+ "nova_hud",
  "nova_scenario",
+ "nova_ship",
 ]
 
 [[package]]
@@ -4603,6 +4610,7 @@ dependencies = [
  "nova_assets",
  "nova_gameplay",
  "nova_scenario",
+ "nova_ship",
  "nova_ui",
  "rand 0.10.2",
 ]
@@ -4647,6 +4655,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "nova_hud"
+version = "0.9.1"
+dependencies = [
+ "avian3d",
+ "bevy",
+ "nova_events",
+ "nova_gameplay",
+ "nova_info",
+ "nova_ship",
+ "nova_ui",
+]
+
+[[package]]
 name = "nova_info"
 version = "0.9.1"
 
@@ -4660,8 +4681,11 @@ dependencies = [
  "nova_assets",
  "nova_events",
  "nova_gameplay",
+ "nova_hud",
  "nova_mod_format",
+ "nova_os_ui",
  "nova_scenario",
+ "nova_ship",
  "nova_ui",
  "rand 0.10.2",
  "serde",
@@ -4694,6 +4718,7 @@ dependencies = [
  "nova_gameplay",
  "nova_mod_format",
  "nova_scenario",
+ "nova_ship",
  "ron",
  "serde",
 ]
@@ -4704,6 +4729,21 @@ version = "0.9.1"
 dependencies = [
  "bevy",
  "nova_info",
+]
+
+[[package]]
+name = "nova_os_ui"
+version = "0.9.1"
+dependencies = [
+ "avian3d",
+ "bevy",
+ "nova_events",
+ "nova_gameplay",
+ "nova_hud",
+ "nova_info",
+ "nova_os",
+ "nova_ship",
+ "nova_ui",
 ]
 
 [[package]]
@@ -4726,6 +4766,7 @@ dependencies = [
  "nova_events",
  "nova_gameplay",
  "nova_scenario",
+ "nova_ship",
  "serde_json",
  "web-sys",
 ]
@@ -4754,11 +4795,29 @@ dependencies = [
  "noise",
  "nova_events",
  "nova_gameplay",
+ "nova_hud",
  "nova_scenario",
+ "nova_ship",
  "rand 0.10.2",
  "ron",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "nova_ship"
+version = "0.9.1"
+dependencies = [
+ "avian3d",
+ "bevy",
+ "bevy_enhanced_input",
+ "bevy_hanabi",
+ "bevy_transform_interpolation",
+ "nova_events",
+ "nova_gameplay",
+ "rand 0.10.2",
+ "ron",
+ "serde",
 ]
 
 [[package]]

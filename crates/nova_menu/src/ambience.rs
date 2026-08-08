@@ -8,7 +8,9 @@ use bevy::prelude::*;
 use bevy_rand::prelude::*;
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::*;
+use nova_hud::prelude::HudVisibility;
 use nova_scenario::prelude::*;
+use nova_ship::prelude::*;
 use rand::Rng as _;
 
 /// EntityId of the planetoid whose well anchors the camera framing (the

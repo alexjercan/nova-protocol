@@ -21,7 +21,7 @@ pub mod prelude {
     pub use super::{
         status_bar, status_bar_item, status_bar_with_fps, status_fps_color_fn, status_fps_value_fn,
         status_version_color_fn, status_version_value_fn, StatusBarItemConfig, StatusBarItemMarker,
-        StatusBarRootConfig, StatusBarRootMarker, StatusBarSystems, StatusValue,
+        StatusBarRootConfig, StatusBarRootMarker, StatusValue,
     };
 }
 
@@ -127,13 +127,6 @@ where
 #[derive(Component, Clone, Deref, DerefMut)]
 pub struct StatusBarItemValue(pub Option<Arc<dyn StatusValue>>);
 
-/// System sets for the status bar.
-#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum StatusBarSystems {
-    /// Reads every item's `value_fn` and pushes the result into the item's text.
-    Sync,
-}
-
 /// Drive the status bar: build items on spawn and refresh their values and
 /// colors every frame.
 pub(crate) fn build(app: &mut App) {
@@ -141,9 +134,7 @@ pub(crate) fn build(app: &mut App) {
 
     app.add_systems(
         Update,
-        (update_status_bar_item_values, update_status_bar_item_ui)
-            .chain()
-            .in_set(StatusBarSystems::Sync),
+        (update_status_bar_item_values, update_status_bar_item_ui).chain(),
     );
 }
 

@@ -1,0 +1,37 @@
+[package]
+name = "nova_ship"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = false
+description = "The ship and how it is flown: sections, flight, input, camera rigs and the ship's soundtrack"
+
+[dependencies]
+avian3d = { version = "0.7" }
+bevy = { version = "0.19.0" }
+bevy_enhanced_input = { version = "0.26.0" }
+bevy_hanabi = { version = "0.19.0", default-features = false, features = ["2d", "3d"] }
+rand = { version = "0.10.2" }
+serde = { version = "1", features = ["derive"], optional = true }
+# The interpolation crate behind avian's TransformInterpolation. Direct dep
+# only for the easing-state components (avian re-exports the markers but not
+# the states), which the turret spawn seeds so a bullet's first rendered
+# frame sits on the render clock (task 20260711-121839). Version must stay
+# in lockstep with the one avian3d resolves.
+bevy_transform_interpolation = { version = "0.5.0" }
+nova_events = { path = "../nova_events" }
+nova_gameplay = { path = "../nova_gameplay" }
+
+[dev-dependencies]
+# RON round-trip test for the section configs' serde impls (behind the
+# `serde` feature).
+ron = { version = "0.12" }
+# The headless avian app every section/flight/input/camera test builds on.
+nova_gameplay = { path = "../nova_gameplay", features = ["test-support"] }
+
+[lints]
+workspace = true
+
+[features]
+debug = ["bevy/track_location", "nova_gameplay/debug"]
+serde = ["dep:serde", "bevy/serialize", "nova_gameplay/serde"]

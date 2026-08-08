@@ -8,10 +8,7 @@ use bevy::prelude::*;
 
 /// Glob-import surface for the point-rotation rig.
 pub mod prelude {
-    pub use super::{
-        PointRotation, PointRotationInput, PointRotationOutput, PointRotationPlugin,
-        PointRotationSystems,
-    };
+    pub use super::{PointRotation, PointRotationInput, PointRotationOutput, PointRotationPlugin};
 }
 
 /// Component that marks an entity as a point that can be rotated.
@@ -40,15 +37,6 @@ pub struct PointRotationInput(pub Vec2);
 #[derive(Component, Clone, Copy, Debug, Default, Deref, DerefMut, Reflect)]
 pub struct PointRotationOutput(pub Quat);
 
-/// The system set used by the point rotation plugin.
-///
-/// Only contains the rotation sync systems.
-#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum PointRotationSystems {
-    /// Applies the input deltas and writes the resulting rotation.
-    Sync,
-}
-
 /// A plugin that will enable the PointRotation system.
 ///
 /// PointRotation allows an entity to be rotated based on input deltas, typically from mouse
@@ -62,10 +50,7 @@ impl Plugin for PointRotationPlugin {
 
         app.add_observer(initialize_point_rotation_system);
 
-        app.add_systems(
-            PostUpdate,
-            point_rotation_update_system.in_set(PointRotationSystems::Sync),
-        );
+        app.add_systems(PostUpdate, point_rotation_update_system);
     }
 }
 

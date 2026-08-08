@@ -9,7 +9,7 @@ or to re-balance a base part by reusing its id (overlay by id; see
 
 Every field below is copied from the shipped catalog
 (`assets/base/sections/base.content.ron`) or the config struct that parses it
-(`crates/nova_gameplay/src/sections/`). The loader uses strict RON, so a
+(`crates/nova_ship/src/sections/`). The loader uses strict RON, so a
 misspelled or unknown field is a hard parse error, not a silent default. For the
 RON gotchas (newtype double-parens, `Some(...)`, tagged enums) shared with
 scenarios, see [RON scenario/mod format](../modding-ron/).

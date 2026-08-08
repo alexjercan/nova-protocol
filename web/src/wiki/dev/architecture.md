@@ -15,7 +15,11 @@ real code lives under `crates/`.
 | `nova_core`     | Thin wiring only: `AppBuilder` assembles every plugin (window/log/asset setup, status UI). No gameplay logic. |
 | `nova_menu`     | Main menu (owns the `MainMenu` state UI: New Game / Sandbox / Settings / Exit) and the ESC pause overlay. Buttons write `GameMode` and hand off to `Playing`. The Settings modal (audio volume, graphics preset, read-only keybind reference) is shared by both entry points and persisted cross-platform in `settings_store` (RON file / localStorage). |
 | `nova_editor`   | The ship editor scene (`NovaEditorPlugin`). Comes up on entering `Playing`, only in `GameMode::Sandbox`. |
-| `nova_gameplay` | Gameplay umbrella: `sections/`, `integrity/`, `damage`, `flight`, `gravity` (gravity wells), `input/` (player, ai, radar targeting with deliberate lock-on, `reference` keybind table), `hud/` (many widgets: crosshairs, target inset, ammo, flight status, markers, ...), `camera` (the chase-camera controller and the chase/shake/skybox/post/WASD rigs under it), `math`, `audio`, `juice`, `settings` (`MasterVolume`/`GraphicsQuality` + apply systems), `relations`, `beacon`, `objectives` (the `GameObjectives` list, its panel and the conveyance tags), `lifetime` (`TempEntity`/`DespawnEntity`), `cooldown`, `plugin`. Also owns `GameStates`, `PauseStates`, and the `GameMode` resource. |
+| `nova_gameplay` | The shared gameplay layer under the ship: `integrity/`, `damage`, `gravity` (gravity wells), `markers` (the entity markers the ship tags with and this layer reads), `math`, `audio` (the generic SFX engine `nova_menu` and `nova_os_ui` also use), `juice`, `shake`, `settings` (`MasterVolume`/`GraphicsQuality` + apply systems), `mesh`, `transform`, `relations`, `beacon`, `objectives` (the `GameObjectives` list, its panel and the conveyance tags), `lifetime` (`TempEntity`/`DespawnEntity`), `cooldown`, `plugin`. Also owns `GameStates`, `PauseStates`, and the `GameMode` resource. Knows nothing about a ship. |
+| `nova_ship`     | The ship and how it is flown: `sections/` (the modular hull and its ammo/damage tint), `input/` (player rigs, the AI pilot and gunner, radar targeting with deliberate lock-on, the `reference` keybind table), `flight/` (the diegetic controller and its autopilot verbs), `camera/` (the chase-camera controller and the chase/skybox/post/WASD rigs under it), `physics/` (the PD attitude controller) and `ship_audio/` (the soundtrack those five produce). Depends on `nova_gameplay` and never the reverse; `NovaShipPlugin` owns the `SpaceshipSystems` brackets and `nova_core` adds it after `NovaGameplayPlugin`. |
+| `nova_hud`      | The flight HUD: one module per widget (crosshairs, target inset, ammo readout, flight status, objective markers, the comms panel, the keybind dock, the screen-indicator projection they all share). Reads gameplay state and never drives it, so the dependency runs `nova_hud -> nova_gameplay`. `nova_core` adds `NovaHudPlugin` render-gated, and the crate places `NovaHudSystems` between the section and camera sets itself. |
+| `nova_os`       | NOVA OS logic with no UI in it: the terminal model (`terminal`), the shell command language and typo suggestions (`shell`), and the app runtime seam (`app`). |
+| `nova_os_ui`    | The NOVA OS cockpit monitor the player opens with Tab: the CRT casing and shader, the terminal nodes and keyboard/pointer systems (`terminal`), and the two apps that run on it - `map` (schematic local space) and `ship` (schematic player ship). A PEER of the flight HUD, not one of its widgets: `nova_core` adds it, and nothing in `nova_hud` reaches into it (it reads `NovaHudAssets` and `NovaHudSystems`, so it sits ABOVE `nova_hud`). |
 | `nova_scenario` | Scenario/modding engine: `events`, `filters`, `actions`, `variables`, `world`, `loader`, `objects/`, `render_scale` (the Low-preset resolution lever: scenario view into a reduced offscreen target, upscaled to the window). See [Scenario engine](../scenario-system/). |
 | `nova_events`   | Game event kinds and entity identity components, shared between gameplay and scenario. |
 | `nova_assets`   | `bevy_asset_loader` setup. Loads glb/textures/shaders/sounds, then registers the built-in sections and scenarios. Owns the mod merge (`register_bundles`, `EnabledMods`, `ModCatalog`) and prefs persistence. |
@@ -35,8 +39,19 @@ graph TD
     core --> menu["nova_menu"]
     core --> editor["nova_editor"]
     core --> gameplay["nova_gameplay"]
+    core --> ship["nova_ship"]
+    core --> hud["nova_hud"]
+    core --> osui["nova_os_ui"]
     core --> scenario["nova_scenario"]
     core --> assets["nova_assets"]
+    ship --> gameplay
+    hud --> ship
+    hud --> gameplay
+    osui --> hud
+    osui --> ship
+    osui --> gameplay
+    osui --> os["nova_os"]
+    menu --> osui
     gameplay --> events["nova_events"]
     scenario --> events
     assets --> modding["nova_modding"]
@@ -57,7 +72,8 @@ re-exports all sub-crate preludes, so top-level code and examples usually just d
 The generic, non-Nova Bevy helpers (WASD/chase cameras, skybox, post-processing,
 mesh explode, PD controller, health, status bar, the generic game-event queue
 `GameEventsPlugin`/`EventWorld`) are nova's own: the camera and transform rigs,
-the mesh toolkit and the PD controller in `nova_gameplay`, the status bar and
+the mesh toolkit in `nova_gameplay`, the camera rigs and the PD controller in
+`nova_ship`, the status bar and
 tween in `nova_ui`, the event engine in `nova_events`, the inspector and
 wireframe layers in `nova_debug`. They used to live in a separate pinned repo;
 task 20260806-180450 vendored them in, because splitting them out before the
@@ -67,7 +83,7 @@ any of it deserves extracting is a question for after the game ships.
 The generic `HealthDisplay` bar stays here (still available for other games and
 for non-player entities), but Nova's player-ship health readout is no longer that
 bar: it is diegetic, grading each ship section's own mesh material by integrity
-(`nova_gameplay::sections::damage_tint`, task 20260717-003613). Because that
+(`nova_ship::sections::damage_tint`, task 20260717-003613). Because that
 readout keys on Nova's section graph and materials it is game-specific and is NOT
 a promotion candidate - the generic bar and the diegetic readout are different
 things at different layers.
@@ -76,8 +92,12 @@ Boundary policy, from most game-agnostic to most game-specific:
 
 1. The generic-leaning modules named above - reusable Bevy primitives that
    happen to live in a nova crate; keep them free of game-specific types.
-2. `nova_gameplay` - Nova gameplay.
-3. `nova_core` - wiring only.
+2. `nova_gameplay` - the shared gameplay layer, ship-agnostic.
+3. `nova_ship` - the ship above that layer.
+4. `nova_hud` and `nova_os_ui` - consumers of the ship and of gameplay, above
+   both. `nova_os_ui` is above `nova_hud` in turn: it orders itself against
+   `NovaHudSystems`.
+5. `nova_core` - wiring only.
 
 ## App assembly
 
@@ -150,7 +170,8 @@ Leaving `Playing` resets `PauseStates` back to `Unpaused`.
 ## Frame flow
 
 Gameplay systems run in an explicit chain, configured identically in `Update` and
-`FixedUpdate` (`nova_gameplay::plugin`):
+`FixedUpdate`. `nova_ship::NovaShipPlugin` declares the brackets and the ship
+sets; `nova_hud` slots `NovaHudSystems` into the gap itself:
 
 ```
 SpaceshipSystems::First -> SpaceshipInputSystems -> SpaceshipSectionSystems
@@ -192,7 +213,7 @@ flowchart LR
 ### Update vs FixedUpdate - which schedule does my system go in?
 
 The chain above is configured IDENTICALLY in `Update` and `FixedUpdate`
-(`nova_gameplay::plugin`, two `configure_sets` calls with the same set order),
+(`nova_ship::NovaShipPlugin`, two `configure_sets` calls with the same set order),
 so a gameplay set can host systems in either schedule. The split is not
 cosmetic: since every dynamic body opted into avian's `TransformInterpolation`,
 the game carries two pose representations on two clocks (see the two-clocks

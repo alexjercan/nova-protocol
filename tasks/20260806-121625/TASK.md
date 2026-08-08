@@ -755,25 +755,308 @@ BLOCKS the baseline, lands AFTER it. The bulk of the epic and its highest risk.
 Depends on L2, L4, L5, L8. Cut NOVAOS -> HUD -> FLIGHT -> CORE, outermost
 first, so each cut is against a base that has not moved.
 
-- [ ] Back-edge 1 - move the helper `camera/framing.rs:200` needs into `math`
-      (CORE, already moving).
-- [ ] Back-edge 2 - invert the scheduling edge at
+CHECKPOINT (L9.5, commit 67c3715a). ALL THREE SEAMS ARE CUT and the CORE seam
+is settled as "no fourth crate", so the split itself is DONE:
+`nova_os_ui` (L9.2), `nova_hud` (L9.3), `nova_ship` (L9.5), over a
+`nova_gameplay` base that is now 7% of the workspace. The branch is clean, the
+five CI commands are green, and `probe run --all` graded OK 24/24 at
+`31cdf5dd`.
+CHECKPOINT (L9.7, commit cf090439). THE VISIBILITY AND PRELUDE PASS IS DONE
+and L9 has ONE step left, which is BLOCKED ON THE OWNER, not on work. The
+branch is clean, the five CI commands are green, `cargo doc` carries no
+`nova_ship`/`nova_hud`/`nova_os_ui`/`nova_gameplay` warning, and `probe run
+--all` at `7af7fb3d` graded 23/24 with the one FAIL diagnosed as a wall-clock
+harness watchdog (see that step).
+  1. "Rule 10, per seam" - was the only open step, and it was a RULING, not a
+     task. RULED 2026-08-08 and landed in L9.8: the rewrite is adopted, the 16
+     leaf plugins close with no set, and the 6 handle-with-no-holder sets are
+     deleted. See that step.
+  2. "Rule 10 first slice" - DONE at L9.6, 7 sets not 16. See that step.
+  3. The `pub` audit and the prelude count - DONE at L9.7 for `nova_gameplay`,
+     `nova_hud` and `nova_os_ui`, plus 14 `nova_ship` leaf modules made
+     private. `unreachable_pub` is zero across all four.
+  4. `probe run --all` and the tier1 list - DONE at L9.7. The tier1 list is now
+     compiler-derived, and it found five dead citations belonging to L8 and
+     L10 that no lane had noted.
+
+CHECKPOINT (L9.8). **L9 IS COMPLETE AND READY TO LAND.** Every step is ticked.
+The rule-10 ruling arrived, `CONVENTIONS.md` rule 10 is rewritten to its
+two-clause form, and its `## Not yet true` row is deleted - that table is now
+down to rules 3, 4 and 1, all owned by L7 and L10.
+Rule 10's close was not free: the rewrite is LOOSER on the 16 leaf plugins and
+STRICTER on the 6 orphan sets, which had to be deleted rather than left. It
+also invalidated one downstream citation, L11's F65, corrected in place at
+that step.
+NEXT UNIT OF WORK IS L10, then L11. Neither depends on anything in L9 beyond
+what lands with it.
+
+- [x] Back-edge 1 - move the helper `camera/framing.rs:200` needs into `math`
+      (CORE, already moving). Landed in L9.1 with `FORWARD_ALIGNMENT_COS`, the
+      unit test, and `math`'s prelude (rules 3+4); the five deep
+      `crate::math::*` imports route through it.
+- [x] Back-edge 2 - invert the scheduling edge at
       `sections/controller_section.rs:301`; the dependency is on ordering, not
-      data.
-- [ ] Back-edge 3 - lift `plugin.rs:107,111,115` into the assembly crate. The
-      plugin wiring four crates belongs above all four.
-- [ ] Confirm all three back-edges are resolved BEFORE any file moves.
-- [ ] Seam NOVAOS - cut `hud/nova_os*` (~14.3k lines): a terminal runtime that
+      data. Landed in L9.1 as `ControllerSectionSystems::SyncRotationInput`
+      (rule 10 for that plugin), with `NovaFlightPlugin` declaring
+      `.before(SyncRotationInput)`. Pinned by
+      `rotation_command_pipeline_runs_flight_then_sync_then_pd`, which reads
+      `["sync", "flight", "pd"]` without the inverted edge.
+- [x] Back-edge 3 - lift `plugin.rs:107,111,115` into the assembly crate. The
+      plugin wiring four crates belongs above all four. DEFERRED to the first
+      seam cut ON PURPOSE: the destination is `nova_core`, and moving
+      `NovaGameplayPlugin` there before any seam exists is a public break with
+      nothing to show for it. Blast radius is one consumer
+      (`nova_core/src/lib.rs:144`). Landed WITH the NOVAOS seam as the three
+      `add_plugins` calls leaving `hud/mod.rs` for `nova_os_ui::NovaOsUiPlugin`,
+      which `nova_core::AppBuilder` adds render-gated.
+- [x] Confirm all three back-edges are resolved BEFORE any file moves.
+- [x] Seam NOVAOS - cut `hud/nova_os*` (~14.3k lines): a terminal runtime that
       is not a HUD. Densest defect cluster and the biggest navigability win.
-- [ ] Seam HUD - cut the rest of `hud/` (43% of the crate minus NOVAOS).
-- [ ] Seam FLIGHT - cut `flight/`, `sections/`, `input/`, `camera/`,
-      `physics/`.
-- [ ] Seam CORE - `math/`, components, shared markers; everything the other
-      three import.
-- [ ] Rule 10, per seam - declare a `SystemSet` for each of the 68 plugins that
+      Survey done, do not redo it: destination crate `nova_os_ui`
+      (the name `nova_os` is taken by the existing pure-logic terminal/shell
+      crate, which `nova_os_ui` depends on). Moving:
+      `hud/nova_os/`, `hud/nova_os_map/`, `hud/nova_os_ship/`,
+      `hud/nova_os_pointer_rig.rs`. Its whole crate-internal dependency
+      surface is `audio`, `settings`, `objectives`, `GameStates`/`PauseStates`,
+      `hud::NovaHudAssets` and `prelude::*` - so `nova_os_ui` depends on
+      `nova_gameplay`, not the reverse. The only HUD->NOVAOS edges to break are
+      in `hud/mod.rs`: the three `add_plugins` calls (lift with back-edge 3),
+      the `nova_os::DRAWER_EXEMPT_Z` read at `:478`, and the
+      `nova_os::NovaOsMonitorSettings` prelude re-export at `:64`.
+      `nova_menu` also reads `NovaOsMonitorSettings`.
+- [x] Seam HUD - cut the rest of `hud/` (19,015 lines) into `nova_hud`.
+      Landed in L9.3. Survey done, do not redo it: only TWO edges pointed into
+      `hud/` from the rest of `nova_gameplay` - `lib.rs`'s `hud::prelude::*`
+      re-export and `plugin.rs:126`'s `add_plugins`. The other direction is
+      `prelude`, `camera`, `sections`, `input`, `flight`, `gravity`, `mesh`,
+      `transform`, `objectives`, `audio`, `asset_ref` - all staying in
+      `nova_gameplay`, so `nova_hud -> nova_gameplay` and never the reverse.
+      `nova_core::AppBuilder` adds `NovaHudPlugin` render-gated, before
+      `NovaOsUiPlugin`. Consumers repointed: `nova_os_ui`, `nova_scenario`,
+      `nova_assets`, `nova_menu`, `nova_debug`, `nova_core`.
+- [x] Back-edge 4 - `juice.rs -> camera::shake`. Landed in L9.4a: `shake.rs`
+      left `camera/` for the crate root, and the two edges it declared against
+      `ChaseCameraSystems::Sync` were DELETED, not moved. `CameraAuthorityPlugin`
+      already folds every camera-`Transform` writer into one total order, so
+      those edges were a redundant weaker duplicate (they silently dropped
+      whenever the chase plugin was absent). Pinned by
+      `the_shake_brackets_the_chase_base_writer`, sabotage-verified.
+      The other three L9.3 "back-edges" were NOT edges: `transform/mod.rs`,
+      `mesh/mod.rs` and `damage.rs` only carry intra-doc links into `camera` /
+      `sections`. They cost a reworded docstring at cut time, nothing more.
+- [x] Seam FLIGHT - cut `flight/`, `sections/`, `input/`, `camera/`,
+      `physics/` into a new crate. LANDED in L9.5 as `nova_ship`: 32,524 lines
+      out of `nova_gameplay` across six directories, `NovaShipPlugin` owning
+      the `SpaceshipSystems` brackets in both schedules, and `nova_core::
+      AppBuilder` adding it after `NovaGameplayPlugin`. Every consumer
+      (`nova_hud`, `nova_os_ui`, `nova_menu`, `nova_scenario`, `nova_assets`,
+      `nova_debug`, `nova_editor`, `nova_core`) gained a manifest entry and a
+      `use nova_ship::prelude::*`. `nova_gameplay` is 7% of the workspace,
+      `nova_ship` 23%.
+      THE MOVE, as it ran: SIX directories, not the five this step names -
+      `flight/`, `sections/`, `input/`, `camera/`, `physics/` AND the new
+      `ship_audio/` (L9.4e put the ship's soundtrack there for exactly this).
+      `nova_ship`'s dev-dependency on `nova_gameplay` carries
+      `features = ["test-support"]` (L9.4f). `NovaShipPlugin` takes over the
+      `add_plugins` calls `plugin.rs` makes for those modules, including
+      `ShipAudioPlugin`; `nova_core::AppBuilder` adds it after
+      `NovaGameplayPlugin`.
+      Back-edge 4 landed in L9.4f: `integrity/test_support.rs` moved to the
+      CRATE ROOT as `nova_gameplay::test_support`, `pub`, behind a
+      `test-support` cargo feature (`#[cfg(any(test, feature =
+      "test-support"))]`). The crate root, not `integrity`, because 24 of its
+      call sites are in `flight/`, `sections/`, `input/`, `camera/`, `damage`
+      and `gravity` - it is the crate's avian app, not an integrity detail.
+      The feature has NO consumer until the cut adds `nova_ship`'s
+      dev-dependency, so it is proved for now by
+      `cargo check -p nova_gameplay --features test-support`; workspace CI
+      covers it the moment the cut lands. Do not add a CI job for it before
+      then.
+      Back-edge 2 landed as `crates/nova_gameplay/src/ship_audio/` -
+      `combat.rs`, `cues.rs`, `loops.rs`, their per-cue volumes and throttle
+      intervals, and a new `levels.rs` for the two loop curves
+      (`engine_volume`, `rcs_volume`), behind a `ShipAudioPlugin` that
+      `NovaGameplayPlugin` adds after `NovaAudioPlugin`. `audio/` keeps the
+      generic engine (`sfx`, `registry`, `mixing`) plus `UiSfx` and the
+      UI/NOVA-OS cue volumes. The seam is compiler-proved, not asserted:
+      `audio/` now has ZERO `crate::` code references - `mixing.rs` dropped
+      `use crate::prelude::*` for `use super::sfx::SfxCommandsExt`. The split
+      of `mixing.rs` was NOT the plan's "mixing stays whole": its
+      `ENGINE_MAX_VOLUME`/`RCS_MAX_VOLUME` and the three `*_MIN_INTERVAL`
+      constants are ship tuning, so they went up with the cues and only the
+      rolloff/throttle/listener stayed. `SfxThrottle::last` stayed private
+      behind a new `tracked_keys()` accessor rather than being widened to
+      `pub` for one cross-module test assertion.
+      Back-edge 1 landed as a `nova_gameplay::markers` module holding TEN
+      markers, not eleven: `ControllerSectionMarker` joined its three
+      section-kind siblings rather than being left behind for one `audio/loops`
+      read. `AINonCombatant` did NOT move down as planned - once
+      `integrity::neutralize` stopped reading the AI, its only remaining
+      consumer was the AI itself, so it goes UP with `nova_ship` and the survey's
+      "eleven move, one inverts" is really "ten move, TWO invert".
+      The neutralize inversion is `input::ai`'s `on_neutralized_stand_down`
+      observing `On<Add, NeutralizedMarker>`; the gravity inversion moved
+      `insert_gravity_affected_on_ai_ship` beside its marker. Each moved test
+      moved with its observer.
+      Back-edge 3 landed WITHOUT a test, on evidence - see the L9.4d commit
+      message. It also MEASURED a new finding for the rule-10 step below: with
+      `ambiguity_detection: Error` on FixedUpdate, there are **8 conflicting
+      unordered pairs inside `SpaceshipSectionSystems` itself**. That set is not
+      internally ordered, so no ordering test through it can fail.
+      **The L9.3 survey was WRONG and its numbers must not be reused.** It
+      counted only DEEP `crate::<module>` paths and so missed every reference
+      that arrives through `crate::prelude::*` - which is most of them. The cut
+      was attempted at L9.4a against that survey and reverted; the measurement
+      below replaces it and was taken from the compiler, not from grep
+      (`cargo check -p nova_gameplay` with the five directories removed).
+      SIZES (unchanged, these were right): `input` 12,314, `sections` 10,126,
+      `flight` 5,903, `camera` 3,552, `physics` 629 = **32,524 lines**, leaving
+      11,635 behind.
+      NAME: `nova_ship`, not `nova_flight`. The crate is the ship and how it is
+      flown - `sections` (10k) and `input` (12k) are two thirds of it and
+      neither is "flight". `nova_flight` would repeat the `hud/` mis-naming.
+      The composition root is then `NovaShipPlugin` with no collision against
+      the existing `flight::NovaFlightPlugin`.
+      REAL BACK-EDGES, 129 compiler errors in four places:
+      1. **The ship-structure markers** - `SpaceshipRootMarker`, `SectionMarker`,
+         `SectionInactiveMarker`, `PlayerSpaceshipMarker`, `AISpaceshipMarker`,
+         `AINonCombatant`, `TurretSectionMarker`, `ThrusterSectionMarker`,
+         `TorpedoSectionMarker`, `ControllerSectionMarker`,
+         `TorpedoProjectileMarker`, `TurretBulletProjectileMarker`. Defined
+         across 8 files in `sections/` and `input/`, read by `integrity/`,
+         `gravity.rs` and `audio/`. Eleven are plain unit structs and move down
+         cheaply into a `nova_gameplay::markers` module. `AISpaceshipMarker` is
+         the exception - it `#[require]`s `AIFireCadence`/`AIThreat`/`AIEvade`,
+         which are AI behaviour and cannot move - so its two consumers
+         (`gravity.rs`'s body classification, `integrity/neutralize.rs`) need an
+         inversion, not a move.
+      2. **`audio/` is two things**, exactly like `hud/` was. `mixing.rs`,
+         `sfx.rs`, `registry.rs` and `mod.rs`'s plugin are a generic SFX engine
+         that `nova_menu` and `nova_os_ui` also use. `combat.rs` (543),
+         `cues.rs` (445) and `loops.rs` (748) are the SHIP's soundtrack: they
+         read `SectionAmmo`, `TurretSectionInput`, `ThrusterSectionInput`,
+         `FlightVerb`, `RcsIntent`, `WeaponsHot`, `WithheldVerbs`,
+         `ImpactDestroySounds` and the radar-lock events. Those 1,736 lines go
+         UP into `nova_ship`; the engine stays.
+      3. **`gravity.rs:240` orders itself on `SpaceshipSectionSystems`** - a
+         scheduling back-edge. Invert it the way L9.1 inverted back-edge 2 and
+         L9.3 inverted the HUD seam: the ship declares the edge.
+      4. **`integrity::test_support` is `#[cfg(test)] pub(crate)`** and is used
+         by 22 test sites in `sections/`, `flight/`, `input/` and `camera/`. A
+         `#[cfg(test)]` module is invisible across a crate boundary, so the cut
+         needs it behind a `test-support` FEATURE on `nova_gameplay` that
+         `nova_ship` dev-depends on. Do not just make it `pub` - that compiles
+         the avian test harness into every release build.
+      CONSUMERS: only 19 deep paths outside `nova_gameplay` name these modules
+      (`nova_hud` holds 12), but every consumer reaches them through
+      `nova_gameplay::prelude::*`, so each one gains a
+      `use nova_ship::prelude::*;` and a manifest entry. `nova_core` is the only
+      crate that adds `NovaGameplayPlugin`; it adds `NovaShipPlugin` after it.
+      `nova_ship`'s prelude must NOT re-export `nova_gameplay`'s - `nova_hud`
+      set the precedent of importing both at the use site.
+      FOUR CORRECTIONS the cut earned, none of them in the survey:
+      (a) `ship_audio` is PRIVATE, not `pub`. The survey assumed six public
+      modules; the soundtrack has zero consumers outside the crate, so
+      `mod ship_audio;` is the honest surface and it retires the rule-3 prelude
+      question for that module rather than manufacturing an unused one.
+      (b) `nova_core` re-exports every sub-crate BY NAME beside the prelude
+      re-export (`pub use nova_gameplay;` and friends), and `nova_ship` was
+      added to the prelude but not to that list. Nothing caught it until
+      `--features debug`: `examples/sections/thruster_section.rs` reaches
+      `nova_protocol::nova_ship::sections::...` only in a debug-gated import.
+      The plain `cargo check --workspace --all-targets` is green either way -
+      the default-features CI job would NOT have caught this, only the clippy
+      job's `--features debug`.
+      (c) The DOC surface, not just the code, carries the seam. `cargo doc
+      --workspace --no-deps` went from 9 warnings on master to 23 on the
+      branch: 14 intra-doc links the three seam cuts broke, spread over
+      `nova_gameplay` (6), `nova_ship` (5) and `nova_os_ui` (3). A
+      `[`crate::camera`]` link is silently dead the moment `camera/` leaves the
+      crate, and nothing in CI reads it. Back to exactly 9 now. Cross-crate
+      links that point DOWN the graph got a real path
+      (`nova_gameplay::prelude::PlayerSpaceshipMarker`); links pointing UP the
+      graph cannot resolve at all and became plain code spans.
+      (d) Two of the broken links were not the seam's fault but its exposure:
+      `play_positional` has not existed for some time and was referenced from
+      two docstrings, and `SFX_ROLLOFF_FLOOR` is private. They only surfaced
+      because L9.4e's `audio/` split made `distance_attenuation` public.
+      PROOFS: `cargo check --workspace --all-targets`, `cargo clippy
+      --workspace --all-targets --features debug -- -D warnings`, `cargo fmt
+      --all --check`, `RUSTFLAGS=-D warnings cargo check --workspace --exclude
+      nova_probe_cli --target wasm32-unknown-unknown` - all clean. `cargo test
+      -p nova_ship --lib` 411 passed, `-p nova_gameplay --lib` 134 passed.
+- [x] Seam CORE - SETTLED, and the answer is that there is no fourth crate.
+      Two facts decide it. First, `nova_core` is TAKEN: it is the existing
+      598-line app-assembly crate, so the planned name was never available.
+      Second, the 11,635-line remainder is not "core primitives" - it is
+      `audio` (2,770), `integrity` (2,392), `gravity` (1,127), `juice` (1,050),
+      `mesh` (1,009), `transform` (867), `damage` (560), `settings` (552) and a
+      tail of small files, and `math.rs` is 179 lines, not the `math/` directory
+      this step assumed. That remainder is the shared gameplay layer and it
+      keeps the name `nova_gameplay`. Splitting it again to manufacture a
+      "CORE" would put `math.rs` (179) and `cooldown.rs` (182) in a ceremonial
+      crate, which is the shuffling-without-improving outcome the task problem
+      statement rules out.
+      What the step was RIGHT about is "shared markers": the FLIGHT survey found
+      them, and they land as a `markers` module inside `nova_gameplay` rather
+      than as a crate. The four-way split is therefore a THREE-way one -
+      `nova_os_ui`, `nova_hud`, `nova_ship` - over a `nova_gameplay` base.
+- [x] Rule 10, per seam - declare a `SystemSet` for each of the 68 plugins that
       has none, and give each new crate a `configure_sets` block that proves the
       seam is real and the order intentional.
-- [ ] Rule 10 first slice - order the 16 declared-but-unordered sets
+      MEASURED at L9.6, and the second half of this step is BLOCKED ON AN OWNER
+      RULING - do not just add 16 sets. The `configure_sets` half is already
+      done: each new crate got its block with its seam. The "68 plugins" half
+      re-measures to **16**, and inspecting all 16 says none of them wants a
+      set:
+      `AsteroidPlugin`, `BeaconPlugin`, `SalvageCratePlugin`, `RenderScalePlugin`
+      (nova_scenario), `GameAssetsPlugin`, `PortalPlugin` (nova_assets),
+      `NovaAudioPlugin`, `NovaJuicePlugin`, `NovaSettingsPlugin` (nova_gameplay),
+      `SectionDamageTintPlugin` (nova_ship), `LoadingScreenPlugin` (nova_core),
+      `FrameTimePlugin` (nova_probe), and four dev-only `nova_debug` plugins
+      (`InspectorDebugPlugin`, `ScenarioLoadedAssertPlugin`,
+      `ScreenshotHotkeyPlugin`, `WireframeDebugPlugin`).
+      Every one is a LEAF: one system, or an internally `.chain()`ed pair, with
+      no other plugin needing a handle to order against it. Where a real
+      constraint exists they already state it directly on the system -
+      `NovaJuicePlugin` is the model, with `draw_juice_flashes.after(
+      TransformSystems::Propagate)` and no set at all. Wrapping these 16 in
+      `<Name>Systems::Sync` enums nothing references produces 16 more of the
+      six sets L9.6 just declined to invent, and it is precisely the "shuffling
+      code around but still getting no actually good result" the PROBLEM
+      statement rules out.
+      **THE RULING WANTED** (same question as L9.6's, and these two are the
+      whole remaining rule-10 balance): rule 10 currently reads "every subsystem
+      plugin declares a `SystemSet` and orders it", but its own justification is
+      "a set nothing is ordered against records nothing". The codebase's good
+      examples - `CameraAuthoritySystems`, `SpaceshipSectionSystems`,
+      `NovaHudSystems`, and now `TurretSectionAimSystems` - are all sets that
+      exist because ANOTHER plugin needs to order against them. Proposed
+      rewrite: *declare the edge wherever a real constraint exists, and declare
+      a `SystemSet` when another plugin needs a handle for it.* Under that
+      wording rule 10's remaining open sites drop to zero and the CONVENTIONS.md
+      "Not yet true" row for rule 10 can be deleted. Under the current wording
+      22 ceremonial sets get written. Owner picks; L9 does not.
+      **RULED 2026-08-08: the rewrite is adopted.** Landed in L9.8. Rule 10 is
+      now "state every ordering constraint; declare a `SystemSet` when another
+      plugin needs the handle", written as two greppable violations rather than
+      one count of plugins. The 16 leaf plugins close as-is - no set, and the
+      constraints they do have already stated on the system.
+      The rewrite is STRICTER on the other six, and that half was real work,
+      not bookkeeping: a set with no outside orderer is now a violation, so
+      `DirectionalSphereOrbitSystems`, `PointRotationSystems`,
+      `SphereOrbitSystems`, `SphereRandomOrbitSystems`, `TempEntitySystems` and
+      `StatusBarSystems` were DELETED with their `in_set` calls and prelude
+      exports, joining `WASDCameraControllerSystems` from L9.6. Behaviour is
+      unchanged - an unconstrained set imposes no ordering, which is the same
+      fact that made them worthless. `cargo check --workspace --all-targets` is
+      clean and no reference survives outside this task folder.
+      One downstream citation was invalidated and has been corrected in place:
+      L11's F65 offered "add the edge between `SpaceshipSectionSystems` and
+      `TempEntitySystems::Sync`" as its better fix. If L11 takes that route it
+      re-declares the set, which the new rule permits precisely because the
+      edge gives it a holder.
+- [x] Rule 10 first slice - order the 16 declared-but-unordered sets
       (`DirectionalSphereOrbitSystems`, `HudSituationSensingSystems`,
       `IntegritySystems`, `NovaOsMapSystems`, `NovaOsShipSystems`,
       `ObjectivesPluginSystems`, `PointRotationSystems`,
@@ -783,28 +1066,241 @@ first, so each cut is against a base that has not moved.
       `TweenSystems`, `WASDCameraControllerSystems`). Re-count AFTER L5 -
       `TweenSystems`, `StatusBarPluginSystems` and `ObjectivesPluginSystems`
       retire there.
-- [ ] F53 - the NOVAOS seam's first `configure_sets` block covers
+      RE-MEASURED at L9.6 (do not reuse the 16): 32 sets exist, 25 carry a real
+      ordering edge, **7 do not**. The list shrank for three reasons - L5
+      retired `TweenSystems`, `StatusBarPluginSystems` and
+      `ObjectivesPluginSystems`; the seams ordered `NovaOsMapSystems` and
+      `NovaOsShipSystems` (F53); and the original count only looked at
+      `configure_sets`, so it wrongly flagged `HudSituationSensingSystems`,
+      `IntegritySystems` and `SpaceshipTargetingSystems`, which are ordered
+      with `.before`/`.after` on `add_systems` instead.
+      **Ordering is not always the answer**, so the remaining 7 are
+      dispositioned rather than mechanically ordered:
+      - `WASDCameraControllerSystems` - DELETED. The plugin adds zero systems
+        (it is all observers), so the set could never contain anything; it was
+        declared, exported through the prelude, and never used in an `in_set`.
+      - `SmoothLookRotationSystems` / `TurretSectionAimSystems` - the one REAL
+        missing edge, and it is cross-crate. Both run in `PostUpdate` and both
+        touch `SmoothLookRotationTarget`/`Output`: the aim chain reads the
+        output and writes the target, `Sync` does the reverse. Landed as
+        `TurretSectionAimSystems.before(SmoothLookRotationSystems::Sync)` in
+        `TurretSectionPlugin` - the driver's crate declares it, because
+        `nova_gameplay` owns a generic rig that names no driver (same shape as
+        `CameraShakePlugin` vs `CameraAuthorityPlugin`).
+      - `DirectionalSphereOrbitSystems`, `PointRotationSystems`,
+        `SphereOrbitSystems`, `SphereRandomOrbitSystems`, `TempEntitySystems`,
+        `StatusBarSystems` - NO edge available and none invented. Every one is
+        a single-`Sync` enum over one chain whose consumers sit in a DIFFERENT
+        schedule (the rigs write `*Output` in `PostUpdate`; the camera, HUD and
+        intent systems that read it run in `Update`, so the one-frame lag is
+        the design, not a race). An edge inside one schedule cannot express
+        that, and a set nothing orders against is what rule 10 already calls
+        worthless. They stay as public ordering handles for downstream apps.
+        **OWNER CALL WANTED**: rule 10 as written ("every subsystem plugin
+        declares a `SystemSet` and orders it") cannot be satisfied by these
+        six; either the rule gains a cross-schedule exemption or the six sets
+        get deleted like the WASD one.
+      Proof: `the_aim_chain_is_ordered_against_the_rig_it_steers` in
+      `turret_section/mod.rs`. It asserts through `ambiguity_detection: Error`
+      on a two-plugin app, NOT through an observed order - the first draft read
+      the order back and passed WITHOUT the edge, because bevy's tie-break
+      happens to supply it today. That vacuous-green is exactly how the missing
+      edge stayed hidden, and it is the trap any remaining rule-10 test has to
+      dodge.
+- [x] F53 - the NOVAOS seam's first `configure_sets` block covers
       `nova_os_ship/mod.rs:166` and `nova_os_map/mod.rs:139`, which are declared
       and never ordered. The measurement shows F53 is not 2 sites, it is 16.
-- [ ] F53 follow-through - once the ordering is real, DECIDE whether
+      Landed: `terminal/mod.rs:157,167`, `ship/mod.rs:116`, `map/mod.rs:125`.
+- [x] F53 follow-through - once the ordering is real, DECIDE whether
       `peek_pending_invocation` (`nova_os_ship/app.rs:195`) is deletable; it
       exists because of the missing edge. That is exactly the deletion criterion
-      #2 wants.
-- [ ] F81 - add `#[derive(SystemParam)] struct NovaOsAppInput` for the identical
+      #2 wants. DECISION: KEEP. Re-read with the ordering in place, the peek is
+      not an ordering workaround. `ship ...` and `map ...` share ONE pending
+      invocation slot, so whichever handler runs first - in ANY total order -
+      would swallow the other family's verb. The peek is ownership dispatch on a
+      shared slot, and the only thing that deletes it is a per-app queue, which
+      is a bigger change than the workaround it removes. `nova_os`'s docstring on
+      `peek_pending_invocation` already states exactly this reason.
+- [x] F81 - add `#[derive(SystemParam)] struct NovaOsAppInput` for the identical
       6-param cluster in `map_input` (`nova_os_map/scene.rs:259`) and
       `ship_input` (`nova_os_ship/scene.rs:336`); removes two
       `too_many_arguments` suppressions. The struct has to sit on one side of
-      the seam regardless. Local idiom: `nova_os_ship/sections.rs:223`.
-- [ ] Audit the 633 crate-local `pub` items (nova_gameplay holds 358) as each
+      the seam regardless. Local idiom: `nova_os_ship/sections.rs:223`. Landed at
+      `terminal/input.rs:467`, used by both `scene.rs` input systems.
+- [x] Audit the 633 crate-local `pub` items (nova_gameplay holds 358) as each
       seam decides what crosses its boundary. Truly dead items: zero - this is
       "tighten what is public", not "delete what is unused".
-- [ ] Rules 3+4 - 26 module preludes, written in the same pass as the
+      FLIGHT seam's share is decided: `nova_ship` publishes `camera`, `flight`,
+      `input`, `physics` and `sections`, and keeps `ship_audio` PRIVATE - it
+      has no consumer outside the crate, so nothing about the soundtrack is
+      API. Two `pub use` re-exports that only fed the old crate-internal
+      reach were deleted with it.
+      LANDED at L9.7. **`rustc -W unreachable_pub` over all four crates reports
+      ZERO** - every `pub` item is reachable from outside, so the audit is not
+      about reachability and mass-demoting by usage would be wrong: these crates
+      ARE the game's API and `nova_hud` alone has 128 of 169 boundary names with
+      no in-workspace consumer yet. What the audit CAN prove is composition, and
+      that is what shipped:
+      - `nova_os_ui` publishes `NovaOsUiPlugin`, `NovaOsMonitorSettings`,
+        `MapContactCode` and `SectionCode` - nothing else. `NovaOsPlugin`,
+        `NovaOsMapPlugin`, `NovaOsShipPlugin` and `MonitorFrame` are added BY
+        `NovaOsUiPlugin` and never by a consumer, so all four are `pub(crate)`
+        and off every prelude. Adding them as `pub(crate) use` re-exports first
+        produced three `unused_imports` warnings, which is the compiler saying
+        an internal plugin belongs on no prelude at all - the composition root
+        names its own submodules directly.
+      - FOURTEEN `nova_ship` leaf modules are now private (`input::ai::{
+        acquisition, behavior, guns, threat, torpedo}`,
+        `input::player::{hints, weapons}`, `input::reference`,
+        `input::targeting::{component_lock, contacts, gesture, state}`,
+        `physics::{pd_controller, rigid_body}`). Their parents' preludes
+        already re-export every item they define and NOTHING outside
+        `nova_ship/src` names any of them, so they were `pub` announcing a
+        boundary nobody crossed. This also closes 14 rule-3 sites by DELETION
+        rather than by writing 14 more preludes - see the rule-3 note added to
+        `CONVENTIONS.md`.
+      Cost: three intra-doc links in `nova_ship` broke the moment the modules
+      went private (`physics/mod.rs` x2, `input/mod.rs` x1) and now point at
+      the public item each file supplies, via `prelude::` - a module-root link
+      does not resolve for a name that only exists in the prelude.
+- [x] Rules 3+4 - 26 module preludes, written in the same pass as the
       visibility audit. `math` alone is 5 of the deep-import violations and is
       already moving.
-- [ ] Run `probe run --all` PER SEAM, not once at the end.
-- [ ] Note as you go which `keys/tier1.json` questions each move invalidates
+      `nova_ship` is DONE: a prelude on every public module (`camera`,
+      `flight`, `input`, `input/ai`, `input/player`, `input/targeting`,
+      `physics`, `sections`, `sections/turret_section`,
+      `sections/torpedo_section`) plus the crate one, which re-exports them by
+      name and deliberately does NOT glob `nova_gameplay`'s. The 8 remaining
+      deep `crate::a::b::` imports are all inside `#[cfg(test)] mod tests`
+      blocks reaching sibling `test_support` - rule 4 is about production
+      imports, so they stay.
+      LANDED at L9.7 for the other three crates. RULE 3: `nova_hud` and
+      `nova_os_ui` were already at zero; `nova_gameplay` was missing three
+      (`audio`, `plugin`, `settings`) and the crate prelude listed their items
+      inline instead - now `audio::prelude::*`, `plugin::prelude::*`,
+      `settings::prelude::*`, which is rule 3's whole stated payoff (a new
+      public item is a one-line edit inside its own module). `test_support` and
+      `test_log` stay prelude-less on purpose: they are `#[cfg(any(test,
+      feature = "test-support"))]` rigs, not API.
+      RULE 4: the epic measures it as `use crate::a::b::` (TWO segments), and by
+      that measure `nova_gameplay`, `nova_hud` and `nova_os_ui` are all at zero.
+      The one-segment reaches were fixed anyway where they bypassed a real
+      prelude: `integrity/core.rs -> damage::prelude`, `settings.rs ->
+      juice::prelude`, `keybind_dock.rs -> key_glyphs::prelude` (x2, which
+      wanted `KEY_GLYPH_FILES` on that prelude beside its sibling
+      `KEY_GLYPH_DIR`), and five `nova_os_ui` terminal files that reached
+      `nova_gameplay::{audio,objectives,settings}::` across the crate boundary.
+      That last one moved the TEN `NOVA_OS_*` cue volumes onto `audio::prelude`
+      - they are boundary items by the module's own docstring ("`pub` because
+      the cues are fired from `nova_os_ui`"). Also `nova_probe ->
+      nova_ship::flight::prelude` and `nova_scenario`'s skybox e2e test ->
+      `camera::skybox::prelude`.
+      ONE REVERT, and it is the interesting one: `HudReadoutFormat` was added to
+      `nova_hud::readout::prelude` and rustc rejected the workspace with
+      `ambiguous glob re-exports` - `nova_scenario` exports an AUTHORING twin of
+      the same name and `nova_core`'s prelude globs both crates. It is back off
+      the boundary with a comment saying why, and `nova_scenario/src/world.rs`
+      keeps the fully-qualified path on both sides at the one site that converts
+      between them. A prelude is not free: it is a name claim in every
+      downstream glob.
+      `CONVENTIONS.md`'s `## Not yet true` table is re-measured against the
+      tree: rule 3 is 80 -> **15**, rule 4 is 36 -> **25**, rule 1 is 28 -> **1**,
+      rule 10 is 84 -> **22 and blocked on the owner ruling**. The table now
+      names the owning crate for every remaining site, so L7 and L10 inherit a
+      work list instead of a number. It does NOT empty here - rules 3 and 4
+      still hold `nova_assets`, `nova_scenario`, `nova_ui`, `nova_probe_cli` and
+      `nova_editor` sites, which are L7's and L10's.
+- [x] Run `probe run --all` PER SEAM, not once at the end.
+      FLIGHT seam: `cargo run -p nova_probe_cli -- run --all` at `31cdf5dd`,
+      aggregate **OK**, 24/24 rows OK, each `measured 6/7`
+      (`probe-runs/31cdf5dd/index.html`). The one unmeasured check across the
+      fleet is `fps_within_baseline` - no `--fps` pass in a clean run.
+      VISIBILITY PASS (L9.7), at `7af7fb3d` + this working tree: 23/24 OK, each
+      `measured 6/7`, and the aggregate read **FAIL** on ONE row -
+      `screenshot_combat` (`probe-runs/7af7fb3d/index.html`).
+      DIAGNOSED, and it is NOT this pass's change - `probe run
+      screenshot_combat` on the same tree is **OK**, 7/7 clean, `run_end at
+      frame 911`. The fleet run's only offending line was
+      `nova_autopilot: step \`track the torpedoes in\` stalled after 12.0s (run
+      39.0s)`; that watchdog is WALL-CLOCK, and the failing run had pushed to
+      1044 frames against a box running the other 23 examples. Under load the
+      step misses a 12s deadline it clears comfortably alone.
+      That is a real finding about the harness, not about the game: a
+      wall-clock step watchdog inside a whole-fleet run measures the host, so
+      `run --all` will FAIL intermittently on a loaded machine and the row that
+      fails will move. It is L11's or the probe lane's to fix (a frame-budget
+      deadline, or serialising the autopilot-heavy examples); do not re-key it
+      as a combat regression. Evidence for the call is one isolated re-run, not
+      a repeat count.
+- [x] Note as you go which `keys/tier1.json` questions each move invalidates
       (`_coverage` maps ids to areas; `nova_os_hud_seam` is 5 of 30), so L2's
       single re-keying pass is not a reconstruction from memory.
+      NOVAOS seam, 7 questions to re-key (running list, do not re-derive):
+      `t1-001` expect+citation -> `crates/nova_os_ui/src/terminal/`; its DOCS CUE
+      note also changes, CONVENTIONS.md rule 4's bad-import example is now
+      `crate::terminal::shell::*` and no longer discloses a `hud/` path.
+      `t1-007` -> `nova_os_ui/src/terminal/components.rs`; the `nova_menu`
+      half is unchanged. `t1-008` both numbers move: `hud/` is now 19,015 lines
+      and the NOVA OS subtree is out of it entirely (15,200 in `nova_os_ui`),
+      which is the whole point of the question. `t1-010` ->
+      `nova_os_ui/src/{map,ship}/scene.rs`. `t1-022` citation ->
+      `nova_os_ui/src/{map/contacts.rs,ship/sections.rs}`. `t1-024` ->
+      `nova_os_ui/src/terminal/input.rs`. `t1-030` implementor citation ->
+      `nova_os_ui/src/{map,ship}/app.rs`; its ANSWER (none) still holds.
+      `t1-009` is unaffected - `nova_os` still owns the model and still draws
+      none of it.
+      HUD seam, 2 more (running list continues): `t1-005` citation ->
+      `crates/nova_hud/src/ammo_readout.rs:485`; its ANSWER (`nova_ui`) is a
+      CONTROL and still holds, but the "HUD reaches it by deep path" note now
+      describes a CROSS-CRATE deep path, which is a different (and weaker)
+      finding than the same-crate one the question was keyed on. `t1-008` is
+      now OBSOLETE, not merely re-cited: the folder it asks about
+      (`crates/nova_gameplay/src/hud/`) does not exist, and the lie it probed -
+      a HUD folder that is 43% NOVA OS runtime - is exactly what L9.2 and L9.3
+      deleted. L2's re-keying pass has to REPLACE it with a question that
+      probes the new structure, or the tier-1 set silently loses a slot.
+      FLIGHT seam, 4 more (running list continues). `t1-006` (plugin add
+      order) needs BOTH halves re-cited and is arguably a BETTER question now:
+      the order is decided in three files, not two -
+      `nova_ship/src/lib.rs` (`NovaShipPlugin::build`, the leaf adds and the
+      two `configure_sets` blocks), `nova_gameplay/src/plugin.rs` (what is left
+      of it) and `nova_core/src/lib.rs` `AppBuilder`. Its `notes` scoring rubric
+      is keyed to TWO files and must be rewritten for three.
+      `t1-014` citation only: `nova_assets/src/sections.rs` now opens with BOTH
+      `use nova_gameplay::prelude::*` and `use nova_ship::prelude::*`, and the
+      `why_this_question` collision it describes is now
+      `nova_ship/src/sections/` vs `nova_assets/src/sections.rs` - the same
+      trap, one crate over.
+      `t1-026` is OBSOLETE, like `t1-008`. Its whole answer was that
+      `NovaGameplayPlugin::render` gates exactly one plugin while claiming
+      three. After the cut it gates the `nova_ui` wiring and nothing else it
+      does not claim, `SpaceshipSectionPlugin` moved to `NovaShipPlugin`'s own
+      `render` field, and the HUD is render-gated by `AppBuilder`. The lying
+      surface it probed is gone; L2 must replace it, not re-cite it.
+      `t1-027` was ALREADY stale before this seam and needs re-measuring, not
+      re-citing: its cited site (`nova_debug/Cargo.toml:18` hard-forcing
+      `features = ["debug"]` on `nova_gameplay`) no longer exists - the
+      manifest now lists plain `nova_gameplay` and `nova_ship` deps. Whichever
+      earlier lane dropped that line did not note it here. Its expected answer
+      ("all builds") may now be false, which changes the question, not its
+      citation.
+      VERIFIED at L9.7 against the tree, not from memory: every `crates/...`
+      path in `benchmark/keys/tier1.json` was resolved with the filesystem, and
+      **13 questions carry at least one citation that no longer exists**. The
+      running list above covers L9's eight (`t1-001`, `t1-005`, `t1-007`,
+      `t1-008`, `t1-010`, `t1-014`, `t1-024`, `t1-030`) and nothing in it is
+      stale - `t1-006`, `t1-022`, `t1-026` and `t1-027` need re-keying for
+      CONTENT, which a path check cannot see, so the prose list stays load
+      bearing.
+      FIVE OF THE THIRTEEN ARE NOT L9's, and no lane had noted them:
+      `t1-003` (`nova_probe/src/run_report/`), `t1-004`
+      (`nova_probe/src/capture.rs`), `t1-011`
+      (`nova_probe/src/bin/probe/native/{env,supervise}.rs`) and `t1-012`
+      (`nova_probe/src/recorder.rs`) were all invalidated by L8's `nova_probe`
+      restructure; `t1-016` (`nova_assets/src/bin/content.rs`) by an earlier
+      lane. That is four of `_coverage`'s five `nova_probe` questions dead
+      without a note. L2's re-keying pass must run this path check FIRST - it is
+      one script and it finds what a lane forgets to write down.
 
 ### Lane10 - "NOVA_ASSETS / NOVA_SCENARIO CLEANUP" - tasks/20260806-121625/plan/lane10.md
 
@@ -886,6 +1382,13 @@ check, so its evidence is only meaningful once the gate is trustworthy.
       add the missing ordering edge between `SpaceshipSectionSystems` and
       `TempEntitySystems::Sync`. Two queued despawns HARD-PANIC under the
       `FallbackErrorHandler(panic)` the autopilot and probe runs install.
+      **`TempEntitySystems` NO LONGER EXISTS** - L9.8 deleted it as one of the
+      six handle-with-no-holder sets. That does NOT rule out the edge fix: if
+      you take it, re-declare the set in `lifetime.rs`, because then it HAS a
+      holder and the rewritten rule 10 is satisfied by the very edge you are
+      adding. Re-read the race first - the double despawn is an idempotency
+      bug as much as an ordering one, and `try_despawn` closes it with no new
+      public type.
 - [ ] F66 - RULED INTENDED. Add one comment at `projectile.rs:65` saying a
       no-lock launch is a misfire. Behavior unchanged; without the comment the
       next reviewer re-reports it.
@@ -1653,3 +2156,421 @@ The `nova_editor` local scroll test went away with the system it tested. That is
 a net gain in coverage, not a loss - the drawer's bottom clamp was never tested
 because it never existed, and the shared tests now cover both ends at two
 display scales.
+
+## Close-out - L9.2, the NOVAOS seam (2026-08-08)
+
+### What and why
+
+`crates/nova_os_ui` now owns the NOVA OS cockpit monitor: 15,200 lines that were
+sitting in `nova_gameplay/src/hud/` under a folder name that lied. The monitor is
+a terminal runtime with a screen; the HUD is instruments drawn over the world.
+They share exactly two things - the `PauseStates::NovaOs` axis and the
+`HudNovaOsExempt` tag - which is what made the cut possible without a new
+abstraction.
+
+| Was | Is |
+| --- | --- |
+| `hud/nova_os/` | `nova_os_ui/src/terminal/` |
+| `hud/nova_os_map/` | `nova_os_ui/src/map/` |
+| `hud/nova_os_ship/` | `nova_os_ui/src/ship/` |
+| `hud/nova_os_pointer_rig.rs` | `nova_os_ui/src/pointer_rig.rs` |
+
+`hud/` drops from 33,774 to 19,015 lines and `nova_gameplay` from 54% of the
+workspace to 43%. Direction of the seam: `nova_os_ui -> nova_gameplay`, never the
+reverse. The whole crate-internal surface the moved code needed was `audio`,
+`settings`, `objectives`, `GameStates`/`PauseStates`, `NovaHudAssets` and the
+prelude - all of which the monitor CONSUMES.
+
+Back-edge 3 landed with the seam, exactly as the plan deferred it. The three
+`add_plugins` calls left `hud/mod.rs` for `NovaOsUiPlugin`, which
+`nova_core::AppBuilder` adds render-gated. `nova_menu` picked up a direct
+`nova_os_ui` dependency for `NovaOsMonitorSettings` instead of reading it through
+`nova_gameplay`'s prelude. Nine audio cue volumes went `pub(crate)` -> `pub` with
+a docstring each; they stay in `audio/` so every cue volume in the game is still
+declared in one file.
+
+The two HUD->NOVAOS edges the survey found both resolved by moving, not by
+adding an interface: `lift_exempt_chrome_over_nova_os` went with
+`DRAWER_EXEMPT_Z` into `terminal/shell.rs` (it is a NOVA OS behaviour that
+happens to write HUD entities), and the `NovaOsMonitorSettings` re-export left
+`hud::prelude`.
+
+F53 and F81 both closed here, because both are questions the seam forces.
+F81 is `NovaOsAppInput` in `terminal/input.rs:467`, one `SystemParam` replacing
+an identical 6-param cluster in `map/scene.rs` and `ship/scene.rs` and two
+`too_many_arguments` suppressions.
+
+F53 is the monitor frame: `NovaOsSystems::{Toggle, Input, Simulate, Paint}` plus
+`NovaOsMapSystems` and `NovaOsShipSystems`, ordered
+`Toggle -> Input -> map -> ship -> Paint`, with Input/Simulate/Paint inside
+`NovaHudSystems`. Before this, both app sets were declared and never passed to
+`configure_sets`, so whether a `ship repair` result row reached the screen this
+frame or the next was bevy's topological tie-break.
+
+### Alternatives considered
+
+**Where the set ordering lives.** First written as three `configure_sets` blocks,
+one per plugin - which is what rule 10 literally asks for. Moved to a
+`MonitorFrame` plugin at the crate root, because every edge in it crosses between
+the three plugins: `map` before `ship` is a statement about a slot they share,
+and it cannot be owned by either one. The split also makes the contract testable:
+`NovaOsPlugin` pulls in `UiMaterialPlugin<NovaOsCrtMaterial>` and panics without
+the render stack, so a test that adds `NovaOsUiPlugin` cannot run headless while
+one that adds `MonitorFrame` can.
+
+**Deleting `peek_pending_invocation` (F53 follow-through).** The lane predicted
+the peek was a workaround for the missing ordering and would become deletable
+once the ordering was real. Re-read with the ordering in place: it is not. The
+`ship ...` and `map ...` handlers share ONE pending invocation slot, so in ANY
+total order the first handler to run reaches a slot that may hold the other
+family's verb. The peek is ownership dispatch, and only a per-app queue removes
+it - a bigger change than the workaround it deletes. KEPT, and the reason was
+already written on `nova_os`'s docstring.
+
+**A `nova_os_ui` -> `nova_gameplay` interface trait.** Rejected: the dependency
+is one-directional and shallow. A trait would exist only to make the arrow look
+symmetric.
+
+### Difficulties and diagnosis
+
+The crate name. `nova_os` was taken by the existing pure-logic terminal/shell
+crate, which this one depends on, so the UI half could not simply be `nova_os`.
+`nova_os_ui` says which half it is, and the two crate docs now point at each
+other.
+
+The move invalidated `nova_os`'s own docs in a way `cargo check` cannot see: 15
+doc references to `nova_gameplay` as "the crate that draws this" were all stale
+the moment the files moved. Found by grepping the CONSUMER's name out of the
+dependency's docs, which is worth doing after any extraction.
+
+`benchmark/keys/tier1.json` is measurement infrastructure that this seam
+partially invalidates - 7 of 30 tier-1 questions cite paths or line counts that
+just changed. Recorded in the lane's step list rather than re-keyed, because L2
+owns a single re-keying pass and two passes would disagree.
+
+### Evidence
+
+- `cargo test -p nova_os_ui --lib` - 106 pass, all 105 moved tests plus
+  `the_monitor_frame_runs_input_then_map_then_ship_then_paint`.
+- SABOTAGE: dropping `.before(NovaOsShipSystems)` from `MonitorFrame` fails that
+  test. The ordering assertion is load-bearing, not incidentally green.
+- `cargo test -p nova_gameplay --lib` - 750 pass, 1 ignored.
+- `cargo check --workspace --all-targets` - clean, zero warnings.
+- `cargo fmt --all --check` - clean.
+- `probe run --all` - 24/24 examples OK, including `screenshot_nova_os`.
+  `screenshot_nova_os` re-run OK after the `MonitorFrame` extraction.
+- Doc sweep: `AGENTS.md` code map (share table re-measured against 146,008
+  lines), `README.md`, `web/src/wiki/dev/project-tour.md` and
+  `web/src/wiki/dev/architecture.md` (crate table, mermaid graph, boundary
+  policy) all name the new crate. `nova_os`'s 15 stale `nova_gameplay`
+  references retargeted. `CONVENTIONS.md` rule 4's bad-import example no longer
+  cites a path that does not exist.
+
+### Reflection
+
+The plan's instruction to survey the seam BEFORE cutting, and then not redo the
+survey, is what kept this to one commit. The survey's list of crate-internal
+dependencies was exactly right, so the cut was mechanical and every surprise was
+in the docs rather than the code.
+
+The F53 follow-through is the more useful lesson: the lane predicted a deletion
+and the prediction was wrong, but only reading the code with the fix in place
+could show that. Recording the DECISION and its reason costs a paragraph and
+stops the next reader from re-opening it.
+
+Three seams remain - HUD, FLIGHT, CORE - plus the rule-10 sweep over the plugins
+those seams move.
+
+## Close-out - L9.3, the HUD seam (2026-08-08)
+
+### What and why
+
+`crates/nova_hud` now owns the flight HUD: 19,087 lines that were the remainder
+of `nova_gameplay/src/hud/` once the NOVA OS monitor left in L9.2. One module per
+widget - instruments, reticles, readouts, markers, the comms panel, the keybind
+dock and the `screen_indicator` projection they all share.
+
+The survey found only TWO edges pointing INTO `hud/` from the rest of
+`nova_gameplay`: `lib.rs`'s `hud::prelude::*` re-export and `plugin.rs:126`'s
+render-gated `add_plugins`. Both deleted. Everything the HUD reads - `prelude`,
+`camera`, `sections`, `input`, `flight`, `gravity`, `mesh`, `transform`,
+`objectives`, `audio`, `asset_ref` - stays in `nova_gameplay`, so the arrow runs
+`nova_hud -> nova_gameplay` and never the reverse. That asymmetry is the whole
+justification for the cut: the HUD *reads* gameplay state and never drives it.
+
+`nova_gameplay` drops from 54% of the workspace at the start of the lane to 30%
+(44,159 of 146,146 lines). It is still the biggest crate, but no longer by a
+multiple - which is the navigability claim the epic was after.
+
+Consumers repointed: `nova_os_ui`, `nova_scenario`, `nova_assets`, `nova_menu`,
+`nova_debug`, `nova_core`. `nova_core::AppBuilder` adds `NovaHudPlugin`
+render-gated, BEFORE `NovaOsUiPlugin` - the monitor orders its own sets against
+`NovaHudSystems`, so the HUD has to be in the app first.
+
+The seam edge itself moved with the code. `nova_gameplay`'s two `configure_sets`
+chains no longer name `NovaHudSystems`; `nova_hud::configure_hud_seam` declares
+`NovaHudSystems.after(SpaceshipSectionSystems).before(NovaCameraSystems)` in both
+schedules instead. The HUD sits after the sections that produce what it reads
+(ammo, locks, integrity) and before the camera that consumes the screen-space
+anchors it writes. Declaring that edge from the HUD side IS the seam: the crate
+that owns the systems owns their placement.
+
+### Alternatives considered
+
+**Leaving the ordering in `nova_gameplay`.** `nova_gameplay` could have kept
+naming `NovaHudSystems` in its chain by depending on `nova_hud` for the set type
+alone. Rejected: that is a circular dependency bought for one identifier, and it
+would have made the seam a fiction - the crates would still have been one unit
+wearing two names.
+
+**Keeping the two widened items `pub(crate)`.** Two items had to cross the seam
+because tests in `nova_hud` use the real production systems rather than
+re-implementing them: `input::player::hints::keyboard_label` (the key-glyph
+coverage test labels the real bindings with it) and
+`sections::turret_section::update_turret_aim_point` (the turret-lead pip
+regression registers the real aim system with its production set constraints,
+because the full `TurretSectionPlugin` drags render-material plugins into
+headless tests). The alternative - duplicating both in the test rig - was
+rejected under "reuse production helpers in test rigs": a copied label formatter
+that drifts from the real one turns a coverage test into a test of itself. Both
+widenings carry the reason in a comment at the definition.
+
+**A `nova_hud` -> `nova_gameplay` interface trait.** Rejected for the same reason
+L9.2 rejected it for the monitor: the dependency is one-directional and shallow,
+and a trait would exist only to make the arrow look symmetric.
+
+### Difficulties and diagnosis
+
+The move was mechanically large (19k lines, 25 widget modules) but structurally
+cheap, precisely because L9.2 went first. Cutting the monitor out established
+that `hud/` was two things wearing one folder name; once the 15,200-line terminal
+runtime was gone, what remained had a single coherent job and a single direction
+of dependency. Ordering the seams outermost-first was the load-bearing decision,
+and it paid here.
+
+The one non-mechanical part was the schedule edge. `cargo check` cannot see a
+missing `configure_sets` call - dropping the edge entirely still compiles and
+still mostly works, because bevy's topological tie-break happens to order the
+systems correctly on today's executor. That is the same accidental-correctness
+trap L1's F04 hit. It is pinned by an explicit test rather than left to luck.
+
+### Evidence
+
+- `cargo test -p nova_hud --lib` - 207 pass, including
+  `the_hud_set_runs_between_sections_and_camera_in_both_schedules`, which
+  exercises `configure_hud_seam` (the production wiring, factored out for exactly
+  that reason) rather than a hand-built copy of it.
+- SABOTAGE: deleting the `FixedUpdate` half of `configure_hud_seam` fails that
+  test (`lib.rs:1298`). The "in both schedules" half of its name is a real
+  assertion, not decoration - the `Update` edge alone still passes everything
+  else.
+- `cargo test -p nova_gameplay --lib` - 544 pass, 1 ignored. 544 + 207 = 751
+  against 750 before the cut: every moved test survived, plus the new seam test.
+- `cargo test -p nova_os_ui --lib` - 106 pass. `-p nova_menu --lib` - 77 pass.
+  `-p nova_scenario --lib` - 154 pass. The four repointed consumers with tests.
+- All three CI check configurations green, each at `RUSTFLAGS=-D warnings`:
+  `cargo check --workspace --all-targets`, `cargo check --workspace --exclude
+  nova_probe_cli --target wasm32-unknown-unknown`, and `cargo fmt --all --check`.
+
+### Reflection
+
+The survey-before-cut discipline is what made this lane's second seam cheap. Both
+NOVAOS and HUD were surveyed to the point of naming every edge that crossed the
+boundary BEFORE a file moved, and both surveys were written into the step list so
+the cut itself was bookkeeping. The steps that took real thought - back-edge 2's
+inverted scheduling edge, F53's monitor frame, this seam's `configure_hud_seam` -
+were all *ordering* questions, not moving questions. Worth carrying into FLIGHT
+and CORE: the risk in a split is never the files, it is the schedule.
+
+Two seams remain - FLIGHT and CORE - plus the rule-10 sweep, the visibility audit
+and the module preludes over what those seams move.
+
+## Close-out - L9.4a, the shake back-edge and the corrected FLIGHT survey (2026-08-08)
+
+### What and why
+
+Two things landed, and the second is the larger one.
+
+**The code change.** `camera/shake.rs` is now `shake.rs` at the crate root, and
+the two ordering edges it declared against `ChaseCameraSystems::Sync` are gone
+rather than relocated. This clears the one real back-edge of the four L9.3
+listed for the FLIGHT seam: `juice.rs` (combat feedback, damage-driven) fed
+`CameraShake`, so a lower module reached into `camera`. The shake is a generic
+drift-free trauma rig over any `Transform` - its own docstring says so - and its
+only in-repo feeder is `juice`. It belongs next to `juice`, not inside the
+ship's camera folder. The edges it named were a redundant, weaker duplicate of
+what `CameraAuthorityPlugin` already declares: authority folds
+`ChaseCameraSystems::Sync` into `CameraAuthoritySystems::Solve` and chains
+`Restore -> Solve -> Additive`, while shake's own edges silently dropped to
+nothing whenever the chase plugin was absent. Deleting them removes a
+duplicated contract instead of moving it.
+
+**The survey.** The step this pass was meant to execute - cut `flight/`,
+`sections/`, `input/`, `camera/`, `physics/` - was attempted and reverted,
+because the survey it inherited was wrong. L9.3 counted deep `crate::<module>`
+paths and found 17 references and 4 back-edges. The actual number, taken by
+removing the five directories and reading the compiler, is 129 errors across
+`audio/` (103), `gravity.rs` (16), `integrity/` (5) and the crate root. The gap
+is `crate::prelude::*`: a glob import makes a cross-seam reference invisible to
+the grep that was used, and most of this crate's references arrive that way.
+The corrected survey is written into the step, with the four real edge families
+named and a fix chosen for each.
+
+Also settled, because the step demanded it before the cut: there is no CORE
+crate. `nova_core` is already the app-assembly crate, and the remainder is the
+shared gameplay layer, not primitives. The split is three-way over a
+`nova_gameplay` base.
+
+### Alternatives considered
+
+**Moving `juice.rs` up into the ship crate instead of moving `shake` down.**
+Zero code changes - the shake would have stayed local to `camera/`. Rejected:
+`juice` is damage-driven combat feedback and belongs beside `damage`,
+`integrity` and `audio`. Putting hit-flash rings in the ship crate to avoid one
+import is placing code by convenience, which is the habit this epic exists to
+break.
+
+**Keeping shake's `.after(ChaseCameraSystems::Sync)` edges and re-pointing them
+across the seam.** Rejected: it would have made the shared layer name a type
+from the crate above it, for an edge authority already owns.
+
+**Pushing on and finishing the cut in this pass.** Rejected on scope. Once the
+real survey was in hand, the remaining work is a `markers` module extracted
+from 8 files, an inversion for `AISpaceshipMarker`, an `audio/` split, a
+scheduling inversion in `gravity.rs`, a `test-support` feature, and then
+repointing 12 consumer crates - materially more than "move five directories",
+and more than one context can carry. A broken tree cannot be checkpointed, so
+the cut was reverted and the survey kept. The next pass cuts once, against a
+measurement that is right.
+
+**Reverting everything, including the shake move.** Rejected: the shake fix is
+independently correct, independently green, and is precisely the "clear the
+back-edges BEFORE any file moves" discipline this lane already used in L9.1.
+
+### Difficulties and diagnosis
+
+The failure mode worth remembering is the survey method, not the code. Three of
+the four "back-edges" L9.3 recorded (`transform/mod.rs -> camera`,
+`mesh/mod.rs -> camera`, `damage.rs -> sections::prelude`) turned out to be
+intra-doc links - `[`Foo`](crate::camera::Foo)` in a docstring - which grep
+cannot distinguish from a real import. Meanwhile the 103 genuine references in
+`audio/` were invisible because they come through `crate::prelude::*`. So the
+inherited survey was wrong in both directions at once: it reported edges that
+were not edges and missed the ones that were. Deleting the directories and
+reading the compiler took one command and produced the truth.
+
+The `audio/` finding is the same shape as L9.2's: a folder that is two things
+wearing one name. `hud/` was 43% terminal runtime; `audio/` is 63% ship
+soundtrack over a 37% generic SFX engine that `nova_menu` and `nova_os_ui` also
+consume. Finding it before the cut is worth more than the cut would have been.
+
+### Evidence
+
+- `cargo test -p nova_gameplay --lib` - 545 pass, 1 ignored. 544 before, plus
+  `the_shake_brackets_the_chase_base_writer`.
+- SABOTAGE: dropping `ChaseCameraSystems::Sync` from authority's `Solve` fold
+  fails that test and nothing else. Without it the guarantee moved out of
+  `shake.rs` would have been unpinned - `cargo check` cannot see a missing
+  `configure_sets`, and bevy's topological tie-break supplies the right order by
+  accident on today's executor. Same trap as L1's F04 and L9.3's seam edge.
+- `cargo test -p nova_hud --lib` - 207 pass.
+- All three CI check configurations green at `RUSTFLAGS=-D warnings`:
+  `cargo check --workspace --all-targets`, `cargo check --workspace --exclude
+  nova_probe_cli --target wasm32-unknown-unknown`, `cargo fmt --all --check`.
+- The corrected FLIGHT survey is reproducible: remove the five directories from
+  `nova_gameplay/src`, drop them from `lib.rs`, and run
+  `cargo check -p nova_gameplay --all-targets --message-format short`.
+
+### Reflection
+
+L9.3's reflection said the risk in a split is never the files, it is the
+schedule. This pass adds a second one: the risk is also the *survey*, and a
+survey done with grep over a crate that globs its own prelude is not a survey.
+The two seams that went smoothly were surveyed when `hud/` still had explicit
+edges to count. `nova_gameplay`'s interior does not, so the only trustworthy
+instrument is the compiler. Cut the directories, read the errors, revert, then
+plan - it costs one command and it is the difference between a cut that is
+bookkeeping and a cut that is discovery halfway through.
+
+Worth carrying: `probe run --all` has NOT run this pass. Nothing behavioural
+changed - one ordering contract moved between two plugins that are always added
+together, and it is pinned - but the per-seam probe run the lane requires
+belongs with the FLIGHT cut itself, not with this checkpoint.
+
+## Close-out - L9.6, rule 10's first slice (2026-08-08)
+
+WHAT. Re-measured rule 10 against the post-seam tree, then acted on the seven
+sets the measurement left standing: deleted `WASDCameraControllerSystems`,
+pinned `TurretSectionAimSystems.before(SmoothLookRotationSystems::Sync)` in
+`TurretSectionPlugin`, and left six alone with the reason written down.
+
+WHY the number moved so far. The plan said 16 unordered sets and 68 setless
+plugins; the truth is 7 and 18. Three separate causes, and only one of them is
+"work already landed": L5 retired three sets and the seams ordered two more,
+but the rest is a MEASUREMENT BUG in the original survey - it looked only at
+`configure_sets` and never at `.before`/`.after` on `add_systems`, so three
+sets that were correctly ordered all along were on the list. Any lane that
+re-derives a rule-10 count has to count both spellings.
+
+ALTERNATIVES. The mechanical reading of rule 10 - give all seven an edge - was
+rejected. Six of them have no counterparty in their own schedule: the transform
+rigs publish `*Output` in `PostUpdate` and every consumer runs in `Update`, so
+the one-frame lag is the design. Manufacturing an intra-schedule edge would
+record a constraint nobody has, which is the same "records nothing" failure the
+rule was written against. Recorded as an owner call instead of silently
+deciding the rule means something narrower than it says.
+
+DIFFICULTY, and the one worth remembering. The first version of the ordering
+test read the execution order back out of an `Order` resource - the idiom
+`camera/authority.rs` already uses - and it PASSED WITHOUT THE FIX. Bevy's
+topological tie-break happens to run the aim chain first today, so the test was
+green on a codebase with the bug in it. Rewriting it around
+`ambiguity_detection: LogLevel::Error` on a two-plugin app made it fail for the
+right reason (exactly 1 conflicting pair, named in the panic) and pass on the
+edge. An order-observing test only proves anything when the wrong order is
+reachable in that app; for a missing edge it is a coin flip you are asserting
+on.
+
+EVIDENCE. `cargo check --workspace --all-targets` clean, `cargo fmt --check`
+clean, `cargo test -p nova_ship --lib turret` 42/42 including the new
+`the_aim_chain_is_ordered_against_the_rig_it_steers`. The aim-convergence test's
+comment claiming production ordering "is not required" is now false and was
+corrected: production carries the edge, the test app repeats it only because it
+wires systems directly instead of through the plugin.
+
+REFLECTION. Two of the three lane steps here were reported as counts, and both
+counts were wrong in the same direction - the survey overstated the work by
+counting declarations instead of behaviour. The seam lanes measured sites;
+this one had to measure MEANING (is this set ordered? can it be?), and that
+does not survive being cached as an integer in a plan.
+
+Worth carrying: `probe run --all` has NOT run this pass either. Nothing
+behavioural changed that a run would show - the one new edge is between two
+plugins always added together - but the lane still owes its per-seam run.
+
+## CHECKPOINT - L9.6 done, rule 10 needs an owner ruling (2026-08-08)
+
+The scheduling half of the post-seam pass is finished as far as it can go
+without the owner. Branch clean at `73e08d4f`, `cargo check --workspace
+--all-targets` and `cargo fmt --check` green.
+
+DONE: rule 10's first slice. One real cross-crate edge landed with an
+ambiguity-detection test, one dead set deleted, and both rule-10 counts
+re-measured from the post-seam tree (7 unordered sets, not 16; 16 setless
+plugins, not 68).
+
+BLOCKED, and it is the only thing blocking the rest of rule 10: 22 sites - six
+unordered sets and sixteen setless plugins - would all be ceremonial sets under
+rule 10's literal wording and zero sites under its stated rationale. The
+proposed rewrite is in the "Rule 10, per seam" step. This is a CONVENTIONS.md
+edit, so it is the owner's, and it decides whether that file's "Not yet true"
+row for rule 10 closes at zero or at 22 new sets.
+
+NEXT UNIT (independent of the ruling, wants a fresh context):
+  1. The `pub` audit for the crates the seams did not settle - 633 crate-local
+     `pub` items originally, `nova_ship`'s share already decided.
+  2. Rules 3+4, the module preludes, in the same pass. `nova_ship` is done.
+  3. `probe run --all` for the lane, then append to the tier1 re-keying list.
+Both counts in 1 and 2 predate L5 and the seams. RE-MEASURE THEM FIRST - that
+warning has now been right three times in a row, and twice the error was not
+stale work but a survey that counted declarations instead of behaviour.

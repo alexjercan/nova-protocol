@@ -13,7 +13,7 @@
 
 use std::collections::HashSet;
 
-use nova_gameplay::prelude::{SectionConfig, SectionKind};
+use nova_ship::prelude::{SectionConfig, SectionKind};
 
 use crate::prelude::*;
 

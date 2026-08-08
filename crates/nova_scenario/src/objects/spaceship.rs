@@ -12,6 +12,7 @@ use bevy::{platform::collections::HashMap, prelude::*};
 use bevy_enhanced_input::prelude::*;
 use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_ship::prelude::*;
 
 use crate::objects::modification::prelude::SectionModification;
 

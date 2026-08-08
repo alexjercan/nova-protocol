@@ -42,7 +42,7 @@ use bevy::pbr::ExtendedMaterial;
 use bevy::prelude::*;
 use clap::Parser;
 #[cfg(feature = "debug")]
-use nova_protocol::nova_gameplay::sections::thruster_section::ThrusterExhaustMaterial;
+use nova_protocol::nova_ship::sections::thruster_section::ThrusterExhaustMaterial;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]

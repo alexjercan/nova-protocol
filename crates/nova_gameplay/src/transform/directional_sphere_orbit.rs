@@ -9,13 +9,13 @@
 
 use bevy::prelude::*;
 
-use crate::math::{direction_to_spherical, spherical_to_cartesian, LerpSnap};
+use crate::math::prelude::*;
 
 /// Glob-import surface for the directional sphere-orbit rig.
 pub mod prelude {
     pub use super::{
         DirectionalSphereOrbit, DirectionalSphereOrbitInput, DirectionalSphereOrbitOutput,
-        DirectionalSphereOrbitPlugin, DirectionalSphereOrbitSystems,
+        DirectionalSphereOrbitPlugin,
     };
 }
 
@@ -47,15 +47,6 @@ struct DirectionalSphereOrbitState {
     phi: f32,
 }
 
-/// The system set used by the directional sphere orbit plugin.
-///
-/// Only contains the orbit sync systems.
-#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum DirectionalSphereOrbitSystems {
-    /// Advances the orbit and writes the resulting pose.
-    Sync,
-}
-
 /// Plugin to manage entities with `DirectionalSphereOrbit` component.
 ///
 /// DirectionalSphereOrbit allows an entity to orbit around a point on the surface of a sphere.
@@ -69,9 +60,7 @@ impl Plugin for DirectionalSphereOrbitPlugin {
 
         app.add_systems(
             PostUpdate,
-            (sphere_update_state, sphere_update_output)
-                .chain()
-                .in_set(DirectionalSphereOrbitSystems::Sync),
+            (sphere_update_state, sphere_update_output).chain(),
         );
     }
 }

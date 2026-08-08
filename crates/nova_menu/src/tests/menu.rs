@@ -7,6 +7,7 @@ use bevy::{
     ui_widgets::{observe, Activate},
 };
 use nova_gameplay::prelude::*;
+use nova_hud::prelude::HudVisibility;
 use nova_scenario::prelude::*;
 
 use super::support::{

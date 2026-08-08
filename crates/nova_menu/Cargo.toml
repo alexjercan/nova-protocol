@@ -19,6 +19,11 @@ nova_mod_format = { path = "../nova_mod_format" }
 # `serde` enables the Serialize/Deserialize derives on the settings resources
 # (GraphicsQuality/MasterVolume) so the settings store can persist them.
 nova_gameplay = { path = "../nova_gameplay", features = ["serde"] }
+nova_ship = { path = "../nova_ship", features = ["serde"] }
+nova_hud = { path = "../nova_hud" }
+# The settings screen drives the NOVA OS monitor hardware (BRIGHT/SCAN/SND) and
+# the settings store persists it.
+nova_os_ui = { path = "../nova_os_ui" }
 nova_scenario = { path = "../nova_scenario" }
 # `serde` enables Serialize/Deserialize on `UiSkin` for the persisted settings.
 nova_ui = { path = "../nova_ui", features = ["serde"] }
@@ -34,4 +39,4 @@ bevy_rand = { version = "0.15.0", features = ["wasm_js"] }
 workspace = true
 
 [features]
-debug = ["bevy/track_location", "nova_gameplay/debug"]
+debug = ["bevy/track_location", "nova_gameplay/debug", "nova_hud/debug", "nova_os_ui/debug"]

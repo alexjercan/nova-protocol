@@ -4,7 +4,9 @@
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_hud::prelude::HudVisibility;
 use nova_scenario::prelude::*;
+use nova_ship::prelude::*;
 
 use super::support::{
     app, dummy_backdrop, dummy_scenario, dummy_scenarios, observe_load_scenario,

@@ -56,7 +56,7 @@ pub enum CliOutput {
     Clear,
     /// Request the animated close of the computer.
     Exit,
-    /// Extend the scrollback with the rows `nova_gameplay` placed in the snapshot
+    /// Extend the scrollback with the rows `nova_os_ui` placed in the snapshot
     /// under this command's name (e.g. `log`, `ship view`, `map view`).
     Snapshot,
 }
@@ -274,7 +274,7 @@ mod tests {
 
     /// A `map` app spec plus its `map view` CLI subcommand, mirroring what the
     /// map plugin registers - used to prove app-vs-subcommand resolution without
-    /// pulling in `nova_gameplay`.
+    /// pulling in `nova_os_ui`.
     fn core_with_map() -> Vec<TerminalCommandSpec> {
         let mut specs = core_command_specs();
         specs.push(TerminalCommandSpec {

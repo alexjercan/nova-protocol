@@ -33,9 +33,10 @@ use nova_autopilot::completion::{self, HarnessCompletion};
 // code resolves it through: naming any other path is how this query silently
 // stopped matching once nova took ownership of the type.
 use nova_gameplay::{
-    prelude::{GraphicsBudget, Health, HealthZeroMarker, PlayerSpaceshipMarker, WeaponsHot},
+    prelude::{GraphicsBudget, Health, HealthZeroMarker, PlayerSpaceshipMarker},
     GameStates,
 };
+use nova_ship::prelude::WeaponsHot;
 
 use crate::stats::prelude::*;
 

@@ -33,7 +33,14 @@
 
 use bevy::prelude::*;
 
-use crate::juice::JuiceSettings;
+use crate::juice::prelude::JuiceSettings;
+
+/// Glob-import surface: `use nova_gameplay::settings::prelude::*`.
+pub mod prelude {
+    pub use super::{
+        GraphicsBudget, GraphicsQuality, HarnessMute, MasterVolume, NovaSettingsPlugin,
+    };
+}
 
 /// Master audio volume, linear `0.0..=1.0`. Default full. Scales every sound in
 /// the game (see the module docs for the two application paths).

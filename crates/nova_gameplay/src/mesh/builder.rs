@@ -31,7 +31,7 @@ use bevy::{
 use noise::NoiseFn;
 
 use super::slice::{triangle_slice, TriangleSliceResult};
-use crate::math::slerp;
+use crate::math::prelude::*;
 
 /// The `TriangleMeshBuilder`.
 pub mod prelude {

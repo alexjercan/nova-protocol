@@ -142,7 +142,7 @@ impl NovaOsTerminal {
                 args,
             } => {
                 // The pure terminal cannot reach the ECS: record the invocation
-                // and let `nova_gameplay` apply it and append the result rows. The
+                // and let `nova_os_ui` apply it and append the result rows. The
                 // echo row is already printed, so the result reads under it.
                 self.pending_invocation = Some(NovaOsCommandInvocation { name, args });
                 TerminalSubmitOutcome::Ran
@@ -160,7 +160,7 @@ impl NovaOsTerminal {
                     CliOutput::Clear => self.reset_scrollback_to_welcome(snapshot),
                     CliOutput::Exit => self.pending_close = true,
                     // Snapshot commands (log/objectives/ship/map view) print the
-                    // rows `nova_gameplay` placed under their name.
+                    // rows `nova_os_ui` placed under their name.
                     CliOutput::Snapshot => self.extend_scrollback(snapshot.output(name)),
                 }
                 TerminalSubmitOutcome::Ran

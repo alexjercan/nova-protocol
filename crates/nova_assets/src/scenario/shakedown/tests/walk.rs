@@ -3,6 +3,7 @@
 //! them, driven through all five beats.
 
 use nova_events::prelude::{EventHandler, GameEventsPlugin};
+use nova_hud::prelude::HintEmphasis;
 
 use super::*;
 

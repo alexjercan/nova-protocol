@@ -65,7 +65,7 @@ pub struct ProjectileDamage {
 
 /// Which section kind a hit landed on, for the resistance lookup.
 ///
-/// A discriminant-only mirror of [`SectionKind`](crate::sections::prelude::SectionKind)
+/// A discriminant-only mirror of `nova_ship`'s `SectionKind`
 /// (which carries per-kind config this table does not need), inserted alongside
 /// each section's kind marker (see the `*_section` bundles) so a single query
 /// resolves a hit collider's class. Targets WITHOUT this component (asteroids,
@@ -327,8 +327,8 @@ impl Plugin for NovaDamagePlugin {
 mod tests {
 
     use super::*;
-    use crate::integrity::{
-        health::prelude::Health,
+    use crate::{
+        integrity::health::prelude::Health,
         test_support::{integrity_physics_app, settle},
     };
 

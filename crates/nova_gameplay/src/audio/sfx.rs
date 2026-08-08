@@ -23,8 +23,9 @@
 //! # }
 //! ```
 //!
-//! Nova owns this because every cue in [`crate::audio`] - the combat one-shots,
-//! the HUD clicks and the menu blips - is fired through [`PlaySfx`], and the
+//! Nova owns this because every cue in the game - the ship's combat
+//! one-shots, the HUD clicks and the menu blips - is fired through [`PlaySfx`],
+//! and the
 //! master volume it scales by is the slider in nova's settings screen.
 
 use bevy::{audio::Volume, prelude::*};

@@ -9,6 +9,7 @@
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_ship::prelude::*;
 
 // Per-section-type durability baselines.
 //

@@ -4,6 +4,7 @@
 use bevy::prelude::*;
 use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_ship::prelude::*;
 
 use crate::prelude::*;
 

@@ -32,7 +32,11 @@ for responsibilities and the dependency graph.
 | --- | --- |
 | `nova-protocol` (root) | `src/main.rs` clap CLI + entrypoint; `src/lib.rs` re-exports `nova_core`. |
 | `nova_core` | Wiring only: `AppBuilder` assembles the whole plugin stack. No gameplay. |
-| `nova_gameplay` | The game: sections, integrity, damage, flight, gravity, input (player/ai/radar), hud, camera, audio, juice. Owns `GameStates`/`PauseStates`/`GameMode`. |
+| `nova_gameplay` | The shared gameplay layer under the ship: integrity, damage, gravity, the SFX engine, juice, objectives, mesh/transform rigs, entity markers. Owns `GameStates`/`PauseStates`/`GameMode`. |
+| `nova_ship` | The ship and how it is flown: sections, input (player/ai/radar), flight and its autopilot verbs, the camera rigs, the PD controller, the ship's soundtrack. |
+| `nova_hud` | The flight HUD: one module per widget (crosshairs, target inset, ammo readout, objective markers, comms panel, keybind dock). Reads the ship, never drives it. |
+| `nova_os` | NOVA OS logic: the terminal model, shell grammar and app runtime. No bevy UI. |
+| `nova_os_ui` | The NOVA OS cockpit monitor the player opens with Tab: CRT terminal UI, forwarded pointer, and the `map`/`ship` apps. A peer of the HUD, added by `nova_core`. |
 | `nova_scenario` | Scenario engine: events, filters, actions, variables, world, loader, objects. |
 | `nova_events` | Shared game-event kinds + entity identity components (gameplay <-> scenario). |
 | `nova_assets` | `bevy_asset_loader` setup; loads glb/textures/shaders/sounds; owns the mod merge + prefs. |
@@ -52,14 +56,15 @@ The highest-value table. Verified paths; follow the linked page for depth.
 
 | I want to change... | Start in | Read |
 | --- | --- | --- |
-| A ship section behavior | `crates/nova_gameplay/src/sections/` | [Ship sections](../sections/), [Add a ship section](../guide-add-section/) |
+| A ship section behavior | `crates/nova_ship/src/sections/` | [Ship sections](../sections/), [Add a ship section](../guide-add-section/) |
 | Damage / resistances | `crates/nova_gameplay/src/damage.rs` | [Ship sections](../sections/) |
 | Integrity (disable/destroy) | `crates/nova_gameplay/src/integrity/` | [Ship sections](../sections/) |
-| Flight / autopilot verbs | `crates/nova_gameplay/src/flight/` | -- |
-| Player input / AI | `crates/nova_gameplay/src/input/{player,ai}/` | -- |
-| Radar targeting / lock-on | `crates/nova_gameplay/src/input/targeting/` | -- |
+| Flight / autopilot verbs | `crates/nova_ship/src/flight/` | -- |
+| Player input / AI | `crates/nova_ship/src/input/{player,ai}/` | -- |
+| Radar targeting / lock-on | `crates/nova_ship/src/input/targeting/` | -- |
 | Gravity wells | `crates/nova_gameplay/src/gravity.rs` | -- |
-| The HUD (widgets) | `crates/nova_gameplay/src/hud/` | -- |
+| The HUD (widgets) | `crates/nova_hud/src/` | -- |
+| The NOVA OS monitor / its apps | `crates/nova_os_ui/src/` | -- |
 | A scenario event/filter/action | `crates/nova_scenario/src/{events,filters,actions}.rs` | [Scenario engine](../scenario-system/), [Extend the scenario engine](../guide-extend-scenarios/) |
 | Scenario objects / loading | `crates/nova_scenario/src/{objects,loader}.rs` | [Scenario engine](../scenario-system/) |
 | Mod loading / merge | `crates/nova_assets/` + `crates/nova_modding/` | [Modding data format (RON)](../modding-ron/), [Mod portal](../mod-portal/) |
@@ -85,7 +90,7 @@ The plugin order, exact sets and frame flow live in
 
 ```mermaid
 flowchart LR
-    player["Player / AI input"] --> game["Game crates<br/>(nova_gameplay + nova_core)"]
+    player["Player / AI input"] --> game["Game crates<br/>(nova_ship + nova_gameplay + nova_core)"]
     game --> scenario["nova_scenario<br/>(events / filters / actions)"]
     data["Data (RON)<br/>scenarios + mods"] --> assets["nova_assets + nova_modding"]
     assets --> game

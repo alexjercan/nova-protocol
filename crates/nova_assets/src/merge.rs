@@ -5,9 +5,9 @@
 use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;
-use nova_gameplay::prelude::*;
 use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog};
 use nova_scenario::prelude::{GameCampaigns, GameScenarios, NewGameStart};
+use nova_ship::prelude::*;
 
 use crate::{
     collections::GameAssets,
@@ -455,7 +455,7 @@ fn merge_content_item(
 
 #[cfg(test)]
 mod tests {
-    use nova_gameplay::prelude::{BaseSectionConfig, HullSectionConfig, SectionKind};
+    use nova_ship::prelude::{BaseSectionConfig, HullSectionConfig, SectionKind};
 
     use super::*;
     use crate::scenario_generation;

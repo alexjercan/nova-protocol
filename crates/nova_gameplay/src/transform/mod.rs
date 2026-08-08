@@ -9,7 +9,7 @@
 //! Nova owns these because the ship, the turrets and the camera all steer
 //! through them, so their smoothing constants and system ordering are gameplay
 //! decisions, not engine ones. They share [`crate::math`]'s spherical
-//! conversions with [`crate::camera`].
+//! conversions with `nova_ship`'s camera rigs.
 
 pub mod directional_sphere_orbit;
 pub mod point_rotation;

@@ -16,6 +16,8 @@ bevy_mod_debugdump = { version = "0.16" }
 nova_autopilot = { path = "../nova_autopilot" }
 nova_events = { path = "../nova_events" }
 nova_gameplay = { path = "../nova_gameplay" }
+nova_ship = { path = "../nova_ship" }
+nova_hud = { path = "../nova_hud" }
 nova_scenario = { path = "../nova_scenario" }
 
 [lints]

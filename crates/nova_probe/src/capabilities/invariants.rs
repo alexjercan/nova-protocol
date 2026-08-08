@@ -49,8 +49,9 @@ use std::collections::HashMap;
 
 use avian3d::prelude::LinearVelocity;
 use bevy::{diagnostic::FrameCount, prelude::*};
-use nova_gameplay::{flight::FlightSpeedCap, prelude::Health};
+use nova_gameplay::prelude::Health;
 use nova_scenario::{loader::ScenarioLoaded, variables::VariableLiteral, world::NovaEventWorld};
+use nova_ship::flight::prelude::FlightSpeedCap;
 
 use super::{
     frametime::perf_param,

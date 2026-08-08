@@ -4,7 +4,7 @@
 //! than kept persistent, so there are no child text nodes to clear.
 
 use bevy::prelude::*;
-use nova_gameplay::prelude::*;
+use nova_ship::prelude::*;
 use nova_ui::theme;
 
 use crate::{ui::card::ComponentCard, ExampleStates};

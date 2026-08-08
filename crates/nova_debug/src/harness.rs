@@ -96,16 +96,15 @@ pub use nova_autopilot::{
 };
 use nova_events::prelude::EntityId;
 use nova_gameplay::{
-    prelude::{
-        HudVisibility, PlayerSpaceshipMarker, SectionMarker, SpaceshipRootMarker,
-        WASDCameraController,
-    },
+    prelude::{PlayerSpaceshipMarker, SectionMarker, SpaceshipRootMarker},
     GameStates,
 };
+use nova_hud::prelude::HudVisibility;
 use nova_scenario::prelude::{
     NovaEventWorld, ScenarioCameraMarker, ScenarioId, ScenarioLoaded, ScriptedCameraPose,
     VariableLiteral,
 };
+use nova_ship::prelude::WASDCameraController;
 
 /// Seconds the [`nova_autopilot()`] preset holds `Loading` before exiting. Must
 /// comfortably outlast asset loading (the loader drives `Loading -> Playing` on

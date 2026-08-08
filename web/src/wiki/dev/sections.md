@@ -8,13 +8,13 @@ the ship root with its own collider, mass, and health, and contributes one
 behavior (structure, thrust, steering, guns). The **integrity** system tracks
 how sections connect and handles damage, disabling, and cascading destruction.
 
-## Sections (`nova_gameplay::sections`)
+## Sections (`nova_ship::sections`)
 
 A section is a `SectionConfig { base: BaseSectionConfig, kind: SectionKind }`.
 `BaseSectionConfig` is shared by all kinds: `id`, `name`, `description`, `mass`,
 `health`.
 
-`SectionKind` variants (one module per kind under `crates/nova_gameplay/src/sections/`):
+`SectionKind` variants (one module per kind under `crates/nova_ship/src/sections/`):
 
 | Kind         | What it does |
 |--------------|--------------|
@@ -31,7 +31,7 @@ populated in `crates/nova_assets/src/sections.rs`. Look one up with
 ### Meshes and colliders (authorable)
 
 Two authorable knobs decouple a section's LOOK and PHYSICS from the default unit
-cube (`crates/nova_gameplay/src/sections/base_section.rs`); both default to the
+cube (`crates/nova_ship/src/sections/base_section.rs`); both default to the
 old behavior so unset content is byte-for-byte unchanged:
 
 - `render_mesh_transform` (optional, on every mesh-bearing kind) - an offset /

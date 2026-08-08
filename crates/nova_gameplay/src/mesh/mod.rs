@@ -7,7 +7,7 @@
 //! Nova owns these because the asteroids, the thruster exhausts, the velocity
 //! indicator and the destruction debris are all built here - their subdivision
 //! depths and fragment counts are art decisions, not engine ones. The builder
-//! shares [`crate::math`]'s `slerp` with [`crate::camera`] and
+//! shares [`crate::math`]'s `slerp` with `nova_ship`'s camera rigs and
 //! [`crate::transform`].
 
 pub mod builder;

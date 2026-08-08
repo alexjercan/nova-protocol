@@ -10,7 +10,7 @@ pub(crate) mod tooltip;
 
 use bevy::{prelude::*, ui_widgets::observe};
 use nova_assets::prelude::*;
-use nova_gameplay::prelude::*;
+use nova_ship::prelude::*;
 use nova_ui::{
     prelude::{panel, panel_header, separator, themed_button, ButtonValue, UiSkin},
     screen::{scroll_column, scroll_viewport},

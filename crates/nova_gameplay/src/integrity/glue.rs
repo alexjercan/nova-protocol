@@ -299,9 +299,7 @@ mod physics_tests {
     use bevy_rand::prelude::*;
 
     use super::*;
-    use crate::integrity::test_support::{
-        integrity_physics_app, settle, unfinished_integrity_physics_app,
-    };
+    use crate::test_support::{integrity_physics_app, settle, unfinished_integrity_physics_app};
 
     /// Spawn a ship section entity (as `base_section` does: `SectionMarker` + cuboid collider
     /// + health/density) at a grid position, parented to `root`.
@@ -611,7 +609,7 @@ mod ghost_ship_tests {
     use nova_events::prelude::{EntityId, EntityTypeName, GameEvent};
 
     use super::*;
-    use crate::integrity::test_support::{settle, unfinished_integrity_physics_app};
+    use crate::test_support::{settle, unfinished_integrity_physics_app};
 
     /// Counts every fired [`GameEvent`]. `GameEvent.name` has no public
     /// accessor, so this counts ALL of them - which in THIS rig means

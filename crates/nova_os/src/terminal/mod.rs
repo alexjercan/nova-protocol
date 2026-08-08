@@ -1,7 +1,7 @@
 //! Terminal model: the [`NovaOsTerminal`] resource, its scrollback row types,
 //! the boot/welcome/help content builders, and the prompt-render string
 //! helpers. This is the pure command-prompt state the bevy UI in
-//! `nova_gameplay` reads and drives.
+//! `nova_os_ui` reads and drives.
 //!
 //! Three concerns, one module each, all re-exported here so `terminal::<item>`
 //! paths are unchanged: `state` holds the resource, its types and the session

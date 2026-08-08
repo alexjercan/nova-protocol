@@ -1,7 +1,7 @@
 # Add a ship section
 
 Ship-section kinds are a CLOSED enum. There is no data-driven registry for
-them: `SectionKind` (`crates/nova_gameplay/src/sections/base_section.rs`) is a
+them: `SectionKind` (`crates/nova_ship/src/sections/base_section.rs`) is a
 Rust enum, every match on it is exhaustive, and the compiler will not let you
 land a new variant until every site handles it. Adding a kind is a fixed
 sequence of ~10 edits across the gameplay, scenario, editor, and assets crates,
@@ -41,7 +41,7 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
 `Shield`).
 
 1. **New config module.**
-   Create `crates/nova_gameplay/src/sections/<kind>_section.rs`, modelled on
+   Create `crates/nova_ship/src/sections/<kind>_section.rs`, modelled on
    `hull_section.rs` (simplest) or `turret_section.rs` (behavior + FixedUpdate
    systems). It defines: a `<Kind>SectionConfig` struct, a `<kind>_section`
    bundle fn, a `<Kind>SectionMarker` component, a `<Kind>SectionPlugin`, and a
@@ -58,12 +58,12 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
    }
    ```
 
-   Then register the module in `crates/nova_gameplay/src/sections/mod.rs`: add
+   Then register the module in `crates/nova_ship/src/sections/mod.rs`: add
    `pub mod <kind>_section;` and re-export `<kind>_section::prelude::*` in the
    module `prelude`.
 
 2. **Add the enum variant.**
-   In `crates/nova_gameplay/src/sections/base_section.rs`, add the variant to
+   In `crates/nova_ship/src/sections/base_section.rs`, add the variant to
    `SectionKind` (grep for `enum SectionKind`):
 
    ```rust
@@ -100,7 +100,7 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
    (`kinetic_resistance_is_one_on_every_section` iterates it).
 
 4. **Wire the section plugin.**
-   In `crates/nova_gameplay/src/sections/mod.rs`, add your plugin to the
+   In `crates/nova_ship/src/sections/mod.rs`, add your plugin to the
    `add_plugins((...))` tuple in `SpaceshipSectionPlugin::build` (grep for
    `impl Plugin for SpaceshipSectionPlugin`),
    passing the `render` flag like the others:

@@ -332,7 +332,7 @@ fn check_action(
             // The panel clamps silently; an authored dwell outside the
             // documented range is an authoring slip worth a nudge.
             if let Some(dwell) = config.dwell {
-                use nova_gameplay::prelude::{COMMS_DWELL_MAX_SECS, COMMS_DWELL_MIN_SECS};
+                use nova_hud::prelude::{COMMS_DWELL_MAX_SECS, COMMS_DWELL_MIN_SECS};
                 if !(COMMS_DWELL_MIN_SECS..=COMMS_DWELL_MAX_SECS).contains(&dwell) {
                     issues.push(LintIssue::warn(
                         scenario,

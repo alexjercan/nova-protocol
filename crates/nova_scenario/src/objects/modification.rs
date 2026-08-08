@@ -15,7 +15,8 @@
 //! component + observer, no central match to grow.
 
 use bevy::{ecs::system::EntityCommands, platform::collections::HashSet, prelude::*};
-use nova_gameplay::prelude::{FlightVerb, Health, WithheldVerbs};
+use nova_gameplay::prelude::Health;
+use nova_ship::prelude::{FlightVerb, WithheldVerbs};
 
 /// `SectionModification` with the rename and health overrides it applies.
 pub mod prelude {
@@ -127,9 +128,10 @@ fn apply_section_rename(
 
 #[cfg(test)]
 mod tests {
-    use nova_gameplay::prelude::{
+    use nova_gameplay::prelude::ControllerSectionMarker;
+    use nova_ship::prelude::{
         base_section, controller_section, hull_section, BaseSectionConfig, ControllerSectionConfig,
-        ControllerSectionMarker, HullSectionConfig, WithheldVerbs,
+        HullSectionConfig, WithheldVerbs,
     };
 
     use super::*;
@@ -333,7 +335,7 @@ mod tests {
     /// straight onto the controller section) that the shakedown e2e relies on.
     #[test]
     fn disable_verb_applies_through_the_real_ship_spawn() {
-        use nova_gameplay::prelude::{GameSections, SectionKind};
+        use nova_ship::prelude::{GameSections, SectionKind};
 
         use crate::objects::spaceship::{prelude::*, SectionSource};
 
@@ -352,14 +354,14 @@ mod tests {
                         id: "controller".to_string(),
                         position: Vec3::ZERO,
                         rotation: Quat::IDENTITY,
-                        source: SectionSource::Inline(nova_gameplay::prelude::SectionConfig {
-                            base: nova_gameplay::prelude::BaseSectionConfig {
+                        source: SectionSource::Inline(nova_ship::prelude::SectionConfig {
+                            base: nova_ship::prelude::BaseSectionConfig {
                                 id: "controller".to_string(),
                                 health: 100.0,
                                 ..default()
                             },
                             kind: SectionKind::Controller(
-                                nova_gameplay::prelude::ControllerSectionConfig::default(),
+                                nova_ship::prelude::ControllerSectionConfig::default(),
                             ),
                         }),
                         modifications: vec![SectionModification::DisableVerb(FlightVerb::Orbit)],

@@ -27,11 +27,9 @@ use bevy::{
     render::render_resource::TextureViewDimension,
 };
 use nova_events::prelude::{EventAction, GameEventInfo, GameEventsPlugin};
-use nova_gameplay::{
-    camera::skybox::{SkyboxConfig, SkyboxPlugin},
-    prelude::GameObjectives,
-};
+use nova_gameplay::prelude::GameObjectives;
 use nova_scenario::prelude::*;
+use nova_ship::camera::skybox::prelude::{SkyboxConfig, SkyboxPlugin};
 
 /// A headless app that loads real PNGs and runs the full skybox-swap chain: the
 /// `SkyboxPlugin` observer, the real event flush (`GameEventsPlugin::<NovaEventWorld>`

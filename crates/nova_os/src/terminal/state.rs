@@ -17,7 +17,7 @@ pub const MAX_SCROLLBACK_ROWS: usize = 500;
 
 /// The NOVA OS command prompt: the typed line, its parse state and completion
 /// cycle, the rendered scrollback, the command history, and the boot-banner
-/// queue. `nova_gameplay` inserts this as a bevy `Resource`, drives it from the
+/// queue. `nova_os_ui` inserts this as a bevy `Resource`, drives it from the
 /// keyboard systems (via the `pub` edit/submit/completion methods), and reads it
 /// back through the accessors to render the terminal UI.
 #[derive(Resource, Debug, Clone)]
@@ -38,7 +38,7 @@ pub struct NovaOsTerminal {
     /// Every command mirrored from the [`crate::command::NovaOsCommandRegistry`]
     /// so parsing/completion/help know the full set. Seeded with the core builtins
     /// by [`Default`]; the registered apps and their subcommands (e.g. `map` /
-    /// `map view`) are folded in by `sync_nova_os_commands` in `nova_gameplay`.
+    /// `map view`) are folded in by `sync_nova_os_commands` in `nova_os_ui`.
     pub(super) commands: Vec<TerminalCommandSpec>,
     /// Set by the `exit` command; the keyboard system consumes it to drive the
     /// animated close of the computer (mirrors the HTML PoC's `exit`).
@@ -64,13 +64,13 @@ pub struct NovaOsTerminal {
     /// ([`CommandDispatch::Gameplay`](crate::shell::CommandDispatch::Gameplay))
     /// that [`Self::submit`] resolved and is waiting for the gameplay layer to
     /// apply.
-    /// `nova_gameplay` drains it with [`Self::take_pending_invocation`], runs the
+    /// `nova_os_ui` drains it with [`Self::take_pending_invocation`], runs the
     /// action against the live world, and appends the result rows. `None` except
     /// in the frame a `ship section/reload/repair <id>` line was submitted.
     pub(super) pending_invocation: Option<NovaOsCommandInvocation>,
     /// Completion candidates for the argument of an arg-bearing command, keyed by
     /// command name (`"ship repair" -> ["HULL-1", "PDC-1", ...]`). The pure
-    /// terminal cannot enumerate live section codes, so `nova_gameplay` injects
+    /// terminal cannot enumerate live section codes, so `nova_os_ui` injects
     /// them via [`Self::merge_arg_completions`]; Tab and the ghost read them.
     pub(super) arg_completions: HashMap<&'static str, Vec<String>>,
 }
@@ -89,7 +89,7 @@ pub struct NovaOsCommandInvocation {
 }
 
 /// One rendered line of terminal scrollback: its semantic kind (which drives the
-/// phosphor colour in the UI) and its text. `nova_gameplay`'s game-data bridges
+/// phosphor colour in the UI) and its text. `nova_os_ui`'s game-data bridges
 /// build these directly, so the fields are public.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalRow {
@@ -151,7 +151,7 @@ pub enum TerminalMode {
 /// Live game data resolved into terminal rows, passed into
 /// [`NovaOsTerminal::submit`] so the pure model can serve the snapshot-backed CLI
 /// commands (`log`/`objectives`/`ship view`/`map view`/`clear`) without reaching into
-/// the bevy world itself. `nova_gameplay` builds this each submit from the flight
+/// the bevy world itself. `nova_os_ui` builds this each submit from the flight
 /// log, objectives, ship state and contact model.
 #[derive(Debug, Clone, Default)]
 pub struct TerminalCommandSnapshot {
@@ -339,7 +339,7 @@ impl NovaOsTerminal {
     }
 
     /// Take the arg-bearing gameplay invocation queued by the last
-    /// [`Self::submit`], if any. `nova_gameplay` calls this right after submit,
+    /// [`Self::submit`], if any. `nova_os_ui` calls this right after submit,
     /// applies the action against the live world, and appends the result rows via
     /// [`Self::extend_scrollback`].
     pub fn take_pending_invocation(&mut self) -> Option<NovaOsCommandInvocation> {

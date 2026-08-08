@@ -5,7 +5,7 @@
 
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::Binding;
-use nova_gameplay::prelude::*;
+use nova_ship::prelude::*;
 
 use crate::{config::PlayerSpaceshipConfig, ExampleStates};
 
@@ -268,6 +268,7 @@ pub(crate) fn apply_section_rebind(
 #[cfg(test)]
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
+    use nova_gameplay::prelude::*;
 
     use super::*;
 

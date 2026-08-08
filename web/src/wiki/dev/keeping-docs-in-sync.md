@@ -50,9 +50,9 @@ it if the change made it wrong - not every change touches every listed page.
 
 | Code area (crate / dir) | Player wiki | Dev wiki | Also |
 | --- | --- | --- | --- |
-| Ship sections, integrity, typed damage, ammo (`nova_gameplay/sections`, `integrity`) | `sections.md` (+ section children), `hud.md` | `dev/sections.md`, `dev/guide-author-section.md`, `dev/guide-add-section.md` | CHANGELOG |
-| Flight, controller, camera (`nova_gameplay/input`, `camera`) | `flight-autopilot.md`, `keybinds.md` | `dev/architecture.md` | CHANGELOG |
-| Targeting, radar, weapons, turrets, torpedoes (`nova_gameplay` targeting/hud) | `targeting-radar.md`, `combat-weapons.md`, `hud.md` | `dev/architecture.md` | CHANGELOG |
+| Ship sections, integrity, typed damage, ammo (`nova_ship/sections`, `nova_gameplay/integrity`) | `sections.md` (+ section children), `hud.md` | `dev/sections.md`, `dev/guide-author-section.md`, `dev/guide-add-section.md` | CHANGELOG |
+| Flight, controller, camera (`nova_ship/input`, `camera`) | `flight-autopilot.md`, `keybinds.md` | `dev/architecture.md` | CHANGELOG |
+| Targeting, radar, weapons, turrets, torpedoes (`nova_ship` targeting/sections, `nova_hud`) | `targeting-radar.md`, `combat-weapons.md`, `hud.md` | `dev/architecture.md` | CHANGELOG |
 | Gravity wells, factions, world (`nova_gameplay`) | `gravity-wells.md`, `factions.md` | | CHANGELOG |
 | Scenario engine: events, filters, actions, variables, objects (`nova_scenario`, `nova_events`) | `scenarios.md` | `dev/scenario-system.md`, `dev/guide-author-scenario.md`, `dev/guide-extend-scenarios.md` | CHANGELOG |
 | Modding data format, bundles, catalog, local cache (`nova_mod_format`, `nova_modding`) | `modding.md` | `dev/modding-ron.md`, `dev/guide-make-a-mod.md` | CHANGELOG **(breaking?)** |

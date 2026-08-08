@@ -1,7 +1,7 @@
 //! Structural checks over a scenario's ships and their section configs.
 
 use bevy::prelude::Vec3;
-use nova_gameplay::prelude::{
+use nova_ship::prelude::{
     SectionCollider, SectionConfig, SectionKind, TurretJoint, TurretSectionConfig,
 };
 
@@ -533,7 +533,7 @@ mod tests {
     /// INLINE colliders are resolved; prototypes fall back to the unit cube.
     #[test]
     fn overlap_uses_authored_collider_half_extents() {
-        use nova_gameplay::prelude::{BaseSectionConfig, HullSectionConfig};
+        use nova_ship::prelude::{BaseSectionConfig, HullSectionConfig};
 
         // An inline hull section at `pos` with the given collider.
         let inline =
@@ -776,7 +776,7 @@ mod tests {
     /// membership involved.
     #[test]
     fn inline_mount_sections_are_checked() {
-        use nova_gameplay::prelude::{BaseSectionConfig, TurretSectionConfig};
+        use nova_ship::prelude::{BaseSectionConfig, TurretSectionConfig};
 
         let mut action = ship_with_mount(Vec3::new(1.0, 0.0, 0.0), Quat::IDENTITY);
         let EventActionConfig::SpawnScenarioObject(config) = &mut action else {
@@ -798,7 +798,7 @@ mod tests {
 
     #[test]
     fn turret_joint_tree_wellformedness_is_linted() {
-        use nova_gameplay::prelude::{
+        use nova_ship::prelude::{
             BaseSectionConfig, MuzzleConfig, TurretJoint, TurretSectionConfig,
         };
 
@@ -912,7 +912,7 @@ mod tests {
     /// from the mount set rather than risking a false Error.
     #[test]
     fn section_catalog_classifies_mount_kinds() {
-        use nova_gameplay::prelude::{
+        use nova_ship::prelude::{
             BaseSectionConfig, ControllerSectionConfig, HullSectionConfig, ThrusterSectionConfig,
             TorpedoSectionConfig, TurretSectionConfig,
         };

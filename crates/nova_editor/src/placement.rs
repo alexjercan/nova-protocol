@@ -8,6 +8,7 @@ use bevy::{picking::pointer::PointerInteraction, prelude::*, ui_widgets::Activat
 use bevy_enhanced_input::prelude::Binding;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
+use nova_ship::prelude::*;
 
 use crate::{
     config::{PlayerSpaceshipConfig, SectionChoice, SectionPreviewMarker, SpaceshipPreviewMarker},

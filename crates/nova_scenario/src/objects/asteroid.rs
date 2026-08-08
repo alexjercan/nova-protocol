@@ -12,6 +12,8 @@ use bevy_rand::prelude::*;
 use noise::{Fbm, MultiFractal, NoiseFn, Perlin};
 use nova_events::prelude::{CommandsGameEventExt, *};
 use nova_gameplay::prelude::*;
+use nova_hud::prelude::*;
+use nova_ship::prelude::*;
 use rand::Rng;
 
 /// The asteroid scenario object and its config, the radius, mass, mesh and texture components, the

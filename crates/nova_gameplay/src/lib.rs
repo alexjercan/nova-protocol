@@ -1,19 +1,22 @@
-//! `nova_gameplay` is the game itself: the systems and components that make a
-//! ship fly, fight, and take damage. `NovaGameplayPlugin` composes it and owns
-//! the top-level [`GameStates`] state machine. The modules span the whole
-//! playable surface - `sections` (the modular ship parts), `integrity` and
-//! `damage` (health, disable, destroy), `flight` and `gravity` (the diegetic
-//! controller, autopilot verbs, and gravity wells), `physics` (the PD attitude
-//! controller and the point-velocity relation), `input` (player, AI, and
-//! radar targeting), `hud`, `camera` (the controller and the rigs under it),
-//! `audio`, `juice` (camera
-//! shake and hit feedback), `objectives` (the mission objective list, its panel
-//! and the conveyance tags), `lifetime` and `cooldown` (transient entities and
-//! the countdowns that gate actions), and `settings` (volume + graphics
+//! `nova_gameplay` is the shared gameplay layer: what every playable thing in
+//! the world is made of, with no knowledge of the ship built on top of it.
+//! `NovaGameplayPlugin` composes it and owns the top-level [`GameStates`] state
+//! machine and the physics, entropy and particle registrations its peers build
+//! on. The modules are `integrity` and `damage` (health, disable, destroy),
+//! `gravity` (gravity wells), `audio` (the SFX engine), `juice` (combat
+//! feedback) over the reusable trauma rig in `shake`, `objectives` (the mission
+//! objective list and its conveyance tags), `mesh` and `transform` (the mesh
+//! toolkit and the rotation/orbit rigs), `markers` and `projectile_hooks` (the
+//! entity vocabulary the layers above tag with), `lifetime` and `cooldown`
+//! (transient entities and the countdowns that gate actions), `math`,
+//! `relations`, `beacon`, `asset_ref` and `settings` (volume + graphics
 //! presets). Nova owns all of it, engine layers included: health, damage and
-//! destruction (`integrity`), the camera and transform rigs, the mesh toolkit,
-//! the PD attitude controller (`physics`) and SFX playback were vendored in
-//! from the shared-helpers crate and are nova's to shape now.
+//! destruction (`integrity`), the transform rigs, the mesh toolkit and SFX
+//! playback were vendored in from the shared-helpers crate and are nova's to
+//! shape now.
+//!
+//! The ship itself - `sections`, `input`, `flight`, `camera`, `physics` and the
+//! ship's soundtrack - is the peer crate `nova_ship`, which depends on this one.
 #![warn(missing_docs)]
 
 use bevy::prelude::*;
@@ -21,24 +24,23 @@ use bevy::prelude::*;
 pub mod asset_ref;
 pub mod audio;
 pub mod beacon;
-pub mod camera;
 pub mod cooldown;
 pub mod damage;
-pub mod flight;
 pub mod gravity;
-pub mod hud;
-pub mod input;
 pub mod integrity;
 pub mod juice;
 pub mod lifetime;
+pub mod markers;
 pub mod math;
 pub mod mesh;
 pub mod objectives;
-pub mod physics;
 pub mod plugin;
+pub mod projectile_hooks;
 pub mod relations;
-pub mod sections;
 pub mod settings;
+pub mod shake;
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
 pub mod transform;
 
 /// Test-only helper for asserting on log output: a shared in-memory sink
@@ -47,17 +49,22 @@ pub mod transform;
 /// commands/mod.rs `queue_handled(_, warn)`), so a `FallbackErrorHandler`
 /// swap can never see them - a "no stale command" regression test must
 /// assert on the log itself.
-#[cfg(test)]
-pub(crate) mod test_log {
+///
+/// Behind the same `test-support` feature as [`test_support`], and for the same
+/// reason: the crates split out of this one assert on the same log.
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_log {
     /// Cloneable in-memory log sink; every clone shares the same buffer.
     #[derive(Clone, Default)]
-    pub(crate) struct CapturedLog(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+    pub struct CapturedLog(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
 
     impl CapturedLog {
-        pub(crate) fn contents(&self) -> String {
+        /// Everything written to the sink so far, as a lossy UTF-8 string.
+        pub fn contents(&self) -> String {
             String::from_utf8_lossy(&self.0.lock().unwrap()).into_owned()
         }
-        pub(crate) fn clear(&self) {
+        /// Drops everything written so far.
+        pub fn clear(&self) {
             self.0.lock().unwrap().clear();
         }
     }
@@ -84,33 +91,11 @@ pub mod prelude {
     // INERT (task 20260802-183403). The glob is gone with the dependency, but
     // the lesson outlives it: adding a name below is a decision.
     pub use super::{
-        asset_ref::prelude::*,
-        audio::{
-            sounds_loaded, NovaAudioPlugin, PlaySfx, SfxCommandsExt, SfxListenerMarker,
-            SfxMasterVolume, SfxPlugin, SoundBank, UiSfx, MENU_SELECT_VOLUME,
-            SALVAGE_PICKUP_VOLUME, UI_SFX_FILES, UI_TOGGLE_VOLUME,
-        },
-        beacon::prelude::*,
-        camera::prelude::*,
-        cooldown::prelude::*,
-        damage::prelude::*,
-        flight::prelude::*,
-        gravity::prelude::*,
-        hud::prelude::*,
-        input::prelude::*,
-        integrity::prelude::*,
-        juice::prelude::*,
-        lifetime::prelude::*,
-        mesh::prelude::*,
-        objectives::prelude::*,
-        physics::prelude::*,
-        plugin::{NovaGameplayPlugin, SpaceshipSystems},
-        relations::prelude::*,
-        sections::prelude::*,
-        settings::{
-            GraphicsBudget, GraphicsQuality, HarnessMute, MasterVolume, NovaSettingsPlugin,
-        },
-        transform::prelude::*,
+        asset_ref::prelude::*, audio::prelude::*, beacon::prelude::*, cooldown::prelude::*,
+        damage::prelude::*, gravity::prelude::*, integrity::prelude::*, juice::prelude::*,
+        lifetime::prelude::*, markers::prelude::*, math::prelude::*, mesh::prelude::*,
+        objectives::prelude::*, plugin::prelude::*, projectile_hooks::prelude::*,
+        relations::prelude::*, settings::prelude::*, shake::prelude::*, transform::prelude::*,
         GameMode, GameStates, PauseStates,
     };
 }

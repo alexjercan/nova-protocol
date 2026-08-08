@@ -6,14 +6,11 @@
 use bevy::prelude::*;
 use rand::prelude::*;
 
-use crate::math::spherical_to_cartesian;
+use crate::math::prelude::*;
 
 /// Glob-import surface for the random sphere-orbit rig.
 pub mod prelude {
-    pub use super::{
-        RandomSphereOrbit, RandomSphereOrbitOutput, SphereRandomOrbitPlugin,
-        SphereRandomOrbitSystems,
-    };
+    pub use super::{RandomSphereOrbit, RandomSphereOrbitOutput, SphereRandomOrbitPlugin};
 }
 
 /// Component to define a spherical orbit around a center point.
@@ -47,15 +44,6 @@ struct RandomSphereOrbitNext {
     phi: f32,
 }
 
-/// The system set used by the random sphere orbit plugin.
-///
-/// Only contains the orbit sync systems.
-#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum SphereRandomOrbitSystems {
-    /// Picks new target angles when needed and writes the resulting pose.
-    Sync,
-}
-
 /// Plugin to manage entities with `RandomSphereOrbit` component.
 ///
 /// RandomSphereOrbit allows an entity to orbit around a point on the surface of a sphere,
@@ -75,8 +63,7 @@ impl Plugin for SphereRandomOrbitPlugin {
                 random_sphere_update_state,
                 random_sphere_update_output,
             )
-                .chain()
-                .in_set(SphereRandomOrbitSystems::Sync),
+                .chain(),
         );
     }
 }

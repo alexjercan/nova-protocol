@@ -23,12 +23,9 @@
 
 use bevy::prelude::*;
 
-/// The despawn message and its plugin, and `TempEntity` with `TempEntityPlugin` and
-/// `TempEntitySystems`.
+/// The despawn message and its plugin, and `TempEntity` with `TempEntityPlugin`.
 pub mod prelude {
-    pub use super::{
-        DespawnEntity, DespawnEntityPlugin, TempEntity, TempEntityPlugin, TempEntitySystems,
-    };
+    pub use super::{DespawnEntity, DespawnEntityPlugin, TempEntity, TempEntityPlugin};
 }
 
 /// Component indicating that the entity is temporary.
@@ -46,13 +43,6 @@ pub struct TempEntity(pub f32);
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 struct TempEntityState(Timer);
 
-/// System set for the [`TempEntityPlugin`].
-#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum TempEntitySystems {
-    /// Ticks the lifetime timers and despawns the entities that ran out.
-    Sync,
-}
-
 /// Plugin that manages temporary entities.
 ///
 /// Automatically inserts the timer state on entities with `TempEntity` and
@@ -66,12 +56,7 @@ impl Plugin for TempEntityPlugin {
         app.add_observer(on_insert_temp_entity);
 
         // NOTE: Update, so the timers tick with the frame delta.
-        app.add_systems(
-            Update,
-            (update_temp_entities,)
-                .chain()
-                .in_set(TempEntitySystems::Sync),
-        );
+        app.add_systems(Update, update_temp_entities);
     }
 }
 

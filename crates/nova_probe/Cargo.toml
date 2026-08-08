@@ -32,6 +32,7 @@ nova_core = { path = "../nova_core" }
 # The capture plugin reads GameStates / WeaponsHot / PlayerSpaceshipMarker and
 # tops up Health (nova's own, out of nova_gameplay::integrity::health).
 nova_gameplay = { path = "../nova_gameplay" }
+nova_ship = { path = "../nova_ship" }
 # The run-timeline recorder observes the scenario's GameEvent stream, named
 # directly out of the engine that owns it rather than re-exported through
 # nova_gameplay - the same probe -> dependency direction as nova_autopilot.

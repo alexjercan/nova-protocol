@@ -20,6 +20,7 @@
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
+use nova_ship::prelude::*;
 
 use super::{
     cast::{CAPTAIN_HALLORAN, PLAYER},

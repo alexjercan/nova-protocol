@@ -230,15 +230,13 @@ impl Plugin for NovaGravityPlugin {
             .register_type::<DominantWell>();
 
         app.add_observer(insert_gravity_affected_on_player_ship);
-        app.add_observer(insert_gravity_affected_on_ai_ship);
         app.add_observer(insert_gravity_affected_on_torpedo);
         app.add_observer(insert_gravity_affected_on_turret_round);
         app.add_observer(remove_dominant_well_on_well_removed);
 
-        app.configure_sets(
-            FixedUpdate,
-            NovaGravitySystems.before(SpaceshipSectionSystems),
-        );
+        // The edge against the ship's section systems is declared by
+        // `SpaceshipSectionPlugin`, not here: gravity is the lower layer and
+        // must not name the ship.
         app.add_systems(FixedUpdate, gravity_well_system.in_set(NovaGravitySystems));
     }
 }
@@ -249,18 +247,16 @@ impl Plugin for NovaGravityPlugin {
 /// `AISpaceshipMarker` per controller (a `controller: None` ship gets neither).
 /// An unpiloted ship has no drive to resist a well, so gravity would just drag
 /// it in - scripted bystanders (the Broadside Ceres Queen) are meant to FLOAT,
-/// not fall. A hauler that GAINS an AI pilot (the Lifeline loiter) opts in the
-/// moment its `AISpaceshipMarker` lands. Both observers `try_insert` the same
-/// idempotent marker, so a ship that somehow carried both would just opt in
-/// once.
+/// not fall.
+///
+/// Only the PLAYER half is here. The AI half is the identical observer in
+/// `input::ai`, because `AISpaceshipMarker` requires the AI behavior state and
+/// so cannot be named from this layer. Both `try_insert` the same idempotent
+/// marker, so a ship that somehow carried both would just opt in once.
 fn insert_gravity_affected_on_player_ship(
     add: On<Add, PlayerSpaceshipMarker>,
     mut commands: Commands,
 ) {
-    commands.entity(add.entity).try_insert(GravityAffected);
-}
-
-fn insert_gravity_affected_on_ai_ship(add: On<Add, AISpaceshipMarker>, mut commands: Commands) {
     commands.entity(add.entity).try_insert(GravityAffected);
 }
 
@@ -651,11 +647,12 @@ mod tests {
         assert_eq!(dominant_well(Some(a), &[(b, 0.01)], 1.1), Some(b));
     }
 
+    /// The AI arm of this opt-in is tested beside its observer in `input::ai`,
+    /// which is where it now lives.
     #[test]
-    fn piloted_ships_torpedoes_and_turret_rounds_opt_into_gravity() {
+    fn the_player_ship_torpedoes_and_turret_rounds_opt_into_gravity() {
         let mut app = App::new();
         app.add_observer(insert_gravity_affected_on_player_ship);
-        app.add_observer(insert_gravity_affected_on_ai_ship);
         app.add_observer(insert_gravity_affected_on_torpedo);
         app.add_observer(insert_gravity_affected_on_turret_round);
 
@@ -663,16 +660,11 @@ mod tests {
             .world_mut()
             .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
             .id();
-        let ai = app
-            .world_mut()
-            .spawn((SpaceshipRootMarker, AISpaceshipMarker))
-            .id();
         let torpedo = app.world_mut().spawn(TorpedoProjectileMarker).id();
         let round = app.world_mut().spawn(TurretBulletProjectileMarker).id();
         app.update();
 
         assert!(app.world().get::<GravityAffected>(player).is_some());
-        assert!(app.world().get::<GravityAffected>(ai).is_some());
         assert!(app.world().get::<GravityAffected>(torpedo).is_some());
         assert!(app.world().get::<GravityAffected>(round).is_some());
     }
@@ -684,10 +676,10 @@ mod tests {
     fn an_unpiloted_ship_does_not_opt_into_gravity() {
         let mut app = App::new();
         app.add_observer(insert_gravity_affected_on_player_ship);
-        app.add_observer(insert_gravity_affected_on_ai_ship);
 
-        // A bystander: the ship root, but neither pilot marker (as nova_scenario
-        // spawns a `controller: None` ship).
+        // A bystander: the ship root, but no pilot marker (as nova_scenario
+        // spawns a `controller: None` ship). The AI observer lives in
+        // `input::ai` now and keys on a marker this entity also lacks.
         let bystander = app.world_mut().spawn(SpaceshipRootMarker).id();
         app.update();
 
@@ -702,7 +694,7 @@ mod tests {
     // A real avian world with the real force system: well pull -> velocity ->
     // orbit. No thrusters anywhere; these cover the substrate alone.
 
-    use crate::integrity::test_support::{settle, unfinished_integrity_physics_app};
+    use crate::test_support::{settle, unfinished_integrity_physics_app};
 
     /// The real plugin on the physics harness, so these tests cover the
     /// wiring (observers, resource, set, system) and not just the system fn.

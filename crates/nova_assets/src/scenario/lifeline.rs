@@ -32,6 +32,7 @@
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
+use nova_ship::prelude::*;
 
 use super::{
     cast::{BELT_RELAY, CAPTAIN_HALLORAN, TALLYMAN},

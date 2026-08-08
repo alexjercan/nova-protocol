@@ -474,7 +474,7 @@ fn beat4_geometry_holds_against_the_planetoid_soi() {
     // advances, because a SPAWNED area fires OnEnter for bodies it
     // lands on (pinned in nova_scenario's area tests - the ring
     // spawns with its beat).
-    let standoff = nova_gameplay::prelude::FlightSettings::default().arrival_standoff;
+    let standoff = nova_ship::prelude::FlightSettings::default().arrival_standoff;
     assert!(
         COAST_RING_RADIUS < beacon_4_distance + standoff - 20.0,
         "the coast ring ({COAST_RING_RADIUS}u) leaves the nominal park \
@@ -540,7 +540,7 @@ fn beat4_geometry_holds_against_the_planetoid_soi() {
     // (playtest finding 2) - the autopilot stops arrival_standoff from an
     // unsized target, and a smaller trigger parks the ship outside its own
     // objective.
-    let standoff = nova_gameplay::prelude::FlightSettings::default().arrival_standoff;
+    let standoff = nova_ship::prelude::FlightSettings::default().arrival_standoff;
     assert!(
         BEACON_AREA_RADIUS > standoff + 10.0,
         "beacon trigger ({BEACON_AREA_RADIUS}u) must contain the GOTO park point \

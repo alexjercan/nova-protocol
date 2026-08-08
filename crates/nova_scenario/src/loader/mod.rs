@@ -12,6 +12,7 @@
 use bevy::{platform::collections::HashMap, prelude::*};
 use bevy_enhanced_input::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_ship::prelude::*;
 
 use crate::prelude::*;
 
@@ -479,7 +480,7 @@ mod tests {
     fn a_scenario_config_round_trips_through_ron() {
         use bevy::platform::collections::HashMap;
         use bevy_enhanced_input::prelude::Binding;
-        use nova_gameplay::prelude::{
+        use nova_ship::prelude::{
             BaseSectionConfig, SectionConfig, SectionKind, ThrusterSectionConfig,
         };
 

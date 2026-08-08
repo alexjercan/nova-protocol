@@ -8,6 +8,7 @@ use bevy::{
 };
 use bevy_asset_loader::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_hud::prelude::*;
 use nova_modding::prelude::InstalledCatalog;
 use nova_ui::font::UiFont;
 
@@ -56,7 +57,7 @@ const UI_SFX_COLLECTION_PATHS: [&str; 14] = [
 /// The keycap paths held by the `GameAssets::key_glyphs` mapped collection -
 /// a verbatim mirror of that `#[asset(paths(...))]` attribute (kept adjacent so
 /// they move together). `key_glyph_collection_matches_mapping_table` pins this
-/// against `nova_gameplay::hud::key_glyphs`'s mapping table, which OWNS the set.
+/// against `nova_hud::key_glyphs`'s mapping table, which OWNS the set.
 #[cfg(test)]
 const KEY_GLYPH_COLLECTION_PATHS: [&str; 13] = [
     "input-prompts/keyboard/Alt/T_Brackets_L_Key_Alt.png",
@@ -156,7 +157,7 @@ pub struct GameAssets {
     pub catalog: Handle<InstalledCatalog>,
     /// The keycap glyphs the HUD draws for bound keys, keyed by file stem. The
     /// explicit `paths(...)` list mirrors
-    /// [`nova_gameplay::hud::key_glyphs::key_glyph_asset_paths`] (the mapping
+    /// [`nova_hud::key_glyphs::key_glyph_asset_paths`] (the mapping
     /// table owns it); `key_glyph_collection_matches_mapping_table` pins them
     /// together. Preloaded rather than lazily `server.load`ed per chip so the
     /// keycaps load-gate like the UI font and the CRT mark; a folder collection

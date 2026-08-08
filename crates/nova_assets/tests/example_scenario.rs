@@ -17,11 +17,11 @@ use bevy::{
     prelude::*,
 };
 use nova_assets::prelude::*;
-use nova_gameplay::prelude::GameSections;
 use nova_modding::prelude::{
     BundleAsset, CatalogEntry, Content, ContentAsset, InstalledCatalog, ModEntry, NovaModdingPlugin,
 };
 use nova_scenario::prelude::{ContentIssues, GameScenarios, NewGameStart, ScenarioConfig};
+use nova_ship::prelude::GameSections;
 
 /// A headless app with the asset server pointed at the workspace `assets/` and the
 /// modding plugin (which registers the content/bundle/catalog loaders).

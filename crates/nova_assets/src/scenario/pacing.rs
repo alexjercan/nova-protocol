@@ -23,7 +23,7 @@
 //! clock (`scenario_elapsed`) is engine-owned and pauses behind menus/outcome,
 //! so a deadline measures play time, not wall time.
 
-use nova_gameplay::prelude::{COMMS_DWELL_SECS, COMMS_FADE_OUT_SECS, COMMS_MIN_SECS};
+use nova_hud::prelude::{COMMS_DWELL_SECS, COMMS_FADE_OUT_SECS, COMMS_MIN_SECS};
 use nova_scenario::prelude::*;
 
 use super::shakedown::{eq_num, gt_num, num, set, var};

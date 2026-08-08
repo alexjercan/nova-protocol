@@ -22,7 +22,9 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 
 use super::{components::prelude::*, health::prelude::*};
-use crate::damage::{apply_typed_damage, DamageType, ProjectileDamage, SectionDamageClass};
+use crate::damage::prelude::{
+    apply_typed_damage, DamageType, ProjectileDamage, SectionDamageClass,
+};
 
 /// `IntegrityCorePlugin` and `IntegritySystems`.
 pub mod prelude {

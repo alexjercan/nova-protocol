@@ -29,9 +29,10 @@ use nova_events::prelude::{
     CommandsGameEventExt, EventHandler, GameEventsPlugin, OnDestroyedEvent, OnDestroyedEventInfo,
     OnNeutralizedEvent, OnNeutralizedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
 };
-use nova_gameplay::prelude::{Allegiance, GameObjectives, SectionConfig, SectionKind};
+use nova_gameplay::prelude::{Allegiance, GameObjectives};
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::*;
+use nova_ship::prelude::{SectionConfig, SectionKind};
 
 const CH5_RON: &str = include_str!("../../../webmods/the-ledger/ledger_ch5_the_raid.content.ron");
 const CH4_RON: &str = include_str!("../../../webmods/the-ledger/ledger_ch4.content.ron");

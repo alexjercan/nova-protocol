@@ -332,17 +332,20 @@ members = [
   # The `EventKind` derive for `nova_events::engine`, and its only consumer.
   "crates/nova_events_macros",
   "crates/nova_gameplay",
+  "crates/nova_hud",
   "crates/nova_info",
   "crates/nova_menu",
   "crates/nova_mod_format",
   "crates/nova_modding",
   "crates/nova_os",
+  "crates/nova_os_ui",
   # The wasm frame-time app perf.html builds. Its own crate because it is an
   # APP that links the whole game - `nova_probe` links INTO the game.
   "crates/nova_perf_web",
   "crates/nova_probe",
   "crates/nova_probe_cli",
   "crates/nova_scenario",
+  "crates/nova_ship",
   "crates/nova_ui",
   # Web-build tooling, not a game crate. `nova_meta_gen` stays a workspace
   # MEMBER (so Cargo's feature unification auto-pins its Bevy version AND

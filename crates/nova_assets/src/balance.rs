@@ -39,15 +39,16 @@
 use std::collections::HashMap;
 
 use bevy::math::Vec3;
-use nova_gameplay::prelude::{Allegiance, SectionConfig, SectionKind};
+use nova_gameplay::prelude::Allegiance;
 use nova_scenario::prelude::*;
+use nova_ship::prelude::{SectionConfig, SectionKind};
 
 /// Mirrors the AI's own shot-worth-taking margin (AI_FIRE_RANGE_FACTOR in
-/// nova_gameplay/src/input/ai/guns.rs): effective range = margin x muzzle_speed
+/// nova_ship/src/input/ai/guns.rs): effective range = margin x muzzle_speed
 /// x projectile_lifetime.
 pub const EFFECTIVE_RANGE_MARGIN: f32 = 0.9;
 
-/// Mirrors AI_TORPEDO_MAX_RANGE (nova_gameplay/src/input/ai/torpedo.rs): the
+/// Mirrors AI_TORPEDO_MAX_RANGE (nova_ship/src/input/ai/torpedo.rs): the
 /// outer edge of the AI launch envelope, whose per-bay cooldown starts ELAPSED
 /// - a tube inside this range is a live opening threat.
 pub const TORPEDO_ENVELOPE: f32 = 1000.0;
@@ -117,7 +118,7 @@ impl ShipStats {
 /// Sum the fire rate of every muzzle in a turret's joint tree. Fire rate is
 /// per-muzzle since the joint-tree refactor; the shipped turrets each carry one
 /// muzzle, so for the catalog this is that one rate.
-fn turret_total_fire_rate(joint: &nova_gameplay::prelude::TurretJoint) -> f32 {
+fn turret_total_fire_rate(joint: &nova_ship::prelude::TurretJoint) -> f32 {
     let here = joint.muzzle.as_ref().map(|m| m.fire_rate).unwrap_or(0.0);
     here + joint
         .children
@@ -539,7 +540,7 @@ pub fn audit_bundles_to_audits(
 
 #[cfg(test)]
 mod tests {
-    use nova_gameplay::prelude::{BaseSectionConfig, TurretSectionConfig};
+    use nova_ship::prelude::{BaseSectionConfig, TurretSectionConfig};
 
     use super::*;
 
@@ -555,7 +556,7 @@ mod tests {
     }
 
     fn turret(id: &str, health: f32, fire_rate: f32, damage: f32, speed: f32) -> SectionConfig {
-        use nova_gameplay::prelude::{MuzzleConfig, TurretJoint};
+        use nova_ship::prelude::{MuzzleConfig, TurretJoint};
 
         // A minimal one-muzzle tree carrying this test's fire rate; every other
         // field falls back to the default tree's shape.
@@ -711,7 +712,7 @@ mod tests {
     /// cooldown starts elapsed) - it must not evade the rules.
     #[test]
     fn a_tube_only_onstart_ambusher_is_spawned_dead() {
-        use nova_gameplay::prelude::TorpedoSectionConfig;
+        use nova_ship::prelude::TorpedoSectionConfig;
         let tube = SectionConfig {
             base: BaseSectionConfig {
                 id: "tube".to_string(),

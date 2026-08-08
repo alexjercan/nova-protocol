@@ -25,11 +25,15 @@ use nova_editor::prelude::*;
 pub use nova_events;
 pub use nova_gameplay;
 use nova_gameplay::prelude::*;
+pub use nova_hud;
+use nova_hud::prelude::*;
 pub use nova_info;
 pub use nova_menu;
 use nova_menu::prelude::*;
 pub use nova_scenario;
 use nova_scenario::prelude::*;
+pub use nova_ship;
+use nova_ship::prelude::*;
 use nova_ui::status_bar::{
     status_bar, status_bar_item, status_fps_color_fn, status_fps_value_fn, status_version_color_fn,
     status_version_value_fn, StatusBarItemConfig, StatusBarRootConfig,
@@ -48,9 +52,11 @@ pub mod prelude {
     pub use nova_editor::prelude::*;
     pub use nova_events::prelude::*;
     pub use nova_gameplay::prelude::*;
+    pub use nova_hud::prelude::*;
     pub use nova_info::prelude::*;
     pub use nova_menu::prelude::*;
     pub use nova_scenario::prelude::*;
+    pub use nova_ship::prelude::*;
 
     pub use super::{editor_app, AppBuilder};
 }
@@ -144,9 +150,24 @@ impl AppBuilder {
         self.app.add_plugins(NovaGameplayPlugin {
             render: self.render,
         });
+        // The ship sits above the shared gameplay layer and orders its sets
+        // inside gameplay's `SpaceshipSystems` brackets, so it is added after.
+        self.app.add_plugins(NovaShipPlugin {
+            render: self.render,
+        });
         self.app.add_plugins(NovaScenarioPlugin {
             render: self.render,
         });
+
+        // The flight HUD and the NOVA OS cockpit monitor are peers, each its own
+        // crate above gameplay - so the crate that orders them adds them. Both
+        // are render-gated: a headless harness run draws neither. The HUD goes
+        // first, because the monitor orders its own sets against
+        // `NovaHudSystems`.
+        if self.render {
+            self.app.add_plugins(nova_hud::NovaHudPlugin);
+            self.app.add_plugins(nova_os_ui::NovaOsUiPlugin);
+        }
 
         if self.use_default_plugins {
             self.app.add_plugins(NovaEditorPlugin);
@@ -277,7 +298,7 @@ fn setup_status_ui(mut commands: Commands, game_assets: Res<GameAssets>) {
     // NOTE: the bar is deliberately NOT `HudNovaOsExempt`. While the NOVA OS
     // computer is open the whole flight status bar hides, and the one item that
     // matters there - FPS - is rehomed onto the NOVA OS terminal topbar (see
-    // `drive_nova_os_topbar_fps` in nova_gameplay's hud/nova_os/shell.rs).
+    // `drive_nova_os_topbar_fps` in nova_os_ui/src/terminal/shell.rs).
     // Without the exemption `apply_hud_visibility` hides the bar in
     // `PauseStates::NovaOs` and its pause-change restore branch un-hides it on
     // close. The base GlobalZIndex keeps a stable z at the HUD layer.

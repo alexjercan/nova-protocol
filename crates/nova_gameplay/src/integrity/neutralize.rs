@@ -3,8 +3,12 @@
 //! fight" even with its hull intact. Unlike destruction (see [`explode`] and
 //! [`glue`]), a neutralized ship is NOT despawned - it lingers as a powerless
 //! drifting wreck. This module inserts [`NeutralizedMarker`], switches an AI
-//! ship's combat behavior off ([`AINonCombatant`]), and fires the distinct
-//! [`OnNeutralizedEvent`] so scenarios can treat it as beaten.
+//! [`NeutralizedMarker`] and fires the distinct [`OnNeutralizedEvent`] so
+//! scenarios can treat it as beaten.
+//!
+//! It does NOT know about AI. Taking a neutralized enemy out of combat is the
+//! AI's own reaction to [`NeutralizedMarker`] landing (`input::ai`), which is
+//! what keeps this module free of the AI vocabulary.
 //!
 //! The "was armed" guard ([`WasArmedCombatant`]) is what keeps this honest: an
 //! unarmed hull losing its engines is not out of a fight it was never in, and
@@ -19,8 +23,8 @@ use nova_events::prelude::{CommandsGameEventExt, *};
 
 use super::core::prelude::*;
 use crate::prelude::{
-    AINonCombatant, AISpaceshipMarker, SectionInactiveMarker, SpaceshipRootMarker,
-    ThrusterSectionMarker, TorpedoSectionMarker, TurretSectionMarker,
+    SectionInactiveMarker, SpaceshipRootMarker, ThrusterSectionMarker, TorpedoSectionMarker,
+    TurretSectionMarker,
 };
 
 /// `NeutralizedMarker` and `WasArmedCombatant`.
@@ -76,7 +80,6 @@ fn detect_neutralized(
             Option<&EntityId>,
             Option<&EntityTypeName>,
             Has<WasArmedCombatant>,
-            Has<AISpaceshipMarker>,
         ),
         (With<SpaceshipRootMarker>, Without<NeutralizedMarker>),
     >,
@@ -89,7 +92,7 @@ fn detect_neutralized(
     >,
     q_thruster: Query<Has<SectionInactiveMarker>, With<ThrusterSectionMarker>>,
 ) {
-    for (root, children, id, type_name, was_armed, is_ai) in &q_root {
+    for (root, children, id, type_name, was_armed) in &q_root {
         let mut has_weapon_section = false;
         let mut working_weapon = false;
         let mut working_thruster = false;
@@ -121,12 +124,6 @@ fn detect_neutralized(
         // Combat-dead: no working weapons and no working thrusters.
         commands.entity(root).insert(NeutralizedMarker);
 
-        // Take an AI ship out of the fight so it stops being engaged/chased.
-        // (Its own weapons/thrusters are already gone, so it cannot act.)
-        if is_ai {
-            commands.entity(root).insert(AINonCombatant);
-        }
-
         // Fire the scenario-facing signal, mirroring the destroy path's use of
         // the ship's scenario id/type name.
         if let (Some(id), Some(type_name)) = (id, type_name) {
@@ -157,8 +154,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        integrity::{health::prelude::Health, test_support::unfinished_integrity_physics_app},
-        prelude::SectionMarker,
+        integrity::health::prelude::Health, prelude::SectionMarker,
+        test_support::unfinished_integrity_physics_app,
     };
 
     /// Counts every fired [`GameEvent`]. As in the ghost-ship rig, the ROOT is
@@ -296,57 +293,6 @@ mod tests {
             "a ship that was never armed is never neutralized, only destroyed"
         );
         assert_eq!(fired(&app), 0, "no OnNeutralized for an unarmed ship");
-    }
-
-    #[test]
-    fn neutralized_ai_ship_is_taken_out_of_combat() {
-        let mut app = neutralize_app();
-        let (root, weapons, thrusters, _hull) = spawn_ship(&mut app, 1, 1);
-        app.world_mut().entity_mut(root).insert(AISpaceshipMarker);
-        app.update();
-        assert!(
-            !app.world().entity(root).contains::<AINonCombatant>(),
-            "an armed AI ship is still a combatant"
-        );
-
-        disable(&mut app, weapons[0]);
-        disable(&mut app, thrusters[0]);
-        app.update();
-
-        assert!(is_neutralized(&app, root));
-        assert!(
-            app.world().entity(root).contains::<AINonCombatant>(),
-            "a neutralized AI ship is switched to non-combatant"
-        );
-        assert!(
-            app.world().entities().contains(root),
-            "and is not despawned"
-        );
-    }
-
-    #[test]
-    fn neutralized_non_ai_ship_is_not_marked_non_combatant() {
-        // The `is_ai` guard is all that keeps a neutralized PLAYER ship from a
-        // spurious AINonCombatant. A ship without AISpaceshipMarker (the player
-        // is PlayerSpaceshipMarker, never AISpaceshipMarker) must neutralize
-        // WITHOUT gaining AINonCombatant.
-        let mut app = neutralize_app();
-        let (root, weapons, thrusters, _hull) = spawn_ship(&mut app, 1, 1);
-        app.update();
-
-        disable(&mut app, weapons[0]);
-        disable(&mut app, thrusters[0]);
-        app.update();
-
-        assert!(
-            is_neutralized(&app, root),
-            "a non-AI ship still neutralizes"
-        );
-        assert_eq!(fired(&app), 1, "and still fires OnNeutralized");
-        assert!(
-            !app.world().entity(root).contains::<AINonCombatant>(),
-            "a non-AI (player) ship is NOT switched to AINonCombatant"
-        );
     }
 
     #[test]

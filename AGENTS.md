@@ -13,15 +13,18 @@ Start here:
 Root crate: CLI entry and `nova_core` re-export. Main assembly:
 `crates/nova_core/src/lib.rs` -> `AppBuilder`.
 
-Share is that crate's percentage of the 145,611 `crates/*/src` lines
+Share is that crate's percentage of the 146,424 `crates/*/src` lines
 (2026-08-08). It is here so the size distribution is visible before you plan
-anything: `nova_gameplay` is over half the workspace on its own.
+anything: `nova_ship` is the biggest crate, but no longer by a multiple.
 
 | Crate | Share | Handles |
 | --- | --- | --- |
-| `nova_gameplay` | 54% | Sections, integrity, input, HUD, targeting, flight, AI, camera, NOVA OS UI bridges, `GameStates`. |
+| `nova_ship` | 23% | The ship and how it is flown: sections, player/AI input, targeting, flight, the camera rigs, the PD controller, the ship's soundtrack. |
+| `nova_hud` | 13% | The flight HUD: instruments, reticles, readouts, markers, the comms panel and the keybind dock. Reads gameplay, never drives it. |
 | `nova_assets` | 12% | Assets, content builders, `content` CLI, bundle merge, mod cache/downloads, portal client, catalog builder. |
+| `nova_os_ui` | 10% | The NOVA OS cockpit monitor: CRT terminal UI plus the `map` and `ship` apps. A peer of the HUD, not part of it. |
 | `nova_scenario` | 10% | Actions, events, filters, variables, objects, content lint. |
+| `nova_gameplay` | 7% | The shared gameplay layer under the ship: integrity, damage, gravity, the SFX engine, juice, objectives, mesh/transform rigs, the entity markers, `GameStates`. |
 | `nova_menu` | 6% | Main/pause menus, settings, mods, portal UI, scenario picker. |
 | `nova_probe_cli` | 5% | Host half of the run harness: spawns runs, grades artifacts, renders reports. Never linked into a game binary. |
 | `nova_ui` | 3% | Shared theme and widgets. Zero `nova_*` dependencies - keep it that way. |

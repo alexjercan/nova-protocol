@@ -12,6 +12,7 @@ use std::collections::VecDeque;
 use bevy::{ecs::world::CommandQueue, platform::collections::HashMap, prelude::*};
 use nova_events::prelude::EventWorld;
 use nova_gameplay::prelude::*;
+use nova_hud::prelude::*;
 
 use crate::prelude::*;
 
@@ -144,13 +145,13 @@ impl EventWorld for NovaEventWorld {
                     label: readout.label,
                     format: match readout.format {
                         crate::actions::HudReadoutFormat::Number => {
-                            nova_gameplay::hud::readout::HudReadoutFormat::Number
+                            nova_hud::readout::HudReadoutFormat::Number
                         }
                         crate::actions::HudReadoutFormat::Integer => {
-                            nova_gameplay::hud::readout::HudReadoutFormat::Integer
+                            nova_hud::readout::HudReadoutFormat::Integer
                         }
                         crate::actions::HudReadoutFormat::Time => {
-                            nova_gameplay::hud::readout::HudReadoutFormat::Time
+                            nova_hud::readout::HudReadoutFormat::Time
                         }
                     },
                     value,

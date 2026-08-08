@@ -18,6 +18,8 @@
 
 use bevy::{prelude::*, ui_widgets::slider_self_update};
 use nova_gameplay::prelude::*;
+use nova_hud::prelude::HudVisibility;
+use nova_os_ui::prelude::NovaOsMonitorSettings;
 use nova_scenario::prelude::{CurrentOutcome, ScenarioStartFailure};
 use nova_ui::{prelude::UiSkin, widget::button_on_setting};
 

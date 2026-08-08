@@ -11,6 +11,7 @@
 use bevy::{platform::collections::HashMap, prelude::*};
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
+use nova_ship::prelude::*;
 
 pub mod broadside;
 pub(crate) mod cast;
@@ -96,7 +97,7 @@ pub(crate) fn asteroid_field(
         allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
             // Translation is no longer a per-section binding: the flight
-            // layer (nova_gameplay::flight) owns it through the flight input
+            // layer (nova_ship::flight) owns it through the flight input
             // rig (W/Space/right trigger analog burn; X autopilot STOP, G
             // autopilot GOTO the lock, Z autopilot off). Direct per-thruster
             // bindings remain supported for ships without a flight computer.

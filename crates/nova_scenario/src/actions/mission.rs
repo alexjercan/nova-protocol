@@ -4,6 +4,7 @@
 use bevy::prelude::*;
 use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_hud::prelude::*;
 
 use crate::prelude::*;
 
@@ -509,7 +510,7 @@ mod tests {
         app.add_plugins(MinimalPlugins);
         app.init_resource::<NovaEventWorld>();
         app.init_resource::<GameObjectives>();
-        app.init_resource::<nova_gameplay::hud::readout::HudReadouts>();
+        app.init_resource::<nova_hud::readout::HudReadouts>();
 
         // Show a Time readout bound to a variable, and set that variable.
         {
@@ -529,9 +530,7 @@ mod tests {
         }
         NovaEventWorld::state_to_world_system(app.world_mut());
 
-        let readouts = app
-            .world()
-            .resource::<nova_gameplay::hud::readout::HudReadouts>();
+        let readouts = app.world().resource::<nova_hud::readout::HudReadouts>();
         assert_eq!(readouts.0.len(), 1, "the shown readout synced");
         assert_eq!(readouts.0[0].slot, "timer");
         assert_eq!(readouts.0[0].value, 83.4, "the live variable value synced");
@@ -551,7 +550,7 @@ mod tests {
         NovaEventWorld::state_to_world_system(app.world_mut());
         assert!(
             app.world()
-                .resource::<nova_gameplay::hud::readout::HudReadouts>()
+                .resource::<nova_hud::readout::HudReadouts>()
                 .0
                 .is_empty(),
             "the clear fire dropped the slot"

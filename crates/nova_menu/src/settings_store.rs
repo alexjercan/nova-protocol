@@ -5,7 +5,8 @@
 //! semantics, belong to [`nova_assets::persist`].
 
 use nova_assets::persist;
-use nova_gameplay::prelude::{GraphicsQuality, MasterVolume, NovaOsMonitorSettings};
+use nova_gameplay::prelude::{GraphicsQuality, MasterVolume};
+use nova_os_ui::prelude::NovaOsMonitorSettings;
 use nova_ui::prelude::UiSkin;
 use serde::{Deserialize, Serialize};
 
@@ -114,7 +115,8 @@ pub fn save_settings(settings: &PersistedSettings) {
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use nova_assets::persist::{load_from, save_to};
-    use nova_gameplay::prelude::{GraphicsQuality, NovaOsMonitorSettings};
+    use nova_gameplay::prelude::GraphicsQuality;
+    use nova_os_ui::prelude::NovaOsMonitorSettings;
     use nova_ui::prelude::UiSkin;
 
     use super::PersistedSettings;

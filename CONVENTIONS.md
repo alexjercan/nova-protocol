@@ -46,7 +46,7 @@ own module. Re-export BY NAME where a glob would pull in an engine prelude.
 
 ```rust
 use crate::prelude::*;              // yes
-use crate::hud::nova_os::shell::*;  // no
+use crate::terminal::shell::*;      // no
 ```
 
 A module's prelude is its public boundary; a deep path reaches past it and
@@ -106,18 +106,32 @@ pub struct SpaceshipInputSystems;  // not HudSituationSensing, not CameraAuthori
 28 of 30 already do, so `grep 'Systems$'` is a reliable search key for the
 scheduling structure. All 98 `impl Plugin for` types already end in `Plugin`.
 
-## 10. Have every subsystem plugin declare a `SystemSet` and order it
+## 10. State every ordering constraint; declare a `SystemSet` when another plugin needs the handle
 
 ```rust
+// A constraint with one holder states itself on the system.
+app.add_systems(Update, draw_juice_flashes.after(TransformSystems::Propagate));
+
+/// A constraint with an outside holder needs a name to order against.
 /// Ordered first among the gameplay sets so downstream sections/flight read
 /// fresh intent.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SpaceshipInputSystems;
 ```
 
-A set nothing is ordered against records nothing. Writing the order down is what
-makes a refactor that moves systems provably safe, instead of trusting whatever
-the scheduler happened to pick.
+Both halves are load-bearing. An order your systems depend on but never state is
+a bug that hides until the scheduler's tie-break changes, so writing it down is
+what makes a refactor that moves systems provably safe. But a set nothing is
+ordered against records nothing: it is a handle with no holder, and the compiler
+cannot tell you when it stops describing its plugin. So the set is the
+consequence of a cross-plugin edge, never the goal. `CameraAuthoritySystems`,
+`SpaceshipSectionSystems`, `NovaHudSystems` and `TurretSectionAimSystems` all
+exist because another plugin had to order against them; every one of this
+repo's good sets was born that way.
+
+Two violations, both greppable: a plugin whose systems depend on order it does
+not state, and a set with no `.after`/`.before` referencing it from outside its
+own plugin.
 
 ## 11. Put tests inline in `#[cfg(test)] mod tests`
 
@@ -160,16 +174,28 @@ argue against this file.
 
 ## Not yet true
 
-Open sites, measured 2026-08-07. Each is scheduled work in the `nova_*` refactor
-epic, not licence to fix inside an unrelated diff. **This section is deleted when
-it empties; its emptiness is the proof the rules above are real.**
+Open sites, re-measured 2026-08-08 after the three seam cuts. Each is scheduled
+work in the `nova_*` refactor epic, not licence to fix inside an unrelated diff.
+**This section is deleted when it empties; its emptiness is the proof the rules
+above are real.**
 
-| Rule | Open sites | Closed by |
-| --- | --- | --- |
-| 3 - a prelude per exporting module | 80 | L5, L7, L8, L9, L10 |
-| 4 - import through the prelude | 36 | with rule 3 |
-| 10 - declare and order a `SystemSet` | 84 | L9, per seam |
-| 1 - module doc | 28 | L5 |
+| Rule | Open sites | Where | Closed by |
+| --- | --- | --- | --- |
+| 3 - a prelude per exporting module | 15 | `nova_assets` 9, `nova_scenario` 2, `nova_ui` 2, `nova_gameplay::test_support`, `nova_probe_cli::native` | L7, L10 |
+| 4 - import through the prelude | 25 | `nova_ship` 8 (all `#[cfg(test)]`), `nova_scenario` 7, `nova_probe_cli` 4, `nova_ui` 4, `nova_assets` 1, `nova_editor` 1 | with rule 3 |
+| 1 - module doc | 1 | | L10 |
 
 Rules 3 and 4 are one edit per module, not two: two thirds of rule 4's
 violations import a module that has no prelude at all.
+
+Rule 3 is measured over modules that are a BOUNDARY. A `pub mod` whose parent's
+prelude already re-exports its items is not one, and the fix there is to make the
+module private, not to give it a second prelude nobody imports through - that is
+how 14 of `nova_ship`'s sites closed.
+
+Rule 10 is absent from this table because it closed at zero, not because it was
+skipped. It was rewritten (owner ruling, 2026-08-08) after measurement showed
+its old wording had 22 open sites and that all 22 wanted no set: 16 leaf plugins
+nothing can order against, and 6 sets whose only consumers sit in a different
+schedule. Those 6 were deleted, joining `WASDCameraControllerSystems` which L9.6
+had already removed on the same reasoning.

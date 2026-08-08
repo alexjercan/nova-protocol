@@ -39,12 +39,12 @@ use bevy::{
     prelude::*,
     reflect::TypePath,
 };
-use nova_gameplay::prelude::SectionConfig;
 // NOTE: the pure serde format types live in the engine-free `nova_mod_format`
 // crate so the portal generator builds without bevy; re-exported here so game
 // code keeps importing them from nova_modding.
 pub use nova_mod_format::{BundleManifest, CatalogManifest, ModEntry, ModMeta};
 use nova_scenario::prelude::{CampaignConfig, ScenarioConfig};
+use nova_ship::prelude::SectionConfig;
 use serde::{Deserialize, Serialize};
 
 /// Glob-import surface: `use nova_modding::prelude::*` brings the content/bundle

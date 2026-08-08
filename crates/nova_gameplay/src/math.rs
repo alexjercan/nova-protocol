@@ -1,12 +1,33 @@
 //! Vector math nova's rigs are written in: frame-rate-independent smoothing
-//! ([`LerpSnap`]) and the spherical-coordinate conversions the camera, transform
-//! and mesh rigs share.
+//! ([`LerpSnap`]), the spherical-coordinate conversions the camera, transform
+//! and mesh rigs share, and the thrust-direction predicate `flight` and `camera`
+//! must agree on ([`is_forward_aligned`]).
 //!
-//! Nova owns this because it is the shared floor under `camera`, `transform` and
-//! `mesh` - three modules that must agree on what "theta" means - and it is
-//! reachable only inside `nova_gameplay`.
+//! Nova owns this because it is the shared floor under `camera`, `transform`,
+//! `flight` and `mesh` - modules that must agree on what "theta" and "main
+//! drive" mean - and it is reachable only inside `nova_gameplay`.
 
 use bevy::prelude::*;
+
+/// Glob-import surface for the shared math floor.
+pub mod prelude {
+    pub use super::{
+        direction_to_spherical, is_forward_aligned, slerp, spherical_to_cartesian, LerpSnap,
+        FORWARD_ALIGNMENT_COS,
+    };
+}
+
+/// A thruster counts as part of the main drive when its thrust direction
+/// aligns with the ship's forward axis at least this much (cosine). Everything
+/// less aligned is left alone - the flight layer only commands the engines
+/// that actually push the ship forward.
+pub const FORWARD_ALIGNMENT_COS: f32 = 0.9;
+
+/// Whether a thruster's world thrust direction counts as main drive for a
+/// ship facing `forward`. Pure for unit testing.
+pub fn is_forward_aligned(thrust_dir: Vec3, forward: Vec3) -> bool {
+    thrust_dir.dot(forward) >= FORWARD_ALIGNMENT_COS
+}
 
 /// Trait for interpolating a value smoothly towards a target with optional snapping.
 ///
@@ -109,6 +130,14 @@ pub fn slerp(a: Vec3, b: Vec3, t: f32) -> Vec3 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn forward_alignment_selects_main_drive_thrusters() {
+        let forward = Vec3::NEG_Z;
+        assert!(is_forward_aligned(Vec3::NEG_Z, forward));
+        assert!(!is_forward_aligned(Vec3::Z, forward));
+        assert!(!is_forward_aligned(Vec3::X, forward));
+    }
 
     #[test]
     fn test_spherical_to_cartesian() {

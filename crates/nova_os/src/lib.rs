@@ -1,14 +1,14 @@
 //! NOVA OS logic: the ship-computer's terminal model, shell command language and
-//! app runtime, factored out of the bevy UI in `nova_gameplay`.
+//! app runtime, factored out of the bevy UI in `nova_os_ui`.
 //!
-//! `nova_gameplay` owns the NOVA OS bevy UI (the CRT casing, the terminal nodes,
+//! `nova_os_ui` owns the NOVA OS bevy UI (the CRT casing, the terminal nodes,
 //! the keyboard systems and the plugin) and the game-data bridges that turn live
 //! objectives / flight-log / ship state into [`terminal::TerminalRow`]s. This crate owns
 //! everything under those bridges: the [`terminal::NovaOsTerminal`] prompt state and its
 //! edit/submit/completion behaviour ([`terminal`]), the command matcher and typo
 //! suggestions ([`shell`]), and the [`app::NovaOsAppRuntime`] app seam ([`app`]).
 //!
-//! The split keeps the dependency graph acyclic (`nova_gameplay -> nova_os`) and
+//! The split keeps the dependency graph acyclic (`nova_os_ui -> nova_os`) and
 //! `nova_ui` free of any NOVA OS dependency. The crate depends on `bevy` on
 //! purpose: the [`terminal::NovaOsTerminal`] resource, the
 //! [`app::NovaOsAppRuntime`] trait's `spawn_body`/`handle_key`, and the
@@ -20,7 +20,7 @@ pub mod command;
 pub mod shell;
 pub mod terminal;
 
-/// The public NOVA OS logic surface `nova_gameplay` imports as one glob.
+/// The public NOVA OS logic surface `nova_os_ui` imports as one glob.
 pub mod prelude {
     pub use crate::{
         app::{NovaOsAppInputOutcome, NovaOsAppRuntime, NOVA_OS_TERMINAL_HINTS},

@@ -25,8 +25,6 @@ pub mod explode;
 pub mod glue;
 pub mod health;
 pub mod neutralize;
-#[cfg(test)]
-pub(crate) mod test_support;
 
 /// Every integrity submodule's prelude plus `NovaIntegrityPlugin`.
 pub mod prelude {

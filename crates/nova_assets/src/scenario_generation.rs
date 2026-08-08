@@ -10,9 +10,10 @@
 //! build - `nova_modding` (a dependency) turns on `nova_scenario/serde`, and
 //! Cargo feature unification carries it here.
 
-use nova_gameplay::prelude::{AssetRef, SectionConfig};
+use nova_gameplay::prelude::AssetRef;
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::{CampaignConfig, ScenarioConfig};
+use nova_ship::prelude::SectionConfig;
 
 use crate::sections::{build_sections, SectionMeshRefs};
 

@@ -9,15 +9,13 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use nova_gameplay::prelude::{
-    binding_source, flight_rig_reserved_sources, InputSource, SectionConfig,
-};
 use nova_mod_format::BundleManifest;
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::{
     lint_campaign, lint_scenario, CampaignConfig, EventActionConfig, KnownSections, LintIssue,
     LintSeverity, ScenarioConfig, ScenarioObjectKind, SpaceshipController,
 };
+use nova_ship::prelude::{binding_source, flight_rig_reserved_sources, InputSource, SectionConfig};
 
 use crate::content_report::{
     AckedFinding, Category, ContentReport, Finding, Severity as ReportSeverity,

@@ -20,9 +20,10 @@ use nova_events::prelude::{
     CommandsGameEventExt, EntityId, EventHandler, GameEventsPlugin, OnDestroyedEvent,
     OnDestroyedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
 };
-use nova_gameplay::prelude::{Allegiance, GameObjectives, SectionConfig, SectionKind};
+use nova_gameplay::prelude::{Allegiance, GameObjectives};
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::*;
+use nova_ship::prelude::{SectionConfig, SectionKind};
 
 /// Resolve a ship section's kind, following a `Prototype` ref into the base
 /// section catalog (the racer/cargob ships reference their cut-cube prototypes

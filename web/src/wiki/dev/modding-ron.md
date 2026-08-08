@@ -26,7 +26,7 @@ resource.
   member id that no bundle provides. Example:
   `Campaign((id: "nova_protocol", name: "Nova Protocol", scenarios: ["shakedown_run", "broadside", "broadside_gunship", "lifeline", "final_tally"]))`.
 
-- `nova_scenario` and `nova_gameplay` gained off-by-default `serde` features that
+- `nova_scenario`, `nova_ship` and `nova_gameplay` gained off-by-default `serde` features that
   `cfg_attr`-derive `Serialize`/`Deserialize` on the whole config tree (events,
   filters, the variables AST, actions, ship/section/object configs). Each engine
   crate is serde-free in isolation (`cargo build -p nova_scenario`). Note the
@@ -79,9 +79,9 @@ resource.
 
 - **The blocker set was bigger than "two handles".** Beyond the cubemap/texture
   handles, the section tree carried 13 asset handles, and three foreign non-serde
-  types blocked the ship subtree: `FlightVerb`/`SectionConfig` (nova_gameplay,
-  Reflect-only) and `Binding` (external). Resolved by adding serde to nova_gameplay
-  and the `BindingInput` helper. This split the work into two tiers (logic/objects
+  types blocked the ship subtree: `FlightVerb`/`SectionConfig` (then in
+  nova_gameplay, now `nova_ship`; Reflect-only) and `Binding` (external).
+  Resolved by adding serde to that crate and the `BindingInput` helper. This split the work into two tiers (logic/objects
   vs ships).
 - **`AssetRef` generic-trait bounds.** Deriving `Clone`/`Debug`/`PartialEq` on
   `AssetRef<A>` would add an `A: Trait` bound and exclude `EffectAsset` (not

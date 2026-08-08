@@ -183,7 +183,11 @@ deeper tour is in [`project-tour.md`](web/src/wiki/dev/project-tour.md).
 | Crate | Responsibility |
 | --- | --- |
 | `nova_core` | `AppBuilder`: assembles all plugins. Start here. |
-| `nova_gameplay` | Sections, integrity, input (player + AI), HUD, targeting, flight/autopilot, camera. Owns `GameStates`. |
+| `nova_gameplay` | The shared gameplay layer: integrity, damage, gravity, the SFX engine, juice, objectives, mesh/transform rigs, entity markers. Owns `GameStates`. |
+| `nova_ship` | The ship and how it is flown: sections, input (player + AI), targeting, flight/autopilot, the camera rigs, the PD controller, the ship's soundtrack. |
+| `nova_hud` | The flight HUD: instruments, reticles, readouts, objective markers, comms panel, keybind dock. |
+| `nova_os` | NOVA OS logic: terminal model, shell command language, app runtime. No UI. |
+| `nova_os_ui` | The NOVA OS cockpit monitor: CRT terminal UI plus the `map` and `ship` apps. |
 | `nova_scenario` | Scenario/modding engine: actions, events, filters, variables, objects, the content lint. |
 | `nova_assets` | Asset loading; content builders and the `content` CLI (gen/lint, balance audit + input-overlap folded into lint). |
 | `nova_modding` | Mod loading/merging: bundles, installed catalog, portal client, downloads. |

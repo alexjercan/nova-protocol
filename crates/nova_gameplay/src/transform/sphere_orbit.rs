@@ -7,13 +7,11 @@
 
 use bevy::prelude::*;
 
-use crate::math::{spherical_to_cartesian, LerpSnap};
+use crate::math::prelude::*;
 
 /// Glob-import surface for the sphere-orbit rig.
 pub mod prelude {
-    pub use super::{
-        SphereOrbit, SphereOrbitInput, SphereOrbitOutput, SphereOrbitPlugin, SphereOrbitSystems,
-    };
+    pub use super::{SphereOrbit, SphereOrbitInput, SphereOrbitOutput, SphereOrbitPlugin};
 }
 
 /// Component to define a spherical orbit around a center point.
@@ -51,15 +49,6 @@ struct SphereOrbitState {
     phi: f32,
 }
 
-/// The system set used by the sphere orbit plugin.
-///
-/// Only contains the orbit sync systems.
-#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum SphereOrbitSystems {
-    /// Advances the orbit and writes the resulting pose.
-    Sync,
-}
-
 /// Plugin to manage entities with `SphereOrbit` component.
 ///
 /// SphereOrbit allows an entity to orbit around a point on the surface of a sphere.
@@ -73,9 +62,7 @@ impl Plugin for SphereOrbitPlugin {
 
         app.add_systems(
             PostUpdate,
-            (sphere_update_state, sphere_update_output)
-                .chain()
-                .in_set(SphereOrbitSystems::Sync),
+            (sphere_update_state, sphere_update_output).chain(),
         );
     }
 }

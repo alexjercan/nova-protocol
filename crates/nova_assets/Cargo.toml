@@ -25,6 +25,8 @@ sha2 = { version = "0.10" }
 # subcommands with clap derive, like nova_meta_gen's generator CLI.
 clap = { version = "4.5.48", features = ["derive"] }
 nova_gameplay = { path = "../nova_gameplay" }
+nova_ship = { path = "../nova_ship", features = ["serde"] }
+nova_hud = { path = "../nova_hud" }
 # The shared `UiFont` resource this crate fills from `BootAssets` so UI text
 # sites read a preloaded handle instead of a per-spawn `asset_server.load`.
 nova_ui = { path = "../nova_ui" }
@@ -78,4 +80,4 @@ tiny_http = "0.12"
 workspace = true
 
 [features]
-debug = ["bevy/track_location", "nova_gameplay/debug"]
+debug = ["bevy/track_location", "nova_gameplay/debug", "nova_hud/debug"]

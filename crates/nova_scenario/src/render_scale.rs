@@ -274,7 +274,7 @@ fn teardown_render_scale(
 
 /// Create the offscreen render target. Rgba8UnormSrgb with the default view (no
 /// view-format override): the same WebGL2-safe target the HUD inset uses (see
-/// [`crate`]'s `nova_gameplay::hud::target_inset::create_render_target`), so a
+/// [`crate`]'s `nova_hud::target_inset::create_render_target`), so a
 /// reduced-resolution frame never trips `DownlevelFlags::VIEW_FORMATS` on the
 /// weak web GPUs this lever exists for. `new_target_texture` sets the
 /// RENDER_ATTACHMENT | TEXTURE_BINDING | COPY_DST usages.

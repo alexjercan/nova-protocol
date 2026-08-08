@@ -4,7 +4,7 @@
 //! (see `tooltip.rs`) with the full name/HP/description.
 
 use bevy::{picking::hover::Hovered, prelude::*, ui_widgets::Button};
-use nova_gameplay::prelude::*;
+use nova_ship::prelude::*;
 use nova_ui::{
     prelude::{ButtonValue, ThemedButton},
     theme,

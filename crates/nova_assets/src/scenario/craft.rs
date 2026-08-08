@@ -13,6 +13,7 @@
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
+use nova_ship::prelude::*;
 
 use crate::sections::{turret_joint_tree, SectionMeshRefs};
 

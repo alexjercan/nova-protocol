@@ -501,6 +501,8 @@ pub(crate) fn menu_scrapyard(
 
 #[cfg(test)]
 mod tests {
+    use nova_ship::prelude::*;
+
     use super::*;
 
     /// The menu backdrop's contract: the orbiter is an AI ship directed to

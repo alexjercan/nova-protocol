@@ -5,6 +5,8 @@ use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_hud::prelude::*;
+use nova_ship::prelude::*;
 
 use super::{scenario_is_live, ScenarioLoaded};
 use crate::prelude::*;
@@ -671,7 +673,7 @@ mod tests {
     /// the new behavior under test.
     #[test]
     fn teardown_clears_hint_emphasis() {
-        use nova_gameplay::prelude::HintEmphasis;
+        use nova_hud::prelude::HintEmphasis;
 
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
@@ -784,7 +786,7 @@ mod tests {
     /// the switch.
     #[test]
     fn scenario_switch_replaces_an_equal_length_story_feed() {
-        use nova_gameplay::prelude::{StoryFeed, StoryLine};
+        use nova_hud::prelude::{StoryFeed, StoryLine};
 
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);

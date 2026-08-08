@@ -6,6 +6,8 @@ use bevy::{
     ui_widgets::{Activate, Slider, SliderRange, SliderStep, SliderValue, TrackClick, ValueChange},
 };
 use nova_gameplay::prelude::*;
+use nova_os_ui::prelude::NovaOsMonitorSettings;
+use nova_ship::prelude::*;
 use nova_ui::{
     prelude::UiSkin,
     theme,

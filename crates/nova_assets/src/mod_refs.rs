@@ -354,8 +354,9 @@ fn collect_bare(value: &serde_json::Value, out: &mut Vec<String>) {
 
 #[cfg(test)]
 mod tests {
-    use nova_gameplay::prelude::{AssetRef, SectionKind};
+    use nova_gameplay::prelude::AssetRef;
     use nova_scenario::prelude::{EventActionConfig, ScenarioConfig};
+    use nova_ship::prelude::SectionKind;
 
     use super::*;
 
