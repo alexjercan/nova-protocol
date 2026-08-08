@@ -900,10 +900,15 @@ fn map_contact_label_and_dot_are_one_unbroken_target() {
     // measure-zero boundary bevy's `contains_point` excludes from both rects.
     // Every one of these used to be dead between x=dot.max and x=dot.max+6.
     let y = dot.center().y;
-    let mut x = dot.center().x + 0.5;
+    let first = dot.center().x + 0.5;
     let last = label_box.min.x + 6.0;
+    // Counted, not accumulated: the step is a whole pixel, so the sweep is
+    // `first + i` and the float never carries rounding from one probe to the
+    // next.
+    let steps = ((last - first).floor() as i32 + 1).max(0);
     let mut probed = 0;
-    while x <= last {
+    for step in 0..steps {
+        let x = first + step as f32;
         let image_px = Vec2::new(x, y);
         rig.app.world_mut().resource_mut::<MapRuntime>().selected = None;
         click_at(&mut rig, glass_px(glass_uv_showing(image_px)));
@@ -915,7 +920,6 @@ fn map_contact_label_and_dot_are_one_unbroken_target() {
             pointer_image_px(&rig),
         );
         probed += 1;
-        x += 1.0;
     }
     assert!(
         probed >= 12,

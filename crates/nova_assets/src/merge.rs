@@ -461,6 +461,7 @@ fn merge_content_item(
 
 #[cfg(test)]
 mod tests {
+    use nova_gameplay::prelude::AssetRef;
     use nova_scenario::prelude::ScenarioConfig;
     use nova_ship::prelude::{BaseSectionConfig, HullSectionConfig, SectionKind};
 
@@ -526,11 +527,11 @@ mod tests {
         let mut campaigns = GameCampaigns::default();
 
         let id = "shakedown_run".to_string();
-        let base = ScenarioConfig {
-            id: id.clone(),
-            name: "base".to_string(),
-            ..Default::default()
-        };
+        let base = ScenarioConfig::new(
+            id.clone(),
+            "base",
+            AssetRef::from("dep://base/textures/cubemap.png".to_string()),
+        );
         let mut modded = base.clone();
         modded.name = "modded".to_string();
 

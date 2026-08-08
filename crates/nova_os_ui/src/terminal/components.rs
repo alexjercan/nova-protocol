@@ -170,6 +170,15 @@ impl NovaOsMonitorSettings {
         NOVA_OS_SCAN_DETENTS[self.scan_detent.min(NOVA_OS_SCAN_DETENTS.len() - 1)]
     }
 
+    /// Clamp possibly-corrupt persisted detent indices into range. The readers
+    /// above clamp too, so the screen always looks right, but [`Self::cycle`]
+    /// wraps modulo the detent count - an out-of-range index would make the
+    /// next click jump from brightest to dimmest.
+    pub fn clamp_detents(&mut self) {
+        self.bright_detent = self.bright_detent.min(NOVA_OS_BRIGHT_DETENTS.len() - 1);
+        self.scan_detent = self.scan_detent.min(NOVA_OS_SCAN_DETENTS.len() - 1);
+    }
+
     /// The dial-pointer angle for a knob's current detent.
     pub(crate) fn dial_angle(&self, knob: NovaOsKnob) -> f32 {
         let index = match knob {

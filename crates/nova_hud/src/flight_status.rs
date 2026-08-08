@@ -202,7 +202,7 @@ pub fn autopilot_destination_hud(config: AutopilotDestinationHudConfig) -> impl 
             }),
             // Reuse the target sprite, tinted toward "nav" cyan so it never
             // reads as a weapons lock.
-            ImageNode::new(config.marker_sprite.clone()).with_color(NAV_CYAN),
+            ImageNode::new(config.marker_sprite).with_color(NAV_CYAN),
         )],
     )
 }

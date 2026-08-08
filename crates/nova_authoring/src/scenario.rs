@@ -425,10 +425,7 @@ pub(crate) fn asteroid_field(
     ];
 
     ScenarioConfig {
-        id: "asteroid_field".to_string(),
-        name: "Asteroid Field".to_string(),
         description: "A dense asteroid field.".to_string(),
-        cubemap,
         // The combat/gravity sandbox, listed in the Scenarios picker. It was
         // hidden as "a mid-story stage reached by chaining from the shakedown
         // run" - a premise that was never true: this was the ORIGINAL New Game
@@ -439,7 +436,11 @@ pub(crate) fn asteroid_field(
         // real art overwrites this same path with no code change.
         thumbnail: Some(AssetRef::from("self://thumbnails/asteroid_field.png")),
         events,
-        ..Default::default()
+        ..ScenarioConfig::new(
+            "asteroid_field".to_string(),
+            "Asteroid Field".to_string(),
+            cubemap,
+        )
     }
 }
 
@@ -459,14 +460,15 @@ pub(crate) fn asteroid_next(cubemap: AssetRef<Image>) -> ScenarioConfig {
     }];
 
     ScenarioConfig {
-        id: "asteroid_next".to_string(),
-        name: "Asteroid Field - Next".to_string(),
         description: "The next scenario after the asteroid field.".to_string(),
-        cubemap,
         // A continuation reached only via NextScenario chaining, not an entry point.
         hidden: true,
         events,
-        ..Default::default()
+        ..ScenarioConfig::new(
+            "asteroid_next".to_string(),
+            "Asteroid Field - Next".to_string(),
+            cubemap,
+        )
     }
 }
 

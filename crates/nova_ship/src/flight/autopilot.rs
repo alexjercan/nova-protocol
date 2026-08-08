@@ -15,7 +15,8 @@ use super::{
     },
     state::RcsReference,
     thrusters::{
-        balance_throttles, burn_input, choose_group, cluster_thrusters, spool, BalanceEngine,
+        balance_throttles, burn_input, choose_group, cluster_thrusters, spool_allocated_thrusters,
+        BalanceEngine,
     },
 };
 use crate::prelude::*;
@@ -874,23 +875,14 @@ pub(super) fn autopilot_system(
 
         // Spool every engine toward its allocated throttle (zero for engines
         // the allocation left dark, and for everything while settling).
-        for (thruster, mut input, _, _, &ChildOf(parent)) in &mut q_thruster {
-            if parent != ship {
-                continue;
-            }
-            let target = allocation
-                .iter()
-                .position(|(e, _)| *e == thruster)
-                .map(|i| throttles[i])
-                .unwrap_or(0.0);
-            **input = spool(
-                **input,
-                target,
-                settings.spool_up_rate,
-                settings.spool_down_rate,
-                dt,
-            );
-        }
+        spool_allocated_thrusters(
+            ship,
+            &allocation,
+            &throttles,
+            &mut q_thruster,
+            &settings,
+            dt,
+        );
     }
 }
 

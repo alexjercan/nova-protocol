@@ -8,7 +8,7 @@ use nova_gameplay::prelude::*;
 
 use super::{
     state::RcsReference,
-    thrusters::{balance_throttles, spool, BalanceEngine},
+    thrusters::{balance_throttles, spool_allocated_thrusters, BalanceEngine},
 };
 use crate::prelude::*;
 
@@ -140,23 +140,14 @@ pub(super) fn manual_burn_system(
         let coeffs: Vec<BalanceEngine> = allocation.iter().map(|(_, e)| *e).collect();
         let throttles = balance_throttles(&coeffs, demand);
 
-        for (thruster, mut input, _, _, &ChildOf(parent)) in &mut q_thruster {
-            if parent != ship {
-                continue;
-            }
-            let target = allocation
-                .iter()
-                .position(|(e, _)| *e == thruster)
-                .map(|i| throttles[i])
-                .unwrap_or(0.0);
-            **input = spool(
-                **input,
-                target,
-                settings.spool_up_rate,
-                settings.spool_down_rate,
-                dt,
-            );
-        }
+        spool_allocated_thrusters(
+            ship,
+            &allocation,
+            &throttles,
+            &mut q_thruster,
+            &settings,
+            dt,
+        );
     }
 }
 

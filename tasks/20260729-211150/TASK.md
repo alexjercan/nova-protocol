@@ -1,6 +1,6 @@
 # Scenarios picker: pin pane widths across selections + indent campaign members
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 52
 - TAGS: v0.9.0, feedback, bug, ui, menu
 

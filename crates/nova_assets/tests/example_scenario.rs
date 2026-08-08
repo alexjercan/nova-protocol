@@ -687,10 +687,7 @@ fn merge_sweep_flags_bad_content_and_passes_the_shipped_tree() {
     // Sweep pin: a synthetic bundle with a broken scenario.
     let mut app = headless_app();
     let broken = ScenarioConfig {
-        id: "broken_scenario".to_string(),
-        name: "Broken".to_string(),
         description: "merge sweep pin".to_string(),
-        cubemap: nova_gameplay::prelude::AssetRef::from("textures/x.png".to_string()),
         events: vec![nova_scenario::prelude::ScenarioEventConfig {
             name: nova_scenario::prelude::EventConfig::OnStart,
             filters: vec![],
@@ -702,7 +699,11 @@ fn merge_sweep_flags_bad_content_and_passes_the_shipped_tree() {
                 },
             )],
         }],
-        ..Default::default()
+        ..ScenarioConfig::new(
+            "broken_scenario".to_string(),
+            "Broken".to_string(),
+            nova_gameplay::prelude::AssetRef::from("textures/x.png".to_string()),
+        )
     };
     let content = app
         .world_mut()

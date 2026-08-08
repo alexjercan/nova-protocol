@@ -13,7 +13,7 @@ use nova_ui::{
     theme,
     widget::{
         panel_header, segmented_container, segmented_option, separator, slider_track, ButtonValue,
-        Selected,
+        Selected, UiText,
     },
 };
 
@@ -94,6 +94,7 @@ pub(crate) fn build_settings_body(
     .with_children(|row| {
         row.spawn((
             Name::new("Volume Slider"),
+            UiText,
             Text::new("Volume"),
             TextFont {
                 font_size: FontSize::Px(13.0),
@@ -131,6 +132,7 @@ pub(crate) fn build_settings_body(
         row.spawn((
             Name::new("Volume Label"),
             VolumeLabel,
+            UiText,
             Text::new(volume_label(volume.factor())),
             TextFont {
                 font_size: FontSize::Px(13.0),
@@ -173,6 +175,7 @@ pub(crate) fn build_settings_body(
             current_section = entry.section;
             list.spawn((
                 Name::new(format!("Controls Section: {}", entry.section)),
+                UiText,
                 Text::new(entry.section),
                 TextFont {
                     font_size: FontSize::Px(11.0),
@@ -356,6 +359,7 @@ pub(crate) fn spawn_keybind_row(list: &mut ChildSpawnerCommands, entry: &Keybind
     ))
     .with_children(|row| {
         row.spawn((
+            UiText,
             Text::new(entry.action),
             TextFont {
                 font_size: FontSize::Px(13.0),
@@ -364,6 +368,7 @@ pub(crate) fn spawn_keybind_row(list: &mut ChildSpawnerCommands, entry: &Keybind
             TextColor(theme::SCREEN_TEXT),
         ));
         row.spawn((
+            UiText,
             Text::new(format!("{}   ·   {}", entry.keyboard, entry.gamepad)),
             TextFont {
                 font_size: FontSize::Px(13.0),

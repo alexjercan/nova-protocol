@@ -180,7 +180,7 @@ pub fn torpedo_target_hud(config: TorpedoTargetHudConfig) -> impl Bundle {
                 offset: Vec2::ZERO,
                 offscreen: ScreenIndicatorOffscreen::Hide,
             }),
-            ImageNode::new(config.target_sprite.clone()).with_color(RETICLE_COMBAT_COLOR),
+            ImageNode::new(config.target_sprite).with_color(RETICLE_COMBAT_COLOR),
             // Pulses while the trigger is down (demo 2's `retpulse`). The
             // readout below is a CHILD of this node, so it breathes along with
             // the reticle while firing - one instrument reacting, which is why

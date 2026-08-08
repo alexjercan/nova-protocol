@@ -229,12 +229,13 @@ fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
     }];
 
     ScenarioConfig {
-        id: "nova_os_range".to_string(),
-        name: "NOVA OS Range".to_string(),
         description: "A range for the NOVA OS computer screenshots.".to_string(),
-        cubemap: game_assets.cubemap.clone().into(),
         events,
-        ..Default::default()
+        ..ScenarioConfig::new(
+            "nova_os_range".to_string(),
+            "NOVA OS Range".to_string(),
+            game_assets.cubemap.clone().into(),
+        )
     }
 }
 

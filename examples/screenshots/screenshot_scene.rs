@@ -165,11 +165,8 @@ fn drydock_drift(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
     };
 
     ScenarioConfig {
-        id: "drydock_drift".to_string(),
-        name: "Drydock Drift".to_string(),
         description: "A salvage yard adrift over a planetoid - the website's beauty set."
             .to_string(),
-        cubemap: game_assets.cubemap.clone().into(),
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
             filters: vec![],
@@ -188,7 +185,11 @@ fn drydock_drift(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
             ]
             .concat(),
         }],
-        ..Default::default()
+        ..ScenarioConfig::new(
+            "drydock_drift".to_string(),
+            "Drydock Drift".to_string(),
+            game_assets.cubemap.clone().into(),
+        )
     }
 }
 

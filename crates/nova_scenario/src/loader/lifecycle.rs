@@ -26,7 +26,7 @@ pub(crate) fn configure_scenario_gating(app: &mut App) {
     );
     app.configure_sets(
         FixedUpdate,
-        SpaceshipSectionSystems.run_if(scenario_is_live),
+        (SpaceshipInputSystems, SpaceshipSectionSystems).run_if(scenario_is_live),
     );
     // NOTE: deliberately NOT gated: the PostUpdate instance of
     // SpaceshipSectionSystems (the turret aim chain). It was never gated by
@@ -402,12 +402,13 @@ mod tests {
             app
         };
         let scenario = ScenarioConfig {
-            id: "broken".to_string(),
-            name: "Broken Chapter".to_string(),
             description: "gate pin".to_string(),
-            cubemap: AssetRef::from("textures/x.png".to_string()),
             events: vec![],
-            ..Default::default()
+            ..ScenarioConfig::new(
+                "broken".to_string(),
+                "Broken Chapter".to_string(),
+                AssetRef::from("textures/x.png".to_string()),
+            )
         };
 
         // Control: no issues -> the scenario loads (scoped entities exist).
@@ -476,12 +477,13 @@ mod tests {
         app.add_observer(on_load_scenario);
 
         app.world_mut().trigger(LoadScenario(ScenarioConfig {
-            id: "sky_test".to_string(),
-            name: "Sky Test".to_string(),
             description: "deferred skybox pin".to_string(),
-            cubemap: AssetRef::from("textures/never_preloaded.png".to_string()),
             events: vec![],
-            ..Default::default()
+            ..ScenarioConfig::new(
+                "sky_test".to_string(),
+                "Sky Test".to_string(),
+                AssetRef::from("textures/never_preloaded.png".to_string()),
+            )
         }));
         app.update();
 
@@ -852,6 +854,7 @@ mod tests {
     #[derive(Resource, Default)]
     struct Ticks {
         input: u32,
+        input_fixed: u32,
         sections: u32,
         sections_fixed: u32,
     }
@@ -871,6 +874,13 @@ mod tests {
             Update,
             (|mut t: ResMut<Ticks>| t.sections += 1).in_set(SpaceshipSectionSystems),
         );
+        // The fixed-schedule input probe covers `update_fire_cadence`, the one
+        // AI system that runs in FixedUpdate; without it teardown is unproven
+        // on that half of the gate.
+        app.add_systems(
+            FixedUpdate,
+            (|mut t: ResMut<Ticks>| t.input_fixed += 1).in_set(SpaceshipInputSystems),
+        );
         app.add_systems(
             FixedUpdate,
             (|mut t: ResMut<Ticks>| t.sections_fixed += 1).in_set(SpaceshipSectionSystems),
@@ -885,9 +895,9 @@ mod tests {
         app.world_mut().run_schedule(FixedUpdate);
     }
 
-    fn ticks(app: &App) -> (u32, u32, u32) {
+    fn ticks(app: &App) -> (u32, u32, u32, u32) {
         let t = app.world().resource::<Ticks>();
-        (t.input, t.sections, t.sections_fixed)
+        (t.input, t.input_fixed, t.sections, t.sections_fixed)
     }
 
     /// The spaceship sets run exactly while a scenario is live. The live
@@ -898,17 +908,17 @@ mod tests {
         let mut app = gated_app();
 
         step(&mut app);
-        assert_eq!(ticks(&app), (0, 0, 0), "no scenario: all sets frozen");
+        assert_eq!(ticks(&app), (0, 0, 0, 0), "no scenario: all sets frozen");
 
         app.world_mut()
             .resource_mut::<CurrentScenario>()
             .replace(scenario_with("live", vec![]));
         step(&mut app);
-        assert_eq!(ticks(&app), (1, 1, 1), "live scenario: all sets run");
+        assert_eq!(ticks(&app), (1, 1, 1, 1), "live scenario: all sets run");
 
         app.world_mut().resource_mut::<CurrentScenario>().take();
         step(&mut app);
-        assert_eq!(ticks(&app), (1, 1, 1), "unloaded again: all sets frozen");
+        assert_eq!(ticks(&app), (1, 1, 1, 1), "unloaded again: all sets frozen");
     }
 
     /// The same gate driven through the real load/unload observers, so the
@@ -928,7 +938,7 @@ mod tests {
         app.add_observer(unload_scenario);
 
         step(&mut app);
-        assert_eq!(ticks(&app), (0, 0, 0), "nothing loaded yet");
+        assert_eq!(ticks(&app), (0, 0, 0, 0), "nothing loaded yet");
 
         app.world_mut()
             .trigger(LoadScenario(scenario_with("ambience", vec![])));
@@ -937,7 +947,7 @@ mod tests {
             "LoadScenario must set CurrentScenario"
         );
         step(&mut app);
-        assert_eq!(ticks(&app), (1, 1, 1), "loaded: sets run");
+        assert_eq!(ticks(&app), (1, 1, 1, 1), "loaded: sets run");
 
         app.world_mut().trigger(UnloadScenario);
         assert!(
@@ -945,6 +955,6 @@ mod tests {
             "UnloadScenario must clear CurrentScenario"
         );
         step(&mut app);
-        assert_eq!(ticks(&app), (1, 1, 1), "unloaded: sets frozen again");
+        assert_eq!(ticks(&app), (1, 1, 1, 1), "unloaded: sets frozen again");
     }
 }

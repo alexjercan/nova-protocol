@@ -620,11 +620,12 @@ mod tests {
 
     fn scenario(id: &str, cubemap: &str) -> Content {
         Content::Scenario(ScenarioConfig {
-            id: id.to_string(),
-            name: id.to_string(),
             description: String::new(),
-            cubemap: AssetRef::from(cubemap.to_string()),
-            ..Default::default()
+            ..ScenarioConfig::new(
+                id.to_string(),
+                id.to_string(),
+                AssetRef::from(cubemap.to_string()),
+            )
         })
     }
 

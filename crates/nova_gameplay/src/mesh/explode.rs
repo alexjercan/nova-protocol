@@ -200,7 +200,7 @@ fn explode_mesh(
         }
 
         let mut next: Vec<(TriangleMeshBuilder, Vec3)> = Vec::with_capacity(queue.len() * 2);
-        for (mesh_builder, direction) in queue.drain(..) {
+        for (mesh_builder, direction) in queue {
             let plane_normal = random_unit_vector(&mut rng);
 
             match mesh_builder.slice(plane_normal, Vec3::ZERO) {

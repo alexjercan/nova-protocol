@@ -12,7 +12,7 @@ use nova_scenario::prelude::*;
 use nova_ui::{
     prelude::UiSkin,
     theme,
-    widget::{panel, ButtonVariant},
+    widget::{panel, ButtonVariant, UiText},
 };
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -200,6 +200,7 @@ pub(crate) fn setup_pause_ui(
                 .with_children(|parent| {
                     parent.spawn((
                         Name::new("Pause Title"),
+                        UiText,
                         Text::new("Paused"),
                         TextFont {
                             font_size: FontSize::Px(24.0),
@@ -283,6 +284,7 @@ pub(crate) fn setup_pause_ui(
                 .with_children(|parent| {
                     parent.spawn((
                         Name::new("Pause Settings Title"),
+                        UiText,
                         Text::new("Settings"),
                         TextFont {
                             font_size: FontSize::Px(24.0),

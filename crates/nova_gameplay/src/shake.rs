@@ -283,14 +283,19 @@ fn camera_shake_apply_system(
         let (offset, kick) = if amount <= 0.0 {
             (Vec3::ZERO, Quat::IDENTITY)
         } else {
-            let sample = Vec3::new(
-                rng.random_range(-1.0..1.0),
-                rng.random_range(-1.0..1.0),
-                rng.random_range(-1.0..1.0),
-            );
+            // Two INDEPENDENT samples: one sample for both would lock the
+            // rotational kick to the translational offset, so the camera would
+            // always roll the same way it slid.
+            let mut sample = || {
+                Vec3::new(
+                    rng.random_range(-1.0..1.0),
+                    rng.random_range(-1.0..1.0),
+                    rng.random_range(-1.0..1.0),
+                )
+            };
             (
-                shake_offset(amount, shake.max_offset, sample),
-                shake_kick(amount, shake.max_kick, sample),
+                shake_offset(amount, shake.max_offset, sample()),
+                shake_kick(amount, shake.max_kick, sample()),
             )
         };
 
@@ -407,6 +412,55 @@ mod tests {
                 bound
             );
         }
+    }
+
+    /// The offset and the kick are drawn from two INDEPENDENT samples. Sharing
+    /// one sample locked the rotational kick to the translational offset, so
+    /// the camera always rolled the way it slid - the kick axis was parallel
+    /// to the offset on every frame. Neither the bound nor the recenter test
+    /// can see that, because both are true of a correlated shake too.
+    #[test]
+    fn the_kick_axis_is_not_locked_to_the_offset() {
+        let mut app = App::new();
+        app.init_resource::<Time>();
+        app.add_plugins(CameraShakePlugin);
+        let cam = app
+            .world_mut()
+            .spawn((
+                Transform::default(),
+                CameraShake {
+                    // A uniform peak on both, so a SHARED sample would give a
+                    // kick axis exactly parallel to the offset.
+                    max_offset: Vec3::splat(0.6),
+                    max_kick: Vec3::splat(0.3),
+                    ..default()
+                },
+            ))
+            .id();
+
+        let mut decorrelated = 0;
+        for _ in 0..50 {
+            app.world_mut()
+                .get_mut::<CameraShakeInput>(cam)
+                .unwrap()
+                .add_trauma = 1.0;
+            step(&mut app, 16);
+
+            let output = app.world().get::<CameraShakeOutput>(cam).unwrap();
+            let (axis, angle) = output.kick.to_axis_angle();
+            if angle.abs() < 1e-6 || output.offset.length() < 1e-6 {
+                continue;
+            }
+            let alignment = axis.normalize().dot(output.offset.normalize()).abs();
+            if alignment < 0.99 {
+                decorrelated += 1;
+            }
+        }
+
+        assert!(
+            decorrelated > 40,
+            "the kick axis tracked the offset on all but {decorrelated} of 50 frames"
+        );
     }
 
     /// Regression for the bug this module exists to prevent: an accumulating shake

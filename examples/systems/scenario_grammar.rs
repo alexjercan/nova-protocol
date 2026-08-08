@@ -481,12 +481,13 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
     ];
 
     ScenarioConfig {
-        id: SCENARIO_ID.to_string(),
-        name: "Scenario Showcase".to_string(),
         description: "Variables, events, filters and actions in one scenario.".to_string(),
-        cubemap: game_assets.cubemap.clone().into(),
         events,
-        ..Default::default()
+        ..ScenarioConfig::new(
+            SCENARIO_ID.to_string(),
+            "Scenario Showcase".to_string(),
+            game_assets.cubemap.clone().into(),
+        )
     }
 }
 

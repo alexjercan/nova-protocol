@@ -361,12 +361,13 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
     ];
 
     ScenarioConfig {
-        id: SCENARIO_ID.to_string(),
-        name: "Playable Run".to_string(),
         description: "Kill the prey, lock the waypoint, fly there.".to_string(),
-        cubemap: game_assets.cubemap.clone().into(),
         events,
-        ..Default::default()
+        ..ScenarioConfig::new(
+            SCENARIO_ID.to_string(),
+            "Playable Run".to_string(),
+            game_assets.cubemap.clone().into(),
+        )
     }
 }
 

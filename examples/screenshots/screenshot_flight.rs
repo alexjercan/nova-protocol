@@ -522,11 +522,8 @@ fn the_ring(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
     };
 
     ScenarioConfig {
-        id: "the_ring".to_string(),
-        name: "The Ring".to_string(),
         description: "A planetoid, its debris ring, and a ship flying the ORBIT verb around it."
             .to_string(),
-        cubemap: game_assets.cubemap.clone().into(),
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
             filters: vec![],
@@ -544,7 +541,11 @@ fn the_ring(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
             ]
             .concat(),
         }],
-        ..Default::default()
+        ..ScenarioConfig::new(
+            "the_ring".to_string(),
+            "The Ring".to_string(),
+            game_assets.cubemap.clone().into(),
+        )
     }
 }
 

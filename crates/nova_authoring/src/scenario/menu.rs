@@ -144,17 +144,18 @@ pub(crate) fn menu_ambience(
     }];
 
     ScenarioConfig {
-        id: "menu_ambience".to_string(),
-        name: "Menu Ambience".to_string(),
         description: "The main menu's living backdrop.".to_string(),
-        cubemap,
         // The menu backdrop is never a player-facing scenario (hidden from
         // the picker) but IS in the menu's backdrop rotation (menu_backdrop):
         // the menu picks one flagged scenario at random on entry.
         hidden: true,
         menu_backdrop: true,
         events,
-        ..Default::default()
+        ..ScenarioConfig::new(
+            "menu_ambience".to_string(),
+            "Menu Ambience".to_string(),
+            cubemap,
+        )
     }
 }
 
@@ -370,14 +371,15 @@ pub(crate) fn menu_waystation(
     }];
 
     ScenarioConfig {
-        id: "menu_waystation".to_string(),
-        name: "Waystation Traffic".to_string(),
         description: "A freight waystation going about its day.".to_string(),
-        cubemap,
         hidden: true,
         menu_backdrop: true,
         events,
-        ..Default::default()
+        ..ScenarioConfig::new(
+            "menu_waystation".to_string(),
+            "Waystation Traffic".to_string(),
+            cubemap,
+        )
     }
 }
 
@@ -488,14 +490,15 @@ pub(crate) fn menu_scrapyard(
     }];
 
     ScenarioConfig {
-        id: "menu_scrapyard".to_string(),
-        name: "Scrapyard Drift".to_string(),
         description: "A quiet salvage yard tumbling in orbit.".to_string(),
-        cubemap,
         hidden: true,
         menu_backdrop: true,
         events,
-        ..Default::default()
+        ..ScenarioConfig::new(
+            "menu_scrapyard".to_string(),
+            "Scrapyard Drift".to_string(),
+            cubemap,
+        )
     }
 }
 

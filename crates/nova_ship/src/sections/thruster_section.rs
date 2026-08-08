@@ -269,8 +269,24 @@ impl Default for ThrusterExhaust {
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 struct ThrusterSectionRenderMesh(#[reflect(ignore)] Option<AssetRef<WorldAsset>>);
 
-/// The thrust magnitude produced by this thruster section. This is a simple scalar value that can be
-/// used to determine the thrust force applied to the ship.
+/// The thrust magnitude produced by this thruster section, in IMPULSE PER
+/// FIXED TICK, not force. [`thruster_impulse_system`] hands it straight to
+/// `apply_linear_impulse_at_point` with no `dt` factor, so a section at full
+/// input delivers `magnitude / mass` of delta-v every `FixedUpdate` tick and
+/// the ship's acceleration is `magnitude / (mass * dt)`.
+///
+/// DO NOT change this to a force without rescaling every authored magnitude by
+/// `1 / dt`: the unit is a deliberate authoring convention, and every consumer
+/// already converts from it. The autopilot divides by `dt` where it needs an
+/// acceleration (`flight/autopilot.rs`, brake authority) and keeps the raw
+/// value where it needs a delta-v (the tail-burn estimate); the flight
+/// balancers use it only for ratios, which any uniform scale leaves alone.
+///
+/// The cost of the convention is that acceleration is tied to the fixed-tick
+/// RATE: at half the ticks per second, every ship accelerates half as hard.
+/// Nothing configures `Time<Fixed>` today, so it stays at Bevy's 64 Hz, and
+/// the authored magnitudes are tuned against that. Retune them, or move to
+/// `apply_force_at_point`, before touching the rate.
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct ThrusterSectionMagnitude(pub f32);
 
@@ -344,10 +360,13 @@ pub(crate) fn thruster_impulse_system(
         let thrust_direction = rotation
             .mul_vec3(transform.rotation.mul_vec3(Vec3::NEG_Z))
             .normalize();
-        let thrust_force = thrust_direction * **magnitude * input.clamp(0.0, 1.0);
+        // RAW IMPULSE, no `dt`: the magnitude IS a per-tick impulse, see
+        // `ThrusterSectionMagnitude`. Multiplying by `dt` here without
+        // rescaling every authored magnitude would cut all thrust by 64x.
+        let thrust_impulse = thrust_direction * **magnitude * input.clamp(0.0, 1.0);
         let world_point = position + rotation.mul_vec3(transform.translation);
 
-        force.apply_linear_impulse_at_point(thrust_force, world_point);
+        force.apply_linear_impulse_at_point(thrust_impulse, world_point);
     }
 }
 

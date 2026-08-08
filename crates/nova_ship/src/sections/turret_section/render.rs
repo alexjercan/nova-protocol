@@ -96,11 +96,39 @@ pub(super) fn on_projectile_marker_effect(
     effect_spawner.reset();
 }
 
+/// The default bullet's mesh and material, built once.
+///
+/// The `None` arm of [`insert_projectile_render`] is the shipped path - every
+/// stock turret authors no projectile mesh - and the default turret fires 100
+/// rounds/s per muzzle, so allocating there allocated a mesh and a material per
+/// shot.
+///
+/// Built through [`FromWorld`] rather than a `Startup` system on purpose: the
+/// observer below takes it as a plain `Res`, so a turret that spawns before a
+/// startup command flush would miss the resource and hard-error under the
+/// `FallbackErrorHandler(panic)` the autopilot and probe runs install.
+#[derive(Resource, Debug)]
+pub(crate) struct DefaultProjectileRender {
+    mesh: Handle<Mesh>,
+    material: Handle<StandardMaterial>,
+}
+
+impl FromWorld for DefaultProjectileRender {
+    fn from_world(world: &mut World) -> Self {
+        let mesh = world
+            .resource_mut::<Assets<Mesh>>()
+            .add(Cuboid::new(0.05, 0.05, 0.3));
+        let material = world
+            .resource_mut::<Assets<StandardMaterial>>()
+            .add(Color::srgb(1.0, 0.9, 0.2));
+        Self { mesh, material }
+    }
+}
+
 pub(super) fn insert_projectile_render(
     add: On<Add, TurretBulletProjectileMarker>,
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    default_render: Res<DefaultProjectileRender>,
     asset_server: Res<AssetServer>,
     q_render_mesh: Query<&BulletProjectileRenderMesh>,
 ) {
@@ -126,8 +154,8 @@ pub(super) fn insert_projectile_render(
         None => {
             commands.entity(entity).insert((children![(
                 Name::new("Bullet Projectile Render"),
-                Mesh3d(meshes.add(Cuboid::new(0.05, 0.05, 0.3))),
-                MeshMaterial3d(materials.add(Color::srgb(1.0, 0.9, 0.2))),
+                Mesh3d(default_render.mesh.clone()),
+                MeshMaterial3d(default_render.material.clone()),
             ),],));
         }
     }
@@ -311,6 +339,80 @@ mod tests {
         super::{config::default_joint_speed, test_support::*},
         *,
     };
+
+    /// The `None` arm is the shipped path and the default turret fires 100
+    /// rounds/s per muzzle. Every bullet must reuse the one shared mesh and
+    /// material instead of adding two assets per shot.
+    ///
+    /// The first bullet is spawned BEFORE any update, which is what a `Startup`
+    /// system could not serve: the resource has to exist the moment the
+    /// observer runs.
+    #[test]
+    fn default_projectile_render_allocates_no_assets_per_shot() {
+        use bevy::asset::AssetPlugin;
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<Mesh>();
+        app.init_asset::<StandardMaterial>();
+        app.init_resource::<DefaultProjectileRender>();
+        app.add_observer(insert_projectile_render);
+        app.update();
+
+        let assets_now = |app: &App| {
+            (
+                app.world().resource::<Assets<Mesh>>().len(),
+                app.world().resource::<Assets<StandardMaterial>>().len(),
+            )
+        };
+        let before = assets_now(&app);
+        assert_eq!(
+            before,
+            (1, 1),
+            "exactly one shared mesh + material is built"
+        );
+
+        // No update has flushed yet on this entity's behalf beyond the one
+        // above; the observer must already find the resource.
+        app.world_mut().spawn((
+            TurretBulletProjectileMarker,
+            BulletProjectileRenderMesh(None),
+        ));
+        app.update();
+        assert_eq!(
+            assets_now(&app),
+            before,
+            "a bullet spawned with no startup flush reuses the shared assets"
+        );
+
+        for _ in 0..64 {
+            app.world_mut().spawn((
+                TurretBulletProjectileMarker,
+                BulletProjectileRenderMesh(None),
+            ));
+            app.update();
+        }
+
+        assert_eq!(
+            assets_now(&app),
+            before,
+            "firing must not add mesh/material assets"
+        );
+
+        // ... and every bullet actually got the shared handles.
+        let world = app.world_mut();
+        let mut q =
+            world.query_filtered::<(&Mesh3d, &MeshMaterial3d<StandardMaterial>), With<Name>>();
+        let children: Vec<_> = q
+            .iter(world)
+            .map(|(m, s)| (m.0.clone(), s.0.clone()))
+            .collect();
+        // 64 in the loop plus the pre-flush bullet above.
+        assert_eq!(children.len(), 65, "one render child per bullet");
+        assert!(
+            children.iter().all(|h| *h == children[0]),
+            "every bullet shares the same mesh and material handle"
+        );
+    }
 
     #[test]
     fn every_turret_joint_render_child_is_parented_to_its_joint() {

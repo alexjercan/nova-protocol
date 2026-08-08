@@ -115,7 +115,13 @@ fn setup_skybox_camera(
         return;
     };
 
-    let mut image = images.get_mut(&config.cubemap).unwrap();
+    let Some(mut image) = images.get_mut(&config.cubemap) else {
+        error!(
+            "setup_skybox_camera: cubemap for entity {:?} is not loaded",
+            entity
+        );
+        return;
+    };
 
     // NOTE: guard on the layer count -- reinterpreting an already-converted image
     // would corrupt it when several cameras share one cubemap handle.

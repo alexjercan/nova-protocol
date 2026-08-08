@@ -51,18 +51,30 @@ pub enum HudReadoutFormat {
 impl HudReadoutFormat {
     /// Render `value` in this format.
     pub fn render(self, value: f64) -> String {
-        match self {
-            HudReadoutFormat::Number => format!("{value:.1}"),
-            HudReadoutFormat::Integer => format!("{:.0}", value.round()),
+        let mut out = String::new();
+        self.render_into(&mut out, value);
+        out
+    }
+
+    /// [`Self::render`] appending into an existing buffer, so the per-frame
+    /// reconcile can format into one reused `String` instead of allocating a
+    /// fresh one per readout per frame.
+    fn render_into(self, out: &mut String, value: f64) {
+        use core::fmt::Write;
+
+        // Formatting into a String cannot fail.
+        let _ = match self {
+            HudReadoutFormat::Number => write!(out, "{value:.1}"),
+            HudReadoutFormat::Integer => write!(out, "{:.0}", value.round()),
             HudReadoutFormat::Time => {
                 // mm:ss.s. Clamp negatives to zero so a stray negative never
                 // prints a minus that reads as garbage on a clock.
                 let value = value.max(0.0);
                 let minutes = (value / 60.0).floor() as u64;
                 let seconds = value - (minutes as f64) * 60.0;
-                format!("{minutes:02}:{seconds:04.1}")
+                write!(out, "{minutes:02}:{seconds:04.1}")
             }
-        }
+        };
     }
 }
 
@@ -155,6 +167,10 @@ fn sync_readout_rows(
     mut commands: Commands,
     strip: Query<Entity, With<HudReadoutStripMarker>>,
     mut rows: Query<(Entity, &HudReadoutRow, &mut Text)>,
+    // One buffer for the whole system, reused across frames: the text of a
+    // readout is unchanged on most frames, and formatting it is how we find
+    // out.
+    mut scratch: Local<String>,
 ) {
     let Ok(strip) = strip.single() else {
         return;
@@ -168,17 +184,19 @@ fn sync_readout_rows(
     }
 
     for entry in &readouts.0 {
-        let text = format_readout(entry);
+        write_readout(&mut scratch, entry);
         // Update in place if the row already exists.
         if let Some((_, _, mut existing)) =
             rows.iter_mut().find(|(_, row, _)| row.slot == entry.slot)
         {
-            if existing.0 != text {
-                existing.0 = text;
+            if existing.0 != *scratch {
+                existing.0.clear();
+                existing.0.push_str(&scratch);
             }
             continue;
         }
         // Otherwise grow a new row under the strip.
+        let text = scratch.clone();
         commands.entity(strip).with_children(|parent| {
             parent.spawn((
                 Name::new(format!("HudReadoutRow({})", entry.slot)),
@@ -198,14 +216,20 @@ fn sync_readout_rows(
     }
 }
 
-/// Render a readout row's text: `LABEL value` (label upper-cased, matching the
-/// comms speaker styling) or just the value when no label is authored.
-fn format_readout(entry: &HudReadoutEntry) -> String {
-    let value = entry.format.render(entry.value);
-    match &entry.label {
-        Some(label) => format!("{} {}", label.to_uppercase(), value),
-        None => value,
+/// Render a readout row's text - `LABEL value` (label upper-cased, matching the
+/// comms speaker styling) or just the value when no label is authored - into a
+/// caller-owned buffer, which it CLEARS first.
+///
+/// The reconcile above runs this per readout per frame and throws the result
+/// away whenever the text has not changed, so it must not allocate to find that
+/// out.
+fn write_readout(out: &mut String, entry: &HudReadoutEntry) {
+    out.clear();
+    if let Some(label) = &entry.label {
+        out.extend(label.chars().flat_map(char::to_uppercase));
+        out.push(' ');
     }
+    entry.format.render_into(out, entry.value);
 }
 
 #[cfg(test)]
@@ -236,13 +260,16 @@ mod tests {
             format: HudReadoutFormat::Time,
             value: 83.44,
         };
-        assert_eq!(format_readout(&labelled), "TIME 01:23.4");
+        let mut out = String::new();
+        write_readout(&mut out, &labelled);
+        assert_eq!(out, "TIME 01:23.4");
 
         let bare = HudReadoutEntry {
             label: None,
             ..labelled
         };
-        assert_eq!(format_readout(&bare), "01:23.4");
+        write_readout(&mut out, &bare);
+        assert_eq!(out, "01:23.4", "write_readout clears the buffer first");
     }
 
     fn readout_app() -> App {
@@ -303,6 +330,37 @@ mod tests {
         assert!(
             row_texts(&mut app).is_empty(),
             "an emptied readout set drops every row"
+        );
+    }
+
+    /// The reconcile formats every readout into ONE buffer reused across rows
+    /// and frames, so a shorter row following a longer one is where a missing
+    /// clear shows up: without it the second row keeps the first's tail.
+    #[test]
+    fn a_shorter_second_row_does_not_inherit_the_longer_first() {
+        let mut app = readout_app();
+        app.world_mut().resource_mut::<HudReadouts>().0 = vec![
+            HudReadoutEntry {
+                slot: "timer".to_string(),
+                label: Some("TIME".to_string()),
+                format: HudReadoutFormat::Time,
+                value: 83.4,
+            },
+            HudReadoutEntry {
+                slot: "kills".to_string(),
+                label: None,
+                format: HudReadoutFormat::Integer,
+                value: 7.0,
+            },
+        ];
+        app.update();
+
+        let mut texts = row_texts(&mut app);
+        texts.sort();
+        assert_eq!(
+            texts,
+            vec!["7".to_string(), "TIME 01:23.4".to_string()],
+            "each row renders only its own value"
         );
     }
 }

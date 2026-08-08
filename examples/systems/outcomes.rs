@@ -358,13 +358,14 @@ fn outcome_probe_a(game_assets: &GameAssets, sections: &GameSections) -> Scenari
     ];
 
     ScenarioConfig {
-        id: SCENARIO_A.to_string(),
-        name: "Outcome Probe A".to_string(),
         description: "Die for the Defeat overlay, kill for the Victory checkpoint.".to_string(),
-        cubemap: game_assets.cubemap.clone().into(),
         hidden: true,
         events,
-        ..Default::default()
+        ..ScenarioConfig::new(
+            SCENARIO_A.to_string(),
+            "Outcome Probe A".to_string(),
+            game_assets.cubemap.clone().into(),
+        )
     }
 }
 
@@ -399,13 +400,14 @@ fn outcome_probe_b(game_assets: &GameAssets) -> ScenarioConfig {
     }];
 
     ScenarioConfig {
-        id: SCENARIO_B.to_string(),
-        name: "Outcome Probe B".to_string(),
         description: "The chain target, so the CHECKPOINT's arrival is observable.".to_string(),
-        cubemap: game_assets.cubemap.clone().into(),
         hidden: true,
         events,
-        ..Default::default()
+        ..ScenarioConfig::new(
+            SCENARIO_B.to_string(),
+            "Outcome Probe B".to_string(),
+            game_assets.cubemap.clone().into(),
+        )
     }
 }
 

@@ -11,6 +11,8 @@
 
 use bevy::prelude::*;
 
+use crate::math::prelude::*;
+
 /// Glob-import surface for the smooth-look-rotation rig.
 pub mod prelude {
     pub use super::{
@@ -134,12 +136,4 @@ fn smooth_look_rotation_update_system(
             **state = state.min(max);
         }
     }
-}
-
-fn normalize_angle(angle: f32) -> f32 {
-    let mut a = (angle + std::f32::consts::PI) % std::f32::consts::TAU;
-    if a < 0.0 {
-        a += std::f32::consts::TAU;
-    }
-    a - std::f32::consts::PI
 }

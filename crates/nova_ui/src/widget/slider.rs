@@ -22,8 +22,21 @@ pub struct SliderBlock(pub usize);
 
 /// The colour of block `index` for a slider at `fraction`: full phosphor if the
 /// bar is lit (below the value), dim phosphor otherwise.
+///
+/// Only an empty slider reads empty and only a full one reads full: a plain
+/// `round()` lit 24/24 at 98% and 0/24 at 2%, so the meter lied about the two
+/// values a player is most likely to check, while the hardware fill (a
+/// continuous width) showed both correctly.
 pub fn slider_meter_color(index: usize, fraction: f32) -> Color {
-    let lit = (fraction.clamp(0.0, 1.0) * SLIDER_SEGMENTS as f32).round() as usize;
+    let fraction = fraction.clamp(0.0, 1.0);
+    let segments = SLIDER_SEGMENTS as f32;
+    let lit = if fraction <= 0.0 {
+        0
+    } else if fraction >= 1.0 {
+        SLIDER_SEGMENTS
+    } else {
+        (fraction * segments).round().clamp(1.0, segments - 1.0) as usize
+    };
     if index < lit {
         theme::PHOSPHOR
     } else {
@@ -87,11 +100,11 @@ fn slider_track_node(skin: UiSkin) -> Node {
         border: UiRect::all(px(theme::BORDER_W)),
         border_radius: BorderRadius::all(px(slider_track_radius(skin))),
         align_items: AlignItems::Center,
-        padding: if phosphor {
-            UiRect::all(px(2))
-        } else {
-            UiRect::ZERO
-        },
+        // NO padding, in either skin: `slider_track` goes ON the slider entity,
+        // and bevy's drag math maps the pointer across that node's FULL width.
+        // The phosphor track used to inset its meter by 2px a side, so the lit
+        // edge sat ~3px away from the value the click actually committed.
+        padding: UiRect::ZERO,
         column_gap: if phosphor { px(2) } else { px(0) },
         ..default()
     }
@@ -379,6 +392,37 @@ mod tests {
                 .iter()
                 .all(|c| *c == theme::PHOSPHOR),
             "every bar is lit at value 1.0"
+        );
+    }
+
+    /// The clamp that makes the meter stop lying at the two ends. A plain
+    /// `round()` lit 0 blocks at 2% and all 24 at 98%, so only the endpoints
+    /// below distinguish the fix - the 0.0/1.0 cases pass either way and are
+    /// kept as the delivery guard that the un-clamped path is still exact.
+    #[test]
+    fn the_meter_reserves_a_block_at_each_end() {
+        let dim = theme::PHOSPHOR.with_alpha(0.16);
+
+        assert_eq!(
+            slider_meter_color(0, 0.02),
+            theme::PHOSPHOR,
+            "a non-empty slider lights at least one block"
+        );
+        assert_eq!(
+            slider_meter_color(SLIDER_SEGMENTS - 1, 0.98),
+            dim,
+            "a non-full slider leaves at least one block dark"
+        );
+
+        assert_eq!(
+            slider_meter_color(0, 0.0),
+            dim,
+            "an EMPTY slider lights nothing"
+        );
+        assert_eq!(
+            slider_meter_color(SLIDER_SEGMENTS - 1, 1.0),
+            theme::PHOSPHOR,
+            "a FULL slider lights everything"
         );
     }
 

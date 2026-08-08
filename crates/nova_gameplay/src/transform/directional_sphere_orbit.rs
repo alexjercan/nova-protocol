@@ -107,10 +107,15 @@ fn sphere_update_state(
         let (new_theta, new_phi) = direction_to_spherical(**next);
 
         let smoothing = orbit.smoothing.clamp(0.0, 1.0);
-        let new_theta = state.theta.lerp_and_snap(new_theta, smoothing, dt);
+        // `theta` comes back from `direction_to_spherical` folded into
+        // `[-PI, PI)`, so a target that crosses the seam reads as a near-TAU
+        // jump. Ease towards the UNWRAPPED target instead, or the orbit takes
+        // the long way round the sphere every time the direction crosses -Z.
+        let unwrapped_theta = state.theta + normalize_angle(new_theta - state.theta);
+        let new_theta = state.theta.lerp_and_snap(unwrapped_theta, smoothing, dt);
         let new_phi = state.phi.lerp_and_snap(new_phi, smoothing, dt);
 
-        state.theta = new_theta;
+        state.theta = normalize_angle(new_theta);
         state.phi = new_phi;
     }
 }
@@ -125,5 +130,77 @@ fn sphere_update_output(
     for (orbit, state, mut output) in query.iter_mut() {
         let pos = spherical_to_cartesian(orbit.radius, state.theta, state.phi) + orbit.center;
         **output = pos;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{f32::consts::PI, time::Duration};
+
+    use bevy::time::{TimePlugin, TimeUpdateStrategy};
+
+    use super::*;
+
+    /// A direction on the equator at horizontal angle `theta`.
+    fn equatorial(theta: f32) -> Vec3 {
+        spherical_to_cartesian(1.0, theta, 0.0)
+    }
+
+    fn theta_of(app: &App, entity: Entity) -> f32 {
+        app.world()
+            .entity(entity)
+            .get::<DirectionalSphereOrbitState>()
+            .expect("the insert observer must seed the orbit state")
+            .theta
+    }
+
+    /// Easing across the -Z seam takes the SHORT way round. `theta` comes back
+    /// from `direction_to_spherical` folded into `[-PI, PI)`, so a step of 0.1
+    /// rad that crosses -Z reads as a near-TAU jump; eased towards the folded
+    /// target the orbit sweeps the long way back through 0 instead.
+    #[test]
+    fn easing_across_the_seam_takes_the_short_way() {
+        let start = PI - 0.05;
+        let target = -PI + 0.05;
+
+        let mut app = App::new();
+        app.add_plugins((TimePlugin, DirectionalSphereOrbitPlugin));
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            1.0 / 60.0,
+        )));
+
+        let entity = app
+            .world_mut()
+            .spawn(DirectionalSphereOrbit {
+                radius: 1.0,
+                center: Vec3::ZERO,
+                direction: equatorial(start),
+                smoothing: 0.5,
+            })
+            .id();
+        // The observer seeds the state; the first update lands a zero delta.
+        app.update();
+        assert!(
+            (theta_of(&app, entity) - start).abs() < 1e-4,
+            "the rig must start at the seam, not somewhere else"
+        );
+
+        app.world_mut()
+            .entity_mut(entity)
+            .insert(DirectionalSphereOrbitInput(equatorial(target)));
+        app.update();
+
+        // Folded back into [-PI, PI), a short-way step from PI - 0.05 either
+        // stays just under PI or has just crossed to just above -PI. Measuring
+        // the SIGNED short-way delta covers both without a seam special case.
+        let moved = normalize_angle(theta_of(&app, entity) - start);
+        assert!(
+            moved > 0.0,
+            "the orbit must ease towards the seam, not away from it (moved {moved})"
+        );
+        assert!(
+            moved <= 0.1 + 1e-4,
+            "the orbit must not overshoot the 0.1 rad target (moved {moved})"
+        );
     }
 }

@@ -99,6 +99,9 @@ Settled since, all owner rulings dated 2026-08-07:
 | F61 - exact float `Equal` in the scenario DSL | **epsilon compare** inside `Equal`. Not a second `ApproxEqual` node |
 | F47 - `NovaGameplayPlugin::render` | **make it real.** Gate hanabi, skybox, post and the HUD on it |
 | F66 - a no-lock torpedo can never detonate | **intended - it is a misfire.** Behavior unchanged, one comment so it is not re-reported |
+| F24 - which clock the AI chain runs on | **`update_fire_cadence` alone moves to `FixedUpdate`**, the rest of the chain stays in `Update`. Twelve of the thirteen systems read an eased `Transform`/`GlobalTransform`, which in `FixedUpdate` holds the previous frame's pose. Consequence: `SpaceshipInputSystems` now needs a `FixedUpdate` gate configuration in both the pause and scenario-live gates, each with its own probe test |
+| F67 - the main drive's thrust unit | **stays a per-tick impulse.** Behavior unchanged; the reason is written where a reader meets the unit. Consequence: the migration (`apply_force_at_point` plus a 64x content rescale) becomes mandatory the day anything configures `Time<Fixed>` |
+| F82 - four over-declared `&mut` system params | **dropped as falsified.** One path does not exist; the other three are `#[cfg(test)]` rig helpers, the shape the finding itself cleared. Consequence: no edit, and the fifth time this epic's RE-MEASURE rule has paid |
 
 ## Alternatives considered
 

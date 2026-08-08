@@ -606,10 +606,7 @@ fn rock_hollow(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
     };
 
     ScenarioConfig {
-        id: "rock_hollow".to_string(),
-        name: "Rock Hollow".to_string(),
         description: "A run into a rock field, and the ambush waiting in it.".to_string(),
-        cubemap: game_assets.cubemap.clone().into(),
         events: vec![
             ScenarioEventConfig {
                 name: EventConfig::OnStart,
@@ -631,7 +628,11 @@ fn rock_hollow(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
             },
             ambush(sections),
         ],
-        ..Default::default()
+        ..ScenarioConfig::new(
+            "rock_hollow".to_string(),
+            "Rock Hollow".to_string(),
+            game_assets.cubemap.clone().into(),
+        )
     }
 }
 

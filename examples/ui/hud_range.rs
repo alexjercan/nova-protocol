@@ -260,12 +260,13 @@ fn hud_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfi
     }];
 
     ScenarioConfig {
-        id: "hud_range".to_string(),
-        name: "HUD Range".to_string(),
         description: "A test range for the screen-projected HUD indicators.".to_string(),
-        cubemap: game_assets.cubemap.clone().into(),
         events,
-        ..Default::default()
+        ..ScenarioConfig::new(
+            "hud_range".to_string(),
+            "HUD Range".to_string(),
+            game_assets.cubemap.clone().into(),
+        )
     }
 }
 

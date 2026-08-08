@@ -206,7 +206,14 @@ fn serve_dir(dir: PathBuf) -> Result<u16, String> {
                     .filter(|f| f.is_file());
                 match safe.and_then(|f| std::fs::read(&f).ok().map(|b| (f, b))) {
                     Some((f, body)) => {
-                        let ctype = match f.extension().and_then(|e| e.to_str()) {
+                        // Lowercased: an asset shipped as `LOGO.PNG` is the
+                        // same image, and serving it as octet-stream makes the
+                        // browser download the report instead of drawing it.
+                        let ext = f
+                            .extension()
+                            .and_then(|e| e.to_str())
+                            .map(str::to_ascii_lowercase);
+                        let ctype = match ext.as_deref() {
                             Some("html") => "text/html",
                             Some("js") => "application/javascript",
                             Some("wasm") => "application/wasm",

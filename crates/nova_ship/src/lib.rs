@@ -133,18 +133,30 @@ pub(crate) fn configure_pause_gating(app: &mut App) {
     );
     app.configure_sets(
         FixedUpdate,
-        sections::SpaceshipSectionSystems.run_if(in_state(PauseStates::Unpaused)),
+        (
+            input::SpaceshipInputSystems,
+            sections::SpaceshipSectionSystems,
+        )
+            .run_if(in_state(PauseStates::Unpaused)),
     );
 }
 
 #[cfg(test)]
 mod pause_gating_tests {
-    use bevy::state::app::StatesPlugin;
+    use std::time::Duration;
+
+    use bevy::{
+        state::app::StatesPlugin,
+        time::{TimePlugin, TimeUpdateStrategy},
+    };
 
     use super::*;
 
     #[derive(Resource, Default)]
     struct Ticks(u32);
+
+    #[derive(Resource, Default)]
+    struct FixedTicks(u32);
 
     /// The production pause gating must actually stop systems in
     /// the spaceship sets. Probe runs while Unpaused, freezes while Paused,
@@ -182,6 +194,54 @@ mod pause_gating_tests {
             app.world().resource::<Ticks>().0,
             3,
             "resumes after unpause"
+        );
+    }
+
+    /// The FixedUpdate half of the gate carries `update_fire_cadence`, so a
+    /// paused AI ship must not advance its burst clock. Asserted separately
+    /// from the Update probe above: the two schedules are configured by two
+    /// `configure_sets` calls, and only this one covers the fixed clock.
+    #[test]
+    fn spaceship_sets_freeze_in_fixed_update_while_paused() {
+        let mut app = App::new();
+        app.add_plugins((TimePlugin, StatesPlugin));
+        app.init_state::<PauseStates>();
+        app.init_resource::<FixedTicks>();
+        // One fixed step per update, so every phase below advances the clock.
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f64(
+            1.0 / 64.0,
+        )));
+        configure_pause_gating(&mut app);
+        app.add_systems(
+            FixedUpdate,
+            (|mut ticks: ResMut<FixedTicks>| ticks.0 += 1).in_set(input::SpaceshipInputSystems),
+        );
+
+        // The first update lands a zero delta, so warm up before measuring.
+        app.update();
+        app.update();
+        let unpaused = app.world().resource::<FixedTicks>().0;
+        assert!(unpaused > 0, "runs in FixedUpdate while Unpaused");
+
+        app.world_mut()
+            .resource_mut::<NextState<PauseStates>>()
+            .set(PauseStates::Paused);
+        app.update();
+        app.update();
+        assert_eq!(
+            app.world().resource::<FixedTicks>().0,
+            unpaused,
+            "frozen in FixedUpdate while Paused"
+        );
+
+        app.world_mut()
+            .resource_mut::<NextState<PauseStates>>()
+            .set(PauseStates::Unpaused);
+        app.update();
+        app.update();
+        assert!(
+            app.world().resource::<FixedTicks>().0 > unpaused,
+            "resumes in FixedUpdate after unpause"
         );
     }
 }

@@ -39,7 +39,7 @@ struct AreaOccupancy(bevy::platform::collections::HashMap<(Entity, Entity), u32>
 /// Turns [`ScenarioAreaMarker`] sensor overlaps into scenario `OnEnter`/`OnExit`
 /// events, deduping a compound body's many section colliders to one enter/exit.
 /// Adds the collision-events setup observer plus the collision-start/end and
-/// occupancy-cleanup observers (all observer-driven, no scheduled systems).
+/// occupancy-cleanup observer (all observer-driven, no scheduled systems).
 pub struct ScenarioAreaPlugin;
 
 impl Plugin for ScenarioAreaPlugin {
@@ -50,18 +50,29 @@ impl Plugin for ScenarioAreaPlugin {
         app.add_observer(insert_collision_events);
         app.add_observer(on_collision_start_event);
         app.add_observer(on_collision_end_event);
-        app.add_observer(forget_area_occupancy);
+        app.add_observer(forget_body_occupancy);
     }
 }
 
-/// Drop an area's occupancy rows when it leaves the world (e.g. a crate despawned
-/// on pickup), so its dangling collider contacts - avian fires no `CollisionEnd`
-/// for a despawned collider - do not leak.
-fn forget_area_occupancy(
-    remove: On<Remove, ScenarioAreaMarker>,
-    mut occupancy: ResMut<AreaOccupancy>,
-) {
-    occupancy.0.retain(|(area, _), _| *area != remove.entity);
+/// Drop every occupancy row an entity is part of when it leaves the world,
+/// from EITHER side of the pair: an area despawned on pickup, or a body
+/// destroyed while still inside a live area. avian fires no `CollisionEnd` for
+/// a despawned collider, so without this the pair keeps a non-zero count
+/// forever and the next body to occupy that area never drives it back to zero.
+///
+/// Keyed on [`EntityId`] because that is what both collision handlers require
+/// of the non-area side, and areas carry it too (`q_area` requires it) - so one
+/// observer covers both sides. Scenario teardown despawns every scoped entity,
+/// so this is also what clears the table between scenarios.
+///
+/// PRUNE ONLY: the row is dropped silently, so a body destroyed inside an area
+/// fires no `OnExit` for ITSELF. The only `OnExitEvent` is on the 1 -> 0
+/// transition in [`on_collision_end_event`]. What this restores is the NEXT
+/// body's ability to reach zero at all.
+fn forget_body_occupancy(remove: On<Remove, EntityId>, mut occupancy: ResMut<AreaOccupancy>) {
+    occupancy
+        .0
+        .retain(|(area, other), _| *area != remove.entity && *other != remove.entity);
 }
 
 fn insert_collision_events(add: On<Add, ScenarioAreaMarker>, mut commands: Commands) {
@@ -262,6 +273,67 @@ mod tests {
         assert!(
             entered(&app),
             "spawning a trigger around a body must fire OnEnter (fresh contact pair)"
+        );
+    }
+
+    /// A body that DESPAWNS inside a live area must take its occupancy row with
+    /// it. avian fires no `CollisionEnd` for a despawned collider, so the row
+    /// would otherwise stay at its non-zero count forever and the area could
+    /// never be driven back to empty - the `OnExit` a scenario gates on would
+    /// never fire again for that area.
+    #[test]
+    fn a_body_despawned_inside_an_area_drops_its_occupancy() {
+        let mut app = App::new();
+        app.add_plugins((
+            MinimalPlugins,
+            TransformPlugin,
+            AssetPlugin::default(),
+            bevy::mesh::MeshPlugin,
+            PhysicsPlugins::default(),
+        ));
+        app.insert_resource(Gravity(Vec3::ZERO));
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            0.02,
+        )));
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.add_plugins(ScenarioAreaPlugin);
+        app.finish();
+
+        let ship = app
+            .world_mut()
+            .spawn((
+                EntityId::new("ship".to_string()),
+                EntityTypeName::new("spaceship".to_string()),
+                RigidBody::Dynamic,
+                Collider::sphere(0.5),
+                ColliderDensity(1.0),
+                Transform::IDENTITY,
+            ))
+            .id();
+        app.world_mut().spawn((
+            ScenarioAreaMarker,
+            EntityId::new("ring".to_string()),
+            RigidBody::Static,
+            Collider::sphere(50.0),
+            Sensor,
+            Transform::IDENTITY,
+        ));
+        for _ in 0..25 {
+            app.update();
+        }
+        assert!(
+            !app.world().resource::<AreaOccupancy>().0.is_empty(),
+            "delivery guard: the body must be counted as inside first"
+        );
+
+        app.world_mut().entity_mut(ship).despawn();
+        app.update();
+
+        assert!(
+            app.world().resource::<AreaOccupancy>().0.is_empty(),
+            "the despawned body's row must not outlive it"
         );
     }
 

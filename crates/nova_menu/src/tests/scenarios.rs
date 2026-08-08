@@ -86,11 +86,13 @@ fn picker_scenario(id: &str, name: &str, hidden: bool) -> (String, ScenarioConfi
     (
         id.to_string(),
         ScenarioConfig {
-            id: id.to_string(),
-            name: name.to_string(),
             description: format!("{name} blurb"),
             hidden,
-            ..Default::default()
+            ..ScenarioConfig::new(
+                id,
+                name,
+                AssetRef::from("dep://base/textures/cubemap.png".to_string()),
+            )
         },
     )
 }

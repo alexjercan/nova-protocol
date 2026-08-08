@@ -41,10 +41,11 @@ fn ui_skin_button_sets_resource() {
         .spawn((segmented_option("Hardware"), ButtonValue(UiSkin::Hardware)))
         .id();
 
-    // Press Hardware -> resource flips, selection moves off Phosphor.
+    // Activate Hardware -> resource flips, selection moves off Phosphor.
+    // flush: the observer moves `Selected` through `Commands`.
     app.world_mut()
-        .entity_mut(hardware)
-        .insert(bevy::ui::Pressed);
+        .trigger(bevy::ui_widgets::Activate { entity: hardware });
+    app.world_mut().flush();
     assert_eq!(*app.world().resource::<UiSkin>(), UiSkin::Hardware);
     assert!(app.world().entity(hardware).contains::<Selected>());
     assert!(

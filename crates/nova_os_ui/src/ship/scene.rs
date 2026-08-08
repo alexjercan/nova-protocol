@@ -215,7 +215,7 @@ pub(crate) fn manage_ship_scene(
             ..default()
         },
         RenderTarget::Image(ImageRenderTarget {
-            handle: image.clone(),
+            handle: image,
             scale_factor: 1.0,
         }),
         Transform::from_translation(

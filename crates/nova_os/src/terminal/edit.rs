@@ -382,7 +382,7 @@ impl NovaOsTerminal {
             ResolvedCommand::UnexpectedArguments { command, arity, .. } => {
                 if let Some(name) = self.command_name_starting_with(trimmed) {
                     self.parse_status = TerminalParseStatus::ValidPrefix;
-                    self.completion_hint = Some(name.to_string());
+                    self.completion_hint = Some(name);
                 } else {
                     self.parse_status = TerminalParseStatus::Invalid;
                     self.completion_hint = Some(format!("{command}: {}", arity.rejection()));
@@ -391,7 +391,7 @@ impl NovaOsTerminal {
             ResolvedCommand::Unknown { suggestion, .. } => {
                 if let Some(name) = self.command_name_starting_with(trimmed) {
                     self.parse_status = TerminalParseStatus::ValidPrefix;
-                    self.completion_hint = Some(name.to_string());
+                    self.completion_hint = Some(name);
                 } else {
                     self.parse_status = TerminalParseStatus::Invalid;
                     self.completion_hint =

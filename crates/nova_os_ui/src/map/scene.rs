@@ -107,7 +107,7 @@ pub(crate) fn manage_map_scene(
             // RenderTarget is a standalone component in this Bevy version (see the
             // NOVA OS RTT camera), not a `Camera` field.
             RenderTarget::Image(ImageRenderTarget {
-                handle: image.clone(),
+                handle: image,
                 scale_factor: 1.0,
             }),
             Transform::from_translation(

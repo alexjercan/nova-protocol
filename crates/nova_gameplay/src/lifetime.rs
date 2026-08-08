@@ -95,7 +95,11 @@ fn update_temp_entities(
         temp_state.tick(time.delta());
 
         if temp_state.is_finished() {
-            commands.entity(entity).despawn();
+            // try_despawn: this sweep runs against entities other systems also
+            // delete (a torpedo that fuzes on the frame its lifetime expires),
+            // and both despawns land in the same flush. The loser of that race
+            // is a hard panic under the game's FallbackErrorHandler(panic).
+            commands.entity(entity).try_despawn();
             trace!("update_temp_entities: despawn entity {:?}", entity);
         }
     }

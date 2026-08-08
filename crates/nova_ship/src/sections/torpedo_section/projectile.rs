@@ -62,6 +62,14 @@ pub(super) fn update_torpedo_arming(
     }
 }
 
+/// Fuze every armed torpedo that has reached its target: despawn it and spawn
+/// the blast.
+///
+/// Requiring `&TorpedoTargetPosition` is deliberate. A torpedo launched with no
+/// lock never receives one (`intent.rs` inserts `TorpedoTargetChosen` alone when
+/// `CombatLock` is `None`), so it CANNOT detonate - it flies its full lifetime,
+/// deals a contact ding and is deleted. A no-lock launch is a misfire, and the
+/// bay still spends the round.
 pub(super) fn torpedo_detonate_system(
     mut commands: Commands,
     q_torpedo: Query<
@@ -97,7 +105,12 @@ pub(super) fn torpedo_detonate_system(
 
         // Proximity fuze: fire within half the blast radius of the target.
         if distance < blast.radius * 0.5 {
-            commands.entity(torpedo).despawn();
+            // try_despawn: the lifetime sweep can queue a despawn for this same
+            // torpedo in the same flush (a torpedo that fuzes on the frame its
+            // lifetime expires). A plain despawn on the loser of that race is a
+            // hard panic under the FallbackErrorHandler(panic) the autopilot and
+            // probe runs install.
+            commands.entity(torpedo).try_despawn();
             // A nova typed blast (Explosive): nova owns the falloff + trigger
             // so the blast obeys the resistance table, and it is the only blast
             // path in the app, so the damage is not double-counted.
@@ -386,6 +399,58 @@ mod tests {
             DamageType::Explosive,
             "a torpedo blast is Explosive"
         );
+    }
+
+    /// A torpedo that fuzes on the frame its lifetime expires gets two queued
+    /// despawns in one flush - the fuze here and the generic `TempEntity` sweep.
+    /// With the game's panic-on-command-error fallback, the loser of that race
+    /// used to hard-panic mid-run.
+    #[test]
+    fn a_torpedo_despawned_elsewhere_in_the_same_flush_does_not_panic() {
+        use bevy::ecs::error::{panic, FallbackErrorHandler};
+
+        // Stands in for the lifetime sweep, which despawns an expired torpedo
+        // knowing nothing about the fuze. It queues FIRST, so the fuze's own
+        // despawn is the one that lands on an already-dead entity.
+        fn expire_torpedoes(
+            mut commands: Commands,
+            q: Query<Entity, With<TorpedoProjectileMarker>>,
+        ) {
+            for torpedo in &q {
+                commands.entity(torpedo).despawn();
+            }
+        }
+
+        let mut app = App::new();
+        app.insert_resource(FallbackErrorHandler(panic));
+        // chain_ignore_deferred: no sync point between them, so both despawns
+        // are applied from the same buffer - the real frame order.
+        app.add_systems(
+            Update,
+            (expire_torpedoes, torpedo_detonate_system).chain_ignore_deferred(),
+        );
+
+        let part_of = app.world_mut().spawn_empty().id();
+        let mut arming = TorpedoArming::new(0.5, 5.0, Vec3::ZERO);
+        arming.tick(1.0, Vec3::ZERO);
+        let torpedo = app
+            .world_mut()
+            .spawn((
+                TorpedoProjectileMarker,
+                Transform::from_translation(Vec3::ZERO),
+                TorpedoTargetPosition(Vec3::ZERO),
+                arming,
+                TorpedoBlast {
+                    radius: 30.0,
+                    damage: 100.0,
+                },
+                TorpedoSectionPartOf(part_of),
+            ))
+            .id();
+
+        app.update();
+
+        assert!(!app.world().entities().contains(torpedo));
     }
 
     #[test]

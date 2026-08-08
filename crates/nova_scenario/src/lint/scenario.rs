@@ -300,7 +300,10 @@ fn check_action(
         }
         EventActionConfig::Outcome(config) => {
             if let Some(secs) = config.auto_advance_secs {
-                if !secs.is_finite() || !(0.0..=OUTCOME_AUTO_ADVANCE_MAX_SECS).contains(&secs) {
+                // Half-open at zero, as the message says: `Some(0.0)` builds a
+                // Timer that finishes on its first tick, which is a different
+                // scenario from the `None` the author meant.
+                if !secs.is_finite() || secs <= 0.0 || secs > OUTCOME_AUTO_ADVANCE_MAX_SECS {
                     issues.push(LintIssue::warn(
                         scenario,
                         format!(
@@ -357,7 +360,8 @@ fn check_action(
                             .to_string(),
                     ));
                 } else if !delay.is_finite()
-                    || !(0.0..=NEXT_SCENARIO_DELAY_WARN_SECS).contains(&delay)
+                    || delay <= 0.0
+                    || delay > NEXT_SCENARIO_DELAY_WARN_SECS
                 {
                     issues.push(LintIssue::warn(
                         scenario,
@@ -908,6 +912,18 @@ mod tests {
         let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("auto_advance_secs"));
+
+        // Zero is OUTSIDE the (0, MAX] the messages advertise: it builds a
+        // Timer that finishes on tick one, so the banner never shows. Both
+        // fields, since both read as "omit the field instead".
+        let s = scenario(vec![outcome_adv(Some(0.0))], vec![]);
+        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        assert_eq!(issues.len(), 1, "{issues:?}");
+        assert!(issues[0].message.contains("auto_advance_secs"));
+        let s = scenario(vec![next(false, Some(0.0))], vec![]);
+        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        assert_eq!(issues.len(), 1, "{issues:?}");
+        assert!(issues[0].message.contains("outside (0, 60]"));
 
         // Sane values, trap-free shapes: clean.
         let s = scenario(vec![next(false, Some(4.0))], vec![]);

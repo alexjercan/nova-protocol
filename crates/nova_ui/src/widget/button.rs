@@ -14,7 +14,7 @@ use bevy::{
     prelude::*,
     reflect::Is,
     ui::{InteractionDisabled, Pressed},
-    ui_widgets::Button,
+    ui_widgets::{Activate, Button},
 };
 
 use super::{
@@ -241,17 +241,25 @@ fn hardware_paint(
             cursor_visible,
         },
         ButtonVariant::Danger => {
-            if hovered || pressed {
+            // Pressed is its OWN paint, like every other hardware variant:
+            // sunk (no drop shadow) and darker. Collapsing it into `hovered`
+            // left Exit with no press feedback on this skin only.
+            if pressed || hovered {
+                let lit = Color::srgb_u8(0x6b, 0x2a, 0x26);
+                let dark = Color::srgb_u8(0x3a, 0x15, 0x12);
                 Paint {
                     bg: theme::RED,
                     border,
                     text: Color::WHITE,
                     radius,
-                    gradient: Some(grad2(
-                        Color::srgb_u8(0x6b, 0x2a, 0x26),
-                        Color::srgb_u8(0x3a, 0x15, 0x12),
-                    )),
-                    shadow: Some(drop_shadow()),
+                    // Pressed inverts the gradient and drops the shadow: the
+                    // face reads as sunk rather than raised.
+                    gradient: Some(if pressed {
+                        grad2(dark, lit)
+                    } else {
+                        grad2(lit, dark)
+                    }),
+                    shadow: (!pressed).then(drop_shadow),
                     cursor_visible,
                 }
             } else {
@@ -494,12 +502,16 @@ pub(super) fn reconcile_button_skins(
     }
 }
 
-/// On a button press, copy the pressed button's `ButtonValue<T>` into the `T`
-/// resource and move the `Selected` marker to it.
+/// On a button activation, copy the activated button's `ButtonValue<T>` into
+/// the `T` resource and move the `Selected` marker to it.
+///
+/// `Activate` (release over the button), not `Add, Pressed` (mouse-down), so a
+/// valued button cancels like every other button in the UI: press, drag off,
+/// release commits nothing.
 pub fn button_on_setting<
     T: Resource + Component<Mutability = bevy::ecs::component::Mutable> + PartialEq + Clone,
 >(
-    event: On<Add, Pressed>,
+    event: On<Activate>,
     mut commands: Commands,
     // Each button carries its value as a `ButtonValue<T>` component (distinct from the T
     // resource, so a button never clobbers the resource), and clicking copies that value
@@ -508,7 +520,7 @@ pub fn button_on_setting<
     q_t: Query<(Entity, &ButtonValue<T>), (Without<Selected>, With<ThemedButton>)>,
     mut setting: ResMut<T>,
 ) {
-    let Ok((entity, value)) = q_t.get(event.event_target()) else {
+    let Ok((entity, value)) = q_t.get(event.entity) else {
         return;
     };
 
@@ -819,6 +831,43 @@ mod tests {
         );
     }
 
+    /// SKIN COMPARISON: whether a variant reacts to a press must be the SAME
+    /// on both skins. The hardware Danger face (the Exit button) collapsed
+    /// hover and press into one paint while the phosphor one did not, so Exit
+    /// had press feedback on one skin only.
+    #[test]
+    fn press_reads_differently_from_hover_in_both_skins() {
+        // The visually load-bearing parts of a Paint, comparable.
+        let face = |skin, variant, hovered, pressed| {
+            let p = button_paint(skin, variant, false, hovered, pressed, false);
+            (
+                format!("{:?}", p.bg),
+                format!("{:?}", p.text),
+                format!("{:?}", p.gradient.map(|g| g.0.len())),
+                p.shadow.is_some(),
+            )
+        };
+
+        let reacts_to_press =
+            |skin, variant| face(skin, variant, true, false) != face(skin, variant, true, true);
+
+        for variant in [
+            ButtonVariant::Default,
+            ButtonVariant::Primary,
+            ButtonVariant::Danger,
+            ButtonVariant::Ghost,
+        ] {
+            assert_eq!(
+                reacts_to_press(UiSkin::Phosphor, variant),
+                reacts_to_press(UiSkin::Hardware, variant),
+                "{variant:?} gives press its own face on one skin but not the other"
+            );
+        }
+
+        // Danger is the one the finding named: Exit must sink on both skins.
+        assert!(reacts_to_press(UiSkin::Hardware, ButtonVariant::Danger));
+    }
+
     // NOTE: `Resource` is component-backed in Bevy 0.19, so it also provides the
     // `Component` impl `button_on_setting` needs - deriving `Component` too would
     // conflict. This mirrors the editor's `SectionChoice` (Resource-only).
@@ -830,12 +879,12 @@ mod tests {
         B,
     }
 
-    /// Pressing a `ThemedButton` carrying `ButtonValue<T>` copies that value into
-    /// the `T` resource and marks it `Selected`, moving the marker off any prior
-    /// selection. This is the exact path the editor's component cards (and the
-    /// menu's tool buttons) rely on - inserting `Pressed` must set the resource.
+    /// Activating a `ThemedButton` carrying `ButtonValue<T>` copies that value
+    /// into the `T` resource and marks it `Selected`, moving the marker off any
+    /// prior selection. This is the exact path the editor's component cards (and
+    /// the menu's tool buttons) rely on.
     #[test]
-    fn pressing_a_valued_button_sets_the_resource_and_selection() {
+    fn activating_a_valued_button_sets_the_resource_and_selection() {
         let mut app = App::new();
         app.insert_resource(Choice::None);
         app.add_observer(button_on_setting::<Choice>);
@@ -851,16 +900,31 @@ mod tests {
             .spawn((ThemedButton, ButtonValue(Choice::B)))
             .id();
 
-        app.world_mut().entity_mut(a).insert(Pressed);
+        // flush: the observer moves `Selected` through `Commands`, and a bare
+        // `World::trigger` outside a schedule leaves that queue unapplied.
+        app.world_mut().trigger(Activate { entity: a });
+        app.world_mut().flush();
         assert_eq!(*app.world().resource::<Choice>(), Choice::A);
         assert!(app.world().entity(a).contains::<Selected>());
 
-        app.world_mut().entity_mut(b).insert(Pressed);
+        app.world_mut().trigger(Activate { entity: b });
+        app.world_mut().flush();
         assert_eq!(*app.world().resource::<Choice>(), Choice::B);
         assert!(app.world().entity(b).contains::<Selected>());
         assert!(
             !app.world().entity(a).contains::<Selected>(),
             "the previous selection is cleared"
         );
+
+        // CANCEL: mouse-down alone must commit nothing (press, drag off,
+        // release). Only `Activate` - release over the button - commits.
+        app.world_mut().entity_mut(a).insert(Pressed);
+        app.world_mut().flush();
+        assert_eq!(
+            *app.world().resource::<Choice>(),
+            Choice::B,
+            "a bare press must not commit the setting"
+        );
+        assert!(!app.world().entity(a).contains::<Selected>());
     }
 }

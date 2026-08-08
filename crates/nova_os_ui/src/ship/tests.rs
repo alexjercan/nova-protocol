@@ -1315,10 +1315,13 @@ fn ship_section_label_and_dot_are_one_unbroken_target() {
     // The same seam sweep the map app gets, at pixel centres (the shared edge
     // itself is a measure-zero boundary `contains_point` excludes).
     let y = dot.center().y;
-    let mut x = dot.center().x + 0.5;
+    let first = dot.center().x + 0.5;
     let last = pill.min.x + 6.0;
+    // Counted, not accumulated - see the map app's twin of this sweep.
+    let steps = ((last - first).floor() as i32 + 1).max(0);
     let mut probed = 0;
-    while x <= last {
+    for step in 0..steps {
+        let x = first + step as f32;
         let at = Vec2::new(x, y);
         rig.app.world_mut().resource_mut::<ShipRuntime>().selected = None;
         click_at(&mut rig, glass_px(glass_uv_showing(at)));
@@ -1330,7 +1333,6 @@ fn ship_section_label_and_dot_are_one_unbroken_target() {
             pointer_image_px(&rig),
         );
         probed += 1;
-        x += 1.0;
     }
     assert!(
         probed >= 12,

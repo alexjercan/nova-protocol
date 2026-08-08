@@ -416,12 +416,13 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
     }];
 
     ScenarioConfig {
-        id: id.to_string(),
-        name: "Turret Range".to_string(),
         description: "A test range for the PDC turret section.".to_string(),
-        cubemap: game_assets.cubemap.clone().into(),
         events,
-        ..Default::default()
+        ..ScenarioConfig::new(
+            id.to_string(),
+            "Turret Range".to_string(),
+            game_assets.cubemap.clone().into(),
+        )
     }
 }
 

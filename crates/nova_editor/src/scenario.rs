@@ -29,12 +29,13 @@ pub(crate) fn test_scenario(
     let objects = sandbox_objects(player_config, game_assets.asteroid_texture.clone());
 
     ScenarioConfig {
-        id: "test_scenario".to_string(),
-        name: "Test Scenario".to_string(),
         description: "A sandbox scenario: an asteroid field and a planetoid.".to_string(),
-        cubemap: game_assets.cubemap.clone().into(),
         events: sandbox_events(objects),
-        ..Default::default()
+        ..ScenarioConfig::new(
+            "test_scenario".to_string(),
+            "Test Scenario".to_string(),
+            game_assets.cubemap.clone().into(),
+        )
     }
 }
 

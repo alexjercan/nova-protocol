@@ -18,7 +18,7 @@ use firing::{despawn_bullet_on_hit, shoot_spawn_projectile};
 use nova_gameplay::prelude::*;
 use render::{
     insert_projectile_render, insert_turret_barrel_muzzle_effect, insert_turret_joint_render,
-    on_projectile_marker_effect,
+    on_projectile_marker_effect, DefaultProjectileRender,
 };
 use setup::{apply_turret_config_to_children, insert_turret_section};
 
@@ -208,6 +208,7 @@ impl Plugin for TurretSectionPlugin {
 
         if self.render {
             app.add_observer(insert_turret_joint_render);
+            app.init_resource::<DefaultProjectileRender>();
             app.add_observer(insert_projectile_render);
 
             // Hanabi muzzle-flash and projectile-trail effects: run on wasm too

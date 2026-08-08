@@ -1463,39 +1463,106 @@ measured against. Every gate was re-run on the replay; see "The rebase" below.
 NEUTRAL. Depends on L1 - F37 sits directly under the probe's FPS baseline
 check, so its evidence is only meaningful once the gate is trustworthy.
 
-- [ ] F37 - add a `DefaultProjectileRender { mesh, material }` resource,
+- [x] F37 - add a `DefaultProjectileRender { mesh, material }` resource,
       initialized at plugin startup, and clone two handles in the `None` arm of
       `turret_section/render.rs:126-133`. That arm is the SHIPPED path - every
       stock turret authors no projectile mesh - so a held trigger creates 100
       mesh and 100 material assets per second.
-- [ ] F38 - extract `spool_allocated_thrusters` from the byte-identical 16-line
+      Resource built through `impl FromWorld for DefaultProjectileRender` plus
+      `init_resource`, gated behind the plugin's existing `self.render`. It was
+      a `Startup` system until review round 1 (R1.8): `insert_projectile_render`
+      takes the resource as a plain `Res`, so any bullet spawned before that
+      startup command flushed failed the lookup - a hard error under the
+      `FallbackErrorHandler(panic)` the autopilot and probe runs install.
+      `FromWorld` deletes the ordering coupling instead of documenting it.
+      Test `default_projectile_render_allocates_no_assets_per_shot` fires 64
+      bullets and asserts `Assets<Mesh>`/`Assets<StandardMaterial>` stay at 1
+      each AND that every bullet child holds the same two handles - the second
+      assertion is what makes it a reuse test rather than a leak test. Round 1
+      added a 65th bullet spawned with no flush behind it, which is the case a
+      `Startup` system could not serve.
+- [x] F38 - extract `spool_allocated_thrusters` from the byte-identical 16-line
       bodies at `flight/autopilot.rs:877` and `flight/manual.rs:142`, building a
       `HashMap<Entity, usize>` from `allocation` ONCE outside the loop. Do not
       fix the O(ships x thrusters^2)-per-tick bug in place in two files.
-- [ ] F38 - preserve the verified invariant that `balance_throttles` always
+      One `pub(super)` fn in `flight/thrusters.rs`, generic over the query's
+      filter so both call sites pass their own `Query` unchanged.
+      The `HashMap` did NOT survive review round 1 (R1.6): built per ship per
+      fixed tick it was a NEW heap allocation in the system the change was meant
+      to speed up, and the probe measured no mean gain to pay for it.
+      `allocation` holds one entry per ENGINE on one ship (single digits), so
+      the shipped body keeps the linear `position()` scan and the extraction -
+      one body instead of two - is the whole of F38.
+- [x] F38 - preserve the verified invariant that `balance_throttles` always
       returns `engines.len()` entries, so `throttles[i]` cannot panic. Do not
       add a bounds check that hides its loss.
-- [ ] F24 - move the AI firing-gate timers (`guns.rs:119`,
+      `throttles[i]` is still a bare index; the docstring records WHY it cannot
+      be out of bounds. 414 `nova_ship` lib tests green, including the balance
+      and orbit suites that exercise both call sites.
+- [x] F24 - move the AI firing-gate timers (`guns.rs:119`,
       `behavior.rs:292-308`, `torpedo.rs:158`) to `FixedUpdate` or tick them off
       `Time<Fixed>`; the chain is registered in `Update` while the firing
       happens in `FixedUpdate`. Decide which by reading what else the AI chain
       needs from `Update`. The 6-vs-119 ratio is NOT a problem - do not widen.
-- [ ] F26 - add the `nova_ui::widget::UiText` marker at `settings.rs:95` and
+      MOVED THE CHAIN, then MOVED IT BACK in review round 1 (R1.1). The first
+      close-out claimed "every pose it reads is fixed-clock"; that was wrong.
+      Twelve of the thirteen systems read an eased pose - `&Transform` at
+      `acquisition.rs:141,151,260,269`, `behavior.rs:264,277`, `guns.rs:37,193`,
+      `maneuver.rs:145,155,230,240`, `torpedo.rs:104,111` and
+      `&GlobalTransform` at `guns.rs:182` (muzzle) and `maneuver.rs:224`
+      (thruster) - and `web/src/wiki/dev/architecture.md:229-246` states that in
+      `FixedUpdate` of frame N those hold frame N-1's pose. That is the exact
+      staleness `thruster_impulse_system` was fixed for, so the move introduced
+      it rather than removing one.
+      SHIPPED: the plan's other option. `update_fire_cadence` alone runs in
+      `FixedUpdate` - it is the timer whose expiry writes the trigger
+      `shoot_spawn_projectile` consumes in `FixedUpdate`, and it reads no pose -
+      and the other twelve stay in `Update`. The evade, engage-grace and torpedo
+      clocks stay on the render clock with the poses they are decided against;
+      they gate a DECISION, not the spawn, so a render-frame boundary is the
+      right granularity for them.
+      The `FixedUpdate` gating still had to follow: `SpaceshipInputSystems` had
+      `run_if` configured only on `Update`, so it is now configured on
+      `FixedUpdate` too, in BOTH gates - `nova_ship/src/lib.rs` (pause) and
+      `nova_scenario/loader/lifecycle.rs` (scenario-live). Without that the
+      cadence would have kept advancing while paused and after teardown.
+- [x] F26 - add the `nova_ui::widget::UiText` marker at `settings.rs:95` and
       `pause.rs:203,286`; they are the only menu files that never import it, so
       those spans render in Bevy's default face. Visible in any screenshot.
-- [ ] F27 - clamp `nova_os_bright_detent` / `nova_os_scan_detent` on load at
+      Seven spans, not three: `settings.rs` had the volume label, the controls
+      section headers and both keybind-row spans unmarked as well.
+- [x] F27 - clamp `nova_os_bright_detent` / `nova_os_scan_detent` on load at
       `settings.rs:228`, like the volume beside it; `(99+1) % 4 == 0` jumps
       brightest to dimmest.
-- [ ] F22 note - whoever opens `settings.rs` carries L3's F22 too. Three
+      Clamped in `PersistedSettings::nova_os_monitor`, the one place the file
+      becomes the live resource, via a new `NovaOsMonitorSettings::clamp_detents`
+      beside the readers that already clamp.
+- [x] F22 note - whoever opens `settings.rs` carries L3's F22 too. Three
       defects, one file.
-- [ ] F25 - commit `button_on_setting` (`nova_ui/src/widget/button.rs:496`) on
+      F22 landed in L3 (the `Last` flush system); nothing left to carry.
+- [x] F25 - commit `button_on_setting` (`nova_ui/src/widget/button.rs:496`) on
       `Activate` like every other button, not `On<Add, Pressed>`; press-drag-off
       currently cannot be cancelled.
-- [ ] Skin-divergence pass - read the two paint backends ONCE and fix
+      The existing test was inserting `Pressed` to drive it, so it had to move to
+      `trigger(Activate)` and gained the cancel case: a bare `Pressed` must
+      commit nothing. Both it and `nova_menu`'s `ui_skin_button_sets_resource`
+      need an explicit `world.flush()` - the observer moves `Selected` through
+      `Commands`, and a bare `World::trigger` outside a schedule leaves that
+      queue unapplied. The old `insert(Pressed)` form flushed implicitly, which
+      is why the port failed on the selection assertion and not the resource one.
+- [x] Skin-divergence pass - read the two paint backends ONCE and fix
       `button.rs:244`, `slider.rs:26`, `slider.rs:78` alongside F25, with one
       skin-comparison screenshot test. F50 is the same investigation and sits
       in L5.
-- [ ] F65 - use `try_despawn` at `torpedo_section/projectile.rs:94`, or better,
+      Three real divergences, all fixed: hardware `Danger` collapsed press into
+      hover so Exit had no press feedback on that skin only; `slider_meter_color`
+      lit 24/24 at 98% and 0/24 at 2% while the hardware continuous fill showed
+      both correctly; and the phosphor track's 2px padding inset the meter from
+      the full-width span bevy's drag math actually commits. The test is a paint
+      COMPARISON (`press_reads_differently_from_hover_in_both_skins`), not a
+      screenshot - it asserts the two skins agree on WHETHER each variant reacts
+      to a press, which is the invariant, and does not pin either skin's colours.
+- [x] F65 - use `try_despawn` at `torpedo_section/projectile.rs:94`, or better,
       add the missing ordering edge between `SpaceshipSectionSystems` and
       `TempEntitySystems::Sync`. Two queued despawns HARD-PANIC under the
       `FallbackErrorHandler(panic)` the autopilot and probe runs install.
@@ -1506,50 +1573,226 @@ check, so its evidence is only meaningful once the gate is trustworthy.
       adding. Re-read the race first - the double despawn is an idempotency
       bug as much as an ordering one, and `try_despawn` closes it with no new
       public type.
-- [ ] F66 - RULED INTENDED. Add one comment at `projectile.rs:65` saying a
+      Took `try_despawn`, and NOT the ordering edge. Re-read confirms the note's
+      own reading: the fuze and the `TempEntity` lifetime sweep can both queue a
+      despawn for the same torpedo in the same flush, which no ordering between
+      them prevents - only idempotency does. Both sites converted (the fuze and
+      `nova_gameplay/lifetime.rs`'s sweep, which has the mirror-image race).
+      `a_torpedo_despawned_elsewhere_in_the_same_flush_does_not_panic` installs
+      `FallbackErrorHandler(panic)` and `chain_ignore_deferred`s a stand-in
+      sweep ahead of the fuze so both despawns land in one buffer - the exact
+      frame shape. No set was re-declared, so rule 10 is untouched.
+- [x] F66 - RULED INTENDED. Add one comment at `projectile.rs:65` saying a
       no-lock launch is a misfire. Behavior unchanged; without the comment the
       next reviewer re-reports it.
-- [ ] F35 - prune `AreaOccupancy` when a body inside a live area despawns
+      Written as the `torpedo_detonate_system` docstring, so it sits on the
+      `&TorpedoTargetPosition` requirement that causes it.
+- [x] F35 - prune `AreaOccupancy` when a body inside a live area despawns
       (`objects/area.rs:53`), not only when the area does, and clear it in
       `teardown_scenario_entities`. A scenario gating on `OnExit` never
       advances today.
-- [ ] F36 - exclude `0.0` from the range checks at
+      `forget_body_occupancy`, keyed on `Remove, EntityId` - the component both
+      collision handlers already require of the non-area side - and retaining on
+      BOTH halves of the key. That also satisfies the teardown clause without
+      making the private resource reachable from `loader/lifecycle.rs`: teardown
+      despawns every scenario-scoped entity, so the same observer empties the
+      table between scenarios.
+      NOT DONE, deliberately: firing a synthetic `OnExit` for the despawned
+      body. It would make a gate advance, but teardown clears the event world
+      and THEN queues the despawns, so every scenario switch would push exits
+      into a just-cleared world. Pruning is what the finding asked for.
+      Test `a_body_despawned_inside_an_area_drops_its_occupancy` on the proven
+      physics rig; verified red with the observer registration commented out.
+- [x] F36 - exclude `0.0` from the range checks at
       `lint/scenario.rs:291,348`; the message already claims `(0, MAX]` and
       `auto_advance_secs: Some(0.0)` builds a Timer that finishes on tick one.
-- [ ] F43 - move the two per-readout-per-frame `String` allocations at
+      Both checks are now an explicit `<= 0.0 || > MAX` rather than a
+      `RangeInclusive::contains`, so the code reads like the message it prints.
+      Both zero cases added to `pacing_field_ranges_warn`.
+- [x] F43 - move the two per-readout-per-frame `String` allocations at
       `hud/readout.rs:207` to the right side of the `existing.0 != text`
       compare that throws them away.
-- [ ] F44 - clear the 14 `redundant_clone` sites in per-frame HUD systems
+      Moving them right of the compare is not possible - formatting the text is
+      HOW the compare is evaluated. So the allocation is removed instead: the
+      system holds one `Local<String>` scratch buffer reused across frames,
+      `HudReadoutFormat::render_into` and `write_readout` format into it, and
+      the unchanged case now allocates nothing at all (the changed case reuses
+      the row's own `String` capacity via `clear` + `push_str`). Three
+      allocations per labelled readout per frame, not two: `render`, the
+      label's `to_uppercase`, and the joining `format!`.
+      No new test: the write-on-diff contract this preserves is already pinned
+      by `rows_reconcile_and_clear_on_empty`, and the change is allocation-only.
+      `format_readout` survives as a `#[cfg(test)]` wrapper for the two tests
+      that assert on the rendered string.
+- [x] F44 - clear the 14 `redundant_clone` sites in per-frame HUD systems
       (`flight_status.rs:204`, `torpedo_target.rs:180`, `turret_lead.rs:222`,
       `damage_tint.rs:473,638`, `nova_os_map/scene.rs:104`,
       `nova_os_ship/scene.rs:213`, ...). Mechanical.
-- [ ] F62 - replace `images.get_mut(&config.cubemap).unwrap()`
+      RE-MEASURED, and the survey was wrong twice over. `-W
+      clippy::redundant_clone` over the workspace finds EIGHT sites, not 14 -
+      the `damage_tint.rs` pair is gone, cleared by an earlier lane - and NONE
+      of them is in a per-frame system. Every one is a one-shot spawner
+      (`flight_status_hud`, `torpedo_target_hud`, the two NOVA OS scene
+      cameras, `base_section`'s bundle), a terminal keystroke handler
+      (`nova_os/terminal/edit.rs`, twice) or a test (`turret_lead.rs:223`). So
+      this is a cleanliness fix with no measurable frame cost, which is worth
+      recording because the finding was filed as a perf one. All eight cleared;
+      `cargo clippy --workspace --all-targets -- -D warnings` stays clean.
+- [x] F62 - replace `images.get_mut(&config.cubemap).unwrap()`
       (`camera/skybox.rs:118`) with the `let ... else { error!; return }` form
       used one line above.
-- [ ] F64 - fall back to `"unknown"` instead of `expect`/`unwrap` at
+      Done, in `nova_ship/src/camera/skybox.rs` (the note's path predates the
+      crate split).
+- [x] F64 - fall back to `"unknown"` instead of `expect`/`unwrap` at
       `nova_info/build.rs:11-13`; a tarball export with no git fails to build.
-- [ ] F67 - DECIDE for `sections/thruster_section.rs:353`: multiply main-drive
+      Covers all three ways it can fail, not just the missing `.git`: no git
+      binary (`output()` errors), a non-zero exit, and non-UTF8 or empty stdout.
+- [x] F67 - DECIDE for `sections/thruster_section.rs:353`: multiply main-drive
       thrust by `dt`, or document why it is a raw impulse. Halving `Time<Fixed>`
       halves every ship's linear acceleration today. Internally consistent, but
       do not leave it undocumented.
-- [ ] F72 - add `ScenarioConfig::new(id, name, cubemap)` and delete the
+      DECIDED: it stays a raw per-tick impulse, now documented on
+      `ThrusterSectionMagnitude` and at the apply site. The finding's "internally
+      consistent" holds up under reading: `flight/autopilot.rs:204` already
+      divides brake authority by `dt` to get an acceleration, the tail-burn
+      estimate keeps the raw value because it wants a delta-v, the two flight
+      balancers use magnitude only for RATIOS (so any uniform scale is
+      invisible to them), and `nova_gameplay/src/gravity.rs` states the unit
+      outright ("magnitude 1.0 impulse per 1/64s tick over mass 3"). The
+      alternative - `apply_force_at_point`, which avian integrates over the
+      step and which would be tick-rate independent - needs every authored
+      magnitude multiplied by 64, plus the autopilot's two conversions inverted
+      and the gravity tuning reference restated. That is a content migration
+      with no player-visible gain at the only tick rate the game runs, and this
+      is a behavior-preserving lane. The doc names `apply_force_at_point` as
+      the route to take if `Time<Fixed>` is ever configured, which is the one
+      thing that makes the convention wrong.
+      NOTE the one real inconsistency found on the way: RCS
+      (`flight/manual.rs:263`) multiplies by `dt` AND by mass, so RCS accel is
+      both tick-rate and mass independent while main drive is neither. That is
+      deliberate (docking nudges want a mass-independent feel) but it is why
+      the two paths do not look alike.
+- [x] F72 - add `ScenarioConfig::new(id, name, cubemap)` and delete the
       `Default` impl at `loader/mod.rs:144`, which is invalid by its own doc at
       `:141`. 15 sites, mechanical.
-- [ ] F82 - read the four real system params before acting
+      RE-MEASURED: 39 sites, not 15 (the survey undercounted by 2.6x; the
+      grep has to brace-match the literal, since `-> ScenarioConfig {` and the
+      struct definition both match the naive pattern and inflate a raw count to
+      92). Done as a scripted transform - each literal keeps its remaining
+      fields and its comments, and `..Default::default()` becomes
+      `..ScenarioConfig::new(<id>, <name>, <cubemap>)` with the three
+      expressions moved verbatim, so no value changed. Two sites needed hands:
+      `nova_menu/src/tests/scenarios.rs` and `nova_assets/src/merge.rs` both
+      omitted `cubemap` entirely and leaned on the very default the finding
+      calls invalid; both now pass a real path.
+      `new` takes `impl Into<_>` for id and name but a CONCRETE
+      `AssetRef<Image>` for cubemap: an `impl Into` there makes the callers'
+      own `handle.into()` ambiguous, because five bevy crates convert a
+      `Handle<Image>`. Recorded in a comment on the signature, since the
+      asymmetry looks like an oversight otherwise.
+      The generated `assets/base/**/*.content.ron` is untouched, as expected
+      from a shape-only change to the builders.
+- [x] F82 - read the four real system params before acting
       (`ai/behavior.rs:909`, `component_lock.rs:403`, `radar.rs:387`,
       `turret_section/aim.rs:510`); a `&mut` that reaches a system signature
       declares a write the scheduler serializes against.
       `chip_layout_rig.rs:278` is verified a test helper - leave it.
-- [ ] F85 - fix the two `while_float` loops (`nova_os_map/tests.rs:842`,
+      DROPPED, the survey is falsified in all four rows. `component_lock.rs:403`
+      does not exist (the crate split moved the file; `nova_hud/src/
+      component_lock.rs` is 311 lines). The other three all resolve and are all
+      the same shape: `input/ai/behavior.rs:911` and `turret_section/aim.rs:511`
+      are `fn(app: &mut App, ..)` and `input/targeting/radar.rs:387` is a
+      `&mut World` rig builder, all three inside `#[cfg(test)]` modules - the
+      same shape the finding itself cleared for `chip_layout_rig.rs:278`. So
+      the finding found one pattern and reported it five times.
+      The three surviving systems nearest the cited lines were read anyway
+      (`highlight_selected_marker`, `update_behavior_state`, the turret aim
+      system): every `&mut` term in them is written on some path, so there is
+      no over-declared write to remove. A blanket audit is not this: the
+      workspace has 972 non-test `&mut Type` occurrences, and separating an
+      over-declaration from a legitimate write needs per-system reading, which
+      is a lane of its own and not one this epic asked for.
+- [x] F85 - fix the two `while_float` loops (`nova_os_map/tests.rs:842`,
       `nova_os_ship/tests.rs:1316`), `iter_with_drain` (`mesh/explode.rs:200`)
       and the case-sensitive extension comparison
       (`run_report/artifacts.rs:81`).
-- [ ] F86 - fix or DROP WITH REASON: the unwrapped angle lerp
+      All four real, three at moved paths - re-measured by running clippy with
+      the two nursery lints ON rather than trusting the note's line numbers.
+      The seam sweeps are now counted (`for step in 0..steps`, `x = first +
+      step`) instead of accumulating `x += 1.0`, which also stops the loop
+      bound from depending on float drift; both still probe the same points and
+      the `probed >= 12` guard still holds. `queue.drain(..)` became
+      `queue` (it is immediately reassigned, so the drain bought nothing).
+      The extension comparison is in `nova_probe_cli/src/native/web.rs:209`,
+      the report dev server's content-type table, not `run_report/artifacts.rs`
+      - it now lowercases the extension first, so `REPORT.PNG` renders instead
+      of downloading. `nova_authoring/src/bin/content/native.rs` was the other
+      candidate and already used `eq_ignore_ascii_case`.
+- [x] F86 - fix or DROP WITH REASON: the unwrapped angle lerp
       (`transform/directional_sphere_orbit.rs:121`), the absolute
       `f32::EPSILON` snap threshold (`math.rs:35`), and `camera/shake.rs:295-296`
       feeding offset and kick the same random sample. None is player-visible.
-- [ ] Measure F37 and F38 with `probe run --baseline`. Both should show a
+      All three FIXED; all three were cheap, and "not player-visible" was only
+      true of the third.
+      The angle lerp eased `state.theta` straight at a target that
+      `direction_to_spherical` folds into `[-PI, PI)`, so a tracked direction
+      crossing -Z read as a near-TAU jump and the orbit took the long way
+      round - visible as a whip-around, not a subtlety. It now eases towards
+      the UNWRAPPED target and folds the result back.
+      That needed an angle wrap, and one already existed as a private
+      `normalize_angle` in `transform/smooth_look_rotation.rs`; it moved to
+      `math.rs` and both callers share it rather than growing a second copy.
+      The snap threshold was an absolute `f32::EPSILON`, which is the gap
+      between neighbouring floats near 1.0 - a camera easing towards a target
+      1000 units out can never close to within it, so the snap never fired
+      there at all. Now `f32::EPSILON * max(|to|, 1)`: unchanged inside the
+      unit range, reachable outside it.
+      The shake fed ONE random sample to both `shake_offset` and `shake_kick`,
+      which locks the roll to the slide; two independent samples now.
+      Two unit tests added in `math.rs` for the two shared helpers (the seam
+      step and the tolerance scaling). The orbit system itself has no test
+      module and building an app rig for it is a bigger step than the fix.
+- [x] Measure F37 and F38 with `probe run --baseline`. Both should show a
       measurable FPS improvement, and that measurement is the point.
+      MEASURED, and the prediction is WRONG for F37 and only half right for
+      F38. Two release runs of `many_projectiles,many_sections --fps`, base
+      `f431d777` then branch `931a84c5`, same host (RTX 3060 Ti / vulkan /
+      1280x720), `--baseline probe-runs`. Both aggregates verdict OK, 7/7
+      measured on the after-run, 0 invariant violations, clean logs.
+
+      | example | mean fps base -> after | p99 ms | 1% low fps |
+      | --- | --- | --- | --- |
+      | many_projectiles | 55.50 -> 54.60 | 30.81 -> 38.64 | 32.45 -> 25.88 |
+      | many_sections | 60.60 -> 60.45 | 27.29 -> 22.98 | 36.64 -> 43.51 |
+
+      Neither MEAN moved: `fps_within_baseline` PASSes at +1.6% and +0.2%
+      frame time, both inside the soft gate, and both signs are the WRONG way
+      for a claimed improvement. So the honest reading is that F37 and F38 did
+      not buy frame rate on these scenes.
+      What did move is `many_sections`' TAIL, and in the direction F38
+      predicts: p99 -15.8%, max -7.5%, 1% low +18.7%. Removing an
+      O(ships x thrusters^2) rebuild from a per-tick system is exactly a
+      worst-frame fix, not a mean fix, and this is the one number in the set
+      that is both signed correctly and large enough to read.
+      `many_projectiles`' tail got WORSE (p99 +25%, 1% low -20%) while its
+      mean held, which F37 cannot explain - it removes asset creation, it adds
+      nothing. Most likely host noise: these are SINGLE samples taken ~40
+      minutes apart on a machine that also ran two release builds, and the
+      baseline's own timeline lengths differ between the runs (299 vs 561
+      frames of activity), so the two `many_projectiles` passes did not even
+      simulate the same amount. A repeat-sample sweep is what would settle it;
+      it is not what this lane is for.
+      F37's real evidence stays the unit test it shipped with
+      (`default_projectile_render_allocates_no_assets_per_shot`, 64 bullets,
+      `Assets<Mesh>`/`Assets<StandardMaterial>` pinned at 1 each). That test
+      proves the asset leak is gone, which was the actual claim; "100 assets
+      per second" was never going to show up as mean fps on a scene the GPU
+      dominates. The finding asked for the wrong instrument, and the note
+      that both "should show a measurable FPS improvement" should not have
+      been written before the measurement.
+      Artifacts: `probe-runs/f431d777/` and `probe-runs/931a84c5/` (index.html
+      + per-example report.html/checks.json). NOT committed - probe-runs is
+      run output, not source.
 
 ### Close-out - the epic's last commits
 
@@ -2789,3 +3032,166 @@ All four conflicts are the same mechanical edit - a name L9 moved - and the
 whole set took less time than the note explaining why it had been deferred. The
 real work was not the conflicts at all; it was the 99 errors in the crate that
 had no conflicts to resolve.
+
+## CHECKPOINT - L11 three-fifths done (2026-08-08)
+
+Branch `refactor/l11-perf-correctness`, based on `f431d777`. Three commits, each
+green on its own:
+
+| Commit | Findings |
+| --- | --- |
+| `29dfdc3b` | F37, F38, F24, F26, F27, F25, F22-note, F65, F66, skin divergence |
+| `138aa1a7` | F35, F36, F62, F64 |
+| `134eb59c` | F43, F44 |
+
+Gates re-run at the last commit: `cargo check --workspace --all-targets` clean,
+`cargo clippy --workspace --all-targets -- -D warnings` clean, `cargo fmt --all
+-- --check` clean. Lib tests: nova_ship 414, nova_hud 207, nova_scenario 155,
+nova_os_ui 106, nova_gameplay 134, nova_menu 77, nova_ui 29, nova_os 24 - all
+pass. Working tree clean.
+
+Two things a reviewer should look at first, because both are wider than the
+finding that asked for them:
+
+1. **F24 moved the whole AI chain to `FixedUpdate`**, which forced
+   `SpaceshipInputSystems` to be gated there too - in `nova_ship/src/lib.rs`
+   (pause) and `nova_scenario/loader/lifecycle.rs` (scenario-live). Neither
+   gate had a `FixedUpdate` configuration before, because nothing in the set
+   ran there. If either had been missed the AI would fly while paused; no
+   existing test covers that, and none was added.
+   SUPERSEDED by review round 1: the chain moved back to `Update` (R1.1) and
+   both gates gained a `FixedUpdate` probe (R1.2). Only `update_fire_cadence`
+   still runs there. See the F24 step for the reasoning.
+2. **F44's survey was wrong twice** - 8 sites, not 14, and none of them in a
+   per-frame system. Recorded under the step. The same "RE-MEASURE FIRST"
+   warning that has now been right four times.
+
+NEXT UNIT, all still open in the Lane11 list, wants a fresh context:
+
+  1. F67 - DECIDE the `sections/thruster_section.rs:353` raw-impulse question.
+     A decision plus either a `dt` multiply or a comment; it changes every
+     ship's acceleration if taken the other way, so it is the risky one.
+  2. F72 - `ScenarioConfig::new` and delete the invalid `Default` impl. 15
+     sites, mechanical. RE-MEASURE the site count first.
+  3. F82 - the four `&mut` system params. Read all four before touching any.
+  4. F85, F86 - the small ones; F86 is fix-or-drop-with-reason.
+  5. `probe run --baseline` to MEASURE F37 and F38. This is the step that makes
+     the two perf fixes evidence rather than assertion, and it needs a windowed
+     run (Xvfb :99), so it cannot be folded into a check-only pass.
+
+The epic's own close-out list (benchmark re-key, the owner's final run,
+deleting `## Not yet true`) stays after L11 lands.
+
+## L11 COMPLETE - the lane is ready for review (2026-08-08)
+
+Branch `refactor/l11-perf-correctness`, based on `f431d777`, four commits:
+
+| Commit | Findings |
+| --- | --- |
+| `29dfdc3b` | F37, F38, F24, F26, F27, F25, F22-note, F65, F66, skin divergence |
+| `138aa1a7` | F35, F36, F62, F64 |
+| `134eb59c` | F43, F44 |
+| `931a84c5` | F67, F72, F82 (dropped), F85, F86 |
+
+Every Lane 11 step is ticked. The six that remain open in this record are the
+epic's close-out list, which by its own terms runs after this lane lands, and
+one of those is OWNER-only.
+
+WHAT the last unit changed, and why it is bigger than its finding list looks:
+
+1. **F67 is a decision, not an edit.** The main drive's magnitude stays a
+   per-tick impulse; the reason is now written where a reader meets the unit,
+   and the doc names the migration (`apply_force_at_point` plus a 64x content
+   rescale) that becomes mandatory the day anything configures `Time<Fixed>`.
+   A reviewer should push on this one first: it is the only finding in the set
+   answered with prose instead of code, and the alternative is defensible.
+2. **F72 touched 39 call sites**, 2.6x the surveyed 15. Scripted, with the
+   three moved expressions kept verbatim, so no authored value changed and the
+   generated content RON is untouched. Two sites were building scenarios with
+   NO cubemap at all, leaning on exactly the invalid default the finding
+   objected to; they are the only two that changed meaning, and both now name
+   a real path.
+3. **F82 is dropped as falsified** - four cited system params, none of which is
+   a system param. That is the fifth time this epic's RE-MEASURE rule has paid.
+
+Gates at `931a84c5`: `cargo check --workspace --all-targets` clean, `cargo
+clippy --workspace --all-targets -- -D warnings` clean, `cargo fmt --all --
+--check` clean. Lib tests green across every touched crate: nova_ship 414,
+nova_hud 207, nova_scenario 155, nova_gameplay 136, nova_os_ui 106,
+nova_probe_cli 93, nova_menu 77, nova_assets 60, nova_authoring 44, nova_ui 29,
+nova_os 24, nova_editor 22. Working tree clean.
+
+Probe: `probe run many_projectiles,many_sections --fps --release --baseline
+probe-runs` on base and branch, both aggregates OK, 7/7 measured after,
+0 invariant violations. The numbers do NOT show the win F37/F38 were predicted
+to show - see the step above; the one real signal is `many_sections`' tail.
+
+The two things a reviewer should distrust in this unit:
+
+1. The F72 transform was SCRIPTED across 39 sites. `cargo check` does NOT
+   prove field preservation - under `..ScenarioConfig::new(..)` a dropped
+   explicit field silently falls back to `new`'s empty value and still
+   compiles. The proof is a read of the diff instead: no removed line other
+   than `id`/`name`/`cubemap`/`..Default::default()` left a literal behind,
+   checked across all 39 sites. Still worth spot-reading -
+   `nova_authoring/src/scenario/menu.rs` is the densest case, with comments
+   interleaved between the fields.
+2. The F86 angle-seam fix changes camera BEHAVIOR (the orbit no longer takes
+   the long way round the theta seam). It is covered only at the helper level
+   (`normalize_angle` unit test); the system itself has no test module, and a
+   live-app assertion on the seam crossing would be the stronger proof.
+   ADDRESSED in review round 1 (R1.5): the system now has one.
+
+## L11 REVIEW ROUND 1 ADDRESSED (2026-08-08)
+
+All 23 findings answered in `REVIEW.md`; every response is written against the
+shipped diff. Nothing was pushed back on except the one alternative R1.10
+offered explicitly, and that choice is recorded in its response.
+
+Two findings changed what the lane SHIPS, not just what it says:
+
+1. **R1.1 reverses F24's ruling.** The first close-out claimed the whole AI
+   chain was fixed-clock; twelve of its thirteen systems read an eased
+   `Transform`/`GlobalTransform`, which in `FixedUpdate` of frame N holds frame
+   N-1's pose - the exact staleness `thruster_impulse_system` was fixed for.
+   Only `update_fire_cadence` moves now; it reads no pose, and its expiry
+   writes the trigger `shoot_spawn_projectile` consumes in `FixedUpdate`. The
+   `FixedUpdate` gate configurations stay - the cadence still needs them - and
+   both now have a test (R1.2).
+2. **R1.6 reverses half of F38.** The `HashMap<Entity, usize>` was a new heap
+   allocation per ship per fixed tick in the system the change was meant to
+   speed up, and the probe had measured no gain to pay for it. The linear
+   `position()` scan is back; the extraction - one body instead of two
+   byte-identical ones - is the whole of F38 now.
+
+Five untested behavior changes gained tests at their own boundary: the fire
+cadence's fixed-step granularity (R1.3), the `FixedUpdate` pause and
+scenario-teardown gates (R1.2), the slider meter's end clamp (R1.4), the orbit
+theta seam (R1.5), and the shake kick/offset decorrelation (R1.22).
+
+Gates after the round: `cargo fmt --all -- --check` clean, `cargo check
+--workspace --all-targets` exit 0, `cargo clippy --workspace --all-targets --
+-D warnings` exit 0. Lib tests: nova_ship 421, nova_hud 208, nova_scenario 155,
+nova_gameplay 140, nova_menu 77, nova_assets 60, nova_ui 30 - all pass, plus
+`nova_assets --test mod_binary_resources` 7.
+
+Probe, run at `38939f01` against baseline `931a84c5` (the pre-round branch
+state):
+
+- `probe run player_path,scenario_grammar,outcomes` - aggregate OK, every row
+  6/7 measured, 0 invariant violations, 0 offending log lines. This is the
+  correctness evidence for R1.1: `player_path` is a combat walk, so the AI
+  still acquires, closes and kills with the cadence on the fixed clock and the
+  rest of the chain on the render clock.
+- `probe run many_projectiles,many_sections --fps --release --baseline
+  probe-runs` - aggregate OK, both rows 7/7 measured. Frame means moved
+  `many_projectiles` +6.8% and `many_sections` +0.8%, both improvements, both
+  PASS. Do NOT read the +6.8% as a win the round earned: the same host noise
+  that muddied the F37/F38 measurement is the likelier explanation, and one
+  paired run cannot separate them. What the numbers DO establish is that
+  reverting to `Update` and dropping the per-tick `HashMap` cost nothing.
+
+Open, and deliberately not taken here: no `CHANGELOG.md` line exists for this
+epic yet, and the fire-cadence move is user-visible (AI DPS no longer varies
+with framerate), as are F25, F26, F27 and the slider meter from earlier units.
+The epic's close-out list owns the changelog; if it does not, this is a gap.

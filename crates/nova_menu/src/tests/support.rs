@@ -95,12 +95,9 @@ pub(crate) fn dummy_scenario(id: &str) -> (String, ScenarioConfig) {
     (
         id.to_string(),
         ScenarioConfig {
-            id: id.to_string(),
-            name: "Test".to_string(),
             description: "Test".to_string(),
-            cubemap: AssetRef::default(),
             events: vec![],
-            ..Default::default()
+            ..ScenarioConfig::new(id.to_string(), "Test".to_string(), AssetRef::default())
         },
     )
 }

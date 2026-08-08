@@ -341,10 +341,7 @@ fn range_scenario(
     }));
 
     ScenarioConfig {
-        id: SCENARIO_ID.to_string(),
-        name: "Many Projectiles".to_string(),
         description: "A turret ship saturating a field of asteroid targets.".to_string(),
-        cubemap: game_assets.cubemap.clone().into(),
         // The scene lights itself: the engine spawns no light, so a scenario
         // that authors none renders black.
         events: fixtures::spawn_on_start(
@@ -354,7 +351,11 @@ fn range_scenario(
             ]
             .concat(),
         ),
-        ..Default::default()
+        ..ScenarioConfig::new(
+            SCENARIO_ID.to_string(),
+            "Many Projectiles".to_string(),
+            game_assets.cubemap.clone().into(),
+        )
     }
 }
 

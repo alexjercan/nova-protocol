@@ -82,16 +82,17 @@ pub(crate) fn scenario(
     filters: Vec<EventFilterConfig>,
 ) -> ScenarioConfig {
     ScenarioConfig {
-        id: "test_scenario".to_string(),
-        name: "Test".to_string(),
         description: "Test".to_string(),
-        cubemap: AssetRef::default(),
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
             filters,
             actions,
         }],
-        ..Default::default()
+        ..ScenarioConfig::new(
+            "test_scenario".to_string(),
+            "Test".to_string(),
+            AssetRef::default(),
+        )
     }
 }
 

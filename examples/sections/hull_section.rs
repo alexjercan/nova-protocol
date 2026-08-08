@@ -392,10 +392,7 @@ fn hull_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
     };
 
     ScenarioConfig {
-        id: "hull_rig".to_string(),
-        name: "Hull Section Rig".to_string(),
         description: "A sectioned ship taking scripted damage.".to_string(),
-        cubemap: game_assets.cubemap.clone().into(),
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
             filters: vec![],
@@ -417,7 +414,11 @@ fn hull_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
             ]
             .concat(),
         }],
-        ..Default::default()
+        ..ScenarioConfig::new(
+            "hull_rig".to_string(),
+            "Hull Section Rig".to_string(),
+            game_assets.cubemap.clone().into(),
+        )
     }
 }
 

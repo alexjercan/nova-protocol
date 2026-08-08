@@ -244,10 +244,7 @@ fn swarm_scenario(game_assets: &GameAssets, count: usize) -> ScenarioConfig {
         .collect();
 
     ScenarioConfig {
-        id: SCENARIO_ID.to_string(),
-        name: "Many Bodies".to_string(),
         description: "A swarm of asteroids under physics, gravity and render.".to_string(),
-        cubemap: game_assets.cubemap.clone().into(),
         // The scene lights itself: the engine spawns no light, so a scenario
         // that authors none renders black.
         events: fixtures::spawn_on_start(
@@ -257,7 +254,11 @@ fn swarm_scenario(game_assets: &GameAssets, count: usize) -> ScenarioConfig {
             ]
             .concat(),
         ),
-        ..Default::default()
+        ..ScenarioConfig::new(
+            SCENARIO_ID.to_string(),
+            "Many Bodies".to_string(),
+            game_assets.cubemap.clone().into(),
+        )
     }
 }
 

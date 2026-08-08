@@ -3,7 +3,9 @@
 //! engine set as a torque-nulling throttle vector, and spool each input
 //! toward it. Shared by the autopilot and the manual burn.
 
-use bevy::prelude::*;
+use bevy::{ecs::query::QueryFilter, prelude::*};
+
+use crate::prelude::*;
 
 /// Projected-gradient iterations for the thrust balancer
 /// ([`balance_throttles`]). The problem is a tiny convex QP (one equality, box
@@ -272,6 +274,53 @@ pub(super) fn spool(current: f32, target: f32, up_rate: f32, down_rate: f32, dt:
     let rate = if target > current { up_rate } else { down_rate };
     let alpha = 1.0 - (-rate * dt).exp();
     (current + (target - current) * alpha).clamp(0.0, 1.0)
+}
+
+/// Drive every thruster of `ship` toward its allocated throttle, zero for the
+/// ones the allocation left dark. Shared by the autopilot and the manual burn,
+/// which ran byte-identical copies of it.
+///
+/// `throttles` is indexed by `allocation` position, which
+/// [`balance_throttles`] guarantees by returning one entry per engine - so the
+/// index cannot be out of bounds and is deliberately not bounds-checked.
+///
+/// The lookup stays a linear scan: `allocation` holds one entry per ENGINE on
+/// one ship (single digits), and hoisting it into a `HashMap` traded the scan
+/// for a heap allocation per ship per tick that the probe measured no gain
+/// from.
+pub(super) fn spool_allocated_thrusters<F: QueryFilter>(
+    ship: Entity,
+    allocation: &[(Entity, BalanceEngine)],
+    throttles: &[f32],
+    q_thruster: &mut Query<
+        (
+            Entity,
+            &mut ThrusterSectionInput,
+            &ThrusterSectionMagnitude,
+            &Transform,
+            &ChildOf,
+        ),
+        F,
+    >,
+    settings: &FlightSettings,
+    dt: f32,
+) {
+    for (thruster, mut input, _, _, &ChildOf(parent)) in q_thruster.iter_mut() {
+        if parent != ship {
+            continue;
+        }
+        let target = allocation
+            .iter()
+            .position(|(e, _)| *e == thruster)
+            .map_or(0.0, |i| throttles[i]);
+        **input = spool(
+            **input,
+            target,
+            settings.spool_up_rate,
+            settings.spool_down_rate,
+            dt,
+        );
+    }
 }
 
 #[cfg(test)]

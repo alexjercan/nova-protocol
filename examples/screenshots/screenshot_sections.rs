@@ -160,10 +160,7 @@ fn section_ship(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
     };
 
     ScenarioConfig {
-        id: "section_showcase".to_string(),
-        name: "Section Showcase".to_string(),
         description: "A ship carrying every section type for the wiki shots.".to_string(),
-        cubemap: game_assets.cubemap.clone().into(),
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
             filters: vec![],
@@ -185,7 +182,11 @@ fn section_ship(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
             ]
             .concat(),
         }],
-        ..Default::default()
+        ..ScenarioConfig::new(
+            "section_showcase".to_string(),
+            "Section Showcase".to_string(),
+            game_assets.cubemap.clone().into(),
+        )
     }
 }
 

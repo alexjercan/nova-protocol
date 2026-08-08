@@ -316,7 +316,7 @@ pub fn base_section(config: BaseSectionConfig) -> impl Bundle {
         ExplodableEntity,
         ImpactDestroySounds {
             impact: config.impact_sound.clone(),
-            destroy: config.destroy_sound.clone(),
+            destroy: config.destroy_sound,
         },
     )
 }

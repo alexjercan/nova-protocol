@@ -220,7 +220,7 @@ mod tests {
             .map(|pip_turret| **pip_turret)
             .collect();
         pip_turrets.sort();
-        let mut expected = turrets.clone();
+        let mut expected = turrets;
         expected.sort();
         assert_eq!(pip_turrets, expected);
 

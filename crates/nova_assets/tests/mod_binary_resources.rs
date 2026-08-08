@@ -158,11 +158,12 @@ fn an_undeclared_self_ref_is_an_error_content_issue() {
     // A synthetic mod whose scenario references a resource it does NOT declare.
     let mut app = headless_app();
     let scenario = ScenarioConfig {
-        id: "greedy_scenario".to_string(),
-        name: "Greedy".to_string(),
         description: "references a resource it never shipped".to_string(),
-        cubemap: nova_gameplay::prelude::AssetRef::from("self://textures/missing.png".to_string()),
-        ..Default::default()
+        ..ScenarioConfig::new(
+            "greedy_scenario".to_string(),
+            "Greedy".to_string(),
+            nova_gameplay::prelude::AssetRef::from("self://textures/missing.png".to_string()),
+        )
     };
     let content = app
         .world_mut()
@@ -239,11 +240,12 @@ fn merge_cross_mod(reference: &str, consumer_deps: &[&str], art_resources: &[&st
 
     // `consumer`: one scenario whose skybox is the ref under test.
     let scenario = ScenarioConfig {
-        id: "consumer_scenario".to_string(),
-        name: "Consumer".to_string(),
         description: "references a dependency's resource".to_string(),
-        cubemap: nova_gameplay::prelude::AssetRef::from(reference.to_string()),
-        ..Default::default()
+        ..ScenarioConfig::new(
+            "consumer_scenario".to_string(),
+            "Consumer".to_string(),
+            nova_gameplay::prelude::AssetRef::from(reference.to_string()),
+        )
     };
     let content = app
         .world_mut()
@@ -489,13 +491,12 @@ fn a_dep_ref_to_base_resolves_against_base_folder_without_declaring_base() {
             resource_base: "base".to_string(),
         });
     let scenario = ScenarioConfig {
-        id: "consumer_scenario".to_string(),
-        name: "Consumer".to_string(),
         description: "reuses base art".to_string(),
-        cubemap: nova_gameplay::prelude::AssetRef::from(
-            "dep://base/textures/cubemap.png".to_string(),
-        ),
-        ..Default::default() // NOTE: no `dependencies: ["base"]` - base is implicit
+        ..ScenarioConfig::new(
+            "consumer_scenario".to_string(),
+            "Consumer".to_string(),
+            nova_gameplay::prelude::AssetRef::from("dep://base/textures/cubemap.png".to_string()),
+        ) // NOTE: no dependencies: ["base"] - base is implicit
     };
     let content = app
         .world_mut()

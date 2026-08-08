@@ -1387,10 +1387,7 @@ pub(crate) fn shakedown_run(
     ];
 
     ScenarioConfig {
-        id: SHAKEDOWN_SCENARIO_ID.to_string(),
-        name: "Shakedown Run".to_string(),
         description: "First flight: beacons, salvage, orbit - and one scavenger.".to_string(),
-        cubemap,
         // The main-story entry point: listed in the Scenarios picker.
         // Generated placeholder art (scripts/gen-scenario-thumbnails.py);
         // real art overwrites this same path with no code change.
@@ -1398,7 +1395,11 @@ pub(crate) fn shakedown_run(
         // Chapter one of the Nova Protocol campaign; membership + order now
         // live in the `nova_protocol` campaign mapping.
         events,
-        ..Default::default()
+        ..ScenarioConfig::new(
+            SHAKEDOWN_SCENARIO_ID.to_string(),
+            "Shakedown Run".to_string(),
+            cubemap,
+        )
     }
 }
 

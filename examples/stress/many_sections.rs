@@ -249,10 +249,7 @@ fn structure_scenario(
     let ship = fixtures::ship(sections, SpaceshipController::None, &specs);
 
     ScenarioConfig {
-        id: SCENARIO_ID.to_string(),
-        name: "Many Sections".to_string(),
         description: "One ship assembled out of a lattice of sections.".to_string(),
-        cubemap: game_assets.cubemap.clone().into(),
         // The scene lights itself: the engine spawns no light, so a scenario
         // that authors none renders black.
         events: fixtures::spawn_on_start(
@@ -270,7 +267,11 @@ fn structure_scenario(
             ]
             .concat(),
         ),
-        ..Default::default()
+        ..ScenarioConfig::new(
+            SCENARIO_ID.to_string(),
+            "Many Sections".to_string(),
+            game_assets.cubemap.clone().into(),
+        )
     }
 }
 

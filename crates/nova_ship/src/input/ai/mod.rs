@@ -76,6 +76,12 @@ impl AIEngageGrace {
 /// Runs the AI behavior state machine and the systems that turn its decisions
 /// into ship intent (steer, thrust, aim, fire). Added by
 /// [`SpaceshipInputPlugin`](super::SpaceshipInputPlugin).
+///
+/// The plugin straddles two schedules: `update_fire_cadence` alone runs in
+/// `FixedUpdate` so the burst clock does not move with the framerate, and
+/// everything else runs in `Update` because it reads eased poses. Both halves
+/// sit in [`SpaceshipInputSystems`](super::SpaceshipInputSystems), so the pause
+/// and scenario-teardown gates cover them in either schedule.
 pub struct SpaceshipAIInputPlugin;
 
 impl Plugin for SpaceshipAIInputPlugin {
@@ -105,6 +111,25 @@ impl Plugin for SpaceshipAIInputPlugin {
         app.add_observer(on_neutralized_stand_down);
         app.add_observer(insert_gravity_affected_on_ai_ship);
 
+        // NOTE: the burst cadence is the one AI clock that must not move with
+        // the framerate: its expiry writes the trigger that
+        // `shoot_spawn_projectile` consumes in FixedUpdate, so ticked in Update
+        // a burst window closes on a render-frame boundary. It reads no pose,
+        // so it is the only part of the chain that can move to the physics
+        // clock without breaking the rule below.
+        app.add_systems(
+            FixedUpdate,
+            update_fire_cadence.in_set(super::SpaceshipInputSystems),
+        );
+
+        // NOTE: the rest of the chain stays on the render clock because every
+        // system in it reads an eased pose - `&Transform` on ship roots, the
+        // muzzle and thruster `&GlobalTransform`, and the collider trees
+        // `ai_line_of_fire_blocked` raycasts. A FixedUpdate system MUST read
+        // raw `Position`/`Rotation` instead (web/src/wiki/dev/architecture.md),
+        // and in FixedUpdate of frame N those eased poses still hold frame
+        // N-1's values. These are decision reads, not impulses, and they are
+        // correct against the frame they are deciding for.
         app.add_systems(
             Update,
             (
@@ -112,7 +137,6 @@ impl Plugin for SpaceshipAIInputPlugin {
                 update_point_defense_target,
                 update_behavior_state,
                 update_passive_flight,
-                update_fire_cadence,
                 update_controller_target_rotation_torque,
                 on_thruster_input,
                 update_turret_target_input,
@@ -195,7 +219,82 @@ fn insert_gravity_affected_on_ai_ship(add: On<Add, AISpaceshipMarker>, mut comma
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
+    use bevy::time::TimeUpdateStrategy;
+    use nova_gameplay::test_support::unfinished_integrity_physics_app;
+
     use super::*;
+    use crate::prelude::{FlightSettings, SpaceshipInputSystems};
+
+    /// Every `firing` value the cadence held at a fixed step, in order.
+    #[derive(Resource, Default)]
+    struct FiringSamples(Vec<bool>);
+
+    /// The reason `update_fire_cadence` runs in `FixedUpdate`: the trigger it
+    /// writes is consumed by `shoot_spawn_projectile` in `FixedUpdate`, so the
+    /// burst window must open and close ON a fixed step. Its RATE is the same
+    /// in either schedule - a frame's `Time` delta is the sum of that frame's
+    /// fixed deltas - so rate proves nothing; the granularity does.
+    ///
+    /// One long frame of 2s covers 128 fixed steps and spans the whole 1.5s
+    /// fire window. Ticked in `Update`, the cadence would advance once for the
+    /// entire frame and every fixed step in it would read the SAME `firing`,
+    /// holding the trigger a full frame past its expiry.
+    #[test]
+    fn the_burst_window_closes_on_a_fixed_step_not_a_frame_boundary() {
+        const FRAME_SECS: f32 = 2.0;
+        let mut app = unfinished_integrity_physics_app();
+        app.add_plugins(SpaceshipAIInputPlugin);
+        // Normally supplied by SpaceshipFlightPlugin, which this rig omits.
+        app.init_resource::<FlightSettings>();
+        app.init_resource::<FiringSamples>();
+        app.finish();
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            FRAME_SECS,
+        )));
+        // Time<Virtual> clamps a frame to max_delta (250ms by default), which
+        // would cut the long frame this test is built on.
+        app.world_mut()
+            .resource_mut::<Time<Virtual>>()
+            .set_max_delta(Duration::from_secs_f32(FRAME_SECS * 2.0));
+
+        let ship = app.world_mut().spawn(AISpaceshipMarker).id();
+        app.add_systems(
+            FixedUpdate,
+            (move |q: Query<&AIFireCadence>, mut samples: ResMut<FiringSamples>| {
+                samples.0.push(q.get(ship).unwrap().firing);
+            })
+            .after(SpaceshipInputSystems),
+        );
+
+        // The first update lands a zero delta, so it runs no fixed step.
+        app.update();
+        app.world_mut().resource_mut::<FiringSamples>().0.clear();
+        app.update();
+
+        let samples = &app.world().resource::<FiringSamples>().0;
+        let steps = app.world().resource::<Time<Fixed>>().timestep();
+        let expected = (guns::AI_BURST_FIRE_SECS / steps.as_secs_f32()).round() as usize;
+        assert!(
+            samples.len() > expected,
+            "the frame must cover the whole fire window: {} steps, need > {expected}",
+            samples.len()
+        );
+
+        let closed_at = samples
+            .iter()
+            .position(|firing| !firing)
+            .expect("the burst window must close inside the frame, not at its boundary");
+        assert!(
+            closed_at.abs_diff(expected) <= 1,
+            "the window must close on the fixed step at {expected}, closed at {closed_at}"
+        );
+        assert!(
+            samples[..closed_at].iter().all(|firing| *firing),
+            "the window must stay open until it expires"
+        );
+    }
 
     /// Both halves of the neutralize inversion in one rig: `integrity` inserts
     /// the generic marker, and only an AI ship stands down for it. Without the

@@ -324,10 +324,7 @@ fn torpedo_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
     ];
 
     ScenarioConfig {
-        id: RANGE_ID.to_string(),
-        name: "Torpedo Range".to_string(),
         description: "A test range for the torpedo bay section.".to_string(),
-        cubemap: game_assets.cubemap.clone().into(),
         // The scene lights itself: the engine spawns no light, so a scenario
         // that authors none renders black.
         events: fixtures::spawn_on_start(
@@ -337,7 +334,11 @@ fn torpedo_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
             ]
             .concat(),
         ),
-        ..Default::default()
+        ..ScenarioConfig::new(
+            RANGE_ID.to_string(),
+            "Torpedo Range".to_string(),
+            game_assets.cubemap.clone().into(),
+        )
     }
 }
 
@@ -362,10 +363,7 @@ fn crossing_range(game_assets: &GameAssets, sections: &GameSections) -> Scenario
     ];
 
     ScenarioConfig {
-        id: CROSSING_ID.to_string(),
-        name: "Torpedo Crossing Range".to_string(),
         description: "A harness for the torpedo PN guidance.".to_string(),
-        cubemap: game_assets.cubemap.clone().into(),
         // The scene lights itself: the engine spawns no light, so a scenario
         // that authors none renders black.
         events: fixtures::spawn_on_start(
@@ -375,7 +373,11 @@ fn crossing_range(game_assets: &GameAssets, sections: &GameSections) -> Scenario
             ]
             .concat(),
         ),
-        ..Default::default()
+        ..ScenarioConfig::new(
+            CROSSING_ID.to_string(),
+            "Torpedo Crossing Range".to_string(),
+            game_assets.cubemap.clone().into(),
+        )
     }
 }
 

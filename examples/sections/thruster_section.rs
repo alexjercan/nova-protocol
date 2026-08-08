@@ -204,10 +204,7 @@ fn burn_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
     };
 
     ScenarioConfig {
-        id: "thruster_rig".to_string(),
-        name: "Thruster Section Rig".to_string(),
         description: "A minimal ship under a scripted burn.".to_string(),
-        cubemap: game_assets.cubemap.clone().into(),
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
             filters: vec![],
@@ -229,7 +226,11 @@ fn burn_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
             ]
             .concat(),
         }],
-        ..Default::default()
+        ..ScenarioConfig::new(
+            "thruster_rig".to_string(),
+            "Thruster Section Rig".to_string(),
+            game_assets.cubemap.clone().into(),
+        )
     }
 }
 

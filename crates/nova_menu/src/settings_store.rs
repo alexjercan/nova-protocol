@@ -85,11 +85,15 @@ impl PersistedSettings {
 
     /// The persisted NOVA OS monitor settings as the live resource.
     pub fn nova_os_monitor(&self) -> NovaOsMonitorSettings {
-        NovaOsMonitorSettings {
+        let mut monitor = NovaOsMonitorSettings {
             bright_detent: self.nova_os_bright_detent,
             scan_detent: self.nova_os_scan_detent,
             sound_enabled: self.nova_os_sound_enabled,
-        }
+        };
+        // Clamp like the volume beside it: a corrupt index survives the read
+        // paths (they clamp) but breaks the wrapping knob cycle.
+        monitor.clamp_detents();
+        monitor
     }
 }
 

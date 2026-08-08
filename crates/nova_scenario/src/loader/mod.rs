@@ -145,14 +145,13 @@ pub struct CampaignConfig {
 
 /// Configuration for a game scenario.
 ///
-/// `Default` exists so the many code-built literals (examples, tests) can fill
-/// the optional `thumbnail`/`hidden` fields with
-/// `..Default::default()`. Note a
-/// FULLY default `ScenarioConfig` is not serializable: its default `cubemap` is
-/// a handle-backed `AssetRef`, which errors on serialize (see `AssetRef`). Every
-/// real builder sets `cubemap` to a path, so this never bites; do not serialize
-/// `ScenarioConfig::default()` directly.
-#[derive(Clone, Debug, Default)]
+/// Build one with [`ScenarioConfig::new`] and fill the optional fields through
+/// struct-update syntax: `ScenarioConfig { hidden: true,
+/// ..ScenarioConfig::new(id, name, cubemap) }`. There is deliberately no
+/// `Default`: a defaulted `cubemap` is a handle-backed `AssetRef`, which errors
+/// on serialize (see `AssetRef`), so a fully default `ScenarioConfig` was never
+/// a valid scenario.
+#[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ScenarioConfig {
     /// Unique identifier for the scenario
@@ -198,6 +197,31 @@ pub struct ScenarioConfig {
         serde(default, skip_serializing_if = "Vec::is_empty")
     )]
     pub events: Vec<ScenarioEventConfig>,
+}
+
+impl ScenarioConfig {
+    /// A scenario with only its three REQUIRED fields set: everything else
+    /// (`description`, `thumbnail`, `hidden`, `menu_backdrop`, `events`) takes
+    /// its empty value, to be overridden through struct-update syntax.
+    // `cubemap` stays a concrete `AssetRef<Image>`: an `impl Into` there makes
+    // the callers' own `handle.into()` ambiguous, since half of bevy converts
+    // a `Handle<Image>`.
+    pub fn new(
+        id: impl Into<ScenarioId>,
+        name: impl Into<String>,
+        cubemap: AssetRef<Image>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            name: name.into(),
+            description: String::new(),
+            cubemap,
+            thumbnail: None,
+            hidden: false,
+            menu_backdrop: false,
+            events: Vec::new(),
+        }
+    }
 }
 
 /// `skip_serializing_if` predicate for a `bool` that defaults to false: omit it
@@ -519,10 +543,7 @@ mod tests {
         };
 
         let scenario = ScenarioConfig {
-            id: "roundtrip".to_string(),
-            name: "Round Trip".to_string(),
             description: "serde smoke".to_string(),
-            cubemap: AssetRef::from("scenarios/space.cube.png"),
             events: vec![ScenarioEventConfig {
                 name: EventConfig::OnStart,
                 filters: vec![],
@@ -571,7 +592,11 @@ mod tests {
                     }),
                 ],
             }],
-            ..Default::default()
+            ..ScenarioConfig::new(
+                "roundtrip".to_string(),
+                "Round Trip".to_string(),
+                AssetRef::from("scenarios/space.cube.png"),
+            )
         };
 
         let ron = ron::to_string(&scenario).expect("scenario serializes to RON");
