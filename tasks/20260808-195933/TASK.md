@@ -1,6 +1,6 @@
 # Make standard nova_probe_cli diagnostics automatic
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: v0.10.0,tooling,perf,refactor
 
