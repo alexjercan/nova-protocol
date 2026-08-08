@@ -1,3 +1,11 @@
+//! The ship's 3D view: the block model built from the live section tree, its
+//! camera and orbit controls, and the blips and outlines drawn over it.
+//!
+//! Blocks are placed in the ship's LOCAL space so the view is identical
+//! wherever the ship is in the world.
+//!
+//! Touch this module when changing how the ship is drawn or selected in.
+
 use bevy::{
     asset::RenderAssetUsages,
     camera::{visibility::RenderLayers, ImageRenderTarget, RenderTarget},
@@ -460,8 +468,8 @@ pub(crate) fn ship_input(
 }
 
 /// Tint the SELECTED section's box outline amber and leave every other block's
-/// outline phosphor. Blocks no longer recolour by status - the fill stays a
-/// uniform green and status rides the blip integrity bar (DECISION.md).
+/// outline phosphor. Blocks must not recolour by status - the fill stays a
+/// uniform green and status rides the blip integrity bar instead.
 pub(crate) fn update_ship_blocks(
     runtime: Res<ShipRuntime>,
     mut q_outline: Query<(&ChildOf, &mut MeshMaterial3d<StandardMaterial>), With<ShipBlockOutline>>,

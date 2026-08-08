@@ -19,7 +19,7 @@ use crate::{
     transform::prelude::*,
 };
 
-/// Glob-import surface: `use nova_gameplay::hud::velocity::prelude::*` re-exports the public API of this module.
+/// The `velocity_hud` spawner, its config, palette and source components, and `VelocityHudPlugin`.
 pub mod prelude {
     pub use super::{
         velocity_hud, VelocityHudConfig, VelocityHudIndicatorMarker, VelocityHudMarker,

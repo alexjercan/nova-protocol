@@ -1,3 +1,13 @@
+//! The CRT illusion: the barrel-warp `UiMaterial`, and the render-to-texture
+//! rig that gives it something to sample.
+//!
+//! The terminal subtree is drawn by its own camera into an image on
+//! [`NOVA_OS_RTT_LAYER`], and the on-screen surface samples that image through
+//! the shader - so warp and scanlines apply to real, live UI. Pointer events
+//! land on the flat surface and are forwarded into the warped subtree.
+//!
+//! Touch this module when changing the screen distortion or the RTT wiring.
+
 use bevy::{
     asset::uuid::Uuid,
     camera::{ImageRenderTarget, NormalizedRenderTarget},

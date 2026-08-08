@@ -1,3 +1,12 @@
+//! What the ship app knows about a section: its stable code, its glyph and
+//! description, and the [`ShipSectionView`] that renders integrity, status and
+//! meters from live components.
+//!
+//! Codes are assigned per damage class and held stable so a typed code keeps
+//! meaning the same section.
+//!
+//! Touch this module when adding a section fact the ship app displays.
+
 use bevy::{ecs::system::SystemParam, prelude::*};
 use nova_events::prelude::EntityId;
 use nova_os::prelude::*;

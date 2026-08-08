@@ -21,8 +21,7 @@ pub mod prelude {
     pub use super::{
         status_bar, status_bar_item, status_bar_with_fps, status_fps_color_fn, status_fps_value_fn,
         status_version_color_fn, status_version_value_fn, StatusBarItemConfig, StatusBarItemMarker,
-        StatusBarPlugin, StatusBarPluginSystems, StatusBarRootConfig, StatusBarRootMarker,
-        StatusValue,
+        StatusBarRootConfig, StatusBarRootMarker, StatusBarSystems, StatusValue,
     };
 }
 
@@ -128,39 +127,24 @@ where
 #[derive(Component, Clone, Deref, DerefMut)]
 pub struct StatusBarItemValue(pub Option<Arc<dyn StatusValue>>);
 
-/// Per-entity staging store for item values.
-#[derive(Resource, Default, Clone)]
-pub struct StatusBarStore {
-    /// The last value read for each item entity.
-    pub store: HashMap<Entity, Arc<dyn StatusValue>>,
-}
-
-/// System sets for the status bar plugin.
+/// System sets for the status bar.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum StatusBarPluginSystems {
+pub enum StatusBarSystems {
     /// Reads every item's `value_fn` and pushes the result into the item's text.
     Sync,
 }
 
-/// Drives the status bar: builds items on spawn and refreshes their values and
+/// Drive the status bar: build items on spawn and refresh their values and
 /// colors every frame.
-pub struct StatusBarPlugin;
+pub(crate) fn build(app: &mut App) {
+    app.add_observer(insert_status_bar_item);
 
-impl Plugin for StatusBarPlugin {
-    fn build(&self, app: &mut App) {
-        debug!("StatusBarPlugin: build");
-
-        app.init_resource::<StatusBarStore>();
-
-        app.add_observer(insert_status_bar_item);
-
-        app.add_systems(
-            Update,
-            (update_status_bar_item_values, update_status_bar_item_ui)
-                .chain()
-                .in_set(StatusBarPluginSystems::Sync),
-        );
-    }
+    app.add_systems(
+        Update,
+        (update_status_bar_item_values, update_status_bar_item_ui)
+            .chain()
+            .in_set(StatusBarSystems::Sync),
+    );
 }
 
 /// Run every item's `value_fn` against the world and stage the results.
@@ -241,63 +225,65 @@ fn insert_status_bar_item(
 
     let root = root.into_inner();
 
-    commands.entity(root).with_children(|parent| {
-        parent.spawn((
-            Name::new(format!("StatusBarItem: {}-{}", **prefix, **suffix)),
-            Node {
-                width: Val::Auto,
-                height: Val::Px(24.0),
-                margin: UiRect::all(Val::Px(4.0)),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                flex_direction: FlexDirection::Row,
-                column_gap: Val::Px(4.0),
-                ..default()
-            },
-            children![
-                (
-                    Name::new("StatusBarItemIcon"),
-                    ImageNode {
-                        image: (**icon).clone(),
-                        ..default()
-                    },
-                    Node {
-                        width: Val::Px(16.0),
-                        height: Val::Px(16.0),
-                        ..default()
-                    },
-                ),
-                (
-                    Name::new("StatusBarItemPrefix"),
-                    Text::new((**prefix).clone()),
-                    TextFont {
-                        font_size: FontSize::Px(14.0),
-                        ..default()
-                    },
-                ),
-                (
-                    Name::new("StatusBarItemValue"),
-                    StatusBarItemValue(None),
-                    value_fn.clone(),
-                    Text::new("N/A".to_string()),
-                    TextFont {
-                        font_size: FontSize::Px(14.0),
-                        ..default()
-                    },
-                    color_fn.clone(),
-                    TextColor(Color::WHITE),
-                ),
-                (
-                    Name::new("StatusBarItemSuffix"),
-                    Text::new((**suffix).clone()),
-                    TextFont {
-                        font_size: FontSize::Px(14.0),
-                        ..default()
-                    },
-                )
-            ],
-        ));
-    });
+    // The row is built ON the caller's entity, not into a fresh child of the
+    // root: the handle `status_bar_item` hands back has to be the live entity,
+    // or every later `despawn`/`insert` against it is a silent no-op.
+    commands.entity(entity).insert((
+        ChildOf(root),
+        Name::new(format!("StatusBarItem: {}-{}", **prefix, **suffix)),
+        Node {
+            width: Val::Auto,
+            height: Val::Px(24.0),
+            margin: UiRect::all(Val::Px(4.0)),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            flex_direction: FlexDirection::Row,
+            column_gap: Val::Px(4.0),
+            ..default()
+        },
+        children![
+            (
+                Name::new("StatusBarItemIcon"),
+                ImageNode {
+                    image: (**icon).clone(),
+                    ..default()
+                },
+                Node {
+                    width: Val::Px(16.0),
+                    height: Val::Px(16.0),
+                    ..default()
+                },
+            ),
+            (
+                Name::new("StatusBarItemPrefix"),
+                Text::new((**prefix).clone()),
+                TextFont {
+                    font_size: FontSize::Px(14.0),
+                    ..default()
+                },
+            ),
+            (
+                Name::new("StatusBarItemValue"),
+                StatusBarItemValue(None),
+                value_fn.clone(),
+                Text::new("N/A".to_string()),
+                TextFont {
+                    font_size: FontSize::Px(14.0),
+                    ..default()
+                },
+                color_fn.clone(),
+                TextColor(Color::WHITE),
+            ),
+            (
+                Name::new("StatusBarItemSuffix"),
+                Text::new((**suffix).clone()),
+                TextFont {
+                    font_size: FontSize::Px(14.0),
+                    ..default()
+                },
+            )
+        ],
+    ));
 }
 
 /// A ready-made "NN fps" status bar item, wiring [`status_fps_value_fn`] and
@@ -373,6 +359,45 @@ pub fn status_version_color_fn() -> impl Fn(Box<&dyn Any>) -> Option<Color> + Se
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The entity `status_bar_item` is spawned on must BE the rendered row.
+    /// Building the row into a fresh child of the root instead leaves the
+    /// caller holding a permanent orphan, so every later mutation of that
+    /// handle is a silent no-op and the assertion below is the only thing that
+    /// catches it.
+    #[test]
+    fn the_spawned_item_entity_is_the_rendered_row() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, crate::NovaUiPlugin));
+
+        let root = app
+            .world_mut()
+            .spawn(status_bar(StatusBarRootConfig::default()))
+            .id();
+        let item = app
+            .world_mut()
+            .spawn(status_bar_item(StatusBarItemConfig {
+                icon: None,
+                value_fn: status_version_value_fn("1.2.3"),
+                color_fn: status_version_color_fn(),
+                prefix: "v".to_string(),
+                suffix: "".to_string(),
+            }))
+            .id();
+
+        app.update();
+
+        let item_ref = app.world().entity(item);
+        assert!(
+            item_ref.contains::<Node>(),
+            "the caller's entity must carry the row's Node, not an orphan"
+        );
+        assert_eq!(
+            item_ref.get::<ChildOf>().map(ChildOf::parent),
+            Some(root),
+            "the caller's entity must be parented under the status bar root"
+        );
+    }
 
     /// Counts the frames on which the reconciler marked an item's text changed.
     #[derive(Resource, Default)]

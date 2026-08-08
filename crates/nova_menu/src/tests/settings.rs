@@ -1,3 +1,7 @@
+//! The settings screen: that the controls build, that the skin buttons and the
+//! volume slider write through to their resources and reskin live, and that an
+//! edit made just before quitting is still persisted.
+
 use bevy::{
     prelude::*,
     ui_widgets::{SliderValue, ValueChange},

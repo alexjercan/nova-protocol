@@ -1,3 +1,12 @@
+//! [`NovaEventWorld`]: the bridge an authored handler acts through.
+//!
+//! Handlers run outside the ECS, so they cannot touch `World` directly. They
+//! queue intent here - commands, story lines, objectives, HUD readouts,
+//! variables - and a pair of sync systems drains it into and out of the real
+//! world each frame.
+//!
+//! Touch this module when adding a new thing an authored action can do.
+
 use std::collections::VecDeque;
 
 use bevy::{ecs::world::CommandQueue, platform::collections::HashMap, prelude::*};

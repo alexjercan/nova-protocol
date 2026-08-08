@@ -276,3 +276,11 @@ mod tests {
         assert!(both(&world));
     }
 }
+
+/// The `Predicate` type and its combinators: time, frames, state, resource,
+/// entity and screenshot conditions plus `and`/`not`.
+pub mod prelude {
+    pub use super::{
+        and, any_entity, elapsed, frames, not, resource_where, shot_written, state_is, Predicate,
+    };
+}

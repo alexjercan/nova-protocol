@@ -8,7 +8,8 @@ use nova_events::prelude::*;
 
 use crate::prelude::*;
 
-/// Glob-import surface: `use crate::objects::light::prelude::*` re-exports the public API of this module.
+/// The light scenario object, `LightConfig`, the `ThreePointRig`, the `aimed_light_base` helper and
+/// `LightPlugin`.
 pub mod prelude {
     pub use super::{
         aimed_light_base, light_scenario_object, LightConfig, LightPlugin, ThreePointRig,

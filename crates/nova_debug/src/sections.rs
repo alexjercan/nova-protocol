@@ -165,3 +165,8 @@ fn log_position(
         }
     }
 }
+
+/// `SectionsDebugPlugin`.
+pub mod prelude {
+    pub use super::SectionsDebugPlugin;
+}

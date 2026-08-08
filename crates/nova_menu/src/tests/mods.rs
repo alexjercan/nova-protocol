@@ -1,3 +1,7 @@
+//! The mods screen: catalog listing, row selection and details, the enable
+//! checkbox and its dependency handling, the installed/explore tab swap, and
+//! the base mod staying locked on.
+
 use bevy::{
     prelude::*,
     ui_widgets::{observe, Activate},

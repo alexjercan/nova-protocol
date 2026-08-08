@@ -1,3 +1,12 @@
+//! Every key, wheel and gamepad path into the NOVA OS: the open/close toggle,
+//! terminal typing, app-local keys, and panel scrolling.
+//!
+//! Once the NOVA OS owns the keyboard it must consume the keys gameplay would
+//! otherwise act on, so the toggle and the terminal handler are ordered
+//! against each other rather than merely both present.
+//!
+//! Touch this module when adding an input the terminal or an app reacts to.
+
 use bevy::{
     input::{
         keyboard::{Key, KeyboardInput},

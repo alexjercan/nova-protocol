@@ -92,7 +92,8 @@ const DECAY_PULSE_HZ_CALM: f32 = 1.5;
 const DECAY_PULSE_HZ_URGENT: f32 = 6.0;
 const DECAY_PULSE_DEPTH: f32 = 0.45;
 
-/// Glob-import surface: `use nova_gameplay::hud::torpedo_target::prelude::*` re-exports the public API of this module.
+/// The `torpedo_target_hud` spawner, its config, the reticle, health-bar, focus-meter and readout
+/// markers, and `TorpedoTargetHudPlugin`.
 pub mod prelude {
     pub use super::{
         torpedo_target_hud, TorpedoTargetFocusFillMarker, TorpedoTargetFocusMeterMarker,

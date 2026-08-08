@@ -26,7 +26,7 @@ use crate::{
     audio::{SfxCommandsExt, SoundBank, UiSfx},
 };
 
-/// Glob-import surface: `use nova_gameplay::hud::comms_panel::prelude::*` re-exports the public API of this module.
+/// The `StoryFeed` queue, `StoryLine`, and the comms dwell and fade timing constants.
 pub mod prelude {
     pub use super::{
         StoryFeed, StoryLine, COMMS_DWELL_MAX_SECS, COMMS_DWELL_MIN_SECS, COMMS_DWELL_SECS,

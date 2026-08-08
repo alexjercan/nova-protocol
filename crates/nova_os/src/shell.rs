@@ -270,7 +270,7 @@ fn levenshtein(a: &str, b: &str) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::command::core_command_specs;
+    use crate::command::prelude::core_command_specs;
 
     /// A `map` app spec plus its `map view` CLI subcommand, mirroring what the
     /// map plugin registers - used to prove app-vs-subcommand resolution without
@@ -471,4 +471,9 @@ mod tests {
             ResolvedCommand::UnexpectedArguments { command, .. } if command == "ship view"
         ));
     }
+}
+
+/// `CommandArity`, `CliOutput`, `CommandDispatch` and `TerminalCommandSpec`.
+pub mod prelude {
+    pub use super::{CliOutput, CommandArity, CommandDispatch, TerminalCommandSpec};
 }

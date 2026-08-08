@@ -1,10 +1,6 @@
 //! Test fixtures shared by the terminal test modules.
 
-use crate::{
-    command::core_command_specs,
-    shell::{CliOutput, CommandArity, CommandDispatch, TerminalCommandSpec},
-    terminal::NovaOsTerminal,
-};
+use crate::{command::prelude::core_command_specs, shell::prelude::*, terminal::NovaOsTerminal};
 
 pub(super) fn type_text(terminal: &mut NovaOsTerminal, text: &str) {
     terminal.insert_text(text);

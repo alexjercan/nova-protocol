@@ -37,7 +37,7 @@
 //! its release beat CANCELS the click silently: `bevy_picking` dispatches
 //! `Pointer<Click>` from the PREVIOUS frame's hover map, so a pointer that
 //! moved off the widget in between produces a release and no click, and a
-//! button that acts on `Activate` never fires (task 20260805-091151).
+//! button that acts on `Activate` never fires.
 //!
 //! So a driven run owns the pointer: the autopilot pins it, putting the last
 //! synthesized position back before the picking backend reads the frame's
@@ -760,4 +760,13 @@ mod tests {
 
         assert!(cursor_moves(&mut app).is_empty());
     }
+}
+
+/// The synthesized input steps: key and mouse press/release, cursor moves, clicks
+/// by position or name, and the node-geometry helpers they resolve through.
+pub mod prelude {
+    pub use super::{
+        assert_named_visible, click_at, click_named, hover_named, move_cursor, press_key,
+        press_mouse, release_key, release_mouse, ui_node_centre, ui_node_rect,
+    };
 }

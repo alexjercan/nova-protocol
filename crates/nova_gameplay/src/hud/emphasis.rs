@@ -17,7 +17,7 @@
 
 use bevy::prelude::*;
 
-/// Glob-import surface: `use nova_gameplay::hud::emphasis::prelude::*` re-exports the public API of this module.
+/// The `HudEmphasis` setting and its `HudEmphasisMode`.
 pub mod prelude {
     pub use super::{HudEmphasis, HudEmphasisMode};
 }

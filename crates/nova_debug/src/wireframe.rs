@@ -12,19 +12,15 @@
 //! # }
 //! ```
 //!
-//! Press F11 to toggle the wireframe mode on or off.
-//!
 //! Nova owns this because the wireframe pass is one of the four layers
-//! [`crate::DebugPlugin`] raises together on F11; its `DebugEnabled` is
-//! overridden there by `DEBUG_LAYER_STARTS_ON` so the layer boots OFF.
+//! [`crate::DebugPlugin`] raises together on F11. The F11 key itself is read
+//! ONCE, by `DebugPlugin`, which also overrides this `DebugEnabled` with
+//! `DEBUG_LAYER_STARTS_ON` so the layer boots OFF.
 
 use bevy::{
     pbr::wireframe::{WireframeConfig, WireframePlugin},
     prelude::*,
 };
-
-/// The key used to toggle debug mode on and off.
-pub const DEBUG_TOGGLE_KEYCODE: KeyCode = KeyCode::F11;
 
 /// A resource that stores whether wireframe debug mode is currently enabled.
 ///
@@ -40,7 +36,6 @@ pub struct DebugEnabled(pub bool);
 /// - Inserts the `DebugEnabled` resource (default: true)
 /// - Registers Bevy's built in `WireframePlugin`
 /// - Updates the global wireframe configuration each frame
-/// - Listens for the toggle key to enable or disable wireframes
 pub struct WireframeDebugPlugin;
 
 impl Plugin for WireframeDebugPlugin {
@@ -51,7 +46,7 @@ impl Plugin for WireframeDebugPlugin {
             global: true,
             ..default()
         });
-        app.add_systems(Update, (enable_wireframe, toggle_debug_mode));
+        app.add_systems(Update, enable_wireframe);
     }
 }
 
@@ -62,9 +57,7 @@ fn enable_wireframe(mut wireframe_config: ResMut<WireframeConfig>, debug: Res<De
     }
 }
 
-/// Toggle debug mode when the user presses the toggle key.
-fn toggle_debug_mode(mut debug: ResMut<DebugEnabled>, keyboard: Res<ButtonInput<KeyCode>>) {
-    if keyboard.just_pressed(DEBUG_TOGGLE_KEYCODE) {
-        **debug = !**debug;
-    }
+/// `WireframeDebugPlugin` and its `DebugEnabled` flag.
+pub mod prelude {
+    pub use super::{DebugEnabled, WireframeDebugPlugin};
 }

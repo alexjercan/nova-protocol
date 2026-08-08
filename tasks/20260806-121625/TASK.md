@@ -523,60 +523,97 @@ is "make the site look like keybind_dock".
 BLOCKS the baseline, lands AFTER it - deletion count is success criterion #2
 and lines deleted before the baseline never enter the ledger. Depends on L2.
 
-- [ ] F45 - delete `crates/nova_ui/src/tween.rs` (421 lines, 11 tests), its
+- [x] F45 - delete `crates/nova_ui/src/tween.rs` (421 lines, 11 tests), its
       `pub mod tween;` and prelude re-exports in `lib.rs`, and the
       `.add_plugins(TweenPlugin)` at `hud/mod.rs:301`. Zero consumers
       workspace-wide. DO THIS FIRST inside the lane - it makes F55 a two-plugin
       merge and retires `TweenSystems` before L9 counts rule 10's sets.
-- [ ] F46 - delete `StatusBarStore` (`status_bar.rs:131-136`) and its
+- [x] F46 - delete `StatusBarStore` (`status_bar.rs:131-136`) and its
       `init_resource` at `:153`. Declared, never read or written.
-- [ ] F51 - rebuild `insert_status_bar_item` (`status_bar.rs:238`) so the
+- [x] F51 - rebuild `insert_status_bar_item` (`status_bar.rs:238`) so the
       caller's entity is the live one; today the observer copies the data into
       a new child and leaves the caller's entity a permanent orphan with no
       `Node`. `nova_core/src/lib.rs:290,297` spawns two.
-- [ ] F47 - RULED make it real: gate hanabi (`plugin.rs:77`), skybox (`:85`),
+- [x] F47 - RULED make it real: gate hanabi (`plugin.rs:77`), skybox (`:85`),
       post (`:86`) and the HUD (`:111`) on `NovaGameplayPlugin::render`, so the
       documented headless mode exists.
-- [ ] F48 - delete `objectives.rs:123 rebuild_lines` and `ObjectivesPlugin`;
+      `GameObjectives` had to move OUT of the render-gated HUD and into
+      `NovaGameplayPlugin` itself: the scenario loader writes it whether or not
+      anything draws it, so a headless run panicked on the missing resource.
+- [x] F48 - delete `objectives.rs:123 rebuild_lines` and `ObjectivesPlugin`;
       `ObjectivesPanelMarker` appears only inside `objectives.rs` and the live
       objectives HUD is `nova_scenario/src/loader/lifecycle.rs:49-63`.
-- [ ] F49 - either tag the spawner so `Without<SectionInactiveMarker>`
+- [x] F49 - either tag the spawner so `Without<SectionInactiveMarker>`
       (`torpedo_section/bay.rs:112`) is real, or delete it. It reads as a live
       safety gate and does nothing; a disabled bay keeps ticking to ready.
-- [ ] F50 - honor the `_skin` parameter in `panel_head`
+      Made real, not deleted. The marker only ever lands on the SECTION, so the
+      liveness reads through `TorpedoSectionPartOf`; `a_disabled_bay_stops_rearming`
+      asserts both arms so the disabled case cannot pass on a starved clock.
+- [x] F50 - honor the `_skin` parameter in `panel_head`
       (`nova_ui/src/widget/panel.rs:112`); `:121` hardcodes the phosphor band.
       Deleting the parameter is the wrong fix - every call site believes it
       does something.
-- [ ] F52 - stop `nova_debug/Cargo.toml:18` and root `Cargo.toml:224` forcing
+- [x] F52 - stop `nova_debug/Cargo.toml:18` and root `Cargo.toml:224` forcing
       `nova_gameplay/debug` on every test and example build. Read the L0 notes
       rather than repeating the investigation.
-- [ ] F52 - delete `nova_info`'s `debug = []` feature outright; zero cfg sites.
-- [ ] F54 - delete two of the three private `toggle_debug_mode` fns
+- [x] F52 - delete `nova_info`'s `debug = []` feature outright; zero cfg sites.
+- [x] F54 - delete two of the three private `toggle_debug_mode` fns
       (`nova_debug/src/lib.rs:124`, `inspector.rs:180`, `wireframe.rs:66`). A
       fourth sub-plugin silently breaks F11.
-- [ ] F55 - add `pub struct NovaUiPlugin`, delete the first-caller-wins
+- [x] F55 - add `pub struct NovaUiPlugin`, delete the first-caller-wins
       `widget::register` fn and `WidgetObserversRegistered`, and fold
       `StatusBarPlugin` (`status_bar.rs:147`) into it.
-- [ ] Rule 2 - delete the 69 boilerplate `/// Glob-import surface: ...` prelude
+      The guard moved from a resource inside the crate to `is_plugin_added` at
+      each of the three call sites, which is bevy's own idiom and visible where
+      it matters. `StatusBarPluginSystems` became `StatusBarSystems` with the
+      plugin it was named for (rule 9, for free).
+- [x] Rule 2 - delete the 69 boilerplate `/// Glob-import surface: ...` prelude
       doc lines. Keep the 37 that say something specific
       (`nova_ui/src/lib.rs:24-31` is the model).
-- [ ] Rule 1 - write the 28 missing module `//!` docs, each with a "touch this
+      **Replaced, not deleted, and the count is 69/105 not 69/106.** Every crate
+      carries `#![warn(missing_docs)]` and L0 put `-D warnings` on CI's clippy,
+      so a bare deletion breaks the build. Each of the 69 got the one-line
+      "names its contents" form rule 2 itself prescribes; 36 specific docs kept.
+- [x] Rule 1 - write the 28 missing module `//!` docs, each with a "touch this
       module when ..." line. COUNT THIS SEPARATELY - it adds lines and nets
       against criterion #2; report two numbers, not one.
-- [ ] Rule 5 - rewrite the 26 docs that cite a task artifact (`DECISION.md`,
+      **38 modules, not 28.** The plan's count excluded the 10 `nova_menu`
+      test modules and the two NOVA OS app `tests.rs` files; those are modules
+      and rule 1 does not exempt them. `nova_info/build.rs` is the one file left
+      bare - a build script, not a module in the crate graph.
+- [x] Rule 5 - rewrite the 26 docs that cite a task artifact (`DECISION.md`,
       bare task ids) into constraints.
-- [ ] Rule 7 - add one comment per bare hand-written trait impl (6 sites)
+      25 sites in `crates/`. The 26th is `input/reference.rs:10`, which carries
+      a live tracker link and is EXEMPT - normalized to the `TODO(<task-id>)`
+      spelling the rule names so it reads as exempt. `examples/` holds ~40 more
+      of the same shape and is deliberately out of this lane; see NOTES.
+- [x] Rule 7 - add one comment per bare hand-written trait impl (6 sites)
       saying why it is not a derive.
-- [ ] Rule 9 - rename `HudSituationSensing` -> `HudSituationSensingSystems` and
+      5 written. The 6th is `AssetRef`'s `Clone`/`Debug`/`PartialEq`/`Eq` block,
+      already covered by the type-level paragraph CONVENTIONS.md quotes as its
+      own model; only its `Default` was uncovered, and now is.
+- [x] Rule 9 - rename `HudSituationSensing` -> `HudSituationSensingSystems` and
       `CameraAuthority` -> `CameraAuthoritySystems`.
-- [ ] Rules 3+4 - add the 19 orphaned module preludes in the crates no
+- [x] Rules 3+4 - add the 19 orphaned module preludes in the crates no
       structural lane opens: `nova_autopilot` 7, `nova_debug` 6, `nova_os` 4,
       `nova_mod_format` 2. One prelude module plus a one-line doc naming its
       contents - never the boilerplate sentence rule 2 deletes.
-- [ ] Run `probe run --all` for F47 - making the headless mode real changes
+      19 added, in the repo's inline `pub mod prelude { pub use super::{..}; }`
+      idiom rather than the plan's `prelude.rs` file - rule 3's own snippet is
+      the inline form. `log_capture` is `#[cfg(test)]` with zero `pub` items and
+      gets none. Rule 4: the seven intra-crate deep paths the new preludes fully
+      cover were repointed; the rest reach `pub(crate)` helpers no prelude
+      should carry, and stay.
+      The four crate ROOTS keep their by-name re-exports: each curates a
+      narrower surface than a glob would (and `nova_autopilot`'s doc explains
+      which names would collide), which rule 3 explicitly allows.
+- [x] Run `probe run --all` for F47 - making the headless mode real changes
       what a run builds, so the compiler is not the verification.
-- [ ] Double-registration check in the menu and editor apps for F55.
-- [ ] Record the two deletion numbers (removed, added) in NOTES.
+- [x] Double-registration check in the menu and editor apps for F55.
+      All three adders (`nova_menu:102`, `nova_gameplay/plugin.rs:116`,
+      `nova_editor/ui/mod.rs:47`) guard on `is_plugin_added`; bevy panics on a
+      duplicate add, so every booting example in the probe run is the check.
+- [x] Record the two deletion numbers (removed, added) in NOTES.
 
 ### Lane06 - "NOVA_EDITOR" - tasks/20260806-121625/plan/lane06.md
 
@@ -1308,3 +1345,113 @@ the wrong mechanism was silently green. Behaviour tests fail loudly when wrong;
 change-detection tests fail silently. Every one of them should be run once
 against the unfixed code before it is trusted - which is what the DoD's
 fail-first rule already says, and which is cheap only if it is done at the time.
+
+## Close-out - L5 (2026-08-08)
+
+### What and why
+
+Two jobs in one lane: delete the surface that lies about what it does, then
+make the docs say what the code is. They share a constraint - both land after
+the L2 baseline so their lines enter the ledger - and nothing else.
+
+The deletions were eleven findings. `tween.rs` went first (F45) because it made
+F55 a two-plugin merge instead of three: `NovaUiPlugin` now owns the themed
+widget observers and the status bar, and the first-caller-wins
+`WidgetObserversRegistered` resource is gone, replaced by `is_plugin_added` at
+the three call sites - bevy's own idiom, and visible where the decision is made
+rather than buried in the crate. `StatusBarStore` (F46) was declared and never
+touched. `ObjectivesPlugin` (F48) rebuilt a panel nothing spawned. Two of the
+three `toggle_debug_mode` fns (F54) went, so a fourth debug sub-plugin can no
+longer silently invert F11.
+
+Three findings were lies rather than corpses, and got made true instead of
+deleted. `NovaGameplayPlugin::render` (F47) documented a headless mode that did
+not exist; hanabi, the skybox, post-processing and the HUD are now actually
+gated on it. `Without<SectionInactiveMarker>` on the torpedo spawner query
+(F49) read as a safety gate and excluded nothing, because the marker lands on
+the section; a disabled bay kept rearming. `panel_head`'s `_skin` (F50) was
+ignored while every call site believed it did something.
+
+The prose sweep is CONVENTIONS.md's five prose rules made true across
+`crates/`: 69 boilerplate prelude docs rewritten to name their contents, 38
+module `//!` docs written, 25 task-artifact citations turned into the
+constraint they were standing in for, 5 hand-written-impl comments, 2 system
+set renames, and 19 module preludes in the four crates no structural lane
+opens.
+
+### Alternatives considered
+
+- **Deleting the 69 prelude docs, as written.** Impossible, and the compiler
+  says so: `#![warn(missing_docs)]` is on every crate and L0 put `-D warnings`
+  on CI's clippy. Rewriting them into the one-line form is what rule 2's own
+  text asks for anyway.
+- **Deleting `panel_head`'s `_skin` parameter** (F50). Rejected by the finding
+  itself and it was right - every call site passes a real skin believing it
+  lands somewhere.
+- **Globbing the four crate roots onto the new module preludes** (rules 3+4).
+  Rejected. Each root curates a narrower surface than its modules export, and
+  `nova_autopilot`'s prelude doc spends twelve lines on which names would
+  collide with `bevy::prelude` if it did. Rule 3 permits by-name re-export for
+  exactly this reason.
+- **Sweeping rule 5 through `examples/` too.** Deferred and recorded. Same
+  defect, ~40 more sites, and outside every count the lane was planned against.
+- **A `prelude.rs` file per module**, as the lane plan spelled it. Used the
+  inline `pub mod prelude { ... }` form instead - it is what rule 3's own
+  snippet shows and what all 105 existing preludes do.
+
+### Difficulties and diagnosis
+
+**F47 was not a four-line gate.** Gating the HUD on `render` made a headless
+run panic: `GameObjectives` was `init_resource`d by the HUD plugin, but the
+scenario loader writes it whether or not anything draws it. The resource moved
+to `NovaGameplayPlugin`, which is where mission state belongs - the HUD only
+ever displayed it. A finding that says "gate these four plugins" is describing
+the edit, not the coupling underneath it.
+
+**Four of the six prose counts were wrong**, all in the same direction: the
+census under-counted because it was written from a grep that had an implicit
+exemption in it. Rule 1 skipped test modules, rule 5 counted an exempt
+`TODO`, rule 7 counted a site that was already the convention's own example.
+Detail and the corrected numbers are in NOTES. The lesson is not "the plan was
+sloppy" - it is that a census whose predicate is not written down cannot be
+re-run, and every one of these was recoverable only by re-deriving it.
+
+**Reporting one deletion number would have been a lie.** The lane's diff is
++887/-944, a net -57, which reads as a lane that barely deleted anything. The
+halves are -440 (deletions) and +383 (prose, almost all of it rule 1's 38 new
+module docs). The step demanded two numbers for this reason and it was right.
+
+### Evidence
+
+- `cargo check --workspace --all-targets` - exit 0, zero warnings. This is the
+  real proof for the prose sweep: `missing_docs` is `warn` in all 15 crates, so
+  a prelude or module left undocumented is a warning here, and CI fails on it.
+- `cargo fmt --all --check` - exit 0.
+- `probe run --all` - see the run recorded below; F47 changes what a run
+  BUILDS, so the compiler is not the verification for it.
+- New test: `a_disabled_bay_stops_rearming` (F49), asserting both arms so the
+  disabled case cannot pass on a starved clock.
+- Prelude census re-run after the sweep: 0 remaining boilerplate docs, 36
+  specific ones kept.
+- Module-doc census re-run: 1 file without a `//!`, `nova_info/build.rs`, a
+  build script.
+- Rule 5 re-grep over `crates/`: 0 hits outside the exempt `TODO(<id>)`.
+- Full suite and clippy: CI's job, per the lane assumption in NOTES.
+
+### Reflection
+
+The lane's two halves failed differently and that is the carry-forward. The
+deletions were verified by the compiler and by one behaviour test, and the only
+surprise was F47's hidden resource ownership - a coupling, which is the failure
+mode deletions have. The prose sweep had no compiler check at all until the
+`missing_docs` + `-D warnings` pair was noticed, at which point the whole rule
+2 step turned out to be un-executable as written. **A prose lane's proof is
+whichever lint already fails on the thing it is fixing; find that lint before
+writing the first edit, because it also tells you what the edit has to look
+like.** Here it turned "delete 69 lines" into "rewrite 69 lines", which is a
+different job with a different cost.
+
+The other one is about counts. Four censuses out of six were wrong, and none of
+them were wrong by much - which is worse than being wrong by a lot, because a
+count that is nearly right does not announce itself. Every future lane that
+opens with a number should carry the grep that produced it.

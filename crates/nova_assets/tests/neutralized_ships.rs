@@ -213,8 +213,7 @@ fn neutralizing_the_gunship_wins_and_does_not_double_fire() {
     assert_eq!(number_var(&app, "act"), Some(2.0), "the act does not skip");
 }
 
-/// The player consequence (owner decision, DECISION.md fork 2): being
-/// neutralized is an IMMEDIATE Defeat that closes the act, mirroring the
+/// The player consequence: being neutralized is an IMMEDIATE Defeat that closes the act, mirroring the
 /// player-death path so the last-write-wins outcome cannot be overwritten.
 #[test]
 fn neutralizing_the_player_is_a_terminal_defeat() {

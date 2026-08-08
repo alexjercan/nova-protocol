@@ -15,20 +15,18 @@
 //! requests are owned here so gameplay stays paused until the close animation
 //! reaches zero. The freeze + cursor-free are wired in `nova_menu` on
 //! `OnEnter/OnExit(PauseStates::NovaOs)`, reusing the exact hooks the pause
-//! overlay uses (see this task's DECISION.md - the NOVA OS is a THIRD variant of
-//! the one freeze axis, not a separate freeze). The NOVA OS is inert while the
+//! overlay uses - the NOVA OS is a THIRD variant of the one freeze axis, not a
+//! separate freeze. The NOVA OS is inert while the
 //! pause menu owns the freeze (`PauseStates::Paused`), which also means a live
 //! outcome overlay - which forces `Paused` - implicitly blocks the NOVA OS
 //! without this crate depending on `nova_scenario`'s `CurrentOutcome`.
 //!
 //! # Animation clock
 //!
-//! The slide is driven by [`Time<Real>`], NOT `nova_ui`'s `Tween` (which
-//! advances on the default `Res<Time>` = `Time<Virtual>`). Opening the NOVA OS
-//! PAUSES virtual time, so a virtual-clocked tween would freeze mid-slide; the
-//! slide must keep moving while the sim is frozen, so it reads real time
-//! (`verify-engine-guarantees-in-source`: `nova_ui::tween::advance_tween` uses
-//! `Res<Time>`).
+//! The slide is driven by [`Time<Real>`], never the default `Res<Time>` (=
+//! `Time<Virtual>`). Opening the NOVA OS PAUSES virtual time, so a
+//! virtual-clocked animation would freeze mid-slide; the slide must keep
+//! moving while the sim is frozen.
 //!
 //! # Module layout
 //!

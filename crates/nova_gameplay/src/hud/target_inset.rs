@@ -33,7 +33,8 @@ use bevy::{camera::RenderTarget, prelude::*, render::render_resource::TextureFor
 use super::screen_indicator::target_world_aabb;
 use crate::prelude::*;
 
-/// Glob-import surface: `use nova_gameplay::hud::target_inset::prelude::*` re-exports the public API of this module.
+/// The `target_inset_hud` spawner, the inset camera, caption, highlight and kill-cam components,
+/// and `TargetInsetHudPlugin`.
 pub mod prelude {
     pub use super::{
         target_inset_hud, InsetZoomable, TargetInsetArmedTickMarker, TargetInsetCameraMarker,

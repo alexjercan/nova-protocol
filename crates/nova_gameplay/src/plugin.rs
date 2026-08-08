@@ -36,8 +36,10 @@ pub enum SpaceshipSystems {
 /// it for the full game and the examples add it directly.
 #[derive(Default, Clone, Debug)]
 pub struct NovaGameplayPlugin {
-    /// Whether the render-side plugins (meshes, HUD, particles) are added.
-    /// `false` for headless / harness runs that only need the simulation.
+    /// Whether the render-side plugins are added: section meshes, the HUD and
+    /// the rest of the `nova_ui` wiring, hanabi particles, the skybox and
+    /// post-processing. `false` for headless / harness runs that only need the
+    /// simulation.
     pub render: bool,
 }
 
@@ -67,6 +69,11 @@ impl Plugin for NovaGameplayPlugin {
         app.init_resource::<crate::GameMode>();
         app.register_type::<crate::GameMode>();
 
+        // Mission state, not HUD state: the scenario loader writes it whether or
+        // not anything renders it, so it is owned here rather than by the
+        // render-gated HUD.
+        app.init_resource::<crate::objectives::GameObjectives>();
+
         configure_pause_gating(app);
 
         // Random number generator
@@ -74,7 +81,9 @@ impl Plugin for NovaGameplayPlugin {
 
         // Hanabi particles run on every target: native, and wasm via the WebGPU
         // backend (compute shaders; see nova_core's wasm webgpu feature).
-        app.add_plugins(bevy_hanabi::HanabiPlugin);
+        if self.render {
+            app.add_plugins(bevy_hanabi::HanabiPlugin);
+        }
 
         // WASD free-fly camera and the input controller over it
         app.add_plugins(crate::camera::wasd::WASDCameraPlugin);
@@ -82,8 +91,10 @@ impl Plugin for NovaGameplayPlugin {
         // Chase Camera Plugin to have a 3rd person camera following the spaceship
         app.add_plugins(crate::camera::chase::ChaseCameraPlugin);
         // Skybox and post-processing
-        app.add_plugins(crate::camera::skybox::SkyboxPlugin);
-        app.add_plugins(crate::camera::post::PostProcessingDefaultPlugin);
+        if self.render {
+            app.add_plugins(crate::camera::skybox::SkyboxPlugin);
+            app.add_plugins(crate::camera::post::PostProcessingDefaultPlugin);
+        }
         // Point Rotation Plugin to convert linear movement to a target rotation
         app.add_plugins(crate::transform::prelude::PointRotationPlugin);
         // for debug to have a random orbiting object
@@ -100,15 +111,20 @@ impl Plugin for NovaGameplayPlugin {
         // Core Mechanics
         app.add_plugins(crate::physics::prelude::PDControllerPlugin);
 
-        // UI Plugins
-        app.add_plugins(nova_ui::status_bar::StatusBarPlugin);
+        // UI Plugins. The menu and editor want the same app-global UI wiring;
+        // whoever gets there first adds it.
+        if self.render && !app.is_plugin_added::<nova_ui::NovaUiPlugin>() {
+            app.add_plugins(nova_ui::NovaUiPlugin);
+        }
 
         // Core Plugins for simulation
         app.add_plugins(crate::input::SpaceshipInputPlugin);
         app.add_plugins(crate::sections::SpaceshipSectionPlugin {
             render: self.render,
         });
-        app.add_plugins(crate::hud::NovaHudPlugin);
+        if self.render {
+            app.add_plugins(crate::hud::NovaHudPlugin);
+        }
         app.add_plugins(crate::camera::SpaceshipCameraControllerPlugin);
         app.add_plugins(crate::integrity::NovaIntegrityPlugin);
         app.add_plugins(crate::damage::NovaDamagePlugin);

@@ -1,3 +1,7 @@
+//! The main menu's live backdrop: that entering the menu loads the ambience
+//! scenario, that the camera is staged from the well geometry, and that a
+//! missing or broken backdrop degrades to a bare camera instead of failing.
+
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;

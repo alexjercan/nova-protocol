@@ -62,7 +62,8 @@ pub use self::{
     },
 };
 
-/// Glob-import surface: `use nova_gameplay::input::targeting::prelude::*` re-exports the public API of this module.
+/// The radar and lock state with its messages and settings, the decay constants, and
+/// `SpaceshipTargetingPlugin` with `SpaceshipTargetingSystems`.
 pub mod prelude {
     pub use super::{
         targeting_state, CombatDecay, CombatLock, CombatLockDrop, CombatLockDropped, ComponentLock,

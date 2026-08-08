@@ -9,7 +9,8 @@ use crate::prelude::{
     SectionRenderMeshTransform, SectionRenderOf,
 };
 
-/// Glob-import surface: `use nova_gameplay::sections::controller_section::prelude::*` re-exports the public API of this module.
+/// The controller-section spawners, its config, markers and rotation input, and the flight verbs it
+/// withholds.
 pub mod prelude {
     pub use super::{
         controller_section, preview_controller_section, ControllerSectionConfig,

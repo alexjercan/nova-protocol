@@ -335,3 +335,12 @@ mod tests {
         );
     }
 }
+
+/// `HarnessCompletion` and its `register` entry point, `AutopilotCompletionSystems`,
+/// and the harness names and deadline knobs.
+pub mod prelude {
+    pub use super::{
+        register, AutopilotCompletionSystems, HarnessCompletion, AUTOPILOT, DEADLINE_ENV,
+        DEFAULT_DEADLINE_SECS, SCREENSHOT,
+    };
+}

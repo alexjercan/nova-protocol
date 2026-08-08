@@ -21,7 +21,7 @@ use crate::{
     prelude::SectionMarker,
 };
 
-/// Glob-import surface: `use nova_gameplay::integrity::explode::prelude::*` re-exports the public API of this module.
+/// `ExplodableEntity` and `MeshFragmentMarker`.
 pub mod prelude {
     pub use super::{ExplodableEntity, MeshFragmentMarker};
 }

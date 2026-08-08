@@ -28,7 +28,7 @@ pub mod neutralize;
 #[cfg(test)]
 pub(crate) mod test_support;
 
-/// Glob-import surface: `use nova_gameplay::integrity::prelude::*` re-exports the public API of this module.
+/// Every integrity submodule's prelude plus `NovaIntegrityPlugin`.
 pub mod prelude {
     pub use super::{
         components::prelude::*, core::prelude::*, explode::prelude::*, health::prelude::*,

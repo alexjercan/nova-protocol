@@ -1,3 +1,11 @@
+//! The NOVA OS audio: keypress and control cues, the continuous power-on bed,
+//! and the power-down sting.
+//!
+//! The bed is a single entity so its gain can track the sound toggle and the
+//! master volume live rather than being restarted.
+//!
+//! Touch this module when adding a sound the monitor makes.
+
 use bevy::{audio::Volume, prelude::*};
 
 use super::components::*;

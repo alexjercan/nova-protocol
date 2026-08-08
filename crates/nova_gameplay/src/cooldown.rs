@@ -44,8 +44,7 @@
 
 use bevy::prelude::*;
 
-/// Glob-import surface: `use nova_gameplay::cooldown::prelude::*` re-exports
-/// the public API of this module.
+/// The `Cooldown` timer component.
 pub mod prelude {
     pub use super::Cooldown;
 }

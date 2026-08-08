@@ -6,7 +6,7 @@
 //! (a word merely containing "ERROR").
 //!
 //! Command errors need their own rule because the level alone does not catch
-//! them (task 20260713-203709): `remove`/`despawn` bake in the WARN handler at
+//! them: `remove`/`despawn` bake in the WARN handler at
 //! queue time (bevy_ecs `commands/mod.rs`, `queue_handled(_, warn)`), so a
 //! stale-entity command logs a WARN and sails past the ERROR gate. The matched
 //! prefix is the one both flavors share (bevy_ecs `error/handler.rs`), so a

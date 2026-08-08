@@ -310,3 +310,12 @@ mod tests {
         assert!(dependents("a", ["a", "d"].iter().copied(), &g).is_empty());
     }
 }
+
+/// `DepGraph` with `transitive_deps` and `dependents`, `topological_order` and its
+/// `TopoOrder`, plus `DepError` and `MAX_DEP_DEPTH`.
+pub mod prelude {
+    pub use super::{
+        dependents, topological_order, transitive_deps, DepError, DepGraph, TopoOrder,
+        MAX_DEP_DEPTH,
+    };
+}

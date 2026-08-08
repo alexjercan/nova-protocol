@@ -24,7 +24,8 @@ use setup::{apply_turret_config_to_children, insert_turret_section};
 
 use crate::prelude::*;
 
-/// Glob-import surface: `use nova_gameplay::sections::turret_section::prelude::*` re-exports the public API of this module.
+/// The `turret_section` spawner, the joint, muzzle and barrel components, the aim and target
+/// inputs, the loaded bullet and `TurretSectionPlugin`.
 pub mod prelude {
     pub use super::{
         turret_section, LoadedBullet, MuzzleConfig, TurretBulletProjectileMarker, TurretJoint,

@@ -12,11 +12,7 @@
 
 use bevy::prelude::*;
 
-use crate::{
-    app::{NovaOsAppRuntime, NOVA_OS_TERMINAL_HINTS},
-    shell::{CliOutput, CommandArity, CommandDispatch, TerminalCommandSpec},
-    terminal::TerminalMode,
-};
+use crate::{app::prelude::*, shell::prelude::*, terminal::TerminalMode};
 
 /// What a [`TerminalCommand`] does when it runs: launch its app (owning the app
 /// runtime) or perform a CLI action.
@@ -253,7 +249,6 @@ mod tests {
     use bevy::input::keyboard::Key;
 
     use super::*;
-    use crate::app::NovaOsAppInputOutcome;
 
     struct StubApp;
     impl NovaOsAppRuntime for StubApp {
@@ -319,4 +314,13 @@ mod tests {
         assert!(registry.app_runtime("map view").is_none());
         assert!(registry.app_runtime("ship").is_none());
     }
+}
+
+/// `NovaOsCommandRegistry`, `TerminalCommand` and its `CommandBody`, the core
+/// command and spec builders, and `nova_os_footer_hints`.
+pub mod prelude {
+    pub use super::{
+        core_command_specs, core_terminal_commands, nova_os_footer_hints, CommandBody,
+        NovaOsCommandRegistry, TerminalCommand,
+    };
 }

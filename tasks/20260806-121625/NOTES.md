@@ -772,3 +772,91 @@ matches the geometry. 4/4 probe repeats OK at 17-18s, the pre-F78 baseline.
 The lesson is the finding, not the fix: an assertion that passes for a reason
 nobody named is indistinguishable from one that passes for the right reason,
 until something narrows the population it reads.
+
+## L5 - the two deletion numbers, and where the prose sweep disagreed with the plan
+
+### The two numbers
+
+The lane is one diff but two opposite jobs, and criterion #2 only means
+something if they are reported apart.
+
+| Half | Added | Removed | Net |
+| --- | --- | --- | --- |
+| Deletions (F45-F55, rule 9) | 372 | 812 | **-440** |
+| Prose sweep (rules 1, 2, 3+4, 5, 7) | 515 | 132 | **+383** |
+| Lane total | 887 | 944 | -57 |
+
+The deletion half is what the ledger should read: **-440**. The prose half ADDS
+lines on purpose - 38 module docs and 19 preludes that did not exist - and
+netting them together would report a lane that deleted 57 lines, which is true
+and useless. Rule 1 alone is most of the +515.
+
+### Rule 2 could not be "delete"
+
+The step, the lane plan and the finding all say delete the 69 boilerplate
+prelude docs. Every crate in the workspace carries `#![warn(missing_docs)]`,
+and L0 put `-D warnings` on CI's clippy step. Deleting the doc above a
+`pub mod prelude` is therefore a build failure, not a cleanup - measured, not
+assumed.
+
+What the rule actually asks for is in its own text: "A prelude gets one line
+naming what is in it." So all 69 were REPLACED with that line, written from the
+`pub use` list under each. This is also exactly what rules 3+4 mandate for the
+19 NEW preludes, so the two halves of the lane now produce the same artifact.
+
+The census was 105 preludes, not 106: 69 exact-boilerplate, 36 specific. The
+plan's 106/37 split was off by one on the keep side.
+
+### Counts that were wrong, and why
+
+- **Rule 1: 38 modules, not 28.** The plan's census skipped the 10 `nova_menu`
+  test modules and the two NOVA OS app `tests.rs` files. A test module is a
+  module; rule 1 exempts nothing. Only `nova_info/build.rs` is left bare - a
+  build script, not a module in the crate graph.
+- **Rule 5: 25 sites, not 26.** The 26th (`input/reference.rs:10`) is a live
+  tracker link, which rule 5 exempts by name. It was spelled `TODO: <id>`
+  instead of `TODO(<id>)`, which is presumably why the census counted it;
+  normalizing the spelling is what makes the exemption legible.
+- **Rule 7: 5 comments, not 6.** `AssetRef`'s `Clone`/`Debug`/`PartialEq`/`Eq`
+  block is the snippet CONVENTIONS.md quotes as its own model for this rule -
+  it was already compliant. Its `Default` was not, and is the fifth comment.
+- **Rules 3+4: 19, and `log_capture` is not one of them.** `nova_autopilot` has
+  8 non-root modules, but `log_capture` is `#[cfg(test)]` with zero `pub`
+  items. The plan's 7 was right for a reason it did not state.
+
+### `examples/` is out of scope for rule 5, deliberately
+
+`grep` finds ~40 more task-artifact citations under `examples/`. They are the
+same defect and CONVENTIONS.md binds them too, but the lane's census, its
+budget and its "131 sites" total are all crates-scoped. Sweeping examples here
+would double the lane against a plan nobody reviewed for it. Recorded rather
+than silently done or silently skipped - it belongs to whichever lane opens
+`examples/`, or to a follow-up.
+
+### The headless mode was not free
+
+F47's gate exposed a hidden coupling the finding did not predict:
+`GameObjectives` was initialized by the HUD plugin, but the scenario loader
+writes it whether or not anything renders. Gating the HUD on `render` alone
+made a headless run panic on the missing resource. It now belongs to
+`NovaGameplayPlugin` itself, which is where mission state should have been all
+along - the HUD only ever displayed it.
+
+### F49's test proved the gate but not the control, twice
+
+The first version asserted `ready()` after ONE `app.update()` on a bay whose
+trigger was held. Both arms read `false`, and for different reasons: the
+disabled bay never ticked (the gate working), the enabled one ticked to ready
+and then `shoot_spawn_projectile` re-triggered the cooldown in the same tick.
+A test whose control fails for an unrelated reason is not measuring anything.
+
+Releasing the input was not enough either. `TimeUpdateStrategy::ManualDuration`
+takes effect from the SECOND update - the first establishes the clock baseline
+at `dt == 0`, so the single measured tick advanced nothing. The other bay tests
+hid this by looping six times. The test now closes the input, burns one warm-up
+update, and only then triggers and measures.
+
+Also: the test rig spawned its spawner WITHOUT `TorpedoSectionPartOf`, which
+production always sets. The gate reads liveness through that back-reference, so
+the rig had to gain the component the real spawn path already had - the missing
+component in the fixture, not the system, is what a green suite was hiding.

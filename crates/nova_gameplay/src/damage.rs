@@ -21,7 +21,7 @@ use bevy::prelude::*;
 
 use crate::integrity::health::prelude::HealthApplyDamage;
 
-/// Glob-import surface: `use nova_gameplay::damage::prelude::*` re-exports the public API of this module.
+/// The damage types and colours, blast spawning, resistance maths and `NovaDamagePlugin`.
 pub mod prelude {
     pub use super::{
         apply_typed_damage, damage_type_color, nova_blast, representative_kinetic_damage,

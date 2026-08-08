@@ -53,7 +53,8 @@ pub use self::{
     },
 };
 
-/// Glob-import surface: `use nova_gameplay::input::player::prelude::*` re-exports the public API of this module.
+/// The player marker, the input sources and per-verb bindings, the verb hints and
+/// `SpaceshipPlayerInputPlugin`.
 pub mod prelude {
     pub use super::{
         binding_label, binding_source, flight_rig_reserved_sources, FlightVerbHints, InputSource,

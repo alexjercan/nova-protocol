@@ -22,7 +22,7 @@ use crate::prelude::*;
 /// green completion ghosts still stack in that column.
 const GHOST_COLUMN_WIDTH_PX: f32 = 280.0;
 
-/// Glob-import surface: `use nova_gameplay::hud::objective_feedback::prelude::*` re-exports the public API of this module.
+/// `ObjectiveFeedbackPlugin` and its ghost-line markers.
 pub mod prelude {
     pub use super::{ObjectiveFeedbackPlugin, ObjectiveGhostLineMarker, ObjectiveGhostsHudMarker};
 }

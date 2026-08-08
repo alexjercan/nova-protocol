@@ -133,3 +133,8 @@ mod tests {
         );
     }
 }
+
+/// `ScreenshotHotkeyPlugin` and `SCREENSHOT_KEYCODE`.
+pub mod prelude {
+    pub use super::{ScreenshotHotkeyPlugin, SCREENSHOT_KEYCODE};
+}

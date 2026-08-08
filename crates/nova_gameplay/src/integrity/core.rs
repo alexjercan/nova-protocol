@@ -24,7 +24,7 @@ use bevy::prelude::*;
 use super::{components::prelude::*, health::prelude::*};
 use crate::damage::{apply_typed_damage, DamageType, ProjectileDamage, SectionDamageClass};
 
-/// Glob-import surface: `use nova_gameplay::integrity::core::prelude::*` re-exports the public API of this module.
+/// `IntegrityCorePlugin` and `IntegritySystems`.
 pub mod prelude {
     pub use super::{IntegrityCorePlugin, IntegritySystems};
 }

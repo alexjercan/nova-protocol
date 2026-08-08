@@ -40,7 +40,7 @@ pub use self::{
     torpedo::AITorpedoBay,
 };
 
-/// Glob-import surface: `use nova_gameplay::input::ai::prelude::*` re-exports the public API of this module.
+/// The AI behaviour, threat, patrol and target components and `SpaceshipAIInputPlugin`.
 pub mod prelude {
     pub use super::{
         AIBehaviorState, AIEngageGrace, AIEvade, AIFireCadence, AILeash, AINonCombatant,

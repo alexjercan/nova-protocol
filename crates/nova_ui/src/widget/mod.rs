@@ -15,8 +15,8 @@
 //!
 //! One family per module - `button`, `panel`, `list_row`, `slider`,
 //! `segmented`, `chrome` - all re-exported here, so `widget::<item>` paths are
-//! unchanged. [`register`] wires every family's observers and reconcilers in
-//! one call.
+//! unchanged. [`NovaUiPlugin`](crate::NovaUiPlugin) wires every family's
+//! observers and reconcilers.
 
 mod button;
 mod chrome;
@@ -60,21 +60,8 @@ pub struct Selected;
 #[derive(Component)]
 pub struct UiText;
 
-/// Guard resource: the themed-widget observers + systems are app-global, so the
-/// first [`register`] call wins and later calls are no-ops (menu and editor both
-/// register in the shipped app; doubled observers would write every colour
-/// twice per interaction).
-#[derive(Resource)]
-struct WidgetObserversRegistered;
-
 /// Wire the button colour observers, the skin reconcilers and the font router.
-/// Call from each app/plugin that uses themed widgets; guarded, so independent
-/// plugins can coexist.
-pub fn register(app: &mut App) {
-    if app.world().contains_resource::<WidgetObserversRegistered>() {
-        return;
-    }
-    app.insert_resource(WidgetObserversRegistered);
+pub(crate) fn build(app: &mut App) {
     // NOTE: `init_resource` is idempotent, so owning the skin here keeps the
     // widget layer self-contained for tests and slim apps even though settings
     // is what persists it.

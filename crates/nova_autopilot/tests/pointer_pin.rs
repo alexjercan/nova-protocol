@@ -1,6 +1,6 @@
 //! A driven click survives a foreign pointer event landing mid-gesture.
 //!
-//! The regression this pins (task 20260805-091151): `bevy_picking` dispatches
+//! The regression this pins: `bevy_picking` dispatches
 //! `Pointer<Click>` from the PREVIOUS frame's hover map, so a real cursor event
 //! between a press beat and its release beat takes the hover off the widget and
 //! the click is never emitted - a button acting on `Activate` simply never
@@ -82,9 +82,8 @@ fn a_foreign_cursor_event_mid_click_does_not_cancel_the_click() {
 /// this chain really does depend on where the pointer was the frame before the
 /// release - and it pins the behaviour a script must not write by accident.
 ///
-/// It does NOT isolate the pin; nothing in-process can unregister it. That
-/// number is in `tasks/20260805-091151/TASK.md`, measured by deleting the
-/// registration.
+/// It does NOT isolate the pin; nothing in-process can unregister it, so the
+/// unpinned failure rate is only measurable by deleting the registration.
 #[test]
 fn a_pointer_the_run_moves_away_does_cancel_the_click() {
     // SAFETY: as above.

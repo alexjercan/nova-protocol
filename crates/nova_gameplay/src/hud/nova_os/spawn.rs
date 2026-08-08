@@ -1,3 +1,11 @@
+//! Builds and tears down the NOVA OS node tree: chrome, header, main body,
+//! terminal content and footer.
+//!
+//! Spawn order is the only place the hierarchy is written down; every other
+//! module finds its nodes by the markers attached here.
+//!
+//! Touch this module when adding or moving a node in the monitor layout.
+
 use bevy::{
     camera::{visibility::RenderLayers, ImageRenderTarget, RenderTarget},
     picking::{

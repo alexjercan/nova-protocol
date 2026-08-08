@@ -51,7 +51,7 @@ use bevy::{
     window::PrimaryWindow,
 };
 
-use crate::{autopilot::AUTOPILOT_ENV, completion};
+use crate::{autopilot::prelude::AUTOPILOT_ENV, completion};
 
 /// Environment variable that arms the single-shot screenshot driver. Unset,
 /// the plugin adds nothing at all. A `WxH` value also overrides the window
@@ -317,4 +317,9 @@ mod tests {
         assert_eq!(parse_resolution("-5x10"), None);
         assert_eq!(parse_resolution("10x-5"), None);
     }
+}
+
+/// `ScreenshotPlugin`, `MAX_WAIT_FRAMES` and `SCREENSHOT_ENV`.
+pub mod prelude {
+    pub use super::{ScreenshotPlugin, MAX_WAIT_FRAMES, SCREENSHOT_ENV};
 }

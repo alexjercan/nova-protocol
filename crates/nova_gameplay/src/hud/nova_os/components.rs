@@ -1,3 +1,11 @@
+//! The marker components naming every node of the NOVA OS tree.
+//!
+//! Spawn and the reconcilers never share a path expression: spawn attaches a
+//! marker, the reconcilers query for it, so moving a node in the hierarchy
+//! costs nothing.
+//!
+//! Touch this module when adding a node another system has to find.
+
 use bevy::prelude::*;
 
 use super::style::*;

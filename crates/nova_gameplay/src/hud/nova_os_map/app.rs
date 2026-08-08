@@ -1,3 +1,9 @@
+//! The MAP app's runtime seam: its id, title, hints, body spawn, and the CLI
+//! verbs (`goto`, selection) it registers with the terminal.
+//!
+//! Touch this module when changing what the map app is called, shows on entry,
+//! or accepts as a command.
+
 use bevy::prelude::*;
 use nova_os::prelude::*;
 

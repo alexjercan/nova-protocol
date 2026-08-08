@@ -38,7 +38,7 @@ const RING_SOFTNESS: f32 = 0.05;
 /// arc doc).
 const RING_COLOR: LinearRgba = LinearRgba::new(1.0, 1.0, 1.0, 0.9);
 
-/// Glob-import surface: `use nova_gameplay::hud::lock_dwell_ring::prelude::*` re-exports the public API of this module.
+/// The `lock_dwell_ring_hud` spawner, the ring marker and material, and `LockDwellRingHudPlugin`.
 pub mod prelude {
     pub use super::{
         lock_dwell_ring_hud, LockDwellRingHudMarker, LockDwellRingHudPlugin, LockDwellRingMarker,

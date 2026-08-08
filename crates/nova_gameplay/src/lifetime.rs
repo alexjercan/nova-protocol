@@ -23,8 +23,8 @@
 
 use bevy::prelude::*;
 
-/// Glob-import surface: `use nova_gameplay::lifetime::prelude::*` re-exports
-/// the public API of this module.
+/// The despawn message and its plugin, and `TempEntity` with `TempEntityPlugin` and
+/// `TempEntitySystems`.
 pub mod prelude {
     pub use super::{
         DespawnEntity, DespawnEntityPlugin, TempEntity, TempEntityPlugin, TempEntitySystems,

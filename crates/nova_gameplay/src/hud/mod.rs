@@ -52,7 +52,8 @@ mod chip_layout_rig;
 #[cfg(test)]
 mod nova_os_pointer_rig;
 
-/// Glob-import surface: `use nova_gameplay::hud::prelude::*` re-exports the public API of this module.
+/// Every HUD submodule's prelude, plus the visibility and tier gating types, `NovaHudAssets`, and
+/// `NovaHudPlugin` with its system sets.
 pub mod prelude {
     pub use super::{
         allegiance_markers::prelude::*, ammo_readout::prelude::*, beacon_chips::prelude::*,
@@ -65,7 +66,8 @@ pub mod prelude {
         readout::prelude::*, screen_indicator::prelude::*, situation::prelude::*,
         target_inset::prelude::*, torpedo_target::prelude::*, turret_lead::prelude::*,
         velocity::prelude::*, HudContextGate, HudNovaOsExempt, HudSelfDrivenVisibility,
-        HudSituationSensing, HudTier, HudVisibility, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
+        HudSituationSensingSystems, HudTier, HudVisibility, NovaHudAssets, NovaHudPlugin,
+        NovaHudSystems,
     };
 }
 
@@ -76,7 +78,7 @@ pub struct NovaHudSystems;
 /// The contextual-situation sense, ordered before [`NovaHudSystems`] so every
 /// widget driver in that set reads the same frame's [`HudSituations`].
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub struct HudSituationSensing;
+pub struct HudSituationSensingSystems;
 
 /// Player-facing HUD level, cycled with grave/tilde: `On` is the full
 /// contextual HUD - which is already near-empty in idle cruise and surfaces
@@ -250,7 +252,7 @@ impl Plugin for NovaHudPlugin {
         app.add_systems(
             Update,
             situation::sense_hud_situations
-                .in_set(HudSituationSensing)
+                .in_set(HudSituationSensingSystems)
                 .before(NovaHudSystems),
         );
         app.add_systems(
@@ -290,15 +292,6 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(maneuver_instruments::ManeuverInstrumentsPlugin);
         app.add_plugins(keybind_dock::KeybindDockPlugin);
         app.add_plugins(holo_instruments::HoloInstrumentsPlugin);
-        // The ObjectivesPlugin owns the `GameObjectives` resource (the
-        // NOVA OS + the objective stack read it) and its `rebuild_lines`
-        // no-ops when no objectives panel exists. There is no always-on compact
-        // objectives panel any more: objectives surface via the objective stack
-        // (`objective_stack`) and the NOVA OS monitor.
-        app.add_plugins(ObjectivesPlugin);
-        // Tween advancement for HUD fades; registered here once for every
-        // HUD widget.
-        app.add_plugins(nova_ui::tween::TweenPlugin);
         app.add_plugins(comms_panel::CommsPanelPlugin);
         // The Tab ship-computer NOVA OS shell.
         app.add_plugins(nova_os::NovaOsPlugin);

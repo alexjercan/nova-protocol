@@ -46,7 +46,7 @@ use crate::{
     prelude::{Allegiance, SectionInactiveMarker, SectionMarker},
 };
 
-/// Glob-import surface: `use nova_gameplay::sections::damage_tint::prelude::*` re-exports the public API of this module.
+/// `SectionDamageTint`, `TintMode` and `SectionDamageTintPlugin`.
 pub mod prelude {
     pub use super::{SectionDamageTint, SectionDamageTintPlugin, TintMode};
 }

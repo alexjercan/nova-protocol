@@ -175,3 +175,11 @@ mod tests {
         );
     }
 }
+
+/// The `capture_window` step, the `capturing` predicate, `CaptureLog` and the
+/// capture environment variables.
+pub mod prelude {
+    pub use super::{
+        capture_window, capturing, CaptureLog, CAPTURE_ENV, CAPTURE_RESOLUTION, SHOT_DIR_ENV,
+    };
+}

@@ -1,5 +1,5 @@
 //! Production-faithful behavior + layout rig for Final Tally, chapter three's
-//! finale (spike tasks/ SPIKE.md). Loads the ACTUAL shipped
+//! finale. Loads the ACTUAL shipped
 //! `final_tally.content.ron`, registers its real handlers, and drives the
 //! machine with the same event infos the engine emits - plus layout pins
 //! COMPUTED from the production gravity and geometry constants

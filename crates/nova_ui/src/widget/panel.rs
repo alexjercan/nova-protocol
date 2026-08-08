@@ -106,11 +106,33 @@ pub fn panel_node() -> Node {
     }
 }
 
-/// A panel header row: a glowing uppercase title, a rule that fills the row, and
-/// an optional trailing tag chip (phosphor-muted bordered).
-pub fn panel_head(title: &str, tag: Option<&str>, _skin: UiSkin) -> impl Bundle {
+/// The header colours for a skin: `(border, title, rule, tag)`. Phosphor is the
+/// glowing CRT band; hardware is a case seam under white legend text, the same
+/// pairing [`panel_paint`] and the hardware button use.
+fn panel_head_paint(skin: UiSkin) -> (Color, Color, Color, Color) {
+    if skin.is_phosphor() {
+        (
+            theme::PHOSPHOR.with_alpha(0.18),
+            theme::PHOSPHOR,
+            theme::PHOSPHOR_MUTED.with_alpha(0.6),
+            theme::PHOSPHOR,
+        )
+    } else {
+        (
+            theme::CASE_EDGE,
+            Color::WHITE,
+            theme::CASE_3,
+            Color::WHITE.with_alpha(0.7),
+        )
+    }
+}
+
+/// A panel header row: an uppercase title, a rule that fills the row, and an
+/// optional trailing tag chip, all in the given skin.
+pub fn panel_head(title: &str, tag: Option<&str>, skin: UiSkin) -> impl Bundle {
     let title = title.to_uppercase();
     let tag = tag.map(str::to_string);
+    let (border, title_color, rule, tag_color) = panel_head_paint(skin);
     (
         Node {
             flex_direction: FlexDirection::Row,
@@ -120,7 +142,7 @@ pub fn panel_head(title: &str, tag: Option<&str>, _skin: UiSkin) -> impl Bundle 
             border: UiRect::bottom(px(theme::BORDER_W)),
             ..default()
         },
-        BorderColor::all(theme::PHOSPHOR.with_alpha(0.18)),
+        BorderColor::all(border),
         Children::spawn(SpawnWith(move |parent: &mut RelatedSpawner<ChildOf>| {
             parent.spawn((
                 UiText,
@@ -129,7 +151,7 @@ pub fn panel_head(title: &str, tag: Option<&str>, _skin: UiSkin) -> impl Bundle 
                     font_size: FontSize::Px(13.0),
                     ..default()
                 },
-                TextColor(theme::PHOSPHOR),
+                TextColor(title_color),
                 // Flat, no drop shadow - imprinted on the screen, not floating.
             ));
             parent.spawn((
@@ -138,7 +160,7 @@ pub fn panel_head(title: &str, tag: Option<&str>, _skin: UiSkin) -> impl Bundle 
                     height: px(theme::BORDER_W),
                     ..default()
                 },
-                BackgroundColor(theme::PHOSPHOR_MUTED.with_alpha(0.6)),
+                BackgroundColor(rule),
             ));
             if let Some(tag) = tag {
                 parent.spawn((
@@ -148,7 +170,7 @@ pub fn panel_head(title: &str, tag: Option<&str>, _skin: UiSkin) -> impl Bundle 
                         border_radius: BorderRadius::all(px(4.0)),
                         ..default()
                     },
-                    BorderColor::all(theme::PHOSPHOR.with_alpha(0.4)),
+                    BorderColor::all(tag_color.with_alpha(0.4)),
                     children![(
                         UiText,
                         Text::new(tag),
@@ -156,7 +178,7 @@ pub fn panel_head(title: &str, tag: Option<&str>, _skin: UiSkin) -> impl Bundle 
                             font_size: FontSize::Px(10.0),
                             ..default()
                         },
-                        TextColor(theme::PHOSPHOR),
+                        TextColor(tag_color),
                     )],
                 ));
             }

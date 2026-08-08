@@ -6,7 +6,7 @@
 
 use bevy::prelude::*;
 
-/// Glob-import surface: `use nova_gameplay::beacon::prelude::*` re-exports the public API of this module.
+/// The `BeaconMarker` and `BeaconLabel` components.
 pub mod prelude {
     pub use super::{BeaconLabel, BeaconMarker};
 }

@@ -8,8 +8,8 @@
 //! that silently drops one of these swaps should fail a test. So this rig
 //! loads each shipped RON and pins, at the data level:
 //!
-//! 1. the deliberate STARTING cubemap of every chapter (the palette table in
-//!    NOTES.md), so a reshuffle is caught;
+//! 1. the deliberate STARTING cubemap of every chapter, so a reshuffle is
+//!    caught;
 //! 2. that the intended mid-scenario `SetSkybox` accent is PRESENT in the RIGHT
 //!    handler for ch1 (the 4th-ping reveal), ch3 (the debris pinch), and ch4
 //!    (the Auditor arrival on the sell path) - the three swaps the task marks

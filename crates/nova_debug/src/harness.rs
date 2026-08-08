@@ -572,3 +572,15 @@ mod tests {
         assert_eq!(requests, 0, "an unarmed shoot spawns no capture request");
     }
 }
+
+/// The `nova_autopilot` and `nova_screenshot` presets, the `shoot` capture idiom
+/// and its scene dressing, and the Nova-typed predicates the beats compose from.
+pub mod prelude {
+    pub use super::{
+        assert_scenario_loaded, force_capture_resolution, freeze_bodies, hide_dev_overlays,
+        hide_hud, nova_autopilot, nova_screenshot, player_ship_present, pose_camera,
+        scenario_camera_present, scenario_variable_is, script_reports_done, section_gone, shoot,
+        ScenarioLoadedAssertPlugin, NOVA_AUTOPILOT_SECS, NOVA_AUTOPILOT_STEP, REACHED_PLAYING,
+        SETTLE_FRAMES, SHOT_DEADLINE_SECS,
+    };
+}

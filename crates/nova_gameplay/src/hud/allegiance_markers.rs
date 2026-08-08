@@ -48,7 +48,7 @@ use bevy::prelude::*;
 use super::{screen_indicator::prelude::*, HudTier};
 use crate::prelude::*;
 
-/// Glob-import surface: `use nova_gameplay::hud::allegiance_markers::prelude::*` re-exports the public API of this module.
+/// The allegiance marker components, the `allegiance_color` helper and `AllegianceMarkerHudPlugin`.
 pub mod prelude {
     pub use super::{
         allegiance_color, AllegianceMarkerHudMarker, AllegianceMarkerHudPlugin,

@@ -90,9 +90,9 @@ pub struct DebugSystems;
 /// A plugin that adds various debugging tools.
 ///
 /// Adds the world inspector, wireframe/section/gravity overlays and the
-/// screenshot hotkey as sub-plugins, inserts [`DebugEnabled`], and runs
-/// `toggle_debug_mode` in `Update`; the overlay sub-plugins run under the
-/// [`DebugSystems`] set gated on [`DebugEnabled`].
+/// screenshot hotkey as sub-plugins, inserts [`DebugEnabled`], and owns the one
+/// `toggle_debug_mode` that reads F11 for the whole layer; the overlay
+/// sub-plugins run under the [`DebugSystems`] set gated on [`DebugEnabled`].
 pub struct DebugPlugin;
 
 impl Plugin for DebugPlugin {
@@ -104,19 +104,16 @@ impl Plugin for DebugPlugin {
         app.add_plugins(screenshot::ScreenshotHotkeyPlugin);
 
         // NOTE: a dev build boots with the WHOLE debug layer off, and F11
-        // raises it as one. There are four F11-toggled `DebugEnabled`
-        // states - nova's own (gravity/sections gizmos), the egui inspector (UI +
-        // avian PhysicsGizmos), the wireframe pass, and nova_gameplay's ammo
-        // number - each with its OWN F11 `toggle_debug_mode`. They stay in phase
-        // only if they share a default, so they all default OFF here: the
-        // inspector needs a pointer, so a cursor-free
-        // default flight requires the inspector off, and flipping only it would
-        // invert F11 (gizmos on / inspector off, then swapping on every press).
-        // While the inspector panel is up `sync_inspector_cursor` hands the
-        // cursor back; F11 down re-locks it. One shared const so the three cannot
-        // drift apart; nova_gameplay's `AmmoReadoutDebug` mirror lives across a
-        // crate boundary (it cannot see this const) and matches it by literal,
-        // pinned by its own test.
+        // raises it as one. Three of the four F11-toggled `DebugEnabled` states
+        // live here - nova's own (gravity/sections gizmos), the egui inspector
+        // (UI + avian PhysicsGizmos) and the wireframe pass - and share both
+        // this default and the single `toggle_debug_mode` below. The inspector
+        // needs a pointer, so a cursor-free default flight requires it off, and
+        // raising only it would invert F11. While the inspector panel is up
+        // `sync_inspector_cursor` hands the cursor back; F11 down re-locks it.
+        // The fourth state, nova_gameplay's `AmmoReadoutDebug` mirror, lives
+        // across a crate boundary (it cannot see this const) and matches it by
+        // literal, pinned by its own test.
         app.insert_resource(DebugEnabled(DEBUG_LAYER_STARTS_ON));
         app.insert_resource(InspectorEnabled(DEBUG_LAYER_STARTS_ON));
         app.insert_resource(WireframeEnabled(DEBUG_LAYER_STARTS_ON));
@@ -148,9 +145,22 @@ impl Plugin for DebugPlugin {
     }
 }
 
-fn toggle_debug_mode(mut debug: ResMut<DebugEnabled>, keyboard: Res<ButtonInput<KeyCode>>) {
+/// The ONE reader of [`DEBUG_TOGGLE_KEYCODE`]. The three states are separate
+/// resources but one user-visible layer, so a single system flips all of them:
+/// a per-plugin toggle each was in phase only by arithmetic accident (three
+/// flips of a bool is still a flip), and a fourth sub-plugin would have broken
+/// the key silently.
+fn toggle_debug_mode(
+    mut debug: ResMut<DebugEnabled>,
+    mut inspector: ResMut<InspectorEnabled>,
+    mut wireframe: ResMut<WireframeEnabled>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+) {
     if keyboard.just_pressed(DEBUG_TOGGLE_KEYCODE) {
-        **debug = !**debug;
+        let next = !**debug;
+        **debug = next;
+        **inspector = next;
+        **wireframe = next;
     }
 }
 

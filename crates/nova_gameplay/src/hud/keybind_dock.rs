@@ -35,7 +35,8 @@ use super::{
 };
 use crate::{input::prelude::*, sections::controller_section::prelude::FlightVerb};
 
-/// Glob-import surface: `use nova_gameplay::hud::keybind_dock::prelude::*` re-exports the public API of this module.
+/// The keybind-dock and verb-cue spawners, `DockChip` with its state and emphasis, `DOCK_VERBS` and
+/// `KeybindDockPlugin`.
 pub mod prelude {
     pub use super::{
         keybind_dock_hud, verb_cues_hud, DockChip, DockChipState, HintEmphasis, KeybindDockMarker,

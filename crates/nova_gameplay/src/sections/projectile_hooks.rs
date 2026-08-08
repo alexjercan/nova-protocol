@@ -13,7 +13,7 @@ use bevy::{
     prelude::*,
 };
 
-/// Glob-import surface: `use nova_gameplay::sections::projectile_hooks::prelude::*` re-exports the public API of this module.
+/// `ProjectileHooks` and `ProjectileOwner`.
 pub mod prelude {
     pub use super::{ProjectileHooks, ProjectileOwner};
 }

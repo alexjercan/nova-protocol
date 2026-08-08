@@ -17,7 +17,7 @@ use bevy::prelude::*;
 
 use crate::prelude::*;
 
-/// Glob-import surface: `use nova_gameplay::hud::situation::prelude::*` re-exports the public API of this module.
+/// The `HudSituations` sensing resource.
 pub mod prelude {
     pub use super::HudSituations;
 }

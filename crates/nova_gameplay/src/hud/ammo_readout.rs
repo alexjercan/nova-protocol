@@ -88,7 +88,8 @@ const DIM_COLOR: Color = Color::srgba(1.0, 0.75, 0.2, 0.16);
 const PIP_OUTLINE_PX: f32 = 1.0;
 const PIP_OUTLINE_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.85);
 
-/// Glob-import surface: `use nova_gameplay::hud::ammo_readout::prelude::*` re-exports the public API of this module.
+/// The `ammo_readout_hud` spawner, the readout components, `RING_SEGMENTS` and `AmmoReadoutPlugin`;
+/// the numeric debug overlay names arrive with the `debug` feature.
 pub mod prelude {
     pub use super::{
         ammo_readout_hud, AmmoReadoutHudMarker, AmmoReadoutKind, AmmoReadoutMarker, AmmoReadoutPip,

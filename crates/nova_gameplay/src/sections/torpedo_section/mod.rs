@@ -33,7 +33,8 @@ use bay::*;
 use projectile::*;
 use render::*;
 
-/// Glob-import surface: `use nova_gameplay::sections::torpedo_section::prelude::*` re-exports the public API of this module.
+/// The `torpedo_section` spawner, the bay, arming and steering state, the guidance and target
+/// components, the blast, and `TorpedoSectionPlugin`.
 pub mod prelude {
     pub use super::{
         torpedo_section, TorpedoArming, TorpedoBlast, TorpedoControllerMarker, TorpedoGuidance,

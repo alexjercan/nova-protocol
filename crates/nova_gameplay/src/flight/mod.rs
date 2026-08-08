@@ -63,8 +63,8 @@ pub(crate) use self::{
     thrusters::is_forward_aligned,
 };
 
-/// Glob-import surface: `use nova_gameplay::flight::prelude::*` re-exports the
-/// public API of this module.
+/// The flight intent, settings and speed caps, the autopilot and orbit plan, RCS state, maneuver
+/// telemetry, and `NovaFlightPlugin` with `NovaFlightSystems`.
 pub mod prelude {
     pub use super::{
         Autopilot, AutopilotAction, AutopilotPhase, BodyRadius, FlightIntent, FlightSettings,

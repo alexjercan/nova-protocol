@@ -2,15 +2,13 @@
 
 use bevy::prelude::*;
 
-use super::register;
-use crate::skin::UiSkin;
+use crate::{skin::UiSkin, NovaUiPlugin};
 
 /// A headless app with the widget observers + skin reconcilers registered and
 /// the `Update` schedule available, so `app.update()` drives the live paint.
 pub(super) fn skin_app(skin: UiSkin) -> App {
     let mut app = App::new();
-    app.add_plugins(MinimalPlugins);
-    register(&mut app);
+    app.add_plugins((MinimalPlugins, NovaUiPlugin));
     app.insert_resource(skin);
     app
 }

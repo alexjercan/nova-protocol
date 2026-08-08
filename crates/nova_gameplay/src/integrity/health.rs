@@ -15,7 +15,8 @@
 
 use bevy::prelude::*;
 
-/// Glob-import surface: `use nova_gameplay::integrity::health::prelude::*` re-exports the public API of this module.
+/// `Health` with its damage message and zero marker, the `destructible_body` bundle and
+/// `NovaHealthPlugin`.
 pub mod prelude {
     pub use super::{
         destructible_body, Health, HealthApplyDamage, HealthZeroMarker, NovaHealthPlugin,

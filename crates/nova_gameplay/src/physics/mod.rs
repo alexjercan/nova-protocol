@@ -11,8 +11,7 @@
 pub mod pd_controller;
 pub mod rigid_body;
 
-/// Glob-import surface: `use nova_gameplay::physics::prelude::*` re-exports the
-/// public API of this module.
+/// The PD controller types and plugin, and the rigid-body point-velocity helper.
 pub mod prelude {
     pub use super::{
         pd_controller::{

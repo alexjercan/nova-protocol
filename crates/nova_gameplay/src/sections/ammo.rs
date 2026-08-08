@@ -25,7 +25,7 @@
 
 use bevy::prelude::*;
 
-/// Glob-import surface: `use nova_gameplay::sections::ammo::prelude::*` re-exports the public API of this module.
+/// `SectionAmmo`, `SectionReload` and `SectionReloadConfig`.
 pub mod prelude {
     pub use super::{SectionAmmo, SectionReload, SectionReloadConfig};
 }

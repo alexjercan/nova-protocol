@@ -464,8 +464,8 @@ fn nova_os_crt_material_publishes_the_mapping_constants() {
 }
 
 /// The RTT ELEMENT claim, the one the retired `nova_os_rtt_poc` example was the
-/// only evidence for (task 20260804-094021, DECISION D1): the screen displays a
-/// subtree that is actually rendered offscreen, not an empty target.
+/// only evidence for: the screen displays a subtree that is actually rendered
+/// offscreen, not an empty target.
 ///
 /// The sampling half - the surface, the material, the uniforms, the forwarded
 /// pointer - is covered above. What no other test names is the CAMERA: that an

@@ -12,7 +12,7 @@
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 
-/// Glob-import surface: `use crate::objects::binding_input::prelude::*` re-exports the public API of this module.
+/// The `BindingInput` scenario value.
 pub mod prelude {
     pub use super::BindingInput;
 }

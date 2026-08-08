@@ -2,9 +2,10 @@
 //! toggled together as one debug panel.
 //!
 //! Nova owns this because the inspector is one of the four layers
-//! [`crate::DebugPlugin`] raises together on F11; its `DebugEnabled` is
-//! overridden there by `DEBUG_LAYER_STARTS_ON` so the layer boots OFF, and
-//! `sync_inspector_cursor` hands the cursor back while the panel is up.
+//! [`crate::DebugPlugin`] raises together on F11. The F11 key itself is read
+//! ONCE, by `DebugPlugin`, which also overrides this `DebugEnabled` with
+//! `DEBUG_LAYER_STARTS_ON` so the layer boots OFF; `sync_inspector_cursor`
+//! hands the cursor back while the panel is up.
 
 use avian3d::prelude::*;
 use bevy::{camera::RenderTarget, prelude::*};
@@ -15,9 +16,6 @@ use bevy_inspector_egui::{
     },
     egui, DefaultInspectorConfigPlugin,
 };
-
-/// The key that toggles debug mode on and off.
-pub const DEBUG_TOGGLE_KEYCODE: KeyCode = KeyCode::F11;
 
 /// Resource that stores whether debug mode is enabled.
 ///
@@ -32,7 +30,6 @@ pub struct DebugEnabled(pub bool);
 /// - An inspector window for inspecting the world, entities, and assets
 /// - Physics debug gizmos from avian3d
 /// - Physics diagnostics and their UI
-/// - A hotkey (F11) to toggle all debug features
 ///
 /// The inspector window behaves similarly to the WorldInspectorPlugin
 /// but is driven by a custom UI system.
@@ -64,10 +61,7 @@ impl Plugin for InspectorDebugPlugin {
             PhysicsDiagnosticsUiPlugin,
         ));
 
-        app.add_systems(
-            Update,
-            (enable_physics_gizmos, enable_physics_ui, toggle_debug_mode),
-        );
+        app.add_systems(Update, (enable_physics_gizmos, enable_physics_ui));
     }
 }
 
@@ -173,13 +167,6 @@ fn enable_physics_gizmos(mut store: ResMut<GizmoConfigStore>, debug: Res<DebugEn
 fn enable_physics_ui(mut settings: ResMut<PhysicsDiagnosticsUiSettings>, debug: Res<DebugEnabled>) {
     if debug.is_changed() {
         settings.enabled = **debug;
-    }
-}
-
-/// Toggle DebugEnabled when the debug toggle key is pressed.
-fn toggle_debug_mode(mut debug: ResMut<DebugEnabled>, keyboard: Res<ButtonInput<KeyCode>>) {
-    if keyboard.just_pressed(DEBUG_TOGGLE_KEYCODE) {
-        **debug = !**debug;
     }
 }
 
@@ -318,4 +305,9 @@ mod rehome_hazard_tests {
         };
         assert_eq!(schedules, 1, "exactly one multipass schedule holder");
     }
+}
+
+/// `InspectorDebugPlugin` and its `DebugEnabled` flag.
+pub mod prelude {
+    pub use super::{DebugEnabled, InspectorDebugPlugin};
 }

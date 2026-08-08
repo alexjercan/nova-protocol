@@ -3,8 +3,7 @@
 //! Three examples were building the same two config shapes inline - a
 //! [`SpaceshipConfig`] assembled out of [`GameSections`] lookups, and an
 //! asteroid [`ScenarioObjectConfig`] with a health knob - before `stress/`
-//! became the third caller and paid for the extraction (task 20260804-094006,
-//! DECISION.md D1).
+//! became the third caller and paid for the extraction.
 //!
 //! They live in `nova_probe` rather than under `examples/` because
 //! `tests/catalog_drift.rs::catalog_matches_disk` scans every `.rs` directly

@@ -29,7 +29,7 @@ pub mod wasd;
 pub mod wasd_controller;
 
 pub use self::{
-    authority::{CameraAuthority, CameraAuthorityPlugin},
+    authority::{CameraAuthorityPlugin, CameraAuthoritySystems},
     handback::CameraHandbackBlend,
     mode::{SpaceshipCameraControlMode, WeaponsRaised},
     rig::{
@@ -56,8 +56,8 @@ use self::{
 pub mod prelude {
     pub use super::{
         chase::prelude::*, post::prelude::*, shake::prelude::*, skybox::prelude::*,
-        wasd::prelude::*, wasd_controller::prelude::*, ActiveLookRay, CameraAuthority,
-        CameraAuthorityPlugin, NovaCameraSystems, SpaceshipCameraControlMode,
+        wasd::prelude::*, wasd_controller::prelude::*, ActiveLookRay, CameraAuthorityPlugin,
+        CameraAuthoritySystems, NovaCameraSystems, SpaceshipCameraControlMode,
         SpaceshipCameraController, SpaceshipCameraControllerPlugin,
         SpaceshipCameraFreeLookInputMarker, SpaceshipCameraInputMarker,
         SpaceshipCameraNormalInputMarker, SpaceshipCameraTurretInputMarker,

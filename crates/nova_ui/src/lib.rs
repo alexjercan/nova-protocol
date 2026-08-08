@@ -7,29 +7,52 @@
 //! `widget` holds the skin-aware themed button + selection machinery and small
 //! layout helpers; `hud` holds the flight-HUD chip language (phosphor-only
 //! chrome projected over the world); `font` holds the shared UI typeface handle
-//! preloaded at startup; `status_bar` holds the top-right metrics bar; `tween`
-//! holds the duration-based value tween the HUD fades run on.
+//! preloaded at startup; `status_bar` holds the top-right metrics bar.
 
 #![warn(missing_docs)]
+
+use bevy::prelude::*;
 
 pub mod font;
 pub mod hud;
 pub mod skin;
 pub mod status_bar;
 pub mod theme;
-pub mod tween;
 pub mod units;
 pub mod widget;
+
+/// Everything `nova_ui` needs running in an app: the themed-widget observers
+/// and skin reconcilers, the shared font router, and the status bar driver.
+///
+/// It is app-global rather than per-screen - doubled observers would write
+/// every colour twice per interaction - so the several plugins that use themed
+/// widgets (menu, editor, gameplay) each add it only when it is absent:
+///
+/// ```rust
+/// # use bevy::prelude::*;
+/// # use nova_ui::NovaUiPlugin;
+/// # fn build(app: &mut App) {
+/// if !app.is_plugin_added::<NovaUiPlugin>() {
+///     app.add_plugins(NovaUiPlugin);
+/// }
+/// # }
+/// ```
+pub struct NovaUiPlugin;
+
+impl Plugin for NovaUiPlugin {
+    fn build(&self, app: &mut App) {
+        debug!("NovaUiPlugin: build");
+
+        widget::build(app);
+        status_bar::build(app);
+    }
+}
 
 /// Glob-import surface: `use nova_ui::prelude::*` brings the [`theme`] palette,
 /// the [`UiSkin`](skin::UiSkin) selector, the [`units`] formatters and the
 /// themed-button widgets ([`themed_button`](widget::themed_button),
 /// [`ThemedButton`](widget::ThemedButton), [`Selected`](widget::Selected), ...)
 /// into scope, plus the [`status_bar`] names the composition root spawns.
-///
-/// The tween names are deliberately absent: one caller registers
-/// [`TweenPlugin`](tween::TweenPlugin) by crate path, so a prelude entry would
-/// carry no weight.
 pub mod prelude {
     pub use crate::{
         font::UiFont,
@@ -43,10 +66,10 @@ pub mod prelude {
         theme, units,
         widget::{
             badge, button, button_on_setting, checkbox, checkbox_colors, checkbox_glyph, list_row,
-            list_row_colors, menu_button, panel, panel_head, panel_header, panel_node, register,
-            segmented, segmented_container, segmented_option, separator, slider_meter_color,
-            slider_track, themed_button, toggle, BadgeKind, ButtonSpec, ButtonValue, ButtonVariant,
-            ListRow, PanelSkin, SegmentedSkin, Selected, SliderBlock, SliderFill, SliderTrackSkin,
+            list_row_colors, menu_button, panel, panel_head, panel_header, panel_node, segmented,
+            segmented_container, segmented_option, separator, slider_meter_color, slider_track,
+            themed_button, toggle, BadgeKind, ButtonSpec, ButtonValue, ButtonVariant, ListRow,
+            PanelSkin, SegmentedSkin, Selected, SliderBlock, SliderFill, SliderTrackSkin,
             ThemedButton, SLIDER_SEGMENTS,
         },
     };

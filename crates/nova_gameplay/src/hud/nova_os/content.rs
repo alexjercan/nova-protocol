@@ -1,3 +1,11 @@
+//! The pure text layer: what the status line, breadcrumb, log rows, objective
+//! rows and section table SAY, given a snapshot of the world.
+//!
+//! No `Commands` and no queries past the snapshot, so every string is testable
+//! without an app.
+//!
+//! Touch this module when changing the wording or shape of terminal output.
+
 use bevy::prelude::*;
 use nova_os::prelude::*;
 
@@ -35,8 +43,7 @@ pub(crate) fn nova_os_status_text(ship_name: &str, fps: Option<u32>) -> String {
 /// The header brand/breadcrumb line for the active surface. The terminal reads
 /// `NOVA OS <ver> // SHELL`; a launched app reads `NOVA OS <ver> // APPS / <ID>`
 /// where `<ID>` is the app's launch word upper-cased - NOT its `title()`, which
-/// may itself contain a `/` (the map's title is "MAP / LOCAL SPACE"). Wording
-/// is owner-confirmed in this task's DECISION.md.
+/// may itself contain a `/` (the map's title is "MAP / LOCAL SPACE").
 pub(crate) fn nova_os_header_breadcrumb(mode: TerminalMode) -> String {
     let ver = nova_os_version_label();
     match mode {

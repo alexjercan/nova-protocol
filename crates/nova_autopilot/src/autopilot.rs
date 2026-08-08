@@ -70,7 +70,7 @@ use std::sync::Arc;
 
 use bevy::{input::InputSystems, prelude::*, state::state::FreelyMutableState};
 
-use crate::{completion, predicate::Predicate};
+use crate::{completion, predicate::prelude::Predicate};
 
 /// Environment variable that arms the scripted autopilot. Unset, the plugin
 /// adds nothing at all.
@@ -106,6 +106,9 @@ struct Step<S: States + FreelyMutableState> {
     deadline: Option<f32>,
 }
 
+// Hand-written rather than derived: `#[derive(Clone)]` would add an `S: Clone`
+// bound, and a `States` type is not required to be `Clone` at all. The `Arc`
+// callbacks clone by refcount, so nothing here needs it.
 impl<S: States + FreelyMutableState> Clone for Step<S> {
     fn clone(&self) -> Self {
         Self {
@@ -144,6 +147,8 @@ pub struct AutopilotPlugin<S: States + FreelyMutableState> {
     on_loop: Option<Arc<EnterFn>>,
 }
 
+// Hand-written rather than derived: `#[derive(Default)]` would add an
+// `S: Default` bound the empty plugin does not need - no `S` value is built.
 impl<S: States + FreelyMutableState> Default for AutopilotPlugin<S> {
     fn default() -> Self {
         Self {
@@ -893,4 +898,10 @@ mod tests {
             .hold(TestState::Playing, 0.1)
             .loop_from("nope"));
     }
+}
+
+/// The `AutopilotPlugin` driver, its `StepBuilder` vocabulary, `AutopilotLoop`
+/// and `AUTOPILOT_ENV`.
+pub mod prelude {
+    pub use super::{AutopilotLoop, AutopilotPlugin, StepBuilder, AUTOPILOT_ENV};
 }

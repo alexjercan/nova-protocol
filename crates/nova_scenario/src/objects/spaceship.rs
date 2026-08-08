@@ -1,3 +1,12 @@
+//! The spaceship scenario object: its section list, where those sections come
+//! from, and whether the player or the AI flies it.
+//!
+//! [`SectionSource`] is the seam that lets an authored ship reference the
+//! shipped catalog by id or carry its own inline config.
+//!
+//! Touch this module when changing how an authored ship is described or
+//! assembled.
+
 use avian3d::prelude::*;
 use bevy::{platform::collections::HashMap, prelude::*};
 use bevy_enhanced_input::prelude::*;
@@ -6,7 +15,8 @@ use nova_gameplay::prelude::*;
 
 use crate::objects::modification::prelude::SectionModification;
 
-/// Glob-import surface: `use crate::objects::spaceship::prelude::*` re-exports the public API of this module.
+/// The spaceship scenario object, its config and section sources, the player and AI controller
+/// configs, and `SpaceshipPlugin`.
 pub mod prelude {
     pub use super::{
         spaceship_scenario_object, AIControllerConfig, LockRefireSecs, OrbitHoldSecs,

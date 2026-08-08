@@ -64,3 +64,8 @@ fn draw_dominant_well_links(
         gizmos.line(**position, **well_position, tailwind::AMBER_500);
     }
 }
+
+/// `GravityDebugPlugin`.
+pub mod prelude {
+    pub use super::GravityDebugPlugin;
+}

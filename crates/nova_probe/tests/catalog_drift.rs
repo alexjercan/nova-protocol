@@ -23,7 +23,7 @@ fn repo_root() -> PathBuf {
 /// One direction is load-bearing and the rest is belt: with
 /// `autoexamples = false`, an example file that has NO catalog block does not
 /// build at all, and nothing else in the toolchain says so - it is silently
-/// dead code (task 20260719-193728). The other direction (a block with no file)
+/// dead code. The other direction (a block with no file)
 /// already fails the build, and the `examples/<category>/<file>` path shape is
 /// pinned by `catalog::tests::refuses_an_uncategorized_path`; both are asserted
 /// here anyway because the equality that catches the real case catches them
@@ -156,8 +156,8 @@ const SECTION_INVARIANTS: usize = 27;
 
 /// Every `sections/` range names EXACTLY the invariants on its roster.
 ///
-/// The stopping rule of task 20260804-093950 made executable: "deepen" is
-/// bounded by a named invariant list per run, so the list has to live somewhere
+/// The stopping rule made executable: "deepen" is bounded by a named invariant
+/// list per run, so the list has to live somewhere
 /// a deletion fails. Dropping an invariant leaves the run green - probe's
 /// `invariants_held` counts VIOLATIONS, and a range that asserts less simply
 /// violates nothing - and this test is what turns that into a red one. The runs

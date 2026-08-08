@@ -1,8 +1,16 @@
+//! Trigger volumes: a collider that reports enter/exit as scenario events.
+//!
+//! Occupancy is refcounted per (area, body) pair because a compound body
+//! reports one collision per child collider - a bare start/stop would fire
+//! `on_enter` once per part.
+//!
+//! Touch this module when changing when an area counts as entered or left.
+
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use nova_events::prelude::{CommandsGameEventExt, *};
 
-/// Glob-import surface: `use crate::objects::area::prelude::*` re-exports the public API of this module.
+/// `ScenarioAreaMarker` and `ScenarioAreaPlugin`.
 pub mod prelude {
     pub use super::{ScenarioAreaMarker, ScenarioAreaPlugin};
 }

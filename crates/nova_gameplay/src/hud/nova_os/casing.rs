@@ -1,3 +1,12 @@
+//! The physical monitor around the screen: case and bezel gradients, screws,
+//! moulding seam, vents, phosphor rim, glass sheen, and the chin with its
+//! knobs and buttons.
+//!
+//! Chrome only - nothing here reads game state. Everything is spawned once by
+//! `spawn`, and only the chin controls carry observers.
+//!
+//! Touch this module when changing what the monitor looks like as an object.
+
 use bevy::{
     prelude::*,
     ui_widgets::{observe, Button},
@@ -181,8 +190,8 @@ pub(crate) fn spawn_nova_os_casing_vents(parent: &mut ChildSpawnerCommands) {
 /// glow under a thin line, two nested rounded-border nodes at the screen
 /// rounding. Drawn above the CRT overlay, below the glass. Kept deliberately
 /// faint - the crisp, tube-bowed screen edge is now the shader's barrel-warped
-/// rim (see DECISION.md); this is only the soft outer bloom, and the headless
-/// fallback's sole edge cue.
+/// rim; this is only the soft outer bloom, and the headless fallback's sole
+/// edge cue.
 pub(crate) fn spawn_nova_os_phosphor_rim(screen: &mut ChildSpawnerCommands) {
     for (name, border_px, color) in [
         (

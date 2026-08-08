@@ -15,7 +15,8 @@
 
 use bevy::prelude::*;
 
-/// Glob-import surface: `use nova_gameplay::integrity::components::prelude::*` re-exports the public API of this module.
+/// The structural graph components: `IntegrityRoot`, `ConnectedTo` and the leaf, disabled and
+/// destroy markers.
 pub mod prelude {
     pub use super::{
         ConnectedTo, IntegrityDestroyMarker, IntegrityDisabledMarker, IntegrityLeafMarker,

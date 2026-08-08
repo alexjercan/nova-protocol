@@ -18,3 +18,10 @@ mod fixtures;
 pub use edit::*;
 pub use state::*;
 pub use view::*;
+
+/// The terminal model in one glob: the `NovaOsTerminal` resource and its types
+/// from `state`, the prompt editing and completion from `edit`, and the rows and
+/// prompt strings from `view`.
+pub mod prelude {
+    pub use super::{edit::*, state::*, view::*};
+}

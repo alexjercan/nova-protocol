@@ -1,3 +1,7 @@
+//! The shared rig for the `nova_menu` tests: an app with the menu plugins, the
+//! state helpers (`enter_playing`, `press_escape`, clock/pause readers), and
+//! the dummy scenarios and load/unload observers the screens are driven with.
+
 use avian3d::prelude::{Physics, PhysicsTime};
 use bevy::{prelude::*, state::app::StatesPlugin};
 use bevy_rand::prelude::*;

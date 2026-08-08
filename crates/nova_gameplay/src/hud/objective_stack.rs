@@ -38,7 +38,8 @@ use nova_ui::hud::{chip_node, ChipTone};
 use super::{emphasis::prelude::*, HudTier, NovaHudAssets, NovaHudSystems};
 use crate::{objectives::GameObjectives, prelude::*};
 
-/// Glob-import surface: `use nova_gameplay::hud::objective_stack::prelude::*` re-exports the public API of this module.
+/// The `objective_stack_hud` spawner, `ObjectiveNotifications`, the stack chip,
+/// `OBJECTIVE_DWELL_SECS` and `ObjectiveStackPlugin`.
 pub mod prelude {
     pub use super::{
         objective_stack_hud, ObjectiveNotifications, ObjectiveStackChip, ObjectiveStackHudMarker,

@@ -12,7 +12,8 @@ use nova_gameplay::prelude::*;
 
 use crate::prelude::*;
 
-/// Glob-import surface: `use crate::objects::salvage::prelude::*` re-exports the public API of this module.
+/// The salvage-crate scenario object, its config, `SALVAGE_CRATE_TYPE_NAME` and
+/// `SalvageCratePlugin`.
 pub mod prelude {
     pub use super::{
         salvage_crate_scenario_object, SalvageCrateConfig, SalvageCratePlugin,

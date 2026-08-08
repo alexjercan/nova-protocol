@@ -597,8 +597,7 @@ mod tests {
     /// hold the player meant as a hold lands under `RADAR_TAP_SECS` and
     /// clears the lock instead". The rig steps at 50 ms, so this sweeps 1..=8
     /// held frames (50..400 ms) across the 250 ms threshold and records where
-    /// the gesture flips from clear to commit. The numbers go in the task's
-    /// NOTES.md.
+    /// the gesture flips from clear to commit.
     #[test]
     fn the_tap_hold_boundary_sits_exactly_at_the_shared_threshold() {
         const STEP_MS: u64 = 50;

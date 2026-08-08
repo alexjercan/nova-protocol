@@ -15,7 +15,7 @@ use nova_ui::hud::{chip_node, chip_paint, ChipTone};
 use super::{screen_indicator::prelude::*, HudTier, OBJECTIVE_GOLD};
 use crate::prelude::*;
 
-/// Glob-import surface: `use nova_gameplay::hud::objective_markers::prelude::*` re-exports the public API of this module.
+/// The objective marker chip components and `ObjectiveMarkersHudPlugin`.
 pub mod prelude {
     pub use super::{
         ObjectiveMarkerChipHudMarker, ObjectiveMarkerChipNodeMarker,

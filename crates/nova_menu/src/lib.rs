@@ -97,14 +97,16 @@ impl Plugin for NovaMenuPlugin {
         // NOTE: ungated by menu state on purpose - an update started from the
         // menu must complete even if the player closes it mid-flight.
         app.add_systems(Update, drive_update_choreography);
-        // NOTE: `register` is itself guarded, so the editor registering the
-        // shared widget observers too is fine.
-        nova_ui::widget::register(app);
+        // The editor and gameplay want the same app-global UI wiring; whoever
+        // gets there first adds it.
+        if !app.is_plugin_added::<nova_ui::NovaUiPlugin>() {
+            app.add_plugins(nova_ui::NovaUiPlugin);
+        }
 
         app.init_resource::<MasterVolume>();
         app.init_resource::<GraphicsQuality>();
-        // NOTE: `register` above inits `UiSkin` transitively; repeat it here so
-        // the invariant survives a future reorder.
+        // NOTE: `NovaUiPlugin` above inits `UiSkin` transitively; repeat it here
+        // so the invariant survives a future reorder.
         app.init_resource::<UiSkin>();
         app.init_resource::<NovaOsMonitorSettings>();
         app.add_observer(slider_self_update);

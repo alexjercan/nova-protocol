@@ -1,3 +1,11 @@
+//! The scrolling drawers: the flight log and the objective list.
+//!
+//! Both are reconcilers - they rebuild rows from [`NovaOsFlightLog`] and
+//! [`GameObjectives`] rather than mutating them incrementally, so a row can
+//! never disagree with its source.
+//!
+//! Touch this module when changing how logged events or objectives are listed.
+
 use bevy::prelude::*;
 use nova_os::prelude::*;
 use nova_ui::theme;

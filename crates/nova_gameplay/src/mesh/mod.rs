@@ -14,8 +14,7 @@ pub mod builder;
 pub mod explode;
 mod slice;
 
-/// Glob-import surface: `use nova_gameplay::mesh::prelude::*` re-exports the
-/// public API of this module.
+/// The `TriangleMeshBuilder` and the explode submodule's prelude.
 pub mod prelude {
     pub use super::{builder::TriangleMeshBuilder, explode::prelude::*};
 }

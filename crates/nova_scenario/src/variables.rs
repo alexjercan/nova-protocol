@@ -1,8 +1,17 @@
+//! The scenario variable expression grammar and its evaluator.
+//!
+//! A hand-written precedence chain - expression over term over factor - so
+//! authored arithmetic and comparisons evaluate against live world state
+//! without pulling in a parser dependency.
+//!
+//! Touch this module when adding an operator or literal kind an author can
+//! write.
+
 use bevy::prelude::*;
 
 use crate::prelude::*;
 
-/// Glob-import surface: `use crate::variables::prelude::*` re-exports the public API of this module.
+/// The scenario variable expression nodes, `VariableLiteral`, `VariableError` and `EQUAL_EPSILON`.
 pub mod prelude {
     pub use super::{
         VariableConditionNode, VariableError, VariableExpressionNode, VariableFactorNode,

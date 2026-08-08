@@ -10,7 +10,7 @@
 
 use bevy::prelude::*;
 
-/// Glob-import surface: `use nova_gameplay::relations::prelude::*` re-exports the public API of this module.
+/// `Relation`, `Allegiance`, the `relation` helper and `NovaRelationsPlugin`.
 pub mod prelude {
     pub use super::{relation, Allegiance, NovaRelationsPlugin, Relation};
 }

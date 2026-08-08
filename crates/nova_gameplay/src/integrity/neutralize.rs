@@ -23,8 +23,7 @@ use crate::prelude::{
     ThrusterSectionMarker, TorpedoSectionMarker, TurretSectionMarker,
 };
 
-/// Glob-import surface: `use nova_gameplay::integrity::neutralize::prelude::*`
-/// re-exports the public API of this module.
+/// `NeutralizedMarker` and `WasArmedCombatant`.
 pub mod prelude {
     pub use super::{NeutralizedMarker, WasArmedCombatant};
 }

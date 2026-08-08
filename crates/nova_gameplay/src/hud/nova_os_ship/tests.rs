@@ -1,3 +1,7 @@
+//! Live-tree tests for the SHIP app: section codes, the reload/repair command
+//! and message paths, the detail rows, and the scene's local-space placement
+//! and orbit input.
+
 use bevy::{
     ecs::system::RunSystemOnce,
     input::InputPlugin,
@@ -697,7 +701,7 @@ fn ship_orbit_recenters_on_selected_section() {
 
 /// `T` re-frames the whole ship (center home + default angles) and the reframe
 /// STICKS: the selection reconcile does not chase the still-selected section
-/// back on the next frame (DECISION.md).
+/// back on the next frame.
 #[test]
 fn ship_reset_reframes_whole_ship_and_sticks() {
     let (mut app, _hull, turret, _thruster) = offset_ship_app();

@@ -1,3 +1,7 @@
+//! The scenario and campaign pickers: which entries are listed and in what
+//! order, selection and details, and that the list scrolls on the wheel and
+//! clamps at both ends.
+
 use bevy::{prelude::*, ui_widgets::Activate};
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;

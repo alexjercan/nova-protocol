@@ -1,3 +1,6 @@
+//! Live-tree tests for the MAP app: contact derivation and codes, the rendered
+//! table, `goto` routing into the autopilot, and the orbit/selection input.
+
 use bevy::{
     ecs::system::RunSystemOnce,
     state::app::StatesPlugin,

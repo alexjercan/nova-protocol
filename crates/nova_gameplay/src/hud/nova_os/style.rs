@@ -1,3 +1,11 @@
+//! Every tuned constant of the NOVA OS look: timings, alphas, font sizes,
+//! paddings and insets.
+//!
+//! Named and centralised so a visual change is one edit and the screenshot
+//! baselines have a single thing to diff against.
+//!
+//! Touch this module when retuning the monitor's spacing, timing or type.
+
 use bevy::prelude::*;
 use nova_ui::font::UiFont;
 
@@ -5,9 +13,8 @@ use nova_ui::font::UiFont;
 pub(crate) const DRAWER_SLIDE_SECS: f32 = 0.22;
 /// Backdrop dim at full open. With the flight HUD hidden while the NOVA OS is open, the
 /// backdrop is the ONLY thing separating the NOVA OS from the frozen scene, so
-/// it doubles as the "you do not notice the old UI is gone" gray field. The
-/// owner chose a deeper gray over a real scene blur at the /flow gate (bevy
-/// 0.19 has no UI backdrop-filter; see this task's DECISION.md).
+/// it doubles as the "you do not notice the old UI is gone" gray field. A deeper
+/// gray rather than a real scene blur: bevy 0.19 has no UI backdrop-filter.
 pub(crate) const DRAWER_BACKDROP_ALPHA: f32 = 0.94;
 pub(crate) const DRAWER_SECTION_TITLE_FONT_PX: f32 = 14.0;
 pub(crate) const DRAWER_LINE_FONT_PX: f32 = 16.0;

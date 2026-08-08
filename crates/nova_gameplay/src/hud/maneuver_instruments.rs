@@ -23,7 +23,8 @@ use super::{
 };
 use crate::{flight::prelude::*, gravity::prelude::*, input::prelude::*};
 
-/// Glob-import surface: `use nova_gameplay::hud::maneuver_instruments::prelude::*` re-exports the public API of this module.
+/// The `maneuver_instruments_hud` spawner, its config, the orbit-ring and radius-spoke markers, and
+/// `ManeuverInstrumentsPlugin`.
 pub mod prelude {
     pub use super::{
         maneuver_instruments_hud, ManeuverInstrumentsHudConfig, ManeuverInstrumentsHudMarker,

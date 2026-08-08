@@ -27,7 +27,7 @@ use super::{chase::ChaseCameraSystems, shake::CameraShakeSystems, wasd::WASDCame
 /// folded into these by [`CameraAuthorityPlugin`], so a system joins the chain
 /// by naming a phase and nothing else.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum CameraAuthority {
+pub enum CameraAuthoritySystems {
     /// Solve the base pose from game state: chase sync and WASD sync.
     Solve,
     /// Add an offset on top of the solved pose: camera shake `Apply`.
@@ -39,7 +39,7 @@ pub enum CameraAuthority {
     Override,
 }
 
-/// Declares the [`CameraAuthority`] chain. Added by
+/// Declares the [`CameraAuthoritySystems`] chain. Added by
 /// [`SpaceshipCameraControllerPlugin`](super::SpaceshipCameraControllerPlugin);
 /// add it directly in a test app that drives a camera writer without the
 /// gameplay plugin.
@@ -62,9 +62,9 @@ impl Plugin for CameraAuthorityPlugin {
             PostUpdate,
             (
                 CameraShakeSystems::Restore,
-                CameraAuthority::Solve,
-                CameraAuthority::Additive,
-                CameraAuthority::Override,
+                CameraAuthoritySystems::Solve,
+                CameraAuthoritySystems::Additive,
+                CameraAuthoritySystems::Override,
             )
                 .chain()
                 .before(TransformSystems::Propagate),
@@ -76,8 +76,9 @@ impl Plugin for CameraAuthorityPlugin {
         app.configure_sets(
             PostUpdate,
             (
-                (ChaseCameraSystems::Sync, WASDCameraSystems::Sync).in_set(CameraAuthority::Solve),
-                CameraShakeSystems::Apply.in_set(CameraAuthority::Additive),
+                (ChaseCameraSystems::Sync, WASDCameraSystems::Sync)
+                    .in_set(CameraAuthoritySystems::Solve),
+                CameraShakeSystems::Apply.in_set(CameraAuthoritySystems::Additive),
             ),
         );
     }
@@ -136,7 +137,7 @@ mod tests {
         ));
         app.add_systems(
             PostUpdate,
-            pin_scripted_pose.in_set(CameraAuthority::Override),
+            pin_scripted_pose.in_set(CameraAuthoritySystems::Override),
         );
 
         let camera = app
@@ -188,7 +189,7 @@ mod tests {
         app.add_systems(Update, feed_trauma);
         app.add_systems(
             PostUpdate,
-            pin_scripted_pose.in_set(CameraAuthority::Override),
+            pin_scripted_pose.in_set(CameraAuthoritySystems::Override),
         );
 
         let camera = app

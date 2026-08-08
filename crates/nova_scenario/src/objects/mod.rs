@@ -1,3 +1,11 @@
+//! The things a scenario can place in the world - asteroids, beacons, lights,
+//! salvage, spaceships, trigger areas - one module each.
+//!
+//! Each submodule owns its authored config, its spawn bundle and its plugin;
+//! [`ScenarioObjectsPlugin`] adds them all and is the only registration point.
+//!
+//! Touch this module when adding a new kind of authored world object.
+
 /// Scenario trigger areas: sensor volumes that fire `OnEnter`/`OnExit` events.
 pub mod area;
 /// Asteroid scenario object: noise-generated rocks that can act as gravity wells.
@@ -12,7 +20,7 @@ pub mod salvage;
 /// Spaceship scenario object: player/AI ships built from a section list.
 pub mod spaceship;
 
-/// Glob-import surface: `use crate::objects::prelude::*` re-exports the public API of this module.
+/// Every scenario object submodule's prelude plus `ScenarioObjectsPlugin`.
 pub mod prelude {
     pub use super::{
         area::prelude::*, asteroid::prelude::*, beacon::prelude::*, binding_input::prelude::*,

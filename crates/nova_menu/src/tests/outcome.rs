@@ -1,3 +1,7 @@
+//! The victory/defeat overlay: which entries it offers, that it freezes the sim
+//! and frees the cursor the way the pause menu does, that ESC cannot raise the
+//! pause overlay over it, and that it rebuilds when a switch is queued late.
+
 use bevy::{
     prelude::*,
     ui_widgets::Activate,

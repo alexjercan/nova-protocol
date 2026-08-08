@@ -26,7 +26,7 @@
 //! Actions are instant and free for now, but they route through a single
 //! `ShipSectionCommand` seam (CLI verb -> [`NovaOsCommandInvocation`], in-app key
 //! -> message) so a future queued/over-time, resource-costed model can replace the
-//! handler without touching the callers (DECISION fork 4).
+//! handler without touching the callers.
 //!
 //! # Module layout
 //!

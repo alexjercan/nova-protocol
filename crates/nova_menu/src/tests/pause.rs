@@ -1,3 +1,7 @@
+//! The pause axis: the ESC toggle and both clocks, overlay spawn/despawn,
+//! retry and back-to-menu, and the NOVA OS as a third variant of the same
+//! freeze rather than a separate one.
+
 use bevy::{
     prelude::*,
     state::app::StatesPlugin,

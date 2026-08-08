@@ -562,8 +562,7 @@ mod tests {
     /// THE EVIDENCE RIG. The owner asked why the ship "sometimes loses radar
     /// focus on locked enemies"; this walks each way the upkeep can let go
     /// and records the branch BY NAME plus the elapsed idle clock, so the
-    /// answer is read off the run instead of guessed. Numbers land in the
-    /// task's NOTES.md.
+    /// answer is read off the run instead of guessed.
     #[test]
     fn the_evidence_rig_names_every_branch_that_drops_the_combat_lock() {
         // 1. Idle decay: nothing happens for 30 s with the stance lowered.

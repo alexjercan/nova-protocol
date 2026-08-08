@@ -1,3 +1,8 @@
+//! [`EventConfig`], the authored form of a scenario event: the name a handler
+//! listens for, lowered into the `nova_events` engine's own event kind.
+//!
+//! Touch this module when adding an event a scenario can react to.
+
 use bevy::prelude::*;
 use nova_events::prelude::*;
 

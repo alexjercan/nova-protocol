@@ -1,3 +1,11 @@
+//! The map's 3D view: its own camera into a render target, the orbit controls,
+//! and the blip overlay projected back onto the viewport.
+//!
+//! Blips are UI nodes positioned from the camera projection rather than
+//! world-space sprites, so they stay a fixed pixel size and stay clickable.
+//!
+//! Touch this module when changing how the map renders or how it is navigated.
+
 use bevy::{
     camera::{visibility::RenderLayers, ImageRenderTarget, RenderTarget},
     input::mouse::{MouseMotion, MouseWheel},

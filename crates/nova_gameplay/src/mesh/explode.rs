@@ -15,8 +15,7 @@ use rand::RngExt;
 
 use super::builder::TriangleMeshBuilder;
 
-/// Glob-import surface: `use nova_gameplay::mesh::explode::prelude::*`
-/// re-exports the public API of this module.
+/// `ExplodeMesh`, `ExplodeFragments` and `ExplodeMeshPlugin`.
 pub mod prelude {
     pub use super::{ExplodeFragments, ExplodeMesh, ExplodeMeshPlugin};
 }

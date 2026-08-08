@@ -12,7 +12,7 @@ use nova_gameplay::prelude::*;
 
 use crate::prelude::*;
 
-/// Glob-import surface: `use crate::objects::beacon::prelude::*` re-exports the public API of this module.
+/// The beacon scenario object, `BeaconConfig`, `BEACON_TYPE_NAME` and `BeaconPlugin`.
 pub mod prelude {
     pub use super::{beacon_scenario_object, BeaconConfig, BeaconPlugin, BEACON_TYPE_NAME};
 }

@@ -106,16 +106,20 @@ pub(super) fn insert_torpedo_section(
 
 pub(super) fn update_spawner_fire_state(
     mut q_spawner: Query<
-        &mut TorpedoSectionSpawnerFireState,
-        (
-            With<TorpedoSectionSpawnerMarker>,
-            Without<SectionInactiveMarker>,
-        ),
+        (&mut TorpedoSectionSpawnerFireState, &TorpedoSectionPartOf),
+        With<TorpedoSectionSpawnerMarker>,
     >,
+    q_section: Query<(), (With<TorpedoSectionMarker>, Without<SectionInactiveMarker>)>,
     time: Res<Time>,
 ) {
-    for mut fire_state in &mut q_spawner {
-        fire_state.tick(time.delta_secs());
+    // `SectionInactiveMarker` only ever lands on the SECTION, never on the
+    // spawner, so the liveness has to be read through the back-reference. A bay
+    // disabled in place must stop rearming, matching the turret, whose
+    // per-muzzle cooldown ticks inside its section-gated loop.
+    for (mut fire_state, section) in &mut q_spawner {
+        if q_section.contains(**section) {
+            fire_state.tick(time.delta_secs());
+        }
     }
 }
 
@@ -449,6 +453,7 @@ mod tests {
         let spawner = world
             .spawn((
                 TorpedoSectionSpawnerMarker,
+                TorpedoSectionPartOf(section),
                 TorpedoSectionSpawnerFireState(Cooldown::new(interval)),
                 Transform::default(),
                 ChildOf(section),
@@ -468,6 +473,61 @@ mod tests {
             .query_filtered::<Entity, With<TorpedoProjectileMarker>>()
             .iter(app.world())
             .count()
+    }
+
+    /// The disable marker lands on the section, never on the spawner, so the
+    /// obvious `Without<SectionInactiveMarker>` on the spawner query excludes
+    /// nothing and a disabled bay silently keeps rearming. Both halves are
+    /// asserted: the control proves the rig can rearm at all, so the disabled
+    /// case is measuring the gate and not a starved clock.
+    #[test]
+    fn a_disabled_bay_stops_rearming() {
+        for disabled in [false, true] {
+            let mut app = firing_app(2.0);
+            let section = spawn_firing_bay(&mut app, None);
+            let spawner = **app
+                .world()
+                .entity(section)
+                .get::<TorpedoSectionSpawnerEntity>()
+                .expect("the rig wires the spawner back to its section");
+
+            // Release the trigger: a firing bay re-triggers its cooldown in the
+            // same tick that re-arms it, which would read as "never rearmed".
+            // With the input closed the tick system is the only writer.
+            app.world_mut()
+                .entity_mut(section)
+                .insert(TorpedoSectionInput(false));
+            // `ManualDuration` only takes effect from the SECOND update - the
+            // first one establishes the clock's baseline at dt 0, which would
+            // starve the tick under test.
+            app.update();
+
+            // Spend the cooldown, then disable before it is re-earned.
+            app.world_mut()
+                .get_mut::<TorpedoSectionSpawnerFireState>(spawner)
+                .unwrap()
+                .trigger();
+            if disabled {
+                app.world_mut()
+                    .entity_mut(section)
+                    .insert(SectionInactiveMarker);
+            }
+
+            app.update();
+
+            let ready = app
+                .world()
+                .entity(spawner)
+                .get::<TorpedoSectionSpawnerFireState>()
+                .unwrap()
+                .ready();
+            assert_eq!(
+                ready,
+                !disabled,
+                "a bay with disabled={disabled} must{} rearm",
+                if disabled { " not" } else { "" }
+            );
+        }
     }
 
     #[test]

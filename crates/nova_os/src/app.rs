@@ -76,3 +76,9 @@ pub enum NovaOsAppInputOutcome {
     /// Exit back to the terminal (the app requested its own close).
     Exit,
 }
+
+/// The `NovaOsAppRuntime` seam, its `NovaOsAppInputOutcome`, and
+/// `NOVA_OS_TERMINAL_HINTS`.
+pub mod prelude {
+    pub use super::{NovaOsAppInputOutcome, NovaOsAppRuntime, NOVA_OS_TERMINAL_HINTS};
+}

@@ -1,3 +1,13 @@
+//! The scenario/campaign registry and the RON-authored config types it holds.
+//!
+//! Owns what a scenario IS on disk ([`ScenarioConfig`], [`CampaignConfig`]),
+//! which ones are loaded ([`GameScenarios`], [`GameCampaigns`]), the lint
+//! issues found in them, and the run lifecycle in the `clock`, `lifecycle` and
+//! `trackers` submodules.
+//!
+//! Touch this module when changing the authored scenario schema or how a run
+//! starts, ticks and ends.
+
 /// Scenario loader plugin and related types
 use bevy::{platform::collections::HashMap, prelude::*};
 use bevy_enhanced_input::prelude::*;
@@ -366,7 +376,7 @@ impl Plugin for ScenarioLoaderPlugin {
 
         // Scripted-camera override (photo mode / the capture scripts): the
         // `SetCamera` action pins a `ScriptedCameraPose` on the scenario camera;
-        // enforce it in `CameraAuthority::Override`, the phase that runs after
+        // enforce it in `CameraAuthoritySystems::Override`, the phase that runs after
         // every base writer - WASD sync, chase sync AND camera shake - and
         // before propagation.
         // Both controllers keep writing the camera Transform every frame (and
@@ -384,7 +394,7 @@ impl Plugin for ScenarioLoaderPlugin {
         }
         app.add_systems(
             PostUpdate,
-            enforce_scripted_camera_pose.in_set(CameraAuthority::Override),
+            enforce_scripted_camera_pose.in_set(CameraAuthoritySystems::Override),
         );
     }
 }
@@ -403,7 +413,7 @@ pub struct ScriptedCameraPose {
 }
 
 /// Pin every camera carrying a [`ScriptedCameraPose`] to that pose. Runs in
-/// [`CameraAuthority::Override`] so it wins the frame's last write to the
+/// [`CameraAuthoritySystems::Override`] so it wins the frame's last write to the
 /// camera Transform, shake offset included.
 fn enforce_scripted_camera_pose(mut cameras: Query<(&mut Transform, &ScriptedCameraPose)>) {
     for (mut transform, pose) in &mut cameras {

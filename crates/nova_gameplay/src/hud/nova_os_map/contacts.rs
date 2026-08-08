@@ -1,3 +1,11 @@
+//! What the map knows about: contact kinds, their colours and codes, and the
+//! [`MapContacts`] system param that derives the live list from the world.
+//!
+//! Codes are assigned per kind and held stable across frames so a player can
+//! type one at the prompt and still mean the same ship a moment later.
+//!
+//! Touch this module when adding a kind of thing the map can show.
+
 use bevy::{ecs::system::SystemParam, prelude::*};
 use nova_events::prelude::{EntityId, EntityTypeName};
 use nova_os::prelude::*;

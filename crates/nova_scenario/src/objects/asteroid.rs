@@ -1,3 +1,11 @@
+//! The asteroid scenario object: config, spawn bundle, mesh and texture
+//! selection, collider and gravity well, and the husk despawn after a break.
+//!
+//! Radius drives mass, gravity and collider together, so the scenario author
+//! sets one number rather than four that can disagree.
+//!
+//! Touch this module when changing what an authored asteroid spawns as.
+
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_rand::prelude::*;
@@ -6,7 +14,8 @@ use nova_events::prelude::{CommandsGameEventExt, *};
 use nova_gameplay::prelude::*;
 use rand::Rng;
 
-/// Glob-import surface: `use crate::objects::asteroid::prelude::*` re-exports the public API of this module.
+/// The asteroid scenario object and its config, the radius, mass, mesh and texture components, the
+/// geometric-factor bounds and `AsteroidPlugin`.
 pub mod prelude {
     pub use super::{
         asteroid_scenario_object, AsteroidConfig, AsteroidInvulnerable, AsteroidMarker,

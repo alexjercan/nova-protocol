@@ -1,5 +1,5 @@
 //! Production-faithful behavior + layout rig for Lifeline, chapter three's
-//! convoy defense (spike tasks/ SPIKE.md). Loads the ACTUAL shipped
+//! convoy defense. Loads the ACTUAL shipped
 //! `lifeline.content.ron`, registers its real handlers the way the loader does,
 //! and drives the act machine with the same event infos the engine emits - plus
 //! computed layout pins over the shipped spawns, so the fairness constraints

@@ -1,3 +1,13 @@
+//! The base game's scenarios, built in Rust and generated into
+//! `assets/base/**/*.content.ron`.
+//!
+//! One submodule per shipped scenario plus the shared authoring helpers
+//! (`cast`, `craft`, `pacing`) the chapters compose out of. Tests here pin the
+//! pacing rules that hold across every mainline chapter.
+//!
+//! Touch this module when adding a chapter or changing what a shipped scenario
+//! does - never the generated RON.
+
 use bevy::{platform::collections::HashMap, prelude::*};
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;

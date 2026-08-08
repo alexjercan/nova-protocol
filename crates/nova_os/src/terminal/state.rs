@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use bevy::prelude::*;
 
 use super::view::{nova_os_boot_banner_rows, nova_os_welcome_rows};
-use crate::{command::core_command_specs, shell::TerminalCommandSpec};
+use crate::{command::prelude::core_command_specs, shell::prelude::TerminalCommandSpec};
 
 /// The most scrollback rows the terminal keeps. The UI spawns one `Text` entity
 /// per row on every rebuild, so an unbounded scrollback is an unbounded entity

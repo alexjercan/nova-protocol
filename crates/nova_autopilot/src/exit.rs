@@ -98,3 +98,8 @@ mod tests {
         );
     }
 }
+
+/// The `describe` formatter for an `AppExit` code.
+pub mod prelude {
+    pub use super::describe;
+}

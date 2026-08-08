@@ -15,7 +15,7 @@ itertools = { version = "0.15.0" }
 bevy_mod_debugdump = { version = "0.16" }
 nova_autopilot = { path = "../nova_autopilot" }
 nova_events = { path = "../nova_events" }
-nova_gameplay = { path = "../nova_gameplay", features = ["debug"] }
+nova_gameplay = { path = "../nova_gameplay" }
 nova_scenario = { path = "../nova_scenario" }
 
 [lints]

@@ -1,3 +1,11 @@
+//! The predicates an authored handler runs before it fires: entity identity,
+//! boolean combinators over other filters, and variable expressions.
+//!
+//! Every variant implements the same `filter(world, info) -> bool` seam, so a
+//! new filter kind is one enum arm plus one match arm and nothing else moves.
+//!
+//! Touch this module when adding a new way for a handler to decline an event.
+
 use bevy::prelude::*;
 use nova_events::prelude::*;
 

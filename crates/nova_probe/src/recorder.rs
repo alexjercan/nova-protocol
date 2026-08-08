@@ -11,7 +11,7 @@
 //! The sink holds an exclusive lock on its path for its lifetime: one writer
 //! per timeline, or none. A second recorder aiming at a live path is refused
 //! and logged at ERROR rather than allowed to tear the file into two spliced
-//! streams (`20260804-174231`).
+//! streams.
 //!
 //! What lands on the timeline:
 //!
@@ -688,9 +688,9 @@ mod tests {
 
     /// Two recorders on one path used to tear the file: the second
     /// `File::create` truncated to offset 0 while the first's `BufWriter` kept
-    /// writing at its own offset, splicing two streams into one line
-    /// (`20260804-174231`). The second must be REFUSED instead, leaving the
-    /// first stream intact and parseable.
+    /// writing at its own offset, splicing two streams into one line. The
+    /// second must be REFUSED instead, leaving the first stream intact and
+    /// parseable.
     #[test]
     fn a_second_recorder_on_one_path_is_refused_not_torn() {
         let path = temp_timeline();

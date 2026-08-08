@@ -1,3 +1,12 @@
+//! The monitor's own behaviour: chin control observers, the power/boot/shutdown
+//! sequence, app launch and teardown, and the header/status reconcilers.
+//!
+//! This is the layer between the chrome in `casing` and the app runtimes -
+//! it owns WHICH surface is live, not what that surface draws.
+//!
+//! Touch this module when changing what a monitor control does or how an app
+//! is entered and left.
+
 use bevy::{prelude::*, ui_widgets::Activate};
 use nova_os::prelude::*;
 use nova_ui::{font::UiFont, theme};

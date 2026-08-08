@@ -33,8 +33,7 @@ use noise::NoiseFn;
 use super::slice::{triangle_slice, TriangleSliceResult};
 use crate::math::slerp;
 
-/// Glob-import surface: `use nova_gameplay::mesh::builder::prelude::*`
-/// re-exports the public API of this module.
+/// The `TriangleMeshBuilder`.
 pub mod prelude {
     pub use super::TriangleMeshBuilder;
 }

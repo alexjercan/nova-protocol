@@ -41,7 +41,8 @@ use bevy::{
 use nova_protocol::prelude::GameStates;
 use nova_ui::{
     prelude::*,
-    widget::{register, ButtonSpec, UiText},
+    widget::{ButtonSpec, UiText},
+    NovaUiPlugin,
 };
 
 // The `Name`s the harness clicks by. Resolving a target by name rather than by
@@ -70,7 +71,7 @@ fn main() -> AppExit {
         ..default()
     }));
     // The shared widget observers + skin reconciler + font router (inits UiSkin).
-    register(&mut app);
+    app.add_plugins(NovaUiPlugin);
     // The Skin control + the demo HUD-level control drive their resources through
     // the same `button_on_setting` path the game's Settings use.
     app.add_observer(button_on_setting::<UiSkin>);
@@ -499,7 +500,7 @@ fn on_check_click(activate: On<Activate>, q: Query<&CheckId>, mut checks: ResMut
 
 /// Commit a slider drag: store the value so a body rebuild restores it. The
 /// track itself is shown by nova_ui's shared `sync_slider_tracks` (wired by
-/// `register`) reacting to the `SliderValue` change - it lights the phosphor
+/// `NovaUiPlugin`) reacting to the `SliderValue` change - it lights the phosphor
 /// block-meter and moves the hardware fill, so there is no per-site recolour.
 fn on_slider_change(change: On<ValueChange<f32>>, mut value: ResMut<ZooSliderValue>) {
     value.0 = change.value.clamp(0.0, 1.0);

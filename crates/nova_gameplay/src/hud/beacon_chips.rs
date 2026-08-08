@@ -13,7 +13,7 @@ use nova_ui::hud::{chip_node, chip_paint, ChipTone};
 use super::{screen_indicator::prelude::*, HudTier, NAV_CYAN};
 use crate::prelude::*;
 
-/// Glob-import surface: `use nova_gameplay::hud::beacon_chips::prelude::*` re-exports the public API of this module.
+/// The beacon chip components and `BeaconChipsHudPlugin`.
 pub mod prelude {
     pub use super::{
         BeaconChipHudMarker, BeaconChipNodeMarker, BeaconChipTargetEntity, BeaconChipTextMarker,

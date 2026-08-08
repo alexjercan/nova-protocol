@@ -14,7 +14,7 @@
 
 use bevy::prelude::*;
 
-/// Glob-import surface: `use nova_gameplay::asset_ref::prelude::*` re-exports the public API of this module.
+/// The `AssetRef` handle-or-path asset reference.
 pub mod prelude {
     pub use super::AssetRef;
 }
@@ -65,6 +65,9 @@ impl<A: Asset> PartialEq for AssetRef<A> {
 
 impl<A: Asset> Eq for AssetRef<A> {}
 
+// Same reason as the impls above, plus a choice a derive cannot express: the
+// default is an empty `Handle`, not an empty `Path`, so a defaulted ref resolves
+// to nothing instead of to the asset at "".
 impl<A: Asset> Default for AssetRef<A> {
     fn default() -> Self {
         AssetRef::Handle(Handle::default())

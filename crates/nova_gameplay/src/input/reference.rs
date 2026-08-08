@@ -7,7 +7,7 @@
 //! authored as static data here, next to the rigs it describes, and a parity
 //! test pins the flight rig's keyboard bindings so a future remap of the rig
 //! cannot silently desync this list. This is the read-only surface only;
-//! full remapping + key icons stay backlog (TODO: 20260710-231927).
+//! full remapping + key icons stay backlog (TODO(20260710-231927)).
 //!
 //! The camera-rig rows (aim / free-look / raise), comms controls, and the
 //! system rows (pause, HUD level) are static prose: they live outside the

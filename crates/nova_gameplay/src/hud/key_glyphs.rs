@@ -28,7 +28,7 @@
 
 use bevy::{platform::collections::HashMap, prelude::*};
 
-/// Glob-import surface: `use nova_gameplay::hud::key_glyphs::prelude::*` re-exports the public API of this module.
+/// The `KeyGlyphs` lookup, `KeyCap`, the glyph asset-path helpers and `KEY_GLYPH_DIR`.
 pub mod prelude {
     pub use super::{
         key_glyph_asset_paths, key_glyph_stem, trimmed_cap, KeyCap, KeyGlyphs, KEY_GLYPH_DIR,

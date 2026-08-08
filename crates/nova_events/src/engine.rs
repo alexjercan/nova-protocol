@@ -256,6 +256,8 @@ pub struct GameEventsPlugin<W> {
     _marker: std::marker::PhantomData<W>,
 }
 
+// Hand-written rather than derived: `#[derive(Default)]` would add a
+// `W: Default` bound, and `W` only ever appears behind `PhantomData`.
 impl<W> Default for GameEventsPlugin<W> {
     fn default() -> Self {
         Self {
@@ -347,6 +349,8 @@ pub struct EventHandlerIndex<W: EventWorld> {
     _marker: PhantomData<W>,
 }
 
+// Hand-written rather than derived: `#[derive(Default)]` would add a
+// `W: Default` bound, and `W` only ever appears behind `PhantomData`.
 impl<W: EventWorld> Default for EventHandlerIndex<W> {
     fn default() -> Self {
         Self {

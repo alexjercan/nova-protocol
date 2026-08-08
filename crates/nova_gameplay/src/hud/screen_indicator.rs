@@ -22,7 +22,8 @@ use bevy::{prelude::*, ui::UiSystems};
 
 use crate::camera::chase::ChaseCameraSystems;
 
-/// Glob-import surface: `use nova_gameplay::hud::screen_indicator::prelude::*` re-exports the public API of this module.
+/// The screen-indicator spawners, its anchor, offset, size and offscreen components, and
+/// `ScreenIndicatorPlugin` with `ScreenIndicatorSystems`.
 pub mod prelude {
     pub use super::{
         screen_indicator, screen_indicator_layer, screen_indicator_node, ScreenIndicatorAnchor,

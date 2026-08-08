@@ -1,3 +1,12 @@
+//! The base game's ship section catalog: the stat block behind every hull,
+//! thruster, controller, turret and torpedo section the player can mount.
+//!
+//! [`build_sections`] is the single source of the shipped numbers, and the
+//! tests pin the balance relations between them (durability ordering,
+//! rounds-to-kill ceilings) so a retune cannot silently invert them.
+//!
+//! Touch this module when adding a section kind or retuning section stats.
+
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 

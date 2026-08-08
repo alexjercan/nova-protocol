@@ -23,7 +23,8 @@ use crate::{
     prelude::{destructible_body, ExplodableEntity},
 };
 
-/// Glob-import surface: `use nova_gameplay::sections::base_section::prelude::*` re-exports the public API of this module.
+/// The section and preview spawners, `SectionConfig` and `GameSections`, and the section markers,
+/// collider and render-mesh transforms.
 pub mod prelude {
     pub use super::{
         base_section, preview_section, BaseSectionConfig, GameSections, ImpactDestroySounds,

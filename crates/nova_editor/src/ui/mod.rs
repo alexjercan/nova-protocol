@@ -42,7 +42,11 @@ const DRAWER_W: f32 = 280.0;
 /// per-state systems and the `SectionChoice` setting observer are wired by the
 /// plugin, which owns those types.
 pub(crate) fn register(app: &mut App) {
-    nova_ui::widget::register(app);
+    // The menu and gameplay want the same app-global UI wiring; whoever gets
+    // there first adds it.
+    if !app.is_plugin_added::<nova_ui::NovaUiPlugin>() {
+        app.add_plugins(nova_ui::NovaUiPlugin);
+    }
     tooltip::register(app);
 }
 

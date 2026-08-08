@@ -1,3 +1,7 @@
+//! The main menu buttons: that an activation only counts as a click when it
+//! really was one, and that New Game and Sandbox set the mode, resolve the
+//! scenario override and fall back past a bad declaration.
+
 use bevy::{
     prelude::*,
     ui_widgets::{observe, Activate},

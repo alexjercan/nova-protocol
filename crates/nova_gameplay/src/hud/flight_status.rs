@@ -10,7 +10,8 @@ use nova_ui::hud::{chip_node, chip_paint, ChipTone};
 use super::{emphasis::prelude::*, screen_indicator::prelude::*, situation::prelude::*, NAV_CYAN};
 use crate::flight::prelude::*;
 
-/// Glob-import surface: `use nova_gameplay::hud::flight_status::prelude::*` re-exports the public API of this module.
+/// The flight-status and autopilot-destination spawners with their configs, markers and
+/// `FlightStatusHudPlugin`.
 pub mod prelude {
     pub use super::{
         autopilot_destination_hud, flight_status_hud, AutopilotDestinationHudConfig,

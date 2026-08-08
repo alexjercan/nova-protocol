@@ -1,3 +1,9 @@
+//! The SHIP app's runtime seam: its id, title, hints, the side panel it spawns,
+//! and the CLI verbs and panel buttons that route into `ShipSectionCommand`.
+//!
+//! Touch this module when changing what the ship app is called, shows on entry,
+//! or accepts as a command.
+
 use bevy::{prelude::*, ui_widgets::Button};
 use nova_os::prelude::*;
 

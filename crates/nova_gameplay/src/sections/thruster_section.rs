@@ -13,7 +13,8 @@ use crate::prelude::{
     SectionRenderMeshTransform, SectionRenderOf, TriangleMeshBuilder,
 };
 
-/// Glob-import surface: `use nova_gameplay::sections::thruster_section::prelude::*` re-exports the public API of this module.
+/// The `thruster_section` spawner, its config, input and magnitude components, the exhaust
+/// configuration and `ThrusterSectionPlugin`.
 pub mod prelude {
     pub use super::{
         thruster_section, ThrusterExhaust, ThrusterExhaustConfig, ThrusterExhaustShape,
