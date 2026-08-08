@@ -1,6 +1,5 @@
-//! Shared menu widget primitives: the click-cue marker, the two button
-//! constructors every menu surface spawns, and wheel scrolling for the
-//! list viewports.
+//! Shared menu widget primitives: the click-cue marker and the two button
+//! constructors every menu surface spawns.
 
 use bevy::{prelude::*, ui_widgets::Activate};
 use nova_gameplay::prelude::*;
@@ -49,45 +48,4 @@ pub(crate) fn button_variant(text: &str, variant: ButtonVariant, key: Option<&st
         spec = spec.key(key);
     }
     (nova_ui::widget::button(spec), MenuSfxButton)
-}
-
-/// Shared marker for any wheel-scrollable menu list viewport (mods + scenarios),
-/// driven by `scroll_menu_lists`.
-#[derive(Component)]
-pub(crate) struct ScrollableList;
-
-/// Mouse-wheel scroll for the mods list (the editor's scroll pattern), so a long
-/// installed-mods list stays reachable.
-/// The max scroll offset for a viewport: how far its content overflows the box.
-/// Mirrors `max_nova_os_scroll_y` (nova_os drawer) - clamp the STORED offset,
-/// not just the top, so invisible bottom overscroll cannot accumulate (lesson
-/// bevy-ui-scroll-input-clamps-stored-offset). No `ComputedNode` yet (first
-/// frame) -> `f32::MAX`, i.e. do not clamp until layout runs.
-pub(crate) fn max_menu_scroll_y(computed_node: Option<&ComputedNode>) -> f32 {
-    computed_node
-        .map(|node| (node.content_size.y - node.size.y + node.scrollbar_size.y).max(0.0))
-        .unwrap_or(f32::MAX)
-}
-
-/// Wheel-scroll any [`ScrollableList`] viewport (the mods list AND the scenarios list),
-/// clamping the stored offset at both ends. Generalized from the mods-only version so
-/// `ScenariosList` scrolls too.
-pub(crate) fn scroll_menu_lists(
-    mut wheel: MessageReader<bevy::input::mouse::MouseWheel>,
-    mut panels: Query<(&mut ScrollPosition, Option<&ComputedNode>), With<ScrollableList>>,
-) {
-    use bevy::input::mouse::MouseScrollUnit;
-    let dy: f32 = wheel
-        .read()
-        .map(|ev| match ev.unit {
-            MouseScrollUnit::Line => ev.y * 20.0,
-            MouseScrollUnit::Pixel => ev.y,
-        })
-        .sum();
-    if dy == 0.0 {
-        return;
-    }
-    for (mut scroll, computed_node) in &mut panels {
-        scroll.0.y = (scroll.0.y - dy).clamp(0.0, max_menu_scroll_y(computed_node));
-    }
 }

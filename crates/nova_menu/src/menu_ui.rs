@@ -9,6 +9,10 @@ use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 use nova_ui::{
     prelude::UiSkin,
+    screen::{
+        details_pane, footer_back_slot, list_detail_screen, list_pane, overlay_root, scroll_column,
+        scroll_viewport,
+    },
     theme,
     widget::{panel, panel_head, themed_button, ButtonVariant, Selected, UiText},
 };
@@ -23,7 +27,7 @@ use crate::{
         ScenariosList, ScenariosPanel, SelectedScenarioId,
     },
     settings::{build_settings_body, on_settings, on_settings_back, SettingsPanel},
-    widgets::{button, button_variant, ScrollableList},
+    widgets::{button, button_variant},
 };
 
 /// The menu panel: title on top, buttons below, anchored bottom-right per the
@@ -145,22 +149,7 @@ pub(crate) fn setup_menu_ui(
             DespawnOnExit(GameStates::MainMenu),
             Name::new("Settings Panel Root"),
             SettingsPanel,
-            Visibility::Hidden,
-            Pickable {
-                should_block_lower: false,
-                is_hoverable: false,
-            },
-            Node {
-                width: percent(100),
-                height: percent(100),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                ..default()
-            },
-            // Above the bottom-right menu card (review 142911 R1.1): sibling
-            // z-order otherwise falls back to Entity ordering, whose ids the
-            // despawned ambience scene recycles - nondeterministic stacking.
-            GlobalZIndex(1),
+            overlay_root(),
         ))
         .with_children(|parent| {
             parent
@@ -214,23 +203,10 @@ pub(crate) fn setup_menu_ui(
             DespawnOnExit(GameStates::MainMenu),
             Name::new("Mods Panel Root"),
             ModsPanel,
-            Visibility::Hidden,
-            Pickable {
-                should_block_lower: false,
-                is_hoverable: false,
-            },
-            Node {
-                width: percent(100),
-                height: percent(100),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                ..default()
-            },
-            // Above the bottom-right menu card (review 142911 R1.1); the mods
-            // panel has its own Back button, so covering the card loses
-            // nothing. Rendered z-order is only visually verifiable - the
+            // The mods panel has its own Back button, so covering the menu card
+            // loses nothing. Rendered z-order is only visually verifiable - the
             // component-presence test pins this.
-            GlobalZIndex(1),
+            overlay_root(),
         ))
         .with_children(|parent| {
             parent
@@ -262,40 +238,14 @@ pub(crate) fn setup_menu_ui(
                         TextColor(theme::PHOSPHOR_MUTED),
                     ));
 
-                    // The two panes. min_height: 0 lets the list shrink below
-                    // its content height so overflow actually scrolls.
-                    parent
-                        .spawn((
-                            Name::new("Mods Content"),
-                            Node {
-                                flex_direction: FlexDirection::Row,
-                                align_self: AlignSelf::Stretch,
-                                flex_grow: 1.0,
-                                min_height: px(0),
-                                column_gap: px(16),
-                                margin: UiRect::vertical(px(10)),
-                                ..default()
-                            },
-                        ))
-                        .with_children(|content| {
-                            content
-                                .spawn((
-                                    Name::new("Mods Left Pane"),
-                                    Node {
-                                        flex_direction: FlexDirection::Column,
-                                        width: percent(40),
-                                        min_height: px(0),
-                                        // PINNED: the list pane keeps its 40%
-                                        // whatever the details pane holds. See
-                                        // the scenarios list pane below for the
-                                        // measured failure this prevents.
-                                        flex_grow: 0.0,
-                                        flex_shrink: 0.0,
-                                        ..default()
-                                    },
-                                ))
-                                .with_children(|left| {
-                                    left.spawn((
+                    parent.spawn((
+                        Name::new("Mods Content"),
+                        list_detail_screen(
+                            (
+                                Name::new("Mods Left Pane"),
+                                list_pane(),
+                                children![
+                                    (
                                         Name::new("Mods Tab Row"),
                                         Node {
                                             flex_direction: FlexDirection::Row,
@@ -303,87 +253,52 @@ pub(crate) fn setup_menu_ui(
                                             column_gap: px(8),
                                             ..default()
                                         },
-                                    ))
-                                    .with_children(|tabs| {
                                         // setup resets ModsActiveTab to
                                         // Installed above, so the static
                                         // Selected marker matches it.
-                                        tabs.spawn((
-                                            Name::new("Installed Tab"),
-                                            themed_button("Installed"),
-                                            ModsTab(ModsTabKind::Installed),
-                                            Selected,
-                                            observe(on_mods_tab),
-                                        ));
-                                        tabs.spawn((
-                                            Name::new("Explore Online Tab"),
-                                            themed_button("Explore online"),
-                                            ModsTab(ModsTabKind::Explore),
-                                            observe(on_mods_tab),
-                                        ));
-                                    });
-                                    left.spawn((
+                                        children![
+                                            (
+                                                Name::new("Installed Tab"),
+                                                themed_button("Installed"),
+                                                ModsTab(ModsTabKind::Installed),
+                                                Selected,
+                                                observe(on_mods_tab),
+                                            ),
+                                            (
+                                                Name::new("Explore Online Tab"),
+                                                themed_button("Explore online"),
+                                                ModsTab(ModsTabKind::Explore),
+                                                observe(on_mods_tab),
+                                            ),
+                                        ],
+                                    ),
+                                    (
                                         Name::new("Mods List"),
                                         ModsList,
-                                        ScrollableList,
                                         Node {
-                                            flex_direction: FlexDirection::Column,
-                                            align_self: AlignSelf::Stretch,
-                                            flex_grow: 1.0,
-                                            min_height: px(0),
-                                            min_width: px(0),
-                                            overflow: Overflow::scroll_y(),
                                             margin: UiRect::top(px(8)),
-                                            ..default()
+                                            ..scroll_column()
                                         },
-                                        ScrollPosition::default(),
-                                    ));
-                                });
-                            content.spawn((
+                                        scroll_viewport(),
+                                    ),
+                                ],
+                            ),
+                            (
                                 Name::new("Mod Details Panel"),
                                 ModDetailsPanel,
-                                Node {
-                                    flex_direction: FlexDirection::Column,
-                                    flex_grow: 1.0,
-                                    min_height: px(0),
-                                    min_width: px(0),
-                                    padding: UiRect::left(px(16)),
-                                    border: UiRect::left(px(theme::BORDER_W)),
-                                    ..default()
-                                },
-                                BorderColor::all(theme::PHOSPHOR_MUTED),
-                            ));
-                        });
+                                details_pane(),
+                            ),
+                        ),
+                    ));
 
-                    // Footer: a fixed-width slot, so the percent-width Back
-                    // button does not span the whole wide panel.
-                    parent
-                        .spawn((
-                            Name::new("Mods Footer"),
-                            Node {
-                                align_self: AlignSelf::Stretch,
-                                flex_direction: FlexDirection::Row,
-                                justify_content: JustifyContent::FlexStart,
-                                ..default()
-                            },
-                        ))
-                        .with_children(|footer| {
-                            footer
-                                .spawn((
-                                    Name::new("Mods Back Slot"),
-                                    Node {
-                                        width: px(200),
-                                        ..default()
-                                    },
-                                ))
-                                .with_children(|slot| {
-                                    slot.spawn((
-                                        Name::new("Mods Back Button"),
-                                        button("Back"),
-                                        observe(on_mods_back),
-                                    ));
-                                });
-                        });
+                    parent.spawn((
+                        Name::new("Mods Footer"),
+                        footer_back_slot((
+                            Name::new("Mods Back Button"),
+                            button("Back"),
+                            observe(on_mods_back),
+                        )),
+                    ));
                 });
         });
 
@@ -397,22 +312,7 @@ pub(crate) fn setup_menu_ui(
             DespawnOnExit(GameStates::MainMenu),
             Name::new("Scenarios Panel Root"),
             ScenariosPanel,
-            Visibility::Hidden,
-            Pickable {
-                should_block_lower: false,
-                is_hoverable: false,
-            },
-            Node {
-                width: percent(100),
-                height: percent(100),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                ..default()
-            },
-            // Above the bottom-right menu card (mirrors the mods panel's 142911
-            // R1.1 fix): sibling z-order otherwise falls back to Entity id
-            // ordering, which the despawned ambience scene recycles.
-            GlobalZIndex(1),
+            overlay_root(),
         ))
         .with_children(|parent| {
             parent
@@ -449,91 +349,34 @@ pub(crate) fn setup_menu_ui(
                         TextColor(theme::PHOSPHOR_MUTED),
                     ));
 
-                    parent
-                        .spawn((
-                            Name::new("Scenarios Content"),
-                            Node {
-                                flex_direction: FlexDirection::Row,
-                                align_self: AlignSelf::Stretch,
-                                flex_grow: 1.0,
-                                min_height: px(0),
-                                min_width: px(0),
-                                column_gap: px(16),
-                                margin: UiRect::vertical(px(10)),
-                                ..default()
-                            },
-                        ))
-                        .with_children(|content| {
-                            content.spawn((
+                    parent.spawn((
+                        Name::new("Scenarios Content"),
+                        list_detail_screen(
+                            (
                                 Name::new("Scenarios List"),
                                 ScenariosList,
-                                ScrollableList,
                                 Node {
-                                    flex_direction: FlexDirection::Column,
-                                    width: percent(40),
-                                    min_height: px(0),
-                                    // NOTE (20260729-211150): keep `flex_shrink`
-                                    // at 0. A flex row shrinks EVERY shrinkable
-                                    // item, so with the default 1.0 this pane
-                                    // gave up width whenever the selected
-                                    // scenario's details pane wanted more -
-                                    // measured on the shipped set as a 141..331
-                                    // px swing purely from the selection.
-                                    // `flex_shrink: 0` makes the 40% split a
-                                    // property of the SCREEN, not of the
-                                    // selection; the details pane absorbs all
-                                    // slack (it grows, and its `min_width: 0`
-                                    // lets it shrink and wrap instead).
-                                    flex_grow: 0.0,
-                                    flex_shrink: 0.0,
                                     overflow: Overflow::scroll_y(),
-                                    ..default()
+                                    ..list_pane()
                                 },
-                                ScrollPosition::default(),
-                            ));
-                            content.spawn((
+                                scroll_viewport(),
+                            ),
+                            (
                                 Name::new("Scenario Details Panel"),
                                 ScenarioDetailsPanel,
-                                Node {
-                                    flex_direction: FlexDirection::Column,
-                                    flex_grow: 1.0,
-                                    min_height: px(0),
-                                    min_width: px(0),
-                                    padding: UiRect::left(px(16)),
-                                    border: UiRect::left(px(theme::BORDER_W)),
-                                    ..default()
-                                },
-                                BorderColor::all(theme::PHOSPHOR_MUTED),
-                            ));
-                        });
+                                details_pane(),
+                            ),
+                        ),
+                    ));
 
-                    parent
-                        .spawn((
-                            Name::new("Scenarios Footer"),
-                            Node {
-                                align_self: AlignSelf::Stretch,
-                                flex_direction: FlexDirection::Row,
-                                justify_content: JustifyContent::FlexStart,
-                                ..default()
-                            },
-                        ))
-                        .with_children(|footer| {
-                            footer
-                                .spawn((
-                                    Name::new("Scenarios Back Slot"),
-                                    Node {
-                                        width: px(200),
-                                        ..default()
-                                    },
-                                ))
-                                .with_children(|slot| {
-                                    slot.spawn((
-                                        Name::new("Scenarios Back Button"),
-                                        button("Back"),
-                                        observe(on_scenarios_back),
-                                    ));
-                                });
-                        });
+                    parent.spawn((
+                        Name::new("Scenarios Footer"),
+                        footer_back_slot((
+                            Name::new("Scenarios Back Button"),
+                            button("Back"),
+                            observe(on_scenarios_back),
+                        )),
+                    ));
                 });
         });
 }

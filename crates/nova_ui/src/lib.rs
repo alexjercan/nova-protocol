@@ -15,6 +15,7 @@ use bevy::prelude::*;
 
 pub mod font;
 pub mod hud;
+pub mod screen;
 pub mod skin;
 pub mod status_bar;
 pub mod theme;
@@ -45,6 +46,7 @@ impl Plugin for NovaUiPlugin {
 
         widget::build(app);
         status_bar::build(app);
+        screen::build(app);
     }
 }
 
@@ -52,25 +54,14 @@ impl Plugin for NovaUiPlugin {
 /// the [`UiSkin`](skin::UiSkin) selector, the [`units`] formatters and the
 /// themed-button widgets ([`themed_button`](widget::themed_button),
 /// [`ThemedButton`](widget::ThemedButton), [`Selected`](widget::Selected), ...)
-/// into scope, plus the [`status_bar`] names the composition root spawns.
+/// into scope, plus the [`screen`] composition helpers and the [`status_bar`]
+/// names the composition root spawns.
+///
+/// Each module owns its own `prelude`, so publishing a new name is a one-file
+/// edit rather than an edit here as well.
 pub mod prelude {
     pub use crate::{
-        font::UiFont,
-        hud::{chip_node, chip_paint, quiet_chip, text_chip, ChipTone},
-        skin::UiSkin,
-        status_bar::{
-            status_bar, status_bar_item, status_fps_color_fn, status_fps_value_fn,
-            status_version_color_fn, status_version_value_fn, StatusBarItemConfig,
-            StatusBarRootConfig,
-        },
-        theme, units,
-        widget::{
-            badge, button, button_on_setting, checkbox, checkbox_colors, checkbox_glyph, list_row,
-            list_row_colors, menu_button, panel, panel_head, panel_header, panel_node, segmented,
-            segmented_container, segmented_option, separator, slider_meter_color, slider_track,
-            themed_button, toggle, BadgeKind, ButtonSpec, ButtonValue, ButtonVariant, ListRow,
-            PanelSkin, SegmentedSkin, Selected, SliderBlock, SliderFill, SliderTrackSkin,
-            ThemedButton, SLIDER_SEGMENTS,
-        },
+        font::prelude::*, hud::prelude::*, screen::prelude::*, skin::prelude::*,
+        status_bar::prelude::*, theme, units, widget::prelude::*,
     };
 }

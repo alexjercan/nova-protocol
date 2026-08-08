@@ -18,6 +18,20 @@
 //! unchanged. [`NovaUiPlugin`](crate::NovaUiPlugin) wires every family's
 //! observers and reconcilers.
 
+/// Glob-import surface for the themed widgets: the button family and its
+/// selection machinery, the panel/list-row/segmented/slider families, and the
+/// small layout helpers.
+pub mod prelude {
+    pub use super::{
+        badge, button, button_on_setting, checkbox, checkbox_colors, checkbox_glyph, list_row,
+        list_row_colors, menu_button, panel, panel_head, panel_header, panel_node, segmented,
+        segmented_container, segmented_option, separator, slider_meter_color, slider_track,
+        themed_button, toggle, BadgeKind, ButtonSpec, ButtonValue, ButtonVariant, ListRow,
+        PanelSkin, SegmentedSkin, Selected, SliderBlock, SliderFill, SliderTrackSkin, ThemedButton,
+        UiText, SLIDER_SEGMENTS,
+    };
+}
+
 mod button;
 mod chrome;
 mod list_row;

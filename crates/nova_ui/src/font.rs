@@ -1,5 +1,10 @@
 //! The shared UI typeface handle.
 
+/// Glob-import surface for the shared typeface handle.
+pub mod prelude {
+    pub use super::UiFont;
+}
+
 use bevy::prelude::*;
 
 /// The game's shared UI typeface (Iosevka Term), loaded once at startup and

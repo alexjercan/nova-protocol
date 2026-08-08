@@ -16,6 +16,7 @@ use bevy::{
     prelude::*,
 };
 use nova_os::prelude::*;
+use nova_ui::screen::{max_scroll_y, page_step};
 
 use super::{components::*, content::*, sound::*, style::*};
 use crate::{
@@ -268,18 +269,17 @@ pub(crate) fn handle_terminal_keyboard(
             Key::ArrowUp => terminal.history_previous(),
             Key::ArrowDown => terminal.history_next(),
             // Page the scrollback from the keyboard (PoC's PageUp/PageDown): a
-            // cockpit player may never have a hand on the mouse. ~0.8 of a
-            // viewport per press, clamped like `scroll_nova_os_panels`.
+            // cockpit player may never have a hand on the mouse. Clamped like
+            // `scroll_nova_os_panels`.
             key @ (Key::PageUp | Key::PageDown) => {
                 if let Ok((mut scroll, computed_node)) = q_scrollback.single_mut() {
-                    let page = computed_node.map(|node| node.size.y * 0.8).unwrap_or(0.0);
+                    let page = page_step(computed_node);
                     let delta = if matches!(key, Key::PageUp) {
                         -page
                     } else {
                         page
                     };
-                    scroll.0.y =
-                        (scroll.0.y + delta).clamp(0.0, max_nova_os_scroll_y(computed_node));
+                    scroll.0.y = (scroll.0.y + delta).clamp(0.0, max_scroll_y(computed_node));
                 }
             }
             // A held Control makes this an app-exit / readline chord, owned by
@@ -447,12 +447,6 @@ pub(crate) fn scroll_nova_os_panels(
         if any_hovered && !hovered.is_some_and(Hovered::get) {
             continue;
         }
-        scroll.0.y = (scroll.0.y - dy).clamp(0.0, max_nova_os_scroll_y(computed_node));
+        scroll.0.y = (scroll.0.y - dy).clamp(0.0, max_scroll_y(computed_node));
     }
-}
-
-pub(crate) fn max_nova_os_scroll_y(computed_node: Option<&ComputedNode>) -> f32 {
-    computed_node
-        .map(|node| (node.content_size.y - node.size.y + node.scrollbar_size.y).max(0.0))
-        .unwrap_or(f32::MAX)
 }

@@ -16,6 +16,11 @@
 //! green phosphor, amber for objectives and autopilot mode, red for locks and
 //! threats, blue for comms. Pick the tone by MEANING, never by taste.
 
+/// Glob-import surface for the flight-HUD chip language.
+pub mod prelude {
+    pub use super::{chip_node, chip_paint, quiet_chip, text_chip, ChipTone};
+}
+
 use bevy::prelude::*;
 
 use crate::theme;

@@ -68,7 +68,7 @@ use settings::{
     flush_settings_on_exit, load_persisted_settings, on_volume_slider_change,
     persist_settings_on_change, sync_volume_slider, PendingSettingsSave,
 };
-use widgets::{on_menu_button_activate, scroll_menu_lists};
+use widgets::on_menu_button_activate;
 
 /// The main-menu plugin: owns [`GameStates::MainMenu`] and the settings/mods/
 /// scenarios screens.
@@ -155,14 +155,6 @@ impl Plugin for NovaMenuPlugin {
             )
                 .chain()
                 .run_if(in_state(GameStates::MainMenu)),
-        );
-        // NOTE: gated on the wheel message buffer existing - the real app's
-        // InputPlugin provides it; minimal headless test apps do not.
-        app.add_systems(
-            Update,
-            scroll_menu_lists
-                .run_if(in_state(GameStates::MainMenu))
-                .run_if(resource_exists::<Messages<bevy::input::mouse::MouseWheel>>),
         );
         app.add_observer(on_menu_button_activate);
         app.add_systems(

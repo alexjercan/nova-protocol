@@ -14,6 +14,11 @@
 //! whole UI in place. Settings persists the choice through the `ui_skin` field
 //! of its settings store.
 
+/// Glob-import surface for the skin selector.
+pub mod prelude {
+    pub use super::UiSkin;
+}
+
 use bevy::prelude::*;
 
 /// Which visual language the shared widgets render in.

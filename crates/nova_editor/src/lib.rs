@@ -33,7 +33,7 @@ use placement::{
     on_out_spaceship_section, rebuild_editor_preview_on_enter,
 };
 use scenario::setup_scenario;
-use ui::{scroll_editor_panel, setup_editor_scene};
+use ui::setup_editor_scene;
 
 /// Glob-import surface: `use nova_editor::prelude::*` brings [`NovaEditorPlugin`]
 /// into scope.
@@ -159,7 +159,6 @@ fn editor_plugin(app: &mut App) {
             sync_section_keybind_labels,
             apply_section_rebind,
             position_section_keybind_labels,
-            scroll_editor_panel,
         )
             .run_if(in_state(ExampleStates::Editor)),
     );

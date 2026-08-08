@@ -1,8 +1,7 @@
 //! The editor UI: a wiki-inspired left rail of categories plus a component
 //! drawer of cards. The theme + shared button widgets live in `nova_ui`; the
 //! submodules here hold the editor-specific rail, drawer,
-//! cards and hover tooltip, and this module assembles them into the scene and
-//! owns the panel scroll.
+//! cards and hover tooltip, and this module assembles them into the scene.
 
 pub(crate) mod card;
 pub(crate) mod drawer;
@@ -14,6 +13,7 @@ use nova_assets::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ui::{
     prelude::{panel, panel_header, separator, themed_button, ButtonValue, UiSkin},
+    screen::{scroll_column, scroll_viewport},
     theme,
 };
 
@@ -48,39 +48,6 @@ pub(crate) fn register(app: &mut App) {
         app.add_plugins(nova_ui::NovaUiPlugin);
     }
     tooltip::register(app);
-}
-
-/// Marker for a scrollable panel (currently the drawer's card list).
-#[derive(Component, Debug, Clone, Copy)]
-pub(crate) struct EditorScrollPanel;
-
-/// Pixels scrolled per line of wheel movement.
-const SCROLL_LINE_HEIGHT: f32 = 20.0;
-
-/// Scroll the editor's scrollable panel with the mouse wheel. Bevy does not
-/// scroll `Overflow::Scroll` nodes on its own - a system must drive
-/// `ScrollPosition` (bevy ui scroll example pattern). Editor-state only; the
-/// WASD camera does not consume the wheel, so there is no zoom conflict.
-pub(crate) fn scroll_editor_panel(
-    mut wheel: MessageReader<bevy::input::mouse::MouseWheel>,
-    mut q_panel: Query<&mut ScrollPosition, With<EditorScrollPanel>>,
-) {
-    use bevy::input::mouse::MouseScrollUnit;
-    let dy: f32 = wheel
-        .read()
-        .map(|ev| match ev.unit {
-            MouseScrollUnit::Line => ev.y * SCROLL_LINE_HEIGHT,
-            MouseScrollUnit::Pixel => ev.y,
-        })
-        .sum();
-    if dy == 0.0 {
-        return;
-    }
-    for mut scroll in &mut q_panel {
-        // Wheel up (dy > 0) reveals content above -> smaller offset; clamp at the
-        // top. Bevy clamps the bottom visually against the content height.
-        scroll.0.y = (scroll.0.y - dy).max(0.0);
-    }
 }
 
 pub(crate) fn setup_editor_scene(
@@ -240,14 +207,10 @@ pub(crate) fn setup_editor_scene(
                 drawer
                     .spawn((
                         Name::new("Component List"),
-                        EditorScrollPanel,
-                        ScrollPosition::default(),
+                        scroll_viewport(),
                         Node {
-                            flex_direction: FlexDirection::Column,
                             align_items: AlignItems::Stretch,
-                            flex_grow: 1.0,
-                            overflow: Overflow::scroll_y(),
-                            ..default()
+                            ..scroll_column()
                         },
                     ))
                     .with_children(|list| {
@@ -260,50 +223,4 @@ pub(crate) fn setup_editor_scene(
                     });
             });
         });
-}
-
-#[cfg(test)]
-mod tests {
-    use bevy::ecs::system::RunSystemOnce;
-
-    use super::*;
-
-    #[test]
-    fn wheel_scrolls_the_editor_panel_and_clamps_at_the_top() {
-        use bevy::input::{
-            mouse::{MouseScrollUnit, MouseWheel},
-            touch::TouchPhase,
-        };
-
-        // Fresh world per case: a re-run `MessageReader` reads the whole buffer,
-        // so isolating avoids the first message leaking into the second run.
-        fn run_wheel(y: f32, start_y: f32) -> f32 {
-            let mut world = World::new();
-            world.init_resource::<Messages<MouseWheel>>();
-            let panel = world
-                .spawn((EditorScrollPanel, ScrollPosition(Vec2::new(0.0, start_y))))
-                .id();
-            world.write_message(MouseWheel {
-                unit: MouseScrollUnit::Line,
-                x: 0.0,
-                y,
-                window: Entity::PLACEHOLDER,
-                phase: TouchPhase::Moved,
-            });
-            world.run_system_once(scroll_editor_panel).unwrap();
-            world.entity(panel).get::<ScrollPosition>().unwrap().0.y
-        }
-
-        // Wheel down from the top scrolls the panel down (offset grows).
-        assert!(
-            run_wheel(-3.0, 0.0) > 0.0,
-            "wheel down must scroll the panel down"
-        );
-        // Wheel up past the top clamps the offset at 0.
-        assert_eq!(
-            run_wheel(100.0, 5.0),
-            0.0,
-            "scrolling up past the top clamps at 0"
-        );
-    }
 }

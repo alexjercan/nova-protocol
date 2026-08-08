@@ -5,25 +5,24 @@
 use bevy::{prelude::*, ui_widgets::Activate};
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
-use nova_ui::widget::Selected;
+use nova_ui::{
+    screen::{scroll_viewports, ScrollViewport},
+    widget::Selected,
+};
 
 use super::support::{
     app, entity_by_name, label_of, observe_load_scenario, LoadedScenario, TEST_BACKDROP_ID,
     TEST_START_ID,
 };
-use crate::{
-    scenarios::{
-        CampaignHeader, NewGameScenario, ScenarioRow, ScenariosList, SelectedScenarioId,
-        CAMPAIGN_MEMBER_INDENT_PX,
-    },
-    widgets::{scroll_menu_lists, ScrollableList},
+use crate::scenarios::{
+    CampaignHeader, NewGameScenario, ScenarioRow, ScenariosList, SelectedScenarioId,
+    CAMPAIGN_MEMBER_INDENT_PX,
 };
 
-/// DoD 1: a `ScrollableList` (mods AND scenarios now share the marker) moves its
-/// `ScrollPosition` on the wheel and CLAMPS the stored offset at both ends against
-/// content height - not just the top (lesson
-/// bevy-ui-scroll-input-clamps-stored-offset). Before the generalized wiring,
-/// `ScenariosList` had no scroll driver, so this fails.
+/// DoD 1: the scenarios list is a shared `ScrollViewport`, so it moves its
+/// `ScrollPosition` on the wheel and CLAMPS the stored offset at both ends
+/// against content height - not just the top (lesson
+/// bevy-ui-scroll-input-clamps-stored-offset).
 #[test]
 fn scenarios_list_scrolls_on_wheel_and_clamps() {
     use bevy::{
@@ -41,7 +40,7 @@ fn scenarios_list_scrolls_on_wheel_and_clamps() {
         app.world_mut().init_resource::<Messages<MouseWheel>>();
         app.world_mut().spawn((
             ScenariosList,
-            ScrollableList,
+            ScrollViewport,
             ScrollPosition(Vec2::new(0.0, start_y)),
             ComputedNode {
                 size: Vec2::new(200.0, 100.0),
@@ -57,7 +56,7 @@ fn scenarios_list_scrolls_on_wheel_and_clamps() {
             phase: TouchPhase::Moved,
         });
         app.world_mut()
-            .run_system_once(scroll_menu_lists)
+            .run_system_once(scroll_viewports)
             .expect("scroll system runs");
         app.world_mut()
             .query::<&ScrollPosition>()

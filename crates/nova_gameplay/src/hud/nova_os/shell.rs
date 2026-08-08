@@ -11,9 +11,7 @@ use bevy::{prelude::*, ui_widgets::Activate};
 use nova_os::prelude::*;
 use nova_ui::{font::UiFont, theme};
 
-use super::{
-    casing::*, components::*, content::*, input::max_nova_os_scroll_y, sound::*, style::*,
-};
+use super::{casing::*, components::*, content::*, sound::*, style::*};
 use crate::{
     audio::{SoundBank, UiSfx, NOVA_OS_COIL_VOLUME},
     PauseStates,
@@ -454,7 +452,7 @@ pub(crate) fn normalize_nova_os_scroll(
         let clamped = scroll
             .0
             .y
-            .clamp(0.0, max_nova_os_scroll_y(Some(computed_node)));
+            .clamp(0.0, nova_ui::screen::max_scroll_y(Some(computed_node)));
         if scroll.0.y != clamped {
             scroll.0.y = clamped;
         }

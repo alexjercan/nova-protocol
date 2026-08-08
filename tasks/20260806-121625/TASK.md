@@ -650,35 +650,35 @@ BLOCKS the baseline, lands AFTER it. Depends on L2. One extraction closes four
 defects; fixing the two unit bugs separately means writing the
 physical-to-logical conversion twice, which is how they diverged.
 
-- [ ] Read the `mods` / `scenarios` / `portal` call sites in `nova_menu`
+- [x] Read the `mods` / `scenarios` / `portal` call sites in `nova_menu`
       together FIRST - the `list_detail_screen` signature falls out of that
       reading, it is not a decision to make in advance.
-- [ ] Create `crates/nova_ui/src/screen/mod.rs` with `prelude`, `scroll` and
+- [x] Create `crates/nova_ui/src/screen/mod.rs` with `prelude`, `scroll` and
       `list` submodules.
-- [ ] F17 - add `screen::scroll::max_scroll_y(node)` converting `ComputedNode`
+- [x] F17 - add `screen::scroll::max_scroll_y(node)` converting `ComputedNode`
       physical px to the logical px `ScrollPosition` uses, via
       `inverse_scale_factor()` as `shell.rs:440` and `screen_indicator.rs:418`
       already do. On a 2x display the current maximum is twice the real one.
-- [ ] F17 - add `page_step(node)` in logical px, replacing the physical
+- [x] F17 - add `page_step(node)` in logical px, replacing the physical
       `size.y * 0.8` at `nova_os/input.rs:257` that makes one PageUp jump 1.6
       viewports.
-- [ ] F28 - add `ScrollViewport`, `scroll_viewports` (wheel, clamped both ends)
+- [x] F28 - add `ScrollViewport`, `scroll_viewports` (wheel, clamped both ends)
       and `clamp_viewports` (re-clamp every frame after layout), ordered AFTER
       `ui_layout_system` or it clamps against last frame's `ComputedNode`.
-- [ ] Delete `nova_menu/src/widgets.rs:66 max_menu_scroll_y`,
+- [x] Delete `nova_menu/src/widgets.rs:66 max_menu_scroll_y`,
       `:75 scroll_menu_lists` and `ScrollableList`.
-- [ ] Delete `nova_gameplay/src/hud/nova_os/input.rs:430 max_nova_os_scroll_y`.
-- [ ] Repoint `nova_os/input.rs:255` (PageUp/PageDown) and `:426` (wheel,
+- [x] Delete `nova_gameplay/src/hud/nova_os/input.rs:430 max_nova_os_scroll_y`.
+- [x] Repoint `nova_os/input.rs:255` (PageUp/PageDown) and `:426` (wheel,
       keeping its `any_hovered` precedence) at the new module.
-- [ ] Adopt `ScrollViewport` in the unclamped `nova_editor` scroll variant.
-- [ ] Repoint L4's F18 clamp at `screen::max_scroll_y`. Expected and cheap if
+- [x] Adopt `ScrollViewport` in the unclamped `nova_editor` scroll variant.
+- [x] Repoint L4's F18 clamp at `screen::max_scroll_y`. Expected and cheap if
       L4 ran first.
-- [ ] Add `list_detail_screen` and collapse the `mods`/`scenarios`/`portal`
+- [x] Add `list_detail_screen` and collapse the `mods`/`scenarios`/`portal`
       triplication onto it.
-- [ ] Rules 3+4 - add 6 module preludes (`font.rs` and 5 siblings) plus
+- [x] Rules 3+4 - add 6 module preludes (`font.rs` and 5 siblings) plus
       `screen/prelude.rs`, and collapse `nova_ui/src/lib.rs:32-51`'s 40-odd
       hand-listed items to `<module>::prelude::*` lines. Whole crate in one pass.
-- [ ] Add a scale-factor test for F17 - the defect is invisible at scale 1.0.
+- [x] Add a scale-factor test for F17 - the defect is invisible at scale 1.0.
 
 ### Lane08 - "NOVA_PROBE RESTRUCTURE" - tasks/20260806-121625/plan/lane08.md
 
@@ -1548,3 +1548,83 @@ finding had been reported against whichever copy the reviewer happened to open.
 Reading the crate whole first, then deduping, then fixing, cost less than five
 targeted patches would have - and it is why the F31 rebuild is ~30 lines
 instead of a sixth copy of the spawn logic.
+
+## Close-out - L7 (2026-08-08)
+
+### What and why
+
+`crates/nova_ui/src/screen/` now owns every scrollable viewport in the game and
+the list-beside-details composition the menu builds twice. Four defects close in
+one edit, which was the whole argument for making this an extraction rather than
+two in-place patches.
+
+| Finding | Change |
+| --- | --- |
+| F17 | `screen::scroll::max_scroll_y` multiplies the `ComputedNode` overflow by `inverse_scale_factor()`. `ScrollPosition` is logical px, `ComputedNode` is physical, so on a 2x display every maximum in the game was twice the real one |
+| F17 | `screen::scroll::page_step` does the same for the keyboard page. The physical `size.y * 0.8` at `nova_os/input.rs:257` made one PageUp jump 1.6 viewports on a 2x display |
+| F28 | `clamp_viewports` re-clamps every `ScrollViewport` in `PostUpdate` after `UiSystems::Layout`, so shrinking content pulls the stored offset back instead of leaving the pane blank |
+| - | `nova_editor`'s drawer was unclamped at the bottom entirely; adopting `ScrollViewport` gives it both ends |
+
+Three separate wheel handlers (`scroll_menu_lists`, `scroll_editor_panel`, and
+`nova_os`'s) had three copies of the line-height constant and two byte-identical
+copies of the wrong overflow formula. Two of the three are gone; `nova_os` keeps
+its own system because its `any_hovered` precedence is scoped to the drawer, but
+it now calls the shared `max_scroll_y`/`page_step`. `NovaUiPlugin` registers the
+driver and the clamp once, so no consumer registers a scroll system any more.
+
+`screen::list` collapses the composition: `overlay_root` (3 call sites - the
+settings, mods and scenarios panels), `list_detail_screen`, `list_pane`,
+`scroll_column`, `scroll_viewport`, `details_pane` and `footer_back_slot`.
+`menu_ui.rs` is 637 -> 480 lines with no behaviour change, and the two comments
+that were load-bearing - why the list pane pins `flex_shrink: 0`, why the
+overlay needs an explicit `GlobalZIndex` - are now written once beside the code
+they guard instead of twice as cross-references to each other.
+
+Rules 3+4: `font`, `hud`, `skin` and `widget` gained preludes (`status_bar`
+already had one, `screen` ships with one), and `lib.rs`'s 40-odd hand-listed
+items became seven `<module>::prelude::*` lines. Publishing a new `nova_ui` name
+is now a one-file edit.
+
+### Difficulties and diagnosis
+
+The plan's "mods / scenarios / portal triplication" is a duplication of TWO, not
+three: `portal.rs` has no screen of its own - it spawns rows into the mods
+panel's list under the Explore tab, reusing `ModRow` and its observer. Reading
+the three call sites together (the lane's first step) is what showed that, so
+`list_detail_screen` is shaped for the two real callers rather than for a third
+that does not exist. The settings panel turned out to be the third caller of
+`overlay_root`, which the plan did not anticipate.
+
+`list_pane()` and `scroll_column()` return `Node` rather than a bundle, because
+a pane's overflow and its 40% pin are fields of the SAME component - two bundles
+cannot each carry a `Node`. Callers spread them (`Node { overflow: ..,
+..list_pane() }`), which keeps the per-screen deviation visible at the call site
+instead of hiding it behind a boolean parameter.
+
+### Evidence
+
+- `cargo test -p nova_ui --lib` - 28 pass, 5 new in `screen::tests` (the two
+  scale-factor contracts, both wheel clamps, the shrink clamp, hover
+  precedence). The scale-factor assertions are what the old code fails: it
+  answered 200.0 where the display scale demands 100.0.
+- `cargo test -p nova_menu --lib` - 77 pass, including the repointed
+  `scenarios_list_scrolls_on_wheel_and_clamps`.
+- `cargo test -p nova_gameplay --lib nova_os` - 109 pass; `cargo test
+  -p nova_editor --lib` - 22 pass.
+- `cargo check --workspace --all-targets` - clean, no warnings.
+- RUN, not just checked (duplicate-component panics do not surface in `check`):
+  `examples/ui/menu_scenarios.rs` and `examples/ui/editor.rs` both reach their
+  screens under Xvfb with no panic or error log.
+
+### Reflection
+
+The escape hatch in the lane plan - land the unit conversion in place during L4
+and delete the duplicate bodies later - would have cost a second write of the
+conversion. It was not needed: L4 landed first, so its F18 clamp already called
+the local `max_nova_os_scroll_y`, and repointing it at `screen::max_scroll_y`
+was a one-line edit exactly as the plan predicted.
+
+The `nova_editor` local scroll test went away with the system it tested. That is
+a net gain in coverage, not a loss - the drawer's bottom clamp was never tested
+because it never existed, and the shared tests now cover both ends at two
+display scales.

@@ -56,9 +56,9 @@ pub(crate) struct ModsActiveTab(pub(crate) ModsTabKind);
 #[derive(Resource, Default)]
 pub(crate) struct SelectedModId(pub(crate) Option<String>);
 
-/// The scrollable container holding the mod rows (wheel-scrolled by
-/// `scroll_menu_lists`); `refresh_mods_list` swaps its children on tab or
-/// catalog change.
+/// The scrollable container holding the mod rows (a shared
+/// `nova_ui::screen::ScrollViewport`); `refresh_mods_list` swaps its children on
+/// tab or catalog change.
 #[derive(Component)]
 pub(crate) struct ModsList;
 
