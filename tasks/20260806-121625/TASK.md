@@ -1308,22 +1308,17 @@ BLOCKS the baseline, lands AFTER it. Depends on L2 and L3. Independent of L9,
 so it can run in parallel with it.
 
 LANE COMPLETE 2026-08-08, sprout `refactor/l10-assets-scenario-cleanup`, five
-commits: `72f86261` L10.1 nova_authoring, `a52f990d` L10.2 the Storage trait,
-`7b5a6991` L10.3 the two HudReadoutFormat halves, `0f24b066` L10.4
-render_scale's crate doc, `8a41de9e` L10.5 the preludes. Every step ticked;
+commits: `04813d60` L10.1 nova_authoring, `577a453c` L10.2 the Storage trait,
+`1d828e00` L10.3 the two HudReadoutFormat halves, `06819ae3` L10.4
+render_scale's crate doc, `6fbbb4a6` L10.5 the preludes. Every step ticked;
 gates in the last step.
 
-BLOCKED ON A REBASE BEFORE IT CAN LAND, and this is the one thing the next
-context must not skip. The branch was cut at `e0b374e0`; L9 (`54ebcc2a`) landed
-on master while this lane ran and split `nova_gameplay` four ways, including
-`nova_gameplay/src/hud/readout.rs` -> `crates/nova_hud/src/readout.rs` - a file
-L10.3 edits. `git rebase master` was attempted and ABORTED at L10.1 with a
-content conflict in `crates/nova_assets/src/merge.rs`; the branch is back at
-`8a41de9e`, clean, and every proof above was measured there. Landing this lane
-means replaying all five commits over the split, re-pointing L10.3's
-`hud::readout` edits at `nova_hud`, and re-running the gates on the result.
-Do not merge it un-rebased: this branch's TASK.md predates L9's ticks and would
-revert them.
+REBASED OVER L9 AND READY TO LAND (2026-08-08). The lane was cut at `e0b374e0`
+and L9 (`54ebcc2a`) landed the `nova_gameplay` four-way split underneath it,
+so the SHAs above are the REPLAYED ones - the pre-rebase five (`72f86261`,
+`a52f990d`, `7b5a6991`, `0f24b066`, `8a41de9e`) are preserved on
+`backup/l10-prerebase` and are what the proofs in the steps below were first
+measured against. Every gate was re-run on the replay; see "The rebase" below.
 
 - [x] Create `nova_authoring` and move `lint_walk.rs`, `balance.rs`,
       `content_report.rs`, `scenario_generation.rs`, `bin/content.rs` (as the
@@ -2698,3 +2693,101 @@ NEXT UNIT (independent of the ruling, wants a fresh context):
 Both counts in 1 and 2 predate L5 and the seams. RE-MEASURE THEM FIRST - that
 warning has now been right three times in a row, and twice the error was not
 stale work but a survey that counted declarations instead of behaviour.
+
+## Close-out - L10, the rebase over L9 (2026-08-08)
+
+### What and why
+
+L10 was finished at `8a41de9e` over a base (`e0b374e0`) that L9 then moved: the
+`nova_gameplay` four-way split (`54ebcc2a`) landed while the lane ran. The lane
+record's only open item was replaying it over that split. It is replayed; the
+five lane commits keep their shapes and messages, at new SHAs.
+
+The replay is `git rebase --onto master e0b374e0` plus one deliberate rewrite:
+the Cargo.toml correction below belongs INSIDE L10.1, not on top of it, so
+every commit on the branch builds. Rather than an interactive rebase the branch
+was rebuilt by cherry-picking the seven rebased commits onto master in order and
+amending the first. The rebuilt tree is byte-identical to the plain rebase's
+apart from those two files - verified with `git diff` between the two tips
+before the branch ref moved. The pre-rebase branch survives as
+`backup/l10-prerebase`.
+
+### Difficulties and diagnosis
+
+**Four content conflicts, each a name L9 moved out from under L10.**
+
+| Site | Resolution |
+| --- | --- |
+| `nova_assets/src/merge.rs` | test imports: `nova_gameplay::prelude::{BaseSectionConfig, HullSectionConfig, SectionKind}` is `nova_ship::prelude::*` now; kept L10's added `ScenarioConfig` import beside it |
+| `nova_menu/src/settings_store.rs` | same shape - `NovaOsMonitorSettings` moved to `nova_os_ui`; kept L10's `storage::NativeStorage` import |
+| `nova_hud/src/readout.rs` | git followed the rename itself; took L10.3's prelude |
+| `nova_scenario/src/{world,actions/mission}.rs` | took L10.3's `From` impl and bare `HudReadouts` over master's re-pointed full paths |
+
+**The `nova_hud/readout.rs` conflict is the one that mattered, and L10.3 WINS
+it on the merits.** Master's side carries a doc comment and a code comment
+explaining why `HudReadoutFormat` is deliberately kept OFF `readout::prelude`:
+nova_scenario exported an authoring twin of the same name and nova_core globs
+both preludes, so exporting from both is an ambiguous glob re-export. L10.3
+removed the CAUSE - the scenario-side enum is `HudReadoutFormatConfig` now - so
+the exclusion and both comments describe a collision that no longer exists.
+Taking master's side would have re-introduced the full-path reach that L10.3
+was written to delete. The prelude exports it and the two comments are gone.
+
+**`nova_authoring` did not build after the replay, and the rebase could not
+have known.** The crate is CREATED by L10.1 out of files that lived in
+`nova_assets`, so its Cargo.toml is a NEW file - no merge base, no conflict, and
+git had nothing to reconcile. L9 had meanwhile repointed those files' imports at
+`nova_ship`, which auto-merged cleanly into the moved sources while the new
+manifest still listed only `nova_gameplay`. 99 errors, all one missing
+dependency; `nova_hud` was the same story at two sites. Both added to L10.1.
+The lesson is narrow and worth keeping: a rebase verifies nothing about a crate
+the rebased commits INVENT, because a new file has no other side to conflict
+with.
+
+**One test was red on master before this lane touched it.**
+`the_bundle_ships_the_raid_and_bumps_the_version` asserts the-ledger bundle ships
+`version: "1.15.0"`; `7eacb14c` republished it at `1.17.0`. It fails identically
+on master (run there to confirm, not inferred) and is inside CI's `cargo test
+--workspace --features debug`. Out of L10's lane, so it is its own commit
+(`52f1d425`), not folded into a lane commit.
+
+### Evidence
+
+Every gate re-run on the replayed branch, not carried over from `8a41de9e`:
+
+- `cargo check --workspace --all-targets` - clean.
+- `cargo clippy --workspace --all-targets -- -D warnings` - clean.
+- `cargo clippy --workspace --all-targets --features debug -- -D warnings` -
+  clean (the exact CI line, `ci.yaml:75`).
+- `cargo check -p nova_assets -p nova_menu --target wasm32-unknown-unknown` -
+  clean.
+- `cargo fmt --all -- --check` - clean.
+- `content -- lint` (now `-p nova_authoring`) - 0 errors, 0 warnings, 0
+  findings, 14 scenarios balance-audited, 1 acked.
+- `content_ron_parity` 2/2. This is the load-bearing one: it proves L9's split
+  changed no serialized name, so `assets/base/**` still matches the builders
+  across both lanes with no regeneration.
+- Lib tests: nova_scenario 154, nova_hud 207, nova_menu 77, nova_assets 60,
+  nova_authoring 44 - all pass.
+- Integration tests, all 20 targets across `nova_assets` and `nova_authoring` -
+  all pass, including the three scenario e2e walks the lane's last step names
+  (`example_scenario` 14, `gauntlet_course` 12, `lifeline_convoy` 8) and
+  `ledger_ch5_raid` 13 after the fix above.
+
+DoD proof 7's `-p nova_assets --bin content` still needs the correction the
+lane's last step flagged: the binary is `-p nova_authoring --bin content` now.
+
+### Reflection
+
+The lane record's own warning - "do not merge it un-rebased: this branch's
+TASK.md predates L9's ticks and would revert them" - turned out to cost nothing,
+because L9 and L10 wrote to disjoint sections of the file and the three-way
+merge took both without a conflict. The warning was still right to write: the
+failure it describes is silent, and confirming it did not happen took one grep
+of the tick counts.
+
+What the abandoned first attempt got wrong was aborting on the first conflict.
+All four conflicts are the same mechanical edit - a name L9 moved - and the
+whole set took less time than the note explaining why it had been deferred. The
+real work was not the conflicts at all; it was the 99 errors in the crate that
+had no conflicts to resolve.
