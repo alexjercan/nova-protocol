@@ -1,0 +1,43 @@
+[package]
+name = "nova_probe_cli"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = false
+description = "Host harness for the Nova Protocol run-probe: spawns autopilot runs as child processes, grades their artifacts and renders the reports (dev tools)"
+
+[lib]
+path = "src/lib.rs"
+
+# The front door: `probe run <example>` orchestrates the passes and the
+# report; sweep/web/profile wrap the perf scripts.
+[[bin]]
+name = "probe"
+path = "src/main.rs"
+
+[features]
+# Passthrough: see nova_probe's `debug`. `probe run` builds its children
+# `--features debug`, so the harness itself is built the same way.
+debug = ["nova_probe/debug"]
+
+[dependencies]
+# The child-run env builder names the autopilot's env contract directly.
+nova_autopilot = { path = "../nova_autopilot" }
+# The wire format the game writes and this crate reads: the frame-time CSV,
+# the timeline JSONL and the per-example capability contract.
+nova_probe = { path = "../nova_probe" }
+# Timeline entries carry serde_json payloads, and `checks.json` / the aggregate
+# index are serialized by hand against the same values.
+serde_json = { version = "1" }
+
+# The profile-sandbox rig re-executes this test binary as a CHILD and has it
+# call the very stores a spawned run would read (`tests/profile_sandbox.rs`):
+# nova_assets for the mod cache + enabled-mods prefs, `dirs` for the data/config
+# dirs those stores (and nova_menu's private settings_store) resolve through.
+[dev-dependencies]
+dirs = "6"
+nova_assets = { path = "../nova_assets" }
+tempfile = "3"
+
+[lints]
+workspace = true

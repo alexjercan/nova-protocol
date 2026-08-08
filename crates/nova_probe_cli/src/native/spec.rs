@@ -25,7 +25,7 @@ pub(crate) struct Resolved {
 pub(crate) fn resolve_spec(
     tokens: &[String],
     all: bool,
-    catalog: &[nova_probe::CatalogExample],
+    catalog: &[crate::CatalogExample],
 ) -> Result<Resolved, String> {
     if all {
         return Ok(Resolved {
@@ -40,7 +40,7 @@ pub(crate) fn resolve_spec(
             spec_help(catalog)
         ));
     }
-    let categories = nova_probe::categories(catalog);
+    let categories = crate::categories(catalog);
     let mut examples: Vec<String> = Vec::new();
     let mut multi = tokens.len() > 1;
     for token in tokens {
@@ -71,9 +71,9 @@ pub(crate) fn resolve_spec(
 
 /// The catalog, listed by category, plus the spec forms - the body of
 /// the bare-`probe run` error and every unknown-spec error.
-fn spec_help(catalog: &[nova_probe::CatalogExample]) -> String {
+fn spec_help(catalog: &[crate::CatalogExample]) -> String {
     let mut help = String::from("examples by category:\n");
-    for category in nova_probe::categories(catalog) {
+    for category in crate::categories(catalog) {
         let members: Vec<&str> = catalog
             .iter()
             .filter(|example| example.category == category)

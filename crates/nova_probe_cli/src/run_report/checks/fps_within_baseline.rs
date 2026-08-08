@@ -3,8 +3,10 @@
 //! An improvement is a PASS with the delta noted, never a warning - an
 //! automated caller must not read a speedup as a regression flag.
 
+use nova_probe::contract::Capability;
+
 use super::{Check, CheckStatus, NotApplicable, RunArtifacts};
-use crate::{contract::Capability, run_report::artifacts::Input};
+use crate::run_report::artifacts::Input;
 
 /// Soft FPS gate: the worst same-label mean-frame-time delta against the
 /// baseline may move this many percent before the check turns WARN. One
@@ -172,7 +174,7 @@ mod tests {
         let _ = std::fs::remove_file(dir.join("frametime.csv"));
         std::fs::write(
             dir.join("probe-contract.json"),
-            crate::contract::ProbeContract::of([crate::contract::Capability::Timeline])
+            nova_probe::contract::ProbeContract::of([nova_probe::contract::Capability::Timeline])
                 .to_json()
                 .to_string(),
         )

@@ -4,9 +4,9 @@
 use std::path::Path;
 
 use nova_autopilot::{autopilot::AUTOPILOT_ENV, completion::DEADLINE_ENV};
-use nova_probe::profile_sandbox;
 
 use super::cli::Render;
+use crate::profile_sandbox;
 
 /// Conservative software-render frame-rate FLOOR (frames/sec) used to size
 /// the completion deadline to the capture window.
@@ -77,7 +77,7 @@ pub(crate) fn fps_window_and_deadline_env() -> (Vec<(String, String)>, u64) {
 /// name a path, or a later pass would rewrite the claim.
 /// Plus the profile sandbox, so the run cannot read
 /// the operator's mod cache, enabled mods or settings
-/// ([`nova_probe::profile_sandbox`]).
+/// ([`crate::profile_sandbox`]).
 pub(crate) fn clean_pass_env(
     root: &Path,
     out: &Path,

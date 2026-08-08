@@ -2,8 +2,6 @@
 
 use std::{path::Path, process::ExitCode, time::Instant};
 
-use nova_probe::run_report::run_identity;
-
 use super::{
     cli::{Platform, RunOptions},
     paths::{
@@ -14,6 +12,7 @@ use super::{
     spec::{resolve_spec, Resolved},
     supervise::ensure_display,
 };
+use crate::run_report::run_identity;
 
 /// Dispatch a parsed run spec: resolve against the catalog, then run the
 /// resolved examples through the aggregate-shaped driver. `--platform web`
@@ -35,7 +34,7 @@ pub(crate) fn run_spec(
         return run(&base);
     }
     let root = repo_root();
-    let catalog = nova_probe::load_example_catalog(&root)?;
+    let catalog = crate::load_example_catalog(&root)?;
     let resolved = resolve_spec(tokens, all, &catalog)?;
     // Multi gates: these flags are single-example concerns.
     if resolved.multi && (!base.scenarios.is_empty() || !base.presets.is_empty()) {
@@ -59,7 +58,7 @@ pub(crate) fn run_spec(
 fn run_many(
     resolved: &Resolved,
     base: &RunOptions,
-    catalog: &[nova_probe::CatalogExample],
+    catalog: &[crate::CatalogExample],
 ) -> Result<ExitCode, String> {
     let root = repo_root();
     let (git_sha, host) = run_identity();
@@ -162,7 +161,7 @@ fn run_many(
             );
         }
     }
-    let manifest = nova_probe::AllManifest {
+    let manifest = crate::AllManifest {
         spec: resolved.spec_display.clone(),
         started_unix,
         git_sha,
@@ -224,11 +223,11 @@ pub(crate) fn build_row(
     run_error: Option<String>,
     duration_secs: u64,
     stamp: &RunStamp<'_>,
-) -> nova_probe::AllRow {
+) -> crate::AllRow {
     let on_disk = std::fs::read_to_string(dir.join("checks.json"))
         .ok()
         .and_then(|contents| serde_json::from_str::<serde_json::Value>(&contents).ok());
-    let error_row = |reason: String| nova_probe::AllRow {
+    let error_row = |reason: String| crate::AllRow {
         example: example.into(),
         category: category.into(),
         verdict: "ERROR".into(),
@@ -244,7 +243,7 @@ pub(crate) fn build_row(
             "{} holds an earlier run's checks.json; this run wrote none",
             dir.display()
         )),
-        (Some(value), None) => nova_probe::AllRow {
+        (Some(value), None) => crate::AllRow {
             example: example.into(),
             category: category.into(),
             verdict: value
@@ -280,7 +279,7 @@ pub(crate) fn build_row(
 
 pub(crate) fn write_aggregate(
     out_base: &Path,
-    manifest: &nova_probe::AllManifest,
+    manifest: &crate::AllManifest,
 ) -> Result<(), String> {
     std::fs::write(
         out_base.join("probe-all.json"),
@@ -289,18 +288,15 @@ pub(crate) fn write_aggregate(
     .map_err(|e| format!("could not write probe-all.json: {e}"))?;
     std::fs::write(
         out_base.join("index.json"),
-        format!("{:#}\n", nova_probe::index_json(manifest)),
+        format!("{:#}\n", crate::index_json(manifest)),
     )
     .map_err(|e| format!("could not write index.json: {e}"))?;
-    std::fs::write(
-        out_base.join("index.html"),
-        nova_probe::render_index(manifest),
-    )
-    .map_err(|e| format!("could not write index.html: {e}"))
+    std::fs::write(out_base.join("index.html"), crate::render_index(manifest))
+        .map_err(|e| format!("could not write index.html: {e}"))
 }
 
-pub(crate) fn print_aggregate(out_base: &Path, manifest: &nova_probe::AllManifest) {
-    let overall = nova_probe::aggregate_verdict(&manifest.rows);
+pub(crate) fn print_aggregate(out_base: &Path, manifest: &crate::AllManifest) {
+    let overall = crate::aggregate_verdict(&manifest.rows);
     println!(
         "probe: aggregate {overall} - {}",
         out_base.join("index.html").display()
@@ -313,8 +309,8 @@ pub(crate) fn print_aggregate(out_base: &Path, manifest: &nova_probe::AllManifes
     }
 }
 
-pub(crate) fn aggregate_exit(manifest: &nova_probe::AllManifest) -> ExitCode {
-    match nova_probe::aggregate_verdict(&manifest.rows) {
+pub(crate) fn aggregate_exit(manifest: &crate::AllManifest) -> ExitCode {
+    match crate::aggregate_verdict(&manifest.rows) {
         "OK" | "WARN" => ExitCode::SUCCESS,
         _ => ExitCode::FAILURE,
     }

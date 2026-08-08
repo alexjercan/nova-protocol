@@ -1,5 +1,5 @@
 //! Two display-free source gates over the example catalog, kept where the
-//! catalog parser lives (`nova_probe::load_example_catalog`) now that
+//! catalog parser lives (`nova_probe_cli::load_example_catalog`) now that
 //! `tests/examples_smoke.rs` is gone and probe is the only verdict on a run.
 //!
 //! Neither spawns anything: they read `Cargo.toml` and `examples/` off disk, so
@@ -10,7 +10,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// The repo root: this crate is `<root>/crates/nova_probe`.
+/// The repo root: this crate is `<root>/crates/nova_probe_cli`.
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
@@ -64,7 +64,7 @@ fn catalog_matches_disk() {
     // one parser, two consumers, no drift between them. It refuses a manifest
     // without `autoexamples = false` itself, so this unwrap also pins that
     // discovery stays off.
-    let catalog = nova_probe::load_example_catalog(&root)
+    let catalog = nova_probe_cli::load_example_catalog(&root)
         .expect("the [[example]] catalog must parse (and autoexamples must stay off)");
     let cataloged: BTreeSet<(String, String)> = catalog
         .iter()
@@ -133,7 +133,7 @@ const SECTION_ROSTER: &[(&str, &[&str])] = &[
         "turret_section",
         &[
             "turret fired",
-            "gate damaged",
+            "range target hit",
             "turret tracks the mover",
             "turret invariants hold after reload",
         ],
@@ -178,7 +178,7 @@ fn sections_assert_their_invariant_roster() {
         "the sections/ roster lists {listed} invariants, not {SECTION_INVARIANTS}"
     );
 
-    let catalog = nova_probe::load_example_catalog(&root).expect("the catalog must parse");
+    let catalog = nova_probe_cli::load_example_catalog(&root).expect("the catalog must parse");
     let sections: BTreeSet<&str> = catalog
         .iter()
         .filter(|example| example.category == "sections")

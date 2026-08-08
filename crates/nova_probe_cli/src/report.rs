@@ -6,13 +6,13 @@
 //! bin.
 //!
 //! Renderer identity: schema-v2 rows carry their own metadata (backend,
-//! adapter, git SHA - see [`crate::stats::RunMeta`]), which this renderer
+//! adapter, git SHA - see [`nova_probe::stats::RunMeta`]), which this renderer
 //! prefers; v1 rows (the v0.7.0 baseline) fall back to the results
 //! directory's name, the old convention (`gpu` / `sw` / `xgpu` / `web`).
 
 use std::collections::HashMap;
 
-use crate::stats::PerfRun;
+use nova_probe::stats::PerfRun;
 
 /// The renderer string shown for one run: its own metadata when known
 /// (schema v2), else the dir-derived fallback (v1 rows).

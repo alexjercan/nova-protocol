@@ -1,17 +1,19 @@
-//! nova_probe: the run-harness for Nova Protocol dev tooling - frame-time
-//! capture and perf reporting over autopilot runs. Also the home for the
-//! run-correctness recorder, invariant checks, profiling and the unified
-//! run report.
-//!
-//! Three modules today:
+//! nova_probe: the IN-GAME half of the run-harness - the plugins an example
+//! wires to collect evidence about its own run, plus the wire format that
+//! evidence is written in. The host half (spawning runs, grading artifacts,
+//! rendering reports) is `nova_probe_cli`; the two meet at the filesystem, so
+//! nothing here reads a run's output back.
 //!
 //! - [`capture`] - the env-gated [`nova_frametime`] plugin: drives a real
 //!   gameplay app to `Playing`, warms up, records the wall-clock delta of
 //!   every frame for a fixed window, then writes percentile stats and exits.
+//! - [`recorder`] - the run-timeline JSONL sink.
+//! - [`invariants`] - continuous invariant checks, riding that sink.
+//! - [`contract`] - what an example CLAIMS to collect, declared by the plugins
+//!   it wires.
 //! - [`stats`] - [`FrameStats`], the per-run [`RunMeta`], and the CSV/JSON
-//!   schema (writers + parsers) shared by the capture and the report.
-//! - [`report`] - the shared HTML pieces (styles, frame-time chart and
-//!   table) the run report composes.
+//!   schema (writers + parsers) both halves speak.
+//! - [`fixtures`] - the scenario builders the examples share.
 //!
 //! ## Why measure this way
 //!
@@ -76,23 +78,11 @@
 //! | `NOVA_PERF_HOST` / `host`     | `/etc/hostname` | Overrides the recorded host tag (`browser` on wasm). |
 #![warn(missing_docs)]
 
-// The aggregated run report and the example catalog feed the probe bin's
-// spec resolution and the root package's drift test - host tooling,
-// native-only like the run report.
-#[cfg(not(target_arch = "wasm32"))]
-pub mod aggregate;
 pub mod capture;
-#[cfg(not(target_arch = "wasm32"))]
-pub mod catalog;
 // What an example CLAIMS, declared by the plugins it wires. Both targets: the
 // frame-time capture builds for wasm and declares like the rest (only the
 // filesystem write is native-only).
 pub mod contract;
-pub mod profile;
-// The child-run profile sandbox is host tooling: it builds the environment
-// probe spawns native runs with, so it is native-only like the runner.
-#[cfg(not(target_arch = "wasm32"))]
-pub mod profile_sandbox;
 // Continuous invariant checks ride the recorder's timeline sink, so they are
 // native-only with it (nothing wasm-side references them - the examples that
 // wire them never build for wasm).
@@ -108,10 +98,6 @@ pub mod fixtures;
 // same signatures, so cross-target callers compile.
 #[cfg(not(target_arch = "wasm32"))]
 pub mod recorder;
-// The unified run report reads the recorder's timeline, so it is native-only
-// with it (the probe bin's wasm build is a stub main).
-#[cfg(not(target_arch = "wasm32"))]
-pub mod run_report;
 #[cfg(target_arch = "wasm32")]
 pub mod recorder {
     //! Wasm stubs for the native-only run-timeline recorder.
@@ -139,32 +125,19 @@ pub mod recorder {
     /// No-op on wasm.
     pub fn probe_marker(_world: &mut World, _name: &str, _data: serde_json::Value) {}
 }
-// The HTML run report writes files and is read only by the native bin and by
-// `aggregate`, so it is native-only with them.
-#[cfg(not(target_arch = "wasm32"))]
-pub mod report;
 pub mod stats;
 
-#[cfg(not(target_arch = "wasm32"))]
-pub use aggregate::{
-    index_json, overall_verdict as aggregate_verdict, render_index, AllManifest, AllRow,
-};
 pub use capture::{
     capture_reload_begin, capture_reload_end, capture_reloading, combat_burst_driver,
     nova_frametime, perf_armed, perf_param, FrameTimePlugin, PerfDriver, ReloadGate,
     DEFAULT_CAPTURE_FRAMES, DEFAULT_RESOLUTION, DEFAULT_WARMUP_FRAMES, PERF_ENV,
 };
-#[cfg(not(target_arch = "wasm32"))]
-pub use catalog::{categories, load_example_catalog, parse_example_catalog, CatalogExample};
 pub use contract::{Capability, ProbeContract};
 #[cfg(not(target_arch = "wasm32"))]
 pub use invariants::{nova_invariants, InvariantState, InvariantsPlugin};
-pub use profile::{aggregate_system_costs, render_top_table, SystemCost};
 pub use recorder::{nova_timeline, probe_marker, RunRecorderPlugin};
 #[cfg(not(target_arch = "wasm32"))]
 pub use recorder::{parse_timeline, ProbeTimeline, TimelineEvent};
-#[cfg(not(target_arch = "wasm32"))]
-pub use run_report::{evaluate_checks, Check, CheckStatus, RunArtifacts};
 pub use stats::{
     append_frametime_row, parse_frametime_csv, parse_summary_line, FrameStats, PerfRun, RunMeta,
     CSV_HEADER, CSV_HEADER_V1,

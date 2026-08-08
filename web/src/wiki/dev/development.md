@@ -20,7 +20,7 @@ cargo build --release             # release profile: opt=s, lto, stripped
 cargo check && cargo fmt          # before committing
 cargo test --workspace            # full suite (CI runs this; skip locally unless asked)
 cargo run -p nova_assets --bin content -- lint   # validate content: refs + balance + input overlaps (also: gen)
-cargo run -p nova_probe -- run player_path          # run-harness check (correctness + perf)
+cargo run -p nova_probe_cli -- run player_path          # run-harness check (correctness + perf)
 ```
 
 Notes that keep the suite honest and fast:
@@ -225,7 +225,7 @@ dropped.)
 
 Every example except `scene_baseline` is HARNESSED: it
 drives itself under `NOVA_AUTOPILOT=1`, and probe is the regression suite over
-all of them - `cargo run -p nova_probe -- run sections` (or `systems`, `ui`,
+all of them - `cargo run -p nova_probe_cli -- run sections` (or `systems`, `ui`,
 `stress`, `screenshots`) runs a single category alone, and `--all` is the whole
 catalog, which is what CI runs. Each
 example must reach
@@ -516,13 +516,13 @@ and assembles one reviewable report. The POST-FEATURE CHECK - "did my change
 break behavior or perf?" - is one command:
 
 ```sh
-cargo run -p nova_probe -- run player_path            # clean pass -> report
-cargo run -p nova_probe -- run player_path --profile  # + traced pass (top-N systems)
-cargo run -p nova_probe -- run player_path --samply   # + named flamegraph
-cargo run -p nova_probe -- run player_path --baseline probe-runs  # FPS deltas vs nearest prior commit
-cargo run -p nova_probe -- run player_path,scenario_grammar   # comma list -> aggregate index
-cargo run -p nova_probe -- run systems            # a whole category
-cargo run -p nova_probe -- run --all               # the whole fleet
+cargo run -p nova_probe_cli -- run player_path            # clean pass -> report
+cargo run -p nova_probe_cli -- run player_path --profile  # + traced pass (top-N systems)
+cargo run -p nova_probe_cli -- run player_path --samply   # + named flamegraph
+cargo run -p nova_probe_cli -- run player_path --baseline probe-runs  # FPS deltas vs nearest prior commit
+cargo run -p nova_probe_cli -- run player_path,scenario_grammar   # comma list -> aggregate index
+cargo run -p nova_probe_cli -- run systems            # a whole category
+cargo run -p nova_probe_cli -- run --all               # the whole fleet
 ```
 
 It runs the example headless (throwaway Xvfb; `--display :0` to reuse yours),
@@ -571,7 +571,7 @@ yourself - probe preserves any of the three it finds already set, and prints
 which ones it left alone:
 
 ```sh
-NOVA_MOD_CACHE_ROOT=~/.local/share/nova-protocol cargo run -p nova_probe -- run player_path
+NOVA_MOD_CACHE_ROOT=~/.local/share/nova-protocol cargo run -p nova_probe_cli -- run player_path
 ```
 
 `XDG_CACHE_HOME` is deliberately NOT redirected (the shader cache lives there,
@@ -616,10 +616,10 @@ frame-time capture, one labeled `frametime.csv` row per cell, release-built
 (dev-profile frame numbers are not baselines):
 
 ```sh
-cargo run -p nova_probe -- run scene_baseline --fps --release \
+cargo run -p nova_probe_cli -- run scene_baseline --fps --release \
   --scenario asteroid_field --scenario broadside --preset high --preset low
-cargo run -p nova_probe -- run scene_baseline --fps --release --render sw ...  # lavapipe floor
-cargo run -p nova_probe -- run <scenario> --platform web   # web/WebGPU capture (scraped)
+cargo run -p nova_probe_cli -- run scene_baseline --fps --release --render sw ...  # lavapipe floor
+cargo run -p nova_probe_cli -- run <scenario> --platform web   # web/WebGPU capture (scraped)
 ```
 
 Every capture records run metadata (wgpu backend + GPU adapter, resolution,
@@ -667,7 +667,7 @@ optional) - into a self-contained `report.html` plus a machine-readable
 `checks.json`:
 
 ```sh
-cargo run -p nova_probe -- report <run-dir>... [--baseline <old-run-dir>]
+cargo run -p nova_probe_cli -- report <run-dir>... [--baseline <old-run-dir>]
 ```
 
 Auto checks produce a provisional OK/WARN/FAIL/NO_DATA/UNPROBEABLE (process
@@ -693,8 +693,8 @@ frame times, so a profiled run RANKS systems while the clean capture owns the
 FPS truth (never mix the two):
 
 ```sh
-cargo run -p nova_probe -- run scenario_grammar --profile          # trace + report table
-cargo run -p nova_probe -- run scenario_grammar --profile --samply # + flamegraph
+cargo run -p nova_probe_cli -- run scenario_grammar --profile          # trace + report table
+cargo run -p nova_probe_cli -- run scenario_grammar --profile --samply # + flamegraph
 ```
 
 The profiled pass builds with `--features debug,trace` (bevy's per-system

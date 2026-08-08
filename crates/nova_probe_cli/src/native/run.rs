@@ -7,14 +7,6 @@ use std::{
     time::Duration,
 };
 
-use nova_probe::{
-    profile_sandbox,
-    run_report::{
-        checks_json, evaluate_checks, overall_verdict, print_checks, render_run_report,
-        run_identity, PassRecord, RunArtifacts, RunManifest,
-    },
-};
-
 use super::{
     cli::{Platform, RunOptions},
     env::{
@@ -24,6 +16,13 @@ use super::{
     paths::{default_output_root, repo_root, resolve_full_git_sha},
     supervise::{build_example, ensure_display, run_supervised},
     web::web_capture,
+};
+use crate::{
+    profile_sandbox,
+    run_report::{
+        checks_json, evaluate_checks, overall_verdict, print_checks, render_run_report,
+        run_identity, PassRecord, RunArtifacts, RunManifest,
+    },
 };
 
 /// probe's own artifact filenames: surgically removed from the out dir

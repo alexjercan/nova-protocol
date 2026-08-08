@@ -16,9 +16,9 @@ mod run_completed;
 
 pub use fps_within_baseline::FPS_WARN_THRESHOLD_PCT;
 pub(super) use invariants_held::violations_by_name;
+use nova_probe::contract::Capability;
 
 use super::{artifacts::RunArtifacts, manifest::RunManifest};
-use crate::contract::Capability;
 
 /// One verdict row.
 #[derive(Debug, Clone, PartialEq)]
@@ -319,7 +319,7 @@ mod tests {
         }
         std::fs::write(
             dir.join("probe-contract.json"),
-            crate::contract::ProbeContract::default()
+            nova_probe::contract::ProbeContract::default()
                 .to_json()
                 .to_string(),
         )

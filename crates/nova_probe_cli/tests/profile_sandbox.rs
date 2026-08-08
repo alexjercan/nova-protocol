@@ -22,7 +22,7 @@ use std::{
     process::Command,
 };
 
-use nova_probe::profile_sandbox;
+use nova_probe_cli::profile_sandbox;
 
 /// Set on the child; absent in the parent leg, which is what keeps
 /// `resolver_child` a no-op during a normal `cargo test` run.

@@ -255,7 +255,7 @@ impl RunMeta {
 /// The measured tree's short git SHA: the `NOVA_PERF_SHA` / `?sha=` override
 /// wins (the web build cannot shell out); otherwise ask git, degrading to
 /// `unknown` outside a repo or without git on PATH.
-pub(crate) fn resolve_git_sha() -> String {
+pub fn resolve_git_sha() -> String {
     if let Some(sha) = perf_param("sha") {
         return sha;
     }
@@ -280,7 +280,7 @@ pub(crate) fn resolve_git_sha() -> String {
 
 /// The host tag: the `NOVA_PERF_HOST` / `?host=` override wins; native falls
 /// back to `/etc/hostname`, wasm to the literal `browser`.
-pub(crate) fn resolve_host() -> String {
+pub fn resolve_host() -> String {
     if let Some(host) = perf_param("host") {
         return host;
     }

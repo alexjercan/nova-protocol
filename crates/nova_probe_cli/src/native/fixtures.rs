@@ -6,7 +6,7 @@ pub fn s(args: &[&str]) -> Vec<String> {
 }
 
 /// A stand-in example catalog covering every category the specs use.
-pub fn catalog() -> Vec<nova_probe::CatalogExample> {
+pub fn catalog() -> Vec<crate::CatalogExample> {
     [
         ("controller_section", "sections"),
         ("scenario", "gameplay"),
@@ -18,7 +18,7 @@ pub fn catalog() -> Vec<nova_probe::CatalogExample> {
         ("outcomes", "systems"),
     ]
     .into_iter()
-    .map(|(name, category)| nova_probe::CatalogExample {
+    .map(|(name, category)| crate::CatalogExample {
         name: name.into(),
         path: format!("examples/{category}/{name}.rs"),
         category: category.into(),

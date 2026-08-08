@@ -58,7 +58,7 @@ git clone https://github.com/alexjercan/nova-protocol && cd nova-protocol
 
 cargo run                           # 1. play the game (boots into the main menu)
 cargo test --workspace --features debug   # 2. run the tests (headless; no display needed)
-cargo run -p nova_probe -- run --all     #    ...and the windowed sweep over every example
+cargo run -p nova_probe_cli -- run --all     #    ...and the windowed sweep over every example
 
 cd web && npm install && npm run serve    # 3. serve the content site (prints its port)
 ```
@@ -149,7 +149,7 @@ the deeper docs live in the dev wiki linked in each row.
 | Tool | Command | What it does |
 | --- | --- | --- |
 | Content CLI | `cargo run -p nova_assets --bin content -- gen\|lint` (also `lint --target <mod> --report <path>`) | Author + validate content: `gen` regenerates the base `*.content.ron` from the Rust builders; `lint` runs every content check in one pass - references/geometry, combat balance/fairness (the old `audit`, now folded in), and flight-rig input overlaps - and with `--report <path>` writes a per-mod document (`--format md\|html`) pinpointing file + element + fix for each finding. See [`content.rs`](crates/nova_assets/src/bin/content.rs). |
-| Probe (run-harness) | `cargo run -p nova_probe -- run <example>` / `cargo run -p nova_probe -- report <run-dir>` | Drives autopilot examples headless and writes reports under `probe-runs/<short-commit>/`; `--profile`, `--samply`, `--fps`, `--all`, `--baseline`, `--platform web` extend it; `report` re-renders run dirs. See [`development.md`](web/src/wiki/dev/development.md). |
+| Probe (run-harness) | `cargo run -p nova_probe_cli -- run <example>` / `cargo run -p nova_probe_cli -- report <run-dir>` | Drives autopilot examples headless and writes reports under `probe-runs/<short-commit>/`; `--profile`, `--samply`, `--fps`, `--all`, `--baseline`, `--platform web` extend it; `report` re-renders run dirs. See [`development.md`](web/src/wiki/dev/development.md). |
 | `perf_web` | (not called directly - built and driven by `probe run <example> --platform web`) | The WASM measurement build the probe boots under headless Chromium to capture the web frame line. See [`development.md`](web/src/wiki/dev/development.md). |
 | Meta-sidecar gen | `cargo run -p nova_meta_gen -- [--assets <dir>]...` | Writes default `.meta` sidecars for assets that lack one (for `AssetMetaCheck::Always` on the web); normally runs as a Trunk `post_build` hook. A web-build tool under `tools/`, not a game crate - but a workspace member so Cargo pins its Bevy (version + features) to the game's. Stays Rust (unlike the portal generator): it asks Bevy for each loader's default meta, so it cannot drift when Bevy bumps - a Python hardcode would (spike 20260718-152255). See [`tools/nova_meta_gen`](tools/nova_meta_gen/). |
 | Dispatch benchmark | `cargo bench -p nova_scenario` | Criterion baseline/regression benchmark for the scenario event-dispatch hot path (report in `target/criterion/`). See [`benches/scenario_dispatch.rs`](crates/nova_scenario/benches/scenario_dispatch.rs). |

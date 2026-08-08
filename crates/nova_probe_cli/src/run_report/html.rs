@@ -3,14 +3,13 @@
 
 use std::path::Path;
 
+use nova_probe::recorder::TimelineEvent;
+
 use super::{
     artifacts::RunArtifacts,
     checks::{measured_count, overall_verdict, violations_by_name, Check},
 };
-use crate::{
-    recorder::TimelineEvent,
-    report::{escape, render_chart, render_table, STYLE},
-};
+use crate::report::{escape, render_chart, render_table, STYLE};
 
 fn meaningful(timeline: &[TimelineEvent]) -> Vec<&TimelineEvent> {
     timeline
@@ -184,13 +183,13 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
     let unclaimed = artifacts
         .contract
         .as_ref()
-        .is_some_and(|c| !c.declares(crate::contract::Capability::FrameTime));
+        .is_some_and(|c| !c.declares(nova_probe::contract::Capability::FrameTime));
     match (&artifacts.runs, unclaimed) {
         (None, true) => html.push_str(&format!(
             "<p class=\"note\">no frame-time claim: this example wires no \
              <code>{}</code>, so it makes no frame-cost assertion and there is \
              no window to measure. It runs for correctness only.</p>\n",
-            crate::report::escape(crate::contract::Capability::FrameTime.wiring()),
+            crate::report::escape(nova_probe::contract::Capability::FrameTime.wiring()),
         )),
         (None, false) => html.push_str(
             "<p>No frame-time capture in this run dir - probe run --fps (a \
@@ -313,6 +312,8 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
 
 #[cfg(test)]
 mod tests {
+    use nova_probe::contract::{Capability, ProbeContract};
+
     use super::{
         super::{
             checks::{evaluate_checks, CheckStatus},
@@ -320,7 +321,6 @@ mod tests {
         },
         *,
     };
-    use crate::contract::{Capability, ProbeContract};
 
     #[test]
     fn report_html_carries_every_section_and_skip_reasons() {

@@ -7,8 +7,10 @@
 
 use std::collections::BTreeMap;
 
+use nova_probe::{contract::Capability, recorder::TimelineEvent};
+
 use super::{timeline_skip_detail, Check, CheckStatus, NotApplicable, RunArtifacts};
-use crate::{contract::Capability, recorder::TimelineEvent, run_report::artifacts::Input};
+use crate::run_report::artifacts::Input;
 
 const THRESHOLD: &str = "0 violations";
 
@@ -163,11 +165,10 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
 
 #[cfg(test)]
 mod tests {
+    use nova_probe::contract::ProbeContract;
+
     use super::*;
-    use crate::{
-        contract::ProbeContract,
-        run_report::{checks::evaluate_checks, fixtures::*},
-    };
+    use crate::run_report::{checks::evaluate_checks, fixtures::*};
 
     #[test]
     fn violations_fail_invariants_with_per_name_counts() {

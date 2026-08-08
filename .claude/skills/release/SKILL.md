@@ -57,7 +57,7 @@ release". This skill is that checklist plus the guardrails learned in practice.
   `master` run passed - `gh run list --workflow=ci --branch master -L 3`. Do not
   run the full suite locally to substitute for it. If a job is red, cite the job
   LOG's result line, not the run conclusion.
-- **Fleet probe sweep:** `cargo run -p nova_probe -- run --all` (25-40 min) is
+- **Fleet probe sweep:** `cargo run -p nova_probe_cli -- run --all` (25-40 min) is
   the pre-release run-harness check. Read `index.json`, not just the exit code:
   the aggregate verdict is the WORST row, and a SKIPPED check means UNMEASURED.
   See the `probe` skill. Skip it only for a docs-only patch release, and say so.

@@ -107,13 +107,14 @@ jobs:
         env:
           RUST_BACKTRACE: full
         # probe builds each example itself with --features debug. The probe BIN
-        # needs the same flag through its nova-protocol dependency, or linking
-        # it with default features would flip bevy/track_location back off and
-        # pay for a second Bevy variant inside this step - the cost the Tests
-        # step's comment is about. --out keeps run directories off the checkout.
+        # needs the same flag (its own passthrough down to bevy/track_location),
+        # or linking it with default features would flip track_location back off
+        # and pay for a second Bevy variant inside this step - the cost the
+        # Tests step's comment is about. --out keeps run directories off the
+        # checkout.
         run: >-
           xvfb-run --auto-servernum
-          cargo run -p nova_probe --features nova-protocol/debug --
+          cargo run -p nova_probe_cli --features debug --
           run --all --out "$RUNNER_TEMP/probe-runs"
 
       # The reports and logs for whatever the sweep graded, green or not: a
@@ -187,10 +188,17 @@ jobs:
       # No --all-targets: the examples are native harnesses and do not build
       # for wasm. This checks the lib graph the trunk bundle actually ships,
       # where an ungated host-only module shows up as dead code.
+      #
+      # nova_probe_cli is excluded, not stubbed: it is the HOST half of the
+      # run-harness (spawns child processes, reads their artifacts) and has no
+      # meaning in a browser. That exclusion is what lets its modules carry no
+      # `cfg(not(target_arch = "wasm32"))` at all.
       - name: Check wasm32
         env:
           RUSTFLAGS: -D warnings
-        run: cargo check --workspace --target wasm32-unknown-unknown
+        run: >-
+          cargo check --workspace --exclude nova_probe_cli
+          --target wasm32-unknown-unknown
 
   # The dependency-license gate. The shipped manifest
   # (credits/THIRD-PARTY-LICENSES.md) is GENERATED at build/release time, not

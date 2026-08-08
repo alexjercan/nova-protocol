@@ -18,6 +18,8 @@ mod web;
 
 use cli::{parse, Cmd, USAGE};
 
+/// Parse the command line and dispatch it; the process exit code is the
+/// harness verdict.
 pub fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match parse(&args) {

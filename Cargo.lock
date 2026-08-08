@@ -4712,16 +4712,25 @@ version = "0.9.1"
 dependencies = [
  "avian3d",
  "bevy",
- "dirs",
  "nova-protocol",
- "nova_assets",
  "nova_autopilot",
  "nova_events",
  "nova_gameplay",
  "nova_scenario",
  "serde_json",
- "tempfile",
  "web-sys",
+]
+
+[[package]]
+name = "nova_probe_cli"
+version = "0.9.1"
+dependencies = [
+ "dirs",
+ "nova_assets",
+ "nova_autopilot",
+ "nova_probe",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]

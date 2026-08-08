@@ -6,11 +6,12 @@ use std::{
     sync::atomic::{AtomicU32, Ordering},
 };
 
+use nova_probe::contract::{Capability, ProbeContract};
+
 use super::{
     checks::Check,
     manifest::{PassRecord, RunManifest},
 };
-use crate::contract::{Capability, ProbeContract};
 
 pub fn fixture() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/run-mini")

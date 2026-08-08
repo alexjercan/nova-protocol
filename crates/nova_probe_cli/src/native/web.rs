@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use nova_probe::run_report::{run_identity, PassRecord};
+use crate::run_report::{run_identity, PassRecord};
 
 /// The web/WebGPU capture (ported from perf-web.sh): trunk-build the
 /// perf_web wasm app, serve it from an embedded static server, drive a

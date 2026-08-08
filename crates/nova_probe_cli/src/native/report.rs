@@ -6,11 +6,10 @@ use std::{
     process::ExitCode,
 };
 
-use nova_probe::run_report::{
+use super::sweep::{aggregate_exit, build_row, print_aggregate, write_aggregate, RunStamp};
+use crate::run_report::{
     checks_json, evaluate_checks, overall_verdict, print_checks, render_run_report, RunArtifacts,
 };
-
-use super::sweep::{aggregate_exit, build_row, print_aggregate, write_aggregate, RunStamp};
 
 /// `probe report`: re-render an existing run dir - GATED on the
 /// manifest, so a report can only ever be built from a dir `probe run`
@@ -80,7 +79,7 @@ fn report_aggregate(dir: &Path) -> Result<ExitCode, String> {
         .map_err(|e| format!("could not read probe-all.json: {e}"))?;
     let value: serde_json::Value = serde_json::from_str(&contents)
         .map_err(|e| format!("probe-all.json is not valid JSON: {e}"))?;
-    let mut manifest = nova_probe::AllManifest::from_json(&value)?;
+    let mut manifest = crate::AllManifest::from_json(&value)?;
     // Re-rendering history: every row's checks.json is by definition older
     // than now, so only the revision has to match.
     let git_sha = manifest.git_sha.clone();
@@ -114,9 +113,8 @@ fn report_aggregate(dir: &Path) -> Result<ExitCode, String> {
 
 #[cfg(test)]
 mod tests {
-    use nova_probe::run_report::{PassRecord, RunManifest};
-
     use super::*;
+    use crate::run_report::{PassRecord, RunManifest};
 
     #[test]
     fn report_many_rerenders_multiple_run_dirs() {

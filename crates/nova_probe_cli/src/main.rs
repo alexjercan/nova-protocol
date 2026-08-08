@@ -4,12 +4,12 @@
 //! one row:
 //!
 //! ```text
-//! cargo run -p nova_probe -- run player_path            # clean pass + report
-//! cargo run -p nova_probe -- run player_path --profile  # + traced pass
-//! cargo run -p nova_probe -- run player_path,scenario_grammar   # comma list -> aggregate
-//! cargo run -p nova_probe -- run ui                  # a category dir's examples
-//! cargo run -p nova_probe -- run --all               # the whole catalog
-//! cargo run -p nova_probe -- report <run-dir>           # re-render (manifest-gated)
+//! cargo run -p nova_probe_cli -- run player_path            # clean pass + report
+//! cargo run -p nova_probe_cli -- run player_path --profile  # + traced pass
+//! cargo run -p nova_probe_cli -- run player_path,scenario_grammar   # comma list -> aggregate
+//! cargo run -p nova_probe_cli -- run ui                  # a category dir's examples
+//! cargo run -p nova_probe_cli -- run --all               # the whole catalog
+//! cargo run -p nova_probe_cli -- report <run-dir>           # re-render (manifest-gated)
 //! ```
 //!
 //! `run` orchestrates natively: pass 1 CLEAN (timeline + invariants + log,
@@ -22,15 +22,6 @@
 //! `index.html` + `index.json` + `probe-all.json` above the per-example
 //! run dirs.
 
-// NOTE: native-only like the recorder/report it wraps; the wasm build gets a
-// stub main so `cargo check --target wasm32` over the package stays green.
-#[cfg(target_arch = "wasm32")]
-fn main() {}
-
-#[cfg(not(target_arch = "wasm32"))]
-mod native;
-
-#[cfg(not(target_arch = "wasm32"))]
 fn main() -> std::process::ExitCode {
-    native::main()
+    nova_probe_cli::native::main()
 }

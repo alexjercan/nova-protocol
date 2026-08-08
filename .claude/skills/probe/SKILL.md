@@ -16,19 +16,19 @@ section (`web/src/wiki/dev/development.md`).
 ## Commands
 
 ```sh
-cargo run -p nova_probe -- run <example>              # clean pass -> report
-cargo run -p nova_probe -- run <example> --profile    # + traced pass (top-N systems)
-cargo run -p nova_probe -- run <example> --samply     # + named flamegraph
-cargo run -p nova_probe -- run <example> --fps        # + DEDICATED capture-only pass
-cargo run -p nova_probe -- run <example> --baseline <storage-base>  # FPS deltas
-cargo run -p nova_probe -- run <example> --out <dir>  # storage base (default probe-runs)
-cargo run -p nova_probe -- run player_path,scenario_grammar      # comma list
-cargo run -p nova_probe -- run ui                     # a whole category
-cargo run -p nova_probe -- run --all                  # the whole catalog
-cargo run -p nova_probe -- run scene_baseline --fps --release \
+cargo run -p nova_probe_cli -- run <example>              # clean pass -> report
+cargo run -p nova_probe_cli -- run <example> --profile    # + traced pass (top-N systems)
+cargo run -p nova_probe_cli -- run <example> --samply     # + named flamegraph
+cargo run -p nova_probe_cli -- run <example> --fps        # + DEDICATED capture-only pass
+cargo run -p nova_probe_cli -- run <example> --baseline <storage-base>  # FPS deltas
+cargo run -p nova_probe_cli -- run <example> --out <dir>  # storage base (default probe-runs)
+cargo run -p nova_probe_cli -- run player_path,scenario_grammar      # comma list
+cargo run -p nova_probe_cli -- run ui                     # a whole category
+cargo run -p nova_probe_cli -- run --all                  # the whole catalog
+cargo run -p nova_probe_cli -- run scene_baseline --fps --release \
   --render gpu --scenario asteroid_field --preset high --preset low  # perf sweep (matrix)
-cargo run -p nova_probe -- run <scenario> --platform web  # web/WebGPU frame capture
-cargo run -p nova_probe -- report <run-dir> [--baseline <dir>]  # re-render (manifest-gated)
+cargo run -p nova_probe_cli -- run <scenario> --platform web  # web/WebGPU frame capture
+cargo run -p nova_probe_cli -- report <run-dir> [--baseline <dir>]  # re-render (manifest-gated)
 ```
 
 Two verbs is the whole surface: `run` and `report`. (The `sweep|web|profile`

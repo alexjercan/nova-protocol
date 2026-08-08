@@ -56,13 +56,12 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
 
 #[cfg(test)]
 mod tests {
+    use nova_probe::contract::Capability;
+
     use super::*;
-    use crate::{
-        contract::Capability,
-        run_report::{
-            checks::{evaluate_checks, timeline_skip_detail},
-            fixtures::*,
-        },
+    use crate::run_report::{
+        checks::{evaluate_checks, timeline_skip_detail},
+        fixtures::*,
     };
 
     /// The failure this check exists for: a truncated trace still produces a

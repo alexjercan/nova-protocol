@@ -16,7 +16,7 @@ publish = false
 # examples/*.rs and examples/*/main.rs. Discovery off makes the [[example]]
 # catalog below the SINGLE source of truth: a stray file can never become a
 # phantom target, and a missing block means the example does not build at all
-# (the catalog_matches_disk test in crates/nova_probe/tests/catalog_drift.rs
+# (the catalog_matches_disk test in crates/nova_probe_cli/tests/catalog_drift.rs
 # pins catalog == disk). Task 20260719-193728.
 autoexamples = false
 
@@ -177,8 +177,9 @@ bevy = { version = "0.19.0" }
 nova_autopilot = { path = "crates/nova_autopilot" }
 # The stress/ examples use the frame-time capture harness, and the
 # autopilot examples push run-timeline markers - both live in nova_probe (the
-# run-harness dev tool, not shipped with the game binary). serde_json builds
-# the markers' payloads (the timeline speaks JSON).
+# in-game half of the run-harness, not shipped with the game binary; the host
+# half is nova_probe_cli, which nothing here links). serde_json builds the
+# markers' payloads (the timeline speaks JSON).
 nova_probe = { path = "crates/nova_probe" }
 # The harness presets and `shoot`, the one capture idiom. Reached DIRECTLY
 # rather than through `nova_protocol::nova_debug`, which only exists under the
@@ -337,6 +338,7 @@ members = [
   "crates/nova_modding",
   "crates/nova_os",
   "crates/nova_probe",
+  "crates/nova_probe_cli",
   "crates/nova_scenario",
   "crates/nova_ui",
   # Web-build tooling, not a game crate. `nova_meta_gen` stays a workspace

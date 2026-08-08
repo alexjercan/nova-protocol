@@ -1,13 +1,10 @@
 [package]
 name = "nova_probe"
-# `cargo run -p nova_probe -- ...` is the harness front door (the probe bin);
-# the other bins stay directly addressable via --bin.
-default-run = "probe"
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
 publish = false
-description = "Run-harness for the Nova Protocol game: frame-time capture and perf reporting over autopilot runs (dev tools)"
+description = "In-game evidence collection for the Nova Protocol run-probe: frame-time capture, run timeline, invariant checks and the wire format the host harness reads (dev tools)"
 
 [lib]
 path = "src/lib.rs"
@@ -19,14 +16,12 @@ path = "src/lib.rs"
 name = "perf_web"
 path = "src/bin/perf_web.rs"
 
-
-
-
-# The front door: `probe run <example>` orchestrates the passes and the
-# report; sweep/web/profile wrap the perf scripts.
-[[bin]]
-name = "probe"
-path = "src/bin/probe/main.rs"
+[features]
+# The Bevy variant the child runs are built with: the game's `debug` feature
+# flips `bevy/track_location`, and a host harness resolved without it would
+# compile a SECOND Bevy into the same target dir. Fans out through
+# nova_gameplay like every other crate's `debug`.
+debug = ["nova_gameplay/debug"]
 
 [dependencies]
 # The invariant checks read avian's LinearVelocity directly (same pinned
@@ -57,15 +52,6 @@ nova-protocol = { path = "../.." }
 # browser (no process env there).
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-sys = { version = "0.3", features = ["Window", "Location"] }
-
-# The profile-sandbox rig re-executes this test binary as a CHILD and has it
-# call the very stores a spawned run would read (`tests/profile_sandbox.rs`):
-# nova_assets for the mod cache + enabled-mods prefs, `dirs` for the data/config
-# dirs those stores (and nova_menu's private settings_store) resolve through.
-[dev-dependencies]
-dirs = "6"
-nova_assets = { path = "../nova_assets" }
-tempfile = "3"
 
 [lints]
 workspace = true
