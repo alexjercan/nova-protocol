@@ -1307,13 +1307,23 @@ what lands with it.
 BLOCKS the baseline, lands AFTER it. Depends on L2 and L3. Independent of L9,
 so it can run in parallel with it.
 
-CHECKPOINT 2026-08-08, sprout `refactor/l10-assets-scenario-cleanup`. Landed:
-`72f86261` (L10.1, nova_authoring) and `a52f990d` (L10.2, the Storage trait).
-Workspace `cargo check --workspace --all-targets` and
-`--target wasm32-unknown-unknown -p nova_assets -p nova_menu` are green; the
-storage/persist/settings_store tests pass. NEXT STEP: route the four
-scenario -> HUD sites through `nova_events`, then `render_scale`, then the
-preludes, then the three verification gates.
+LANE COMPLETE 2026-08-08, sprout `refactor/l10-assets-scenario-cleanup`, five
+commits: `72f86261` L10.1 nova_authoring, `a52f990d` L10.2 the Storage trait,
+`7b5a6991` L10.3 the two HudReadoutFormat halves, `0f24b066` L10.4
+render_scale's crate doc, `8a41de9e` L10.5 the preludes. Every step ticked;
+gates in the last step.
+
+BLOCKED ON A REBASE BEFORE IT CAN LAND, and this is the one thing the next
+context must not skip. The branch was cut at `e0b374e0`; L9 (`54ebcc2a`) landed
+on master while this lane ran and split `nova_gameplay` four ways, including
+`nova_gameplay/src/hud/readout.rs` -> `crates/nova_hud/src/readout.rs` - a file
+L10.3 edits. `git rebase master` was attempted and ABORTED at L10.1 with a
+content conflict in `crates/nova_assets/src/merge.rs`; the branch is back at
+`8a41de9e`, clean, and every proof above was measured there. Landing this lane
+means replaying all five commits over the split, re-pointing L10.3's
+`hud::readout` edits at `nova_hud`, and re-running the gates on the result.
+Do not merge it un-rebased: this branch's TASK.md predates L9's ticks and would
+revert them.
 
 - [x] Create `nova_authoring` and move `lint_walk.rs`, `balance.rs`,
       `content_report.rs`, `scenario_generation.rs`, `bin/content.rs` (as the
