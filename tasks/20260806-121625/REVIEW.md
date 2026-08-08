@@ -361,3 +361,112 @@ nix develop --command cargo clippy --workspace --all-targets -- -D warnings
 nix develop --command cargo test -p nova_ship --lib
 sed -n '229,246p' web/src/wiki/dev/architecture.md
 ```
+
+## Round 2
+
+- REVIEWER: in-session, post-land (L11 squash `a6671015` on master)
+- VERDICT: REQUEST_CHANGES
+
+L11 landed before this round ran, so the findings were addressed directly
+on master rather than on the lane branch. The substance of the lane holds
+up: the `try_despawn` double-despawn fixes, the shared
+`DefaultProjectileRender`, the `Activate`-over-`Pressed` change, the angle
+seam fix and the relative snap tolerance are each correct and each carries
+a test that fails without it.
+
+- [ ] R2.1 (MEDIUM) crates/nova_ship/src/camera/skybox.rs:118 - the
+  `unwrap()` became `error!` + `return`, but four comments still justify
+  the deferred skybox install by saying the observer PANICS:
+  `nova_scenario/src/loader/lifecycle.rs:183`, `:463`, the assertion
+  message at `:501`, and `nova_scenario/src/loader/mod.rs:397`. The
+  deferral is still required, but for a different reason - the observer is
+  an `On<Insert, SkyboxConfig>`, so it runs once and never retries, and a
+  camera that misses its image is skyless for the scenario's whole life.
+  A reader who checks the stated reason and finds no panic deletes the
+  deferral.
+  - Response: All four rewritten to the no-retry reason. `skybox.rs` also
+    gained the missing half of the contract at its own site: a fn docstring
+    saying the observer runs once per insert and is never retried (naming
+    `PendingSkyboxSwap` as why that is survivable), and a NOTE on the
+    early return itself.
+- [ ] R2.2 (LOW) crates/nova_scenario/src/objects/area.rs:72 -
+  `forget_body_occupancy` widened from `On<Remove, ScenarioAreaMarker>` to
+  `On<Remove, EntityId>`. Correct today (nothing removes `EntityId` from a
+  live entity), but the observer is now reachable from every entity in the
+  game on an unstated assumption: a bare `remove::<EntityId>()` on a live
+  body inside a sensor drops its occupancy row, after which
+  `on_collision_end_event`'s missing-row guard swallows the real exit and
+  the area never fires `OnExit` for it.
+  - Response: Not documented - removed. Bevy 0.19 has a despawn-only
+    lifecycle event, so the observer is now `On<Despawn, EntityId>` and the
+    assumption is gone rather than written down. The docstring records why
+    `Despawn` and not `Remove`.
+    `a_body_despawned_inside_an_area_drops_its_occupancy` still passes.
+- [ ] R2.3 (LOW) crates/nova_ui/src/widget/button.rs:839 -
+  `press_reads_differently_from_hover_in_both_skins` asserts cross-skin
+  PARITY only, so it is green whenever a variant is equally broken on both
+  skins. Two variants were: `Ghost` (phosphor collapses `hovered ||
+  pressed` into one paint, the hardware arm never reads `pressed`) and
+  `Primary` (both skins take an inverted early-out that ignores
+  `pressed`). `Ghost` is what `segmented_option` builds, so the
+  Graphics-preset and UI-skin rows had no press feedback at all - the same
+  defect the Danger fix had just closed. The `face()` closure also compared
+  gradients by stop COUNT, so a press expressed only in gradient colours
+  would read as no reaction.
+  - Response: Test widened first and confirmed failing ("Primary has no
+    press feedback on Phosphor"): it now asserts `reacts_to_press` for
+    every variant on every skin AND keeps the parity assertion, and
+    `face()` compares whole gradients. Then fixed: phosphor's inverted
+    face dims to `PHOSPHOR_LO` and drops its glow on press; phosphor
+    `Ghost` gains its own pressed arm; hardware `Primary` and `Selected`
+    invert their bevel and drop the shadow like every other hardware face;
+    hardware `Ghost` takes a dark wash under a brighter border (no
+    gradient - it is fill-less by contract). `nova_ui` lib 30/30.
+- [ ] R2.4 (LOW) CHANGELOG.md - `## [Unreleased]` carries nothing for six
+  user-visible changes on this lane, two of them modder-facing and so the
+  ones most likely to be lost when the epic close-out reconstructs the list
+  from 24 commits: `ScenarioConfig` losing `Default` (a source break) and
+  the scenario lint newly warning on `auto_advance_secs: Some(0.0)` /
+  `NextScenario` `delay: Some(0.0)` (third-party content starts emitting
+  warnings).
+  - Response: Six lines added under Gameplay & Flight (orbit seam), a new
+    Combat & Weapons (AI cadence on the fixed clock), Modding & Mod Portal
+    (the zero-delay lint), a new Interface & HUD (commit-on-release, the
+    per-variant press faces, the slider inset, the block meter) and
+    Internals & Tooling (the `ScenarioConfig` break). Each claim re-read
+    against the shipped code before writing - the slider line quotes the
+    ~3px the source comment measures, not a guess.
+- [ ] R2.5 (NIT) crates/nova_scenario/src/loader/mod.rs:209 -
+  `ScenarioConfig::new(id, name, cubemap)` takes two adjacent `String`s
+  (`ScenarioId` is a type alias), so `new(name, id, cubemap)` compiles and
+  silently yields a scenario whose id is its display name - a mistake the
+  old struct-literal form made impossible. All 39 converted call sites are
+  correct.
+  - Response: No newtype and no call-site churn. Scenario ids are
+    snake_case slugs and display names are not, so `new` now
+    `debug_assert!`s the slug shape with a message naming the swap.
+    Authored RON is unaffected (serde builds the struct directly), so this
+    constrains in-repo builders only.
+    `a_display_name_in_the_id_slot_is_rejected` pins it.
+
+Verified for this round: `cargo fmt --all -- --check` clean; `cargo check
+--workspace --all-targets` exit 0; `cargo clippy -p nova_ui -p
+nova_scenario -p nova_ship --all-targets -- -D warnings` clean (the
+`proc-macro-error2` future-incompat note is F84, out of scope). Lib tests:
+nova_ui 30, nova_scenario 156 (155 + R2.5's), nova_ship 416, nova_menu 77,
+nova_authoring 44, nova_assets 60 - all green. `content -- gen` re-run and
+`assets/` came back byte-identical, which is also what proves every shipped
+builder satisfies the new slug assert. `probe run widget_zoo` OK (6/7, the
+7th is `fps_within_baseline`, not armed) - the interactive button run still
+lights its pressed face (0.12 -> 0.2).
+
+Not taken: the news post for these lines. `## [Unreleased]` is the right
+home until a version is cut; the release skill owns the post.
+
+Inspection commands:
+
+```bash
+git diff HEAD
+nix develop --command cargo test --lib -p nova_ui
+nix develop --command cargo test --lib -p nova_scenario
+```

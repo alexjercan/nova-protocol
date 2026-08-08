@@ -23,6 +23,13 @@ tagged **(breaking)**.
   its noise-mesh radius - the same rock is the same well on every seed instead
   of swinging 1.7x. `soi_factor` and `default_surface_gravity` are gone; a mod
   authoring `surface_gravity` loses that setting silently.
+- The chase camera takes the SHORT way around the rear (-Z) seam: an orbit that
+  crossed it used to swing the long way round as the angle wrapped.
+
+### Combat & Weapons
+
+- AI burst cadence ticks on the fixed clock, so AI damage output no longer
+  varies with framerate.
 
 ### Scenarios & Objectives
 
@@ -45,14 +52,33 @@ tagged **(breaking)**.
 
 ### Modding & Mod Portal
 
+- The scenario lint warns on a zero delay written as a value:
+  `auto_advance_secs: Some(0.0)` and a `NextScenario` `delay: Some(0.0)` now
+  report - both mean "no delay", which is spelled `None`. Third-party content
+  authoring `0.0` starts emitting warnings.
 - Portal republish so installed copies actually get the relit scenarios and the
   mass-authored gravity wells: Gauntlet Run `1.3.0 -> 1.5.0`, The Ledger
   `1.14.0 -> 1.16.0`. The Mods screen offers an Update on a version-string
   mismatch, so without the bump an installed copy would keep its unlit content
   and render black, and its wells would silently lose their authored gravity.
 
+### Interface & HUD
+
+- Setting buttons commit on RELEASE over the button, not on mouse-down: press
+  a wrong option, drag off and release, and nothing changes.
+- Every button variant now has its own pressed face on BOTH skins. `Ghost` (the
+  segmented Graphics-preset and UI-skin rows) and `Primary` had no press
+  feedback at all; the hardware Exit/Danger face gains a sunk one.
+- The phosphor slider track drops its 2px inset, so the lit edge lands on the
+  value the click actually commits instead of ~3px off it.
+- The block meter no longer rounds a near-full value to full or a near-empty
+  one to empty: 98% reads as 98%, 2% reads as 2%.
+
 ### Internals & Tooling
 
+- **(breaking)** `ScenarioConfig` no longer derives `Default`; build one with
+  `ScenarioConfig::new(id, name, cubemap)` plus struct-update syntax. A
+  defaulted `cubemap` was never a valid scenario.
 - `examples/sections/`: five ranges, one per section family, each walking a
   NAMED roster of invariants over several predicate-gated rounds, across as
   many scenes or rig layouts as its invariants need. `com_range` folds into

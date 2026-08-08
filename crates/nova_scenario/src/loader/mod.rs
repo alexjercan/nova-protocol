@@ -203,6 +203,15 @@ impl ScenarioConfig {
     /// A scenario with only its three REQUIRED fields set: everything else
     /// (`description`, `thumbnail`, `hidden`, `menu_backdrop`, `events`) takes
     /// its empty value, to be overridden through struct-update syntax.
+    ///
+    /// # Panics
+    ///
+    /// Debug builds only: `id` and `name` are adjacent `String`s, so swapping
+    /// them compiles and silently yields a scenario whose id is its display
+    /// name. Scenario ids are snake_case slugs and display names are not, so
+    /// this asserts the slug shape to make that swap loud instead of silent.
+    /// Only in-repo Rust builders reach here - authored RON deserializes
+    /// straight into the struct.
     // `cubemap` stays a concrete `AssetRef<Image>`: an `impl Into` there makes
     // the callers' own `handle.into()` ambiguous, since half of bevy converts
     // a `Handle<Image>`.
@@ -211,8 +220,16 @@ impl ScenarioConfig {
         name: impl Into<String>,
         cubemap: AssetRef<Image>,
     ) -> Self {
+        let id = id.into();
+        debug_assert!(
+            !id.is_empty()
+                && id
+                    .chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_'),
+            "scenario id {id:?} is not a snake_case slug - are `id` and `name` swapped?"
+        );
         Self {
-            id: id.into(),
+            id,
             name: name.into(),
             description: String::new(),
             cubemap,
@@ -394,8 +411,9 @@ impl Plugin for ScenarioLoaderPlugin {
         // Deferred skybox swap behind `EventActionConfig::SetSkybox`: the
         // action tags the scenario camera with a `PendingSkyboxSwap`, and this
         // applier installs the `SkyboxConfig` once the new cubemap image has
-        // loaded - the setup observer panics on an unloaded image, so the
-        // insert cannot happen synchronously in the action.
+        // loaded - the setup observer fires once on insert and gives up (logged
+        // error, no retry) on an unloaded image, so a synchronous insert in the
+        // action would drop the sky for good.
         app.register_type::<PendingSkyboxSwap>();
         app.add_systems(Update, apply_pending_skybox_swaps.run_if(scenario_is_live));
 
@@ -450,6 +468,18 @@ fn enforce_scripted_camera_pose(mut cameras: Query<(&mut Transform, &ScriptedCam
 mod tests {
     use super::*;
     use crate::loader::fixtures::*;
+
+    /// `new(id, name, ..)` takes two adjacent `String`s, so a swap compiles.
+    /// The slug guard is what makes it loud in debug builds.
+    #[test]
+    #[should_panic(expected = "are `id` and `name` swapped?")]
+    fn a_display_name_in_the_id_slot_is_rejected() {
+        let _ = ScenarioConfig::new(
+            "Sky Test".to_string(),
+            "sky_test".to_string(),
+            AssetRef::from("textures/sky.png".to_string()),
+        );
+    }
 
     #[test]
     fn snapshot_reports_id_and_handler_count() {

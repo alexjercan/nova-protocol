@@ -179,12 +179,13 @@ pub(super) fn on_load_scenario(
     // camera deliberately never carries it.
     //
     // The skybox goes on DEFERRED (PendingSkyboxSwap, the SetSkybox action's
-    // applier): the skybox setup observer reads the image out of
-    // `Assets<Image>` the instant a `SkyboxConfig` lands and panics on a
-    // not-yet-loaded handle. Preloaded cubemaps (the GameAssets set) apply on
-    // the next frame; a cubemap the collection does NOT preload - broadside's
-    // alt sky, any mod shipping its own - loads in and applies when ready
-    // instead of crashing the load.
+    // applier): the skybox setup observer is an `On<Insert, SkyboxConfig>`, so
+    // it reads the image out of `Assets<Image>` once, at insert time, and
+    // gives up with a logged error on a not-yet-loaded handle - it is never
+    // re-run for that camera, which would leave the scenario skyless for its
+    // whole lifetime. Preloaded cubemaps (the GameAssets set) apply on the next
+    // frame; a cubemap the collection does NOT preload - broadside's alt sky,
+    // any mod shipping its own - loads in and applies when ready.
     commands.spawn((
         ScenarioScopedMarker,
         ScenarioCameraMarker,
@@ -459,9 +460,10 @@ mod tests {
         );
     }
 
-    /// The loader's skybox install is DEFERRED: an eager `SkyboxConfig` insert
-    /// panics inside the bcs setup observer for any cubemap not already sitting
-    /// in `Assets<Image>` - which is every non-preloaded scenario/mod sky. Pin
+    /// The loader's skybox install is DEFERRED: the bcs setup observer fires
+    /// once on `SkyboxConfig` insert and, for any cubemap not already sitting
+    /// in `Assets<Image>` - which is every non-preloaded scenario/mod sky -
+    /// logs an error and never retries, leaving that camera skyless. Pin
     /// the invariant at the loader's own boundary: after a load, the camera
     /// carries `PendingSkyboxSwap` and NOT `SkyboxConfig`.
     #[test]
@@ -498,7 +500,7 @@ mod tests {
         );
         assert!(
             installed.is_none(),
-            "no eager SkyboxConfig: the skybox observer would panic on an unloaded image"
+            "no eager SkyboxConfig: the skybox observer runs once and would give up on an unloaded image"
         );
     }
 

@@ -98,6 +98,10 @@ impl Plugin for SkyboxPlugin {
 }
 
 /// Handle setup when a SkyboxConfig is inserted on a camera.
+///
+/// This runs ONCE per insert and is never retried, so the config must only be
+/// inserted after its cubemap has loaded - `nova_scenario`'s `PendingSkyboxSwap`
+/// applier exists for exactly that reason.
 fn setup_skybox_camera(
     insert: On<Insert, SkyboxConfig>,
     mut commands: Commands,
@@ -116,6 +120,8 @@ fn setup_skybox_camera(
     };
 
     let Some(mut image) = images.get_mut(&config.cubemap) else {
+        // No retry: this camera stays skyless until a later insert. Inserting
+        // `SkyboxConfig` before its image loads is the caller's bug.
         error!(
             "setup_skybox_camera: cubemap for entity {:?} is not loaded",
             entity

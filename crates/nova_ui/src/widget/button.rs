@@ -127,7 +127,13 @@ fn phosphor_paint(
     let (bg, border, text) = if disabled {
         (p.with_alpha(0.02), p.with_alpha(0.12), p.with_alpha(0.3))
     } else if inverted {
-        (p, p, theme::INK)
+        // Pressed dims the lit face (and drops the glow below): an inverted
+        // button is already at full phosphor, so sinking is the only move left.
+        if pressed {
+            (theme::PHOSPHOR_LO, p, theme::INK)
+        } else {
+            (p, p, theme::INK)
+        }
     } else {
         match variant {
             ButtonVariant::Danger => {
@@ -141,7 +147,9 @@ fn phosphor_paint(
                 }
             }
             ButtonVariant::Ghost => {
-                if hovered || pressed {
+                if pressed {
+                    (p.with_alpha(0.14), p, p)
+                } else if hovered {
                     (p.with_alpha(0.06), p.with_alpha(0.4), p)
                 } else {
                     (Color::NONE, p.with_alpha(0.25), p)
@@ -161,8 +169,8 @@ fn phosphor_paint(
 
     // The inverted (selected/primary) phosphor face carries the PoC glow - a
     // shadow, not a gradient, so the "phosphor is a flat CLI element" contract
-    // (which forbids a bevel GRADIENT) still holds.
-    let shadow = (!disabled && inverted).then(|| glow_shadow(theme::PHOSPHOR));
+    // (which forbids a bevel GRADIENT) still holds. Pressing puts it out.
+    let shadow = (!disabled && inverted && !pressed).then(|| glow_shadow(theme::PHOSPHOR));
 
     Paint {
         bg,
@@ -187,14 +195,20 @@ fn hardware_paint(
     let border = theme::CASE_EDGE;
 
     // Selected -> amber gradient; Primary -> phosphor gradient; both inverted.
+    // Both sink the same way every other hardware face does: the bevel gradient
+    // is inverted and the drop shadow goes away.
     if !disabled && selected {
         return Paint {
             bg: theme::AMBER_NOVA,
             border,
             text: theme::INK,
             radius,
-            gradient: Some(grad3(theme::AMBER_HI, theme::AMBER_NOVA, theme::AMBER_LO)),
-            shadow: Some(glow_shadow(theme::AMBER_NOVA)),
+            gradient: Some(if pressed {
+                grad3(theme::AMBER_LO, theme::AMBER_NOVA, theme::AMBER_HI)
+            } else {
+                grad3(theme::AMBER_HI, theme::AMBER_NOVA, theme::AMBER_LO)
+            }),
+            shadow: (!pressed).then(|| glow_shadow(theme::AMBER_NOVA)),
             cursor_visible,
         };
     }
@@ -204,12 +218,12 @@ fn hardware_paint(
             border,
             text: theme::INK,
             radius,
-            gradient: Some(grad3(
-                theme::PHOSPHOR_HI,
-                theme::PHOSPHOR,
-                theme::PHOSPHOR_LO,
-            )),
-            shadow: Some(glow_shadow(theme::PHOSPHOR)),
+            gradient: Some(if pressed {
+                grad3(theme::PHOSPHOR_LO, theme::PHOSPHOR, theme::PHOSPHOR_HI)
+            } else {
+                grad3(theme::PHOSPHOR_HI, theme::PHOSPHOR, theme::PHOSPHOR_LO)
+            }),
+            shadow: (!pressed).then(|| glow_shadow(theme::PHOSPHOR)),
             cursor_visible,
         };
     }
@@ -227,13 +241,23 @@ fn hardware_paint(
     }
 
     match variant {
+        // Ghost stays fill-less by contract, so the press cannot be a bevel: it
+        // is a dark wash under the border instead.
         ButtonVariant::Ghost => Paint {
-            bg: if hovered {
+            bg: if pressed {
+                Color::BLACK.with_alpha(0.22)
+            } else if hovered {
                 Color::WHITE.with_alpha(0.04)
             } else {
                 Color::NONE
             },
-            border: Color::WHITE.with_alpha(if hovered { 0.22 } else { 0.12 }),
+            border: Color::WHITE.with_alpha(if pressed {
+                0.3
+            } else if hovered {
+                0.22
+            } else {
+                0.12
+            }),
             text: HW_TEXT,
             radius,
             gradient: None,
@@ -831,19 +855,23 @@ mod tests {
         );
     }
 
-    /// SKIN COMPARISON: whether a variant reacts to a press must be the SAME
-    /// on both skins. The hardware Danger face (the Exit button) collapsed
-    /// hover and press into one paint while the phosphor one did not, so Exit
-    /// had press feedback on one skin only.
+    /// EVERY variant must give a press its own face, on BOTH skins. Two bugs
+    /// live here: a variant that reacts on one skin only (the hardware Danger
+    /// face - the Exit button - collapsed hover and press into one paint), and
+    /// a variant that reacts on NEITHER (`Ghost`, which `segmented_option`
+    /// builds, so the Graphics-preset and UI-skin rows had no press feedback at
+    /// all). Parity alone would pass the second case, so assert both.
     #[test]
     fn press_reads_differently_from_hover_in_both_skins() {
-        // The visually load-bearing parts of a Paint, comparable.
+        // The visually load-bearing parts of a Paint, comparable. The gradient
+        // is compared by its STOPS, not its stop count: a variant that reacts
+        // to press only through gradient colours must still read as reacting.
         let face = |skin, variant, hovered, pressed| {
             let p = button_paint(skin, variant, false, hovered, pressed, false);
             (
                 format!("{:?}", p.bg),
                 format!("{:?}", p.text),
-                format!("{:?}", p.gradient.map(|g| g.0.len())),
+                format!("{:?}", p.gradient),
                 p.shadow.is_some(),
             )
         };
@@ -857,15 +885,18 @@ mod tests {
             ButtonVariant::Danger,
             ButtonVariant::Ghost,
         ] {
+            for skin in [UiSkin::Phosphor, UiSkin::Hardware] {
+                assert!(
+                    reacts_to_press(skin, variant),
+                    "{variant:?} has no press feedback on {skin:?}"
+                );
+            }
             assert_eq!(
                 reacts_to_press(UiSkin::Phosphor, variant),
                 reacts_to_press(UiSkin::Hardware, variant),
                 "{variant:?} gives press its own face on one skin but not the other"
             );
         }
-
-        // Danger is the one the finding named: Exit must sink on both skins.
-        assert!(reacts_to_press(UiSkin::Hardware, ButtonVariant::Danger));
     }
 
     // NOTE: `Resource` is component-backed in Bevy 0.19, so it also provides the

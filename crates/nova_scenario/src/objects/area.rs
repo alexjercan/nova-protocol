@@ -65,14 +65,20 @@ impl Plugin for ScenarioAreaPlugin {
 /// observer covers both sides. Scenario teardown despawns every scoped entity,
 /// so this is also what clears the table between scenarios.
 ///
+/// `Despawn`, NOT `Remove`: this is now reachable from every entity in the game
+/// rather than from areas only, and a bare `remove::<EntityId>()` on a LIVE
+/// body would drop its row while it is still physically inside the sensor -
+/// after which [`on_collision_end_event`]'s missing-row guard swallows the real
+/// exit and the area never fires `OnExit` for it.
+///
 /// PRUNE ONLY: the row is dropped silently, so a body destroyed inside an area
 /// fires no `OnExit` for ITSELF. The only `OnExitEvent` is on the 1 -> 0
 /// transition in [`on_collision_end_event`]. What this restores is the NEXT
 /// body's ability to reach zero at all.
-fn forget_body_occupancy(remove: On<Remove, EntityId>, mut occupancy: ResMut<AreaOccupancy>) {
+fn forget_body_occupancy(despawn: On<Despawn, EntityId>, mut occupancy: ResMut<AreaOccupancy>) {
     occupancy
         .0
-        .retain(|(area, other), _| *area != remove.entity && *other != remove.entity);
+        .retain(|(area, other), _| *area != despawn.entity && *other != despawn.entity);
 }
 
 fn insert_collision_events(add: On<Add, ScenarioAreaMarker>, mut commands: Commands) {
