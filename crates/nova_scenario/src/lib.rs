@@ -5,9 +5,17 @@
 //! entities and conditions), `actions` (what to do), `variables` (scenario
 //! state), `objects` (spawnable scenario entities), `world` (the
 //! `NovaEventWorld` holding live scenario state), `loader` (parse + register
-//! bundles), `render_scale` (the Low-preset resolution lever), and `lint` (the
-//! author-time content checks the `content` CLI runs). This crate is the
-//! runtime; the authoring grammar is documented in the scenario-system wiki.
+//! bundles), and `lint` (the author-time content checks the `content` CLI
+//! runs). This crate is the runtime; the authoring grammar is documented in
+//! the scenario-system wiki.
+//!
+//! `render_scale` is the exception - not vocabulary, but the Low-preset
+//! resolution lever. It lives here because it retargets the
+//! [`ScenarioCameraMarker`](loader::prelude::ScenarioCameraMarker) cameras this
+//! crate spawns, and nova_gameplay - which owns the render POLICY
+//! (`GraphicsBudget::render_scale`) - must not depend on nova_scenario. The
+//! split is deliberate: the tier picks the fraction, the scenario view applies
+//! it.
 #![warn(missing_docs)]
 
 /// What a handler does when it fires: the action config vocabulary.

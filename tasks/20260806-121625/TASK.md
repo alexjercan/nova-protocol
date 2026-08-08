@@ -1393,8 +1393,22 @@ preludes, then the three verification gates.
       full paths remain in `world.rs` and the three mission tests. The variant
       names are what RON serializes, so no content changed -
       `content_ron_parity` passes without regeneration.
-- [ ] Lift `render_scale` out of `nova_scenario` into whichever crate owns the
+- [x] Lift `render_scale` out of `nova_scenario` into whichever crate owns the
       render settings; decide by reading its consumers, not in advance.
+      **NOT LIFTED - the consumers forbid it, which is what reading them was
+      for.** Both `reconcile_render_scale` and its teardown query
+      `With<ScenarioCameraMarker>`, a `nova_scenario` type this crate spawns
+      (`loader/lifecycle.rs:644`). The crate that owns the render settings is
+      `nova_gameplay` (`settings.rs:180`, `GraphicsBudget::render_scale`), and
+      its Cargo.toml deps are `nova_events`, `nova_info`, `nova_os`, `nova_ui` -
+      no `nova_scenario`, by the same rule that keeps the HUD off it. The move
+      would invert the crate dependency to relocate a file.
+      The split is already correct and was mis-read as a violation: the tier
+      picks the fraction (nova_gameplay), the scenario view applies it
+      (nova_scenario). What WAS wrong is that `lib.rs:1-10` introduced the
+      module list as "the vocabulary a scenario is built from" and then listed
+      `render_scale` inside it - the one module that is not vocabulary. The
+      crate doc now names it as the exception and says why it lives here.
 - [ ] Rules 3+4 - 13 module preludes in `nova_assets` (13 public modules, 1
       prelude today) and 2 in `nova_scenario`, each written at the moved
       module's NEW home.
