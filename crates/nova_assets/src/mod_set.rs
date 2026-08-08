@@ -3,6 +3,22 @@
 //! the [`EnabledMods`] selection that decides which bundles the merge sees.
 //! `crate::merge::register_bundles` consumes what this module publishes.
 
+/// Glob-import surface: `use nova_assets::mod_set::prelude::*` re-exports the
+/// public API of this module. The two platform halves are gated here as well as
+/// at their definitions, so a caller globbing the prelude gets exactly the set
+/// that compiles for its target.
+pub mod prelude {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub use super::load_downloaded_mods;
+    pub use super::{
+        build_mod_catalog, installed_set_changed, load_enabled_mods,
+        mark_downloaded_bundles_loaded, save_enabled_mods, seed_enabled_mods, DownloadedMod,
+        DownloadedMods, EnabledMods, ModCatalog, ModInfo,
+    };
+    #[cfg(target_arch = "wasm32")]
+    pub use super::{poll_mod_cache_hydration, start_mod_cache_hydration, ModCacheHydration};
+}
+
 use std::collections::HashSet;
 
 use bevy::prelude::*;

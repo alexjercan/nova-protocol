@@ -19,6 +19,15 @@
 //! mod it points at, and a `dep://` target must be a declared dependency (or
 //! `base`).
 
+/// Glob-import surface: `use nova_assets::mod_refs::prelude::*` re-exports the
+/// public API of this module.
+pub mod prelude {
+    pub use super::{
+        bare_asset_refs, resource_ref_violations, rewrite_refs, DepRef, RefScope, DEP_SCHEME,
+        SELF_SCHEME,
+    };
+}
+
 use std::collections::{HashMap, HashSet};
 
 use nova_modding::prelude::Content;

@@ -2,6 +2,12 @@
 //! order and overlay it by id into the game's registries (`GameSections`,
 //! `GameScenarios`, `GameCampaigns`), linting the result as it goes.
 
+/// Glob-import surface: `use nova_assets::merge::prelude::*` re-exports the
+/// public API of this module.
+pub mod prelude {
+    pub use super::{merge_bundles, register_bundles, MergeOutcome};
+}
+
 use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;

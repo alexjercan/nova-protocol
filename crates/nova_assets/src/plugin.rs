@@ -2,6 +2,12 @@
 //! [`GameAssetsPlugin`], which schedules the mod-cache load, the content merge
 //! and the asset-collection gates.
 
+/// Glob-import surface: `use nova_assets::plugin::prelude::*` re-exports the
+/// public API of this module.
+pub mod prelude {
+    pub use super::{GameAssetsPlugin, GameAssetsStates};
+}
+
 use bevy::prelude::*;
 use bevy_asset_loader::prelude::*;
 

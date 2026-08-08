@@ -7,6 +7,12 @@
 //!
 //! Touch this module when adding a new thing an authored action can do.
 
+/// Glob-import surface: `use nova_scenario::world::prelude::*` re-exports the
+/// public API of this module.
+pub mod prelude {
+    pub use super::NovaEventWorld;
+}
+
 use std::collections::VecDeque;
 
 use bevy::{ecs::world::CommandQueue, platform::collections::HashMap, prelude::*};

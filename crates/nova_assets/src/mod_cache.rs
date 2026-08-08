@@ -43,6 +43,26 @@
 //! additionally SANDBOXED at the reader layer (`SandboxedAssetReader`) so
 //! containment does not depend on that default.
 
+/// Glob-import surface: `use nova_assets::mod_cache::prelude::*` re-exports the
+/// public API of this module. The file-bytes half is gated here as well as at
+/// its definitions: the two platforms expose the SAME names with different
+/// signatures (native returns `io::Result`, wasm returns an `async` future), so
+/// a caller globbing the prelude gets exactly the set that compiles for its
+/// target.
+pub mod prelude {
+    #[cfg(target_arch = "wasm32")]
+    pub use super::{
+        commit_mod_files, read_all_files, read_mod_file, remove_mod, remove_mod_files,
+        store_mod_files, ModsSourceDir,
+    };
+    #[cfg(not(target_arch = "wasm32"))]
+    pub use super::{install_local, read_mod_file, remove_mod, remove_mod_files, store_mod_files};
+    pub use super::{
+        read_index, register_mods_source, remove_index_record, upsert_index_record, write_index,
+        IndexRead, InstalledModRecord, MODS_SOURCE,
+    };
+}
+
 use std::path::Path;
 
 #[cfg(target_arch = "wasm32")]

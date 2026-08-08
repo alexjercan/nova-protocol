@@ -1409,13 +1409,51 @@ preludes, then the three verification gates.
       module list as "the vocabulary a scenario is built from" and then listed
       `render_scale` inside it - the one module that is not vocabulary. The
       crate doc now names it as the exception and says why it lives here.
-- [ ] Rules 3+4 - 13 module preludes in `nova_assets` (13 public modules, 1
+- [x] Rules 3+4 - 13 module preludes in `nova_assets` (13 public modules, 1
       prelude today) and 2 in `nova_scenario`, each written at the moved
       module's NEW home.
-- [ ] Confirm L3's F57 regeneration landed as its own commit BEFORE the content
+      **9 in `nova_assets`, not 13** - and the count was right when it was
+      written. L10.1 moved four modules out to `nova_authoring`, so the crate
+      is 6 public modules (`mod_cache`, `mod_prefs`, `mod_refs`, `persist`,
+      `portal`, `storage`) plus 4 private ones (`collections`, `merge`,
+      `mod_set`, `plugin`). `storage` already had its prelude from L10.2, so
+      this step wrote the other 9. The private four get one too: rule 3 is
+      about every module that EXPORTS items, and their export path is the
+      crate root, which is now four `<module>::prelude::*` lines instead of a
+      hand-maintained item list that had drifted from the modules twice.
+      The three cfg-split modules carry their gates INSIDE the prelude
+      (`mod_set`, `mod_cache`). `mod_cache` is the one that matters: both
+      platforms export the same five file-bytes names with different
+      signatures (native `io::Result`, wasm `async`), so an ungated prelude
+      would not compile on either target. Verified on both.
+      `nova_scenario` was exactly 2 as planned (`world`, `render_scale`) - the
+      other seven modules already had theirs - and its crate prelude is now
+      nine uniform `::prelude::*` lines with no item list left in it.
+- [x] Confirm L3's F57 regeneration landed as its own commit BEFORE the content
       move; otherwise the `content_ron_parity` diff is unreviewable.
-- [ ] Verify with `content -- lint`, `content_ron_parity` and the `shakedown`
+      Confirmed, and the hazard never existed. `git log -- assets/base/` shows
+      NO commit from this epic: the F57 regeneration was a byte-for-byte
+      NO-OP, so there was no generated churn for a content move to hide behind.
+      `content_ron_parity` passing on the unchanged committed tree is the
+      proof that the builders and `assets/base/**` still agree. The content
+      move itself was falsified three steps up, so the ordering constraint is
+      moot on both ends.
+- [x] Verify with `content -- lint`, `content_ron_parity` and the `shakedown`
       scenario walk.
+      `content -- lint`: 0 errors, 0 warnings, 0 findings, 14 scenarios
+      balance-audited, 1 acked. `content_ron_parity`: 2/2. Both now run under
+      `-p nova_authoring`, not `-p nova_assets` - L10.1 moved the binary and
+      the test with the toolchain, so DoD proof 7's `-p nova_assets --bin
+      content` no longer resolves and needs the same correction at review.
+      The scenario walk ran as the three nova_assets scenario e2e suites that
+      exercise the merge pipeline and the readout path this lane touched -
+      `example_scenario` 14/14, `gauntlet_course` 12/12, `lifeline_convoy`
+      8/8. The windowed `probe run --all` walk is the epic's own final-run
+      step, not repeated per lane.
+      Gates across the whole lane: `cargo check --workspace --all-targets`
+      green, `cargo check -p nova_assets -p nova_menu --target
+      wasm32-unknown-unknown` green, `cargo clippy --workspace --all-targets
+      -- -D warnings` clean at the configuration L0 added to CI.
 
 ### Lane11 - "PERF AND SMALL CORRECTNESS" - tasks/20260806-121625/plan/lane11.md
 

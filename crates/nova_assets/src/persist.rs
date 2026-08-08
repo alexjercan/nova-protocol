@@ -24,6 +24,12 @@
 //! the two stores it replaces were: Bevy 0.19 is bleeding-edge, and this is a
 //! best-effort read/write of one small file.
 
+/// Glob-import surface: `use nova_assets::persist::prelude::*` re-exports the
+/// public API of this module.
+pub mod prelude {
+    pub use super::{load, load_from, save, save_to};
+}
+
 use bevy::prelude::*;
 use serde::{de::DeserializeOwned, Serialize};
 

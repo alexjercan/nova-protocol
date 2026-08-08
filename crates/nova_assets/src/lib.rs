@@ -29,18 +29,14 @@ pub mod persist;
 pub mod portal;
 pub mod storage;
 
-pub use collections::{BootAssets, GameAssets};
-pub use merge::{merge_bundles, register_bundles, MergeOutcome};
-#[cfg(not(target_arch = "wasm32"))]
-pub use mod_set::load_downloaded_mods;
-pub use mod_set::{
-    build_mod_catalog, installed_set_changed, load_enabled_mods, mark_downloaded_bundles_loaded,
-    save_enabled_mods, seed_enabled_mods, DownloadedMod, DownloadedMods, EnabledMods, ModCatalog,
-    ModInfo,
-};
-#[cfg(target_arch = "wasm32")]
-pub use mod_set::{poll_mod_cache_hydration, start_mod_cache_hydration, ModCacheHydration};
-pub use plugin::{GameAssetsPlugin, GameAssetsStates};
+// The four private modules have no path of their own, so the crate root is
+// where their preludes surface. The public modules are reachable as
+// `nova_assets::<module>::prelude::*` and are re-exported here only for the
+// names the crate's own consumers glob.
+pub use collections::prelude::*;
+pub use merge::prelude::*;
+pub use mod_set::prelude::*;
+pub use plugin::prelude::*;
 
 /// Glob-import surface: `use nova_assets::prelude::*` brings the loaded-asset
 /// resources, the mod-set/portal types, and [`GameAssetsPlugin`] into scope.

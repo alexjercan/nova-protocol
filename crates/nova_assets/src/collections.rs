@@ -2,6 +2,12 @@
 //! `Processing`-state systems that publish their handles to the consumers that
 //! read them (the UI font, the skybox cube view, the UI sound bank, the HUD art).
 
+/// Glob-import surface: `use nova_assets::collections::prelude::*` re-exports
+/// the public API of this module.
+pub mod prelude {
+    pub use super::{BootAssets, GameAssets};
+}
+
 use bevy::{
     prelude::*,
     render::render_resource::{TextureViewDescriptor, TextureViewDimension},

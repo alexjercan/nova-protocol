@@ -3,6 +3,12 @@
 //! Storage, and its best-effort semantics, belong to [`crate::persist`]; this
 //! module owns only the key and the value type.
 
+/// Glob-import surface: `use nova_assets::mod_prefs::prelude::*` re-exports the
+/// public API of this module.
+pub mod prelude {
+    pub use super::{load_enabled_ids, save_enabled_ids};
+}
+
 use crate::persist;
 
 /// The store key: `<config_dir>/nova-protocol/enabled_mods.ron` on native,

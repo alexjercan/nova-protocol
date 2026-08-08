@@ -46,6 +46,12 @@
 //! projection stays aligned via the image target's `scale_factor` (step 2), not
 //! by sharing a coordinate space with the UI.
 
+/// Glob-import surface: `use nova_scenario::render_scale::prelude::*`
+/// re-exports the public API of this module.
+pub mod prelude {
+    pub use super::RenderScalePlugin;
+}
+
 use bevy::{
     camera::{ImageRenderTarget, RenderTarget},
     prelude::*,

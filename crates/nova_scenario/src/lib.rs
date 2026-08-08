@@ -40,8 +40,8 @@ pub mod world;
 pub mod prelude {
     pub use super::{
         actions::prelude::*, events::prelude::*, filters::prelude::*, lint::prelude::*,
-        loader::prelude::*, objects::prelude::*, render_scale::RenderScalePlugin,
-        variables::prelude::*, world::NovaEventWorld, NovaScenarioPlugin,
+        loader::prelude::*, objects::prelude::*, render_scale::prelude::*, variables::prelude::*,
+        world::prelude::*, NovaScenarioPlugin,
     };
 }
 

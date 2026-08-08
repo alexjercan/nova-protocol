@@ -40,6 +40,18 @@
 //! wedged CATALOG fetch has no client-side timeout; the menu's Retry affordance
 //! force-resets the state before re-triggering.
 
+/// Glob-import surface: `use nova_assets::portal::prelude::*` re-exports the
+/// public API of this module - the event/resource surface the mods menu binds
+/// to, plus the transport seam tests swap.
+pub mod prelude {
+    pub use super::{
+        EhttpTransport, FetchPortalCatalog, FetchResult, InstallJobs, InstallPortalMod,
+        InstallStatus, PendingRemovals, PortalClient, PortalConfig, PortalFetchTimeout,
+        PortalPlugin, PortalTransport, RemoteCatalog, RemoteCatalogState, UninstallPortalMod,
+        DEFAULT_PORTAL_URL,
+    };
+}
+
 mod catalog;
 mod config;
 mod install;
