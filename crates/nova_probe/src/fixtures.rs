@@ -17,6 +17,11 @@
 //! a scenario DSL. The four other inline `SpaceshipConfig` builders in
 //! `examples/` stay inline until a shape asks to join.
 
+/// Glob-import surface for the shared scenario builders.
+pub mod prelude {
+    pub use super::{asteroid, ship, spawn_on_start, SectionSpec};
+}
+
 use bevy::prelude::*;
 use nova_protocol::prelude::*;
 

@@ -15,6 +15,14 @@
 //!   `release`) - dev-profile numbers are not baselines, and the report
 //!   labels them.
 
+/// Glob-import surface for the frame-time wire format.
+pub mod prelude {
+    pub use super::{
+        append_frametime_row, parse_frametime_csv, parse_summary_line, FrameStats, PerfRun,
+        RunMeta, CSV_HEADER, CSV_HEADER_V1, CSV_HEADER_V2,
+    };
+}
+
 /// Percentile frame-time statistics over a capture window. Frame times are in
 /// milliseconds; the derived FPS figures are `1000 / ms`.
 #[derive(Debug, Clone, PartialEq)]

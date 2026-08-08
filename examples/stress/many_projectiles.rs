@@ -46,7 +46,7 @@
 
 use bevy::{platform::collections::HashMap, prelude::*};
 use clap::Parser;
-use nova_probe::fixtures::{self, SectionSpec};
+use nova_probe::fixtures::{self, prelude::*};
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]

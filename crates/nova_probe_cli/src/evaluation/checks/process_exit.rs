@@ -8,7 +8,7 @@
 //! to missing artifacts by design.
 
 use super::{Check, CheckStatus, RunArtifacts};
-use crate::evaluation::manifest::PassRecord;
+use crate::evaluation::prelude::*;
 
 const THRESHOLD: &str = "every primary pass exits success, untimed";
 

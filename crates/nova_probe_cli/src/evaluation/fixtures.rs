@@ -6,7 +6,7 @@ use std::{
     sync::atomic::{AtomicU32, Ordering},
 };
 
-use nova_probe::contract::{Capability, ProbeContract};
+use nova_probe::prelude::*;
 
 use super::{
     checks::Check,

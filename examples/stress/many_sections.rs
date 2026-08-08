@@ -38,7 +38,7 @@
 use avian3d::prelude::{ComputedCenterOfMass, ComputedMass};
 use bevy::prelude::*;
 use clap::Parser;
-use nova_probe::fixtures::{self, SectionSpec};
+use nova_probe::fixtures::{self, prelude::*};
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]

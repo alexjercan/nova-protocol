@@ -1,7 +1,7 @@
 //! The capabilities: one module per kind of evidence an example can collect
 //! about its own run. Each is a Bevy plugin the example wires, each writes one
 //! artifact into the run directory, and each declares itself into the run's
-//! [`ProbeContract`](crate::contract::ProbeContract) so `nova_probe_cli` knows what the run OWED before it
+//! [`ProbeContract`] so `nova_probe_cli` knows what the run OWED before it
 //! grades what it got.
 //!
 //! - [`frametime`] - wall-clock frame deltas over a fixed window ->
@@ -16,6 +16,8 @@
 //! output path still wires that capability itself.
 
 use bevy::prelude::*;
+
+use crate::prelude::*;
 
 pub mod frametime;
 // Continuous invariant checks ride the recorder's timeline sink, so they are
@@ -54,18 +56,21 @@ pub mod timeline {
 
     /// No-op on wasm.
     pub fn probe_marker(_world: &mut World, _name: &str, _data: serde_json::Value) {}
+
+    /// Glob-import surface for the wasm stubs; the same names the native
+    /// module publishes, minus the ones that read a file back.
+    pub mod prelude {
+        pub use super::{nova_timeline, probe_marker, RunRecorderPlugin};
+    }
 }
 
-pub use frametime::{
-    capture_reload_begin, capture_reload_end, capture_reloading, combat_burst_driver,
-    nova_frametime, perf_armed, perf_param, FrameTimePlugin, PerfDriver, ReloadGate,
-    DEFAULT_CAPTURE_FRAMES, DEFAULT_RESOLUTION, DEFAULT_WARMUP_FRAMES, PERF_ENV,
-};
-#[cfg(not(target_arch = "wasm32"))]
-pub use invariants::{nova_invariants, InvariantState, InvariantsPlugin};
-pub use timeline::{nova_timeline, probe_marker, RunRecorderPlugin};
-#[cfg(not(target_arch = "wasm32"))]
-pub use timeline::{parse_timeline, ProbeTimeline, TimelineEvent};
+/// Glob-import surface for every capability, plus the bundle that wires them
+/// all. `invariants` is native-only, so it is absent on wasm.
+pub mod prelude {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub use super::invariants::prelude::*;
+    pub use super::{frametime::prelude::*, timeline::prelude::*, NovaProbePlugin};
+}
 
 /// Every capability at once - what "this binary is being probed" looks like
 /// as one line.

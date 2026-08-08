@@ -14,6 +14,11 @@
 //! runtime (see `nova_probe::contract`), and the only remaining launch-side
 //! opinion lives with the spec resolver that needs it.
 
+/// Glob-import surface for the example catalog.
+pub mod prelude {
+    pub use super::{categories, load_example_catalog, parse_example_catalog, CatalogExample};
+}
+
 use std::path::Path;
 
 /// One `[[example]]` catalog entry: the cargo target name, its manifest

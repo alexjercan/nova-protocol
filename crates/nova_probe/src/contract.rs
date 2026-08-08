@@ -20,6 +20,11 @@
 //!   the contract (or is a web run, which has no filesystem). Consumers hold
 //!   it as `Option` and must not read absence as "declares nothing".
 
+/// Glob-import surface for the per-run capability contract.
+pub mod prelude {
+    pub use super::{declare, Capability, ProbeContract, CONTRACT_PARAM};
+}
+
 use std::collections::BTreeSet;
 
 use bevy::prelude::*;

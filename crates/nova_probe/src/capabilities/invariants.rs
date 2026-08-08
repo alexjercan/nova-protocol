@@ -37,6 +37,14 @@
 //! (mid-despawn frames make it schedule-flaky) and projectile lifetimes
 //! (the DespawnEntityPlugin's own contract, pinned in `nova_gameplay::lifetime`).
 
+/// Glob-import surface for the continuous invariant checks.
+pub mod prelude {
+    pub use super::{
+        nova_invariants, InvariantState, InvariantsPlugin, ENTITY_SANITY_CAP, INVARIANTS_PARAM,
+        SPEED_SANITY_MULTIPLIER,
+    };
+}
+
 use std::collections::HashMap;
 
 use avian3d::prelude::LinearVelocity;

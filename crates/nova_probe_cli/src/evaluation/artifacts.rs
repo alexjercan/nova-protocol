@@ -2,6 +2,11 @@
 //! frame-time stats, the trace, the log, and the manifest. Every artifact is
 //! optional - a missing one becomes a SKIPPED check, never a silent omission.
 
+/// Glob-import surface for a run's collected artifacts.
+pub mod prelude {
+    pub use super::{ArtifactFailure, Input, RunArtifacts};
+}
+
 use std::path::{Path, PathBuf};
 
 use nova_probe::{
@@ -11,7 +16,7 @@ use nova_probe::{
 };
 
 use super::manifest::RunManifest;
-use crate::evaluation::profile::{aggregate_system_costs, SystemCost};
+use crate::evaluation::profile::prelude::*;
 
 /// A present-but-unloadable artifact. Never silently dropped: [`RunArtifacts::load`]
 /// leaves the field `None` and records the reason here, and the

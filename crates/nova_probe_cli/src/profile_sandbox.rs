@@ -54,6 +54,11 @@
 //! - The web pass (`--platform web`) is out of scope: it runs in a browser
 //!   profile and reads no Nova profile state.
 
+/// Glob-import surface for the child run's profile sandbox.
+pub mod prelude {
+    pub use super::{env, env_with, inherited, prepare, root, SANDBOXED_VARS};
+}
+
 use std::path::{Path, PathBuf};
 
 /// The environment variables the sandbox redirects, in the order [`env()`]

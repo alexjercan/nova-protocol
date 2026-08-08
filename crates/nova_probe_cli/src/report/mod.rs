@@ -17,9 +17,14 @@ pub mod html;
 
 use std::collections::HashMap;
 
-pub use aggregate::{index_json, overall_verdict, render_index, AllManifest, AllRow};
-pub use html::render_run_report;
-use nova_probe::stats::PerfRun;
+use nova_probe::prelude::*;
+
+/// Glob-import surface for both renderers.
+pub mod prelude {
+    pub use super::{aggregate::prelude::*, html::prelude::*};
+}
+
+pub use prelude::*;
 
 /// The renderer string shown for one run: its own metadata when known
 /// (schema v2), else the dir-derived fallback (v1 rows).

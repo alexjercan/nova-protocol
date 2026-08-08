@@ -4,10 +4,10 @@
 //! An app that exits cleanly while still Loading (graceful asset failure)
 //! must not pass unnoticed.
 
-use nova_probe::contract::Capability;
+use nova_probe::prelude::*;
 
 use super::{timeline_skip_detail, Check, CheckStatus, NotApplicable, RunArtifacts};
-use crate::evaluation::artifacts::Input;
+use crate::evaluation::prelude::*;
 
 const THRESHOLD: &str = "a GameStates transition entered Playing";
 

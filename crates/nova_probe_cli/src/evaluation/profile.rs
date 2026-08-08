@@ -19,6 +19,11 @@
 //! number here; use them to RANK systems, not to compare against the clean
 //! pass (the two-pass rule, spike review M2).
 
+/// Glob-import surface for the chrome-trace system-cost aggregation.
+pub mod prelude {
+    pub use super::{aggregate_system_costs, render_top_table, SystemCost};
+}
+
 use std::collections::HashMap;
 
 /// One system's aggregated cost over a trace.

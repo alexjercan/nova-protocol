@@ -6,6 +6,14 @@
 //! the status enum, the skip-detail wording, the verdict fold, and the
 //! `CHECKS` table that names them in report order.
 
+/// Glob-import surface for the check roster and its verdicts.
+pub mod prelude {
+    pub use super::{
+        check_names, checks_json, evaluate_checks, measured_count, overall_verdict, print_checks,
+        status_class, Check, CheckStatus, NotApplicable, FPS_WARN_THRESHOLD_PCT,
+    };
+}
+
 mod artifacts_loadable;
 mod fps_within_baseline;
 mod invariants_held;
@@ -16,7 +24,7 @@ mod run_completed;
 
 pub use fps_within_baseline::FPS_WARN_THRESHOLD_PCT;
 pub(crate) use invariants_held::violations_by_name;
-use nova_probe::contract::Capability;
+use nova_probe::prelude::*;
 
 use super::{artifacts::RunArtifacts, manifest::RunManifest};
 
@@ -319,9 +327,7 @@ mod tests {
         }
         std::fs::write(
             dir.join("probe-contract.json"),
-            nova_probe::contract::ProbeContract::default()
-                .to_json()
-                .to_string(),
+            ProbeContract::default().to_json().to_string(),
         )
         .unwrap();
         std::fs::write(

@@ -10,6 +10,16 @@
 //!
 //! See the crate docs for the measurement rationale and the full knob table.
 
+/// Glob-import surface for the frame-time capture capability.
+pub mod prelude {
+    pub use super::{
+        capture_reload_begin, capture_reload_end, capture_reloading, combat_burst_driver,
+        nova_frametime, perf_armed, perf_param, resolve_git_sha, resolve_host, FrameTimePlugin,
+        PerfDriver, ReloadGate, CAPTURE_COLLECTOR, DEFAULT_CAPTURE_FRAMES, DEFAULT_RESOLUTION,
+        DEFAULT_WARMUP_FRAMES, PERF_ENV,
+    };
+}
+
 use std::{path::PathBuf, sync::Arc};
 
 use bevy::{
@@ -27,7 +37,7 @@ use nova_gameplay::{
     GameStates,
 };
 
-use crate::stats::{FrameStats, RunMeta};
+use crate::stats::prelude::*;
 
 /// Environment variable that arms [`nova_frametime`] on native. Any value (even
 /// empty) enables it; when unset the plugin adds nothing. On wasm the arm is the

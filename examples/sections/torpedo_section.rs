@@ -45,7 +45,7 @@ use std::sync::Arc;
 use avian3d::prelude::*;
 use bevy::{color::palettes::tailwind, platform::collections::HashMap, prelude::*};
 use clap::Parser;
-use nova_probe::fixtures::{self, SectionSpec};
+use nova_probe::fixtures::{self, prelude::*};
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]

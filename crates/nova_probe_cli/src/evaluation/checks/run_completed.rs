@@ -5,10 +5,10 @@
 //! means a panicked/killed run leaves a bracket-less file: that IS the crash
 //! signal, by design.
 
-use nova_probe::contract::Capability;
+use nova_probe::prelude::*;
 
 use super::{timeline_skip_detail, Check, CheckStatus, NotApplicable, RunArtifacts};
-use crate::evaluation::artifacts::Input;
+use crate::evaluation::prelude::*;
 
 const THRESHOLD: &str = "run_end present + AppExit Success + entry count consistent";
 

@@ -28,11 +28,25 @@ pub mod native;
 pub mod profile_sandbox;
 pub mod report;
 
-pub use evaluation::{
-    aggregate_system_costs, categories, evaluate_checks, load_example_catalog,
-    parse_example_catalog, render_top_table, CatalogExample, Check, CheckStatus, RunArtifacts,
-    SystemCost,
-};
-pub use report::{
-    index_json, overall_verdict as aggregate_verdict, render_index, AllManifest, AllRow,
-};
+/// The whole host half in one glob: evaluation's names, the report renderers
+/// and the profile sandbox.
+///
+/// Each module owns its own `prelude`, so publishing a new name is a one-file
+/// edit rather than an edit here as well. [`native`] is absent on purpose - it
+/// is the driver, and nothing imports from it.
+///
+/// `report`'s sweep-level `overall_verdict` arrives as `aggregate_verdict`:
+/// [`evaluation`] has a function of the same name that grades one run's
+/// checks, and a glob cannot carry both.
+pub mod prelude {
+    pub use crate::{
+        evaluation::prelude::*,
+        profile_sandbox,
+        report::prelude::{
+            index_json, overall_verdict as aggregate_verdict, render_index, render_run_report,
+            verdict_severity, AllManifest, AllRow,
+        },
+    };
+}
+
+pub use prelude::*;

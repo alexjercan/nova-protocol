@@ -56,7 +56,7 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
 
 #[cfg(test)]
 mod tests {
-    use nova_probe::contract::Capability;
+    use nova_probe::prelude::*;
 
     use super::*;
     use crate::evaluation::{

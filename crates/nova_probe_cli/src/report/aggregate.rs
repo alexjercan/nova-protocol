@@ -11,6 +11,13 @@
 //!   per-check statuses per row.
 //! - `index.html` - the human table, linking each row's own report.html.
 
+/// Glob-import surface for the multi-run status index.
+pub mod prelude {
+    pub use super::{
+        index_json, overall_verdict, render_index, verdict_severity, AllManifest, AllRow,
+    };
+}
+
 use crate::report::{escape, STYLE};
 
 /// One example's row in the aggregate: identity from the sweep driver,

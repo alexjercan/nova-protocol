@@ -32,11 +32,18 @@ pub mod profile;
 #[cfg(test)]
 pub(crate) mod fixtures;
 
-pub use artifacts::{ArtifactFailure, Input, RunArtifacts};
-pub use catalog::{categories, load_example_catalog, parse_example_catalog, CatalogExample};
-pub use checks::{
-    check_names, checks_json, evaluate_checks, measured_count, overall_verdict, print_checks,
-    status_class, Check, CheckStatus, NotApplicable, FPS_WARN_THRESHOLD_PCT,
-};
-pub use manifest::{run_identity, PassRecord, RunManifest};
-pub use profile::{aggregate_system_costs, render_top_table, SystemCost};
+/// Glob-import surface for the whole evaluation half: the catalog a run was
+/// resolved from, its manifest and artifacts, the trace aggregation and the
+/// checks that grade them.
+///
+/// `overall_verdict` is deliberately NOT re-exported at the crate root beside
+/// [`report::aggregate`](crate::report::aggregate)'s function of the same name
+/// - one grades a run's checks, the other grades a sweep's rows.
+pub mod prelude {
+    pub use super::{
+        artifacts::prelude::*, catalog::prelude::*, checks::prelude::*, manifest::prelude::*,
+        profile::prelude::*,
+    };
+}
+
+pub use prelude::*;

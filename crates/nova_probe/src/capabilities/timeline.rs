@@ -38,6 +38,14 @@
 //! runs should key on ORDER and VALUES, not timestamps: wall-clock and frame
 //! counts vary wildly across hosts (llvmpipe CI vs a dev GPU).
 
+/// Glob-import surface for the run-timeline recorder.
+pub mod prelude {
+    pub use super::{
+        nova_timeline, parse_timeline, probe_marker, ProbeRecorderSystems, ProbeTimeline,
+        RunRecorderPlugin, TimelineEvent, TIMELINE_PARAM,
+    };
+}
+
 use std::{
     collections::HashMap,
     fs::{File, OpenOptions, TryLockError},
@@ -53,7 +61,7 @@ use nova_scenario::{
     loader::SCENARIO_ELAPSED_VAR, variables::VariableLiteral, world::NovaEventWorld,
 };
 
-use crate::capabilities::frametime::{perf_param, resolve_git_sha, resolve_host};
+use crate::capabilities::frametime::prelude::*;
 
 /// Env var (via [`perf_param`], so `NOVA_PERF_TIMELINE` on native) naming the
 /// JSONL output path that arms [`nova_timeline`].

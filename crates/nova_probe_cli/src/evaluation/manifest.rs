@@ -2,6 +2,13 @@
 //! outcome, producing which artifacts. The report treats it as the run
 //! identity, and `probe report` refuses dirs without one.
 
+/// Glob-import surface for the run manifest.
+pub mod prelude {
+    pub use super::{run_identity, PassRecord, RunManifest};
+}
+
+use nova_probe::prelude::*;
+
 /// The manifest `probe run` writes (`probe-run.json`): what was executed,
 /// with what outcome, producing which artifacts. The report treats it as
 /// the run's identity - `process_exit` reads it, skip details use its
@@ -46,10 +53,7 @@ pub struct PassRecord {
 /// The run's identity pair (short git SHA, host tag) via the same
 /// resolvers the capture metadata uses - for the probe bin's manifest.
 pub fn run_identity() -> (String, String) {
-    (
-        nova_probe::capabilities::frametime::resolve_git_sha(),
-        nova_probe::capabilities::frametime::resolve_host(),
-    )
+    (resolve_git_sha(), resolve_host())
 }
 
 impl RunManifest {

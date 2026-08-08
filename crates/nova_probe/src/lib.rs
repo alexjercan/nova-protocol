@@ -93,18 +93,14 @@ pub mod contract;
 pub mod fixtures;
 pub mod stats;
 
-pub use capabilities::{
-    capture_reload_begin, capture_reload_end, capture_reloading, combat_burst_driver,
-    nova_frametime, nova_timeline, perf_armed, perf_param, probe_marker, FrameTimePlugin,
-    NovaProbePlugin, PerfDriver, ReloadGate, RunRecorderPlugin, DEFAULT_CAPTURE_FRAMES,
-    DEFAULT_RESOLUTION, DEFAULT_WARMUP_FRAMES, PERF_ENV,
-};
-#[cfg(not(target_arch = "wasm32"))]
-pub use capabilities::{
-    nova_invariants, parse_timeline, InvariantState, InvariantsPlugin, ProbeTimeline, TimelineEvent,
-};
-pub use contract::{Capability, ProbeContract};
-pub use stats::{
-    append_frametime_row, parse_frametime_csv, parse_summary_line, FrameStats, PerfRun, RunMeta,
-    CSV_HEADER, CSV_HEADER_V1,
-};
+/// Everything an example needs to be probeable: the capability plugins, the
+/// contract they declare into, and the wire format they write.
+///
+/// Each module owns its own `prelude`, so publishing a new name is a one-file
+/// edit rather than an edit here as well. `fixtures` is deliberately absent -
+/// scenario builders are wired explicitly by the examples that want them.
+pub mod prelude {
+    pub use crate::{capabilities::prelude::*, contract::prelude::*, stats::prelude::*};
+}
+
+pub use prelude::*;
