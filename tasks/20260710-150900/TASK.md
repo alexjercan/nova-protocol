@@ -1,10 +1,8 @@
 # release-flow: build-macOS fails - x86_64-apple-darwin std missing (E0463 can't find crate for core)
 
+- STATUS: CLOSED
 - PRIORITY: 5
 - TAGS: ci, release, bug
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 The v0.4.0 release (run 29088287339) uploaded linux, web and windows
 assets, but `build-macOS` failed after ~60 min in the "Build release for

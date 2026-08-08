@@ -1,10 +1,8 @@
 # Starter New Game scenario: fun but gentle
 
+- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: v0.5.0, scenario, content, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

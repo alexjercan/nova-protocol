@@ -1,10 +1,8 @@
 # Floating chip background covers only a corner of its label
 
+- STATUS: CLOSED
 - PRIORITY: 48
 - TAGS: v0.9.0, bug, ui, hud, feedback
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

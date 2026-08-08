@@ -1,10 +1,8 @@
 # nova_probe hardening: trustworthy verdicts for agent-driven runs (fresh dirs, manifest, timeout reports, NO_DATA)
 
+- STATUS: CLOSED
 - PRIORITY: 68
 - TAGS: v0.8.0, tooling, testing, bug
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

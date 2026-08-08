@@ -1,10 +1,8 @@
 # Publish technical/onboarding docs as a markdown-first wiki
 
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: feature, docs, web
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Context
 

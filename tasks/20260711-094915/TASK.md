@@ -1,10 +1,8 @@
 # Bug related to twitching
 
+- STATUS: CLOSED
 - PRIORITY: 99
 - TAGS: v0.5.0, bug, physics
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

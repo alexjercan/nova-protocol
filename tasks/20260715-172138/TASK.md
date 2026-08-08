@@ -1,10 +1,8 @@
 # Fix content_ron_parity drift: regenerate shakedown_run.content.ron after 713ac855 changed the builder
 
+- STATUS: CLOSED
 - PRIORITY: 16
 - TAGS: bug, modding
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Found by the 142906 implementation (20260715): `cargo test -p nova_assets
 --test content_ron_parity` fails on `built_in_scenario_content_matches_

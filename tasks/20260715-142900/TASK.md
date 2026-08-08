@@ -1,10 +1,8 @@
 # Static mod portal: webmods/ + generator bin (catalog.json, hashed files) + deploy step; demo mod moves online
 
+- STATUS: CLOSED
 - PRIORITY: 17
 - TAGS: modding, web
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260714-202515/SPIKE.md (options D, H, J)
 Depends on: 20260715-142849 (bundle meta - the generator reads it).

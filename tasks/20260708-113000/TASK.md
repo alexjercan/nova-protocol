@@ -1,10 +1,8 @@
 # Drive section placement in the editor autopilot
 
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.4.0, example, editor, testing
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Follow-up to the harnessed editor example (20260708-100000). That example only clicked the
 "create ship with a controller" button; the retro flagged extending it to drive section

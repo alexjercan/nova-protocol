@@ -1,10 +1,8 @@
 # Source/create real variety-pack art (skyboxes, asteroid/planet textures, alt hull) to replace placeholders
 
+- STATUS: CLOSED
 - PRIORITY: 48
 - TAGS: v0.7.0, art, assets
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal (human/art task - not an agent code task)
 

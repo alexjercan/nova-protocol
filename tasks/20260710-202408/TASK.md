@@ -1,10 +1,8 @@
 # GOTO standoff must be surface-relative: account for target size
 
+- STATUS: CLOSED
 - PRIORITY: 58
 - TAGS: v0.5.0, autopilot, bug, ux
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

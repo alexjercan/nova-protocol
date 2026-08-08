@@ -1,10 +1,8 @@
 # Spike: rework the changelog (concise CHANGELOG.md + in-web-app release notes)
 
+- STATUS: CLOSED
 - PRIORITY: 70
 - TAGS: spike, docs, web
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Outcome
 

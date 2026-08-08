@@ -1,10 +1,8 @@
 # Remove the base demo scenario
 
+- STATUS: CLOSED
 - PRIORITY: 100
 - TAGS: v0.7.0, refactor, content
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

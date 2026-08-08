@@ -1,10 +1,8 @@
 # Spike: make base a normal mod (art under assets/base/, self:// + dep://base)
 
+- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.7.0, modding, spike, base, refactor
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Resolution
 

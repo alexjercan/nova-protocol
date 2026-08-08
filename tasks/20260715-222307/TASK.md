@@ -1,10 +1,8 @@
 # Wiki nav: preserve drawer scroll position across navigations/refresh
 
+- STATUS: CLOSED
 - PRIORITY: 38
 - TAGS: feature, web
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 User request: the wiki sidebar "drawer" resets to the top on every page
 navigation and refresh. Keep it scrolled where the reader left it.

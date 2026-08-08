@@ -1,10 +1,8 @@
 # Frame capture is all-or-nothing: emit partial windows on early exit (marked honest) + category-aware --fps window defaults
 
+- STATUS: CLOSED
 - PRIORITY: 88
 - TAGS: v0.8.0, bug, tooling, performance
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

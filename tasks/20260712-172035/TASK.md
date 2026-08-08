@@ -1,10 +1,8 @@
 # Tune PDC turret damage: stop one-shotting asteroids/objects
 
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.5.0, weapons, balance, playtest
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

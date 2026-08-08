@@ -1,10 +1,8 @@
 # AI ships handle gravity wells: engage-flight resists/uses wells instead of falling in (so scenario wells can grow back)
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, ai, gameplay, gravity
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Closed (wontdo, 2026-07-24)
 

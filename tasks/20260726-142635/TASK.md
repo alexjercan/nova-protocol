@@ -1,10 +1,8 @@
 # Tune NOVA OS terminal contrast and welcome
 
+- STATUS: CLOSED
 - PRIORITY: 51
 - TAGS: v0.9.0, feature, ui, hud
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

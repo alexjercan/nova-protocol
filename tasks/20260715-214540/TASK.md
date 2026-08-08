@@ -1,10 +1,8 @@
 # Bug: WASM portal catalog fetch fails cross-origin (CORS) - blocked when game and /mods served on different origins
 
+- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: bug, wasm, portal
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Report (user, 20260715)
 

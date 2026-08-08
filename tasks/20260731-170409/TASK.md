@@ -1,11 +1,8 @@
 # KISS: nova_assets
 
+- STATUS: CLOSED
 - PRIORITY: 37
 - TAGS: v0.9.0, refactor, chore, assets
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260731-170222
 
 ## Story
 

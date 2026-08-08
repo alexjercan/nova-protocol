@@ -1,10 +1,8 @@
 # Reset scenario progress (salvaged crates) on scenario start/exit
 
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.5.0, bug, scenario
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Closed not-reproducible (2026-07-12)
 

@@ -1,11 +1,8 @@
 # Name the signal when a smoke example dies without an exit code
 
+- STATUS: CLOSED
 - PRIORITY: 46
 - TAGS: v0.10.0, testing, examples, dx
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260802-115955
 
 ## Story
 

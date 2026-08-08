@@ -1,10 +1,8 @@
 # Feed locked-target velocity into player turret lead
 
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.4.0, turret, gameplay
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Found during the review of the turret-lead-pip HUD (20260708-165701):
 `TurretSectionTargetVelocity` defaults to zero and nothing in game code ever

@@ -1,10 +1,8 @@
 # Refactor nova_* crate for better structure and clarity
 
+- STATUS: IN_PROGRESS
 - PRIORITY: 40
 - TAGS: v0.10.0, refactoring, project
-- ACTIVITY: WORKING
-- GATES: PLAN
-- RESOLUTION: -
 
 PROBLEM: The `nova_probe` crate feels messy and hacked together; I have the
 same feeling of other crates, some feel a bit too coupled; There are useless

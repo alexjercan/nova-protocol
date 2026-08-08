@@ -1,10 +1,8 @@
 # NOVA OS ship computer: 3D ship app + `ship` CLI verbs on section codes
 
+- STATUS: CLOSED
 - PRIORITY: 29
 - TAGS: v0.9.0, stretch, feature, ui, hud, gameplay
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

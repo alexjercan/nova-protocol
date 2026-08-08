@@ -1,10 +1,8 @@
 # Enable thruster-driven ships outside editor Scenario state (menu AI orbit)
 
+- STATUS: CLOSED
 - PRIORITY: 41
 - TAGS: v0.5.0, ai, scenario, input, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Outcome (2026-07-11): DELIVERED across the three spike-seeded tasks.
 20260711-212519 re-scoped the spaceship set gating to scenario-liveness

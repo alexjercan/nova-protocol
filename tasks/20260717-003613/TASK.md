@@ -1,10 +1,8 @@
 # Diegetic HP v1: per-section mesh damage tint/glow + retire the generic health bar
 
+- STATUS: CLOSED
 - PRIORITY: 31
 - TAGS: v0.7.0, hud, ui, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

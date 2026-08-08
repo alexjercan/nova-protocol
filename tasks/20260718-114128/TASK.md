@@ -1,10 +1,8 @@
 # Fix horizontal scroll overflow on wiki guide-make-a-mod page
 
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.7.0, bug, web
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Context
 

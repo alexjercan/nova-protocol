@@ -1,10 +1,8 @@
 # Bug: objective text missing after restarting a level (UI-only; objective still achievable)
 
+- STATUS: CLOSED
 - PRIORITY: 52
 - TAGS: v0.7.0, bug, hud, ui, objective
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Symptom
 

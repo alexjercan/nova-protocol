@@ -1,10 +1,8 @@
 # Data-driven menu scenario roles: menu_backdrop flag + base-owned new game start
 
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.7.0, feature
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

@@ -1,10 +1,8 @@
 # Bug: avian3d 'no mass or inertia' WARN spam when firing bullets
 
+- STATUS: CLOSED
 - PRIORITY: 42
 - TAGS: v0.7.0, bug, physics, weapons
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Symptom
 

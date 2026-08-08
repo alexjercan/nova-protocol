@@ -1,10 +1,8 @@
 # lessons: fold 7 promoted ledger lessons into the work/review skills
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, chore, process
-- ACTIVITY: -
-- GATES: -
-- RESOLUTION: WONTDO
 
 ## Story
 

@@ -1,10 +1,8 @@
 # One hit = one cue: dedup HealthApplyDamage propagation in audio + juice
 
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.4.0, audio, juice, bug, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260709-091536/SPIKE.md
 Source: PR #54 review F1/F3/F4 (tasks/20260708-162013/REVIEW.md);

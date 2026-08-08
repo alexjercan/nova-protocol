@@ -1,10 +1,8 @@
 # Editor: visible + editable section keybinds (v0.5.0)
 
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.5.0, feature
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

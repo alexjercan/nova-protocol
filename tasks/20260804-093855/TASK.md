@@ -1,12 +1,8 @@
 # Example categories: write the contract and resolve probe run policy from it
 
+- STATUS: CLOSED
 - PRIORITY: 85
 - TAGS: v0.10.0, tooling, examples, testing
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260802-115955
-- DEPENDS ON: 20260804-003244
 
 ## Story
 

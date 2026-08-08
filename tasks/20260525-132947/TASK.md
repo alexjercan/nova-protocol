@@ -1,10 +1,8 @@
 # Improve spaceship brain
 
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.3.1, refactor
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Clean up refactor pass on the spaceship brain. Legacy #66.
 

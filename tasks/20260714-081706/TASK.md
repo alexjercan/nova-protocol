@@ -1,10 +1,8 @@
 # Screenshot-showcase example: reel of mini-scenarios with camera choreography that generates the web site's screenshots
 
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.6.0, example, screenshot, web, testing
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260714-081636/SPIKE.md
 

@@ -1,10 +1,8 @@
 # AI engagement flight: standoff orbit/strafe envelope
 
+- STATUS: CLOSED
 - PRIORITY: 72
 - TAGS: v0.4.0, ai, spike, handling
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260709-225508/SPIKE.md (wave 2)
 

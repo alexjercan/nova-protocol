@@ -1,10 +1,8 @@
 # Remove LoadScenarioId
 
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.3.1, refactor
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Replace with direct LoadScenario by config. Menu enumerates ids and calls LoadScenario by config. Legacy #109.
 

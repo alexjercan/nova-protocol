@@ -1,10 +1,8 @@
 # Reconcile targeting docs with the deliberate-radar model
 
+- STATUS: CLOSED
 - PRIORITY: 52
 - TAGS: v0.5.0, docs, targeting, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Outcome (CLOSED 2026-07-13)
 

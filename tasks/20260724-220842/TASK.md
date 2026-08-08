@@ -1,10 +1,8 @@
 # The Ledger campaign: collapsible header + hidden-chapter replay
 
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.9.0, scenario, modding, content, feature
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

@@ -1,10 +1,8 @@
 # Bug: mouse cursor visible during gameplay - hide it while flying
 
+- STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.8.0, bug, hud, input
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

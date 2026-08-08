@@ -1,10 +1,8 @@
 # Multi-thruster autopilot: per-engine directions, fastest-path group planner
 
+- STATUS: CLOSED
 - PRIORITY: 85
 - TAGS: v0.4.0, handling, autopilot, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260709-121746/SPIKE.md (design calls
 settled with the user)

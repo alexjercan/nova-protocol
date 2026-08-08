@@ -1,10 +1,8 @@
 # Spike: why are the second scenarios brutally hard, and how do we rework scenarios to be fair without dumbing down AI or damage
 
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: spike, v0.7.0, scenario, balance
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Research spike, deliverable is SPIKE.md in this folder. Question: why do the
 second scenarios (broadside, ledger_ch2) overwhelm even a top-percentile

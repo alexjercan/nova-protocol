@@ -1,10 +1,8 @@
 # ch3 stealth rework: neutral-until-provoked channel Magpies (proximity + paint), clean-run comms payoff
 
+- STATUS: CLOSED
 - PRIORITY: 58
 - TAGS: v0.8.0, content, scenario, playtest
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

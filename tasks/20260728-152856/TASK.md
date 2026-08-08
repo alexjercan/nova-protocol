@@ -1,10 +1,8 @@
 # NOVA OS ship view: show section labels in a column-aligned table
 
+- STATUS: CLOSED
 - PRIORITY: 27
 - TAGS: v0.9.0, feedback, feature, ui, hud
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

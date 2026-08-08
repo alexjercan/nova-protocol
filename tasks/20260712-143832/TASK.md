@@ -1,10 +1,8 @@
 # Controller-provided flight verb flags: gate STOP/GOTO/ORBIT on the controller section
 
+- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.5.0, input, controller, verbs, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260712-143551/SPIKE.md
 

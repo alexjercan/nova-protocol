@@ -1,10 +1,8 @@
 # Diegetic objective presentation: big on the cockpit HUD, then tucks into the right tab
 
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.9.0, feature, hud, ui
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

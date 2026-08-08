@@ -1,11 +1,8 @@
 # menu_scenarios is killed by a signal in the ui smoke, roughly 1 run in 5
 
+- STATUS: CLOSED
 - PRIORITY: 83
 - TAGS: v0.10.0, bug, examples, testing
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260802-115955
 
 ## Story
 

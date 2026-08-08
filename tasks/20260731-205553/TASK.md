@@ -1,11 +1,8 @@
 # Clear compiler and rustdoc warnings for v0.10.0
 
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.10.0, quality, docs, warnings
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260802-115955
 
 ## Story
 

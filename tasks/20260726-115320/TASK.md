@@ -1,10 +1,8 @@
 # NOVA OS monitor shell and visual treatment
 
+- STATUS: CLOSED
 - PRIORITY: 49
 - TAGS: v0.9.0, feature, ui, hud
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

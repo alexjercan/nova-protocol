@@ -1,10 +1,8 @@
 # Clear the nova_debug harness rustdoc warnings and reel nits
 
+- STATUS: OPEN
 - PRIORITY: 0
 - TAGS: backlog,tooling,autopilot,docs
-- ACTIVITY: -
-- GATES: -
-- RESOLUTION: -
 
 ## Story
 

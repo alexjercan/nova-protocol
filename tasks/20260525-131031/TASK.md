@@ -1,10 +1,8 @@
 # Create tasks for future sprints - Tasks for Nova Protocol
 
+- STATUS: CLOSED
 - PRIORITY: 100
 - TAGS: docs, planning
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Here we have the old tasks (all tasks with "Wishlist" status are not yet
 implemented). The current version of the game is `v0.3.0`. Version `v0.3.1`

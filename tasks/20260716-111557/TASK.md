@@ -1,10 +1,8 @@
 # Merge blog + changelog into a unified /news/ section (feature-release posts, patches folded, 0.6.0 expanded)
 
+- STATUS: CLOSED
 - PRIORITY: 75
 - TAGS: web, docs, news
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Outcome
 

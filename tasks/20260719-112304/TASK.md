@@ -1,10 +1,8 @@
 # nova_probe: unified run report + verdict (correctness + FPS + profile + log + checklist; absorbs 20260718-152230)
 
+- STATUS: CLOSED
 - PRIORITY: 68
 - TAGS: v0.8.0, spike, tooling, performance, testing
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

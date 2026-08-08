@@ -1,11 +1,8 @@
 # Generated placeholder thumbnails for the Scenarios picker
 
+- STATUS: CLOSED
 - PRIORITY: 68
 - TAGS: v0.10.0, menu, scenario, art, tooling
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260802-115955
 
 ## Story
 

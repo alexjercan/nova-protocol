@@ -1,10 +1,8 @@
 # Measurement passes always split (--fps dedicated, capture-only) + loop_while_pending scene repetition with reload lines
 
+- STATUS: CLOSED
 - PRIORITY: 61
 - TAGS: v0.8.0, tooling, performance, testing
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

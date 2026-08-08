@@ -1,10 +1,8 @@
 # Implement ammo limit logic
 
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.5.0, weapons
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Generic across turret and torpedo. Legacy #140.
 

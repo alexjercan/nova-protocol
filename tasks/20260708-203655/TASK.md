@@ -1,10 +1,8 @@
 # Spaceship handling / Newtonian flight-feel overhaul
 
+- STATUS: CLOSED
 - PRIORITY: 85
 - TAGS: v0.4.0, handling, juice
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260709-094731/SPIKE.md (design)
 Roadmap: tasks/20260708-203517/SPIKE.md

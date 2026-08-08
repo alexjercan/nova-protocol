@@ -1,10 +1,8 @@
 # Diegetic flight status v1: rehome the bottom-left status text and delete it
 
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.5.0, hud, ux
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

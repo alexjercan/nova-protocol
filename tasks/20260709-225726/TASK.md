@@ -1,10 +1,8 @@
 # AI behavior state machine skeleton (Idle/Patrol/Engage/Evade/Retreat)
 
+- STATUS: CLOSED
 - PRIORITY: 78
 - TAGS: v0.4.0, ai, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260709-225508/SPIKE.md (wave 1)
 

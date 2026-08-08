@@ -1,10 +1,8 @@
 # Component-lock HUD: section markers, selection highlight, focus meter
 
+- STATUS: CLOSED
 - PRIORITY: 52
 - TAGS: v0.4.0, hud, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260709-192358/SPIKE.md
 

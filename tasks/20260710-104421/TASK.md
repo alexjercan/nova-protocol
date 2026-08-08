@@ -1,10 +1,8 @@
 # Target inset view: render-to-texture close-up panel of the locked ship
 
+- STATUS: CLOSED
 - PRIORITY: 8
 - TAGS: v0.5.0, hud, targeting, camera, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Outcome (CLOSED 2026-07-12)
 

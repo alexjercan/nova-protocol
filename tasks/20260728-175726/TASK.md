@@ -1,10 +1,8 @@
 # Spike: HTML demos - menu widget language + contextual HUD behavior
 
+- STATUS: CLOSED
 - PRIORITY: 44
 - TAGS: v0.9.0, spike, ui, hud
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

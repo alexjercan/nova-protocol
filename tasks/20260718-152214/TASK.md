@@ -1,10 +1,8 @@
 # Docs-follow-code audit: reconcile web/src/wiki/dev pages with current code, fix drift and gaps
 
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.8.0, docs, web
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

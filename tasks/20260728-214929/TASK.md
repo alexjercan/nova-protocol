@@ -1,10 +1,8 @@
 # Adopt input-prompt key glyphs across game + web key-UI (Alt style)
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, ui, assets
-- ACTIVITY: -
-- GATES: -
-- RESOLUTION: WONTDO
 
 ## Story
 

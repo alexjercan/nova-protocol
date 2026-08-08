@@ -1,10 +1,8 @@
 # Evaluate bevy_capture for in-engine video/GIF capture (Bevy 0.19 support?)
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, example, screenshot, spike
-- ACTIVITY: -
-- GATES: -
-- RESOLUTION: WONTDO
 
 Spike: tasks/20260714-081636/SPIKE.md
 

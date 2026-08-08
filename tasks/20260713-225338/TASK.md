@@ -1,10 +1,8 @@
 # Author the gameplay-system wiki pages (sections, keybinds, HUD, flight, targeting, combat, gravity)
 
+- STATUS: CLOSED
 - PRIORITY: 20
 - TAGS: web, wiki, content
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

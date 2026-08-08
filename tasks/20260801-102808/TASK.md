@@ -1,10 +1,8 @@
 # Tooling: check that every filesystem path named in a comment or doc actually resolves
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, tooling, chore
-- ACTIVITY: -
-- GATES: -
-- RESOLUTION: WONTDO
 
 ## Context
 

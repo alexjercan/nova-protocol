@@ -1,10 +1,8 @@
 # Add navigator.gpu WebGPU-detection gate at the Play boundary
 
+- STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.6.0, wasm
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Outcome
 

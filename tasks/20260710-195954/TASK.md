@@ -1,10 +1,8 @@
 # GOTO a gravity-well body parks into ORBIT on arrival
 
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.5.0, autopilot, gravity, ux
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

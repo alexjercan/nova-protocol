@@ -1,10 +1,8 @@
 # Mod download/cache/install runtime: ehttp fetch, native data-dir + wasm IndexedDB storage, mods:// asset source, installed index
 
+- STATUS: CLOSED
 - PRIORITY: 16
 - TAGS: modding, wasm
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260714-202515/SPIKE.md (options P, T)
 Depends on: 20260715-142900 (portal - the formats this cache stores).

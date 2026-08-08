@@ -1,10 +1,8 @@
 # Auditor's torpedo bay clips inside its hull - mount it on the ship's side
 
+- STATUS: CLOSED
 - PRIORITY: 43
 - TAGS: v0.7.0, scenario, content, bug
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 User report (2026-07-17 playtest): "the Auditor's torpedo bay is placed
 inside the ship, it should be on its side, it's clipping." The Auditor is

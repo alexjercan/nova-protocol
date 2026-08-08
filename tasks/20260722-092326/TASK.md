@@ -1,10 +1,8 @@
 # Backlog: rethink kill condition - destroying a ship should not require zeroing all section health
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Closed (2026-07-24, merged into 20260722-092320)
 

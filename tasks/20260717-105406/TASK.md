@@ -1,10 +1,8 @@
 # RCS fine-adjustment movement: shift + mouse for small non-accelerating translations (docking)
 
+- STATUS: CLOSED
 - PRIORITY: 5
 - TAGS: v0.7.0, feature, input, flight
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Add an RCS (reaction control system) fine-adjustment mode to the ship
 controller for precise maneuvering, e.g. when docking.

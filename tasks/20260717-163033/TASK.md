@@ -1,10 +1,8 @@
 # Comms pacing queue: ordered story lines, min display, per-line dwell, fades, comms blip, objective flash
 
+- STATUS: CLOSED
 - PRIORITY: 39
 - TAGS: spike, v0.7.0, hud, scenario, gameplay
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Goal: kill the latest-wins story-line bug and make comms readable: queue
 StoryMessage lines and display them in arrival order with a minimum

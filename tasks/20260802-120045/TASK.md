@@ -1,12 +1,8 @@
 # Generate showcase evidence and web assets with one command
 
+- STATUS: CLOSED
 - PRIORITY: 75
 - TAGS: v0.10.0, tooling, probe, screenshot, web
-- ACTIVITY: -
-- GATES: -
-- RESOLUTION: WONTDO
-- PARENT: 20260802-115955
-- DEPENDS ON: 20260802-120025, 20260802-120029
 
 ## Story
 

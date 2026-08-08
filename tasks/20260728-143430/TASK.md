@@ -1,10 +1,8 @@
 # Bug: LMB drag orbits and steals blip selection in map + ship apps - keep RMB-only orbit
 
+- STATUS: CLOSED
 - PRIORITY: 31
 - TAGS: v0.9.0, feedback, bug, ui, hud
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

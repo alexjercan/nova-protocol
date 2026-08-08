@@ -1,10 +1,8 @@
 # Slot-colored lock language: combat reticle always red, relation tint + reticle pips retired
 
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.5.0, hud, ux, playtest
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Outcome (CLOSED 2026-07-13)
 

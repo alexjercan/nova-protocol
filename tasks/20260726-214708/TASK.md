@@ -1,10 +1,8 @@
 # NOVA OS terminal UX parity: boot stagger, unread events, Tab cycling, paging, block caret, contextual hints, arg parsing
 
+- STATUS: CLOSED
 - PRIORITY: 41
 - TAGS: v0.9.0, feature, ui, hud, input
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

@@ -1,10 +1,8 @@
 # Improve on_destroy handling
 
+- STATUS: CLOSED
 - PRIORITY: 20
 - TAGS: v0.4.0, health
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Delay despawn so systems can react before the entity is gone. Legacy #129.
 

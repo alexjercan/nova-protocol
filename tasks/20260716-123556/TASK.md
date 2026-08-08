@@ -1,10 +1,8 @@
 # Ammo/magazine HUD readout: show loaded type, rounds and reload state
 
+- STATUS: CLOSED
 - PRIORITY: 32
 - TAGS: v0.7.0, hud, ui, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

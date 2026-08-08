@@ -1,10 +1,8 @@
 # Scroll rebind: SCROLL cycles targets, SHIFT+SCROLL cycles components, CTRL+SCROLL retired
 
+- STATUS: CLOSED
 - PRIORITY: 58
 - TAGS: v0.5.0, targeting, input, spike, wontdo
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

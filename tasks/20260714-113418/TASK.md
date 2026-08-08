@@ -1,10 +1,8 @@
 # Spike: multi-file scenario bundles - folder + manifest, id namespacing/overlay, directory loader
 
+- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.6.0, modding, scenario, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260714-110502/SPIKE.md
 

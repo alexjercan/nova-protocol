@@ -1,10 +1,8 @@
 # Turret joint tree: recursive TurretJoint RON data model + migrate shipped def
 
+- STATUS: CLOSED
 - PRIORITY: 6
 - TAGS: v0.7.0, spike, refactor, weapons, turret
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

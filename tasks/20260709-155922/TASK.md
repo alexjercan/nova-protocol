@@ -1,10 +1,8 @@
 # Disabled-in-place controller still torques toward its frozen command
 
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.4.0, bug, handling
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Pre-existing hole surfaced by review R1.6 of the flight-feel retune
 (20260709-095043): `sync_controller_section_forces`

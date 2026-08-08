@@ -1,10 +1,8 @@
 # Menus + editor adopt the reworked widget language
 
+- STATUS: CLOSED
 - PRIORITY: 38
 - TAGS: v0.9.0, ui, menu, editor
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

@@ -1,10 +1,8 @@
 # Fix bcs InspectorDebugPlugin to assign PrimaryEguiContext only to window cameras
 
+- STATUS: CLOSED
 - PRIORITY: 15
 - TAGS: v0.5.2, debug, egui, bcs, chore
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

@@ -1,10 +1,8 @@
 # Base as a first-class implicit dep://base target (Option A, mechanism)
 
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.7.0, modding, base, feature
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

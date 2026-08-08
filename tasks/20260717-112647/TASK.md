@@ -1,10 +1,8 @@
 # Scenario timer primitive: elapsed-time events / delayed actions for authored pacing
 
+- STATUS: CLOSED
 - PRIORITY: 51
 - TAGS: spike, v0.7.0, scenario, modding, feature
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Goal: the scenario engine has no notion of elapsed time - no delay action,
 no timer event (events.rs:13-30, actions.rs:28-55); pacing can only come

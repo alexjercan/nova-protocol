@@ -1,12 +1,8 @@
 # Move the screenshot reel driver into nova_autopilot behind caller hooks
 
+- STATUS: CLOSED
 - PRIORITY: 95
 - TAGS: v0.10.0, tooling, autopilot, screenshot
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260802-120019
-- DEPENDS ON: 20260802-183346
 
 ## Story
 

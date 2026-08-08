@@ -1,10 +1,8 @@
 # Componentize targeting state: TargetLock + AvailableTargets on the ship root
 
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.5.0, targeting, refactor, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

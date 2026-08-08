@@ -1,10 +1,8 @@
 # Backlog: critical-damage state - a ship is combat-dead when weapons+thrusters are destroyed
 
+- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: v0.9.0, gameplay, feature
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

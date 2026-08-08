@@ -1,10 +1,8 @@
 # Lock-on acquisition dwell (radar hold-to-lock)
 
+- STATUS: CLOSED
 - PRIORITY: 25
 - TAGS: v0.7.0, targeting, torpedo, hud
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260708-165647/SPIKE.md (origin), superseded/reopened below.
 

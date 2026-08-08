@@ -1,10 +1,8 @@
 # AI evasion under fire: threat model + jink maneuvers
 
+- STATUS: CLOSED
 - PRIORITY: 68
 - TAGS: v0.4.0, ai, spike, handling
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260709-225508/SPIKE.md (wave 3)
 

@@ -1,10 +1,8 @@
 # Gauntlet time-trial: visible run timer + clean-run bonus
 
+- STATUS: CLOSED
 - PRIORITY: 36
 - TAGS: scenario, content, modding, hud, v0.8.0
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

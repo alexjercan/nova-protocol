@@ -1,10 +1,8 @@
 # Improve error handling and logging in modding logic
 
+- STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.3.1, bug
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Fail loudly with clear messages instead of silently. Legacy #115.
 

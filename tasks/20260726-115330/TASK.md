@@ -1,10 +1,8 @@
 # NOVA OS terminal output commands
 
+- STATUS: CLOSED
 - PRIORITY: 47
 - TAGS: v0.9.0, feature, ui, hud, gameplay
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

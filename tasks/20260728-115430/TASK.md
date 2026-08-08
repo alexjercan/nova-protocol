@@ -1,10 +1,8 @@
 # NOVA OS ship app: side inspector panel with section detail + repair/reload buttons
 
+- STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.9.0, feedback, feature, ui, hud, gameplay
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

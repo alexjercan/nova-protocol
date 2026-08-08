@@ -1,11 +1,8 @@
 # KISS: nova_probe run harness
 
+- STATUS: CLOSED
 - PRIORITY: 35
 - TAGS: v0.9.0, refactor, chore, probe
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260731-170222
 
 ## Story
 

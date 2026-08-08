@@ -1,10 +1,8 @@
 # Condense AGENTS.md into a repository routing guide
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, docs, process
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

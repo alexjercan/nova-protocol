@@ -1,10 +1,8 @@
 # Turret routing: the combat lock wins over manual aim while raised
 
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.5.0, combat, input, playtest
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Outcome (CLOSED 2026-07-13)
 

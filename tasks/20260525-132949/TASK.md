@@ -1,10 +1,8 @@
 # Add collider section as separate child entity
 
+- STATUS: CLOSED
 - PRIORITY: 25
 - TAGS: v0.4.0, refactor
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Stores collider-related components, spawned per hull/section. Legacy #80.
 

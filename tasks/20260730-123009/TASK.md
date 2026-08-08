@@ -1,10 +1,8 @@
 # Investigate: combat lock lets go of locked enemies (intended decay or defect?)
 
+- STATUS: CLOSED
 - PRIORITY: 44
 - TAGS: v0.9.0, bug, gameplay, targeting, feedback
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

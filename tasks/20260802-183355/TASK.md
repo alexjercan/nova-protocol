@@ -1,12 +1,8 @@
 # Document nova_autopilot: rustdoc, prelude, and the dev wiki page
 
+- STATUS: CLOSED
 - PRIORITY: 93
 - TAGS: v0.10.0, tooling, autopilot, docs
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260802-120019
-- DEPENDS ON: 20260802-183349
 
 ## Story
 

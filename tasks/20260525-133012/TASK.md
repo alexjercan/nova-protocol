@@ -1,10 +1,8 @@
 # Verify marker component for post-processing camera is wired
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: wontdo, chore
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Already done historically, verify it's correctly wired. Legacy #132.
 

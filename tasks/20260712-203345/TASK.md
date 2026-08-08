@@ -1,10 +1,8 @@
 # Inset scope: InsetZoomable marker so the target inset only zooms ships
 
+- STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.5.0, hud, targeting, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Outcome (CLOSED 2026-07-12)
 

@@ -1,10 +1,8 @@
 # Ammo HUD readout for weapon sections
 
+- STATUS: CLOSED
 - PRIORITY: 44
 - TAGS: v0.5.0, weapons, hud
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

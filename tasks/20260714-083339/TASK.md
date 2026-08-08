@@ -1,10 +1,8 @@
 # Scenario hot-path opt: intern entity-filter string keys + cache/compile condition eval
 
+- STATUS: CLOSED
 - PRIORITY: 35
 - TAGS: v0.6.0, modding, perf, wontdo
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260714-083224/SPIKE.md
 

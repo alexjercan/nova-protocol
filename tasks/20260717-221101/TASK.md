@@ -1,10 +1,8 @@
 # Build cut-obj-into-hulls.py: bucket Kenney .obj into per-cell .glb pieces
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: spike, backlog, tooling, modding
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

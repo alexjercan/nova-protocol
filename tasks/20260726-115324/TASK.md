@@ -1,10 +1,8 @@
 # NOVA OS terminal input and command shell
 
+- STATUS: CLOSED
 - PRIORITY: 48
 - TAGS: v0.9.0, feature, ui, hud, input
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

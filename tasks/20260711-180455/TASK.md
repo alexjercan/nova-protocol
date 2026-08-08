@@ -1,10 +1,8 @@
 # Ambient menu background scenario (live scene behind the menu)
 
+- STATUS: CLOSED
 - PRIORITY: 44
 - TAGS: v0.5.0, ui, menu, scenario, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

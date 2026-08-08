@@ -1,10 +1,8 @@
 # News posts: add a sticky section TOC sidebar and expand every post to exhaustive detail
 
+- STATUS: CLOSED
 - PRIORITY: 70
 - TAGS: web, docs, news
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Outcome
 

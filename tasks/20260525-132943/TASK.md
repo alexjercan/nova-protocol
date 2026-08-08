@@ -1,10 +1,8 @@
 # Improve input system for spaceship components
 
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.3.1, refactor
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Thruster and turrets should use bevy_enhanced_input. Legacy #114.
 

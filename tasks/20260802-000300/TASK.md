@@ -1,10 +1,8 @@
 # Release v0.9.1
 
+- STATUS: CLOSED
 - PRIORITY: 100
 - TAGS: v0.9.1, release, meta
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

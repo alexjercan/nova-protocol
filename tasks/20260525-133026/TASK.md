@@ -1,10 +1,8 @@
 # Implement scenario with hardcoded objectives and win/lose
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: wontdo, objectives
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Foundation for the objective system. Legacy #72.
 

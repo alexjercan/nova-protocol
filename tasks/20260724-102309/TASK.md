@@ -1,10 +1,8 @@
 # Drawer LEFT panel: comms/chat history + flight-log events journal (slides from left)
 
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.9.0, spike, feature, ui, hud
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

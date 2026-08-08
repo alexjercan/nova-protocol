@@ -1,10 +1,8 @@
 # Drawer shell + interaction model + objectives section (Tab, PauseStates::Drawer, slide anim, tab-handle anchor)
 
+- STATUS: CLOSED
 - PRIORITY: 72
 - TAGS: v0.9.0, spike, feature, ui, hud
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

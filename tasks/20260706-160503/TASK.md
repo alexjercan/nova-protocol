@@ -1,10 +1,8 @@
 # Harden mesh slicer against degenerate meshes (bevy_common_systems)
 
+- STATUS: CLOSED
 - PRIORITY: 68
 - TAGS: v0.4.0, bug, crates
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Follow-up from task 20260525-132940. The mesh slicer (ExplodeMeshPlugin / ExplodeMesh)
 lives in the external bevy_common_systems crate, so guarding its internal edge cases

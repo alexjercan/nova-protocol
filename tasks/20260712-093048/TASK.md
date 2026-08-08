@@ -1,10 +1,8 @@
 # Marketing landing site: play gate, blog, tutorial, wiki
 
+- STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.5.0, web, landing, site, docs
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

@@ -1,10 +1,8 @@
 # Campaign content entity: first-class ordered scenario mapping
 
+- STATUS: CLOSED
 - PRIORITY: 66
 - TAGS: v0.9.0, scenario, modding, content, feature
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

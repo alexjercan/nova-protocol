@@ -1,10 +1,8 @@
 # Contextual keybind hints: availability resolver, hint cluster, anchored hints
 
+- STATUS: CLOSED
 - PRIORITY: 65
 - TAGS: v0.5.0, hud, input, ux, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260710-174523/SPIKE.md
 Depends on: 20260709-103454 (maneuver instruments v1 - the hint cluster

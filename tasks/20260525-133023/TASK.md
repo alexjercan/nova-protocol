@@ -1,10 +1,8 @@
 # Blast radius visual
 
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.4.0, torpedo
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Shader or particle effect on detonation. Legacy #147.
 

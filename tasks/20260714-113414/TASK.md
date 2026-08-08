@@ -1,10 +1,8 @@
 # Whole-ship prototypes: assets/ships/*.ron placed by id with ship-level modifications
 
+- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: v0.6.0, modding, scenario, folded
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260714-110502/SPIKE.md
 

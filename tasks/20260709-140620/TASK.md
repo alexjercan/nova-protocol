@@ -1,10 +1,8 @@
 # Center of mass does not shift when sections are destroyed
 
+- STATUS: CLOSED
 - PRIORITY: 85
 - TAGS: v0.4.0, bug, physics, handling
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Reported in play (2026-07-09): when a ship loses sections, its center of mass
 feels like it stays where it was with the full ship. Losing everything except a

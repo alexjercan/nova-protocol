@@ -1,10 +1,8 @@
 # content lint: flag an unpiloted (controller:None) ship parked inside a gravity well's SOI
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog
-- ACTIVITY: -
-- GATES: -
-- RESOLUTION: WONTDO
 
 ## Story
 

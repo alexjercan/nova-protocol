@@ -1,10 +1,8 @@
 # Travel/combat lock slots + deliberate radar: CTRL hold/release/tap, componentized locks, capability flag
 
+- STATUS: CLOSED
 - PRIORITY: 56
 - TAGS: v0.5.0, targeting, input, hud, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Outcome (CLOSED 2026-07-13)
 

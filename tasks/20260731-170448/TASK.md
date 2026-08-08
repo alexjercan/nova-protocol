@@ -1,11 +1,8 @@
 # KISS: small crates and root binary
 
+- STATUS: CLOSED
 - PRIORITY: 33
 - TAGS: v0.9.0, refactor, chore
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260731-170222
 
 ## Story
 

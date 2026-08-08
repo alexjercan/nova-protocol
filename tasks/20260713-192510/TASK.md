@@ -1,10 +1,8 @@
 # Release v0.5.2: bump version and roll the changelog
 
+- STATUS: CLOSED
 - PRIORITY: 5
 - TAGS: v0.5.2, chore, release
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

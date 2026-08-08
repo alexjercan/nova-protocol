@@ -1,10 +1,8 @@
 # Fix stale targeting copy on the landing page (aim-assist cone -> radar lock)
 
+- STATUS: CLOSED
 - PRIORITY: 10
 - TAGS: web, docs, content
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

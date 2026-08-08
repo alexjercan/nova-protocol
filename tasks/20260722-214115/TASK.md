@@ -1,10 +1,8 @@
 # Ledger per-chapter look: deliberate cubemap assignment + motivated SetSkybox accents (minimal, no new art)
 
+- STATUS: CLOSED
 - PRIORITY: 46
 - TAGS: v0.8.0, content, scenario
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

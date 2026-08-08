@@ -1,10 +1,8 @@
 # Promote screen-indicator widget to bevy_common_systems
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, hud, refactor, spike
-- ACTIVITY: -
-- GATES: -
-- RESOLUTION: WONTDO
 
 Spike: tasks/20260709-164502/SPIKE.md
 

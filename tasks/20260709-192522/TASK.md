@@ -1,10 +1,8 @@
 # Focus dwell + component fine-lock state and selection
 
+- STATUS: CLOSED
 - PRIORITY: 56
 - TAGS: v0.4.0, targeting, gameplay, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260709-192358/SPIKE.md
 

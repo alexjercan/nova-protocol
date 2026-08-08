@@ -1,10 +1,8 @@
 # New events/filters/actions surfaced while porting built-ins to RON
 
+- STATUS: CLOSED
 - PRIORITY: 20
 - TAGS: v0.6.0, modding, scenario
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Catch-all for format gaps found while porting the built-ins to RON (133028).
 

@@ -1,10 +1,8 @@
 # Document entity-filter id vs other_id semantics in the scenario docs
 
+- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: docs, web, modding
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 User feedback (2026-07-15): the "Author a scenario" guide (and the scenario docs
 generally) list the entity-filter fields `id, type_name, other_id,

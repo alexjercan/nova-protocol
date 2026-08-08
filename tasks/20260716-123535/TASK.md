@@ -1,10 +1,8 @@
 # Story campaign mod: an alt storyline across multiple scenarios with a real story, published on the portal
 
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.7.0, scenario, content, story, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal (reframed 20260716, user direction)
 

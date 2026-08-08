@@ -1,10 +1,8 @@
 # Objective conveyance visuals: markers, item highlight, hint emphasis
 
+- STATUS: CLOSED
 - PRIORITY: 35
 - TAGS: v0.5.0, scenario, hud, polish
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

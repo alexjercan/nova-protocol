@@ -1,10 +1,8 @@
 # Settings menu content: graphics quality, keybinds, audio
 
+- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.7.0, ui, menu, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Goal: fill the Settings placeholder panel with real content: visual quality
 options (relates to task 20260525-133013, spawn-less visual mode), keybinds,

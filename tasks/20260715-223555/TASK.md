@@ -1,10 +1,8 @@
 # Fix dead examples/03_scenario.rs reference in scenario-system wiki page
 
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: bug, docs, web
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 From the docs review spike 20260715-223147.
 

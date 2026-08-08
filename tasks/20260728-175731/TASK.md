@@ -1,10 +1,8 @@
 # Units: display 1 u = 10 m everywhere (m/km, m/s)
 
+- STATUS: CLOSED
 - PRIORITY: 42
 - TAGS: v0.9.0, ui, hud, gameplay
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

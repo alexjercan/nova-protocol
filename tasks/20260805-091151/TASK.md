@@ -1,11 +1,8 @@
 # A stray cursor event mid-click cancels the driven click
 
+- STATUS: CLOSED
 - PRIORITY: 84
 - TAGS: v0.10.0, testing, automation
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260802-115955
 
 TITLE CORRECTED. The brief below diagnosed a same-frame press; the
 investigation disproved it (`NOTES.md`). The press always lands. What fails is

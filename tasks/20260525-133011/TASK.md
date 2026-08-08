@@ -1,10 +1,8 @@
 # Add status info to ScenarioLoaded event
 
+- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: v0.4.0, chore
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Useful for debugging scenario init. Legacy #131.
 

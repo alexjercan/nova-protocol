@@ -1,10 +1,8 @@
 # Explore online tab: fetch portal catalog, install/uninstall/update from the menu, offline handling
 
+- STATUS: CLOSED
 - PRIORITY: 13
 - TAGS: modding, menu, wasm
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260714-202515/SPIKE.md
 Depends on: 20260715-142906 (download runtime) and 20260715-142911 (two-pane

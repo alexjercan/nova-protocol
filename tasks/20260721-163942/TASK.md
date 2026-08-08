@@ -1,10 +1,8 @@
 # CI: gate cargo fmt --check so master cannot accumulate format drift
 
+- STATUS: CLOSED
 - PRIORITY: 20
 - TAGS: v0.8.0, tooling, ci
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

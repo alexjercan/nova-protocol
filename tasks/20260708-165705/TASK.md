@@ -1,10 +1,8 @@
 # Multi-target tracking + subtarget cycle HUD
 
+- STATUS: CLOSED
 - PRIORITY: 9
 - TAGS: v0.5.0, hud, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260708-165647/SPIKE.md
 

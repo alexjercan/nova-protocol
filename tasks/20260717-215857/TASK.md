@@ -1,10 +1,8 @@
 # Turret joint tree: multi-muzzle firing (N muzzles, per-muzzle timers, shared magazine)
 
+- STATUS: CLOSED
 - PRIORITY: 9
 - TAGS: v0.7.0, spike, refactor, weapons, turret
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

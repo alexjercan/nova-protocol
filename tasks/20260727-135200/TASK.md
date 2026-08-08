@@ -1,10 +1,8 @@
 # NOVA OS terminal: render completion ghost under the block caret
 
+- STATUS: CLOSED
 - PRIORITY: 42
 - TAGS: v0.9.0, feature, ui, hud
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Playtest feedback on the just-landed NOVA OS terminal UX. The completion
 "ghost" suffix currently renders AFTER the block caret, so the first usable

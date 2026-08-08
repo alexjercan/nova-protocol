@@ -1,10 +1,8 @@
 # Demo scenario spawning reconstructed Kenney ship from cut sections + content lint acceptance
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: spike, backlog, tooling, modding
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

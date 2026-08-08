@@ -1,10 +1,8 @@
 # AI threat-scored target selection over the relation model
 
+- STATUS: CLOSED
 - PRIORITY: 76
 - TAGS: v0.4.0, ai, spike, targeting
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260709-225508/SPIKE.md (wave 1)
 

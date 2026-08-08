@@ -1,10 +1,8 @@
 # NOVA OS computer: real HTML-fidelity pass (contrast, input box, inline completion, command parity, CRT)
 
+- STATUS: CLOSED
 - PRIORITY: 52
 - TAGS: v0.9.0, feature, ui, hud
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Work Record
 

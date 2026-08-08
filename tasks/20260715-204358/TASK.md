@@ -1,10 +1,8 @@
 # Refactor dev wiki: intent-based IA + Extend-the-game guides + project tour
 
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: feature, docs, web
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Follows spike 20260715-204133 (user picked Option A: intent-based regroup +
 guides, and all guides). Builds on the wiki pipeline from 20260715-195621.

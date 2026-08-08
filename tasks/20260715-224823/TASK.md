@@ -1,10 +1,8 @@
 # Sync modding wiki guides + mod metadata to the now-playable scenarios
 
+- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: docs, web, modding
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

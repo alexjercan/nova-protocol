@@ -1,10 +1,8 @@
 # Fix stale modding-ron doc: scenarios are *.content.ron not *.scenario.ron
 
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: bug, docs, web
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 From the docs review spike 20260715-223147. The creators front door
 (`web/src/wiki/modding.md`) advertises `web/src/wiki/dev/modding-ron.md` as "the

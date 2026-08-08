@@ -1,10 +1,8 @@
 # RCS HUD indication on the velocity sphere (active palette + cap ring)
 
+- STATUS: CLOSED
 - PRIORITY: 3
 - TAGS: v0.7.0, feature, hud, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

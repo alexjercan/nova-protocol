@@ -1,11 +1,8 @@
 # KISS: nova_gameplay HUD - NOVA OS drawer surfaces
 
+- STATUS: CLOSED
 - PRIORITY: 44
 - TAGS: v0.9.0, refactor, chore, hud
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260731-170222
 
 ## Story
 

@@ -1,10 +1,8 @@
 # AI torpedo threat response: point-defense + break-off burn
 
+- STATUS: CLOSED
 - PRIORITY: 64
 - TAGS: v0.4.0, ai, spike, torpedo, turret
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260709-225508/SPIKE.md (wave 3)
 

@@ -1,10 +1,8 @@
 # Write documentation for bevy_common_systems public API
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: docs, backlog
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Closed (2026-07-24, wrong repo)
 

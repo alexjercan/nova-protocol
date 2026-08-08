@@ -1,10 +1,8 @@
 # NOVA OS monitor chrome: fixed-width FPS + full current-keybind footer
 
+- STATUS: CLOSED
 - PRIORITY: 41
 - TAGS: v0.9.0, feature, ui, hud
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Playtest feedback on the NOVA OS monitor chrome (the thin text rows at the top
 and bottom edges of the screen).

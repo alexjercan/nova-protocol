@@ -1,10 +1,8 @@
 # When switching scenes, remove all objects
 
+- STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.3.1, bug
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Full cleanup on scene transition; no leftover entities between scenarios. Legacy #102.
 

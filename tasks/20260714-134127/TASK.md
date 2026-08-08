@@ -1,10 +1,8 @@
 # Mod loading + load-order overlay + a demo mod (override a section, add a scenario)
 
+- STATUS: CLOSED
 - PRIORITY: 36
 - TAGS: v0.6.0, modding, scenario
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260714-113418/SPIKE.md
 

@@ -1,10 +1,8 @@
 # Radar UX polish: CTRL hint row, concentric crosshairs, inset faction line, distance-only sweep label
 
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.5.0, hud, ux, playtest
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Outcome (CLOSED 2026-07-13)
 

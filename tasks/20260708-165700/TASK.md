@@ -1,10 +1,8 @@
 # Screen-projected-indicator widget (HUD substrate)
 
+- STATUS: CLOSED
 - PRIORITY: 78
 - TAGS: v0.4.0, hud, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

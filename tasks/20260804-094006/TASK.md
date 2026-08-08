@@ -1,12 +1,8 @@
 # Create stress/: absorb perf_baseline and add the many-bodies, many-sections, many-projectiles sweeps
 
+- STATUS: CLOSED
 - PRIORITY: 76
 - TAGS: v0.10.0, content, examples, testing, perf
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260802-115955
-- DEPENDS ON: 20260804-003244, 20260804-093855, 20260804-093950, 20260804-093934
 
 ## Story
 

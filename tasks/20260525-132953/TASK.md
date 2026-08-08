@@ -1,10 +1,8 @@
 # Improve despawning and entity management in scenarios
 
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.3.1, refactor
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Consistent teardown across scenarios. Legacy #104.
 

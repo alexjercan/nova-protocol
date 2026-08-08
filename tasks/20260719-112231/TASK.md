@@ -1,10 +1,8 @@
 # nova_probe: grow + rename nova_perf into the run-harness crate (frame-capture + perf_report as modules)
 
+- STATUS: CLOSED
 - PRIORITY: 76
 - TAGS: v0.8.0, spike, tooling, refactor, performance
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

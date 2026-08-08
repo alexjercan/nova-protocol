@@ -1,10 +1,8 @@
 # Drawer ship-status / damage section - DEFERRED from v0.9.0 (rides critical-damage model)
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, spike, feature, ui, hud
-- ACTIVITY: -
-- GATES: -
-- RESOLUTION: WONTDO
 
 ## Goal
 

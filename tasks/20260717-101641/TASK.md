@@ -1,10 +1,8 @@
 # Per-target impact and destroy sounds: sections, asteroids, torpedo detonation
 
+- STATUS: CLOSED
 - PRIORITY: 28
 - TAGS: spike, v0.7.0, audio, modding, feature
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

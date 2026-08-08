@@ -1,13 +1,8 @@
 # Rebuild the example fleet on the predicate autopilot, per category contract
 
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.10.0, content, examples, testing, autopilot
-- ACTIVITY: PLANNING
-- GATES: -
-- RESOLUTION: SUPERSEDED
-- DUPLICATE OF: 20260804-003244
-- PARENT: 20260802-115955
-- DEPENDS ON: 20260802-120025, 20260804-003244
 
 ## Story
 

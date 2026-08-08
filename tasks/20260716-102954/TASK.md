@@ -1,10 +1,8 @@
 # Build in-web-app changelog/release-notes section (blog-pattern pages + index + nav)
 
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: spike, web, docs
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Outcome
 

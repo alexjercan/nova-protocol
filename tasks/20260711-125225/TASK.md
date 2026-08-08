@@ -1,10 +1,8 @@
 # Camera jumps at high speed give the controls a twitchy feel
 
+- STATUS: CLOSED
 - PRIORITY: 78
 - TAGS: v0.5.0, camera, bug
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

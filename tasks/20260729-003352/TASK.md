@@ -1,10 +1,8 @@
 # nova_probe: commit-keyed probe-runs folders and baseline discovery
 
+- STATUS: CLOSED
 - PRIORITY: 79
 - TAGS: v0.9.0, tooling, probe, performance
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

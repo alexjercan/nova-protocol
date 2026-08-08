@@ -1,10 +1,8 @@
 # Residual roll after autopilot release: PD cannot damp fast roll (bcs)
 
+- STATUS: CLOSED
 - PRIORITY: 95
 - TAGS: v0.5.0, handling, bug, bcs
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

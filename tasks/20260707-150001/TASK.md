@@ -1,10 +1,8 @@
 # Turret aim lags moving targets: add lead (and/or smoothing) to the slew
 
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.4.0, turret, bug
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Surfaced by the turret test range (task 20260707-095008, `examples/08_turret_range.rs`).
 The turret aims by slewing its yaw/pitch rotators toward the target's *current*

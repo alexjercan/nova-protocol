@@ -1,10 +1,8 @@
 # nova_probe: runner CLI + example opt-in + docs (one command per autopilot example; fold perf scripts into subcommands)
 
+- STATUS: CLOSED
 - PRIORITY: 66
 - TAGS: v0.8.0, spike, tooling, docs
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

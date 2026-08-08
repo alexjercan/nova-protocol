@@ -1,10 +1,8 @@
 # probe: --baseline works across a group (per-example baseline root, skip examples without one)
 
+- STATUS: CLOSED
 - PRIORITY: 56
 - TAGS: v0.8.0, tooling, performance
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

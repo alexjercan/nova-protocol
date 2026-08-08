@@ -1,10 +1,8 @@
 # Fix: CTRL press alone fires the target cycle
 
+- STATUS: CLOSED
 - PRIORITY: 100
 - TAGS: bug, hud, input
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 User report (20260711, playtest of 20260708-165705): "when I press CTRL it
 instantly moves on the other target" - pressing the modifier alone cycles

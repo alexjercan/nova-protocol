@@ -1,10 +1,8 @@
 # Smooth the camera when autopilot hands back to manual (no snap)
 
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.5.0, camera, ux, bug
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

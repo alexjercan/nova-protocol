@@ -1,10 +1,8 @@
 # HUD: friendly/enemy allegiance marker over ships (small triangle/chevron above each entity)
 
+- STATUS: CLOSED
 - PRIORITY: 70
 - TAGS: v0.9.0, hud, gameplay
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

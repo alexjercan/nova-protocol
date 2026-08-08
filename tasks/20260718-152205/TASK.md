@@ -1,10 +1,8 @@
 # README overhaul: getting-started HOW-TO + a tools reference (how to run every tool/script)
 
+- STATUS: CLOSED
 - PRIORITY: 65
 - TAGS: v0.8.0, docs, readme, tooling
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

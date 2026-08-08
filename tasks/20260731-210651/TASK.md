@@ -1,10 +1,8 @@
 # Make the local test suite runnable: cap link jobs and drop test-binary DWARF
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Context
 

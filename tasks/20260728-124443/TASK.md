@@ -1,10 +1,8 @@
 # Fix dead-code warning: ShipBlock.section read only in tests after legibility refactor
 
+- STATUS: CLOSED
 - PRIORITY: 32
 - TAGS: v0.9.0, bug, ui, hud
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

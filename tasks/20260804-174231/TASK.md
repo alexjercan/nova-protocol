@@ -1,10 +1,8 @@
 # probe run menu_scenarios flakes process_exit on a clean run
 
+- STATUS: OPEN
 - PRIORITY: 0
 - TAGS: backlog,bug,examples,testing
-- ACTIVITY: -
-- GATES: -
-- RESOLUTION: -
 
 ## Story
 

@@ -1,11 +1,8 @@
 # Clear the stress/ round-1 review findings (R1.1-R1.4)
 
+- STATUS: OPEN
 - PRIORITY: 0
 - TAGS: backlog,examples,testing
-- ACTIVITY: -
-- GATES: -
-- RESOLUTION: -
-- DEPENDS ON: 20260804-094006
 
 ## Story
 

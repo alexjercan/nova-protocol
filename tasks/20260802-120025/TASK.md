@@ -1,12 +1,8 @@
 # Make nova_autopilot predicate-driven: a generic scripted state machine
 
+- STATUS: CLOSED
 - PRIORITY: 85
 - TAGS: v0.10.0, tooling, autopilot, testing
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260802-115955
-- DEPENDS ON: 20260802-120019
 
 ## Story
 

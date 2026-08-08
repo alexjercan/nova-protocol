@@ -1,10 +1,8 @@
 # Radial lock-acquisition ring HUD (UiMaterial shader)
 
+- STATUS: CLOSED
 - PRIORITY: 22
 - TAGS: v0.7.0, hud, torpedo, shader
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260708-165647/SPIKE.md (weapons-HUD arc); mechanic 20260708-165703.
 

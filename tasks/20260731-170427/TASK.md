@@ -1,11 +1,8 @@
 # KISS: nova_scenario
 
+- STATUS: CLOSED
 - PRIORITY: 36
 - TAGS: v0.9.0, refactor, chore, scenario
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260731-170222
 
 ## Story
 

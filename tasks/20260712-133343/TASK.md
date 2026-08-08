@@ -1,10 +1,8 @@
 # Nova typed-damage core: DamageType, resistance table, own-the-trigger application
 
+- STATUS: CLOSED
 - PRIORITY: 46
 - TAGS: v0.5.0, weapons, health, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

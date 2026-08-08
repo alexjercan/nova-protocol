@@ -1,10 +1,8 @@
 # Look-ray + camera-mode infrastructure: live aim in every view, robust mode transitions
 
+- STATUS: CLOSED
 - PRIORITY: 58
 - TAGS: v0.5.0, input, camera, targeting, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Outcome (CLOSED 2026-07-13)
 

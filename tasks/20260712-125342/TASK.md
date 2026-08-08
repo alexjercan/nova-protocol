@@ -1,10 +1,8 @@
 # Shakedown Run playtest round 3: X sooner, objective change feedback, AI leash
 
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.5.0, scenario, feel, audio
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

@@ -1,10 +1,8 @@
 # Bug: enemy ship survives at 0 HP as an empty ghost after being shot down (Broadside, once)
 
+- STATUS: CLOSED
 - PRIORITY: 95
 - TAGS: v0.7.0, bug, integrity, scenario
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Report (user playtest, 2026-07-16, Broadside)
 

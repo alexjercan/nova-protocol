@@ -1,10 +1,8 @@
 # Prototype references + Modification model for ship sections; re-port built-in ships; serde default omission
 
+- STATUS: CLOSED
 - PRIORITY: 56
 - TAGS: v0.6.0, modding, scenario
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260714-110502/SPIKE.md
 

@@ -1,10 +1,8 @@
 # Write documentation for nova_gameplay public API
 
+- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: docs, v0.8.0
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

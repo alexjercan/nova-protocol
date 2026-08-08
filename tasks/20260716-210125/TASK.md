@@ -1,10 +1,8 @@
 # Pause menu: Retry button - restart the current level from the Esc menu
 
+- STATUS: CLOSED
 - PRIORITY: 34
 - TAGS: v0.7.0, feature, menu, ui, scenario
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Requested directly by the user: add the possibility to "retry" a level when
 pressing Esc. Pressing Esc in-game opens the pause menu; it should offer a

@@ -1,10 +1,8 @@
 # Create a main menu
 
+- STATUS: CLOSED
 - PRIORITY: 5
 - TAGS: v0.5.0, ui, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Things I would like the main menu to have:
 - New Game : brings us into a ready to play scenario - something more fun than

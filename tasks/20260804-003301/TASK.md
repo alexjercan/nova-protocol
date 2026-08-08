@@ -1,11 +1,8 @@
 # Move the design PoC HTML pages out of examples/ui into web/design
 
+- STATUS: CLOSED
 - PRIORITY: 86
 - TAGS: v0.10.0, web, docs, refactor
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260802-115955
 
 ## Story
 

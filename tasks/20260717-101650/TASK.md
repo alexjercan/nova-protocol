@@ -1,10 +1,8 @@
 # Thruster loop as a section sound: per-handle loop entities replace the single global hum
 
+- STATUS: CLOSED
 - PRIORITY: 26
 - TAGS: spike, v0.7.0, audio, modding, feature
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

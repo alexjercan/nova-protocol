@@ -1,10 +1,8 @@
 # Fix km->u unit slip in targeting-radar.md lock ranges
 
+- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: bug, docs, web
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## The fix
 

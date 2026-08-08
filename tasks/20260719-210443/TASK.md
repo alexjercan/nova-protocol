@@ -1,10 +1,8 @@
 # Wire the whole example fleet for probe (timeline+invariants+frametime everywhere) + RunMeta build-profile label; exit gate: probe run --all with every report read
 
+- STATUS: CLOSED
 - PRIORITY: 58
 - TAGS: v0.8.0, tooling, testing, examples
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

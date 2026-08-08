@@ -1,10 +1,8 @@
 # many_projectiles spikes: p99 224ms against a 23ms median
 
+- STATUS: OPEN
 - PRIORITY: 0
 - TAGS: backlog,perf,examples
-- ACTIVITY: -
-- GATES: -
-- RESOLUTION: -
 
 ## Story
 

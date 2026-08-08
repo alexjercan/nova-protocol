@@ -1,11 +1,8 @@
 # Spike: decide the v0.10.0 example fleet roster
 
+- STATUS: CLOSED
 - PRIORITY: 82
 - TAGS: v0.10.0, spike, examples, testing
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260802-115955
 
 ## Question
 

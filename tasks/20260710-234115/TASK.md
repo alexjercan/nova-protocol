@@ -1,10 +1,8 @@
 # Engaged-state shader tint across the flight instrument family
 
+- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.5.0, hud, ux
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

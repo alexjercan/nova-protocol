@@ -1,10 +1,8 @@
 # Tooling: re-runnable measured numbers in task records
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog
-- ACTIVITY: -
-- GATES: -
-- RESOLUTION: WONTDO
 
 ## Context
 

@@ -1,10 +1,8 @@
 # Runtime content gate: merge-time issue sweep + FAILED TO START overlay
 
+- STATUS: CLOSED
 - PRIORITY: 54
 - TAGS: v0.7.0, modding, feature, ui
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

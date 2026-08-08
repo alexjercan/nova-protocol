@@ -1,10 +1,8 @@
 # Base chain voice pass: StoryMessage comms, imperative objectives, hauler-survival flavor
 
+- STATUS: CLOSED
 - PRIORITY: 54
 - TAGS: v0.8.0, content, scenario
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

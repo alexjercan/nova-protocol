@@ -1,10 +1,8 @@
 # Shakedown Run playtest round 2: gravity reach, bullet knockback, beat-scoped speed cap
 
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.5.0, scenario, bug, feel
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

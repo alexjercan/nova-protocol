@@ -1,10 +1,8 @@
 # Add spawn-less visual mode for low-end machines
 
+- STATUS: CLOSED
 - PRIORITY: 22
 - TAGS: v0.7.0, performance, chore
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Flag to skip particles/shaders for performance. Legacy #127.
 

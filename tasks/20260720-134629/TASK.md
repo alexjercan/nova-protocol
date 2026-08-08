@@ -1,10 +1,8 @@
 # rustdoc: fix the 108 pre-existing broken intra-doc links (cargo doc warning-free)
 
+- STATUS: CLOSED
 - PRIORITY: 57
 - TAGS: v0.8.0, docs, tooling
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

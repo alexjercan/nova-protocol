@@ -1,10 +1,8 @@
 # HUD text anchored to moving objects twitches (e.g. velocity on the ship)
 
+- STATUS: CLOSED
 - PRIORITY: 82
 - TAGS: v0.5.0, hud, bug
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

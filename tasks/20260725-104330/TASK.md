@@ -1,10 +1,8 @@
 # Epic: NOVA OS terminal drawer for v0.9.0
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: v0.9.0, feedback, gameplay, ui, ux, epic
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Context
 

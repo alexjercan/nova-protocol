@@ -1,10 +1,8 @@
 # Check required plugins were added in gameplay plugins
 
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.3.1, refactor
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Panic or warn early with a clear message if a required dependency plugin is missing. Legacy #126.
 

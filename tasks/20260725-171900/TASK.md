@@ -1,10 +1,8 @@
 # Bug: drawer scroll clamps at content end
 
+- STATUS: CLOSED
 - PRIORITY: 57
 - TAGS: v0.9.0, bug, ui, hud
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

@@ -1,11 +1,8 @@
 # Move the automation harness into nova_autopilot
 
+- STATUS: CLOSED
 - PRIORITY: 100
 - TAGS: v0.10.0, tooling, autopilot, crates
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260802-115955
 
 ## Epic
 

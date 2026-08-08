@@ -1,10 +1,8 @@
 # Fix WebGL2 fatal crash: inset render target view_formats
 
+- STATUS: CLOSED
 - PRIORITY: 100
 - TAGS: v0.5.0, bug, web
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

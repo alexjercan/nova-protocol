@@ -1,12 +1,8 @@
 # KISS: nova_gameplay sections and integrity
 
+- STATUS: CLOSED
 - PRIORITY: 39
 - TAGS: v0.9.0, refactor, chore, gameplay
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260731-170222
-- DEPENDS ON: 20260731-170345
 
 ## Story
 

@@ -1,10 +1,8 @@
 # nova_ui slider track: live re-skin + hardware fill follows the value
 
+- STATUS: CLOSED
 - PRIORITY: 51
 - TAGS: v0.9.0, feedback, bug, ui
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

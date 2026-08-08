@@ -1,10 +1,8 @@
 # AI rotation path: adopt slew_rotation and hull_turn_rate (and fix delta-into-absolute input)
 
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.4.0, ai, handling
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 From review R1.8 of the flight-feel retune (20260709-095043). The AI brain
 (input/ai.rs) rewrites `ControllerSectionRotationInput` every frame with no

@@ -1,10 +1,8 @@
 # Menu ambience: thruster-flown AI orbit replaces ballistic seeding
 
+- STATUS: CLOSED
 - PRIORITY: 41
 - TAGS: v0.5.0, menu, ai, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

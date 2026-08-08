@@ -1,12 +1,8 @@
 # Deepen sections/ to multi-scene multi-round runs, merging com_range and torpedo_guidance
 
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.10.0, content, examples, testing
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260802-115955
-- DEPENDS ON: 20260804-003244, 20260804-093855
 
 ## Story
 

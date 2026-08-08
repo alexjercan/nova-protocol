@@ -1,12 +1,8 @@
 # Refresh frontend app images: redo the screenshot examples and recapture every capturable web image
 
+- STATUS: CLOSED
 - PRIORITY: 70
 - TAGS: v0.10.0, web, assets, screenshot
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260802-115955
-- DEPENDS ON: 20260804-093910
 
 ## Context
 

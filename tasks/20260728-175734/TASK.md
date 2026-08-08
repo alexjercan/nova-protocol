@@ -1,10 +1,8 @@
 # nova_ui theme + widgets: NOVA OS palette + skin-aware widget set
 
+- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: v0.9.0, ui, refactor
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

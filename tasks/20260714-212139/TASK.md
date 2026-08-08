@@ -1,10 +1,8 @@
 # Unify the whole game UI to the web-app theme (menu, HUD, pause, mods, editor - one style)
 
+- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: ui, polish, v0.6.0
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal (user request, 20260714)
 

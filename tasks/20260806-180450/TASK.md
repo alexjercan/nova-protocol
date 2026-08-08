@@ -1,10 +1,8 @@
 # Vendor bevy-common-systems
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: v0.10.0
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Problem
 

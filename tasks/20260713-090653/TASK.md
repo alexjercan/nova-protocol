@@ -1,10 +1,8 @@
 # Shakedown scenario rework for the radar era: teach the radar, text pass, lock capability beat
 
+- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.5.0, scenario, tutorial, polish
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Outcome (CLOSED 2026-07-13)
 

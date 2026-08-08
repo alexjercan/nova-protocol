@@ -1,10 +1,8 @@
 # Nav beacon and salvage crate scenario objects
 
+- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.5.0, scenario, content, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

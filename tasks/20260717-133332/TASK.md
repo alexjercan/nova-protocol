@@ -1,10 +1,8 @@
 # Editor skybox may miss its Cube view: direct SkyboxConfig insert bypasses the swap applier
 
+- STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.7.0, editor, rendering, bug
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Resolution (2026-07-17): FALSIFIED - the editor is already covered
 

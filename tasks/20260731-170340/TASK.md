@@ -1,12 +1,8 @@
 # KISS: nova_gameplay input layer - player, AI, targeting
 
+- STATUS: CLOSED
 - PRIORITY: 41
 - TAGS: v0.9.0, refactor, chore, input
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260731-170222
-- DEPENDS ON: 20260731-170335
 
 ## Story
 

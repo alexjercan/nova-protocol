@@ -1,12 +1,8 @@
 # Retire the mainline and POC example runs, reduce screenshots to capture-only
 
+- STATUS: CLOSED
 - PRIORITY: 78
 - TAGS: v0.10.0, examples, testing
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260802-115955
-- DEPENDS ON: 20260804-003244, 20260804-093855, 20260804-093934
 
 ## Story
 

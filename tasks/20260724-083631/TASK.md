@@ -1,10 +1,8 @@
 # v0.9.0 release tracker: Cockpit & Command - ship-computer drawer, combat readability, scenario browsing
 
+- STATUS: CLOSED
 - PRIORITY: 1
 - TAGS: v0.9.0, release, meta
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Release-level tracker for v0.9.0. Per-strand work lives in its own tatr task
 (tagged `v0.9.0`); this task carries the release theme, strand map, out-of-scope

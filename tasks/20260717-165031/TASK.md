@@ -1,10 +1,8 @@
 # Author-configurable orbit-hold and lock-refire durations (default 5s)
 
+- STATUS: CLOSED
 - PRIORITY: 42
 - TAGS: v0.7.0, scenario, modding, feature
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

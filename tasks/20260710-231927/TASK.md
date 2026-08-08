@@ -1,10 +1,8 @@
 # Keybind hint icons and key remapping (Arma Reforger look)
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, hud, ux, input
-- ACTIVITY: -
-- GATES: -
-- RESOLUTION: WONTDO
 
 ## Goal
 

@@ -1,10 +1,8 @@
 # Per-source SFX throttle: multiple guns/sources each play
 
+- STATUS: CLOSED
 - PRIORITY: 75
 - TAGS: v0.4.0, audio, bug
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

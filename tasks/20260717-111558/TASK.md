@@ -1,10 +1,8 @@
 # Mod-shipped skybox cubemaps bypass load-time meta: fallback reinterpret keeps the teardown upload race
 
+- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.7.0, assets, modding, bug
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Decision (2026-07-17): global `AssetMetaCheck::Always`
 

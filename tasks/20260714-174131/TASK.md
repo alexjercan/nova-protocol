@@ -1,10 +1,8 @@
 # Persist EnabledMods cross-platform: native config file + wasm localStorage; load at startup, save on toggle
 
+- STATUS: CLOSED
 - PRIORITY: 54
 - TAGS: modding, wasm
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260714-174000/SPIKE.md
 Depends on: 20260714-174120 (EnabledMods resource) and 20260714-174126 (toggle UI).

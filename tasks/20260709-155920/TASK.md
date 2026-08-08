@@ -1,10 +1,8 @@
 # Thrust balancing: compensate off-center engine torque under burn
 
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.4.0, handling, physics
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 From review R1.2 of the flight-feel retune (20260709-095043). Since the torque
 budget cut (max_torque 100 -> 40) the flight computer can only hold roughly

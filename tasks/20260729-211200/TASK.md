@@ -1,10 +1,8 @@
 # Retire the diegetic objective reveal card: the top-centre chip IS the posting
 
+- STATUS: CLOSED
 - PRIORITY: 53
 - TAGS: v0.9.0, feedback, ui, hud
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

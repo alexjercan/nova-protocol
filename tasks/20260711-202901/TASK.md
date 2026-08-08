@@ -1,10 +1,8 @@
 # Diegetic HP: move the health readout onto the ship
 
+- STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.7.0, hud, ui, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Goal: improve the HP UI by making it diegetic - the health readout should
 live on/in the ship somehow instead of the current generic screen-space

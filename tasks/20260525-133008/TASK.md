@@ -1,10 +1,8 @@
 # Unit tests for health + destruction pipeline
 
+- STATUS: CLOSED
 - PRIORITY: 85
 - TAGS: v0.4.0, test
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Sequence: damage → disable → explode. [new]
 

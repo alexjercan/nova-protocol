@@ -1,10 +1,8 @@
 # Replace SOI shell with a velocity-sphere-style gravity indicator (yellow)
 
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.5.0, hud, gravity, ux
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

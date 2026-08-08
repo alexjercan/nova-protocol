@@ -1,10 +1,8 @@
 # Document the scenario-authoring vocabulary the shipped mods use; promote Gauntlet to the worked example
 
+- STATUS: CLOSED
 - PRIORITY: 43
 - TAGS: v0.8.0, docs, web, modding, scenario
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

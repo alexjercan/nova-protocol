@@ -1,10 +1,8 @@
 # Hybrid lock acquisition: aim cone + signature-range proximity
 
+- STATUS: CLOSED
 - PRIORITY: 58
 - TAGS: v0.4.0, targeting, gameplay, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260709-192358/SPIKE.md
 

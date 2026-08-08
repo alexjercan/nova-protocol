@@ -1,11 +1,8 @@
 # Cleanup and maintenance: close the engine gaps the screenshot pipeline routed around
 
+- STATUS: CLOSED
 - PRIORITY: 72
 - TAGS: v0.10.0, chore, refactor, tooling, testing
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260802-115955
 
 ## Context
 

@@ -1,10 +1,8 @@
 # Picker: group + order scenarios by campaign, inline position prefix
 
+- STATUS: CLOSED
 - PRIORITY: 26
 - TAGS: v0.8.0, menu, scenario, ui
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

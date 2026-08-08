@@ -1,10 +1,8 @@
 # nova_probe: continuous invariant assertions during autopilot runs (health/speed/state-machine bounds)
 
+- STATUS: CLOSED
 - PRIORITY: 72
 - TAGS: v0.8.0, spike, tooling, testing
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

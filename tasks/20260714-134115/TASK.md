@@ -1,10 +1,8 @@
 # Ship-prototype content kind: GameShips + *.ship.ron + ShipSource + ship-modifications (folds 113414)
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, modding, scenario, spike
-- ACTIVITY: -
-- GATES: -
-- RESOLUTION: WONTDO
 
 Spike: tasks/20260714-113418/SPIKE.md
 

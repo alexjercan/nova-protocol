@@ -1,10 +1,8 @@
 # End-of-sprint probe perf sweep (standing sprint-close check)
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, probe, perf, process
-- ACTIVITY: -
-- GATES: -
-- RESOLUTION: WONTDO
 
 ## Story
 

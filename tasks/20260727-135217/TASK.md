@@ -1,10 +1,8 @@
 # HUD: add NOVA CRT star mark icon to the Computer/TAB status-bar item
 
+- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: v0.9.0, feature, ui, hud
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Playtest feedback: the main HUD status-bar item that advertises the Computer
 (the "TAB" affordance, which opens the NOVA OS drawer) should carry the NOVA

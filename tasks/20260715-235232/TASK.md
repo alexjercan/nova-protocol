@@ -1,10 +1,8 @@
 # Wiki docs review (post-front-doors): player/creator/dev happiness pass
 
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: spike, docs, web
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Outcome
 

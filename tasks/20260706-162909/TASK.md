@@ -1,10 +1,8 @@
 # Use inertia tensor for projectile muzzle velocity
 
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.4.0, physics
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 From the TODO sweep (task 20260525-132954). Projectile muzzle velocity currently uses
 only the spaceship's linear velocity as inertia; it should account for angular velocity

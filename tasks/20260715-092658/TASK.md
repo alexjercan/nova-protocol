@@ -1,10 +1,8 @@
 # Devlog post-card thumbnails: thumb-devlog-3/4/5 (source decision + package)
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, web, screenshot, devlog
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Closed (2026-07-24, folded into the frontend-images refresh)
 

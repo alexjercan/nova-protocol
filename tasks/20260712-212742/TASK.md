@@ -1,10 +1,8 @@
 # Combat target set includes committed torpedoes (sticky + CTRL+scroll point defense)
 
+- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: v0.5.0, targeting, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Outcome (CLOSED 2026-07-12)
 

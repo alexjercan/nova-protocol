@@ -1,10 +1,8 @@
 # RCS core primitive: Rcs verb + RcsIntent + capped impulse burn system
 
+- STATUS: CLOSED
 - PRIORITY: 5
 - TAGS: v0.7.0, feature, flight, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

@@ -1,10 +1,8 @@
 # Epic: KISS pass over the crates - split oversized files, cut comment fluff
 
+- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.9.0, epic, refactor, chore
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN
-- RESOLUTION: DONE
 
 ## Epic
 

@@ -1,10 +1,8 @@
 # Ledger ch3 depth: clock-paced opening act, breather-gated corridor, a second distinct encounter
 
+- STATUS: CLOSED
 - PRIORITY: 54
 - TAGS: v0.8.0, content, scenario
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

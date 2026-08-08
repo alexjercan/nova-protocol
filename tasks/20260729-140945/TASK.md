@@ -1,10 +1,8 @@
 # Shakedown rehearsal test red on master: RADAR emphasis guard fails
 
+- STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: backlog
-- ACTIVITY: -
-- GATES: -
-- RESOLUTION: WONTDO
 
 ## Story
 

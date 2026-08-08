@@ -1,10 +1,8 @@
 # Refactor integrity plugin: graph via relations, split glue systems
 
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.3.1, refactor
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 From the TODO sweep (task 20260525-132954). The integrity plugin carries an
 IntegrityGraph component that the author would rather express as Bevy relations, and

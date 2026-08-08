@@ -1,10 +1,8 @@
 # Fix the screenshot_combat torpedo-tracking flake
 
+- STATUS: OPEN
 - PRIORITY: 0
 - TAGS: backlog
-- ACTIVITY: -
-- GATES: -
-- RESOLUTION: -
 
 `screenshot_combat`'s autopilot step `track the torpedoes in` intermittently
 stalls at its 12s deadline, so the run error-exits. Seen once in three runs

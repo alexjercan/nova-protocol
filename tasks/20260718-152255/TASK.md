@@ -1,10 +1,8 @@
 # Spike: can nova_meta_gen become a Python build-time hook, or must it stay Rust (Bevy .meta coupling)? Decide and port-or-document
 
+- STATUS: CLOSED
 - PRIORITY: 34
 - TAGS: v0.8.0, tooling, spike, web
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

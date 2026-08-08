@@ -1,10 +1,8 @@
 # NOVA OS CRT: casing + glass depth pass
 
+- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.9.0, spike, feature, ui, hud
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

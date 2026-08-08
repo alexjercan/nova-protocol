@@ -1,10 +1,8 @@
 # Developer docs: start-here reading order, Update-vs-FixedUpdate rule, contributing workflow, debug tooling
 
+- STATUS: CLOSED
 - PRIORITY: 44
 - TAGS: docs, web, feature
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 From the docs review spike 20260715-223147 (developer persona). The dev wiki is
 accurate and the extension guides are excellent, but a newcomer lacks a hard

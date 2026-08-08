@@ -1,10 +1,8 @@
 # Assets + licenses shipping hygiene: exclude source assets (.blend) from the build, consolidate credits/licenses
 
+- STATUS: CLOSED
 - PRIORITY: 20
 - TAGS: backlog, chore, build, assets, licenses
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Goal: stop shipping non-runtime source assets, and tidy license/credits so the
 shipped build (web `dist/` via Trunk, and any native package) carries only what it

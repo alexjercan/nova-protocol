@@ -1,10 +1,8 @@
 # Variable damage by section type
 
+- STATUS: CLOSED
 - PRIORITY: 48
 - TAGS: v0.5.0, health
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Thrusters take more, turrets take less, etc. Legacy #122.
 

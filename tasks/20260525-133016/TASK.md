@@ -1,10 +1,8 @@
 # Add FPS and diagnostics overlay in example scenes
 
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.4.0, chore
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Already partially done; finish coverage. Legacy #23.
 

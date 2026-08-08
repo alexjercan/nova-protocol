@@ -1,10 +1,8 @@
 # Port the NOVA OS phosphor theme to the web app
 
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.9.0, ui, web
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

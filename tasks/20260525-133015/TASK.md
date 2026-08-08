@@ -1,10 +1,8 @@
 # Create changelog.md
 
+- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: v0.4.0, chore
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Populate from git history. Legacy #95 (note: CHANGELOG.md exists; verify completeness).
 

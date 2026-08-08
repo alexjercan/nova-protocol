@@ -1,12 +1,8 @@
 # Build systems/: code-built fixtures for scenario grammar, the player path, and outcomes
 
+- STATUS: CLOSED
 - PRIORITY: 82
 - TAGS: v0.10.0, content, examples, testing
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260802-115955
-- DEPENDS ON: 20260804-003244, 20260804-093855
 
 ## Story
 

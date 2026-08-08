@@ -1,10 +1,8 @@
 # Distance attenuation + quieter SFX (audio feel pass)
 
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.4.0, audio, polish
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

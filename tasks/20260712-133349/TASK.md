@@ -1,10 +1,8 @@
 # Multi-type magazines, reload and bullet-type switching
 
+- STATUS: CLOSED
 - PRIORITY: 44
 - TAGS: v0.5.0, weapons, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

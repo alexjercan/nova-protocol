@@ -1,10 +1,8 @@
 # General documentation pass
 
+- STATUS: CLOSED
 - PRIORITY: 58
 - TAGS: docs, v0.8.0
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

@@ -1,10 +1,8 @@
 # AI orbit directive: config, passive behavior state, autopilot wiring
 
+- STATUS: CLOSED
 - PRIORITY: 42
 - TAGS: v0.5.0, ai, scenario, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

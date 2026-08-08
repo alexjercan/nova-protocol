@@ -1,10 +1,8 @@
 # Minimal faction/relation model (hostile/neutral/own)
 
+- STATUS: CLOSED
 - PRIORITY: 62
 - TAGS: v0.4.0, factions, ai, hud
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260708-203517/SPIKE.md
 

@@ -1,10 +1,8 @@
 # Story campaign mod (The Ledger) polish + extension: longer, more interesting narrative arc; re-publish the portal mod
 
+- STATUS: CLOSED
 - PRIORITY: 48
 - TAGS: v0.8.0, content, modding, scenario
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

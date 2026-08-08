@@ -1,10 +1,8 @@
 # ch3 speed: expose player_speed as a reserved scenario variable (engine)
 
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.8.0, scenario, feature
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

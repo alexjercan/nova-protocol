@@ -1,10 +1,8 @@
 # Remove the redundant closing-speed readout from the destination caption
 
+- STATUS: CLOSED
 - PRIORITY: 65
 - TAGS: v0.5.0, hud, cleanup
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

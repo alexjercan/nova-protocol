@@ -1,10 +1,8 @@
 # Spike: how to improve the NOVA OS CRT monitor look and feel
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, spike, ui, hud
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

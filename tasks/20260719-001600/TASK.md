@@ -1,10 +1,8 @@
 # Make the CI clippy job warning-clean
 
+- STATUS: CLOSED
 - PRIORITY: 70
 - TAGS: v0.8.0, ci, tooling, refactor
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

@@ -1,10 +1,8 @@
 # probe run multi-spec (comma list, category, --all) + aggregated index report (index.html/json, probe-all.json gate)
 
+- STATUS: CLOSED
 - PRIORITY: 59
 - TAGS: v0.8.0, tooling, testing, examples
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

@@ -1,10 +1,8 @@
 # Bug: OnStart objective gates read undefined scenario_elapsed - opening objectives never post + error spam
 
+- STATUS: CLOSED
 - PRIORITY: 88
 - TAGS: v0.8.0, bug, scenario, pacing
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

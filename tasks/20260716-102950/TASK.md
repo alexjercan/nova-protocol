@@ -1,10 +1,8 @@
 # Tighten and re-section CHANGELOG.md: terse subsystem-grouped entries
 
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: spike, docs
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Outcome
 

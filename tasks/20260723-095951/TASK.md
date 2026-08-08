@@ -1,10 +1,8 @@
 # Scenarios tab: collapsible campaign headers + campaign->scenario mapping (replayability)
 
+- STATUS: CLOSED
 - PRIORITY: 64
 - TAGS: v0.9.0, menu, scenario, ui, modding, feature
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

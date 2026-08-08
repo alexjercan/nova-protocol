@@ -1,10 +1,8 @@
 # Consolidate demo + variety into ONE self-contained 'example' tutorial mod (a little of everything)
 
+- STATUS: CLOSED
 - PRIORITY: 47
 - TAGS: v0.7.0, modding, example, content, docs
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Outcome (2026-07-16)
 

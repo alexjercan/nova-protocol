@@ -1,10 +1,8 @@
 # Investigate probe FPS regression from July 29 runs
 
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.9.0, bug, perf, probe
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

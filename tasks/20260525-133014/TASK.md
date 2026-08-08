@@ -1,10 +1,8 @@
 # Optimize modding event handler lookup
 
+- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: v0.6.0, modding, chore
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Index handlers by event name for fast lookup. Legacy #118.
 

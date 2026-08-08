@@ -1,10 +1,8 @@
 # Flip remaining player scenarios off infinite_ammo to finite auto-reloading ammo
 
+- STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.7.0, scenarios, weapons
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

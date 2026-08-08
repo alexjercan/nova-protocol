@@ -1,10 +1,8 @@
 # Wiki nav: audience bands (For players/creators/developers) above categories
 
+- STATUS: CLOSED
 - PRIORITY: 42
 - TAGS: feature, docs, web
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 User request: the dev categories (Get started / Understand / Extend the game)
 don't visibly signal they are developer material vs the player game-manual pages.

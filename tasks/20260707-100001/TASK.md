@@ -1,10 +1,8 @@
 # Torpedo bay test range example (playable + gates + autopilot)
 
+- STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.4.0, example, torpedo
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 The torpedo bay is the clunkiest section: torpedoes sometimes spawn too close and
 die instantly, the controls feel weird, and the homing is weak. Build a dedicated

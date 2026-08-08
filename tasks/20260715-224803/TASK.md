@@ -1,10 +1,8 @@
 # Make Gauntlet Run a playable sequential slalom race
 
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: modding, scenario, gameplay, web
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

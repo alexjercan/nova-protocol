@@ -1,10 +1,8 @@
 # Non-combatant ships hold station instead of falling into gravity wells (Ceres Queen floats)
 
+- STATUS: CLOSED
 - PRIORITY: 78
 - TAGS: v0.8.0, bug, gameplay, ai, gravity
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

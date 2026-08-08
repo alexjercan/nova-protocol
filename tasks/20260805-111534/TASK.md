@@ -1,11 +1,8 @@
 # Authorable scenario lighting: let a scene pose its own lights instead of one hardcoded top-down key
 
+- STATUS: CLOSED
 - PRIORITY: 66
 - TAGS: v0.10.0, render, scenario, modding
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260802-115955
 
 ## Context
 

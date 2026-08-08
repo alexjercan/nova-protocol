@@ -1,10 +1,8 @@
 # Spike: client-side smoothing and deadbands on PD and camera outputs
 
+- STATUS: CLOSED
 - PRIORITY: 52
 - TAGS: v0.5.0, spike, feel
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

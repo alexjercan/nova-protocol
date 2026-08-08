@@ -1,10 +1,8 @@
 # Torpedo launch samples the eased pose in Update (raw-clock follow-up)
 
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.5.0, physics, torpedo
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

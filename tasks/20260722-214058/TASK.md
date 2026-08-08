@@ -1,10 +1,8 @@
 # Ledger beat-sheet pacing pass: ch1/ch2/ch2b (opening conversations, breathers, no objective dump)
 
+- STATUS: CLOSED
 - PRIORITY: 56
 - TAGS: v0.8.0, content, scenario
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

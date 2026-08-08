@@ -1,10 +1,8 @@
 # Tooling inventory + consolidation pass: catalog every bin/script, decide what merges or moves to build-time, document the result
 
+- STATUS: CLOSED
 - PRIORITY: 26
 - TAGS: v0.8.0, tooling, refactor, docs
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

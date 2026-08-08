@@ -1,10 +1,8 @@
 # Thruster impulses push from the stale eased pose (GlobalTransform in FixedUpdate)
 
+- STATUS: CLOSED
 - PRIORITY: 95
 - TAGS: v0.5.0, bug, physics, flight
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

@@ -1,10 +1,8 @@
 # Sharpen the web visual design to an industrial HUD-panel style
 
+- STATUS: CLOSED
 - PRIORITY: 20
 - TAGS: spike, web, design
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

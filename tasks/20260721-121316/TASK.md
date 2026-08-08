@@ -1,10 +1,8 @@
 # Full missing_docs rollout on nova_scenario + nova_gameplay (non-category tail)
 
+- STATUS: CLOSED
 - PRIORITY: 36
 - TAGS: docs, v0.8.0
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

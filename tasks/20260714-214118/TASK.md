@@ -1,10 +1,8 @@
 # Centralize gameplay HUD palette into nova_ui; align chrome, preserve semantic hues
 
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: ui, v0.6.0
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Close-out (20260714)
 

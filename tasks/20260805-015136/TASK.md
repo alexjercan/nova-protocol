@@ -1,10 +1,8 @@
 # ScriptBuilder::on_enter silently replaces instead of appending
 
+- STATUS: OPEN
 - PRIORITY: 0
 - TAGS: backlog,bug,testing
-- ACTIVITY: -
-- GATES: -
-- RESOLUTION: -
 
 ## Story
 

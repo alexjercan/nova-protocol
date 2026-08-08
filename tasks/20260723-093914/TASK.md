@@ -1,8 +1,5 @@
 # Goal: campaign-grouped, ordered scenario picker
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: goal
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-

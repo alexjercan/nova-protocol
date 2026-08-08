@@ -1,10 +1,8 @@
 # nova_probe: structured run-event logging + per-run timeline recorder (correctness capture - the crux)
 
+- STATUS: CLOSED
 - PRIORITY: 74
 - TAGS: v0.8.0, spike, tooling, performance, testing
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

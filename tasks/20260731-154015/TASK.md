@@ -1,10 +1,8 @@
 # Web: rework the site onto the PHOSPHOR skin only (drop the hardware material)
 
+- STATUS: CLOSED
 - PRIORITY: 52
 - TAGS: v0.9.0, ui, web, feedback
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

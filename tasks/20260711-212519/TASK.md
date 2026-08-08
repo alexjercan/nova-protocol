@@ -1,10 +1,8 @@
 # Re-scope spaceship system set gating to scenario-liveness
 
+- STATUS: CLOSED
 - PRIORITY: 43
 - TAGS: v0.5.0, scenario, input, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

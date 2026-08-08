@@ -1,10 +1,8 @@
 # Shakedown: disable GOTO until the first objective (OBJ_B1) completes
 
+- STATUS: CLOSED
 - PRIORITY: 43
 - TAGS: v0.5.0, scenario, shakedown, verbs, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260712-143551/SPIKE.md
 

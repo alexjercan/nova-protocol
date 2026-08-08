@@ -1,10 +1,8 @@
 # Base game as a bundle: convert hardcoded GameAssets content loading to a base bundle manifest
 
+- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: v0.6.0, modding, scenario, folded
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260714-113418/SPIKE.md
 

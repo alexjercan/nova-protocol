@@ -1,10 +1,8 @@
 # Extend ScenarioLoaded smoke assertion to 10_gameplay and 07_torpedo_guidance
 
+- STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.4.0, test
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Follow-up to 20260708-194524, which wired the `ScenarioLoaded` payload assertion
 into the `03_scenario` headless smoke test (landed 0af7f4e). Extend the same

@@ -1,10 +1,8 @@
 # Travel/combat lock slots: TravelLock + CombatLock, seed-on-raise, view-routed consumers
 
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.5.0, targeting, input, hud, spike, wontdo
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

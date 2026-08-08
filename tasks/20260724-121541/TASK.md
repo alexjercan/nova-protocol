@@ -1,10 +1,8 @@
 # Bug: Tab drawer must render on top of the flight HUD (z-order)
 
+- STATUS: CLOSED
 - PRIORITY: 68
 - TAGS: v0.9.0, bug, ui, hud
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

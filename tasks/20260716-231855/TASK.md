@@ -1,10 +1,8 @@
 # Gate the OnUpdate scenario pulse (fire_on_update) on Unpaused so it stops during any pause
 
+- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: v0.7.0, scenario, polish
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

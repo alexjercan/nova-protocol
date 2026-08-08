@@ -1,10 +1,8 @@
 # NOVA OS CRT: scanline + grain realism pass (shader-only)
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: v0.9.0, spike, feature, ui, hud
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

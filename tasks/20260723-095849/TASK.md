@@ -1,10 +1,8 @@
 # Campaign metadata on ScenarioConfig (serde data model)
 
+- STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.8.0, scenario, feature
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

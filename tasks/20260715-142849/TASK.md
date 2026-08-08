@@ -1,10 +1,8 @@
 # Bundle meta block: mod metadata moves into bundle.ron, catalogs become thin pointers
 
+- STATUS: CLOSED
 - PRIORITY: 18
 - TAGS: modding
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260714-202515/SPIKE.md (option A)
 Depends on: nothing (foundation for the portal + UI tasks).

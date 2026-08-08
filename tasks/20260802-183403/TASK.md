@@ -1,12 +1,8 @@
 # Migrate nova_debug, nova_probe, and the example fleet onto nova_autopilot
 
+- STATUS: CLOSED
 - PRIORITY: 92
 - TAGS: v0.10.0, tooling, autopilot, examples
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260802-120019
-- DEPENDS ON: 20260802-183349, 20260802-183352
 
 ## Story
 

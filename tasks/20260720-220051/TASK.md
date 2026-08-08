@@ -1,10 +1,8 @@
 # lessons: resolve 6 pending promotions
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, chore
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

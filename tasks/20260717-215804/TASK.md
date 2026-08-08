@@ -1,10 +1,8 @@
 # Turret joint tree: generic TurretJoint ECS component + single chain-walk system + tree render
 
+- STATUS: CLOSED
 - PRIORITY: 7
 - TAGS: v0.7.0, spike, refactor, weapons, turret
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

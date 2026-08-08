@@ -1,10 +1,8 @@
 # Reorganize examples/ by purpose (sections, gameplay, ui, screenshots, perf): category dirs + per-category smoke tests
 
+- STATUS: CLOSED
 - PRIORITY: 62
 - TAGS: v0.8.0, refactor, testing, examples
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

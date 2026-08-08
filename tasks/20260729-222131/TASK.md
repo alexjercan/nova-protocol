@@ -1,10 +1,8 @@
 # Smoke red on master: screenshot_nova_os exits before completing its cycle
 
+- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.9.0, bug, test, tooling
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

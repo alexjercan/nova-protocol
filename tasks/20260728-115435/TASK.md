@@ -1,10 +1,8 @@
 # NOVA OS ship app: clearer section rendering (separation + per-section type/HP/ammo indicators)
 
+- STATUS: CLOSED
 - PRIORITY: 31
 - TAGS: v0.9.0, feedback, feature, ui, hud, gameplay
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

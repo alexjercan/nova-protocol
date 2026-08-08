@@ -1,10 +1,8 @@
 # v0.8.0 release tracker: docs, tooling & content polish
 
+- STATUS: CLOSED
 - PRIORITY: 1
 - TAGS: v0.8.0, release, meta
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Release-level tracker for v0.8.0, migrated from docs/plans/20260718-v0.8.0-plan.md
 when docs/plans was retired under the ephemeral-docs model (task 20260718-175424).

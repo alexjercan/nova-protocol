@@ -1,12 +1,8 @@
 # Retire the BCS harness surface and refresh the automation docs
 
+- STATUS: CLOSED
 - PRIORITY: 91
 - TAGS: v0.10.0, tooling, autopilot, docs
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260802-120019
-- DEPENDS ON: 20260802-183403
 
 ## Story
 

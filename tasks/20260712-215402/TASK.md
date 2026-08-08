@@ -1,10 +1,8 @@
 # Unified cone target list + universal sticky lock (absorbs: cyclable nav bodies)
 
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.5.0, targeting, navigation, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

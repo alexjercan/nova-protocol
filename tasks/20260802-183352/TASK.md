@@ -1,12 +1,8 @@
 # Add a runnable nova_autopilot example with a headless integration test
 
+- STATUS: CLOSED
 - PRIORITY: 94
 - TAGS: v0.10.0, tooling, autopilot, testing
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260802-120019
-- DEPENDS ON: 20260802-183343
 
 ## Story
 

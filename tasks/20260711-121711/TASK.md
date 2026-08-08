@@ -1,10 +1,8 @@
 # Cap the chase camera zoom-out and pivot distance at high speed
 
+- STATUS: CLOSED
 - PRIORITY: 75
 - TAGS: v0.5.0, camera, tuning
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

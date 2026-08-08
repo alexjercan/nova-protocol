@@ -1,10 +1,8 @@
 # Signature-gated lock: long-range lock only acquires large objects
 
+- STATUS: CLOSED
 - PRIORITY: 65
 - TAGS: v0.5.0, targeting, input, ux
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

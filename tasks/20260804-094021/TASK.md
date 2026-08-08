@@ -1,12 +1,8 @@
 # Rebuild ui/ to drive real widgets with pointer input and assert the live tree
 
+- STATUS: CLOSED
 - PRIORITY: 83
 - TAGS: v0.10.0, content, examples, testing, ui
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260802-115955
-- DEPENDS ON: 20260804-003244, 20260804-093855, 20260804-003301, 20260804-093910
 
 ## Story
 

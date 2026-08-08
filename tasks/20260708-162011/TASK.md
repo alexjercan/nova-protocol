@@ -1,10 +1,8 @@
 # Audio/SFX system (thrust, weapons, explosions, impacts)
 
+- STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.4.0, audio
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260708-161726/SPIKE.md (roadmap)
 

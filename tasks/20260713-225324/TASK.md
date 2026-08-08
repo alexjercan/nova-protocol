@@ -1,10 +1,8 @@
 # Wiki infrastructure: manifest, sidebar, search, tags, see-also, index
 
+- STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: web, wiki, design
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

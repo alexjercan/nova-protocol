@@ -1,10 +1,8 @@
 # Infinite ammo option for the first (New Game) scenario
 
+- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.5.0, weapons, scenario
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

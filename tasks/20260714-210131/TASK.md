@@ -1,10 +1,8 @@
 # Screenshot showcase pipeline: photo-mode scenario actions + reel capture example + web asset packaging
 
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.6.0, example, screenshot, web, testing
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260714-210131/SPIKE.md
 Supersedes the scope of: tasks/20260714-081706/TASK.md (close as absorbed, or fold this in).

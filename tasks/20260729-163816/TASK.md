@@ -1,10 +1,8 @@
 # Objective read-notification stack: demo-2 top-centre chips, retire the status-bar hint
 
+- STATUS: CLOSED
 - PRIORITY: 79
 - TAGS: v0.9.0, feature, ui, hud, feedback
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

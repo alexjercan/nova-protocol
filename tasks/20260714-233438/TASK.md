@@ -1,10 +1,8 @@
 # Switch web build to bevy/webgpu and un-gate hanabi on wasm
 
+- STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.6.0, wasm, polish
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Outcome
 

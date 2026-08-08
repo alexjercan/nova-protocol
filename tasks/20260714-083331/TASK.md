@@ -1,10 +1,8 @@
 # Scenario dispatch benchmark + profile: baseline with a synthetic many-handler scenario
 
+- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.6.0, modding, perf, test
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260714-083224/SPIKE.md
 

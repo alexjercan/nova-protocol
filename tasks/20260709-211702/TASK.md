@@ -1,10 +1,8 @@
 # Scroll wheel binding for component cycle
 
+- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.4.0, input, targeting
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Playtest request (20260709): besides `[`/`]` and dpad, bind the component
 cycle to the scroll wheel - up = next, down = prev.

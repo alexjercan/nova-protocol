@@ -1,10 +1,8 @@
 # Sections disable but never destroy; ship does not die at zero health
 
+- STATUS: CLOSED
 - PRIORITY: 100
 - TAGS: v0.3.1, bug, health
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Reported in play: when a spaceship takes damage, some sections (e.g. the controller)
 get *disabled* when their health hits zero, but they are never *destroyed* (not removed,

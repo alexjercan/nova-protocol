@@ -1,10 +1,8 @@
 # Alt-fire modes: primary/secondary fire profiles and input
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, weapons, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Closed (2026-07-24, not pursuing)
 

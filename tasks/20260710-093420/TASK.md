@@ -1,10 +1,8 @@
 # CHANGELOG entries for the v0.4.0 AI combat-behavior wave
 
+- STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.4.0, ai, docs
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 The AI combat wave (spike tasks/20260709-225508/SPIKE.md,
 tasks 20260709-225726..225734 as they land) has shipped several features

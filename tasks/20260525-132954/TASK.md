@@ -1,10 +1,8 @@
 # Fix TODOs across the codebase
 
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.3.1, refactor
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Sweep all TODO comments, resolve them or convert into tatr tickets. Legacy #160.
 

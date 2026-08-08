@@ -1,10 +1,8 @@
 # nova_assets loads GameScenarios via nova_modding from assets/scenarios/
 
+- STATUS: CLOSED
 - PRIORITY: 70
 - TAGS: v0.6.0, modding, scenario
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Store all scenarios as a resource. Legacy #99.
 

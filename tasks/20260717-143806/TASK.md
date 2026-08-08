@@ -1,10 +1,8 @@
 # Ledger ch4: the Auditor spawns hot (301u inside its 450u envelope, torpedo tube) - decide drama vs fairness
 
+- STATUS: CLOSED
 - PRIORITY: 44
 - TAGS: v0.7.0, scenario, content, balance
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Found by the balance audit rig (tasks/20260717-112656, spike
 tasks/20260717-111808/SPIKE.md) - the first content nobody had

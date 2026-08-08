@@ -1,10 +1,8 @@
 # NOVA OS screen: playtest polish (caret-at-0, kill black gaps, greener grain, white star)
 
+- STATUS: CLOSED
 - PRIORITY: 44
 - TAGS: v0.9.0, feature, ui, hud
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Second playtest pass on the just-landed NOVA OS screen (siblings 20260727-135200/135204/135217). Four small, cohesive visual fixes on the ONE screen; owner said "the rest looks really good".
 

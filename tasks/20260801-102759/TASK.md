@@ -1,10 +1,8 @@
 # Tooling: diff comment text base-vs-branch so a comment pass cannot silently damage rustdoc
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, tooling, chore
-- ACTIVITY: -
-- GATES: -
-- RESOLUTION: WONTDO
 
 ## Context
 

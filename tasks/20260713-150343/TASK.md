@@ -1,10 +1,8 @@
 # Shakedown playtest fixes: bigger coast ring, longer derelict lock range, derelict-kill softlock
 
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.5.0, scenario, bugfix, playtest
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Outcome (CLOSED 2026-07-13)
 

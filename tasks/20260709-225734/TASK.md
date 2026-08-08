@@ -1,10 +1,8 @@
 # AI self-preservation: retreat on low integrity
 
+- STATUS: CLOSED
 - PRIORITY: 65
 - TAGS: v0.7.0, ai, spike, health, wontdo
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260709-225508/SPIKE.md (wave 3)
 

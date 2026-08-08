@@ -1,10 +1,8 @@
 # AI line-of-sight fire gate: hold fire and reposition when cover occludes the target
 
+- STATUS: CLOSED
 - PRIORITY: 54
 - TAGS: spike, v0.7.0, ai, gameplay, balance
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Goal: make cover a real pressure-relief mechanic. AI turrets hold fire while
 a tangible (non-Sensor) blocker occludes the aim point, and the ship uses its

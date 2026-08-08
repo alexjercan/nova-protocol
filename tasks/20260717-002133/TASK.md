@@ -1,10 +1,8 @@
 # Canonical enforcement: lint rejects bare asset refs in content (Option A)
 
+- STATUS: CLOSED
 - PRIORITY: 48
 - TAGS: v0.7.0, modding, lint, feature
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

@@ -1,10 +1,8 @@
 # NOVA OS CRT: wrap the screen border to the curved tube + green-tint the noise
 
+- STATUS: CLOSED
 - PRIORITY: 43
 - TAGS: v0.9.0, feature, ui, hud
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Playtest feedback on the just-landed curved-CRT NOVA OS screen. Two screen-
 surface visual issues after the barrel/curve was added:

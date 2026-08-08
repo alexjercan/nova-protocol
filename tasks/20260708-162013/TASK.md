@@ -1,10 +1,8 @@
 # Hit feedback / game juice (camera shake, hit flash, impact FX)
 
+- STATUS: CLOSED
 - PRIORITY: 88
 - TAGS: v0.4.0, polish, destruction
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260708-161726/SPIKE.md (roadmap)
 

@@ -1,10 +1,8 @@
 # NOVA OS CRT: render-to-texture pipeline with real text bloom + curvature
 
+- STATUS: CLOSED
 - PRIORITY: 44
 - TAGS: v0.9.0, spike, feature, ui, hud
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

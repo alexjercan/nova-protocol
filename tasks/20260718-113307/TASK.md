@@ -1,10 +1,8 @@
 # Optional per-joint render-mesh transform offset (position+rotation) for turret sections
 
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.7.0, feature, content, sections
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

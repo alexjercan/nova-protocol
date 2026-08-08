@@ -1,10 +1,8 @@
 # CHANGELOG still claims Low/Medium thin scatter fields, but scatter is no longer a preset lever (task 20260718-004834 removed it)
 
+- STATUS: CLOSED
 - PRIORITY: 15
 - TAGS: v0.7.0, docs, settings
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

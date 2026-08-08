@@ -1,10 +1,8 @@
 # Ensure mesh slicer does not crash the game
 
+- STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.3.1, bug
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Guard against edge cases in the mesh slicer to prevent crashes. Legacy #88.
 

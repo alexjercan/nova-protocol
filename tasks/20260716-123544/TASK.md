@@ -1,10 +1,8 @@
 # Asset variety pack: themed skyboxes, asteroid/planet texture variants, alternate hull model
 
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.7.0, art, assets, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

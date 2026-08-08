@@ -1,10 +1,8 @@
 # Give the example subprocess tests their own timeout
 
+- STATUS: OPEN
 - PRIORITY: 0
 - TAGS: backlog,testing,autopilot
-- ACTIVITY: -
-- GATES: -
-- RESOLUTION: -
 
 ## Story
 

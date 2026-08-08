@@ -1,10 +1,8 @@
 # Weapon reload/regen mechanic so finite ammo is non-terminal
 
+- STATUS: CLOSED
 - PRIORITY: 34
 - TAGS: v0.7.0, weapons, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

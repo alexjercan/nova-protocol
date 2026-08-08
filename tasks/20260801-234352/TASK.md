@@ -1,10 +1,8 @@
 # Fix v0.9.0 web build: gate pause exit import
 
+- STATUS: CLOSED
 - PRIORITY: 100
 - TAGS: v0.9.1, bug, web
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

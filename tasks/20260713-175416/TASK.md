@@ -1,10 +1,8 @@
 # Apply cubemap.png.meta in the real app via AssetMetaCheck::Paths
 
+- STATUS: CLOSED
 - PRIORITY: 95
 - TAGS: v0.5.0, bug, web
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

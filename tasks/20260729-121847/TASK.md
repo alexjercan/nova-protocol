@@ -1,10 +1,8 @@
 # Menu UI polish: full skin reactivity, fix interaction flicker, fixed panel widths
 
+- STATUS: CLOSED
 - PRIORITY: 39
 - TAGS: v0.9.0, ui, polish
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

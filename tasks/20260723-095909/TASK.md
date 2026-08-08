@@ -1,10 +1,8 @@
 # Tag base storyline chapter-heads as Nova Protocol 1/2/3 + regen content
 
+- STATUS: CLOSED
 - PRIORITY: 28
 - TAGS: v0.8.0, scenario, content
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

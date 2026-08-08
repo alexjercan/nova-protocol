@@ -1,10 +1,8 @@
 # e2e proof for SetSkybox: load a real cubemap and assert the swap
 
+- STATUS: CLOSED
 - PRIORITY: 15
 - TAGS: v0.6.0, modding, test
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Follow-up from 20260525-133017 review R1.1. The `SetSkybox` action's deferred
 applier logic is unit-tested (`skybox_swap_waits_for_load_then_installs`), but the

@@ -1,10 +1,8 @@
 # Create nova_modding crate: authoring wrappers + .scenario.ron AssetLoader + lowering
 
+- STATUS: CLOSED
 - PRIORITY: 75
 - TAGS: v0.6.0, modding, scenario, foundation
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 Spike: tasks/20260714-083224/SPIKE.md
 

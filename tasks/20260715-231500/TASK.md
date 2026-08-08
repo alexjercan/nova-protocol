@@ -1,10 +1,8 @@
 # Annotate the HUD and radar wiki screenshots with callout labels
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: docs, web, assets, backlog
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Closed (2026-07-24, folded into the frontend-images refresh)
 

@@ -1,10 +1,8 @@
 # Inset kill cam: freeze-frame linger on target death
 
+- STATUS: CLOSED
 - PRIORITY: 46
 - TAGS: v0.5.0, hud, ux, spike
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Outcome (CLOSED 2026-07-13)
 

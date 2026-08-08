@@ -1,12 +1,8 @@
 # Run the rebuilt fleet as CI will and record the sprint's correctness+perf evidence
 
+- STATUS: CLOSED
 - PRIORITY: 74
 - TAGS: v0.10.0, examples, testing, perf
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
-- PARENT: 20260802-115955
-- DEPENDS ON: 20260804-093910, 20260804-094021, 20260804-094006, 20260804-093934, 20260804-093950, 20260804-093855
 
 ## Story
 

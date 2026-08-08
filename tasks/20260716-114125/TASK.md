@@ -1,10 +1,8 @@
 # Debug F12 screenshot to Downloads
 
+- STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: debug, feature, screenshot
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

@@ -1,10 +1,8 @@
 # Torpedo despawns silently when its target dies mid-flight
 
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.4.0, bug, torpedo
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 `update_target_position` looks up the torpedo's target entity every frame and, if it
 is gone (target destroyed, scenario churn), immediately despawns the torpedo:

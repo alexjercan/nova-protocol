@@ -1,10 +1,8 @@
 # SFX distance rolloff: perceptual (geometric) curve, not linear
 
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.4.0, audio, polish
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Goal
 

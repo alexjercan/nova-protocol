@@ -1,11 +1,8 @@
 # Cover the NOVA OS computer end to end in systems/
 
+- STATUS: OPEN
 - PRIORITY: 0
 - TAGS: backlog,examples,testing,ui
-- ACTIVITY: -
-- GATES: -
-- RESOLUTION: -
-- DEPENDS ON: 20260804-093934
 
 ## Story
 

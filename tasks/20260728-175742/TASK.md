@@ -1,10 +1,8 @@
 # HUD restyle + on-screen text reduction (icon dock)
 
+- STATUS: CLOSED
 - PRIORITY: 36
 - TAGS: v0.9.0, ui, hud
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

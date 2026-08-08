@@ -1,10 +1,8 @@
 # Epic: Nova demonstrates itself automatically in v0.10.0
 
+- STATUS: OPEN
 - PRIORITY: 100
 - TAGS: v0.10.0, epic, tooling, content, automation
-- ACTIVITY: PLANNING
-- GATES: PLAN
-- RESOLUTION: -
 
 ## Epic
 

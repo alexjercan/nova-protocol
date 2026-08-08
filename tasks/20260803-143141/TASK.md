@@ -1,10 +1,8 @@
 # Fix the hud_range example smoke: the scripted run never reaches its last beat
 
+- STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.10.0, bug, examples, testing
-- ACTIVITY: COMPOUNDING
-- GATES: PLAN REVIEW RETRO
-- RESOLUTION: DONE
 
 ## Story
 

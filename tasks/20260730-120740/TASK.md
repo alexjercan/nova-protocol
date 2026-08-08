@@ -1,10 +1,8 @@
 # Promote the self-ending completion guard into bevy-common-systems
 
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog
-- ACTIVITY: -
-- GATES: -
-- RESOLUTION: WONTDO
 
 ## Story
 
