@@ -4,10 +4,10 @@
 //! plants one of each finding class and this test asserts the report pinpoints
 //! each; a second test walks the SHIPPED mods and confirms every located
 //! finding points at a file that actually exists in the mod. See
-//! `nova_assets::content_report` for the model and
-//! `nova_assets::lint_walk::{collect_tree, collect_target}` for the walk.
+//! `nova_authoring::content_report` for the model and
+//! `nova_authoring::lint_walk::{collect_tree, collect_target}` for the walk.
 
-use nova_assets::{
+use nova_authoring::{
     content_report::{Category, Severity},
     lint_walk::{collect_target, resolve_target},
 };

@@ -1,6 +1,6 @@
 //! The human-facing content-lint report: the unified `content lint` gathers
 //! every finding - reference/geometry checks (`nova_scenario::lint`),
-//! combat-balance/fairness findings (`nova_assets::balance`), and flight-rig
+//! combat-balance/fairness findings (`nova_authoring::balance`), and flight-rig
 //! input overlaps - into one [`ContentReport`] that names, for each finding,
 //! the mod, the file it lives in, the offending element, a short explanation
 //! and a suggested fix. A modder debugging a multi-file bundle gets a document
@@ -12,6 +12,11 @@
 //! data model and the two renderers.
 
 use std::fmt::Write as _;
+
+/// The report itself and the finding model it is made of.
+pub mod prelude {
+    pub use super::{AckedFinding, Category, ContentReport, Finding, Severity};
+}
 
 /// A finding's severity. Errors fail the lint (broken references, canonical
 /// violations, spawned-dead balance, stale acks); warnings are authoring smells
@@ -40,7 +45,7 @@ pub enum Category {
     /// `nova_scenario::lint`: unknown prototypes, dangling chains, unseated
     /// mounts, resource-ref and canonical-scheme violations, section geometry.
     Reference,
-    /// `nova_assets::balance`: static combat fairness (spawned-dead / close-spawn).
+    /// `nova_authoring::balance`: static combat fairness (spawned-dead / close-spawn).
     Balance,
     /// A content `input_mapping` section reusing a key the always-on flight rig
     /// already binds (`consume_input: false`), silently double-driving flight.

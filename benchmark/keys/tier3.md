@@ -99,7 +99,7 @@ Copy `results/<run>/modder/tier3/salvage-run/` back into the repo and run, from
 the repo root:
 
 ```sh
-nix develop --command cargo run -p nova_assets --bin content -- lint <path>
+nix develop --command cargo run -p nova_authoring --bin content -- lint <path>
 ```
 
 Then load the scenario in-game and confirm it reaches Playing.

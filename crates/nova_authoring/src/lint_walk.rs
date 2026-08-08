@@ -21,6 +21,15 @@ use crate::content_report::{
     AckedFinding, Category, ContentReport, Finding, Severity as ReportSeverity,
 };
 
+/// The two report walks (`collect_*`), the two issue-only walks (`lint_*`),
+/// the target resolver, and the balance-input view of a walked tree.
+pub mod prelude {
+    pub use super::{
+        audit_bundles, collect_target, collect_tree, lint_content_tree, lint_target,
+        resolve_target, AuditBundle,
+    };
+}
+
 /// One walked bundle: its id (directory-derived), manifest, parsed content
 /// items, and the section / scenario views derived from them.
 struct WalkedBundle {
@@ -204,14 +213,14 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
     // of the scenario loop.
     let declared_deps: HashSet<String> =
         bundle.manifest.meta.dependencies.iter().cloned().collect();
-    let mut dep_refs: HashMap<String, crate::mod_refs::DepRef> = HashMap::new();
+    let mut dep_refs: HashMap<String, nova_assets::mod_refs::DepRef> = HashMap::new();
     // `base` is the implicit universal `dep://base` target: supply it from the
     // walked set so `dep://base/X` validates without a `meta.dependencies`
     // entry. (`base: None` - the static lint validates but never rewrites.)
     if let Some(base_bundle) = bundles_by_id.get("base") {
         dep_refs.insert(
             "base".to_string(),
-            crate::mod_refs::DepRef {
+            nova_assets::mod_refs::DepRef {
                 base: None,
                 resources: Some(base_bundle.manifest.resources.as_slice()),
             },
@@ -224,14 +233,14 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
         if let Some(dep_bundle) = bundles_by_id.get(dep_id.as_str()) {
             dep_refs.insert(
                 dep_id.clone(),
-                crate::mod_refs::DepRef {
+                nova_assets::mod_refs::DepRef {
                     base: None,
                     resources: Some(dep_bundle.manifest.resources.as_slice()),
                 },
             );
         }
     }
-    let scope = crate::mod_refs::RefScope {
+    let scope = nova_assets::mod_refs::RefScope {
         self_base: "",
         self_resources: &bundle.manifest.resources,
         declared_deps: &declared_deps,
@@ -243,7 +252,7 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
             Content::Section(cfg) => (cfg.base.id.clone(), "section"),
             Content::Campaign(cfg) => (cfg.id.clone(), "campaign"),
         };
-        for message in crate::mod_refs::resource_ref_violations(item, &scope) {
+        for message in nova_assets::mod_refs::resource_ref_violations(item, &scope) {
             issues.push((
                 bundle.id.clone(),
                 LintIssue {
@@ -257,7 +266,7 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
         // (scheme-less) asset-path ref no longer resolves (base art lives under
         // assets/base), so it is an Error - caught here at author time rather
         // than as a runtime 404.
-        for bare in crate::mod_refs::bare_asset_refs(item) {
+        for bare in nova_assets::mod_refs::bare_asset_refs(item) {
             issues.push((
                 bundle.id.clone(),
                 LintIssue {
@@ -439,7 +448,7 @@ fn build_report(
         }
     }
 
-    // 2. Balance / fairness audit (nova_assets::balance), acks applied.
+    // 2. Balance / fairness audit (nova_authoring::balance), acks applied.
     let audit_bundles: Vec<AuditBundle> = all
         .iter()
         .map(|b| AuditBundle {

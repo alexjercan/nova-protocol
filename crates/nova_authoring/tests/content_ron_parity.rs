@@ -17,11 +17,11 @@
 
 use std::{collections::BTreeSet, path::PathBuf};
 
-use nova_assets::scenario_generation::content_files;
+use nova_authoring::scenario_generation::content_files;
 use nova_mod_format::BundleManifest;
 
 /// The one regeneration path, named by every failure in this file.
-const REGEN: &str = "run `cargo run -p nova_assets --bin content -- gen` and commit the result";
+const REGEN: &str = "run `cargo run -p nova_authoring --bin content -- gen` and commit the result";
 
 /// The workspace `assets` dir (tests run with the crate root as cwd).
 fn assets_dir() -> PathBuf {

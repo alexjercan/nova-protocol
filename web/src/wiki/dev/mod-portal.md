@@ -79,7 +79,7 @@ are manifest-level, so the generator waves them through. Publishing clean means
 Close that gap yourself with a two-part PRE-PUBLISH check on every release,
 before you land:
 
-1. `cargo run -p nova_assets --bin content -- lint --target <mod>` - as of
+1. `cargo run -p nova_authoring --bin content -- lint --target <mod>` - as of
    the folded-lint work this ONE command runs every check the manifest gate
    cannot: reference/geometry (prototype ids, chain targets, filter/action
    targets, duplicate object ids), the combat BALANCE audit

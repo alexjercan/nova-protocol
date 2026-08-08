@@ -206,7 +206,7 @@ table: `keys/tier2.md`.
 
 Build a mod from the wiki and the two worked examples. Objective verdict, no
 grader: copy `results/<run>/modder/tier3/salvage-run/` back into the repo, run
-`cargo run -p nova_assets --bin content -- lint`, then load it in a scenario.
+`cargo run -p nova_authoring --bin content -- lint`, then load it in a scenario.
 
 Pass = lints and loads. Record it in `verdict.json` beside the result;
 `aggregate.py` picks it up. Any lint failure is a concrete wiki bug worth fixing

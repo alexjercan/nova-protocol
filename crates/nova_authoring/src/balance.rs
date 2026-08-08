@@ -43,6 +43,17 @@ use nova_gameplay::prelude::Allegiance;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::{SectionConfig, SectionKind};
 
+/// The audit entry points, the graded findings and their acknowledgments, and
+/// the derived per-ship / per-group / per-scenario metrics they are graded on.
+pub mod prelude {
+    pub use super::{
+        audit_bundles_to_audits, audit_content_tree, audit_scenario, partition_findings,
+        ship_stats, shipped_acks, BalanceAck, BalanceFinding, BalanceSeverity, CoverAudit,
+        FindingKind, HostileAudit, ScenarioAudit, SectionCatalog, ShipStats, SpawnGroupAudit,
+        EFFECTIVE_RANGE_MARGIN, TORPEDO_ENVELOPE,
+    };
+}
+
 /// Mirrors the AI's own shot-worth-taking margin (AI_FIRE_RANGE_FACTOR in
 /// nova_ship/src/input/ai/guns.rs): effective range = margin x muzzle_speed
 /// x projectile_lifetime.
@@ -66,6 +77,7 @@ pub const TORPEDO_ENVELOPE: f32 = 1000.0;
 pub struct SectionCatalog(HashMap<String, SectionConfig>);
 
 impl SectionCatalog {
+    /// Join the layers last-wins by section id, base first.
     pub fn resolve(layers: &[&[SectionConfig]]) -> Self {
         let mut map = HashMap::new();
         for layer in layers {
@@ -76,6 +88,7 @@ impl SectionCatalog {
         Self(map)
     }
 
+    /// The resolved prototype for a section id, or `None` if unknown.
     pub fn get(&self, id: &str) -> Option<&SectionConfig> {
         self.0.get(id)
     }
@@ -169,9 +182,11 @@ pub fn ship_stats(ship: &SpaceshipConfig, catalog: &SectionCatalog) -> ShipStats
 /// One armed (or unarmed) hostile placed by a handler.
 #[derive(Debug, Clone)]
 pub struct HostileAudit {
+    /// The hostile's scenario object id (what a balance ack names).
     pub id: String,
     /// Distance from the player spawn to this hostile's spawn.
     pub distance: f32,
+    /// The hostile's derived combat numbers.
     pub stats: ShipStats,
 }
 
@@ -180,11 +195,15 @@ pub struct HostileAudit {
 pub struct SpawnGroupAudit {
     /// A short trigger label ("OnStart", "OnEnter(area)", "OnUpdate", ...).
     pub trigger: String,
+    /// Whether the handler fires at scenario start (the spike the TTK rules
+    /// grade hardest - the player has no warning).
     pub on_start: bool,
+    /// Every hostile the handler places.
     pub hostiles: Vec<HostileAudit>,
 }
 
 impl SpawnGroupAudit {
+    /// Summed dps of the group, i.e. the worst case with all guns aligned.
     pub fn combined_dps(&self) -> f32 {
         self.hostiles.iter().map(|h| h.stats.dps).sum()
     }
@@ -205,20 +224,28 @@ pub struct CoverAudit {
     pub scattered_soft: usize,
 }
 
+/// How hard a finding bites. Only [`BalanceSeverity::Warn`] is ackable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BalanceSeverity {
+    /// Fails the gate outright.
     Error,
+    /// Fails unless a shipped ack names it.
     Warn,
 }
 
 /// The graded rules, as stable identifiers the ack file names.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FindingKind {
+    /// An ON-START hostile spawns inside its own threat envelope, so the
+    /// player is under fire before their first input. Never ackable.
     SpawnedDead,
+    /// The same, from a later trigger: the player has had time to react, so
+    /// it grades WARN and an ack can call it intended.
     CloseSpawn,
 }
 
 impl FindingKind {
+    /// The stable identifier an ack file's `kind` field carries.
     pub fn as_str(&self) -> &'static str {
         match self {
             FindingKind::SpawnedDead => "spawned-dead",
@@ -227,17 +254,22 @@ impl FindingKind {
     }
 }
 
+/// One graded balance problem in one scenario.
 #[derive(Debug, Clone)]
 pub struct BalanceFinding {
+    /// Whether an ack can suppress it.
     pub severity: BalanceSeverity,
+    /// Which rule fired.
     pub kind: FindingKind,
+    /// The scenario the finding sits in.
     pub scenario: String,
     /// The offending hostile's scenario object id (what an ack names).
     pub hostile: String,
+    /// The rendered explanation, with the numbers that tripped the rule.
     pub message: String,
 }
 
-/// One ACKNOWLEDGED finding (crates/nova_assets/balance_acks.ron): a
+/// One ACKNOWLEDGED finding (crates/nova_authoring/balance_acks.ron): a
 /// WARN-grade finding a human decided is intended, with the reason and the
 /// deciding task on record. ERRORs are never ackable - an ack pointing at
 /// an error-grade finding simply does not match and surfaces as stale.
@@ -245,12 +277,17 @@ pub struct BalanceFinding {
 /// so a rebalanced scenario cannot leave a dead exception rotting quietly.
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct BalanceAck {
+    /// The bundle owning the scenario.
     pub bundle: String,
+    /// The scenario the acked finding sits in.
     pub scenario: String,
+    /// The acked finding's hostile object id.
     pub hostile: String,
     /// A [`FindingKind::as_str`] value ("spawned-dead" / "close-spawn").
     pub kind: String,
+    /// Why the human decided this one is intended.
     pub reason: String,
+    /// The task id that made the call.
     pub task: String,
 }
 
@@ -306,9 +343,13 @@ pub fn partition_findings(
 /// One combat scenario's derived balance sheet.
 #[derive(Debug, Clone)]
 pub struct ScenarioAudit {
+    /// The audited scenario's id.
     pub scenario: String,
+    /// The player ship's derived combat numbers at spawn.
     pub player: ShipStats,
+    /// One entry per spawn handler, in declaration order.
     pub groups: Vec<SpawnGroupAudit>,
+    /// What the scenario gives the player to hide behind.
     pub cover: CoverAudit,
 }
 
@@ -320,6 +361,7 @@ impl ScenarioAudit {
         (dps > 0.0).then(|| self.player.hp / dps)
     }
 
+    /// Grade the sheet against the rules, unfiltered by acks.
     pub fn findings(&self) -> Vec<BalanceFinding> {
         let mut findings = Vec::new();
         for group in &self.groups {

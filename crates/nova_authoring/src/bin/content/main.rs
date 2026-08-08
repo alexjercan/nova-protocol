@@ -3,13 +3,13 @@
 //! `gen_content`, `content_lint` and `balance_audit` bins.
 //!
 //! ```text
-//! cargo run -p nova_assets --bin content -- gen
-//! cargo run -p nova_assets --bin content -- lint [--target <mod-dir-or-id>] \
+//! cargo run -p nova_authoring --bin content -- gen
+//! cargo run -p nova_authoring --bin content -- lint [--target <mod-dir-or-id>] \
 //!     [--report <path>] [--format md|html]
 //! ```
 //!
 //! - `gen` writes the builder-backed base content files: the
-//!   scenario/section builders in `nova_assets::scenario_generation` are the
+//!   scenario/section builders in `nova_authoring::scenario_generation` are the
 //!   single definition of each built-in; this serializes them into the committed
 //!   `assets/base/**/*.content.ron` the game loads. Run it (and commit the
 //!   result) after any builder change - the `content_ron_parity` test

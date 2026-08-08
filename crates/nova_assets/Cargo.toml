@@ -9,8 +9,7 @@ description = "Asset management for the Nova Protocol game"
 [dependencies]
 bevy = { version = "0.19.0" }
 bevy_asset_loader = { version = "0.27.0" }
-# The scenario_generation module serializes the code-built configs to RON. The
-# needed Serialize derives (nova_scenario/serde) are already on via nova_modding.
+# The persist stores and the mod cache index are RON on disk.
 ron = { version = "0.12" }
 # The mod_cache InstalledModRecord derives its RON serde directly.
 serde = { version = "1", features = ["derive"] }
@@ -21,9 +20,6 @@ serde = { version = "1", features = ["derive"] }
 ehttp = { version = "0.7" }
 serde_json = { version = "1" }
 sha2 = { version = "0.10" }
-# The `content` authoring CLI (task 20260717-212219) parses its gen/lint/audit
-# subcommands with clap derive, like nova_meta_gen's generator CLI.
-clap = { version = "4.5.48", features = ["derive"] }
 nova_gameplay = { path = "../nova_gameplay" }
 nova_ship = { path = "../nova_ship", features = ["serde"] }
 nova_hud = { path = "../nova_hud" }
@@ -65,10 +61,6 @@ wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 
 [dev-dependencies]
-avian3d = { version = "0.7" }
-bevy_rand = { version = "0.15.0", default-features = false, features = [
-    "wyrand",
-] }
 nova_events = { path = "../nova_events" }
 # The portal e2e (portal_install.rs) and the publish-gate test
 # (gen_portal_gate.rs) serve/exercise a real portal tree built by the production

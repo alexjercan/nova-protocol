@@ -62,8 +62,8 @@ scripts/serve-web.sh    # live dev: site + game + portal, watched, proxied
 scripts/preview-web.sh  # one-shot static build in the real deploy layout
 cargo check
 cargo fmt
-cargo run -p nova_assets --bin content -- gen
-cargo run -p nova_assets --bin content -- lint
+cargo run -p nova_authoring --bin content -- gen
+cargo run -p nova_authoring --bin content -- lint
 cargo run -p nova_probe_cli -- run player_path
 ```
 

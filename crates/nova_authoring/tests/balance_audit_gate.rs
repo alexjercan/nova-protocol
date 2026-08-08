@@ -4,12 +4,14 @@
 //! hostile inside its own effective range of the player spawn (the pre-rework
 //! ledger_ch2 shape) fails the build, not a playtest. Warn-grade findings do
 //! not gate unless ACKNOWLEDGED-and-stale: an ack in
-//! crates/nova_assets/balance_acks.ron that matches no live finding is dead
+//! crates/nova_authoring/balance_acks.ron that matches no live finding is dead
 //! weight and fails here so the exception list stays pruned. The finding rules'
-//! own fail-first lives in nova_assets::balance's unit tests (a synthetic
+//! own fail-first lives in nova_authoring::balance's unit tests (a synthetic
 //! spawned-dead scenario must grade ERROR, and an ack must never suppress one).
 
-use nova_assets::balance::{audit_content_tree, partition_findings, shipped_acks, BalanceSeverity};
+use nova_authoring::balance::{
+    audit_content_tree, partition_findings, shipped_acks, BalanceSeverity,
+};
 
 #[test]
 fn shipped_content_carries_no_balance_errors_and_no_stale_acks() {
@@ -51,7 +53,7 @@ fn shipped_content_carries_no_balance_errors_and_no_stale_acks() {
     // moved on and the recorded exception is dead weight.
     assert!(
         stale.is_empty(),
-        "stale balance acks (prune crates/nova_assets/balance_acks.ron): {:?}",
+        "stale balance acks (prune crates/nova_authoring/balance_acks.ron): {:?}",
         stale
             .iter()
             .map(|ack| {

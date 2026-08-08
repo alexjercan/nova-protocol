@@ -324,6 +324,11 @@ license = "MIT"
 [workspace]
 members = [
   "crates/nova_assets",
+  # The offline content toolchain (builders + `content` CLI + lint walk). A
+  # workspace MEMBER but never a game dependency: `cargo build` of the root
+  # package must not link it, which is exactly the property that justified
+  # carving it out of nova_assets.
+  "crates/nova_authoring",
   "crates/nova_autopilot",
   "crates/nova_core",
   "crates/nova_debug",

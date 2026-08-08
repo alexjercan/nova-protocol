@@ -19,7 +19,7 @@ cargo run --example scenario_grammar   # run an example
 cargo build --release             # release profile: opt=s, lto, stripped
 cargo check && cargo fmt          # before committing
 cargo test --workspace            # full suite (CI runs this; skip locally unless asked)
-cargo run -p nova_assets --bin content -- lint   # validate content: refs + balance + input overlaps (also: gen)
+cargo run -p nova_authoring --bin content -- lint   # validate content: refs + balance + input overlaps (also: gen)
 cargo run -p nova_probe_cli -- run player_path          # run-harness check (correctness + perf)
 ```
 
@@ -277,15 +277,15 @@ at queue time).
 game's content. One bin, two subcommands, run from the repo root:
 
 ```sh
-cargo run -p nova_assets --bin content -- gen                                   # regenerate the base *.content.ron
-cargo run -p nova_assets --bin content -- lint                                  # lint the whole content tree
-cargo run -p nova_assets --bin content -- lint --target <mod>                   # lint one mod (dir, id, or `base`)
-cargo run -p nova_assets --bin content -- lint --target <mod> --report r.md     # + write a per-mod report (md|html)
+cargo run -p nova_authoring --bin content -- gen                                   # regenerate the base *.content.ron
+cargo run -p nova_authoring --bin content -- lint                                  # lint the whole content tree
+cargo run -p nova_authoring --bin content -- lint --target <mod>                   # lint one mod (dir, id, or `base`)
+cargo run -p nova_authoring --bin content -- lint --target <mod> --report r.md     # + write a per-mod report (md|html)
 ```
 
 - `gen` serializes the code-built base content into the committed
   `assets/base/**/*.content.ron`. The base RON is GENERATED from Rust builders
-  (`nova_assets::scenario_generation`) - edit the builder and regenerate, never
+  (`nova_authoring::scenario_generation`) - edit the builder and regenerate, never
   hand-edit the RON, or the `content_ron_parity` test goes red.
 - `lint` runs EVERY content check in one pass (the `audit` subcommand was folded
   in here - balance is a kind of lint):
@@ -294,7 +294,7 @@ cargo run -p nova_assets --bin content -- lint --target <mod> --report r.md     
     scenarios with no terminal `Outcome`, resource-ref membership, ...);
   - the combat balance/fairness audit - every combat scenario's derived sheet,
     graded for spawned-dead (ERROR) and close-spawn (WARN) hostiles; deliberate
-    imbalances are acknowledged in `crates/nova_assets/balance_acks.ron` (a
+    imbalances are acknowledged in `crates/nova_authoring/balance_acks.ron` (a
     stale ack that matches no live finding is an ERROR, so the list stays
     pruned);
   - the flight-rig input-overlap check - a content `input_mapping` section

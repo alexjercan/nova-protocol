@@ -1307,10 +1307,15 @@ what lands with it.
 BLOCKS the baseline, lands AFTER it. Depends on L2 and L3. Independent of L9,
 so it can run in parallel with it.
 
-- [ ] Create `nova_authoring` and move `lint_walk.rs`, `balance.rs`,
+- [x] Create `nova_authoring` and move `lint_walk.rs`, `balance.rs`,
       `content_report.rs`, `scenario_generation.rs`, `bin/content.rs` (as the
       crate's binary) and `nova_scenario/src/lint/` into it.
-- [ ] Verify the test that justifies the move: the game binary does not link
+      CORRECTED against the code: `nova_scenario/src/lint/` STAYS. The next
+      step's test excludes it - `nova_assets/src/merge.rs:285` calls
+      `lint_scenario` in the runtime merge sweep, so the shipping game does
+      link it, by design. The `scenario/` builders and `sections.rs` moved too;
+      they are `scenario_generation`'s inputs and nothing else reads them.
+- [x] Verify the test that justifies the move: the game binary does not link
       the linter. Anything in the moved set reachable from a running game did
       not belong in the move.
 - [ ] Move `assets/base/**` to sit with the tool that generates it, not the

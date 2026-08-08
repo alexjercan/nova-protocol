@@ -8,7 +8,7 @@ use nova_scenario::prelude::LintSeverity;
 
 #[test]
 fn repo_content_tree_has_no_lint_errors() {
-    let issues = nova_assets::lint_walk::lint_content_tree();
+    let issues = nova_authoring::lint_walk::lint_content_tree();
     let mut errors = Vec::new();
     for (bundle, issue) in &issues {
         match issue.severity {
@@ -46,8 +46,8 @@ fn repo_content_tree_has_no_lint_errors() {
 fn target_mode_lints_one_mod_in_repo_or_external() {
     // In-repo by id: target mode scopes to exactly that bundle, error-free,
     // surfacing its acked exception.
-    let dir = nova_assets::lint_walk::resolve_target("the-ledger").expect("the-ledger resolves");
-    let report = nova_assets::lint_walk::collect_target(&dir);
+    let dir = nova_authoring::lint_walk::resolve_target("the-ledger").expect("the-ledger resolves");
+    let report = nova_authoring::lint_walk::collect_target(&dir);
     assert_eq!(
         report.error_count(),
         0,
@@ -108,7 +108,7 @@ fn target_mode_lints_one_mod_in_repo_or_external() {
     )
     .expect("content");
 
-    let issues = nova_assets::lint_walk::lint_target(&dir);
+    let issues = nova_authoring::lint_walk::lint_target(&dir);
     let errors: Vec<_> = issues
         .iter()
         .filter(|(_, i)| i.severity == LintSeverity::Error)

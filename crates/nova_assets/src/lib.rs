@@ -3,9 +3,9 @@
 //! built-in sections and scenarios, and performs the MOD MERGE - resolving the
 //! installed-mods catalog and `EnabledMods` into the active section/scenario
 //! set. The base content it registers is GENERATED from Rust builders (edit the
-//! builder, not the committed `*.content.ron`), and the crate also backs the
-//! `content` CLI (`gen`/`lint`; the balance audit and input-overlap check are
-//! folded into `lint`) that authors and validates that content.
+//! builder, not the committed `*.content.ron`); those builders and the
+//! `content` CLI that writes and lints them live in `nova_authoring`, which the
+//! game never links.
 //!
 //! Static assets PRELOAD through `bevy_asset_loader` collections: the UI font in
 //! the `Boot` [`BootAssets`] collection (published as [`nova_ui::font::UiFont`]),
@@ -21,29 +21,12 @@ mod collections;
 mod merge;
 mod mod_set;
 mod plugin;
-mod scenario;
-mod sections;
 
-pub mod content_report;
 pub mod mod_cache;
 pub mod mod_prefs;
 pub mod mod_refs;
 pub mod persist;
 pub mod portal;
-
-/// The balance audit over shipped scenario content: derives fairness metrics
-/// from the authored data and grades them. Shared by the `content` CLI's `lint`
-/// subcommand and the CI gate test; not part of the game's public API.
-#[doc(hidden)]
-pub mod balance;
-
-/// The RON generation surface for the built-in scenarios - the source the
-/// `content gen` CLI writes and the `content_ron_parity` test asserts. Not part
-/// of the game's public API.
-#[doc(hidden)]
-pub mod scenario_generation;
-
-pub mod lint_walk;
 
 pub use collections::{BootAssets, GameAssets};
 pub use merge::{merge_bundles, register_bundles, MergeOutcome};

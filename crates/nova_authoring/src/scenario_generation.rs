@@ -17,6 +17,17 @@ use nova_ship::prelude::SectionConfig;
 
 use crate::sections::{build_sections, SectionMeshRefs};
 
+/// The built-in builders, the deterministic RON serializer they are written
+/// through, and [`content_files`] - the file-by-file view `gen` writes and the
+/// parity test asserts.
+pub mod prelude {
+    pub use super::{
+        build_campaign_contents, build_campaigns, build_scenario_contents, build_scenarios,
+        build_section_catalog, build_section_content, content_files, pretty_config,
+        serialize_content,
+    };
+}
+
 /// The skybox cubemap asset path (matches `GameAssets::cubemap`).
 const CUBEMAP_PATH: &str = "self://textures/cubemap.png";
 /// Broadside's deep-field sky: the alt cubemap, so chapter two reads as

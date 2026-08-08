@@ -1,0 +1,49 @@
+[package]
+name = "nova_authoring"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = false
+description = "Offline content authoring and validation for Nova Protocol"
+
+[[bin]]
+name = "content"
+path = "src/bin/content/main.rs"
+
+[dependencies]
+# Only bevy's math/reflect-level types reach this crate (Vec3, the config
+# derives): the authoring toolchain never builds an App.
+bevy = { version = "0.19.0" }
+# The builders serialize the code-built configs to RON; the walk parses bundle
+# manifests and content files back. serde carries balance_acks.ron's derive.
+ron = { version = "0.12" }
+serde = { version = "1", features = ["derive"] }
+# The `content` CLI (task 20260717-212219) parses its gen/lint subcommands with
+# clap derive.
+clap = { version = "4.5.48", features = ["derive"] }
+# The reference-scope checks (mod_refs) and the atomic write `gen` commits
+# through - the runtime asset stack owns both, so the tool sits above it.
+nova_assets = { path = "../nova_assets" }
+nova_gameplay = { path = "../nova_gameplay" }
+# The section catalog the builders write IS `nova_ship`'s config vocabulary, and
+# `serde` is what lets `gen` serialize it to RON.
+nova_ship = { path = "../nova_ship", features = ["serde"] }
+nova_hud = { path = "../nova_hud" }
+nova_mod_format = { path = "../nova_mod_format" }
+nova_modding = { path = "../nova_modding" }
+nova_scenario = { path = "../nova_scenario" }
+
+[dev-dependencies]
+# The two scenario walk-through tests drive real content through the scenario
+# runtime and read its emitted events, so they build a real App with physics
+# and the seeded RNG the scenario systems expect.
+avian3d = { version = "0.7" }
+bevy_rand = { version = "0.15.0", default-features = false, features = [
+    "wyrand",
+] }
+nova_events = { path = "../nova_events" }
+# The lint and RON-parity gates build throwaway content trees on disk.
+tempfile = "3"
+
+[lints]
+workspace = true

@@ -3,7 +3,7 @@
 use std::{path::PathBuf, process::ExitCode};
 
 use clap::{Parser, Subcommand, ValueEnum};
-use nova_assets::content_report::ContentReport;
+use nova_authoring::content_report::ContentReport;
 
 #[derive(Parser)]
 #[command(
@@ -60,7 +60,7 @@ pub fn main() -> ExitCode {
 /// compiled in, so the paths resolve regardless of the invocation directory.
 fn run_gen() -> ExitCode {
     let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets");
-    for (rel, contents) in nova_assets::scenario_generation::content_files() {
+    for (rel, contents) in nova_authoring::scenario_generation::content_files() {
         let path = assets.join(&rel);
         nova_assets::persist::write_atomic(&path, contents.as_bytes())
             .unwrap_or_else(|err| panic!("write {}: {err}", path.display()));
@@ -75,16 +75,16 @@ fn run_lint(
     format: Option<ReportFormat>,
 ) -> ExitCode {
     let report_data = match target {
-        None => nova_assets::lint_walk::collect_tree(),
+        None => nova_authoring::lint_walk::collect_tree(),
         Some(target) => {
-            let Some(dir) = nova_assets::lint_walk::resolve_target(target) else {
+            let Some(dir) = nova_authoring::lint_walk::resolve_target(target) else {
                 eprintln!(
                     "content lint: no mod named '{target}' (not a directory, not under webmods/ or assets/mods/, not 'base')"
                 );
                 return ExitCode::FAILURE;
             };
             println!("content lint: target {}", dir.display());
-            nova_assets::lint_walk::collect_target(&dir)
+            nova_authoring::lint_walk::collect_target(&dir)
         }
     };
 
@@ -115,7 +115,7 @@ fn run_lint(
 /// The concise stdout view: one line per finding, then a count line. The full
 /// located document is the `--report` file.
 fn print_summary(report: &ContentReport) {
-    use nova_assets::content_report::Severity;
+    use nova_authoring::content_report::Severity;
 
     for finding in &report.findings {
         let tag = match finding.severity {
