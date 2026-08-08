@@ -1307,6 +1307,14 @@ what lands with it.
 BLOCKS the baseline, lands AFTER it. Depends on L2 and L3. Independent of L9,
 so it can run in parallel with it.
 
+CHECKPOINT 2026-08-08, sprout `refactor/l10-assets-scenario-cleanup`. Landed:
+`72f86261` (L10.1, nova_authoring) and `a52f990d` (L10.2, the Storage trait).
+Workspace `cargo check --workspace --all-targets` and
+`--target wasm32-unknown-unknown -p nova_assets -p nova_menu` are green; the
+storage/persist/settings_store tests pass. NEXT STEP: route the four
+scenario -> HUD sites through `nova_events`, then `render_scale`, then the
+preludes, then the three verification gates.
+
 - [x] Create `nova_authoring` and move `lint_walk.rs`, `balance.rs`,
       `content_report.rs`, `scenario_generation.rs`, `bin/content.rs` (as the
       crate's binary) and `nova_scenario/src/lint/` into it.
