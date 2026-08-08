@@ -27,6 +27,7 @@ pub mod mod_prefs;
 pub mod mod_refs;
 pub mod persist;
 pub mod portal;
+pub mod storage;
 
 pub use collections::{BootAssets, GameAssets};
 pub use merge::{merge_bundles, register_bundles, MergeOutcome};

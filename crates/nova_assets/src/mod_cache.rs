@@ -594,7 +594,7 @@ mod backend {
     pub fn write_index_at(root: &Path, records: &[InstalledModRecord]) -> std::io::Result<()> {
         let ron = ron::ser::to_string(records)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        crate::persist::write_atomic(&index_path(root), ron.as_bytes())
+        crate::storage::write_atomic(&index_path(root), ron.as_bytes())
     }
 
     /// Rename the unreadable index to `installed.mods.ron.bad` so the next

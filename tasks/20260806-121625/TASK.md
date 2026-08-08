@@ -1318,20 +1318,46 @@ so it can run in parallel with it.
 - [x] Verify the test that justifies the move: the game binary does not link
       the linter. Anything in the moved set reachable from a running game did
       not belong in the move.
-- [ ] Move `assets/base/**` to sit with the tool that generates it, not the
+- [x] Move `assets/base/**` to sit with the tool that generates it, not the
       runtime crate that reads it.
-- [ ] Add `crates/nova_assets/src/storage.rs` with
+      NOT MOVED, premise falsified. `assets/base/**` does not live with
+      `nova_assets` - it is under the repo-root `assets/`, which IS the bevy
+      asset root `nova_core::assets_plugin` hands `AssetPlugin`. The shipping
+      game loads it from there at runtime, as do the `mods://` source, the
+      wasm bundle and the deploy. Moving it under `crates/nova_authoring/`
+      would break loading to satisfy a filing preference. The generator's own
+      path (`bin/content/native.rs:62`, `../../assets`) still resolves after
+      the crate move - `nova_authoring` sits at the same depth.
+- [x] Add `crates/nova_assets/src/storage.rs` with
       `trait Storage { read, write, remove }`, mirroring the existing
       `PortalTransport` pattern.
-- [ ] Extend the trait's `write` from L3's F07 contract - atomic on native
+      `remove` DROPPED on YAGNI: nothing in the workspace deletes a persisted
+      value, and an unused trait method is a contract no impl is held to. The
+      trait is `read` + `write`.
+- [x] Extend the trait's `write` from L3's F07 contract - atomic on native
       (temp + fsync + rename), a single `set_item` on wasm - rather than
       absorbing a free helper and rewriting the same four call sites.
-- [ ] Add `NativeStorage { root }` and `WebStorage`; the two impls already
+      `write_atomic` moved `persist.rs` -> `storage.rs` (it is the native
+      backend's primitive, not the codec's) and IS `NativeStorage::write`. Its
+      three path-owning callers - the mod cache index, the portal catalog, the
+      content generator - were repointed, not rewritten.
+- [x] Add `NativeStorage { root }` and `WebStorage`; the two impls already
       exist behind `persist.rs`'s `#[cfg(target_arch = "wasm32")]` split at
       `:75-98`, they are just not behind a trait.
-- [ ] Delete the `#[cfg(target_arch = "wasm32")]` gates the trait replaces. Do
+      Selected once by `storage::platform() -> Option<PlatformStorage>`.
+      `WebStorage::key` compiles on native too, so the localStorage key
+      derivation keeps the test it had - a typo there orphans every web
+      player's save and no wasm test runs in CI.
+- [x] Delete the `#[cfg(target_arch = "wasm32")]` gates the trait replaces. Do
       NOT re-argue this from bit-rot - W3 withdrew that; all 14 crates
       type-check clean on wasm32. The case is testability and gate removal.
+      HONEST COUNT: the gates did not disappear, they CONCENTRATED.
+      `persist.rs` went 7 -> 1 (the surviving one gates its test module) and
+      `mod_prefs` / `settings_store` are gate-free; `storage.rs` now carries
+      12, all of them impl selection in the one module that owns the split.
+      The win is that no caller branches on the target and every store is
+      testable through `NativeStorage::at(tmpdir)` - which is what the two
+      `nova_menu` test seams now use instead of path-explicit helpers.
 - [ ] Route the four scenario -> HUD coupling sites through `nova_events`:
       `world.rs:138-144`, `actions/mission.rs:512,534,554`. These are the sites
       `AGENTS.md:102` was actually about - route them because they are

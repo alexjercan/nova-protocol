@@ -200,7 +200,7 @@ pub(super) mod last_good_store {
                 );
                 return;
             }
-            if let Err(e) = crate::persist::write_atomic(path, bytes) {
+            if let Err(e) = crate::storage::write_atomic(path, bytes) {
                 warn!("portal: could not write {}: {e}", path.display());
             }
         }

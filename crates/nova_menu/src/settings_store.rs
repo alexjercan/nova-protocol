@@ -95,7 +95,7 @@ impl PersistedSettings {
 
 /// The store key: `<config_dir>/nova-protocol/settings.ron` on native,
 /// `nova_protocol.settings` in localStorage on the web.
-const KEY: &str = "settings";
+pub(crate) const KEY: &str = "settings";
 
 /// The saved settings, or `None` if nothing has been saved yet (or the store is
 /// unreadable/corrupt). `None` means "use the defaults".
@@ -114,21 +114,35 @@ pub fn save_settings(settings: &PersistedSettings) {
 // setting never invalidates a player's saved store.
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
-    use nova_assets::persist::{load_from, save_to};
+    use nova_assets::{
+        persist::{load_from, save_to},
+        storage::NativeStorage,
+    };
     use nova_gameplay::prelude::GraphicsQuality;
     use nova_os_ui::prelude::NovaOsMonitorSettings;
     use nova_ui::prelude::UiSkin;
 
-    use super::PersistedSettings;
+    use super::{PersistedSettings, KEY};
 
-    fn temp_path(name: &str) -> std::path::PathBuf {
-        std::env::temp_dir().join(format!("nova_settings_{name}/settings.ron"))
+    fn temp_store(name: &str) -> NativeStorage {
+        NativeStorage::at(std::env::temp_dir().join(format!("nova_settings_{name}")))
+    }
+
+    fn clear(store: &NativeStorage) {
+        let _ = std::fs::remove_dir_all(store.path(KEY).parent().unwrap());
+    }
+
+    /// Plant bytes the codec must survive, bypassing it.
+    fn write_raw(store: &NativeStorage, bytes: &[u8]) {
+        let path = store.path(KEY);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, bytes).unwrap();
     }
 
     #[test]
     fn save_then_load_round_trips() {
-        let path = temp_path("round_trip");
-        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+        let store = temp_store("round_trip");
+        clear(&store);
 
         // Non-default monitor detents + SND off, so the round-trip proves the NOVA OS
         // chin fields persist.
@@ -140,18 +154,18 @@ mod tests {
             nova_os_scan_detent: 0,
             nova_os_sound_enabled: false,
         };
-        save_to(&path, &settings);
+        save_to(&store, KEY, &settings);
         assert!(
-            path.exists(),
+            store.path(KEY).exists(),
             "save_to must create the file and its parent dir"
         );
         assert_eq!(
-            load_from::<PersistedSettings>(&path),
+            load_from::<PersistedSettings>(&store, KEY),
             Some(settings),
             "settings round-trip through RON"
         );
         assert_eq!(
-            load_from::<PersistedSettings>(&path)
+            load_from::<PersistedSettings>(&store, KEY)
                 .unwrap()
                 .nova_os_monitor(),
             NovaOsMonitorSettings {
@@ -162,15 +176,15 @@ mod tests {
             "the persisted NOVA OS fields rebuild the live monitor resource"
         );
 
-        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+        clear(&store);
     }
 
     #[test]
     fn missing_file_loads_none() {
-        let path = temp_path("missing");
-        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+        let store = temp_store("missing");
+        clear(&store);
         assert_eq!(
-            load_from::<PersistedSettings>(&path),
+            load_from::<PersistedSettings>(&store, KEY),
             None,
             "a missing file reads as no saved settings"
         );
@@ -178,28 +192,26 @@ mod tests {
 
     #[test]
     fn corrupt_file_loads_none() {
-        let path = temp_path("corrupt");
-        let _ = std::fs::remove_dir_all(path.parent().unwrap());
-        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        std::fs::write(&path, b"not ron {{{").unwrap();
+        let store = temp_store("corrupt");
+        clear(&store);
+        write_raw(&store, b"not ron {{{");
         assert_eq!(
-            load_from::<PersistedSettings>(&path),
+            load_from::<PersistedSettings>(&store, KEY),
             None,
             "corrupt data reads as none, not a panic"
         );
-        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+        clear(&store);
     }
 
     /// An older file missing the graphics field still loads (serde default),
     /// so adding a setting never invalidates a saved store.
     #[test]
     fn partial_file_uses_defaults() {
-        let path = temp_path("partial");
-        let _ = std::fs::remove_dir_all(path.parent().unwrap());
-        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        std::fs::write(&path, b"(master_volume: 0.5)").unwrap();
+        let store = temp_store("partial");
+        clear(&store);
+        write_raw(&store, b"(master_volume: 0.5)");
         assert_eq!(
-            load_from::<PersistedSettings>(&path),
+            load_from::<PersistedSettings>(&store, KEY),
             Some(PersistedSettings {
                 master_volume: 0.5,
                 graphics_quality: GraphicsQuality::default(),
@@ -210,7 +222,7 @@ mod tests {
             }),
             "a missing field falls back to its serde default"
         );
-        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+        clear(&store);
     }
 
     /// The UI skin choice survives a save/load round-trip (DoD 2). Default is Phosphor,
@@ -218,27 +230,27 @@ mod tests {
     /// field defaults to Phosphor rather than failing to load.
     #[test]
     fn ui_skin_setting_persists_across_save_load() {
-        let path = temp_path("ui_skin");
-        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+        let store = temp_store("ui_skin");
+        clear(&store);
 
         let settings = PersistedSettings {
             ui_skin: UiSkin::Hardware,
             ..PersistedSettings::default()
         };
-        save_to(&path, &settings);
+        save_to(&store, KEY, &settings);
         assert_eq!(
-            load_from::<PersistedSettings>(&path).map(|s| s.ui_skin),
+            load_from::<PersistedSettings>(&store, KEY).map(|s| s.ui_skin),
             Some(UiSkin::Hardware),
             "the Hardware skin choice round-trips through the store"
         );
 
         // A pre-skin store still loads, defaulting the skin to Phosphor.
-        std::fs::write(&path, b"(master_volume: 0.5)").unwrap();
+        write_raw(&store, b"(master_volume: 0.5)");
         assert_eq!(
-            load_from::<PersistedSettings>(&path).map(|s| s.ui_skin),
+            load_from::<PersistedSettings>(&store, KEY).map(|s| s.ui_skin),
             Some(UiSkin::Phosphor),
             "a store written before the ui_skin field defaults to Phosphor"
         );
-        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+        clear(&store);
     }
 }

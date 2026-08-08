@@ -35,7 +35,7 @@
 //!   `content audit` invocations become `content lint`.
 
 // A NATIVE tool over the repo's content tree: `gen` writes files through
-// `persist::write_atomic`, which is native-only by design. The wasm target
+// `storage::write_atomic`, which is native-only by design. The wasm target
 // gets a stub main so `cargo check --workspace --target wasm32` stays green
 // over the lib graph the bundle actually ships.
 #[cfg(target_arch = "wasm32")]

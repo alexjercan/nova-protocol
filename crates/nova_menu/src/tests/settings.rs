@@ -257,7 +257,8 @@ fn a_setting_edited_just_before_quitting_is_still_saved() {
     app.update();
 
     let saved = nova_assets::persist::load_from::<crate::settings_store::PersistedSettings>(
-        &store.join("settings.ron"),
+        &nova_assets::storage::NativeStorage::at(&store),
+        crate::settings_store::KEY,
     )
     .expect("the exit flush wrote the pending settings");
     assert!(

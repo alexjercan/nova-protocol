@@ -62,7 +62,7 @@ fn run_gen() -> ExitCode {
     let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets");
     for (rel, contents) in nova_authoring::scenario_generation::content_files() {
         let path = assets.join(&rel);
-        nova_assets::persist::write_atomic(&path, contents.as_bytes())
+        nova_assets::storage::write_atomic(&path, contents.as_bytes())
             .unwrap_or_else(|err| panic!("write {}: {err}", path.display()));
         println!("wrote {}", path.display());
     }
