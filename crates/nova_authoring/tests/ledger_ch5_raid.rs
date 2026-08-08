@@ -709,10 +709,12 @@ fn the_bundle_ships_the_raid_and_bumps_the_version() {
         LEDGER_BUNDLE_RON.contains("ledger_ch5_the_raid.content.ron"),
         "the bundle lists the raid finale"
     );
+    // Bump this literal with every republish of the bundle. It is the guard on
+    // the update path: without a NEW version string an installed copy is never
+    // offered the update, so a content change never reaches a player who
+    // already has the mod.
     assert!(
-        LEDGER_BUNDLE_RON.contains("version: \"1.15.0\""),
-        "the bundle version is bumped for the authored-lighting republish - \
-         without a NEW version string an installed copy is never offered the \
-         update, so it renders black forever"
+        LEDGER_BUNDLE_RON.contains("version: \"1.17.0\""),
+        "the bundle version is bumped for the per-scenario thumbnail republish"
     );
 }
