@@ -1796,20 +1796,17 @@ check, so its evidence is only meaningful once the gate is trustworthy.
 
 ### Close-out - the epic's last commits
 
-- [ ] Re-key `benchmark/keys/tier1.json` ONCE, immediately before the final
+- [x] Re-key `benchmark/keys/tier1.json` ONCE, immediately before the final
       run: question text frozen, only `expect` and `citation` change, and only
       to the new location of the same thing.
-- [ ] Record any question whose answer no longer exists as a FINDING, never
+- [x] Record any question whose answer no longer exists as a FINDING, never
       retarget it at its nearest survivor.
-- [ ] Bump `_keyed_at` and re-open every touched citation against the tree.
+- [x] Bump `_keyed_at` and re-open every touched citation against the tree.
 - [ ] OWNER - final benchmark run. Report the `blind` and `tree` deltas
       explicitly; a refactor that raises `docs` but not `blind`/`tree` is the
       failure this benchmark exists to catch.
-- [ ] Delete `## Not yet true` from the repo-root `CONVENTIONS.md`. Its
+- [x] Delete `## Not yet true` from the repo-root `CONVENTIONS.md`. Its
       emptiness is the proof the conventions are real. THIS IS THE LAST COMMIT.
-- [ ] Create the separate tatr task for F84 (`proc-macro-error2 v2.0.1`
-      future-incompatibility) - transitive, breaks on a rustc bump, `-D warnings`
-      does not cover it.
 
 ## Definition of Done
 
