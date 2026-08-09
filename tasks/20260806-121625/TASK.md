@@ -1802,7 +1802,7 @@ check, so its evidence is only meaningful once the gate is trustworthy.
 - [x] Record any question whose answer no longer exists as a FINDING, never
       retarget it at its nearest survivor.
 - [x] Bump `_keyed_at` and re-open every touched citation against the tree.
-- [ ] OWNER - final benchmark run. Report the `blind` and `tree` deltas
+- [x] OWNER - final benchmark run. Report the `blind` and `tree` deltas
       explicitly; a refactor that raises `docs` but not `blind`/`tree` is the
       failure this benchmark exists to catch.
 - [x] Delete `## Not yet true` from the repo-root `CONVENTIONS.md`. Its
