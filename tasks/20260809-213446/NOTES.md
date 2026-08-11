@@ -110,6 +110,29 @@ Also fixed: `scripts/serve-mods.sh`'s stale comment pointing at a
 pruned-edge example retargeted (`nova_hud -> nova_events` is no longer an
 edge at all).
 
+### Third-party pass (cargo-udeps, owner-requested)
+
+`cargo udeps --workspace --all-targets` (nixpkgs cargo-udeps 0.1.61,
+RUSTC_WRAPPER unset - sccache breaks its rustc interception), run twice:
+default features and `--features debug`, so feature-gated usage is not
+misread as dead.
+
+- One genuine hit: `nova_gameplay -> bevy_enhanced_input` (input moved to
+  `nova_ship`, which declares its own). Removed.
+- One false positive, expected: the root `nova_debug` dev-dep is flagged on
+  the default run because every use is `cfg(feature = "debug")`-gated; the
+  debug run clears it. Its Cargo.toml comment already documents this. No
+  udeps ignore metadata added - udeps is not part of the CI loop.
+- The serde-optional deps in `nova_scenario`/`nova_ship`/`nova_gameplay` are
+  exercised in the workspace build (feature unification via `nova_modding`),
+  so the runs cover them.
+
+Docs cross-check after the removal: the architecture.md graph draws only
+`nova_*` edges (unchanged), `EnhancedInputPlugin` is still added by
+`nova_core` (which keeps its own dep), and modding-ron.md's
+`bevy_enhanced_input::Binding` serde note names the type, not a crate. No
+wiki change needed.
+
 Still open (accepted): `dev/guide-author-scenario.md`'s snippets were
 verified against source, but the page is 1143 lines and quotes numeric
 balance values from the catalog, which will drift again - same class of risk

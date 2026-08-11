@@ -4652,7 +4652,6 @@ version = "0.9.1"
 dependencies = [
  "avian3d",
  "bevy",
- "bevy_enhanced_input",
  "bevy_hanabi",
  "bevy_rand",
  "bevy_transform_interpolation",
