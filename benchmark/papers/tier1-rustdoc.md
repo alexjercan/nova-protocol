@@ -17,7 +17,7 @@ Length is not evidence. An answer that names the right path in one line scores
 exactly what a page naming the same path scores. Padding a thin answer does not
 move it: the grader scores what you located, never how much you wrote.
 
-There are **27** questions. They are numbered non-consecutively;
+There are **24** questions. They are numbered non-consecutively;
 that is expected and means nothing.
 
 ## How to answer
@@ -76,8 +76,6 @@ Record `confidence` before you check anything. It is colour, not a score.
 
 **t1-007.** The NOVA OS monitor has brightness, scanline and sound settings. Which file declares that settings type, which crate registers it as a resource, and which file persists it?
 
-**t1-008.** What is in the folder crates/nova_gameplay/src/hud/? Give the rough size split of what lives there.
-
 **t1-009.** Which crate owns the NOVA OS terminal model, the shell command matcher and the app runtime - and does that crate draw any of it?
 
 **t1-010.** The NOVA OS map app and the ship-viewer app each draw a 3D orbit-camera scene with blips. Name every file that implements that scene code.
@@ -104,13 +102,9 @@ Record `confidence` before you check anything. It is colour, not a score.
 
 **t1-022.** What is nova_events for? Should a gameplay system use it to notify another gameplay system in the same crate?
 
-**t1-023.** The mods screen, the scenarios screen and the portal Explore tab all render a list plus a details pane. Where does that shared composition live?
-
 **t1-024.** Which file or files compute the maximum scroll offset for a scrollable list?
 
 **t1-025.** Which file owns the shared button widget, and how many distinct paint backends does it contain?
-
-**t1-026.** NovaGameplayPlugin has a `render: bool` field documented as controlling whether the render-side plugins - meshes, HUD, particles - are added. Which plugins does it actually control?
 
 **t1-029.** Which crate holds the engine-free serde types for the mod wire format - the bundle manifest, the installed catalog and the mod metadata?
 

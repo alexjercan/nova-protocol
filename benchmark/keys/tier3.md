@@ -20,9 +20,17 @@ The `nova-bench:modder` image, built by `sandbox.sh`. `/work` contains:
 | `wiki/dev/mod-portal.md` | `web/src/wiki/dev/mod-portal.md` |
 | `webmods/gauntlet/` | worked example, one scenario, one content file |
 | `webmods/the-ledger/` | worked example, a campaign across six content files |
+| `assets/base/` | the base mod as the game ships it - the bundle, the generated content RON, the prototype ids a ship slot references |
 
 `thumbnails/*.png` are skipped - they are binary and carry no authoring
 information.
+
+`assets/base/` is staged because a real modder can read it from the installed
+game, and the base prototype ids exist nowhere else in this channel. Its
+absence made the after-run's controller-cube swap unknowable: which
+`racer_cube_*` slot is the controller is stated only there and in
+`nova_authoring` (owner ruling, 20260809-213441; the run's own GAPS.md gap 3
+predicted the failure).
 
 No repo. No `crates/`. No `.rs`. No `tasks/`. Not by instruction - those files
 are not in the image, and the repository is never mounted.

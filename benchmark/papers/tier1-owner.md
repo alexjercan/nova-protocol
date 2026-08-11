@@ -16,7 +16,7 @@ Length is not evidence. An answer that names the right path in one line scores
 exactly what a page naming the same path scores. Padding a thin answer does not
 move it: the grader scores what you located, never how much you wrote.
 
-There are **8** questions. They are numbered non-consecutively;
+There are **5** questions. They are numbered non-consecutively;
 that is expected and means nothing.
 
 ## How to answer
@@ -65,14 +65,8 @@ Record `confidence` before you check anything. It is colour, not a score.
 
 **t1-005.** Which crate owns the colour palette the HUD draws with?
 
-**t1-008.** What is in the folder crates/nova_gameplay/src/hud/? Give the rough size split of what lives there.
-
 **t1-016.** Name every module that implements author-time content lint - everything `content -- lint` runs.
 
 **t1-020.** What is actually in crates/nova_modding?
-
-**t1-023.** The mods screen, the scenarios screen and the portal Explore tab all render a list plus a details pane. Where does that shared composition live?
-
-**t1-026.** NovaGameplayPlugin has a `render: bool` field documented as controlling whether the render-side plugins - meshes, HUD, particles - are added. Which plugins does it actually control?
 
 **t1-029.** Which crate holds the engine-free serde types for the mod wire format - the bundle manifest, the installed catalog and the mod metadata?

@@ -1,5 +1,5 @@
 {
-  "_comment": "Tier 1 locate set, 30 questions. Every citation re-opened against the tree at HEAD 89c049fd on 2026-08-07, after L0 landed (AGENTS.md map fix, CONVENTIONS.md, clippy -D warnings, dead-code sweep). Owner ratifies before the baseline run.",
+  "_comment": "Tier 1 locate set, 26 questions. Citations re-keyed against the tree at HEAD f8d95128 on 2026-08-11, after the 20260806-121625 epic landed. Four questions (t1-008, t1-023, t1-026, t1-027) are DELETED, not re-keyed: the epic fixed the defect each one probed, so their pre-fix expects inverted - correct after-answers scored 0. Recorded as findings in tasks/20260806-121625/notes/19-benchmark-after.md (task 20260809-213441). Owner ratifies before a run.",
   "_grain": "crate | module | file | symbol - the granularity at which an answer earns full credit",
   "_scoring": "Every question is scored as one number in [0.00, 1.00], two decimals. 1.00 = matches `expect` at the stated `grain`, or an equivalent statement of it. 0.00 = wrong crate/module/file, or contradicted by `citation`, or a value `notes` pins at 0.00. Any value between is available and `notes` states the ones this key fixes; a value `notes` fixes overrides any fraction the grader would otherwise compute. Where `notes` fixes no intermediate value, score the fraction of required parts answered, or 1.00/0.00 for a single-part question. See papers/grade-tier1.md.",
   "_personas": "omit the field to mean all of blind, docs, tree, rustdoc, owner",
@@ -7,7 +7,6 @@
     "nova_os_hud_seam": [
       "t1-001",
       "t1-007",
-      "t1-008",
       "t1-009",
       "t1-010"
     ],
@@ -33,14 +32,11 @@
       "t1-022"
     ],
     "ui_layer": [
-      "t1-023",
       "t1-024",
       "t1-025"
     ],
     "composition_features": [
-      "t1-006",
-      "t1-026",
-      "t1-027"
+      "t1-006"
     ],
     "controls": [
       "t1-005",
@@ -51,15 +47,12 @@
   },
   "_owner_subset": [
     "t1-004",
-    "t1-008",
     "t1-016",
     "t1-020",
-    "t1-023",
-    "t1-026",
     "t1-005",
     "t1-029"
   ],
-  "_owner_subset_note": "The fixed subset the owner answers instead of all 30: one per coverage area plus two controls (t1-005, t1-029). Keep at least one control - an owner run with no control cannot distinguish 'the owner knows everything' from 'the questions are too easy'.",
+  "_owner_subset_note": "The fixed subset the owner answers instead of all 26. Was one per coverage area plus two controls (t1-005, t1-029); the 20260809-213441 deletion took the nova_os_hud_seam, ui_layer and composition_features representatives with it. Keep at least one control - an owner run with no control cannot distinguish 'the owner knows everything' from 'the questions are too easy'.",
   "questions": [
     {
       "id": "t1-001",
@@ -130,15 +123,6 @@
       "why_this_question": "Three-part, and the three parts sit in three crates. This is the ownership smear stated as a question: NOVA OS has logic in nova_os, UI in nova_gameplay/hud, and state plus persistence in nova_menu. Anything short of all three proves the feature has no findable owner.",
       "notes": "Three parts, 0.33 each: one of three = 0.33, two of three = 0.67. Naming crates/nova_os as the declaring crate earns nothing on that part - the settings type is not there. tree excluded: no file listing discloses which crate init_resources a type.",
       "grade_hint": "Score 1.00 only if all three are named."
-    },
-    {
-      "id": "t1-008",
-      "question": "What is in the folder crates/nova_gameplay/src/hud/? Give the rough size split of what lives there.",
-      "grain": "module",
-      "expect": "33,774 lines - 43% of nova_gameplay. Roughly 19k of actual HUD widgets, plus a 14,674-line NOVA OS terminal/windowing runtime in nova_os/, nova_os_map/, nova_os_ship/ and nova_os_pointer_rig.rs",
-      "citation": "find crates/nova_gameplay/src/hud -name '*.rs' | xargs wc -l -> 33774; the nova_os/ (8573), nova_os_map/ (2455) and nova_os_ship/ (3250) subtrees plus nova_os_pointer_rig.rs (396) -> 14674; crates/nova_gameplay total 77805",
-      "why_this_question": "Aimed squarely at a name that lies, and the only question that asks for a proportion. An agent that answers 'HUD widgets' and stops has been misled by the folder name. A wrong answer proves the tree hides that 43% of the workspace's largest crate is one folder, and that most of what is under it is not a HUD.",
-      "notes": "1.00 = names the NOVA OS runtime as the larger-than-expected half. 0.50 = says 'HUD widgets and NOVA OS' with no sense of the split. 0.00 = 'HUD widgets' alone. Order-of-magnitude accuracy on the numbers is enough; do not grade exact line counts. The tree persona has names only (owner ruling 2026-08-07: no line counts in TREE.txt), so grade it on file COUNTS rather than line counts - it can see three nova_os* subtrees and nova_os_pointer_rig.rs, which is enough to reach 0.50 and, with the file counts, 1.00."
     },
     {
       "id": "t1-009",
@@ -288,15 +272,6 @@
       "notes": "'Yes, route it through nova_events' is 0.00 however well the first half is stated. Otherwise two halves, 0.50 each. tree excluded - no file listing can answer the second half."
     },
     {
-      "id": "t1-023",
-      "question": "The mods screen, the scenarios screen and the portal Explore tab all render a list plus a details pane. Where does that shared composition live?",
-      "grain": "module",
-      "expect": "Nowhere shared. It is written three times inside nova_menu - mods.rs, scenarios.rs and portal.rs each carry their own list-dirty / details-dirty / refresh / spawn-row set. crates/nova_ui has no screen module",
-      "citation": "crates/nova_menu/src/mods.rs:278 mods_list_dirty, :299 mod_details_dirty, :326 refresh_mods_list, :591 refresh_mod_details, :120 spawn_mod_row; scenarios.rs:112 scenarios_list_dirty, :126 scenario_details_dirty, :183 refresh_scenarios_list, :400 refresh_scenario_details, :321 spawn_scenario_row; portal.rs:303 spawn_explore_row; crates/nova_ui/src/ contains font.rs, hud.rs, lib.rs, skin.rs, status_bar.rs, theme.rs, tween.rs, units.rs, widget/ - no screen module",
-      "why_this_question": "Asks where a shared thing lives when it does not exist. An agent that names a nova_ui module has invented structure; one that names one nova_menu file has stopped at the first hit. Baseline for the nova_ui::screen extraction.",
-      "notes": "Naming a nova_ui module is 0.00 - that is phantom structure. Otherwise 0.25 per nova_menu site named (0.25 / 0.50 / 0.75), and the last 0.25 is the observation that nova_ui owns none of it."
-    },
-    {
       "id": "t1-024",
       "question": "Which file or files compute the maximum scroll offset for a scrollable list?",
       "grain": "symbol",
@@ -325,35 +300,6 @@
       "citation": "crates/nova_ui/src/widget/button.rs, 961 lines; :115 fn phosphor_paint, :186 fn hardware_paint, :535 pub fn button_on_setting",
       "why_this_question": "The file is in the right crate - this half is not the failure. The second half tests whether a 866-line file discloses that it holds two full skin implementations plus a builder plus a generic settings binder. A 'one' answer proves file size is hiding structure that should be three files.",
       "notes": "0.50 for the file right with the backend count wrong or unstated. Naming any other crate is 0.00. tree excluded - a listing cannot answer the count."
-    },
-    {
-      "id": "t1-026",
-      "question": "NovaGameplayPlugin has a `render: bool` field documented as controlling whether the render-side plugins - meshes, HUD, particles - are added. Which plugins does it actually control?",
-      "grain": "symbol",
-      "personas": [
-        "blind",
-        "docs",
-        "rustdoc",
-        "owner"
-      ],
-      "expect": "Exactly one: SpaceshipSectionPlugin at crates/nova_gameplay/src/plugin.rs:109. Hanabi particles (:77), skybox (:85), post-processing (:86) and the entire HUD (:111) are added unconditionally. The advertised headless mode does not exist",
-      "citation": "crates/nova_gameplay/src/plugin.rs:39-41 the field and its doc; :77 HanabiPlugin, :85 SkyboxPlugin, :86 PostProcessingDefaultPlugin, :109 render: self.render, :111 NovaHudPlugin",
-      "why_this_question": "The clearest instance of lying surface in the tree: a documented capability with one twentieth of the wiring. Answering the doc comment is the failure the deletion sweep exists to prevent, and after the fix this question should become trivially right for every persona.",
-      "notes": "Repeating the doc claim ('meshes, HUD and particles') is 0.00. 0.50 for saying it is narrower than documented without naming SpaceshipSectionPlugin. The rustdoc persona's channel contains only the false doc comment, so a rustdoc 0.00 at baseline is expected and is the point of including it - flag this to the owner. tree excluded."
-    },
-    {
-      "id": "t1-027",
-      "question": "Which builds compile nova_gameplay with its `debug` feature enabled?",
-      "grain": "file",
-      "personas": [
-        "blind",
-        "docs",
-        "owner"
-      ],
-      "expect": "All of them. crates/nova_debug/Cargo.toml:18 hard-forces nova_gameplay's debug feature, and the root Cargo.toml:186 lists nova_debug as an unconditional dev-dependency, so every cargo test and every example build has it on with or without --features debug",
-      "citation": "crates/nova_debug/Cargo.toml:18 nova_gameplay = { path = \"../nova_gameplay\", features = [\"debug\"] }; Cargo.toml:186 nova_debug = { path = \"crates/nova_debug\" } under [dev-dependencies] (opened at :173); Cargo.toml:300 debug = [\"nova_core/debug\", ...], :301 dev = [\"debug\"]",
-      "why_this_question": "The feature flag advertises a build configuration that no test or example ever gets. It is the reason cfg(not(feature = \"debug\")) branches are unbuilt and the reason a default-features CI job is needed. Answering 'builds passing --features debug' proves the leak is invisible, and it is invisible from every channel today.",
-      "notes": "'Only --features debug builds' is 0.00. 0.50 for naming one of the two Cargo.toml sites. tree and rustdoc excluded - neither channel contains manifest contents."
     },
     {
       "id": "t1-028",

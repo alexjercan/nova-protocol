@@ -46,7 +46,10 @@ cd /work || exit 2
 
 MODEL_ARGS=()
 if [ -n "${NOVA_BENCH_MODEL:-}" ]; then
-    MODEL_ARGS=(--model "$NOVA_BENCH_MODEL")
+    MODEL_ARGS+=(--model "$NOVA_BENCH_MODEL")
+fi
+if [ -n "${NOVA_BENCH_EFFORT:-}" ]; then
+    MODEL_ARGS+=(--effort "$NOVA_BENCH_EFFORT")
 fi
 
 # stream-json is what makes tool_calls an objective metric instead of a

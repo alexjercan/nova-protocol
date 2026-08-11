@@ -124,10 +124,19 @@ def grade_score(g):
 
 def score_tier1(answers, grades, key=None, persona=None):
     """Per-question rows plus the headline band counts."""
+    # Questions deleted from the key stay behind in old grades.json and
+    # answers.json files. An unfiltered row would add its points over a
+    # denominator that no longer counts the question (the four inverted
+    # questions, task 20260809-213441).
+    expected = tier1_ids(key, persona) if key else []
     by_id = {a.get("id"): a for a in (answers or {}).get("answers", []) or []}
+    if expected:
+        by_id = {i: a for i, a in by_id.items() if i in expected}
     rows, tally = [], {"full": 0, "partial": 0, "zero": 0, "gave-up": 0}
 
     for g in (grades or {}).get("grades", []) or []:
+        if expected and g.get("id") not in expected:
+            continue
         score, gave_up = grade_score(g)
         # Bands are for the report only; `score` is the number that counts.
         # gave-up is split out of zero because an honest refusal and a
@@ -158,7 +167,6 @@ def score_tier1(answers, grades, key=None, persona=None):
     # grades let a grader that silently dropped a question shrink the
     # denominator instead of failing - it cost rustdoc/t1-018 in the baseline,
     # averaging 27 answered questions over the 26 the grader happened to return.
-    expected = tier1_ids(key, persona) if key else []
     graded_ids = [r["id"] for r in rows]
     ungraded = [q for q in expected if q not in graded_ids]
     asked = len(expected) or len(rows) or len(by_id)
@@ -241,6 +249,8 @@ def collect(run_dir):
                 "persona": persona,
                 "paper": paper,
                 "model": run_meta.get("model", "unknown"),
+                # Absent on runs recorded before the effort pin; None then.
+                "effort": run_meta.get("effort"),
                 "image_built_from": run_meta.get("image_built_from"),
                 "exit_code": run_meta.get("exit_code", meta.get("exit_code")),
                 "tool_calls": tr["tool_calls"],

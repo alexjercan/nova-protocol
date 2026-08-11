@@ -18,7 +18,7 @@ more than any single score.
 | `docs` | `AGENTS.md`, `README.md`, `CONVENTIONS.md`, the wiki. No source. | how much prose is carrying |
 | `tree` | one `TREE.txt`, names only | can the folder structure alone answer it |
 | `rustdoc` | `cargo doc --workspace --no-deps`, `[source]` pages stripped | is the public API self-documenting |
-| `modder` | 4 wiki modding pages + `webmods/` | external contract regression guard |
+| `modder` | 4 wiki modding pages, `webmods/`, `assets/base/` | external contract regression guard |
 | `owner` | prior knowledge + the repo | control/ceiling; validates the questions |
 
 Key deltas:
@@ -93,8 +93,11 @@ up and points at the paper; the answers are filled in by hand into the same
 identically. The row carries no transcript, so the report marks its tool-call
 counts as self-reported.
 
-`NOVA_BENCH_MODEL` selects the model. Recording it matters: a benchmark of
-navigability is only comparable across runs that used the same agent.
+The agent is pinned, not left to the CLI's default: `run.sh` and `grade.sh`
+default `NOVA_BENCH_MODEL` to `claude-opus-5` and `NOVA_BENCH_EFFORT` to
+`medium` (`claude --model` / `--effort`), and record both in `run.json`.
+Recording it matters: a benchmark of navigability is only comparable across
+runs that used the same agent. Override either env var to run something else.
 
 ### Authentication
 
@@ -132,8 +135,8 @@ have to measure navigating the codebase.
 
 | Paper | Personas | Questions |
 | --- | --- | --- |
-| `tier1` | blind 30, docs 27, tree 19, rustdoc 27 | locate |
-| `tier1` | owner 8 | the fixed control subset |
+| `tier1` | blind 26, docs 23, tree 17, rustdoc 24 | locate |
+| `tier1` | owner 5 | the fixed control subset |
 | `tier2a/b/c` | blind, docs, tree, rustdoc, owner | design |
 | `tier3` | modder | build a mod |
 
@@ -176,11 +179,11 @@ key and no source tree, so it grades the answer rather than re-deriving it.
 
 Tasks (owner-selected; each crosses seams the epic cuts):
 
-1. **Add a new ship section type.** Spans `sections/` (CORE), the input intent
-   path (FLIGHT), a HUD readout, the `nova_assets` content builders, and the
-   generated RON.
-2. **Add a NOVA OS app.** Today a three-crate scavenger hunt: logic in
-   `nova_os`, UI in `nova_gameplay/src/hud/nova_os*`, settings in `nova_menu`.
+1. **Add a new ship section type.** Spans `nova_ship` (sections + input
+   intent), a `nova_hud` readout, the `nova_authoring` content builders, and
+   the generated RON.
+2. **Add a NOVA OS app.** Three crates by design: logic in `nova_os`, UI in
+   `nova_os_ui`, settings in `nova_menu`.
 3. **Add a new scenario action + event.** Spans `nova_scenario` actions, the
    `nova_events` vocabulary, and the gameplay emitter. Tests whether the
    events-vs-observers distinction is legible.
@@ -196,8 +199,8 @@ grader must justify every score with a citation:
 | Cost of arrival | Tool calls to a correct model |
 
 "No phantom structure" is the dimension that catches names lying about their
-contents - `hud/` holding a terminal runtime, `nova_modding` holding neither
-bundle merge nor the portal client.
+contents - the baseline's `hud/` held a terminal runtime, and `nova_modding`
+held neither bundle merge nor the portal client.
 
 The headline number is the mean of the four. Ground truth and the full anchor
 table: `keys/tier2.md`.

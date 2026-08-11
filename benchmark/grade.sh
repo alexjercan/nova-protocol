@@ -11,7 +11,11 @@
 #   ./grade.sh <run-id> <persona> <paper>
 #   ./grade.sh <run-id> all                # everything in the run that is ungraded
 #
-# Writes results/<run>/<persona>/<paper>/grade/grades.json.
+# Writes results/<run>/<persona>/<paper>/grade/grades.json. Tier 2 runs the
+# grader k=3 and means the two judgement dimensions (H1, notes/18): Ownership
+# and No-phantom-structure swing up to 0.27 between passes on identical input,
+# while Completeness counts against a Required list and is stable single-pass.
+# Per-pass records stay in grade/pass-<k>/.
 # Tier 3 has no grader: the mod either lints and loads or it does not. See
 # keys/tier3.md for that verdict procedure.
 
@@ -20,6 +24,11 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 IMAGE="nova-bench:base"
 CREDS="${HOME}/.claude/.credentials.json"
+
+# Same pinned defaults as run.sh - the k=3 noise floor was measured on one
+# grader; a drifting default model would silently move it.
+NOVA_BENCH_MODEL="${NOVA_BENCH_MODEL:-claude-opus-5}"
+NOVA_BENCH_EFFORT="${NOVA_BENCH_EFFORT:-medium}"
 
 die() { echo "grade.sh: $*" >&2; exit 1; }
 
@@ -99,18 +108,58 @@ else
     die "no ANTHROPIC_API_KEY and no $CREDS"
 fi
 
-MODEL_ARGS=()
-[ -n "${NOVA_BENCH_MODEL:-}" ] && MODEL_ARGS=(-e "NOVA_BENCH_MODEL=$NOVA_BENCH_MODEL")
+MODEL_ARGS=(
+    -e "NOVA_BENCH_MODEL=$NOVA_BENCH_MODEL"
+    -e "NOVA_BENCH_EFFORT=$NOVA_BENCH_EFFORT"
+)
+
+run_grader() {
+    local out="$1"
+    mkdir -p "$out"
+    docker run --rm \
+        --user "$(id -u):$(id -g)" \
+        -v "$PAPER_FILE:/paper.md:ro" \
+        -v "$GRADE_IN:/grade:ro" \
+        -v "$out:/out" \
+        "${CRED_ARGS[@]}" "${MODEL_ARGS[@]}" \
+        -e NOVA_BENCH_PERSONA=grader \
+        "$IMAGE"
+    [ -f "$out/grades.json" ] || die "grader produced no grades.json (see $out/transcript.jsonl)"
+}
+
+# Tier 1 counts against per-question expects and is stable single-pass. The
+# tier 2 judgement dimensions are not - up to 0.27 spread on identical input -
+# so a single-pass delta there is unreadable (H1).
+K=1
+[ "$PAPER" = "tier1" ] || K=3
 
 echo "==> grading $PERSONA / $PAPER"
-docker run --rm \
-    --user "$(id -u):$(id -g)" \
-    -v "$PAPER_FILE:/paper.md:ro" \
-    -v "$GRADE_IN:/grade:ro" \
-    -v "$OUT:/out" \
-    "${CRED_ARGS[@]}" "${MODEL_ARGS[@]}" \
-    -e NOVA_BENCH_PERSONA=grader \
-    "$IMAGE"
+if [ "$K" -eq 1 ]; then
+    run_grader "$OUT"
+else
+    for k in $(seq 1 "$K"); do
+        echo "  pass $k/$K"
+        run_grader "$OUT/pass-$k"
+    done
+    # Pass 1 is the record (citations, missed_required, out_of_channel); only
+    # the two judgement scores are replaced by the k-pass mean.
+    python3 - "$OUT" "$K" <<'PY'
+import json
+import pathlib
+import sys
 
-[ -f "$OUT/grades.json" ] || die "grader produced no grades.json (see $OUT/transcript.jsonl)"
+out = pathlib.Path(sys.argv[1])
+k = int(sys.argv[2])
+passes = [json.loads((out / f"pass-{i}" / "grades.json").read_text()) for i in range(1, k + 1)]
+merged = passes[0]
+per_pass = {}
+for dim in ("ownership", "no_phantom_structure"):
+    vals = [p.get("scores", {}).get(dim) for p in passes]
+    nums = [float(v) for v in vals if v is not None]
+    per_pass[dim] = vals
+    merged.setdefault("scores", {})[dim] = round(sum(nums) / len(nums), 2) if nums else None
+merged["k"] = {"passes": k, "judgement_scores": per_pass}
+(out / "grades.json").write_text(json.dumps(merged, indent=2) + "\n")
+PY
+fi
 echo "  -> $OUT/grades.json"

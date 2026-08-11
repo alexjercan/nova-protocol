@@ -144,7 +144,12 @@ stage_modder() {
     cp -R "$REPO/webmods/." "$p/webmods/"
     # Binary thumbnails carry no authoring information.
     find "$p/webmods" -type d -name thumbnails -prune -exec rm -rf {} +
-    say "4 wiki pages, webmods/ ($(find "$p/webmods" -type f | wc -l) files)"
+    # A real modder can read the base mod from the game's assets folder, and
+    # the base prototype ids exist nowhere else in this channel - the after-run
+    # controller-cube swap was unknowable without them (owner ruling,
+    # 20260809-213441; GAPS.md gap 3 predicted it verbatim).
+    copy_repo_files "$p" assets/base
+    say "4 wiki pages, webmods/ ($(find "$p/webmods" -type f | wc -l) files), assets/base/ ($(find "$p/assets" -type f | wc -l) files)"
 }
 
 # ---------------------------------------------------------------- build

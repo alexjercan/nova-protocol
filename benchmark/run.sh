@@ -17,7 +17,8 @@
 #   meta.json          self-reported tool calls and confidence
 #
 # Env:
-#   NOVA_BENCH_MODEL   passed to `claude --model`
+#   NOVA_BENCH_MODEL   passed to `claude --model` (default claude-opus-5)
+#   NOVA_BENCH_EFFORT  passed to `claude --effort` (default medium)
 #   ANTHROPIC_API_KEY  used instead of the host credentials file if set
 
 set -euo pipefail
@@ -25,6 +26,12 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 IMAGE_PREFIX="nova-bench"
 CREDS="${HOME}/.claude/.credentials.json"
+
+# Pinned, not left to the CLI's default: a navigability benchmark is only
+# comparable across runs on the same agent, and "whatever the CLI defaulted to
+# that week" is not a recorded fact. Override per run via the env vars.
+NOVA_BENCH_MODEL="${NOVA_BENCH_MODEL:-claude-opus-5}"
+NOVA_BENCH_EFFORT="${NOVA_BENCH_EFFORT:-medium}"
 
 die() { echo "run.sh: $*" >&2; exit 1; }
 
@@ -86,8 +93,10 @@ else
     die "no ANTHROPIC_API_KEY and no $CREDS"
 fi
 
-MODEL_ARGS=()
-[ -n "${NOVA_BENCH_MODEL:-}" ] && MODEL_ARGS=(-e "NOVA_BENCH_MODEL=$NOVA_BENCH_MODEL")
+MODEL_ARGS=(
+    -e "NOVA_BENCH_MODEL=$NOVA_BENCH_MODEL"
+    -e "NOVA_BENCH_EFFORT=$NOVA_BENCH_EFFORT"
+)
 
 echo "==> $PERSONA / $PAPER -> results/$RUN/$PERSONA/$PAPER"
 
@@ -115,7 +124,8 @@ set -e
     echo "  \"persona\": \"$PERSONA\","
     echo "  \"paper\": \"$PAPER\","
     echo "  \"image_built_from\": \"$(docker image inspect -f '{{index .Config.Labels "nova.bench.built_from"}}' "$IMAGE_PREFIX:$PERSONA")\","
-    echo "  \"model\": \"${NOVA_BENCH_MODEL:-default}\","
+    echo "  \"model\": \"$NOVA_BENCH_MODEL\","
+    echo "  \"effort\": \"$NOVA_BENCH_EFFORT\","
     echo "  \"exit_code\": $status"
     echo "}"
 } > "$OUT/run.json"
