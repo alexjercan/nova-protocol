@@ -1,6 +1,6 @@
 # Refactor nova_* crate for better structure and clarity
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: v0.10.0, refactoring, project
 

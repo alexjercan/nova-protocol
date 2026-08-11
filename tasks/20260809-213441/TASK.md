@@ -1,8 +1,8 @@
 # Re-key the benchmark, draw the after-run conclusions, close the refactor
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 39
-- TAGS: v0.10.0,benchmark,tooling,project
+- TAGS: v0.10.0, benchmark, tooling, project
 
 PROBLEM: The 20260806-121625 after-run was graded with a stale ruler, so the
 raw numbers read as a regression that is mostly not real. Re-key the benchmark
