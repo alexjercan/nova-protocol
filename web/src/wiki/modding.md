@@ -6,7 +6,7 @@ mainline campaign, the menu backdrops, the portal mods - is content loaded
 through the same pipeline your own content uses, so anything the base game
 does, a mod can do too. A text editor is everything you need.
 
-**New here? Start with [Author a scenario](../dev/guide-author-scenario/).**
+**New here? Start with [Create your first scenario](../modding/author-a-scenario/).**
 The guides below are a ladder - each one assumes the one before it - and every
 construct they use is cataloged in the [modding reference](../modding/reference/)
 when you need the full field list.
@@ -15,10 +15,9 @@ when you need the full field list.
 
 Work through these in order; each ends with something you can run.
 
-1. **[Author a scenario](../dev/guide-author-scenario/)** - write a mission in
-   RON out of events, filters and actions: the file shape, a worked objective
-   loop, and how to load and test it. After this you can build and play your
-   own scenario.
+1. **[Create your first scenario](../modding/author-a-scenario/)** - follow one
+   small shooting range from setup through an objective and victory, then load
+   and play it. After this you can build and test your own scenario.
 2. **[Author a section](../dev/guide-author-section/)** - write a ship part
    (hull, thruster, controller, turret, torpedo bay) and overlay or extend the
    base catalog. After this you can put your own hardware on a ship.

@@ -8,7 +8,7 @@ vocabulary; anything it does, your content can do.
 
 **Learning rather than looking up?** Read the guides first - they teach the
 working subset with worked examples:
-[Author a scenario](../../dev/guide-author-scenario/),
+[Create your first scenario](../author-a-scenario/),
 [Author a section](../../dev/guide-author-section/),
 [Make and publish a mod](../../dev/guide-make-a-mod/). Every construct they
 show has its full entry here.

@@ -12,9 +12,9 @@ scenario, its own skybox and texture, and a menu backdrop). The first portal mod
 
 A mod's content is `Scenario` and `Section` items. If you have not authored those
 yet, write them first with the two authoring guides -
-[Author a scenario](../guide-author-scenario/) for the `Scenario` grammar and
-[Author a section](../guide-author-section/) for the `Section` (ship-part)
-grammar - then come back here to package and ship them. The example mod below leads
+[Create your first scenario](../../modding/author-a-scenario/) for a playable
+`Scenario` walkthrough and [Author a section](../guide-author-section/) for the
+`Section` (ship-part) grammar - then come back here to package and ship them. The example mod below leads
 with a `Section` overlay, so the section guide is the one that explains its
 `base`/`kind` shape.
 
@@ -239,7 +239,7 @@ A content file is a `[Content]` list. Each item is externally tagged by kind:
         // OnStart spawns the player ship + two destructible asteroids and a
         // `destroyed` counter; a per-target OnDestroyed increments it and a
         // one-shot OnUpdate (destroyed > 1) completes the objective, ending in a
-        // Victory Outcome. See "Author a scenario" for the full event/action
+        // Victory Outcome. See the modding reference for the full event/action
         // grammar. The example mod's content file also adds a second, new
         // section and a `menu_backdrop` scenario.
         events: [ /* ... */ ],
@@ -249,7 +249,7 @@ A content file is a `[Content]` list. Each item is externally tagged by kind:
 
 One file may mix `Section` and `Scenario` items. For the `Section` `base`/`kind`
 fields, see [Author a section](../guide-author-section/); for the scenario
-event/action shapes, see [Author a scenario](../guide-author-scenario/).
+event/action shapes, see the [modding reference](../../modding/reference/).
 
 ### The stemmed-extension rule (load-bearing)
 

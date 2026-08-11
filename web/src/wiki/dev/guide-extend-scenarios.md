@@ -2,7 +2,7 @@
 
 The scenario engine is config-open but code-closed. Authoring a scenario in RON
 from the primitives that already exist is a data change and lives in its own
-guide (see [Author a scenario](../guide-author-scenario/)). Adding a NEW
+guide (see [Create your first scenario](../../modding/author-a-scenario/)). Adding a NEW
 primitive - a new event, filter, action, or object kind - is a Rust change, and
 each of the four follows one repeated recipe: define the config, wire it into
 the matching dispatch enum, add the arm on the trait impl that fans out to it,

@@ -1,7 +1,7 @@
 # Author a section (RON)
 
 A how-to for content authors. A `Section` is the other kind of `*.content.ron`
-item alongside `Scenario` (see [Author a scenario](../guide-author-scenario/)):
+item alongside `Scenario` (see [Create your first scenario](../../modding/author-a-scenario/)):
 a ship part - hull, thruster, controller, turret, or torpedo bay - authored as
 RON data, no Rust. A mod ships sections to add new parts to the editor palette
 or to re-balance a base part by reusing its id (overlay by id; see

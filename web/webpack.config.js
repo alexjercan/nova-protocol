@@ -148,6 +148,11 @@ const WIKI_DOC_PAGES = [
         toc: true,
     },
     {
+        slug: "modding/author-a-scenario",
+        md: "modding/author-a-scenario.md",
+        title: "Create your first scenario",
+    },
+    {
         slug: "modding/reference",
         md: "modding/reference.md",
         title: "Modding reference",
@@ -204,11 +209,6 @@ const WIKI_DOC_PAGES = [
         slug: "dev/guide-extend-scenarios",
         md: "dev/guide-extend-scenarios.md",
         title: "Extend the scenario engine",
-    },
-    {
-        slug: "dev/guide-author-scenario",
-        md: "dev/guide-author-scenario.md",
-        title: "Author a scenario (RON)",
     },
     {
         slug: "dev/guide-author-section",
@@ -345,6 +345,7 @@ const REDIRECTS = [
     ["changelog/0.5.1", "news/0.5.0"],
     ["changelog/0.5.2", "news/0.5.0"],
     ["changelog/0.6.0", "news/0.6.0"],
+    ["wiki/dev/guide-author-scenario", "wiki/modding/author-a-scenario"],
 ];
 const redirectPage = ([from, to]) =>
     new HtmlWebpackPlugin({

@@ -1,6 +1,6 @@
 # Scenario / modding system
 
-> How-to companions: [Author a scenario](../guide-author-scenario/) to write one
+> How-to companions: [Create your first scenario](../../modding/author-a-scenario/) to write one
 > in RON with existing primitives, or [Extend the scenario engine](../guide-extend-scenarios/)
 > to add new event, filter, action, or object kinds in Rust. The exhaustive
 > construct-by-construct catalog for authors is the
@@ -105,7 +105,7 @@ flowchart LR
   `other_id` the body that entered). Each field optional, all set fields must
   match, and the fields are read for FILTERING only - never passed to actions.
   Per-event table + examples in
-  [Author a scenario](../guide-author-scenario/#entity).
+  [Create your first scenario](../../modding/author-a-scenario/#4-events-filters-and-actions).
 - `Expression(ExpressionFilterConfig)` - evaluate a `VariableConditionNode`
   against the scenario variables.
 - `Conditional(ConditionalFilterConfig)` - `Not` / `And` / `Or` combinators;
@@ -470,7 +470,7 @@ end to end:
   body past `ASTEROID_GEOMETRIC_FACTOR_MAX`) plus the ordered-gate and
   act-gating behavior. Run it with
   `cargo test -p nova_assets --test gauntlet_course`.
-- The [authoring guide's objective-loop worked example](../guide-author-scenario/#6-worked-example-an-objective-loop)
+- The [first-scenario guide's completed flow](../../modding/author-a-scenario/#3-plan-one-short-story)
   is the gentler, single-counter cousin of the gate-counter pattern.
 
 ## Scenario objects (`objects/`, `ScenarioObjectKind`)

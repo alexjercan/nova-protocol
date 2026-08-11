@@ -306,7 +306,7 @@ export const WIKI_PAGES: WikiPage[] = [
         summary:
             "The front door to content creation: what modding is, the guide ladder (author a scenario, author a section, publish a mod), and the reference catalog to look everything up. Start here.",
         related: [
-            "dev/guide-author-scenario",
+            "modding/author-a-scenario",
             "dev/guide-make-a-mod",
             "modding/reference",
         ],
@@ -317,23 +317,27 @@ export const WIKI_PAGES: WikiPage[] = [
         ],
     },
     {
-        slug: "dev/guide-author-scenario",
-        title: "Author a scenario (RON)",
+        slug: "modding/author-a-scenario",
+        title: "Create your first scenario",
         category: "Learn to mod",
-        tags: ["dev", "guide", "modding"],
+        tags: ["guide", "modding"],
         summary:
-            "Write a scenario in RON end to end with existing primitives - the file shape, the event/filter/action structure, variables and expressions, and a worked objective loop built up from the shipped scenarios.",
+            "Build and play a small shooting-range scenario in RON by following one objective from setup through events, filters, actions, variables, and victory.",
         related: [
-            "dev/scenario-system",
+            "modding/reference",
             "dev/guide-make-a-mod",
-            "dev/guide-extend-scenarios",
+            "modding/actions",
         ],
         headings: [
-            "The scenario file",
-            "Events, filters, actions",
-            "Variables and expressions",
-            "A worked objective loop",
-            "Loading and testing it",
+            "Start with the working example",
+            "Understand the scenario file",
+            "Plan one short story",
+            "Events, filters, and actions",
+            "Start the objective",
+            "Finish the objective",
+            "Make it yours",
+            "Load and play it",
+            "Common mistakes",
         ],
     },
     {
@@ -345,7 +349,7 @@ export const WIKI_PAGES: WikiPage[] = [
             "Author a ship part in RON - the Section content item and its BaseSectionConfig, then each SectionKind (hull, thruster, controller, turret, torpedo) with every field grounded in the shipped catalog, plus overlaying a base section in a mod.",
         related: [
             "dev/guide-make-a-mod",
-            "dev/guide-author-scenario",
+            "modding/author-a-scenario",
             "dev/sections",
         ],
         headings: [
@@ -368,7 +372,7 @@ export const WIKI_PAGES: WikiPage[] = [
         related: [
             "dev/modding-ron",
             "dev/mod-portal",
-            "dev/guide-author-scenario",
+            "modding/author-a-scenario",
             "dev/guide-author-section",
         ],
         headings: [
@@ -410,7 +414,7 @@ export const WIKI_PAGES: WikiPage[] = [
         related: [
             "modding/events",
             "modding/actions",
-            "dev/guide-author-scenario",
+            "modding/author-a-scenario",
         ],
         headings: [
             "Scenario",
@@ -454,7 +458,7 @@ export const WIKI_PAGES: WikiPage[] = [
         related: [
             "modding/events",
             "modding/expressions",
-            "dev/guide-author-scenario",
+            "modding/author-a-scenario",
         ],
         headings: [
             "Entity",
@@ -744,7 +748,7 @@ export const WIKI_PAGES: WikiPage[] = [
         tags: ["dev", "guide", "modding"],
         summary:
             "Add a new scenario primitive in Rust - an event kind, filter, action, or scenario-object kind - via the enum-variant + trait-impl + prelude recipe, one worked example each, plus the NovaEventWorld state/command seam.",
-        related: ["dev/scenario-system", "dev/guide-author-scenario"],
+        related: ["dev/scenario-system", "modding/author-a-scenario"],
         headings: [
             "Add an event kind",
             "Add a filter",

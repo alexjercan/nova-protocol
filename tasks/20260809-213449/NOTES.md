@@ -94,3 +94,16 @@ asset manifest; HudReadout Integer format for plain counts.
 - The child-grid cards on the hub show the hatched placeholder icon frame;
   per-family icons could be captured later (same pattern as the ship
   sections).
+
+## Annotation follow-up
+
+- Moved the scenario tutorial from `dev/guide-author-scenario.md` to
+  `modding/author-a-scenario.md`; the old URL now redirects.
+- Rebuilt it as one short, playable Example Mod path: file shape, three-beat
+  story, one event/filter/action loop, one expression gate, objective, victory,
+  exact lint/run/menu steps, screenshot placeholder, and a short mistakes list.
+- Removed the construct catalogs, internals, balance essay, and ship-geometry
+  detail. The exhaustive pages now own those details.
+- Repointed the manifest, related pages, and docs routing map to the new page.
+- Verification: `cd web && npm run ci`; rendered local-link check for the new
+  guide, modding front door, and reference hub (`/play/` excluded).

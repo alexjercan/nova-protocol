@@ -129,7 +129,7 @@ Section modifications - closed, data-only deltas applied at spawn:
 
 Ship-section GEOMETRY is linted: overlapping cells and a mount whose base
 points at empty space are Errors. The full grid-and-mount rules are in the
-[scenario guide's sharp edges](../../dev/guide-author-scenario/#8-sharp-edges).
+[scenario guide's sharp edges](../author-a-scenario/#9-common-mistakes).
 
 ## Beacon
 

@@ -72,7 +72,7 @@ The highest-value table. Verified paths; follow the linked page for depth.
 | A scenario event/filter/action | `crates/nova_scenario/src/{events.rs,filters.rs,actions/}` | [Scenario engine](../scenario-system/), [Extend the scenario engine](../guide-extend-scenarios/) |
 | Scenario objects / loading | `crates/nova_scenario/src/{objects/,loader/}` | [Scenario engine](../scenario-system/) |
 | Mod loading / merge | `crates/nova_assets/` + `crates/nova_modding/` | [Modding data format (RON)](../modding-ron/), [Mod portal](../mod-portal/) |
-| A built-in scenario or section | `crates/nova_authoring/src/` (builders), then `content -- gen` | [Author a scenario](../guide-author-scenario/) |
+| A built-in scenario or section | `crates/nova_authoring/src/` (builders), then `content -- gen` | [Create your first scenario](../../modding/author-a-scenario/) |
 | The ship editor | `crates/nova_editor/` | -- |
 | Shared UI theme / widgets | `crates/nova_ui/` | -- |
 | The web site / wiki | `web/` | [Building & running](../development/) |
