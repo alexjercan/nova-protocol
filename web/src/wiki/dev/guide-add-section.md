@@ -16,7 +16,7 @@ own row in the damage-resistance table -- none of which a RON author could
 supply. What IS data-extensible is the section CATALOG: a `SectionConfig`
 (base stats + one `SectionKind` instance) is authored in RON and loaded at
 runtime (see the [Ship sections](../sections/) reference and
-[modding](../modding-ron/)). New KINDS are code; new INSTANCES of an existing
+[modding](../../modding/sections/)). New KINDS are code; new INSTANCES of an existing
 kind are data. This guide is about the former.
 
 The closed enum is a feature: it means "did I wire the new kind into damage /

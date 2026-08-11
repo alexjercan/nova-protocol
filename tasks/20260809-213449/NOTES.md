@@ -107,3 +107,35 @@ asset manifest; HudReadout Integer format for plain counts.
 - Repointed the manifest, related pages, and docs routing map to the new page.
 - Verification: `cd web && npm run ci`; rendered local-link check for the new
   guide, modding front door, and reference hub (`/play/` excluded).
+
+## Reference hierarchy follow-up
+
+- The creator journey is now Modding -> Create your first scenario -> Publish a
+  mod -> Modding reference. Section authoring moved out of the tutorial ladder.
+- The reference now nests Mod files -> Campaign files / Scenario files / Ship
+  sections. Events, filters, actions, objects, and expressions nest under
+  Scenario files because they are scenario-only vocabulary.
+- The sidebar now renders arbitrary parent depth. Parent overview grids expose
+  the same hierarchy on Mod files and Scenario files.
+- `dev/modding-ron.md` was distilled into Mod files and the common RON rules.
+  `dev/mod-portal.md` was distilled into Publish a mod, including repository
+  generator, loader, live-preview, and static-preview checks. Old URLs redirect.
+- Ship sections became a field-by-field modding reference with common fields,
+  colliders, asset transforms, all five kinds, custom exhaust fields, and
+  add-versus-overlay behavior.
+- Verification: `cd web && npm run ci`; all rendered wiki-local paths and
+  anchors checked; manifest parents, related slugs, and cycles validated;
+  `bash -n benchmark/sandbox.sh scripts/serve-mods.sh`.
+
+## Reference example follow-up
+
+- Publish setup now uses manual directory and file creation instead of a copy,
+  rename, and Python replacement script.
+- `content lint` is the author-facing load/content gate. Removed the redundant
+  local `webmods_validation` step; repository CI keeps deeper integration
+  coverage. Publishing now requires lint plus portal generation.
+- Added complete RON examples for `OnUpdate`, `OnExit`, `OnOrbit`, and
+  `OnCombatLock`. Pair-event examples show specific `other_id` matching and
+  type-wide `other_type_name` matching where the payload supports it.
+- Added abbreviated Player and AI `Spaceship` spawn examples with one prototype
+  section and explicit placeholders for the remaining ship layout.

@@ -1,61 +1,94 @@
-# Author a section (RON)
+# Ship sections for mods
 
-A how-to for content authors. A `Section` is the other kind of `*.content.ron`
-item alongside `Scenario` (see [Create your first scenario](../../modding/author-a-scenario/)):
-a ship part - hull, thruster, controller, turret, or torpedo bay - authored as
-RON data, no Rust. A mod ships sections to add new parts to the editor palette
-or to re-balance a base part by reusing its id (overlay by id; see
-[Make and publish a mod](../guide-make-a-mod/)).
+A `Section` is a reusable ship part defined in a mod's `*.content.ron` file.
+Create a new id to add a part to the editor palette, or reuse a base id to
+replace that part everywhere. The five available kinds are `Hull`, `Thruster`,
+`Controller`, `Turret`, and `Torpedo`.
 
-Field shapes below match the shipped catalog
-(`assets/base/sections/base.content.ron`) and the config structs that parse it
-(`crates/nova_ship/src/sections/`); the numeric values are illustrative - the
-catalog is the balance source of truth. Asset refs are spelled from a MOD
-author's perspective (`dep://base/...`); base's own file spells the same refs
-`self://...`. The loader uses strict RON, so a
-misspelled or unknown field is a hard parse error, not a silent default. For the
-RON gotchas (newtype double-parens, `Some(...)`, tagged enums) shared with
-scenarios, see [RON scenario/mod format](../modding-ron/).
+Start with the two working section items in
+`assets/mods/example/example.content.ron`: one replaces
+`reinforced_hull_section`, and one adds `example_plated_hull_section`. Use the
+[base content catalog](../base-content/#section-prototypes) to find prototype
+ids and reusable `dep://base/` assets. See [Mod files](../mod-files/) for the
+bundle structure and [Publish a mod](../publish-a-mod/) when the part is ready
+for release.
+
+This page is the field-by-field section reference. For general RON spelling
+rules such as double parentheses, `Some(...)`, and asset schemes, see
+[RON spelling rules](../reference/#how-ron-content-is-written).
 
 ## The Section item
 
-A section is a `Section((base: ..., kind: ...))` content item (a `SectionConfig`):
+A content file is a list. Each section is one `Section((...))` item with a
+shared `base` block and one kind-specific block:
 
 ```ron
-Section((
-    base: (
-        id: "basic_thruster_section",
-        name: "Basic Thruster Section",
-        description: "A basic thruster section for spaceships.",
-        mass: 1.0,
-        health: 70.0,
-    ),
-    kind: Thruster((
-        magnitude: 1.0,
+[
+    Section((
+        base: (
+            id: "my_mod_thruster",
+            name: "Compact Thruster",
+            description: "A light engine for small ships.",
+            mass: 0.8,
+            health: 70.0,
+        ),
+        kind: Thruster((
+            magnitude: 1.0,
+        )),
     )),
+]
+```
+
+### Common fields
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `base.id` | string | required | Prototype key used by `source: Prototype("<id>")`. A new id adds a part; a matching id replaces the earlier part. Prefix new ids with your mod id. |
+| `base.name` | string | required | Display name in the editor palette and ship UI. |
+| `base.description` | string | required | Editor and tooltip description. |
+| `base.mass` | number | required | Density, not absolute mass. Real mass is density multiplied by collider volume. |
+| `base.health` | number | required | Hit points before the section is destroyed. |
+| `base.impact_sound` | `Option` asset ref | `None` | Sound played when this section is hit. Omitted means silent. |
+| `base.destroy_sound` | `Option` asset ref | `None` | Sound played when this section is destroyed. Omitted means silent. |
+| `base.collider` | `Option` collider | `None` | Physics shape. Omitted means a 1 x 1 x 1 cube. |
+| `base.hide_in_editor` | bool | `false` | `true` hides the prototype from the editor palette. Ships can still reference it. |
+| `kind` | section kind | required | `Hull((...))`, `Thruster((...))`, `Controller((...))`, `Turret((...))`, or `Torpedo((...))`. |
+
+Collider forms:
+
+```ron
+collider: Some(Cuboid(size: (1.0, 0.5, 1.5))),
+collider: Some(Sphere(radius: 0.5)),
+collider: Some(Capsule(radius: 0.4, length: 1.0)),
+collider: Some(Cylinder(radius: 0.5, height: 1.0)),
+```
+
+`Cuboid.size` is the full size on each axis. Capsules and cylinders extend
+along local Y. A larger collider also increases real mass because `base.mass`
+is density.
+
+### Assets and visual transforms
+
+Asset fields use namespaced strings:
+
+- `self://models/my-part.glb#Scene0` - art listed in your own bundle.
+- `dep://base/gltf/hull-01.glb#Scene0` - art from the base content catalog.
+
+Never use a bare path. Most mesh, sound, and effect fields are optional. Omit
+them for the built-in visual or silent audio behavior described below.
+
+Hull, thruster, controller, and torpedo sections can move their render mesh
+without moving the collider:
+
+```ron
+render_mesh_transform: Some((
+    position: (0.0, 0.1, 0.0),
+    rotation: (0.0, 0.0, 0.0, 1.0),
 )),
 ```
 
-- `base` is a `BaseSectionConfig`, shared by every section kind:
-  - `id` - unique section id; the key a ship's `source: Prototype("<id>")`
-    references, and the key a mod overlays to replace a base part.
-  - `name`, `description` - display strings (editor palette, tooltips).
-  - `mass` - a DENSITY: the section's real mass is `mass * collider_volume`,
-    and it contributes to the ship's total mass and center of mass.
-  - `health` - the section's hit points before it is disabled/destroyed.
-  - `collider` (optional) - the physics shape (`Cuboid`/`Sphere`/`Capsule`/
-    `Cylinder`); omitted resolves to the unit cube. See
-    [Ship sections](../sections/).
-  - `hide_in_editor` (optional) - keep the entry out of the editor palette.
-- `kind` selects the behavior and carries that kind's own config. It is one of
-  `Hull` / `Thruster` / `Controller` / `Turret` / `Torpedo`, each documented
-  below.
-
-The render meshes and effect fields are all `Option`s that default to `None`
-(the built-in prototype mesh), so omit them for the default look or write
-`Some("<scheme>://path")` for a custom asset. An asset ref is a SCHEMED path
-string - `self://models/my.glb#Scene0` for your own model, or
-`dep://base/gltf/hull-01.glb#Scene0` to reuse a base-game mesh; never bare.
+Both transform fields default independently: omit `position` for zero and
+`rotation` for identity. Turrets place this transform on each joint instead.
 
 ## Hull
 
@@ -77,6 +110,8 @@ Section((
 ```
 
 - `render_mesh` (optional) - the hull mesh; omit for a default 1x1x1 cuboid.
+- `render_mesh_transform` (optional) - visual-only position and rotation; does
+  not move the collider.
 - every section's `base` block also takes `impact_sound` + `destroy_sound`
   (optional) - the sounds a hit on / the destruction of THIS section plays,
   asset refs like the meshes (`dep://base/sounds/impact.wav` /
@@ -93,12 +128,35 @@ kind: Thruster((
 )),
 ```
 
-- `magnitude` - the thrust force this section produces at full throttle.
+- `magnitude` - impulse applied at full throttle on each fixed simulation tick.
+  Larger values accelerate the same ship faster; compare against the base
+  prototypes when balancing.
 - `render_mesh` (optional) - custom mesh; omit for the default thruster body.
+- `render_mesh_transform` (optional) - visual-only position and rotation.
 - `loop_sound` (optional) - the engine hum this thruster contributes to
   (`dep://base/sounds/thruster_loop.wav` is the base drone); thrusters sharing
   a sound share one loop whose volume tracks the loudest ship burning it. An
   omitted sound hums nothing.
+- `exhaust` (optional) - custom flame placement and shape. `None` uses the
+  standard cone. Write `Some((...))` when fitting exhaust to custom art.
+
+`exhaust` fields:
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `offset` | 3-tuple | `(0.0, 0.0, 0.3)` | Flame origin relative to the section. |
+| `rotation` | 4-tuple | standard rear-facing rotation | Rotates the flame, which is built along local +Y. |
+| `shape.geometry` | `Cone` or `Rect` | `Cone` | Round or rectangular flame cross-section. |
+| `shape.width`, `shape.height` | number | `0.8`, `0.8` | Full rectangular nozzle size; ignored by `Cone`. |
+| `shape.exhaust_height`, `shape.exhaust_radius` | number | `0.1`, `0.4` | Outer flame length and base radius. |
+| `shape.exhaust_max` | number | `1.0` | Outer flame peak intensity. |
+| `shape.exhaust_inner_height`, `shape.exhaust_inner_radius` | number | `0.05`, `0.1` | Inner core length and radius. |
+| `shape.exhaust_inner_max` | number | `0.5` | Inner core peak intensity. |
+| `shape.emissive_color`, `shape.emissive_inner_color` | linear color | cyan, blue | Outer and inner glow colors. |
+
+Every nested exhaust field has a default, so a mod can override only the values
+it needs. Copy a cut-cube thruster from
+`assets/base/sections/base.content.ron` for a complete rectangular example.
 
 ## Controller
 
@@ -118,6 +176,7 @@ kind: Controller((
 - `damping_ratio` - the PD damping ratio (overshoot vs settle).
 - `max_torque` - the maximum torque the controller may apply.
 - `render_mesh` (optional) - custom mesh; omit for the default body.
+- `render_mesh_transform` (optional) - visual-only position and rotation.
 - `lock_on_sound`, `lock_off_sound`, `radar_deny_sound`,
   `radar_retarget_sound`, `safety_on_sound`, `rcs_loop_sound` (all optional) - the computer's
   radar/lock and weapons-safety feedback ticks, asset refs like the meshes
@@ -209,8 +268,10 @@ Section-wide fields (once, alongside `root`):
   muzzles; `fire_rate` is per-muzzle, see the joint fields above).
 - `projectile_lifetime` - projectile lifetime in seconds.
 - `bullet_damage` - authored per-hit damage (pre-resistance).
-- `bullet_kind` - the damage type of the loaded round (`Kinetic`, and the other
-  `DamageType` variants).
+- `bullet_kind` - the damage type of the loaded round (`Kinetic`, `ArmorPiercing`,
+  `Emp`, or `Explosive`).
+- `projectile_render_mesh` (optional) - custom bullet mesh; omit for the
+  built-in projectile.
 - `ammo_capacity` (optional) - magazine size; `None` fires without a limit,
   `Some(n)` gives an ammo slot of `n` rounds.
 - `reload` (optional) - auto-reload for the magazine (needs `ammo_capacity`).
@@ -252,6 +313,8 @@ kind: Torpedo((
   even when a torpedo is shot down. Omit for a silent detonation.
 - `render_mesh`, `projectile_render_mesh` (both optional) - the bay mesh and the
   torpedo mesh; omit for defaults.
+- `render_mesh_transform` (optional) - visual-only bay mesh position and
+  rotation. It does not move the launch point.
 - `spawn_offset` (`Vec3`), `spawn_rotation` (`Quat`, a bare 4-tuple) - where the
   torpedo leaves the bay, relative to the section.
 - `fire_rate` - launches per second.
@@ -298,8 +361,7 @@ Section((
 Reuse a base id to REBALANCE or re-skin that part; give a NEW id to ADD a part
 alongside the base catalog. Either way, a ship references the section by id via
 `source: Prototype("<id>")` in its `sections` list. To ship the section, package
-the file as a mod - [Make and publish a mod](../guide-make-a-mod/) is the full
-flow.
+the file as a mod - [Publish a mod](../publish-a-mod/) is the release flow.
 
 Base ships a whole CATALOG of ship-part prototypes - the mainline campaign ships
 (the racer, the cargo hauler) are themselves built from `racer_cube_*` /
@@ -312,4 +374,4 @@ for an enemy) rather than re-authoring the parts. `SectionSource` is `Inline`
 (the full config, for a one-off part) or `Prototype` (a catalog reference, the
 compact reusable form). Every prototype id base ships - with its kind, so you
 can tell a structure cube from a gun - is tabled in the
-[base content catalog](../../modding/base-content/).
+[base content catalog](../base-content/).

@@ -395,7 +395,7 @@ Two things are worth knowing before you go off-script:
   portal base from `window.location`, so under `/play/` it fetches
   `<origin>/mods`. That is why the *site* server proxies `/mods`, and why a
   cross-origin `?portal=` override fails on CORS. See
-  [Mod portal](../mod-portal/), "Local development".
+  [Publish a mod](../../modding/publish-a-mod/#preview-the-repository-portal).
 
 `preview-web.sh` is the other half: no dev servers and no proxies, just
 `trunk build` + `npm run build` + `gen-portal.py` assembled into `web/dist` and

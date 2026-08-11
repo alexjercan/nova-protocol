@@ -39,9 +39,9 @@ Before you commit, ask three questions and act on each "yes":
    page(s) it affects, and the tutorial if the first-flight flow moved. A wiki
    page drifting behind the game is the exact failure to avoid.
 3. **Did internals, architecture, or a data format change?** Update the dev
-   wiki page(s) that describe them. A RON / bundle / catalog format break
-   especially must land in `dev/modding-ron.md` and/or `dev/mod-portal.md` in
-   the same task, or every mod author reads a lie.
+   wiki page(s) that describe them. A RON, bundle, catalog, or portal format
+   change must also land in the matching `modding/` reference or publishing
+   page in the same task, or every mod author reads a lie.
 
 ### The dependency map
 
@@ -51,19 +51,19 @@ it if the change made it wrong - not every change touches every listed page.
 | Code area (crate / dir) | Player wiki | Dev wiki | Also |
 | --- | --- | --- | --- |
 | **The crate layout itself**: a split, merge, rename, or move (`crates/*`) | | `dev/architecture.md` (crate map + dependency graph + assembly), `dev/project-tour.md` (crate map + change-X table), and THIS page's own row keys | CHANGELOG (Internals) |
-| Ship sections, integrity, typed damage, ammo (`nova_ship/sections`, `nova_gameplay/integrity`) | `sections.md` (+ section children), `hud.md` | `dev/sections.md`, `dev/guide-author-section.md`, `dev/guide-add-section.md` | CHANGELOG |
+| Ship sections, integrity, typed damage, ammo (`nova_ship/sections`, `nova_gameplay/integrity`) | `sections.md` (+ section children), `hud.md` | `dev/sections.md`, `dev/guide-add-section.md`, `modding/sections.md` | CHANGELOG |
 | Flight, controller, camera (`nova_ship/input`, `camera`) | `flight-autopilot.md`, `keybinds.md` | `dev/architecture.md` | CHANGELOG |
 | Targeting, radar, weapons, turrets, torpedoes (`nova_ship` targeting/sections, `nova_hud`) | `targeting-radar.md`, `combat-weapons.md`, `hud.md` | `dev/architecture.md` | CHANGELOG |
 | Gravity wells, factions, world (`nova_gameplay`) | `gravity-wells.md`, `factions.md` | | CHANGELOG |
-| Scenario engine: events, filters, actions, variables, objects (`nova_scenario`, `nova_events`) | `scenarios.md` | `dev/scenario-system.md`, `modding/author-a-scenario.md`, `dev/guide-extend-scenarios.md`, **the modding reference** (`modding/scenario.md`, `modding/events.md`, `modding/filters.md`, `modding/actions.md`, `modding/objects.md`, `modding/expressions.md` - a new/changed construct MUST land there, it is the exhaustive catalog) | CHANGELOG |
-| Modding data format, bundles, catalog, local cache (`nova_mod_format`, `nova_modding`) | `modding.md` | `dev/modding-ron.md`, `dev/guide-make-a-mod.md`, `modding/base-content.md` (overlay rules, dep://base) | CHANGELOG **(breaking?)** |
-| Mod portal + generator (`scripts/gen-portal.py`, `nova_modding`) | `modding.md` | `dev/mod-portal.md`, `dev/modding-ron.md` | CHANGELOG |
+| Scenario engine: events, filters, actions, variables, objects (`nova_scenario`, `nova_events`) | `scenarios.md` | `dev/scenario-system.md`, `modding/author-a-scenario.md`, `dev/guide-extend-scenarios.md`, **the modding reference** (`modding/scenarios.md`, `modding/events.md`, `modding/filters.md`, `modding/actions.md`, `modding/objects.md`, `modding/expressions.md` - a new/changed construct MUST land there, it is the exhaustive catalog) | CHANGELOG |
+| Modding data format, bundles, catalog, local cache (`nova_mod_format`, `nova_modding`) | `modding.md` | `modding/mod-files.md`, `modding/base-content.md` (overlay rules, dep://base) | CHANGELOG **(breaking?)** |
+| Mod portal + generator (`scripts/gen-portal.py`, `nova_modding`) | `modding.md` | `modding/publish-a-mod.md` | CHANGELOG |
 | Menus, editor, UI (`nova_menu`, `nova_editor`, `nova_ui`) | `hud.md`, `sections.md` | `dev/guide-add-section.md` | tutorial, CHANGELOG; **theme tokens: `web/design/nova_ui_rework_poc.html` is the source for BOTH `nova_ui/src/theme.rs` and `web/src/style.css`; the site draws the PHOSPHOR skin only** |
 | Automation drivers, the env contract, the completion protocol, the probe harness (`nova_autopilot`, `nova_probe`, `nova_probe_cli`) | | `dev/automation-harness.md`, `dev/development.md` (probe sections) | CHANGELOG **(env rename? breaking for every run script)** |
 | App assembly, plugin order, states (`nova_core`, `nova_assets`) | | `dev/architecture.md`, `dev/project-tour.md` | CHANGELOG |
-| Content CLI: gen/lint subcommands, the base content builders (`nova_authoring`, the game binary's `content` subcommand) | | `modding/author-a-scenario.md`, `dev/guide-author-section.md`, `dev/guide-add-section.md`, `dev/guide-make-a-mod.md`, `dev/modding-ron.md`, `dev/scenario-system.md`, `dev/sections.md`, `modding/base-content.md` (the id/asset catalog - a builder change that adds, renames or rebalances an id lands there) | CHANGELOG |
+| Content CLI: gen/lint subcommands, the base content builders (`nova_authoring`, the game binary's `content` subcommand) | | `modding/author-a-scenario.md`, `modding/sections.md`, `dev/guide-add-section.md`, `modding/publish-a-mod.md`, `modding/mod-files.md`, `dev/scenario-system.md`, `dev/sections.md`, `modding/base-content.md` (the id/asset catalog - a builder change that adds, renames or rebalances an id lands there) | CHANGELOG |
 | The website itself (`web/`) | | `dev/development.md`, [this page](../keeping-docs-in-sync/) | |
-| Local dev servers (`scripts/serve-web.sh`, `scripts/serve-mods.sh`, `scripts/preview-web.sh`, `web/webpack.config.js`, `Trunk.toml`) | | `dev/development.md` ("Local web preview"), `dev/mod-portal.md` ("Local development") | README.md quick start + scripts table |
+| Local dev servers (`scripts/serve-web.sh`, `scripts/serve-mods.sh`, `scripts/preview-web.sh`, `web/webpack.config.js`, `Trunk.toml`) | | `dev/development.md` ("Local web preview"), `modding/publish-a-mod.md` ("Preview the repository portal") | README.md quick start + scripts table |
 
 ### "Check" means re-derive, not grep
 

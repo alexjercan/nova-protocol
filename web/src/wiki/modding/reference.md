@@ -6,17 +6,14 @@ with its field table (types, defaults, units), a copyable snippet and its
 cross-references. Everything the base game ships is written in this
 vocabulary; anything it does, your content can do.
 
-**Learning rather than looking up?** Read the guides first - they teach the
-working subset with worked examples:
-[Create your first scenario](../author-a-scenario/),
-[Author a section](../../dev/guide-author-section/),
-[Make and publish a mod](../../dev/guide-make-a-mod/). Every construct they
-show has its full entry here.
+**Learning rather than looking up?** Follow
+[Create your first scenario](../author-a-scenario/) and
+[Publish a mod](../publish-a-mod/) first. Return here when you want the complete
+format for campaigns, scenarios, sections, or more advanced mission logic.
 
 ## How RON content is written
 
-The five spelling rules behind every snippet in these pages (the full gotcha
-list is the [RON format reference](../../dev/modding-ron/)):
+The five spelling rules behind every snippet in these pages:
 
 - The loader is STRICT: an unknown or misspelled field is a hard parse
   error, not a silent default. Field names are load-bearing.
@@ -41,7 +38,7 @@ list is the [RON format reference](../../dev/modding-ron/)):
 
 | family | constructs |
 |---|---|
-| Content items | [`Scenario`](../scenario/#scenario), [`Campaign`](../scenario/#campaign), [`Section`](../../dev/guide-author-section/) |
+| Mod structure | [bundle and content files](../mod-files/), [`Campaign`](../campaigns/), [`Scenario`](../scenarios/), [`Section`](../sections/) |
 | Events (9) | [`OnStart`](../events/#onstart), [`OnUpdate`](../events/#onupdate), [`OnDestroyed`](../events/#ondestroyed), [`OnNeutralized`](../events/#onneutralized), [`OnEnter`](../events/#onenter), [`OnExit`](../events/#onexit), [`OnOrbit`](../events/#onorbit), [`OnTravelLock`](../events/#ontravellock), [`OnCombatLock`](../events/#oncombatlock) |
 | Filters (3) | [`Entity`](../filters/#entity), [`Expression`](../filters/#expression), [`Conditional`](../filters/#conditional) (`Not` / `And` / `Or`) |
 | Actions (22) | spawning: [`SpawnScenarioObject`](../actions/#spawnscenarioobject), [`ScatterObjects`](../actions/#scatterobjects), [`DespawnScenarioObject`](../actions/#despawnscenarioobject), [`CreateScenarioArea`](../actions/#createscenarioarea) - mission: [`Objective`](../actions/#objective), [`ObjectiveComplete`](../actions/#objectivecomplete), [`ObjectiveMarkerAttach`](../actions/#objectivemarkerattach), [`ObjectiveMarkerDetach`](../actions/#objectivemarkerdetach), [`StoryMessage`](../actions/#storymessage), [`HudReadout`](../actions/#hudreadout), [`HintEmphasisSet`](../actions/#hintemphasisset), [`HintEmphasisClear`](../actions/#hintemphasisclear) - flow: [`Outcome`](../actions/#outcome), [`NextScenario`](../actions/#nextscenario) - ships: [`SetSpeedCap`](../actions/#setspeedcap), [`SetControllerVerb`](../actions/#setcontrollerverb), [`SetAllegiance`](../actions/#setallegiance) - state: [`VariableSet`](../actions/#variableset), [`DebugMessage`](../actions/#debugmessage) - view: [`SetCamera`](../actions/#setcamera), [`Screenshot`](../actions/#screenshot), [`SetSkybox`](../actions/#setskybox) |
@@ -63,7 +60,7 @@ The wiki search (sidebar) indexes every construct name, so typing
 [`Boolean`](../expressions/#values-the-literal-types) (literal),
 [`Box`](../actions/#scatterobjects) (scatter region)
 
-**C** - [`Campaign`](../scenario/#campaign) (content item),
+**C** - [`Campaign`](../campaigns/) (content item),
 [`Conditional`](../filters/#conditional) (filter),
 [`CreateScenarioArea`](../actions/#createscenarioarea) (action)
 
@@ -126,9 +123,9 @@ The wiki search (sidebar) indexes every construct name, so typing
 
 **S** - [`SalvageCrate`](../objects/#salvagecrate) (object),
 [`ScatterObjects`](../actions/#scatterobjects) (action),
-[`Scenario`](../scenario/#scenario) (content item),
+[`Scenario`](../scenarios/) (content item),
 [`Screenshot`](../actions/#screenshot) (action),
-[`Section`](../../dev/guide-author-section/) (content item),
+[`Section`](../sections/) (content item),
 [`SetAllegiance`](../actions/#setallegiance),
 [`SetCamera`](../actions/#setcamera),
 [`SetControllerVerb`](../actions/#setcontrollerverb) (actions),

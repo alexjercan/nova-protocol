@@ -42,15 +42,15 @@ copy this folder as a template:
 - `gauntlet.bundle.ron` - the manifest: a `content` list plus a `meta`
   self-description (`name` and `version` are required by the portal generator).
 - `gauntlet.content.ron` - the content: a `[Content]` list of `Scenario` /
-  `Section` items (see the authoring guides under
-  `web/src/wiki/dev/guide-author-scenario.md` and `guide-author-section.md`).
+  `Section` items (see `web/src/wiki/modding/scenarios.md` and
+  `web/src/wiki/modding/sections.md`).
 
 ## How it publishes
 
 `scripts/gen-portal.py` copies this folder to `site/mods/gauntlet/<version>/` and lists
 it in `catalog.json` with per-file `size` + `sha256`. The full flow - the
 generator invocation, the validation gates, and the deploy - is in
-`web/src/wiki/dev/guide-make-a-mod.md` (Publish to the portal).
+`web/src/wiki/modding/publish-a-mod.md`.
 
 Naming note: the manifest must be stemmed (`gauntlet.bundle.ron`, not
-`bundle.ron`) - see `web/src/wiki/dev/modding-ron.md`.
+`bundle.ron`) - see `web/src/wiki/modding/mod-files.md`.

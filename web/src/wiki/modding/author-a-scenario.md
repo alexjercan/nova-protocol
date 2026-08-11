@@ -58,7 +58,7 @@ For this tutorial, each field has one job:
 - `events` contains the mission logic.
 
 The complete field table, including thumbnails, hidden scenarios, and menu
-backdrops, is in [The scenario file](../scenario/).
+backdrops, is in [Scenario files](../scenarios/).
 
 ## 3. Plan one short story
 
@@ -254,10 +254,10 @@ nix develop --command cargo run --features dev
     <figcaption class="figure__caption">Enable the mod first, then launch its visible scenario from the Scenarios menu.</figcaption>
 </div>
 
-When the scenario works, use [Make and publish a mod](../../dev/guide-make-a-mod/)
-to copy it into its own bundle, assign your own mod id, test the local package,
-and publish it. Keep `hidden` unset so players can find it in the Scenarios
-menu.
+When the scenario works, give it its own folder and id with
+[Mod files](../mod-files/), then follow [Publish a mod](../publish-a-mod/) to
+make it installable by other players. Keep `hidden` unset so players can find
+it in the Scenarios menu.
 
 ## 9. Common mistakes
 

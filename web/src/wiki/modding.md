@@ -1,56 +1,61 @@
 # Modding
 
-Nova Protocol is data-driven: scenarios, ship sections and whole campaigns are
-authored as **RON data files**, not code. Everything the game ships - the
-mainline campaign, the menu backdrops, the portal mods - is content loaded
-through the same pipeline your own content uses, so anything the base game
-does, a mod can do too. A text editor is everything you need.
+Nova Protocol supports data-driven mods. A mod can add campaigns, playable
+scenarios, ship sections, menu backdrops, story messages, objectives, enemies,
+and custom art or audio. The base campaign and portal mods use the same content
+system available to mod authors.
 
-**New here? Start with [Create your first scenario](../modding/author-a-scenario/).**
-The guides below are a ladder - each one assumes the one before it - and every
-construct they use is cataloged in the [modding reference](../modding/reference/)
-when you need the full field list.
+You need a text editor and a local copy of the repository. Start with one small
+scenario, play it, then publish it when it works.
 
-## Learn to mod (the guides)
+## Learn to mod
 
-Work through these in order; each ends with something you can run.
+Follow this path in order:
 
-1. **[Create your first scenario](../modding/author-a-scenario/)** - follow one
-   small shooting range from setup through an objective and victory, then load
-   and play it. After this you can build and test your own scenario.
-2. **[Author a section](../dev/guide-author-section/)** - write a ship part
-   (hull, thruster, controller, turret, torpedo bay) and overlay or extend the
-   base catalog. After this you can put your own hardware on a ship.
-3. **[Make and publish a mod](../dev/guide-make-a-mod/)** - package your
-   content as a bundle, test it locally, and publish it to the mod portal.
-   After this other players can install what you made.
+1. **[Create your first scenario](../modding/author-a-scenario/)** - edit the
+   working Example Mod, follow one objective from setup to victory, and launch
+   it from the Scenarios menu. This introduces events, filters, actions, and
+   variables without requiring the full reference.
+2. **[Publish a mod](../modding/publish-a-mod/)** - turn finished content into a
+   release, run the lint and loader checks, preview the portal, and make it
+   installable by other players.
+3. **[Open the modding reference](../modding/reference/)** - learn the complete
+   format when you are ready to build larger maps, campaigns, custom ship parts,
+   and more complex mission logic.
 
-## Look it up (the reference)
+## What can a mod contain?
 
-The **[modding reference](../modding/reference/)** is the catalog: every
-event, filter, action, object kind and expression node, one anchor per
-construct, with field tables (types, defaults, units) and copyable RON.
+- **Campaigns** group scenarios into an ordered story.
+- **Scenarios** create playable maps and script them with events, filters,
+  actions, objects, and variables.
+- **Ship sections** add or replace hulls, thrusters, controllers, turrets, and
+  torpedo bays.
+- **Resources** provide your own images, models, sounds, thumbnails, and
+  skyboxes.
 
-- [The scenario file](../modding/scenario/) - `Scenario` and `Campaign` items
-  and the handler shape.
-- [Events](../modding/events/) - everything that can fire a handler, and what
-  each event carries.
-- [Filters](../modding/filters/) - the three filter kinds and the fail-closed
-  rules.
-- [Actions](../modding/actions/) - everything a handler can do, grouped by
-  purpose.
-- [Scenario objects](../modding/objects/) - everything a scenario can spawn.
-- [Variables & expressions](../modding/expressions/) - the expression grammar,
-  node by node.
-- [Base content catalog](../modding/base-content/) - the section prototype
-  ids, scenario ids and `dep://base/` assets you can reference.
-- [Modding data format (RON)](../dev/modding-ron/) - RON syntax gotchas,
-  bundles, the catalog and the local cache.
-- [Mod portal](../dev/mod-portal/) - how published mods are served and
-  installed.
+The [Mod files](../modding/mod-files/) page shows how those pieces fit into one
+folder and bundle.
+
+## Look it up
+
+The [modding reference](../modding/reference/) is the exhaustive catalog:
+
+- [Mod files](../modding/mod-files/) - folder, bundle, content files, resources,
+  dependencies, and overlays.
+- [Campaign files](../modding/campaigns/) - campaign fields and chapter order.
+- [Scenario files](../modding/scenarios/) - scenario metadata and handler shape.
+- [Ship sections for mods](../modding/sections/) - every section kind and field.
+- [Base content catalog](../modding/base-content/) - reusable ids and
+  `dep://base/` assets.
+
+Scenario scripting then branches into [Events](../modding/events/),
+[Filters](../modding/filters/), [Actions](../modding/actions/),
+[Scenario objects](../modding/objects/), and
+[Variables and expressions](../modding/expressions/).
 
 ## Extend the engine
 
-New event kinds, filters, actions or scenario-object types need a small Rust
-change - that is a contributor task, covered in
-[Extend the scenario engine](../dev/guide-extend-scenarios/).
+The reference lists everything RON content can use. Adding a new event, filter,
+action, object kind, or section kind requires a game-code change. Contributors
+can start with [Extend the scenario engine](../dev/guide-extend-scenarios/) or
+[Add a ship section](../dev/guide-add-section/).

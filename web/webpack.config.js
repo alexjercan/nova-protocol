@@ -35,6 +35,11 @@ const MODDING_REF_CRUMB = {
     slug: "modding/reference",
     title: "Modding reference",
 };
+const MOD_FILES_CRUMB = { slug: "modding/mod-files", title: "Mod files" };
+const SCENARIOS_CRUMB = {
+    slug: "modding/scenarios",
+    title: "Scenario files",
+};
 const WIKI_DOC_PAGES = [
     // Player pages (children before the sections parent for rewrite ordering).
     {
@@ -95,48 +100,67 @@ const WIKI_DOC_PAGES = [
     { slug: "gravity-wells", md: "gravity-wells.md", title: "Gravity wells" },
     { slug: "factions", md: "factions.md", title: "Factions" },
     { slug: "scenarios", md: "scenarios.md", title: "Scenarios" },
-    // The modding reference (children before the "modding" front door and the
-    // "modding/reference" hub for rewrite ordering). Every reference page opts
-    // into the build-time contents box (toc) - they are long catalog pages.
-    {
-        slug: "modding/scenario",
-        md: "modding/scenario.md",
-        title: "The scenario file",
-        crumbParent: MODDING_REF_CRUMB,
-        toc: true,
-    },
+    // The modding hierarchy. Deep pages come first for dev-server rewrites.
     {
         slug: "modding/events",
         md: "modding/events.md",
         title: "Events",
-        crumbParent: MODDING_REF_CRUMB,
+        crumbParent: SCENARIOS_CRUMB,
         toc: true,
     },
     {
         slug: "modding/filters",
         md: "modding/filters.md",
         title: "Filters",
-        crumbParent: MODDING_REF_CRUMB,
+        crumbParent: SCENARIOS_CRUMB,
         toc: true,
     },
     {
         slug: "modding/actions",
         md: "modding/actions.md",
         title: "Actions",
-        crumbParent: MODDING_REF_CRUMB,
+        crumbParent: SCENARIOS_CRUMB,
         toc: true,
     },
     {
         slug: "modding/objects",
         md: "modding/objects.md",
         title: "Scenario objects",
-        crumbParent: MODDING_REF_CRUMB,
+        crumbParent: SCENARIOS_CRUMB,
         toc: true,
     },
     {
         slug: "modding/expressions",
         md: "modding/expressions.md",
         title: "Variables & expressions",
+        crumbParent: SCENARIOS_CRUMB,
+        toc: true,
+    },
+    {
+        slug: "modding/campaigns",
+        md: "modding/campaigns.md",
+        title: "Campaign files",
+        crumbParent: MOD_FILES_CRUMB,
+        toc: true,
+    },
+    {
+        slug: "modding/scenarios",
+        md: "modding/scenarios.md",
+        title: "Scenario files",
+        crumbParent: MOD_FILES_CRUMB,
+        toc: true,
+    },
+    {
+        slug: "modding/sections",
+        md: "modding/sections.md",
+        title: "Ship sections for mods",
+        crumbParent: MOD_FILES_CRUMB,
+        toc: true,
+    },
+    {
+        slug: "modding/mod-files",
+        md: "modding/mod-files.md",
+        title: "Mod files",
         crumbParent: MODDING_REF_CRUMB,
         toc: true,
     },
@@ -151,6 +175,11 @@ const WIKI_DOC_PAGES = [
         slug: "modding/author-a-scenario",
         md: "modding/author-a-scenario.md",
         title: "Create your first scenario",
+    },
+    {
+        slug: "modding/publish-a-mod",
+        md: "modding/publish-a-mod.md",
+        title: "Publish a mod",
     },
     {
         slug: "modding/reference",
@@ -185,12 +214,6 @@ const WIKI_DOC_PAGES = [
         title: "Scenario engine",
     },
     {
-        slug: "dev/modding-ron",
-        md: "dev/modding-ron.md",
-        title: "Modding data format (RON)",
-    },
-    { slug: "dev/mod-portal", md: "dev/mod-portal.md", title: "Mod portal" },
-    {
         slug: "dev/project-tour",
         md: "dev/project-tour.md",
         title: "Project tour",
@@ -209,16 +232,6 @@ const WIKI_DOC_PAGES = [
         slug: "dev/guide-extend-scenarios",
         md: "dev/guide-extend-scenarios.md",
         title: "Extend the scenario engine",
-    },
-    {
-        slug: "dev/guide-author-section",
-        md: "dev/guide-author-section.md",
-        title: "Author a section (RON)",
-    },
-    {
-        slug: "dev/guide-make-a-mod",
-        md: "dev/guide-make-a-mod.md",
-        title: "Make and publish a mod",
     },
 ];
 const docPage = ({ slug, md, title, crumbParent, toc }) =>
@@ -346,6 +359,11 @@ const REDIRECTS = [
     ["changelog/0.5.2", "news/0.5.0"],
     ["changelog/0.6.0", "news/0.6.0"],
     ["wiki/dev/guide-author-scenario", "wiki/modding/author-a-scenario"],
+    ["wiki/dev/guide-author-section", "wiki/modding/sections"],
+    ["wiki/dev/guide-make-a-mod", "wiki/modding/publish-a-mod"],
+    ["wiki/dev/modding-ron", "wiki/modding/mod-files"],
+    ["wiki/dev/mod-portal", "wiki/modding/publish-a-mod"],
+    ["wiki/modding/scenario", "wiki/modding/mod-files"],
 ];
 const redirectPage = ([from, to]) =>
     new HtmlWebpackPlugin({

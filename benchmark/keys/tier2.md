@@ -243,7 +243,7 @@ It is done once per app, by each app's own module in `nova_os_ui`.
 | `crates/nova_scenario/src/actions/ship.rs` | where a ship-scoped action config and its `action()` belong (`SetSpeedCapActionConfig` `:16`/`:27` is the template) |
 | `crates/nova_scenario/src/objects/area.rs` | the **emitter**. Area enter/exit is detected by the collision observers at `:91`/`:139` and fired at `:132`/`:181`; the `OnDocked` emitter is their sibling, reusing `AreaOccupancy` (`:37`). The "dock" tag is a new field on `ScenarioAreaConfig` (`actions/spawn.rs:373` - it has no tag today) |
 | `crates/nova_scenario/src/lint/scenario.rs:404-449` | the scenario lint validates handler names and id-targeted action configs - a new arm |
-| `web/src/wiki/dev/modding-ron.md`, `web/src/wiki/dev/scenario-system.md`, `web/src/wiki/dev/guide-extend-scenarios.md` | format change; mark `(breaking)` if it breaks existing RON |
+| `web/src/wiki/modding/mod-files.md`, `web/src/wiki/dev/scenario-system.md`, `web/src/wiki/dev/guide-extend-scenarios.md` | format change; mark `(breaking)` if it breaks existing RON |
 | `CHANGELOG.md` | modding-visible format addition |
 
 ### Credit

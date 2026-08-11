@@ -6,7 +6,7 @@
 use bevy::prelude::*;
 
 /// The production portal base URL - the GitHub Pages tree `scripts/gen-portal.py`
-/// publishes next to the wasm build (web/src/wiki/dev/mod-portal.md).
+/// publishes next to the wasm build (web/src/wiki/modding/publish-a-mod.md).
 pub const DEFAULT_PORTAL_URL: &str = "https://alexjercan.github.io/nova-protocol/mods";
 
 /// Where the portal lives: `<base_url>/catalog.json` +
@@ -70,7 +70,7 @@ impl PortalConfig {
                         "portal: base '{base_url}' is cross-origin to the page ({page_origin}); \
                          the browser will block the catalog/file fetch unless the portal sends an \
                          Access-Control-Allow-Origin header. For local dev, serve the portal \
-                         same-origin instead (see mod-portal.md, \"Local development\")."
+                         same-origin instead (see modding/publish-a-mod.md, \"Preview the repository portal\")."
                     );
                 }
             }

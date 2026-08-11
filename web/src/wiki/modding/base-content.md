@@ -19,7 +19,7 @@ the shipped portal mods do - but it is never required.
 A prototype id is used two ways: a ship's section list references it
 compactly (`source: Prototype("<id>")` resolves the whole config, meshes and
 sounds included), and a mod `Section` item that reuses the id REPLACES that
-part everywhere. See [Author a section](../../dev/guide-author-section/) for
+part everywhere. See [Ship sections for mods](../sections/) for
 the `Section` grammar and the overlay flow.
 
 Ids are lowercase snake_case. The core parts follow

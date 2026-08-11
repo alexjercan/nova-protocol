@@ -15,12 +15,12 @@
 #
 # `scripts/serve-web.sh` starts this for you as part of the full preview; run it
 # directly for the game-only loop or to eyeball the generated tree. (Trunk.toml
-# deliberately carries no [[proxy]] - see dev/mod-portal.md.)
+# deliberately carries no [[proxy]] - see web/src/wiki/modding/publish-a-mod.md.)
 #
 # The wasm game fetches the portal SAME-ORIGIN (it derives the base from
 # window.location), so it never talks to this port directly - trunk or the
 # webpack dev server proxies to it. Native builds can point straight at it with
-# NOVA_PORTAL_URL. See web/src/wiki/dev/mod-portal.md.
+# NOVA_PORTAL_URL. See web/src/wiki/modding/publish-a-mod.md.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

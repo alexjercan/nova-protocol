@@ -15,9 +15,7 @@ The `nova-bench:modder` image, built by `sandbox.sh`. `/work` contains:
 | Path | Source |
 | --- | --- |
 | `wiki/modding.md` | `web/src/wiki/modding.md` |
-| `wiki/dev/guide-make-a-mod.md` | `web/src/wiki/dev/guide-make-a-mod.md` |
-| `wiki/dev/modding-ron.md` | `web/src/wiki/dev/modding-ron.md` |
-| `wiki/dev/mod-portal.md` | `web/src/wiki/dev/mod-portal.md` |
+| `wiki/modding/*.md` | `web/src/wiki/modding/*.md` (learning path plus the complete reference) |
 | `webmods/gauntlet/` | worked example, one scenario, one content file |
 | `webmods/the-ledger/` | worked example, a campaign across six content files |
 | `assets/base/` | the base mod as the game ships it - the bundle, the generated content RON, the prototype ids a ship slot references |

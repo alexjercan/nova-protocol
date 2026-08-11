@@ -55,7 +55,33 @@ An unfiltered `OnUpdate` handler runs its actions EVERY frame. Always gate it
 with `Expression` filters plus a one-shot flag (the
 [count-gate idiom](../expressions/#recipes)); this is the workhorse for
 clock-driven beats and count thresholds that must not depend on handler
-order.
+order. Seed `briefing_sent` to `0` in `OnStart`, then write the handler as:
+
+```ron
+(
+    name: OnUpdate,
+    filters: [
+        Expression((GreaterThan(
+            Term(Factor(Name("scenario_elapsed"))),
+            Term(Factor(Literal(Number(10.0)))),
+        ))),
+        Expression((Equal(
+            Term(Factor(Name("briefing_sent"))),
+            Term(Factor(Literal(Number(0.0)))),
+        ))),
+    ],
+    actions: [
+        VariableSet((
+            key: "briefing_sent",
+            expression: Term(Factor(Literal(Number(1.0)))),
+        )),
+        StoryMessage((
+            speaker: "Control",
+            text: "Ten seconds elapsed.",
+        )),
+    ],
+),
+```
 
 ## OnDestroyed
 
@@ -99,13 +125,34 @@ Three things produce trigger areas: the
 [`SalvageCrate`](../objects/#salvagecrate) (its `area_radius` is the pickup
 sensor). All three report under their own id:
 
+Match one area and one specific entering ship:
+
 ```ron
 (
     name: OnEnter,
     filters: [
-        Entity((id: Some("safe_zone"), other_id: Some("player_spaceship"))),
+        Entity((
+            id: Some("safe_zone"),
+            other_id: Some("player_spaceship"),
+        )),
     ],
-    actions: [ /* arrived */ ],
+    actions: [ /* player arrived */ ],
+),
+```
+
+Or accept any spaceship that enters that area by filtering the other party's
+type:
+
+```ron
+(
+    name: OnEnter,
+    filters: [
+        Entity((
+            id: Some("repair_zone"),
+            other_type_name: Some("spaceship"),
+        )),
+    ],
+    actions: [ /* a ship entered */ ],
 ),
 ```
 
@@ -130,6 +177,22 @@ The complement: fires when a body's LAST collider leaves the area (the
 inside an area fires NO `OnExit` for itself - its occupancy rows are pruned
 silently.
 
+```ron
+(
+    name: OnExit,
+    filters: [
+        Entity((
+            id: Some("repair_zone"),
+            other_id: Some("player_spaceship"),
+        )),
+    ],
+    actions: [ /* player left the repair zone */ ],
+),
+```
+
+Use `other_type_name: Some("spaceship")` instead of `other_id` when every ship
+leaving the area should match.
+
 ## OnOrbit
 
 Fires when a ship has HELD an engaged autopilot ORBIT around one gravity
@@ -143,6 +206,34 @@ The default window is 5 seconds. Override it per AI ship with
 fall back to the default. The window is measured on the scenario clock, so
 it freezes under pause and resets on retry.
 
+Seed `orbit_confirmed` to `0` in `OnStart` before using this recurring handler:
+
+```ron
+(
+    name: OnOrbit,
+    filters: [
+        Entity((
+            id: Some("planetoid"),
+            other_id: Some("player_spaceship"),
+        )),
+        Expression((Equal(
+            Term(Factor(Name("orbit_confirmed"))),
+            Term(Factor(Literal(Number(0.0)))),
+        ))),
+    ],
+    actions: [
+        VariableSet((
+            key: "orbit_confirmed",
+            expression: Term(Factor(Literal(Number(1.0)))),
+        )),
+        ObjectiveComplete((id: "hold_orbit")),
+    ],
+),
+```
+
+Use `other_type_name: Some("spaceship")` when any ship orbiting that well
+should match. Keep the one-shot expression because `OnOrbit` recurs.
+
 ## OnTravelLock
 
 Fires when the PLAYER's travel (white, navigation) lock lands on a scenario
@@ -151,13 +242,17 @@ lock is held. Payload: `id` is the LOCKED target; `other_id` /
 `other_type_name` the locking (player) ship. AI locks never fire it.
 
 The default re-fire period is 5 seconds; override per player ship with
-`lock_refire_secs: Some(8.0)` on the Player controller.
+`lock_refire_secs: Some(8.0)` on the Player controller. This example assumes
+`surveyed` was seeded to `0` in `OnStart`.
 
 ```ron
 (
     name: OnTravelLock,
     filters: [
-        Entity((id: Some("anchorage"))),
+        Entity((
+            id: Some("anchorage"),
+            other_id: Some("player_spaceship"),
+        )),
         Expression((Equal(Term(Factor(Name("surveyed"))), Term(Factor(Literal(Number(0.0))))))),
     ],
     actions: [
@@ -170,12 +265,42 @@ The default re-fire period is 5 seconds; override per player ship with
 ## OnCombatLock
 
 Identical contract to `OnTravelLock`, for the player's combat (red) lock -
-its own event so a scenario can distinguish "looked at" from "targeted".
+its own event so a scenario can distinguish "looked at" from "targeted". Seed
+`flagship_called_out` to `0` in `OnStart` before using this handler.
+
+```ron
+(
+    name: OnCombatLock,
+    filters: [
+        Entity((
+            id: Some("enemy_flagship"),
+            other_id: Some("player_spaceship"),
+        )),
+        Expression((Equal(
+            Term(Factor(Name("flagship_called_out"))),
+            Term(Factor(Literal(Number(0.0)))),
+        ))),
+    ],
+    actions: [
+        VariableSet((
+            key: "flagship_called_out",
+            expression: Term(Factor(Literal(Number(1.0)))),
+        )),
+        StoryMessage((
+            speaker: "Gunner",
+            text: "Flagship targeted.",
+        )),
+    ],
+),
+```
+
+To react to any combat-locked target, omit `id`; keep `other_id` when the
+locking ship must be `player_spaceship`.
 
 ## Recurrence is deliberate: gate everything
 
-`OnEnter`, `OnOrbit` and the two lock events REPEAT while their condition
-holds (5 s windows by default). This is by design: a one-shot event consumed
+`OnOrbit` and the two lock events REPEAT while their condition holds (5 s
+windows by default). This is by design: a one-shot event consumed
 while a beat guard rejects it would be gone for good and soft-lock the
 script; recurring events make a rejected pulse harmless - the next pulse
 re-checks. The cost: every handler on a recurring event MUST be gated on a

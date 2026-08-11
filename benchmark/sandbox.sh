@@ -135,11 +135,9 @@ stage_rustdoc() {
 
 stage_modder() {
     local p="$1"
-    mkdir -p "$p/wiki/dev"
+    mkdir -p "$p/wiki/modding"
     cp "$REPO/web/src/wiki/modding.md" "$p/wiki/"
-    for f in guide-make-a-mod modding-ron mod-portal; do
-        cp "$REPO/web/src/wiki/dev/$f.md" "$p/wiki/dev/"
-    done
+    cp -R "$REPO/web/src/wiki/modding/." "$p/wiki/modding/"
     mkdir -p "$p/webmods"
     cp -R "$REPO/webmods/." "$p/webmods/"
     # Binary thumbnails carry no authoring information.
@@ -149,7 +147,7 @@ stage_modder() {
     # controller-cube swap was unknowable without them (owner ruling,
     # 20260809-213441; GAPS.md gap 3 predicted it verbatim).
     copy_repo_files "$p" assets/base
-    say "4 wiki pages, webmods/ ($(find "$p/webmods" -type f | wc -l) files), assets/base/ ($(find "$p/assets" -type f | wc -l) files)"
+    say "$(find "$p/wiki" -type f | wc -l) wiki pages, webmods/ ($(find "$p/webmods" -type f | wc -l) files), assets/base/ ($(find "$p/assets" -type f | wc -l) files)"
 }
 
 # ---------------------------------------------------------------- build

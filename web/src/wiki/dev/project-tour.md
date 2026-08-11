@@ -71,7 +71,7 @@ The highest-value table. Verified paths; follow the linked page for depth.
 | The NOVA OS monitor / its apps | `crates/nova_os_ui/src/` | -- |
 | A scenario event/filter/action | `crates/nova_scenario/src/{events.rs,filters.rs,actions/}` | [Scenario engine](../scenario-system/), [Extend the scenario engine](../guide-extend-scenarios/) |
 | Scenario objects / loading | `crates/nova_scenario/src/{objects/,loader/}` | [Scenario engine](../scenario-system/) |
-| Mod loading / merge | `crates/nova_assets/` + `crates/nova_modding/` | [Modding data format (RON)](../modding-ron/), [Mod portal](../mod-portal/) |
+| Mod loading / merge | `crates/nova_assets/` + `crates/nova_modding/` | [Mod files](../../modding/mod-files/), [Publish a mod](../../modding/publish-a-mod/) |
 | A built-in scenario or section | `crates/nova_authoring/src/` (builders), then `content -- gen` | [Create your first scenario](../../modding/author-a-scenario/) |
 | The ship editor | `crates/nova_editor/` | -- |
 | Shared UI theme / widgets | `crates/nova_ui/` | -- |
@@ -110,4 +110,4 @@ flowchart LR
 - [Building & running](../development/) -- toolchain, cargo commands, examples, the web build.
 - [Ship sections (internals)](../sections/) and [Add a ship section](../guide-add-section/).
 - [Scenario engine](../scenario-system/) and [Extend the scenario engine](../guide-extend-scenarios/).
-- [Modding data format (RON)](../modding-ron/) and [Mod portal](../mod-portal/).
+- [Mod files](../../modding/mod-files/) and [Publish a mod](../../modding/publish-a-mod/).

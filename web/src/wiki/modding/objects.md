@@ -64,6 +64,68 @@ lines, so copy a shipped block or build from
 | `allegiance` | `Option` side | `None` | side override, strict RON `Some(Neutral)`. Omitted = the controller default: Player ships fight for the player, AI ships are hostile |
 | `sections` | list | `[]` | the hull/thruster/gun/controller layout (below) |
 
+An abbreviated player ship:
+
+```ron
+SpawnScenarioObject((
+    base: (
+        id: "player_spaceship",
+        name: "Player Ship",
+        position: (0.0, 0.0, 0.0),
+        rotation: (0.0, 0.0, 0.0, 1.0),
+    ),
+    kind: Spaceship((
+        controller: Player((
+            input_mapping: {
+                "turret": [Mouse(Left)],
+            },
+            infinite_ammo: false,
+        )),
+        sections: [
+            (
+                id: "controller",
+                position: (0.0, 0.0, 0.0),
+                rotation: (0.0, 0.0, 0.0, 1.0),
+                source: Prototype("basic_controller_section"),
+            ),
+            // ... hull, thruster, and turret sections ...
+        ],
+    )),
+)),
+```
+
+An abbreviated AI ship:
+
+```ron
+SpawnScenarioObject((
+    base: (
+        id: "raider_1",
+        name: "Raider",
+        position: (0.0, 0.0, -300.0),
+        rotation: (0.0, 0.0, 0.0, 1.0),
+    ),
+    kind: Spaceship((
+        controller: AI((
+            patrol: [(0.0, 0.0, -300.0), (80.0, 0.0, -220.0)],
+            engage_delay: Some(8.0),
+        )),
+        sections: [
+            (
+                id: "controller",
+                position: (0.0, 0.0, 0.0),
+                rotation: (0.0, 0.0, 0.0, 1.0),
+                source: Prototype("basic_controller_section"),
+            ),
+            // ... hull, thruster, and weapon sections ...
+        ],
+    )),
+)),
+```
+
+The comments replace required sections, so these examples show the shape rather
+than complete flyable ships. Copy the full player or AI section list from
+`assets/mods/example/example.content.ron` or a shipped scenario.
+
 ### The controller
 
 | variant | meaning |
@@ -110,7 +172,7 @@ Each entry places one section on the ship's unit-cube grid:
 | `id` | string | required | scenario-LOCAL section id; keys `input_mapping` (shipped ships use bare stems like `"cube_i1_j0_km1"`) |
 | `position` | 3-tuple | required | offset from the ship root; cell centres sit 1.0 apart |
 | `rotation` | 4-tuple | required | rotation relative to the root; turret/torpedo mounts need the quarter-turn that seats their base (local -Y) against an occupied neighbor cell |
-| `source` | source | required | `Prototype("<id>")` - a [catalog id](../base-content/#section-prototypes), the compact reusable form - or `Inline((..))` with a full section config ([Author a section](../../dev/guide-author-section/)) |
+| `source` | source | required | `Prototype("<id>")` - a [catalog id](../base-content/#section-prototypes), the compact reusable form - or `Inline((..))` with a full section config ([Ship sections for mods](../sections/)) |
 | `modifications` | list | `[]` | spawn-time deltas (below) |
 
 Section modifications - closed, data-only deltas applied at spawn:
@@ -219,9 +281,9 @@ SpawnScenarioObject((
 ```
 
 The shipped scenes all use the same three-point rig - an 11000 lux warm key
-(the only shadow caster), a 16000 lux cold rim from behind, a 2600 lux cool
-fill from the shadow side. Copy those numbers; the copyable full blocks are
-in the [RON format reference](../../dev/modding-ron/#lighting-a-scene-lights-itself-breaking).
+(the only shadow caster), a 16000 lux cold rim from behind, and a 2600 lux cool
+fill from the shadow side. Copy the full light blocks from
+`assets/mods/example/example.content.ron`.
 
 ## Traps for the unwary
 

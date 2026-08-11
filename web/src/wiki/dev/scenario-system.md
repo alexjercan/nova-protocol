@@ -489,7 +489,7 @@ asteroid alone opts into `Dynamic` + `TransformInterpolation`.
   `destroy_sound` (`Some("dep://base/sounds/impact.wav")` / `explosion.wav`) so
   a scenario rock can carry its own hit and death audio, the same surface a
   section's `base` block exposes. Spawned ship sections take the same two
-  fields; see [Authoring a section](../guide-author-section/).
+  fields; see [Ship sections for mods](../../modding/sections/).
 - `Spaceship(SpaceshipConfig)` - sections plus a `SpaceshipController`:
   `None`, `Player` (input mapping, optional `speed_cap`, `infinite_ammo`,
   optional `lock_refire_secs`), or `AI` (patrol route, orbit directive,

@@ -1256,7 +1256,7 @@ main {
 .wiki-nav__link.is-soon {
     opacity: 0.7;
 }
-/* Nested child entries (e.g. individual ship sections under Ship sections). */
+/* Recursive wiki page hierarchy. Each nested .wiki-nav__sub adds an indent. */
 .wiki-nav__sub {
     display: flex;
     flex-direction: column;

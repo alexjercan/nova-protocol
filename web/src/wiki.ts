@@ -68,9 +68,15 @@ function makeNavLink(
     const link = el(soon ? "span" : "a", "wiki-nav__link", p.title);
     if (!soon) (link as HTMLAnchorElement).href = pageUrl(base, p.slug);
     link.dataset.search = haystack(p);
-    const isActive =
-        active === p.slug ||
-        (active !== null && active.startsWith(p.slug + "/"));
+    let activePage = active ? bySlug(active) : undefined;
+    let isActive = false;
+    while (activePage) {
+        if (activePage.slug === p.slug) {
+            isActive = true;
+            break;
+        }
+        activePage = activePage.parent ? bySlug(activePage.parent) : undefined;
+    }
     if (isActive) {
         link.classList.add("is-active");
         if (active === p.slug) link.setAttribute("aria-current", "page");
@@ -121,24 +127,25 @@ function renderSidebar(
             group.appendChild(heading);
 
             const items: HTMLElement[] = [];
-            // Top-level pages, then their children nested beneath.
-            for (const p of pages.filter((x) => !x.parent)) {
-                const link = makeNavLink(p, base, active);
-                group.appendChild(link);
+            const appendPage = (
+                page: WikiPage,
+                host: HTMLElement,
+                depth: number
+            ): void => {
+                const link = makeNavLink(page, base, active);
+                if (depth > 0) link.classList.add("wiki-nav__child");
+                host.appendChild(link);
                 items.push(link);
 
-                const kids = WIKI_PAGES.filter((c) => c.parent === p.slug);
-                if (kids.length > 0) {
-                    const sub = el("div", "wiki-nav__sub");
-                    for (const c of kids) {
-                        const clink = makeNavLink(c, base, active);
-                        clink.classList.add("wiki-nav__child");
-                        sub.appendChild(clink);
-                        items.push(clink);
-                    }
-                    group.appendChild(sub);
-                }
-            }
+                const children = pages.filter((c) => c.parent === page.slug);
+                if (children.length === 0) return;
+                const sub = el("div", "wiki-nav__sub");
+                children.forEach((child) => appendPage(child, sub, depth + 1));
+                host.appendChild(sub);
+            };
+            pages
+                .filter((page) => !page.parent)
+                .forEach((page) => appendPage(page, group, 0));
             nav.appendChild(group);
             const cat = { heading, items };
             groups.push(cat);
