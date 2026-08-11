@@ -13,7 +13,6 @@ nova_gameplay = { path = "../nova_gameplay" }
 nova_ship = { path = "../nova_ship" }
 nova_hud = { path = "../nova_hud" }
 nova_events = { path = "../nova_events" }
-nova_info = { path = "../nova_info" }
 nova_os = { path = "../nova_os" }
 nova_ui = { path = "../nova_ui" }
 

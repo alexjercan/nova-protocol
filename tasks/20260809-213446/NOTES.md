@@ -85,15 +85,33 @@ Three causes, none of them "nobody thought about docs":
 The `AGENTS.md` rule (cause 3) was already fixed by the owner in c2dde47d;
 nothing outside web/ needed changing for this task.
 
-## Out-of-lane observations (not fixed here, scope was web/)
+## Out-of-lane observations (fixed in the follow-up commit, owner-approved)
 
-- `crates/nova_gameplay/Cargo.toml` declares `nova_os` but no source under
-  `crates/nova_gameplay/src/` uses it - looks like a leftover dep from the
-  split.
-- `scripts/serve-mods.sh:18` has a stale comment pointing at a `Trunk.toml`
-  `[[proxy]]` that no longer exists (the wiki is correct, the script comment
-  is not).
-- `dev/guide-author-scenario.md`'s snippets were verified against source but
-  the page is 1143 lines; numeric balance values quoted from the catalog will
-  drift again - same class of risk `guide-author-section.md` had, which now
-  carries an "illustrative values" disclaimer.
+A workspace-wide scan for declared-but-unused deps (every nova_* dep in every
+crate, plus all root dev-deps) found eleven leftovers from the refactor,
+removed after `cargo check --workspace --all-targets` (default and
+`--features debug`) stayed green:
+
+- `nova_gameplay`: `nova_info`, `nova_os` (zero source references).
+- `nova_hud`: `nova_events`, `nova_info`.
+- `nova_os_ui`: `nova_info`.
+- Root dev-deps: `nova_autopilot` (examples reach `AutopilotPlugin` through
+  the preludes now), `nova_modding` + `ron` + `serde` + `bevy_rand` + `rand`
+  (the screenshot-reel example that justified them was deleted; `ron` only
+  survives in string literals).
+
+Kept deliberately: `nova_modding -> nova_gameplay` - no code use, but the
+lib.rs intra-doc links name `nova_gameplay::prelude::AssetRef` and the
+explicit `features = ["serde"]` states intent; its stale SectionConfig
+comment was rewritten instead.
+
+Also fixed: `scripts/serve-mods.sh`'s stale comment pointing at a
+`Trunk.toml` `[[proxy]]` that no longer exists, and the architecture.md
+pruned-edge example retargeted (`nova_hud -> nova_events` is no longer an
+edge at all).
+
+Still open (accepted): `dev/guide-author-scenario.md`'s snippets were
+verified against source, but the page is 1143 lines and quotes numeric
+balance values from the catalog, which will drift again - same class of risk
+`guide-author-section.md` had, which now carries an "illustrative values"
+disclaimer.

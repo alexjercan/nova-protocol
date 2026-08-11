@@ -14,8 +14,8 @@
 #     NOVA_MODS_PORT=9000 nix develop -c scripts/serve-mods.sh
 #
 # `scripts/serve-web.sh` starts this for you as part of the full preview; run it
-# directly for the game-only loop (see Trunk.toml's [[proxy]], which expects the
-# portal on :9000) or to eyeball the generated tree.
+# directly for the game-only loop or to eyeball the generated tree. (Trunk.toml
+# deliberately carries no [[proxy]] - see dev/mod-portal.md.)
 #
 # The wasm game fetches the portal SAME-ORIGIN (it derives the base from
 # window.location), so it never talks to this port directly - trunk or the

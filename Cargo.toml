@@ -173,8 +173,6 @@ nova_core = { path = "crates/nova_core" }
 [dev-dependencies]
 avian3d = { version = "0.7" }
 bevy = { version = "0.19.0" }
-# The examples build their step timelines on `AutopilotPlugin` directly.
-nova_autopilot = { path = "crates/nova_autopilot" }
 # The stress/ examples use the frame-time capture harness, and the
 # autopilot examples push run-timeline markers - both live in nova_probe (the
 # in-game half of the run-harness, not shipped with the game binary; the host
@@ -188,14 +186,7 @@ nova_debug = { path = "crates/nova_debug" }
 # widget_zoo example renders the nova_ui skin-aware widget set directly.
 nova_ui = { path = "crates/nova_ui" }
 serde_json = { version = "1" }
-bevy_rand = { version = "0.15.0", default-features = false, features = ["chacha20", "wyrand"] }
-rand = { version = "0.10.2" }
-serde = { version = "1.0.228" }
 bevy_enhanced_input = { version = "0.26.0" }
-# The screenshot-reel example embeds and parses its scenario RON directly
-# (examples/screenshots/data/reel.content.ron) instead of shipping it as a mod.
-nova_modding = { path = "crates/nova_modding" }
-ron = { version = "0.12" }
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]

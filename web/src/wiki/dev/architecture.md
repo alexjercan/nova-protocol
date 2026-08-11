@@ -78,7 +78,7 @@ graph TD
 
 The graph is curated for readability, not exhaustive: `nova_core` and `nova_menu`
 depend on nearly every crate below them, and edges implied by the layering (for
-example `nova_hud -> nova_events`) are pruned. The authoritative dependency list
+example `nova_menu -> nova_ship`) are pruned. The authoritative dependency list
 for any crate is its `Cargo.toml`. Two edges people guess wrong:
 
 - **`nova_ui` is not menu-only.** Every crate that renders UI draws on it -

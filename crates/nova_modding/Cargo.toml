@@ -18,7 +18,9 @@ serde = { version = "1", features = ["derive"] }
 # nova_scenario carries the ScenarioConfig tree; the `serde` feature turns on its
 # (and nova_gameplay's) Serialize/Deserialize derives, which the loader needs.
 nova_scenario = { path = "../nova_scenario", features = ["serde"] }
-# nova_gameplay carries the SectionConfig tree for the section catalog loader.
+# No direct code use: kept for the AssetRef intra-doc links in lib.rs and to
+# state the serde intent on the gameplay types the config trees embed
+# (nova_ship/serde forwards it anyway). SectionConfig itself lives in nova_ship.
 nova_gameplay = { path = "../nova_gameplay", features = ["serde"] }
 nova_ship = { path = "../nova_ship", features = ["serde"] }
 
