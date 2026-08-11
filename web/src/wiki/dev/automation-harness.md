@@ -31,7 +31,7 @@ whose same-named types would otherwise resolve to an inert twin.
 | `capture_window` | Writes the primary window to a PNG and acks it into `CaptureLog`. Not a driver - the primitive a script's shot step calls | The web figures and thumbnails, captured at 1920x1080 |
 | `completion` | The registration and exit protocol every driver reports to | Ending a run once, when everyone is finished |
 
-`nova_probe_cli` (the `probe` binary) is the host layer above: it arms the
+`nova_probe_cli` (the game binary's `probe` subcommand, debug feature only) is the host layer above: it arms the
 harness variables, spawns an example as a child process and turns the output
 into a correctness and performance report. It arms the variables below -
 including a window-sized `NOVA_AUTOPILOT_DEADLINE` for its fps pass, which your

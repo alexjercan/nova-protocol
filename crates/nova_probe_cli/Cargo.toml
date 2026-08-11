@@ -9,11 +9,9 @@ description = "Host harness for the Nova Protocol run-probe: spawns autopilot ru
 [lib]
 path = "src/lib.rs"
 
-# The front door: `probe run <example>` orchestrates the passes and the
-# report; sweep/web/profile wrap the perf scripts.
-[[bin]]
-name = "probe"
-path = "src/main.rs"
+# No [[bin]] here: the front door is the game binary's `probe` subcommand
+# (`cargo run --features debug probe run <example>`), which forwards to
+# `native::main`. The root package links this crate under its `debug` feature.
 
 [features]
 # Passthrough: see nova_probe's `debug`. `probe run` builds its children

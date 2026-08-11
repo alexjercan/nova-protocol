@@ -5,7 +5,7 @@ instead of guessing. Three registries matter to a mod author: **section
 prototype ids** (what `source: Prototype("<id>")` can name), **scenario ids**
 (what `NextScenario` and campaigns can target), and **base asset paths** (what
 `dep://base/<path>` can reach). All of it is generated from the Rust builders
-by `cargo run -p nova_authoring --bin content -- gen` into
+by `cargo run content gen` into
 `assets/base/**/*.content.ron` - the generated RON is the shipped truth, and
 `content -- lint` checks your references against it.
 

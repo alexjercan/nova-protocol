@@ -1,20 +1,20 @@
 //! `nova_authoring` is the OFFLINE half of the content pipeline: the Rust
 //! builders that define every built-in scenario and section, the serializer
 //! that writes them to the committed `assets/base/**/*.content.ron`, and the
-//! lint/balance walk that validates a content tree. It exists because none of
-//! this ships - the game binary loads the generated RON and never links a
-//! linter - so keeping it in `nova_assets` hid the runtime asset stack behind
+//! lint/balance walk that validates a content tree. It was carved out of
+//! `nova_assets` because keeping it there hid the runtime asset stack behind
 //! twice its own volume.
 //!
 //! Touch this crate to change what a built-in scenario IS (a builder under
-//! `scenario`, then `content -- gen`), or to change what the `content -- lint`
+//! `scenario`, then `content gen`), or to change what the `content lint`
 //! gate accepts.
 //!
-//! The crate's binary is that CLI:
+//! The CLI over all of it is [`cli`], reached as the game binary's `content`
+//! subcommand:
 //!
 //! ```text
-//! cargo run -p nova_authoring --bin content -- gen
-//! cargo run -p nova_authoring --bin content -- lint [--target <mod>]
+//! cargo run content gen
+//! cargo run content lint [--target <mod>]
 //! ```
 #![warn(missing_docs)]
 
@@ -22,6 +22,12 @@ mod scenario;
 mod sections;
 
 pub mod balance;
+// The CLI driver is native-only: `gen` writes through
+// `nova_assets::storage::write_atomic`, which does not exist on wasm - and the
+// wasm game bundle never exposes the subcommand anyway (the root package
+// target-gates this whole crate off wasm).
+#[cfg(not(target_arch = "wasm32"))]
+pub mod cli;
 pub mod content_report;
 pub mod lint_walk;
 pub mod scenario_generation;

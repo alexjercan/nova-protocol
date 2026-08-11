@@ -31,7 +31,7 @@ real code lives under `crates/`.
 | `nova_info`     | Exposes `APP_VERSION`, injected by `build.rs`. |
 | `nova_autopilot` | Scripted automation drivers and the run-completion protocol the harness examples share. Engine-facing but game-agnostic; `nova_debug`, `nova_probe` and `nova_probe_cli` all build on it. See [Automation harness](../automation-harness/). |
 | `nova_probe`    | Dev tooling (not in the shipped game): the IN-GAME half of the run-harness - the capability plugins an example wires to collect evidence about its own run (`capabilities::frametime`, `capabilities::timeline`, `capabilities::invariants`, bundled by `NovaProbePlugin`), the `contract` an example declares, and the wire format the host reads. See [Development](../development/). |
-| `nova_probe_cli` | Dev tooling: the HOST half of the run-harness - spawns autopilot runs as child processes, grades their artifacts (`evaluation`) and renders the reports (`report`). Owns the `cargo run -p nova_probe_cli -- run/report` CLI. The two halves meet at the filesystem: nothing in `nova_probe` reads a run's output back. |
+| `nova_probe_cli` | Dev tooling: the HOST half of the run-harness - spawns autopilot runs as child processes, grades their artifacts (`evaluation`) and renders the reports (`report`). Owns the `cargo run --features debug probe run/report` CLI. The two halves meet at the filesystem: nothing in `nova_probe` reads a run's output back. |
 | `nova_perf_web` | The wasm app `probe run --platform web` boots and measures: the real game started into a scenario with the frame-time capture armed. Dev tooling, never shipped. |
 | `nova_authoring` | The OFFLINE half of the content pipeline (never shipped): the Rust builders that define every built-in scenario and section, the `content -- gen` serializer that writes them to the committed `assets/base/**/*.content.ron`, and the `content -- lint` walk that validates a content tree. |
 | `nova_meta_gen` | Binary under `tools/` (web-build tooling, not a game crate): writes default `.meta` sidecars for web assets that lack one (a Trunk `post_build` hook for `AssetMetaCheck::Always`). Boots a headless Bevy app, so it stays Rust. |
@@ -316,6 +316,6 @@ from live OUT of the shipped tree, in top-level `art/blender/` (they are
 2.7M that was never loaded at runtime). The built-in sections and scenarios ARE
 data now: the Rust builders in `crates/nova_authoring` (`sections.rs`,
 `scenario.rs`, `scenario/`) are the single source, and
-`cargo run -p nova_authoring --bin content -- gen` serializes them to the
+`cargo run content gen` serializes them to the
 committed `assets/base/**/*.content.ron` the game loads like any other bundle.
 Never hand-edit the generated files; edit the builders and re-run `gen`.

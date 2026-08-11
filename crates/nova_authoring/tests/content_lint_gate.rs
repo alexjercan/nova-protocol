@@ -1,8 +1,8 @@
 //! The CI half of the content lint: the same tree walk the `content` CLI's
 //! `lint` subcommand runs, asserted clean of Error-level issues. Warns are
 //! printed but do not fail - they are authoring smells, not broken references.
-//! See `nova_scenario::lint` for the check list and `cargo run -p nova_assets
-//! --bin content -- lint` for the author CLI.
+//! See `nova_scenario::lint` for the check list and `cargo run content lint`
+//! for the author CLI.
 
 use nova_scenario::prelude::LintSeverity;
 

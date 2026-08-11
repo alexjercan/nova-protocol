@@ -44,8 +44,8 @@ Repository guidance. Global `~/AGENTS.md` applies.
 nix develop --command cargo check
 nix develop --command cargo fmt --check
 nix develop --command cargo test --lib -p <crate>
-nix develop --command cargo run -p nova_authoring --bin content -- lint
-nix develop --command cargo run -p nova_probe_cli -- run <category>
+nix develop --command cargo run content lint
+nix develop --command cargo run --features debug probe run <category>
 cd web && npm run ci
 ```
 

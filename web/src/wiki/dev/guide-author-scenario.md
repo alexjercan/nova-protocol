@@ -71,8 +71,8 @@ The `ScenarioConfig` fields (`loader/mod.rs`):
 - `events` - the list of handlers. May be empty (`events: []`), but then
   nothing happens.
 
-Lint your content before shipping it: `cargo run -p nova_authoring --bin
-content -- lint` (add `--target <mod dir or id>` to check just one mod) checks what the loaders cannot - section prototype ids,
+Lint your content before shipping it: `cargo run content lint`
+(add `--target <mod dir or id>` to check just one mod) checks what the loaders cannot - section prototype ids,
 `NextScenario` targets, filter/action target ids, duplicate object ids
 (an error within one handler, a warn across handlers; these all resolve at
 SPAWN time, so a typo loads green and misbehaves in-game) - plus ship-section geometry: sections that overlap on the

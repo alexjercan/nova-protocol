@@ -33,7 +33,8 @@ pub mod report;
 ///
 /// Each module owns its own `prelude`, so publishing a new name is a one-file
 /// edit rather than an edit here as well. [`native`] is absent on purpose - it
-/// is the driver, and nothing outside it imports from it.
+/// is the driver; the game binary's `probe` subcommand calls
+/// [`native::main`] directly and nothing else imports from it.
 ///
 /// `report`'s sweep-level `overall_verdict` arrives as `aggregate_verdict`:
 /// [`evaluation`] has a function of the same name that grades one run's

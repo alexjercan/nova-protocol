@@ -182,7 +182,7 @@ Notes worth having before you light a scene:
 The built-ins are all data files under `assets/base/` (`scenarios/`,
 `sections/`, `campaigns/`) and load through
 `nova_modding`; no built-in is constructed in Rust at startup. The files are written by
-`cargo run -p nova_authoring --bin content -- gen`, which serializes the code configs with
+`cargo run content gen`, which serializes the code configs with
 path-based `AssetRef`s (`SectionMeshRefs::from_paths` + the scenario builders taking
 asset refs); run it (and commit the result) after any builder change. The
 `content_ron_parity` test asserts each committed file matches its builder and that

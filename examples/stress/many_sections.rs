@@ -31,7 +31,7 @@
 //! #           `autopilot: cycle complete, no panic`
 //!
 //! # the frame-time sweep:
-//! cargo run -p nova_probe_cli -- run many_sections --release
+//! cargo run --features debug probe run many_sections --release
 //! ```
 
 #[cfg(feature = "debug")]

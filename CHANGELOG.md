@@ -76,6 +76,10 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- The dev CLIs are subcommands of the game binary: `cargo run content gen|lint`
+  and `cargo run --features debug probe run|report` replace the standalone
+  `-p nova_authoring --bin content` and `-p nova_probe_cli` bins, which are
+  gone.
 - Probe runs declared frame-time capture and native tracing automatically;
   `--fps` and `--profile` are removed, while slow `--samply` stays opt-in.
 - **(breaking)** `ScenarioConfig` no longer derives `Default`; build one with

@@ -1,9 +1,47 @@
-//! The authoring CLI itself; see `main.rs` for what it does.
+//! The content authoring/validation CLI, reached as the game binary's
+//! `content` subcommand: one tool over the repo's content tree, with a
+//! subcommand per task.
+//!
+//! ```text
+//! cargo run content gen
+//! cargo run content lint [--target <mod-dir-or-id>] \
+//!     [--report <path>] [--format md|html]
+//! ```
+//!
+//! - `gen` writes the builder-backed base content files: the
+//!   scenario/section builders in [`crate::scenario_generation`] are the
+//!   single definition of each built-in; this serializes them into the
+//!   committed `assets/base/**/*.content.ron` the game loads. Run it (and
+//!   commit the result) after any builder change - the `content_ron_parity`
+//!   test asserts the files match and names this command when they drift.
+//! - `lint` runs EVERY content check in one pass: the identifier + geometry +
+//!   resource checks the load/publish gates cannot make (unknown section
+//!   prototypes, dangling NextScenario targets, unspawnable filter targets,
+//!   duplicate ids, mount-base adjacency, resource-ref membership, canonical
+//!   schemes), the combat balance/fairness audit (spawned-dead ERROR,
+//!   close-spawn WARN, graded against `balance_acks.ron`; a stale ack is an
+//!   ERROR), and the flight-rig input-overlap check (a content
+//!   `input_mapping` section reusing a key the always-on flight rig binds
+//!   silently double-drives flight). `--target` lints one mod: a mod
+//!   directory anywhere on disk (the dir name is the mod id, portal-style)
+//!   or an in-repo id (`webmods/<id>`, `assets/mods/<id>`, or `base`).
+//!   `--report <path>` writes a per-mod document that pinpoints, for every
+//!   finding, the file + element + explanation + suggested fix
+//!   (`--format md|html`, Markdown the default; a `.html` path implies
+//!   HTML). Exits non-zero on any Error (broken reference, spawned-dead,
+//!   stale ack); CI runs the same walks via the `content_lint_gate` and
+//!   `balance_audit_gate` tests.
+//!
+//! A NATIVE tool over the repo's content tree: `gen` writes files through
+//! `storage::write_atomic`, which is native-only by design - hence the
+//! `cfg(not(target_arch = "wasm32"))` on this module, which keeps it out of
+//! the wasm game bundle entirely.
 
-use std::{path::PathBuf, process::ExitCode};
+use std::{ffi::OsString, path::PathBuf, process::ExitCode};
 
 use clap::{Parser, Subcommand, ValueEnum};
-use nova_authoring::content_report::ContentReport;
+
+use crate::content_report::ContentReport;
 
 #[derive(Parser)]
 #[command(
@@ -45,8 +83,12 @@ enum ReportFormat {
     Html,
 }
 
-pub fn main() -> ExitCode {
-    match Cli::parse().command {
+/// Parse the forwarded subcommand arguments (everything after `content` on
+/// the game binary's command line) and dispatch; the exit code is the gate.
+pub fn main(args: &[OsString]) -> ExitCode {
+    let cli =
+        Cli::parse_from(std::iter::once(OsString::from("content")).chain(args.iter().cloned()));
+    match cli.command {
         Command::Gen => run_gen(),
         Command::Lint {
             target,
@@ -60,7 +102,7 @@ pub fn main() -> ExitCode {
 /// compiled in, so the paths resolve regardless of the invocation directory.
 fn run_gen() -> ExitCode {
     let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets");
-    for (rel, contents) in nova_authoring::scenario_generation::content_files() {
+    for (rel, contents) in crate::scenario_generation::content_files() {
         let path = assets.join(&rel);
         nova_assets::storage::write_atomic(&path, contents.as_bytes())
             .unwrap_or_else(|err| panic!("write {}: {err}", path.display()));
@@ -75,16 +117,16 @@ fn run_lint(
     format: Option<ReportFormat>,
 ) -> ExitCode {
     let report_data = match target {
-        None => nova_authoring::lint_walk::collect_tree(),
+        None => crate::lint_walk::collect_tree(),
         Some(target) => {
-            let Some(dir) = nova_authoring::lint_walk::resolve_target(target) else {
+            let Some(dir) = crate::lint_walk::resolve_target(target) else {
                 eprintln!(
                     "content lint: no mod named '{target}' (not a directory, not under webmods/ or assets/mods/, not 'base')"
                 );
                 return ExitCode::FAILURE;
             };
             println!("content lint: target {}", dir.display());
-            nova_authoring::lint_walk::collect_target(&dir)
+            crate::lint_walk::collect_target(&dir)
         }
     };
 
@@ -115,7 +157,7 @@ fn run_lint(
 /// The concise stdout view: one line per finding, then a count line. The full
 /// located document is the `--report` file.
 fn print_summary(report: &ContentReport) {
-    use nova_authoring::content_report::Severity;
+    use crate::content_report::Severity;
 
     for finding in &report.findings {
         let tag = match finding.severity {

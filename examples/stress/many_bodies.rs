@@ -27,7 +27,7 @@
 //! #           `autopilot: cycle complete, no panic`
 //!
 //! # the frame-time sweep:
-//! cargo run -p nova_probe_cli -- run many_bodies --release
+//! cargo run --features debug probe run many_bodies --release
 //! ```
 
 use bevy::prelude::*;

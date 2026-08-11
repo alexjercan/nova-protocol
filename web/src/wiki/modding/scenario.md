@@ -114,7 +114,7 @@ What the engine does with this file, in order:
 
 ## The lint gate
 
-`cargo run -p nova_authoring --bin content -- lint --target <dir or id>`
+`cargo run content lint --target <dir or id>`
 checks what the RON parser cannot: dangling `NextScenario` / filter / action
 target ids, duplicate spawn ids, section-prototype ids against the catalog,
 ship-section geometry, reserved-variable writes, pacing ranges, plus the

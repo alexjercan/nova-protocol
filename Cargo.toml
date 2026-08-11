@@ -170,6 +170,17 @@ workspace = true
 clap = { version = "4.5.48", features = ["derive"] }
 nova_core = { path = "crates/nova_core" }
 
+# The dev-tool subcommands of the game binary (task record: this session,
+# 2026-08-11): `cargo run content ...` is the authoring CLI, `cargo run
+# --features debug probe ...` the run-harness host. Both are target-gated off
+# wasm - the trunk bundle ships neither, and nova_probe_cli has no wasm build
+# at all (it spawns child processes; CI's wasm job keeps excluding it).
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+nova_authoring = { path = "crates/nova_authoring" }
+# Optional: only the `debug` feature links the probe host into the game
+# binary, so release/dist builds never carry it.
+nova_probe_cli = { path = "crates/nova_probe_cli", optional = true }
+
 [dev-dependencies]
 avian3d = { version = "0.7" }
 bevy = { version = "0.19.0" }
@@ -289,7 +300,15 @@ strip = true
 embed-resource = "1"
 
 [features]
-debug = ["nova_core/debug", "bevy/track_location"]
+# `debug` also links the probe host (the `probe` subcommand) and switches its
+# passthrough on, so the probe binary and the children it builds with
+# `--features debug` share one bevy variant (bevy/track_location).
+debug = [
+  "nova_core/debug",
+  "bevy/track_location",
+  "dep:nova_probe_cli",
+  "nova_probe_cli?/debug",
+]
 dev = ["debug"]
 # The automatic PROFILED pass: bevy's per-system spans are
 # compiled in only under bevy/trace, and bevy/trace_chrome adds the chrome-
@@ -315,10 +334,12 @@ license = "MIT"
 [workspace]
 members = [
   "crates/nova_assets",
-  # The offline content toolchain (builders + `content` CLI + lint walk). A
-  # workspace MEMBER but never a game dependency: `cargo build` of the root
-  # package must not link it, which is exactly the property that justified
-  # carving it out of nova_assets.
+  # The offline content toolchain (builders + `content` CLI + lint walk).
+  # Originally carved out of nova_assets so the game never linked it; since
+  # the CLI-unification (2026-08-11) the root package DOES link it - it backs
+  # the game binary's `content` subcommand (native targets only, see the
+  # root [target...] dependency block). The carve-out still pays for itself:
+  # nova_assets stays the runtime asset stack, authoring stays one crate.
   "crates/nova_authoring",
   "crates/nova_autopilot",
   "crates/nova_core",

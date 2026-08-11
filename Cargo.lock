@@ -4509,9 +4509,11 @@ dependencies = [
  "bevy_enhanced_input",
  "clap",
  "embed-resource",
+ "nova_authoring",
  "nova_core",
  "nova_debug",
  "nova_probe",
+ "nova_probe_cli",
  "nova_ui",
  "serde_json",
 ]

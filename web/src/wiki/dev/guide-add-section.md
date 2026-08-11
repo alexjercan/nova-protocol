@@ -182,7 +182,7 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
    in `crates/nova_authoring/src/sections.rs`).
 
    The builders do not feed the game directly: regenerate the committed RON
-   with `cargo run -p nova_authoring --bin content -- gen` and commit
+   with `cargo run content gen` and commit
    `assets/base/sections/base.content.ron` with the code change - the
    `content_ron_parity` test fails on drift.
 

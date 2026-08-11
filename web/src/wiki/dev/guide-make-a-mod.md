@@ -90,8 +90,8 @@ and asserts it is bumped past the pre-rework `1.0.0` AND has its own
 literal string: a literal reds on every legitimate republish, and "fixing" it by
 bumping the literal is the same as deleting the test.
 
-Lint your mod while you work: `cargo run -p nova_authoring --bin
-content -- lint --target path/to/your-mod` (or an in-repo id like
+Lint your mod while you work: `cargo run content lint --target
+path/to/your-mod` (or an in-repo id like
 `--target the-ledger`) checks just your bundle - section prototype ids
 against the base catalog and your declared dependencies, scenario chain
 targets, filter/action target ids, duplicate object ids. It also runs the

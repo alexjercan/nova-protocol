@@ -2,9 +2,9 @@
 //! are the single definition of each built-in; production loads their serialized
 //! RON. This module rebuilds them with PATH-based asset refs and serializes them
 //! deterministically for two consumers that must agree byte for byte: the
-//! `content` CLI's `gen` subcommand WRITES the committed files (`cargo run -p
-//! nova_assets --bin content -- gen`) and the `content_ron_parity` integration
-//! test ASSERTS them. Not part of the game's public API.
+//! `content` CLI's `gen` subcommand WRITES the committed files (`cargo run
+//! content gen`) and the `content_ron_parity` integration test ASSERTS them.
+//! Not part of the game's public API.
 //!
 //! NOTE: the `ScenarioConfig` serde derives are already present in this crate's
 //! build - `nova_modding` (a dependency) turns on `nova_scenario/serde`, and
