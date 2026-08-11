@@ -310,4 +310,6 @@ prototype resolves the base's meshes and sounds for you. Vary a ship by grade by
 swapping which prototypes it references (e.g. a weaker `_light_` turret variant
 for an enemy) rather than re-authoring the parts. `SectionSource` is `Inline`
 (the full config, for a one-off part) or `Prototype` (a catalog reference, the
-compact reusable form).
+compact reusable form). Every prototype id base ships - with its kind, so you
+can tell a structure cube from a gun - is tabled in the
+[base content catalog](../../modding/base-content/).

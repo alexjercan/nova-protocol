@@ -104,6 +104,36 @@ function escapeAttr(s) {
         .replace(/>/g, "&gt;");
 }
 
+// A MediaWiki-style "Contents" box for reference pages, built at build time
+// from the same h2/h3 list markdown-it-anchor produced - so the links can never
+// drift from the real in-page anchors. h3s nest under their h2 as a sub-list.
+function tocBox(headings) {
+    if (!headings || headings.length === 0) return "";
+    const items = [];
+    let open = false;
+    for (const h of headings) {
+        const link = `<a href="#${escapeAttr(h.id)}">${escapeAttr(h.text)}</a>`;
+        if (h.level === "h2") {
+            if (open) items.push("</ol></li>");
+            items.push(`<li>${link}`);
+            open = true;
+            items.push("<ol>");
+        } else if (open) {
+            items.push(`<li>${link}</li>`);
+        } else {
+            // An h3 before any h2 still gets a top-level row.
+            items.push(`<li>${link}`);
+            open = true;
+            items.push("<ol>");
+        }
+    }
+    if (open) items.push("</ol></li>");
+    return `<nav class="wiki-toc" aria-label="Contents">
+                        <p class="wiki-toc__title">Contents</p>
+                        <ol>${items.join("")}</ol>
+                    </nav>`;
+}
+
 // The page shell for a markdown doc: the same chrome as a hand-authored wiki
 // page (header/footer placeholders, the manifest-driven #wiki-nav aside, the
 // crumb/h1/#wiki-tags, and #wiki-seealso), with a #doc-body placeholder the
@@ -111,9 +141,10 @@ function escapeAttr(s) {
 // never runs over code samples. Unlike a `template` FILE, a templateContent
 // STRING is not run through lodash, so basePath is inlined here at config time
 // (publicPath is already known) rather than left as a <%= %> token.
-// opts: { description, crumbParent: { slug, title } }. A description is rendered
-// as the page meta; a crumbParent renders a two-level crumb ("Wiki / <parent> /
-// <title>") for child pages like the ship sections.
+// opts: { description, crumbParent: { slug, title }, toc: headings }. A
+// description is rendered as the page meta; a crumbParent renders a two-level
+// crumb ("Wiki / <parent> / <title>") for child pages like the ship sections;
+// toc renders the contents box above the body (the reference pages opt in).
 function docShell(title, basePath, opts = {}) {
     const t = escapeAttr(title);
     const b = escapeAttr(basePath);
@@ -154,6 +185,7 @@ function docShell(title, basePath, opts = {}) {
                     </p>
                     <h1>${t}</h1>
                     <div class="wiki__tags" id="wiki-tags"></div>
+                    ${opts.toc ? tocBox(opts.toc) : ""}
                     <div id="doc-body"></div>
                     <div id="wiki-seealso"></div>
                 </article>
@@ -168,17 +200,19 @@ function docShell(title, basePath, opts = {}) {
 // on the plugin's `docBody` option; HtmlPartialsPlugin injects it into the
 // #doc-body placeholder at beforeEmit (see webpack-partials.js). Shares the
 // `wiki` chunk so the sidebar/search/tags/see-also all render from the manifest.
-// `description` sets the page meta; `crumbParent` renders a child crumb.
+// `description` sets the page meta; `crumbParent` renders a child crumb;
+// `toc: true` renders the auto contents box (the modding reference pages).
 function wikiDocPage({
     slug,
     mdPath,
     title,
     description,
     crumbParent,
+    toc,
     publicPath,
 }) {
     const abs = path.resolve(__dirname, mdPath);
-    const { html, title: h1 } = renderMarkdownFile(abs);
+    const { html, title: h1, headings } = renderMarkdownFile(abs);
     const pageTitle = title || h1;
     return new HtmlWebpackPlugin({
         filename: `wiki/${slug}/index.html`,
@@ -188,6 +222,7 @@ function wikiDocPage({
         templateContent: docShell(pageTitle, publicPath, {
             description,
             crumbParent,
+            toc: toc ? headings : undefined,
         }),
     });
 }

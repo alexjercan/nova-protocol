@@ -2,11 +2,14 @@
 
 A how-to for content authors. You will build a working scenario out of
 primitives that already ship - events, filters, actions, variables - writing
-only RON, no Rust. If you need a NEW event/filter/action/object kind that does
+only RON, no Rust. This guide teaches the working subset; the
+[modding reference](../../modding/reference/) is the exhaustive catalog of
+every construct (each event, filter, action, object kind and expression node,
+with full field tables), so read this page top to bottom once, then look
+things up there. If you need a NEW event/filter/action/object kind that does
 not exist yet, that is a Rust change: see
 [Extend the scenario engine](../guide-extend-scenarios/). For the runtime this
-data feeds and the full type list, see the [Scenario engine](../scenario-system/)
-reference.
+data feeds, see the [Scenario engine](../scenario-system/) internals.
 
 Every snippet below is copied from a shipped scenario
 (`assets/base/scenarios/*.content.ron`) or the code that parses it
@@ -102,7 +105,9 @@ finding disappears fails CI until pruned. Numbers beat feel: the audit is
 how encounter design stays honest without a playtest per commit.
 
 One file can hold several content items (sections, more scenarios). This guide
-covers the scenario item; a file that is just one scenario is fine.
+covers the scenario item; a file that is just one scenario is fine. The
+complete scenario-level field table (and the `Campaign` item) is in
+[The scenario file](../../modding/scenario/) reference.
 
 ## 2. Event -> filters -> actions
 
@@ -151,11 +156,14 @@ The pair events (`OnEnter`/`OnExit`/`OnOrbit`/`OnTravelLock`/`OnCombatLock`)
 carry two entities - a subject (`id`) and an other party (`other_id`); which is
 which is per-event (see the table under [Entity](#entity)). The 5s recurrence on
 the orbit/lock events is deliberate: gate those handlers on a variable so the
-repeats are harmless no-ops (see section 6).
+repeats are harmless no-ops (see section 6). Per-event payload detail (what
+fires each one, exactly which fields it fills) is in the
+[Events reference](../../modding/events/).
 
 ## 3. Filters
 
-Three filter kinds (`filters.rs`).
+Three filter kinds (`filters.rs`; full field tables and the fail-closed rules
+in the [Filters reference](../../modding/filters/)).
 
 ### Entity
 
@@ -237,7 +245,9 @@ combinator or an `Or`.
 ## 4. Actions
 
 The common actions, with real RON. Every action is a newtype variant -
-`Name((field: value, ...))` - even single-field ones.
+`Name((field: value, ...))` - even single-field ones. This is the
+mission-scripting subset; the [Actions reference](../../modding/actions/) has
+the complete catalog with every field, default and unit.
 
 > **Light your scene, or it renders black.** The engine spawns no light of its
 > own. A scenario is lit only by the `Light` objects it authors, so every scene
@@ -675,12 +685,15 @@ DebugMessage((
 ```
 
 Other actions exist for photo mode and modding hooks (`SetCamera`,
-`Screenshot`, `SetSkybox`); see the reference. This guide sticks to the
-mission-scripting set.
+`Screenshot`, `SetSkybox`); see the
+[Actions reference](../../modding/actions/) for those. This guide sticks to
+the mission-scripting set.
 
 ## 5. Variables and expressions
 
-Variables are typed literals (`variables.rs`):
+The full grammar, node by node with type rules, is the
+[Variables & expressions reference](../../modding/expressions/); this section
+is the working subset. Variables are typed literals (`variables.rs`):
 
 - `Number(f64)` - `Literal(Number(5.0))`
 - `String(String)` - `Literal(String("hello"))`

@@ -31,6 +31,10 @@ const page = (chunk, template, filename) =>
 // Children are listed before their parent so the dev-server rewrites match the
 // more specific path first (/wiki/sections/hull before /wiki/sections).
 const SECTIONS_CRUMB = { slug: "sections", title: "Ship sections" };
+const MODDING_REF_CRUMB = {
+    slug: "modding/reference",
+    title: "Modding reference",
+};
 const WIKI_DOC_PAGES = [
     // Player pages (children before the sections parent for rewrite ordering).
     {
@@ -91,6 +95,63 @@ const WIKI_DOC_PAGES = [
     { slug: "gravity-wells", md: "gravity-wells.md", title: "Gravity wells" },
     { slug: "factions", md: "factions.md", title: "Factions" },
     { slug: "scenarios", md: "scenarios.md", title: "Scenarios" },
+    // The modding reference (children before the "modding" front door and the
+    // "modding/reference" hub for rewrite ordering). Every reference page opts
+    // into the build-time contents box (toc) - they are long catalog pages.
+    {
+        slug: "modding/scenario",
+        md: "modding/scenario.md",
+        title: "The scenario file",
+        crumbParent: MODDING_REF_CRUMB,
+        toc: true,
+    },
+    {
+        slug: "modding/events",
+        md: "modding/events.md",
+        title: "Events",
+        crumbParent: MODDING_REF_CRUMB,
+        toc: true,
+    },
+    {
+        slug: "modding/filters",
+        md: "modding/filters.md",
+        title: "Filters",
+        crumbParent: MODDING_REF_CRUMB,
+        toc: true,
+    },
+    {
+        slug: "modding/actions",
+        md: "modding/actions.md",
+        title: "Actions",
+        crumbParent: MODDING_REF_CRUMB,
+        toc: true,
+    },
+    {
+        slug: "modding/objects",
+        md: "modding/objects.md",
+        title: "Scenario objects",
+        crumbParent: MODDING_REF_CRUMB,
+        toc: true,
+    },
+    {
+        slug: "modding/expressions",
+        md: "modding/expressions.md",
+        title: "Variables & expressions",
+        crumbParent: MODDING_REF_CRUMB,
+        toc: true,
+    },
+    {
+        slug: "modding/base-content",
+        md: "modding/base-content.md",
+        title: "Base content catalog",
+        crumbParent: MODDING_REF_CRUMB,
+        toc: true,
+    },
+    {
+        slug: "modding/reference",
+        md: "modding/reference.md",
+        title: "Modding reference",
+    },
     { slug: "modding", md: "modding.md", title: "Modding" },
     // Developer pages (markdown under src/wiki/dev/).
     {
@@ -160,12 +221,13 @@ const WIKI_DOC_PAGES = [
         title: "Make and publish a mod",
     },
 ];
-const docPage = ({ slug, md, title, crumbParent }) =>
+const docPage = ({ slug, md, title, crumbParent, toc }) =>
     wikiDocPage({
         slug,
         mdPath: `src/wiki/${md}`,
         title,
         crumbParent,
+        toc,
         publicPath,
     });
 

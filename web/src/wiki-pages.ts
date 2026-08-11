@@ -53,7 +53,7 @@ export const WIKI_SECTIONS: WikiSection[] = [
     },
     {
         name: "For creators",
-        categories: ["Scenarios & mods"],
+        categories: ["Learn to mod", "Modding reference"],
     },
     {
         name: "For developers",
@@ -293,31 +293,33 @@ export const WIKI_PAGES: WikiPage[] = [
             "Beacons and salvage",
         ],
     },
-    // === For creators: authoring scenarios and mods (RON, no Rust). The
-    // "modding" overview is the band's front door; the two guides come before the
-    // deeper data-format / portal reference. ===
+    // === For creators: authoring scenarios and mods (RON, no Rust). Two
+    // categories forming the Wesnoth-style learning curve: "Learn to mod" is
+    // the guide ladder (front door, then scenario -> section -> publish, each
+    // assuming the previous); "Modding reference" is the exhaustive construct
+    // catalog (hub + one page per family, then data format and portal). ===
     {
         slug: "modding",
         title: "Modding",
-        category: "Scenarios & mods",
+        category: "Learn to mod",
         tags: ["modding"],
         summary:
-            "Content creation, top to bottom: author scenarios and mods as RON data, test them in the game, and publish them to the portal. Start here, then follow the guides.",
+            "The front door to content creation: what modding is, the guide ladder (author a scenario, author a section, publish a mod), and the reference catalog to look everything up. Start here.",
         related: [
             "dev/guide-author-scenario",
             "dev/guide-make-a-mod",
-            "scenarios",
+            "modding/reference",
         ],
         headings: [
-            "Author a scenario",
-            "Package and share a mod",
+            "Learn to mod (the guides)",
+            "Look it up (the reference)",
             "Extend the engine",
         ],
     },
     {
         slug: "dev/guide-author-scenario",
         title: "Author a scenario (RON)",
-        category: "Scenarios & mods",
+        category: "Learn to mod",
         tags: ["dev", "guide", "modding"],
         summary:
             "Write a scenario in RON end to end with existing primitives - the file shape, the event/filter/action structure, variables and expressions, and a worked objective loop built up from the shipped scenarios.",
@@ -337,7 +339,7 @@ export const WIKI_PAGES: WikiPage[] = [
     {
         slug: "dev/guide-author-section",
         title: "Author a section (RON)",
-        category: "Scenarios & mods",
+        category: "Learn to mod",
         tags: ["dev", "guide", "modding", "ships"],
         summary:
             "Author a ship part in RON - the Section content item and its BaseSectionConfig, then each SectionKind (hull, thruster, controller, turret, torpedo) with every field grounded in the shipped catalog, plus overlaying a base section in a mod.",
@@ -359,7 +361,7 @@ export const WIKI_PAGES: WikiPage[] = [
     {
         slug: "dev/guide-make-a-mod",
         title: "Make and publish a mod",
-        category: "Scenarios & mods",
+        category: "Learn to mod",
         tags: ["dev", "guide", "modding"],
         summary:
             "The mod-author lifecycle end to end - bundle anatomy and the stemmed-extension rule, overlay semantics, local testing, publishing to the portal with scripts/gen-portal.py, what the player sees, and the honest sharp edges.",
@@ -378,11 +380,190 @@ export const WIKI_PAGES: WikiPage[] = [
             "Sharp edges",
         ],
     },
+    // The modding reference: the hub plus one page per construct family
+    // (children of the hub, nesting in the sidebar). Each page's `headings`
+    // lists its construct names, so the sidebar search doubles as the
+    // construct glossary - typing "ScatterObjects" or "OnEnter" finds the page.
+    {
+        slug: "modding/reference",
+        title: "Modding reference",
+        category: "Modding reference",
+        tags: ["modding", "reference"],
+        summary:
+            "The catalog hub: every event, filter, action, object kind and expression node, the RON spelling rules, the vocabulary by family, and a flat A-to-Z construct index.",
+        related: ["modding", "modding/scenario", "dev/modding-ron"],
+        headings: [
+            "How RON content is written",
+            "The reference pages",
+            "The vocabulary by family",
+            "Every construct, A to Z",
+        ],
+    },
+    {
+        slug: "modding/scenario",
+        title: "The scenario file",
+        category: "Modding reference",
+        parent: "modding/reference",
+        tags: ["modding", "reference"],
+        summary:
+            "The top level of a content file: the Scenario item field by field (cubemap, thumbnail, hidden, menu_backdrop, events), the handler shape, the Campaign item, the load/teardown lifecycle and the lint gate.",
+        related: [
+            "modding/events",
+            "modding/actions",
+            "dev/guide-author-scenario",
+        ],
+        headings: [
+            "Scenario",
+            "Campaign",
+            "Handlers: the event entry",
+            "Lifecycle: load, teardown, retry",
+            "The lint gate",
+        ],
+    },
+    {
+        slug: "modding/events",
+        title: "Events",
+        category: "Modding reference",
+        parent: "modding/reference",
+        tags: ["modding", "reference"],
+        summary:
+            "Everything that can fire a handler: the nine event kinds with their payloads, what fires each one, the recurrence windows, and the dispatch order you can rely on.",
+        related: ["modding/filters", "modding/actions", "modding/scenario"],
+        headings: [
+            "OnStart",
+            "OnUpdate",
+            "OnDestroyed",
+            "OnNeutralized",
+            "OnEnter",
+            "OnExit",
+            "OnOrbit",
+            "OnTravelLock",
+            "OnCombatLock",
+            "Recurrence is deliberate: gate everything",
+            "Dispatch order",
+        ],
+    },
+    {
+        slug: "modding/filters",
+        title: "Filters",
+        category: "Modding reference",
+        parent: "modding/reference",
+        tags: ["modding", "reference"],
+        summary:
+            "The three filter kinds - Entity, Expression and Conditional (Not / And / Or) - the per-event subject map, and the fail-closed rules every script must respect.",
+        related: [
+            "modding/events",
+            "modding/expressions",
+            "dev/guide-author-scenario",
+        ],
+        headings: [
+            "Entity",
+            "Expression",
+            "Conditional",
+            "Traps for the unwary",
+        ],
+    },
+    {
+        slug: "modding/actions",
+        title: "Actions",
+        category: "Modding reference",
+        parent: "modding/reference",
+        tags: ["modding", "reference"],
+        summary:
+            "All 22 actions a handler can run, grouped by purpose - spawning, mission and story, flow, ship state, variables, camera - each with its field table, defaults, units and a copyable snippet.",
+        related: ["modding/objects", "modding/events", "modding/expressions"],
+        headings: [
+            "SpawnScenarioObject",
+            "ScatterObjects",
+            "DespawnScenarioObject",
+            "CreateScenarioArea",
+            "Objective",
+            "ObjectiveComplete",
+            "ObjectiveMarkerAttach",
+            "ObjectiveMarkerDetach",
+            "StoryMessage",
+            "HudReadout",
+            "HintEmphasisSet",
+            "HintEmphasisClear",
+            "Outcome",
+            "NextScenario",
+            "SetSpeedCap",
+            "SetControllerVerb",
+            "SetAllegiance",
+            "VariableSet",
+            "DebugMessage",
+            "SetCamera",
+            "Screenshot",
+            "SetSkybox",
+        ],
+    },
+    {
+        slug: "modding/objects",
+        title: "Scenario objects",
+        category: "Modding reference",
+        parent: "modding/reference",
+        tags: ["modding", "reference"],
+        summary:
+            "The five spawnable object kinds field by field - Asteroid, Spaceship, Beacon, SalvageCrate, Light - including the ship controller and sections sub-vocabulary and the lighting methods.",
+        related: [
+            "modding/actions",
+            "modding/base-content",
+            "dev/guide-author-section",
+        ],
+        headings: [
+            "Asteroid",
+            "Spaceship",
+            "The controller",
+            "The sections list",
+            "Beacon",
+            "SalvageCrate",
+            "Light",
+        ],
+    },
+    {
+        slug: "modding/expressions",
+        title: "Variables & expressions",
+        category: "Modding reference",
+        parent: "modding/reference",
+        tags: ["modding", "reference"],
+        summary:
+            "The complete expression grammar node by node - literals, factors, terms, expressions, conditions - the type rules, the reserved engine variables, and the recipes: count gates, clocks, waves, state machines.",
+        related: ["modding/filters", "modding/actions", "dev/scenario-system"],
+        headings: [
+            "Values: the literal types",
+            "Factors: the atoms",
+            "Terms: multiply / divide",
+            "Expressions: add / subtract",
+            "Conditions: the boolean root",
+            "Reserved engine variables",
+            "Recipes",
+        ],
+    },
+    {
+        slug: "modding/base-content",
+        title: "Base content catalog",
+        category: "Modding reference",
+        parent: "modding/reference",
+        tags: ["modding", "reference", "ships"],
+        summary:
+            "Every id and asset the base game ships: the 123 section prototype ids with their kinds, the 10 scenario ids, the campaign, the 140 dep://base/ asset paths, the overlay rule and the naming conventions.",
+        related: [
+            "dev/guide-author-section",
+            "dev/guide-make-a-mod",
+            "modding/objects",
+        ],
+        headings: [
+            "Section prototypes",
+            "Scenario ids",
+            "Assets: what dep://base/ can reach",
+            "The overlay rule",
+        ],
+    },
     {
         slug: "dev/modding-ron",
         title: "Modding data format (RON)",
-        category: "Scenarios & mods",
-        tags: ["dev", "modding"],
+        category: "Modding reference",
+        tags: ["dev", "modding", "reference"],
         summary:
             "The RON data format for scenarios and mods: the catalog, bundles and enabled set, the local download cache and the mods:// source, file naming, and RON syntax gotchas.",
         related: ["dev/scenario-system", "dev/mod-portal", "modding"],
@@ -396,8 +577,8 @@ export const WIKI_PAGES: WikiPage[] = [
     {
         slug: "dev/mod-portal",
         title: "Mod portal",
-        category: "Scenarios & mods",
-        tags: ["dev", "modding"],
+        category: "Modding reference",
+        tags: ["dev", "modding", "reference"],
         summary:
             "The static mod portal: its layout, the catalog generator, the catalog.json wire schema, how to publish a mod today, local development, and how installed mods are stored game-side.",
         related: ["dev/modding-ron", "dev/development", "dev/guide-make-a-mod"],

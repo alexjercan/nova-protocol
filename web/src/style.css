@@ -1332,6 +1332,42 @@ main {
     content: "#";
     color: var(--phosphor-muted);
 }
+/* The reference pages' build-time "Contents" box (see tocBox in markdown.js):
+   a recessed panel with numbered h2/h3 anchor links, the MediaWiki contents
+   box wearing the phosphor skin. Counters restart per nested list so entries
+   read 1., 1.1, 1.2, 2., ... */
+.wiki-toc {
+    display: inline-block;
+    margin: 0 0 1.8em;
+    padding: 12px 20px 12px 16px;
+    background: var(--recess);
+    border: 1px solid var(--edge-faint);
+    border-radius: var(--panel-radius);
+    font-size: 0.85rem;
+}
+.wiki-toc__title {
+    font-family: var(--font-display);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--phosphor);
+    margin: 0 0 0.4em;
+}
+.wiki-toc ol {
+    list-style: none;
+    counter-reset: toc;
+    margin: 0;
+    padding: 0 0 0 1em;
+}
+.wiki-toc li {
+    counter-increment: toc;
+    margin: 2px 0;
+}
+.wiki-toc li::before {
+    content: counters(toc, ".") " ";
+    font-family: var(--font-mono);
+    color: var(--phosphor-muted);
+    margin-right: 4px;
+}
 .wiki-seealso__title {
     font-size: 1.1rem;
 }

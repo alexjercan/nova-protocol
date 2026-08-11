@@ -53,7 +53,9 @@ self-contained and relocatable. Every `meta` field is optional and
 serde-defaulted, so a bare `(content: [...])` manifest still loads (the menu
 then falls back to the catalog id as the name) - but the portal will not
 publish a mod without a non-empty `name` and `version` (step 4). `dependencies`
-is a list of mod ids; `base` is an IMPLICIT dependency and is never declared.
+is a list of mod ids; `base` is an IMPLICIT dependency, so listing it is never
+required (declaring it anyway is harmless and resolves - the shipped portal
+mods write `dependencies: ["base"]` for explicitness).
 `icon` is an `Option`, so write `icon: Some("icon.png")`, not `icon:
 "icon.png"`.
 
@@ -121,7 +123,9 @@ cover every case:
 
 - `self://<path>` - a file THIS mod ships, from its own folder.
 - `dep://base/<path>` - a BASE-game asset (a stock skybox, hull mesh, ...).
-  `base` is the implicit universal dependency, so you never declare it.
+  `base` is the implicit universal dependency, so it works without declaring
+  anything. The full list of reachable base assets is the
+  [base content catalog](../../modding/base-content/).
 - `dep://<id>/<path>` - a file a DECLARED dependency `<id>` ships (e.g. a shared
   art pack several mods depend on).
 
@@ -205,8 +209,10 @@ cubemap: "dep://art_pack/textures/nebula.png",
   game ships its art under `assets/base/` and is referenced like any dependency -
   `dep://base/textures/cubemap.png` for the stock skybox,
   `dep://base/gltf/hull-01.glb#Scene0` for the stock hull mesh). `base` is the
-  IMPLICIT universal dependency, so you do NOT list it in `meta.dependencies`.
-  There is no bare/scheme-less shorthand - every asset ref is namespaced.
+  IMPLICIT universal dependency: it never needs to be in `meta.dependencies`,
+  though declaring it is accepted. There is no bare/scheme-less shorthand -
+  every asset ref is namespaced. What `dep://base/` can reach is enumerated in
+  the [base content catalog](../../modding/base-content/).
 
 A content file is a `[Content]` list. Each item is externally tagged by kind:
 

@@ -1,7 +1,9 @@
 # RON scenario/mod format
 
 > To make and publish your own mod, follow the guide
-> [Make and publish a mod](../guide-make-a-mod/).
+> [Make and publish a mod](../guide-make-a-mod/). For the construct-by-construct
+> catalog (events, filters, actions, objects, expressions), see the
+> [modding reference](../../modding/reference/).
 
 The declarative modding language for Nova Protocol: content (scenarios and
 sections) authored as `*.content.ron` data files instead of Rust. Implemented on
@@ -232,8 +234,9 @@ flowchart TD
   and it resolves against `<id>`'s own folder with the same shipped/downloaded
   transparency. `dep://base/<path>` is the special case for a BASE-game asset -
   the base game ships its art under `assets/base/` and is referenced like any
-  dependency; `base` is the IMPLICIT universal dependency, so it is never
-  declared. There is NO bare/scheme-less asset ref - every ref is namespaced
+  dependency; `base` is the IMPLICIT universal dependency, so declaring it is
+  never required (an explicit `dependencies: ["base"]` still resolves; the
+  shipped portal mods write it). There is NO bare/scheme-less asset ref - every ref is namespaced
   (`self://` own folder, `dep://<id>/` a dependency, `dep://base/` the base game);
   the same three gates enforce it.
 - The `meta` block (all fields optional, `ModMeta` in `nova_mod_format`,
@@ -242,7 +245,8 @@ flowchart TD
   `name`, `description`, `author`, `version` (opaque semver-ish string; base
   leaves it empty - the GAME version is authoritative there),
   `dependencies: [ids]` (mod ids this one needs; `base` is an IMPLICIT
-  dependency and is never declared. Resolved end to end: installing a mod from
+  dependency that never needs declaring, though declaring it resolves too.
+  Resolved end to end: installing a mod from
   Explore auto-installs its missing dependencies from the portal first, enabling
   a mod auto-enables its dependencies and disabling a mod other enabled mods
   need is refused, and the merge order is dependency-topological so a

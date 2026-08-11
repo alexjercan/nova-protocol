@@ -1,8 +1,8 @@
 # Rebuild the modding docs as a Wesnoth-style reference site
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 37
-- TAGS: v0.10.0,docs,web,modding
+- TAGS: v0.10.0, docs, web, modding
 
 PROBLEM: The modding wiki page is bloated, and the actual authoring grammar is
 documented nowhere - both benchmark modder runs reverse-engineered the whole
