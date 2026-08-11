@@ -10,7 +10,11 @@ A scenario spawns a handful of object kinds:
 - **Spaceships** - multi-section [builds](../sections/) under a player or AI controller (which can withhold or grant flight verbs).
 - **Nav beacons** - lockable waypoints with authorable radar signatures and optional trigger areas.
 - **Salvage crates** - small pickups collected by flying through them.
-- **Trigger areas** - invisible volumes that fire on-enter / on-exit events.
+- **Lights** - the scene's own key/rim/fill lighting; a scenario that spawns
+  none renders black.
+
+Trigger areas - invisible volumes that fire on-enter / on-exit events - are
+created by an action rather than spawned as objects.
 
 ## Objectives: events, filters, actions
 
@@ -18,7 +22,7 @@ Objectives are wired with a three-layer reactive system. An **event** fires unde
 
 - **Events**: OnStart, OnUpdate, OnDestroyed, OnNeutralized (a ship is combat-dead - weapons and thrusters gone, hull intact), OnEnter / OnExit (a trigger area), OnOrbit (an orbit held a few seconds), OnTravelLock / OnCombatLock (a [lock](../targeting-radar/) landed on an object).
 - **Filters**: match by object id or type (asteroid / beacon / salvage crate), combine with not / or / and, or test a variable expression.
-- **Actions**: post or complete an objective, attach or detach the gold objective marker, emphasize a keybind dock chip, set a variable, spawn or despawn an object, install or lift a speed cap, grant or withhold a flight verb, create a trigger area, queue the next scenario, or declare the outcome - a victory or defeat screen with Continue/Retry and Main Menu that pauses the game behind it.
+- **Actions**: post or complete an objective, attach or detach the gold objective marker, emphasize a keybind dock chip, set a variable, spawn or despawn an object, scatter a seeded field of objects, drive a HUD readout, post a story message, swap the skybox, set a ship's allegiance, pose the camera, install or lift a speed cap, grant or withhold a flight verb, create a trigger area, queue the next scenario, or declare the outcome - a victory or defeat screen with Continue/Retry and Main Menu that pauses the game behind it.
 
 This is the vocabulary the [Shakedown Run](../../tutorial/) is built from - each beat is an event handler that grants the next verb, posts the next objective, and moves a beat counter forward.
 

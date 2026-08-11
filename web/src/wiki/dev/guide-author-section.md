@@ -7,9 +7,12 @@ RON data, no Rust. A mod ships sections to add new parts to the editor palette
 or to re-balance a base part by reusing its id (overlay by id; see
 [Make and publish a mod](../guide-make-a-mod/)).
 
-Every field below is copied from the shipped catalog
-(`assets/base/sections/base.content.ron`) or the config struct that parses it
-(`crates/nova_ship/src/sections/`). The loader uses strict RON, so a
+Field shapes below match the shipped catalog
+(`assets/base/sections/base.content.ron`) and the config structs that parse it
+(`crates/nova_ship/src/sections/`); the numeric values are illustrative - the
+catalog is the balance source of truth. Asset refs are spelled from a MOD
+author's perspective (`dep://base/...`); base's own file spells the same refs
+`self://...`. The loader uses strict RON, so a
 misspelled or unknown field is a hard parse error, not a silent default. For the
 RON gotchas (newtype double-parens, `Some(...)`, tagged enums) shared with
 scenarios, see [RON scenario/mod format](../modding-ron/).
@@ -37,8 +40,13 @@ Section((
   - `id` - unique section id; the key a ship's `source: Prototype("<id>")`
     references, and the key a mod overlays to replace a base part.
   - `name`, `description` - display strings (editor palette, tooltips).
-  - `mass` - contributes to the ship's total mass and center of mass.
+  - `mass` - a DENSITY: the section's real mass is `mass * collider_volume`,
+    and it contributes to the ship's total mass and center of mass.
   - `health` - the section's hit points before it is disabled/destroyed.
+  - `collider` (optional) - the physics shape (`Cuboid`/`Sphere`/`Capsule`/
+    `Cylinder`); omitted resolves to the unit cube. See
+    [Ship sections](../sections/).
+  - `hide_in_editor` (optional) - keep the entry out of the editor palette.
 - `kind` selects the behavior and carries that kind's own config. It is one of
   `Hull` / `Thruster` / `Controller` / `Turret` / `Torpedo`, each documented
   below.
@@ -111,7 +119,7 @@ kind: Controller((
 - `max_torque` - the maximum torque the controller may apply.
 - `render_mesh` (optional) - custom mesh; omit for the default body.
 - `lock_on_sound`, `lock_off_sound`, `radar_deny_sound`,
-  `radar_retarget_sound`, `safety_on_sound` (all optional) - the computer's
+  `radar_retarget_sound`, `safety_on_sound`, `rcs_loop_sound` (all optional) - the computer's
   radar/lock and weapons-safety feedback ticks, asset refs like the meshes
   (`dep://base/sounds/lock_on.wav` etc. for the base cues); an omitted cue is
   silent. Your ship's computer can have its own voice.
@@ -177,6 +185,8 @@ Per-joint fields (on every `root`/`children` node):
   for no limit.
 - `render_mesh` (optional) - this joint's mesh; omit for a plain default
   primitive. Shipped turrets author a GLB per visible joint.
+- `render_mesh_transform` (optional) - re-seats this joint's render mesh
+  visually without moving the hinge or the collider.
 - `muzzle` (optional) - marks this joint a fire point: `Some((fire_rate: N))`
   (rounds per second), plus an optional `muzzle_effect` flash asset ref. A turret
   aims and fires ALL of its muzzles: hang two off one barrel for a twin PDC, or

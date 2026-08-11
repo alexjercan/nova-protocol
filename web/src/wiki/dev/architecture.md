@@ -20,15 +20,20 @@ real code lives under `crates/`.
 | `nova_hud`      | The flight HUD: one module per widget (crosshairs, target inset, ammo readout, flight status, objective markers, the comms panel, the keybind dock, the screen-indicator projection they all share). Reads gameplay state and never drives it, so the dependency runs `nova_hud -> nova_gameplay`. `nova_core` adds `NovaHudPlugin` render-gated, and the crate places `NovaHudSystems` between the section and camera sets itself. |
 | `nova_os`       | NOVA OS logic with no UI in it: the terminal model (`terminal`), the shell command language and typo suggestions (`shell`), and the app runtime seam (`app`). |
 | `nova_os_ui`    | The NOVA OS cockpit monitor the player opens with Tab: the CRT casing and shader, the terminal nodes and keyboard/pointer systems (`terminal`), and the two apps that run on it - `map` (schematic local space) and `ship` (schematic player ship). A PEER of the flight HUD, not one of its widgets: `nova_core` adds it, and nothing in `nova_hud` reaches into it (it reads `NovaHudAssets` and `NovaHudSystems`, so it sits ABOVE `nova_hud`). |
-| `nova_scenario` | Scenario/modding engine: `events`, `filters`, `actions`, `variables`, `world`, `loader`, `objects/`, `render_scale` (the Low-preset resolution lever: scenario view into a reduced offscreen target, upscaled to the window). See [Scenario engine](../scenario-system/). |
+| `nova_scenario` | Scenario/modding engine: `events`, `filters`, `actions`, `variables`, `world`, `loader`, `objects/`, `lint/` (the scenario half of the `content -- lint` checks), `render_scale` (the Low-preset resolution lever: scenario view into a reduced offscreen target, upscaled to the window). See [Scenario engine](../scenario-system/). |
 | `nova_events`   | Game event kinds and entity identity components, shared between gameplay and scenario. |
-| `nova_assets`   | `bevy_asset_loader` setup. Loads glb/textures/shaders/sounds, then registers the built-in sections and scenarios. Owns the mod merge (`register_bundles`, `EnabledMods`, `ModCatalog`) and prefs persistence. |
+| `nova_events_macros` | Procedural macros behind `nova_events`' derives. |
+| `nova_assets`   | `bevy_asset_loader` setup. Loads glb/textures/shaders/sounds, and loads the base game's own generated content (`assets/base/`) through the same bundle machinery as mods. Owns the mod merge (`register_bundles`, `EnabledMods`, `ModCatalog`), the portal client and downloads (`portal/`), and prefs persistence. |
 | `nova_modding`  | Bundle/content/catalog ASSET LOADERS and the `Content` routing enum. See [Modding data format (RON)](../modding-ron/). |
 | `nova_mod_format` | Pure serde types for the mod formats (bundle manifests, catalog declarations, the portal wire schema). Engine-free; re-exported by `nova_modding`. The static mod portal is built by `scripts/gen-portal.py`, not a crate. See [Mod portal](../mod-portal/). |
-| `nova_ui`       | Shared UI: the theme palette/metrics (`theme::*`) and the themed widgets (`widget`: button, selection machinery, panel header) the menu and editor draw from. |
+| `nova_ui`       | Shared UI, a leaf crate everything that renders UI draws from: the theme palette/metrics (`theme::*`), the `UiSkin` visual-language switch (`skin`), the themed widgets (`widget`: button, slider, segmented control, list rows, panel chrome), screen-level composition (`screen`: scrollable viewports and the list-beside-details layout the menu screens and the NOVA OS drawer share), the flight-HUD chip language (`hud`), player-facing unit formatting (`units`), the shared typeface (`font`) and the generic `status_bar`. Consumed by `nova_gameplay`, `nova_hud`, `nova_os_ui`, `nova_menu`, `nova_editor` and `nova_assets`. |
 | `nova_debug`    | Debug-only plugin (inspector, overlays). Compiled only under the `debug` feature. |
 | `nova_info`     | Exposes `APP_VERSION`, injected by `build.rs`. |
-| `nova_probe`    | Dev tooling (not in the shipped game): the run-harness that drives an autopilot example headless and assembles a run report - frame-time capture plus the run-timeline recorder and continuous invariant checks. `run`/`report` CLI. See [Development](../development/). |
+| `nova_autopilot` | Scripted automation drivers and the run-completion protocol the harness examples share. Engine-facing but game-agnostic; `nova_debug`, `nova_probe` and `nova_probe_cli` all build on it. See [Automation harness](../automation-harness/). |
+| `nova_probe`    | Dev tooling (not in the shipped game): the IN-GAME half of the run-harness - the capability plugins an example wires to collect evidence about its own run (`capabilities::frametime`, `capabilities::timeline`, `capabilities::invariants`, bundled by `NovaProbePlugin`), the `contract` an example declares, and the wire format the host reads. See [Development](../development/). |
+| `nova_probe_cli` | Dev tooling: the HOST half of the run-harness - spawns autopilot runs as child processes, grades their artifacts (`evaluation`) and renders the reports (`report`). Owns the `cargo run -p nova_probe_cli -- run/report` CLI. The two halves meet at the filesystem: nothing in `nova_probe` reads a run's output back. |
+| `nova_perf_web` | The wasm app `probe run --platform web` boots and measures: the real game started into a scenario with the frame-time capture armed. Dev tooling, never shipped. |
+| `nova_authoring` | The OFFLINE half of the content pipeline (never shipped): the Rust builders that define every built-in scenario and section, the `content -- gen` serializer that writes them to the committed `assets/base/**/*.content.ron`, and the `content -- lint` walk that validates a content tree. |
 | `nova_meta_gen` | Binary under `tools/` (web-build tooling, not a game crate): writes default `.meta` sidecars for web assets that lack one (a Trunk `post_build` hook for `AssetMetaCheck::Always`). Boots a headless Bevy app, so it stays Rust. |
 
 The dependency layering the table describes, from top-level shell down to leaf crates:
@@ -45,22 +50,51 @@ graph TD
     core --> scenario["nova_scenario"]
     core --> assets["nova_assets"]
     ship --> gameplay
+    ship --> events["nova_events"]
     hud --> ship
     hud --> gameplay
+    hud --> ui["nova_ui"]
     osui --> hud
     osui --> ship
     osui --> gameplay
     osui --> os["nova_os"]
+    osui --> ui
     menu --> osui
-    gameplay --> events["nova_events"]
-    scenario --> events
-    assets --> modding["nova_modding"]
-    modding --> modfmt["nova_mod_format"]
-    menu --> ui["nova_ui"]
+    menu --> ui
+    editor --> ship
     editor --> ui
+    gameplay --> events
+    gameplay --> ui
+    scenario --> events
+    scenario --> gameplay
+    scenario --> ship
+    scenario --> hud
+    assets --> modding["nova_modding"]
+    assets --> scenario
+    modding --> modfmt["nova_mod_format"]
     core --> debug["nova_debug"]
     core --> info["nova_info"]
 ```
+
+The graph is curated for readability, not exhaustive: `nova_core` and `nova_menu`
+depend on nearly every crate below them, and edges implied by the layering (for
+example `nova_hud -> nova_events`) are pruned. The authoritative dependency list
+for any crate is its `Cargo.toml`. Two edges people guess wrong:
+
+- **`nova_ui` is not menu-only.** Every crate that renders UI draws on it -
+  `nova_gameplay` (which adds `NovaUiPlugin` render-gated), `nova_hud` (the
+  chip language and screen-indicator styling), `nova_os_ui`, `nova_menu`,
+  `nova_editor` and `nova_assets`.
+- **`nova_scenario` reaches up into `nova_ship` and `nova_hud`.** It spawns
+  ships and drives HUD-facing surfaces (comms dwell limits, target-inset render
+  targets), so it sits beside them, not below them.
+
+The dev-tool crates hang off this graph without joining it: `nova_debug` builds
+on `nova_autopilot` plus the game crates it inspects; `nova_probe` wires
+`nova_core` + `nova_autopilot` into a measurable app; `nova_probe_cli` depends
+only on `nova_probe`, `nova_autopilot` and `nova_assets` (it is a host process,
+not a game plugin); `nova_perf_web` is `nova_core` + `nova_probe`; and
+`nova_authoring` reads half the workspace to build and lint content offline.
 
 Every crate exposes a `pub mod prelude`. Import from the prelude
 (`use nova_gameplay::prelude::*`), not from inner modules. `nova_core::prelude`
@@ -111,8 +145,12 @@ AppBuilder::new()                 // Bevy DefaultPlugins + window/log/asset/rend
 ```
 
 `build()` inits `GameStates` + `PauseStates`, then adds, in order:
-`EnhancedInputPlugin`, `GameAssetsPlugin`, `NovaGameplayPlugin`,
-`NovaScenarioPlugin`, then `NovaEditorPlugin` and `NovaMenuPlugin` (both only when
+`EnhancedInputPlugin`, `GameAssetsPlugin`, `LoadingScreenPlugin`,
+`NovaGameplayPlugin`, `NovaShipPlugin` (the ship orders its sets inside
+gameplay's `SpaceshipSystems` brackets, so it comes after), `NovaScenarioPlugin`,
+then - render-gated, a headless harness run draws neither - `NovaHudPlugin` and
+`NovaOsUiPlugin` (HUD first: the monitor orders itself against
+`NovaHudSystems`), then `NovaEditorPlugin` and `NovaMenuPlugin` (both only when
 no custom game plugins were supplied - the menu fronts the default app and
 nothing else, so an example that brings its own game plugins goes straight
 `Loading -> Playing`), and finally `DebugPlugin` under the `debug` feature. On
@@ -121,8 +159,11 @@ nothing else, so an example that brings its own game plugins goes straight
 
 `NovaGameplayPlugin` pulls in avian3d `PhysicsPlugins` (zero gravity, projectile
 collision hooks), `bevy_rand`, `bevy_hanabi` particles (on wasm via the WebGPU
-backend), and the Nova sub-plugins: input, sections, hud, camera controller,
-integrity, damage, flight, gravity, physics, relations, audio, juice.
+backend), `NovaUiPlugin` (render-gated), the transform/lifetime/mesh rigs, and
+the shared gameplay sub-plugins: integrity, damage, gravity, relations, audio,
+juice, settings. The ship stack (input, sections, flight, camera, physics) is
+`NovaShipPlugin`'s, and the HUD is `NovaHudPlugin`'s - both added by
+`nova_core`, not by gameplay.
 
 ## States
 
@@ -272,6 +313,9 @@ live UNDER `assets/base/` (exported `gltf/` models `.glb`, `textures/`,
 web (Trunk `copy-dir`) and native (`release.yaml`) builds ship, so non-runtime
 files must not live here. The Blender SOURCES the `gltf/` models are exported
 from live OUT of the shipped tree, in top-level `art/blender/` (they are
-2.7M that was never loaded at runtime). The built-in sections and scenarios are
-defined in Rust (`crates/nova_assets/src/sections.rs`, `scenario.rs`,
-`scenario/`); moving them to data files is a known future direction.
+2.7M that was never loaded at runtime). The built-in sections and scenarios ARE
+data now: the Rust builders in `crates/nova_authoring` (`sections.rs`,
+`scenario.rs`, `scenario/`) are the single source, and
+`cargo run -p nova_authoring --bin content -- gen` serializes them to the
+committed `assets/base/**/*.content.ron` the game loads like any other bundle.
+Never hand-edit the generated files; edit the builders and re-run `gen`.

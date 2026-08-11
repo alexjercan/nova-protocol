@@ -50,6 +50,7 @@ it if the change made it wrong - not every change touches every listed page.
 
 | Code area (crate / dir) | Player wiki | Dev wiki | Also |
 | --- | --- | --- | --- |
+| **The crate layout itself**: a split, merge, rename, or move (`crates/*`) | | `dev/architecture.md` (crate map + dependency graph + assembly), `dev/project-tour.md` (crate map + change-X table), and THIS page's own row keys | CHANGELOG (Internals) |
 | Ship sections, integrity, typed damage, ammo (`nova_ship/sections`, `nova_gameplay/integrity`) | `sections.md` (+ section children), `hud.md` | `dev/sections.md`, `dev/guide-author-section.md`, `dev/guide-add-section.md` | CHANGELOG |
 | Flight, controller, camera (`nova_ship/input`, `camera`) | `flight-autopilot.md`, `keybinds.md` | `dev/architecture.md` | CHANGELOG |
 | Targeting, radar, weapons, turrets, torpedoes (`nova_ship` targeting/sections, `nova_hud`) | `targeting-radar.md`, `combat-weapons.md`, `hud.md` | `dev/architecture.md` | CHANGELOG |
@@ -58,11 +59,31 @@ it if the change made it wrong - not every change touches every listed page.
 | Modding data format, bundles, catalog, local cache (`nova_mod_format`, `nova_modding`) | `modding.md` | `dev/modding-ron.md`, `dev/guide-make-a-mod.md` | CHANGELOG **(breaking?)** |
 | Mod portal + generator (`scripts/gen-portal.py`, `nova_modding`) | `modding.md` | `dev/mod-portal.md`, `dev/modding-ron.md` | CHANGELOG |
 | Menus, editor, UI (`nova_menu`, `nova_editor`, `nova_ui`) | `hud.md`, `sections.md` | `dev/guide-add-section.md` | tutorial, CHANGELOG; **theme tokens: `web/design/nova_ui_rework_poc.html` is the source for BOTH `nova_ui/src/theme.rs` and `web/src/style.css`; the site draws the PHOSPHOR skin only** |
-| Automation drivers, the env contract, the completion protocol (`nova_autopilot`, `nova_probe`) | | `dev/automation-harness.md` | CHANGELOG **(env rename? breaking for every run script)** |
+| Automation drivers, the env contract, the completion protocol, the probe harness (`nova_autopilot`, `nova_probe`, `nova_probe_cli`) | | `dev/automation-harness.md`, `dev/development.md` (probe sections) | CHANGELOG **(env rename? breaking for every run script)** |
 | App assembly, plugin order, states (`nova_core`, `nova_assets`) | | `dev/architecture.md`, `dev/project-tour.md` | CHANGELOG |
-| Content CLI: gen/lint/audit subcommands (`nova_assets` bin `content`) | | `dev/guide-author-scenario.md`, `dev/guide-make-a-mod.md`, `dev/modding-ron.md` | CHANGELOG |
+| Content CLI: gen/lint subcommands, the base content builders (`nova_authoring`, bin `content`) | | `dev/guide-author-scenario.md`, `dev/guide-author-section.md`, `dev/guide-add-section.md`, `dev/guide-make-a-mod.md`, `dev/modding-ron.md`, `dev/scenario-system.md`, `dev/sections.md` | CHANGELOG |
 | The website itself (`web/`) | | `dev/development.md`, [this page](../keeping-docs-in-sync/) | |
 | Local dev servers (`scripts/serve-web.sh`, `scripts/serve-mods.sh`, `scripts/preview-web.sh`, `web/webpack.config.js`, `Trunk.toml`) | | `dev/development.md` ("Local web preview"), `dev/mod-portal.md` ("Local development") | README.md quick start + scripts table |
+
+### "Check" means re-derive, not grep
+
+The 20260806-121625 refactor is the cautionary tale. Its lanes DID sweep docs -
+at the name level ("does the page name the new crate"), and the pages did. What
+survived was every claim BETWEEN the names: a dependency graph still drawing
+`nova_ui` as menu-and-editor-only, a crate map missing four crates, commands
+attributed to the crate they moved out of. The after-benchmark's `docs` persona
+then failed a control question by trusting one of those stale claims
+(task 20260809-213446). So when a row above says "check", it means: re-derive
+every crate name, module path, command, and dependency direction the page
+asserts against the current tree. A page that names the new thing can still
+describe the old one.
+
+Two structural traps this map cannot catch by itself:
+
+- The map's own row keys are crate/dir names, so a structural refactor
+  invalidates the MAP too - that is what the first row is for.
+- A lane-per-change epic has no lane whose job is the cross-cutting sweep.
+  Give the sweep its own step (or lane) whenever `crates/*` changes shape.
 
 ## When you cut a release
 

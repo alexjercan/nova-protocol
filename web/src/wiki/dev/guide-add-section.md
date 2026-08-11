@@ -4,7 +4,8 @@ Ship-section kinds are a CLOSED enum. There is no data-driven registry for
 them: `SectionKind` (`crates/nova_ship/src/sections/base_section.rs`) is a
 Rust enum, every match on it is exhaustive, and the compiler will not let you
 land a new variant until every site handles it. Adding a kind is a fixed
-sequence of ~10 edits across the gameplay, scenario, editor, and assets crates,
+sequence of ~10 edits across `nova_ship`, `nova_gameplay`, `nova_scenario`,
+`nova_editor`, `nova_os_ui`, and `nova_authoring`,
 ending at a runnable example.
 
 ## Why it is closed
@@ -42,8 +43,8 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
 
 1. **New config module.**
    Create `crates/nova_ship/src/sections/<kind>_section.rs`, modelled on
-   `hull_section.rs` (simplest) or `turret_section.rs` (behavior + FixedUpdate
-   systems). It defines: a `<Kind>SectionConfig` struct, a `<kind>_section`
+   `hull_section.rs` (simplest) or `turret_section/` (a multi-file module:
+   behavior + FixedUpdate systems). It defines: a `<Kind>SectionConfig` struct, a `<kind>_section`
    bundle fn, a `<Kind>SectionMarker` component, a `<Kind>SectionPlugin`, and a
    `prelude` re-exporting them. The bundle MUST insert the marker and the
    `SectionDamageClass` for the kind:
@@ -99,6 +100,11 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
    the `SectionDamageClass` array in this file's tests
    (`kinetic_resistance_is_one_on_every_section` iterates it).
 
+   The NOVA OS ship app labels sections by the same enum: add an arm to the
+   exhaustive matches `code_prefix`, `kind_glyph`, `kind_description` and
+   `kind_index` in `crates/nova_os_ui/src/ship/sections.rs`, and to
+   `section_kind_label` in `crates/nova_os_ui/src/terminal/content.rs`.
+
 4. **Wire the section plugin.**
    In `crates/nova_ship/src/sections/mod.rs`, add your plugin to the
    `add_plugins((...))` tuple in `SpaceshipSectionPlugin::build` (grep for
@@ -128,14 +134,15 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
    for how the spaceship object and its section observer fit together.
 
 6. **Editor placement arm.**
-   In `crates/nova_editor/src/placement.rs`, add a `SectionKind::Shield(..)`
-   arm to the `match &section.kind` in the placement handler (grep for
-   `match &section.kind` in `placement.rs` - it is the one in the placement
-   handler, not the hull/controller preview arms above it). Spawn
-   a `preview_section(...) + <kind>_section(...)` child and record a
-   `SpaceshipSectionConfig` in `player_config.sections`, modelling the `Hull`
-   arm (no input binding) or the `Thruster` arm (rotation from surface normal +
-   key/pad binding) as appropriate.
+   In `crates/nova_editor/src/placement.rs`, three exhaustive matches need an
+   arm: `default_binds_for` (the kind's default key/pad binding, if any),
+   `placement_rotation` (rotation from the surface normal), and the
+   `match &section.kind` inside `spawn_preview_section`, which spawns the
+   `preview_section(...) + <kind>_section(...)` child. Model the `Hull`
+   arm (no input binding) or the `Thruster` arm (surface-normal rotation +
+   binding) as appropriate. Recording the placed section into
+   `player_config.sections` is generic (`register_preview_section`, called
+   from the click handler) - the arm only spawns.
 
 7. **Editor card tint + glyph.**
    In `crates/nova_editor/src/ui/card.rs`, add an arm to BOTH `kind_tint()`
@@ -151,7 +158,7 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
    ```
 
 8. **Asset prototype.**
-   In `crates/nova_assets/src/sections.rs`, add a `SectionConfig` to the
+   In `crates/nova_authoring/src/sections.rs`, add a `SectionConfig` to the
    `build_sections()` vec (grep for `fn build_sections`) so the catalog ships a
    ready-to-place
    instance. Give it a stable snake_case `id` (this is what
@@ -171,7 +178,13 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
    ```
 
    If your config needs a render-mesh `AssetRef`, add a field to
-   `SectionMeshRefs` and its `from_paths()` alongside the existing ones.
+   `SectionMeshRefs` and its `from_paths()` alongside the existing ones (both
+   in `crates/nova_authoring/src/sections.rs`).
+
+   The builders do not feed the game directly: regenerate the committed RON
+   with `cargo run -p nova_authoring --bin content -- gen` and commit
+   `assets/base/sections/base.content.ron` with the code change - the
+   `content_ron_parity` test fails on drift.
 
 9. **Example.**
    Add `examples/sections/<kind>_section.rs`, modelled on the existing

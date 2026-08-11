@@ -24,12 +24,14 @@ event handlers; each pairs an event with filters (all must pass) and actions
 - `CurrentScenario(Option<ScenarioConfig>)` - the loaded scenario, if any. The
   `scenario_is_live` run condition gates the ship input/section sets on it.
 
-## Loading / unloading (`loader.rs`)
+## Loading / unloading (`loader/`)
 
 - `LoadScenario(ScenarioConfig)` - trigger to load: look one up in
   `GameScenarios`, `commands.trigger(LoadScenario(cfg.clone()))` (see
   `examples/systems/scenario_grammar.rs`). Load tears down the previous scenario, spawns
-  the camera, light, input context, one handler per event, fires `OnStart`.
+  the camera, input context, one handler per event, fires `OnStart`. No engine
+  light: a scene is lit by the `Light` objects it authors, and one that authors
+  none renders black.
 - `ScenarioLoaded` - fired after a load; carries `scenario_id`,
   `handler_count`, `object_count` for smoke-test assertions.
 - `UnloadScenario` - tears everything down and clears `CurrentScenario`.
@@ -120,6 +122,9 @@ flowchart LR
   use, so an emphasis on an unavailable verb REVEALS its chip (pulsing in the
   dim band) - that is how a tutorial points at a key before it lights up.
 - `SpawnScenarioObject(ScenarioObjectConfig)` - spawn an object (see below).
+- `ScatterObjects(ScatterObjectsConfig)` - seeded scatter of many objects in a
+  zone (the base asteroid fields); a fixed try budget keeps separation
+  best-effort.
 - `DespawnScenarioObject` - despawn the scoped object whose id matches
   (scoped-only lookup, so ship sections with colliding ids are safe).
 - `SetSpeedCap` - install (`Some(cap)`) or remove (`None`) the manual
@@ -148,8 +153,9 @@ flowchart LR
   (clearing it also releases the pause).
 - `SetCamera { position, look_at }` - pose the scenario camera (the
   `ScenarioCameraMarker` entity) at `position` looking at `look_at`. It drops
-  `WASDCameraController` so the scripted pose holds - the free-fly controller's
-  `sync_transform` would otherwise overwrite the camera `Transform` every frame
+  `WASDCameraController` and pins the pose as a `ScriptedCameraPose`,
+  re-enforced every frame in `CameraAuthoritySystems::Override` - both
+  controllers keep writing the camera `Transform` otherwise
   (same swap the player-ship-spawn observer does). No-op with a warning if no
   scenario camera is present. Part of the in-engine photo-mode surface.
 - `Screenshot { path }` - capture the primary window to a PNG at `path`, built
@@ -249,13 +255,16 @@ declared dependency. The stack means a burst is readable - but prefer one line
 per beat anyway (the beat-sheet convention); the queue is the safety
 net, not the style.
 
-### The scenario clock (`scenario_elapsed`)
+### The scenario clock (`scenario_elapsed`, `player_speed`)
 
-The engine maintains one RESERVED variable: `scenario_elapsed`, the seconds
-of live, unpaused scenario time (`tick_scenario_clock` in `loader.rs`,
+The engine maintains two RESERVED variables, both engine-written every live,
+unpaused tick and write-gated for handlers (`is_reserved_engine_var`):
+`scenario_elapsed`, the seconds of live scenario time
+(`tick_scenario_clock` in `loader/clock.rs`,
 chained ahead of the `OnUpdate` pulse under the same live+unpaused gate, so
-pausing freezes both together). It clears at teardown with the rest of the
-event world - it is the current scenario's clock, and a retry restarts it.
+pausing freezes both together), and `player_speed`, the player ship's current
+speed for expression filters. They clear at teardown with the rest of the
+event world - they are the current scenario's clock, and a retry restarts it.
 Gate on it from any expression filter; never write it (the engine rewrites
 it every tick, and `content lint` errors on an authored `VariableSet` to
 it). A read before the first tick fails closed like any undefined variable.
@@ -464,7 +473,9 @@ end to end:
 ## Scenario objects (`objects/`, `ScenarioObjectKind`)
 
 All share `BaseScenarioObjectConfig` (id, name, position, rotation) and spawn
-scoped, interpolated, dynamic bodies via `base_scenario_object`.
+scoped entities via `base_scenario_object`, which deliberately carries no body:
+each kind declares its own `RigidBody` (three of the five are static), and the
+asteroid alone opts into `Dynamic` + `TransformInterpolation`.
 
 - `Asteroid(AsteroidConfig)` - radius, texture, health, `mass` (the body's
   `mu`: it alone sets both the pull `a = mu / r^2` and the sphere of influence,
@@ -496,23 +507,36 @@ scoped, interpolated, dynamic bodies via `base_scenario_object`.
 - `SalvageCrate(SalvageCrateConfig)` - proximity pickup (`size`,
   `area_radius`): flying through fires `OnEnter` under the crate's id; pair
   with `DespawnScenarioObject` and a counter variable.
+- `Light(LightConfig)` - the scene's own lighting (`objects/light.rs`), an
+  ordinary spawned kind. Load-bearing: a scenario that spawns no `Light`
+  renders black - the engine no longer supplies one.
 
 ## Built-in scenarios
 
-`crates/nova_assets/src/scenario.rs` builds `asteroid_field`, `asteroid_next`,
-and `menu_ambience` in Rust; `scenario/shakedown.rs` adds `shakedown_run`, the
-New Game starter and the beat-chain reference: one `beat` counter gates every
+The builders live in `crates/nova_authoring/src/scenario{.rs,/}`:
+`scenario.rs` builds `asteroid_field` and `asteroid_next`, `scenario/menu.rs`
+the menu backdrops (`menu_ambience`, `menu_waystation`, `menu_scrapyard`),
+`scenario/shakedown/` the `shakedown_run` New Game starter - the beat-chain
+reference: one `beat` counter gates every
 handler, and count milestones run on `OnUpdate` handlers keyed on the counter
-(handler order within one event is not load-bearing). Loading scenarios from
-data files instead of Rust is still a TODO.
+(handler order within one event is not load-bearing) - and `broadside.rs`,
+`lifeline.rs`, `final_tally.rs` the campaign chapters. The builders are an
+OFFLINE generator, not the runtime path: `content -- gen` serializes them to
+the committed `assets/base/scenarios/*.content.ron`, `base.bundle.ron` lists
+them, and `crates/nova_assets/src/merge.rs` merges the parsed RON into
+`GameScenarios` like any mod's. `content_ron_parity` pins builders == RON.
 
 ## Adding new pieces
 
 - Event: event + info structs in `nova_events/src/lib.rs`, an `EventConfig`
   variant in `events.rs`, and something that fires it (engine-driven events
-  live in `loader.rs`, area events in `objects/area.rs`).
-- Action: config struct + `EventAction<NovaEventWorld>` impl in `actions.rs`,
-  plus an `EventActionConfig` variant.
+  live in `loader/` - `OnStart` in `lifecycle.rs`, `OnUpdate` in `clock.rs`,
+  the orbit/lock trackers in `trackers.rs`; area events in `objects/area.rs`;
+  `OnNeutralized` fires from `nova_gameplay`'s integrity stack).
+- Action: config struct + `EventAction<NovaEventWorld>` impl in the right
+  `actions/` submodule (`flow`/`mission`/`ship`/`spawn`/`view`), plus an
+  `EventActionConfig` variant in `actions/mod.rs`.
 - Filter: same pattern in `filters.rs` (`EventFilterConfig`).
 - Object: a module under `objects/` (config + bundle function, plugin in
-  `objects/mod.rs`) plus a `ScenarioObjectKind` variant/match in `actions.rs`.
+  `objects/mod.rs`) plus a `ScenarioObjectKind` variant/match in
+  `actions/spawn.rs`.

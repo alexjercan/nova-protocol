@@ -46,9 +46,11 @@ Nothing runs against the world synchronously. Each frame
 `NovaEventWorld::state_to_world_system` (in `world.rs`) syncs objectives into
 `GameObjectives`, runs a queued non-lingering `NextScenario` switch, then drains
 the command queue - so every `push_command` closure lands at frame end, in
-order. The unit tests in `actions.rs` exercise exactly this: mutate a
-`NovaEventWorld`, call `NovaEventWorld::state_to_world_system(&mut world)` to
-drain, then assert on the world (see `despawn_action_removes_the_scoped_object_by_id`).
+order. The unit tests in the `actions/` submodules exercise exactly this:
+mutate a `NovaEventWorld`, call
+`NovaEventWorld::state_to_world_system(&mut world)` to
+drain, then assert on the world (see
+`despawn_action_removes_the_scoped_object_by_id` in `actions/spawn.rs`).
 
 ## Recipe 1: add an event kind
 
@@ -194,23 +196,28 @@ for what it touches (`view.rs`, `flow.rs`, `mission.rs`, `ship.rs`,
    }
    ```
 
-3. Export the config struct from the `actions.rs` `prelude` block.
+3. Export the config struct from the `actions/mod.rs` `prelude` block.
 
-Templates: the tests at the bottom of `actions.rs` are the pattern to copy -
-`despawn_action_removes_the_scoped_object_by_id` (queued world lookup, scoped),
-`hint_emphasis_actions_drive_the_resource` (resource mutation through the drain),
-`objective_marker_attach_and_detach_drive_the_component` (component insert/remove).
+Templates: the tests at the bottom of the `actions/` submodules are the
+pattern to copy -
+`despawn_action_removes_the_scoped_object_by_id` (`actions/spawn.rs`; queued
+world lookup, scoped),
+`hint_emphasis_actions_drive_the_resource` (`actions/mission.rs`; resource
+mutation through the drain),
+`objective_marker_attach_and_detach_drive_the_component` (`actions/mission.rs`;
+component insert/remove).
 Each fires the action into a `NovaEventWorld`, drains with
 `NovaEventWorld::state_to_world_system`, then asserts.
 
 ## Recipe 4: add a scenario object kind
 
-A scenario object is a scoped, interpolated, dynamic body spawned by
-`SpawnScenarioObject`. Model it on `crates/nova_scenario/src/objects/asteroid.rs`.
+A scenario object is a scoped entity spawned by `SpawnScenarioObject`; the
+kind decides its own body (or none - three of the five shipped kinds are
+static). Model it on `crates/nova_scenario/src/objects/asteroid.rs`.
 
-> A kind is not required to be a physical body. `beacon.rs` overrides the base
-> bundle's `RigidBody::Dynamic` with `Static`, and `light.rs` is a pure-render
-> kind: it splits config from component with an `Add` observer so the `render`
+> A kind is not required to be a physical body. `beacon.rs` declares
+> `RigidBody::Static` (the base bundle supplies no body), and `light.rs` is a
+> pure-render kind: it splits config from component with an `Add` observer so the `render`
 > flag can skip the Bevy light entirely for headless tools. Note that scene
 > lighting itself is authored content - a scenario with no `Light` object
 > renders black, so any new example or fixture that renders needs one.
@@ -219,9 +226,11 @@ A scenario object is a scoped, interpolated, dynamic body spawned by
    a type-name const, a marker component, a `<kind>_scenario_object(config) -> impl Bundle`
    builder, and (optionally) a `Plugin` for any observers/systems the kind needs.
    The bundle carries the marker plus an `EntityTypeName`; the shared
-   `base_scenario_object` (id, name, transform, `RigidBody::Dynamic`,
-   `TransformInterpolation`, visibility, `ScenarioScopedMarker`) is added by the
-   spawn path, not here.
+   `base_scenario_object` (id, name, transform, visibility,
+   `ScenarioScopedMarker`) is added by the spawn path, not here. It
+   deliberately carries NO body - each kind declares its own `RigidBody` (the
+   asteroid adds `Dynamic` + `TransformInterpolation`; three of the five kinds
+   are static).
 
    ```rust
    pub const MINE_TYPE_NAME: &str = "mine";
@@ -264,6 +273,7 @@ A scenario object is a scoped, interpolated, dynamic body spawned by
        Spaceship(SpaceshipConfig),
        Beacon(BeaconConfig),
        SalvageCrate(SalvageCrateConfig),
+       Light(LightConfig),
        Mine(MineConfig),
    }
 

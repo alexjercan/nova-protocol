@@ -129,7 +129,7 @@ shape.
 
 `schema_version` (currently 1, `PORTAL_SCHEMA_VERSION`) bumps on any breaking
 wire change; the game rejects catalogs with an unknown version rather than
-misparse (`RemoteCatalog::Error`, test-pinned). The per-file size + sha256 is
+misparse (`RemoteCatalogState::Error`, test-pinned). The per-file size + sha256 is
 what the game verifies as each file downloads, before anything is committed
 to the cache.
 
@@ -181,7 +181,9 @@ nix develop -c scripts/preview-web.sh            # or --release for an optimized
 # open http://localhost:8090/play/  and click Play; Explore works with NO ?portal=
 ```
 
-Running it by hand instead (the script just automates this) - note the portal
+Running it by hand instead - the same `/play` + `/mods` sibling geometry the
+script builds (the script additionally builds the webpack landing site and
+serves `web/dist`); note the portal
 goes to `<site>/mods`, a SIBLING of `<site>/play`, NOT inside it:
 
 ```sh

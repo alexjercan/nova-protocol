@@ -1,8 +1,8 @@
 # Sync the wiki to the post-refactor crate layout and close the process gap
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 38
-- TAGS: v0.10.0,docs,web
+- TAGS: v0.10.0, docs, web
 
 PROBLEM: The 20260806-121625 refactor moved ~50k lines into new crates
 (`nova_ship`, `nova_hud`, `nova_os_ui`, `nova_authoring`, `nova_probe_cli`,

@@ -43,12 +43,14 @@ resource.
   keeps its path and re-serializes (for editor save). Code-built configs use
   `AssetRef::from(handle)`. It replaced the 13 section-config handle fields plus
   the scenario cubemap and asteroid texture.
-- `nova_modding` (new crate) owns the format: `ContentAsset` (a `Vec<Content>`)
-  with `ContentAssetLoader` for the `content.ron` extension, `BundleManifest`
-  with `BundleAssetLoader` for the `bundle.ron` extension, and
+- `nova_modding` owns the LOADERS: `ContentAsset` (a `Vec<Content>`)
+  with `ContentAssetLoader` for the `content.ron` extension, `BundleAsset`
+  with `BundleAssetLoader` for the `bundle.ron` extension (over
+  `nova_mod_format`'s `BundleManifest`, which it re-exports), and
   `NovaModdingPlugin`. It depends on `nova_scenario` with its `serde` feature.
 - `nova_assets` registers the plugin, loads the enabled bundles' `*.content.ron`
-  files (the base game's live under `assets/base/scenarios/`) as part of the
+  files (the base game's live under `assets/base/` - `scenarios/`, `sections/`,
+  `campaigns/`) as part of the
   `GameAssets` collection, and merges their scenarios into `GameScenarios`. See
   `assets/mods/example/example.content.ron` for a worked example authored by hand.
 
@@ -175,8 +177,9 @@ Notes worth having before you light a scene:
 
 ## Built-ins ported
 
-The built-ins are all data files under `assets/base/scenarios/` and load through
-`nova_modding`; `register_scenario` builds none in code. The files are written by
+The built-ins are all data files under `assets/base/` (`scenarios/`,
+`sections/`, `campaigns/`) and load through
+`nova_modding`; no built-in is constructed in Rust at startup. The files are written by
 `cargo run -p nova_authoring --bin content -- gen`, which serializes the code configs with
 path-based `AssetRef`s (`SectionMeshRefs::from_paths` + the scenario builders taking
 asset refs); run it (and commit the result) after any builder change. The
@@ -354,8 +357,8 @@ wasm alike:
 
 - EVENT/RESOURCE API (what the mods menu binds to): trigger
   `FetchPortalCatalog` / `InstallPortalMod { id }` / `UninstallPortalMod
-  { id }`; read `RemoteCatalog` (Idle | Fetching | Ready(catalog) |
-  Error(msg)) and `InstallJobs` (per-id: Fetching {done, total} | Verifying |
+  { id }`; read `RemoteCatalog.state` (`RemoteCatalogState`: Idle | Fetching |
+  Ready(catalog) | Error(msg)) and `InstallJobs` (per-id: Fetching {done, total} | Verifying |
   Committing | Failed(msg); the entry is REMOVED on success - `DownloadedMods`
   is the truth from there, and a Failed entry stays until a retry). The
   transport is a `PortalTransport` trait object in the `PortalClient`
@@ -403,7 +406,7 @@ mask the problem - so tests must exercise the untyped path (see the
 ## Known limitation: authoring verbosity
 
 The generated files are large and repetitive - `shakedown_run.content.ron` is
-~1240 lines because each ship inlines its whole section catalog, restating
+thousands of lines because each ship inlines its whole section catalog, restating
 `name`/`description`/mass/health/meshes per section. Faithful, but a poor
 hand-authoring surface. Reducing this (a prototype+modifications model, sections as
 their own RON, scenarios as multi-file bundles) is a known direction.

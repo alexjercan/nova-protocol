@@ -32,7 +32,7 @@ items; a scenario is one `Scenario((...))` item (a `Content` newtype):
 ]
 ```
 
-The `ScenarioConfig` fields (`loader.rs`):
+The `ScenarioConfig` fields (`loader/mod.rs`):
 
 - `id` - unique scenario id, the key other scenarios switch to (`NextScenario`).
 - `name`, `description` - display strings.
@@ -68,11 +68,11 @@ The `ScenarioConfig` fields (`loader.rs`):
 - `events` - the list of handlers. May be empty (`events: []`), but then
   nothing happens.
 
-Lint your content before shipping it: `cargo run -p nova_assets --bin
+Lint your content before shipping it: `cargo run -p nova_authoring --bin
 content -- lint` (add `--target <mod dir or id>` to check just one mod) checks what the loaders cannot - section prototype ids,
 `NextScenario` targets, filter/action target ids, duplicate object ids
-(these all resolve at SPAWN time, so a typo loads green and misbehaves
-in-game) - plus ship-section geometry: sections that overlap on the
+(an error within one handler, a warn across handlers; these all resolve at
+SPAWN time, so a typo loads green and misbehaves in-game) - plus ship-section geometry: sections that overlap on the
 unit-cube grid, or a turret/torpedo mount whose base does not seat
 against a neighboring section (see section 8), are errors too. CI runs
 the same checks; an Error fails the build.
@@ -242,7 +242,7 @@ The common actions, with real RON. Every action is a newtype variant -
 > **Light your scene, or it renders black.** The engine spawns no light of its
 > own. A scenario is lit only by the `Light` objects it authors, so every scene
 > that shows anything needs at least one - see the lighting section of the
-> [RON reference](./modding-ron) for copyable blocks. The shipped scenes all use
+> [RON reference](../modding-ron/) for copyable blocks. The shipped scenes all use
 > the same three-point key/rim/fill rig; start from those numbers.
 
 ### SpawnScenarioObject
@@ -573,8 +573,9 @@ SetSpeedCap((
 
 ### SetControllerVerb
 
-Enable or disable one flight verb (`Goto` / `Lock` / `Orbit`; `Stop` also
-exists but is never withheld, so an engaged autopilot can always be stopped) on
+Enable or disable one flight verb (`Goto` / `Lock` / `Orbit` / `Rcs`; `Stop`
+also exists but is never withheld, so an engaged autopilot can always be
+stopped) on
 a scoped ship's controller by id. The shakedown withholds verbs on the ship's controller
 section (`DisableVerb(Goto)`) and re-grants them as the tutorial advances:
 
@@ -1077,8 +1078,9 @@ needs no Rust:
 3. MAKE IT THE DEFAULT NEW GAME (base only). The scenario the New Game button
    plays is declared in the BASE bundle: `new_game_scenario` in
    `assets/base/base.bundle.ron` (currently `Some("shakedown_run")`). It lands in
-   the `NewGameStart` resource at load
-   (`crates/nova_scenario/src/loader/lifecycle.rs`) and
+   the `NewGameStart` resource at the bundle merge
+   (`crates/nova_assets/src/merge.rs`; the type lives in
+   `crates/nova_scenario/src/loader/mod.rs`) and
    is honored ONLY from base - a mod cannot repoint New Game. While you iterate in
    the base bundle you can set it there; a shipped mod instead reaches players
    through the Scenarios picker (option 1) or a `NextScenario` chain (option 2).

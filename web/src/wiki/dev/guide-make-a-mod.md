@@ -43,7 +43,7 @@ Start by copying `assets/mods/example/`. Its manifest:
         description: "The copy-me tutorial mod: a section overlay, a new section, a playable arena, mod-shipped art, and a menu backdrop - a little of everything.",
         author: "Nova Protocol",
         version: "1.0.0",
-        dependencies: ["base"],
+        dependencies: [],
     ),
 )
 ```
@@ -88,7 +88,7 @@ and asserts it is bumped past the pre-rework `1.0.0` AND has its own
 literal string: a literal reds on every legitimate republish, and "fixing" it by
 bumping the literal is the same as deleting the test.
 
-Lint your mod while you work: `cargo run -p nova_assets --bin
+Lint your mod while you work: `cargo run -p nova_authoring --bin
 content -- lint --target path/to/your-mod` (or an in-repo id like
 `--target the-ledger`) checks just your bundle - section prototype ids
 against the base catalog and your declared dependencies, scenario chain
@@ -330,8 +330,9 @@ list but still installable by id). Run the game and enable the mod from the
 main-menu Mods section (or add its id to `EnabledMods`).
 
 For an automated rig, see the integration tests in
-`crates/nova_assets/tests/`: `mod_cache_install.rs` installs the real gauntlet
-mod into a temp cache and drives the production merge wiring; `portal_install.rs`
+`crates/nova_assets/tests/`: `mod_cache_install.rs` installs a synthetic
+fixture mod (in-memory bytes, no real mod dependency) into a temp cache and
+drives the production merge wiring; `portal_install.rs`
 does the full fetch-verify-install-enable-uninstall loop.
 
 ## 4. Publish to the portal
@@ -343,11 +344,13 @@ gauntlet mod as a template:
 ```ron
 (
     content: ["gauntlet.content.ron"],
+    resources: ["thumbnails/gauntlet_run.png"],
     meta: (
         name: "Gauntlet Run",
-        description: "A slalom race: fly your ship through the beacon gates in order, START to FINISH.",
+        description: "A parkour course: thread six gates through asteroid slaloms and a gravity well, START to FINISH. Fly clean or wreck.",
         author: "Nova Protocol",
-        version: "1.0.0",
+        version: "1.6.0",
+        dependencies: ["base"],
     ),
 )
 ```
@@ -423,12 +426,14 @@ flowchart LR
 - **Your scenarios must light themselves, or they render black.** The engine
   spawns no light; a scene is lit only by the `Light` objects it authors. Copy a
   three-point rig out of the lighting section of the
-  [RON reference](./modding-ron) into each scenario's `OnStart`. This is the one
+  [RON reference](../modding-ron/) into each scenario's `OnStart`. This is the one
   breaking change a mod written before v0.10 will hit.
 - Asset references (meshes, cubemaps, textures) are hand-typed path strings; a
   typo in a BASE-relative path is not caught until spawn (a mod-relative
   `self://` ref, by contrast, is validated against `resources` at the gates).
-- `version` is an opaque string - no semver comparison, no update detection.
+- `version` is an opaque string - no semver ORDER comparison; updates are
+  detected by string inequality only.
 - No scenario editor and no in-game schema reference: content is authored by
   hand against these examples.
-- No install timeout or cancel yet: a stalled download blocks its install job.
+- No install cancel yet; a wedged fetch is failed onto the Retry/Dismiss
+  surface by a 120s stall timeout rather than cancelled.

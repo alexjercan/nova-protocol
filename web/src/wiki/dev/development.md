@@ -87,6 +87,8 @@ iteration cost bites.
 - `debug` - the whole `nova_debug` plugin (inspector, wireframe, overlays) plus
   `bevy/track_location`.
 - `dev` - alias for `debug`.
+- `trace` - `bevy/trace` + `bevy/trace_chrome` for span traces; the probe
+  harness builds `--features debug,trace` when it needs one.
 
 ### Debug tooling
 
@@ -219,7 +221,7 @@ What is on disk today, in curriculum reading order:
 When adding a substantial feature, add or extend the example that drives it.
 (Consolidated over time: 01_scene/03_scenario merged into scenario;
 02_thruster_shader into thruster_section; 05_directional into
-hud_range; 10_gameplay into hull_section + playable; 07b_slicer's
+hud_range; 10_gameplay into hull_section + player_path; 07b_slicer's
 subject is the mesh toolkit's own tests; 04_asteroids' slider tuning tool was
 dropped.)
 
@@ -238,10 +240,11 @@ invariant cannot be deleted into a still-green run. The screenshot examples
 carry no behavior assertions of their own - they drive the shipped scenes to
 capture frames - but every one walks an `AutopilotPlugin` step timeline, so a
 beat that never resolves is an error exit naming that step, and every one
-wires `nova_timeline` + `nova_invariants`, so a probe run grades the walk on
-the engine invariants. Disk and catalog cannot drift: the display-free
-`catalog_matches_disk` test (`crates/nova_probe_cli/tests/catalog_drift.rs`) fails
-a bare `cargo test` when a new example misses its `[[example]]` block. That is
+wires `nova_probe::nova_timeline()` + `nova_probe::nova_invariants()`, so a
+probe run grades the walk on the engine invariants. Disk and catalog cannot
+drift: the display-free `catalog_matches_disk` test
+(`crates/nova_probe_cli/tests/catalog_drift.rs`) fails
+`cargo test --workspace` when a new example misses its `[[example]]` block. That is
 the case nothing else catches - with auto-discovery off, an uncataloged example
 file does not build at all and no other tool says so.
 
@@ -273,7 +276,7 @@ at queue time).
 
 ## Content CLI
 
-`content` (`crates/nova_assets/src/bin/content.rs`) authors and validates the
+`content` (`crates/nova_authoring/src/bin/content/main.rs`) authors and validates the
 game's content. One bin, two subcommands, run from the repo root:
 
 ```sh
@@ -323,7 +326,8 @@ below.
 `.cargo/config.toml` sets `--cfg=web_sys_unstable_apis` for wasm; `bevy_rand`
 uses its `wasm_js` feature there. Trunk only supports the `release` profile.
 The GitHub Pages deploy (`.github/workflows/deploy-page.yaml`) builds the
-landing site (`web/`) at the root and the game under `/play/`.
+landing site (`web/`) at the root, the game under `/play/`, and the generated
+mod portal (`scripts/gen-portal.py`) under `/mods/`.
 
 The same sources fan out into three build targets that combine into one
 published site:
@@ -773,7 +777,7 @@ It can also be re-run via `workflow_dispatch` with a `version` input.
 
 Every release cycle gets one **News** post on the site (`/news/`, markdown under
 `web/src/news/`). News is the merged devlog + release notes: **one post per
-FEATURE release** (`v0.1.0`, `v0.2.0`, ... `v0.6.0`). Patch releases do NOT get
+FEATURE release** (`v0.1.0`, `v0.2.0`, ... `v0.9.0`). Patch releases do NOT get
 their own post - they fold into the parent feature post's `## Point releases`
 section (`v0.5.0`'s post covers `v0.5.1` and `v0.5.2`). The terse per-version
 list stays in `CHANGELOG.md`; source the post's content from the cycle's
@@ -825,10 +829,12 @@ The everyday loop for landing a change:
 4. **Open a PR.** CI (`.github/workflows/ci.yaml`) runs on every PR and push to
    `master`: `cargo fmt --check`, `cargo clippy --workspace --all-targets
    --features debug -- -D warnings`, `cargo test --workspace --features debug`,
-   then the windowed `probe run --all` sweep under Xvfb/lavapipe. Three more
+   then the windowed `probe run --all` sweep under Xvfb/lavapipe plus the
+   `nova_autopilot` example test under Xvfb. Three more
    jobs run in parallel with that one: a default-features
    `cargo check --workspace --all-targets`, a
-   `cargo check --workspace --target wasm32-unknown-unknown`, and a
+   `cargo check --workspace --exclude nova_probe_cli --target
+   wasm32-unknown-unknown` (the host harness has no meaning in a browser), and a
    dependency-license gate. The two `check` jobs run under `RUSTFLAGS=-D
    warnings` and exist to catch dead code and unused imports that only appear
    with `debug` off or on wasm - neither configuration is otherwise built. All

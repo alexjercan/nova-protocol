@@ -14,10 +14,11 @@ presets, camera posing, freezing rigid bodies, hiding the dev overlay) stay in
 generic over the app's state type, and that generic is what keeps
 `GameStates` - and with it the whole game dependency tree - out of the crate.
 
-**Read this page as the crate's contract.** Nova's own examples and
-`nova_probe` all run these drivers, reaching them through the `nova_debug`
-prelude and the `nova_debug::harness` presets - the Nova-flavored adapter, not a
-second implementation. An example that names a driver unqualified no longer
+**Read this page as the crate's contract.** Nova's own examples run these
+drivers, reaching them through the `nova_debug` prelude and the
+`nova_debug::harness` presets - the Nova-flavored adapter, not a
+second implementation - while `nova_probe` names `nova_autopilot::completion`
+directly. An example that names a driver unqualified no longer
 compiles: nova's prelude stopped re-exporting the shared-helpers crate's one,
 whose same-named types would otherwise resolve to an inert twin.
 
@@ -30,10 +31,12 @@ whose same-named types would otherwise resolve to an inert twin.
 | `capture_window` | Writes the primary window to a PNG and acks it into `CaptureLog`. Not a driver - the primitive a script's shot step calls | The web figures and thumbnails, captured at 1920x1080 |
 | `completion` | The registration and exit protocol every driver reports to | Ending a run once, when everyone is finished |
 
-`nova_probe` is the layer above: it arms the harness variables, runs an example
-and turns the output into a correctness and performance report. It arms the
-variables below - including a window-sized `NOVA_AUTOPILOT_DEADLINE` for its fps
-pass, which your own value overrides.
+`nova_probe_cli` (the `probe` binary) is the host layer above: it arms the
+harness variables, spawns an example as a child process and turns the output
+into a correctness and performance report. It arms the variables below -
+including a window-sized `NOVA_AUTOPILOT_DEADLINE` for its fps pass, which your
+own value overrides. Its in-game half, `nova_probe`, is what the example itself
+wires to collect the evidence.
 
 ## The environment contract
 
@@ -47,7 +50,7 @@ so.
 | `NOVA_AUTOPILOT` | the scripted state driver | `AutopilotPlugin` | any (presence only) |
 | `NOVA_SHOT` | the single settled-frame capture - but it is ignored when `NOVA_AUTOPILOT` is also set: both drivers write `NextState`, so the autopilot wins and `ScreenshotPlugin` stands down with a warning | `ScreenshotPlugin` | `WxH` (for example `390x844`) overrides the window size; anything else is a plain toggle |
 | `NOVA_CAPTURE` | the CAPTURE path of a script that has one: its shot steps write PNGs instead of driving straight through | `capturing()`, which a script reads while building its steps | any (presence only) |
-| `NOVA_SHOT_DIR` | nothing on its own | `capture_window` | directory that relative capture paths resolve under; absolute paths ignore it |
+| `NOVA_SHOT_DIR` | nothing on its own | `capture_window`, and the scenario `Screenshot` action (`nova_scenario/src/actions/view.rs`) reads it independently | directory that relative capture paths resolve under; absolute paths ignore it |
 | `NOVA_PERF_CONTRACT` | the contract writer | `ProbeContract` | file path the run writes its declared capabilities to (probe passes `probe-contract.json`), so the grader can tell an unwired capability from a failed one. Unset - a hand-run example - writes nothing |
 | `NOVA_AUTOPILOT_DEADLINE` | nothing on its own | the completion watcher | seconds before the run gives up and error-exits naming the laggards (default 120); the RUN-level backstop under a script's own per-step deadlines |
 
@@ -204,7 +207,7 @@ app.add_plugins(
         .step("load the rig")
         .enter(GameStates::Loading)
         .until(player_ship_present())   // not "30 seconds should do it"
-        .deadline(20.0)
+        .deadline(15.0)
         .add()
         .step("spin the ship")
         .on_enter(apply_spin)
@@ -212,7 +215,7 @@ app.add_plugins(
         .step("kill the controller section")
         .on_enter(kill_frontmost_section)
         .until(section_gone("controller"))  // the real despawn, not a guess
-        .deadline(10.0)
+        .deadline(6.0)
         .add()
         // Last beat: the driver reports done after it, so the run ends on the
         // assertion instead of idling out the rest of a runway.
@@ -300,7 +303,7 @@ Then arm it from the shell - `driven_app` is the crate's own example, the
 ```sh
 NOVA_AUTOPILOT=1 cargo run -p nova_autopilot --example driven_app
 NOVA_SHOT=390x844 cargo run --example scenario_grammar
-NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_SHOT_DIR=web/figures \
+NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_SHOT_DIR=target/shots \
   cargo run --example screenshot_scene --features debug
 ```
 

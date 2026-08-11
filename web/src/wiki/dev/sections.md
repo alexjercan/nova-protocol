@@ -12,20 +12,24 @@ how sections connect and handles damage, disabling, and cascading destruction.
 
 A section is a `SectionConfig { base: BaseSectionConfig, kind: SectionKind }`.
 `BaseSectionConfig` is shared by all kinds: `id`, `name`, `description`, `mass`,
-`health`.
+`health`, optional `collider`, and `hide_in_editor`.
 
-`SectionKind` variants (one module per kind under `crates/nova_ship/src/sections/`):
+`SectionKind` variants (one module per kind under `crates/nova_ship/src/sections/`;
+`turret_section/` and `torpedo_section/` are directories, not single files):
 
 | Kind         | What it does |
 |--------------|--------------|
 | `Hull`       | Passive structure/armor. Just a `render_mesh`. |
 | `Thruster`   | Forward thrust (`magnitude`); drives the exhaust visual. |
 | `Controller` | PD attitude controller (`frequency`, `damping_ratio`, `max_torque`). Also grants flight `verbs` (STOP/GOTO/ORBIT maneuvers plus LOCK targeting and RCS fine-translation). A ship needs one to be drivable. |
-| `Turret`     | Aims and fires bullets. Yaw/pitch speeds and limits, per-part meshes and offsets, `fire_rate`, `muzzle_speed`, authored `bullet_damage` + `bullet_kind`, optional `ammo_capacity`. |
+| `Turret`     | Aims and fires bullets. An authored joint tree (hinges + muzzles, each joint with its own `offset`/`axis`/`speed`/limits/`render_mesh`), section-wide `muzzle_speed` + authored `bullet_damage` + `bullet_kind`, per-muzzle `fire_rate`, optional `ammo_capacity`. |
 | `Torpedo`    | Torpedo bay. Fires guided torpedoes that detonate an Explosive area blast (`blast_radius`, `blast_damage`), optional `ammo_capacity`. |
 
-`GameSections(Vec<SectionConfig>)` is the resource of section blueprints,
-populated in `crates/nova_assets/src/sections.rs`. Look one up with
+`GameSections(Vec<SectionConfig>)` is the resource of section blueprints:
+authored in `crates/nova_authoring/src/sections.rs` (`build_sections()`),
+generated into `assets/base/sections/base.content.ron` by
+`content -- gen`, and merged into the resource by
+`crates/nova_assets/src/merge.rs`. Look one up with
 `sections.get_section("basic_thruster_section")`.
 
 ### Meshes and colliders (authorable)
@@ -34,7 +38,8 @@ Two authorable knobs decouple a section's LOOK and PHYSICS from the default unit
 cube (`crates/nova_ship/src/sections/base_section.rs`); both default to the
 old behavior so unset content is byte-for-byte unchanged:
 
-- `render_mesh_transform` (optional, on every mesh-bearing kind) - an offset /
+- `render_mesh_transform` (optional, on every mesh-bearing kind; for turrets
+  it sits per JOINT in the joint tree) - an offset /
   rotation / scale applied to the section's render mesh child ONLY, so a model
   can be re-seated visually without moving the collider or (for turrets) the
   joint tree. Type `RenderMeshTransform`.
@@ -48,8 +53,10 @@ old behavior so unset content is byte-for-byte unchanged:
 ## Building a ship
 
 A `SpaceshipConfig` (`crates/nova_scenario/src/objects/spaceship.rs`) has a
-`controller` (`None`, `Player`, or `AI`) and a list of `SpaceshipSectionConfig`,
-each placing one section at a local grid `position` + `rotation`. The player
+`controller` (`None`, `Player`, or `AI`), an `allegiance`, and a list of
+`SpaceshipSectionConfig`, each placing one section at a `position` + `rotation`
+relative to the ship root (world units), with a `source` (`Inline` /
+`Prototype`) and optional `modifications`. The player
 config carries the input mapping (section id -> key/gamepad bindings) plus
 `speed_cap` and `infinite_ammo`; the AI config carries `patrol`/`orbit`/`leash`/`engage_delay`.
 
@@ -61,19 +68,25 @@ a unit cube by default), and `Health` (`base_section` in
 `sections/base_section.rs`), so the ship is one rigid body whose child colliders
 each carry their own health.
 
-See the `asteroid_field` ship in `crates/nova_assets/src/scenario.rs` for a full
-example. The editor (`crates/nova_editor`) assembles ships interactively using
+See the `asteroid_field` ship in `crates/nova_authoring/src/scenario.rs` for a
+full example. The editor (`crates/nova_editor`) assembles ships interactively using
 `preview_section`, which has no health or rigid body and never enters the
 damage pipeline.
 
 ## Integrity: damage -> disable -> destroy
 
-The generic destruction core (`IntegrityPlugin`) is nova's own, in
-`crates/nova_gameplay/src/integrity/`. `NovaIntegrityPlugin` composes it with
-two nova-specific pieces:
+The destruction stack is nova's own, in
+`crates/nova_gameplay/src/integrity/`. `NovaIntegrityPlugin` composes five
+pieces:
 
+- `health.rs` - the hit-point store: `Health`, `HealthApplyDamage` and the
+  `HealthZeroMarker` its observer adds at zero.
+- `core.rs` (`IntegrityCorePlugin`) - the generic disable/destroy core, plus
+  the mass-times-velocity impact damage.
 - `glue.rs` - builds the graph and rolls section health up to the ship root.
 - `explode.rs` - reacts to destruction: debris, mesh fragments, `OnDestroyedEvent`.
+- `neutralize.rs` - combat-death: fires `OnNeutralized` when a ship stops
+  being a threat.
 
 Graph build: when avian links a collider to its body (`ColliderOf`),
 `build_integrity_relations` connects sections one grid unit apart via
@@ -82,8 +95,8 @@ Graph build: when avian links a collider to its body (`ColliderOf`),
 
 Damage flow:
 
-1. A hit triggers bcs `HealthApplyDamage`; bcs subtracts the amount and adds
-   `HealthZeroMarker` at zero. The amount also bubbles up `ChildOf`, clamped to
+1. A hit triggers `HealthApplyDamage` (`nova_gameplay::integrity::health`);
+   its observer subtracts the amount and adds `HealthZeroMarker` at zero. The amount also bubbles up `ChildOf`, clamped to
    what the section actually had left - so overkill on one section cannot kill
    the ship (a 1000 hit on a 100 hp section costs the root 100).
 2. Zero health -> `IntegrityDisabledMarker`. A disabled non-leaf section is only
@@ -118,9 +131,11 @@ carries `ProjectileDamage { amount, kind }` with a `DamageType`: `Kinetic`,
 `resistance(section class, damage type)` table (for example EMP is 3.0 vs the
 Controller but 0.1 vs Hull; Kinetic is always 1.0) and only then applied via
 `HealthApplyDamage`. Targets without a `SectionDamageClass` (asteroids) take
-the raw amount. Turret bullets are given a near-zero physical mass so bcs's
-old mass-times-velocity damage is negligible; torpedoes detonate a typed
-`NovaBlast` (Explosive, linear falloff) instead of bcs's untyped blast.
+the raw amount. Turret bullets are given a near-zero physical mass so the
+impact path's mass-times-velocity damage
+(`on_impact_collision_deal_damage`, `integrity/core.rs`) is negligible;
+torpedoes detonate a typed `NovaBlast` (Explosive, linear falloff,
+`damage.rs`) instead of an untyped blast.
 
 ## Ammo
 
@@ -134,6 +149,6 @@ old mass-times-velocity damage is negligible; torpedoes detonate a typed
   regen. Add-only vs the fire path's consume, so no ordering is needed. Only a
   weapon that has a magazine can reload, so unlimited weapons never do. Its
   `progress()` is what the diegetic ammo readout draws a reload state from.
-- `LoadedBullet` (`sections/turret_section.rs`): the turret's loaded-round slot
+- `LoadedBullet` (`sections/turret_section/mod.rs`): the turret's loaded-round slot
   (damage type + amount), seeded from the config. Fired bullets and the HUD ammo
   readout colors read this slot, so swapping ammo types is one component write.

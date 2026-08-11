@@ -44,10 +44,14 @@ for responsibilities and the dependency graph.
 | `nova_mod_format` | Pure serde types for the mod formats (engine-free); re-exported by `nova_modding`. The static mod portal is built by `scripts/gen-portal.py`. |
 | `nova_editor` | The ship editor scene (`NovaEditorPlugin`), shown in `GameMode::Sandbox`. |
 | `nova_menu` | Main menu + the ESC pause overlay; hands off to `Playing`. |
-| `nova_ui` | Shared theme palette/metrics and themed widgets the menu and editor draw from. |
+| `nova_ui` | Shared theme, skin, themed widgets, screen composition, unit formatting. A leaf: every UI-drawing crate (`nova_gameplay`, `nova_hud`, `nova_os_ui`, `nova_menu`, `nova_editor`, `nova_assets`) draws from it. |
 | `nova_debug` | Debug-only plugin (inspector, overlays); compiled under the `debug` feature. |
 | `nova_info` | Exposes `APP_VERSION`, injected by `build.rs`. |
-| `nova_probe` | Dev tool (not in the shipped game): run-harness - frame-time capture + run-timeline/invariant report over autopilot examples; `run`/`report`. |
+| `nova_autopilot` | Scripted automation drivers + the run-completion protocol. Bevy-only, game-agnostic. |
+| `nova_probe` | Dev tool (not in the shipped game): the in-game half of the run-harness - the frame-time/timeline/invariant capability plugins an example wires. |
+| `nova_probe_cli` | Dev tool: the host half - spawns runs, grades artifacts, renders reports; the `probe run`/`report` CLI. |
+| `nova_perf_web` | Dev tool: the wasm app `probe run --platform web` boots and measures. |
+| `nova_authoring` | Offline content pipeline: the Rust builders for built-in scenarios/sections, `content -- gen` (writes `assets/base/**/*.content.ron`), `content -- lint`. |
 | `nova_meta_gen` | Binary under `tools/` (web-build tooling, not a game crate): writes default `.meta` sidecars for web assets (Trunk `post_build` hook). |
 
 ## Want to change X? Start here
@@ -65,9 +69,10 @@ The highest-value table. Verified paths; follow the linked page for depth.
 | Gravity wells | `crates/nova_gameplay/src/gravity.rs` | -- |
 | The HUD (widgets) | `crates/nova_hud/src/` | -- |
 | The NOVA OS monitor / its apps | `crates/nova_os_ui/src/` | -- |
-| A scenario event/filter/action | `crates/nova_scenario/src/{events,filters,actions}.rs` | [Scenario engine](../scenario-system/), [Extend the scenario engine](../guide-extend-scenarios/) |
-| Scenario objects / loading | `crates/nova_scenario/src/{objects,loader}.rs` | [Scenario engine](../scenario-system/) |
+| A scenario event/filter/action | `crates/nova_scenario/src/{events.rs,filters.rs,actions/}` | [Scenario engine](../scenario-system/), [Extend the scenario engine](../guide-extend-scenarios/) |
+| Scenario objects / loading | `crates/nova_scenario/src/{objects/,loader/}` | [Scenario engine](../scenario-system/) |
 | Mod loading / merge | `crates/nova_assets/` + `crates/nova_modding/` | [Modding data format (RON)](../modding-ron/), [Mod portal](../mod-portal/) |
+| A built-in scenario or section | `crates/nova_authoring/src/` (builders), then `content -- gen` | [Author a scenario](../guide-author-scenario/) |
 | The ship editor | `crates/nova_editor/` | -- |
 | Shared UI theme / widgets | `crates/nova_ui/` | -- |
 | The web site / wiki | `web/` | [Building & running](../development/) |
@@ -76,7 +81,8 @@ The highest-value table. Verified paths; follow the linked page for depth.
 
 `AppBuilder` (in `crates/nova_core/src/lib.rs`) is the single place the app is
 wired -- `DefaultPlugins` + window/log/asset/render setup, then the plugin stack
-(assets, gameplay, scenario, editor, menu, debug). The state machines:
+(assets, gameplay, ship, scenario, HUD + NOVA OS monitor, editor, menu, debug).
+The state machines:
 
 - `GameStates { Loading, MainMenu, Playing }` -- top-level lifecycle.
 - `PauseStates { Unpaused, Paused }` -- the ESC overlay, nested in `Playing`.
