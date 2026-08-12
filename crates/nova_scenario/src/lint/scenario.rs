@@ -13,6 +13,7 @@ struct Declared {
     spawn_ids: Vec<String>,
     scatter_prefixes: Vec<String>,
     set_vars: HashSet<String>,
+    timer_keys: HashSet<String>,
     objective_ids: HashSet<String>,
     completed_objectives: HashSet<String>,
 }
@@ -131,7 +132,14 @@ pub fn lint_scenario(
     let mut used_vars: HashSet<String> = HashSet::new();
     for event in &scenario.events {
         for filter in &event.filters {
-            check_filter(filter, id, &satisfiable, &mut used_vars, &mut issues);
+            check_filter(
+                filter,
+                id,
+                &satisfiable,
+                &declared.timer_keys,
+                &mut used_vars,
+                &mut issues,
+            );
         }
         for action in &event.actions {
             check_action(
@@ -140,6 +148,7 @@ pub fn lint_scenario(
                 sections,
                 known_scenarios,
                 &satisfiable,
+                &declared.timer_keys,
                 &mut used_vars,
                 &mut issues,
             );
@@ -257,6 +266,9 @@ fn collect_declared(action: &EventActionConfig, declared: &mut Declared) {
         EventActionConfig::VariableSet(config) => {
             declared.set_vars.insert(config.key.clone());
         }
+        EventActionConfig::TimerStart(config) => {
+            declared.timer_keys.insert(config.key.clone());
+        }
         EventActionConfig::Objective(config) => {
             declared.objective_ids.insert(config.id.clone());
         }
@@ -274,6 +286,7 @@ fn check_action(
     sections: &KnownSections,
     known_scenarios: &HashSet<String>,
     satisfiable: &dyn Fn(&str) -> bool,
+    timer_keys: &HashSet<String>,
     used_vars: &mut HashSet<String>,
     issues: &mut Vec<LintIssue>,
 ) {
@@ -356,6 +369,14 @@ fn check_action(
                 issues.push(LintIssue::error(
                     scenario,
                     "TimerCancel has an empty key".to_string(),
+                ));
+            } else if !timer_keys.contains(&config.key) {
+                issues.push(LintIssue::warn(
+                    scenario,
+                    format!(
+                        "TimerCancel references timer '{}', which no TimerStart creates",
+                        config.key
+                    ),
                 ));
             }
         }
@@ -506,6 +527,7 @@ fn check_filter(
     filter: &EventFilterConfig,
     scenario: &str,
     satisfiable: &dyn Fn(&str) -> bool,
+    timer_keys: &HashSet<String>,
     used_vars: &mut HashSet<String>,
     issues: &mut Vec<LintIssue>,
 ) {
@@ -532,16 +554,24 @@ fn check_filter(
                     scenario,
                     "Timer filter has an empty key".to_string(),
                 ));
+            } else if !timer_keys.contains(&config.key) {
+                issues.push(LintIssue::error(
+                    scenario,
+                    format!(
+                        "Timer filter references timer '{}', which no TimerStart creates",
+                        config.key
+                    ),
+                ));
             }
         }
         EventFilterConfig::Conditional(config) => match config {
             ConditionalFilterConfig::Not(inner) => {
-                check_filter(inner, scenario, satisfiable, used_vars, issues);
+                check_filter(inner, scenario, satisfiable, timer_keys, used_vars, issues);
             }
             ConditionalFilterConfig::Or(left, right)
             | ConditionalFilterConfig::And(left, right) => {
-                check_filter(left, scenario, satisfiable, used_vars, issues);
-                check_filter(right, scenario, satisfiable, used_vars, issues);
+                check_filter(left, scenario, satisfiable, timer_keys, used_vars, issues);
+                check_filter(right, scenario, satisfiable, timer_keys, used_vars, issues);
             }
         },
     }
@@ -619,6 +649,43 @@ mod tests {
                 .count(),
             4,
             "empty start/cancel/filter keys and zero duration each error: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn timer_references_must_match_a_started_key() {
+        let s = scenario(
+            vec![
+                EventActionConfig::TimerStart(TimerStartActionConfig {
+                    key: "orbit_hold".to_string(),
+                    seconds: VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                        VariableFactorNode::new_literal(VariableLiteral::Number(8.0)),
+                    )),
+                }),
+                EventActionConfig::TimerCancel(TimerCancelActionConfig {
+                    key: "oribt_hold".to_string(),
+                }),
+            ],
+            vec![EventFilterConfig::Timer(TimerFilterConfig {
+                key: "oribt_hold".to_string(),
+            })],
+        );
+        let issues = lint_scenario(&s, &sections(&[]), &known(&[]));
+        assert!(
+            issues.iter().any(|issue| {
+                issue.severity == LintSeverity::Error
+                    && issue.message.contains("Timer filter")
+                    && issue.message.contains("oribt_hold")
+            }),
+            "a timer-filter typo is an impossible event and must error: {issues:?}"
+        );
+        assert!(
+            issues.iter().any(|issue| {
+                issue.severity == LintSeverity::Warn
+                    && issue.message.contains("TimerCancel")
+                    && issue.message.contains("oribt_hold")
+            }),
+            "cancelling a timer never started in the scenario must warn: {issues:?}"
         );
     }
 
