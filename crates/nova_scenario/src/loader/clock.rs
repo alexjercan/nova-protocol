@@ -17,19 +17,29 @@ pub(super) fn tick_scenario_clock(time: Res<Time>, mut world: ResMut<NovaEventWo
 }
 
 /// Sample every exact-id entity speed once for a coherent query snapshot.
+/// Entities without velocity are outside the `Speed` query domain. In
+/// particular, ship section children carry reusable section-local `EntityId`s;
+/// scanning them would falsely report duplicates across unrelated ships.
 fn sample_scenario_queries(
-    entities: Query<(&EntityId, Option<&LinearVelocity>)>,
+    entities: Query<(&EntityId, &LinearVelocity)>,
     mut world: ResMut<NovaEventWorld>,
 ) {
     let mut speeds = HashMap::new();
     for (id, velocity) in &entities {
-        let value = velocity.map(|velocity| velocity.length() as f64);
-        if speeds.insert(id.0.clone(), value).is_some() {
-            error!(
-                "entity query id '{}' matched more than one entity; value is unavailable",
-                id.0
-            );
-            speeds.insert(id.0.clone(), None);
+        let value = Some(velocity.length() as f64);
+        match speeds.entry(id.0.clone()) {
+            bevy::platform::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(value);
+            }
+            bevy::platform::collections::hash_map::Entry::Occupied(mut entry) => {
+                if entry.get().is_some() {
+                    error!(
+                        "entity speed query id '{}' matched more than one entity; value is unavailable",
+                        id.0
+                    );
+                }
+                entry.insert(None);
+            }
         }
     }
     world.sample_entity_speeds(speeds);
@@ -523,6 +533,10 @@ mod tests {
                 LinearVelocity(Vec3::new(3.0, 0.0, 4.0)), // |v| = 5
             ))
             .id();
+        // Section ids are local to a ship and commonly repeat. They have no
+        // LinearVelocity and must not enter strict entity-speed matching.
+        app.world_mut().spawn(EntityId::new("cube_i0_j0_k1"));
+        app.world_mut().spawn(EntityId::new("cube_i0_j0_k1"));
 
         app.update();
         assert_eq!(

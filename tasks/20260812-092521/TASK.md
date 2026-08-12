@@ -1,6 +1,6 @@
 # Replace reserved scenario variables with typed properties
 
-- STATUS: DONE
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, modding, scenario
 

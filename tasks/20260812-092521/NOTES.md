@@ -83,3 +83,13 @@ Term(Factor(Query(Entity((
 - `NOVA_AUTOPILOT=1 ... player_path --features debug` completed two rounds.
   Installed portal copies were older and produced expected legacy-name lint
   warnings; source portal generation and content lint used the migrated copies.
+
+## Follow-up fix
+
+- The initial speed sampler scanned every `EntityId`, including ship section
+  children. Section ids are ship-local and repeat across ships, which produced
+  false strict-single errors for ids such as `cube_i0_j0_k1`.
+- Speed sampling now includes only entities with `LinearVelocity`. Duplicate
+  ids outside the `Speed` property domain are ignored. Duplicate moving entity
+  ids still make the speed query unavailable.
+- Added focused regression coverage with duplicate section-local ids.
