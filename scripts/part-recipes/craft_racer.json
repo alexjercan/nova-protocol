@@ -1,0 +1,32 @@
+{
+  "_comment": "Semantic part recipe for art/kenney-space-kit/craft_racer.obj. Coordinates are POST scale+yaw (game space: nose -Z, +X starboard), matching the shipped racer cube library (scale 2, yaw 180). x=+-0.4 is the NATURAL seam of the source mesh (zero triangles straddle it): engine nacelles span x 0.4..0.9, wings 0.4..1.2, the tail fin exactly -0.4..0.4. The recipe cuts 0.01 OUTSIDE the seam (+-0.41) so the coplanar side-wall skin AT the seam stays with the central body and every cut section is a real 2D region for the capper (cutting exactly on the seam makes sheet faces straddle parts and defeats the watertight gate). Engines/wings keep all but a 0.01 sliver of their geometry; the central body stays coherent but narrower (owner tuning 2026-08-12; was 0.55, which sliced nozzles and wing roots). Rules run in order; each claims clipped fragments from what is left; the remainder becomes the rest part.",
+  "scale": 2.0,
+  "yaw": 180.0,
+  "parts": [
+    {
+      "name": "engine_starboard",
+      "box": [[0.41, null, 1.2], [null, null, null]]
+    },
+    {
+      "name": "engine_port",
+      "box": [[null, null, 1.2], [-0.41, null, null]]
+    },
+    {
+      "name": "wing_starboard",
+      "box": [[0.41, null, null], [null, null, null]]
+    },
+    {
+      "name": "wing_port",
+      "box": [[null, null, null], [-0.41, null, null]]
+    },
+    {
+      "name": "nose",
+      "box": [[null, null, null], [null, null, -1.0]]
+    },
+    {
+      "name": "tail",
+      "box": [[null, null, 1.2], [null, null, null]]
+    }
+  ],
+  "rest": "fuselage"
+}

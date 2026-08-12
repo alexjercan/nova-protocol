@@ -1,0 +1,32 @@
+{
+  "_comment": "Semantic part recipe for art/kenney-space-kit/craft_cargoB.obj. Coordinates are POST scale+yaw (game space: nose -Z, +X starboard), matching the shipped cargob cube library (scale 2, yaw 180). The hauler is a central spine flanked by two full-length pods (|x| 0.6..1.5); the pod rears carry the engines. x=+-0.6 is the NATURAL seam of the source mesh (zero triangles straddle it): pod walls span x 0.6..1.4 and the thruster nozzles / torpedo bay mouths (x 0.8..1.2) hang off them. The recipe cuts 0.01 OUTSIDE the seam (+-0.61) so the coplanar pod-inner-wall skin AT the seam stays with the central body and every cut section is a real 2D region for the capper (cutting exactly on the seam makes sheet faces straddle parts and defeats the watertight gate). Pods/engines keep all but a 0.01 sliver of their geometry (owner tuning 2026-08-12; was 0.7, which sliced the pod inner walls). Rules run in order; the remainder becomes the rest part.",
+  "scale": 2.0,
+  "yaw": 180.0,
+  "parts": [
+    {
+      "name": "engine_starboard",
+      "box": [[0.61, null, 1.5], [null, null, null]]
+    },
+    {
+      "name": "engine_port",
+      "box": [[null, null, 1.5], [-0.61, null, null]]
+    },
+    {
+      "name": "pod_starboard",
+      "box": [[0.61, null, null], [null, null, null]]
+    },
+    {
+      "name": "pod_port",
+      "box": [[null, null, null], [-0.61, null, null]]
+    },
+    {
+      "name": "nose",
+      "box": [[null, null, null], [null, null, -1.0]]
+    },
+    {
+      "name": "tail",
+      "box": [[null, null, 1.5], [null, null, null]]
+    }
+  ],
+  "rest": "fuselage"
+}

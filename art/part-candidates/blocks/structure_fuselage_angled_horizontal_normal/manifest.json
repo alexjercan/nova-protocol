@@ -1,0 +1,58 @@
+{
+  "source": "art/spaceship-blocks/Spacestation_Structure_Fuselage_Angled_Horizontal_Normal.obj",
+  "scale": 1.0,
+  "yaw": 0.0,
+  "ship_bbox": {
+    "min": [
+      -0.5,
+      0.0,
+      -1.5
+    ],
+    "max": [
+      1.5,
+      1.0,
+      0.5
+    ]
+  },
+  "parts": [
+    {
+      "name": "spacestation_structure_fuselage_angled_horizontal_normal",
+      "file": "spacestation_structure_fuselage_angled_horizontal_normal.glb",
+      "origin": [
+        0.5,
+        0.5,
+        -0.5
+      ],
+      "bbox": {
+        "min": [
+          -1.0,
+          -0.5,
+          -1.0
+        ],
+        "max": [
+          1.0,
+          0.5,
+          1.0
+        ]
+      },
+      "size": [
+        2.0,
+        1.0,
+        2.0
+      ],
+      "triangles": 16,
+      "cap_triangles": 0,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "Metal_Blue_Light"
+      ],
+      "dominant_material": "Metal_Blue_Light",
+      "collider_cuboid_size": [
+        2.0,
+        1.0,
+        2.0
+      ]
+    }
+  ]
+}

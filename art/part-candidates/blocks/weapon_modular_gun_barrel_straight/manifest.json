@@ -1,0 +1,59 @@
+{
+  "source": "art/spaceship-blocks/Spacestation_Weapon_Modular_Gun_Barrel_Straight.obj",
+  "scale": 1.0,
+  "yaw": 0.0,
+  "ship_bbox": {
+    "min": [
+      -0.65,
+      -0.0,
+      -0.65
+    ],
+    "max": [
+      0.65,
+      1.0,
+      0.65
+    ]
+  },
+  "parts": [
+    {
+      "name": "spacestation_weapon_modular_gun_barrel_straight",
+      "file": "spacestation_weapon_modular_gun_barrel_straight.glb",
+      "origin": [
+        0.0,
+        0.5,
+        0.0
+      ],
+      "bbox": {
+        "min": [
+          -0.65,
+          -0.5,
+          -0.65
+        ],
+        "max": [
+          0.65,
+          0.5,
+          0.65
+        ]
+      },
+      "size": [
+        1.3,
+        1.0,
+        1.3
+      ],
+      "triangles": 152,
+      "cap_triangles": 0,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "Metal_Blue_Dark",
+        "Metal_Blue_Light"
+      ],
+      "dominant_material": "Metal_Blue_Light",
+      "collider_cuboid_size": [
+        1.3,
+        1.0,
+        1.3
+      ]
+    }
+  ]
+}

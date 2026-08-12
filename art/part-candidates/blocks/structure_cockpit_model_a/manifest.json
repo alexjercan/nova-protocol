@@ -1,0 +1,63 @@
+{
+  "source": "art/spaceship-blocks/Spacestation_Structure_Cockpit_Model_A.obj",
+  "scale": 1.0,
+  "yaw": 0.0,
+  "ship_bbox": {
+    "min": [
+      -1.14375001,
+      -0.33541667,
+      -0.57750001
+    ],
+    "max": [
+      1.14999999,
+      0.4228125,
+      0.57750001
+    ]
+  },
+  "parts": [
+    {
+      "name": "spacestation_structure_cockpit_model_a",
+      "file": "spacestation_structure_cockpit_model_a.glb",
+      "origin": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "bbox": {
+        "min": [
+          -1.14375001,
+          -0.33541667,
+          -0.57750001
+        ],
+        "max": [
+          1.14999999,
+          0.4228125,
+          0.57750001
+        ]
+      },
+      "size": [
+        2.29375,
+        0.7582291699999999,
+        1.15500002
+      ],
+      "triangles": 1320,
+      "cap_triangles": 0,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "Glass",
+        "Light",
+        "Metal_Blue",
+        "Metal_Blue_Dark",
+        "Metal_Blue_Light",
+        "Metal_Gray_Dark"
+      ],
+      "dominant_material": "Metal_Blue",
+      "collider_cuboid_size": [
+        2.29375,
+        0.7582291699999999,
+        1.15500002
+      ]
+    }
+  ]
+}

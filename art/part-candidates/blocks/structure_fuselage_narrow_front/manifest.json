@@ -1,0 +1,60 @@
+{
+  "source": "art/spaceship-blocks/Spacestation_Structure_Fuselage_Narrow_Front.obj",
+  "scale": 1.0,
+  "yaw": 0.0,
+  "ship_bbox": {
+    "min": [
+      -2.0,
+      -0.39,
+      -0.6
+    ],
+    "max": [
+      1.67934783,
+      0.39,
+      0.6
+    ]
+  },
+  "parts": [
+    {
+      "name": "spacestation_structure_fuselage_narrow_front",
+      "file": "spacestation_structure_fuselage_narrow_front.glb",
+      "origin": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "bbox": {
+        "min": [
+          -2.0,
+          -0.39,
+          -0.6
+        ],
+        "max": [
+          1.67934783,
+          0.39,
+          0.6
+        ]
+      },
+      "size": [
+        3.67934783,
+        0.78,
+        1.2
+      ],
+      "triangles": 180,
+      "cap_triangles": 0,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "Light",
+        "Metal_Blue",
+        "Metal_Blue_Light"
+      ],
+      "dominant_material": "Metal_Blue_Light",
+      "collider_cuboid_size": [
+        3.67934783,
+        0.78,
+        1.2
+      ]
+    }
+  ]
+}

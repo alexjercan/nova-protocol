@@ -1,0 +1,59 @@
+{
+  "source": "art/spaceship-blocks/Spacestation_Structure_Fuselage_Straight_Windows.obj",
+  "scale": 1.0,
+  "yaw": 0.0,
+  "ship_bbox": {
+    "min": [
+      -0.95712535,
+      0.42572479,
+      -0.3
+    ],
+    "max": [
+      -0.04287465,
+      0.99142507,
+      0.3
+    ]
+  },
+  "parts": [
+    {
+      "name": "spacestation_structure_fuselage_straight_windows",
+      "file": "spacestation_structure_fuselage_straight_windows.glb",
+      "origin": [
+        -0.5,
+        0.5,
+        0.0
+      ],
+      "bbox": {
+        "min": [
+          -0.45712535,
+          -0.07427520999999998,
+          -0.3
+        ],
+        "max": [
+          0.45712535,
+          0.49142507,
+          0.3
+        ]
+      },
+      "size": [
+        0.9142507,
+        0.5657002799999999,
+        0.6
+      ],
+      "triangles": 136,
+      "cap_triangles": 0,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "Glass",
+        "Metal_Blue"
+      ],
+      "dominant_material": "Metal_Blue",
+      "collider_cuboid_size": [
+        0.9142507,
+        0.5657002799999999,
+        0.6
+      ]
+    }
+  ]
+}

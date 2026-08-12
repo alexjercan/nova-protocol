@@ -1,0 +1,59 @@
+{
+  "source": "art/spaceship-blocks/Spacestation_Structure_Wing_Thin_Winglet_Standard.obj",
+  "scale": 1.0,
+  "yaw": 0.0,
+  "ship_bbox": {
+    "min": [
+      -0.59247817,
+      -1.0,
+      -0.375
+    ],
+    "max": [
+      -0.40752183,
+      1.0,
+      0.375
+    ]
+  },
+  "parts": [
+    {
+      "name": "spacestation_structure_wing_thin_winglet_standard",
+      "file": "spacestation_structure_wing_thin_winglet_standard.glb",
+      "origin": [
+        -0.5,
+        0.0,
+        0.0
+      ],
+      "bbox": {
+        "min": [
+          -0.09247817000000003,
+          -1.0,
+          -0.375
+        ],
+        "max": [
+          0.09247817000000003,
+          1.0,
+          0.375
+        ]
+      },
+      "size": [
+        0.18495634000000005,
+        2.0,
+        0.75
+      ],
+      "triangles": 108,
+      "cap_triangles": 0,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "Metal_Blue",
+        "Metal_Blue_Light"
+      ],
+      "dominant_material": "Metal_Blue_Light",
+      "collider_cuboid_size": [
+        0.18495634000000005,
+        2.0,
+        0.75
+      ]
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "source": "art/spaceship-blocks/Spacestation_Weapon_Flush_Mount_Cannon.obj",
+  "scale": 1.0,
+  "yaw": 0.0,
+  "ship_bbox": {
+    "min": [
+      -0.5,
+      -0.1722588,
+      -0.14918049
+    ],
+    "max": [
+      -0.09181513,
+      0.1722588,
+      0.14918049
+    ]
+  },
+  "parts": [
+    {
+      "name": "spacestation_weapon_flush_mount_cannon",
+      "file": "spacestation_weapon_flush_mount_cannon.glb",
+      "origin": [
+        -0.5,
+        0.0,
+        0.0
+      ],
+      "bbox": {
+        "min": [
+          0.0,
+          -0.1722588,
+          -0.14918049
+        ],
+        "max": [
+          0.40818487000000003,
+          0.1722588,
+          0.14918049
+        ]
+      },
+      "size": [
+        0.40818487000000003,
+        0.3445176,
+        0.29836098
+      ],
+      "triangles": 464,
+      "cap_triangles": 0,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "Light",
+        "Metal_Blue",
+        "Metal_Blue_Dark",
+        "Metal_Gray_Dark",
+        "Metal_Gray_Light"
+      ],
+      "dominant_material": "Metal_Blue",
+      "collider_cuboid_size": [
+        0.40818487000000003,
+        0.3445176,
+        0.29836098
+      ]
+    }
+  ]
+}

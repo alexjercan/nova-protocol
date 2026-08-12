@@ -1,0 +1,60 @@
+{
+  "source": "art/spaceship-blocks/Spacestation_Propulsion_Hyperdrive_Sidemount_Small.obj",
+  "scale": 1.0,
+  "yaw": 0.0,
+  "ship_bbox": {
+    "min": [
+      -0.85,
+      -0.2642016,
+      -0.96091901
+    ],
+    "max": [
+      0.50899745,
+      0.2642016,
+      0.0
+    ]
+  },
+  "parts": [
+    {
+      "name": "spacestation_propulsion_hyperdrive_sidemount_small",
+      "file": "spacestation_propulsion_hyperdrive_sidemount_small.glb",
+      "origin": [
+        0.0,
+        0.0,
+        -0.5
+      ],
+      "bbox": {
+        "min": [
+          -0.85,
+          -0.2642016,
+          -0.46091901
+        ],
+        "max": [
+          0.50899745,
+          0.2642016,
+          0.5
+        ]
+      },
+      "size": [
+        1.35899745,
+        0.5284032,
+        0.96091901
+      ],
+      "triangles": 164,
+      "cap_triangles": 0,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "Light",
+        "Metal_Blue",
+        "Metal_Blue_Dark"
+      ],
+      "dominant_material": "Metal_Blue",
+      "collider_cuboid_size": [
+        1.35899745,
+        0.5284032,
+        0.96091901
+      ]
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "source": "art/kenney-space-kit/craft_miner.obj",
+  "scale": 2.0,
+  "yaw": 180.0,
+  "ship_bbox": {
+    "min": [
+      -1.8000000000000003,
+      0.0,
+      -2.6
+    ],
+    "max": [
+      1.8000001999999997,
+      1.4,
+      2.6
+    ]
+  },
+  "parts": [
+    {
+      "name": "craft_miner",
+      "file": "craft_miner.glb",
+      "origin": [
+        0.0,
+        0.5,
+        0.0
+      ],
+      "bbox": {
+        "min": [
+          -1.8000000000000003,
+          -0.5,
+          -2.6
+        ],
+        "max": [
+          1.8000001999999997,
+          0.8999999999999999,
+          2.6
+        ]
+      },
+      "size": [
+        3.6000002,
+        1.4,
+        5.2
+      ],
+      "triangles": 384,
+      "cap_triangles": 0,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "dark",
+        "metal",
+        "metalDark",
+        "metalRed"
+      ],
+      "dominant_material": "metalDark",
+      "collider_cuboid_size": [
+        3.6000002,
+        1.4,
+        5.2
+      ]
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "source": "art/spaceship-blocks/Spacestation_Miscellaneous_Bay_Door.obj",
+  "scale": 1.0,
+  "yaw": 0.0,
+  "ship_bbox": {
+    "min": [
+      -0.50625,
+      -0.6625,
+      -0.6
+    ],
+    "max": [
+      -0.35,
+      0.6625,
+      0.6
+    ]
+  },
+  "parts": [
+    {
+      "name": "spacestation_miscellaneous_bay_door",
+      "file": "spacestation_miscellaneous_bay_door.glb",
+      "origin": [
+        -0.5,
+        0.0,
+        0.0
+      ],
+      "bbox": {
+        "min": [
+          -0.006249999999999978,
+          -0.6625,
+          -0.6
+        ],
+        "max": [
+          0.15000000000000002,
+          0.6625,
+          0.6
+        ]
+      },
+      "size": [
+        0.15625,
+        1.325,
+        1.2
+      ],
+      "triangles": 856,
+      "cap_triangles": 0,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "Light",
+        "Metal_Blue",
+        "Metal_Gray_Light"
+      ],
+      "dominant_material": "Metal_Blue",
+      "collider_cuboid_size": [
+        0.15625,
+        1.325,
+        1.2
+      ]
+    }
+  ]
+}

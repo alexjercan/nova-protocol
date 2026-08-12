@@ -1,0 +1,64 @@
+{
+  "source": "art/spaceship-blocks/Spacestation_Weapon_Cannon.obj",
+  "scale": 1.0,
+  "yaw": 0.0,
+  "ship_bbox": {
+    "min": [
+      -0.95,
+      -1.0,
+      -0.85251955
+    ],
+    "max": [
+      1.52908028,
+      0.89990925,
+      0.85251955
+    ]
+  },
+  "parts": [
+    {
+      "name": "spacestation_weapon_cannon",
+      "file": "spacestation_weapon_cannon.glb",
+      "origin": [
+        0.5,
+        0.0,
+        0.0
+      ],
+      "bbox": {
+        "min": [
+          -1.45,
+          -1.0,
+          -0.85251955
+        ],
+        "max": [
+          1.02908028,
+          0.89990925,
+          0.85251955
+        ]
+      },
+      "size": [
+        2.47908028,
+        1.8999092499999999,
+        1.7050391
+      ],
+      "triangles": 1918,
+      "cap_triangles": 0,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "Light",
+        "Metal_Blue",
+        "Metal_Blue_Dark",
+        "Metal_Blue_Light",
+        "Metal_Gray",
+        "Metal_Gray_Dark",
+        "Metal_Gray_Light"
+      ],
+      "dominant_material": "Metal_Blue",
+      "collider_cuboid_size": [
+        2.47908028,
+        1.8999092499999999,
+        1.7050391
+      ]
+    }
+  ]
+}

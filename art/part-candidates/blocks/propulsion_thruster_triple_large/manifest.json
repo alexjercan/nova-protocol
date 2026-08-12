@@ -1,0 +1,59 @@
+{
+  "source": "art/spaceship-blocks/Spacestation_Propulsion_Thruster_Triple_Large.obj",
+  "scale": 1.0,
+  "yaw": 0.0,
+  "ship_bbox": {
+    "min": [
+      -0.5,
+      -0.8,
+      -1.3
+    ],
+    "max": [
+      0.15,
+      0.8,
+      1.3
+    ]
+  },
+  "parts": [
+    {
+      "name": "spacestation_propulsion_thruster_triple_large",
+      "file": "spacestation_propulsion_thruster_triple_large.glb",
+      "origin": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "bbox": {
+        "min": [
+          -0.5,
+          -0.8,
+          -1.3
+        ],
+        "max": [
+          0.15,
+          0.8,
+          1.3
+        ]
+      },
+      "size": [
+        0.65,
+        1.6,
+        2.6
+      ],
+      "triangles": 552,
+      "cap_triangles": 0,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "Metal_Gray",
+        "Metal_Gray_Light"
+      ],
+      "dominant_material": "Metal_Gray",
+      "collider_cuboid_size": [
+        0.65,
+        1.6,
+        2.6
+      ]
+    }
+  ]
+}

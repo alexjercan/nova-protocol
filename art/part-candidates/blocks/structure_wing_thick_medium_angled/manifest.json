@@ -1,0 +1,58 @@
+{
+  "source": "art/spaceship-blocks/Spacestation_Structure_Wing_Thick_Medium_Angled.obj",
+  "scale": 1.0,
+  "yaw": 0.0,
+  "ship_bbox": {
+    "min": [
+      -1.1,
+      -0.4375,
+      -0.5
+    ],
+    "max": [
+      0.75,
+      0.4375,
+      0.5
+    ]
+  },
+  "parts": [
+    {
+      "name": "spacestation_structure_wing_thick_medium_angled",
+      "file": "spacestation_structure_wing_thick_medium_angled.glb",
+      "origin": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "bbox": {
+        "min": [
+          -1.1,
+          -0.4375,
+          -0.5
+        ],
+        "max": [
+          0.75,
+          0.4375,
+          0.5
+        ]
+      },
+      "size": [
+        1.85,
+        0.875,
+        1.0
+      ],
+      "triangles": 28,
+      "cap_triangles": 0,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "Metal_Blue"
+      ],
+      "dominant_material": "Metal_Blue",
+      "collider_cuboid_size": [
+        1.85,
+        0.875,
+        1.0
+      ]
+    }
+  ]
+}

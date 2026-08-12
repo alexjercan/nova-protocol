@@ -1,0 +1,61 @@
+{
+  "source": "art/kenney-space-kit/craft_speederA.obj",
+  "scale": 2.0,
+  "yaw": 180.0,
+  "ship_bbox": {
+    "min": [
+      -2.0,
+      0.0,
+      -2.1
+    ],
+    "max": [
+      2.0,
+      1.6,
+      2.1
+    ]
+  },
+  "parts": [
+    {
+      "name": "craft_speedera",
+      "file": "craft_speedera.glb",
+      "origin": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "bbox": {
+        "min": [
+          -2.0,
+          -1.0,
+          -2.1
+        ],
+        "max": [
+          2.0,
+          0.6000000000000001,
+          2.1
+        ]
+      },
+      "size": [
+        4.0,
+        1.6,
+        4.2
+      ],
+      "triangles": 280,
+      "cap_triangles": 0,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "dark",
+        "metal",
+        "metalDark",
+        "metalRed"
+      ],
+      "dominant_material": "metal",
+      "collider_cuboid_size": [
+        4.0,
+        1.6,
+        4.2
+      ]
+    }
+  ]
+}

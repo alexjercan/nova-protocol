@@ -1,0 +1,62 @@
+{
+  "source": "art/spaceship-blocks/Spacestation_Miscellaneous_Dish.obj",
+  "scale": 1.0,
+  "yaw": 0.0,
+  "ship_bbox": {
+    "min": [
+      -0.0,
+      -0.05432772,
+      -0.55432772
+    ],
+    "max": [
+      0.8,
+      1.05432772,
+      0.55432772
+    ]
+  },
+  "parts": [
+    {
+      "name": "spacestation_miscellaneous_dish",
+      "file": "spacestation_miscellaneous_dish.glb",
+      "origin": [
+        0.5,
+        0.5,
+        0.0
+      ],
+      "bbox": {
+        "min": [
+          -0.5,
+          -0.55432772,
+          -0.55432772
+        ],
+        "max": [
+          0.30000000000000004,
+          0.5543277200000001,
+          0.55432772
+        ]
+      },
+      "size": [
+        0.8,
+        1.1086554400000002,
+        1.10865544
+      ],
+      "triangles": 352,
+      "cap_triangles": 0,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "Metal_Blue",
+        "Metal_Blue_Dark",
+        "Metal_Gray",
+        "Metal_Gray_Light",
+        "Metal_Gray_Lightest"
+      ],
+      "dominant_material": "Metal_Blue",
+      "collider_cuboid_size": [
+        0.8,
+        1.1086554400000002,
+        1.10865544
+      ]
+    }
+  ]
+}

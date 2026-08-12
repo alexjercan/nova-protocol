@@ -165,6 +165,10 @@ path = "examples/screenshots/screenshot_flight.rs"
 name = "render_scale_shot"
 path = "examples/screenshots/render_scale_shot.rs"
 
+[[example]]
+name = "parts_viewer"
+path = "examples/screenshots/parts_viewer.rs"
+
 # The compare_* producers frame art candidates for human judgment (task
 # 20260812-100256) - the category's promise verbatim, with the owner's eyes on
 # the frames instead of the website's. Interactive when hand-run (number keys

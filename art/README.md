@@ -16,6 +16,17 @@ adds to the download whether or not the game loads it.
     - URL: <https://kenney.nl/assets/space-kit>
     - License: CC0 1.0 Universal (public domain)
     - Version: 1.0.0 (2026-07-25)
+- `spaceship-blocks/` - Fertile Soil Productions "Spaceship Blocks Collection"
+  (95 OBJ+MTL modular ship pieces, flat Kd colours, no textures)
+    - URL: <https://fertile-soil-productions.itch.io/spaceship-blocks-collection>
+    - License: CC0 (verified on the itch.io page 2026-08-12; the zip ships no
+      license file, this entry is the record)
+- `part-candidates/` - GENERATED part `.glb` candidates for the parts-based
+  ship building spike (task 20260812-100246), browsed by
+  `examples/screenshots/parts_viewer.rs`. Regenerate with
+  `scripts/cut-obj-into-parts.py` (recipes in `scripts/part-recipes/`,
+  blocks/craft conversions recorded in the task SPIKE). Not shipped; anything
+  promoted into the game moves to `assets/` through the content builders.
 - `texture-candidates/` - texture candidates under evaluation (task
   `20260812-100256`). Loaded from here by the `compare_asteroids` /
   `compare_planets` examples straight off disk, so nothing ships until a

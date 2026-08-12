@@ -1,0 +1,308 @@
+{
+  "source": "art/kenney-space-kit/craft_cargoB.obj",
+  "scale": 2.0,
+  "yaw": 180.0,
+  "ship_bbox": {
+    "min": [
+      -1.5,
+      0.0,
+      -2.5
+    ],
+    "max": [
+      1.5000000000000002,
+      1.8,
+      2.5
+    ]
+  },
+  "parts": [
+    {
+      "name": "engine_starboard",
+      "file": "engine_starboard.glb",
+      "origin": [
+        1.0,
+        0.5,
+        2.0
+      ],
+      "bbox": {
+        "min": [
+          -0.39,
+          -0.3,
+          -0.5000000000000004
+        ],
+        "max": [
+          0.3999999999999997,
+          0.7,
+          0.5
+        ]
+      },
+      "size": [
+        0.7899999999999997,
+        1.0,
+        1.0000000000000004
+      ],
+      "triangles": 80,
+      "cap_triangles": 27,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "dark",
+        "metal",
+        "metalDark"
+      ],
+      "dominant_material": "metalDark",
+      "collider_cuboid_size": [
+        0.7899999999999997,
+        1.0,
+        1.0000000000000004
+      ]
+    },
+    {
+      "name": "engine_port",
+      "file": "engine_port.glb",
+      "origin": [
+        -1.0,
+        0.5,
+        2.0
+      ],
+      "bbox": {
+        "min": [
+          -0.40000000000000013,
+          -0.3,
+          -0.5
+        ],
+        "max": [
+          0.39,
+          0.7,
+          0.5
+        ]
+      },
+      "size": [
+        0.7900000000000001,
+        1.0,
+        1.0
+      ],
+      "triangles": 90,
+      "cap_triangles": 32,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "dark",
+        "metal",
+        "metalDark"
+      ],
+      "dominant_material": "metalDark",
+      "collider_cuboid_size": [
+        0.7900000000000001,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "pod_starboard",
+      "file": "pod_starboard.glb",
+      "origin": [
+        1.0,
+        0.5,
+        -0.5
+      ],
+      "bbox": {
+        "min": [
+          -0.39,
+          -0.3,
+          -2.0
+        ],
+        "max": [
+          0.5000000000000002,
+          0.7,
+          2.0
+        ]
+      },
+      "size": [
+        0.8900000000000002,
+        1.0,
+        4.0
+      ],
+      "triangles": 128,
+      "cap_triangles": 36,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "dark",
+        "metal",
+        "metalDark",
+        "metalRed"
+      ],
+      "dominant_material": "metalDark",
+      "collider_cuboid_size": [
+        0.8900000000000002,
+        1.0,
+        4.0
+      ]
+    },
+    {
+      "name": "pod_port",
+      "file": "pod_port.glb",
+      "origin": [
+        -1.0,
+        0.5,
+        -0.5
+      ],
+      "bbox": {
+        "min": [
+          -0.5,
+          -0.3,
+          -2.0
+        ],
+        "max": [
+          0.39,
+          0.7,
+          2.0
+        ]
+      },
+      "size": [
+        0.89,
+        1.0,
+        4.0
+      ],
+      "triangles": 126,
+      "cap_triangles": 35,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "dark",
+        "metal",
+        "metalDark",
+        "metalRed"
+      ],
+      "dominant_material": "metalDark",
+      "collider_cuboid_size": [
+        0.89,
+        1.0,
+        4.0
+      ]
+    },
+    {
+      "name": "nose",
+      "file": "nose.glb",
+      "origin": [
+        0.0,
+        1.0,
+        -2.0
+      ],
+      "bbox": {
+        "min": [
+          -0.61,
+          -0.8,
+          -0.5
+        ],
+        "max": [
+          0.61,
+          0.8,
+          1.0
+        ]
+      },
+      "size": [
+        1.22,
+        1.6,
+        1.5
+      ],
+      "triangles": 206,
+      "cap_triangles": 55,
+      "open_cut_edges": 0,
+      "source_odd_edges": 12,
+      "materials": [
+        "dark",
+        "metal",
+        "metalDark",
+        "metalRed"
+      ],
+      "dominant_material": "metalDark",
+      "collider_cuboid_size": [
+        1.22,
+        1.6,
+        1.5
+      ]
+    },
+    {
+      "name": "tail",
+      "file": "tail.glb",
+      "origin": [
+        0.0,
+        0.5,
+        2.0
+      ],
+      "bbox": {
+        "min": [
+          -0.61,
+          -0.49999999999999994,
+          -0.5
+        ],
+        "max": [
+          0.61,
+          0.8000000750000187,
+          0.5
+        ]
+      },
+      "size": [
+        1.22,
+        1.3000000750000187,
+        1.0
+      ],
+      "triangles": 137,
+      "cap_triangles": 49,
+      "open_cut_edges": 0,
+      "source_odd_edges": 4,
+      "materials": [
+        "metal",
+        "metalDark"
+      ],
+      "dominant_material": "metalDark",
+      "collider_cuboid_size": [
+        1.22,
+        1.3000000750000187,
+        1.0
+      ]
+    },
+    {
+      "name": "fuselage",
+      "file": "fuselage.glb",
+      "origin": [
+        0.0,
+        1.0,
+        0.5
+      ],
+      "bbox": {
+        "min": [
+          -0.61,
+          -1.0,
+          -1.5
+        ],
+        "max": [
+          0.61,
+          0.8,
+          1.0000000000000002
+        ]
+      },
+      "size": [
+        1.22,
+        1.8,
+        2.5
+      ],
+      "triangles": 220,
+      "cap_triangles": 74,
+      "open_cut_edges": 0,
+      "source_odd_edges": 13,
+      "materials": [
+        "metal",
+        "metalDark",
+        "metalRed"
+      ],
+      "dominant_material": "metalDark",
+      "collider_cuboid_size": [
+        1.22,
+        1.8,
+        2.5
+      ]
+    }
+  ]
+}
