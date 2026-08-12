@@ -40,6 +40,12 @@
         // A 2D image: a UI thumbnail must NOT be the skybox cubemap (that Image
         // is reinterpreted to a Cube texture, which the UI pipeline cannot bind).
         thumbnail: Some("self://thumbnails/gauntlet_run.png"),
+        watches: [
+            (
+                variable: "scenario_elapsed",
+                query: Scenario((property: Elapsed)),
+            ),
+        ],
         events: [
             (
                 name: OnStart,

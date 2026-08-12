@@ -30,6 +30,19 @@
         cubemap: "dep://base/textures/cubemap.png",
         thumbnail: Some("self://thumbnails/ledger_ch3_quiet_channel.png"),
         hidden: true,
+        watches: [
+            (
+                variable: "scenario_elapsed",
+                query: Scenario((property: Elapsed)),
+            ),
+            (
+                variable: "player_speed",
+                query: Entity((
+                    filter: (id: "player_spaceship"),
+                    property: Speed,
+                )),
+            ),
+        ],
         events: [
             (
                 name: OnStart,

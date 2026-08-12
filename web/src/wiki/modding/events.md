@@ -55,8 +55,9 @@ and post the first objective.
 
 Fires every frame while the scenario is live and UNPAUSED (frozen behind the
 pause menu and the outcome overlay). Carries no payload. The chain order is
-guaranteed: the scenario clock ticks, player speed updates, ended timers fire,
-then `OnUpdate` fires. A time or speed gate always sees this frame's values.
+guaranteed: the scenario clock ticks, typed queries and watches update, ended
+timers fire, then `OnUpdate` fires. Query-backed gates see one coherent frame
+snapshot.
 
 An unfiltered `OnUpdate` handler runs its actions EVERY frame. Always gate it
 with `Expression` filters plus a one-shot flag (the

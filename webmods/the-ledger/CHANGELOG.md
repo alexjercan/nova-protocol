@@ -3,6 +3,12 @@
 All notable changes to The Ledger campaign mod. Versions are the `meta.version`
 in `the-ledger.bundle.ron`; the portal keeps every published version.
 
+## 1.20.0
+
+- Declares typed watches for scenario elapsed time and the chapter-three
+  player-ship speed gates. Required by the read-only scenario query format;
+  implicit engine-owned variables no longer exist.
+
 ## 1.19.0
 
 - Shared ship-outcome handlers now use the exact-once `OnDefeated` event instead

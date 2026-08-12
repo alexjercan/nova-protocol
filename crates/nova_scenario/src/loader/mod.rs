@@ -23,7 +23,6 @@ mod lifecycle;
 mod trackers;
 
 use clock::register_clock_and_pulse;
-pub use clock::{is_reserved_engine_var, PLAYER_SPEED_VAR, SCENARIO_ELAPSED_VAR};
 pub use lifecycle::ScenarioCameraMarker;
 use lifecycle::{
     configure_scenario_gating, on_add_entity_with, on_load_scenario, on_next_input,
@@ -40,7 +39,7 @@ pub mod prelude {
         GameCampaigns, GameScenarios, LoadScenario, NewGameStart, ScenarioCameraMarker,
         ScenarioConfig, ScenarioEventConfig, ScenarioId, ScenarioLoaded, ScenarioLoaderPlugin,
         ScenarioScopedMarker, ScenarioStartFailure, ScenarioStartFailureReport, ScriptedCameraPose,
-        UnloadScenario, PLAYER_SPEED_VAR, SCENARIO_ELAPSED_VAR,
+        UnloadScenario,
     };
 }
 
@@ -191,6 +190,12 @@ pub struct ScenarioConfig {
     /// Serde-defaulted to false; author as `menu_backdrop: true`.
     #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_false"))]
     pub menu_backdrop: bool,
+    /// Read-only queries sampled into auto-updating scenario variables.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Vec::is_empty")
+    )]
+    pub watches: Vec<WatchConfig>,
     /// Events associated with the scenario
     #[cfg_attr(
         feature = "serde",
@@ -236,6 +241,7 @@ impl ScenarioConfig {
             thumbnail: None,
             hidden: false,
             menu_backdrop: false,
+            watches: Vec::new(),
             events: Vec::new(),
         }
     }
@@ -686,6 +692,7 @@ mod tests {
             thumbnail: Some(AssetRef::from("thumb.png")),
             hidden: true,
             menu_backdrop: true,
+            watches: vec![],
             events: vec![],
         };
         // `ron::to_string` is compact (no spaces after colons).

@@ -67,6 +67,12 @@
         name: "Example Arena",
         description: "The example mod's playable scenario: destroy two drifting rocks under a mod-shipped skybox.",
         cubemap: "self://textures/nebula.png",
+        watches: [
+            (
+                variable: "scenario_elapsed",
+                query: Scenario((property: Elapsed)),
+            ),
+        ],
         events: [
             (
                 name: OnStart,

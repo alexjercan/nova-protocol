@@ -5,6 +5,14 @@
         description: "The scavengers come back in force: answer a hauler\'s distress call and break the ambush at the Ceres Queen. Chapter two of the base storyline, part one.",
         cubemap: "self://textures/cubemap_alt.png",
         thumbnail: Some("self://thumbnails/broadside.png"),
+        watches: [
+            (
+                variable: "scenario_elapsed",
+                query: Scenario((
+                    property: Elapsed,
+                )),
+            ),
+        ],
         events: [
             (
                 name: OnStart,

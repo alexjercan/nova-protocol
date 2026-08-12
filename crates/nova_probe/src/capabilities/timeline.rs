@@ -58,8 +58,12 @@ use nova_autopilot::completion::AutopilotCompletionSystems;
 use nova_events::engine::GameEvent;
 use nova_gameplay::{GameStates, PauseStates};
 use nova_scenario::{
-    loader::SCENARIO_ELAPSED_VAR, variables::VariableLiteral, world::NovaEventWorld,
+    queries::{QueryConfig, ScenarioProperty, ScenarioQuery},
+    variables::VariableLiteral,
+    world::NovaEventWorld,
 };
+
+const SCENARIO_ELAPSED_WATCH: &str = "scenario_elapsed";
 
 use crate::capabilities::frametime::prelude::*;
 
@@ -304,7 +308,10 @@ pub(crate) fn stamp(
     frame: &FrameCount,
     scenario: Option<&NovaEventWorld>,
 ) -> (f64, u32, Option<f64>) {
-    let elapsed = scenario.and_then(|world| match world.get_variable(SCENARIO_ELAPSED_VAR) {
+    let elapsed_query = QueryConfig::Scenario(ScenarioQuery {
+        property: ScenarioProperty::Elapsed,
+    });
+    let elapsed = scenario.and_then(|world| match world.query_value(&elapsed_query) {
         Some(VariableLiteral::Number(n)) => Some(*n),
         _ => None,
     });
@@ -434,7 +441,7 @@ pub(crate) fn record_variable_changes(
         .map(|world| {
             world
                 .variables()
-                .filter(|(key, _)| key.as_str() != SCENARIO_ELAPSED_VAR)
+                .filter(|(key, _)| key.as_str() != SCENARIO_ELAPSED_WATCH)
                 .map(|(key, value)| (key.clone(), variable_to_json(value)))
                 .collect()
         })

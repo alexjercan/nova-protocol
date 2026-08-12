@@ -26,7 +26,10 @@
 use nova_hud::prelude::{COMMS_DWELL_SECS, COMMS_FADE_OUT_SECS, COMMS_MIN_SECS};
 use nova_scenario::prelude::*;
 
-use super::shakedown::{eq_num, gt_num, num, set, var};
+use super::{
+    shakedown::{eq_num, gt_num, num, set, var},
+    SCENARIO_ELAPSED_VAR,
+};
 
 // The beat gap - how long an objective waits after the conversation line that
 // introduces it - is a FEEL call, and the right value depends on the line's

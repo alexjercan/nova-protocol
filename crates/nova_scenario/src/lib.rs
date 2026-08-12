@@ -29,6 +29,8 @@ pub mod lint;
 pub mod loader;
 /// Spawnable scenario entities (asteroids, ships, beacons, salvage crates).
 pub mod objects;
+/// Typed read-only scenario queries and continuously sampled watches.
+pub mod queries;
 pub mod render_scale;
 /// Typed scenario variables and the small expression tree over them.
 pub mod variables;
@@ -40,8 +42,8 @@ pub mod world;
 pub mod prelude {
     pub use super::{
         actions::prelude::*, events::prelude::*, filters::prelude::*, lint::prelude::*,
-        loader::prelude::*, objects::prelude::*, render_scale::prelude::*, variables::prelude::*,
-        world::prelude::*, NovaScenarioPlugin,
+        loader::prelude::*, objects::prelude::*, queries::prelude::*, render_scale::prelude::*,
+        variables::prelude::*, world::prelude::*, NovaScenarioPlugin,
     };
 }
 

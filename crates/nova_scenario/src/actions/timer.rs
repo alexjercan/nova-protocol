@@ -73,10 +73,7 @@ mod tests {
     #[test]
     fn start_restarts_and_cancel_is_idempotent() {
         let mut world = NovaEventWorld::default();
-        world.insert_variable(
-            crate::loader::SCENARIO_ELAPSED_VAR.to_string(),
-            VariableLiteral::Number(10.0),
-        );
+        world.advance_scenario_elapsed(10.0);
         let start = TimerStartActionConfig {
             key: "beat".to_string(),
             seconds: number(2.0),
@@ -84,10 +81,7 @@ mod tests {
         start.action(&mut world, &default());
         assert!(world.timer_is_running("beat"));
 
-        world.insert_variable(
-            crate::loader::SCENARIO_ELAPSED_VAR.to_string(),
-            VariableLiteral::Number(11.0),
-        );
+        world.advance_scenario_elapsed(1.0);
         start.action(&mut world, &default());
         assert!(
             world.drain_ended_timers(12.0).is_empty(),

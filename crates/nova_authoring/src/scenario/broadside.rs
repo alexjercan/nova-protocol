@@ -581,6 +581,7 @@ pub(crate) fn broadside(
         thumbnail: Some(AssetRef::from("self://thumbnails/broadside.png")),
         hidden: false,
         menu_backdrop: false,
+        watches: vec![super::elapsed_watch()],
         // Chapter two of the Nova Protocol campaign. Membership + order now
         // live in the `nova_protocol` campaign mapping, which also lists the
         // hidden part-two wave (`broadside_gunship`) so it is replayable from
@@ -824,6 +825,7 @@ pub(crate) fn broadside_gunship(
         // campaign mapping so it is replayable from the campaign header.
         hidden: true,
         menu_backdrop: false,
+        watches: vec![super::elapsed_watch()],
         events,
     }
 }

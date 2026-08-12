@@ -25,6 +25,12 @@
         cubemap: "dep://base/textures/cubemap.png",
         thumbnail: Some("self://thumbnails/ledger_ch4_the_buyer.png"),
         hidden: true,
+        watches: [
+            (
+                variable: "scenario_elapsed",
+                query: Scenario((property: Elapsed)),
+            ),
+        ],
         events: [
             (
                 name: OnStart,

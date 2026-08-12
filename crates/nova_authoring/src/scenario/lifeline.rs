@@ -37,12 +37,13 @@ use nova_ship::prelude::*;
 use super::{
     cast::{BELT_RELAY, CAPTAIN_HALLORAN, TALLYMAN},
     craft::{self, ShipGrade},
+    elapsed_watch,
     pacing::{self, open_gate, REVEAL_GAP},
     shakedown::{
         complete, defeated, destroyed, eq_num, gt_num, lt_num, mark, neutralized, num, objective,
         set, spawn, story, unmark, var,
     },
-    SCATTER_SEED,
+    SCATTER_SEED, SCENARIO_ELAPSED_VAR,
 };
 
 pub(crate) const LIFELINE_SCENARIO_ID: &str = "lifeline";
@@ -787,6 +788,7 @@ pub(crate) fn lifeline(
         thumbnail: Some(AssetRef::from("self://thumbnails/lifeline.png")),
         hidden: false,
         menu_backdrop: false,
+        watches: vec![elapsed_watch()],
         // Chapter three of the Nova Protocol campaign. Membership + order now
         // live in the `nova_protocol` campaign mapping, which also lists the
         // hidden finale (`final_tally`) for replay.

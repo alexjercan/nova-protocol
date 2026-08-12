@@ -5,6 +5,14 @@
         description: "First flight: beacons, salvage, orbit - and one scavenger.",
         cubemap: "self://textures/cubemap.png",
         thumbnail: Some("self://thumbnails/shakedown_run.png"),
+        watches: [
+            (
+                variable: "scenario_elapsed",
+                query: Scenario((
+                    property: Elapsed,
+                )),
+            ),
+        ],
         events: [
             (
                 name: OnStart,

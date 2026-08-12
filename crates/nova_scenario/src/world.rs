@@ -24,7 +24,7 @@ use crate::prelude::*;
 
 /// The event world for the live scenario: the game-specific [`EventWorld`]
 /// carrying scenario state that scenario actions read and write - objectives,
-/// story log, variables (including the reserved scenario clock), a deferred
+/// story log, mutable and watched variables, typed query snapshots, a deferred
 /// command queue, and a queued next-scenario switch. Inserted as a resource by
 /// the scenario stack and cleared at teardown; its `state_to_world_system`
 /// mirrors this state into the bevy world (HUD, scenario switches) each frame.
@@ -41,6 +41,10 @@ pub struct NovaEventWorld {
     /// frame. Cleared at teardown with the rest of the event world.
     hud_readouts: Vec<HudReadoutActionConfig>,
     variables: HashMap<String, VariableLiteral>,
+    watched_values: HashMap<String, VariableLiteral>,
+    watches: Vec<WatchConfig>,
+    query_values: HashMap<QueryConfig, VariableLiteral>,
+    scenario_elapsed: f64,
     /// Keyed timer deadlines on the pause-frozen scenario clock.
     timers: HashMap<String, f64>,
     /// Every position a `ScatterObjects` action has placed this scenario, in
@@ -133,7 +137,7 @@ impl EventWorld for NovaEventWorld {
             this.hud_readouts
                 .iter()
                 .map(|readout| {
-                    let value = match this.variables.get(&readout.variable) {
+                    let value = match this.get_variable(&readout.variable) {
                         Some(VariableLiteral::Number(n)) => *n,
                         // An undefined or non-numeric variable reads as 0.0,
                         // the same fail-closed default as scenario_elapsed
@@ -168,13 +172,7 @@ impl EventWorld for NovaEventWorld {
         // defeat this guard.
         let changed_snapshot = {
             let this = world.resource::<Self>();
-            let differs_ignoring_clock =
-                |a: &HashMap<String, VariableLiteral>, b: &HashMap<String, VariableLiteral>| {
-                    let clock = crate::loader::SCENARIO_ELAPSED_VAR;
-                    a.iter().any(|(k, v)| k != clock && b.get(k) != Some(v))
-                        || b.keys().any(|k| k != clock && !a.contains_key(k))
-                };
-            if differs_ignoring_clock(&this.variables, &this.last_logged_variables) {
+            if this.variables != this.last_logged_variables {
                 debug!("# Current Variables:");
                 for (key, value) in &this.variables {
                     debug!("Variable: {} = {:?}", key, value);
@@ -271,6 +269,10 @@ impl NovaEventWorld {
         self.story_messages.clear();
         self.hud_readouts.clear();
         self.variables.clear();
+        self.watched_values.clear();
+        self.watches.clear();
+        self.query_values.clear();
+        self.scenario_elapsed = 0.0;
         self.timers.clear();
         self.scatter_placements.clear();
         self.next_scenario = None;
@@ -382,11 +384,7 @@ impl NovaEventWorld {
         if key.trim().is_empty() || !seconds.is_finite() || seconds <= 0.0 {
             return false;
         }
-        let now = match self.variables.get(crate::loader::SCENARIO_ELAPSED_VAR) {
-            Some(VariableLiteral::Number(value)) => *value,
-            _ => 0.0,
-        };
-        let deadline = now + seconds;
+        let deadline = self.scenario_elapsed + seconds;
         if !deadline.is_finite() {
             return false;
         }
@@ -421,14 +419,83 @@ impl NovaEventWorld {
         self.timers.contains_key(key)
     }
 
-    /// Set a scenario variable, overwriting any existing value under `key`.
+    /// Set a mutable scenario variable, unless a watch owns the name.
     pub fn insert_variable(&mut self, key: String, value: VariableLiteral) {
+        if self.watches.iter().any(|watch| watch.variable == key) {
+            error!("cannot write watched scenario variable '{}'", key);
+            return;
+        }
         self.variables.insert(key, value);
     }
 
-    /// Read a scenario variable by key, or `None` if it is unset.
+    /// Read a mutable or watched scenario variable by key.
     pub fn get_variable(&self, key: &str) -> Option<&VariableLiteral> {
-        self.variables.get(key)
+        self.watched_values
+            .get(key)
+            .or_else(|| self.variables.get(key))
+    }
+
+    /// Configure the watches owned by the newly loaded scenario.
+    pub(crate) fn set_watches(&mut self, watches: Vec<WatchConfig>) {
+        self.watches = watches;
+        self.query_values.insert(
+            QueryConfig::Scenario(ScenarioQuery {
+                property: ScenarioProperty::Elapsed,
+            }),
+            VariableLiteral::Number(self.scenario_elapsed),
+        );
+        self.watched_values.clear();
+        self.publish_watches();
+    }
+
+    fn publish_watches(&mut self) {
+        self.watched_values.clear();
+        for watch in &self.watches {
+            if let Some(value) = self.query_values.get(&watch.query) {
+                self.watched_values
+                    .insert(watch.variable.clone(), value.clone());
+            }
+        }
+    }
+
+    /// Current pause-frozen scenario time.
+    pub(crate) fn scenario_elapsed(&self) -> f64 {
+        self.scenario_elapsed
+    }
+
+    /// Advance the pause-frozen scenario time.
+    pub(crate) fn advance_scenario_elapsed(&mut self, delta: f64) {
+        self.scenario_elapsed += delta;
+        self.query_values.insert(
+            QueryConfig::Scenario(ScenarioQuery {
+                property: ScenarioProperty::Elapsed,
+            }),
+            VariableLiteral::Number(self.scenario_elapsed),
+        );
+        self.publish_watches();
+    }
+
+    /// Replace sampled entity query values, then publish all watches.
+    pub(crate) fn sample_entity_speeds(&mut self, speeds: HashMap<String, Option<f64>>) {
+        self.query_values
+            .retain(|query, _| matches!(query, QueryConfig::Scenario(_)));
+        for (id, speed) in speeds {
+            if let Some(speed) = speed {
+                self.query_values.insert(
+                    QueryConfig::Entity(EntityQuery {
+                        filter: EntityQueryFilter { id },
+                        property: EntityProperty::Speed,
+                    }),
+                    VariableLiteral::Number(speed),
+                );
+            }
+        }
+        self.publish_watches();
+    }
+
+    /// Read a typed query from the current coherent world snapshot.
+    pub fn query_value(&self, query: &QueryConfig) -> Option<&VariableLiteral> {
+        self.query_values.get(query)
     }
 
     /// Read-only iteration over all scenario variables (unordered). For
@@ -436,13 +503,37 @@ impl NovaEventWorld {
     /// (nova_probe) diffs successive snapshots to log changes - without
     /// exposing the map for mutation.
     pub fn variables(&self) -> impl Iterator<Item = (&String, &VariableLiteral)> {
-        self.variables.iter()
+        self.variables.iter().chain(self.watched_values.iter())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn watched_names_are_read_only_and_share_normal_lookup() {
+        let mut world = NovaEventWorld::default();
+        world.set_watches(vec![WatchConfig {
+            variable: "elapsed".to_string(),
+            query: QueryConfig::Scenario(ScenarioQuery {
+                property: ScenarioProperty::Elapsed,
+            }),
+        }]);
+        world.advance_scenario_elapsed(3.0);
+        world.sample_entity_speeds(HashMap::new());
+        assert_eq!(
+            world.get_variable("elapsed"),
+            Some(&VariableLiteral::Number(3.0))
+        );
+
+        world.insert_variable("elapsed".to_string(), VariableLiteral::Number(99.0));
+        assert_eq!(
+            world.get_variable("elapsed"),
+            Some(&VariableLiteral::Number(3.0)),
+            "mutable writes cannot replace a watched value"
+        );
+    }
 
     /// The delayed non-lingering cut: the switch holds for the authored delay
     /// while the world keeps running, then fires. The fail-first is the first
@@ -475,6 +566,7 @@ mod tests {
                 thumbnail: None,
                 hidden: true,
                 menu_backdrop: false,
+                watches: vec![],
                 events: vec![],
             },
         );

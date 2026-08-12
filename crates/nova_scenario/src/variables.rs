@@ -24,6 +24,8 @@ pub mod prelude {
 pub enum VariableError {
     /// A referenced variable name is not set in the event world.
     UndefinedVariable(String),
+    /// A typed query has no value in the current world snapshot.
+    UnavailableQuery(QueryConfig),
     /// The operands' types are incompatible with the operation.
     TypeMismatch(String),
     /// A division expression had a zero divisor.
@@ -53,6 +55,8 @@ pub enum VariableFactorNode {
     Literal(VariableLiteral),
     /// A reference to a variable by name, resolved against the event world.
     Name(String),
+    /// A typed read-only query against the current world snapshot.
+    Query(QueryConfig),
 }
 
 impl VariableFactorNode {
@@ -64,6 +68,11 @@ impl VariableFactorNode {
     /// Build a factor referencing a variable by name.
     pub fn new_name<S: Into<String>>(name: S) -> Self {
         VariableFactorNode::Name(name.into())
+    }
+
+    /// Build a factor wrapping a typed read-only query.
+    pub fn new_query(query: QueryConfig) -> Self {
+        VariableFactorNode::Query(query)
     }
 
     /// Build a factor wrapping a parenthesized subexpression.
@@ -80,6 +89,10 @@ impl VariableFactorNode {
                 .get_variable(name)
                 .cloned()
                 .ok_or_else(|| VariableError::UndefinedVariable(name.clone())),
+            VariableFactorNode::Query(query) => world
+                .query_value(query)
+                .cloned()
+                .ok_or_else(|| VariableError::UnavailableQuery(query.clone())),
         }
     }
 }
@@ -338,6 +351,41 @@ mod tests {
             ron::de::from_bytes::<VariableExpressionNode>(nested_expr_ron(4).as_bytes()).is_ok(),
             "nesting an author would actually write still decodes"
         );
+    }
+
+    #[test]
+    fn query_factor_reads_a_typed_snapshot_and_can_be_captured() {
+        let query = QueryConfig::Scenario(ScenarioQuery {
+            property: ScenarioProperty::Elapsed,
+        });
+        let factor = VariableFactorNode::new_query(query.clone());
+        let mut world = NovaEventWorld::default();
+        assert!(matches!(
+            factor.evaluate(&world),
+            Err(VariableError::UnavailableQuery(unavailable)) if unavailable == query
+        ));
+
+        world.advance_scenario_elapsed(2.5);
+        assert_eq!(
+            factor.evaluate(&world).expect("query is sampled"),
+            VariableLiteral::Number(2.5)
+        );
+    }
+
+    #[test]
+    fn typed_queries_round_trip_through_ron() {
+        let factor = VariableFactorNode::new_query(QueryConfig::Entity(EntityQuery {
+            filter: EntityQueryFilter {
+                id: "courier".to_string(),
+            },
+            property: EntityProperty::Speed,
+        }));
+        let ron = ron::to_string(&factor).expect("serialize query factor");
+        let back: VariableFactorNode = ron::from_str(&ron).expect("parse query factor");
+        assert!(matches!(
+            back,
+            VariableFactorNode::Query(QueryConfig::Entity(_))
+        ));
     }
 
     /// F61: `Equal` was exact float equality, so a condition an author wrote

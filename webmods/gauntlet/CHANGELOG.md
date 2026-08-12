@@ -3,6 +3,12 @@
 All notable changes to the Gauntlet Run mod. Versions are the `meta.version`
 in `gauntlet.bundle.ron`; the portal keeps every published version.
 
+## 1.7.0
+
+- Declares a typed `Scenario(Elapsed)` watch for the run timer. Required by the
+  read-only scenario query format; the implicit `scenario_elapsed` engine
+  variable no longer exists.
+
 ## 1.6.0
 
 - The mod ships its OWN picker thumbnail instead of borrowing base's asteroid

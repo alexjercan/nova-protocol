@@ -254,19 +254,34 @@ declared dependency. The stack means a burst is readable - but prefer one line
 per beat anyway (the beat-sheet convention); the queue is the safety
 net, not the style.
 
-### The scenario clock (`scenario_elapsed`, `player_speed`)
+### Typed queries and watched variables
 
-The engine maintains two RESERVED variables, both engine-written every live,
-unpaused tick and write-gated for handlers (`is_reserved_engine_var`):
-`scenario_elapsed`, the seconds of live scenario time
-(`tick_scenario_clock` in `loader/clock.rs`,
-chained ahead of the `OnUpdate` pulse under the same live+unpaused gate, so
-pausing freezes both together), and `player_speed`, the player ship's current
-speed for expression filters. They clear at teardown with the rest of the
-event world - they are the current scenario's clock, and a retry restarts it.
-Gate on it from any expression filter; never write it (the engine rewrites
-it every tick, and `content lint` errors on an authored `VariableSet` to
-it). A read before the first tick fails closed like any undefined variable.
+The engine exposes read-only world state through typed queries. A scenario can
+sample a query each live, unpaused update into a watched variable. The watch
+owns its variable name, so normal `Name("...")` expressions and HUD readouts
+work while `VariableSet` writes are rejected.
+
+```ron
+watches: [
+    (
+        variable: "scenario_elapsed",
+        query: Scenario((property: Elapsed)),
+    ),
+    (
+        variable: "player_speed",
+        query: Entity((
+            filter: (id: "player_spaceship"),
+            property: Speed,
+        )),
+    ),
+],
+```
+
+The internal scenario clock always exists for timers. `Scenario(Elapsed)`
+exposes it to content. `Entity` is strict-single: the id must match exactly one
+entity with the required property. Missing or duplicate matches make the query
+unavailable and expression gates fail closed. Watches freeze under pause and
+clear at teardown; retries restart elapsed time.
 
 A one-shot timed beat is the clock threshold plus your own fired-flag:
 
@@ -312,7 +327,7 @@ You can also SNAPSHOT the clock into your own variable to measure a
 duration since an event (`VariableSet((key: "ambush_started", expression:
 Term(Factor(Name("scenario_elapsed")))))`, then gate on
 `elapsed > ambush_started + grace` via an `Add` expression) - reading the
-reserved key is always fine; only writing it is gated. The example mod's
+watched name is fine; writing it is rejected. The example mod's
 arena ships a timed comms nudge and a timed bonus spawn as copyable worked
 examples.
 

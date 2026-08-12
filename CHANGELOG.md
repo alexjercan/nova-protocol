@@ -14,6 +14,10 @@ tagged **(breaking)**.
 
 ## [Unreleased]
 
+### Scenarios & Objectives
+
+- **(breaking)** Scenario world reads now use typed queries and declared watched variables. `Scenario(Elapsed)` replaces the implicit `scenario_elapsed` value, `Entity(... Speed)` replaces implicit player speed, and inline `Query(...)` factors support one-shot snapshots.
+
 ### Gameplay & Flight
 
 - **(breaking)** Gravity wells are authored by MASS, not surface gravity:

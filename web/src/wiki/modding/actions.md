@@ -403,7 +403,7 @@ the write half of the whole
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `key` | string | required | variable to write (overwrites); writing `scenario_elapsed` / `player_speed` is a lint ERROR |
+| `key` | string | required | mutable variable to write (overwrites); writing a watched variable is a lint ERROR |
 | `expression` | expression node | required | see the [expression grammar](../expressions/); an evaluation error skips the write |
 
 ```ron

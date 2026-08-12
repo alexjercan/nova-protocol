@@ -102,18 +102,53 @@ wrap the filter in [`Conditional(Not(..))`](../filters/#conditional), or
 flip the comparison (`>= n` on an integer counter is `> n - 1` - and that
 form is the [count-gate](#recipes) convention anyway).
 
-## Reserved engine variables
+## Queries and watched variables
 
-The engine maintains two read-only variables, updated every live, unpaused
-tick. Gate on them freely; never write them (a `VariableSet` on either key
-is a lint ERROR). They need no seeding - reading them is exempt from the
-unset-variable warning - but before the first tick they read as undefined
-(fails closed, harmless).
+Queries are typed, read-only world observations. A scenario can expose one as
+an auto-updating variable with `watches`:
 
-| name | type | meaning |
+```ron
+watches: [
+    (
+        variable: "scenario_elapsed",
+        query: Scenario((property: Elapsed)),
+    ),
+    (
+        variable: "courier_speed",
+        query: Entity((
+            filter: (id: "courier"),
+            property: Speed,
+        )),
+    ),
+],
+```
+
+Use watched values through the normal variable syntax, including HUD readouts:
+`Name("scenario_elapsed")`. A watched name is read-only; `VariableSet` on it is
+a lint error.
+
+Queries can also be inline expression factors. This takes a one-shot speed
+snapshot when the action runs:
+
+```ron
+VariableSet((
+    key: "speed_at_gate",
+    expression: Term(Factor(Query(Entity((
+        filter: (id: "courier"),
+        property: Speed,
+    ))))),
+))
+```
+
+Supported queries:
+
+| query | result | meaning |
 |---|---|---|
-| `scenario_elapsed` | Number | seconds of live, unpaused scenario time; freezes under pause and the outcome overlay; resets on teardown, so a retry restarts the clock |
-| `player_speed` | Number | the player ship's current speed in u/s; 0.0 when no player ship exists |
+| `Scenario((property: Elapsed))` | Number | live, unpaused scenario seconds; resets on teardown |
+| `Entity((filter: (id: "..."), property: Speed))` | Number | speed in u/s of exactly one matching entity |
+
+`Entity` is strict-single. Zero matches, multiple matches, or a missing velocity
+make the query unavailable. Expressions fail closed. Missing is not zero.
 
 ## Recipes
 

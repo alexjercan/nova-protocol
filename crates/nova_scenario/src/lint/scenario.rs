@@ -67,6 +67,29 @@ pub fn lint_scenario(
 ) -> Vec<LintIssue> {
     let id = scenario.id.as_str();
     let mut issues = Vec::new();
+    let mut watch_names = HashSet::new();
+    for watch in &scenario.watches {
+        if watch.variable.trim().is_empty() {
+            issues.push(LintIssue::error(
+                id,
+                "watch has an empty variable name".to_string(),
+            ));
+        }
+        if !watch_names.insert(watch.variable.clone()) {
+            issues.push(LintIssue::error(
+                id,
+                format!("duplicate watch variable '{}'", watch.variable),
+            ));
+        }
+        if let QueryConfig::Entity(query) = &watch.query {
+            if query.filter.id.trim().is_empty() {
+                issues.push(LintIssue::error(
+                    id,
+                    format!("watch '{}' has an empty entity id", watch.variable),
+                ));
+            }
+        }
+    }
 
     // Pass 1: what the scenario declares. Spawn ids are tracked per event
     // so the duplicate check can tell a definite bug from a branch pattern.
@@ -127,6 +150,32 @@ pub fn lint_scenario(
                 .iter()
                 .any(|p| target.starts_with(p.as_str()))
     };
+
+    for watch in &scenario.watches {
+        check_query(&watch.query, id, &satisfiable, &mut issues);
+    }
+    let mut inline_queries = Vec::new();
+    for event in &scenario.events {
+        for filter in &event.filters {
+            if let EventFilterConfig::Expression(config) = filter {
+                collect_condition_queries(&config.0, &mut inline_queries);
+            }
+        }
+        for action in &event.actions {
+            match action {
+                EventActionConfig::VariableSet(config) => {
+                    collect_expression_queries(&config.expression, &mut inline_queries);
+                }
+                EventActionConfig::TimerStart(config) => {
+                    collect_expression_queries(&config.seconds, &mut inline_queries);
+                }
+                _ => {}
+            }
+        }
+    }
+    for query in inline_queries {
+        check_query(query, id, &satisfiable, &mut issues);
+    }
 
     // Pass 2: what the scenario references.
     let mut used_vars: HashSet<String> = HashSet::new();
@@ -231,14 +280,17 @@ pub fn lint_scenario(
     }
 
     for var in &used_vars {
-        // The reserved engine variables (the scenario clock, the player-speed
-        // readout) are ENGINE-set every live unpaused tick (loader's
-        // tick_scenario_clock / track_player_speed); reading one needs no
-        // VariableSet.
-        if crate::loader::is_reserved_engine_var(var) {
+        if matches!(var.as_str(), "scenario_elapsed" | "player_speed") && !watch_names.contains(var)
+        {
+            issues.push(LintIssue::error(
+                id,
+                format!(
+                    "legacy engine variable '{var}'; declare a typed watch with this variable name"
+                ),
+            ));
             continue;
         }
-        if !declared.set_vars.contains(var) {
+        if !declared.set_vars.contains(var) && !watch_names.contains(var) {
             issues.push(LintIssue::warn(
                 id,
                 format!(
@@ -247,6 +299,13 @@ pub fn lint_scenario(
                 ),
             ));
         }
+    }
+
+    for name in declared.set_vars.intersection(&watch_names) {
+        issues.push(LintIssue::error(
+            id,
+            format!("VariableSet writes watched variable '{name}'"),
+        ));
     }
 
     issues
@@ -328,20 +387,6 @@ fn check_action(
             }
         }
         EventActionConfig::VariableSet(config) => {
-            // The reserved engine variables (the scenario clock, the
-            // player-speed readout) are engine-owned: their tracker rewrites
-            // them every frame, so an authored write is at best a one-frame
-            // glitch and at worst a broken gate - always a bug.
-            if crate::loader::is_reserved_engine_var(&config.key) {
-                issues.push(LintIssue::error(
-                    scenario,
-                    format!(
-                        "VariableSet writes the reserved engine variable '{}' \
-                         (gate on it with expression filters instead)",
-                        config.key
-                    ),
-                ));
-            }
             collect_expression_vars(&config.expression, used_vars);
         }
         EventActionConfig::TimerStart(config) => {
@@ -577,6 +622,70 @@ fn check_filter(
     }
 }
 
+fn check_query(
+    query: &QueryConfig,
+    scenario: &str,
+    satisfiable: &dyn Fn(&str) -> bool,
+    issues: &mut Vec<LintIssue>,
+) {
+    if let QueryConfig::Entity(query) = query {
+        if query.filter.id.trim().is_empty() {
+            return;
+        }
+        if !satisfiable(&query.filter.id) {
+            issues.push(LintIssue::error(
+                scenario,
+                format!(
+                    "entity query targets '{}', but no scenario action can spawn that id",
+                    query.filter.id
+                ),
+            ));
+        }
+    }
+}
+
+fn collect_condition_queries<'a>(node: &'a VariableConditionNode, out: &mut Vec<&'a QueryConfig>) {
+    match node {
+        VariableConditionNode::LessThan(left, right)
+        | VariableConditionNode::GreaterThan(left, right)
+        | VariableConditionNode::Equal(left, right) => {
+            collect_expression_queries(left, out);
+            collect_expression_queries(right, out);
+        }
+    }
+}
+
+fn collect_expression_queries<'a>(
+    node: &'a VariableExpressionNode,
+    out: &mut Vec<&'a QueryConfig>,
+) {
+    match node {
+        VariableExpressionNode::Add(term, rest) | VariableExpressionNode::Subtract(term, rest) => {
+            collect_term_queries(term, out);
+            collect_expression_queries(rest, out);
+        }
+        VariableExpressionNode::Term(term) => collect_term_queries(term, out),
+    }
+}
+
+fn collect_term_queries<'a>(node: &'a VariableTermNode, out: &mut Vec<&'a QueryConfig>) {
+    match node {
+        VariableTermNode::Multiply(factor, rest) | VariableTermNode::Divide(factor, rest) => {
+            collect_factor_queries(factor, out);
+            collect_term_queries(rest, out);
+        }
+        VariableTermNode::Factor(factor) => collect_factor_queries(factor, out),
+    }
+}
+
+fn collect_factor_queries<'a>(node: &'a VariableFactorNode, out: &mut Vec<&'a QueryConfig>) {
+    match node {
+        VariableFactorNode::Parens(inner) => collect_expression_queries(inner, out),
+        VariableFactorNode::Query(query) => out.push(query),
+        VariableFactorNode::Literal(_) | VariableFactorNode::Name(_) => {}
+    }
+}
+
 fn collect_condition_vars(node: &VariableConditionNode, vars: &mut HashSet<String>) {
     match node {
         VariableConditionNode::LessThan(left, right)
@@ -614,7 +723,7 @@ fn collect_factor_vars(node: &VariableFactorNode, vars: &mut HashSet<String>) {
         VariableFactorNode::Name(name) => {
             vars.insert(name.clone());
         }
-        VariableFactorNode::Literal(_) => {}
+        VariableFactorNode::Query(_) | VariableFactorNode::Literal(_) => {}
     }
 }
 
@@ -1099,15 +1208,14 @@ mod tests {
         assert!(issues[0].message.contains("120"));
     }
 
-    /// The reserved scenario clock: reading it needs no VariableSet (the engine
-    /// ticks it), so no unset-variable warning; WRITING it is always a bug, so
-    /// an authored VariableSet errors.
+    /// A declared elapsed watch is readable without a mutable seed, and writing
+    /// its owned name is an error.
     #[test]
     fn scenario_clock_reads_are_clean_and_writes_are_errors() {
-        use crate::loader::SCENARIO_ELAPSED_VAR;
+        const SCENARIO_ELAPSED_VAR: &str = "scenario_elapsed";
 
         // A time-gated handler the way an author writes one: no warning.
-        let read_only = scenario(
+        let mut read_only = scenario(
             vec![],
             vec![EventFilterConfig::Expression(ExpressionFilterConfig(
                 VariableConditionNode::new_greater_than(
@@ -1120,6 +1228,12 @@ mod tests {
                 ),
             ))],
         );
+        read_only.watches.push(WatchConfig {
+            variable: SCENARIO_ELAPSED_VAR.to_string(),
+            query: QueryConfig::Scenario(ScenarioQuery {
+                property: ScenarioProperty::Elapsed,
+            }),
+        });
         let issues = lint_scenario(&read_only, &sections(&[]), &known(&["test_scenario"]));
         assert!(
             issues.is_empty(),
@@ -1127,7 +1241,7 @@ mod tests {
         );
 
         // An authored write to the clock: an error, not a warning.
-        let stomp = scenario(
+        let mut stomp = scenario(
             vec![EventActionConfig::VariableSet(VariableSetActionConfig {
                 key: SCENARIO_ELAPSED_VAR.to_string(),
                 expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
@@ -1136,27 +1250,25 @@ mod tests {
             })],
             vec![],
         );
+        stomp.watches = read_only.watches.clone();
         let issues = lint_scenario(&stomp, &sections(&[]), &known(&["test_scenario"]));
         assert_eq!(
             errors(&issues).len(),
             1,
-            "writing the reserved clock is an error: {issues:?}"
+            "writing the watched clock is an error: {issues:?}"
         );
         assert!(issues[0].message.contains(SCENARIO_ELAPSED_VAR));
     }
 
-    /// The reserved `player_speed` readout follows the same contract as the
-    /// clock: gating on it is clean (the engine writes it each tick), authoring
-    /// a VariableSet onto it is an error. Pins the second reserved variable so
-    /// the shared `is_reserved_engine_var` list cannot drift from the lint
-    /// rules that consume it.
+    /// A declared entity-speed watch follows the same ownership contract as
+    /// elapsed: reads are clean and mutable writes are errors.
     #[test]
     fn player_speed_reads_are_clean_and_writes_are_errors() {
-        use crate::loader::PLAYER_SPEED_VAR;
+        const PLAYER_SPEED_VAR: &str = "player_speed";
 
         // A speed-gated handler the way an author writes one: no warning.
-        let read_only = scenario(
-            vec![],
+        let mut read_only = scenario(
+            vec![spawn_ship("player_spaceship", "hull")],
             vec![EventFilterConfig::Expression(ExpressionFilterConfig(
                 VariableConditionNode::new_greater_than(
                     VariableExpressionNode::new_term(VariableTermNode::new_factor(
@@ -1168,27 +1280,40 @@ mod tests {
                 ),
             ))],
         );
-        let issues = lint_scenario(&read_only, &sections(&[]), &known(&["test_scenario"]));
+        read_only.watches.push(WatchConfig {
+            variable: PLAYER_SPEED_VAR.to_string(),
+            query: QueryConfig::Entity(EntityQuery {
+                filter: EntityQueryFilter {
+                    id: "player_spaceship".to_string(),
+                },
+                property: EntityProperty::Speed,
+            }),
+        });
+        let issues = lint_scenario(&read_only, &sections(&["hull"]), &known(&["test_scenario"]));
         assert!(
             issues.is_empty(),
-            "gating on the engine speed readout is the intended pattern: {issues:?}"
+            "gating on a watched speed is the intended pattern: {issues:?}"
         );
 
         // An authored write to the readout: an error, not a warning.
-        let stomp = scenario(
-            vec![EventActionConfig::VariableSet(VariableSetActionConfig {
-                key: PLAYER_SPEED_VAR.to_string(),
-                expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
-                    VariableFactorNode::new_literal(VariableLiteral::Number(0.0)),
-                )),
-            })],
+        let mut stomp = scenario(
+            vec![
+                spawn_ship("player_spaceship", "hull"),
+                EventActionConfig::VariableSet(VariableSetActionConfig {
+                    key: PLAYER_SPEED_VAR.to_string(),
+                    expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                        VariableFactorNode::new_literal(VariableLiteral::Number(0.0)),
+                    )),
+                }),
+            ],
             vec![],
         );
-        let issues = lint_scenario(&stomp, &sections(&[]), &known(&["test_scenario"]));
+        stomp.watches = read_only.watches.clone();
+        let issues = lint_scenario(&stomp, &sections(&["hull"]), &known(&["test_scenario"]));
         assert_eq!(
             errors(&issues).len(),
             1,
-            "writing the reserved speed readout is an error: {issues:?}"
+            "writing a watched speed is an error: {issues:?}"
         );
         assert!(issues[0].message.contains(PLAYER_SPEED_VAR));
     }

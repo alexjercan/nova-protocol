@@ -361,6 +361,15 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
 
     ScenarioConfig {
         description: "Kill the prey, lock the waypoint, fly there.".to_string(),
+        watches: vec![WatchConfig {
+            variable: "player_speed".to_string(),
+            query: QueryConfig::Entity(EntityQuery {
+                filter: EntityQueryFilter {
+                    id: "player_ship".to_string(),
+                },
+                property: EntityProperty::Speed,
+            }),
+        }],
         events,
         ..ScenarioConfig::new(
             SCENARIO_ID.to_string(),
@@ -520,6 +529,10 @@ fn report_flown_leg(round: usize) -> impl Fn(&mut World) + Send + Sync + 'static
             variable(world, "leg"),
             Some(1.0),
             "round {round}: the scenario must have seen the travel lock"
+        );
+        assert!(
+            variable(world, "player_speed").is_some_and(|speed| speed >= 0.0),
+            "round {round}: the typed entity-speed watch must publish a number"
         );
         info!(
             "player_path: round {round} - prey destroyed, waypoint locked, GOTO closing at \

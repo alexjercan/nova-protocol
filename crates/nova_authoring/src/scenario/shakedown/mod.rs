@@ -25,7 +25,9 @@ use nova_ship::prelude::*;
 use super::{
     cast::{CAPTAIN_HALLORAN, PLAYER},
     craft::{self, ShipGrade},
+    elapsed_watch,
     pacing::{clock_past, gated_once, mark_clock, INSTRUCTION_GAP, MID_GAP, REVEAL_GAP},
+    SCENARIO_ELAPSED_VAR,
 };
 
 /// The scenario id, shared with nova_menu's New Game entry.
@@ -1432,6 +1434,7 @@ pub(crate) fn shakedown_run(
         thumbnail: Some(AssetRef::from("self://thumbnails/shakedown_run.png")),
         // Chapter one of the Nova Protocol campaign; membership + order now
         // live in the `nova_protocol` campaign mapping.
+        watches: vec![elapsed_watch()],
         events,
         ..ScenarioConfig::new(
             SHAKEDOWN_SCENARIO_ID.to_string(),

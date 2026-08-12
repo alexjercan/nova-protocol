@@ -1,89 +1,43 @@
-//! Reserved engine values, keyed timers, and the per-frame scenario pulse.
+//! Typed query sampling, keyed timers, and the per-frame scenario pulse.
 
 use avian3d::prelude::LinearVelocity;
-use bevy::prelude::*;
+use bevy::{platform::collections::HashMap, prelude::*};
 use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 
 use super::scenario_is_live;
 use crate::prelude::*;
 
-/// The reserved scenario-clock variable: seconds of LIVE, UNPAUSED scenario
-/// time, maintained by `tick_scenario_clock` and readable from any expression
-/// filter as `Term(Factor(Name("scenario_elapsed")))`. Authors GATE on it, they
-/// never write it - a `VariableSet` on this key is a content_lint ERROR,
-/// because the engine overwrites it every tick. It clears with the rest of the
-/// event world at teardown, so it is the CURRENT scenario's clock (a retry
-/// restarts it), and an early read before the first tick fails closed via the
-/// undefined-variable rule.
-///
-/// One-shots compose with the standard act/flag gate: `elapsed > N` plus an act
-/// filter, then advance the act. Repeating waves compose with a rearm write:
-/// gate on `elapsed > next_at`, then `VariableSet(next_at, Add(next_at,
-/// interval))`.
-pub const SCENARIO_ELAPSED_VAR: &str = "scenario_elapsed";
-
-/// The reserved player-speed variable: the PLAYER ship's live speed in
-/// units/second (the magnitude of its avian [`LinearVelocity`]), maintained by
-/// `track_player_speed` and readable from any expression filter as
-/// `Term(Factor(Name("player_speed")))`. Like [`SCENARIO_ELAPSED_VAR`] it is
-/// ENGINE-written every live-unpaused tick, so authors GATE on it and never
-/// write it (a `VariableSet` on this key is a content_lint ERROR). It reads
-/// `0.0` when no player ship exists (fail-closed, same as an early clock read)
-/// and freezes under pause / clears at teardown by riding the same gate + event
-/// world as the clock. Content uses it for speed-gated beats - e.g. a stealth
-/// run where burning too hot wakes a picket.
-pub const PLAYER_SPEED_VAR: &str = "player_speed";
-
-/// True for the engine-owned reserved variables the loader writes every tick
-/// ([`SCENARIO_ELAPSED_VAR`], [`PLAYER_SPEED_VAR`]). content_lint reads this to
-/// exempt them from the undefined-variable rule (they need no `VariableSet` to
-/// be readable) and to REJECT an authored `VariableSet` onto them (the engine
-/// overwrites it every frame). One list so the two rules cannot drift apart.
-pub fn is_reserved_engine_var(name: &str) -> bool {
-    name == SCENARIO_ELAPSED_VAR || name == PLAYER_SPEED_VAR
-}
-
 /// Accumulate the scenario clock. Registered CHAINED AHEAD of
 /// [`fire_on_update`] under the same live+unpaused gate, so the pulse that
 /// evaluates time-gated handlers always sees this frame's clock; pausing
 /// (ESC menu or the outcome frame) freezes the clock by construction.
 pub(super) fn tick_scenario_clock(time: Res<Time>, mut world: ResMut<NovaEventWorld>) {
-    let elapsed = scenario_elapsed(&world);
-    world.insert_variable(
-        SCENARIO_ELAPSED_VAR.to_string(),
-        VariableLiteral::Number(elapsed + time.delta_secs_f64()),
-    );
+    world.advance_scenario_elapsed(time.delta_secs_f64());
 }
 
-/// Publish the PLAYER ship's live speed into [`PLAYER_SPEED_VAR`] every
-/// live-unpaused tick, so speed-gated expression filters read this frame's
-/// value. Player-scoped (`With<PlayerSpaceshipMarker>`), so an AI ship's
-/// velocity never drives content. No
-/// player ship (pre-spawn, between retries, teardown) publishes `0.0` - the
-/// same fail-closed default a filter sees for the clock before its first tick.
-/// Registered CHAINED AHEAD of [`fire_on_update`] alongside the clock so the
-/// pulse's speed gates see the current value; the shared pause gate freezes it.
-fn track_player_speed(
-    q_player: Query<&LinearVelocity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+/// Sample every exact-id entity speed once for a coherent query snapshot.
+fn sample_scenario_queries(
+    entities: Query<(&EntityId, Option<&LinearVelocity>)>,
     mut world: ResMut<NovaEventWorld>,
 ) {
-    let speed = q_player
-        .iter()
-        .next()
-        .map_or(0.0, |velocity| velocity.length() as f64);
-    world.insert_variable(PLAYER_SPEED_VAR.to_string(), VariableLiteral::Number(speed));
+    let mut speeds = HashMap::new();
+    for (id, velocity) in &entities {
+        let value = velocity.map(|velocity| velocity.length() as f64);
+        if speeds.insert(id.0.clone(), value).is_some() {
+            error!(
+                "entity query id '{}' matched more than one entity; value is unavailable",
+                id.0
+            );
+            speeds.insert(id.0.clone(), None);
+        }
+    }
+    world.sample_entity_speeds(speeds);
 }
 
-/// Read the current scenario clock (seconds of live-unpaused time) off the
-/// event world, with the same `None -> 0.0` fallback as [`tick_scenario_clock`]
-/// so a read before the first tick (or after teardown's `world.clear`) sees a
-/// fresh clock.
+/// Read the current pause-frozen scenario clock.
 pub(super) fn scenario_elapsed(world: &NovaEventWorld) -> f64 {
-    match world.get_variable(SCENARIO_ELAPSED_VAR) {
-        Some(VariableLiteral::Number(n)) => *n,
-        _ => 0.0,
-    }
+    world.scenario_elapsed()
 }
 
 /// Fire one event for every timer that crossed its deadline. Expired keys are
@@ -102,7 +56,7 @@ pub(super) fn register_clock_and_pulse(app: &mut App) {
         Update,
         (
             tick_scenario_clock,
-            track_player_speed,
+            sample_scenario_queries,
             tick_scenario_timers,
             fire_on_update,
         )
@@ -360,8 +314,8 @@ mod tests {
         assert!(!world.timer_is_running("briefing"));
     }
 
-    /// The scenario clock: accumulates live unpaused seconds into the reserved
-    /// variable and gates a real time-filtered OnUpdate handler - held before
+    /// The scenario clock: accumulates live unpaused seconds into a typed
+    /// query and gates a real time-filtered OnUpdate handler - held before
     /// the threshold, fired after. Driven through the production tick + pulse
     /// pair on a manual 0.1s clock (steps under Time<Virtual>'s 0.25s max_delta
     /// clamp - the manual-time-rig lesson).
@@ -392,7 +346,9 @@ mod tests {
         handler.add_filter(EventFilterConfig::Expression(ExpressionFilterConfig(
             VariableConditionNode::new_greater_than(
                 VariableExpressionNode::new_term(VariableTermNode::new_factor(
-                    VariableFactorNode::new_name(SCENARIO_ELAPSED_VAR),
+                    VariableFactorNode::new_query(QueryConfig::Scenario(ScenarioQuery {
+                        property: ScenarioProperty::Elapsed,
+                    })),
                 )),
                 VariableExpressionNode::new_term(VariableTermNode::new_factor(
                     VariableFactorNode::new_literal(VariableLiteral::Number(0.5)),
@@ -458,14 +414,7 @@ mod tests {
             100,
         )));
         register_clock_and_pulse(&mut app);
-        let elapsed = |app: &App| match app
-            .world()
-            .resource::<NovaEventWorld>()
-            .get_variable(SCENARIO_ELAPSED_VAR)
-        {
-            Some(VariableLiteral::Number(n)) => *n,
-            _ => 0.0,
-        };
+        let elapsed = |app: &App| app.world().resource::<NovaEventWorld>().scenario_elapsed();
 
         app.insert_resource(CurrentScenario(Some(scenario_with("live", vec![]))));
         for _ in 0..3 {
@@ -503,33 +452,21 @@ mod tests {
         );
     }
 
-    /// The clock dies with the event world (teardown/retry): after clear()
-    /// the variable is gone, so a time gate on the next scenario fails
-    /// closed until the fresh clock ticks - never inherits stale seconds.
+    /// The clock resets with the event world on teardown or retry, so the next
+    /// scenario never inherits stale seconds.
     #[test]
     fn scenario_clock_resets_with_the_event_world() {
         let mut world = NovaEventWorld::default();
-        world.insert_variable(
-            SCENARIO_ELAPSED_VAR.to_string(),
-            VariableLiteral::Number(42.0),
-        );
+        world.advance_scenario_elapsed(42.0);
         world.clear();
-        assert!(
-            world.get_variable(SCENARIO_ELAPSED_VAR).is_none(),
-            "teardown clears the clock with the rest of the event world"
-        );
+        assert_eq!(world.scenario_elapsed(), 0.0, "teardown resets the clock");
     }
 
-    /// The reserved `player_speed` variable tracks the PLAYER ship's live
-    /// speed off its avian `LinearVelocity`, is PLAYER-scoped (an AI ship's
-    /// velocity never leaks in), reads 0.0 with no player (fail-closed), and
-    /// freezes under pause - all through the REAL `register_clock_and_pulse`
-    /// registration, so the gate + chain match production exactly. The
-    /// magnitude asserts double as the delivery guard: with `track_player_speed`
-    /// unregistered the variable stays absent and every `speed(&app)` read is
-    /// 0.0, so each non-zero expectation below fails.
+    /// An exact-id speed watch tracks live avian velocity, ignores other ids,
+    /// becomes unavailable with no match, and freezes under pause. The test
+    /// uses the production query sampling and update gate.
     #[test]
-    fn player_speed_var_tracks_live_velocity_and_fails_closed() {
+    fn entity_speed_watch_tracks_live_velocity_and_fails_closed() {
         use core::time::Duration;
 
         use bevy::time::TimeUpdateStrategy;
@@ -551,11 +488,22 @@ mod tests {
         let speed = |app: &App| match app
             .world()
             .resource::<NovaEventWorld>()
-            .get_variable(PLAYER_SPEED_VAR)
+            .get_variable("player_speed")
         {
             Some(VariableLiteral::Number(n)) => *n,
             _ => 0.0,
         };
+        app.world_mut()
+            .resource_mut::<NovaEventWorld>()
+            .set_watches(vec![WatchConfig {
+                variable: "player_speed".to_string(),
+                query: QueryConfig::Entity(EntityQuery {
+                    filter: EntityQueryFilter {
+                        id: "player_spaceship".to_string(),
+                    },
+                    property: EntityProperty::Speed,
+                }),
+            }]);
 
         app.insert_resource(CurrentScenario(Some(scenario_with("live", vec![]))));
 

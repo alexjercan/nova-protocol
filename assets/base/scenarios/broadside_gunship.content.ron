@@ -6,6 +6,14 @@
         cubemap: "self://textures/cubemap_alt.png",
         thumbnail: Some("self://thumbnails/broadside_gunship.png"),
         hidden: true,
+        watches: [
+            (
+                variable: "scenario_elapsed",
+                query: Scenario((
+                    property: Elapsed,
+                )),
+            ),
+        ],
         events: [
             (
                 name: OnStart,

@@ -34,12 +34,13 @@ use nova_ship::prelude::*;
 use super::{
     cast::{BELT_RELAY, CAPTAIN_HALLORAN, TALLYMAN},
     craft::{self, ShipGrade},
+    elapsed_watch,
     pacing::{self, clock_past, mark_clock, open_gate, MID_GAP, REVEAL_GAP},
     shakedown::{
         complete, defeated, destroyed, eq_num, gt_num, mark, neutralized, num, objective, set,
         spawn, story, unmark, var,
     },
-    SCATTER_SEED,
+    SCATTER_SEED, SCENARIO_ELAPSED_VAR,
 };
 
 pub(crate) const FINAL_TALLY_SCENARIO_ID: &str = "final_tally";
@@ -721,6 +722,7 @@ pub(crate) fn final_tally(
         // header.
         hidden: true,
         menu_backdrop: false,
+        watches: vec![elapsed_watch()],
         events,
     }
 }
