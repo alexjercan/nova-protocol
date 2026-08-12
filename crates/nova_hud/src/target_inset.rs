@@ -145,9 +145,8 @@ struct TargetInsetNoSignalPulseMarker;
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TargetInsetArmedTickMarker;
 
-/// Marker for the viewfinder's faction line: the locked target's name +
-/// relation tag, colored by relation - the rich home of the information the
-/// retired reticle relation-tint carried.
+/// Marker for the viewfinder's target-details line: the locked target's name +
+/// combat-state or relation tag, colored by relation.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TargetInsetCaptionMarker;
 
@@ -336,7 +335,7 @@ pub fn target_inset_hud(image: Handle<Image>) -> impl Bundle {
                 )],
             ),
             (
-                Name::new("InsetFactionLine"),
+                Name::new("InsetTargetDetails"),
                 TargetInsetCaptionMarker,
                 Text::new(""),
                 TextFont::from_font_size(nova_ui::hud::CHIP_LABEL_FONT),
@@ -672,9 +671,8 @@ fn drive_inset_camera(
 
 /// The frame carries the safety state (shape + color): hot = the lock
 /// red border + the armed corner ticks; safe = quiet steel, no ticks. The
-/// caption is the FACTION line: the
-/// locked target's name + relation, colored by relation - restoring on the
-/// RICH surface the information the retired reticle relation-tint carried.
+/// caption is the target-details line: the locked target's name plus its
+/// neutralized state or relation, colored by relation.
 /// The gesture-time name+distance caption is gone (it read as clutter);
 /// distance rides the radar box next to the bracket instead.
 #[expect(
@@ -688,6 +686,7 @@ fn drive_inset_frame_state(
     >,
     q_names: Query<&Name>,
     q_allegiance: Query<Option<&Allegiance>>,
+    q_neutralized: Query<(), With<NeutralizedMarker>>,
     mut q_frame: Query<&mut BorderColor, With<TargetInsetHudMarker>>,
     mut q_ticks: Query<
         &mut Visibility,
@@ -728,7 +727,7 @@ fn drive_inset_frame_state(
                 .get(target)
                 .map(|name| name.to_string())
                 .unwrap_or_else(|_| "CONTACT".to_string());
-            let (tag, color) = match q_allegiance
+            let (relation_tag, color) = match q_allegiance
                 .get(target)
                 .map(|allegiance| relation(player_allegiance, allegiance))
             {
@@ -736,6 +735,11 @@ fn drive_inset_frame_state(
                 Ok(Relation::Own) => ("OWN", FACTION_OWN_COLOR),
                 // A lock can outlive its entity by a frame; read as neutral.
                 Ok(Relation::Neutral) | Err(_) => ("NEUTRAL", FACTION_NEUTRAL_COLOR),
+            };
+            let tag = if q_neutralized.contains(target) {
+                "NEUTRALIZED"
+            } else {
+                relation_tag
             };
             (format!("{name} - {tag}"), color)
         }
@@ -1205,10 +1209,8 @@ mod tests {
     }
 
     #[test]
-    fn the_frame_carries_the_safety_state_and_the_faction_line() {
-        // Shape + color for the safety state, plus the faction line
-        // it carries: name + relation tag, colored by relation, whenever a
-        // lock exists - gesture-independent.
+    fn the_frame_carries_safety_and_target_details() {
+        // Shape + color for safety, plus target details whenever a lock exists.
         let mut world = World::new();
         let target = world
             .spawn((
@@ -1243,8 +1245,7 @@ mod tests {
             ))
             .id();
 
-        // Safe, locked on an enemy: neutral frame, no ticks - but the
-        // faction line reads immediately (no gesture needed).
+        // Safe, locked on an enemy: neutral frame, no ticks, details visible.
         world.run_system_once(drive_inset_frame_state).unwrap();
         assert_eq!(
             *world.entity(frame).get::<BorderColor>().unwrap(),
@@ -1257,12 +1258,31 @@ mod tests {
         assert_eq!(
             world.entity(caption).get::<Text>().unwrap().0,
             "SCAVENGER - HOSTILE",
-            "the faction line shows at lock time, gesture-independent"
+            "target details show at lock time"
         );
         assert_eq!(
             world.entity(caption).get::<TextColor>().unwrap().0,
             FACTION_HOSTILE_COLOR,
             "colored by relation"
+        );
+
+        // Neutralization replaces the relation tag but preserves the enemy
+        // relation color and the held lock.
+        world.entity_mut(target).insert(NeutralizedMarker);
+        world.run_system_once(drive_inset_frame_state).unwrap();
+        assert_eq!(
+            world.entity(caption).get::<Text>().unwrap().0,
+            "SCAVENGER - NEUTRALIZED"
+        );
+        assert_eq!(
+            world.entity(caption).get::<TextColor>().unwrap().0,
+            FACTION_HOSTILE_COLOR,
+            "neutralization is combat state, not allegiance"
+        );
+        assert_eq!(
+            world.entity(player).get::<CombatLock>().unwrap().0,
+            Some(target),
+            "the wreck remains locked"
         );
 
         // Hot: red frame, ticks on.

@@ -71,8 +71,10 @@ then later `OnDestroyed`.
 - Existing and new combat locks remain valid.
 - The world marker swaps its solid allegiance triangle for a hollow chevron and
   preserves allegiance color. Enemy wrecks therefore show a hollow red V.
+- The target inset caption replaces the relation tag with `NEUTRALIZED` while
+  retaining the target name and allegiance color.
 - `screenshot_combat` captures `variant-neutralized-wreck.png` as a rendered
-  presentation pin.
+  presentation pin for both the chevron and target details.
 
 ## Boundary direction
 
