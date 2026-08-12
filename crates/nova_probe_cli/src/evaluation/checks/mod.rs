@@ -188,12 +188,13 @@ pub fn measured_count(checks: &[Check]) -> usize {
 /// | anything warned | WARN |
 /// | otherwise | OK |
 ///
-/// UNPROBEABLE is the row this refactor exists to produce: an example that
-/// wires no probe plugin still exits cleanly with a clean log, so
-/// `process_exit` and `log_clean` pass and the old fold printed OK at
-/// `measured 2/6`. Two passing rows about the process say nothing about the
-/// RUN, so a run that graded no declared capability is not OK - it is
-/// unprobeable, and `aggregate::verdict_severity` ranks it accordingly.
+/// UNPROBEABLE names the sanctioned opt-out: an example that wires no probe
+/// plugin exits cleanly with a clean log, so `process_exit` and `log_clean`
+/// pass and nothing else is claimed. Not wiring IS the opt-out signal (there
+/// is no skip list), so the verdict passes the exit gates - but it is kept
+/// distinct from OK because two passing rows about the process say nothing
+/// about the RUN. The smoke checks still hard-gate: a hang (timeout) or a
+/// dirty log makes this FAIL, not UNPROBEABLE.
 ///
 /// OK stays OK-with-coverage: consumers read `measured_count` alongside it,
 /// and the reviewer owns the final call either way.

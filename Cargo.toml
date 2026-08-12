@@ -26,8 +26,12 @@ path = "src/lib.rs"
 # THE EXAMPLE-CATEGORY CONTRACT (see autoexamples above). A category is a
 # promise about what its examples prove. It is NOT a run policy: every
 # cataloged example is a probe target, and what one can be JUDGED on is its
-# own runtime declaration (nova_probe::contract), not its directory. The five
-# settled categories:
+# own runtime declaration (nova_probe::contract), not its directory. An
+# example that wires no probe plugin grades UNPROBEABLE - the sanctioned
+# opt-out from claim grading, no skip list - but it is still spawned by
+# `probe run --all`, so it MUST exit cleanly under NOVA_AUTOPILOT within the
+# deadline with a clean log (a hang or panic is a FAIL, opted out or not).
+# The five settled categories:
 #
 #   sections/    proves one ship section's behavior end to end.
 #                probe: correctness passes only.

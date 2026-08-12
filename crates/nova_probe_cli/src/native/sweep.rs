@@ -310,8 +310,10 @@ pub(crate) fn print_aggregate(out_base: &Path, manifest: &crate::AllManifest) {
 }
 
 pub(crate) fn aggregate_exit(manifest: &crate::AllManifest) -> ExitCode {
+    // UNPROBEABLE passes: wiring no probe plugin is the sanctioned opt-out
+    // (the smoke checks behind it still hard-fail the row into FAIL).
     match crate::aggregate_verdict(&manifest.rows) {
-        "OK" | "WARN" => ExitCode::SUCCESS,
+        "OK" | "WARN" | "UNPROBEABLE" => ExitCode::SUCCESS,
         _ => ExitCode::FAILURE,
     }
 }

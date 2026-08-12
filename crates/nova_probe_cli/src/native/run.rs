@@ -415,10 +415,11 @@ fn finish_report(
 
     println!("probe: {verdict} - {}", out.join("report.html").display());
     print_checks(&checks);
-    // Fail-closed, the same rule the aggregate uses: only a graded run that
-    // came out OK or WARN exits zero. FAIL, NO_DATA and UNPROBEABLE do not.
+    // Fail-closed, the same rule the aggregate uses: OK, WARN and the
+    // UNPROBEABLE opt-out (no probe plugin wired; smoke checks passed) exit
+    // zero. FAIL and NO_DATA do not.
     Ok(match verdict {
-        "OK" | "WARN" => ExitCode::SUCCESS,
+        "OK" | "WARN" | "UNPROBEABLE" => ExitCode::SUCCESS,
         _ => ExitCode::FAILURE,
     })
 }

@@ -21,7 +21,9 @@ pub(crate) struct Resolved {
 /// There is no exclusion axis: every cataloged example is a probe target.
 /// What an example can be JUDGED on is its own runtime declaration
 /// (`nova_probe::contract`) - an example that declares nothing is graded
-/// UNPROBEABLE, which is an answer, not a reason to skip the spawn.
+/// UNPROBEABLE, which is an answer, not a reason to skip the spawn. That
+/// verdict is the sanctioned per-example opt-out from claim grading: the
+/// spawn and the smoke checks (exit, clean log) still always happen.
 pub(crate) fn resolve_spec(
     tokens: &[String],
     all: bool,
@@ -109,7 +111,7 @@ mod tests {
         assert_eq!(
             resolved.examples,
             s(&["scenario", "playable"]),
-            "a category expands to ALL its members - there is no opt-out any more"
+            "a category expands to ALL its members - there is no spawn opt-out"
         );
         assert!(
             resolved.multi,

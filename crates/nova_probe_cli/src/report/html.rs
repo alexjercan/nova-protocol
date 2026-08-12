@@ -292,7 +292,8 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
          <li>Does the verdict banner match your reading of the rows? A SKIPPED \
          check means NOT MEASURED and an N/A one means the example claims no \
          such thing - neither means \"held\". An UNPROBEABLE verdict means the \
-         run graded no claim at all.</li>\n\
+         run graded no claim at all: the example wires no probe plugin, the \
+         sanctioned opt-out - confirm that is intentional for this example.</li>\n\
          <li>If <code>fps_within_baseline</code> is WARN: was the host quiet? Is the \
          delta consistent across labels, or one noisy row?</li>\n\
          <li>Scan the timeline: do the script beats and scenario events tell the \

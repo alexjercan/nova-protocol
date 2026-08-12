@@ -146,29 +146,31 @@ impl AllManifest {
     }
 }
 
-/// Verdict severity for the worst-of aggregation. NO_DATA and UNPROBEABLE
-/// rank between WARN and FAIL on purpose: an example that produced zero
-/// evidence, or that graded no claim at all, is a failure of the evaluation
-/// rather than a soft skip (the per-run exit code already treats it as one).
-/// Unrecognized verdicts rank as FAIL - fail-closed.
+/// Verdict severity for the worst-of aggregation. NO_DATA ranks between WARN
+/// and FAIL on purpose: an example that produced zero evidence is a failure
+/// of the evaluation rather than a soft skip. Unrecognized verdicts rank as
+/// FAIL - fail-closed.
 ///
-/// UNPROBEABLE is deliberately not silent: an example that wires no probe
-/// plugin cannot be quietly listed away any more (there is no per-example
-/// opt-out), so it shows up here and the sweep exits non-zero.
+/// UNPROBEABLE ranks WITH WARN: wiring no probe plugin is the sanctioned
+/// per-example opt-out (there is no skip list - not wiring IS the signal).
+/// The run still happened and its smoke checks (process exit, clean log)
+/// still hard-gate; any of those failing makes the verdict FAIL, not
+/// UNPROBEABLE. The verdict stays distinct so the banner and the rows keep
+/// naming it - opted out is visible, never silent.
 pub fn verdict_severity(verdict: &str) -> u8 {
     match verdict {
         "OK" => 0,
         "WARN" => 1,
-        "UNPROBEABLE" => 2,
+        "UNPROBEABLE" => 1,
         "NO_DATA" => 2,
         _ => 3, // FAIL, ERROR, anything unrecognized
     }
 }
 
 /// The aggregate verdict: the WORST row. An empty run is NO_DATA. A tie at
-/// the NO_DATA/UNPROBEABLE rank reports NO_DATA unless every row at that
-/// rank is UNPROBEABLE - the two are equally severe, so the banner names
-/// whichever the rows actually are.
+/// the WARN/UNPROBEABLE rank reports WARN unless every row at that rank is
+/// UNPROBEABLE - the two are equally severe, so the banner names whichever
+/// the rows actually are (a graded warning is the more informative name).
 pub fn overall_verdict(rows: &[AllRow]) -> &'static str {
     let worst = rows
         .iter()
@@ -177,16 +179,13 @@ pub fn overall_verdict(rows: &[AllRow]) -> &'static str {
         .unwrap_or(2);
     match worst {
         0 => "OK",
-        1 => "WARN",
-        // An EMPTY sweep is NO_DATA, not unprobeable: there were no rows to
-        // ask. `all` over nothing is vacuously true, so guard it.
-        2 if !rows.is_empty()
-            && rows
-                .iter()
-                .all(|row| verdict_severity(&row.verdict) < 2 || row.verdict == "UNPROBEABLE") =>
+        1 if rows
+            .iter()
+            .all(|row| verdict_severity(&row.verdict) < 1 || row.verdict == "UNPROBEABLE") =>
         {
             "UNPROBEABLE"
         }
+        1 => "WARN",
         2 => "NO_DATA",
         _ => "FAIL",
     }
@@ -247,8 +246,9 @@ pub fn render_index(manifest: &AllManifest) -> String {
          <span class=\"confirm\">The verdict is the WORST row. A row's verdict only \
          means what its measured column covers - SKIPPED checks were NOT measured \
          and N/A ones were never claimed; neither means \"held\". UNPROBEABLE means \
-         the example graded no claim at all. Open a row's report for the \
-         evidence.</span></div>\n",
+         the example graded no claim at all - it wires no probe plugin (the \
+         sanctioned opt-out) and only its smoke checks gate it. Open a row's \
+         report for the evidence.</span></div>\n",
         manifest.rows.len(),
         totals("OK"),
         totals("WARN"),
@@ -345,19 +345,20 @@ mod tests {
         assert_eq!(overall_verdict(&[]), "NO_DATA");
     }
 
-    /// An example that graded no claim is never quietly aggregated away:
-    /// it outranks WARN, it does not outrank FAIL, and a sweep carrying one
-    /// exits non-zero.
+    /// An UNPROBEABLE row is the sanctioned opt-out (no probe plugin wired):
+    /// it ranks with WARN so the sweep still passes, stays visible in the
+    /// banner, and never outranks a graded warning or hides a failure.
     #[test]
-    fn an_unprobeable_row_is_never_aggregated_away() {
+    fn an_unprobeable_row_is_visible_but_passing() {
         assert_eq!(
             overall_verdict(&[row("a", "OK"), row("b", "UNPROBEABLE")]),
-            "UNPROBEABLE"
+            "UNPROBEABLE",
+            "opted out is named, never silently OK"
         );
         assert_eq!(
             overall_verdict(&[row("a", "WARN"), row("b", "UNPROBEABLE")]),
-            "UNPROBEABLE",
-            "a soft gate does not outrank a run that proved nothing"
+            "WARN",
+            "equal rank, but a graded warning is the more informative name"
         );
         assert_eq!(
             overall_verdict(&[row("a", "UNPROBEABLE"), row("b", "FAIL")]),
@@ -366,9 +367,15 @@ mod tests {
         assert_eq!(
             overall_verdict(&[row("a", "UNPROBEABLE"), row("b", "NO_DATA")]),
             "NO_DATA",
-            "equal rank, but the banner names the rows that are actually there"
+            "zero evidence still outranks a sanctioned opt-out"
         );
-        assert!(verdict_severity("UNPROBEABLE") > verdict_severity("WARN"));
+        assert_eq!(
+            verdict_severity("UNPROBEABLE"),
+            verdict_severity("WARN"),
+            "opt-out ranks with WARN: passing, not silent"
+        );
+        assert!(verdict_severity("UNPROBEABLE") > verdict_severity("OK"));
+        assert!(verdict_severity("UNPROBEABLE") < verdict_severity("NO_DATA"));
     }
 
     #[test]

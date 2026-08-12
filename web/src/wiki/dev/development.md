@@ -143,7 +143,10 @@ plugins it wires (`nova_probe::contract`), and probe reads it back from
 `probe-contract.json`. Nothing is left on the launch side: every cataloged
 example is spawned, `--all` is the catalog with nothing subtracted, and an
 example that declares no capability grades UNPROBEABLE rather than being
-listed away. The prose half - what each
+listed away. That verdict is the sanctioned opt-out from claim grading: not
+wiring a probe plugin is the signal (no skip list exists), the run passes the
+gate on its smoke checks alone (clean exit within the deadline, clean log),
+and the banner still names it. The prose half - what each
 category proves - is the table above and the per-block comments in the root
 `Cargo.toml`; review enforces it, because judging whether an example asserts
 enough is a reading task, not a test.
@@ -686,8 +689,9 @@ unresolvable one is SKIPPED - "not measured"; neither means "held".
 per-check structured data. A present-but-unloadable artifact degrades that one
 artifact to absent and FAILS `artifacts_loadable` with the reason, rather than
 aborting the report the failure would have been visible in.
-Zero evidence is NO_DATA and a run that graded no declared capability is
-UNPROBEABLE (both nonzero exit), FPS improvements PASS (only regressions WARN -
+Zero evidence is NO_DATA (nonzero exit) and a run that graded no declared
+capability is UNPROBEABLE (zero exit - the sanctioned no-probe-plugin
+opt-out, gated on its smoke checks alone), FPS improvements PASS (only regressions WARN -
 frame numbers are host-noisy), a hung run is killed and still produces a
 FAILing report, and the report ends with a reviewer checklist: the final
 OK/NOT-OK is a human's or an agent's call, off `checks.json` without
