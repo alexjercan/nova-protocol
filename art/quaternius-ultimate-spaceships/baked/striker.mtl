@@ -1,0 +1,44 @@
+# Baked flat-Kd palette - Striker.obj + Striker_Green.png
+# Kd is LINEAR (sRGB-decoded); names carry the sRGB hex.
+
+newmtl kd_3d3937
+Kd 0.046200 0.040932 0.037920
+
+newmtl kd_777573
+Kd 0.185069 0.178476 0.172072
+
+newmtl kd_464340
+Kd 0.061301 0.056506 0.050892
+
+newmtl kd_6c512b
+Kd 0.149141 0.082235 0.023877
+
+newmtl kd_696562
+Kd 0.141750 0.129002 0.123111
+
+newmtl kd_a37625
+Kd 0.365632 0.180847 0.018729
+
+newmtl kd_72875c
+Kd 0.167925 0.243515 0.107438
+
+newmtl kd_83a06e
+Kd 0.226966 0.351533 0.155926
+
+newmtl kd_896326
+Kd 0.249622 0.125169 0.019716
+
+newmtl kd_2b2827
+Kd 0.023697 0.021368 0.020622
+
+newmtl kd_9fa49a
+Kd 0.348292 0.368840 0.325031
+
+newmtl kd_a78f76
+Kd 0.384734 0.276228 0.181677
+
+newmtl kd_879583
+Kd 0.242058 0.302503 0.226716
+
+newmtl kd_c5beba
+Kd 0.558340 0.514918 0.491021

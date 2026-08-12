@@ -1,0 +1,41 @@
+# Baked flat-Kd palette - Imperial.obj + Imperial_Blue.png
+# Kd is LINEAR (sRGB-decoded); names carry the sRGB hex.
+
+newmtl kd_3c3a3a
+Kd 0.044503 0.042638 0.042804
+
+newmtl kd_908d8b
+Kd 0.278612 0.266629 0.259668
+
+newmtl kd_2e3e70
+Kd 0.026789 0.047880 0.161843
+
+newmtl kd_5c5958
+Kd 0.106166 0.099557 0.097080
+
+newmtl kd_2a2523
+Kd 0.022729 0.018183 0.017212
+
+newmtl kd_6a6867
+Kd 0.143839 0.138349 0.136374
+
+newmtl kd_9d9c9a
+Kd 0.339284 0.331112 0.323814
+
+newmtl kd_33457f
+Kd 0.032820 0.060304 0.211315
+
+newmtl kd_4f4d4d
+Kd 0.077252 0.074657 0.074645
+
+newmtl kd_a6a5a3
+Kd 0.381999 0.373994 0.364154
+
+newmtl kd_757473
+Kd 0.177529 0.173167 0.172360
+
+newmtl kd_afaead
+Kd 0.430587 0.425804 0.418134
+
+newmtl kd_d2d2d2
+Kd 0.644480 0.644480 0.644480

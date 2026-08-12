@@ -1,0 +1,71 @@
+{
+  "source": "art/quaternius-ultimate-spaceships/baked/bob.obj",
+  "scale": 0.5,
+  "yaw": 180.0,
+  "ship_bbox": {
+    "min": [
+      -2.625556,
+      -0.437107,
+      -1.5304995
+    ],
+    "max": [
+      2.625556,
+      0.5805585,
+      1.2756305
+    ]
+  },
+  "parts": [
+    {
+      "name": "bob",
+      "file": "bob.glb",
+      "origin": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "bbox": {
+        "min": [
+          -2.625556,
+          -0.437107,
+          -1.5304995
+        ],
+        "max": [
+          2.625556,
+          0.5805585,
+          1.2756305
+        ]
+      },
+      "size": [
+        5.251112,
+        1.0176655000000001,
+        2.8061299999999996
+      ],
+      "triangles": 1048,
+      "cap_triangles": 110,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "kd_26211f",
+        "kd_2f2d2c",
+        "kd_3a3735",
+        "kd_403f3e",
+        "kd_4e2724",
+        "kd_55201d",
+        "kd_615c5a",
+        "kd_643c3b",
+        "kd_6c6a68",
+        "kd_85807e",
+        "kd_8e8a87",
+        "kd_9d9b98",
+        "kd_aaa8a5",
+        "kd_b6b2af"
+      ],
+      "dominant_material": "kd_3a3735",
+      "collider_cuboid_size": [
+        5.251112,
+        1.0176655000000001,
+        2.8061299999999996
+      ]
+    }
+  ]
+}

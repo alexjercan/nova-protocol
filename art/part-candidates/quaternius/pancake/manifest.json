@@ -1,0 +1,70 @@
+{
+  "source": "art/quaternius-ultimate-spaceships/baked/pancake.obj",
+  "scale": 0.5,
+  "yaw": 180.0,
+  "ship_bbox": {
+    "min": [
+      -2.6255565,
+      -0.4875295,
+      -2.4901835
+    ],
+    "max": [
+      2.6255555,
+      0.812047,
+      1.626206
+    ]
+  },
+  "parts": [
+    {
+      "name": "pancake",
+      "file": "pancake.glb",
+      "origin": [
+        0.0,
+        0.0,
+        -0.5
+      ],
+      "bbox": {
+        "min": [
+          -2.6255565,
+          -0.4875295,
+          -1.9901835
+        ],
+        "max": [
+          2.6255555,
+          0.812047,
+          2.126206
+        ]
+      },
+      "size": [
+        5.251112,
+        1.2995765,
+        4.1163895
+      ],
+      "triangles": 2898,
+      "cap_triangles": 210,
+      "open_cut_edges": 0,
+      "source_odd_edges": 8,
+      "materials": [
+        "kd_262220",
+        "kd_353333",
+        "kd_423239",
+        "kd_423c42",
+        "kd_473164",
+        "kd_533578",
+        "kd_5c5268",
+        "kd_5f5b5a",
+        "kd_6e6c6c",
+        "kd_8c8888",
+        "kd_989493",
+        "kd_a7a4a3",
+        "kd_b2b1af"
+      ],
+      "dominant_material": "kd_353333",
+      "collider_cuboid_size": [
+        5.251112,
+        1.2995765,
+        4.1163895
+      ]
+    }
+  ]
+}

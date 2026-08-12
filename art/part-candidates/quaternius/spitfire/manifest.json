@@ -1,0 +1,419 @@
+{
+  "source": "art/quaternius-ultimate-spaceships/baked/spitfire.obj",
+  "scale": 0.5,
+  "yaw": 180.0,
+  "ship_bbox": {
+    "min": [
+      -2.630922,
+      -1.01268,
+      -2.1969465
+    ],
+    "max": [
+      2.630922,
+      0.5149095,
+      1.5697075
+    ]
+  },
+  "parts": [
+    {
+      "name": "engine_upper_starboard",
+      "file": "engine_upper_starboard.glb",
+      "origin": [
+        2.0,
+        0.0,
+        0.5
+      ],
+      "bbox": {
+        "min": [
+          -0.1499999999999999,
+          -0.28,
+          -0.48582349999999974
+        ],
+        "max": [
+          0.630922,
+          0.4486385,
+          0.6385760000000003
+        ]
+      },
+      "size": [
+        0.7809219999999999,
+        0.7286385,
+        1.1243995
+      ],
+      "triangles": 696,
+      "cap_triangles": 61,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "kd_2a2727",
+        "kd_363633",
+        "kd_454540",
+        "kd_5d6e4a",
+        "kd_5e5957",
+        "kd_6f5126",
+        "kd_835e1e",
+        "kd_8b847e",
+        "kd_976d20",
+        "kd_9f9c99",
+        "kd_aaa8a5"
+      ],
+      "dominant_material": "kd_976d20",
+      "collider_cuboid_size": [
+        0.7809219999999999,
+        0.7286385,
+        1.1243995
+      ]
+    },
+    {
+      "name": "engine_lower_starboard",
+      "file": "engine_lower_starboard.glb",
+      "origin": [
+        2.0,
+        -0.5,
+        0.5
+      ],
+      "bbox": {
+        "min": [
+          -0.15,
+          -0.51268,
+          -0.48582349999999974
+        ],
+        "max": [
+          0.630922,
+          0.22000000000000003,
+          0.6385760000000003
+        ]
+      },
+      "size": [
+        0.780922,
+        0.73268,
+        1.1243995
+      ],
+      "triangles": 706,
+      "cap_triangles": 63,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "kd_2a2727",
+        "kd_363633",
+        "kd_454540",
+        "kd_5d6e4a",
+        "kd_5e5957",
+        "kd_6b8359",
+        "kd_6c6a69",
+        "kd_6f5126",
+        "kd_835e1e",
+        "kd_8b847e",
+        "kd_976d20",
+        "kd_9f9c99",
+        "kd_aaa8a5"
+      ],
+      "dominant_material": "kd_976d20",
+      "collider_cuboid_size": [
+        0.780922,
+        0.73268,
+        1.1243995
+      ]
+    },
+    {
+      "name": "engine_upper_port",
+      "file": "engine_upper_port.glb",
+      "origin": [
+        -2.0,
+        0.0,
+        0.5
+      ],
+      "bbox": {
+        "min": [
+          -0.630922,
+          -0.28,
+          -0.4858235000000003
+        ],
+        "max": [
+          0.1499999999999999,
+          0.4486385,
+          0.6385759999999998
+        ]
+      },
+      "size": [
+        0.7809219999999999,
+        0.7286385,
+        1.1243995
+      ],
+      "triangles": 702,
+      "cap_triangles": 68,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "kd_2a2727",
+        "kd_363633",
+        "kd_454540",
+        "kd_5d6e4a",
+        "kd_5e5957",
+        "kd_6f5126",
+        "kd_835e1e",
+        "kd_8b847e",
+        "kd_976d20",
+        "kd_9f9c99",
+        "kd_aaa8a5"
+      ],
+      "dominant_material": "kd_976d20",
+      "collider_cuboid_size": [
+        0.7809219999999999,
+        0.7286385,
+        1.1243995
+      ]
+    },
+    {
+      "name": "engine_lower_port",
+      "file": "engine_lower_port.glb",
+      "origin": [
+        -2.0,
+        -0.5,
+        0.5
+      ],
+      "bbox": {
+        "min": [
+          -0.630922,
+          -0.51268,
+          -0.4858235000000003
+        ],
+        "max": [
+          0.15,
+          0.22000000000000003,
+          0.6385759999999998
+        ]
+      },
+      "size": [
+        0.780922,
+        0.73268,
+        1.1243995
+      ],
+      "triangles": 704,
+      "cap_triangles": 62,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "kd_2a2727",
+        "kd_363633",
+        "kd_454540",
+        "kd_5d6e4a",
+        "kd_5e5957",
+        "kd_6b8359",
+        "kd_6c6a69",
+        "kd_6f5126",
+        "kd_835e1e",
+        "kd_8b847e",
+        "kd_976d20",
+        "kd_9f9c99",
+        "kd_aaa8a5"
+      ],
+      "dominant_material": "kd_976d20",
+      "collider_cuboid_size": [
+        0.780922,
+        0.73268,
+        1.1243995
+      ]
+    },
+    {
+      "name": "wing_starboard",
+      "file": "wing_starboard.glb",
+      "origin": [
+        1.0,
+        0.0,
+        0.5
+      ],
+      "bbox": {
+        "min": [
+          -0.48,
+          -0.30926275851855256,
+          -0.6592465
+        ],
+        "max": [
+          0.8500000000000001,
+          0.12457,
+          0.5225790000000001
+        ]
+      },
+      "size": [
+        1.33,
+        0.4338327585185526,
+        1.1818255
+      ],
+      "triangles": 414,
+      "cap_triangles": 75,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "kd_2a2727",
+        "kd_363633",
+        "kd_454540",
+        "kd_5d6e4a",
+        "kd_5e5957",
+        "kd_6b8359",
+        "kd_6c6a69",
+        "kd_6f5126",
+        "kd_835e1e",
+        "kd_8b847e",
+        "kd_976d20",
+        "kd_aaa8a5"
+      ],
+      "dominant_material": "kd_6b8359",
+      "collider_cuboid_size": [
+        1.33,
+        0.4338327585185526,
+        1.1818255
+      ]
+    },
+    {
+      "name": "wing_port",
+      "file": "wing_port.glb",
+      "origin": [
+        -1.0,
+        0.0,
+        0.5
+      ],
+      "bbox": {
+        "min": [
+          -0.8500000000000001,
+          -0.30926275851855256,
+          -0.6592465000000001
+        ],
+        "max": [
+          0.48,
+          0.12457,
+          0.5225789999999999
+        ]
+      },
+      "size": [
+        1.33,
+        0.4338327585185526,
+        1.1818255
+      ],
+      "triangles": 418,
+      "cap_triangles": 77,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "kd_2a2727",
+        "kd_363633",
+        "kd_454540",
+        "kd_5d6e4a",
+        "kd_5e5957",
+        "kd_6b8359",
+        "kd_6c6a69",
+        "kd_6f5126",
+        "kd_835e1e",
+        "kd_8b847e",
+        "kd_976d20",
+        "kd_aaa8a5"
+      ],
+      "dominant_material": "kd_6b8359",
+      "collider_cuboid_size": [
+        1.33,
+        0.4338327585185526,
+        1.1818255
+      ]
+    },
+    {
+      "name": "nose",
+      "file": "nose.glb",
+      "origin": [
+        0.0,
+        0.0,
+        -1.5
+      ],
+      "bbox": {
+        "min": [
+          -0.4563574999999999,
+          -0.2766153162450637,
+          -0.6969465000000001
+        ],
+        "max": [
+          0.45635750000000014,
+          0.19003,
+          1.1500000000000001
+        ]
+      },
+      "size": [
+        0.912715,
+        0.46664531624506367,
+        1.8469465000000003
+      ],
+      "triangles": 538,
+      "cap_triangles": 84,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "kd_2a2727",
+        "kd_363633",
+        "kd_454540",
+        "kd_5e5957",
+        "kd_6b8359",
+        "kd_6c6a69",
+        "kd_835e1e",
+        "kd_8b847e",
+        "kd_976d20",
+        "kd_9f9c99",
+        "kd_aaa8a5"
+      ],
+      "dominant_material": "kd_5e5957",
+      "collider_cuboid_size": [
+        0.912715,
+        0.46664531624506367,
+        1.8469465000000003
+      ]
+    },
+    {
+      "name": "fuselage",
+      "file": "fuselage.glb",
+      "origin": [
+        0.0,
+        0.0,
+        0.5
+      ],
+      "bbox": {
+        "min": [
+          -0.52,
+          -0.427869,
+          -0.8500000000000001
+        ],
+        "max": [
+          0.52,
+          0.5149095,
+          1.0697075
+        ]
+      },
+      "size": [
+        1.04,
+        0.9427785,
+        1.9197075000000001
+      ],
+      "triangles": 830,
+      "cap_triangles": 186,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "kd_2a2727",
+        "kd_363633",
+        "kd_454540",
+        "kd_5d6e4a",
+        "kd_5e5957",
+        "kd_6b8359",
+        "kd_6c6a69",
+        "kd_6f5126",
+        "kd_835e1e",
+        "kd_8b847e",
+        "kd_976d20",
+        "kd_9f9c99",
+        "kd_aaa8a5"
+      ],
+      "dominant_material": "kd_6b8359",
+      "collider_cuboid_size": [
+        1.04,
+        0.9427785,
+        1.9197075000000001
+      ]
+    }
+  ]
+}

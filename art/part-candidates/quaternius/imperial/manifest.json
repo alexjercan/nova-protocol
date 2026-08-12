@@ -1,0 +1,70 @@
+{
+  "source": "art/quaternius-ultimate-spaceships/baked/imperial.obj",
+  "scale": 0.5,
+  "yaw": 180.0,
+  "ship_bbox": {
+    "min": [
+      -1.9323800000000004,
+      -0.657099,
+      -5.939601
+    ],
+    "max": [
+      1.9323799999999995,
+      0.9946235,
+      3.3345915000000006
+    ]
+  },
+  "parts": [
+    {
+      "name": "imperial",
+      "file": "imperial.glb",
+      "origin": [
+        0.0,
+        0.0,
+        -1.5
+      ],
+      "bbox": {
+        "min": [
+          -1.9323800000000004,
+          -0.657099,
+          -4.439601
+        ],
+        "max": [
+          1.9323799999999995,
+          0.9946235,
+          4.8345915
+        ]
+      },
+      "size": [
+        3.86476,
+        1.6517225,
+        9.2741925
+      ],
+      "triangles": 2822,
+      "cap_triangles": 180,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "kd_2a2523",
+        "kd_2e3e70",
+        "kd_33457f",
+        "kd_3c3a3a",
+        "kd_4f4d4d",
+        "kd_5c5958",
+        "kd_6a6867",
+        "kd_757473",
+        "kd_908d8b",
+        "kd_9d9c9a",
+        "kd_a6a5a3",
+        "kd_afaead",
+        "kd_d2d2d2"
+      ],
+      "dominant_material": "kd_3c3a3a",
+      "collider_cuboid_size": [
+        3.86476,
+        1.6517225,
+        9.2741925
+      ]
+    }
+  ]
+}

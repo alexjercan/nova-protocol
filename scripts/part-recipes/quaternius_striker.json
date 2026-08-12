@@ -1,0 +1,24 @@
+{
+  "_comment": "Semantic part recipe for art/quaternius-ultimate-spaceships/baked/striker.obj (Quaternius Ultimate Spaceships, flat-Kd bake). Coordinates are POST scale+yaw (game space: nose -Z, +X starboard; ship bbox x +-1.26, y -0.72..0.63, z -2.45..1.76). Measured on the baked mesh (shell components + plane scan 2026-08-12): each outboard assembly - inner rail (x 0.47..0.68), nacelle hull (0.61..1.26), forward gun prongs (z -2.45..-0.89) and rear thruster stacks - hangs off the fuselage across the natural seam at x=+-0.44 (16 of 4530 tris straddle), so one rule per side claims the whole assembly there. The tail shell starts at z 1.19 but the canopy ends at 1.24; cutting at 1.26 keeps the canopy whole and caps the short tail overlap. The nose bulkhead at z=-0.50 is a true cut through the blended forward hull (no natural seam exists in the centre body).",
+  "scale": 0.5,
+  "yaw": 180.0,
+  "parts": [
+    {
+      "name": "nacelle_starboard",
+      "box": [[0.44, null, null], [null, null, null]]
+    },
+    {
+      "name": "nacelle_port",
+      "box": [[null, null, null], [-0.44, null, null]]
+    },
+    {
+      "name": "tail",
+      "box": [[null, null, 1.26], [null, null, null]]
+    },
+    {
+      "name": "nose",
+      "box": [[null, null, null], [null, null, -0.5]]
+    }
+  ],
+  "rest": "fuselage"
+}

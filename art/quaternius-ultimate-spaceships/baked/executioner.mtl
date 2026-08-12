@@ -1,0 +1,44 @@
+# Baked flat-Kd palette - Executioner.obj + Executioner_Red.png
+# Kd is LINEAR (sRGB-decoded); names carry the sRGB hex.
+
+newmtl kd_373332
+Kd 0.038653 0.033210 0.032168
+
+newmtl kd_413e3e
+Kd 0.052994 0.048878 0.048163
+
+newmtl kd_6c6a68
+Kd 0.149167 0.143415 0.139123
+
+newmtl kd_541b17
+Kd 0.088674 0.011031 0.008653
+
+newmtl kd_5c5855
+Kd 0.107928 0.097106 0.091914
+
+newmtl kd_562b2a
+Kd 0.093335 0.024411 0.023517
+
+newmtl kd_792c2b
+Kd 0.190712 0.025004 0.023938
+
+newmtl kd_8b2f2f
+Kd 0.258252 0.028103 0.028077
+
+newmtl kd_2a2828
+Kd 0.023098 0.021451 0.021334
+
+newmtl kd_ada8a5
+Kd 0.417885 0.391572 0.376262
+
+newmtl kd_7a7979
+Kd 0.194336 0.191849 0.190754
+
+newmtl kd_8c5150
+Kd 0.262892 0.081684 0.080751
+
+newmtl kd_9e9190
+Kd 0.341828 0.283775 0.277897
+
+newmtl kd_997777
+Kd 0.319504 0.186045 0.186045

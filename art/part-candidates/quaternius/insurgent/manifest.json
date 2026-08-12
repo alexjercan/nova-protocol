@@ -1,0 +1,71 @@
+{
+  "source": "art/quaternius-ultimate-spaceships/baked/insurgent.obj",
+  "scale": 0.5,
+  "yaw": 180.0,
+  "ship_bbox": {
+    "min": [
+      -1.3913805,
+      -0.4658755,
+      -3.834083
+    ],
+    "max": [
+      1.3913805,
+      0.9693855,
+      1.6411655
+    ]
+  },
+  "parts": [
+    {
+      "name": "insurgent",
+      "file": "insurgent.glb",
+      "origin": [
+        0.0,
+        0.5,
+        -1.0
+      ],
+      "bbox": {
+        "min": [
+          -1.3913805,
+          -0.9658755,
+          -2.834083
+        ],
+        "max": [
+          1.3913805,
+          0.4693855,
+          2.6411655
+        ]
+      },
+      "size": [
+        2.782761,
+        1.4352610000000001,
+        5.4752485
+      ],
+      "triangles": 8932,
+      "cap_triangles": 640,
+      "open_cut_edges": 0,
+      "source_odd_edges": 116,
+      "materials": [
+        "kd_322c2b",
+        "kd_403b3a",
+        "kd_412945",
+        "kd_454343",
+        "kd_594485",
+        "kd_5e5b5b",
+        "kd_6b6969",
+        "kd_6c5393",
+        "kd_7c7c7b",
+        "kd_868584",
+        "kd_989296",
+        "kd_aaa8a8",
+        "kd_bcbcbc",
+        "kd_c5c5c5"
+      ],
+      "dominant_material": "kd_454343",
+      "collider_cuboid_size": [
+        2.782761,
+        1.4352610000000001,
+        5.4752485
+      ]
+    }
+  ]
+}

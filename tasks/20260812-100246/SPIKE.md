@@ -771,3 +771,87 @@ moves derived from the source geometry, not eyeballed.
   tris, area 0.406 = full profile); it is a pose/lighting artifact only.
 - `probe run parts_viewer` OK (correctness passes, fps not claimed);
   `cargo fmt --check` clean; cutter `--self-test` OK.
+
+# Round 5: palette-atlas bake pass + Quaternius import (2026-08-12)
+
+The "palette-atlas bake pass" deferred since round 1 (escalation item 9),
+triggered by the owner-provided download of Quaternius "Ultimate Spaceships"
+(May 2021 zip; CC0 1.0 per the pack's own License.txt, copied to
+`credits/licenses/Quaternius_Ultimate_Spaceships_License.txt`; import record
+in `art/README.md`).
+
+## New: `scripts/bake-atlas-to-kd.py` (stdlib-only, --self-test)
+
+Closes the palette-atlas trap from the research spike (one grey `Kd`,
+colours in a UV atlas -> the cutter emits colourless parts):
+
+- Samples the atlas on a fixed 7-point barycentric lattice per triangle;
+  per-face colour is the per-channel MEDIAN, so thin painted panel lines and
+  decals do not tint the face's fill colour.
+- Area-weighted k-means over the face colours (deterministic seeding:
+  coarse histogram + greedy farthest-point; <12 sRGB-distance clusters
+  merge) -> a whole ship lands on <=14 flat materials, the same shape as a
+  born-flat pack (Fertile Soil).
+- `Kd` is written LINEAR (sRGB-decoded) because the cutter copies `Kd`
+  floats into glTF `baseColorFactor` verbatim; material names carry the
+  sRGB hex (`kd_8a3c2f`) for human reading. PNG decode is stdlib zlib
+  (non-interlaced 8-bit RGB/RGBA); ~2.3 s per 2048px atlas.
+- Verified per run: output OBJ re-parsed (face count preserved), every
+  palette entry worn, palette printed with face counts + area shares.
+
+## Import + gallery (all 11 ships)
+
+- `art/quaternius-ultimate-spaceships/baked/` - flat-Kd OBJ+MTL bakes of
+  all 11 ships, ONE colour variant each (variant recorded in each .mtl
+  header). The 260 MB source zip (5 variants x 2048px atlases, FBX, blends)
+  stays out of the repo; re-baking needs it, re-CUTTING does not.
+- `art/part-candidates/quaternius/<ship>/` - 9 ships converted whole
+  (identity mode, scale 0.5, yaw 180: pack scale is ~2x game scale and the
+  pack noses point +Z) for gallery judgement, 2 ships recipe-cut (below).
+- Facing measured, not assumed: width-vs-z profile on every baked mesh
+  (narrow end = nose) agrees across the pack; confirmed visually in the
+  gallery captures.
+
+## Recipes: striker (5 parts) + spitfire (8 parts)
+
+Seam data came from two measurements on the baked meshes (scratch
+analysis): a plane scan (straddling-triangle counts per candidate axis
+plane, the round-4 method) and a shell-component pass (union-find over
+shared vertex positions) - the component bboxes turned out to be the
+better recipe source, e.g. they exposed spitfire's four SEPARATE engine-pod
+shells (two stacked per side, 0.06 y-overlap band between hulls) which the
+x-only plane scan misread as an asymmetric ship.
+
+- `quaternius_striker.json`: nacelle_port/starboard claim the whole
+  outboard assemblies (inner rail + nacelle + gun prongs + thruster stacks)
+  at the natural x=+-0.44 seam (16/4530 tris straddle); tail at z=1.26
+  (keeps the canopy whole); nose bulkhead at z=-0.50; rest=fuselage.
+- `quaternius_spitfire.json`: four engine pods split at x=+-1.85 (through
+  the pod-free gap, only the 8-tri wing sheet is clipped) and y=-0.28
+  (inside the shells' overlap band); wings at x=+-0.52 (outside the +-0.51
+  tail block); nose at z=-0.35 (keeps the under-nose skids whole);
+  rest=fuselage.
+- Cut gates: all 13 parts `glb OK`, 0 open cut edges everywhere; a few
+  ear-clip fallback/open-chain notes are source-mesh holes (the pack is not
+  watertight), not cut regressions.
+
+## Viewer
+
+- `parts_viewer` rank list gains `quaternius`; the assembled/exploded ship
+  capture walk is now DYNAMIC over every recipe ship (index re-resolved by
+  name at runtime) instead of hardcoding racer/cargob.
+- Captures eyeballed (Xvfb): gallery pages show all 11 ships in real baked
+  colours (grey/gold/green striker, red/black executioner, purple pancake
+  saucer, ring-ship zenith...); striker and spitfire assemble seamlessly
+  and explode into sensible semantic parts.
+
+## Honest gaps
+
+- One colour variant per ship imported; other variants are a re-bake away.
+- The bake keeps painted PANEL DETAIL only as much as face topology allows
+  (per-face flat colour): decal-heavy faces flatten to their dominant fill.
+  That matches the game's flat-shaded look; it does not reproduce the
+  textured preview renders.
+- Striker/spitfire recipes are first-cut; owner tuning (like round 4's
+  racer pass) still expected before any promotion.
+- The other 9 ships stay monolithic until someone wants them as parts.

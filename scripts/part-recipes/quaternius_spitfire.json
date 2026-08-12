@@ -1,0 +1,36 @@
+{
+  "_comment": "Semantic part recipe for art/quaternius-ultimate-spaceships/baked/spitfire.obj (Quaternius Ultimate Spaceships, flat-Kd bake). Coordinates are POST scale+yaw (game space: nose -Z, +X starboard; ship bbox x +-2.63, y -1.01..0.51, z -2.20..1.57). Measured on the baked mesh (shell components 2026-08-12): the ship carries FOUR separate engine-pod shells, two stacked per side at x +-(1.87..2.63) - upper pods y -0.31..0.45, lower pods y -1.01..-0.25 - so the x=+-1.85 cut runs through the pod-free gap and only the connecting wing sheet (8 tris) is clipped, and the y=-0.28 split lands in the shells' 0.06 overlap band without touching either hull. Wings span x +-(0.16..2.34) and separate from the fuselage at +-0.52 (the tail block reaches +-0.51; cutting outside it keeps the rear body whole). The nose bulkhead at z=-0.35 keeps the twin under-nose skids (z -0.87..-0.37) entirely in the nose part.",
+  "scale": 0.5,
+  "yaw": 180.0,
+  "parts": [
+    {
+      "name": "engine_upper_starboard",
+      "box": [[1.85, -0.28, null], [null, null, null]]
+    },
+    {
+      "name": "engine_lower_starboard",
+      "box": [[1.85, null, null], [null, null, null]]
+    },
+    {
+      "name": "engine_upper_port",
+      "box": [[null, -0.28, null], [-1.85, null, null]]
+    },
+    {
+      "name": "engine_lower_port",
+      "box": [[null, null, null], [-1.85, null, null]]
+    },
+    {
+      "name": "wing_starboard",
+      "box": [[0.52, null, null], [null, null, null]]
+    },
+    {
+      "name": "wing_port",
+      "box": [[null, null, null], [-0.52, null, null]]
+    },
+    {
+      "name": "nose",
+      "box": [[null, null, null], [null, null, -0.35]]
+    }
+  ],
+  "rest": "fuselage"
+}

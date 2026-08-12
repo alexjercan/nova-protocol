@@ -1,0 +1,41 @@
+# Baked flat-Kd palette - Pancake.obj + Pancake_Purple.png
+# Kd is LINEAR (sRGB-decoded); names carry the sRGB hex.
+
+newmtl kd_353333
+Kd 0.035195 0.033270 0.032700
+
+newmtl kd_423c42
+Kd 0.053692 0.044826 0.054468
+
+newmtl kd_423239
+Kd 0.054028 0.031598 0.041609
+
+newmtl kd_6e6c6c
+Kd 0.154489 0.149548 0.148984
+
+newmtl kd_5f5b5a
+Kd 0.113642 0.104092 0.101714
+
+newmtl kd_473164
+Kd 0.063377 0.030135 0.128610
+
+newmtl kd_533578
+Kd 0.086931 0.036051 0.186303
+
+newmtl kd_989493
+Kd 0.314341 0.297613 0.292227
+
+newmtl kd_262220
+Kd 0.019325 0.015944 0.014807
+
+newmtl kd_a7a4a3
+Kd 0.387269 0.373698 0.364124
+
+newmtl kd_8c8888
+Kd 0.263151 0.245354 0.245417
+
+newmtl kd_b2b1af
+Kd 0.446426 0.440873 0.429888
+
+newmtl kd_5c5268
+Kd 0.106394 0.083829 0.139672

@@ -1,0 +1,71 @@
+{
+  "source": "art/quaternius-ultimate-spaceships/baked/executioner.obj",
+  "scale": 0.5,
+  "yaw": 180.0,
+  "ship_bbox": {
+    "min": [
+      -2.5055305,
+      -0.387377,
+      -3.062111
+    ],
+    "max": [
+      2.5055305,
+      0.536205,
+      1.5389745000000001
+    ]
+  },
+  "parts": [
+    {
+      "name": "executioner",
+      "file": "executioner.glb",
+      "origin": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "bbox": {
+        "min": [
+          -2.5055305,
+          -0.387377,
+          -2.062111
+        ],
+        "max": [
+          2.5055305,
+          0.536205,
+          2.5389745
+        ]
+      },
+      "size": [
+        5.011061,
+        0.9235820000000001,
+        4.6010855
+      ],
+      "triangles": 3502,
+      "cap_triangles": 114,
+      "open_cut_edges": 0,
+      "source_odd_edges": 8,
+      "materials": [
+        "kd_2a2828",
+        "kd_373332",
+        "kd_413e3e",
+        "kd_541b17",
+        "kd_562b2a",
+        "kd_5c5855",
+        "kd_6c6a68",
+        "kd_792c2b",
+        "kd_7a7979",
+        "kd_8b2f2f",
+        "kd_8c5150",
+        "kd_997777",
+        "kd_9e9190",
+        "kd_ada8a5"
+      ],
+      "dominant_material": "kd_373332",
+      "collider_cuboid_size": [
+        5.011061,
+        0.9235820000000001,
+        4.6010855
+      ]
+    }
+  ]
+}

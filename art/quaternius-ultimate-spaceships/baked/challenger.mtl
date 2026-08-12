@@ -1,0 +1,38 @@
+# Baked flat-Kd palette - Challenger.obj + Challenger_Blue.png
+# Kd is LINEAR (sRGB-decoded); names carry the sRGB hex.
+
+newmtl kd_413e3b
+Kd 0.052651 0.047572 0.043762
+
+newmtl kd_363534
+Kd 0.036873 0.035432 0.034017
+
+newmtl kd_384665
+Kd 0.038887 0.061485 0.129286
+
+newmtl kd_9e9c99
+Kd 0.342297 0.331150 0.317411
+
+newmtl kd_37497e
+Kd 0.038641 0.066507 0.207125
+
+newmtl kd_8d8a87
+Kd 0.265378 0.252445 0.240870
+
+newmtl kd_2a2827
+Kd 0.022947 0.020935 0.020398
+
+newmtl kd_5f5b59
+Kd 0.115145 0.104655 0.100630
+
+newmtl kd_797573
+Kd 0.189584 0.177851 0.171681
+
+newmtl kd_aba8a4
+Kd 0.408197 0.389994 0.368993
+
+newmtl kd_b2afad
+Kd 0.444144 0.431017 0.416467
+
+newmtl kd_475580
+Kd 0.063041 0.091342 0.216996

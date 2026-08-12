@@ -1,0 +1,71 @@
+{
+  "source": "art/quaternius-ultimate-spaceships/baked/dispatcher.obj",
+  "scale": 0.5,
+  "yaw": 180.0,
+  "ship_bbox": {
+    "min": [
+      -1.22597,
+      -0.7109605,
+      -3.7823165
+    ],
+    "max": [
+      1.22597,
+      0.83221,
+      1.349182
+    ]
+  },
+  "parts": [
+    {
+      "name": "dispatcher",
+      "file": "dispatcher.glb",
+      "origin": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "bbox": {
+        "min": [
+          -1.22597,
+          -0.7109605,
+          -2.7823165
+        ],
+        "max": [
+          1.22597,
+          0.83221,
+          2.349182
+        ]
+      },
+      "size": [
+        2.45194,
+        1.5431705,
+        5.131498499999999
+      ],
+      "triangles": 760,
+      "cap_triangles": 12,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "kd_262220",
+        "kd_3a3834",
+        "kd_424140",
+        "kd_5d5956",
+        "kd_5e431b",
+        "kd_6d4f32",
+        "kd_6f6c6a",
+        "kd_7a7a7a",
+        "kd_8a621e",
+        "kd_8b8885",
+        "kd_976d21",
+        "kd_9c8061",
+        "kd_9c9896",
+        "kd_aba7a3"
+      ],
+      "dominant_material": "kd_3a3834",
+      "collider_cuboid_size": [
+        2.45194,
+        1.5431705,
+        5.131498499999999
+      ]
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+# Baked flat-Kd palette - Spitfire.obj + Spitfire_Green.png
+# Kd is LINEAR (sRGB-decoded); names carry the sRGB hex.
+
+newmtl kd_363633
+Kd 0.037477 0.036865 0.033605
+
+newmtl kd_976d20
+Kd 0.307345 0.152480 0.014283
+
+newmtl kd_5d6e4a
+Kd 0.109286 0.157067 0.068797
+
+newmtl kd_454540
+Kd 0.059789 0.059485 0.051039
+
+newmtl kd_835e1e
+Kd 0.226829 0.112071 0.012750
+
+newmtl kd_6b8359
+Kd 0.146497 0.226781 0.098942
+
+newmtl kd_2a2727
+Kd 0.022694 0.020698 0.019959
+
+newmtl kd_6c6a69
+Kd 0.150884 0.144690 0.140134
+
+newmtl kd_aaa8a5
+Kd 0.402508 0.389836 0.375464
+
+newmtl kd_5e5957
+Kd 0.111908 0.100560 0.094624
+
+newmtl kd_9f9c99
+Kd 0.344615 0.332295 0.319882
+
+newmtl kd_8b847e
+Kd 0.259177 0.230377 0.207658
+
+newmtl kd_6f5126
+Kd 0.159884 0.081864 0.019336

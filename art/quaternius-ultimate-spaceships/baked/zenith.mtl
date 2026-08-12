@@ -1,0 +1,44 @@
+# Baked flat-Kd palette - Zenith.obj + Zenith_Orange.png
+# Kd is LINEAR (sRGB-decoded); names carry the sRGB hex.
+
+newmtl kd_3e3c3a
+Kd 0.048423 0.044627 0.042398
+
+newmtl kd_625d5c
+Kd 0.121202 0.110685 0.106354
+
+newmtl kd_8c641f
+Kd 0.260417 0.128387 0.013478
+
+newmtl kd_343130
+Kd 0.033745 0.030966 0.029072
+
+newmtl kd_918c89
+Kd 0.281913 0.261917 0.250307
+
+newmtl kd_75541e
+Kd 0.177932 0.088538 0.012723
+
+newmtl kd_534c47
+Kd 0.086158 0.073030 0.062597
+
+newmtl kd_797774
+Kd 0.192839 0.183833 0.174307
+
+newmtl kd_262221
+Kd 0.019137 0.016248 0.015336
+
+newmtl kd_a6a3a0
+Kd 0.380427 0.367097 0.353054
+
+newmtl kd_97807d
+Kd 0.309361 0.215599 0.204825
+
+newmtl kd_aeacaa
+Kd 0.422322 0.410874 0.400334
+
+newmtl kd_85613f
+Kd 0.234617 0.118625 0.050031
+
+newmtl kd_986f32
+Kd 0.311876 0.159372 0.032294

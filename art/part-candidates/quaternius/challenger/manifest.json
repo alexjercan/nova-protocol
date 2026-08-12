@@ -1,0 +1,69 @@
+{
+  "source": "art/quaternius-ultimate-spaceships/baked/challenger.obj",
+  "scale": 0.5,
+  "yaw": 180.0,
+  "ship_bbox": {
+    "min": [
+      -2.6255565,
+      -0.4107255,
+      -3.5641655
+    ],
+    "max": [
+      2.6255565,
+      1.1003,
+      1.525958
+    ]
+  },
+  "parts": [
+    {
+      "name": "challenger",
+      "file": "challenger.glb",
+      "origin": [
+        0.0,
+        0.5,
+        -1.0
+      ],
+      "bbox": {
+        "min": [
+          -2.6255565,
+          -0.9107255000000001,
+          -2.5641655
+        ],
+        "max": [
+          2.6255565,
+          0.6003000000000001,
+          2.525958
+        ]
+      },
+      "size": [
+        5.251113,
+        1.5110255000000001,
+        5.090123500000001
+      ],
+      "triangles": 1798,
+      "cap_triangles": 50,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "kd_2a2827",
+        "kd_363534",
+        "kd_37497e",
+        "kd_384665",
+        "kd_413e3b",
+        "kd_475580",
+        "kd_5f5b59",
+        "kd_797573",
+        "kd_8d8a87",
+        "kd_9e9c99",
+        "kd_aba8a4",
+        "kd_b2afad"
+      ],
+      "dominant_material": "kd_413e3b",
+      "collider_cuboid_size": [
+        5.251113,
+        1.5110255000000001,
+        5.090123500000001
+      ]
+    }
+  ]
+}

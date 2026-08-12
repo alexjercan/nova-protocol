@@ -1,0 +1,71 @@
+{
+  "source": "art/quaternius-ultimate-spaceships/baked/zenith.obj",
+  "scale": 0.5,
+  "yaw": 180.0,
+  "ship_bbox": {
+    "min": [
+      -1.4069735000000003,
+      -1.3512955,
+      -4.266886
+    ],
+    "max": [
+      1.4069735,
+      1.3637045,
+      1.7673645
+    ]
+  },
+  "parts": [
+    {
+      "name": "zenith",
+      "file": "zenith.glb",
+      "origin": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "bbox": {
+        "min": [
+          -1.4069735000000003,
+          -1.3512955,
+          -3.2668860000000004
+        ],
+        "max": [
+          1.4069735,
+          1.3637045,
+          2.7673645000000002
+        ]
+      },
+      "size": [
+        2.8139470000000006,
+        2.715,
+        6.034250500000001
+      ],
+      "triangles": 2242,
+      "cap_triangles": 90,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "kd_262221",
+        "kd_343130",
+        "kd_3e3c3a",
+        "kd_534c47",
+        "kd_625d5c",
+        "kd_75541e",
+        "kd_797774",
+        "kd_85613f",
+        "kd_8c641f",
+        "kd_918c89",
+        "kd_97807d",
+        "kd_986f32",
+        "kd_a6a3a0",
+        "kd_aeacaa"
+      ],
+      "dominant_material": "kd_3e3c3a",
+      "collider_cuboid_size": [
+        2.8139470000000006,
+        2.715,
+        6.034250500000001
+      ]
+    }
+  ]
+}

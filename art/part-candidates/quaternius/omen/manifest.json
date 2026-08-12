@@ -1,0 +1,70 @@
+{
+  "source": "art/quaternius-ultimate-spaceships/baked/omen.obj",
+  "scale": 0.5,
+  "yaw": 180.0,
+  "ship_bbox": {
+    "min": [
+      -3.1961025,
+      -0.530957,
+      -4.329275
+    ],
+    "max": [
+      3.1961025,
+      1.0383465,
+      1.9614475
+    ]
+  },
+  "parts": [
+    {
+      "name": "omen",
+      "file": "omen.glb",
+      "origin": [
+        0.0,
+        0.5,
+        -1.0
+      ],
+      "bbox": {
+        "min": [
+          -3.1961025,
+          -1.030957,
+          -3.329275
+        ],
+        "max": [
+          3.1961025,
+          0.5383465000000001,
+          2.9614475000000002
+        ]
+      },
+      "size": [
+        6.392205,
+        1.5693035,
+        6.2907225
+      ],
+      "triangles": 1470,
+      "cap_triangles": 44,
+      "open_cut_edges": 0,
+      "source_odd_edges": 0,
+      "materials": [
+        "kd_282322",
+        "kd_393635",
+        "kd_3f1714",
+        "kd_414141",
+        "kd_545251",
+        "kd_5c421a",
+        "kd_642221",
+        "kd_646262",
+        "kd_664141",
+        "kd_704c49",
+        "kd_838281",
+        "kd_aea9a7",
+        "kd_cfcbc8"
+      ],
+      "dominant_material": "kd_393635",
+      "collider_cuboid_size": [
+        6.392205,
+        1.5693035,
+        6.2907225
+      ]
+    }
+  ]
+}

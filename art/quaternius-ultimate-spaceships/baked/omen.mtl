@@ -1,0 +1,41 @@
+# Baked flat-Kd palette - Omen.obj + Omen_Red.png
+# Kd is LINEAR (sRGB-decoded); names carry the sRGB hex.
+
+newmtl kd_393635
+Kd 0.041521 0.036982 0.035728
+
+newmtl kd_414141
+Kd 0.053544 0.052484 0.052207
+
+newmtl kd_3f1714
+Kd 0.049185 0.008818 0.007032
+
+newmtl kd_642221
+Kd 0.128272 0.016229 0.014833
+
+newmtl kd_545251
+Kd 0.089121 0.083662 0.082631
+
+newmtl kd_646262
+Kd 0.126283 0.121781 0.121099
+
+newmtl kd_282322
+Kd 0.020948 0.017137 0.016271
+
+newmtl kd_664141
+Kd 0.132231 0.052286 0.052224
+
+newmtl kd_838281
+Kd 0.227058 0.222124 0.219870
+
+newmtl kd_aea9a7
+Kd 0.423242 0.396730 0.386380
+
+newmtl kd_704c49
+Kd 0.163205 0.071352 0.067456
+
+newmtl kd_5c421a
+Kd 0.107257 0.054471 0.010436
+
+newmtl kd_cfcbc8
+Kd 0.625591 0.598791 0.579139

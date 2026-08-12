@@ -1,0 +1,44 @@
+# Baked flat-Kd palette - Dispatcher.obj + Dispatcher_Orange.png
+# Kd is LINEAR (sRGB-decoded); names carry the sRGB hex.
+
+newmtl kd_3a3834
+Kd 0.042543 0.039639 0.034867
+
+newmtl kd_8a621e
+Kd 0.252213 0.123365 0.013299
+
+newmtl kd_5e431b
+Kd 0.112760 0.056245 0.011061
+
+newmtl kd_976d21
+Kd 0.309570 0.153306 0.015530
+
+newmtl kd_424140
+Kd 0.054430 0.053529 0.051713
+
+newmtl kd_6d4f32
+Kd 0.152957 0.077374 0.032111
+
+newmtl kd_aba7a3
+Kd 0.404934 0.385330 0.365679
+
+newmtl kd_262220
+Kd 0.019465 0.015710 0.014362
+
+newmtl kd_8b8885
+Kd 0.258328 0.244307 0.232961
+
+newmtl kd_6f6c6a
+Kd 0.158260 0.149204 0.143955
+
+newmtl kd_5d5956
+Kd 0.109702 0.099700 0.092677
+
+newmtl kd_9c8061
+Kd 0.332452 0.215861 0.119538
+
+newmtl kd_9c9896
+Kd 0.331482 0.316082 0.305298
+
+newmtl kd_7a7a7a
+Kd 0.196294 0.195527 0.194762

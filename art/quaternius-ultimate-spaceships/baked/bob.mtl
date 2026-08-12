@@ -1,0 +1,44 @@
+# Baked flat-Kd palette - Bob.obj + Bob_Red.png
+# Kd is LINEAR (sRGB-decoded); names carry the sRGB hex.
+
+newmtl kd_3a3735
+Kd 0.042061 0.038335 0.036236
+
+newmtl kd_403f3e
+Kd 0.051831 0.049217 0.048384
+
+newmtl kd_8e8a87
+Kd 0.268887 0.256133 0.242520
+
+newmtl kd_2f2d2c
+Kd 0.028540 0.025730 0.025157
+
+newmtl kd_9d9b98
+Kd 0.337750 0.326071 0.313166
+
+newmtl kd_615c5a
+Kd 0.119791 0.107353 0.103027
+
+newmtl kd_6c6a68
+Kd 0.150891 0.143644 0.139127
+
+newmtl kd_55201d
+Kd 0.091935 0.014506 0.012581
+
+newmtl kd_26211f
+Kd 0.019037 0.015362 0.013644
+
+newmtl kd_aaa8a5
+Kd 0.403016 0.390607 0.375409
+
+newmtl kd_b6b2af
+Kd 0.468509 0.447122 0.430722
+
+newmtl kd_4e2724
+Kd 0.075682 0.020426 0.017516
+
+newmtl kd_85807e
+Kd 0.234428 0.217144 0.209282
+
+newmtl kd_643c3b
+Kd 0.128625 0.044849 0.044213

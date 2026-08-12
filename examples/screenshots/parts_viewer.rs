@@ -200,7 +200,7 @@ fn scan_catalog(root: &Path) -> PartCatalog {
     // Judged sets first (the recipe ships), then the packs, in a stable order.
     let rank = |rel: &str| {
         let top = rel.split('/').next().unwrap_or(rel);
-        ["racer", "cargob", "blocks", "craft"]
+        ["racer", "cargob", "blocks", "craft", "quaternius"]
             .iter()
             .position(|k| *k == top)
             .unwrap_or(usize::MAX)
@@ -781,11 +781,9 @@ fn viewer_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
     };
 
     // The catalog is scanned before the app is built, so the script can size
-    // itself to the real page count.
-    let pages = scan_catalog(&candidates_root())
-        .entries
-        .len()
-        .div_ceil(PAGE);
+    // itself to the real page count and the real recipe-ship list.
+    let catalog = scan_catalog(&candidates_root());
+    let pages = catalog.entries.len().div_ceil(PAGE);
 
     let mut script = nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
         .step("viewer: reach Playing")
@@ -912,21 +910,30 @@ fn viewer_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             .add();
     }
 
-    for (ship, name) in [(0usize, "racer"), (1, "cargob")] {
+    // Every recipe ship, assembled + exploded. The list comes from the same
+    // startup scan as the page count; the index is re-resolved by name at
+    // runtime so catalog-order changes cannot skew a shot onto another ship.
+    for ship_name in catalog.ships.iter().map(|s| s.name.clone()) {
         for exploded in [false, true] {
             let shot = format!(
-                "parts-viewer-{name}-{}.png",
+                "parts-viewer-{}-{}.png",
+                ship_name.replace('/', "-"),
                 if exploded { "exploded" } else { "assembled" }
             );
             let ack = shot.clone();
+            let target = ship_name.clone();
             script = script
                 .step(format!("viewer: show {shot}"))
                 .on_enter(move |world: &mut World| {
-                    let ships = world.resource::<PartCatalog>().ships.len();
-                    *world.resource_mut::<ViewerState>() = ViewerState::Ship {
-                        ship: ship.min(ships.saturating_sub(1)),
-                        exploded,
+                    let ship = {
+                        let catalog = world.resource::<PartCatalog>();
+                        catalog
+                            .ships
+                            .iter()
+                            .position(|s| s.name == target)
+                            .unwrap_or(0)
                     };
+                    *world.resource_mut::<ViewerState>() = ViewerState::Ship { ship, exploded };
                 })
                 .until(frames(SETTLE_FRAMES))
                 .add()

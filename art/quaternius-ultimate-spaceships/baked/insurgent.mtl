@@ -1,0 +1,44 @@
+# Baked flat-Kd palette - Insurgent.obj + Insurgent_Purple.png
+# Kd is LINEAR (sRGB-decoded); names carry the sRGB hex.
+
+newmtl kd_454343
+Kd 0.058714 0.056078 0.055921
+
+newmtl kd_6b6969
+Kd 0.145820 0.141089 0.141043
+
+newmtl kd_5e5b5b
+Kd 0.112988 0.104230 0.105532
+
+newmtl kd_403b3a
+Kd 0.050674 0.043101 0.041701
+
+newmtl kd_322c2b
+Kd 0.031897 0.025690 0.024191
+
+newmtl kd_7c7c7b
+Kd 0.200192 0.199889 0.199775
+
+newmtl kd_6c5393
+Kd 0.151207 0.086496 0.290896
+
+newmtl kd_594485
+Kd 0.098926 0.057962 0.233991
+
+newmtl kd_412945
+Kd 0.052242 0.022044 0.059500
+
+newmtl kd_989296
+Kd 0.313819 0.289287 0.303521
+
+newmtl kd_868584
+Kd 0.240312 0.234466 0.232056
+
+newmtl kd_aaa8a8
+Kd 0.401120 0.393845 0.393845
+
+newmtl kd_bcbcbc
+Kd 0.503622 0.503622 0.503622
+
+newmtl kd_c5c5c5
+Kd 0.558340 0.558340 0.558340

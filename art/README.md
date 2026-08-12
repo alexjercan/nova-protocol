@@ -21,6 +21,20 @@ adds to the download whether or not the game loads it.
     - URL: <https://fertile-soil-productions.itch.io/spaceship-blocks-collection>
     - License: CC0 (verified on the itch.io page 2026-08-12; the zip ships no
       license file, this entry is the record)
+- `quaternius-ultimate-spaceships/` - Quaternius "Ultimate Spaceships" pack
+  (11 ships), imported as BAKED flat-Kd OBJ+MTL conversions under `baked/`
+  (one colour variant per ship; each `.mtl` header records its source ship +
+  atlas variant)
+    - URL: <https://quaternius.com/packs/ultimatespaceships.html>
+    - License: CC0 1.0 Universal (the pack's own `License.txt`; copy at
+      `credits/licenses/Quaternius_Ultimate_Spaceships_License.txt`, verified
+      2026-08-12)
+    - Obtained: 2026-08-12, `Ultimate Spaceships - May 2021` zip. The source
+      OBJs + 2048px palette-atlas textures (~260 MB, 5 variants per ship) are
+      NOT committed - the pack is a palette-atlas pack (one grey `Kd`, colours
+      in the UV texture), so the repo carries the flat-Kd bakes produced by
+      `scripts/bake-atlas-to-kd.py` instead; re-baking (e.g. another colour
+      variant) needs the zip.
 - `part-candidates/` - GENERATED part `.glb` candidates for the parts-based
   ship building spike (task 20260812-100246), browsed by
   `examples/screenshots/parts_viewer.rs`. Regenerate with
