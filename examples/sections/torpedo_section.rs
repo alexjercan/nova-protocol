@@ -237,7 +237,6 @@ fn torpedo_ship(sections: &GameSections) -> SpaceshipConfig {
             speed_cap: None,
             // Dev/tuning harness: fire freely.
             infinite_ammo: true,
-            lock_refire_secs: None,
         }),
         &[
             SectionSpec::new("controller", "basic_controller_section", Vec3::ZERO),

@@ -575,7 +575,6 @@ fn rock_hollow(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
             // The player holds fire through several beats; running dry
             // mid-capture would leave a reload where the tracers should be.
             infinite_ammo: true,
-            lock_refire_secs: None,
         }),
         None,
         kit::kenney_hull(sections, "racer"),

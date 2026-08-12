@@ -175,7 +175,6 @@ fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
             input_mapping: HashMap::new(),
             speed_cap: None,
             infinite_ammo: true,
-            lock_refire_secs: None,
         }),
         sections: vec![
             at(

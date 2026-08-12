@@ -285,7 +285,6 @@ fn range_ship(sections: &GameSections) -> SpaceshipConfig {
             speed_cap: None,
             // Saturation harness: the magazine is not the subject.
             infinite_ammo: true,
-            lock_refire_secs: None,
         }),
         &[
             SectionSpec::new("controller", "basic_controller_section", Vec3::ZERO),

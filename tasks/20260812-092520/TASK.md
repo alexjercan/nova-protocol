@@ -1,6 +1,6 @@
 # Make lock events edge-triggered
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, modding, scenario
 

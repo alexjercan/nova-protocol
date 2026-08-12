@@ -1,7 +1,7 @@
 # Events
 
 Everything that can fire a handler. A handler's `name:` field names one of
-the THIRTEEN event kinds below, written bare (they are unit variants):
+the FIFTEEN event kinds below, written bare (they are unit variants):
 `name: OnStart`, `name: OnEnter`, and so on. When the event fires, the
 handler's [filters](../filters/) gate it and its [actions](../actions/) run.
 
@@ -20,8 +20,10 @@ The whole vocabulary at a glance:
 | [`OnOrbitStable`](#orbit-lifecycle) | `id`, `other_id`, `other_type_name` | ORBIT enters stable station-keeping |
 | [`OnOrbitUnstable`](#orbit-lifecycle) | `id`, `other_id`, `other_type_name` | stable station-keeping is lost |
 | [`OnOrbitEnd`](#orbit-lifecycle) | `id`, `other_id`, `other_type_name` | a surviving ship ends ORBIT |
-| [`OnTravelLock`](#ontravellock) | `id`, `other_id`, `other_type_name` | the player's travel lock lands (recurs) |
-| [`OnCombatLock`](#oncombatlock) | `id`, `other_id`, `other_type_name` | the player's combat lock lands (recurs) |
+| [`OnTravelLockStart`](#lock-lifecycle) | `id`, `other_id`, `other_type_name` | the player's travel lock lands |
+| [`OnTravelLockEnd`](#lock-lifecycle) | `id`, `other_id`, `other_type_name` | the player's travel lock leaves |
+| [`OnCombatLockStart`](#lock-lifecycle) | `id`, `other_id`, `other_type_name` | the player's combat lock lands |
+| [`OnCombatLockEnd`](#lock-lifecycle) | `id`, `other_id`, `other_type_name` | the player's combat lock leaves |
 
 Entity payload fields are what an `Entity` filter can match: `id` /
 `type_name` name the event's SUBJECT, `other_id` / `other_type_name` its other
@@ -259,79 +261,46 @@ A continuous eight-second stable hold uses a timer:
 ),
 ```
 
-## OnTravelLock
+## Lock lifecycle
 
-Fires when the PLAYER's travel (white, navigation) lock lands on a scenario
-object - once on acquisition, then RECURRING every re-fire period while the
-lock is held. Payload: `id` is the LOCKED target; `other_id` /
-`other_type_name` the locking (player) ship. AI locks never fire it.
+Player locks expose four one-shot edges:
 
-The default re-fire period is 5 seconds; override per player ship with
-`lock_refire_secs: Some(8.0)` on the Player controller. This example assumes
-`surveyed` was seeded to `0` in `OnStart`.
+- `OnTravelLockStart`: the travel (white, navigation) lock lands.
+- `OnTravelLockEnd`: that travel lock leaves its target.
+- `OnCombatLockStart`: the combat (red) lock lands.
+- `OnCombatLockEnd`: that combat lock leaves its target.
+
+All four carry the locked target as `id` and the locking player ship as
+`other_id` / `other_type_name`. A held lock stays quiet. AI locks do not fire
+scenario events. A direct target switch queues end for the old target, then
+start for the new target.
 
 ```ron
 (
-    name: OnTravelLock,
-    filters: [
-        Entity((
-            id: Some("anchorage"),
-            other_id: Some("player_spaceship"),
-        )),
-        Expression((Equal(Term(Factor(Name("surveyed"))), Term(Factor(Literal(Number(0.0))))))),
-    ],
+    name: OnTravelLockStart,
+    filters: [Entity((
+        id: Some("anchorage"),
+        other_id: Some("player_spaceship"),
+    ))],
     actions: [
         VariableSet((key: "surveyed", expression: Term(Factor(Literal(Number(1.0)))))),
         // ... the survey beat ...
     ],
 ),
-```
-
-## OnCombatLock
-
-Identical contract to `OnTravelLock`, for the player's combat (red) lock -
-its own event so a scenario can distinguish "looked at" from "targeted". Seed
-`flagship_called_out` to `0` in `OnStart` before using this handler.
-
-```ron
 (
-    name: OnCombatLock,
-    filters: [
-        Entity((
-            id: Some("enemy_flagship"),
-            other_id: Some("player_spaceship"),
-        )),
-        Expression((Equal(
-            Term(Factor(Name("flagship_called_out"))),
-            Term(Factor(Literal(Number(0.0)))),
-        ))),
-    ],
+    name: OnTravelLockEnd,
+    filters: [Entity((
+        id: Some("anchorage"),
+        other_id: Some("player_spaceship"),
+    ))],
     actions: [
-        VariableSet((
-            key: "flagship_called_out",
-            expression: Term(Factor(Literal(Number(1.0)))),
-        )),
-        StoryMessage((
-            speaker: "Gunner",
-            text: "Flagship targeted.",
-        )),
+        // ... react to losing the survey target ...
     ],
 ),
 ```
 
-To react to any combat-locked target, omit `id`; keep `other_id` when the
-locking ship must be `player_spaceship`.
-
-## Lock recurrence: gate every pulse
-
-The two lock events REPEAT while their condition holds (5 s windows by
-default). This is by design: a one-shot event consumed
-while a beat guard rejects it would be gone for good and soft-lock the
-script; recurring events make a rejected pulse harmless - the next pulse
-re-checks. The cost: every handler on a recurring event MUST be gated on a
-variable it flips (or advances), or its actions re-fire every window. The
-one-shot flag pattern is worked in
-[Variables & expressions](../expressions/#recipes).
+Use the combat pair for the red lock. To react to any locked target, omit
+`id`; keep `other_id` when the locking ship must be `player_spaceship`.
 
 ## Dispatch order (what you can rely on)
 

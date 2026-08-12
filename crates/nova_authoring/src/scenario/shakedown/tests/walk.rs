@@ -246,7 +246,7 @@ fn travel_lock(app: &mut App, id: &str) {
     use nova_events::prelude::*;
     app.world_mut()
         .commands()
-        .fire::<OnTravelLockEvent>(OnTravelLockEventInfo {
+        .fire::<OnTravelLockStartEvent>(LockEventInfo {
             id: id.to_string(),
             other_id: ID_PLAYER.to_string(),
             other_type_name: "spaceship".to_string(),
@@ -260,7 +260,7 @@ fn combat_lock(app: &mut App, id: &str) {
     use nova_events::prelude::*;
     app.world_mut()
         .commands()
-        .fire::<OnCombatLockEvent>(OnCombatLockEventInfo {
+        .fire::<OnCombatLockStartEvent>(LockEventInfo {
             id: id.to_string(),
             other_id: ID_PLAYER.to_string(),
             other_type_name: "spaceship".to_string(),
@@ -500,7 +500,7 @@ fn the_five_beats_walk_end_to_end() {
         "beat 4 brings the targeting computer ONLINE (delivery guard: withheld at boot)"
     );
 
-    // Beat 4 -> 5: the white lock lands (the OnTravelLock bridge). RADAR
+    // Beat 4 -> 5: the white lock lands (the OnTravelLockStart bridge). RADAR
     // retires immediately with the lesson; the GOTO objective posts a beat
     // after the line.
     travel_lock(&mut app, ID_BEACON_3);
@@ -513,17 +513,6 @@ fn the_five_beats_walk_end_to_end() {
     settle_beat(&mut app);
     assert!(has_objective(&app, OBJ_B5));
     assert!(goto_emphasized(&app), "beat 5 emphasizes GOTO");
-
-    // The bridge ECHOES held locks every few seconds: a stale re-fire
-    // for beacon 3 during beat 5 must be a no-op (beat guards own
-    // ordering; the echo exists so a lock HELD across a beat advance
-    // can still complete a lesson, not to skip ones already done).
-    travel_lock(&mut app, ID_BEACON_3);
-    assert_eq!(
-        beat(&app),
-        5.0,
-        "a stale lock echo does not re-fire the beat"
-    );
 
     // Beat 5 -> 6: arrival at beacon 3; the waypoint run opens a beat after
     // the line.

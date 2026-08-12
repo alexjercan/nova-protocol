@@ -22,8 +22,8 @@
 
 use bevy::{ecs::system::RunSystemOnce, math::Vec3, prelude::*};
 use nova_events::prelude::{
-    CommandsGameEventExt, EntityId, EventHandler, GameEventsPlugin, OnDestroyedEvent,
-    OnDestroyedEventInfo, OnTravelLockEvent, OnTravelLockEventInfo, OnUpdateEvent,
+    CommandsGameEventExt, EntityId, EventHandler, GameEventsPlugin, LockEventInfo,
+    OnDestroyedEvent, OnDestroyedEventInfo, OnTravelLockStartEvent, OnUpdateEvent,
     OnUpdateEventInfo,
 };
 use nova_gameplay::prelude::{GameObjectives, GravitySettings};
@@ -176,16 +176,16 @@ fn destroy(app: &mut App, id: &str) {
 /// Fire the scenario travel-lock event the engine bridge emits when the
 /// player's TRAVEL lock lands on a scenario object.
 fn travel_lock(app: &mut App, target: &str) {
-    let info = OnTravelLockEventInfo {
+    let info = LockEventInfo {
         id: target.to_string(),
         other_id: "player_spaceship".to_string(),
         other_type_name: "spaceship".to_string(),
     };
     app.world_mut()
         .run_system_once(move |mut commands: Commands| {
-            commands.fire::<OnTravelLockEvent>(info.clone());
+            commands.fire::<OnTravelLockStartEvent>(info.clone());
         })
-        .expect("fire OnTravelLock");
+        .expect("fire OnTravelLockStart");
     app.update();
     app.update();
 }
@@ -376,7 +376,7 @@ fn layout_clearances_derive_from_the_measured_constants() {
 // --- the machine ------------------------------------------------------------
 
 /// The survey is a one-shot travel-lock gate: the first lock confirms the
-/// claim and re-locks are no-ops (OnTravelLock recurs every 5s while held).
+/// claim and duplicate acquisition events are no-ops.
 #[test]
 fn the_survey_is_a_one_shot_travel_lock_gate() {
     let scenario = scenario_from(FINAL_TALLY_RON);

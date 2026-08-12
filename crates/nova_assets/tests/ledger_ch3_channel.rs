@@ -23,7 +23,7 @@
 //!    the tug).
 //! 5. The stealth rework: the two channel Magpies
 //!    spawn at OnStart as NEUTRAL patrols (no engage_delay) flanking the
-//!    pinch; the picket-watch OnEnter zones and the per-Magpie OnCombatLock
+//!    pinch; the picket-watch OnEnter zones and per-Magpie OnCombatLockStart
 //!    paint both fire SetAllegiance -> Enemy on BOTH ships (asserted on the
 //!    live Allegiance COMPONENT, spawned through the real spawn action and
 //!    flushed by the production state_to_world sync) and stamp `spotted`.
@@ -50,7 +50,7 @@
 use bevy::{ecs::system::RunSystemOnce, math::Vec3, prelude::*};
 use nova_events::prelude::{
     CommandsGameEventExt, EntityId, EventAction, EventHandler, GameEventInfo, GameEventsPlugin,
-    OnCombatLockEvent, OnCombatLockEventInfo, OnDestroyedEvent, OnDestroyedEventInfo, OnEnterEvent,
+    LockEventInfo, OnCombatLockStartEvent, OnDestroyedEvent, OnDestroyedEventInfo, OnEnterEvent,
     OnEnterEventInfo, OnNeutralizedEvent, OnNeutralizedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
 };
 use nova_gameplay::prelude::{Allegiance, GameObjectives};
@@ -243,16 +243,16 @@ fn neutralize(app: &mut App, id: &str) {
 }
 
 fn combat_lock(app: &mut App, id: &str, other_id: &str) {
-    let info = OnCombatLockEventInfo {
+    let info = LockEventInfo {
         id: id.to_string(),
         other_id: other_id.to_string(),
         other_type_name: "spaceship".to_string(),
     };
     app.world_mut()
         .run_system_once(move |mut commands: Commands| {
-            commands.fire::<OnCombatLockEvent>(info.clone());
+            commands.fire::<OnCombatLockStartEvent>(info.clone());
         })
-        .expect("fire OnCombatLock");
+        .expect("fire OnCombatLockStart");
     app.update();
     app.update();
 }

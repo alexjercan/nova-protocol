@@ -61,19 +61,18 @@ a scoped entity, (4) be a self-expiring `TempEntity`, or (5) be torn down by a
 | `OnEnter`      | a body enters an area/zone |
 | `OnExit`       | a body leaves an area/zone |
 | `OnOrbitStart` / `OnOrbitStable` / `OnOrbitUnstable` / `OnOrbitEnd` | one-shot ORBIT maneuver and Hold-phase transitions; destruction emits only `OnDestroyed` |
-| `OnTravelLock` | the player's TRAVEL lock lands on a scenario object; re-fires every re-fire window (default 5s) while held |
-| `OnCombatLock` | same as `OnTravelLock` for the COMBAT lock (player only; AI locks never fire it) |
+| `OnTravelLockStart` / `OnTravelLockEnd` | the player's TRAVEL lock lands on or leaves a scenario object |
+| `OnCombatLockStart` / `OnCombatLockEnd` | the player's COMBAT lock lands on or leaves a scenario object; AI locks never fire these |
 
 Entities carry `EntityId(String)` and `EntityTypeName(String)`. Pair events all
 have the same filter shape - a subject `id` and an `other_id`/`other_type_name`
 - though which entity is the subject is per-event (area vs ship, well vs ship,
-target vs locker; see the Filters section). Lock recurrence is deliberate: a
-pulse rejected by a beat guard can retry; gated handlers make repeats no-ops.
+target vs locker; see the Filters section). Lock lifecycle events are one-shot
+edges. A target switch queues end-old, then start-new.
 
-The lock re-fire window is measured against the scenario clock, so it freezes
-under pause and resets on retry. Orbit lifecycle has no hidden timer; scenarios
-compose `OnOrbitStable` / `OnOrbitUnstable` / `OnOrbitEnd` with keyed timers
-when they require a continuous hold.
+Orbit lifecycle has no hidden timer; scenarios compose `OnOrbitStable` /
+`OnOrbitUnstable` / `OnOrbitEnd` with keyed timers when they require a
+continuous hold.
 
 The event-driven pipeline reads like this: an event fires, its filters gate
 whether it proceeds, and if they all pass its actions run in order and mutate
@@ -487,8 +486,8 @@ asteroid alone opts into `Dynamic` + `TransformInterpolation`.
   section's `base` block exposes. Spawned ship sections take the same two
   fields; see [Ship sections for mods](../../modding/sections/).
 - `Spaceship(SpaceshipConfig)` - sections plus a `SpaceshipController`:
-  `None`, `Player` (input mapping, optional `speed_cap`, `infinite_ammo`,
-  optional `lock_refire_secs`), or `AI` (patrol route, orbit directive,
+  `None`, `Player` (input mapping, optional `speed_cap`, `infinite_ammo`), or
+  `AI` (patrol route, orbit directive,
   optional `leash` break-off radius, optional
   `engage_delay: Some(secs)` arrival grace - the ship flies its passive
   routine and refuses to engage until the delay elapses, going hot

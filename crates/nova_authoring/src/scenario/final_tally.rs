@@ -158,7 +158,6 @@ fn player_ship() -> ScenarioObjectConfig {
                     .collect(),
                 speed_cap: None,
                 infinite_ammo: false,
-                lock_refire_secs: None,
             }),
             allegiance: None,
             sections: craft::racer_sections(
@@ -326,7 +325,7 @@ fn claim_belt(asteroid_texture: &AssetRef<Image>) -> EventActionConfig {
     })
 }
 
-/// Filter: the player's travel lock landed on `target` (OnTravelLock:
+/// Filter: the player's travel lock landed on `target` (OnTravelLockStart:
 /// id = the locked object, other = the locking ship).
 fn player_travel_locks(target: &str) -> EventFilterConfig {
     EventFilterConfig::Entity(EntityFilterConfig {
@@ -434,13 +433,12 @@ pub(crate) fn final_tally(
                 ),
             ],
         },
-        // The SURVEY: the travel lock lands on the bow. OnTravelLock recurs
-        // every 5s while held, so the one-shot flag gates it. TWO fate variants
+        // The SURVEY: the travel lock lands on the bow. TWO fate variants
         // (the lifeline banner pattern): the pickets may already be drift when
         // the survey lands - that path must not post a picket objective nothing
         // will ever complete, nor mark two dead ships.
         ScenarioEventConfig {
-            name: EventConfig::OnTravelLock,
+            name: EventConfig::OnTravelLockStart,
             filters: vec![
                 player_travel_locks(ID_WRECK_BOW),
                 eq_num(VAR_ACT, 1.0),
@@ -484,7 +482,7 @@ pub(crate) fn final_tally(
             ],
         ),
         ScenarioEventConfig {
-            name: EventConfig::OnTravelLock,
+            name: EventConfig::OnTravelLockStart,
             filters: vec![
                 player_travel_locks(ID_WRECK_BOW),
                 eq_num(VAR_ACT, 1.0),

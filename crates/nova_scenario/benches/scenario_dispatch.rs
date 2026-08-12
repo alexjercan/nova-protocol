@@ -30,17 +30,21 @@ use nova_scenario::prelude::*;
 
 /// Every non-`OnUpdate` event kind, so the synthetic scenario can pad itself
 /// with handlers that the `OnUpdate` frame must scan past but never name-match.
-const OTHER_EVENTS: [EventConfig; 10] = [
+const OTHER_EVENTS: [EventConfig; 14] = [
     EventConfig::OnStart,
     EventConfig::OnDestroyed,
+    EventConfig::OnNeutralized,
+    EventConfig::OnTimerEnd,
     EventConfig::OnEnter,
     EventConfig::OnExit,
     EventConfig::OnOrbitStart,
     EventConfig::OnOrbitStable,
     EventConfig::OnOrbitUnstable,
     EventConfig::OnOrbitEnd,
-    EventConfig::OnTravelLock,
-    EventConfig::OnCombatLock,
+    EventConfig::OnTravelLockStart,
+    EventConfig::OnTravelLockEnd,
+    EventConfig::OnCombatLockStart,
+    EventConfig::OnCombatLockEnd,
 ];
 
 /// A representative per-frame expression filter: `progress > 0.5`. This is the

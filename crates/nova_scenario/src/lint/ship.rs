@@ -32,7 +32,6 @@ pub(super) fn check_object_prototypes(
         }
         check_section_overlaps(config.base.id.as_str(), ship, scenario, issues);
         check_mount_adjacency(config.base.id.as_str(), ship, scenario, sections, issues);
-        check_controller_durations(config.base.id.as_str(), ship, scenario, issues);
         // Inline section configs a scenario writes directly (a Prototype ref
         // resolves to a catalog section, which is linted where the catalog is
         // walked - lint_bundle - so it is not re-linted here).
@@ -41,32 +40,6 @@ pub(super) fn check_object_prototypes(
                 issues.extend(lint_section_config(inline, scenario));
             }
         }
-    }
-}
-
-/// Author-supplied lock recurrence must be positive and finite. Invalid values
-/// fail closed to the engine default, but the authored content is still wrong.
-fn check_controller_durations(
-    ship_id: &str,
-    ship: &SpaceshipConfig,
-    scenario: &str,
-    issues: &mut Vec<LintIssue>,
-) {
-    let bad = |secs: f64| !secs.is_finite() || secs <= 0.0;
-    match &ship.controller {
-        SpaceshipController::Player(player) => {
-            if let Some(secs) = player.lock_refire_secs {
-                if bad(secs) {
-                    issues.push(LintIssue::error(
-                        scenario,
-                        format!(
-                            "ship '{ship_id}': lock_refire_secs must be a positive number of seconds, got {secs}"
-                        ),
-                    ));
-                }
-            }
-        }
-        SpaceshipController::AI(_) | SpaceshipController::None => {}
     }
 }
 
@@ -317,51 +290,6 @@ mod tests {
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(errs[0].message.contains("no_such_proto"));
-    }
-
-    /// Spawn a ship with an explicit controller and a known section prototype
-    /// (so only the controller-duration check can flag it).
-    fn spawn_ship_with_controller(id: &str, controller: SpaceshipController) -> EventActionConfig {
-        EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
-            base: BaseScenarioObjectConfig {
-                id: id.to_string(),
-                name: id.to_string(),
-                position: Vec3::ZERO,
-                rotation: Quat::IDENTITY,
-            },
-            kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-                allegiance: None,
-                controller,
-                sections: vec![SpaceshipSectionConfig {
-                    id: "hull".to_string(),
-                    position: Vec3::ZERO,
-                    rotation: Quat::IDENTITY,
-                    source: SectionSource::Prototype("known_proto".to_string()),
-                    modifications: vec![],
-                }],
-            }),
-        })
-    }
-
-    /// A non-positive lock_refire_secs would fire every frame, so it is a
-    /// fail-closed error.
-    #[test]
-    fn non_positive_lock_refire_override_is_an_error() {
-        let bad_lock = spawn_ship_with_controller(
-            "player",
-            SpaceshipController::Player(PlayerControllerConfig {
-                lock_refire_secs: Some(-1.0),
-                ..Default::default()
-            }),
-        );
-        let issues = lint_scenario(
-            &scenario(vec![bad_lock], vec![]),
-            &sections(&["known_proto"]),
-            &known(&["test_scenario"]),
-        );
-        let errs = errors(&issues);
-        assert_eq!(errs.len(), 1, "{issues:?}");
-        assert!(errs[0].message.contains("lock_refire_secs"));
     }
 
     /// A scatter TEMPLATE ship with a bad prototype must flag like a directly

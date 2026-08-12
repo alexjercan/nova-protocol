@@ -148,7 +148,6 @@ fn player_ship() -> ScenarioObjectConfig {
                 // screen-and-brawl plays with real magazines and the diegetic
                 // ammo gauge instead of unlimited fire.
                 infinite_ammo: false,
-                lock_refire_secs: None,
             }),
             allegiance: None,
             // The racer. RCS is off in the mainline campaign until the rework;

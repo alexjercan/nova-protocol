@@ -58,8 +58,8 @@ pub(super) fn tick_scenario_clock(time: Res<Time>, mut world: ResMut<NovaEventWo
 
 /// Publish the PLAYER ship's live speed into [`PLAYER_SPEED_VAR`] every
 /// live-unpaused tick, so speed-gated expression filters read this frame's
-/// value. Player-scoped (`With<PlayerSpaceshipMarker>`), like
-/// [`track_player_locks`], so an AI ship's velocity never drives content. No
+/// value. Player-scoped (`With<PlayerSpaceshipMarker>`), so an AI ship's
+/// velocity never drives content. No
 /// player ship (pre-spawn, between retries, teardown) publishes `0.0` - the
 /// same fail-closed default a filter sees for the clock before its first tick.
 /// Registered CHAINED AHEAD of [`fire_on_update`] alongside the clock so the
@@ -78,10 +78,7 @@ fn track_player_speed(
 /// Read the current scenario clock (seconds of live-unpaused time) off the
 /// event world, with the same `None -> 0.0` fallback as [`tick_scenario_clock`]
 /// so a read before the first tick (or after teardown's `world.clear`) sees a
-/// fresh clock. The clock-derived lock tracker (`track_player_locks`) measures
-/// its 5s recurrence window against this instead of
-/// accumulating their own `Time` delta, so pausing and teardown/retry freeze
-/// and reset every window in one place.
+/// fresh clock.
 pub(super) fn scenario_elapsed(world: &NovaEventWorld) -> f64 {
     match world.get_variable(SCENARIO_ELAPSED_VAR) {
         Some(VariableLiteral::Number(n)) => *n,

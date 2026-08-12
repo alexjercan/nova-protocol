@@ -620,7 +620,6 @@ fn player_ship() -> ScenarioObjectConfig {
                 // recovers on its own; the player sees the ammo readout and
                 // reload cadence from the first scenario.
                 infinite_ammo: false,
-                lock_refire_secs: None,
             }),
             sections: craft::racer_sections(ShipGrade::Player, controller_gate),
         }),
@@ -1049,10 +1048,10 @@ pub(crate) fn shakedown_run(
                 emphasize("RADAR"),
             ],
         ),
-        // Beat 4 -> 5: the white lock LANDED (OnTravelLock - the lesson
+        // Beat 4 -> 5: the white lock LANDED (OnTravelLockStart - the lesson
         // ticks the instant the radar rewards it). One gesture: [G].
         ScenarioEventConfig {
-            name: EventConfig::OnTravelLock,
+            name: EventConfig::OnTravelLockStart,
             filters: vec![player_enters(ID_BEACON_3), eq_num(VAR_BEAT, 4.0)],
             actions: vec![
                 set(VAR_BEAT, num(5.0)),
@@ -1267,7 +1266,7 @@ pub(crate) fn shakedown_run(
         // Beat 10 -> 11: the RED lock landed on the hulk. One gesture:
         // fire.
         ScenarioEventConfig {
-            name: EventConfig::OnCombatLock,
+            name: EventConfig::OnCombatLockStart,
             filters: vec![player_enters(ID_DERELICT), eq_num(VAR_BEAT, 10.0)],
             actions: vec![
                 set(VAR_BEAT, num(11.0)),

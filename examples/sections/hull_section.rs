@@ -364,7 +364,6 @@ fn hull_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
             speed_cap: None,
             // Dev/tuning harness: fire freely.
             infinite_ammo: true,
-            lock_refire_secs: None,
         }),
         // A four-section spine plus ONE side-mounted hull, not a five-section
         // line. `hull3` has to be a graph LEAF for round 1 to destroy it:

@@ -35,7 +35,7 @@ truth. The quick map:
 | `OnDestroyed`, `OnNeutralized` | the destroyed / neutralized object | (none) |
 | `OnEnter` / `OnExit` | the AREA (zone, beacon, crate) | the body that entered / left |
 | Orbit lifecycle events | the well being orbited | the orbiting ship |
-| `OnTravelLock` / `OnCombatLock` | the locked target | the locking (player) ship |
+| travel/combat lock start/end | the locked target | the locking player ship |
 | `OnStart` / `OnUpdate` | (no payload - an Entity filter never matches) | (none) |
 
 ```ron

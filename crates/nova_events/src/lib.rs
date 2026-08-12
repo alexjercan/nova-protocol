@@ -28,14 +28,15 @@ pub mod prelude {
             CommandsGameEventExt, EventAction, EventFilter, EventHandler, EventHandlerIndex,
             EventKind, EventWorld, GameEvent, GameEventInfo, GameEventsPlugin,
         },
-        EntityId, EntityTypeName, OnCombatLockEvent, OnCombatLockEventInfo, OnDestroyedEvent,
-        OnDestroyedEventInfo, OnEnterEvent, OnEnterEventInfo, OnExitEvent, OnExitEventInfo,
-        OnNeutralizedEvent, OnNeutralizedEventInfo, OnOrbitEndEvent, OnOrbitStableEvent,
-        OnOrbitStartEvent, OnOrbitUnstableEvent, OnStartEvent, OnStartEventInfo, OnTimerEndEvent,
-        OnTimerEndEventInfo, OnTravelLockEvent, OnTravelLockEventInfo, OnUpdateEvent,
-        OnUpdateEventInfo, OrbitEventInfo, ENTITY_ID_COMPONENT_NAME,
-        ENTITY_OTHER_ID_COMPONENT_NAME, ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME,
-        ENTITY_TYPE_NAME_COMPONENT_NAME, TIMER_KEY_FIELD_NAME,
+        EntityId, EntityTypeName, LockEventInfo, OnCombatLockEndEvent, OnCombatLockStartEvent,
+        OnDestroyedEvent, OnDestroyedEventInfo, OnEnterEvent, OnEnterEventInfo, OnExitEvent,
+        OnExitEventInfo, OnNeutralizedEvent, OnNeutralizedEventInfo, OnOrbitEndEvent,
+        OnOrbitStableEvent, OnOrbitStartEvent, OnOrbitUnstableEvent, OnStartEvent,
+        OnStartEventInfo, OnTimerEndEvent, OnTimerEndEventInfo, OnTravelLockEndEvent,
+        OnTravelLockStartEvent, OnUpdateEvent, OnUpdateEventInfo, OrbitEventInfo,
+        ENTITY_ID_COMPONENT_NAME, ENTITY_OTHER_ID_COMPONENT_NAME,
+        ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME, ENTITY_TYPE_NAME_COMPONENT_NAME,
+        TIMER_KEY_FIELD_NAME,
     };
 }
 
@@ -223,42 +224,34 @@ pub struct OrbitEventInfo {
     pub other_type_name: String,
 }
 
-/// The player's TRAVEL lock (white, nav) landed on a scenario object
-/// (nova_scenario's lock bridge fires it, once per acquisition). `id` is
-/// the locked target's scenario id, `other` the locking ship - the same
-/// shape as [`OnEnterEvent`], so scenario filters compose identically.
+/// The player's TRAVEL lock (white, nav) landed on a scenario object.
 #[derive(Debug, Clone, EventKind, Reflect)]
-#[event_name("ontravellock")]
-#[event_info(OnTravelLockEventInfo)]
-pub struct OnTravelLockEvent;
+#[event_name("ontravellockstart")]
+#[event_info(LockEventInfo)]
+pub struct OnTravelLockStartEvent;
 
-/// Payload for [`OnTravelLockEvent`]: the locked target (`id`) and the locking
-/// ship (`other_id` / `other_type_name`).
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
-pub struct OnTravelLockEventInfo {
-    /// Scenario id of the locked target.
-    #[serde(rename = "id")]
-    pub id: String,
-    /// Scenario id of the locking ship.
-    #[serde(rename = "other_id")]
-    pub other_id: String,
-    /// Type name of the locking ship.
-    #[serde(rename = "other_type_name")]
-    pub other_type_name: String,
-}
-
-/// The player's COMBAT lock (red) landed on a scenario object. Same
-/// contract as [`OnTravelLockEvent`]; a separate event (not a field) so
-/// the entity filters keep working unchanged.
+/// The player's TRAVEL lock left a scenario object.
 #[derive(Debug, Clone, EventKind, Reflect)]
-#[event_name("oncombatlock")]
-#[event_info(OnCombatLockEventInfo)]
-pub struct OnCombatLockEvent;
+#[event_name("ontravellockend")]
+#[event_info(LockEventInfo)]
+pub struct OnTravelLockEndEvent;
 
-/// Payload for [`OnCombatLockEvent`]: the locked target (`id`) and the locking
-/// ship (`other_id` / `other_type_name`).
+/// The player's COMBAT lock (red) landed on a scenario object.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("oncombatlockstart")]
+#[event_info(LockEventInfo)]
+pub struct OnCombatLockStartEvent;
+
+/// The player's COMBAT lock left a scenario object.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("oncombatlockend")]
+#[event_info(LockEventInfo)]
+pub struct OnCombatLockEndEvent;
+
+/// Shared payload for lock lifecycle events: the locked target (`id`) and the
+/// locking ship (`other_id` / `other_type_name`).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
-pub struct OnCombatLockEventInfo {
+pub struct LockEventInfo {
     /// Scenario id of the locked target.
     #[serde(rename = "id")]
     pub id: String,

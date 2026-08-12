@@ -22,8 +22,8 @@ mod fixtures;
 mod lifecycle;
 mod trackers;
 
+use clock::register_clock_and_pulse;
 pub use clock::{is_reserved_engine_var, PLAYER_SPEED_VAR, SCENARIO_ELAPSED_VAR};
-use clock::{register_clock_and_pulse, tick_scenario_clock};
 pub use lifecycle::ScenarioCameraMarker;
 use lifecycle::{
     configure_scenario_gating, on_add_entity_with, on_load_scenario, on_next_input,
@@ -389,16 +389,12 @@ impl Plugin for ScenarioLoaderPlugin {
                 .run_if(scenario_is_live),
         );
 
-        // The player-lock bridge behind `EventConfig::OnTravelLock` /
-        // `OnCombatLock`: lock lessons tick the instant the lock lands. Same
-        // clock derivation and `.after(tick_scenario_clock)` ordering as the
-        // orbit tracker.
+        // Player lock lifecycle edges. AI locks remain gameplay-internal.
         app.register_type::<LockEcho>();
-        app.register_type::<LockRefireSecs>();
         app.add_systems(
             Update,
             track_player_locks
-                .after(tick_scenario_clock)
+                .after(SpaceshipTargetingSystems)
                 .run_if(scenario_is_live),
         );
 
@@ -549,7 +545,6 @@ mod tests {
                 input_mapping,
                 speed_cap: Some(100.0),
                 infinite_ammo: true,
-                lock_refire_secs: None,
             }),
             sections: vec![SpaceshipSectionConfig {
                 id: "thruster".to_string(),

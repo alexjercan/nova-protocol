@@ -468,7 +468,7 @@ export const WIKI_PAGES: WikiPage[] = [
         parent: "modding/scenarios",
         tags: ["modding", "reference"],
         summary:
-            "Everything that can fire a scenario handler: thirteen event kinds, payloads, lifecycle edges, and dispatch order.",
+            "Everything that can fire a scenario handler: fifteen event kinds, payloads, lifecycle edges, and dispatch order.",
         related: ["modding/filters", "modding/actions", "modding/scenarios"],
         headings: [
             "OnStart",
@@ -479,9 +479,7 @@ export const WIKI_PAGES: WikiPage[] = [
             "OnEnter",
             "OnExit",
             "Orbit lifecycle",
-            "OnTravelLock",
-            "OnCombatLock",
-            "Lock recurrence: gate every pulse",
+            "Lock lifecycle",
             "Dispatch order",
         ],
     },

@@ -1640,7 +1640,7 @@
                 ],
             ),
             (
-                name: OnTravelLock,
+                name: OnTravelLockStart,
                 filters: [
                     Entity((
                         id: Some("beacon_3"),
@@ -2163,7 +2163,7 @@
                 ],
             ),
             (
-                name: OnCombatLock,
+                name: OnCombatLockStart,
                 filters: [
                     Entity((
                         id: Some("derelict"),

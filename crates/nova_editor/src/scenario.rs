@@ -118,7 +118,6 @@ fn sandbox_objects(
             speed_cap: None,
             // The editor sandbox keeps normal finite magazines.
             infinite_ammo: false,
-            lock_refire_secs: None,
         }),
         sections: player_config.sections.values().cloned().collect(),
     };

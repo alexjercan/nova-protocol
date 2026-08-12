@@ -20,9 +20,9 @@ use crate::objects::modification::prelude::SectionModification;
 /// configs, and `SpaceshipPlugin`.
 pub mod prelude {
     pub use super::{
-        spaceship_scenario_object, AIControllerConfig, LockRefireSecs, PlayerControllerConfig,
-        SectionSource, SpaceshipConfig, SpaceshipController, SpaceshipPlugin,
-        SpaceshipSectionConfig, SpaceshipSectionsConfig, SPACESHIP_TYPE_NAME,
+        spaceship_scenario_object, AIControllerConfig, PlayerControllerConfig, SectionSource,
+        SpaceshipConfig, SpaceshipController, SpaceshipPlugin, SpaceshipSectionConfig,
+        SpaceshipSectionsConfig, SPACESHIP_TYPE_NAME,
     };
 }
 
@@ -45,8 +45,8 @@ pub enum SpaceshipController {
 }
 
 /// Player-driver settings for a [`SpaceshipController::Player`] ship: per-section
-/// input bindings, an optional soft speed cap, an infinite-ammo flag, and a
-/// lock re-fire override. Authored in the scenario RON and consumed at spawn by
+/// input bindings, an optional soft speed cap, and an infinite-ammo flag.
+/// Authored in the scenario RON and consumed at spawn by
 /// `insert_spaceship_sections`, which inserts the derived components on the ship
 /// root (see the per-field docs).
 #[derive(Clone, Debug, Default, Reflect)]
@@ -79,18 +79,6 @@ pub struct PlayerControllerConfig {
     /// default) keeps the authored per-weapon magazines. Player-scoped: enemies
     /// are unaffected.
     pub infinite_ammo: bool,
-    /// Re-fire period (seconds) for this player's held travel/combat lock - how
-    /// often `OnTravelLock`/`OnCombatLock` recur while the same target stays
-    /// locked (acquisition always fires immediately). Inserted as
-    /// [`LockRefireSecs`] on the ship root. None = the engine default
-    /// (`LOCK_REFIRE_SECS`, 5s). A non-positive/non-finite value is a
-    /// content_lint error and is ignored at runtime (falls back to the
-    /// default). Author as `lock_refire_secs: Some(8.0)`.
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub lock_refire_secs: Option<f64>,
 }
 
 /// AI-driver settings for a [`SpaceshipController::AI`] ship: its passive
@@ -138,15 +126,6 @@ pub struct AIControllerConfig {
     )]
     pub engage_delay: Option<f32>,
 }
-
-/// Per-player override for the lock re-fire period, inserted on the player ship
-/// root from [`PlayerControllerConfig::lock_refire_secs`] at spawn. Read by the
-/// player-lock bridge (`track_player_locks` in loader.rs), which falls back to
-/// the engine default `LOCK_REFIRE_SECS` when absent. Seconds between recurring
-/// `OnTravelLock`/`OnCombatLock` fires while a lock is held.
-#[derive(Component, Clone, Copy, Debug, Reflect)]
-#[reflect(Component)]
-pub struct LockRefireSecs(pub f64);
 
 /// A ship section's scenario-local id, used to key input bindings and address
 /// the section from scenario scripts.
@@ -415,12 +394,6 @@ fn insert_spaceship_sections(
             commands.entity(entity).insert(PlayerSpaceshipMarker);
             if let Some(cap) = config.speed_cap {
                 commands.entity(entity).insert(FlightSpeedCap(cap));
-            }
-            // Per-player lock re-fire override; a non-positive/non-finite value
-            // is a content_lint error, so the bridge treats it defensively as
-            // the default.
-            if let Some(secs) = config.lock_refire_secs {
-                commands.entity(entity).insert(LockRefireSecs(secs));
             }
         }
         SpaceshipController::AI(config) => {

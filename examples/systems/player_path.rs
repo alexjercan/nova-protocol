@@ -7,7 +7,7 @@
 //! down with LMB (the turret holds the combat lock), lower and radar again to travel-lock the beacon, press G to engage
 //! GOTO, and start the flight leg toward the beacon's trigger area. The
 //! SCENARIO watches the run through its own event handlers - a kill tally,
-//! a travel-lock echo, an arrival flag - so the assertions read "the
+//! a travel-lock acquisition, an arrival flag - so the assertions read "the
 //! scenario saw the player do it", not "the script poked some components".
 //! Headless, the run completes at "GOTO engaged and closing"; the arrival
 //! flag still fires interactively (llvmpipe throttles unfocused smoke
@@ -239,7 +239,6 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
             )]),
             speed_cap: None,
             infinite_ammo: true,
-            lock_refire_secs: None,
         }),
         &[
             SectionSpec::new("controller", "basic_controller_section", Vec3::ZERO),
@@ -333,7 +332,7 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
         },
         // The travel lock on the waypoint, seen by the scenario.
         ScenarioEventConfig {
-            name: EventConfig::OnTravelLock,
+            name: EventConfig::OnTravelLockStart,
             filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
                 id: Some("waypoint".to_string()),
                 type_name: None,

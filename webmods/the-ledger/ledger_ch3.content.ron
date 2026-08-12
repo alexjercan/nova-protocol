@@ -624,7 +624,7 @@
                     // engage_delay (that was hostile-arrival grace; a Neutral
                     // ship needs none): they only wake via SetAllegiance when
                     // provoked - entering a picket-watch zone below, or
-                    // painting one (OnCombatLock). Patrol lanes run parallel to
+                    // painting one (OnCombatLockStart). Patrol lanes run parallel to
                     // the NAV-1 -> NAV-2 leg, 55u out along the pinch
                     // perpendicular, so the pinch gap is the one lane their
                     // watch does not cover.
@@ -1592,7 +1592,7 @@
             // pickets flip Enemy (SetAllegiance reads the live Allegiance the
             // AI targets by), spotted stamps 1, and Vesh calls it. The four
             // instant ones are below (two picket-watch zone entries, two
-            // OnCombatLock paints); the fifth is the warn-then-trip overspeed
+            // OnCombatLockStart paints); the fifth is the warn-then-trip overspeed
             // handler just after this block. Every handler gates spotted == 0
             // (setting it disqualifies the others - the one-shot contract) and
             // act == 1 (the yard closes the run; a post-arrival paint wakes
@@ -1672,7 +1672,7 @@
             // Paint provocation: red-locking a sleeping picket is the loudest
             // thing in the channel - lock light travels both ways.
             (
-                name: OnCombatLock,
+                name: OnCombatLockStart,
                 filters: [
                     Entity((
                         id: Some("channel_magpie_1"),
@@ -1708,7 +1708,7 @@
                 ],
             ),
             (
-                name: OnCombatLock,
+                name: OnCombatLockStart,
                 filters: [
                     Entity((
                         id: Some("channel_magpie_2"),

@@ -1338,7 +1338,7 @@
                 ],
             ),
             (
-                name: OnTravelLock,
+                name: OnTravelLockStart,
                 filters: [
                     Entity((
                         id: Some("anchorage_bow"),
@@ -1433,7 +1433,7 @@
                 ],
             ),
             (
-                name: OnTravelLock,
+                name: OnTravelLockStart,
                 filters: [
                     Entity((
                         id: Some("anchorage_bow"),

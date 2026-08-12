@@ -500,7 +500,6 @@ fn the_ring(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
             input_mapping: bevy::platform::collections::HashMap::new(),
             speed_cap: None,
             infinite_ammo: true,
-            lock_refire_secs: None,
         }),
         None,
         kit::kenney_hull(sections, "racer"),

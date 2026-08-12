@@ -44,13 +44,14 @@ pub enum EventConfig {
     OnOrbitUnstable,
     /// A surviving ship ended ORBIT or switched wells.
     OnOrbitEnd,
-    /// The player's TRAVEL lock landed on a scenario object (the lock
-    /// bridge in loader.rs fires it once per acquisition). Filters like
-    /// OnEnter: id = the locked target, other = the player ship.
-    OnTravelLock,
-    /// The player's COMBAT lock landed on a scenario object. Same contract
-    /// as OnTravelLock.
-    OnCombatLock,
+    /// The player's TRAVEL lock landed on a scenario object.
+    OnTravelLockStart,
+    /// The player's TRAVEL lock left a scenario object.
+    OnTravelLockEnd,
+    /// The player's COMBAT lock landed on a scenario object.
+    OnCombatLockStart,
+    /// The player's COMBAT lock left a scenario object.
+    OnCombatLockEnd,
 }
 
 impl From<EventConfig> for EventHandler<NovaEventWorld> {
@@ -67,8 +68,10 @@ impl From<EventConfig> for EventHandler<NovaEventWorld> {
             EventConfig::OnOrbitStable => EventHandler::new::<OnOrbitStableEvent>(),
             EventConfig::OnOrbitUnstable => EventHandler::new::<OnOrbitUnstableEvent>(),
             EventConfig::OnOrbitEnd => EventHandler::new::<OnOrbitEndEvent>(),
-            EventConfig::OnTravelLock => EventHandler::new::<OnTravelLockEvent>(),
-            EventConfig::OnCombatLock => EventHandler::new::<OnCombatLockEvent>(),
+            EventConfig::OnTravelLockStart => EventHandler::new::<OnTravelLockStartEvent>(),
+            EventConfig::OnTravelLockEnd => EventHandler::new::<OnTravelLockEndEvent>(),
+            EventConfig::OnCombatLockStart => EventHandler::new::<OnCombatLockStartEvent>(),
+            EventConfig::OnCombatLockEnd => EventHandler::new::<OnCombatLockEndEvent>(),
         }
     }
 }

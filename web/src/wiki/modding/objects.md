@@ -141,7 +141,6 @@ than complete flyable ships. Copy the full player or AI section list from
 | `input_mapping` | map | `{}` | per-SECTION bindings, keyed by section id: `{ "cube_i1_j0_km1": [ Mouse(Left) ] }`. Values are `Keyboard(<KeyCode>)` / `Mouse(<MouseButton>)` / `Gamepad(<GamepadButton>)` - modifier-free buttons only |
 | `speed_cap` | `Option` number | `None` | soft manual-speed cap in u/s (the Shakedown starts at `Some(25.0)`); `None` = unbounded. Runtime mirror: [`SetSpeedCap`](../actions/#setspeedcap) |
 | `infinite_ammo` | bool | required in shipped RON | weapons built without magazines - never run dry |
-| `lock_refire_secs` | `Option` number | `None` | re-fire period for held locks ([`OnTravelLock`](../events/#ontravellock) recurrence); `None` = 5 s |
 
 `AI((..))` fields:
 

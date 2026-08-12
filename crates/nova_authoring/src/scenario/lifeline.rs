@@ -179,7 +179,6 @@ fn player_ship() -> ScenarioObjectConfig {
                     .collect(),
                 speed_cap: None,
                 infinite_ammo: false,
-                lock_refire_secs: None,
             }),
             allegiance: None,
             sections: craft::racer_sections(

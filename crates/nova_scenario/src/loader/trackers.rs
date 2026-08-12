@@ -5,9 +5,6 @@ use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 
-use super::clock::scenario_elapsed;
-use crate::prelude::*;
-
 /// Last reported ORBIT state for one ship.
 #[derive(Component, Clone, Debug, Reflect)]
 #[reflect(Component)]
@@ -126,75 +123,59 @@ pub(super) fn track_orbit_transitions(
     }
 }
 
-fn resolve_window_secs(override_secs: Option<f64>, default: f64) -> f64 {
-    match override_secs {
-        Some(secs) if secs.is_finite() && secs > 0.0 => secs,
-        _ => default,
-    }
+/// Last reported target for one lock slot.
+#[derive(Clone, Debug, Reflect)]
+struct LockTargetEcho {
+    entity: Entity,
+    id: String,
 }
 
-/// Re-fire period (seconds) for a HELD lock. Acquisition fires immediately;
-/// while the lock stays on the same target the event RECURS on this period -
-/// the orbit-hold rationale: a one-shot event consumed under a rejecting beat
-/// guard is gone for good, and a scenario whose beat advances while the lock is
-/// already held would soft-lock. Beat-gated handlers make the repeats no-ops.
-const LOCK_REFIRE_SECS: f64 = 5.0;
-
-/// Bookkeeping for the player-lock bridge: per slot, the last target the
-/// bridge saw and the scenario-clock reading (`scenario_elapsed`) when it
-/// last fired for that target. The re-fire window has elapsed once
-/// `now - last_fired_at >= refire`, where `refire` is the player's
-/// [`LockRefireSecs`] override or the `LOCK_REFIRE_SECS` default.
+/// Last reported player lock state.
 #[derive(Component, Clone, Debug, Default, Reflect)]
 #[reflect(Component)]
 pub(super) struct LockEcho {
-    travel: Option<(Entity, f64)>,
-    combat: Option<(Entity, f64)>,
+    travel: Option<LockTargetEcho>,
+    combat: Option<LockTargetEcho>,
 }
 
-/// One lock slot's tick: returns `Some(target)` when the bridge should
-/// fire this frame - on ACQUISITION (the slot's value changed onto a
-/// target; the slot writers are equality-skipped, so a held live-radar
-/// lock does not churn this) and again every `refire_secs` seconds while
-/// the same target stays held. `now` is the engine scenario clock
-/// ([`scenario_elapsed`]); the window is `now - last_fired_at`, so it freezes
-/// under pause and resets on teardown with the clock. `refire_secs` is the
-/// per-player override ([`LockRefireSecs`]) or the [`LOCK_REFIRE_SECS`] default,
-/// resolved by the caller. Pure for the unit tests.
-fn tick_lock_slot(
-    state: &mut Option<(Entity, f64)>,
+fn lock_transition(
+    echo: &mut Option<LockTargetEcho>,
     current: Option<Entity>,
-    now: f64,
-    refire_secs: f64,
-) -> Option<Entity> {
-    match (current, state.as_mut()) {
-        (None, _) => {
-            *state = None;
-            None
-        }
-        (Some(target), Some((held, last_fired_at))) if *held == target => {
-            if now - *last_fired_at >= refire_secs {
-                *last_fired_at = now;
-                Some(target)
-            } else {
-                None
-            }
-        }
-        (Some(target), _) => {
-            *state = Some((target, now));
-            Some(target)
-        }
+    q_ids: &Query<&EntityId>,
+) -> (Option<String>, Option<String>) {
+    if echo.as_ref().map(|target| target.entity) == current {
+        return (None, None);
+    }
+
+    let ended = echo.take().map(|target| target.id);
+    let started = current
+        .and_then(|entity| q_ids.get(entity).ok().map(|id| (entity, id.0.clone())))
+        .map(|(entity, id)| {
+            *echo = Some(LockTargetEcho {
+                entity,
+                id: id.clone(),
+            });
+            id
+        });
+    (ended, started)
+}
+
+fn lock_info(
+    target_id: String,
+    ship_id: &EntityId,
+    ship_type_name: &EntityTypeName,
+) -> LockEventInfo {
+    LockEventInfo {
+        id: target_id,
+        other_id: ship_id.0.clone(),
+        other_type_name: ship_type_name.0.clone(),
     }
 }
 
-/// Fire [`OnTravelLockEvent`]/[`OnCombatLockEvent`] when the PLAYER's lock
-/// slots land on scenario objects. Player-scoped on purpose: the AI combat
-/// mirror (nova_gameplay input/ai/acquisition.rs) writes `CombatLock` on every
-/// engaged AI ship, and an unscoped bridge would fire for all of them. The
-/// event's `id` is the locked TARGET's scenario id, `other` is the player ship
-/// - OnEnter's (area, other) shape, so filters compose identically.
+/// Emit edge-triggered lock lifecycle events for the player ship. Target
+/// switches emit end for the old target before start for the new target. AI
+/// locks remain gameplay-internal and do not fire scenario events.
 pub(super) fn track_player_locks(
-    world: Res<NovaEventWorld>,
     mut commands: Commands,
     mut q_ships: Query<
         (
@@ -202,7 +183,6 @@ pub(super) fn track_player_locks(
             &TravelLock,
             &CombatLock,
             Option<&mut LockEcho>,
-            Option<&LockRefireSecs>,
             &EntityId,
             &EntityTypeName,
         ),
@@ -210,33 +190,26 @@ pub(super) fn track_player_locks(
     >,
     q_ids: Query<&EntityId>,
 ) {
-    let now = scenario_elapsed(&world);
-    for (ship, travel, combat, echo, refire_override, ship_id, ship_type_name) in &mut q_ships {
+    for (ship, travel, combat, echo, ship_id, ship_type_name) in &mut q_ships {
         let Some(mut echo) = echo else {
-            // First sight of this player ship: arm the bookkeeping; the
-            // next frame ticks it (an already-held lock then reads as an
-            // acquisition, which is the honest interpretation on spawn).
             commands.entity(ship).insert(LockEcho::default());
             continue;
         };
-        // Per-player override (PlayerControllerConfig::lock_refire_secs), else
-        // the engine default.
-        let refire = resolve_window_secs(refire_override.map(|o| o.0), LOCK_REFIRE_SECS);
-        let fired_travel = tick_lock_slot(&mut echo.travel, travel.0, now, refire);
-        let fired_combat = tick_lock_slot(&mut echo.combat, combat.0, now, refire);
-        if let Some(target_id) = fired_travel.and_then(|target| q_ids.get(target).ok()) {
-            commands.fire::<OnTravelLockEvent>(OnTravelLockEventInfo {
-                id: target_id.0.clone(),
-                other_id: ship_id.0.clone(),
-                other_type_name: ship_type_name.0.clone(),
-            });
+
+        let (travel_end, travel_start) = lock_transition(&mut echo.travel, travel.0, &q_ids);
+        if let Some(target_id) = travel_end {
+            commands.fire::<OnTravelLockEndEvent>(lock_info(target_id, ship_id, ship_type_name));
         }
-        if let Some(target_id) = fired_combat.and_then(|target| q_ids.get(target).ok()) {
-            commands.fire::<OnCombatLockEvent>(OnCombatLockEventInfo {
-                id: target_id.0.clone(),
-                other_id: ship_id.0.clone(),
-                other_type_name: ship_type_name.0.clone(),
-            });
+        if let Some(target_id) = travel_start {
+            commands.fire::<OnTravelLockStartEvent>(lock_info(target_id, ship_id, ship_type_name));
+        }
+
+        let (combat_end, combat_start) = lock_transition(&mut echo.combat, combat.0, &q_ids);
+        if let Some(target_id) = combat_end {
+            commands.fire::<OnCombatLockEndEvent>(lock_info(target_id, ship_id, ship_type_name));
+        }
+        if let Some(target_id) = combat_start {
+            commands.fire::<OnCombatLockStartEvent>(lock_info(target_id, ship_id, ship_type_name));
         }
     }
 }
@@ -244,7 +217,7 @@ pub(super) fn track_player_locks(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::loader::{clock::tick_scenario_clock, fixtures::*};
+    use crate::prelude::*;
 
     /// ORBIT events report each state edge once, including ordered well switches.
     #[test]
@@ -422,199 +395,139 @@ mod tests {
             .is_none());
     }
 
+    /// Lock lifecycle events fire once per edge. A target switch queues end-old
+    /// before start-new, held locks stay quiet, and AI locks remain internal.
     #[test]
-    fn a_lock_slot_fires_on_acquisition_then_echoes_per_window() {
-        let a = Entity::from_raw_u32(1).unwrap();
-        let b = Entity::from_raw_u32(2).unwrap();
-        let mut state = None;
-
-        // `now` is the absolute scenario clock; advance it before each tick
-        // exactly as the clock does per frame. The window is `now - last_fire`.
-        let mut now = 0.0_f64;
-        let mut at = |dt: f64| {
-            now += dt;
-            now
-        };
-
-        // The default engine window; the slot takes it per call.
-        let w = LOCK_REFIRE_SECS;
-
-        // Acquisition fires immediately.
-        assert_eq!(tick_lock_slot(&mut state, Some(a), at(0.1), w), Some(a));
-        // Held: quiet until the echo window elapses, then one re-fire.
-        assert_eq!(tick_lock_slot(&mut state, Some(a), at(2.0), w), None);
-        assert_eq!(tick_lock_slot(&mut state, Some(a), at(2.0), w), None);
-        assert_eq!(
-            tick_lock_slot(&mut state, Some(a), at(2.0), w),
-            Some(a),
-            "a held lock echoes once per window (the anti-soft-lock recurrence)"
-        );
-        assert_eq!(tick_lock_slot(&mut state, Some(a), at(2.0), w), None);
-        // A live-radar retarget is a fresh acquisition on a fresh clock.
-        assert_eq!(tick_lock_slot(&mut state, Some(b), at(0.1), w), Some(b));
-        assert_eq!(tick_lock_slot(&mut state, Some(b), at(2.0), w), None);
-        // Clearing re-arms: the next lock is an acquisition again.
-        assert_eq!(tick_lock_slot(&mut state, None, at(0.1), w), None);
-        assert_eq!(tick_lock_slot(&mut state, Some(b), at(0.1), w), Some(b));
-    }
-
-    /// A per-player `refire_secs` override changes the echo cadence: a 2s
-    /// window re-fires after 2s of hold, where the 5s default would still be
-    /// quiet.
-    #[test]
-    fn a_lock_slot_honors_a_custom_refire_window() {
-        let a = Entity::from_raw_u32(1).unwrap();
-        let mut state = None;
-        let mut now = 0.0_f64;
-        let mut at = |dt: f64| {
-            now += dt;
-            now
-        };
-
-        // Acquisition fires immediately regardless of window.
-        assert_eq!(tick_lock_slot(&mut state, Some(a), at(0.1), 2.0), Some(a));
-        // 1.5s held under the 2s window: quiet (and would be quiet at 5s too).
-        assert_eq!(tick_lock_slot(&mut state, Some(a), at(1.5), 2.0), None);
-        // Crossing 2s of hold: re-fires on the SHORT window, where the 5s
-        // default would not have yet.
-        assert_eq!(
-            tick_lock_slot(&mut state, Some(a), at(1.0), 2.0),
-            Some(a),
-            "a 2s override echoes at 2s of hold"
-        );
-    }
-
-    /// The bridge end to end through the real event pipeline: a travel
-    /// lock ticks a travel handler, a combat lock a combat handler, an AI
-    /// ship's combat lock ticks NOTHING, and a target without a scenario
-    /// id is quiet (delivery-guarded by the fires before it).
-    #[test]
-    fn player_locks_fire_their_events_and_ai_locks_never_do() {
-        use core::time::Duration;
-
-        use bevy::time::TimeUpdateStrategy;
+    fn player_lock_lifecycle_events_are_edge_triggered() {
         use nova_events::prelude::{EventHandler, GameEventsPlugin};
         use nova_gameplay::prelude::{GameObjectives, PlayerSpaceshipMarker, SpaceshipRootMarker};
         use nova_ship::prelude::{CombatLock, TravelLock};
 
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
-        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
-            0.2,
-        )));
         app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
         app.init_resource::<NovaEventWorld>();
         app.init_resource::<GameObjectives>();
-        app.insert_resource(CurrentScenario(Some(scenario_with("live", vec![]))));
-        // The bridge measures its echo window against `scenario_elapsed`, so
-        // tick the clock ahead of the tracker (mirrors the plugin's
-        // `.after(tick_scenario_clock)` ordering) - otherwise `now` never moves
-        // and "held is quiet" would pass for the wrong reason.
-        app.add_systems(
-            Update,
-            (tick_scenario_clock, track_player_locks)
-                .chain()
-                .run_if(scenario_is_live),
-        );
+        app.add_systems(Update, track_player_locks);
 
-        // Counting handlers: one per slot, filtered on the beacon's id.
-        let count_into = |key: &str| -> EventActionConfig {
-            EventActionConfig::VariableSet(VariableSetActionConfig {
+        fn count_handler(event: EventConfig, key: &str) -> EventHandler<NovaEventWorld> {
+            let mut handler = EventHandler::<NovaEventWorld>::from(event);
+            handler.add_action(EventActionConfig::VariableSet(VariableSetActionConfig {
                 key: key.to_string(),
                 expression: VariableExpressionNode::new_add(
-                    VariableTermNode::new_factor(VariableFactorNode::new_name(key.to_string())),
+                    VariableTermNode::new_factor(VariableFactorNode::new_name(key)),
                     VariableExpressionNode::new_term(VariableTermNode::new_factor(
                         VariableFactorNode::new_literal(VariableLiteral::Number(1.0)),
                     )),
                 ),
-            })
-        };
-        for (config, key) in [
-            (EventConfig::OnTravelLock, "travel_locks"),
-            (EventConfig::OnCombatLock, "combat_locks"),
-        ] {
-            let mut handler = EventHandler::<NovaEventWorld>::from(config);
-            handler.add_filter(EventFilterConfig::Entity(EntityFilterConfig {
-                id: Some("beacon_3".to_string()),
-                other_id: Some("player_spaceship".to_string()),
-                ..default()
             }));
-            handler.add_action(count_into(key));
-            app.world_mut().spawn(handler);
+            handler
+        }
+        for (event, key) in [
+            (EventConfig::OnTravelLockStart, "travel_start"),
+            (EventConfig::OnTravelLockEnd, "travel_end"),
+            (EventConfig::OnCombatLockStart, "combat_start"),
+            (EventConfig::OnCombatLockEnd, "combat_end"),
+        ] {
+            app.world_mut().spawn(count_handler(event, key));
             app.world_mut()
                 .resource_mut::<NovaEventWorld>()
                 .insert_variable(key.to_string(), VariableLiteral::Number(0.0));
         }
-        let count = |app: &App, key: &str| -> f64 {
-            match app.world().resource::<NovaEventWorld>().get_variable(key) {
-                Some(VariableLiteral::Number(n)) => *n,
-                other => panic!("{key} variable missing: {:?}", other),
-            }
+        for (event, edge) in [
+            (EventConfig::OnTravelLockStart, "S"),
+            (EventConfig::OnTravelLockEnd, "E"),
+        ] {
+            let mut handler = EventHandler::<NovaEventWorld>::from(event);
+            handler.add_action(EventActionConfig::VariableSet(VariableSetActionConfig {
+                key: "travel_order".to_string(),
+                expression: VariableExpressionNode::new_add(
+                    VariableTermNode::new_factor(VariableFactorNode::new_name("travel_order")),
+                    VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                        VariableFactorNode::new_literal(VariableLiteral::String(edge.to_string())),
+                    )),
+                ),
+            }));
+            app.world_mut().spawn(handler);
+        }
+        app.world_mut()
+            .resource_mut::<NovaEventWorld>()
+            .insert_variable(
+                "travel_order".to_string(),
+                VariableLiteral::String(String::new()),
+            );
+
+        let count =
+            |app: &App, key: &str| match app.world().resource::<NovaEventWorld>().get_variable(key)
+            {
+                Some(VariableLiteral::Number(value)) => *value,
+                other => panic!("{key} count missing: {other:?}"),
+            };
+        let settle = |app: &mut App| {
+            app.update();
+            app.update();
         };
 
-        let beacon = app
-            .world_mut()
-            .spawn(EntityId::new("beacon_3".to_string()))
-            .id();
-        let unnamed = app.world_mut().spawn_empty().id();
+        let old_target = app.world_mut().spawn(EntityId::new("old_target")).id();
+        let new_target = app.world_mut().spawn(EntityId::new("new_target")).id();
+        let unnamed_target = app.world_mut().spawn_empty().id();
         let player = app
             .world_mut()
             .spawn((
                 SpaceshipRootMarker,
                 PlayerSpaceshipMarker,
-                EntityId::new("player_spaceship".to_string()),
-                EntityTypeName::new("spaceship".to_string()),
+                EntityId::new("player"),
+                EntityTypeName::new("spaceship"),
                 TravelLock(None),
                 CombatLock(None),
             ))
             .id();
-        // An AI ship with a combat lock on the SAME beacon (the combat
-        // mirror writes these constantly): must never fire.
         app.world_mut().spawn((
             SpaceshipRootMarker,
-            EntityId::new("scavenger".to_string()),
-            EntityTypeName::new("spaceship".to_string()),
+            EntityId::new("ai"),
+            EntityTypeName::new("spaceship"),
             TravelLock(None),
-            CombatLock(Some(beacon)),
+            CombatLock(Some(old_target)),
         ));
-        // Arm the echo bookkeeping (first frame inserts it).
-        app.update();
-        app.update();
+        settle(&mut app);
 
-        // Travel acquisition: one travel fire, no combat fire.
-        app.world_mut().get_mut::<TravelLock>(player).unwrap().0 = Some(beacon);
-        app.update();
-        app.update();
-        assert_eq!(count(&app, "travel_locks"), 1.0, "travel lock ticks");
-        assert_eq!(count(&app, "combat_locks"), 0.0);
-
-        // Combat acquisition on the same target: the combat handler ticks.
-        app.world_mut().get_mut::<CombatLock>(player).unwrap().0 = Some(beacon);
-        app.update();
-        app.update();
-        assert_eq!(count(&app, "combat_locks"), 1.0, "combat lock ticks");
-
-        // Holding both under the echo window: quiet (once per acquisition).
-        for _ in 0..5 {
+        app.world_mut().get_mut::<TravelLock>(player).unwrap().0 = Some(old_target);
+        settle(&mut app);
+        assert_eq!(count(&app, "travel_start"), 1.0);
+        for _ in 0..20 {
             app.update();
         }
-        assert_eq!(count(&app, "travel_locks"), 1.0);
-        assert_eq!(count(&app, "combat_locks"), 1.0);
+        assert_eq!(count(&app, "travel_start"), 1.0, "held lock stays quiet");
 
-        // A target with no scenario id: quiet (the fires above are the
-        // delivery guard that the pipeline works).
-        app.world_mut().get_mut::<TravelLock>(player).unwrap().0 = Some(unnamed);
-        for _ in 0..3 {
-            app.update();
-        }
+        app.world_mut().get_mut::<TravelLock>(player).unwrap().0 = Some(new_target);
+        settle(&mut app);
+        assert_eq!(count(&app, "travel_start"), 2.0);
+        assert_eq!(count(&app, "travel_end"), 1.0);
         assert_eq!(
-            count(&app, "travel_locks"),
-            1.0,
-            "an id-less target fires nothing"
+            app.world()
+                .resource::<NovaEventWorld>()
+                .get_variable("travel_order"),
+            Some(&VariableLiteral::String("SES".to_string())),
+            "target switch queues end-old before start-new"
         );
 
-        // The AI ship's lock sat on beacon_3 the whole test: still zero
-        // fires beyond the player's own (the player-scope pin).
-        assert_eq!(count(&app, "combat_locks"), 1.0, "AI locks never fire");
+        app.world_mut().get_mut::<TravelLock>(player).unwrap().0 = None;
+        app.world_mut().get_mut::<CombatLock>(player).unwrap().0 = Some(old_target);
+        settle(&mut app);
+        assert_eq!(count(&app, "travel_end"), 2.0);
+        assert_eq!(count(&app, "combat_start"), 1.0);
+
+        app.world_mut().get_mut::<CombatLock>(player).unwrap().0 = None;
+        settle(&mut app);
+        assert_eq!(count(&app, "combat_end"), 1.0);
+
+        app.world_mut().get_mut::<TravelLock>(player).unwrap().0 = Some(unnamed_target);
+        settle(&mut app);
+        assert_eq!(
+            count(&app, "travel_start"),
+            2.0,
+            "id-less targets stay quiet"
+        );
+        assert_eq!(count(&app, "combat_start"), 1.0, "AI locks never fire");
     }
 }

@@ -55,6 +55,8 @@ tagged **(breaking)**.
 - **(breaking)** Recurring `OnOrbit` and per-ship `orbit_hold_secs` are replaced
   by one-shot `OnOrbitStart`, `OnOrbitStable`, `OnOrbitUnstable`, and
   `OnOrbitEnd` edges; continuous holds compose these events with scenario timers.
+- **(breaking)** Recurring `OnTravelLock` / `OnCombatLock` and per-player
+  `lock_refire_secs` are replaced by one-shot start/end lock lifecycle edges.
 - Scenarios gain keyed, pause-frozen timers: `TimerStart`, `TimerCancel`, and a
   one-shot `OnTimerEnd` event with a timer-key filter.
 - The scenario lint warns on a zero delay written as a value:
