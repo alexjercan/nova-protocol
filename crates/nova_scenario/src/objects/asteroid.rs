@@ -22,7 +22,8 @@ pub mod prelude {
     pub use super::{
         asteroid_scenario_object, AsteroidConfig, AsteroidInvulnerable, AsteroidMarker,
         AsteroidMass, AsteroidPlugin, AsteroidRadius, AsteroidRenderMesh, AsteroidTexture,
-        ASTEROID_GEOMETRIC_FACTOR_MAX, ASTEROID_GEOMETRIC_FACTOR_MIN, ASTEROID_TYPE_NAME,
+        PlanetHeight, ASTEROID_GEOMETRIC_FACTOR_MAX, ASTEROID_GEOMETRIC_FACTOR_MIN,
+        ASTEROID_TYPE_NAME,
     };
 }
 

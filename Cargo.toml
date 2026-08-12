@@ -165,6 +165,19 @@ path = "examples/screenshots/screenshot_flight.rs"
 name = "render_scale_shot"
 path = "examples/screenshots/render_scale_shot.rs"
 
+# The compare_* producers frame art candidates for human judgment (task
+# 20260812-100256) - the category's promise verbatim, with the owner's eyes on
+# the frames instead of the website's. Interactive when hand-run (number keys
+# retexture the focus subject); under NOVA_AUTOPILOT they walk, capture and
+# exit like any other producer.
+[[example]]
+name = "compare_asteroids"
+path = "examples/screenshots/compare_asteroids.rs"
+
+[[example]]
+name = "compare_planets"
+path = "examples/screenshots/compare_planets.rs"
+
 # Inherit the workspace clippy allows (type_complexity, too_many_arguments) for
 # the root package too, so the lib, binary and examples match the crates' policy.
 [lints]
