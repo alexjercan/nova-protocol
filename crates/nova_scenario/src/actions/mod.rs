@@ -9,12 +9,14 @@ mod flow;
 mod mission;
 mod ship;
 mod spawn;
+mod timer;
 mod view;
 
 pub use flow::*;
 pub use mission::*;
 pub use ship::*;
 pub use spawn::*;
+pub use timer::*;
 pub use view::*;
 
 /// Glob-import surface: `use nova_scenario::actions::prelude::*` brings the
@@ -30,9 +32,9 @@ pub mod prelude {
         ScatterObjectsConfig, ScatterRegion, ScenarioAreaConfig, ScenarioObjectConfig,
         ScenarioObjectKind, ScenarioOutcomeKind, ScreenshotActionConfig, SetAllegianceActionConfig,
         SetCameraActionConfig, SetControllerVerbActionConfig, SetSkyboxActionConfig,
-        SetSpeedCapActionConfig, StoryMessageActionConfig, VariableSetActionConfig,
-        MAX_SCATTER_COUNT, NEXT_SCENARIO_DELAY_MAX_SECS, NEXT_SCENARIO_DELAY_WARN_SECS,
-        OUTCOME_AUTO_ADVANCE_MAX_SECS,
+        SetSpeedCapActionConfig, StoryMessageActionConfig, TimerCancelActionConfig,
+        TimerStartActionConfig, VariableSetActionConfig, MAX_SCATTER_COUNT,
+        NEXT_SCENARIO_DELAY_MAX_SECS, NEXT_SCENARIO_DELAY_WARN_SECS, OUTCOME_AUTO_ADVANCE_MAX_SECS,
     };
 }
 
@@ -45,6 +47,10 @@ pub enum EventActionConfig {
     DebugMessage(DebugMessageActionConfig),
     /// Evaluate an expression into a scenario variable.
     VariableSet(VariableSetActionConfig),
+    /// Start or restart a keyed scenario timer.
+    TimerStart(TimerStartActionConfig),
+    /// Cancel a keyed scenario timer.
+    TimerCancel(TimerCancelActionConfig),
     /// Add a HUD objective by id.
     Objective(ObjectiveActionConfig),
     /// Complete a HUD objective by id.
@@ -95,6 +101,12 @@ impl EventAction<NovaEventWorld> for EventActionConfig {
                 config.action(world, info);
             }
             EventActionConfig::VariableSet(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::TimerStart(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::TimerCancel(config) => {
                 config.action(world, info);
             }
             EventActionConfig::Objective(config) => {

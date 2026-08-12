@@ -2,13 +2,14 @@
 
 A filter gates a handler: when its event fires, EVERY entry in the handler's
 `filters` list must pass (logical AND) before the actions run. An empty (or
-omitted) list always passes. There are exactly three filter kinds - `Entity`
-matches the event's payload, `Expression` tests scenario variables, and
-`Conditional` combines other filters with boolean logic.
+omitted) list always passes. There are exactly four filter kinds - `Entity` matches
+entity payloads, `Timer` matches a timer key, `Expression` tests scenario
+variables, and `Conditional` combines other filters with boolean logic.
 
 | filter | tests | typical use |
 |---|---|---|
 | [`Entity`](#entity) | who the event is about | "this beacon, entered by the player" |
+| [`Timer`](#timer) | a timer event key | "the orbit hold timer ended" |
 | [`Expression`](#expression) | a variable condition | "the counter is past 4 and the flag is unset" |
 | [`Conditional`](#conditional) | other filters, combined | "NOT the player", "picket A down OR picket B down" |
 
@@ -58,6 +59,18 @@ Two rules that bite:
   the actions. An action cannot say "spawn at whatever entered" - it acts on
   its own configured target id. Use the filter to decide WHETHER the handler
   runs, then address entities by their known scenario ids.
+
+## Timer
+
+Match the `key` carried by [`OnTimerEnd`](../events/#ontimerend). It fails
+closed on every other event because those events carry no timer key.
+
+```ron
+Timer((key: "orbit_hold"))
+```
+
+Timer keys are scenario-local strings. This filter observes the event that
+already ended; it does not test whether a timer is currently running.
 
 ## Expression
 

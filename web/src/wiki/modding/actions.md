@@ -3,7 +3,7 @@
 Everything a handler can DO. Actions run in authored order once every filter
 passes; each is a newtype variant - `Name((field: value, ...))`, double
 parens even for one field. Failures warn and continue (a missing target id
-never panics a scenario). All 22, grouped by what they touch:
+never panics a scenario). All 24, grouped by what they touch:
 
 | group | actions |
 |---|---|
@@ -11,7 +11,7 @@ never panics a scenario). All 22, grouped by what they touch:
 | [Mission & story](#mission-story) | [`Objective`](#objective), [`ObjectiveComplete`](#objectivecomplete), [`ObjectiveMarkerAttach`](#objectivemarkerattach), [`ObjectiveMarkerDetach`](#objectivemarkerdetach), [`StoryMessage`](#storymessage), [`HudReadout`](#hudreadout), [`HintEmphasisSet`](#hintemphasisset), [`HintEmphasisClear`](#hintemphasisclear) |
 | [Flow: outcomes & transitions](#flow-outcomes-transitions) | [`Outcome`](#outcome), [`NextScenario`](#nextscenario) |
 | [Ship state](#ship-state) | [`SetSpeedCap`](#setspeedcap), [`SetControllerVerb`](#setcontrollerverb), [`SetAllegiance`](#setallegiance) |
-| [Variables & debugging](#variables-debugging) | [`VariableSet`](#variableset), [`DebugMessage`](#debugmessage) |
+| [Variables, timers & debugging](#variables-timers-debugging) | [`VariableSet`](#variableset), [`TimerStart`](#timerstart), [`TimerCancel`](#timercancel), [`DebugMessage`](#debugmessage) |
 | [Camera & photo mode](#camera-photo-mode) | [`SetCamera`](#setcamera), [`Screenshot`](#screenshot), [`SetSkybox`](#setskybox) |
 
 **Scoped targets.** Every by-id action resolves its id ONLY among
@@ -362,7 +362,37 @@ primitive: spawn a bystander `Neutral`, flip it `Enemy` on a trigger.
 SetAllegiance((id: "magpie", allegiance: Enemy)),
 ```
 
-## Variables & debugging
+## Variables, timers & debugging
+
+### TimerStart
+
+Start a keyed scenario timer. Starting an existing key restarts its deadline.
+The duration is a numeric expression and must evaluate to a positive finite
+number. Invalid values log an error and leave an existing timer unchanged.
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `key` | string | required | scenario-local timer key |
+| `seconds` | numeric expression | required | live, unpaused seconds until `OnTimerEnd` |
+
+```ron
+TimerStart((
+    key: "orbit_hold",
+    seconds: Term(Factor(Literal(Number(8.0)))),
+)),
+```
+
+Timers freeze under pause and clear on retry or teardown. Use an
+[`OnTimerEnd`](../events/#ontimerend) handler with a
+[`Timer`](../filters/#timer) filter to react once.
+
+### TimerCancel
+
+Cancel a running timer. A missing key is a no-op.
+
+```ron
+TimerCancel((key: "orbit_hold")),
+```
 
 ### VariableSet
 

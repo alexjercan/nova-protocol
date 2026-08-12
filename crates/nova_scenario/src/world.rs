@@ -41,6 +41,8 @@ pub struct NovaEventWorld {
     /// frame. Cleared at teardown with the rest of the event world.
     hud_readouts: Vec<HudReadoutActionConfig>,
     variables: HashMap<String, VariableLiteral>,
+    /// Keyed timer deadlines on the pause-frozen scenario clock.
+    timers: HashMap<String, f64>,
     /// Every position a `ScatterObjects` action has placed this scenario, in
     /// placement order. Separation is a property of the FIELD, not of one
     /// action: a belt is authored as sibling scatters whose regions abut, and a
@@ -251,8 +253,8 @@ impl EventWorld for NovaEventWorld {
 }
 
 impl NovaEventWorld {
-    /// Reset all scenario state (variables, objectives, story log, queued
-    /// commands, and any pending switch) at scenario teardown.
+    /// Reset all scenario state (variables, timers, objectives, story log,
+    /// queued commands, and any pending switch) at scenario teardown.
     pub fn clear(&mut self) {
         // Undrained commands die with the scenario. Legitimate on teardown, but
         // it is also how an `Outcome` composed with an INSTANT switch (`linger:
@@ -269,6 +271,7 @@ impl NovaEventWorld {
         self.story_messages.clear();
         self.hud_readouts.clear();
         self.variables.clear();
+        self.timers.clear();
         self.scatter_placements.clear();
         self.next_scenario = None;
         self.next_scenario_delay = None;
@@ -371,6 +374,51 @@ impl NovaEventWorld {
             }
             None => false,
         }
+    }
+
+    /// Start or restart a timer. Returns false when the computed deadline is
+    /// not finite.
+    pub(crate) fn start_timer(&mut self, key: String, seconds: f64) -> bool {
+        if key.trim().is_empty() || !seconds.is_finite() || seconds <= 0.0 {
+            return false;
+        }
+        let now = match self.variables.get(crate::loader::SCENARIO_ELAPSED_VAR) {
+            Some(VariableLiteral::Number(value)) => *value,
+            _ => 0.0,
+        };
+        let deadline = now + seconds;
+        if !deadline.is_finite() {
+            return false;
+        }
+        self.timers.insert(key, deadline);
+        true
+    }
+
+    /// Cancel a timer. A missing key is a no-op.
+    pub(crate) fn cancel_timer(&mut self, key: &str) {
+        self.timers.remove(key);
+    }
+
+    /// Remove and return keys whose deadline has passed, in deterministic key
+    /// order. Removing before dispatch lets an end handler restart the key.
+    pub(crate) fn drain_ended_timers(&mut self, now: f64) -> Vec<String> {
+        let mut ended: Vec<String> = self
+            .timers
+            .iter()
+            .filter(|(_, deadline)| now >= **deadline)
+            .map(|(key, _)| key.clone())
+            .collect();
+        ended.sort_unstable();
+        for key in &ended {
+            self.timers.remove(key);
+        }
+        ended
+    }
+
+    /// True when a timer is currently running. Intended for diagnostics and
+    /// tests; authored content observes completion through `OnTimerEnd`.
+    pub fn timer_is_running(&self, key: &str) -> bool {
+        self.timers.contains_key(key)
     }
 
     /// Set a scenario variable, overwriting any existing value under `key`.

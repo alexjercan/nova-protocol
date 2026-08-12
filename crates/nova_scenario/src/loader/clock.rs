@@ -1,4 +1,4 @@
-//! The reserved engine variables and the per-frame clock/pulse pair.
+//! Reserved engine values, keyed timers, and the per-frame scenario pulse.
 
 use avian3d::prelude::LinearVelocity;
 use bevy::prelude::*;
@@ -89,13 +89,26 @@ pub(super) fn scenario_elapsed(world: &NovaEventWorld) -> f64 {
     }
 }
 
-/// The ONE registration of the clock + pulse pair, shared by the plugin and the
-/// test rigs so the load-bearing chain + gate cannot drift between them: tick
-/// first, pulse second, both gated live + Unpaused.
+/// Fire one event for every timer that crossed its deadline. Expired keys are
+/// removed before dispatch, so an `OnTimerEnd` handler can restart the same key.
+fn tick_scenario_timers(mut commands: Commands, mut world: ResMut<NovaEventWorld>) {
+    let now = scenario_elapsed(&world);
+    for key in world.drain_ended_timers(now) {
+        commands.fire::<OnTimerEndEvent>(OnTimerEndEventInfo { key });
+    }
+}
+
+/// The ONE registration of the clock, timers, and pulse, shared by the plugin
+/// and test rigs. Timer-end events queue before the frame's OnUpdate pulse.
 pub(super) fn register_clock_and_pulse(app: &mut App) {
     app.add_systems(
         Update,
-        (tick_scenario_clock, track_player_speed, fire_on_update)
+        (
+            tick_scenario_clock,
+            track_player_speed,
+            tick_scenario_timers,
+            fire_on_update,
+        )
             .chain()
             .run_if(scenario_is_live.and_then(in_state(PauseStates::Unpaused))),
     );
@@ -258,6 +271,96 @@ mod tests {
             at_pause,
             count(&app)
         );
+    }
+
+    /// A keyed timer freezes under pause, then emits one filtered end event
+    /// after unpause. This uses the production clock/timer/dispatch chain.
+    #[test]
+    fn timer_end_dispatches_once_after_live_unpaused_time() {
+        use core::time::Duration;
+
+        use bevy::time::TimeUpdateStrategy;
+        use nova_events::prelude::{EventAction, EventHandler, GameEventsPlugin};
+        use nova_gameplay::prelude::GameObjectives;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<PauseStates>();
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.init_resource::<CurrentScenario>();
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
+            100,
+        )));
+        register_clock_and_pulse(&mut app);
+
+        let mut matching = EventHandler::<NovaEventWorld>::from(EventConfig::OnTimerEnd);
+        matching.add_filter(EventFilterConfig::Timer(TimerFilterConfig {
+            key: "briefing".to_string(),
+        }));
+        matching.add_action(EventActionConfig::VariableSet(VariableSetActionConfig {
+            key: "ended".to_string(),
+            expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                VariableFactorNode::new_literal(VariableLiteral::Boolean(true)),
+            )),
+        }));
+        app.world_mut().spawn(matching);
+
+        let mut wrong_key = EventHandler::<NovaEventWorld>::from(EventConfig::OnTimerEnd);
+        wrong_key.add_filter(EventFilterConfig::Timer(TimerFilterConfig {
+            key: "other".to_string(),
+        }));
+        wrong_key.add_action(EventActionConfig::VariableSet(VariableSetActionConfig {
+            key: "wrong_key_fired".to_string(),
+            expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                VariableFactorNode::new_literal(VariableLiteral::Boolean(true)),
+            )),
+        }));
+        app.world_mut().spawn(wrong_key);
+
+        app.insert_resource(CurrentScenario(Some(scenario_with("live", vec![]))));
+        TimerStartActionConfig {
+            key: "briefing".to_string(),
+            seconds: VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                VariableFactorNode::new_literal(VariableLiteral::Number(0.3)),
+            )),
+        }
+        .action(
+            &mut app.world_mut().resource_mut::<NovaEventWorld>(),
+            &default(),
+        );
+
+        app.update();
+        app.world_mut()
+            .resource_mut::<NextState<PauseStates>>()
+            .set(PauseStates::Paused);
+        app.update();
+        for _ in 0..5 {
+            app.update();
+        }
+        assert!(
+            app.world()
+                .resource::<NovaEventWorld>()
+                .get_variable("ended")
+                .is_none(),
+            "paused frames do not consume timer time"
+        );
+
+        app.world_mut()
+            .resource_mut::<NextState<PauseStates>>()
+            .set(PauseStates::Unpaused);
+        for _ in 0..5 {
+            app.update();
+        }
+        let world = app.world().resource::<NovaEventWorld>();
+        assert_eq!(
+            world.get_variable("ended"),
+            Some(&VariableLiteral::Boolean(true))
+        );
+        assert!(world.get_variable("wrong_key_fired").is_none());
+        assert!(!world.timer_is_running("briefing"));
     }
 
     /// The scenario clock: accumulates live unpaused seconds into the reserved

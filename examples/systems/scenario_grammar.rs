@@ -9,7 +9,8 @@
 //! crosses a threshold; an expression-filtered `OnUpdate` promoting the beat
 //! again and, with arithmetic over the scenario's own variables, closing each
 //! ROUND; `OnEnter`/`OnExit` on the trigger volume; `OnNeutralized` on a
-//! disarmed escort; and `ObjectiveComplete` when the ring is finally clear.
+//! disarmed escort; a keyed timer and filtered `OnTimerEnd`; and
+//! `ObjectiveComplete` when the ring is finally clear.
 //!
 //! Every beat waits on what the SCENARIO wrote - its own variables - rather
 //! than on a wall-clock settle, so a slow load or an llvmpipe frame stall
@@ -117,6 +118,10 @@ fn main() -> bevy::app::AppExit {
             .add()
             // OnEnter: the volume is created around a rock that is already
             // there, and the fresh contact pair is what fires the event.
+            .step("see the scenario timer finish")
+            .until(scenario_variable_is("timer_ended", 1.0))
+            .deadline(5.0)
+            .add()
             .step("see the trigger volume swallow a rock")
             .until(scenario_variable_is("area_entries", 1.0))
             .deadline(20.0)
@@ -194,6 +199,7 @@ fn main() -> bevy::app::AppExit {
             "area_entries",
             "area_exits",
             "escort_neutralized",
+            "timer_ended",
             "ring_cleared",
         ]));
         // Frame-time capture (inert unless NOVA_PERF is set): fleet-wide
@@ -348,7 +354,12 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         set("area_entries", 0.0),
         set("area_exits", 0.0),
         set("escort_neutralized", 0.0),
+        set("timer_ended", 0.0),
         set("ring_cleared", 0.0),
+        EventActionConfig::TimerStart(TimerStartActionConfig {
+            key: "grammar_delay".to_string(),
+            seconds: number(0.25),
+        }),
     ]);
     // The showcase lights itself: the engine spawns no light, so a scenario
     // that authors none renders black.
@@ -359,6 +370,13 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
             name: EventConfig::OnStart,
             filters: vec![],
             actions: start_actions,
+        },
+        ScenarioEventConfig {
+            name: EventConfig::OnTimerEnd,
+            filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
+                key: "grammar_delay".to_string(),
+            })],
+            actions: vec![set("timer_ended", 1.0)],
         },
         // Every destroyed asteroid bumps the tally (entity-type filter +
         // variable arithmetic).

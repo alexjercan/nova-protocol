@@ -16,6 +16,7 @@ use crate::prelude::*;
 pub mod prelude {
     pub use super::{
         ConditionalFilterConfig, EntityFilterConfig, EventFilterConfig, ExpressionFilterConfig,
+        TimerFilterConfig,
     };
 }
 
@@ -30,6 +31,8 @@ pub enum EventFilterConfig {
     Conditional(ConditionalFilterConfig),
     /// Evaluate a variable condition against the scenario variables.
     Expression(ExpressionFilterConfig),
+    /// Match a timer event by its scenario-local key.
+    Timer(TimerFilterConfig),
 }
 
 impl EventFilter<NovaEventWorld> for EventFilterConfig {
@@ -38,6 +41,7 @@ impl EventFilter<NovaEventWorld> for EventFilterConfig {
             EventFilterConfig::Entity(config) => config.filter(world, info),
             EventFilterConfig::Conditional(config) => config.filter(world, info),
             EventFilterConfig::Expression(config) => config.filter(world, info),
+            EventFilterConfig::Timer(config) => config.filter(world, info),
         }
     }
 }
@@ -136,6 +140,24 @@ impl EventFilter<NovaEventWorld> for EntityFilterConfig {
         }
 
         result
+    }
+}
+
+/// Match an `OnTimerEnd` payload by timer key.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct TimerFilterConfig {
+    /// Scenario-local timer key to match.
+    pub key: String,
+}
+
+impl EventFilter<NovaEventWorld> for TimerFilterConfig {
+    fn filter(&self, _: &NovaEventWorld, info: &GameEventInfo) -> bool {
+        info.data
+            .as_ref()
+            .and_then(|data| data.get(TIMER_KEY_FIELD_NAME))
+            .and_then(|value| value.as_str())
+            .is_some_and(|key| key == self.key)
     }
 }
 

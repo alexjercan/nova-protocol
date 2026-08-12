@@ -52,6 +52,8 @@ tagged **(breaking)**.
 
 ### Modding & Mod Portal
 
+- Scenarios gain keyed, pause-frozen timers: `TimerStart`, `TimerCancel`, and a
+  one-shot `OnTimerEnd` event with a timer-key filter.
 - The scenario lint warns on a zero delay written as a value:
   `auto_advance_secs: Some(0.0)` and a `NextScenario` `delay: Some(0.0)` now
   report - both mean "no delay", which is spelled `None`. Third-party content

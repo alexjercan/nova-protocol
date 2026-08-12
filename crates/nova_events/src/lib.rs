@@ -2,8 +2,8 @@
 //! scenario engine. It defines the game-event kinds a scenario reacts to -
 //! `OnStartEvent`, `OnUpdateEvent`, `OnDestroyedEvent`, `OnNeutralizedEvent`,
 //! the area `OnEnterEvent`/`OnExitEvent`, `OnOrbitEvent`, `OnTravelLockEvent`,
-//! `OnCombatLockEvent` - and the entity-identity components that tag scenario
-//! objects so filters can find them (`EntityId`, `EntityTypeName`). It is
+//! `OnCombatLockEvent`, `OnTimerEndEvent` - and the identity components that
+//! tag scenario objects so filters can find them (`EntityId`, `EntityTypeName`). It is
 //! engine-light glue: `nova_gameplay` emits these events and `nova_scenario`
 //! filters and dispatches on them. It also owns the [`engine`] that queues and
 //! dispatches those events.
@@ -32,9 +32,10 @@ pub mod prelude {
         EntityId, EntityTypeName, OnCombatLockEvent, OnCombatLockEventInfo, OnDestroyedEvent,
         OnDestroyedEventInfo, OnEnterEvent, OnEnterEventInfo, OnExitEvent, OnExitEventInfo,
         OnNeutralizedEvent, OnNeutralizedEventInfo, OnOrbitEvent, OnOrbitEventInfo, OnStartEvent,
-        OnStartEventInfo, OnTravelLockEvent, OnTravelLockEventInfo, OnUpdateEvent,
-        OnUpdateEventInfo, ENTITY_ID_COMPONENT_NAME, ENTITY_OTHER_ID_COMPONENT_NAME,
-        ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME, ENTITY_TYPE_NAME_COMPONENT_NAME,
+        OnStartEventInfo, OnTimerEndEvent, OnTimerEndEventInfo, OnTravelLockEvent,
+        OnTravelLockEventInfo, OnUpdateEvent, OnUpdateEventInfo, ENTITY_ID_COMPONENT_NAME,
+        ENTITY_OTHER_ID_COMPONENT_NAME, ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME,
+        ENTITY_TYPE_NAME_COMPONENT_NAME, TIMER_KEY_FIELD_NAME,
     };
 }
 
@@ -59,6 +60,8 @@ pub const ENTITY_TYPE_NAME_COMPONENT_NAME: &str = "type_name";
 pub const ENTITY_OTHER_ID_COMPONENT_NAME: &str = "other_id";
 /// Reflect field name for the other entity's type name (`other_type_name`).
 pub const ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME: &str = "other_type_name";
+/// Field name for a timer event's scenario-local key.
+pub const TIMER_KEY_FIELD_NAME: &str = "key";
 
 /// Component tagging a scenario object with its type name, so event filters can
 /// match on kind. Inserted alongside [`EntityId`] when spawning scenario objects.
@@ -70,6 +73,19 @@ impl EntityTypeName {
     pub fn new<S: Into<String>>(s: S) -> Self {
         EntityTypeName(s.into())
     }
+}
+
+/// Event kind fired once when a keyed scenario timer ends (`ontimerend`).
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("ontimerend")]
+#[event_info(OnTimerEndEventInfo)]
+pub struct OnTimerEndEvent;
+
+/// Payload for [`OnTimerEndEvent`].
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
+pub struct OnTimerEndEventInfo {
+    /// Scenario-local key of the timer that ended.
+    pub key: String,
 }
 
 /// Event kind fired once when the scenario starts (`onstart`); carries

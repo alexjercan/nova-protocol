@@ -30,6 +30,8 @@ pub enum EventConfig {
     OnNeutralized,
     /// Fires every frame while a scenario is live and unpaused.
     OnUpdate,
+    /// Fires once when a keyed scenario timer ends.
+    OnTimerEnd,
     /// Fires when a body enters an area/zone (`id` = the area, other = the body).
     OnEnter,
     /// Fires when a body leaves an area/zone (`id` = the area, other = the body).
@@ -54,6 +56,7 @@ impl From<EventConfig> for EventHandler<NovaEventWorld> {
             EventConfig::OnDestroyed => EventHandler::new::<OnDestroyedEvent>(),
             EventConfig::OnNeutralized => EventHandler::new::<OnNeutralizedEvent>(),
             EventConfig::OnUpdate => EventHandler::new::<OnUpdateEvent>(),
+            EventConfig::OnTimerEnd => EventHandler::new::<OnTimerEndEvent>(),
             EventConfig::OnEnter => EventHandler::new::<OnEnterEvent>(),
             EventConfig::OnExit => EventHandler::new::<OnExitEvent>(),
             EventConfig::OnOrbit => EventHandler::new::<OnOrbitEvent>(),

@@ -55,6 +55,7 @@ a scoped entity, (4) be a self-expiring `TempEntity`, or (5) be torn down by a
 |----------------|------------|
 | `OnStart`      | once, right after a scenario loads |
 | `OnUpdate`     | every frame while a scenario is live and unpaused (frozen behind the pause menu / outcome frame) |
+| `OnTimerEnd`   | once when a keyed scenario timer reaches its deadline |
 | `OnDestroyed`  | an entity is destroyed |
 | `OnNeutralized` | a ship that was armed loses ALL working weapons AND thrusters - combat-dead (out of the fight) even with its hull intact; the ship is NOT despawned |
 | `OnEnter`      | a body enters an area/zone |
@@ -106,6 +107,7 @@ flowchart LR
   match, and the fields are read for FILTERING only - never passed to actions.
   Per-event table + examples in
   [Create your first scenario](../../modding/author-a-scenario/#4-events-filters-and-actions).
+- `Timer(TimerFilterConfig)` - match an `OnTimerEnd` payload by its keyed timer name.
 - `Expression(ExpressionFilterConfig)` - evaluate a `VariableConditionNode`
   against the scenario variables.
 - `Conditional(ConditionalFilterConfig)` - `Not` / `And` / `Or` combinators;
@@ -115,6 +117,9 @@ flowchart LR
 
 - `DebugMessage` - log a message.
 - `VariableSet` - evaluate an expression into a scenario variable.
+- `TimerStart` / `TimerCancel` - start, restart, or cancel a keyed scenario
+  timer. Timers use the pause-frozen scenario clock; expiry removes the key
+  before firing `OnTimerEnd`.
 - `Objective` / `ObjectiveComplete` - add or complete a HUD objective by id.
 - `ObjectiveMarkerAttach` / `ObjectiveMarkerDetach` - add/remove the gold
   marker chip (label + distance) on the scoped object by id; a despawned

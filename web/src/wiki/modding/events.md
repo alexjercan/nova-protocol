@@ -1,7 +1,7 @@
 # Events
 
 Everything that can fire a handler. A handler's `name:` field names one of
-the NINE event kinds below, written bare (they are unit variants):
+the TEN event kinds below, written bare (they are unit variants):
 `name: OnStart`, `name: OnEnter`, and so on. When the event fires, the
 handler's [filters](../filters/) gate it and its [actions](../actions/) run.
 
@@ -11,6 +11,7 @@ The whole vocabulary at a glance:
 |---|---|---|
 | [`OnStart`](#onstart) | none | once, right after the scenario loads |
 | [`OnUpdate`](#onupdate) | none | every frame while live and unpaused |
+| [`OnTimerEnd`](#ontimerend) | `key` | a keyed scenario timer ends |
 | [`OnDestroyed`](#ondestroyed) | `id`, `type_name` | a scenario object is destroyed |
 | [`OnNeutralized`](#onneutralized) | `id`, `type_name` | an armed ship loses ALL weapons AND thrusters |
 | [`OnEnter`](#onenter) | `id`, `other_id`, `other_type_name` | a body enters a trigger area |
@@ -19,11 +20,11 @@ The whole vocabulary at a glance:
 | [`OnTravelLock`](#ontravellock) | `id`, `other_id`, `other_type_name` | the player's travel lock lands (recurs) |
 | [`OnCombatLock`](#oncombatlock) | `id`, `other_id`, `other_type_name` | the player's combat lock lands (recurs) |
 
-The payload is what an `Entity` filter can match on: `id` / `type_name` name
-the event's SUBJECT, `other_id` / `other_type_name` its other party. Which
-entity is which is per-event and listed under each kind below. A filter field
-the event does not fill NEVER matches - `other_id` on an `OnDestroyed`
-handler can never pass.
+Entity payload fields are what an `Entity` filter can match: `id` /
+`type_name` name the event's SUBJECT, `other_id` / `other_type_name` its other
+party. `OnTimerEnd` instead carries `key`, matched by a `Timer` filter. Which
+entity is which is per-event and listed below. A filter field the event does
+not fill NEVER matches - `other_id` on an `OnDestroyed` handler can never pass.
 
 ## OnStart
 
@@ -48,8 +49,8 @@ and post the first objective.
 
 Fires every frame while the scenario is live and UNPAUSED (frozen behind the
 pause menu and the outcome overlay). Carries no payload. The chain order is
-guaranteed: the scenario clock ticks, then the player speed updates, then
-`OnUpdate` fires - so a time or speed gate always sees this frame's values.
+guaranteed: the scenario clock ticks, player speed updates, ended timers fire,
+then `OnUpdate` fires. A time or speed gate always sees this frame's values.
 
 An unfiltered `OnUpdate` handler runs its actions EVERY frame. Always gate it
 with `Expression` filters plus a one-shot flag (the
@@ -82,6 +83,25 @@ order. Seed `briefing_sent` to `0` in `OnStart`, then write the handler as:
     ],
 ),
 ```
+
+## OnTimerEnd
+
+Fires exactly once when a keyed scenario timer reaches its deadline. Payload:
+`key` is the scenario-local timer key. Match it with a
+[`Timer`](../filters/#timer) filter. Timer-end events queue before that frame's
+`OnUpdate` pulse.
+
+```ron
+(
+    name: OnTimerEnd,
+    filters: [Timer((key: "briefing_delay"))],
+    actions: [StoryMessage((speaker: "Control", text: "Proceed."))],
+),
+```
+
+Start or restart the delay with [`TimerStart`](../actions/#timerstart). Cancel
+it with [`TimerCancel`](../actions/#timercancel). Timers use live, unpaused
+scenario time and clear on retry or teardown.
 
 ## OnDestroyed
 

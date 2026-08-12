@@ -331,6 +331,34 @@ fn check_action(
             }
             collect_expression_vars(&config.expression, used_vars);
         }
+        EventActionConfig::TimerStart(config) => {
+            if config.key.trim().is_empty() {
+                issues.push(LintIssue::error(
+                    scenario,
+                    "TimerStart has an empty key".to_string(),
+                ));
+            }
+            if let Some(seconds) = direct_number_literal(&config.seconds) {
+                if !seconds.is_finite() || seconds <= 0.0 {
+                    issues.push(LintIssue::error(
+                        scenario,
+                        format!(
+                            "TimerStart '{}' duration must be a positive finite number, got {seconds}",
+                            config.key
+                        ),
+                    ));
+                }
+            }
+            collect_expression_vars(&config.seconds, used_vars);
+        }
+        EventActionConfig::TimerCancel(config) => {
+            if config.key.trim().is_empty() {
+                issues.push(LintIssue::error(
+                    scenario,
+                    "TimerCancel has an empty key".to_string(),
+                ));
+            }
+        }
         EventActionConfig::StoryMessage(config) => {
             // The panel clamps silently; an authored dwell outside the
             // documented range is an authoring slip worth a nudge.
@@ -449,6 +477,16 @@ fn check_action(
         _ => {}
     }
 }
+fn direct_number_literal(expression: &VariableExpressionNode) -> Option<f64> {
+    let VariableExpressionNode::Term(VariableTermNode::Factor(VariableFactorNode::Literal(
+        VariableLiteral::Number(value),
+    ))) = expression
+    else {
+        return None;
+    };
+    Some(*value)
+}
+
 fn check_target(
     target: &str,
     what: &str,
@@ -487,6 +525,14 @@ fn check_filter(
         }
         EventFilterConfig::Expression(config) => {
             collect_condition_vars(&config.0, used_vars);
+        }
+        EventFilterConfig::Timer(config) => {
+            if config.key.trim().is_empty() {
+                issues.push(LintIssue::error(
+                    scenario,
+                    "Timer filter has an empty key".to_string(),
+                ));
+            }
         }
         EventFilterConfig::Conditional(config) => match config {
             ConditionalFilterConfig::Not(inner) => {
@@ -548,6 +594,33 @@ mod tests {
 
     use super::*;
     use crate::lint::{fixtures::*, LintSeverity};
+
+    #[test]
+    fn timer_keys_and_literal_durations_are_linted() {
+        let s = scenario(
+            vec![
+                EventActionConfig::TimerStart(TimerStartActionConfig {
+                    key: String::new(),
+                    seconds: VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                        VariableFactorNode::new_literal(VariableLiteral::Number(0.0)),
+                    )),
+                }),
+                EventActionConfig::TimerCancel(TimerCancelActionConfig { key: String::new() }),
+            ],
+            vec![EventFilterConfig::Timer(TimerFilterConfig {
+                key: String::new(),
+            })],
+        );
+        let issues = lint_scenario(&s, &sections(&[]), &known(&[]));
+        assert_eq!(
+            issues
+                .iter()
+                .filter(|issue| issue.severity == LintSeverity::Error)
+                .count(),
+            4,
+            "empty start/cancel/filter keys and zero duration each error: {issues:?}"
+        );
+    }
 
     /// A campaign whose every member resolves lints clean - the baseline the
     /// dangling case diverges from.
