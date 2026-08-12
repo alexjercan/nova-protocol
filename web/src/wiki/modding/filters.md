@@ -32,7 +32,7 @@ truth. The quick map:
 
 | event | `id` / `type_name` (subject) | `other_id` / `other_type_name` |
 |---|---|---|
-| `OnDestroyed`, `OnNeutralized` | the destroyed / neutralized object | (none) |
+| `OnDefeated`, `OnDestroyed`, `OnNeutralized` | the defeated / destroyed / neutralized object | (none) |
 | `OnEnter` / `OnExit` | the AREA (zone, beacon, crate) | the body that entered / left |
 | Orbit lifecycle events | the well being orbited | the orbiting ship |
 | travel/combat lock start/end | the locked target | the locking player ship |

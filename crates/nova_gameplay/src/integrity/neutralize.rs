@@ -27,10 +27,17 @@ use crate::prelude::{
     TurretSectionMarker,
 };
 
-/// `NeutralizedMarker` and `WasArmedCombatant`.
+/// Defeat and neutralization state markers.
 pub mod prelude {
-    pub use super::{NeutralizedMarker, WasArmedCombatant};
+    pub use super::{DefeatedMarker, NeutralizedMarker, WasArmedCombatant};
 }
+
+/// Marks a ship that has already crossed the unified scenario defeat edge.
+/// Persists on a neutralized wreck so later physical destruction cannot fire
+/// `OnDefeated` twice.
+#[derive(Component, Debug, Clone, Copy, Default, Reflect)]
+#[reflect(Component)]
+pub struct DefeatedMarker;
 
 /// Marks a ship root that has been NEUTRALIZED - it was an armed combatant and
 /// now has zero working weapon sections and zero working thruster sections, so
@@ -121,8 +128,11 @@ fn detect_neutralized(
             continue;
         }
 
-        // Combat-dead: no working weapons and no working thrusters.
-        commands.entity(root).insert(NeutralizedMarker);
+        // Combat-dead: no working weapons and no working thrusters. Stamp the
+        // unified edge before the persistent wreck state.
+        commands
+            .entity(root)
+            .insert((DefeatedMarker, NeutralizedMarker));
 
         // Fire the scenario-facing signal, mirroring the destroy path's use of
         // the ship's scenario id/type name.
@@ -131,9 +141,14 @@ fn detect_neutralized(
                 "detect_neutralized: entity {:?} neutralized (id: {:?}, type: {:?})",
                 root, id, type_name
             );
-            commands.fire::<OnNeutralizedEvent>(OnNeutralizedEventInfo {
+            let defeated = OnDefeatedEventInfo {
                 id: id.to_string(),
                 type_name: type_name.to_string(),
+            };
+            commands.fire::<OnDefeatedEvent>(defeated.clone());
+            commands.fire::<OnNeutralizedEvent>(OnNeutralizedEventInfo {
+                id: defeated.id,
+                type_name: defeated.type_name,
             });
         } else {
             // A shipped scenario ship always carries both, so this is a
@@ -158,25 +173,22 @@ mod tests {
         test_support::unfinished_integrity_physics_app,
     };
 
-    /// Counts every fired [`GameEvent`]. As in the ghost-ship rig, the ROOT is
-    /// the only entity carrying `EntityId` + `EntityTypeName`, and no ship is
-    /// ever destroyed in these tests, so every counted event is exactly an
-    /// `OnNeutralized` from `detect_neutralized`.
+    /// Records lifecycle event names in dispatch order.
     #[derive(Resource, Default)]
-    struct FiredEvents(usize);
+    struct FiredEvents(Vec<&'static str>);
 
     fn neutralize_app() -> App {
         let mut app = unfinished_integrity_physics_app();
         app.init_resource::<FiredEvents>();
-        app.add_observer(|_: On<GameEvent>, mut fired: ResMut<FiredEvents>| {
-            fired.0 += 1;
+        app.add_observer(|event: On<GameEvent>, mut fired: ResMut<FiredEvents>| {
+            fired.0.push(event.name());
         });
         app.finish();
         app
     }
 
-    fn fired(app: &App) -> usize {
-        app.world().resource::<FiredEvents>().0
+    fn fired(app: &App) -> &[&'static str] {
+        &app.world().resource::<FiredEvents>().0
     }
 
     /// Spawn a ship root with `weapons` turret sections, `thrusters` thruster
@@ -241,7 +253,7 @@ mod tests {
             !is_neutralized(&app, root),
             "must not neutralize while armed"
         );
-        assert_eq!(fired(&app), 0, "no event while still able to fight");
+        assert!(fired(&app).is_empty(), "no event while still able to fight");
 
         // Lose both the weapon and the thruster (hull untouched).
         disable(&mut app, weapons[0]);
@@ -260,12 +272,16 @@ mod tests {
             app.world().entity(hull).get::<Health>().unwrap().current > 0.0,
             "hull health is untouched by neutralization"
         );
-        assert_eq!(fired(&app), 1, "OnNeutralized fires exactly once");
+        assert_eq!(
+            fired(&app),
+            [OnDefeatedEvent::name(), OnNeutralizedEvent::name()],
+            "unified defeat precedes the detailed neutralization edge"
+        );
 
-        // It stays neutralized and does not re-fire on subsequent frames.
+        // It stays neutralized and neither edge re-fires on later frames.
         app.update();
         app.update();
-        assert_eq!(fired(&app), 1, "OnNeutralized does not re-fire");
+        assert_eq!(fired(&app).len(), 2, "neutralization does not re-fire");
     }
 
     #[test]
@@ -292,7 +308,10 @@ mod tests {
             !is_neutralized(&app, root),
             "a ship that was never armed is never neutralized, only destroyed"
         );
-        assert_eq!(fired(&app), 0, "no OnNeutralized for an unarmed ship");
+        assert!(
+            fired(&app).is_empty(),
+            "no defeat event for an unarmed ship"
+        );
     }
 
     #[test]
@@ -309,6 +328,6 @@ mod tests {
             !is_neutralized(&app, root),
             "still has a working thruster => still in the fight"
         );
-        assert_eq!(fired(&app), 0);
+        assert!(fired(&app).is_empty());
     }
 }

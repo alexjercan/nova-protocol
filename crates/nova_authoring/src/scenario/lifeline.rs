@@ -39,8 +39,8 @@ use super::{
     craft::{self, ShipGrade},
     pacing::{self, open_gate, REVEAL_GAP},
     shakedown::{
-        complete, destroyed, eq_num, gt_num, lt_num, mark, neutralized, num, objective, set, spawn,
-        story, unmark, var,
+        complete, defeated, destroyed, eq_num, gt_num, lt_num, mark, neutralized, num, objective,
+        set, spawn, story, unmark, var,
     },
     SCATTER_SEED,
 };
@@ -265,19 +265,12 @@ fn wave_beat(
     actions
 }
 
-/// A raider-kill beat: raise the flag, drop the marker.
-fn kill_flag(id: &str, flag: &str) -> ScenarioEventConfig {
+/// A raider defeat beat: raise the flag, drop the marker once whether the ship
+/// was neutralized or directly destroyed.
+fn defeat_flag(id: &str, flag: &str) -> ScenarioEventConfig {
     ScenarioEventConfig {
-        name: EventConfig::OnDestroyed,
-        filters: vec![destroyed(id)],
-        actions: vec![set(flag, num(1.0)), unmark(id)],
-    }
-}
-
-fn neutralize_flag(id: &str, flag: &str) -> ScenarioEventConfig {
-    ScenarioEventConfig {
-        name: EventConfig::OnNeutralized,
-        filters: vec![neutralized(id)],
+        name: EventConfig::OnDefeated,
+        filters: vec![defeated(id)],
         actions: vec![set(flag, num(1.0)), unmark(id)],
     }
 }
@@ -551,10 +544,8 @@ pub(crate) fn lifeline(
                 ],
             ),
         },
-        kill_flag("raider_1a", VAR_R1A_DOWN),
-        neutralize_flag("raider_1a", VAR_R1A_DOWN),
-        kill_flag("raider_1b", VAR_R1B_DOWN),
-        neutralize_flag("raider_1b", VAR_R1B_DOWN),
+        defeat_flag("raider_1a", VAR_R1A_DOWN),
+        defeat_flag("raider_1b", VAR_R1B_DOWN),
         // Breathe: wave one cleared, before wave two shows.
         paced_line(
             VAR_W1_CLEAR_SAID,
@@ -599,12 +590,9 @@ pub(crate) fn lifeline(
                 ],
             ),
         },
-        kill_flag("raider_2a", VAR_R2A_DOWN),
-        neutralize_flag("raider_2a", VAR_R2A_DOWN),
-        kill_flag("raider_2b", VAR_R2B_DOWN),
-        neutralize_flag("raider_2b", VAR_R2B_DOWN),
-        kill_flag("raider_2c", VAR_R2C_DOWN),
-        neutralize_flag("raider_2c", VAR_R2C_DOWN),
+        defeat_flag("raider_2a", VAR_R2A_DOWN),
+        defeat_flag("raider_2b", VAR_R2B_DOWN),
+        defeat_flag("raider_2c", VAR_R2C_DOWN),
         // Breathe: the Tallyman speaks for himself.
         paced_line(
             VAR_W2_CLEAR_SAID,
@@ -646,10 +634,8 @@ pub(crate) fn lifeline(
                 ],
             ),
         },
-        kill_flag("raider_3a", VAR_R3A_DOWN),
-        neutralize_flag("raider_3a", VAR_R3A_DOWN),
-        kill_flag("raider_3b", VAR_R3B_DOWN),
-        neutralize_flag("raider_3b", VAR_R3B_DOWN),
+        defeat_flag("raider_3a", VAR_R3A_DOWN),
+        defeat_flag("raider_3b", VAR_R3B_DOWN),
         // --- The convoy's fate. Each hauler death raises its flag and gets
         // its beacon-dark line; BOTH down is the loss (act 3 closes the
         // win gate before the defeat shows).

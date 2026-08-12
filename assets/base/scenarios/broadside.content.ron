@@ -2259,7 +2259,7 @@
                 ],
             ),
             (
-                name: OnDestroyed,
+                name: OnDefeated,
                 filters: [
                     Entity((
                         id: Some("corvette_a"),
@@ -2276,41 +2276,7 @@
                 ],
             ),
             (
-                name: OnNeutralized,
-                filters: [
-                    Entity((
-                        id: Some("corvette_a"),
-                    )),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "corvette_a_down",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
-                    ObjectiveMarkerDetach((
-                        target_id: "corvette_a",
-                    )),
-                ],
-            ),
-            (
-                name: OnDestroyed,
-                filters: [
-                    Entity((
-                        id: Some("corvette_b"),
-                    )),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "corvette_b_down",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
-                    ObjectiveMarkerDetach((
-                        target_id: "corvette_b",
-                    )),
-                ],
-            ),
-            (
-                name: OnNeutralized,
+                name: OnDefeated,
                 filters: [
                     Entity((
                         id: Some("corvette_b"),

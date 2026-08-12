@@ -1474,7 +1474,7 @@
                 ],
             ),
             (
-                name: OnDestroyed,
+                name: OnDefeated,
                 filters: [
                     Entity((
                         id: Some("picket_a"),
@@ -1491,41 +1491,7 @@
                 ],
             ),
             (
-                name: OnNeutralized,
-                filters: [
-                    Entity((
-                        id: Some("picket_a"),
-                    )),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "picket_a_down",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
-                    ObjectiveMarkerDetach((
-                        target_id: "picket_a",
-                    )),
-                ],
-            ),
-            (
-                name: OnDestroyed,
-                filters: [
-                    Entity((
-                        id: Some("picket_b"),
-                    )),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "picket_b_down",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
-                    ObjectiveMarkerDetach((
-                        target_id: "picket_b",
-                    )),
-                ],
-            ),
-            (
-                name: OnNeutralized,
+                name: OnDefeated,
                 filters: [
                     Entity((
                         id: Some("picket_b"),

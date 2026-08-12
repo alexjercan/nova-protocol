@@ -17,8 +17,8 @@
 
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{
-    CommandsGameEventExt, EntityId, EventHandler, GameEventsPlugin, OnDestroyedEvent,
-    OnDestroyedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
+    CommandsGameEventExt, EntityId, EventHandler, GameEventsPlugin, OnDefeatedEvent,
+    OnDefeatedEventInfo, OnDestroyedEvent, OnDestroyedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
 };
 use nova_gameplay::prelude::{Allegiance, GameObjectives};
 use nova_modding::prelude::Content;
@@ -103,8 +103,8 @@ fn register_non_start_handlers(app: &mut App, scenario: &ScenarioConfig) {
     }
 }
 
-/// Fire the scenario `OnDestroyed` for a ship root id - the same info the
-/// integrity bridge emits - and pump the handlers + queued commands through.
+/// Fire the direct-destruction lifecycle for a ship root id and pump queued
+/// handlers and commands through.
 fn destroy(app: &mut App, id: &str) {
     let info = OnDestroyedEventInfo {
         id: id.to_string(),
@@ -112,6 +112,10 @@ fn destroy(app: &mut App, id: &str) {
     };
     app.world_mut()
         .run_system_once(move |mut commands: Commands| {
+            commands.fire::<OnDefeatedEvent>(OnDefeatedEventInfo {
+                id: info.id.clone(),
+                type_name: info.type_name.clone(),
+            });
             commands.fire::<OnDestroyedEvent>(info.clone());
         })
         .expect("fire OnDestroyed");
@@ -169,7 +173,7 @@ fn breaking_both_corvettes_declares_the_chapter_checkpoint() {
         "one corvette is not enough to escalate"
     );
 
-    // Double OnDestroyed for the same ship (multi-collider bodies can): the
+    // Duplicate destruction input for the same ship: the
     // flag is idempotent, the act must not skip.
     destroy(&mut app, "corvette_a");
     assert_eq!(number_var(&app, "corvette_a_down"), Some(1.0));

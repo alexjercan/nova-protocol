@@ -56,11 +56,12 @@ a scoped entity, (4) be a self-expiring `TempEntity`, or (5) be torn down by a
 | `OnStart`      | once, right after a scenario loads |
 | `OnUpdate`     | every frame while a scenario is live and unpaused (frozen behind the pause menu / outcome frame) |
 | `OnTimerEnd`   | once when a keyed scenario timer reaches its deadline |
-| `OnDestroyed`  | an entity is destroyed |
+| `OnDefeated`   | once when a ship is neutralized or directly destroyed; precedes the detailed edge |
+| `OnDestroyed`  | an entity is physically destroyed |
 | `OnNeutralized` | a ship that was armed loses ALL working weapons AND thrusters - combat-dead (out of the fight) even with its hull intact; the ship is NOT despawned |
 | `OnEnter`      | a body enters an area/zone |
 | `OnExit`       | a body leaves an area/zone |
-| `OnOrbitStart` / `OnOrbitStable` / `OnOrbitUnstable` / `OnOrbitEnd` | one-shot ORBIT maneuver and Hold-phase transitions; destruction emits only `OnDestroyed` |
+| `OnOrbitStart` / `OnOrbitStable` / `OnOrbitUnstable` / `OnOrbitEnd` | one-shot ORBIT maneuver and Hold-phase transitions; destruction does not synthesize orbit edges |
 | `OnTravelLockStart` / `OnTravelLockEnd` | the player's TRAVEL lock lands on or leaves a scenario object |
 | `OnCombatLockStart` / `OnCombatLockEnd` | the player's COMBAT lock lands on or leaves a scenario object; AI locks never fire these |
 

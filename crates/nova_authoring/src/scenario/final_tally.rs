@@ -36,8 +36,8 @@ use super::{
     craft::{self, ShipGrade},
     pacing::{self, clock_past, mark_clock, open_gate, MID_GAP, REVEAL_GAP},
     shakedown::{
-        complete, destroyed, eq_num, gt_num, mark, neutralized, num, objective, set, spawn, story,
-        unmark, var,
+        complete, defeated, destroyed, eq_num, gt_num, mark, neutralized, num, objective, set,
+        spawn, story, unmark, var,
     },
     SCATTER_SEED,
 };
@@ -501,25 +501,15 @@ pub(crate) fn final_tally(
                 ),
             ],
         },
-        // Picket kill flags (unconditional, one handler each).
+        // Picket defeat flags (unconditional, one handler each).
         ScenarioEventConfig {
-            name: EventConfig::OnDestroyed,
-            filters: vec![destroyed(ID_PICKET_A)],
+            name: EventConfig::OnDefeated,
+            filters: vec![defeated(ID_PICKET_A)],
             actions: vec![set(VAR_PICKET_A_DOWN, num(1.0)), unmark(ID_PICKET_A)],
         },
         ScenarioEventConfig {
-            name: EventConfig::OnNeutralized,
-            filters: vec![neutralized(ID_PICKET_A)],
-            actions: vec![set(VAR_PICKET_A_DOWN, num(1.0)), unmark(ID_PICKET_A)],
-        },
-        ScenarioEventConfig {
-            name: EventConfig::OnDestroyed,
-            filters: vec![destroyed(ID_PICKET_B)],
-            actions: vec![set(VAR_PICKET_B_DOWN, num(1.0)), unmark(ID_PICKET_B)],
-        },
-        ScenarioEventConfig {
-            name: EventConfig::OnNeutralized,
-            filters: vec![neutralized(ID_PICKET_B)],
+            name: EventConfig::OnDefeated,
+            filters: vec![defeated(ID_PICKET_B)],
             actions: vec![set(VAR_PICKET_B_DOWN, num(1.0)), unmark(ID_PICKET_B)],
         },
         // Both pickets down: the Tallyman's last taunt, and the cast-off

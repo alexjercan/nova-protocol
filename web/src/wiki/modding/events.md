@@ -1,7 +1,7 @@
 # Events
 
 Everything that can fire a handler. A handler's `name:` field names one of
-the FIFTEEN event kinds below, written bare (they are unit variants):
+the SIXTEEN event kinds below, written bare (they are unit variants):
 `name: OnStart`, `name: OnEnter`, and so on. When the event fires, the
 handler's [filters](../filters/) gate it and its [actions](../actions/) run.
 
@@ -12,7 +12,8 @@ The whole vocabulary at a glance:
 | [`OnStart`](#onstart) | none | once, right after the scenario loads |
 | [`OnUpdate`](#onupdate) | none | every frame while live and unpaused |
 | [`OnTimerEnd`](#ontimerend) | `key` | a keyed scenario timer ends |
-| [`OnDestroyed`](#ondestroyed) | `id`, `type_name` | a scenario object is destroyed |
+| [`OnDefeated`](#ondefeated) | `id`, `type_name` | a ship is neutralized or directly destroyed |
+| [`OnDestroyed`](#ondestroyed) | `id`, `type_name` | a scenario object is physically destroyed |
 | [`OnNeutralized`](#onneutralized) | `id`, `type_name` | an armed ship loses ALL weapons AND thrusters |
 | [`OnEnter`](#onenter) | `id`, `other_id`, `other_type_name` | a body enters a trigger area |
 | [`OnExit`](#onexit) | `id`, `other_id`, `other_type_name` | a body leaves a trigger area |
@@ -108,9 +109,33 @@ Start or restart the delay with [`TimerStart`](../actions/#timerstart). Cancel
 it with [`TimerCancel`](../actions/#timercancel). Timers use live, unpaused
 scenario time and clear on retry or teardown.
 
+## OnDefeated
+
+Fires exactly once when a ship leaves combat through neutralization or direct
+physical destruction. Payload: `id` and `type_name` of the defeated ship.
+Use this event for kill objectives and encounter progression that do not care
+whether a wreck remains.
+
+Ordering is fixed:
+
+- Neutralization: `OnDefeated`, then `OnNeutralized`.
+- Direct ship destruction: `OnDefeated`, then `OnDestroyed`.
+- Later destruction of an already-neutralized wreck: `OnDestroyed` only.
+
+Scripted despawn, scenario teardown, and boundary cleanup fire none of these
+edges.
+
+```ron
+(
+    name: OnDefeated,
+    filters: [Entity((id: Some("raider")))],
+    actions: [ /* complete the encounter once */ ],
+),
+```
+
 ## OnDestroyed
 
-Fires when a scenario object is destroyed: an asteroid breaks, or a ship dies
+Fires when a scenario object is physically destroyed: an asteroid breaks, or a ship dies
 through the section-explosion pipeline. Payload: `id` and `type_name` of the
 DESTROYED object; there is no other party.
 
@@ -133,9 +158,8 @@ thrusters - combat-dead, hull possibly intact, still in the world (it is NOT
 despawned, so no `OnDestroyed` fires with it). Payload: `id`, `type_name` of
 the neutralized ship; no other party.
 
-Author kill objectives on BOTH events - `OnDestroyed` beside
-`OnNeutralized` - so a beaten ship counts as beaten whether or not the hull
-finally cracks.
+Use `OnNeutralized` only when the persistent-wreck distinction matters. Use
+`OnDefeated` for the shared combat outcome.
 
 ## OnEnter
 

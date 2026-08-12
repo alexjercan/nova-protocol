@@ -34,18 +34,19 @@ A ship should report defeat exactly once on either neutralization or direct
 physical destruction. Later destruction of an already-neutralized wreck must
 not report defeat again.
 
-## Candidate event split
+## Event split
 
-- `OnDefeated`: scenario outcome edge for a ship that is no longer a combatant.
-  Fires once for neutralization or direct destruction.
-- `OnNeutralized`: optional detailed edge for transition into a persistent
-  wreck, if scripts need that distinction.
+- `OnDefeated`: exact-once scenario outcome edge for a ship that is no longer a
+  combatant. Fires for neutralization or direct destruction.
+- `OnNeutralized`: detailed edge for transition into a persistent wreck.
 - `OnDestroyed`: physical destruction edge. It can follow neutralization.
-- No destruction event for scripted despawn, teardown, or boundary cleanup.
+- Scripted despawn, teardown, and boundary cleanup fire none of these events.
 
-Direct destruction ordering would be `OnDefeated` then `OnDestroyed`.
-Neutralized-later-destroyed ordering would be `OnDefeated`, `OnNeutralized`,
-then later `OnDestroyed`.
+Guaranteed ordering:
+
+- Direct destruction: `OnDefeated`, then `OnDestroyed`.
+- Neutralization: `OnDefeated`, then `OnNeutralized`.
+- Later destruction of that wreck: `OnDestroyed` only.
 
 ## Feedback direction
 
@@ -94,9 +95,16 @@ Borders can stop engagement and clean up distant entities, but should use a
 separate withdrawn/out-of-bounds state. Cleaning up an already-defeated wreck
 must not fire `OnDestroyed`.
 
+## Deferred authoring cleanup
+
+- Small RON-construction helpers for events, filters, and actions are spread
+  across scenario authoring modules and examples. `defeated`, `destroyed`, and
+  `neutralized` currently live under Shakedown even though other scenarios
+  import them. Later, inventory these helpers and design one common authoring
+  catalog. Deliberately outside this lifecycle task.
+
 ## Open decisions
 
-- Whether `OnDefeated` replaces authored `OnNeutralized`, or both remain.
 - New combat locks can be acquired on neutralized wrecks. Existing locks stay
   held. Both use distinct neutralized presentation.
 - Whether wrecks coast forever, receive damping, or clean up after distance or

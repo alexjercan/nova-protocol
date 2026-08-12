@@ -378,6 +378,13 @@ pub(crate) fn player_enters(area: &str) -> EventFilterConfig {
     })
 }
 
+pub(crate) fn defeated(id: &str) -> EventFilterConfig {
+    EventFilterConfig::Entity(EntityFilterConfig {
+        id: Some(id.to_string()),
+        ..default()
+    })
+}
+
 pub(crate) fn destroyed(id: &str) -> EventFilterConfig {
     EventFilterConfig::Entity(EntityFilterConfig {
         id: Some(id.to_string()),

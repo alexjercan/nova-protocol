@@ -22,9 +22,9 @@
 
 use bevy::{ecs::system::RunSystemOnce, math::Vec3, prelude::*};
 use nova_events::prelude::{
-    CommandsGameEventExt, EntityId, EventHandler, GameEventsPlugin, LockEventInfo,
-    OnDestroyedEvent, OnDestroyedEventInfo, OnTravelLockStartEvent, OnUpdateEvent,
-    OnUpdateEventInfo,
+    CommandsGameEventExt, EntityId, EventHandler, GameEventsPlugin, LockEventInfo, OnDefeatedEvent,
+    OnDefeatedEventInfo, OnDestroyedEvent, OnDestroyedEventInfo, OnTravelLockStartEvent,
+    OnUpdateEvent, OnUpdateEventInfo,
 };
 use nova_gameplay::prelude::{GameObjectives, GravitySettings};
 use nova_modding::prelude::Content;
@@ -166,6 +166,10 @@ fn destroy(app: &mut App, id: &str) {
     };
     app.world_mut()
         .run_system_once(move |mut commands: Commands| {
+            commands.fire::<OnDefeatedEvent>(OnDefeatedEventInfo {
+                id: info.id.clone(),
+                type_name: info.type_name.clone(),
+            });
             commands.fire::<OnDestroyedEvent>(info.clone());
         })
         .expect("fire OnDestroyed");

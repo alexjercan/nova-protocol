@@ -16,9 +16,10 @@ use rand::RngExt;
 
 use super::components::prelude::*;
 use crate::{
+    integrity::neutralize::prelude::DefeatedMarker,
     lifetime::TempEntity,
     mesh::prelude::{ExplodeFragments, ExplodeMesh},
-    prelude::SectionMarker,
+    prelude::{SectionMarker, SpaceshipRootMarker},
 };
 
 /// `ExplodableEntity` and `MeshFragmentMarker`.
@@ -163,12 +164,20 @@ fn on_add_explodable_entity(
 fn on_destroyed_entity(
     add: On<Add, IntegrityDestroyMarker>,
     mut commands: Commands,
-    q_info: Query<(&EntityId, &EntityTypeName), With<IntegrityDestroyMarker>>,
+    q_info: Query<
+        (
+            &EntityId,
+            &EntityTypeName,
+            Has<SpaceshipRootMarker>,
+            Has<DefeatedMarker>,
+        ),
+        With<IntegrityDestroyMarker>,
+    >,
 ) {
     let entity = add.entity;
     trace!("on_destroyed_entity: entity {:?}", entity);
 
-    let Ok((id, type_name)) = q_info.get(entity) else {
+    let Ok((id, type_name, is_ship, already_defeated)) = q_info.get(entity) else {
         return;
     };
 
@@ -176,10 +185,19 @@ fn on_destroyed_entity(
         "on_destroyed_entity: entity {:?} destroyed (id: {:?}, type: {:?})",
         entity, id, type_name
     );
-    commands.fire::<OnDestroyedEvent>(OnDestroyedEventInfo {
-        id: id.to_string(),
-        type_name: type_name.to_string(),
-    });
+    let id = id.to_string();
+    let type_name = type_name.to_string();
+    if is_ship && !already_defeated {
+        // Persist the exact-once guard through the rest of this frame. This
+        // also prevents neutralization detection from reporting a second
+        // defeat if destruction and section loss converge in one update.
+        commands.entity(entity).insert(DefeatedMarker);
+        commands.fire::<OnDefeatedEvent>(OnDefeatedEventInfo {
+            id: id.clone(),
+            type_name: type_name.clone(),
+        });
+    }
+    commands.fire::<OnDestroyedEvent>(OnDestroyedEventInfo { id, type_name });
 }
 
 fn on_explode_entity(
@@ -270,6 +288,68 @@ fn handle_entity_explosion(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[derive(Resource, Default)]
+    struct FiredEvents(Vec<&'static str>);
+
+    fn destruction_event_app() -> App {
+        let mut app = App::new();
+        app.init_resource::<FiredEvents>();
+        app.add_observer(on_destroyed_entity);
+        app.add_observer(|event: On<GameEvent>, mut fired: ResMut<FiredEvents>| {
+            fired.0.push(event.name());
+        });
+        app
+    }
+
+    #[test]
+    fn direct_ship_destruction_defeats_before_it_destroys() {
+        let mut app = destruction_event_app();
+        let ship = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                EntityId::new("ship"),
+                EntityTypeName::new("spaceship"),
+            ))
+            .id();
+
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(IntegrityDestroyMarker);
+
+        assert_eq!(
+            app.world().resource::<FiredEvents>().0,
+            [OnDefeatedEvent::name(), OnDestroyedEvent::name()]
+        );
+        assert!(
+            app.world().entity(ship).contains::<DefeatedMarker>(),
+            "direct destruction persists the exact-once guard"
+        );
+    }
+
+    #[test]
+    fn destroying_an_already_defeated_wreck_does_not_defeat_it_twice() {
+        let mut app = destruction_event_app();
+        let wreck = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                DefeatedMarker,
+                EntityId::new("wreck"),
+                EntityTypeName::new("spaceship"),
+            ))
+            .id();
+
+        app.world_mut()
+            .entity_mut(wreck)
+            .insert(IntegrityDestroyMarker);
+
+        assert_eq!(
+            app.world().resource::<FiredEvents>().0,
+            [OnDestroyedEvent::name()]
+        );
+    }
 
     #[test]
     fn a_meshless_destroyed_entity_is_despawned() {

@@ -21,7 +21,9 @@ pub mod prelude {
 pub enum EventConfig {
     /// Fires once, right after a scenario loads.
     OnStart,
-    /// Fires when an entity is destroyed.
+    /// Fires once when a ship is neutralized or directly destroyed.
+    OnDefeated,
+    /// Fires when an entity is physically destroyed.
     OnDestroyed,
     /// Fires when a ship is NEUTRALIZED - an armed combatant that has lost all
     /// working weapons AND all working thrusters, so it is out of the fight
@@ -58,6 +60,7 @@ impl From<EventConfig> for EventHandler<NovaEventWorld> {
     fn from(value: EventConfig) -> Self {
         match value {
             EventConfig::OnStart => EventHandler::new::<OnStartEvent>(),
+            EventConfig::OnDefeated => EventHandler::new::<OnDefeatedEvent>(),
             EventConfig::OnDestroyed => EventHandler::new::<OnDestroyedEvent>(),
             EventConfig::OnNeutralized => EventHandler::new::<OnNeutralizedEvent>(),
             EventConfig::OnUpdate => EventHandler::new::<OnUpdateEvent>(),
@@ -73,5 +76,17 @@ impl From<EventConfig> for EventHandler<NovaEventWorld> {
             EventConfig::OnCombatLockStart => EventHandler::new::<OnCombatLockStartEvent>(),
             EventConfig::OnCombatLockEnd => EventHandler::new::<OnCombatLockEndEvent>(),
         }
+    }
+}
+
+#[cfg(all(test, feature = "serde"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn on_defeated_round_trips_through_authored_ron() {
+        let event: EventConfig = ron::from_str("OnDefeated").unwrap();
+        assert!(matches!(event, EventConfig::OnDefeated));
+        assert_eq!(ron::to_string(&event).unwrap(), "OnDefeated");
     }
 }

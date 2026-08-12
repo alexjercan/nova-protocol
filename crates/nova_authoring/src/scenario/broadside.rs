@@ -43,8 +43,8 @@ use super::{
     craft::{self, ShipGrade},
     pacing::{self, mark_clock, open_gate, MID_GAP, REVEAL_GAP},
     shakedown::{
-        complete, destroyed, emphasize, eq_num, lt_num, mark, neutralized, num, objective,
-        player_enters, set, spawn, story, unmark,
+        complete, defeated, destroyed, emphasize, eq_num, lt_num, mark, neutralized, num,
+        objective, player_enters, set, spawn, story, unmark,
     },
     SCATTER_SEED,
 };
@@ -410,26 +410,15 @@ pub(crate) fn broadside(
                 "Drive the corvettes off the Ceres Queen.",
             )],
         ),
-        // Corvette kills raise their flags (separate handlers, no counter
-        // arithmetic - a double OnDestroyed cannot overshoot a flag).
+        // Corvette defeats raise their flags once for either terminal path.
         ScenarioEventConfig {
-            name: EventConfig::OnDestroyed,
-            filters: vec![destroyed(ID_CORVETTE_A)],
+            name: EventConfig::OnDefeated,
+            filters: vec![defeated(ID_CORVETTE_A)],
             actions: vec![set(VAR_CORVETTE_A_DOWN, num(1.0)), unmark(ID_CORVETTE_A)],
         },
         ScenarioEventConfig {
-            name: EventConfig::OnNeutralized,
-            filters: vec![neutralized(ID_CORVETTE_A)],
-            actions: vec![set(VAR_CORVETTE_A_DOWN, num(1.0)), unmark(ID_CORVETTE_A)],
-        },
-        ScenarioEventConfig {
-            name: EventConfig::OnDestroyed,
-            filters: vec![destroyed(ID_CORVETTE_B)],
-            actions: vec![set(VAR_CORVETTE_B_DOWN, num(1.0)), unmark(ID_CORVETTE_B)],
-        },
-        ScenarioEventConfig {
-            name: EventConfig::OnNeutralized,
-            filters: vec![neutralized(ID_CORVETTE_B)],
+            name: EventConfig::OnDefeated,
+            filters: vec![defeated(ID_CORVETTE_B)],
             actions: vec![set(VAR_CORVETTE_B_DOWN, num(1.0)), unmark(ID_CORVETTE_B)],
         },
         // First-kill beat (voice pass): one line when the FIRST corvette

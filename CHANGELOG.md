@@ -39,6 +39,10 @@ tagged **(breaking)**.
 
 ### Scenarios & Objectives
 
+- Scenario handlers gain `OnDefeated`, an exact-once ship outcome edge shared
+  by neutralization and direct destruction. It precedes `OnNeutralized` or
+  `OnDestroyed`; later destruction of a neutralized wreck emits only
+  `OnDestroyed`. Cleanup and teardown emit none of these edges.
 - **(breaking)** Scenario lighting is authored content: a new `Light` scenario
   object (`Directional` and `Point`) replaces the engine's hardcoded top-down
   key light, which is deleted. A scenario that authors no light now renders

@@ -1,6 +1,7 @@
 //! `nova_events` is the event vocabulary shared between gameplay and the
 //! scenario engine. It defines the game-event kinds a scenario reacts to -
-//! `OnStartEvent`, `OnUpdateEvent`, `OnDestroyedEvent`, `OnNeutralizedEvent`,
+//! `OnStartEvent`, `OnUpdateEvent`, `OnDefeatedEvent`, `OnDestroyedEvent`,
+//! `OnNeutralizedEvent`,
 //! area, orbit-lifecycle, lock, and timer events - and identity components that
 //! tag scenario objects so filters can find them (`EntityId`, `EntityTypeName`). It is
 //! engine-light glue: `nova_gameplay` emits these events and `nova_scenario`
@@ -29,9 +30,9 @@ pub mod prelude {
             EventKind, EventWorld, GameEvent, GameEventInfo, GameEventsPlugin,
         },
         EntityId, EntityTypeName, LockEventInfo, OnCombatLockEndEvent, OnCombatLockStartEvent,
-        OnDestroyedEvent, OnDestroyedEventInfo, OnEnterEvent, OnEnterEventInfo, OnExitEvent,
-        OnExitEventInfo, OnNeutralizedEvent, OnNeutralizedEventInfo, OnOrbitEndEvent,
-        OnOrbitStableEvent, OnOrbitStartEvent, OnOrbitUnstableEvent, OnStartEvent,
+        OnDefeatedEvent, OnDefeatedEventInfo, OnDestroyedEvent, OnDestroyedEventInfo, OnEnterEvent,
+        OnEnterEventInfo, OnExitEvent, OnExitEventInfo, OnNeutralizedEvent, OnNeutralizedEventInfo,
+        OnOrbitEndEvent, OnOrbitStableEvent, OnOrbitStartEvent, OnOrbitUnstableEvent, OnStartEvent,
         OnStartEventInfo, OnTimerEndEvent, OnTimerEndEventInfo, OnTravelLockEndEvent,
         OnTravelLockStartEvent, OnUpdateEvent, OnUpdateEventInfo, OrbitEventInfo,
         ENTITY_ID_COMPONENT_NAME, ENTITY_OTHER_ID_COMPONENT_NAME,
@@ -99,6 +100,26 @@ pub struct OnStartEvent;
 /// Payload for [`OnStartEvent`] - empty (the start event carries no operands).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
 pub struct OnStartEventInfo;
+
+/// Event kind fired once when a ship is defeated (`ondefeated`) by either
+/// neutralization or direct physical destruction. Later destruction of an
+/// already-neutralized wreck does not fire it again.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("ondefeated")]
+#[event_info(OnDefeatedEventInfo)]
+pub struct OnDefeatedEvent;
+
+/// Payload for [`OnDefeatedEvent`]: the defeated ship's scenario id and type
+/// name (RON keys `id` / `type_name`).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
+pub struct OnDefeatedEventInfo {
+    /// Scenario id of the defeated ship.
+    #[serde(rename = "id")]
+    pub id: String,
+    /// Type name of the defeated ship.
+    #[serde(rename = "type_name")]
+    pub type_name: String,
+}
 
 /// Event kind fired when a scenario object is destroyed (`ondestroyed`); carries
 /// [`OnDestroyedEventInfo`] naming the destroyed entity.
