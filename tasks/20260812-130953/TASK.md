@@ -1,33 +1,72 @@
-# Graph adjacency replaces the distance==1.0 integrity glue (parts gate)
+# Replace distance-based integrity with authoritative link-point mates
 
 - STATUS: OPEN
 - PRIORITY: 80
-- TAGS: v0.10.0,ship,integrity
+- TAGS: v0.10.0, ship, integrity, nova-os
 
-Goal: replace the distance==1.0 integrity glue with graph adjacency so
-parts-based ships weld correctly. This is THE gate for parts ships: part
-origins sit at varying distances, so today's glue would leave a parts ship
-as disconnected sections.
+## Goal
 
-Context:
-- Design: tasks/20260812-100246/SPIKE.md R2 D2 (graph-first integrity).
-  ConnectedTo stays the representation; edges become the truth.
-- Edge sources: derived AABB-touch from SectionCollider::aabb_half_extents
-  now; UNION seam ready for authored link-point mates later (see the
-  link-points task). Unit-cube parity preserved by construction.
-- Current glue: build_integrity_relations, Add<ColliderOf>-keyed.
+Replace the unit-cube `distance == 1.0` integrity rule with explicit link-point
+mates. Link-point edges become the sole source of ship structural adjacency.
 
-Scope:
-- AABB-touch adjacency derivation with epsilon; parity tests pinning that
-  every existing cube ship produces the exact same edge set as today.
-- Union seam for a second edge source (mates) without behavioral change.
-- Ship lint: keep the connectivity check consistent with the new derivation.
-- Out of scope: severing (component split on destroy), link-points, and
-  ConvexHull colliders - separate tasks per the SPIKE escalation.
+This is the engine and content migration gate for parts. Parts themselves and
+editor snapping remain next-sprint work.
 
-DoD:
-- Parity test: cube ships edge-set identical before/after.
-- Harness proof: a parts-layout ship (racer 7-part footprint from
-  scripts/part-recipes/) spawns welded and survives flight in a player-path
-  example.
-- No content or save format changes.
+## Design
+
+- Add `LinkPoint { id, position, normal }` to section authoring data.
+- Add serde-defaulted `link_points: Vec<LinkPoint>` to `BaseSectionConfig`.
+- Snapshot resolved points onto live sections as `SectionLinkPoints`.
+- Transform positions and normals from section-local into ship-root space.
+- Two points mate when:
+  - their positions coincide within the authored epsilon; and
+  - their normalized normals oppose within the angular tolerance.
+- Link-point `id` identifies a socket for diagnostics and UI. It is not a
+  compatibility class.
+- Normalize mate edges, reject ambiguous one-to-many mates, and build symmetric
+  `ConnectedTo` lists from the resulting edge set.
+- Remove distance-based and AABB-derived structural adjacency. AABB remains for
+  overlap lint, collider representation, schematic framing, and future broad
+  phase searches.
+
+## Scope
+
+- Link-point schema, validation, live snapshot component, and prelude exports.
+- Pure mate derivation and normalized graph construction.
+- Replace `build_integrity_relations` center-distance adjacency.
+- Seed all existing structural section prototypes with face-center link points.
+- Fix base content, examples, and bundled mods that fail under strict graph
+  validation. No compatibility fallback.
+- Ship lint uses the same mate derivation and requires a connected graph for a
+  multi-section ship.
+- Lint errors:
+  - duplicate or empty link-point ids within one section;
+  - non-finite positions or normals;
+  - zero normals;
+  - ambiguous one-to-many mates;
+  - disconnected multi-section ships.
+- NOVA OS ship visualizer consumes `SectionLinkPoints` and gains a minimal,
+  default-off `MATES` overlay that draws structural edges. Collider AABBs still
+  size and frame sections.
+
+## Out of scope
+
+- Part assets and part-specific section prototypes.
+- Editor link-point snapping and rotation UX.
+- Replacing existing cube ships with parts ships.
+- Connected-component severing after section destruction.
+- Convex-hull colliders.
+
+## Definition of done
+
+- Exact parity test: every existing cube ship produces the same normalized edge
+  set under old center-distance adjacency and new link-point mates.
+- Unit tests pin coincidence epsilon, opposed-normal tolerance, transforms,
+  ambiguity rejection, edge normalization, and graph connectivity.
+- Runtime integration proves `ConnectedTo` is built only from mates.
+- Existing base content, examples, and bundled mods lint and load after explicit
+  link-point migration.
+- NOVA OS `MATES` overlay renders the live structural graph without changing
+  default ship-view presentation.
+- No ship/scenario save-format change. Section schema changes only through the
+  serde-defaulted catalog field.
