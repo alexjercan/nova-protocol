@@ -101,7 +101,7 @@ variant (`nova_scenario`), plus the firing site.
 3. Fire it. Engine-driven events fire from `crates/nova_scenario/src/loader/`
    with `commands.fire::<OnDockedEvent>(OnDockedEventInfo { .. })` (see the
    `OnStart` site in `loader/lifecycle.rs`, `OnUpdate` in `loader/clock.rs`, and
-   `OnOrbit`/the lock events in `loader/trackers.rs`); object-local events (an
+   orbit-lifecycle/the lock events in `loader/trackers.rs`); object-local events (an
    area entering/leaving) fire from the object's own observer, the way
    `objects/asteroid.rs` fires `OnDestroyedEvent` from `on_asteroid_node_destroyed`.
 

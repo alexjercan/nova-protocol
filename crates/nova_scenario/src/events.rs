@@ -36,10 +36,14 @@ pub enum EventConfig {
     OnEnter,
     /// Fires when a body leaves an area/zone (`id` = the area, other = the body).
     OnExit,
-    /// A ship has held an autopilot orbit around a well for the hold
-    /// window (the orbit-hold tracker in loader.rs fires it once per
-    /// engagement). Filters like OnEnter: id = the well, other = the ship.
-    OnOrbit,
+    /// An ORBIT maneuver engaged for a well.
+    OnOrbitStart,
+    /// An ORBIT maneuver entered stable station-keeping.
+    OnOrbitStable,
+    /// Stable station-keeping was lost while ORBIT remained engaged.
+    OnOrbitUnstable,
+    /// A surviving ship ended ORBIT or switched wells.
+    OnOrbitEnd,
     /// The player's TRAVEL lock landed on a scenario object (the lock
     /// bridge in loader.rs fires it once per acquisition). Filters like
     /// OnEnter: id = the locked target, other = the player ship.
@@ -59,7 +63,10 @@ impl From<EventConfig> for EventHandler<NovaEventWorld> {
             EventConfig::OnTimerEnd => EventHandler::new::<OnTimerEndEvent>(),
             EventConfig::OnEnter => EventHandler::new::<OnEnterEvent>(),
             EventConfig::OnExit => EventHandler::new::<OnExitEvent>(),
-            EventConfig::OnOrbit => EventHandler::new::<OnOrbitEvent>(),
+            EventConfig::OnOrbitStart => EventHandler::new::<OnOrbitStartEvent>(),
+            EventConfig::OnOrbitStable => EventHandler::new::<OnOrbitStableEvent>(),
+            EventConfig::OnOrbitUnstable => EventHandler::new::<OnOrbitUnstableEvent>(),
+            EventConfig::OnOrbitEnd => EventHandler::new::<OnOrbitEndEvent>(),
             EventConfig::OnTravelLock => EventHandler::new::<OnTravelLockEvent>(),
             EventConfig::OnCombatLock => EventHandler::new::<OnCombatLockEvent>(),
         }

@@ -162,17 +162,51 @@ fn enter(app: &mut App, area: &str) {
     app.update();
 }
 
-/// The player has held an orbit around `well` (the orbit-hold
-/// tracker's event; the tracker itself is tested in nova_scenario's
-/// loader tests - here the script consumes the event).
+/// The player reaches a stable orbit, then its authored hold timer ends.
 fn orbit(app: &mut App, well: &str) {
     use nova_events::prelude::*;
+    let info = OrbitEventInfo {
+        id: well.to_string(),
+        other_id: ID_PLAYER.to_string(),
+        other_type_name: "spaceship".to_string(),
+    };
     app.world_mut()
         .commands()
-        .fire::<OnOrbitEvent>(OnOrbitEventInfo {
-            id: well.to_string(),
-            other_id: ID_PLAYER.to_string(),
-            other_type_name: "spaceship".to_string(),
+        .fire::<OnOrbitStableEvent>(info.clone());
+    app.update();
+    app.update();
+    assert!(
+        app.world()
+            .resource::<NovaEventWorld>()
+            .timer_is_running(TIMER_ORBIT_HOLD),
+        "stable orbit starts the authored hold timer"
+    );
+
+    app.world_mut()
+        .commands()
+        .fire::<OnOrbitUnstableEvent>(info.clone());
+    app.update();
+    app.update();
+    assert!(
+        !app.world()
+            .resource::<NovaEventWorld>()
+            .timer_is_running(TIMER_ORBIT_HOLD),
+        "losing Hold cancels the continuous hold"
+    );
+
+    app.world_mut().commands().fire::<OnOrbitStableEvent>(info);
+    app.update();
+    app.update();
+    assert!(
+        app.world()
+            .resource::<NovaEventWorld>()
+            .timer_is_running(TIMER_ORBIT_HOLD),
+        "recovering stability starts a fresh hold"
+    );
+    app.world_mut()
+        .commands()
+        .fire::<OnTimerEndEvent>(OnTimerEndEventInfo {
+            key: TIMER_ORBIT_HOLD.to_string(),
         });
     app.update();
     app.update();

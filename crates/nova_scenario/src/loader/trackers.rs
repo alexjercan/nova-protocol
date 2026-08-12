@@ -1,5 +1,4 @@
-//! Orbit-hold and weapon-lock trackers: the state-derived events
-//! (`OnOrbit`, `OnTravelLock`, `OnCombatLock`) a scenario can react to.
+//! Orbit-lifecycle and weapon-lock events derived from live ship state.
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
@@ -9,117 +8,128 @@ use nova_ship::prelude::*;
 use super::clock::scenario_elapsed;
 use crate::prelude::*;
 
-/// How long (seconds) a ship must hold an engaged ORBIT around one well before
-/// [`OnOrbitEvent`] fires - and the RE-FIRE period while the hold continues.
-/// Recurring, not once-per-engagement: a single-shot event consumed while a
-/// handler's beat guard rejects it would be gone for good, soft-locking any
-/// scenario whose beat can advance during a held orbit. Beat-gated handlers
-/// make the repeats no-ops.
-const ORBIT_HOLD_SECS: f64 = 5.0;
+/// Last reported ORBIT state for one ship.
+#[derive(Component, Clone, Debug, Reflect)]
+#[reflect(Component)]
+pub(super) struct OrbitEcho {
+    /// Well named by the active ORBIT maneuver.
+    pub well: Entity,
+    /// Scenario id retained so a despawned well can still produce an end edge.
+    pub well_id: String,
+    /// Whether stable station-keeping was last reported.
+    pub stable: bool,
+}
 
-/// Resolve an author-supplied event-window override against the engine default.
-/// A non-finite or non-positive override is rejected (content_lint errors on
-/// it), so at runtime we fail closed to `default` rather than ever produce a
-/// zero/negative window that would fire every frame.
-fn resolve_window_secs(override_secs: Option<f64>, default: f64) -> f64 {
-    match override_secs {
-        Some(secs) if secs.is_finite() && secs > 0.0 => secs,
-        _ => default,
+fn orbit_info(
+    well_id: &str,
+    ship_id: &EntityId,
+    ship_type_name: &EntityTypeName,
+) -> OrbitEventInfo {
+    OrbitEventInfo {
+        id: well_id.to_string(),
+        other_id: ship_id.0.clone(),
+        other_type_name: ship_type_name.0.clone(),
     }
 }
 
-/// Bookkeeping for the orbit-hold tracker, on the orbiting ship: which well
-/// and the scenario-clock reading (`scenario_elapsed`) when the current
-/// window opened - engagement, well switch, or the last fire. The window has
-/// elapsed once `now - started_at >= window`, where `window` is the ship's
-/// [`OrbitHoldSecs`] override or the `ORBIT_HOLD_SECS` default. Disengaging (or
-/// switching wells) removes it, restarting the window; the component also dies
-/// with its entity on teardown, so a retry re-arms against a fresh clock.
-#[derive(Component, Clone, Debug, Reflect)]
-#[reflect(Component)]
-pub(super) struct OrbitHold {
-    /// The well entity the ship is currently orbiting.
-    pub well: Entity,
-    /// The scenario-clock time (seconds) the current hold began.
-    pub started_at: f64,
-}
-
-/// Fire [`OnOrbitEvent`] once a ship has HELD an engaged `Autopilot { action:
-/// Orbit { well } }` for [`ORBIT_HOLD_SECS`] continuously. Ships are identified
-/// by their scenario `EntityId` (ships without one - editor previews - are
-/// invisible to the tracker); the event's `id` is the WELL's scenario id,
-/// mirroring OnEnter's (area, other) shape so filters compose identically. The
-/// hold window is measured against the engine scenario clock
-/// ([`scenario_elapsed`]) rather than an accumulated `Time` delta, so it
-/// freezes under pause and resets on teardown/retry with the clock itself.
-pub(super) fn track_orbit_holds(
-    world: Res<NovaEventWorld>,
+/// Emit edge-triggered ORBIT lifecycle events. Entering `Hold` is stable;
+/// leaving `Hold` while ORBIT remains engaged is unstable. A surviving ship
+/// that leaves ORBIT emits only end, not unstable followed by end. Despawned
+/// ships use `OnDestroyed` and intentionally emit no orbit-end event.
+#[expect(
+    clippy::type_complexity,
+    reason = "one query snapshots the complete orbit transition"
+)]
+pub(super) fn track_orbit_transitions(
     mut commands: Commands,
     mut q_ships: Query<
         (
             Entity,
             &Autopilot,
-            Option<&mut OrbitHold>,
-            Option<&OrbitHoldSecs>,
+            Option<&mut OrbitEcho>,
             &EntityId,
             &EntityTypeName,
         ),
         With<SpaceshipRootMarker>,
     >,
-    q_disengaged: Query<Entity, (With<OrbitHold>, Without<Autopilot>)>,
+    q_ended: Query<
+        (Entity, &OrbitEcho, &EntityId, &EntityTypeName),
+        (With<SpaceshipRootMarker>, Without<Autopilot>),
+    >,
     q_ids: Query<&EntityId>,
 ) {
-    // Disengaged ships re-arm: the hold dies with the autopilot.
-    for ship in &q_disengaged {
-        commands.entity(ship).remove::<OrbitHold>();
+    for (ship, echo, ship_id, ship_type_name) in &q_ended {
+        commands.fire::<OnOrbitEndEvent>(orbit_info(&echo.well_id, ship_id, ship_type_name));
+        commands.entity(ship).remove::<OrbitEcho>();
     }
 
-    let now = scenario_elapsed(&world);
-
-    for (ship, autopilot, hold, hold_override, ship_id, ship_type_name) in &mut q_ships {
+    for (ship, autopilot, echo, ship_id, ship_type_name) in &mut q_ships {
         let AutopilotAction::Orbit { well, .. } = autopilot.action else {
-            // Engaged, but not an orbit (GOTO/STOP): no hold.
-            if hold.is_some() {
-                commands.entity(ship).remove::<OrbitHold>();
+            if let Some(echo) = echo {
+                commands.fire::<OnOrbitEndEvent>(orbit_info(
+                    &echo.well_id,
+                    ship_id,
+                    ship_type_name,
+                ));
+                commands.entity(ship).remove::<OrbitEcho>();
             }
             continue;
         };
+        let stable = autopilot.phase == AutopilotPhase::Hold;
 
-        // Per-ship override (AIControllerConfig::orbit_hold_secs), else the
-        // engine default.
-        let window = resolve_window_secs(hold_override.map(|o| o.0), ORBIT_HOLD_SECS);
-
-        match hold {
-            Some(mut hold) if hold.well == well => {
-                if now - hold.started_at >= window {
-                    // Restart the window whether or not the event can be
-                    // addressed.
-                    hold.started_at = now;
-                    let Ok(well_id) = q_ids.get(well) else {
-                        // A well without a scenario id (despawned or
-                        // non-scenario body) has no address to fire under.
-                        continue;
-                    };
-                    debug!(
-                        "track_orbit_holds: ship '{}' held orbit around '{}' for {}s",
-                        ship_id.0, well_id.0, window
-                    );
-                    commands.fire::<OnOrbitEvent>(OnOrbitEventInfo {
-                        id: well_id.0.clone(),
-                        other_id: ship_id.0.clone(),
-                        other_type_name: ship_type_name.0.clone(),
-                    });
+        match echo {
+            None => {
+                let Ok(well_id) = q_ids.get(well) else {
+                    continue;
+                };
+                let info = orbit_info(&well_id.0, ship_id, ship_type_name);
+                commands.fire::<OnOrbitStartEvent>(info.clone());
+                if stable {
+                    commands.fire::<OnOrbitStableEvent>(info);
                 }
-            }
-            // New engagement, or the directive switched wells: open a fresh
-            // window on the current well, anchored at the current clock.
-            _ => {
-                commands.entity(ship).insert(OrbitHold {
+                commands.entity(ship).insert(OrbitEcho {
                     well,
-                    started_at: now,
+                    well_id: well_id.0.clone(),
+                    stable,
                 });
             }
+            Some(mut echo) if echo.well != well => {
+                commands.fire::<OnOrbitEndEvent>(orbit_info(
+                    &echo.well_id,
+                    ship_id,
+                    ship_type_name,
+                ));
+                let Ok(well_id) = q_ids.get(well) else {
+                    commands.entity(ship).remove::<OrbitEcho>();
+                    continue;
+                };
+                let info = orbit_info(&well_id.0, ship_id, ship_type_name);
+                commands.fire::<OnOrbitStartEvent>(info.clone());
+                if stable {
+                    commands.fire::<OnOrbitStableEvent>(info);
+                }
+                echo.well = well;
+                echo.well_id = well_id.0.clone();
+                echo.stable = stable;
+            }
+            Some(mut echo) if echo.stable != stable => {
+                let info = orbit_info(&echo.well_id, ship_id, ship_type_name);
+                if stable {
+                    commands.fire::<OnOrbitStableEvent>(info);
+                } else {
+                    commands.fire::<OnOrbitUnstableEvent>(info);
+                }
+                echo.stable = stable;
+            }
+            Some(_) => {}
         }
+    }
+}
+
+fn resolve_window_secs(override_secs: Option<f64>, default: f64) -> f64 {
+    match override_secs {
+        Some(secs) if secs.is_finite() && secs > 0.0 => secs,
+        _ => default,
     }
 }
 
@@ -236,222 +246,180 @@ mod tests {
     use super::*;
     use crate::loader::{clock::tick_scenario_clock, fixtures::*};
 
-    /// The orbit-hold tracker: an engaged ORBIT fires OnOrbit once per HOLD
-    /// WINDOW - never before the window, never per frame, and the window recurs
-    /// while the hold continues. Driven through the real event pipeline into a
-    /// real handler counting into a scenario variable.
+    /// ORBIT events report each state edge once, including ordered well switches.
     #[test]
-    fn orbit_hold_fires_once_per_window_and_recurs() {
-        use core::time::Duration;
-
-        use bevy::time::TimeUpdateStrategy;
+    fn orbit_lifecycle_events_are_edge_triggered() {
         use nova_events::prelude::{EventHandler, GameEventsPlugin};
         use nova_gameplay::prelude::{GameObjectives, SpaceshipRootMarker};
-        use nova_ship::prelude::{Autopilot, AutopilotAction};
+        use nova_ship::prelude::{Autopilot, AutopilotAction, AutopilotPhase};
 
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
-        // 0.2s steps: Time<Virtual> clamps any single delta at its
-        // default max_delta of 0.25s, so bigger manual steps silently
-        // accumulate slower than wall time.
-        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
-            0.2,
-        )));
         app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
         app.init_resource::<NovaEventWorld>();
         app.init_resource::<GameObjectives>();
-        app.insert_resource(CurrentScenario(Some(scenario_with("live", vec![]))));
-        // The tracker now measures its window against `scenario_elapsed`, so
-        // the clock has to advance under the same gate production uses. Chain
-        // the tick ahead of the tracker so it reads THIS frame's clock, exactly
-        // like the plugin's `.after(tick_scenario_clock)` ordering.
-        app.add_systems(
-            Update,
-            (tick_scenario_clock, track_orbit_holds)
-                .chain()
-                .run_if(scenario_is_live),
-        );
+        app.add_systems(Update, track_orbit_transitions);
 
-        // The counting handler: orbits = orbits + 1 on every OnOrbit
-        // under the well's id.
-        let mut handler = EventHandler::<NovaEventWorld>::from(EventConfig::OnOrbit);
-        handler.add_filter(EventFilterConfig::Entity(EntityFilterConfig {
-            id: Some("planetoid".to_string()),
-            other_id: Some("player_spaceship".to_string()),
-            ..default()
-        }));
-        handler.add_action(EventActionConfig::VariableSet(VariableSetActionConfig {
-            key: "orbits".to_string(),
+        fn count_handler(event: EventConfig, key: &str) -> EventHandler<NovaEventWorld> {
+            let mut handler = EventHandler::<NovaEventWorld>::from(event);
+            handler.add_action(EventActionConfig::VariableSet(VariableSetActionConfig {
+                key: key.to_string(),
+                expression: VariableExpressionNode::new_add(
+                    VariableTermNode::new_factor(VariableFactorNode::new_name(key)),
+                    VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                        VariableFactorNode::new_literal(VariableLiteral::Number(1.0)),
+                    )),
+                ),
+            }));
+            handler
+        }
+        for (event, key) in [
+            (EventConfig::OnOrbitStart, "start"),
+            (EventConfig::OnOrbitStable, "stable"),
+            (EventConfig::OnOrbitUnstable, "unstable"),
+            (EventConfig::OnOrbitEnd, "end"),
+        ] {
+            app.world_mut().spawn(count_handler(event, key));
+            app.world_mut()
+                .resource_mut::<NovaEventWorld>()
+                .insert_variable(key.to_string(), VariableLiteral::Number(0.0));
+        }
+        let mut order_start = EventHandler::<NovaEventWorld>::from(EventConfig::OnOrbitStart);
+        order_start.add_action(EventActionConfig::VariableSet(VariableSetActionConfig {
+            key: "order".to_string(),
             expression: VariableExpressionNode::new_add(
-                VariableTermNode::new_factor(VariableFactorNode::new_name("orbits".to_string())),
+                VariableTermNode::new_factor(VariableFactorNode::new_name("order")),
                 VariableExpressionNode::new_term(VariableTermNode::new_factor(
-                    VariableFactorNode::new_literal(VariableLiteral::Number(1.0)),
+                    VariableFactorNode::new_literal(VariableLiteral::String("S".to_string())),
                 )),
             ),
         }));
-        app.world_mut().spawn(handler);
+        app.world_mut().spawn(order_start);
+        let mut order_end = EventHandler::<NovaEventWorld>::from(EventConfig::OnOrbitEnd);
+        order_end.add_action(EventActionConfig::VariableSet(VariableSetActionConfig {
+            key: "order".to_string(),
+            expression: VariableExpressionNode::new_add(
+                VariableTermNode::new_factor(VariableFactorNode::new_name("order")),
+                VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                    VariableFactorNode::new_literal(VariableLiteral::String("E".to_string())),
+                )),
+            ),
+        }));
+        app.world_mut().spawn(order_end);
         app.world_mut()
             .resource_mut::<NovaEventWorld>()
-            .insert_variable("orbits".to_string(), VariableLiteral::Number(0.0));
-
-        let orbits = |app: &App| -> f64 {
-            match app
-                .world()
-                .resource::<NovaEventWorld>()
-                .get_variable("orbits")
-            {
-                Some(VariableLiteral::Number(n)) => *n,
-                other => panic!("orbits variable missing: {:?}", other),
-            }
+            .insert_variable("order".to_string(), VariableLiteral::String(String::new()));
+        let counts = |app: &App| {
+            let world = app.world().resource::<NovaEventWorld>();
+            let n = |key| match world.get_variable(key) {
+                Some(VariableLiteral::Number(value)) => *value,
+                other => panic!("{key} count missing: {other:?}"),
+            };
+            (n("start"), n("stable"), n("unstable"), n("end"))
+        };
+        let settle = |app: &mut App| {
+            app.update();
+            app.update();
         };
 
-        let well = app
-            .world_mut()
-            .spawn(EntityId::new("planetoid".to_string()))
-            .id();
+        let old_well = app.world_mut().spawn(EntityId::new("old_well")).id();
+        let new_well = app.world_mut().spawn(EntityId::new("new_well")).id();
         let ship = app
             .world_mut()
             .spawn((
                 SpaceshipRootMarker,
-                EntityId::new("player_spaceship".to_string()),
-                EntityTypeName::new("spaceship".to_string()),
-                Autopilot::engage(AutopilotAction::Orbit { well, plan: None }),
+                EntityId::new("player"),
+                EntityTypeName::new("spaceship"),
+                Autopilot::engage(AutopilotAction::Orbit {
+                    well: old_well,
+                    plan: None,
+                }),
             ))
             .id();
+        settle(&mut app);
+        assert_eq!(counts(&app), (1.0, 0.0, 0.0, 0.0));
 
-        // ~2 seconds of hold (10 frames at 0.2s): under the 5s window.
-        for _ in 0..10 {
-            app.update();
-        }
-        assert_eq!(orbits(&app), 0.0, "no fire before the hold window");
+        app.world_mut().get_mut::<Autopilot>(ship).unwrap().phase = AutopilotPhase::Hold;
+        settle(&mut app);
+        assert_eq!(counts(&app), (1.0, 1.0, 0.0, 0.0));
 
-        // Push just past the window: exactly one fire, not one per frame.
-        // (~1.8s held so far; 18 frames = 3.6s more puts the total at
-        // ~5.4s, 0.4s into the next window.)
-        for _ in 0..18 {
-            app.update();
-        }
-        assert_eq!(orbits(&app), 1.0, "one fire per window, not per frame");
+        app.world_mut().get_mut::<Autopilot>(ship).unwrap().phase = AutopilotPhase::Burn;
+        settle(&mut app);
+        assert_eq!(counts(&app), (1.0, 1.0, 1.0, 0.0));
 
-        // Keep holding through a second full window: the event RECURS during
-        // one continuous engagement - this is what saves a beat that advances
-        // mid-orbit from a consumed one-shot.
-        for _ in 0..25 {
-            app.update();
-        }
+        app.world_mut().get_mut::<Autopilot>(ship).unwrap().phase = AutopilotPhase::Hold;
+        settle(&mut app);
+        assert_eq!(counts(&app), (1.0, 2.0, 1.0, 0.0));
+
+        app.world_mut().get_mut::<Autopilot>(ship).unwrap().action = AutopilotAction::Orbit {
+            well: new_well,
+            plan: None,
+        };
+        settle(&mut app);
         assert_eq!(
-            orbits(&app),
-            2.0,
-            "a continued hold fires again next window"
+            counts(&app),
+            (2.0, 3.0, 1.0, 1.0),
+            "switch emits end-old, start-new, stable-new"
+        );
+        assert_eq!(
+            app.world()
+                .resource::<NovaEventWorld>()
+                .get_variable("order"),
+            Some(&VariableLiteral::String("SES".to_string())),
+            "well switch queues end-old before start-new"
         );
 
-        // Disengage, re-engage: the clock restarts from zero and the next
-        // window fires again.
+        app.world_mut().entity_mut(new_well).despawn();
         app.world_mut().entity_mut(ship).remove::<Autopilot>();
-        app.update();
-        app.world_mut()
-            .entity_mut(ship)
-            .insert(Autopilot::engage(AutopilotAction::Orbit {
-                well,
-                plan: None,
-            }));
-        for _ in 0..30 {
-            app.update();
-        }
+        settle(&mut app);
         assert_eq!(
-            orbits(&app),
-            3.0,
-            "a fresh engagement fires on a fresh clock"
+            counts(&app),
+            (2.0, 3.0, 1.0, 2.0),
+            "losing a well ends a stable orbit without an unstable edge"
         );
     }
 
-    /// A per-ship `OrbitHoldSecs` override shortens the hold window: a 1s
-    /// override fires within ~1.2s of hold, long before the 5s default would.
+    /// Destruction has its own event and does not synthesize an orbit end.
     #[test]
-    fn orbit_hold_honors_a_per_ship_override() {
-        use core::time::Duration;
-
-        use bevy::time::TimeUpdateStrategy;
+    fn destroyed_orbiting_ship_does_not_emit_orbit_end() {
         use nova_events::prelude::{EventHandler, GameEventsPlugin};
         use nova_gameplay::prelude::{GameObjectives, SpaceshipRootMarker};
         use nova_ship::prelude::{Autopilot, AutopilotAction};
 
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
-        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
-            0.2,
-        )));
         app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
         app.init_resource::<NovaEventWorld>();
         app.init_resource::<GameObjectives>();
-        app.insert_resource(CurrentScenario(Some(scenario_with("live", vec![]))));
-        app.add_systems(
-            Update,
-            (tick_scenario_clock, track_orbit_holds)
-                .chain()
-                .run_if(scenario_is_live),
-        );
-
-        let mut handler = EventHandler::<NovaEventWorld>::from(EventConfig::OnOrbit);
-        handler.add_filter(EventFilterConfig::Entity(EntityFilterConfig {
-            id: Some("planetoid".to_string()),
-            other_id: Some("player_spaceship".to_string()),
-            ..default()
-        }));
+        app.add_systems(Update, track_orbit_transitions);
+        let mut handler = EventHandler::<NovaEventWorld>::from(EventConfig::OnOrbitEnd);
         handler.add_action(EventActionConfig::VariableSet(VariableSetActionConfig {
-            key: "orbits".to_string(),
-            expression: VariableExpressionNode::new_add(
-                VariableTermNode::new_factor(VariableFactorNode::new_name("orbits".to_string())),
-                VariableExpressionNode::new_term(VariableTermNode::new_factor(
-                    VariableFactorNode::new_literal(VariableLiteral::Number(1.0)),
-                )),
-            ),
+            key: "ended".to_string(),
+            expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                VariableFactorNode::new_literal(VariableLiteral::Boolean(true)),
+            )),
         }));
         app.world_mut().spawn(handler);
-        app.world_mut()
-            .resource_mut::<NovaEventWorld>()
-            .insert_variable("orbits".to_string(), VariableLiteral::Number(0.0));
-
-        let orbits = |app: &App| -> f64 {
-            match app
-                .world()
-                .resource::<NovaEventWorld>()
-                .get_variable("orbits")
-            {
-                Some(VariableLiteral::Number(n)) => *n,
-                other => panic!("orbits variable missing: {:?}", other),
-            }
-        };
-
-        let well = app
+        let well = app.world_mut().spawn(EntityId::new("well")).id();
+        let ship = app
             .world_mut()
-            .spawn(EntityId::new("planetoid".to_string()))
+            .spawn((
+                SpaceshipRootMarker,
+                EntityId::new("ship"),
+                EntityTypeName::new("spaceship"),
+                Autopilot::engage(AutopilotAction::Orbit { well, plan: None }),
+            ))
             .id();
-        // Override: a 1s hold window on this ship.
-        app.world_mut().spawn((
-            SpaceshipRootMarker,
-            EntityId::new("player_spaceship".to_string()),
-            EntityTypeName::new("spaceship".to_string()),
-            Autopilot::engage(AutopilotAction::Orbit { well, plan: None }),
-            OrbitHoldSecs(1.0),
-        ));
-
-        // 3 frames (~0.6s): under the 1s window - no fire yet.
-        for _ in 0..3 {
-            app.update();
-        }
-        assert_eq!(orbits(&app), 0.0, "no fire before the 1s override window");
-
-        // 5 more frames (total ~1.6s): past the 1s window - exactly one fire,
-        // where the 5s default would still be silent.
-        for _ in 0..5 {
-            app.update();
-        }
-        assert_eq!(
-            orbits(&app),
-            1.0,
-            "the 1s override fires well before the 5s default"
-        );
+        app.update();
+        app.update();
+        app.world_mut().entity_mut(ship).despawn();
+        app.update();
+        app.update();
+        assert!(app
+            .world()
+            .resource::<NovaEventWorld>()
+            .get_variable("ended")
+            .is_none());
     }
 
     #[test]

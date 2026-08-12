@@ -1,8 +1,7 @@
 //! `nova_events` is the event vocabulary shared between gameplay and the
 //! scenario engine. It defines the game-event kinds a scenario reacts to -
 //! `OnStartEvent`, `OnUpdateEvent`, `OnDestroyedEvent`, `OnNeutralizedEvent`,
-//! the area `OnEnterEvent`/`OnExitEvent`, `OnOrbitEvent`, `OnTravelLockEvent`,
-//! `OnCombatLockEvent`, `OnTimerEndEvent` - and the identity components that
+//! area, orbit-lifecycle, lock, and timer events - and identity components that
 //! tag scenario objects so filters can find them (`EntityId`, `EntityTypeName`). It is
 //! engine-light glue: `nova_gameplay` emits these events and `nova_scenario`
 //! filters and dispatches on them. It also owns the [`engine`] that queues and
@@ -31,9 +30,10 @@ pub mod prelude {
         },
         EntityId, EntityTypeName, OnCombatLockEvent, OnCombatLockEventInfo, OnDestroyedEvent,
         OnDestroyedEventInfo, OnEnterEvent, OnEnterEventInfo, OnExitEvent, OnExitEventInfo,
-        OnNeutralizedEvent, OnNeutralizedEventInfo, OnOrbitEvent, OnOrbitEventInfo, OnStartEvent,
-        OnStartEventInfo, OnTimerEndEvent, OnTimerEndEventInfo, OnTravelLockEvent,
-        OnTravelLockEventInfo, OnUpdateEvent, OnUpdateEventInfo, ENTITY_ID_COMPONENT_NAME,
+        OnNeutralizedEvent, OnNeutralizedEventInfo, OnOrbitEndEvent, OnOrbitStableEvent,
+        OnOrbitStartEvent, OnOrbitUnstableEvent, OnStartEvent, OnStartEventInfo, OnTimerEndEvent,
+        OnTimerEndEventInfo, OnTravelLockEvent, OnTravelLockEventInfo, OnUpdateEvent,
+        OnUpdateEventInfo, OrbitEventInfo, ENTITY_ID_COMPONENT_NAME,
         ENTITY_OTHER_ID_COMPONENT_NAME, ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME,
         ENTITY_TYPE_NAME_COMPONENT_NAME, TIMER_KEY_FIELD_NAME,
     };
@@ -184,19 +184,34 @@ pub struct OnExitEventInfo {
     pub other_type_name: String,
 }
 
-/// A ship has HELD a stable autopilot orbit around a well for the hold
-/// window (nova_scenario's orbit-hold tracker fires it). `id` is the
-/// well's scenario id, `other` the orbiting ship - the same shape as
-/// [`OnEnterEvent`], so scenario filters compose identically.
+/// An ORBIT maneuver started around a well.
 #[derive(Debug, Clone, EventKind, Reflect)]
-#[event_name("onorbit")]
-#[event_info(OnOrbitEventInfo)]
-pub struct OnOrbitEvent;
+#[event_name("onorbitstart")]
+#[event_info(OrbitEventInfo)]
+pub struct OnOrbitStartEvent;
 
-/// Payload for [`OnOrbitEvent`]: the orbited well (`id`) and the orbiting ship
+/// An ORBIT maneuver entered its stable station-keeping phase.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onorbitstable")]
+#[event_info(OrbitEventInfo)]
+pub struct OnOrbitStableEvent;
+
+/// A stable ORBIT became unstable while its maneuver remained engaged.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onorbitunstable")]
+#[event_info(OrbitEventInfo)]
+pub struct OnOrbitUnstableEvent;
+
+/// A surviving ship ended or switched its ORBIT maneuver.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onorbitend")]
+#[event_info(OrbitEventInfo)]
+pub struct OnOrbitEndEvent;
+
+/// Shared payload for orbit lifecycle events: the well (`id`) and ship
 /// (`other_id` / `other_type_name`).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
-pub struct OnOrbitEventInfo {
+pub struct OrbitEventInfo {
     /// Scenario id of the orbited well.
     #[serde(rename = "id")]
     pub id: String,

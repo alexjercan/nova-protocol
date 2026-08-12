@@ -1953,11 +1953,65 @@
                 ],
             ),
             (
-                name: OnOrbit,
+                name: OnOrbitStable,
                 filters: [
                     Entity((
                         id: Some("planetoid"),
                         other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(8.0)))),
+                    ))),
+                ],
+                actions: [
+                    TimerStart((
+                        key: "orbit_hold",
+                        seconds: Term(Factor(Literal(Number(5.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnOrbitUnstable,
+                filters: [
+                    Entity((
+                        id: Some("planetoid"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(8.0)))),
+                    ))),
+                ],
+                actions: [
+                    TimerCancel((
+                        key: "orbit_hold",
+                    )),
+                ],
+            ),
+            (
+                name: OnOrbitEnd,
+                filters: [
+                    Entity((
+                        id: Some("planetoid"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(8.0)))),
+                    ))),
+                ],
+                actions: [
+                    TimerCancel((
+                        key: "orbit_hold",
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "orbit_hold",
                     )),
                     Expression((Equal(
                         Term(Factor(Name("beat"))),

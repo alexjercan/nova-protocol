@@ -289,6 +289,8 @@ const VAR_OPEN_STEP: &str = "open_step";
 const VAR_OPENED: &str = "opened";
 const VAR_GATE: &str = "beat_gate";
 const VAR_SETUP_LAST: &str = "setup_last";
+const TIMER_ORBIT_HOLD: &str = "orbit_hold";
+const ORBIT_HOLD_SECS: f64 = 5.0;
 // The scavenger fight is a threat reveal: the warning line lands with the
 // spawn, and the objective posts a beat later - the same deadline the story
 // scenarios use, so no comms line shares a frame with an objective anywhere in
@@ -1139,7 +1141,7 @@ pub(crate) fn shakedown_run(
             ],
         ),
         // Beat 7 -> 8: the drift crossed the coast ring. One gesture: [O]
-        // (OnOrbit is autopilot state - a position gate is unwinnable
+        // (orbit lifecycle is autopilot state - a position gate is unwinnable
         // because the ORBIT verb rings at max(band, engage radius);
         // playtest finding 5).
         ScenarioEventConfig {
@@ -1170,12 +1172,42 @@ pub(crate) fn shakedown_run(
                 objective(OBJ_B8, "Press [O] to hold an orbit."),
             ],
         ),
+        // Stable station-keeping starts the authored hold. Losing stability or
+        // ending ORBIT cancels it, so only one continuous five-second hold
+        // completes the lesson.
+        ScenarioEventConfig {
+            name: EventConfig::OnOrbitStable,
+            filters: vec![player_enters(ID_PLANETOID), eq_num(VAR_BEAT, 8.0)],
+            actions: vec![EventActionConfig::TimerStart(TimerStartActionConfig {
+                key: TIMER_ORBIT_HOLD.to_string(),
+                seconds: num(ORBIT_HOLD_SECS),
+            })],
+        },
+        ScenarioEventConfig {
+            name: EventConfig::OnOrbitUnstable,
+            filters: vec![player_enters(ID_PLANETOID), eq_num(VAR_BEAT, 8.0)],
+            actions: vec![EventActionConfig::TimerCancel(TimerCancelActionConfig {
+                key: TIMER_ORBIT_HOLD.to_string(),
+            })],
+        },
+        ScenarioEventConfig {
+            name: EventConfig::OnOrbitEnd,
+            filters: vec![player_enters(ID_PLANETOID), eq_num(VAR_BEAT, 8.0)],
+            actions: vec![EventActionConfig::TimerCancel(TimerCancelActionConfig {
+                key: TIMER_ORBIT_HOLD.to_string(),
+            })],
+        },
         // Beat 8 -> 9: orbit held. Break away (teaches [Z] with a real
         // completion: leaving the coast ring). The derelict spawns now,
         // back by the salvage field - outside the SOI, so it stays put.
         ScenarioEventConfig {
-            name: EventConfig::OnOrbit,
-            filters: vec![player_enters(ID_PLANETOID), eq_num(VAR_BEAT, 8.0)],
+            name: EventConfig::OnTimerEnd,
+            filters: vec![
+                EventFilterConfig::Timer(TimerFilterConfig {
+                    key: TIMER_ORBIT_HOLD.to_string(),
+                }),
+                eq_num(VAR_BEAT, 8.0),
+            ],
             actions: vec![
                 set(VAR_BEAT, num(9.0)),
                 stamp_gate(INSTRUCTION_GAP),

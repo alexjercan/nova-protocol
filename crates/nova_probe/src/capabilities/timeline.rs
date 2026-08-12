@@ -21,7 +21,7 @@
 //!   bevy's [`StateTransitionEvent`] messages (a `Message` with
 //!   `exited`/`entered`; bevy_state-0.19.0/src/state/transitions.rs:67).
 //! - `scenario_event` - every fired scenario [`GameEvent`] (kill, area
-//!   enter/exit, orbit hold, travel/combat lock, the per-frame update pulse),
+//!   enter/exit, orbit lifecycle, travel/combat lock, the per-frame update pulse),
 //!   name + payload, observed via `On<GameEvent>` WITHOUT touching the
 //!   dispatch queue (the read accessors exist in `nova_events::engine` for
 //!   exactly this).

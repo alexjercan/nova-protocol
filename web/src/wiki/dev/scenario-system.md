@@ -60,29 +60,20 @@ a scoped entity, (4) be a self-expiring `TempEntity`, or (5) be torn down by a
 | `OnNeutralized` | a ship that was armed loses ALL working weapons AND thrusters - combat-dead (out of the fight) even with its hull intact; the ship is NOT despawned |
 | `OnEnter`      | a body enters an area/zone |
 | `OnExit`       | a body leaves an area/zone |
-| `OnOrbit`      | a ship has held an engaged autopilot ORBIT around a well for the hold window (default 5s); re-fires every further window while the hold continues |
+| `OnOrbitStart` / `OnOrbitStable` / `OnOrbitUnstable` / `OnOrbitEnd` | one-shot ORBIT maneuver and Hold-phase transitions; destruction emits only `OnDestroyed` |
 | `OnTravelLock` | the player's TRAVEL lock lands on a scenario object; re-fires every re-fire window (default 5s) while held |
 | `OnCombatLock` | same as `OnTravelLock` for the COMBAT lock (player only; AI locks never fire it) |
 
 Entities carry `EntityId(String)` and `EntityTypeName(String)`. Pair events all
 have the same filter shape - a subject `id` and an `other_id`/`other_type_name`
 - though which entity is the subject is per-event (area vs ship, well vs ship,
-target vs locker; see the Filters section). The recurrence is deliberate: a
-one-shot event consumed while a beat guard rejects it would soft-lock the
-script; gated handlers make repeats no-ops.
+target vs locker; see the Filters section). Lock recurrence is deliberate: a
+pulse rejected by a beat guard can retry; gated handlers make repeats no-ops.
 
-Both 5s windows are the default and can be overridden per ship in RON (the
-value is seconds; a non-positive/non-finite value is a `content lint` error and
-is ignored at runtime):
-
-- `OnOrbit` hold: `orbit_hold_secs: Some(8.0)` on an AI controller (only
-  meaningful alongside its `orbit` directive) -
-  `controller: AI((orbit: Some("planetoid"), orbit_hold_secs: Some(8.0)))`.
-- `OnTravelLock`/`OnCombatLock` re-fire: `lock_refire_secs: Some(8.0)` on the
-  player controller - `controller: Player((lock_refire_secs: Some(8.0)))`.
-
-Both windows are measured against the scenario clock (below), so they freeze
-under pause and reset on retry with the rest of the scenario.
+The lock re-fire window is measured against the scenario clock, so it freezes
+under pause and resets on retry. Orbit lifecycle has no hidden timer; scenarios
+compose `OnOrbitStable` / `OnOrbitUnstable` / `OnOrbitEnd` with keyed timers
+when they require a continuous hold.
 
 The event-driven pipeline reads like this: an event fires, its filters gate
 whether it proceeds, and if they all pass its actions run in order and mutate
@@ -498,7 +489,7 @@ asteroid alone opts into `Dynamic` + `TransformInterpolation`.
 - `Spaceship(SpaceshipConfig)` - sections plus a `SpaceshipController`:
   `None`, `Player` (input mapping, optional `speed_cap`, `infinite_ammo`,
   optional `lock_refire_secs`), or `AI` (patrol route, orbit directive,
-  optional `leash` break-off radius, optional `orbit_hold_secs`, optional
+  optional `leash` break-off radius, optional
   `engage_delay: Some(secs)` arrival grace - the ship flies its passive
   routine and refuses to engage until the delay elapses, going hot
   immediately and permanently if shot; pair it with a clock-spaced

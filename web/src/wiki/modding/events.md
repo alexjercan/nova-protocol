@@ -1,7 +1,7 @@
 # Events
 
 Everything that can fire a handler. A handler's `name:` field names one of
-the TEN event kinds below, written bare (they are unit variants):
+the THIRTEEN event kinds below, written bare (they are unit variants):
 `name: OnStart`, `name: OnEnter`, and so on. When the event fires, the
 handler's [filters](../filters/) gate it and its [actions](../actions/) run.
 
@@ -16,7 +16,10 @@ The whole vocabulary at a glance:
 | [`OnNeutralized`](#onneutralized) | `id`, `type_name` | an armed ship loses ALL weapons AND thrusters |
 | [`OnEnter`](#onenter) | `id`, `other_id`, `other_type_name` | a body enters a trigger area |
 | [`OnExit`](#onexit) | `id`, `other_id`, `other_type_name` | a body leaves a trigger area |
-| [`OnOrbit`](#onorbit) | `id`, `other_id`, `other_type_name` | a ship holds an autopilot ORBIT (recurs) |
+| [`OnOrbitStart`](#orbit-lifecycle) | `id`, `other_id`, `other_type_name` | an ORBIT maneuver starts |
+| [`OnOrbitStable`](#orbit-lifecycle) | `id`, `other_id`, `other_type_name` | ORBIT enters stable station-keeping |
+| [`OnOrbitUnstable`](#orbit-lifecycle) | `id`, `other_id`, `other_type_name` | stable station-keeping is lost |
+| [`OnOrbitEnd`](#orbit-lifecycle) | `id`, `other_id`, `other_type_name` | a surviving ship ends ORBIT |
 | [`OnTravelLock`](#ontravellock) | `id`, `other_id`, `other_type_name` | the player's travel lock lands (recurs) |
 | [`OnCombatLock`](#oncombatlock) | `id`, `other_id`, `other_type_name` | the player's combat lock lands (recurs) |
 
@@ -213,46 +216,48 @@ silently.
 Use `other_type_name: Some("spaceship")` instead of `other_id` when every ship
 leaving the area should match.
 
-## OnOrbit
+## Orbit lifecycle
 
-Fires when a ship has HELD an engaged autopilot ORBIT around one gravity
-well for the hold window - then RECURS every further window while the hold
-continues. Payload: `id` is the WELL being orbited; `other_id` /
-`other_type_name` the orbiting ship.
+Four one-shot edge events describe ORBIT without hidden timing:
 
-The default window is 5 seconds. Override it per AI ship with
-`orbit_hold_secs: Some(8.0)` on the AI controller (only meaningful with its
-`orbit` directive); non-positive or non-finite values are a lint error and
-fall back to the default. The window is measured on the scenario clock, so
-it freezes under pause and resets on retry.
+- `OnOrbitStart`: the maneuver engages for a well. The ship may still be
+  aligning or burning toward its ring.
+- `OnOrbitStable`: velocity error enters the autopilot's stable Hold band. It
+  can fire again after stability is recovered.
+- `OnOrbitUnstable`: velocity error leaves Hold while ORBIT stays engaged.
+- `OnOrbitEnd`: a surviving ship cancels ORBIT, changes verb, loses flight
+  capability, loses the well, or switches wells. Ship destruction emits only
+  `OnDestroyed`, consistent with area despawn not emitting `OnExit`.
 
-Seed `orbit_confirmed` to `0` in `OnStart` before using this recurring handler:
+All four carry `id` = well and `other_id` / `other_type_name` = orbiting ship.
+Switching wells queues `OnOrbitEnd` for the old well, then `OnOrbitStart` for
+the new one. Ending a stable orbit emits only `OnOrbitEnd`, not an unstable
+edge first.
+
+A continuous eight-second stable hold uses a timer:
 
 ```ron
 (
-    name: OnOrbit,
-    filters: [
-        Entity((
-            id: Some("planetoid"),
-            other_id: Some("player_spaceship"),
-        )),
-        Expression((Equal(
-            Term(Factor(Name("orbit_confirmed"))),
-            Term(Factor(Literal(Number(0.0)))),
-        ))),
-    ],
-    actions: [
-        VariableSet((
-            key: "orbit_confirmed",
-            expression: Term(Factor(Literal(Number(1.0)))),
-        )),
-        ObjectiveComplete((id: "hold_orbit")),
-    ],
+    name: OnOrbitStable,
+    filters: [Entity((id: Some("planetoid"), other_id: Some("player_spaceship")))],
+    actions: [TimerStart((key: "orbit_hold", seconds: Term(Factor(Literal(Number(8.0))))))],
+),
+(
+    name: OnOrbitUnstable,
+    filters: [Entity((id: Some("planetoid"), other_id: Some("player_spaceship")))],
+    actions: [TimerCancel((key: "orbit_hold"))],
+),
+(
+    name: OnOrbitEnd,
+    filters: [Entity((id: Some("planetoid"), other_id: Some("player_spaceship")))],
+    actions: [TimerCancel((key: "orbit_hold"))],
+),
+(
+    name: OnTimerEnd,
+    filters: [Timer((key: "orbit_hold"))],
+    actions: [ObjectiveComplete((id: "hold_orbit"))],
 ),
 ```
-
-Use `other_type_name: Some("spaceship")` when any ship orbiting that well
-should match. Keep the one-shot expression because `OnOrbit` recurs.
 
 ## OnTravelLock
 
@@ -317,10 +322,10 @@ its own event so a scenario can distinguish "looked at" from "targeted". Seed
 To react to any combat-locked target, omit `id`; keep `other_id` when the
 locking ship must be `player_spaceship`.
 
-## Recurrence is deliberate: gate everything
+## Lock recurrence: gate every pulse
 
-`OnOrbit` and the two lock events REPEAT while their condition holds (5 s
-windows by default). This is by design: a one-shot event consumed
+The two lock events REPEAT while their condition holds (5 s windows by
+default). This is by design: a one-shot event consumed
 while a beat guard rejects it would be gone for good and soft-lock the
 script; recurring events make a rejected pulse harmless - the next pulse
 re-checks. The cost: every handler on a recurring event MUST be gated on a

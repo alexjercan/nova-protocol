@@ -224,7 +224,10 @@ fn main() -> bevy::app::AppExit {
                 // insertion is a real burn against a real well and its duration
                 // is the ship's thrust-to-mass, not a number this file picks.
                 .step("settle onto the ring")
-                .until(orbit_holding())
+                .until(and(
+                    orbit_holding(),
+                    scenario_variable_is("orbit_stable", 1.0),
+                ))
                 .deadline(120.0)
                 .add()
                 .step("let the ring steady")
@@ -524,23 +527,47 @@ fn the_ring(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
     ScenarioConfig {
         description: "A planetoid, its debris ring, and a ship flying the ORBIT verb around it."
             .to_string(),
-        events: vec![ScenarioEventConfig {
-            name: EventConfig::OnStart,
-            filters: vec![],
-            // The photo rig, now authored content rather than an example-side
-            // observer swap: scale 1.0 around the origin reproduces the kit's
-            // exact key/rim/fill numbers, so the captured frames are unchanged.
-            actions: [
-                vec![
-                    planetoid(game_assets),
-                    debris.action(game_assets),
-                    player,
-                    beacon(),
-                ],
-                ThreePointRig::around("photo", Vec3::ZERO, 1.0).actions(),
-            ]
-            .concat(),
-        }],
+        events: vec![
+            ScenarioEventConfig {
+                name: EventConfig::OnStart,
+                filters: vec![],
+                // The photo rig, now authored content rather than an example-side
+                // observer swap: scale 1.0 around the origin reproduces the kit's
+                // exact key/rim/fill numbers, so the captured frames are unchanged.
+                actions: [
+                    vec![
+                        planetoid(game_assets),
+                        debris.action(game_assets),
+                        player,
+                        beacon(),
+                        EventActionConfig::VariableSet(VariableSetActionConfig {
+                            key: "orbit_stable".to_string(),
+                            expression: VariableExpressionNode::new_term(
+                                VariableTermNode::new_factor(VariableFactorNode::new_literal(
+                                    VariableLiteral::Number(0.0),
+                                )),
+                            ),
+                        }),
+                    ],
+                    ThreePointRig::around("photo", Vec3::ZERO, 1.0).actions(),
+                ]
+                .concat(),
+            },
+            ScenarioEventConfig {
+                name: EventConfig::OnOrbitStable,
+                filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
+                    id: Some(PLANETOID_ID.to_string()),
+                    other_id: Some(PLAYER_ID.to_string()),
+                    ..default()
+                })],
+                actions: vec![EventActionConfig::VariableSet(VariableSetActionConfig {
+                    key: "orbit_stable".to_string(),
+                    expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                        VariableFactorNode::new_literal(VariableLiteral::Number(1.0)),
+                    )),
+                })],
+            },
+        ],
         ..ScenarioConfig::new(
             "the_ring".to_string(),
             "The Ring".to_string(),

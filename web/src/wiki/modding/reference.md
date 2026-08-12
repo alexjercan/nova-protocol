@@ -39,7 +39,7 @@ The five spelling rules behind every snippet in these pages:
 | family | constructs |
 |---|---|
 | Mod structure | [bundle and content files](../mod-files/), [`Campaign`](../campaigns/), [`Scenario`](../scenarios/), [`Section`](../sections/) |
-| Events (10) | [`OnStart`](../events/#onstart), [`OnUpdate`](../events/#onupdate), [`OnTimerEnd`](../events/#ontimerend), [`OnDestroyed`](../events/#ondestroyed), [`OnNeutralized`](../events/#onneutralized), [`OnEnter`](../events/#onenter), [`OnExit`](../events/#onexit), [`OnOrbit`](../events/#onorbit), [`OnTravelLock`](../events/#ontravellock), [`OnCombatLock`](../events/#oncombatlock) |
+| Events (13) | [`OnStart`](../events/#onstart), [`OnUpdate`](../events/#onupdate), [`OnTimerEnd`](../events/#ontimerend), [`OnDestroyed`](../events/#ondestroyed), [`OnNeutralized`](../events/#onneutralized), [`OnEnter`](../events/#onenter), [`OnExit`](../events/#onexit), [`OnOrbitStart`](../events/#orbit-lifecycle), [`OnOrbitStable`](../events/#orbit-lifecycle), [`OnOrbitUnstable`](../events/#orbit-lifecycle), [`OnOrbitEnd`](../events/#orbit-lifecycle), [`OnTravelLock`](../events/#ontravellock), [`OnCombatLock`](../events/#oncombatlock) |
 | Filters (4) | [`Entity`](../filters/#entity), [`Timer`](../filters/#timer), [`Expression`](../filters/#expression), [`Conditional`](../filters/#conditional) (`Not` / `And` / `Or`) |
 | Actions (24) | spawning: [`SpawnScenarioObject`](../actions/#spawnscenarioobject), [`ScatterObjects`](../actions/#scatterobjects), [`DespawnScenarioObject`](../actions/#despawnscenarioobject), [`CreateScenarioArea`](../actions/#createscenarioarea) - mission: [`Objective`](../actions/#objective), [`ObjectiveComplete`](../actions/#objectivecomplete), [`ObjectiveMarkerAttach`](../actions/#objectivemarkerattach), [`ObjectiveMarkerDetach`](../actions/#objectivemarkerdetach), [`StoryMessage`](../actions/#storymessage), [`HudReadout`](../actions/#hudreadout), [`HintEmphasisSet`](../actions/#hintemphasisset), [`HintEmphasisClear`](../actions/#hintemphasisclear) - flow: [`Outcome`](../actions/#outcome), [`NextScenario`](../actions/#nextscenario) - ships: [`SetSpeedCap`](../actions/#setspeedcap), [`SetControllerVerb`](../actions/#setcontrollerverb), [`SetAllegiance`](../actions/#setallegiance) - state: [`VariableSet`](../actions/#variableset), [`TimerStart`](../actions/#timerstart), [`TimerCancel`](../actions/#timercancel), [`DebugMessage`](../actions/#debugmessage) - view: [`SetCamera`](../actions/#setcamera), [`Screenshot`](../actions/#screenshot), [`SetSkybox`](../actions/#setskybox) |
 | Objects (5) | [`Asteroid`](../objects/#asteroid), [`Spaceship`](../objects/#spaceship), [`Beacon`](../objects/#beacon), [`SalvageCrate`](../objects/#salvagecrate), [`Light`](../objects/#light) (`Directional` / `Point`) |
@@ -106,7 +106,7 @@ The wiki search (sidebar) indexes every construct name, so typing
 [`OnEnter`](../events/#onenter),
 [`OnExit`](../events/#onexit),
 [`OnNeutralized`](../events/#onneutralized),
-[`OnOrbit`](../events/#onorbit),
+[`OnOrbitStart`](../events/#orbit-lifecycle), [`OnOrbitStable`](../events/#orbit-lifecycle), [`OnOrbitUnstable`](../events/#orbit-lifecycle), [`OnOrbitEnd`](../events/#orbit-lifecycle),
 [`OnStart`](../events/#onstart),
 [`OnTravelLock`](../events/#ontravellock),
 [`OnUpdate`](../events/#onupdate) (events),

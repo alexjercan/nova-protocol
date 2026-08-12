@@ -30,7 +30,7 @@ use lifecycle::{
     on_player_spaceship_destroyed, on_player_spaceship_spawned, unload_scenario,
     ScenarioInputMarker,
 };
-use trackers::{track_orbit_holds, track_player_locks, LockEcho, OrbitHold};
+use trackers::{track_orbit_transitions, track_player_locks, LockEcho, OrbitEcho};
 
 /// Glob-import surface: `use nova_scenario::loader::prelude::*` brings the
 /// scenario registry resources, load/unload triggers, and markers into scope.
@@ -367,31 +367,25 @@ impl Plugin for ScenarioLoaderPlugin {
         app.add_observer(unload_scenario);
 
         // NOTE: the OnUpdate pulse is live-AND-Unpaused gated, unlike the
-        // trackers below. It fires UNCONDITIONALLY every frame, so under a
+        // state-transition trackers below. It fires UNCONDITIONALLY every frame, so under a
         // pause an OnUpdate handler whose predicate is already true would
         // re-run its action every frame via the pause-independent PostUpdate
-        // state_to_world sync. The trackers need no pause gate: they derive
-        // their windows from `scenario_elapsed`, which the (gated) clock tick
-        // chained ahead of the pulse freezes under a pause.
+        // state_to_world sync. State-transition trackers need no pause gate:
+        // their source state is itself frozen while paused.
         //
         // apply_pending_skybox_swaps stays ungated too - it is cosmetic and
         // asset-load driven, and letting a queued swap finish under pause is
         // harmless. Do not blanket-gate.
         register_clock_and_pulse(app);
 
-        // The orbit-hold tracker behind `EventConfig::OnOrbit`: "in orbit" is
-        // autopilot state, not a position - a gate area is unwinnable because
-        // the ORBIT verb rings at max(clearance band, engage radius). Ordered
-        // `.after` the clock tick so it reads THIS frame's `scenario_elapsed`;
-        // the tick is Unpaused-gated while the tracker is not, so `.after` is a
-        // pure ordering constraint - when the tick is skipped under pause the
-        // tracker still runs and reads the last (frozen) clock value.
-        app.register_type::<OrbitHold>();
-        app.register_type::<OrbitHoldSecs>();
+        // ORBIT lifecycle events follow maneuver and Hold-phase edges. "In
+        // orbit" is autopilot state, not a position gate: the verb may choose a
+        // ring outside any authored trigger volume.
+        app.register_type::<OrbitEcho>();
         app.add_systems(
-            Update,
-            track_orbit_holds
-                .after(tick_scenario_clock)
+            FixedUpdate,
+            track_orbit_transitions
+                .after(NovaFlightSystems)
                 .run_if(scenario_is_live),
         );
 

@@ -250,7 +250,7 @@ It is done once per app, by each app's own module in `nova_os_ui`.
 
 | Path | Why |
 | --- | --- |
-| `crates/nova_scenario/src/loader/trackers.rs:55` | `track_orbit_holds` - the polled hold/re-fire tracker pattern the "comes to rest" half follows |
+| `crates/nova_scenario/src/loader/trackers.rs` | `track_orbit_transitions` - the polled edge tracker pattern the "comes to rest" half follows |
 | `crates/nova_authoring/src/scenario/` | the built-in scenarios that could use it; regenerate with `content -- gen` if any does |
 | `crates/nova_scenario/src/filters.rs:26` | if the new event carries scopeable data - "a new filter kind is one enum arm plus one match arm" |
 | `crates/nova_scenario/src/world.rs:32` | `NovaEventWorld`, the action's write surface. No hull-repair machinery exists; the nearest state is `Health` (`nova_gameplay/src/integrity/health.rs:29`) and `HullSectionConfig` (`nova_ship/src/sections/hull_section.rs:16`) |

@@ -20,9 +20,9 @@ use crate::objects::modification::prelude::SectionModification;
 /// configs, and `SpaceshipPlugin`.
 pub mod prelude {
     pub use super::{
-        spaceship_scenario_object, AIControllerConfig, LockRefireSecs, OrbitHoldSecs,
-        PlayerControllerConfig, SectionSource, SpaceshipConfig, SpaceshipController,
-        SpaceshipPlugin, SpaceshipSectionConfig, SpaceshipSectionsConfig, SPACESHIP_TYPE_NAME,
+        spaceship_scenario_object, AIControllerConfig, LockRefireSecs, PlayerControllerConfig,
+        SectionSource, SpaceshipConfig, SpaceshipController, SpaceshipPlugin,
+        SpaceshipSectionConfig, SpaceshipSectionsConfig, SPACESHIP_TYPE_NAME,
     };
 }
 
@@ -94,8 +94,8 @@ pub struct PlayerControllerConfig {
 }
 
 /// AI-driver settings for a [`SpaceshipController::AI`] ship: its passive
-/// routine (patrol or orbit), territorial leash, arrival grace, and orbit-hold
-/// window. Authored in the scenario RON and consumed at spawn by
+/// routine (patrol or orbit), territorial leash, and arrival grace. Authored
+/// in the scenario RON and consumed at spawn by
 /// `insert_spaceship_sections`, which inserts the derived directive components
 /// on the ship root (see the per-field docs).
 #[derive(Clone, Debug, Default, Reflect)]
@@ -137,26 +137,7 @@ pub struct AIControllerConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub engage_delay: Option<f32>,
-    /// Seconds this ship must HOLD an engaged orbit before the `OnOrbit` event
-    /// fires (and the re-fire period while the hold continues). Only meaningful
-    /// together with `orbit`. None = the engine default (`ORBIT_HOLD_SECS`,
-    /// 5s). A non-positive/non-finite value is a content_lint error and is
-    /// ignored at runtime (falls back to the default).
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub orbit_hold_secs: Option<f64>,
 }
-
-/// Per-ship override for the orbit-hold window, inserted on the ship root from
-/// [`AIControllerConfig::orbit_hold_secs`] at spawn. Read by the orbit-hold
-/// tracker (`track_orbit_holds` in loader.rs), which falls back to the engine
-/// default `ORBIT_HOLD_SECS` when absent. Seconds of held orbit before
-/// `OnOrbit` fires.
-#[derive(Component, Clone, Copy, Debug, Reflect)]
-#[reflect(Component)]
-pub struct OrbitHoldSecs(pub f64);
 
 /// Per-player override for the lock re-fire period, inserted on the player ship
 /// root from [`PlayerControllerConfig::lock_refire_secs`] at spawn. Read by the
@@ -462,12 +443,6 @@ fn insert_spaceship_sections(
                     well: EntityId::new(well.clone()),
                 });
             }
-            // Per-ship orbit-hold override (only meaningful with `orbit`); a
-            // non-positive/non-finite value is a content_lint error, so the
-            // tracker treats it defensively as the default.
-            if let Some(secs) = config.orbit_hold_secs {
-                commands.entity(entity).insert(OrbitHoldSecs(secs));
-            }
             if let Some(radius) = config.leash {
                 // Anchor on the patrol centroid: the route IS the
                 // territory. A routeless ship tethers to where it spawned.
@@ -555,7 +530,6 @@ mod tests {
                 orbit: Some("planetoid".to_string()),
                 leash: None,
                 engage_delay: None,
-                orbit_hold_secs: None,
             },
         );
         assert!(world.entity(both).get::<AIOrbitDirective>().is_some());

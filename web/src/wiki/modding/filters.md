@@ -34,7 +34,7 @@ truth. The quick map:
 |---|---|---|
 | `OnDestroyed`, `OnNeutralized` | the destroyed / neutralized object | (none) |
 | `OnEnter` / `OnExit` | the AREA (zone, beacon, crate) | the body that entered / left |
-| `OnOrbit` | the well being orbited | the orbiting ship |
+| Orbit lifecycle events | the well being orbited | the orbiting ship |
 | `OnTravelLock` / `OnCombatLock` | the locked target | the locking (player) ship |
 | `OnStart` / `OnUpdate` | (no payload - an Entity filter never matches) | (none) |
 
@@ -135,7 +135,7 @@ script needs.
 - **A payload that fails to serialize also fails closed** (loudly, in the
   log): every `Entity` filter reads "no match" for that event.
 - **Recurring events + an ungated filter = repeated actions.** The 5 s
-  recurrence on `OnOrbit` and the locks (and every frame on `OnUpdate`)
+  recurrence on the locks (and every frame on `OnUpdate`)
   passes your filters again each pulse. Pair the condition with a one-shot
   flag the actions flip - the
   [count-gate idiom](../expressions/#recipes).

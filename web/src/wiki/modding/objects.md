@@ -151,7 +151,6 @@ than complete flyable ships. Copy the full player or AI section list from
 | `orbit` | `Option` string | `None` | id of a gravity-well object to orbit passively. Precedence: orbit > patrol > idle |
 | `leash` | `Option` number | `None` | territorial tether radius; combat breaks off beyond it; `None` = chases freely |
 | `engage_delay` | `Option` number | `None` | arrival grace in seconds: flies its passive routine and refuses to engage until it elapses; being SHOT ends the grace instantly and permanently. The telegraphed-arrival tool |
-| `orbit_hold_secs` | `Option` number | `None` | seconds of held orbit before [`OnOrbit`](../events/#onorbit) fires (and its re-fire window); `None` = 5 s; only meaningful with `orbit` |
 
 An UNARMED AI ship (no turret or torpedo section) is automatically a
 NON-COMBATANT: it flies its routine and never acquires, chases or shoots -

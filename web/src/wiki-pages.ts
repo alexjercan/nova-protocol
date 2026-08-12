@@ -468,19 +468,20 @@ export const WIKI_PAGES: WikiPage[] = [
         parent: "modding/scenarios",
         tags: ["modding", "reference"],
         summary:
-            "Everything that can fire a scenario handler: the nine event kinds, payloads, recurrence windows, and dispatch order.",
+            "Everything that can fire a scenario handler: thirteen event kinds, payloads, lifecycle edges, and dispatch order.",
         related: ["modding/filters", "modding/actions", "modding/scenarios"],
         headings: [
             "OnStart",
             "OnUpdate",
+            "OnTimerEnd",
             "OnDestroyed",
             "OnNeutralized",
             "OnEnter",
             "OnExit",
-            "OnOrbit",
+            "Orbit lifecycle",
             "OnTravelLock",
             "OnCombatLock",
-            "Recurrence is deliberate: gate everything",
+            "Lock recurrence: gate every pulse",
             "Dispatch order",
         ],
     },
@@ -491,7 +492,7 @@ export const WIKI_PAGES: WikiPage[] = [
         parent: "modding/scenarios",
         tags: ["modding", "reference"],
         summary:
-            "The three scenario filter kinds: Entity, Expression, and Conditional, with per-event subjects and fail-closed rules.",
+            "The four scenario filter kinds: Entity, Timer, Expression, and Conditional, with payload and fail-closed rules.",
         related: [
             "modding/events",
             "modding/expressions",
@@ -499,6 +500,7 @@ export const WIKI_PAGES: WikiPage[] = [
         ],
         headings: [
             "Entity",
+            "Timer",
             "Expression",
             "Conditional",
             "Traps for the unwary",
@@ -511,7 +513,7 @@ export const WIKI_PAGES: WikiPage[] = [
         parent: "modding/scenarios",
         tags: ["modding", "reference"],
         summary:
-            "All 22 actions a scenario handler can run, grouped by spawning, mission, flow, ship state, variables, and camera.",
+            "All 24 actions a scenario handler can run, grouped by spawning, mission, flow, ship state, timers, and camera.",
         related: ["modding/objects", "modding/events", "modding/expressions"],
         headings: [
             "SpawnScenarioObject",
@@ -531,6 +533,8 @@ export const WIKI_PAGES: WikiPage[] = [
             "SetSpeedCap",
             "SetControllerVerb",
             "SetAllegiance",
+            "TimerStart",
+            "TimerCancel",
             "VariableSet",
             "DebugMessage",
             "SetCamera",

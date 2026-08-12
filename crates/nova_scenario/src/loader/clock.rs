@@ -78,8 +78,8 @@ fn track_player_speed(
 /// Read the current scenario clock (seconds of live-unpaused time) off the
 /// event world, with the same `None -> 0.0` fallback as [`tick_scenario_clock`]
 /// so a read before the first tick (or after teardown's `world.clear`) sees a
-/// fresh clock. The clock-derived trackers below ([`track_orbit_holds`],
-/// [`track_player_locks`]) measure their 5s windows against this instead of
+/// fresh clock. The clock-derived lock tracker (`track_player_locks`) measures
+/// its 5s recurrence window against this instead of
 /// accumulating their own `Time` delta, so pausing and teardown/retry freeze
 /// and reset every window in one place.
 pub(super) fn scenario_elapsed(world: &NovaEventWorld) -> f64 {
