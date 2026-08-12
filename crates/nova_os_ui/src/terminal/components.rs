@@ -259,73 +259,10 @@ pub(crate) struct NovaOsAppCloseMarker;
 #[derive(Component)]
 pub(crate) struct NovaOsBackdropMarker;
 
-/// The container the objectives-section lines are (re)built into.
-#[derive(Component)]
-pub(crate) struct NovaOsObjectivesListMarker;
-
-/// Scrollable viewport around a NOVA OS row list.
+/// Scrollable viewport around a NOVA OS scrolling region (the terminal
+/// scrollback), targeted by the wheel-scroll systems.
 #[derive(Component)]
 pub(crate) struct NovaOsScrollViewportMarker;
-
-/// One objective row in the NOVA OS's mission-log list.
-#[derive(Component)]
-pub(crate) struct NovaOsObjectiveRowMarker;
-
-/// Objective id copied onto each NOVA OS row for rebuild and tests.
-#[derive(Component, Clone, Debug, PartialEq, Eq)]
-pub(crate) struct NovaOsObjectiveId(pub(crate) String);
-
-/// Whether a row is still active or retained as completed history.
-#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum NovaOsObjectiveRowStatus {
-    Active,
-}
-
-/// The small status glyph at the start of a NOVA OS objective row.
-#[derive(Component)]
-pub(crate) struct NovaOsObjectiveGlyphMarker;
-
-/// The text entity for a NOVA OS objective row.
-#[derive(Component)]
-pub(crate) struct NovaOsObjectiveTextMarker;
-
-/// Thin overlay used as a completed row's line-through.
-#[cfg(test)]
-#[derive(Component)]
-pub(crate) struct NovaOsObjectiveStrikeMarker;
-
-/// Styled empty-state row for the objective list.
-#[derive(Component)]
-pub(crate) struct NovaOsObjectiveEmptyMarker;
-
-/// The container the combined left-panel flight log is rebuilt into.
-#[derive(Component)]
-pub(crate) struct NovaOsFlightLogListMarker;
-
-/// One row in the left-panel combined flight log stream.
-#[derive(Component)]
-pub(crate) struct NovaOsFlightLogRowMarker;
-
-/// Text entity for a combined flight log row.
-#[derive(Component)]
-pub(crate) struct NovaOsFlightLogTextMarker;
-
-/// Styled empty-state row for the combined flight log.
-#[derive(Component)]
-pub(crate) struct NovaOsFlightLogEmptyMarker;
-
-/// Icon semantics for a combined flight log row.
-#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct NovaOsFlightLogIconMarker {
-    pub(crate) kind: NovaOsFlightLogIconKind,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum NovaOsFlightLogIconKind {
-    CommsAuthored,
-    Fallback,
-    Objective,
-}
 
 /// Openness in `[0, 1]`: 0 fully closed (off-screen past the panel's edge), 1
 /// fully open (flush with that edge). Eased toward the state-driven target with
@@ -343,10 +280,10 @@ pub(crate) struct NovaOsCloseTransition {
 /// NovaOs-local combined flight log derived from [`StoryFeed`] and
 /// [`GameObjectives`].
 ///
-/// The monitor placeholder keeps the historical stream: comms rows plus
-/// objective posted/completed rows, in the order the HUD observes them.
-/// Objective text updates edit the open posted row rather than appending
-/// duplicate events.
+/// Feeds the `log` / `objectives` terminal commands and the boot banner's
+/// unread-events count: comms entries plus objective posted/completed entries,
+/// in the order the HUD observes them. Objective text updates edit the open
+/// posted entry rather than appending duplicate events.
 #[derive(Resource, Default, Debug, Clone)]
 pub(crate) struct NovaOsFlightLog {
     pub(crate) entries: Vec<NovaOsFlightLogEntry>,

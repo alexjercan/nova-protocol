@@ -26,11 +26,6 @@ pub(crate) const NOVA_OS_BOOT_ROW_INTERVAL: f32 = 0.13;
 /// so it is not used to position the caret (that measures the real text width;
 /// see [`super::shell::position_nova_os_block_caret`]).
 pub(crate) const NOVA_OS_CARET_WIDTH_FRACTION: f32 = 0.6;
-pub(crate) const DRAWER_ROW_GAP_PX: f32 = 6.0;
-pub(crate) const DRAWER_ROW_PADDING_X_PX: f32 = 8.0;
-pub(crate) const DRAWER_ROW_PADDING_Y_PX: f32 = 7.0;
-pub(crate) const DRAWER_OBJECTIVE_GLYPH_WIDTH_PX: f32 = 18.0;
-pub(crate) const DRAWER_LOG_ICON_SIZE_PX: f32 = 20.0;
 pub(crate) const DRAWER_SCROLL_LINE_HEIGHT_PX: f32 = 20.0;
 
 /// Horizontal inset from the viewport edge to the physical monitor casing. Kept

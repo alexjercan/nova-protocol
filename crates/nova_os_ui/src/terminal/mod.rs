@@ -39,7 +39,7 @@
 //! | `input` | Keyboard, gamepad and wheel handling. |
 //! | `sound` | The power cues and the ambient bed. |
 //! | `shell` | Header/footer/prompt reconcilers, the slide and the app surface. |
-//! | `lists` | The flight log model and the objective / log row lists. |
+//! | `flight_log` | The flight-log model and the live objective announcements. |
 //! | `spawn` | Shell setup and teardown, and the header/main/footer regions. |
 //! | `casing` | The physical monitor: casing, bezel, glass and chin controls. |
 
@@ -47,8 +47,8 @@ mod casing;
 mod components;
 mod content;
 mod crt;
+mod flight_log;
 mod input;
-mod lists;
 mod shell;
 mod sound;
 mod spawn;
@@ -72,21 +72,18 @@ pub use self::components::NovaOsMonitorSettings;
 use self::{
     components::{NovaOsCloseTransition, NovaOsDegauss, NovaOsFlightLog},
     crt::{animate_nova_os_crt, mirror_nova_os_hover, reconcile_nova_os_target, NovaOsCrtMaterial},
+    flight_log::{announce_objectives_in_terminal, sync_nova_os_logs},
     input::{
         close_nova_os_from_menu_keys, handle_nova_os_app_keyboard, handle_terminal_keyboard,
         scroll_nova_os_panels, sync_nova_os_commands, toggle_nova_os,
-    },
-    lists::{
-        announce_objectives_in_terminal, rebuild_nova_os_flight_log, rebuild_nova_os_objectives,
-        sync_nova_os_logs,
     },
     shell::{
         begin_nova_os_boot, blink_nova_os_caret, drain_nova_os_boot, drive_nova_os_power_led,
         drive_nova_os_slide, drive_nova_os_topbar_fps, lift_exempt_chrome_over_nova_os,
         mark_nova_os_events_seen, normalize_nova_os_scroll, nova_os_footer_just_spawned,
-        nova_os_header_just_spawned, nova_os_lists_just_spawned, position_nova_os_block_caret,
-        rebuild_nova_os_footer_hints, rebuild_terminal_ui, reconcile_nova_os_header,
-        sync_nova_os_app_ui, sync_nova_os_monitor_controls, terminal_ui_just_spawned,
+        nova_os_header_just_spawned, position_nova_os_block_caret, rebuild_nova_os_footer_hints,
+        rebuild_terminal_ui, reconcile_nova_os_header, sync_nova_os_app_ui,
+        sync_nova_os_monitor_controls, terminal_ui_just_spawned,
     },
     sound::{
         apply_nova_os_bed_volume, play_nova_os_power_down, start_nova_os_sound, stop_nova_os_bed,
@@ -128,7 +125,7 @@ pub enum NovaOsSystems {
     /// wheel. This is where the pending command invocation is produced.
     Input,
     /// The monitor's own state between input and paint - the slide, the boot
-    /// drain, the flight-log lists, sound and the CRT animation.
+    /// drain, the flight-log model, sound and the CRT animation.
     Simulate,
     /// Rebuilding the terminal and app UI from the model. Runs after the app
     /// sets, so a `ship repair` result row lands on the frame it was typed
@@ -136,7 +133,7 @@ pub enum NovaOsSystems {
     Paint,
 }
 
-/// Wires the Tab NOVA OS shell: the toggle, the slide and the objectives section.
+/// Wires the Tab NOVA OS shell: the toggle, the slide and the terminal.
 /// Registered by [`crate::NovaOsUiPlugin`].
 pub(crate) struct NovaOsPlugin;
 
@@ -161,23 +158,15 @@ impl Plugin for NovaOsPlugin {
                 .in_set(NovaOsSystems::Toggle),
         );
 
-        // Shell upkeep while the HUD is live: ease the slide and rebuild the
-        // objectives section on change / first spawn.
+        // Shell upkeep while the HUD is live: ease the slide and keep the
+        // flight-log model in sync with the story feed and objectives.
         app.add_systems(
             Update,
             (
                 drive_nova_os_slide,
-                (
-                    sync_nova_os_logs,
-                    rebuild_nova_os_objectives,
-                    rebuild_nova_os_flight_log,
-                )
-                    .chain()
-                    .run_if(
-                        resource_changed::<GameObjectives>
-                            .or_else(resource_changed::<StoryFeed>)
-                            .or_else(nova_os_lists_just_spawned),
-                    ),
+                sync_nova_os_logs.run_if(
+                    resource_changed::<GameObjectives>.or_else(resource_changed::<StoryFeed>),
+                ),
             )
                 .in_set(NovaOsSystems::Simulate),
         );

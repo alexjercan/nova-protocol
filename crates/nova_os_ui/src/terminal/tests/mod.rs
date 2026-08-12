@@ -4,7 +4,7 @@ mod apps;
 mod chin;
 mod commands;
 mod crt;
-mod lists;
+mod flight_log;
 mod sound;
 mod structure;
 mod toggle;
@@ -38,7 +38,8 @@ use nova_ship::prelude::*;
 use nova_ui::theme;
 
 use super::{
-    components::*, content::*, crt::*, input::*, lists::*, shell::*, sound::*, spawn::*, style::*,
+    components::*, content::*, crt::*, flight_log::*, input::*, shell::*, sound::*, spawn::*,
+    style::*,
 };
 use crate::ship::prelude::SectionCode;
 
@@ -270,45 +271,10 @@ fn objectives_app() -> App {
     app.init_resource::<NovaOsFlightLog>();
     app.add_systems(
         Update,
-        (
-            sync_nova_os_logs,
-            rebuild_nova_os_objectives,
-            rebuild_nova_os_flight_log,
-        )
-            .chain()
-            .run_if(
-                resource_changed::<GameObjectives>
-                    .or_else(resource_changed::<StoryFeed>)
-                    .or_else(nova_os_lists_just_spawned),
-            ),
+        sync_nova_os_logs
+            .run_if(resource_changed::<GameObjectives>.or_else(resource_changed::<StoryFeed>)),
     );
     app
-}
-
-fn spawn_objectives_list(app: &mut App) -> Entity {
-    app.world_mut()
-        .spawn((
-            NovaOsObjectivesListMarker,
-            Node {
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(3.0),
-                ..default()
-            },
-        ))
-        .id()
-}
-
-fn spawn_flight_log_list(app: &mut App) -> Entity {
-    app.world_mut()
-        .spawn((
-            NovaOsFlightLogListMarker,
-            Node {
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(3.0),
-                ..default()
-            },
-        ))
-        .id()
 }
 
 fn spawn_nova_os_shell(app: &mut App) {
@@ -362,39 +328,6 @@ fn push_story_line(app: &mut App, speaker: &str, text: &str) {
         });
 }
 
-fn row_entities(app: &mut App) -> Vec<Entity> {
-    app.world_mut()
-        .query_filtered::<Entity, With<NovaOsObjectiveRowMarker>>()
-        .iter(app.world())
-        .collect()
-}
-
-fn row_text(app: &App, row: Entity) -> String {
-    let mut text = None;
-    for child in app
-        .world()
-        .entity(row)
-        .get::<Children>()
-        .expect("row children")
-    {
-        if let Some(found) = text_in_tree(app, *child) {
-            text = Some(found);
-            break;
-        }
-    }
-    text.expect("row has objective text")
-}
-
-fn text_in_tree(app: &App, entity: Entity) -> Option<String> {
-    let entity_ref = app.world().entity(entity);
-    if entity_ref.contains::<NovaOsObjectiveTextMarker>() {
-        return entity_ref.get::<Text>().map(|text| text.0.clone());
-    }
-    entity_ref
-        .get::<Children>()
-        .and_then(|children| children.iter().find_map(|child| text_in_tree(app, child)))
-}
-
 fn all_texts(app: &mut App) -> Vec<String> {
     app.world_mut()
         .query::<&Text>()
@@ -403,13 +336,6 @@ fn all_texts(app: &mut App) -> Vec<String> {
         .collect()
 }
 
-fn flight_log_texts(app: &mut App) -> Vec<String> {
-    app.world_mut()
-        .query_filtered::<&Text, With<NovaOsFlightLogTextMarker>>()
-        .iter(app.world())
-        .map(|text| text.0.clone())
-        .collect()
-}
 /// A headless app with the NOVA OS chin controls spawned and the computer
 /// open, mirroring `nova_os_app_ui_spawns_chrome_and_close_button_exits`'s
 /// rig.

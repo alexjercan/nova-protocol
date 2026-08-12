@@ -1,6 +1,6 @@
 # NOVA OS: the objectives/flight-log row lists are dead in production
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, refactor, hud
 
@@ -30,9 +30,10 @@ Two smaller pieces of the same residue:
 
 ## Steps
 
-- [ ] Confirm with the owner that the panes are gone for good, not parked.
-- [ ] Delete the dead row-spawn path and the components only it used.
-- [ ] Delete or rewrite the tests that only covered the dead path.
+- [x] Confirm with the owner that the panes are gone for good, not parked.
+      Owner confirmed 2026-08-12: the tabs are gone from the NOVA OS computer.
+- [x] Delete the dead row-spawn path and the components only it used.
+- [x] Delete or rewrite the tests that only covered the dead path.
 
 ## Definition of Done
 
@@ -44,3 +45,17 @@ Two smaller pieces of the same residue:
 
 Do not delete `NovaOsFlightLog` or its sync system - the terminal commands and
 the boot banner read it.
+
+2026-08-12: the L9 crate split (20260806-121625) had moved the dead path from
+`hud/nova_os/lists.rs` to `crates/nova_os_ui/src/terminal/lists.rs` unchanged.
+Done in this task (see NOTES.md for proofs):
+
+- Deleted the row-spawn path, the 14 components only it used, the
+  `nova_os_lists_just_spawned` run condition and the 5 row-layout style
+  constants.
+- Renamed the survivor: `terminal/lists.rs` -> `terminal/flight_log.rs`, now
+  only `sync_nova_os_logs` + `announce_objectives_in_terminal`.
+- Tests: deleted the row-rendering tests; rewrote the model tests
+  (comms append, edit-in-place, interleave) against `NovaOsFlightLog`
+  entries; kept the scroll-viewport and teardown tests
+  (`tests/lists.rs` -> `tests/flight_log.rs`).

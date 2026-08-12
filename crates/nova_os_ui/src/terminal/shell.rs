@@ -211,16 +211,6 @@ pub(crate) fn spawn_nova_os_app(
         app.spawn_body(body, font.clone());
     });
 }
-/// Run condition: the objectives list container was spawned this frame, so its
-/// initial contents must be built from the current `GameObjectives` even
-/// though the resource itself did not change.
-pub(crate) fn nova_os_lists_just_spawned(
-    q_objectives: Query<(), Added<NovaOsObjectivesListMarker>>,
-    q_log: Query<(), Added<NovaOsFlightLogListMarker>>,
-) -> bool {
-    !q_objectives.is_empty() || !q_log.is_empty()
-}
-
 pub(crate) fn terminal_ui_just_spawned(
     q_prompt: Query<(), Added<NovaOsTerminalPromptMarker>>,
     q_scrollback: Query<(), Added<NovaOsTerminalScrollbackMarker>>,
