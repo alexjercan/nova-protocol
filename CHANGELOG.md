@@ -31,7 +31,9 @@ tagged **(breaking)**.
 - Neutralized wrecks leave player threat tracking and AI target acquisition but
   remain combat-lockable; their solid allegiance triangle becomes a hollow
   wreck chevron, target details show `NEUTRALIZED`, and the target inset gives
-  a brief defeat confirmation while preserving allegiance color.
+  a brief defeat confirmation while preserving allegiance color. Physical
+  destruction shows an amber `DESTROYED` ribbon over the final two-second kill
+  cam; cleanup despawns no longer trigger that kill cam.
 - AI burst cadence ticks on the fixed clock, so AI damage output no longer
   varies with framerate.
 

@@ -81,6 +81,10 @@ then later `OnDestroyed`.
   destroy the raider first, so it does not stage the transient confirmation.
 - Manual combat playtest confirms the inset-local transient appears for a
   neutralized held target.
+- Physical destruction of the framed lock records `IntegrityDestroyMarker`
+  before despawn, then holds an amber `DESTROYED` ribbon for the two-second kill
+  cam. Generic despawn, scripted cleanup, and unrelated destruction do not
+  trigger it. Destruction supersedes a recent neutralization flash.
 
 ## Boundary direction
 

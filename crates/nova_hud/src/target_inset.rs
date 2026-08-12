@@ -40,9 +40,10 @@ use crate::prelude::*;
 pub mod prelude {
     pub use super::{
         target_inset_hud, InsetZoomable, TargetInsetArmedTickMarker, TargetInsetCameraMarker,
-        TargetInsetCaptionMarker, TargetInsetHighlightAssets, TargetInsetHighlightMarker,
-        TargetInsetHudMarker, TargetInsetHudPlugin, TargetInsetKillCam, TargetInsetLastFramed,
-        TargetInsetNeutralizedFlashMarker, TargetInsetNoSignalMarker, TargetInsetRenderTarget,
+        TargetInsetCaptionMarker, TargetInsetDestroyedFlashMarker, TargetInsetHighlightAssets,
+        TargetInsetHighlightMarker, TargetInsetHudMarker, TargetInsetHudPlugin, TargetInsetKillCam,
+        TargetInsetLastFramed, TargetInsetNeutralizedFlashMarker, TargetInsetNoSignalMarker,
+        TargetInsetRenderTarget,
     };
 }
 
@@ -98,9 +99,11 @@ const FACTION_NEUTRAL_COLOR: Color = nova_ui::theme::semantic::NEUTRAL;
 /// of screen center, where the combat bracket and section markers already carry
 /// the player's aim.
 const NEUTRALIZED_FLASH_SECS: f32 = 1.4;
-const NEUTRALIZED_FLASH_FADE_SECS: f32 = 0.4;
+const CONFIRMATION_FADE_SECS: f32 = 0.4;
 const NEUTRALIZED_FLASH_COLOR: Color = nova_ui::theme::PHOSPHOR;
 const NEUTRALIZED_FLASH_BACKDROP: Color = Color::srgba(0.0, 0.04, 0.01, 0.9);
+const DESTROYED_FLASH_COLOR: Color = nova_ui::theme::AMBER_NOVA;
+const DESTROYED_FLASH_BACKDROP: Color = Color::srgba(0.05, 0.025, 0.0, 0.92);
 
 /// NO-SIGNAL overlay: shown when a combat lock exists on a body the
 /// inset cannot scope (a beacon - lockable, never zoomable), so the panel
@@ -165,6 +168,15 @@ pub struct TargetInsetNeutralizedFlashMarker {
     /// Seconds left before the confirmation hides.
     pub remaining: f32,
 }
+
+/// `DESTROYED` ribbon shown for the duration of a confirmed kill cam.
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct TargetInsetDestroyedFlashMarker;
+
+/// Records that the framed target crossed the physical destruction seam. A
+/// missing entity without this proof is cleanup, not a kill-cam trigger.
+#[derive(Component, Debug, Clone, Copy, Reflect)]
+struct TargetInsetDestroyedTarget(Entity);
 
 /// The panel's memory of the last camera-framed target and pose - the kill
 /// cam's source material. Lives ON the panel entity (not a Local), so a
@@ -378,6 +390,25 @@ pub fn target_inset_hud(image: Handle<Image>) -> impl Bundle {
             armed_tick(true, true, true),
             armed_tick(false, true, true),
             (
+                Name::new("InsetDestroyedFlash"),
+                TargetInsetDestroyedFlashMarker,
+                Text::new("DESTROYED"),
+                TextFont::from_font_size(nova_ui::hud::CHIP_FONT),
+                TextColor(DESTROYED_FLASH_COLOR),
+                TextLayout::justify(Justify::Center),
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(0.0),
+                    top: Val::Percent(44.0),
+                    width: Val::Percent(100.0),
+                    padding: UiRect::vertical(Val::Px(4.0)),
+                    ..default()
+                },
+                BackgroundColor(DESTROYED_FLASH_BACKDROP),
+                Visibility::Hidden,
+                Pickable::IGNORE,
+            ),
+            (
                 Name::new("InsetNeutralizedFlash"),
                 TargetInsetNeutralizedFlashMarker { remaining: 0.0 },
                 Text::new("NEUTRALIZED"),
@@ -424,6 +455,8 @@ impl Plugin for TargetInsetHudPlugin {
         app.register_type::<TargetInsetArmedTickMarker>();
         app.register_type::<TargetInsetCaptionMarker>();
         app.register_type::<TargetInsetNeutralizedFlashMarker>();
+        app.register_type::<TargetInsetDestroyedFlashMarker>();
+        app.register_type::<TargetInsetDestroyedTarget>();
         app.register_type::<TargetInsetLastFramed>();
         app.register_type::<TargetInsetKillCam>();
 
@@ -433,6 +466,7 @@ impl Plugin for TargetInsetHudPlugin {
         // scenario loader's on_add_entity_with pattern.
         app.add_observer(mark_inset_zoomable::<SpaceshipRootMarker>);
         app.add_observer(mark_inset_zoomable::<TorpedoTargetChosen>);
+        app.add_observer(confirm_locked_target_destroyed);
 
         app.add_systems(
             Update,
@@ -440,6 +474,7 @@ impl Plugin for TargetInsetHudPlugin {
                 drive_inset_camera,
                 drive_inset_frame_state,
                 flash_locked_target_neutralized,
+                show_confirmed_destruction,
                 pulse_no_signal,
                 sync_section_highlight,
             )
@@ -453,6 +488,28 @@ impl Plugin for TargetInsetHudPlugin {
 fn mark_inset_zoomable<T: Component>(add: On<Add, T>, mut commands: Commands) {
     if let Ok(mut entity) = commands.get_entity(add.entity) {
         entity.insert(InsetZoomable);
+    }
+}
+
+/// Record physical destruction while the runtime entity still exists. The
+/// scenario event lacks the entity needed to correlate the seam with the held
+/// lock, and generic despawn can also mean cleanup.
+fn confirm_locked_target_destroyed(
+    add: On<Add, IntegrityDestroyMarker>,
+    mut commands: Commands,
+    q_player: Query<&CombatLock, With<PlayerSpaceshipMarker>>,
+    q_panel: Query<(Entity, &TargetInsetLastFramed), With<TargetInsetHudMarker>>,
+) {
+    let target = add.entity;
+    if !q_player.iter().any(|lock| lock.0 == Some(target)) {
+        return;
+    }
+    for (panel, last) in &q_panel {
+        if last.target == target {
+            commands
+                .entity(panel)
+                .insert(TargetInsetDestroyedTarget(target));
+        }
     }
 }
 
@@ -536,9 +593,9 @@ enum InsetPanelState {
 /// lock on a zoomable, resolvable body = panel + live camera; lock on a
 /// NON-zoomable body (a beacon) = panel with the NO-SIGNAL overlay, camera
 /// gone; and the KILL CAM: when the framed
-/// target dies - it is DESPAWNED, the discriminator against tap-clear /
-/// decay / allegiance-flip clears, whose targets remain alive - the panel
-/// and camera hold the frozen final pose for [`KILL_CAM_SECS`], filming
+/// target crosses [`IntegrityDestroyMarker`] and then despawns - generic
+/// cleanup does not count - the panel and camera hold the frozen final pose for
+/// [`KILL_CAM_SECS`], filming
 /// the explosion fragments, then close. A fresh framable lock preempts the
 /// linger instantly; hiding the HUD chrome tears everything down at once.
 /// Presentation-only: no lock/safety/turret state is touched.
@@ -577,6 +634,7 @@ fn drive_inset_camera(
             &mut Visibility,
             Option<&TargetInsetLastFramed>,
             Option<&mut TargetInsetKillCam>,
+            Option<&TargetInsetDestroyedTarget>,
         ),
         With<TargetInsetHudMarker>,
     >,
@@ -602,50 +660,56 @@ fn drive_inset_camera(
         _ => None,
     });
 
-    let Some((panel, mut panel_visibility, last_framed, mut kill_cam)) = q_panel.iter_mut().next()
+    let Some((panel, mut panel_visibility, last_framed, mut kill_cam, destroyed)) =
+        q_panel.iter_mut().next()
     else {
         return;
     };
 
-    let state = match framed {
-        Some(Some((target, anchor))) => InsetPanelState::Live { target, anchor },
-        Some(None) => InsetPanelState::NoSignal,
-        None => {
-            if !chrome {
-                // Chrome hidden: everything down at once, including a
-                // running kill cam and the frame memory.
-                InsetPanelState::Hidden
-            } else if let Some(kill_cam) = kill_cam.as_mut() {
-                kill_cam.remaining -= time.delta_secs();
-                if kill_cam.remaining > 0.0 {
-                    InsetPanelState::KillCam {
-                        pose: kill_cam.pose,
-                    }
-                } else {
-                    InsetPanelState::Hidden
-                }
-            } else if let Some(last) = last_framed.filter(|last| !q_alive.contains(last.target)) {
-                // The framed target is GONE from the world: the death
-                // discriminator (a cleared-but-alive target closes as
-                // always). Enter the kill cam on its final pose.
-                commands.entity(panel).insert(TargetInsetKillCam {
-                    pose: last.pose,
-                    remaining: KILL_CAM_SECS,
-                });
-                InsetPanelState::KillCam { pose: last.pose }
-            } else {
-                InsetPanelState::Hidden
+    let confirmed_gone = last_framed.filter(|last| {
+        destroyed.is_some_and(|destroyed| destroyed.0 == last.target)
+            && !q_alive.contains(last.target)
+    });
+    let state = if !chrome {
+        // Chrome hidden: everything down at once, including a running kill cam
+        // and the frame memory.
+        InsetPanelState::Hidden
+    } else if let Some(Some((target, anchor))) = framed {
+        // A fresh framable lock preempts any linger immediately.
+        InsetPanelState::Live { target, anchor }
+    } else if let Some(kill_cam) = kill_cam.as_mut() {
+        kill_cam.remaining -= time.delta_secs();
+        if kill_cam.remaining > 0.0 {
+            InsetPanelState::KillCam {
+                pose: kill_cam.pose,
             }
+        } else {
+            InsetPanelState::Hidden
         }
+    } else if let Some(last) = confirmed_gone {
+        commands.entity(panel).insert(TargetInsetKillCam {
+            pose: last.pose,
+            remaining: KILL_CAM_SECS,
+        });
+        InsetPanelState::KillCam { pose: last.pose }
+    } else if framed.is_some() {
+        InsetPanelState::NoSignal
+    } else {
+        InsetPanelState::Hidden
     };
 
     // State bookkeeping: the frame memory exists only while live-framed
     // (stale memory must not resurrect a linger later); the kill cam ends
     // whenever anything other than KillCam is showing.
     match &state {
-        InsetPanelState::Live { .. } => {
+        InsetPanelState::Live { target, .. } => {
             if kill_cam.is_some() {
                 commands.entity(panel).remove::<TargetInsetKillCam>();
+            }
+            if destroyed.is_some_and(|destroyed| destroyed.0 != *target) {
+                commands
+                    .entity(panel)
+                    .remove::<TargetInsetDestroyedTarget>();
             }
         }
         InsetPanelState::KillCam { .. } => {}
@@ -655,6 +719,11 @@ fn drive_inset_camera(
             }
             if last_framed.is_some() {
                 commands.entity(panel).remove::<TargetInsetLastFramed>();
+            }
+            if destroyed.is_some() {
+                commands
+                    .entity(panel)
+                    .remove::<TargetInsetDestroyedTarget>();
             }
         }
     }
@@ -807,7 +876,10 @@ fn flash_locked_target_neutralized(
             &mut TextColor,
             &mut BackgroundColor,
         ),
-        With<TargetInsetNeutralizedFlashMarker>,
+        (
+            With<TargetInsetNeutralizedFlashMarker>,
+            Without<TargetInsetDestroyedFlashMarker>,
+        ),
     >,
 ) {
     let triggered = q_player
@@ -829,10 +901,56 @@ fn flash_locked_target_neutralized(
             continue;
         }
 
-        let alpha = (flash.remaining / NEUTRALIZED_FLASH_FADE_SECS).clamp(0.0, 1.0);
+        let alpha = (flash.remaining / CONFIRMATION_FADE_SECS).clamp(0.0, 1.0);
         text.0 = NEUTRALIZED_FLASH_COLOR.with_alpha(alpha);
         backdrop.0 =
             NEUTRALIZED_FLASH_BACKDROP.with_alpha(NEUTRALIZED_FLASH_BACKDROP.alpha() * alpha);
+    }
+}
+
+/// Hold `DESTROYED` over a destruction-confirmed kill cam. The camera's own
+/// countdown is the single lifetime source, so text and final shot close
+/// together.
+fn show_confirmed_destruction(
+    q_player: Query<&CombatLock, With<PlayerSpaceshipMarker>>,
+    q_panel: Query<(&TargetInsetKillCam, &TargetInsetDestroyedTarget), With<TargetInsetHudMarker>>,
+    mut q_flash: Query<
+        (&mut Visibility, &mut TextColor, &mut BackgroundColor),
+        (
+            With<TargetInsetDestroyedFlashMarker>,
+            Without<TargetInsetNeutralizedFlashMarker>,
+        ),
+    >,
+    mut q_neutralized: Query<
+        &mut Visibility,
+        (
+            With<TargetInsetNeutralizedFlashMarker>,
+            Without<TargetInsetDestroyedFlashMarker>,
+        ),
+    >,
+) {
+    let remaining = q_panel.iter().next().and_then(|(kill_cam, destroyed)| {
+        let replaced = q_player
+            .iter()
+            .next()
+            .and_then(|lock| lock.0)
+            .is_some_and(|target| target != destroyed.0);
+        (!replaced).then_some(kill_cam.remaining)
+    });
+    for (mut visibility, mut text, mut backdrop) in &mut q_flash {
+        let Some(remaining) = remaining.filter(|remaining| *remaining > 0.0) else {
+            visibility.set_if_neq(Visibility::Hidden);
+            continue;
+        };
+        visibility.set_if_neq(Visibility::Inherited);
+        let alpha = (remaining / CONFIRMATION_FADE_SECS).clamp(0.0, 1.0);
+        text.0 = DESTROYED_FLASH_COLOR.with_alpha(alpha);
+        backdrop.0 = DESTROYED_FLASH_BACKDROP.with_alpha(DESTROYED_FLASH_BACKDROP.alpha() * alpha);
+    }
+    if remaining.is_some() {
+        for mut visibility in &mut q_neutralized {
+            visibility.set_if_neq(Visibility::Hidden);
+        }
     }
 }
 
@@ -1160,9 +1278,11 @@ mod tests {
         let final_pose = camera_pose(&mut world);
         let panel = panel_entity(&mut world);
 
-        // The kill: the target despawns and the validity clear empties the
-        // lock in the same breath (production ordering verified in the
-        // plan: targeting runs before the HUD).
+        // The destruction seam is recorded before despawn and lock validity
+        // clears the missing target.
+        world
+            .entity_mut(panel)
+            .insert(TargetInsetDestroyedTarget(target));
         world.despawn(target);
         world.get_mut::<CombatLock>(player).unwrap().0 = None;
         world.run_system_once(drive_inset_camera).unwrap();
@@ -1208,6 +1328,24 @@ mod tests {
     }
 
     #[test]
+    fn an_unconfirmed_despawn_does_not_start_a_kill_cam() {
+        let (mut world, player, target) = rig(3);
+        world.run_system_once(drive_inset_camera).unwrap();
+        let panel = panel_entity(&mut world);
+
+        world.despawn(target);
+        world.get_mut::<CombatLock>(player).unwrap().0 = None;
+        world.run_system_once(drive_inset_camera).unwrap();
+
+        assert_eq!(panel_visibility(&mut world), Visibility::Hidden);
+        assert_eq!(camera_count(&mut world), 0);
+        assert!(
+            world.get::<TargetInsetKillCam>(panel).is_none(),
+            "cleanup and teardown are not physical destruction"
+        );
+    }
+
+    #[test]
     fn a_cleared_but_alive_target_does_not_linger() {
         // The discriminator: tap-clear / decay / allegiance-flip leave the
         // target ALIVE - the panel closes as it always did (the death case
@@ -1235,6 +1373,9 @@ mod tests {
         world.run_system_once(drive_inset_camera).unwrap();
         let panel = panel_entity(&mut world);
 
+        world
+            .entity_mut(panel)
+            .insert(TargetInsetDestroyedTarget(target));
         world.despawn(target);
         world.get_mut::<CombatLock>(player).unwrap().0 = None;
         world.run_system_once(drive_inset_camera).unwrap();
@@ -1275,6 +1416,9 @@ mod tests {
         world.run_system_once(drive_inset_camera).unwrap();
         let panel = panel_entity(&mut world);
 
+        world
+            .entity_mut(panel)
+            .insert(TargetInsetDestroyedTarget(target));
         world.despawn(target);
         world.get_mut::<CombatLock>(player).unwrap().0 = None;
         world.run_system_once(drive_inset_camera).unwrap();
@@ -1287,6 +1431,99 @@ mod tests {
         world.run_system_once(drive_inset_camera).unwrap();
         assert_eq!(panel_visibility(&mut world), Visibility::Hidden);
         assert_eq!(camera_count(&mut world), 0, "chrome-hide is immediate");
+    }
+
+    #[test]
+    fn the_destruction_seam_confirms_only_the_framed_lock() {
+        let mut app = App::new();
+        app.add_observer(confirm_locked_target_destroyed);
+        let target = app.world_mut().spawn_empty().id();
+        let other = app.world_mut().spawn_empty().id();
+        app.world_mut()
+            .spawn((PlayerSpaceshipMarker, CombatLock(Some(target))));
+        let panel = app
+            .world_mut()
+            .spawn((
+                TargetInsetHudMarker,
+                TargetInsetLastFramed {
+                    target,
+                    pose: Transform::IDENTITY,
+                },
+            ))
+            .id();
+
+        app.world_mut()
+            .entity_mut(other)
+            .insert(IntegrityDestroyMarker);
+        assert!(
+            app.world()
+                .get::<TargetInsetDestroyedTarget>(panel)
+                .is_none(),
+            "an unrelated destruction does not claim player credit"
+        );
+
+        app.world_mut()
+            .entity_mut(target)
+            .insert(IntegrityDestroyMarker);
+        assert_eq!(
+            app.world()
+                .get::<TargetInsetDestroyedTarget>(panel)
+                .map(|confirmed| confirmed.0),
+            Some(target)
+        );
+    }
+
+    #[test]
+    fn confirmed_destruction_owns_the_kill_cam_ribbon() {
+        let mut world = World::new();
+        let target = world.spawn_empty().id();
+        let player = world.spawn((PlayerSpaceshipMarker, CombatLock(None))).id();
+        world.spawn((
+            TargetInsetHudMarker,
+            TargetInsetKillCam {
+                pose: Transform::IDENTITY,
+                remaining: KILL_CAM_SECS,
+            },
+            TargetInsetDestroyedTarget(target),
+        ));
+        let flash = world
+            .spawn((
+                TargetInsetDestroyedFlashMarker,
+                Visibility::Hidden,
+                TextColor(Color::NONE),
+                BackgroundColor(Color::NONE),
+            ))
+            .id();
+        let neutralized = world
+            .spawn((
+                TargetInsetNeutralizedFlashMarker { remaining: 1.0 },
+                Visibility::Inherited,
+            ))
+            .id();
+
+        world.run_system_once(show_confirmed_destruction).unwrap();
+        assert_eq!(
+            *world.entity(flash).get::<Visibility>().unwrap(),
+            Visibility::Inherited
+        );
+        assert_eq!(
+            world.entity(flash).get::<TextColor>().unwrap().0,
+            DESTROYED_FLASH_COLOR
+        );
+        assert_eq!(
+            *world.entity(neutralized).get::<Visibility>().unwrap(),
+            Visibility::Hidden,
+            "physical destruction supersedes a recent neutralization flash"
+        );
+
+        let next = world.spawn_empty().id();
+        world.get_mut::<CombatLock>(player).unwrap().0 = Some(next);
+        world.run_system_once(show_confirmed_destruction).unwrap();
+        assert_eq!(
+            *world.entity(flash).get::<Visibility>().unwrap(),
+            Visibility::Hidden,
+            "a fresh lock preempts the old target's ribbon"
+        );
     }
 
     #[test]
