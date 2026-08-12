@@ -1,8 +1,8 @@
 # Link-points on parts: catalog data, import seeding, editor snap, mate edges
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog,ship,editor
+- PRIORITY: 80
+- TAGS: v0.11.0,ship,editor
 
 Goal: implement link-points ("sockets") on parts so parts know how to attach
 to each other - the authored counterpart to derived AABB-touch adjacency.
