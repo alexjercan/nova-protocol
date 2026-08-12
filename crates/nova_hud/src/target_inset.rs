@@ -42,7 +42,7 @@ pub mod prelude {
         target_inset_hud, InsetZoomable, TargetInsetArmedTickMarker, TargetInsetCameraMarker,
         TargetInsetCaptionMarker, TargetInsetHighlightAssets, TargetInsetHighlightMarker,
         TargetInsetHudMarker, TargetInsetHudPlugin, TargetInsetKillCam, TargetInsetLastFramed,
-        TargetInsetNoSignalMarker, TargetInsetRenderTarget,
+        TargetInsetNeutralizedFlashMarker, TargetInsetNoSignalMarker, TargetInsetRenderTarget,
     };
 }
 
@@ -93,6 +93,14 @@ const INSET_TICK_THICK_PX: f32 = 4.0;
 const FACTION_HOSTILE_COLOR: Color = nova_ui::theme::semantic::THREAT;
 const FACTION_OWN_COLOR: Color = nova_ui::theme::semantic::ALLY;
 const FACTION_NEUTRAL_COLOR: Color = nova_ui::theme::semantic::NEUTRAL;
+
+/// Locked-target defeat confirmation. It lives inside the target inset instead
+/// of screen center, where the combat bracket and section markers already carry
+/// the player's aim.
+const NEUTRALIZED_FLASH_SECS: f32 = 1.4;
+const NEUTRALIZED_FLASH_FADE_SECS: f32 = 0.4;
+const NEUTRALIZED_FLASH_COLOR: Color = nova_ui::theme::PHOSPHOR;
+const NEUTRALIZED_FLASH_BACKDROP: Color = Color::srgba(0.0, 0.04, 0.01, 0.9);
 
 /// NO-SIGNAL overlay: shown when a combat lock exists on a body the
 /// inset cannot scope (a beacon - lockable, never zoomable), so the panel
@@ -149,6 +157,14 @@ pub struct TargetInsetArmedTickMarker;
 /// combat-state or relation tag, colored by relation.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TargetInsetCaptionMarker;
+
+/// Brief confirmation shown over the inset when its locked target becomes a
+/// neutralized wreck.
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct TargetInsetNeutralizedFlashMarker {
+    /// Seconds left before the confirmation hides.
+    pub remaining: f32,
+}
 
 /// The panel's memory of the last camera-framed target and pose - the kill
 /// cam's source material. Lives ON the panel entity (not a Local), so a
@@ -361,6 +377,25 @@ pub fn target_inset_hud(image: Handle<Image>) -> impl Bundle {
             armed_tick(false, false, true),
             armed_tick(true, true, true),
             armed_tick(false, true, true),
+            (
+                Name::new("InsetNeutralizedFlash"),
+                TargetInsetNeutralizedFlashMarker { remaining: 0.0 },
+                Text::new("NEUTRALIZED"),
+                TextFont::from_font_size(nova_ui::hud::CHIP_FONT),
+                TextColor(NEUTRALIZED_FLASH_COLOR),
+                TextLayout::justify(Justify::Center),
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(0.0),
+                    top: Val::Percent(44.0),
+                    width: Val::Percent(100.0),
+                    padding: UiRect::vertical(Val::Px(4.0)),
+                    ..default()
+                },
+                BackgroundColor(NEUTRALIZED_FLASH_BACKDROP),
+                Visibility::Hidden,
+                Pickable::IGNORE,
+            ),
         ],
     )
 }
@@ -388,6 +423,7 @@ impl Plugin for TargetInsetHudPlugin {
         app.register_type::<TargetInsetNoSignalMarker>();
         app.register_type::<TargetInsetArmedTickMarker>();
         app.register_type::<TargetInsetCaptionMarker>();
+        app.register_type::<TargetInsetNeutralizedFlashMarker>();
         app.register_type::<TargetInsetLastFramed>();
         app.register_type::<TargetInsetKillCam>();
 
@@ -403,6 +439,7 @@ impl Plugin for TargetInsetHudPlugin {
             (
                 drive_inset_camera,
                 drive_inset_frame_state,
+                flash_locked_target_neutralized,
                 pulse_no_signal,
                 sync_section_highlight,
             )
@@ -752,6 +789,50 @@ fn drive_inset_frame_state(
         if color.0 != caption_color {
             color.0 = caption_color;
         }
+    }
+}
+
+/// Confirm neutralization only for the player's held target. Other ships can
+/// defeat each other outside the player's view; those transitions must not
+/// produce player-facing credit. The persistent caption and hollow world marker
+/// remain after this inset-local flash fades.
+fn flash_locked_target_neutralized(
+    time: Res<Time>,
+    q_player: Query<&CombatLock, With<PlayerSpaceshipMarker>>,
+    q_newly_neutralized: Query<(), Added<NeutralizedMarker>>,
+    mut q_flash: Query<
+        (
+            &mut TargetInsetNeutralizedFlashMarker,
+            &mut Visibility,
+            &mut TextColor,
+            &mut BackgroundColor,
+        ),
+        With<TargetInsetNeutralizedFlashMarker>,
+    >,
+) {
+    let triggered = q_player
+        .iter()
+        .next()
+        .and_then(|lock| lock.0)
+        .is_some_and(|target| q_newly_neutralized.contains(target));
+
+    for (mut flash, mut visibility, mut text, mut backdrop) in &mut q_flash {
+        if triggered {
+            flash.remaining = NEUTRALIZED_FLASH_SECS;
+            visibility.set_if_neq(Visibility::Inherited);
+        } else {
+            flash.remaining = (flash.remaining - time.delta_secs()).max(0.0);
+        }
+
+        if flash.remaining <= 0.0 {
+            visibility.set_if_neq(Visibility::Hidden);
+            continue;
+        }
+
+        let alpha = (flash.remaining / NEUTRALIZED_FLASH_FADE_SECS).clamp(0.0, 1.0);
+        text.0 = NEUTRALIZED_FLASH_COLOR.with_alpha(alpha);
+        backdrop.0 =
+            NEUTRALIZED_FLASH_BACKDROP.with_alpha(NEUTRALIZED_FLASH_BACKDROP.alpha() * alpha);
     }
 }
 
@@ -1316,6 +1397,62 @@ mod tests {
         world.get_mut::<CombatLock>(player).unwrap().0 = None;
         world.run_system_once(drive_inset_frame_state).unwrap();
         assert_eq!(world.entity(caption).get::<Text>().unwrap().0, "");
+    }
+
+    #[test]
+    fn only_the_locked_targets_neutralization_flashes_in_the_inset() {
+        let mut world = World::new();
+        world.init_resource::<Time>();
+        let target = world.spawn_empty().id();
+        world.spawn(NeutralizedMarker);
+        world.spawn((PlayerSpaceshipMarker, CombatLock(Some(target))));
+        let flash = world
+            .spawn((
+                TargetInsetNeutralizedFlashMarker { remaining: 0.0 },
+                Visibility::Hidden,
+                TextColor(Color::NONE),
+                BackgroundColor(Color::NONE),
+            ))
+            .id();
+        let system = world.register_system(flash_locked_target_neutralized);
+
+        world.run_system(system).unwrap();
+        assert_eq!(
+            *world.entity(flash).get::<Visibility>().unwrap(),
+            Visibility::Hidden,
+            "an unrelated ship's neutralization does not claim player credit"
+        );
+
+        world.entity_mut(target).insert(NeutralizedMarker);
+        world.run_system(system).unwrap();
+        assert_eq!(
+            *world.entity(flash).get::<Visibility>().unwrap(),
+            Visibility::Inherited
+        );
+        assert_eq!(
+            world
+                .entity(flash)
+                .get::<TargetInsetNeutralizedFlashMarker>()
+                .unwrap()
+                .remaining,
+            NEUTRALIZED_FLASH_SECS
+        );
+        assert_eq!(
+            world.entity(flash).get::<TextColor>().unwrap().0,
+            NEUTRALIZED_FLASH_COLOR
+        );
+
+        world
+            .resource_mut::<Time>()
+            .advance_by(std::time::Duration::from_secs_f32(
+                NEUTRALIZED_FLASH_SECS + 0.1,
+            ));
+        world.run_system(system).unwrap();
+        assert_eq!(
+            *world.entity(flash).get::<Visibility>().unwrap(),
+            Visibility::Hidden,
+            "the confirmation expires"
+        );
     }
 
     #[test]

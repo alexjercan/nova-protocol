@@ -11,9 +11,8 @@
   It fires `OnNeutralized` once and leaves the physical ship in the world.
 - Neutralized AI gains `AINonCombatant`, which clears its own target and stops
   it fighting.
-- Neutralization does not change allegiance. Player threat collection,
-  allegiance markers, and other AI target acquisition still read the wreck as
-  hostile. This explains the ambiguous red drifting enemy feedback.
+- Neutralization does not change allegiance. Presentation preserves allegiance
+  color, while threat collection and AI target acquisition exclude wrecks.
 - Scenario kill objectives duplicate `OnDestroyed` and `OnNeutralized` because
   there is no single scenario-level "ship defeated" transition.
 
@@ -73,8 +72,15 @@ then later `OnDestroyed`.
   preserves allegiance color. Enemy wrecks therefore show a hollow red V.
 - The target inset caption replaces the relation tag with `NEUTRALIZED` while
   retaining the target name and allegiance color.
+- A 1.4-second `NEUTRALIZED` confirmation flashes inside the target inset only
+  when the player's held target changes state. Inset-local placement avoids the
+  busy combat bracket and section markers at screen center. Unlocked ships
+  defeated by AI do not produce player-facing credit.
 - `screenshot_combat` captures `variant-neutralized-wreck.png` as a rendered
-  presentation pin for both the chevron and target details.
+  presentation pin for the chevron and target details. Its live battle can
+  destroy the raider first, so it does not stage the transient confirmation.
+- Manual combat playtest confirms the inset-local transient appears for a
+  neutralized held target.
 
 ## Boundary direction
 
@@ -91,4 +97,3 @@ must not fire `OnDestroyed`.
   held. Both use distinct neutralized presentation.
 - Whether wrecks coast forever, receive damping, or clean up after distance or
   time.
-- Exact neutralized marker shape and color.
