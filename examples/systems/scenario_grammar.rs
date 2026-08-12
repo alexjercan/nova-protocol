@@ -33,6 +33,7 @@
 
 use bevy::prelude::*;
 use clap::Parser;
+use nova_authoring::scenario_helpers::prelude::*;
 use nova_probe::fixtures::{self, prelude::*};
 use nova_protocol::prelude::*;
 
@@ -225,39 +226,6 @@ fn setup_showcase(
     commands.trigger(LoadScenario(showcase(&game_assets, &sections)));
 }
 
-/// Shorthand: a literal number as a variable expression.
-fn number(value: f64) -> VariableExpressionNode {
-    VariableExpressionNode::new_term(VariableTermNode::new_factor(
-        VariableFactorNode::new_literal(VariableLiteral::Number(value)),
-    ))
-}
-
-/// Shorthand: a variable reference as a variable expression.
-fn name(key: &str) -> VariableExpressionNode {
-    VariableExpressionNode::new_term(VariableTermNode::new_factor(VariableFactorNode::new_name(
-        key.to_string(),
-    )))
-}
-
-/// Shorthand: `key = key + 1`, the tally idiom this scenario keeps repeating.
-fn increment(key: &str) -> EventActionConfig {
-    EventActionConfig::VariableSet(VariableSetActionConfig {
-        key: key.to_string(),
-        expression: VariableExpressionNode::new_add(
-            VariableTermNode::new_factor(VariableFactorNode::new_name(key.to_string())),
-            number(1.0),
-        ),
-    })
-}
-
-/// Shorthand: `key = value`.
-fn set(key: &str, value: f64) -> EventActionConfig {
-    EventActionConfig::VariableSet(VariableSetActionConfig {
-        key: key.to_string(),
-        expression: number(value),
-    })
-}
-
 /// Where ring member `i` sits: a deterministic ring, not random - the probe
 /// (and a reader) should see the same scene every run.
 fn rock_position(i: usize) -> Vec3 {
@@ -348,14 +316,14 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         visible: true,
     }));
     start_actions.extend([
-        set("beat", 1.0),
-        set("round", 1.0),
-        set("rocks_destroyed", 0.0),
-        set("area_entries", 0.0),
-        set("area_exits", 0.0),
-        set("escort_neutralized", 0.0),
-        set("timer_ended", 0.0),
-        set("ring_cleared", 0.0),
+        set_number("beat", 1.0),
+        set_number("round", 1.0),
+        set_number("rocks_destroyed", 0.0),
+        set_number("area_entries", 0.0),
+        set_number("area_exits", 0.0),
+        set_number("escort_neutralized", 0.0),
+        set_number("timer_ended", 0.0),
+        set_number("ring_cleared", 0.0),
         EventActionConfig::TimerStart(TimerStartActionConfig {
             key: "grammar_delay".to_string(),
             seconds: number(0.25),
@@ -376,7 +344,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
                 key: "grammar_delay".to_string(),
             })],
-            actions: vec![set("timer_ended", 1.0)],
+            actions: vec![set_number("timer_ended", 1.0)],
         },
         // Every destroyed asteroid bumps the tally (entity-type filter +
         // variable arithmetic).
@@ -387,7 +355,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
                 type_name: Some("asteroid".to_string()),
                 ..default()
             })],
-            actions: vec![increment("rocks_destroyed")],
+            actions: vec![increment_variable("rocks_destroyed")],
         },
         // Enough kills advance the beat (expression filters: tally reached
         // the threshold while still on beat 1).
@@ -396,24 +364,24 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
             filters: vec![
                 EventFilterConfig::Expression(ExpressionFilterConfig(
                     VariableConditionNode::new_greater_than(
-                        name("rocks_destroyed"),
+                        variable("rocks_destroyed"),
                         number(KILLS_PER_ROUND as f64 - 1.0),
                     ),
                 )),
                 EventFilterConfig::Expression(ExpressionFilterConfig(
-                    VariableConditionNode::new_equals(name("beat"), number(1.0)),
+                    VariableConditionNode::new_equals(variable("beat"), number(1.0)),
                 )),
             ],
-            actions: vec![set("beat", 2.0)],
+            actions: vec![set_number("beat", 2.0)],
         },
         // The per-frame pulse promotes beat 2 -> 3 (OnUpdate + expression
         // filter; the beat change makes it fire exactly once).
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
             filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
-                VariableConditionNode::new_equals(name("beat"), number(2.0)),
+                VariableConditionNode::new_equals(variable("beat"), number(2.0)),
             ))],
-            actions: vec![set("beat", 3.0)],
+            actions: vec![set_number("beat", 3.0)],
         },
         // The ROUND counter, and the reason the script never needs a settle
         // window: the scenario decides when a round is over, by arithmetic
@@ -424,7 +392,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
             name: EventConfig::OnUpdate,
             filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
                 VariableConditionNode::new_greater_than(
-                    name("rocks_destroyed"),
+                    variable("rocks_destroyed"),
                     VariableExpressionNode::new_subtract(
                         VariableTermNode::new_multiply(
                             VariableFactorNode::new_name("round".to_string()),
@@ -436,7 +404,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
                     ),
                 ),
             ))],
-            actions: vec![increment("round")],
+            actions: vec![increment_variable("round")],
         },
         // OnEnter/OnExit on the trigger volume, filtered to the pair (the
         // area's id, the body's id) the area plugin reports.
@@ -447,7 +415,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
                 other_id: Some(format!("rock_{AREA_ROCK}")),
                 ..default()
             })],
-            actions: vec![increment("area_entries")],
+            actions: vec![increment_variable("area_entries")],
         },
         ScenarioEventConfig {
             name: EventConfig::OnExit,
@@ -456,7 +424,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
                 other_id: Some(format!("rock_{AREA_ROCK}")),
                 ..default()
             })],
-            actions: vec![increment("area_exits")],
+            actions: vec![increment_variable("area_exits")],
         },
         // OnNeutralized: the escort lost its guns and its drive, so it is out
         // of the fight with the hull still intact - a verdict `OnDestroyed`
@@ -468,7 +436,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
                 ..default()
             })],
             actions: vec![
-                set("escort_neutralized", 1.0),
+                set_number("escort_neutralized", 1.0),
                 EventActionConfig::ObjectiveComplete(ObjectiveCompleteActionConfig {
                     id: OBJECTIVE_DISARM.to_string(),
                 }),
@@ -481,16 +449,16 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
             filters: vec![
                 EventFilterConfig::Expression(ExpressionFilterConfig(
                     VariableConditionNode::new_greater_than(
-                        name("rocks_destroyed"),
+                        variable("rocks_destroyed"),
                         number(ASTEROID_COUNT as f64 - 1.0),
                     ),
                 )),
                 EventFilterConfig::Expression(ExpressionFilterConfig(
-                    VariableConditionNode::new_equals(name("ring_cleared"), number(0.0)),
+                    VariableConditionNode::new_equals(variable("ring_cleared"), number(0.0)),
                 )),
             ],
             actions: vec![
-                set("ring_cleared", 1.0),
+                set_number("ring_cleared", 1.0),
                 EventActionConfig::ObjectiveComplete(ObjectiveCompleteActionConfig {
                     id: OBJECTIVE_RING.to_string(),
                 }),

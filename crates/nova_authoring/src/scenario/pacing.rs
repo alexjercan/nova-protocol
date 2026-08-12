@@ -26,10 +26,8 @@
 use nova_hud::prelude::{COMMS_DWELL_SECS, COMMS_FADE_OUT_SECS, COMMS_MIN_SECS};
 use nova_scenario::prelude::*;
 
-use super::{
-    shakedown::{eq_num, gt_num, num, set, var},
-    SCENARIO_ELAPSED_VAR,
-};
+use super::SCENARIO_ELAPSED_VAR;
+use crate::scenario_helpers::prelude::*;
 
 // The beat gap - how long an objective waits after the conversation line that
 // introduces it - is a FEEL call, and the right value depends on the line's
@@ -69,10 +67,10 @@ pub(crate) const MID_GAP: f64 = ((COMMS_DWELL_SECS + COMMS_MIN_SECS) / 2.0) as f
 /// be used at OnStart. The opening beat is at `t ~= 0`, so an absolute `delay`
 /// deadline is exactly what the relative one would be. Every gate the scenario
 /// uses must ALSO be seeded at OnStart (this seeds the opening gate; seed the
-/// rest with `set(gate, num(0.0))`), so a `gated_once` filter never reads an
+/// rest with `set_variable(gate, number(0.0))`), so a `gated_once` filter never reads an
 /// undefined gate before its transition stamps it.
 pub(crate) fn open_gate(key: &str, delay: f64) -> EventActionConfig {
-    set(key, num(delay))
+    set_variable(key, number(delay))
 }
 
 /// Stamp `scenario_elapsed + delay` into `key`: a one-shot deadline a later
@@ -82,7 +80,7 @@ pub(crate) fn open_gate(key: &str, delay: f64) -> EventActionConfig {
 /// Baking the delay into the stamp (rather than adding it at the gate) means
 /// one deadline variable drives one follow-up cleanly.
 pub(crate) fn mark_clock(key: &str, delay: f64) -> EventActionConfig {
-    set(
+    set_variable(
         key,
         VariableExpressionNode::new_add(
             VariableTermNode::Factor(VariableFactorNode::new_name(SCENARIO_ELAPSED_VAR)),
@@ -97,7 +95,7 @@ pub(crate) fn mark_clock(key: &str, delay: f64) -> EventActionConfig {
 /// [`mark_clock`].
 pub(crate) fn clock_past(key: &str) -> EventFilterConfig {
     EventFilterConfig::Expression(ExpressionFilterConfig(
-        VariableConditionNode::new_greater_than(var(SCENARIO_ELAPSED_VAR), var(key)),
+        VariableConditionNode::new_greater_than(variable(SCENARIO_ELAPSED_VAR), variable(key)),
     ))
 }
 
@@ -119,12 +117,12 @@ pub(crate) fn gated_once(
     actions: Vec<EventActionConfig>,
 ) -> ScenarioEventConfig {
     let mut filters = vec![
-        eq_num(done_flag, 0.0),
-        gt_num(deadline_key, 0.0),
+        number_equals(done_flag, 0.0),
+        number_greater_than(deadline_key, 0.0),
         clock_past(deadline_key),
     ];
     filters.extend(extra_filters);
-    let mut all = vec![set(done_flag, num(1.0))];
+    let mut all = vec![set_variable(done_flag, number(1.0))];
     all.extend(actions);
     ScenarioEventConfig {
         name: EventConfig::OnUpdate,

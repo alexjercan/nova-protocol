@@ -36,6 +36,7 @@
 
 use bevy::{platform::collections::HashMap, prelude::*};
 use clap::Parser;
+use nova_authoring::scenario_helpers::number;
 use nova_probe::fixtures::{self, prelude::*};
 use nova_protocol::prelude::*;
 
@@ -210,13 +211,6 @@ fn custom_plugin(app: &mut App) {
 
 fn setup_run(mut commands: Commands, game_assets: Res<GameAssets>, sections: Res<GameSections>) {
     commands.trigger(LoadScenario(playable_run(&game_assets, &sections)));
-}
-
-/// Shorthand: a literal number as a variable expression.
-fn number(value: f64) -> VariableExpressionNode {
-    VariableExpressionNode::new_term(VariableTermNode::new_factor(
-        VariableFactorNode::new_literal(VariableLiteral::Number(value)),
-    ))
 }
 
 /// The run: an armed player ship, a hostile rock dead ahead, a nav beacon

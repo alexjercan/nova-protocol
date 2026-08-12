@@ -25,10 +25,10 @@ use nova_ship::prelude::*;
 use super::{
     cast::{CAPTAIN_HALLORAN, PLAYER},
     craft::{self, ShipGrade},
-    elapsed_watch,
     pacing::{clock_past, gated_once, mark_clock, INSTRUCTION_GAP, MID_GAP, REVEAL_GAP},
     SCENARIO_ELAPSED_VAR,
 };
+use crate::scenario_helpers::prelude::*;
 
 /// The scenario id, shared with nova_menu's New Game entry.
 pub const SHAKEDOWN_SCENARIO_ID: &str = "shakedown_run";
@@ -318,136 +318,9 @@ const OPEN_5_AT: f64 = 14.0;
 // absorbs first (the scavenger). Each transition's `stamp_gate` call names its
 // category.
 
-// Expression / action shorthands - the raw node constructors are too
-// verbose to keep a 14-handler script readable.
-
-pub(crate) fn num(value: f64) -> VariableExpressionNode {
-    VariableExpressionNode::new_term(VariableTermNode::new_factor(
-        VariableFactorNode::new_literal(VariableLiteral::Number(value)),
-    ))
-}
-
-pub(crate) fn var(name: &str) -> VariableExpressionNode {
-    VariableExpressionNode::new_term(VariableTermNode::new_factor(VariableFactorNode::new_name(
-        name.to_string(),
-    )))
-}
-
-pub(crate) fn set(key: &str, expression: VariableExpressionNode) -> EventActionConfig {
-    EventActionConfig::VariableSet(VariableSetActionConfig {
-        key: key.to_string(),
-        expression,
-    })
-}
-
-fn add_one(key: &str) -> EventActionConfig {
-    set(
-        key,
-        VariableExpressionNode::new_add(
-            VariableTermNode::new_factor(VariableFactorNode::new_name(key.to_string())),
-            num(1.0),
-        ),
-    )
-}
-
-pub(crate) fn eq_num(name: &str, value: f64) -> EventFilterConfig {
-    EventFilterConfig::Expression(ExpressionFilterConfig(VariableConditionNode::new_equals(
-        var(name),
-        num(value),
-    )))
-}
-
-pub(crate) fn lt_num(name: &str, value: f64) -> EventFilterConfig {
-    EventFilterConfig::Expression(ExpressionFilterConfig(
-        VariableConditionNode::new_less_than(var(name), num(value)),
-    ))
-}
-
-/// Filter: the numeric variable strictly exceeds `value` (the clock gates:
-/// `scenario_elapsed > T`).
-pub(crate) fn gt_num(name: &str, value: f64) -> EventFilterConfig {
-    EventFilterConfig::Expression(ExpressionFilterConfig(
-        VariableConditionNode::new_greater_than(var(name), num(value)),
-    ))
-}
-
 /// OnEnter of `area` by the player ship.
-pub(crate) fn player_enters(area: &str) -> EventFilterConfig {
-    EventFilterConfig::Entity(EntityFilterConfig {
-        id: Some(area.to_string()),
-        other_id: Some(ID_PLAYER.to_string()),
-        ..default()
-    })
-}
-
-pub(crate) fn defeated(id: &str) -> EventFilterConfig {
-    EventFilterConfig::Entity(EntityFilterConfig {
-        id: Some(id.to_string()),
-        ..default()
-    })
-}
-
-pub(crate) fn destroyed(id: &str) -> EventFilterConfig {
-    EventFilterConfig::Entity(EntityFilterConfig {
-        id: Some(id.to_string()),
-        ..default()
-    })
-}
-
-pub(crate) fn neutralized(id: &str) -> EventFilterConfig {
-    EventFilterConfig::Entity(EntityFilterConfig {
-        id: Some(id.to_string()),
-        ..default()
-    })
-}
-
-pub(crate) fn objective(id: &str, message: &str) -> EventActionConfig {
-    EventActionConfig::Objective(ObjectiveActionConfig::new(id, message))
-}
-
-pub(crate) fn complete(id: &str) -> EventActionConfig {
-    EventActionConfig::ObjectiveComplete(ObjectiveCompleteActionConfig { id: id.to_string() })
-}
-
-fn despawn(id: &str) -> EventActionConfig {
-    EventActionConfig::DespawnScenarioObject(DespawnScenarioObjectActionConfig::new(id))
-}
-
-/// Attach the gold objective marker to a scenario entity. Ordered AFTER the
-/// target's spawn action when both sit in one handler - actions queue in list
-/// order.
-pub(crate) fn mark(target_id: &str, label: &str) -> EventActionConfig {
-    EventActionConfig::ObjectiveMarkerAttach(ObjectiveMarkerAttachActionConfig::new(
-        target_id, label,
-    ))
-}
-
-pub(crate) fn unmark(target_id: &str) -> EventActionConfig {
-    EventActionConfig::ObjectiveMarkerDetach(ObjectiveMarkerDetachActionConfig::new(target_id))
-}
-
-pub(crate) fn emphasize(verb: &str) -> EventActionConfig {
-    EventActionConfig::HintEmphasisSet(HintEmphasisSetActionConfig::new(verb))
-}
-
-pub(crate) fn deemphasize(verb: &str) -> EventActionConfig {
-    EventActionConfig::HintEmphasisClear(HintEmphasisClearActionConfig::new(verb))
-}
-
-pub(crate) fn spawn(object: ScenarioObjectConfig) -> EventActionConfig {
-    EventActionConfig::SpawnScenarioObject(object)
-}
-
-/// A speaker-attributed comms line (default dwell; the panel queues and paces).
-/// The base chain's dialog surface since the voice pass: objectives state
-/// goals, comms lines carry voice.
-pub(crate) fn story(speaker: &str, text: &str) -> EventActionConfig {
-    EventActionConfig::StoryMessage(StoryMessageActionConfig {
-        speaker: speaker.to_string(),
-        text: text.to_string(),
-        dwell: None,
-        icon: None,
-    })
+fn player_enters(area: &str) -> EventFilterConfig {
+    entity_pair(area, ID_PLAYER)
 }
 
 /// Stamp the beat deadline at a beat transition, so the beat's [`beat_setup`]
@@ -468,10 +341,13 @@ fn open_line(step: f64, at: f64, speaker: &str, line: &str) -> ScenarioEventConf
     ScenarioEventConfig {
         name: EventConfig::OnUpdate,
         filters: vec![
-            eq_num(VAR_OPEN_STEP, step - 1.0),
-            gt_num(SCENARIO_ELAPSED_VAR, at),
+            number_equals(VAR_OPEN_STEP, step - 1.0),
+            number_greater_than(SCENARIO_ELAPSED_VAR, at),
         ],
-        actions: vec![set(VAR_OPEN_STEP, num(step)), story(speaker, line)],
+        actions: vec![
+            set_variable(VAR_OPEN_STEP, number(step)),
+            story_message(speaker, line),
+        ],
     }
 }
 
@@ -485,13 +361,13 @@ fn open_line(step: f64, at: f64, speaker: &str, line: &str) -> ScenarioEventConf
 /// The `setup_last` latch also lets mid-beat handlers (the salvage pickups)
 /// wait for their objective to post - see the crate handlers.
 fn beat_setup(beat: f64, actions: Vec<EventActionConfig>) -> ScenarioEventConfig {
-    let mut all = vec![set(VAR_SETUP_LAST, num(beat))];
+    let mut all = vec![set_variable(VAR_SETUP_LAST, number(beat))];
     all.extend(actions);
     ScenarioEventConfig {
         name: EventConfig::OnUpdate,
         filters: vec![
-            eq_num(VAR_BEAT, beat),
-            lt_num(VAR_SETUP_LAST, beat),
+            number_equals(VAR_BEAT, beat),
+            number_less_than(VAR_SETUP_LAST, beat),
             clock_past(VAR_GATE),
         ],
         actions: all,
@@ -814,18 +690,18 @@ pub(crate) fn shakedown_run(
                 .map(EventActionConfig::SpawnScenarioObject)
                 .chain(belt_scatters(&asteroid_texture))
                 .chain([
-                    set(VAR_BEAT, num(1.0)),
-                    set(VAR_CRATES, num(0.0)),
-                    set(VAR_TALLY_SHOWN, num(0.0)),
-                    set(VAR_OPEN_STEP, num(0.0)),
-                    set(VAR_OPENED, num(0.0)),
-                    set(VAR_GATE, num(0.0)),
-                    set(VAR_SETUP_LAST, num(0.0)),
-                    set(VAR_SCAV_POSTED, num(0.0)),
+                    set_variable(VAR_BEAT, number(1.0)),
+                    set_variable(VAR_CRATES, number(0.0)),
+                    set_variable(VAR_TALLY_SHOWN, number(0.0)),
+                    set_variable(VAR_OPEN_STEP, number(0.0)),
+                    set_variable(VAR_OPENED, number(0.0)),
+                    set_variable(VAR_GATE, number(0.0)),
+                    set_variable(VAR_SETUP_LAST, number(0.0)),
+                    set_variable(VAR_SCAV_POSTED, number(0.0)),
                     // Seed the scavenger gate so its gated_once filter reads a
                     // defined 0 (not fired) before beat 12 stamps it, rather than
                     // erroring on an undefined var.
-                    set(VAR_SCAV_GATE, num(0.0)),
+                    set_variable(VAR_SCAV_GATE, number(0.0)),
                     // No objective during the opening conversation (owner pacing
                     // pass): the panel stays empty while the captain talks and the
                     // first objective posts only when the conversation hands off
@@ -871,15 +747,18 @@ pub(crate) fn shakedown_run(
         // `opened` so it fires exactly once.
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
-            filters: vec![eq_num(VAR_OPEN_STEP, 5.0), eq_num(VAR_OPENED, 0.0)],
+            filters: vec![
+                number_equals(VAR_OPEN_STEP, 5.0),
+                number_equals(VAR_OPENED, 0.0),
+            ],
             actions: vec![
-                set(VAR_OPENED, num(1.0)),
-                spawn(beacon(ID_BEACON_1, "BEACON 1", BEACON_1_POS)),
-                objective(OBJ_B1, "Burn to Beacon 1."),
+                set_variable(VAR_OPENED, number(1.0)),
+                spawn_object(beacon(ID_BEACON_1, "BEACON 1", BEACON_1_POS)),
+                post_objective(OBJ_B1, "Burn to Beacon 1."),
                 // The gold marker rides the current leg's target (conveyance
                 // layer 2); its beacon chip yields while marked, so each beacon
                 // shows exactly one chip.
-                mark(ID_BEACON_1, "BEACON 1"),
+                attach_objective_marker(ID_BEACON_1, "BEACON 1"),
                 stamp_gate(INSTRUCTION_GAP),
             ],
         },
@@ -889,11 +768,11 @@ pub(crate) fn shakedown_run(
         // the captain's line lands - never the same frame.
         ScenarioEventConfig {
             name: EventConfig::OnEnter,
-            filters: vec![player_enters(ID_BEACON_1), eq_num(VAR_BEAT, 1.0)],
+            filters: vec![player_enters(ID_BEACON_1), number_equals(VAR_BEAT, 1.0)],
             actions: vec![
-                set(VAR_BEAT, num(2.0)),
+                set_variable(VAR_BEAT, number(2.0)),
                 stamp_gate(INSTRUCTION_GAP),
-                complete(OBJ_B1),
+                complete_objective(OBJ_B1),
                 // The training governor releases once the pilot has proven
                 // a controlled leg (playtest round 2 finding 3).
                 EventActionConfig::SetSpeedCap(SetSpeedCapActionConfig {
@@ -908,7 +787,7 @@ pub(crate) fn shakedown_run(
                     verb: FlightVerb::Goto,
                     enabled: true,
                 }),
-                story(
+                story_message(
                     CAPTAIN_HALLORAN,
                     "Good burn. Next one's off your beam - swing your look \
                      around and find it.",
@@ -919,12 +798,12 @@ pub(crate) fn shakedown_run(
         beat_setup(
             2.0,
             vec![
-                spawn(beacon(ID_BEACON_2, "BEACON 2", BEACON_2_POS)),
-                objective(OBJ_B2, "Find Beacon 2 - hold [Alt] to look around."),
+                spawn_object(beacon(ID_BEACON_2, "BEACON 2", BEACON_2_POS)),
+                post_objective(OBJ_B2, "Find Beacon 2 - hold [Alt] to look around."),
                 // Marker hand-off: attach runs after the spawn above
                 // (action list order), so the fresh beacon is findable.
-                unmark(ID_BEACON_1),
-                mark(ID_BEACON_2, "BEACON 2"),
+                detach_objective_marker(ID_BEACON_1),
+                attach_objective_marker(ID_BEACON_2, "BEACON 2"),
             ],
         ),
         // Beat 2 -> 3: reach beacon 2; the debris cluster is right there. The
@@ -932,12 +811,12 @@ pub(crate) fn shakedown_run(
         // post a beat later (beat_setup below), once the line lands.
         ScenarioEventConfig {
             name: EventConfig::OnEnter,
-            filters: vec![player_enters(ID_BEACON_2), eq_num(VAR_BEAT, 2.0)],
+            filters: vec![player_enters(ID_BEACON_2), number_equals(VAR_BEAT, 2.0)],
             actions: vec![
-                set(VAR_BEAT, num(3.0)),
+                set_variable(VAR_BEAT, number(3.0)),
                 stamp_gate(INSTRUCTION_GAP),
-                complete(OBJ_B2),
-                story(
+                complete_objective(OBJ_B2),
+                story_message(
                     PLAYER,
                     "Salvage beacons. I'll sweep the cluster and pull them in.",
                 ),
@@ -949,13 +828,13 @@ pub(crate) fn shakedown_run(
         beat_setup(
             3.0,
             vec![
-                objective(OBJ_B3, "Recover the 3 supply crates."),
+                post_objective(OBJ_B3, "Recover the 3 supply crates."),
                 // All three crates carry the marker at once; each dies
                 // with its crate, so the survivors answer "which is left".
-                unmark(ID_BEACON_2),
-                mark("crate_1", "SALVAGE"),
-                mark("crate_2", "SALVAGE"),
-                mark("crate_3", "SALVAGE"),
+                detach_objective_marker(ID_BEACON_2),
+                attach_objective_marker("crate_1", "SALVAGE"),
+                attach_objective_marker("crate_2", "SALVAGE"),
+                attach_objective_marker("crate_3", "SALVAGE"),
             ],
         ),
         // Beat 3 pickups: one handler per crate (the despawn action needs the
@@ -970,55 +849,55 @@ pub(crate) fn shakedown_run(
             name: EventConfig::OnEnter,
             filters: vec![
                 player_enters("crate_1"),
-                eq_num(VAR_BEAT, 3.0),
-                eq_num(VAR_SETUP_LAST, 3.0),
+                number_equals(VAR_BEAT, 3.0),
+                number_equals(VAR_SETUP_LAST, 3.0),
             ],
-            actions: vec![despawn("crate_1"), add_one(VAR_CRATES)],
+            actions: vec![despawn_object("crate_1"), increment_variable(VAR_CRATES)],
         },
         ScenarioEventConfig {
             name: EventConfig::OnEnter,
             filters: vec![
                 player_enters("crate_2"),
-                eq_num(VAR_BEAT, 3.0),
-                eq_num(VAR_SETUP_LAST, 3.0),
+                number_equals(VAR_BEAT, 3.0),
+                number_equals(VAR_SETUP_LAST, 3.0),
             ],
-            actions: vec![despawn("crate_2"), add_one(VAR_CRATES)],
+            actions: vec![despawn_object("crate_2"), increment_variable(VAR_CRATES)],
         },
         ScenarioEventConfig {
             name: EventConfig::OnEnter,
             filters: vec![
                 player_enters("crate_3"),
-                eq_num(VAR_BEAT, 3.0),
-                eq_num(VAR_SETUP_LAST, 3.0),
+                number_equals(VAR_BEAT, 3.0),
+                number_equals(VAR_SETUP_LAST, 3.0),
             ],
-            actions: vec![despawn("crate_3"), add_one(VAR_CRATES)],
+            actions: vec![despawn_object("crate_3"), increment_variable(VAR_CRATES)],
         },
         // Tally text (1/3, 2/3): complete + re-add rebuilds the panel line in
         // the same frame (no flicker; verified in).
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
             filters: vec![
-                eq_num(VAR_BEAT, 3.0),
-                eq_num(VAR_CRATES, 1.0),
-                lt_num(VAR_TALLY_SHOWN, 1.0),
+                number_equals(VAR_BEAT, 3.0),
+                number_equals(VAR_CRATES, 1.0),
+                number_less_than(VAR_TALLY_SHOWN, 1.0),
             ],
             actions: vec![
-                set(VAR_TALLY_SHOWN, num(1.0)),
-                complete(OBJ_B3),
-                objective(OBJ_B3, "Crates recovered: 1/3."),
+                set_variable(VAR_TALLY_SHOWN, number(1.0)),
+                complete_objective(OBJ_B3),
+                post_objective(OBJ_B3, "Crates recovered: 1/3."),
             ],
         },
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
             filters: vec![
-                eq_num(VAR_BEAT, 3.0),
-                eq_num(VAR_CRATES, 2.0),
-                lt_num(VAR_TALLY_SHOWN, 2.0),
+                number_equals(VAR_BEAT, 3.0),
+                number_equals(VAR_CRATES, 2.0),
+                number_less_than(VAR_TALLY_SHOWN, 2.0),
             ],
             actions: vec![
-                set(VAR_TALLY_SHOWN, num(2.0)),
-                complete(OBJ_B3),
-                objective(OBJ_B3, "Crates recovered: 2/3."),
+                set_variable(VAR_TALLY_SHOWN, number(2.0)),
+                complete_objective(OBJ_B3),
+                post_objective(OBJ_B3, "Crates recovered: 2/3."),
             ],
         },
         // Beat 3 -> 4: all crates aboard - the targeting computer comes online
@@ -1028,12 +907,12 @@ pub(crate) fn shakedown_run(
         // lock range of the cluster.
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
-            filters: vec![eq_num(VAR_BEAT, 3.0), eq_num(VAR_CRATES, 3.0)],
+            filters: vec![number_equals(VAR_BEAT, 3.0), number_equals(VAR_CRATES, 3.0)],
             actions: vec![
-                set(VAR_BEAT, num(4.0)),
+                set_variable(VAR_BEAT, number(4.0)),
                 stamp_gate(INSTRUCTION_GAP),
-                complete(OBJ_B3),
-                story(
+                complete_objective(OBJ_B3),
+                story_message(
                     CAPTAIN_HALLORAN,
                     "Targeting computer's warmed up. Hold your radar on it \
                      till the lock sets.",
@@ -1051,24 +930,24 @@ pub(crate) fn shakedown_run(
                     verb: FlightVerb::Lock,
                     enabled: true,
                 }),
-                spawn(beacon(ID_BEACON_3, "BEACON 3", BEACON_3_POS)),
-                objective(OBJ_B4, "Lock onto Beacon 3 - hold [CTRL]."),
-                mark(ID_BEACON_3, "BEACON 3"),
-                emphasize("RADAR"),
+                spawn_object(beacon(ID_BEACON_3, "BEACON 3", BEACON_3_POS)),
+                post_objective(OBJ_B4, "Lock onto Beacon 3 - hold [CTRL]."),
+                attach_objective_marker(ID_BEACON_3, "BEACON 3"),
+                show_hint_emphasis("RADAR"),
             ],
         ),
         // Beat 4 -> 5: the white lock LANDED (OnTravelLockStart - the lesson
         // ticks the instant the radar rewards it). One gesture: [G].
         ScenarioEventConfig {
             name: EventConfig::OnTravelLockStart,
-            filters: vec![player_enters(ID_BEACON_3), eq_num(VAR_BEAT, 4.0)],
+            filters: vec![player_enters(ID_BEACON_3), number_equals(VAR_BEAT, 4.0)],
             actions: vec![
-                set(VAR_BEAT, num(5.0)),
+                set_variable(VAR_BEAT, number(5.0)),
                 stamp_gate(INSTRUCTION_GAP),
-                complete(OBJ_B4),
+                complete_objective(OBJ_B4),
                 // The RADAR lesson is done the instant the lock lands.
-                deemphasize("RADAR"),
-                story(
+                clear_hint_emphasis("RADAR"),
+                story_message(
                     CAPTAIN_HALLORAN,
                     "Now hand her to the computer - it flies the leg while you \
                      watch the belt.",
@@ -1079,8 +958,8 @@ pub(crate) fn shakedown_run(
         beat_setup(
             5.0,
             vec![
-                objective(OBJ_B5, "Locked. Press [G] to let the computer fly."),
-                emphasize("GOTO"),
+                post_objective(OBJ_B5, "Locked. Press [G] to let the computer fly."),
+                show_hint_emphasis("GOTO"),
             ],
         ),
         // Beat 5 -> 6: arrival at beacon 3. The waypoint run: beacon 4
@@ -1089,12 +968,12 @@ pub(crate) fn shakedown_run(
         // press (the re-designation semantics, previously untaught).
         ScenarioEventConfig {
             name: EventConfig::OnEnter,
-            filters: vec![player_enters(ID_BEACON_3), eq_num(VAR_BEAT, 5.0)],
+            filters: vec![player_enters(ID_BEACON_3), number_equals(VAR_BEAT, 5.0)],
             actions: vec![
-                set(VAR_BEAT, num(6.0)),
+                set_variable(VAR_BEAT, number(6.0)),
                 stamp_gate(INSTRUCTION_GAP),
-                complete(OBJ_B5),
-                story(
+                complete_objective(OBJ_B5),
+                story_message(
                     PLAYER,
                     "Long leg to the next mark. Re-locking and handing off \
                      again.",
@@ -1105,15 +984,15 @@ pub(crate) fn shakedown_run(
         beat_setup(
             6.0,
             vec![
-                spawn(beacon_with_signature(
+                spawn_object(beacon_with_signature(
                     ID_BEACON_4,
                     "BEACON 4",
                     BEACON_4_POS,
                     Some(BEACON_4_LOCK_SIGNATURE),
                 )),
-                objective(OBJ_B6, "New waypoint: Beacon 4. Lock it, press [G] again."),
-                unmark(ID_BEACON_3),
-                mark(ID_BEACON_4, "BEACON 4"),
+                post_objective(OBJ_B6, "New waypoint: Beacon 4. Lock it, press [G] again."),
+                detach_objective_marker(ID_BEACON_3),
+                attach_objective_marker(ID_BEACON_4, "BEACON 4"),
             ],
         ),
         // Beat 6 -> 7: arrival at beacon 4, deep in the planetoid's grip.
@@ -1121,16 +1000,16 @@ pub(crate) fn shakedown_run(
         // spawns HERE (not at start), so its OnEnter cannot fire early.
         ScenarioEventConfig {
             name: EventConfig::OnEnter,
-            filters: vec![player_enters(ID_BEACON_4), eq_num(VAR_BEAT, 6.0)],
+            filters: vec![player_enters(ID_BEACON_4), number_equals(VAR_BEAT, 6.0)],
             actions: vec![
-                set(VAR_BEAT, num(7.0)),
+                set_variable(VAR_BEAT, number(7.0)),
                 // Reveal-then-instruct ("that's the planetoid's pull - ease off
                 // the drive"): a mid gap.
                 stamp_gate(MID_GAP),
-                complete(OBJ_B6),
+                complete_objective(OBJ_B6),
                 // The autopilot leg is over; its hint clears now.
-                deemphasize("GOTO"),
-                story(
+                clear_hint_emphasis("GOTO"),
+                story_message(
                     CAPTAIN_HALLORAN,
                     "That's the planetoid's pull. Ease off the drive and let \
                      the well carry you.",
@@ -1143,9 +1022,9 @@ pub(crate) fn shakedown_run(
             7.0,
             vec![
                 coast_ring(),
-                objective(OBJ_B7, "Cut the burn and coast in."),
-                unmark(ID_BEACON_4),
-                mark(ID_PLANETOID, "PLANETOID"),
+                post_objective(OBJ_B7, "Cut the burn and coast in."),
+                detach_objective_marker(ID_BEACON_4),
+                attach_objective_marker(ID_PLANETOID, "PLANETOID"),
             ],
         ),
         // Beat 7 -> 8: the drift crossed the coast ring. One gesture: [O]
@@ -1154,12 +1033,12 @@ pub(crate) fn shakedown_run(
         // playtest finding 5).
         ScenarioEventConfig {
             name: EventConfig::OnEnter,
-            filters: vec![player_enters(ID_COAST_RING), eq_num(VAR_BEAT, 7.0)],
+            filters: vec![player_enters(ID_COAST_RING), number_equals(VAR_BEAT, 7.0)],
             actions: vec![
-                set(VAR_BEAT, num(8.0)),
+                set_variable(VAR_BEAT, number(8.0)),
                 stamp_gate(INSTRUCTION_GAP),
-                complete(OBJ_B7),
-                story(
+                complete_objective(OBJ_B7),
+                story_message(
                     CAPTAIN_HALLORAN,
                     "Ride it around - the computer will hold your orbit for \
                      you.",
@@ -1177,7 +1056,7 @@ pub(crate) fn shakedown_run(
                     verb: FlightVerb::Orbit,
                     enabled: true,
                 }),
-                objective(OBJ_B8, "Press [O] to hold an orbit."),
+                post_objective(OBJ_B8, "Press [O] to hold an orbit."),
             ],
         ),
         // Stable station-keeping starts the authored hold. Losing stability or
@@ -1185,22 +1064,22 @@ pub(crate) fn shakedown_run(
         // completes the lesson.
         ScenarioEventConfig {
             name: EventConfig::OnOrbitStable,
-            filters: vec![player_enters(ID_PLANETOID), eq_num(VAR_BEAT, 8.0)],
+            filters: vec![player_enters(ID_PLANETOID), number_equals(VAR_BEAT, 8.0)],
             actions: vec![EventActionConfig::TimerStart(TimerStartActionConfig {
                 key: TIMER_ORBIT_HOLD.to_string(),
-                seconds: num(ORBIT_HOLD_SECS),
+                seconds: number(ORBIT_HOLD_SECS),
             })],
         },
         ScenarioEventConfig {
             name: EventConfig::OnOrbitUnstable,
-            filters: vec![player_enters(ID_PLANETOID), eq_num(VAR_BEAT, 8.0)],
+            filters: vec![player_enters(ID_PLANETOID), number_equals(VAR_BEAT, 8.0)],
             actions: vec![EventActionConfig::TimerCancel(TimerCancelActionConfig {
                 key: TIMER_ORBIT_HOLD.to_string(),
             })],
         },
         ScenarioEventConfig {
             name: EventConfig::OnOrbitEnd,
-            filters: vec![player_enters(ID_PLANETOID), eq_num(VAR_BEAT, 8.0)],
+            filters: vec![player_enters(ID_PLANETOID), number_equals(VAR_BEAT, 8.0)],
             actions: vec![EventActionConfig::TimerCancel(TimerCancelActionConfig {
                 key: TIMER_ORBIT_HOLD.to_string(),
             })],
@@ -1214,12 +1093,12 @@ pub(crate) fn shakedown_run(
                 EventFilterConfig::Timer(TimerFilterConfig {
                     key: TIMER_ORBIT_HOLD.to_string(),
                 }),
-                eq_num(VAR_BEAT, 8.0),
+                number_equals(VAR_BEAT, 8.0),
             ],
             actions: vec![
-                set(VAR_BEAT, num(9.0)),
+                set_variable(VAR_BEAT, number(9.0)),
                 stamp_gate(INSTRUCTION_GAP),
-                complete(OBJ_B8),
+                complete_objective(OBJ_B8),
                 // The derelict spawns and the marker hands off at the
                 // TRANSITION, not in beat_setup: [Z] (STOP) is granted from the
                 // start, so a fast break-away could exit the coast ring (beat 9
@@ -1228,10 +1107,10 @@ pub(crate) fn shakedown_run(
                 // skipped setup would strand the marker on the planetoid. It
                 // spawns back by the salvage field, outside the SOI. Only the
                 // break-away objective text waits for the line.
-                spawn(derelict(asteroid_texture.clone())),
-                unmark(ID_PLANETOID),
-                mark(ID_DERELICT, "DERELICT"),
-                story(
+                spawn_object(derelict(asteroid_texture.clone())),
+                detach_objective_marker(ID_PLANETOID),
+                attach_objective_marker(ID_DERELICT, "DERELICT"),
+                story_message(
                     CAPTAIN_HALLORAN,
                     "Good. Break the orbit and burn clear when you're ready.",
                 ),
@@ -1241,22 +1120,25 @@ pub(crate) fn shakedown_run(
         // and its marker are already up from the transition above).
         beat_setup(
             9.0,
-            vec![objective(OBJ_B9, "Break away - press [Z] and burn clear.")],
+            vec![post_objective(
+                OBJ_B9,
+                "Break away - press [Z] and burn clear.",
+            )],
         ),
         // Beat 9 -> 10: left the ring. The live-fire rehearsal begins: the
         // combat lock in calm - this is where the viewfinder inset, the
         // fine-lock and guided torpedoes become discoverable.
         ScenarioEventConfig {
             name: EventConfig::OnExit,
-            filters: vec![player_enters(ID_COAST_RING), eq_num(VAR_BEAT, 9.0)],
+            filters: vec![player_enters(ID_COAST_RING), number_equals(VAR_BEAT, 9.0)],
             actions: vec![
-                set(VAR_BEAT, num(10.0)),
+                set_variable(VAR_BEAT, number(10.0)),
                 // Reveal-then-instruct ("dead hulk off your old field - blood
                 // the guns on it"): a mid gap lets the new target register
                 // before the paint task.
                 stamp_gate(MID_GAP),
-                complete(OBJ_B9),
-                story(
+                complete_objective(OBJ_B9),
+                story_message(
                     CAPTAIN_HALLORAN,
                     "Dead hulk off your old salvage field. Blood the guns on \
                      it - lock it up and watch your viewfinder.",
@@ -1268,20 +1150,20 @@ pub(crate) fn shakedown_run(
         beat_setup(
             10.0,
             vec![
-                objective(OBJ_B10, "Paint the derelict - hold [RMB] and [CTRL]."),
-                emphasize("RADAR"),
+                post_objective(OBJ_B10, "Paint the derelict - hold [RMB] and [CTRL]."),
+                show_hint_emphasis("RADAR"),
             ],
         ),
         // Beat 10 -> 11: the RED lock landed on the hulk. One gesture:
         // fire.
         ScenarioEventConfig {
             name: EventConfig::OnCombatLockStart,
-            filters: vec![player_enters(ID_DERELICT), eq_num(VAR_BEAT, 10.0)],
+            filters: vec![player_enters(ID_DERELICT), number_equals(VAR_BEAT, 10.0)],
             actions: vec![
-                set(VAR_BEAT, num(11.0)),
-                complete(OBJ_B10),
-                objective(OBJ_B11, "Locked on. Open fire - [LMB]."),
-                deemphasize("RADAR"),
+                set_variable(VAR_BEAT, number(11.0)),
+                complete_objective(OBJ_B10),
+                post_objective(OBJ_B11, "Locked on. Open fire - [LMB]."),
+                clear_hint_emphasis("RADAR"),
             ],
         },
         // The hulk is dust -> the fight, from ANY rehearsal beat (lt 12,
@@ -1294,20 +1176,20 @@ pub(crate) fn shakedown_run(
         // demonstration), so the fight is the exam: ONE line.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
-            filters: vec![destroyed(ID_DERELICT), lt_num(VAR_BEAT, 12.0)],
+            filters: vec![entity(ID_DERELICT), number_less_than(VAR_BEAT, 12.0)],
             actions: vec![
-                set(VAR_BEAT, num(12.0)),
-                complete(OBJ_B9),
-                complete(OBJ_B10),
-                complete(OBJ_B11),
-                deemphasize("RADAR"),
-                spawn(pirate_ship()),
+                set_variable(VAR_BEAT, number(12.0)),
+                complete_objective(OBJ_B9),
+                complete_objective(OBJ_B10),
+                complete_objective(OBJ_B11),
+                clear_hint_emphasis("RADAR"),
+                spawn_object(pirate_ship()),
                 // The one fight announces itself (beat-sheet telegraph): a
                 // warning line, a spawn back at the debris field, and the
                 // scavenger's own engage_delay grace before its guns come up.
                 // Pacing pass: the objective posts a beat after this warning
                 // (the gated_once below), not the same frame.
-                story(
+                story_message(
                     CAPTAIN_HALLORAN,
                     "Contact - scavenger picking through your debris field. \
                      Drive it off.",
@@ -1318,8 +1200,8 @@ pub(crate) fn shakedown_run(
                 // Defensive detach (the destroyed hulk takes its marker
                 // with it; do not depend on despawn timing), then the
                 // marker jumps to the intruder (attach after its spawn).
-                unmark(ID_DERELICT),
-                mark(ID_PIRATE, "SCAVENGER"),
+                detach_objective_marker(ID_DERELICT),
+                attach_objective_marker(ID_PIRATE, "SCAVENGER"),
             ],
         },
         // The scavenger objective, a beat after the warning line. Gated on
@@ -1328,8 +1210,8 @@ pub(crate) fn shakedown_run(
         gated_once(
             VAR_SCAV_POSTED,
             VAR_SCAV_GATE,
-            vec![eq_num(VAR_BEAT, 12.0)],
-            vec![objective(OBJ_B12, "Drive off the scavenger.")],
+            vec![number_equals(VAR_BEAT, 12.0)],
+            vec![post_objective(OBJ_B12, "Drive off the scavenger.")],
         ),
         // Beat 12 end: pirate destroyed - the chapter is won. The Victory
         // overlay chains into Broadside (chapter two) via the lingering switch:
@@ -1339,15 +1221,15 @@ pub(crate) fn shakedown_run(
         // next chapter's fights.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
-            filters: vec![destroyed(ID_PIRATE), eq_num(VAR_BEAT, 12.0)],
+            filters: vec![entity(ID_PIRATE), number_equals(VAR_BEAT, 12.0)],
             actions: vec![
-                set(VAR_BEAT, num(13.0)),
-                complete(OBJ_B12),
-                objective(
+                set_variable(VAR_BEAT, number(13.0)),
+                complete_objective(OBJ_B12),
+                post_objective(
                     OBJ_DONE,
                     "Shakedown complete. Tap [CTRL] to stand down your locks - the belt is yours.",
                 ),
-                unmark(ID_PIRATE),
+                detach_objective_marker(ID_PIRATE),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Victory,
                     "The scavenger is scrap - but it was flying scout. A \
@@ -1362,15 +1244,15 @@ pub(crate) fn shakedown_run(
         },
         ScenarioEventConfig {
             name: EventConfig::OnNeutralized,
-            filters: vec![neutralized(ID_PIRATE), eq_num(VAR_BEAT, 12.0)],
+            filters: vec![entity(ID_PIRATE), number_equals(VAR_BEAT, 12.0)],
             actions: vec![
-                set(VAR_BEAT, num(13.0)),
-                complete(OBJ_B12),
-                objective(
+                set_variable(VAR_BEAT, number(13.0)),
+                complete_objective(OBJ_B12),
+                post_objective(
                     OBJ_DONE,
                     "Shakedown complete. Tap [CTRL] to stand down your locks - the belt is yours.",
                 ),
-                unmark(ID_PIRATE),
+                detach_objective_marker(ID_PIRATE),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Victory,
                     "The scavenger drifts dead - guns cold, engines dark - \
@@ -1390,7 +1272,7 @@ pub(crate) fn shakedown_run(
         // Enter.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
-            filters: vec![destroyed(ID_PLAYER)],
+            filters: vec![entity(ID_PLAYER)],
             actions: vec![
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Defeat,
@@ -1405,7 +1287,7 @@ pub(crate) fn shakedown_run(
         },
         ScenarioEventConfig {
             name: EventConfig::OnNeutralized,
-            filters: vec![neutralized(ID_PLAYER)],
+            filters: vec![entity(ID_PLAYER)],
             actions: vec![
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Defeat,
@@ -1434,7 +1316,7 @@ pub(crate) fn shakedown_run(
         thumbnail: Some(AssetRef::from("self://thumbnails/shakedown_run.png")),
         // Chapter one of the Nova Protocol campaign; membership + order now
         // live in the `nova_protocol` campaign mapping.
-        watches: vec![elapsed_watch()],
+        watches: vec![scenario_elapsed_watch(SCENARIO_ELAPSED_VAR)],
         events,
         ..ScenarioConfig::new(
             SHAKEDOWN_SCENARIO_ID.to_string(),

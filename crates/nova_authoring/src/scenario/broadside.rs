@@ -42,12 +42,9 @@ use super::{
     cast::{BELT_RELAY, CAPTAIN_HALLORAN, RUST_TALLY},
     craft::{self, ShipGrade},
     pacing::{self, mark_clock, open_gate, MID_GAP, REVEAL_GAP},
-    shakedown::{
-        complete, defeated, destroyed, emphasize, eq_num, lt_num, mark, neutralized, num,
-        objective, player_enters, set, spawn, story, unmark,
-    },
-    SCATTER_SEED,
+    SCATTER_SEED, SCENARIO_ELAPSED_VAR,
 };
+use crate::scenario_helpers::prelude::*;
 
 /// Ships spawn with -Z forward; the fight sits +Z of both the corvette and
 /// gunship spawns, so every combatant is authored with this about-face - the
@@ -315,20 +312,20 @@ pub(crate) fn broadside(
     // Act 0: the stage and the hook (the boulders splice in after the
     // chaff so the field reads chaff-then-anchors in the data too).
     let mut opening = vec![
-        set(VAR_ACT, num(0.0)),
-        set(VAR_CORVETTE_A_DOWN, num(0.0)),
-        set(VAR_CORVETTE_B_DOWN, num(0.0)),
-        set(VAR_HAULER_LOST, num(0.0)),
-        set(VAR_CONTACT_POSTED, num(0.0)),
-        set(VAR_DEFEND_POSTED, num(0.0)),
+        set_variable(VAR_ACT, number(0.0)),
+        set_variable(VAR_CORVETTE_A_DOWN, number(0.0)),
+        set_variable(VAR_CORVETTE_B_DOWN, number(0.0)),
+        set_variable(VAR_HAULER_LOST, number(0.0)),
+        set_variable(VAR_CONTACT_POSTED, number(0.0)),
+        set_variable(VAR_DEFEND_POSTED, number(0.0)),
         // Seed the defend gate so its gated_once filter reads a defined 0
         // before the ambush stamps it, not an undefined var.
-        set(VAR_DEFEND_GATE, num(0.0)),
-        spawn(player_ship()),
-        spawn(hauler_ship()),
+        set_variable(VAR_DEFEND_GATE, number(0.0)),
+        spawn_object(player_ship()),
+        spawn_object(hauler_ship()),
         cover_scatter,
     ];
-    opening.extend(boulders.into_iter().map(spawn));
+    opening.extend(boulders.into_iter().map(spawn_object));
     opening.extend([
         EventActionConfig::CreateScenarioArea(ScenarioAreaConfig {
             id: ID_HAULER_AREA.to_string(),
@@ -342,7 +339,7 @@ pub(crate) fn broadside(
         // to the goal. Pacing pass: the objective no longer shares this frame
         // with the distress call - the deadline is stamped here and OBJ_CONTACT
         // posts a beat later (the gated_once handler below).
-        story(
+        story_message(
             CAPTAIN_HALLORAN,
             "Ceres Queen to any ship in the belt - drive's stripped, and \
              they're coming back for the hull.",
@@ -353,7 +350,7 @@ pub(crate) fn broadside(
         // target during the call; only the objective TEXT waits, matching
         // shakedown/final_tally.
         open_gate(VAR_CONTACT_GATE, MID_GAP),
-        mark(ID_HAULER, "CERES QUEEN"),
+        attach_objective_marker(ID_HAULER, "CERES QUEEN"),
     ]);
     opening.extend(ThreePointRig::around("broadside", Vec3::ZERO, 10.0).actions());
 
@@ -369,10 +366,10 @@ pub(crate) fn broadside(
         pacing::gated_once(
             VAR_CONTACT_POSTED,
             VAR_CONTACT_GATE,
-            vec![eq_num(VAR_ACT, 0.0)],
+            vec![number_equals(VAR_ACT, 0.0)],
             // The marker is already up (OnStart, above); only the objective
             // text posts here.
-            vec![objective(OBJ_CONTACT, "Find the hauler Ceres Queen.")],
+            vec![post_objective(OBJ_CONTACT, "Find the hauler Ceres Queen.")],
         ),
         // Act 0 -> 1: reaching the hauler springs the ambush. The threats spawn
         // and the warning lands now; the DEFEND objective posts a beat later
@@ -380,32 +377,35 @@ pub(crate) fn broadside(
         // a frame.
         ScenarioEventConfig {
             name: EventConfig::OnEnter,
-            filters: vec![player_enters(ID_HAULER_AREA), eq_num(VAR_ACT, 0.0)],
+            filters: vec![
+                entity_pair(ID_HAULER_AREA, ID_PLAYER),
+                number_equals(VAR_ACT, 0.0),
+            ],
             actions: vec![
-                set(VAR_ACT, num(1.0)),
-                complete(OBJ_CONTACT),
+                set_variable(VAR_ACT, number(1.0)),
+                complete_objective(OBJ_CONTACT),
                 // Threat reveal (the ambush springs): full absorb beat; the
                 // corvette markers appear at the transition (below), so the
                 // threats are visible while the objective text waits.
                 mark_clock(VAR_DEFEND_GATE, REVEAL_GAP),
-                spawn(corvette(ID_CORVETTE_A, CORVETTE_A_SPAWN)),
-                spawn(corvette(ID_CORVETTE_B, CORVETTE_B_SPAWN)),
-                story(
+                spawn_object(corvette(ID_CORVETTE_A, CORVETTE_A_SPAWN)),
+                spawn_object(corvette(ID_CORVETTE_B, CORVETTE_B_SPAWN)),
+                story_message(
                     CAPTAIN_HALLORAN,
                     "They're here - two of them, off the rocks. They were \
                      waiting for someone to answer.",
                 ),
-                unmark(ID_HAULER),
-                mark(ID_CORVETTE_A, "CORVETTE"),
-                mark(ID_CORVETTE_B, "CORVETTE"),
-                emphasize("RADAR"),
+                detach_objective_marker(ID_HAULER),
+                attach_objective_marker(ID_CORVETTE_A, "CORVETTE"),
+                attach_objective_marker(ID_CORVETTE_B, "CORVETTE"),
+                show_hint_emphasis("RADAR"),
             ],
         },
         pacing::gated_once(
             VAR_DEFEND_POSTED,
             VAR_DEFEND_GATE,
-            vec![eq_num(VAR_ACT, 1.0)],
-            vec![objective(
+            vec![number_equals(VAR_ACT, 1.0)],
+            vec![post_objective(
                 OBJ_DEFEND,
                 "Drive the corvettes off the Ceres Queen.",
             )],
@@ -413,13 +413,19 @@ pub(crate) fn broadside(
         // Corvette defeats raise their flags once for either terminal path.
         ScenarioEventConfig {
             name: EventConfig::OnDefeated,
-            filters: vec![defeated(ID_CORVETTE_A)],
-            actions: vec![set(VAR_CORVETTE_A_DOWN, num(1.0)), unmark(ID_CORVETTE_A)],
+            filters: vec![entity(ID_CORVETTE_A)],
+            actions: vec![
+                set_variable(VAR_CORVETTE_A_DOWN, number(1.0)),
+                detach_objective_marker(ID_CORVETTE_A),
+            ],
         },
         ScenarioEventConfig {
             name: EventConfig::OnDefeated,
-            filters: vec![defeated(ID_CORVETTE_B)],
-            actions: vec![set(VAR_CORVETTE_B_DOWN, num(1.0)), unmark(ID_CORVETTE_B)],
+            filters: vec![entity(ID_CORVETTE_B)],
+            actions: vec![
+                set_variable(VAR_CORVETTE_B_DOWN, number(1.0)),
+                detach_objective_marker(ID_CORVETTE_B),
+            ],
         },
         // First-kill beat (voice pass): one line when the FIRST corvette
         // dies, whichever it is. Each handler gates on the OTHER flag still
@@ -429,11 +435,11 @@ pub(crate) fn broadside(
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
             filters: vec![
-                destroyed(ID_CORVETTE_A),
-                eq_num(VAR_ACT, 1.0),
-                eq_num(VAR_CORVETTE_B_DOWN, 0.0),
+                entity(ID_CORVETTE_A),
+                number_equals(VAR_ACT, 1.0),
+                number_equals(VAR_CORVETTE_B_DOWN, 0.0),
             ],
-            actions: vec![story(
+            actions: vec![story_message(
                 CAPTAIN_HALLORAN,
                 "One picker's venting out. The other one is swinging onto you.",
             )],
@@ -441,11 +447,11 @@ pub(crate) fn broadside(
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
             filters: vec![
-                destroyed(ID_CORVETTE_B),
-                eq_num(VAR_ACT, 1.0),
-                eq_num(VAR_CORVETTE_A_DOWN, 0.0),
+                entity(ID_CORVETTE_B),
+                number_equals(VAR_ACT, 1.0),
+                number_equals(VAR_CORVETTE_A_DOWN, 0.0),
             ],
-            actions: vec![story(
+            actions: vec![story_message(
                 CAPTAIN_HALLORAN,
                 "One picker's venting out. The other one is swinging onto you.",
             )],
@@ -463,14 +469,14 @@ pub(crate) fn broadside(
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
             filters: vec![
-                eq_num(VAR_ACT, 1.0),
-                eq_num(VAR_CORVETTE_A_DOWN, 1.0),
-                eq_num(VAR_CORVETTE_B_DOWN, 1.0),
-                eq_num(VAR_HAULER_LOST, 0.0),
+                number_equals(VAR_ACT, 1.0),
+                number_equals(VAR_CORVETTE_A_DOWN, 1.0),
+                number_equals(VAR_CORVETTE_B_DOWN, 1.0),
+                number_equals(VAR_HAULER_LOST, 0.0),
             ],
             actions: vec![
-                set(VAR_ACT, num(2.0)),
-                complete(OBJ_DEFEND),
+                set_variable(VAR_ACT, number(2.0)),
+                complete_objective(OBJ_DEFEND),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Victory,
                     "The pickers break off, hulls venting - and the Ceres \
@@ -488,14 +494,14 @@ pub(crate) fn broadside(
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
             filters: vec![
-                eq_num(VAR_ACT, 1.0),
-                eq_num(VAR_CORVETTE_A_DOWN, 1.0),
-                eq_num(VAR_CORVETTE_B_DOWN, 1.0),
-                eq_num(VAR_HAULER_LOST, 1.0),
+                number_equals(VAR_ACT, 1.0),
+                number_equals(VAR_CORVETTE_A_DOWN, 1.0),
+                number_equals(VAR_CORVETTE_B_DOWN, 1.0),
+                number_equals(VAR_HAULER_LOST, 1.0),
             ],
             actions: vec![
-                set(VAR_ACT, num(2.0)),
-                complete(OBJ_DEFEND),
+                set_variable(VAR_ACT, number(2.0)),
+                complete_objective(OBJ_DEFEND),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Victory,
                     "The pickers break off, hulls venting - too late for the \
@@ -515,11 +521,11 @@ pub(crate) fn broadside(
         // pushes fresh objectives under the Victory overlay.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
-            filters: vec![destroyed(ID_HAULER), lt_num(VAR_ACT, 2.0)],
+            filters: vec![entity(ID_HAULER), number_less_than(VAR_ACT, 2.0)],
             actions: vec![
-                set(VAR_HAULER_LOST, num(1.0)),
-                unmark(ID_HAULER),
-                story(
+                set_variable(VAR_HAULER_LOST, number(1.0)),
+                detach_objective_marker(ID_HAULER),
+                story_message(
                     BELT_RELAY,
                     "The Ceres Queen's beacon just went dark. Make it cost them.",
                 ),
@@ -531,14 +537,14 @@ pub(crate) fn broadside(
         // Defeat.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
-            filters: vec![destroyed(ID_PLAYER), lt_num(VAR_ACT, 2.0)],
+            filters: vec![entity(ID_PLAYER), number_less_than(VAR_ACT, 2.0)],
             actions: vec![
                 // Terminal act FIRST: CurrentOutcome is last-write-wins, so a
                 // mutual-destruction trade - the player's blast killing the
                 // last corvette on the same beat the player dies - could let
                 // the checkpoint win (gated act == 1) overwrite this Defeat
                 // over the queued retry. Act 3 closes every win gate.
-                set(VAR_ACT, num(3.0)),
+                set_variable(VAR_ACT, number(3.0)),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Defeat,
                     "The scavengers strip your wreck for parts.",
@@ -552,9 +558,9 @@ pub(crate) fn broadside(
         },
         ScenarioEventConfig {
             name: EventConfig::OnNeutralized,
-            filters: vec![neutralized(ID_PLAYER), lt_num(VAR_ACT, 2.0)],
+            filters: vec![entity(ID_PLAYER), number_less_than(VAR_ACT, 2.0)],
             actions: vec![
-                set(VAR_ACT, num(3.0)),
+                set_variable(VAR_ACT, number(3.0)),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Defeat,
                     "Guns and thrusters gone - you drift, and the scavengers close in.",
@@ -581,7 +587,7 @@ pub(crate) fn broadside(
         thumbnail: Some(AssetRef::from("self://thumbnails/broadside.png")),
         hidden: false,
         menu_backdrop: false,
-        watches: vec![super::elapsed_watch()],
+        watches: vec![scenario_elapsed_watch(SCENARIO_ELAPSED_VAR)],
         // Chapter two of the Nova Protocol campaign. Membership + order now
         // live in the `nova_protocol` campaign mapping, which also lists the
         // hidden part-two wave (`broadside_gunship`) so it is replayable from
@@ -601,21 +607,21 @@ pub(crate) fn broadside_gunship(
     // Same arena as part one: hauler, chaff scatter (same seed), hard
     // boulders - the chapter reads as one place across the split.
     let mut opening = vec![
-        set(VAR_ACT, num(1.0)),
-        set(VAR_HAULER_LOST, num(0.0)),
-        set(VAR_GUN_OBJ_POSTED, num(0.0)),
-        spawn(player_ship()),
-        spawn(hauler_ship()),
+        set_variable(VAR_ACT, number(1.0)),
+        set_variable(VAR_HAULER_LOST, number(0.0)),
+        set_variable(VAR_GUN_OBJ_POSTED, number(0.0)),
+        spawn_object(player_ship()),
+        spawn_object(hauler_ship()),
         cover_scatter(&asteroid_texture),
     ];
-    opening.extend(hard_cover(&asteroid_texture).into_iter().map(spawn));
+    opening.extend(hard_cover(&asteroid_texture).into_iter().map(spawn_object));
     opening.extend([
-        spawn(gunship()),
+        spawn_object(gunship()),
         // The capital gets a voice: the announce beat's one comms line, while
         // the objectives shrink to goals. Pacing pass: the objectives post a
         // beat after the taunt (the gated_once handler below), not the same
         // frame.
-        story(
+        story_message(
             RUST_TALLY,
             "You cost me two pickers, belt rat. The Rust Tally pays its \
              debts in torpedoes.",
@@ -624,8 +630,8 @@ pub(crate) fn broadside_gunship(
         // The gunship and its RADAR marker are already up (this is OnStart), so
         // only the objective text waits.
         open_gate(VAR_GUN_OBJ_GATE, REVEAL_GAP),
-        mark(ID_GUNSHIP, "GUNSHIP"),
-        emphasize("RADAR"),
+        attach_objective_marker(ID_GUNSHIP, "GUNSHIP"),
+        show_hint_emphasis("RADAR"),
     ]);
     opening.extend(ThreePointRig::around("gunship", Vec3::ZERO, 10.0).actions());
 
@@ -638,13 +644,13 @@ pub(crate) fn broadside_gunship(
         pacing::gated_once(
             VAR_GUN_OBJ_POSTED,
             VAR_GUN_OBJ_GATE,
-            vec![eq_num(VAR_ACT, 1.0)],
+            vec![number_equals(VAR_ACT, 1.0)],
             vec![
-                objective(
+                post_objective(
                     OBJ_SCREEN,
                     "Lock the incoming torpedoes and screen them with your PDC.",
                 ),
-                objective(OBJ_BREAK, "Break the Rust Tally, section by section."),
+                post_objective(OBJ_BREAK, "Break the Rust Tally, section by section."),
             ],
         ),
         // Win: the gunship comes apart - and the deep scan keeps the door open:
@@ -655,15 +661,15 @@ pub(crate) fn broadside_gunship(
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
             filters: vec![
-                destroyed(ID_GUNSHIP),
-                eq_num(VAR_ACT, 1.0),
-                eq_num(VAR_HAULER_LOST, 0.0),
+                entity(ID_GUNSHIP),
+                number_equals(VAR_ACT, 1.0),
+                number_equals(VAR_HAULER_LOST, 0.0),
             ],
             actions: vec![
-                set(VAR_ACT, num(2.0)),
-                complete(OBJ_SCREEN),
-                complete(OBJ_BREAK),
-                unmark(ID_GUNSHIP),
+                set_variable(VAR_ACT, number(2.0)),
+                complete_objective(OBJ_SCREEN),
+                complete_objective(OBJ_BREAK),
+                detach_objective_marker(ID_GUNSHIP),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Victory,
                     "The Rust Tally breaks apart - and the Ceres Queen is \
@@ -681,15 +687,15 @@ pub(crate) fn broadside_gunship(
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
             filters: vec![
-                destroyed(ID_GUNSHIP),
-                eq_num(VAR_ACT, 1.0),
-                eq_num(VAR_HAULER_LOST, 1.0),
+                entity(ID_GUNSHIP),
+                number_equals(VAR_ACT, 1.0),
+                number_equals(VAR_HAULER_LOST, 1.0),
             ],
             actions: vec![
-                set(VAR_ACT, num(2.0)),
-                complete(OBJ_SCREEN),
-                complete(OBJ_BREAK),
-                unmark(ID_GUNSHIP),
+                set_variable(VAR_ACT, number(2.0)),
+                complete_objective(OBJ_SCREEN),
+                complete_objective(OBJ_BREAK),
+                detach_objective_marker(ID_GUNSHIP),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Victory,
                     "The Rust Tally breaks apart - too late for the Ceres \
@@ -707,15 +713,15 @@ pub(crate) fn broadside_gunship(
         ScenarioEventConfig {
             name: EventConfig::OnNeutralized,
             filters: vec![
-                neutralized(ID_GUNSHIP),
-                eq_num(VAR_ACT, 1.0),
-                eq_num(VAR_HAULER_LOST, 0.0),
+                entity(ID_GUNSHIP),
+                number_equals(VAR_ACT, 1.0),
+                number_equals(VAR_HAULER_LOST, 0.0),
             ],
             actions: vec![
-                set(VAR_ACT, num(2.0)),
-                complete(OBJ_SCREEN),
-                complete(OBJ_BREAK),
-                unmark(ID_GUNSHIP),
+                set_variable(VAR_ACT, number(2.0)),
+                complete_objective(OBJ_SCREEN),
+                complete_objective(OBJ_BREAK),
+                detach_objective_marker(ID_GUNSHIP),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Victory,
                     "The Rust Tally hangs dead in the void, guns cold and \
@@ -734,15 +740,15 @@ pub(crate) fn broadside_gunship(
         ScenarioEventConfig {
             name: EventConfig::OnNeutralized,
             filters: vec![
-                neutralized(ID_GUNSHIP),
-                eq_num(VAR_ACT, 1.0),
-                eq_num(VAR_HAULER_LOST, 1.0),
+                entity(ID_GUNSHIP),
+                number_equals(VAR_ACT, 1.0),
+                number_equals(VAR_HAULER_LOST, 1.0),
             ],
             actions: vec![
-                set(VAR_ACT, num(2.0)),
-                complete(OBJ_SCREEN),
-                complete(OBJ_BREAK),
-                unmark(ID_GUNSHIP),
+                set_variable(VAR_ACT, number(2.0)),
+                complete_objective(OBJ_SCREEN),
+                complete_objective(OBJ_BREAK),
+                detach_objective_marker(ID_GUNSHIP),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Victory,
                     "The Rust Tally hangs dead in the void, guns cold and \
@@ -760,11 +766,11 @@ pub(crate) fn broadside_gunship(
         // Flavor, not failure: same soft-fail beat as part one.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
-            filters: vec![destroyed(ID_HAULER), lt_num(VAR_ACT, 2.0)],
+            filters: vec![entity(ID_HAULER), number_less_than(VAR_ACT, 2.0)],
             actions: vec![
-                set(VAR_HAULER_LOST, num(1.0)),
-                unmark(ID_HAULER),
-                story(
+                set_variable(VAR_HAULER_LOST, number(1.0)),
+                detach_objective_marker(ID_HAULER),
+                story_message(
                     BELT_RELAY,
                     "The Ceres Queen's beacon just went dark. Make it cost them.",
                 ),
@@ -773,14 +779,14 @@ pub(crate) fn broadside_gunship(
         // Lose: retry THIS part - the checkpoint's whole point (spike F7).
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
-            filters: vec![destroyed(ID_PLAYER), lt_num(VAR_ACT, 2.0)],
+            filters: vec![entity(ID_PLAYER), number_less_than(VAR_ACT, 2.0)],
             actions: vec![
                 // Terminal act FIRST: last-write-wins CurrentOutcome means a
                 // trade - the player's blast breaking the gunship on the same
                 // beat the player dies - could let the win (gated act == 1)
                 // overwrite this Defeat over the queued retry. Act 3 closes
                 // every win gate.
-                set(VAR_ACT, num(3.0)),
+                set_variable(VAR_ACT, number(3.0)),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Defeat,
                     "The Rust Tally walks its torpedoes onto your wreck.",
@@ -794,9 +800,9 @@ pub(crate) fn broadside_gunship(
         },
         ScenarioEventConfig {
             name: EventConfig::OnNeutralized,
-            filters: vec![neutralized(ID_PLAYER), lt_num(VAR_ACT, 2.0)],
+            filters: vec![entity(ID_PLAYER), number_less_than(VAR_ACT, 2.0)],
             actions: vec![
-                set(VAR_ACT, num(3.0)),
+                set_variable(VAR_ACT, number(3.0)),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Defeat,
                     "Guns and thrusters gone - the Rust Tally finishes you at leisure.",
@@ -825,7 +831,7 @@ pub(crate) fn broadside_gunship(
         // campaign mapping so it is replayable from the campaign header.
         hidden: true,
         menu_backdrop: false,
-        watches: vec![super::elapsed_watch()],
+        watches: vec![scenario_elapsed_watch(SCENARIO_ELAPSED_VAR)],
         events,
     }
 }

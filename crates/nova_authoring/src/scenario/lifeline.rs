@@ -37,14 +37,10 @@ use nova_ship::prelude::*;
 use super::{
     cast::{BELT_RELAY, CAPTAIN_HALLORAN, TALLYMAN},
     craft::{self, ShipGrade},
-    elapsed_watch,
     pacing::{self, open_gate, REVEAL_GAP},
-    shakedown::{
-        complete, defeated, destroyed, eq_num, gt_num, lt_num, mark, neutralized, num, objective,
-        set, spawn, story, unmark, var,
-    },
     SCATTER_SEED, SCENARIO_ELAPSED_VAR,
 };
+use crate::scenario_helpers::prelude::*;
 
 pub(crate) const LIFELINE_SCENARIO_ID: &str = "lifeline";
 
@@ -257,11 +253,14 @@ fn wave_beat(
     line: &str,
     ships: Vec<(ScenarioObjectConfig, &str)>,
 ) -> Vec<EventActionConfig> {
-    let mut actions = vec![set(up_flag, num(1.0)), story(line_speaker, line)];
+    let mut actions = vec![
+        set_variable(up_flag, number(1.0)),
+        story_message(line_speaker, line),
+    ];
     for (ship, label) in ships {
         let id = ship.base.id.clone();
-        actions.push(spawn(ship));
-        actions.push(mark(&id, label));
+        actions.push(spawn_object(ship));
+        actions.push(attach_objective_marker(&id, label));
     }
     actions
 }
@@ -271,8 +270,8 @@ fn wave_beat(
 fn defeat_flag(id: &str, flag: &str) -> ScenarioEventConfig {
     ScenarioEventConfig {
         name: EventConfig::OnDefeated,
-        filters: vec![defeated(id)],
-        actions: vec![set(flag, num(1.0)), unmark(id)],
+        filters: vec![entity(id)],
+        actions: vec![set_variable(flag, number(1.0)), detach_objective_marker(id)],
     }
 }
 
@@ -369,15 +368,18 @@ fn paced_line(
     extra_filters: Vec<EventFilterConfig>,
 ) -> ScenarioEventConfig {
     let mut filters = vec![
-        eq_num(VAR_ACT, 1.0),
-        eq_num(said_flag, 0.0),
-        gt_num(SCENARIO_ELAPSED_VAR, at),
+        number_equals(VAR_ACT, 1.0),
+        number_equals(said_flag, 0.0),
+        number_greater_than(SCENARIO_ELAPSED_VAR, at),
     ];
     filters.extend(extra_filters);
     ScenarioEventConfig {
         name: EventConfig::OnUpdate,
         filters,
-        actions: vec![set(said_flag, num(1.0)), story(speaker, line)],
+        actions: vec![
+            set_variable(said_flag, number(1.0)),
+            story_message(speaker, line),
+        ],
     }
 }
 
@@ -385,14 +387,14 @@ fn paced_line(
 /// banner - and chain (lingering) into the finale: the relief wing traced the
 /// raiders' burn, and Continue follows it.
 fn victory(message: &str, extra_filters: Vec<EventFilterConfig>) -> ScenarioEventConfig {
-    let mut filters = vec![eq_num(VAR_ACT, 1.0)];
+    let mut filters = vec![number_equals(VAR_ACT, 1.0)];
     filters.extend(extra_filters);
     ScenarioEventConfig {
         name: EventConfig::OnUpdate,
         filters,
         actions: vec![
-            set(VAR_ACT, num(2.0)),
-            complete(OBJ_SCREEN),
+            set_variable(VAR_ACT, number(2.0)),
+            complete_objective(OBJ_SCREEN),
             EventActionConfig::Outcome(OutcomeActionConfig::new(
                 ScenarioOutcomeKind::Victory,
                 message,
@@ -412,56 +414,60 @@ pub(crate) fn lifeline(
 ) -> ScenarioConfig {
     // --- OnStart: the stage, the state, the countdown, the dispatch. ---
     let mut opening = vec![
-        set(VAR_ACT, num(1.0)),
-        set(VAR_QUEEN_DOWN, num(0.0)),
-        set(VAR_MERIDIAN_DOWN, num(0.0)),
-        set(VAR_W1_UP, num(0.0)),
-        set(VAR_W2_UP, num(0.0)),
-        set(VAR_W3_UP, num(0.0)),
-        set(VAR_R1A_DOWN, num(0.0)),
-        set(VAR_R1B_DOWN, num(0.0)),
-        set(VAR_R2A_DOWN, num(0.0)),
-        set(VAR_R2B_DOWN, num(0.0)),
-        set(VAR_R2C_DOWN, num(0.0)),
-        set(VAR_R3A_DOWN, num(0.0)),
-        set(VAR_R3B_DOWN, num(0.0)),
-        set(VAR_HELLO_SAID, num(0.0)),
-        set(VAR_W1_CLEAR_SAID, num(0.0)),
-        set(VAR_W2_CLEAR_SAID, num(0.0)),
-        set(VAR_SCREEN_POSTED, num(0.0)),
-        set(VAR_RELIEF_REMAINING, num(RELIEF_SECS)),
-        spawn(player_ship()),
-        spawn(convoy_hauler(
+        set_variable(VAR_ACT, number(1.0)),
+        set_variable(VAR_QUEEN_DOWN, number(0.0)),
+        set_variable(VAR_MERIDIAN_DOWN, number(0.0)),
+        set_variable(VAR_W1_UP, number(0.0)),
+        set_variable(VAR_W2_UP, number(0.0)),
+        set_variable(VAR_W3_UP, number(0.0)),
+        set_variable(VAR_R1A_DOWN, number(0.0)),
+        set_variable(VAR_R1B_DOWN, number(0.0)),
+        set_variable(VAR_R2A_DOWN, number(0.0)),
+        set_variable(VAR_R2B_DOWN, number(0.0)),
+        set_variable(VAR_R2C_DOWN, number(0.0)),
+        set_variable(VAR_R3A_DOWN, number(0.0)),
+        set_variable(VAR_R3B_DOWN, number(0.0)),
+        set_variable(VAR_HELLO_SAID, number(0.0)),
+        set_variable(VAR_W1_CLEAR_SAID, number(0.0)),
+        set_variable(VAR_W2_CLEAR_SAID, number(0.0)),
+        set_variable(VAR_SCREEN_POSTED, number(0.0)),
+        set_variable(VAR_RELIEF_REMAINING, number(RELIEF_SECS)),
+        spawn_object(player_ship()),
+        spawn_object(convoy_hauler(
             ID_QUEEN,
             "Hauler Ceres Queen",
             QUEEN_POS,
             0.5,
             QUEEN_LOITER.to_vec(),
         )),
-        spawn(convoy_hauler(
+        spawn_object(convoy_hauler(
             ID_MERIDIAN,
             "Hauler Long Meridian",
             MERIDIAN_POS,
             -0.4,
             MERIDIAN_LOITER.to_vec(),
         )),
-        spawn(lane_beacon(
+        spawn_object(lane_beacon(
             "beacon_transfer",
             "TRANSFER STOP",
             Vec3::new(35.0, -2.0, -470.0),
         )),
-        spawn(lane_beacon(
+        spawn_object(lane_beacon(
             "beacon_lane",
             "LANE MARKER",
             Vec3::new(-10.0, 12.0, -140.0),
         )),
         lane_chaff(&asteroid_texture),
     ];
-    opening.extend(lane_boulders(&asteroid_texture).into_iter().map(spawn));
+    opening.extend(
+        lane_boulders(&asteroid_texture)
+            .into_iter()
+            .map(spawn_object),
+    );
     opening.extend([
         // Pacing pass: the objective posts a beat after the dispatch line (the
         // gated_once handler below), not the same frame.
-        story(
+        story_message(
             BELT_RELAY,
             "Relief wing is spooled and burning your way - four minutes \
              out. The convoy holds the lane until they arrive.",
@@ -469,8 +475,8 @@ pub(crate) fn lifeline(
         // Reveal beat: "the convoy holds the lane" is a situation to absorb, so
         // the screen objective waits the full gap (pacing).
         open_gate(VAR_SCREEN_GATE, REVEAL_GAP),
-        mark(ID_QUEEN, "CERES QUEEN"),
-        mark(ID_MERIDIAN, "LONG MERIDIAN"),
+        attach_objective_marker(ID_QUEEN, "CERES QUEEN"),
+        attach_objective_marker(ID_MERIDIAN, "LONG MERIDIAN"),
         EventActionConfig::HudReadout(HudReadoutActionConfig {
             slot: "relief".to_string(),
             variable: VAR_RELIEF_REMAINING.to_string(),
@@ -492,8 +498,8 @@ pub(crate) fn lifeline(
         pacing::gated_once(
             VAR_SCREEN_POSTED,
             VAR_SCREEN_GATE,
-            vec![eq_num(VAR_ACT, 1.0)],
-            vec![objective(
+            vec![number_equals(VAR_ACT, 1.0)],
+            vec![post_objective(
                 OBJ_SCREEN,
                 "Keep the convoy alive until the relief wing arrives.",
             )],
@@ -501,14 +507,14 @@ pub(crate) fn lifeline(
         // The countdown, recomputed every live frame: RELIEF_SECS - clock.
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
-            filters: vec![eq_num(VAR_ACT, 1.0)],
-            actions: vec![set(
+            filters: vec![number_equals(VAR_ACT, 1.0)],
+            actions: vec![set_variable(
                 VAR_RELIEF_REMAINING,
                 VariableExpressionNode::new_subtract(
                     VariableTermNode::Factor(VariableFactorNode::Literal(VariableLiteral::Number(
                         RELIEF_SECS,
                     ))),
-                    var(SCENARIO_ELAPSED_VAR),
+                    variable(SCENARIO_ELAPSED_VAR),
                 ),
             )],
         },
@@ -525,9 +531,9 @@ pub(crate) fn lifeline(
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
             filters: vec![
-                eq_num(VAR_ACT, 1.0),
-                eq_num(VAR_W1_UP, 0.0),
-                gt_num(SCENARIO_ELAPSED_VAR, W1_AT),
+                number_equals(VAR_ACT, 1.0),
+                number_equals(VAR_W1_UP, 0.0),
+                number_greater_than(SCENARIO_ELAPSED_VAR, W1_AT),
             ],
             actions: wave_beat(
                 VAR_W1_UP,
@@ -555,20 +561,20 @@ pub(crate) fn lifeline(
             "Clean shooting. Watch the dark - the Tallyman does not send \
              twice the same way.",
             vec![
-                eq_num(VAR_R1A_DOWN, 1.0),
-                eq_num(VAR_R1B_DOWN, 1.0),
-                eq_num(VAR_W2_UP, 0.0),
+                number_equals(VAR_R1A_DOWN, 1.0),
+                number_equals(VAR_R1B_DOWN, 1.0),
+                number_equals(VAR_W2_UP, 0.0),
             ],
         ),
         // --- Wave two: three raiders, split vectors (one flanker). ---
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
             filters: vec![
-                eq_num(VAR_ACT, 1.0),
-                eq_num(VAR_W2_UP, 0.0),
-                gt_num(SCENARIO_ELAPSED_VAR, W2_AT),
-                eq_num(VAR_R1A_DOWN, 1.0),
-                eq_num(VAR_R1B_DOWN, 1.0),
+                number_equals(VAR_ACT, 1.0),
+                number_equals(VAR_W2_UP, 0.0),
+                number_greater_than(SCENARIO_ELAPSED_VAR, W2_AT),
+                number_equals(VAR_R1A_DOWN, 1.0),
+                number_equals(VAR_R1B_DOWN, 1.0),
             ],
             actions: wave_beat(
                 VAR_W2_UP,
@@ -602,22 +608,22 @@ pub(crate) fn lifeline(
             "You are burning my margins, pilot. The next crew brings real \
              guns.",
             vec![
-                eq_num(VAR_R2A_DOWN, 1.0),
-                eq_num(VAR_R2B_DOWN, 1.0),
-                eq_num(VAR_R2C_DOWN, 1.0),
-                eq_num(VAR_W3_UP, 0.0),
+                number_equals(VAR_R2A_DOWN, 1.0),
+                number_equals(VAR_R2B_DOWN, 1.0),
+                number_equals(VAR_R2C_DOWN, 1.0),
+                number_equals(VAR_W3_UP, 0.0),
             ],
         ),
         // --- Wave three: the full-gun corvette and its escort. ---
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
             filters: vec![
-                eq_num(VAR_ACT, 1.0),
-                eq_num(VAR_W3_UP, 0.0),
-                gt_num(SCENARIO_ELAPSED_VAR, W3_AT),
-                eq_num(VAR_R2A_DOWN, 1.0),
-                eq_num(VAR_R2B_DOWN, 1.0),
-                eq_num(VAR_R2C_DOWN, 1.0),
+                number_equals(VAR_ACT, 1.0),
+                number_equals(VAR_W3_UP, 0.0),
+                number_greater_than(SCENARIO_ELAPSED_VAR, W3_AT),
+                number_equals(VAR_R2A_DOWN, 1.0),
+                number_equals(VAR_R2B_DOWN, 1.0),
+                number_equals(VAR_R2C_DOWN, 1.0),
             ],
             actions: wave_beat(
                 VAR_W3_UP,
@@ -642,31 +648,31 @@ pub(crate) fn lifeline(
         // win gate before the defeat shows).
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
-            filters: vec![destroyed(ID_QUEEN), lt_num(VAR_ACT, 2.0)],
+            filters: vec![entity(ID_QUEEN), number_less_than(VAR_ACT, 2.0)],
             actions: vec![
-                set(VAR_QUEEN_DOWN, num(1.0)),
-                unmark(ID_QUEEN),
-                story(BELT_RELAY, "The Ceres Queen's beacon just went dark."),
+                set_variable(VAR_QUEEN_DOWN, number(1.0)),
+                detach_objective_marker(ID_QUEEN),
+                story_message(BELT_RELAY, "The Ceres Queen's beacon just went dark."),
             ],
         },
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
-            filters: vec![destroyed(ID_MERIDIAN), lt_num(VAR_ACT, 2.0)],
+            filters: vec![entity(ID_MERIDIAN), number_less_than(VAR_ACT, 2.0)],
             actions: vec![
-                set(VAR_MERIDIAN_DOWN, num(1.0)),
-                unmark(ID_MERIDIAN),
-                story(BELT_RELAY, "The Long Meridian's beacon just went dark."),
+                set_variable(VAR_MERIDIAN_DOWN, number(1.0)),
+                detach_objective_marker(ID_MERIDIAN),
+                story_message(BELT_RELAY, "The Long Meridian's beacon just went dark."),
             ],
         },
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
             filters: vec![
-                eq_num(VAR_ACT, 1.0),
-                eq_num(VAR_QUEEN_DOWN, 1.0),
-                eq_num(VAR_MERIDIAN_DOWN, 1.0),
+                number_equals(VAR_ACT, 1.0),
+                number_equals(VAR_QUEEN_DOWN, 1.0),
+                number_equals(VAR_MERIDIAN_DOWN, 1.0),
             ],
             actions: vec![
-                set(VAR_ACT, num(3.0)),
+                set_variable(VAR_ACT, number(3.0)),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Defeat,
                     "Both beacons dark. The lane belongs to the Tallyman now.",
@@ -686,9 +692,9 @@ pub(crate) fn lifeline(
              raiders scatter. The convoy is whole - and the wing traced \
              the raiders' burn back to a claim deep on the shelf.",
             vec![
-                gt_num(SCENARIO_ELAPSED_VAR, RELIEF_SECS),
-                eq_num(VAR_QUEEN_DOWN, 0.0),
-                eq_num(VAR_MERIDIAN_DOWN, 0.0),
+                number_greater_than(SCENARIO_ELAPSED_VAR, RELIEF_SECS),
+                number_equals(VAR_QUEEN_DOWN, 0.0),
+                number_equals(VAR_MERIDIAN_DOWN, 0.0),
             ],
         ),
         victory(
@@ -697,10 +703,10 @@ pub(crate) fn lifeline(
              traced the raiders' burn back to a claim deep on the shelf. \
              The Tallyman will answer for the other half.",
             vec![
-                gt_num(SCENARIO_ELAPSED_VAR, RELIEF_SECS),
+                number_greater_than(SCENARIO_ELAPSED_VAR, RELIEF_SECS),
                 EventFilterConfig::Conditional(ConditionalFilterConfig::Or(
-                    Box::new(eq_num(VAR_QUEEN_DOWN, 1.0)),
-                    Box::new(eq_num(VAR_MERIDIAN_DOWN, 1.0)),
+                    Box::new(number_equals(VAR_QUEEN_DOWN, 1.0)),
+                    Box::new(number_equals(VAR_MERIDIAN_DOWN, 1.0)),
                 )),
             ],
         ),
@@ -709,11 +715,11 @@ pub(crate) fn lifeline(
              arrives. The convoy is whole - and the last burst off the \
              raider traced back to a claim deep on the shelf.",
             vec![
-                eq_num(VAR_W3_UP, 1.0),
-                eq_num(VAR_R3A_DOWN, 1.0),
-                eq_num(VAR_R3B_DOWN, 1.0),
-                eq_num(VAR_QUEEN_DOWN, 0.0),
-                eq_num(VAR_MERIDIAN_DOWN, 0.0),
+                number_equals(VAR_W3_UP, 1.0),
+                number_equals(VAR_R3A_DOWN, 1.0),
+                number_equals(VAR_R3B_DOWN, 1.0),
+                number_equals(VAR_QUEEN_DOWN, 0.0),
+                number_equals(VAR_MERIDIAN_DOWN, 0.0),
             ],
         ),
         victory(
@@ -722,12 +728,12 @@ pub(crate) fn lifeline(
              raider traced back to a claim deep on the shelf. The Tallyman \
              will answer for the rest.",
             vec![
-                eq_num(VAR_W3_UP, 1.0),
-                eq_num(VAR_R3A_DOWN, 1.0),
-                eq_num(VAR_R3B_DOWN, 1.0),
+                number_equals(VAR_W3_UP, 1.0),
+                number_equals(VAR_R3A_DOWN, 1.0),
+                number_equals(VAR_R3B_DOWN, 1.0),
                 EventFilterConfig::Conditional(ConditionalFilterConfig::Or(
-                    Box::new(eq_num(VAR_QUEEN_DOWN, 1.0)),
-                    Box::new(eq_num(VAR_MERIDIAN_DOWN, 1.0)),
+                    Box::new(number_equals(VAR_QUEEN_DOWN, 1.0)),
+                    Box::new(number_equals(VAR_MERIDIAN_DOWN, 1.0)),
                 )),
             ],
         ),
@@ -740,9 +746,9 @@ pub(crate) fn lifeline(
         // the countdown.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
-            filters: vec![destroyed(ID_PLAYER), eq_num(VAR_ACT, 1.0)],
+            filters: vec![entity(ID_PLAYER), number_equals(VAR_ACT, 1.0)],
             actions: vec![
-                set(VAR_ACT, num(3.0)),
+                set_variable(VAR_ACT, number(3.0)),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Defeat,
                     "The convoy watches your wreck drift down the lane the \
@@ -757,9 +763,9 @@ pub(crate) fn lifeline(
         },
         ScenarioEventConfig {
             name: EventConfig::OnNeutralized,
-            filters: vec![neutralized(ID_PLAYER), eq_num(VAR_ACT, 1.0)],
+            filters: vec![entity(ID_PLAYER), number_equals(VAR_ACT, 1.0)],
             actions: vec![
-                set(VAR_ACT, num(3.0)),
+                set_variable(VAR_ACT, number(3.0)),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Defeat,
                     "Guns and thrusters gone - you drift down the lane the raiders now own.",
@@ -788,7 +794,7 @@ pub(crate) fn lifeline(
         thumbnail: Some(AssetRef::from("self://thumbnails/lifeline.png")),
         hidden: false,
         menu_backdrop: false,
-        watches: vec![elapsed_watch()],
+        watches: vec![scenario_elapsed_watch(SCENARIO_ELAPSED_VAR)],
         // Chapter three of the Nova Protocol campaign. Membership + order now
         // live in the `nova_protocol` campaign mapping, which also lists the
         // hidden finale (`final_tally`) for replay.

@@ -29,15 +29,6 @@ pub mod shakedown;
 pub(crate) const SCATTER_SEED: u64 = 0x0605_0403_0201_0000;
 pub(crate) const SCENARIO_ELAPSED_VAR: &str = "scenario_elapsed";
 
-pub(crate) fn elapsed_watch() -> WatchConfig {
-    WatchConfig {
-        variable: SCENARIO_ELAPSED_VAR.to_string(),
-        query: QueryConfig::Scenario(ScenarioQuery {
-            property: ScenarioProperty::Elapsed,
-        }),
-    }
-}
-
 pub(crate) fn asteroid_field(
     cubemap: AssetRef<Image>,
     asteroid_texture: AssetRef<Image>,

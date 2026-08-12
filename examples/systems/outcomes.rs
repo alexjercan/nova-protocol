@@ -28,6 +28,7 @@
 
 use bevy::prelude::*;
 use clap::Parser;
+use nova_authoring::scenario_helpers::number;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
@@ -199,13 +200,6 @@ fn setup_probe(
     scenarios.insert(a.id.clone(), a.clone());
     scenarios.insert(b.id.clone(), b);
     commands.trigger(LoadScenario(a));
-}
-
-/// Shorthand: a literal number as a variable expression.
-fn number(value: f64) -> VariableExpressionNode {
-    VariableExpressionNode::new_term(VariableTermNode::new_factor(
-        VariableFactorNode::new_literal(VariableLiteral::Number(value)),
-    ))
 }
 
 /// Filter an event down to one scenario object id.

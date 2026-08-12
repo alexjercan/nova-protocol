@@ -22,6 +22,8 @@ mod scenario;
 mod sections;
 
 pub mod balance;
+/// Generic constructors for Rust-authored scenario configuration.
+pub mod scenario_helpers;
 // The CLI driver is native-only: `gen` writes through
 // `nova_assets::storage::write_atomic`, which does not exist on wasm - and the
 // wasm game bundle never exposes the subcommand anyway (the root package
@@ -38,6 +40,6 @@ pub mod scenario_generation;
 pub mod prelude {
     pub use super::{
         balance::prelude::*, content_report::prelude::*, lint_walk::prelude::*,
-        scenario_generation::prelude::*,
+        scenario_generation::prelude::*, scenario_helpers::prelude::*,
     };
 }

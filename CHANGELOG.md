@@ -43,6 +43,7 @@ tagged **(breaking)**.
 
 ### Scenarios & Objectives
 
+- Rust scenario authors gain one public `nova_authoring::scenario_helpers` catalog for common expression, filter, watch, and action constructors; built-in scenarios and examples no longer import generic helpers from Shakedown.
 - Scenario handlers gain `OnDefeated`, an exact-once ship outcome edge shared
   by neutralization and direct destruction. It precedes `OnNeutralized` or
   `OnDestroyed`; later destruction of a neutralized wreck emits only

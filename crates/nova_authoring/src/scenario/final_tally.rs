@@ -34,14 +34,10 @@ use nova_ship::prelude::*;
 use super::{
     cast::{BELT_RELAY, CAPTAIN_HALLORAN, TALLYMAN},
     craft::{self, ShipGrade},
-    elapsed_watch,
     pacing::{self, clock_past, mark_clock, open_gate, MID_GAP, REVEAL_GAP},
-    shakedown::{
-        complete, defeated, destroyed, eq_num, gt_num, mark, neutralized, num, objective, set,
-        spawn, story, unmark, var,
-    },
     SCATTER_SEED, SCENARIO_ELAPSED_VAR,
 };
+use crate::scenario_helpers::prelude::*;
 
 pub(crate) const FINAL_TALLY_SCENARIO_ID: &str = "final_tally";
 
@@ -341,27 +337,27 @@ pub(crate) fn final_tally(
     asteroid_texture: AssetRef<Image>,
 ) -> ScenarioConfig {
     let mut opening = vec![
-        set(VAR_ACT, num(1.0)),
-        set(VAR_SURVEYED, num(0.0)),
-        set(VAR_PICKET_A_DOWN, num(0.0)),
-        set(VAR_PICKET_B_DOWN, num(0.0)),
-        set(VAR_CAST_OFF, num(0.0)),
-        set(VAR_CAST_AT, num(0.0)),
-        set(VAR_EPILOGUE_AT, num(0.0)),
-        set(VAR_HELLO_SAID, num(0.0)),
-        set(VAR_TAUNT_SAID, num(0.0)),
-        set(VAR_CLOSE_SAID, num(0.0)),
-        set(VAR_SURVEY_POSTED, num(0.0)),
-        set(VAR_PICKET_POSTED, num(0.0)),
-        set(VAR_BREAK_POSTED, num(0.0)),
+        set_variable(VAR_ACT, number(1.0)),
+        set_variable(VAR_SURVEYED, number(0.0)),
+        set_variable(VAR_PICKET_A_DOWN, number(0.0)),
+        set_variable(VAR_PICKET_B_DOWN, number(0.0)),
+        set_variable(VAR_CAST_OFF, number(0.0)),
+        set_variable(VAR_CAST_AT, number(0.0)),
+        set_variable(VAR_EPILOGUE_AT, number(0.0)),
+        set_variable(VAR_HELLO_SAID, number(0.0)),
+        set_variable(VAR_TAUNT_SAID, number(0.0)),
+        set_variable(VAR_CLOSE_SAID, number(0.0)),
+        set_variable(VAR_SURVEY_POSTED, number(0.0)),
+        set_variable(VAR_PICKET_POSTED, number(0.0)),
+        set_variable(VAR_BREAK_POSTED, number(0.0)),
         // Seed the transition gates so their gated_once filters read a defined
         // 0 before the survey / cast-off stamp them, not an undefined var. The
         // survey gate is seeded by its open_gate below.
-        set(VAR_PICKET_GATE, num(0.0)),
-        set(VAR_BREAK_GATE, num(0.0)),
-        spawn(player_ship()),
-        spawn(claim_anchor(&asteroid_texture)),
-        spawn(anchorage_wreck(
+        set_variable(VAR_PICKET_GATE, number(0.0)),
+        set_variable(VAR_BREAK_GATE, number(0.0)),
+        spawn_object(player_ship()),
+        spawn_object(claim_anchor(&asteroid_texture)),
+        spawn_object(anchorage_wreck(
             ID_WRECK_BOW,
             "Anchorage Bow",
             WRECK_BOW_POS,
@@ -369,7 +365,7 @@ pub(crate) fn final_tally(
             Some(WRECK_SURVEY_SIGNATURE),
             &asteroid_texture,
         )),
-        spawn(anchorage_wreck(
+        spawn_object(anchorage_wreck(
             ID_WRECK_STERN,
             "Anchorage Stern",
             WRECK_STERN_POS,
@@ -377,12 +373,12 @@ pub(crate) fn final_tally(
             None,
             &asteroid_texture,
         )),
-        spawn(picket(ID_PICKET_A, PICKET_A_SPAWN)),
-        spawn(picket(ID_PICKET_B, PICKET_B_SPAWN)),
+        spawn_object(picket(ID_PICKET_A, PICKET_A_SPAWN)),
+        spawn_object(picket(ID_PICKET_B, PICKET_B_SPAWN)),
         claim_belt(&asteroid_texture),
         // Pacing pass: the survey objective posts a beat after this dispatch
         // (the gated_once handler below), not the same frame.
-        story(
+        story_message(
             BELT_RELAY,
             "The raiders' burn traces to a dead claim: a cracked megahauler \
              berthed deep in a planetoid's pull. Confirm what's hiding there.",
@@ -391,7 +387,7 @@ pub(crate) fn final_tally(
         // objective explains the travel-lock mechanic - a mid gap. The
         // anchorage marker is already up (below).
         open_gate(VAR_SURVEY_GATE, MID_GAP),
-        mark(ID_WRECK_BOW, "ANCHORAGE"),
+        attach_objective_marker(ID_WRECK_BOW, "ANCHORAGE"),
     ];
     // Scale 20, not the usual 10: the claim's planetoid reaches ANCHOR_RADIUS *
     // ASTEROID_GEOMETRIC_FACTOR_MAX (~113u) on its worst seed, and a scale-10
@@ -411,8 +407,8 @@ pub(crate) fn final_tally(
         pacing::gated_once(
             VAR_SURVEY_POSTED,
             VAR_SURVEY_GATE,
-            vec![eq_num(VAR_ACT, 1.0)],
-            vec![objective(
+            vec![number_equals(VAR_ACT, 1.0)],
+            vec![post_objective(
                 OBJ_SURVEY,
                 "Survey the anchorage - hold a travel lock on the wreck's bow.",
             )],
@@ -421,13 +417,13 @@ pub(crate) fn final_tally(
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
             filters: vec![
-                eq_num(VAR_ACT, 1.0),
-                eq_num(VAR_HELLO_SAID, 0.0),
-                gt_num(SCENARIO_ELAPSED_VAR, HELLO_AT),
+                number_equals(VAR_ACT, 1.0),
+                number_equals(VAR_HELLO_SAID, 0.0),
+                number_greater_than(SCENARIO_ELAPSED_VAR, HELLO_AT),
             ],
             actions: vec![
-                set(VAR_HELLO_SAID, num(1.0)),
-                story(
+                set_variable(VAR_HELLO_SAID, number(1.0)),
+                story_message(
                     CAPTAIN_HALLORAN,
                     "Whatever is berthed in that pull, pilot - the guild \
                      settles its debts. So does he.",
@@ -442,18 +438,18 @@ pub(crate) fn final_tally(
             name: EventConfig::OnTravelLockStart,
             filters: vec![
                 player_travel_locks(ID_WRECK_BOW),
-                eq_num(VAR_ACT, 1.0),
-                eq_num(VAR_SURVEYED, 0.0),
+                number_equals(VAR_ACT, 1.0),
+                number_equals(VAR_SURVEYED, 0.0),
                 EventFilterConfig::Conditional(ConditionalFilterConfig::Or(
-                    Box::new(eq_num(VAR_PICKET_A_DOWN, 0.0)),
-                    Box::new(eq_num(VAR_PICKET_B_DOWN, 0.0)),
+                    Box::new(number_equals(VAR_PICKET_A_DOWN, 0.0)),
+                    Box::new(number_equals(VAR_PICKET_B_DOWN, 0.0)),
                 )),
             ],
             actions: vec![
-                set(VAR_SURVEYED, num(1.0)),
-                complete(OBJ_SURVEY),
-                unmark(ID_WRECK_BOW),
-                story(
+                set_variable(VAR_SURVEYED, number(1.0)),
+                complete_objective(OBJ_SURVEY),
+                detach_objective_marker(ID_WRECK_BOW),
+                story_message(
                     BELT_RELAY,
                     "Confirmed: the Final Tally, berthed hot behind the \
                      wreck. Two pickets riding the well.",
@@ -473,29 +469,29 @@ pub(crate) fn final_tally(
             VAR_PICKET_POSTED,
             VAR_PICKET_GATE,
             vec![EventFilterConfig::Conditional(ConditionalFilterConfig::Or(
-                Box::new(eq_num(VAR_PICKET_A_DOWN, 0.0)),
-                Box::new(eq_num(VAR_PICKET_B_DOWN, 0.0)),
+                Box::new(number_equals(VAR_PICKET_A_DOWN, 0.0)),
+                Box::new(number_equals(VAR_PICKET_B_DOWN, 0.0)),
             ))],
             vec![
-                objective(OBJ_PICKET, "Break the orbital picket."),
-                mark(ID_PICKET_A, "PICKET"),
-                mark(ID_PICKET_B, "PICKET"),
+                post_objective(OBJ_PICKET, "Break the orbital picket."),
+                attach_objective_marker(ID_PICKET_A, "PICKET"),
+                attach_objective_marker(ID_PICKET_B, "PICKET"),
             ],
         ),
         ScenarioEventConfig {
             name: EventConfig::OnTravelLockStart,
             filters: vec![
                 player_travel_locks(ID_WRECK_BOW),
-                eq_num(VAR_ACT, 1.0),
-                eq_num(VAR_SURVEYED, 0.0),
-                eq_num(VAR_PICKET_A_DOWN, 1.0),
-                eq_num(VAR_PICKET_B_DOWN, 1.0),
+                number_equals(VAR_ACT, 1.0),
+                number_equals(VAR_SURVEYED, 0.0),
+                number_equals(VAR_PICKET_A_DOWN, 1.0),
+                number_equals(VAR_PICKET_B_DOWN, 1.0),
             ],
             actions: vec![
-                set(VAR_SURVEYED, num(1.0)),
-                complete(OBJ_SURVEY),
-                unmark(ID_WRECK_BOW),
-                story(
+                set_variable(VAR_SURVEYED, number(1.0)),
+                complete_objective(OBJ_SURVEY),
+                detach_objective_marker(ID_WRECK_BOW),
+                story_message(
                     BELT_RELAY,
                     "Confirmed: the Final Tally, berthed hot behind the \
                      wreck - and its pickets are already drift.",
@@ -505,13 +501,19 @@ pub(crate) fn final_tally(
         // Picket defeat flags (unconditional, one handler each).
         ScenarioEventConfig {
             name: EventConfig::OnDefeated,
-            filters: vec![defeated(ID_PICKET_A)],
-            actions: vec![set(VAR_PICKET_A_DOWN, num(1.0)), unmark(ID_PICKET_A)],
+            filters: vec![entity(ID_PICKET_A)],
+            actions: vec![
+                set_variable(VAR_PICKET_A_DOWN, number(1.0)),
+                detach_objective_marker(ID_PICKET_A),
+            ],
         },
         ScenarioEventConfig {
             name: EventConfig::OnDefeated,
-            filters: vec![defeated(ID_PICKET_B)],
-            actions: vec![set(VAR_PICKET_B_DOWN, num(1.0)), unmark(ID_PICKET_B)],
+            filters: vec![entity(ID_PICKET_B)],
+            actions: vec![
+                set_variable(VAR_PICKET_B_DOWN, number(1.0)),
+                detach_objective_marker(ID_PICKET_B),
+            ],
         },
         // Both pickets down: the Tallyman's last taunt, and the cast-off
         // clock starts (pickets-down + a breathe). Flag-gated, not
@@ -520,16 +522,16 @@ pub(crate) fn final_tally(
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
             filters: vec![
-                eq_num(VAR_ACT, 1.0),
-                eq_num(VAR_TAUNT_SAID, 0.0),
-                eq_num(VAR_PICKET_A_DOWN, 1.0),
-                eq_num(VAR_PICKET_B_DOWN, 1.0),
+                number_equals(VAR_ACT, 1.0),
+                number_equals(VAR_TAUNT_SAID, 0.0),
+                number_equals(VAR_PICKET_A_DOWN, 1.0),
+                number_equals(VAR_PICKET_B_DOWN, 1.0),
             ],
             actions: vec![
-                set(VAR_TAUNT_SAID, num(1.0)),
+                set_variable(VAR_TAUNT_SAID, number(1.0)),
                 mark_clock(VAR_CAST_AT, CAST_OFF_DELAY),
-                complete(OBJ_PICKET),
-                story(
+                complete_objective(OBJ_PICKET),
+                story_message(
                     TALLYMAN,
                     "You counted my pickets, pilot. Now count the tubes on \
                      my flagship.",
@@ -541,29 +543,29 @@ pub(crate) fn final_tally(
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
             filters: vec![
-                eq_num(VAR_ACT, 1.0),
-                eq_num(VAR_CAST_OFF, 0.0),
-                eq_num(VAR_SURVEYED, 1.0),
-                eq_num(VAR_TAUNT_SAID, 1.0),
+                number_equals(VAR_ACT, 1.0),
+                number_equals(VAR_CAST_OFF, 0.0),
+                number_equals(VAR_SURVEYED, 1.0),
+                number_equals(VAR_TAUNT_SAID, 1.0),
                 clock_past(VAR_CAST_AT),
             ],
             actions: vec![
-                set(VAR_CAST_OFF, num(1.0)),
+                set_variable(VAR_CAST_OFF, number(1.0)),
                 // Pacing pass: the flagship and its gold marker appear with
                 // this reveal line; the break objective posts a beat later (the
                 // gated_once below), not the same frame.
-                story(
+                story_message(
                     BELT_RELAY,
                     "Capital burn off the anchorage - tubes open. That's \
                      the flagship.",
                 ),
-                spawn(flagship()),
-                spawn(escort()),
+                spawn_object(flagship()),
+                spawn_object(escort()),
                 // Threat reveal (the capital ship emerges): full absorb beat -
                 // the flagship's approach IS the peak-fight framing. The marker
                 // is set with the reveal (below).
                 mark_clock(VAR_BREAK_GATE, REVEAL_GAP),
-                mark(ID_FLAGSHIP, "FINAL TALLY"),
+                attach_objective_marker(ID_FLAGSHIP, "FINAL TALLY"),
             ],
         },
         // The break objective, a beat after the cast-off reveal. Gated on the
@@ -572,8 +574,8 @@ pub(crate) fn final_tally(
         pacing::gated_once(
             VAR_BREAK_POSTED,
             VAR_BREAK_GATE,
-            vec![eq_num(VAR_ACT, 1.0)],
-            vec![objective(OBJ_BREAK, "Break the Final Tally.")],
+            vec![number_equals(VAR_ACT, 1.0)],
+            vec![post_objective(OBJ_BREAK, "Break the Final Tally.")],
         ),
         // The KILL: the epilogue opens. Act 4 locks the win (a post-kill
         // player death declares nothing; the escort's fate is its own -
@@ -581,13 +583,13 @@ pub(crate) fn final_tally(
         // and the banner ride the epilogue clock.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
-            filters: vec![destroyed(ID_FLAGSHIP), eq_num(VAR_ACT, 1.0)],
+            filters: vec![entity(ID_FLAGSHIP), number_equals(VAR_ACT, 1.0)],
             actions: vec![
-                set(VAR_ACT, num(4.0)),
+                set_variable(VAR_ACT, number(4.0)),
                 mark_clock(VAR_EPILOGUE_AT, 0.0),
-                complete(OBJ_BREAK),
-                unmark(ID_FLAGSHIP),
-                story(
+                complete_objective(OBJ_BREAK),
+                detach_objective_marker(ID_FLAGSHIP),
+                story_message(
                     BELT_RELAY,
                     "The Final Tally is breaking up. The claim is going dark.",
                 ),
@@ -595,13 +597,13 @@ pub(crate) fn final_tally(
         },
         ScenarioEventConfig {
             name: EventConfig::OnNeutralized,
-            filters: vec![neutralized(ID_FLAGSHIP), eq_num(VAR_ACT, 1.0)],
+            filters: vec![entity(ID_FLAGSHIP), number_equals(VAR_ACT, 1.0)],
             actions: vec![
-                set(VAR_ACT, num(4.0)),
+                set_variable(VAR_ACT, number(4.0)),
                 mark_clock(VAR_EPILOGUE_AT, 0.0),
-                complete(OBJ_BREAK),
-                unmark(ID_FLAGSHIP),
-                story(
+                complete_objective(OBJ_BREAK),
+                detach_objective_marker(ID_FLAGSHIP),
+                story_message(
                     BELT_RELAY,
                     "The Final Tally hangs dead - guns cold, engines dark. \
                      The claim is going dark.",
@@ -612,11 +614,11 @@ pub(crate) fn final_tally(
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
             filters: vec![
-                eq_num(VAR_ACT, 4.0),
-                eq_num(VAR_CLOSE_SAID, 0.0),
+                number_equals(VAR_ACT, 4.0),
+                number_equals(VAR_CLOSE_SAID, 0.0),
                 EventFilterConfig::Expression(ExpressionFilterConfig(
                     VariableConditionNode::new_greater_than(
-                        var(SCENARIO_ELAPSED_VAR),
+                        variable(SCENARIO_ELAPSED_VAR),
                         VariableExpressionNode::new_add(
                             VariableTermNode::Factor(VariableFactorNode::new_name(VAR_EPILOGUE_AT)),
                             VariableExpressionNode::new_term(VariableTermNode::Factor(
@@ -629,8 +631,8 @@ pub(crate) fn final_tally(
                 )),
             ],
             actions: vec![
-                set(VAR_CLOSE_SAID, num(1.0)),
-                story(
+                set_variable(VAR_CLOSE_SAID, number(1.0)),
+                story_message(
                     CAPTAIN_HALLORAN,
                     "Quota's settled, pilot. The guild will not forget \
                      whose guns held the line.",
@@ -642,10 +644,10 @@ pub(crate) fn final_tally(
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
             filters: vec![
-                eq_num(VAR_ACT, 4.0),
+                number_equals(VAR_ACT, 4.0),
                 EventFilterConfig::Expression(ExpressionFilterConfig(
                     VariableConditionNode::new_greater_than(
-                        var(SCENARIO_ELAPSED_VAR),
+                        variable(SCENARIO_ELAPSED_VAR),
                         VariableExpressionNode::new_add(
                             VariableTermNode::Factor(VariableFactorNode::new_name(VAR_EPILOGUE_AT)),
                             VariableExpressionNode::new_term(VariableTermNode::Factor(
@@ -656,7 +658,7 @@ pub(crate) fn final_tally(
                 )),
             ],
             actions: vec![
-                set(VAR_ACT, num(2.0)),
+                set_variable(VAR_ACT, number(2.0)),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Victory,
                     "The claim is quiet. The Tallyman's ledger is closed, \
@@ -670,9 +672,9 @@ pub(crate) fn final_tally(
         // per the ledger lesson). Retry THIS scenario.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
-            filters: vec![destroyed(ID_PLAYER), eq_num(VAR_ACT, 1.0)],
+            filters: vec![entity(ID_PLAYER), number_equals(VAR_ACT, 1.0)],
             actions: vec![
-                set(VAR_ACT, num(3.0)),
+                set_variable(VAR_ACT, number(3.0)),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Defeat,
                     "The claim keeps its secret, and the Tallyman keeps \
@@ -687,9 +689,9 @@ pub(crate) fn final_tally(
         },
         ScenarioEventConfig {
             name: EventConfig::OnNeutralized,
-            filters: vec![neutralized(ID_PLAYER), eq_num(VAR_ACT, 1.0)],
+            filters: vec![entity(ID_PLAYER), number_equals(VAR_ACT, 1.0)],
             actions: vec![
-                set(VAR_ACT, num(3.0)),
+                set_variable(VAR_ACT, number(3.0)),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Defeat,
                     "Guns and thrusters gone - you drift, and the Tallyman keeps the belt.",
@@ -722,7 +724,7 @@ pub(crate) fn final_tally(
         // header.
         hidden: true,
         menu_backdrop: false,
-        watches: vec![elapsed_watch()],
+        watches: vec![scenario_elapsed_watch(SCENARIO_ELAPSED_VAR)],
         events,
     }
 }
