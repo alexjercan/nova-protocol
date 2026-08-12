@@ -26,8 +26,9 @@
 
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{
-    CommandsGameEventExt, EventHandler, GameEventsPlugin, OnDestroyedEvent, OnDestroyedEventInfo,
-    OnNeutralizedEvent, OnNeutralizedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
+    CommandsGameEventExt, EventHandler, GameEventsPlugin, OnDefeatedEvent, OnDefeatedEventInfo,
+    OnDestroyedEvent, OnDestroyedEventInfo, OnNeutralizedEvent, OnNeutralizedEventInfo,
+    OnUpdateEvent, OnUpdateEventInfo,
 };
 use nova_gameplay::prelude::{Allegiance, GameObjectives};
 use nova_modding::prelude::Content;
@@ -37,6 +38,7 @@ use nova_ship::prelude::{SectionConfig, SectionKind};
 const CH5_RON: &str = include_str!("../../../webmods/the-ledger/ledger_ch5_the_raid.content.ron");
 const CH4_RON: &str = include_str!("../../../webmods/the-ledger/ledger_ch4.content.ron");
 const LEDGER_BUNDLE_RON: &str = include_str!("../../../webmods/the-ledger/the-ledger.bundle.ron");
+const LEDGER_CHANGELOG: &str = include_str!("../../../webmods/the-ledger/CHANGELOG.md");
 
 fn scenario_from(ron_str: &str) -> ScenarioConfig {
     let items: Vec<Content> = ron::de::from_str(ron_str).expect("content RON parses");
@@ -153,9 +155,13 @@ fn destroy(app: &mut App, id: &str) {
     };
     app.world_mut()
         .run_system_once(move |mut commands: Commands| {
+            commands.fire::<OnDefeatedEvent>(OnDefeatedEventInfo {
+                id: info.id.clone(),
+                type_name: info.type_name.clone(),
+            });
             commands.fire::<OnDestroyedEvent>(info.clone());
         })
-        .expect("fire OnDestroyed");
+        .expect("fire direct-destruction lifecycle");
     app.update();
     app.update();
 }
@@ -167,9 +173,13 @@ fn neutralize(app: &mut App, id: &str) {
     };
     app.world_mut()
         .run_system_once(move |mut commands: Commands| {
+            commands.fire::<OnDefeatedEvent>(OnDefeatedEventInfo {
+                id: info.id.clone(),
+                type_name: info.type_name.clone(),
+            });
             commands.fire::<OnNeutralizedEvent>(info.clone());
         })
-        .expect("fire OnNeutralized");
+        .expect("fire neutralization lifecycle");
     app.update();
     app.update();
 }
@@ -714,7 +724,11 @@ fn the_bundle_ships_the_raid_and_bumps_the_version() {
     // offered the update, so a content change never reaches a player who
     // already has the mod.
     assert!(
-        LEDGER_BUNDLE_RON.contains("version: \"1.18.0\""),
-        "the bundle version is bumped for the lock-lifecycle format migration"
+        LEDGER_BUNDLE_RON.contains("version: \"1.19.0\""),
+        "the bundle version is bumped for the defeat-event migration"
+    );
+    assert!(
+        LEDGER_CHANGELOG.contains("## 1.19.0"),
+        "the mod changelog documents the published version"
     );
 }

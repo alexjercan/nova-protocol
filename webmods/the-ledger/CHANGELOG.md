@@ -3,6 +3,13 @@
 All notable changes to The Ledger campaign mod. Versions are the `meta.version`
 in `the-ledger.bundle.ron`; the portal keeps every published version.
 
+## 1.19.0
+
+- Shared ship-outcome handlers now use the exact-once `OnDefeated` event instead
+  of duplicating `OnDestroyed` and `OnNeutralized` handlers. Detailed branches
+  remain separate where destruction and a persistent wreck have different
+  story text or outcomes.
+
 ## 1.18.0
 
 - Migrated chapter three's Magpie provocation handlers to the new one-shot

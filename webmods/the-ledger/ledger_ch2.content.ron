@@ -2191,7 +2191,7 @@
             ),
             // --- Wave-one kills. ---
             (
-                name: OnDestroyed,
+                name: OnDefeated,
                 filters: [
                     Entity((
                         id: Some("magpie_1"),
@@ -2221,67 +2221,7 @@
                 ],
             ),
             (
-                name: OnNeutralized,
-                filters: [
-                    Entity((
-                        id: Some("magpie_1"),
-                    )),
-                    Expression((Equal(
-                        Term(Factor(Name("act"))),
-                        Term(Factor(Literal(Number(1.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("magpie_1_down"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "magpie_1_down",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
-                    VariableSet((
-                        key: "kills",
-                        expression: Add(Factor(Name("kills")), Term(Factor(Literal(Number(1.0))))),
-                    )),
-                    StoryMessage((
-                        speaker: "Foreman Okono",
-                        text: "Sixpence is scrap. Don't cheer yet.",
-                    )),
-                ],
-            ),
-            (
-                name: OnDestroyed,
-                filters: [
-                    Entity((
-                        id: Some("magpie_2"),
-                    )),
-                    Expression((Equal(
-                        Term(Factor(Name("act"))),
-                        Term(Factor(Literal(Number(1.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("magpie_2_down"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "magpie_2_down",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
-                    VariableSet((
-                        key: "kills",
-                        expression: Add(Factor(Name("kills")), Term(Factor(Literal(Number(1.0))))),
-                    )),
-                    StoryMessage((
-                        speaker: "Foreman Okono",
-                        text: "Tinfoil King's down. The Mule's still breathing.",
-                    )),
-                ],
-            ),
-            (
-                name: OnNeutralized,
+                name: OnDefeated,
                 filters: [
                     Entity((
                         id: Some("magpie_2"),
@@ -2409,29 +2349,7 @@
                 ],
             ),
             (
-                name: OnDestroyed,
-                filters: [
-                    Entity((
-                        id: Some("player_spaceship"),
-                    )),
-                    Expression((LessThan(
-                        Term(Factor(Name("act"))),
-                        Term(Factor(Literal(Number(2.0)))),
-                    ))),
-                ],
-                actions: [
-                    Outcome((
-                        outcome: Defeat,
-                        message: Some("The Magpies pick the Kestrel clean and tow the box away whistling."),
-                    )),
-                    NextScenario((
-                        scenario_id: "ledger_ch2_claim_jumpers",
-                        linger: true,
-                    )),
-                ],
-            ),
-            (
-                name: OnNeutralized,
+                name: OnDefeated,
                 filters: [
                     Entity((
                         id: Some("player_spaceship"),

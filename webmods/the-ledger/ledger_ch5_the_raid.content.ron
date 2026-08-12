@@ -2786,11 +2786,11 @@
                     )),
                 ],
             ),
-            // --- Defender kills/neutralizations: each raider drops
-            // raiders_left by one. Per-raider flags make neutralize-then-destroy
-            // idempotent, since neutralized wrecks linger.
+            // --- Defender defeats: each exact-once edge drops raiders_left by
+            // one. Per-raider flags remain defensive guards against malformed
+            // duplicate input.
             (
-                name: OnDestroyed,
+                name: OnDefeated,
                 filters: [
                     Entity((
                         id: Some("raider_1"),
@@ -2815,32 +2815,7 @@
                 ],
             ),
             (
-                name: OnNeutralized,
-                filters: [
-                    Entity((
-                        id: Some("raider_1"),
-                    )),
-                    Expression((Equal(
-                        Term(Factor(Name("raider_1_down"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "raider_1_down",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
-                    VariableSet((
-                        key: "raiders_left",
-                        expression: Subtract(
-                            Factor(Name("raiders_left")),
-                            Term(Factor(Literal(Number(1.0)))),
-                        ),
-                    )),
-                ],
-            ),
-            (
-                name: OnDestroyed,
+                name: OnDefeated,
                 filters: [
                     Entity((
                         id: Some("raider_2"),
@@ -2865,32 +2840,7 @@
                 ],
             ),
             (
-                name: OnNeutralized,
-                filters: [
-                    Entity((
-                        id: Some("raider_2"),
-                    )),
-                    Expression((Equal(
-                        Term(Factor(Name("raider_2_down"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "raider_2_down",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
-                    VariableSet((
-                        key: "raiders_left",
-                        expression: Subtract(
-                            Factor(Name("raiders_left")),
-                            Term(Factor(Literal(Number(1.0)))),
-                        ),
-                    )),
-                ],
-            ),
-            (
-                name: OnDestroyed,
+                name: OnDefeated,
                 filters: [
                     Entity((
                         id: Some("raider_3"),
@@ -2915,57 +2865,7 @@
                 ],
             ),
             (
-                name: OnNeutralized,
-                filters: [
-                    Entity((
-                        id: Some("raider_3"),
-                    )),
-                    Expression((Equal(
-                        Term(Factor(Name("raider_3_down"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "raider_3_down",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
-                    VariableSet((
-                        key: "raiders_left",
-                        expression: Subtract(
-                            Factor(Name("raiders_left")),
-                            Term(Factor(Literal(Number(1.0)))),
-                        ),
-                    )),
-                ],
-            ),
-            (
-                name: OnDestroyed,
-                filters: [
-                    Entity((
-                        id: Some("raider_4"),
-                    )),
-                    Expression((Equal(
-                        Term(Factor(Name("raider_4_down"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "raider_4_down",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
-                    VariableSet((
-                        key: "raiders_left",
-                        expression: Subtract(
-                            Factor(Name("raiders_left")),
-                            Term(Factor(Literal(Number(1.0)))),
-                        ),
-                    )),
-                ],
-            ),
-            (
-                name: OnNeutralized,
+                name: OnDefeated,
                 filters: [
                     Entity((
                         id: Some("raider_4"),

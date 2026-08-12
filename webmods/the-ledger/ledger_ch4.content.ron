@@ -1333,29 +1333,7 @@
             // the burn path latches act to 3 at the buoy BEFORE any death
             // window, so this act < 3 gate can never trip after a burn.
             (
-                name: OnDestroyed,
-                filters: [
-                    Entity((
-                        id: Some("player_spaceship"),
-                    )),
-                    Expression((LessThan(
-                        Term(Factor(Name("act"))),
-                        Term(Factor(Literal(Number(3.0)))),
-                    ))),
-                ],
-                actions: [
-                    Outcome((
-                        outcome: Defeat,
-                        message: Some("The Auditor collects the box, the wreck, and the silence."),
-                    )),
-                    NextScenario((
-                        scenario_id: "ledger_ch4_the_buyer",
-                        linger: true,
-                    )),
-                ],
-            ),
-            (
-                name: OnNeutralized,
+                name: OnDefeated,
                 filters: [
                     Entity((
                         id: Some("player_spaceship"),

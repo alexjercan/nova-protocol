@@ -26,8 +26,9 @@
 
 use bevy::{ecs::system::RunSystemOnce, math::Vec3, prelude::*};
 use nova_events::prelude::{
-    CommandsGameEventExt, EventHandler, GameEventsPlugin, OnDestroyedEvent, OnDestroyedEventInfo,
-    OnNeutralizedEvent, OnNeutralizedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
+    CommandsGameEventExt, EventHandler, GameEventsPlugin, OnDefeatedEvent, OnDefeatedEventInfo,
+    OnDestroyedEvent, OnDestroyedEventInfo, OnNeutralizedEvent, OnNeutralizedEventInfo,
+    OnUpdateEvent, OnUpdateEventInfo,
 };
 use nova_gameplay::prelude::GameObjectives;
 use nova_modding::prelude::Content;
@@ -208,9 +209,13 @@ fn destroy(app: &mut App, id: &str) {
     };
     app.world_mut()
         .run_system_once(move |mut commands: Commands| {
+            commands.fire::<OnDefeatedEvent>(OnDefeatedEventInfo {
+                id: info.id.clone(),
+                type_name: info.type_name.clone(),
+            });
             commands.fire::<OnDestroyedEvent>(info.clone());
         })
-        .expect("fire OnDestroyed");
+        .expect("fire direct-destruction lifecycle");
     app.update();
     app.update();
 }
@@ -222,9 +227,13 @@ fn neutralize(app: &mut App, id: &str) {
     };
     app.world_mut()
         .run_system_once(move |mut commands: Commands| {
+            commands.fire::<OnDefeatedEvent>(OnDefeatedEventInfo {
+                id: info.id.clone(),
+                type_name: info.type_name.clone(),
+            });
             commands.fire::<OnNeutralizedEvent>(info.clone());
         })
-        .expect("fire OnNeutralized");
+        .expect("fire neutralization lifecycle");
     app.update();
     app.update();
 }

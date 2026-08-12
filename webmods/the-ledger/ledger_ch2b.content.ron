@@ -2100,7 +2100,7 @@
             ),
             // --- Heavy kills. ---
             (
-                name: OnDestroyed,
+                name: OnDefeated,
                 filters: [
                     Entity((
                         id: Some("magpie_3"),
@@ -2130,67 +2130,7 @@
                 ],
             ),
             (
-                name: OnNeutralized,
-                filters: [
-                    Entity((
-                        id: Some("magpie_3"),
-                    )),
-                    Expression((Equal(
-                        Term(Factor(Name("act"))),
-                        Term(Factor(Literal(Number(1.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("magpie_3_down"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "magpie_3_down",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
-                    VariableSet((
-                        key: "kills",
-                        expression: Add(Factor(Name("kills")), Term(Factor(Literal(Number(1.0))))),
-                    )),
-                    StoryMessage((
-                        speaker: "Foreman Okono",
-                        text: "Crowbar's gun just went quiet. That's the one that mattered.",
-                    )),
-                ],
-            ),
-            (
-                name: OnDestroyed,
-                filters: [
-                    Entity((
-                        id: Some("magpie_4"),
-                    )),
-                    Expression((Equal(
-                        Term(Factor(Name("act"))),
-                        Term(Factor(Literal(Number(1.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("magpie_4_down"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "magpie_4_down",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
-                    VariableSet((
-                        key: "kills",
-                        expression: Add(Factor(Name("kills")), Term(Factor(Literal(Number(1.0))))),
-                    )),
-                    StoryMessage((
-                        speaker: "Foreman Okono",
-                        text: "Kettle Black's cracked. Hull like that and it still wasn't enough.",
-                    )),
-                ],
-            ),
-            (
-                name: OnNeutralized,
+                name: OnDefeated,
                 filters: [
                     Entity((
                         id: Some("magpie_4"),
@@ -2315,29 +2255,7 @@
                 ],
             ),
             (
-                name: OnDestroyed,
-                filters: [
-                    Entity((
-                        id: Some("player_spaceship"),
-                    )),
-                    Expression((LessThan(
-                        Term(Factor(Name("act"))),
-                        Term(Factor(Literal(Number(2.0)))),
-                    ))),
-                ],
-                actions: [
-                    Outcome((
-                        outcome: Defeat,
-                        message: Some("The Magpies pick the Kestrel clean and tow the box away whistling."),
-                    )),
-                    NextScenario((
-                        scenario_id: "ledger_ch2b_the_heavies",
-                        linger: true,
-                    )),
-                ],
-            ),
-            (
-                name: OnNeutralized,
+                name: OnDefeated,
                 filters: [
                     Entity((
                         id: Some("player_spaceship"),

@@ -50,8 +50,9 @@
 use bevy::{ecs::system::RunSystemOnce, math::Vec3, prelude::*};
 use nova_events::prelude::{
     CommandsGameEventExt, EntityId, EventAction, EventHandler, GameEventInfo, GameEventsPlugin,
-    LockEventInfo, OnCombatLockStartEvent, OnDestroyedEvent, OnDestroyedEventInfo, OnEnterEvent,
-    OnEnterEventInfo, OnNeutralizedEvent, OnNeutralizedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
+    LockEventInfo, OnCombatLockStartEvent, OnDefeatedEvent, OnDefeatedEventInfo, OnDestroyedEvent,
+    OnDestroyedEventInfo, OnEnterEvent, OnEnterEventInfo, OnNeutralizedEvent,
+    OnNeutralizedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
 };
 use nova_gameplay::prelude::{Allegiance, GameObjectives};
 use nova_modding::prelude::Content;
@@ -221,9 +222,13 @@ fn destroy(app: &mut App, id: &str) {
     };
     app.world_mut()
         .run_system_once(move |mut commands: Commands| {
+            commands.fire::<OnDefeatedEvent>(OnDefeatedEventInfo {
+                id: info.id.clone(),
+                type_name: info.type_name.clone(),
+            });
             commands.fire::<OnDestroyedEvent>(info.clone());
         })
-        .expect("fire OnDestroyed");
+        .expect("fire direct-destruction lifecycle");
     app.update();
     app.update();
 }
@@ -235,9 +240,13 @@ fn neutralize(app: &mut App, id: &str) {
     };
     app.world_mut()
         .run_system_once(move |mut commands: Commands| {
+            commands.fire::<OnDefeatedEvent>(OnDefeatedEventInfo {
+                id: info.id.clone(),
+                type_name: info.type_name.clone(),
+            });
             commands.fire::<OnNeutralizedEvent>(info.clone());
         })
-        .expect("fire OnNeutralized");
+        .expect("fire neutralization lifecycle");
     app.update();
     app.update();
 }
