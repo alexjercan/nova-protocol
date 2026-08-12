@@ -714,7 +714,7 @@ fn the_bundle_ships_the_raid_and_bumps_the_version() {
     // offered the update, so a content change never reaches a player who
     // already has the mod.
     assert!(
-        LEDGER_BUNDLE_RON.contains("version: \"1.17.0\""),
-        "the bundle version is bumped for the per-scenario thumbnail republish"
+        LEDGER_BUNDLE_RON.contains("version: \"1.18.0\""),
+        "the bundle version is bumped for the lock-lifecycle format migration"
     );
 }

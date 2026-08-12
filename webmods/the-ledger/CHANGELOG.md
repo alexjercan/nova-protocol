@@ -3,6 +3,12 @@
 All notable changes to The Ledger campaign mod. Versions are the `meta.version`
 in `the-ledger.bundle.ron`; the portal keeps every published version.
 
+## 1.18.0
+
+- Migrated chapter three's Magpie provocation handlers to the new one-shot
+  `OnCombatLockStart` event. Required by Nova Protocol's edge-triggered lock
+  lifecycle format; the removed `OnCombatLock` name no longer parses.
+
 ## 1.17.0
 
 - Every chapter ships its OWN picker thumbnail instead of borrowing base's
