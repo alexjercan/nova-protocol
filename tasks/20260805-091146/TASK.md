@@ -1,8 +1,8 @@
 # many_projectiles spikes: p99 224ms against a 23ms median
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,perf,examples
+- TAGS: backlog,perf,examples,wontdo
 
 ## Story
 
@@ -36,3 +36,10 @@ went `OK` with the spikes in it.
   `nix develop --command xvfb-run --auto-servernum cargo run -p nova_probe -- run many_projectiles --fps`.
 - Worth deciding alongside this: whether `stress/` gets a stored baseline so
   this class of regression can fail a check rather than be read off a table.
+
+## Closed 2026-08-12: wontdo, resolved by intervening work
+
+The stored run at c2dde47d (same host/GPU/resolution/profile) shows
+p95 28.7 / p99 40.4 / 1% low 24.8 fps - in family with the other stress
+examples. The baseline question landed via 20260808-195933:
+`fps_within_baseline` now compares stored baselines in CI.

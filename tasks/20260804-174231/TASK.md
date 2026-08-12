@@ -1,8 +1,8 @@
 # probe run menu_scenarios flakes process_exit on a clean run
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,bug,examples,testing
+- TAGS: backlog,bug,examples,testing,wontdo
 
 ## Story
 
@@ -121,3 +121,10 @@ have `create` refuse to reopen a path an existing `ProbeTimeline` already holds.
 Not attributable to `20260804-094021`: that diff touches no `nova_probe`
 source, and the branch reproduced clean 3 of 3 afterwards against master clean
 3 of 3.
+
+## Closed 2026-08-12: wontdo, both leads fixed
+
+The torn `timeline.jsonl` was fixed by faa4011d (the sink refuses a second
+writer), and `run_supervised` now captures stdout+stderr into the run log,
+which `log_clean` scans for `panicked at`. The residual 1-of-6 master rate
+was not re-measured after those fixes; reopen only if the flake reappears.

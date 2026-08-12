@@ -1,8 +1,8 @@
 # Clear the nova_debug harness rustdoc warnings and reel nits
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,tooling,autopilot,docs
+- TAGS: backlog,tooling,autopilot,docs,wontdo
 
 ## Story
 
@@ -52,3 +52,10 @@ they were deferred rather than folded into the atomic rename commit.
 - Source: `tasks/20260802-183403/REVIEW.md` round 1, findings R1.1-R1.6.
 - R1.1/R1.2 were reproduced directly with `cargo doc -p nova_debug --no-deps`
   during review; master did not carry these five warnings.
+
+## Closed 2026-08-12: wontdo, overtaken
+
+The reel (`ScreenshotReelPlugin`, `reel_freeze_bodies`) and
+`tests/examples_smoke.rs` no longer exist. `scenario_camera_present` was
+rewritten as `any_entity::<With<ScenarioCameraMarker>>()`, and 946d03a6
+cleared every rustdoc warning. All six findings moot or fixed.

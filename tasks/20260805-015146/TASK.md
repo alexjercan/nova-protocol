@@ -1,8 +1,8 @@
 # Clear the stress/ round-1 review findings (R1.1-R1.4)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,examples,testing
+- TAGS: backlog,examples,testing,wontdo
 
 ## Story
 
@@ -29,3 +29,10 @@ an approved branch.
       `many_projectiles.rs::target_position` is either commented as deliberate
       example self-containment at both sites, or hoisted into
       `nova_probe::fixtures`.
+
+## Closed 2026-08-12: wontdo
+
+R1.3 was resolved by the L8 restructure (the two `fixtures.rs` now live in
+different crates with distinct docs). R1.1 (`many_bodies` missing `.max(1)`),
+R1.2 (the `perf/` wording, now `nova_probe_cli/src/native/env.rs:34`) and
+R1.4 (the Fibonacci dup) remain open nits, closed as not worth carrying.

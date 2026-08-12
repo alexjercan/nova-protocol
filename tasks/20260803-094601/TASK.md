@@ -1,8 +1,8 @@
 # Give the example subprocess tests their own timeout
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,testing,autopilot
+- TAGS: backlog,testing,autopilot,wontdo
 
 ## Story
 
@@ -25,3 +25,11 @@ hazard: fix it in both places or neither.
 - Both tests fail with captured output rather than hanging when the child never
   reaches its first frame.
   (test: `TODO: name the timeout test once the shape is planned`)
+
+## Closed 2026-08-12: wontdo, overtaken
+
+`tests/examples_smoke.rs` was deleted; its replacement, the CI
+`probe run --all` gate, supervises each child with its own `--timeout`
+(`nova_probe_cli/src/native/supervise.rs`). Residual risk is only a
+pre-first-frame hang in `autopilot_example.rs`, bounded by the 60-min CI
+job timeout. Not worth a task.
