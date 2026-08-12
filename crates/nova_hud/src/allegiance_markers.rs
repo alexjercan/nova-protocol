@@ -53,6 +53,7 @@ pub mod prelude {
     pub use super::{
         allegiance_color, AllegianceMarkerHudMarker, AllegianceMarkerHudPlugin,
         AllegianceMarkerTargetEntity, AllegianceMarkerTriangleMarker,
+        AllegianceMarkerWreckChevronMarker, AllegianceMarkerWreckStrokeMarker,
     };
 }
 
@@ -72,6 +73,12 @@ const TRIANGLE_HEIGHT_PX: f32 = 9.0;
 /// (`2 * half_width` wide, `height` tall), so the triangle child fills it
 /// exactly and centres on the ship's projected point.
 const MARKER_SIZE: Vec2 = Vec2::new(2.0 * TRIANGLE_HALF_WIDTH_PX, TRIANGLE_HEIGHT_PX);
+
+/// Hollow wreck chevron stroke geometry. Two diagonal bars form a down-pointing
+/// V over the same footprint as the solid allegiance triangle.
+const WRECK_STROKE_THICKNESS_PX: f32 = 2.0;
+const WRECK_STROKE_LENGTH_PX: f32 = 11.4;
+const WRECK_STROKE_ANGLE_DEG: f32 = 52.1;
 
 /// Upward pixel offset from the ship's projected centre, so the triangle
 /// floats above the hull and points down at it. Fixed (not apparent-size
@@ -103,6 +110,14 @@ pub struct AllegianceMarkerTargetEntity(pub Entity);
 /// changed ship straight to its triangle without walking the layer tree.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct AllegianceMarkerTriangleMarker;
+
+/// Container for the hollow chevron shown when the tracked ship is neutralized.
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct AllegianceMarkerWreckChevronMarker;
+
+/// One diagonal stroke of a hollow neutralized-wreck chevron.
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct AllegianceMarkerWreckStrokeMarker;
 
 /// The down-pointing filled triangle node: a zero-content `ContentBox` node
 /// whose top border is the allegiance colour and whose left/right borders are
@@ -138,6 +153,49 @@ fn allegiance_triangle_border(color: Color) -> BorderColor {
     }
 }
 
+/// A hollow down-pointing V. It replaces the solid triangle for a neutralized
+/// ship while retaining the ship's allegiance color.
+fn wreck_chevron(ship: Entity, color: Color) -> impl Bundle {
+    let stroke = |left: f32, degrees: f32| {
+        (
+            AllegianceMarkerWreckStrokeMarker,
+            AllegianceMarkerTargetEntity(ship),
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(left),
+                top: Val::Px((TRIANGLE_HEIGHT_PX - WRECK_STROKE_THICKNESS_PX) / 2.0),
+                width: Val::Px(WRECK_STROKE_LENGTH_PX),
+                height: Val::Px(WRECK_STROKE_THICKNESS_PX),
+                ..default()
+            },
+            UiTransform {
+                rotation: Rot2::degrees(degrees),
+                ..default()
+            },
+            BackgroundColor(color),
+            Pickable::IGNORE,
+        )
+    };
+
+    (
+        Name::new("AllegianceMarkerWreckChevron"),
+        AllegianceMarkerWreckChevronMarker,
+        AllegianceMarkerTargetEntity(ship),
+        Node {
+            position_type: PositionType::Absolute,
+            width: Val::Px(MARKER_SIZE.x),
+            height: Val::Px(MARKER_SIZE.y),
+            ..default()
+        },
+        Visibility::Hidden,
+        Pickable::IGNORE,
+        children![
+            stroke(-2.2, WRECK_STROKE_ANGLE_DEG),
+            stroke(4.8, -WRECK_STROKE_ANGLE_DEG),
+        ],
+    )
+}
+
 /// UI bundle for one ship's allegiance-marker layer: the screen-projected
 /// indicator anchored to the ship, floated above the hull and hidden
 /// off-screen, with the coloured triangle as its content.
@@ -156,22 +214,24 @@ fn allegiance_marker_hud(ship: Entity, color: Color) -> impl Bundle {
                 offset: MARKER_OFFSET,
                 offscreen: ScreenIndicatorOffscreen::Hide,
             }),
-            children![(
-                Name::new("AllegianceMarkerTriangle"),
-                AllegianceMarkerTriangleMarker,
-                AllegianceMarkerTargetEntity(ship),
-                allegiance_triangle_node(),
-                allegiance_triangle_border(color),
-                Pickable::IGNORE,
-            )],
+            children![
+                (
+                    Name::new("AllegianceMarkerTriangle"),
+                    AllegianceMarkerTriangleMarker,
+                    AllegianceMarkerTargetEntity(ship),
+                    allegiance_triangle_node(),
+                    allegiance_triangle_border(color),
+                    Visibility::Inherited,
+                    Pickable::IGNORE,
+                ),
+                wreck_chevron(ship, color),
+            ],
         )],
     )
 }
 
-/// Draws an allegiance-coloured triangle above every non-player ship
-/// (Instrument tier). Registers the marker types, adds the spawn/despawn and
-/// player-skip observers, and runs `recolor_allegiance_markers` in Update
-/// within [`super::NovaHudSystems`].
+/// Draws an allegiance-coloured marker above every non-player ship. Active
+/// ships use a solid triangle; neutralized wrecks use a hollow chevron.
 #[derive(Default)]
 pub struct AllegianceMarkerHudPlugin;
 
@@ -182,6 +242,8 @@ impl Plugin for AllegianceMarkerHudPlugin {
         app.register_type::<AllegianceMarkerHudMarker>();
         app.register_type::<AllegianceMarkerTargetEntity>();
         app.register_type::<AllegianceMarkerTriangleMarker>();
+        app.register_type::<AllegianceMarkerWreckChevronMarker>();
+        app.register_type::<AllegianceMarkerWreckStrokeMarker>();
 
         app.add_observer(setup_allegiance_marker);
         app.add_observer(remove_allegiance_marker);
@@ -190,6 +252,7 @@ impl Plugin for AllegianceMarkerHudPlugin {
             (
                 despawn_player_allegiance_markers,
                 recolor_allegiance_markers,
+                show_neutralized_wreck_chevrons,
             )
                 .in_set(super::NovaHudSystems),
         );
@@ -262,18 +325,60 @@ fn recolor_allegiance_markers(
         (&AllegianceMarkerTargetEntity, &mut BorderColor),
         With<AllegianceMarkerTriangleMarker>,
     >,
+    mut q_wreck_strokes: Query<
+        (&AllegianceMarkerTargetEntity, &mut BackgroundColor),
+        With<AllegianceMarkerWreckStrokeMarker>,
+    >,
 ) {
     for (ship, allegiance) in &q_ships {
         let color = allegiance_color(Some(allegiance));
-        // One triangle per ship, so stop as soon as it is found.
         for (target, mut border) in &mut q_triangles {
-            if **target == ship {
-                if border.top != color {
-                    border.top = color;
-                }
-                break;
+            if **target == ship && border.top != color {
+                border.top = color;
             }
         }
+        for (target, mut background) in &mut q_wreck_strokes {
+            if **target == ship && background.0 != color {
+                background.0 = color;
+            }
+        }
+    }
+}
+
+/// Swap the solid allegiance triangle for a hollow chevron when a ship becomes
+/// neutralized. The ship stays lockable and keeps its allegiance color.
+fn show_neutralized_wreck_chevrons(
+    q_neutralized: Query<(), With<NeutralizedMarker>>,
+    mut q_triangles: Query<
+        (&AllegianceMarkerTargetEntity, &mut Visibility),
+        (
+            With<AllegianceMarkerTriangleMarker>,
+            Without<AllegianceMarkerWreckChevronMarker>,
+        ),
+    >,
+    mut q_chevrons: Query<
+        (&AllegianceMarkerTargetEntity, &mut Visibility),
+        (
+            With<AllegianceMarkerWreckChevronMarker>,
+            Without<AllegianceMarkerTriangleMarker>,
+        ),
+    >,
+) {
+    for (target, mut visibility) in &mut q_triangles {
+        let next = if q_neutralized.contains(**target) {
+            Visibility::Hidden
+        } else {
+            Visibility::Inherited
+        };
+        visibility.set_if_neq(next);
+    }
+    for (target, mut visibility) in &mut q_chevrons {
+        let next = if q_neutralized.contains(**target) {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
+        visibility.set_if_neq(next);
     }
 }
 
@@ -346,6 +451,31 @@ mod tests {
             .into_iter()
             .find(|(target, _)| *target == ship)
             .map(|(_, color)| color)
+    }
+
+    fn marker_visibility<M: Component>(app: &mut App, ship: Entity) -> Option<Visibility> {
+        let values: Vec<(Entity, Visibility)> = app
+            .world_mut()
+            .query_filtered::<(&AllegianceMarkerTargetEntity, &Visibility), With<M>>()
+            .iter(app.world())
+            .map(|(target, visibility)| (**target, *visibility))
+            .collect();
+        values
+            .into_iter()
+            .find(|(target, _)| *target == ship)
+            .map(|(_, visibility)| visibility)
+    }
+
+    fn wreck_stroke_colors(app: &mut App, ship: Entity) -> Vec<Color> {
+        app.world_mut()
+            .query_filtered::<
+                (&AllegianceMarkerTargetEntity, &BackgroundColor),
+                With<AllegianceMarkerWreckStrokeMarker>,
+            >()
+            .iter(app.world())
+            .filter(|(target, _)| ***target == ship)
+            .map(|(_, background)| background.0)
+            .collect()
     }
 
     /// The whole feature through the real observers and systems: the player
@@ -422,6 +552,26 @@ mod tests {
             triangle_color(&mut app, neutral),
             Some(THREAT_RED),
             "a provoked ship recolours to threat red"
+        );
+
+        // Neutralization changes combat STATE, not allegiance: the enemy's
+        // solid red triangle becomes a hollow red wreck chevron.
+        app.world_mut()
+            .entity_mut(ai_enemy)
+            .insert(NeutralizedMarker);
+        app.update();
+        assert_eq!(
+            marker_visibility::<AllegianceMarkerTriangleMarker>(&mut app, ai_enemy),
+            Some(Visibility::Hidden)
+        );
+        assert_eq!(
+            marker_visibility::<AllegianceMarkerWreckChevronMarker>(&mut app, ai_enemy),
+            Some(Visibility::Inherited)
+        );
+        assert_eq!(
+            wreck_stroke_colors(&mut app, ai_enemy),
+            vec![THREAT_RED, THREAT_RED],
+            "both hollow-chevron strokes retain enemy red"
         );
 
         // A despawned ship takes its marker with it (the death / unload path).

@@ -144,6 +144,7 @@ pub(super) fn update_ai_target(
         Has<SpaceshipRootMarker>,
         Option<&TorpedoProjectileMarker>,
         Option<&TorpedoTargetChosen>,
+        Has<NeutralizedMarker>,
     )>,
     mut q_spaceship: Query<
         (
@@ -173,8 +174,17 @@ pub(super) fn update_ai_target(
         }
         let own_anchor = live_structure_anchor(transform, com);
         let candidates = q_candidates.iter().filter_map(
-            |(entity, c_transform, c_com, allegiance, is_ship, is_torpedo, committed)| {
-                if entity == ship {
+            |(
+                entity,
+                c_transform,
+                c_com,
+                allegiance,
+                is_ship,
+                is_torpedo,
+                committed,
+                neutralized,
+            )| {
+                if entity == ship || neutralized {
                     return None;
                 }
                 // Hostility comes from the relation model: the player's ship
@@ -613,6 +623,33 @@ mod target_selection_tests {
         assert_eq!(
             **world.entity(ai_ship).get::<AITarget>().unwrap(),
             Some(torpedo)
+        );
+    }
+
+    #[test]
+    fn a_neutralized_target_clears_on_the_next_pick() {
+        let mut world = World::new();
+        let ai_ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        let player = world
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
+            ))
+            .id();
+
+        world.run_system_once(update_ai_target).unwrap();
+        assert_eq!(
+            **world.entity(ai_ship).get::<AITarget>().unwrap(),
+            Some(player)
+        );
+
+        world.entity_mut(player).insert(NeutralizedMarker);
+        world.run_system_once(update_ai_target).unwrap();
+        assert_eq!(
+            **world.entity(ai_ship).get::<AITarget>().unwrap(),
+            None,
+            "AI stops treating a neutralized wreck as an active target"
         );
     }
 

@@ -35,8 +35,8 @@
 //! hollow read as a fight. Two of its frames SHIP: `wiki-combat-torpedo` (the
 //! salvo in flight) and `wiki-combat-aftermath` (what the blast left), which the
 //! combat wiki page carries under Torpedoes and Damage types (owner's pick,
-//! 2026-08-05). The tight exchange stays a `variant-*.png` - staged by a capture
-//! run, named by no manifest entry.
+//! 2026-08-05). The tight exchange and hollow neutralized-wreck marker stay
+//! `variant-*.png` shots - staged by a capture run, named by no manifest entry.
 //!
 //! WHAT THE PROOF RUN SHOWED (2026-08-05), and why the fight is shaped like
 //! this: two AI flights DO fight each other with no player in the scene - a
@@ -528,6 +528,23 @@ fn main() -> bevy::app::AppExit {
                 .step("capture the tight exchange")
                 .on_enter(move |world| shoot(world, "variant-combat-tight.png"))
                 .until(shot_written("variant-combat-tight.png"))
+                .deadline(SHOT_DEADLINE_SECS)
+                .add()
+                // Presentation pin: a neutralized enemy remains in frame and
+                // lockable, but its solid threat triangle becomes a hollow
+                // wreck chevron.
+                .step("mark the raider neutralized")
+                .on_enter(|world| {
+                    hud_instrument(world);
+                    if let Some(raider) = raider_root(world) {
+                        world.entity_mut(raider).insert(NeutralizedMarker);
+                    }
+                })
+                .until(elapsed(0.2))
+                .add()
+                .step("capture the neutralized wreck marker")
+                .on_enter(move |world| shoot(world, "variant-neutralized-wreck.png"))
+                .until(shot_written("variant-neutralized-wreck.png"))
                 .deadline(SHOT_DEADLINE_SECS)
                 .add(),
         );

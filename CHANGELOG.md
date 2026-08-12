@@ -28,6 +28,9 @@ tagged **(breaking)**.
 
 ### Combat & Weapons
 
+- Neutralized wrecks leave player threat tracking and AI target acquisition but
+  remain combat-lockable; their solid allegiance triangle becomes a hollow
+  wreck chevron while preserving allegiance color.
 - AI burst cadence ticks on the fixed clock, so AI damage output no longer
   varies with framerate.
 

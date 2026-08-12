@@ -1,8 +1,8 @@
 # Define destruction and neutralization event lifecycle
 
-- STATUS: OPEN
+- STATUS: IN_PROGRESS
 - PRIORITY: 0
-- TAGS: backlog,scenario,modding
+- TAGS: backlog, scenario, modding
 
 ## Goal
 

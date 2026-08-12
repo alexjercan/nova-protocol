@@ -176,6 +176,7 @@ pub(super) fn update_contacts_and_locks(
     q_candidates: LockableQuery,
     q_flipped: Query<(), Changed<Allegiance>>,
     q_allegiances: Query<&Allegiance>,
+    q_neutralized: Query<(), With<NeutralizedMarker>>,
     // Only WEAPON sections carry a trigger, so the filter skips hull,
     // thrusters and controllers rather than walking every section.
     q_triggers: Query<
@@ -320,7 +321,9 @@ pub(super) fn update_contacts_and_locks(
             aim,
             candidates
                 .iter()
-                .filter(|&&(_, _, is_hostile, is_combat)| is_hostile && is_combat)
+                .filter(|&&(entity, _, is_hostile, is_combat)| {
+                    is_hostile && is_combat && !q_neutralized.contains(entity)
+                })
                 .map(|&(entity, position, ..)| (entity, position)),
         );
         let entries = maintain_contacts(&ranked, combat.0);
@@ -948,6 +951,19 @@ mod tests {
             "a committed hostile torpedo is a threat"
         );
         assert_eq!(entries.len(), 2, "neutrals and beacons stay out");
+
+        world.entity_mut(combat_target).insert(NeutralizedMarker);
+        upkeep(&mut world);
+        let entries = &world.get::<ThreatContacts>(player).unwrap().entries;
+        assert!(
+            !entries.contains(&combat_target),
+            "a neutralized wreck is no longer an active threat"
+        );
+        assert_eq!(
+            world.get::<CombatLock>(player).unwrap().0,
+            Some(combat_target),
+            "neutralization preserves the player's existing combat lock"
+        );
     }
 
     #[test]
