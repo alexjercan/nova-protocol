@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Filters - Nova Protocol Wiki</title>
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Wiki navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="/nova-protocol/wiki/">Wiki</a>
+                        / <a href="/nova-protocol/wiki/modding/scenarios/">Scenario files</a>
+                        / Filters
+                    </p>
+                    <h1>Filters</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+                    <nav class="wiki-toc" aria-label="Contents">
+                        <p class="wiki-toc__title">Contents</p>
+                        <ol><li><a href="#entity">Entity</a><ol></ol></li><li><a href="#timer">Timer</a><ol></ol></li><li><a href="#expression">Expression</a><ol></ol></li><li><a href="#conditional">Conditional</a><ol></ol></li><li><a href="#traps-for-the-unwary">Traps for the unwary</a><ol></ol></li></ol>
+                    </nav>
+                    <p>A filter gates a handler: when its event fires, EVERY entry in the handler's
+<code>filters</code> list must pass (logical AND) before the actions run. An empty (or
+omitted) list always passes. There are exactly four filter kinds - <code>Entity</code> matches
+entity payloads, <code>Timer</code> matches a timer key, <code>Expression</code> tests scenario
+variables, and <code>Conditional</code> combines other filters with boolean logic.</p>
+<table>
+<thead>
+<tr>
+<th>filter</th>
+<th>tests</th>
+<th>typical use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#entity"><code>Entity</code></a></td>
+<td>who the event is about</td>
+<td>&quot;this beacon, entered by the player&quot;</td>
+</tr>
+<tr>
+<td><a href="#timer"><code>Timer</code></a></td>
+<td>a timer event key</td>
+<td>&quot;the orbit hold timer ended&quot;</td>
+</tr>
+<tr>
+<td><a href="#expression"><code>Expression</code></a></td>
+<td>a variable condition</td>
+<td>&quot;the counter is past 4 and the flag is unset&quot;</td>
+</tr>
+<tr>
+<td><a href="#conditional"><code>Conditional</code></a></td>
+<td>other filters, combined</td>
+<td>&quot;NOT the player&quot;, &quot;picket A down OR picket B down&quot;</td>
+</tr>
+</tbody>
+</table>
+<h2 id="entity" tabindex="-1">Entity</h2>
+<p>Match the identity fields the event carries. Every field is optional; every
+SET field must match exactly (string equality); an unset field is
+unconstrained.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>matches</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td><code>Option</code> string</td>
+<td><code>None</code></td>
+<td>the event subject's id</td>
+</tr>
+<tr>
+<td><code>type_name</code></td>
+<td><code>Option</code> string</td>
+<td><code>None</code></td>
+<td>the subject's object kind (<code>&quot;asteroid&quot;</code>, <code>&quot;spaceship&quot;</code>, <code>&quot;beacon&quot;</code>, <code>&quot;salvage_crate&quot;</code>, <code>&quot;light&quot;</code>)</td>
+</tr>
+<tr>
+<td><code>other_id</code></td>
+<td><code>Option</code> string</td>
+<td><code>None</code></td>
+<td>the other party's id</td>
+</tr>
+<tr>
+<td><code>other_type_name</code></td>
+<td><code>Option</code> string</td>
+<td><code>None</code></td>
+<td>the other party's object kind</td>
+</tr>
+</tbody>
+</table>
+<p>Which entity is the subject and which is the other party is per-event - the
+payload tables in the <a href="../events/">Events reference</a> are the source of
+truth. The quick map:</p>
+<table>
+<thead>
+<tr>
+<th>event</th>
+<th><code>id</code> / <code>type_name</code> (subject)</th>
+<th><code>other_id</code> / <code>other_type_name</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>OnDefeated</code>, <code>OnDestroyed</code>, <code>OnNeutralized</code></td>
+<td>the defeated / destroyed / neutralized object</td>
+<td>(none)</td>
+</tr>
+<tr>
+<td><code>OnEnter</code> / <code>OnExit</code></td>
+<td>the AREA (zone, beacon, crate)</td>
+<td>the body that entered / left</td>
+</tr>
+<tr>
+<td>Orbit lifecycle events</td>
+<td>the well being orbited</td>
+<td>the orbiting ship</td>
+</tr>
+<tr>
+<td>travel/combat lock start/end</td>
+<td>the locked target</td>
+<td>the locking player ship</td>
+</tr>
+<tr>
+<td><code>OnStart</code> / <code>OnUpdate</code></td>
+<td>(no payload - an Entity filter never matches)</td>
+<td>(none)</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">// the beacon_1 area, entered specifically by the player ship
+Entity((id: Some(&quot;beacon_1&quot;), other_id: Some(&quot;player_spaceship&quot;)))
+
+// any asteroid
+Entity((type_name: Some(&quot;asteroid&quot;)))
+
+// any event that carries entity data at all
+Entity(())
+</code></pre>
+<p>Two rules that bite:</p>
+<ul>
+<li><strong>Absent field = never matches.</strong> A set filter field whose key the event
+does not fill fails the filter - <code>other_id</code> can never pass on
+<code>OnDestroyed</code>, and any <code>Entity</code> filter fails on <code>OnStart</code>/<code>OnUpdate</code>.
+Constrain only the fields the event actually provides.</li>
+<li><strong>Filters gate; they do not bind.</strong> The matched ids are never passed to
+the actions. An action cannot say &quot;spawn at whatever entered&quot; - it acts on
+its own configured target id. Use the filter to decide WHETHER the handler
+runs, then address entities by their known scenario ids.</li>
+</ul>
+<h2 id="timer" tabindex="-1">Timer</h2>
+<p>Match the <code>key</code> carried by <a href="../events/#ontimerend"><code>OnTimerEnd</code></a>. It fails
+closed on every other event because those events carry no timer key.</p>
+<pre><code class="hljs">Timer((key: &quot;orbit_hold&quot;))
+</code></pre>
+<p>Timer keys are scenario-local strings. This filter observes the event that
+already ended; it does not test whether a timer is currently running.</p>
+<h2 id="expression" tabindex="-1">Expression</h2>
+<p>Evaluate a variable condition; pass when it is true. The single tuple field
+is a condition node from the
+<a href="../expressions/#conditions-the-boolean-root">expression grammar</a> -
+<code>LessThan</code>, <code>GreaterThan</code> or <code>Equal</code> over value expressions:</p>
+<pre><code class="hljs">Expression((GreaterThan(
+    Term(Factor(Name(&quot;asteroids_destroyed&quot;))),
+    Term(Factor(Literal(Number(4.0)))),
+)))
+</code></pre>
+<p>An <code>Expression</code> filter reads ONLY the variable store - it ignores the event
+payload entirely, which is why it composes with any event, including
+<code>OnUpdate</code>.</p>
+<h2 id="conditional" tabindex="-1">Conditional</h2>
+<p>Boolean combinators over other filters (any kinds, nestable). Tuple
+variants: the inner filters are written positionally.</p>
+<table>
+<thead>
+<tr>
+<th>variant</th>
+<th>arity</th>
+<th>passes when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Not(&lt;filter&gt;)</code></td>
+<td>1</td>
+<td>the inner filter does NOT pass</td>
+</tr>
+<tr>
+<td><code>Or(&lt;filter&gt;, &lt;filter&gt;)</code></td>
+<td>2</td>
+<td>either passes</td>
+</tr>
+<tr>
+<td><code>And(&lt;filter&gt;, &lt;filter&gt;)</code></td>
+<td>2</td>
+<td>both pass</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">// not the player
+Conditional(Not(Entity((id: Some(&quot;player_spaceship&quot;)))))
+
+// either picket still standing (shipped, Final Tally)
+Conditional(Or(
+    Expression((Equal(
+        Term(Factor(Name(&quot;picket_a_down&quot;))),
+        Term(Factor(Literal(Number(0.0)))),
+    ))),
+    Expression((Equal(
+        Term(Factor(Name(&quot;picket_b_down&quot;))),
+        Term(Factor(Literal(Number(0.0)))),
+    ))),
+))
+</code></pre>
+<p>The <code>filters</code> LIST is already an AND, so a top-level <code>Conditional(And(..))</code>
+is redundant - <code>And</code> exists for composing under <code>Or</code> and <code>Not</code>. Nesting
+depth is bounded by RON's recursion limit (128), far past anything a sane
+script needs.</p>
+<h2 id="traps-for-the-unwary" tabindex="-1">Traps for the unwary</h2>
+<ul>
+<li><strong>Filters fail CLOSED.</strong> Any evaluation error - an UNDEFINED variable, a
+type mismatch, a division by zero - logs an error and the filter returns
+false. The handler silently never fires. Consequence: seed EVERY variable
+your filters read in <code>OnStart</code> (the two
+<a href="../expressions/#reserved-engine-variables">reserved engine variables</a>
+are exempt). A missing seed is a soft-lock, not a crash - and the content
+lint warns on reads of never-set variables.</li>
+<li><strong>A payload that fails to serialize also fails closed</strong> (loudly, in the
+log): every <code>Entity</code> filter reads &quot;no match&quot; for that event.</li>
+<li><strong>Recurring events + an ungated filter = repeated actions.</strong> The 5 s
+recurrence on the locks (and every frame on <code>OnUpdate</code>)
+passes your filters again each pulse. Pair the condition with a one-shot
+flag the actions flip - the
+<a href="../expressions/#recipes">count-gate idiom</a>.</li>
+</ul>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

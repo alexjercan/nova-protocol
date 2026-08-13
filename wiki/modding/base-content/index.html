@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Base content catalog - Nova Protocol Wiki</title>
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Wiki navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="/nova-protocol/wiki/">Wiki</a>
+                        / <a href="/nova-protocol/wiki/modding/reference/">Modding reference</a>
+                        / Base content catalog
+                    </p>
+                    <h1>Base content catalog</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+                    <nav class="wiki-toc" aria-label="Contents">
+                        <p class="wiki-toc__title">Contents</p>
+                        <ol><li><a href="#section-prototypes">Section prototypes</a><ol><li><a href="#core-sections-the-editor-palette">Core sections (the editor palette)</a></li><li><a href="#semantic-ship-parts">Semantic ship parts</a></li></ol></li><li><a href="#scenario-ids">Scenario ids</a><ol></ol></li><li><a href="#assets-what-depbase-can-reach">Assets: what dep://base/ can reach</a><ol><li><a href="#meshes-26-glb">Meshes (26 glb)</a></li><li><a href="#sounds-13-wav">Sounds (13 wav)</a></li><li><a href="#images-10">Images (10)</a></li></ol></li><li><a href="#the-overlay-rule">The overlay rule</a><ol></ol></li><li><a href="#see-the-source">See the source</a><ol></ol></li></ol>
+                    </nav>
+                    <p>Every id and asset the base game ships, so your mod can reference them
+instead of guessing. Three registries matter to a mod author: <strong>section
+prototype ids</strong> (what <code>source: Prototype(&quot;&lt;id&gt;&quot;)</code> can name), <strong>scenario ids</strong>
+(what <code>NextScenario</code> and campaigns can target), and <strong>base asset paths</strong> (what
+<code>dep://base/&lt;path&gt;</code> can reach). All of it is generated from the Rust builders
+by <code>cargo run content gen</code> into
+<code>assets/base/**/*.content.ron</code> - the generated RON is the shipped truth, and
+<code>content -- lint</code> checks your references against it.</p>
+<p><code>base</code> is the IMPLICIT universal dependency: every mod may reference base
+content and <code>dep://base/</code> assets without listing <code>base</code> in
+<code>meta.dependencies</code>. Declaring it explicitly is allowed and also resolves -
+the shipped portal mods do - but it is never required.</p>
+<h2 id="section-prototypes" tabindex="-1">Section prototypes</h2>
+<p>A prototype id is used two ways: a ship's section list references it
+compactly (<code>source: Prototype(&quot;&lt;id&gt;&quot;)</code> resolves the whole config, meshes and
+sounds included), and a mod <code>Section</code> item that reuses the id REPLACES that
+part everywhere. See <a href="../sections/">Ship sections for mods</a> for
+the <code>Section</code> grammar and the overlay flow.</p>
+<p>Ids are lowercase snake_case. Core editor parts use the
+<code>&lt;variant&gt;_&lt;kind&gt;_section</code> form. Shipped semantic ship parts use
+<code>&lt;ship&gt;_&lt;part&gt;</code>, for example <code>racer_fuselage</code> and <code>cargoa_engine_port</code>.
+Section kinds are <code>Hull</code>, <code>Thruster</code>, <code>Controller</code>, <code>Turret</code>, and <code>Torpedo</code>.</p>
+<h3 id="core-sections-the-editor-palette" tabindex="-1">Core sections (the editor palette)</h3>
+<table>
+<thead>
+<tr>
+<th>id</th>
+<th>kind</th>
+<th>display name</th>
+<th>health</th>
+<th>notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>reinforced_hull_section</code></td>
+<td>Hull</td>
+<td>Reinforced Hull Section</td>
+<td>200</td>
+<td>the armor workhorse</td>
+</tr>
+<tr>
+<td><code>basic_thruster_section</code></td>
+<td>Thruster</td>
+<td>Basic Thruster Section</td>
+<td>70</td>
+<td>magnitude 1.0</td>
+</tr>
+<tr>
+<td><code>basic_controller_section</code></td>
+<td>Controller</td>
+<td>Basic Controller Section</td>
+<td>100</td>
+<td>freq 4.0, damping 4.0, max torque 40</td>
+</tr>
+<tr>
+<td><code>better_turret_section</code></td>
+<td>Turret</td>
+<td>Better Turret Section</td>
+<td>130</td>
+<td>Kinetic 4.0/hit at 100 rps, ammo 500</td>
+</tr>
+<tr>
+<td><code>light_hull_section</code></td>
+<td>Hull</td>
+<td>Light Hull Section</td>
+<td>60</td>
+<td>scavenger-grade hull</td>
+</tr>
+<tr>
+<td><code>light_turret_section</code></td>
+<td>Turret</td>
+<td>Light Turret Section</td>
+<td>60</td>
+<td>Kinetic 3.825/hit at 25 rps, ammo 150</td>
+</tr>
+<tr>
+<td><code>torpedo_section</code></td>
+<td>Torpedo</td>
+<td>Torpedo Bay Section</td>
+<td>100</td>
+<td>blast 100 dmg / 30 u, ammo 6</td>
+</tr>
+</tbody>
+</table>
+<h3 id="semantic-ship-parts" tabindex="-1">Semantic ship parts</h3>
+<p>These prototypes are hidden from the editor until link-point snapping lands,
+but mods can reference them. Their tight primitive colliders and authored link
+points are part of each prototype. Ships use the suffix as the instance id:
+prototype <code>racer_engine_port</code> normally becomes instance <code>engine_port</code>.</p>
+<table>
+<thead>
+<tr>
+<th>family</th>
+<th>prototype suffix</th>
+<th>kind</th>
+<th>health</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Racer</td>
+<td><code>engine_port</code>, <code>engine_starboard</code></td>
+<td>Thruster</td>
+<td>70</td>
+</tr>
+<tr>
+<td>Racer</td>
+<td><code>wing_port</code>, <code>wing_starboard</code></td>
+<td>Hull</td>
+<td>180</td>
+</tr>
+<tr>
+<td>Racer</td>
+<td><code>nose</code>, <code>tail</code></td>
+<td>Hull</td>
+<td>120</td>
+</tr>
+<tr>
+<td>Racer</td>
+<td><code>fuselage</code></td>
+<td>Controller</td>
+<td>240</td>
+</tr>
+<tr>
+<td>Racer</td>
+<td><code>turret_port</code>, <code>turret_starboard</code></td>
+<td>Turret</td>
+<td>130</td>
+</tr>
+<tr>
+<td>Racer</td>
+<td><code>turret_port_light</code>, <code>turret_starboard_light</code></td>
+<td>Turret</td>
+<td>60</td>
+</tr>
+<tr>
+<td>CargoB</td>
+<td><code>engine_port</code>, <code>engine_starboard</code></td>
+<td>Thruster</td>
+<td>70</td>
+</tr>
+<tr>
+<td>CargoB</td>
+<td><code>pod_port</code>, <code>pod_starboard</code></td>
+<td>Torpedo</td>
+<td>350</td>
+</tr>
+<tr>
+<td>CargoB</td>
+<td><code>nose</code></td>
+<td>Hull</td>
+<td>180</td>
+</tr>
+<tr>
+<td>CargoB</td>
+<td><code>tail</code></td>
+<td>Hull</td>
+<td>150</td>
+</tr>
+<tr>
+<td>CargoB</td>
+<td><code>fuselage</code></td>
+<td>Controller</td>
+<td>300</td>
+</tr>
+<tr>
+<td>CargoB</td>
+<td><code>turret_port</code>, <code>turret_starboard</code></td>
+<td>Turret</td>
+<td>130</td>
+</tr>
+<tr>
+<td>CargoA</td>
+<td><code>engine_port</code>, <code>engine_starboard</code></td>
+<td>Thruster</td>
+<td>70</td>
+</tr>
+<tr>
+<td>CargoA</td>
+<td><code>pod_port</code>, <code>pod_starboard</code></td>
+<td>Hull</td>
+<td>350</td>
+</tr>
+<tr>
+<td>CargoA</td>
+<td><code>nose</code></td>
+<td>Hull</td>
+<td>180</td>
+</tr>
+<tr>
+<td>CargoA</td>
+<td><code>tail</code></td>
+<td>Hull</td>
+<td>150</td>
+</tr>
+<tr>
+<td>CargoA</td>
+<td><code>fuselage</code></td>
+<td>Controller</td>
+<td>350</td>
+</tr>
+</tbody>
+</table>
+<p>Prefix each suffix with <code>racer_</code>, <code>cargob_</code>, or <code>cargoa_</code>. Input mappings use
+the instance id, such as <code>&quot;turret_port&quot;</code> or <code>&quot;pod_starboard&quot;</code>. The old
+coordinate-named cube prototypes do not exist.</p>
+<h2 id="scenario-ids" tabindex="-1">Scenario ids</h2>
+<p>What <code>NextScenario((scenario_id: ...))</code>, a <code>Campaign</code> member list, and the
+Scenarios picker can target. A <code>hidden</code> scenario stays off the picker but is
+launchable by id.</p>
+<table>
+<thead>
+<tr>
+<th>id</th>
+<th>display name</th>
+<th>hidden</th>
+<th>what it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>shakedown_run</code></td>
+<td>Shakedown Run</td>
+<td>no</td>
+<td>the New Game tutorial (chapter 1)</td>
+</tr>
+<tr>
+<td><code>broadside</code></td>
+<td>Broadside</td>
+<td>no</td>
+<td>chapter 2 part 1: the corvette ambush</td>
+</tr>
+<tr>
+<td><code>broadside_gunship</code></td>
+<td>Broadside: Rust Tally</td>
+<td>yes</td>
+<td>chapter 2 part 2: the gunship boss</td>
+</tr>
+<tr>
+<td><code>lifeline</code></td>
+<td>Lifeline</td>
+<td>no</td>
+<td>chapter 3 part 1: convoy defense</td>
+</tr>
+<tr>
+<td><code>final_tally</code></td>
+<td>Final Tally</td>
+<td>yes</td>
+<td>chapter 3 finale: the anchorage</td>
+</tr>
+<tr>
+<td><code>asteroid_field</code></td>
+<td>Asteroid Field</td>
+<td>no</td>
+<td>the combat and gravity sandbox</td>
+</tr>
+<tr>
+<td><code>asteroid_next</code></td>
+<td>Asteroid Field - Next</td>
+<td>yes</td>
+<td>a relay that loops the sandbox</td>
+</tr>
+<tr>
+<td><code>menu_ambience</code></td>
+<td>Menu Ambience</td>
+<td>yes</td>
+<td>menu backdrop: planetoid + orbiting ship</td>
+</tr>
+<tr>
+<td><code>menu_waystation</code></td>
+<td>Waystation Traffic</td>
+<td>yes</td>
+<td>menu backdrop: hauler convoy</td>
+</tr>
+<tr>
+<td><code>menu_scrapyard</code></td>
+<td>Scrapyard Drift</td>
+<td>yes</td>
+<td>menu backdrop: drifting salvage yard</td>
+</tr>
+</tbody>
+</table>
+<p>One campaign ships: <code>nova_protocol</code> (&quot;Nova Protocol&quot;), members
+<code>shakedown_run</code>, <code>broadside</code>, <code>broadside_gunship</code>, <code>lifeline</code>, <code>final_tally</code>
+in play order. There are no other content kinds - a content file holds
+<code>Section</code>, <code>Scenario</code> and <code>Campaign</code> items only; ships and factions are not
+content items (ships are <code>Spaceship</code> scenario objects built from prototype
+ids).</p>
+<p>New Game is base-owned: <code>new_game_scenario: Some(&quot;shakedown_run&quot;)</code> in
+<code>assets/base/base.bundle.ron</code> is honored only from the base bundle; a mod
+declaring it is warned and ignored.</p>
+<h2 id="assets-what-depbase-can-reach" tabindex="-1">Assets: what dep://base/ can reach</h2>
+<p><code>dep://base/&lt;path&gt;</code> resolves against the base bundle's own folder
+(<code>assets/base/&lt;path&gt;</code>), gated on <code>&lt;path&gt;</code> being in the base bundle's declared
+<code>resources</code> list - an undeclared path is a lint/merge Error, not a silent
+404. A <code>#Scene0</code>-style gltf label is stripped before the membership check,
+so <code>dep://base/gltf/hull-01.glb#Scene0</code> is fine. The declared list, complete:</p>
+<h3 id="meshes-26-glb" tabindex="-1">Meshes (26 glb)</h3>
+<p>Named meshes:</p>
+<ul>
+<li><code>gltf/hull-01.glb</code> - the core hull (use label <code>#Scene0</code>)</li>
+<li><code>gltf/turret-yaw-01.glb</code>, <code>gltf/turret-pitch-01.glb</code>,
+<code>gltf/turret-barrel-01.glb</code> - the turret joint meshes</li>
+<li><code>gltf/torpedo-bay-01.glb</code> - the torpedo bay</li>
+</ul>
+<p>Semantic ship meshes use <code>#Scene0</code> and live under <code>gltf/parts/</code>:</p>
+<ul>
+<li><code>gltf/parts/racer/</code> - <code>engine_port</code>, <code>engine_starboard</code>, <code>wing_port</code>,
+<code>wing_starboard</code>, <code>nose</code>, <code>tail</code>, and <code>fuselage</code>.</li>
+<li><code>gltf/parts/cargob/</code> - <code>engine_port</code>, <code>engine_starboard</code>, <code>pod_port</code>,
+<code>pod_starboard</code>, <code>nose</code>, <code>tail</code>, and <code>fuselage</code>.</li>
+<li><code>gltf/parts/cargoa/</code> - the same seven CargoB mesh names.</li>
+</ul>
+<h3 id="sounds-13-wav" tabindex="-1">Sounds (13 wav)</h3>
+<p>All under <code>dep://base/sounds/</code>: <code>dry_fire.wav</code>, <code>explosion.wav</code>,
+<code>impact.wav</code>, <code>lock_off.wav</code>, <code>lock_on.wav</code>, <code>radar_deny.wav</code>,
+<code>radar_retarget.wav</code>, <code>rcs_loop.wav</code>, <code>safety_on.wav</code>,
+<code>salvage_pickup.wav</code>, <code>thruster_loop.wav</code>, <code>torpedo_launch.wav</code>,
+<code>turret_fire.wav</code>.</p>
+<p>(UI chrome sounds - menu clicks, objective chimes - are engine assets, not
+base bundle resources, and are NOT dep-referenceable.)</p>
+<h3 id="images-10" tabindex="-1">Images (10)</h3>
+<ul>
+<li><code>textures/cubemap.png</code> - the stock skybox (chapter 1 / sandbox)</li>
+<li><code>textures/cubemap_alt.png</code> - the alternate skybox (chapters 2-3)</li>
+<li><code>textures/asteroid.png</code> - the asteroid surface texture</li>
+<li><code>thumbnails/asteroid_field.png</code>, <code>thumbnails/shakedown_run.png</code>,
+<code>thumbnails/broadside.png</code>, <code>thumbnails/broadside_gunship.png</code>,
+<code>thumbnails/lifeline.png</code>, <code>thumbnails/final_tally.png</code> - the picker plates</li>
+<li><code>banner.png</code> - the base mod's banner</li>
+</ul>
+<p>Skybox <code>.png.meta</code> sidecars (the cube reinterpret) ride along with their
+image automatically and are never listed or referenced directly.</p>
+<h2 id="the-overlay-rule" tabindex="-1">The overlay rule</h2>
+<p>How a mod item interacts with this catalog (implemented in
+<code>crates/nova_assets/src/merge.rs</code>):</p>
+<ul>
+<li>The matching key is the id string per kind - <code>Section</code> matches on
+<code>base.id</code>, <code>Scenario</code> and <code>Campaign</code> on <code>id</code>. Names and file paths never
+participate.</li>
+<li>Same id as base (or an earlier bundle) = REPLACE, whole item. It is not a
+field-level patch: an overlay must restate every field it wants to keep.
+Sections replace in place, so the editor palette order is preserved.</li>
+<li>New id = ADD alongside the catalog. Prefix your own ids with your mod's
+name (<code>example_*</code> in the shipped example mod) so they cannot collide.</li>
+<li>Same id twice within ONE bundle = a conflict: the first item is kept, the
+duplicate skipped and logged.</li>
+<li>Merge order is catalog order (base first), then downloaded mods, then a
+topological pass so a dependency merges before its dependents - so a mod
+overlays base and everything it depends on, and the last independent mod
+wins.</li>
+</ul>
+<h2 id="see-the-source" tabindex="-1">See the source</h2>
+<p>The builders behind this page: <code>crates/nova_authoring/src/sections.rs</code> (core
+sections), <code>crates/nova_authoring/src/scenario/craft.rs</code> (the semantic ship
+parts), <code>crates/nova_authoring/src/scenario*.rs</code> (scenarios and the
+campaign). If this page and the generated RON ever disagree, the RON is the
+truth and this page has a bug - the <code>content_ron_parity</code> test pins the RON to
+the builders.</p>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

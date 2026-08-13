@@ -38,6 +38,7 @@
                     </p>
                     <h1>Combat &amp; weapons</h1>
                     <div class="wiki__tags" id="wiki-tags"></div>
+                    
                     <p>Two weapon families - precise turrets and area-effect torpedoes - feed one typed-damage model, so what you shoot matters as much as where you shoot it.</p>
 <figure class="figure">
     <!-- Capture: assets/wiki-combat.png -->
@@ -59,6 +60,21 @@
 <p>A <a href="../sections/turret/">turret</a> is an articulated mount that aims at your combat lock with <strong>true intercept lead</strong> - the solution is computed in the shooter's own frame, so a moving ship's rounds actually land - bounded by its yaw and pitch limits and fire rate. Its rounds are sensor projectiles: they deal damage on first contact with no physical shove, and they curve through <a href="../gravity-wells/">gravity wells</a> like everything else. The point-defense cannon is tuned to chip a target down over a visible burst rather than delete it, and prioritizes shooting down inbound torpedoes. A mount can carry <strong>more than one barrel</strong> - a twin-barrel PDC aims and fires every muzzle it has, throwing two streams at once (each at its own fire rate) that share the turret's one magazine, so it also drains that magazine twice as fast.</p>
 <h2 id="torpedoes" tabindex="-1">Torpedoes</h2>
 <p>A torpedo homes on the combat lock with <strong>proportional-navigation</strong> guidance - turning toward where the target will be - after an arming gate clears (a short time or distance from launch, so it cannot go off in your lap). It detonates on a proximity fuze and deals <strong>blast (area) damage</strong> that falls off from the center, so torpedoes are about zoning and catching clustered or fragile targets where turret fire is precise and pointed.</p>
+<figure class="figure">
+    <!-- Capture: assets/wiki-combat-torpedo.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Screenshot needed</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/wiki-combat-torpedo.png</span
+        >
+        <span class="figure__placeholder-note"
+            >A salvo in flight: launch burst at the bay,
+            drive plumes curving onto the lock.</span
+        >
+    </div>
+</figure>
 <h2 id="cover-line-of-fire" tabindex="-1">Cover &amp; line of fire</h2>
 <p>Rounds are physical: a bullet expends itself on the <strong>first tangible thing</strong>
 it meets, so an asteroid between you and a hostile eats the burst that was
@@ -81,6 +97,21 @@ swatting an inbound torpedo keeps firing no matter what is in the way.</p>
 <li><strong>EMP</strong> - anti-electronics; wrecks controllers, barely dents hull.</li>
 <li><strong>Explosive</strong> - concussive area damage (what torpedo blasts deal); shreds thrusters, bounces off turret armor.</li>
 </ul>
+<figure class="figure">
+    <!-- Capture: assets/wiki-combat-aftermath.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Screenshot needed</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/wiki-combat-aftermath.png</span
+        >
+        <span class="figure__placeholder-note"
+            >The same target after the blast: sections gone
+            off the hull, debris still clearing.</span
+        >
+    </div>
+</figure>
 <h2 id="section-resistances" tabindex="-1">Section resistances</h2>
 <p>Damage is scaled by a resistance table keyed on the <a href="../sections/">section</a> it hits. Kinetic is 1.0 everywhere (the feel baseline); the multipliers:</p>
 <table class="controls">

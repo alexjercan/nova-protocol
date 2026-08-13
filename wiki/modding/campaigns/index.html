@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Campaign files - Nova Protocol Wiki</title>
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Wiki navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="/nova-protocol/wiki/">Wiki</a>
+                        / <a href="/nova-protocol/wiki/modding/mod-files/">Mod files</a>
+                        / Campaign files
+                    </p>
+                    <h1>Campaign files</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+                    <nav class="wiki-toc" aria-label="Contents">
+                        <p class="wiki-toc__title">Contents</p>
+                        <ol><li><a href="#file-shape">File shape</a><ol></ol></li><li><a href="#fields">Fields</a><ol></ol></li><li><a href="#how-campaign-order-works">How campaign order works</a><ol></ol></li><li><a href="#adding-or-replacing-a-campaign">Adding or replacing a campaign</a><ol></ol></li><li><a href="#check-it">Check it</a><ol></ol></li></ol>
+                    </nav>
+                    <p>A campaign groups scenarios under one heading in the Scenarios menu and defines
+their replay order. It does not contain mission logic. Each member is the id of
+a separate <a href="../scenarios/"><code>Scenario</code></a> item.</p>
+<h2 id="file-shape" tabindex="-1">File shape</h2>
+<p>A campaign can have its own content file:</p>
+<pre><code class="hljs">[
+    Campaign((
+        id: &quot;freight_wars&quot;,
+        name: &quot;Freight Wars&quot;,
+        scenarios: [
+            &quot;freight_wars_arrival&quot;,
+            &quot;freight_wars_ambush&quot;,
+            &quot;freight_wars_escape&quot;,
+        ],
+    )),
+]
+</code></pre>
+<p>List that file in the mod's bundle manifest:</p>
+<pre><code class="hljs">content: [
+    &quot;campaign.content.ron&quot;,
+    &quot;arrival.content.ron&quot;,
+    &quot;ambush.content.ron&quot;,
+    &quot;escape.content.ron&quot;,
+],
+</code></pre>
+<p>See <a href="../mod-files/">Mod files</a> for the complete folder and bundle shape.</p>
+<h2 id="fields" tabindex="-1">Fields</h2>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>required</td>
+<td>Stable campaign key. Prefix it with your mod id to avoid collisions.</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>required</td>
+<td>Campaign heading shown in the Scenarios menu.</td>
+</tr>
+<tr>
+<td><code>scenarios</code></td>
+<td>list of scenario ids</td>
+<td>required</td>
+<td>Members in display and replay order. Every id must resolve after all enabled mods merge.</td>
+</tr>
+</tbody>
+</table>
+<p>A missing member id is a lint error. A duplicate member is a warning because it
+would show the same chapter more than once.</p>
+<h2 id="how-campaign-order-works" tabindex="-1">How campaign order works</h2>
+<p>The list controls grouping and replay order. It does not automatically move the
+player between missions. Add a
+<a href="../actions/#nextscenario"><code>NextScenario</code></a> action to a scenario when campaign
+play should continue directly into the next member.</p>
+<p>A scenario may set <code>hidden: true</code> and still appear under its campaign heading.
+This is useful for continuation chapters that should not appear in the flat
+scenario list.</p>
+<pre><code class="hljs">NextScenario((
+    scenario_id: &quot;freight_wars_ambush&quot;,
+    linger: true,
+)),
+</code></pre>
+<h2 id="adding-or-replacing-a-campaign" tabindex="-1">Adding or replacing a campaign</h2>
+<ul>
+<li>A new campaign id adds a campaign alongside existing campaigns.</li>
+<li>Reusing an existing campaign id replaces its full name and member list.</li>
+<li>Campaign replacement does not replace the member scenarios. Overlay those
+scenario ids separately if required.</li>
+</ul>
+<p>The base campaign and scenario ids are listed in the
+<a href="../base-content/#scenario-ids">base content catalog</a>.</p>
+<h2 id="check-it" tabindex="-1">Check it</h2>
+<p>From the repository root:</p>
+<pre><code class="hljs language-sh">nix develop --<span class="hljs-built_in">command</span> cargo run content lint --target path/to/your-mod
+</code></pre>
+<p>Then enable the mod and open the Scenarios menu. Confirm the campaign heading,
+chapter names, order, and direct transitions.</p>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

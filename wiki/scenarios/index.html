@@ -38,6 +38,7 @@
                     </p>
                     <h1>Scenarios</h1>
                     <div class="wiki__tags" id="wiki-tags"></div>
+                    
                     <p>A scenario places a world and wires its objectives. It is the same machinery whether it is a five-minute tutorial or a combat sandbox: some objects, and a reactive events-filters-actions script over a set of variables.</p>
 <h2 id="what-a-scenario-places" tabindex="-1">What a scenario places</h2>
 <p>A scenario spawns a handful of object kinds:</p>
@@ -46,14 +47,17 @@
 <li><strong>Spaceships</strong> - multi-section <a href="../sections/">builds</a> under a player or AI controller (which can withhold or grant flight verbs).</li>
 <li><strong>Nav beacons</strong> - lockable waypoints with authorable radar signatures and optional trigger areas.</li>
 <li><strong>Salvage crates</strong> - small pickups collected by flying through them.</li>
-<li><strong>Trigger areas</strong> - invisible volumes that fire on-enter / on-exit events.</li>
+<li><strong>Lights</strong> - the scene's own key/rim/fill lighting; a scenario that spawns
+none renders black.</li>
 </ul>
+<p>Trigger areas - invisible volumes that fire on-enter / on-exit events - are
+created by an action rather than spawned as objects.</p>
 <h2 id="objectives-events-filters-actions" tabindex="-1">Objectives: events, filters, actions</h2>
 <p>Objectives are wired with a three-layer reactive system. An <strong>event</strong> fires under a named condition, a <strong>filter</strong> gates whether it applies, and an <strong>action</strong> runs when both match - all reading and writing typed <strong>variables</strong> (numbers, strings, booleans) with arithmetic and comparisons.</p>
 <ul>
-<li><strong>Events</strong>: OnStart, OnUpdate, OnDestroyed, OnNeutralized (a ship is combat-dead - weapons and thrusters gone, hull intact), OnEnter / OnExit (a trigger area), OnOrbit (an orbit held a few seconds), OnTravelLock / OnCombatLock (a <a href="../targeting-radar/">lock</a> landed on an object).</li>
+<li><strong>Events</strong>: OnStart, OnUpdate, OnTimerEnd (a keyed scenario timer finished), OnDefeated (a ship is neutralized or directly destroyed), OnDestroyed, OnNeutralized (a ship is combat-dead - weapons and thrusters gone, hull intact), OnEnter / OnExit (a trigger area), OnOrbitStart / OnOrbitStable / OnOrbitUnstable / OnOrbitEnd (orbit lifecycle edges), OnTravelLockStart / OnTravelLockEnd and OnCombatLockStart / OnCombatLockEnd (<a href="../targeting-radar/">lock</a> lifecycle edges).</li>
 <li><strong>Filters</strong>: match by object id or type (asteroid / beacon / salvage crate), combine with not / or / and, or test a variable expression.</li>
-<li><strong>Actions</strong>: post or complete an objective, attach or detach the gold objective marker, emphasize a keybind dock chip, set a variable, spawn or despawn an object, install or lift a speed cap, grant or withhold a flight verb, create a trigger area, queue the next scenario, or declare the outcome - a victory or defeat screen with Continue/Retry and Main Menu that pauses the game behind it.</li>
+<li><strong>Actions</strong>: post or complete an objective, attach or detach the gold objective marker, emphasize a keybind dock chip, set a variable, spawn or despawn an object, scatter a seeded field of objects, drive a HUD readout, post a story message, swap the skybox, set a ship's allegiance, pose the camera, install or lift a speed cap, grant or withhold a flight verb, create a trigger area, queue the next scenario, or declare the outcome - a victory or defeat screen with Continue/Retry and Main Menu that pauses the game behind it.</li>
 </ul>
 <p>This is the vocabulary the <a href="../../tutorial/">Shakedown Run</a> is built from - each beat is an event handler that grants the next verb, posts the next objective, and moves a beat counter forward.</p>
 <h2 id="the-shipped-scenarios" tabindex="-1">The shipped scenarios</h2>

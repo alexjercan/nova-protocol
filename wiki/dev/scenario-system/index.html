@@ -38,16 +38,20 @@
                     </p>
                     <h1>Scenario engine</h1>
                     <div class="wiki__tags" id="wiki-tags"></div>
+                    
                     <blockquote>
-<p>How-to companions: <a href="../guide-author-scenario/">Author a scenario</a> to write one
+<p>How-to companions: <a href="../../modding/author-a-scenario/">Create your first scenario</a> to write one
 in RON with existing primitives, or <a href="../guide-extend-scenarios/">Extend the scenario engine</a>
-to add new event, filter, action, or object kinds in Rust.</p>
+to add new event, filter, action, or object kinds in Rust. The exhaustive
+construct-by-construct catalog for authors is the
+<a href="../../modding/reference/">modding reference</a>; this page is the engine's
+internals.</p>
 </blockquote>
 <p><code>crates/nova_scenario</code> is the data-driven scenario engine, the layer for
 missions, objectives, and reactive world behavior. A scenario is a list of
 event handlers; each pairs an event with filters (all must pass) and actions
 (run in order). It builds on <code>GameEventsPlugin</code>/<code>EventWorld</code> from
-<code>bevy-common-systems</code>; nova provides <code>NovaEventWorld</code> and the enums below.</p>
+<code>nova_events</code>; nova_scenario provides <code>NovaEventWorld</code> and the enums below.</p>
 <h2 id="scenario-structure" tabindex="-1">Scenario structure</h2>
 <ul>
 <li><code>ScenarioConfig</code> - <code>id</code>, <code>name</code>, <code>description</code>, <code>cubemap</code> (skybox), <code>events</code>.</li>
@@ -62,12 +66,14 @@ populated by <code>nova_assets</code> alongside <code>GameScenarios</code>.</li>
 <li><code>CurrentScenario(Option&lt;ScenarioConfig&gt;)</code> - the loaded scenario, if any. The
 <code>scenario_is_live</code> run condition gates the ship input/section sets on it.</li>
 </ul>
-<h2 id="loading-unloading-loaderrs" tabindex="-1">Loading / unloading (<code>loader.rs</code>)</h2>
+<h2 id="loading-unloading-loader" tabindex="-1">Loading / unloading (<code>loader/</code>)</h2>
 <ul>
 <li><code>LoadScenario(ScenarioConfig)</code> - trigger to load: look one up in
 <code>GameScenarios</code>, <code>commands.trigger(LoadScenario(cfg.clone()))</code> (see
-<code>examples/gameplay/scenario.rs</code>). Load tears down the previous scenario, spawns
-the camera, light, input context, one handler per event, fires <code>OnStart</code>.</li>
+<code>examples/systems/scenario_grammar.rs</code>). Load tears down the previous scenario, spawns
+the camera, input context, one handler per event, fires <code>OnStart</code>. No engine
+light: a scene is lit by the <code>Light</code> objects it authors, and one that authors
+none renders black.</li>
 <li><code>ScenarioLoaded</code> - fired after a load; carries <code>scenario_id</code>,
 <code>handler_count</code>, <code>object_count</code> for smoke-test assertions.</li>
 <li><code>UnloadScenario</code> - tears everything down and clears <code>CurrentScenario</code>.</li>
@@ -99,8 +105,16 @@ a scoped entity, (4) be a self-expiring <code>TempEntity</code>, or (5) be torn 
 <td>every frame while a scenario is live and unpaused (frozen behind the pause menu / outcome frame)</td>
 </tr>
 <tr>
+<td><code>OnTimerEnd</code></td>
+<td>once when a keyed scenario timer reaches its deadline</td>
+</tr>
+<tr>
+<td><code>OnDefeated</code></td>
+<td>once when a ship is neutralized or directly destroyed; precedes the detailed edge</td>
+</tr>
+<tr>
 <td><code>OnDestroyed</code></td>
-<td>an entity is destroyed</td>
+<td>an entity is physically destroyed</td>
 </tr>
 <tr>
 <td><code>OnNeutralized</code></td>
@@ -115,16 +129,16 @@ a scoped entity, (4) be a self-expiring <code>TempEntity</code>, or (5) be torn 
 <td>a body leaves an area/zone</td>
 </tr>
 <tr>
-<td><code>OnOrbit</code></td>
-<td>a ship has held an engaged autopilot ORBIT around a well for the hold window (default 5s); re-fires every further window while the hold continues</td>
+<td><code>OnOrbitStart</code> / <code>OnOrbitStable</code> / <code>OnOrbitUnstable</code> / <code>OnOrbitEnd</code></td>
+<td>one-shot ORBIT maneuver and Hold-phase transitions; destruction does not synthesize orbit edges</td>
 </tr>
 <tr>
-<td><code>OnTravelLock</code></td>
-<td>the player's TRAVEL lock lands on a scenario object; re-fires every re-fire window (default 5s) while held</td>
+<td><code>OnTravelLockStart</code> / <code>OnTravelLockEnd</code></td>
+<td>the player's TRAVEL lock lands on or leaves a scenario object</td>
 </tr>
 <tr>
-<td><code>OnCombatLock</code></td>
-<td>same as <code>OnTravelLock</code> for the COMBAT lock (player only; AI locks never fire it)</td>
+<td><code>OnCombatLockStart</code> / <code>OnCombatLockEnd</code></td>
+<td>the player's COMBAT lock lands on or leaves a scenario object; AI locks never fire these</td>
 </tr>
 </tbody>
 </table>
@@ -132,22 +146,12 @@ a scoped entity, (4) be a self-expiring <code>TempEntity</code>, or (5) be torn 
 have the same filter shape - a subject <code>id</code> and an <code>other_id</code>/<code>other_type_name</code></p>
 <ul>
 <li>though which entity is the subject is per-event (area vs ship, well vs ship,
-target vs locker; see the Filters section). The recurrence is deliberate: a
-one-shot event consumed while a beat guard rejects it would soft-lock the
-script; gated handlers make repeats no-ops.</li>
+target vs locker; see the Filters section). Lock lifecycle events are one-shot
+edges. A target switch queues end-old, then start-new.</li>
 </ul>
-<p>Both 5s windows are the default and can be overridden per ship in RON (the
-value is seconds; a non-positive/non-finite value is a <code>content lint</code> error and
-is ignored at runtime):</p>
-<ul>
-<li><code>OnOrbit</code> hold: <code>orbit_hold_secs: Some(8.0)</code> on an AI controller (only
-meaningful alongside its <code>orbit</code> directive) -
-<code>controller: AI((orbit: Some(&quot;planetoid&quot;), orbit_hold_secs: Some(8.0)))</code>.</li>
-<li><code>OnTravelLock</code>/<code>OnCombatLock</code> re-fire: <code>lock_refire_secs: Some(8.0)</code> on the
-player controller - <code>controller: Player((lock_refire_secs: Some(8.0)))</code>.</li>
-</ul>
-<p>Both windows are measured against the scenario clock (below), so they freeze
-under pause and reset on retry with the rest of the scenario.</p>
+<p>Orbit lifecycle has no hidden timer; scenarios compose <code>OnOrbitStable</code> /
+<code>OnOrbitUnstable</code> / <code>OnOrbitEnd</code> with keyed timers when they require a
+continuous hold.</p>
 <p>The event-driven pipeline reads like this: an event fires, its filters gate
 whether it proceeds, and if they all pass its actions run in order and mutate
 scenario state.</p>
@@ -167,7 +171,8 @@ which entity is which is per-event (for <code>OnEnter</code>, <code>id</code> is
 <code>other_id</code> the body that entered). Each field optional, all set fields must
 match, and the fields are read for FILTERING only - never passed to actions.
 Per-event table + examples in
-<a href="../guide-author-scenario/#entity">Author a scenario</a>.</li>
+<a href="../../modding/author-a-scenario/#4-events-filters-and-actions">Create your first scenario</a>.</li>
+<li><code>Timer(TimerFilterConfig)</code> - match an <code>OnTimerEnd</code> payload by its keyed timer name.</li>
 <li><code>Expression(ExpressionFilterConfig)</code> - evaluate a <code>VariableConditionNode</code>
 against the scenario variables.</li>
 <li><code>Conditional(ConditionalFilterConfig)</code> - <code>Not</code> / <code>And</code> / <code>Or</code> combinators;
@@ -177,6 +182,9 @@ build with <code>ConditionalFilterConfig::not/and/or(...)</code>.</li>
 <ul>
 <li><code>DebugMessage</code> - log a message.</li>
 <li><code>VariableSet</code> - evaluate an expression into a scenario variable.</li>
+<li><code>TimerStart</code> / <code>TimerCancel</code> - start, restart, or cancel a keyed scenario
+timer. Timers use the pause-frozen scenario clock; expiry removes the key
+before firing <code>OnTimerEnd</code>.</li>
 <li><code>Objective</code> / <code>ObjectiveComplete</code> - add or complete a HUD objective by id.</li>
 <li><code>ObjectiveMarkerAttach</code> / <code>ObjectiveMarkerDetach</code> - add/remove the gold
 marker chip (label + distance) on the scoped object by id; a despawned
@@ -187,6 +195,9 @@ changes, and teardown clears all emphasis. The dock hides verbs you cannot
 use, so an emphasis on an unavailable verb REVEALS its chip (pulsing in the
 dim band) - that is how a tutorial points at a key before it lights up.</li>
 <li><code>SpawnScenarioObject(ScenarioObjectConfig)</code> - spawn an object (see below).</li>
+<li><code>ScatterObjects(ScatterObjectsConfig)</code> - seeded scatter of many objects in a
+zone (the base asteroid fields); a fixed try budget keeps separation
+best-effort.</li>
 <li><code>DespawnScenarioObject</code> - despawn the scoped object whose id matches
 (scoped-only lookup, so ship sections with colliding ids are safe).</li>
 <li><code>SetSpeedCap</code> - install (<code>Some(cap)</code>) or remove (<code>None</code>) the manual
@@ -213,8 +224,9 @@ the optional message keeps its variant: <code>Outcome((outcome: Defeat, message:
 (clearing it also releases the pause).</li>
 <li><code>SetCamera { position, look_at }</code> - pose the scenario camera (the
 <code>ScenarioCameraMarker</code> entity) at <code>position</code> looking at <code>look_at</code>. It drops
-<code>WASDCameraController</code> so the scripted pose holds - the free-fly controller's
-<code>sync_transform</code> would otherwise overwrite the camera <code>Transform</code> every frame
+<code>WASDCameraController</code> and pins the pose as a <code>ScriptedCameraPose</code>,
+re-enforced every frame in <code>CameraAuthoritySystems::Override</code> - both
+controllers keep writing the camera <code>Transform</code> otherwise
 (same swap the player-ship-spawn observer does). No-op with a warning if no
 scenario camera is present. Part of the in-engine photo-mode surface.</li>
 <li><code>Screenshot { path }</code> - capture the primary window to a PNG at <code>path</code>, built
@@ -223,7 +235,9 @@ A relative <code>path</code> resolves under the <code>NOVA_SHOT_DIR</code> env v
 example or a packaging script can redirect all captures to a staging folder),
 else it is relative to the working directory; the parent dir is created if
 missing. Pair <code>SetCamera</code> (pose) + settle frames + <code>Screenshot</code> (capture) to
-script a framed shot; the screenshot-reel example drives exactly this.</li>
+script a framed shot; the <code>screenshots/</code> examples drive exactly this, through
+the autopilot's <code>pose_camera</code> + settle + <code>shoot</code> step idiom (see the
+&quot;Automation harness&quot; page).</li>
 <li><code>SetSkybox { cubemap, brightness? }</code> - swap the scenario's skybox cubemap
 mid-scenario (a modding hook). <code>cubemap</code> is authored as an asset path (the same
 <code>AssetRef</code> layer the scenario's initial <code>cubemap</code> uses); <code>brightness</code> is
@@ -301,15 +315,30 @@ paths, so use <code>self://</code> for files listed by the same bundle or <code>
 declared dependency. The stack means a burst is readable - but prefer one line
 per beat anyway (the beat-sheet convention); the queue is the safety
 net, not the style.</p>
-<h3 id="the-scenario-clock-scenario_elapsed" tabindex="-1">The scenario clock (<code>scenario_elapsed</code>)</h3>
-<p>The engine maintains one RESERVED variable: <code>scenario_elapsed</code>, the seconds
-of live, unpaused scenario time (<code>tick_scenario_clock</code> in <code>loader.rs</code>,
-chained ahead of the <code>OnUpdate</code> pulse under the same live+unpaused gate, so
-pausing freezes both together). It clears at teardown with the rest of the
-event world - it is the current scenario's clock, and a retry restarts it.
-Gate on it from any expression filter; never write it (the engine rewrites
-it every tick, and <code>content lint</code> errors on an authored <code>VariableSet</code> to
-it). A read before the first tick fails closed like any undefined variable.</p>
+<h3 id="typed-queries-and-watched-variables" tabindex="-1">Typed queries and watched variables</h3>
+<p>The engine exposes read-only world state through typed queries. A scenario can
+sample a query each live, unpaused update into a watched variable. The watch
+owns its variable name, so normal <code>Name(&quot;...&quot;)</code> expressions and HUD readouts
+work while <code>VariableSet</code> writes are rejected.</p>
+<pre><code class="hljs">watches: [
+    (
+        variable: &quot;scenario_elapsed&quot;,
+        query: Scenario((property: Elapsed)),
+    ),
+    (
+        variable: &quot;player_speed&quot;,
+        query: Entity((
+            filter: (id: &quot;player_spaceship&quot;),
+            property: Speed,
+        )),
+    ),
+],
+</code></pre>
+<p>The internal scenario clock always exists for timers. <code>Scenario(Elapsed)</code>
+exposes it to content. <code>Entity</code> is strict-single: the id must match exactly one
+entity with the required property. Missing or duplicate matches make the query
+unavailable and expression gates fail closed. Watches freeze under pause and
+clear at teardown; retries restart elapsed time.</p>
 <p>A one-shot timed beat is the clock threshold plus your own fired-flag:</p>
 <pre><code class="hljs">filters: [
     Expression((GreaterThan(
@@ -346,7 +375,7 @@ actions: [
 <p>You can also SNAPSHOT the clock into your own variable to measure a
 duration since an event (<code>VariableSet((key: &quot;ambush_started&quot;, expression: Term(Factor(Name(&quot;scenario_elapsed&quot;)))))</code>, then gate on
 <code>elapsed &gt; ambush_started + grace</code> via an <code>Add</code> expression) - reading the
-reserved key is always fine; only writing it is gated. The example mod's
+watched name is fine; writing it is rejected. The example mod's
 arena ships a timed comms nudge and a timed bonus spawn as copyable worked
 examples.</p>
 <p>To SHOW the clock (or any variable) on the HUD, use <code>HudReadout</code> with the
@@ -475,24 +504,29 @@ areas do not overlap; the racing line stays clear of every rock's worst-case
 body past <code>ASTEROID_GEOMETRIC_FACTOR_MAX</code>) plus the ordered-gate and
 act-gating behavior. Run it with
 <code>cargo test -p nova_assets --test gauntlet_course</code>.</li>
-<li>The <a href="../guide-author-scenario/#6-worked-example-an-objective-loop">authoring guide's objective-loop worked example</a>
+<li>The <a href="../../modding/author-a-scenario/#3-plan-one-short-story">first-scenario guide's completed flow</a>
 is the gentler, single-counter cousin of the gate-counter pattern.</li>
 </ul>
 <h2 id="scenario-objects-objects-scenarioobjectkind" tabindex="-1">Scenario objects (<code>objects/</code>, <code>ScenarioObjectKind</code>)</h2>
 <p>All share <code>BaseScenarioObjectConfig</code> (id, name, position, rotation) and spawn
-scoped, interpolated, dynamic bodies via <code>base_scenario_object</code>.</p>
+scoped entities via <code>base_scenario_object</code>, which deliberately carries no body:
+each kind declares its own <code>RigidBody</code> (three of the five are static), and the
+asteroid alone opts into <code>Dynamic</code> + <code>TransformInterpolation</code>.</p>
 <ul>
-<li><code>Asteroid(AsteroidConfig)</code> - radius, texture, health, <code>surface_gravity</code>
-override, <code>invulnerable</code> (no health node, so its gravity well cannot die),
+<li><code>Asteroid(AsteroidConfig)</code> - radius, texture, health, <code>mass</code> (the body's
+<code>mu</code>: it alone sets both the pull <code>a = mu / r^2</code> and the sphere of influence,
+the distance where that decays to <code>GravitySettings::soi_cutoff_accel</code> - so
+author it by the SOI you want, <code>mu = soi_cutoff_accel * soi^2</code>),
+<code>invulnerable</code> (no health node, so its gravity well cannot die),
 <code>lock_signature</code> override, and optional per-spawn <code>impact_sound</code> /
 <code>destroy_sound</code> (<code>Some(&quot;dep://base/sounds/impact.wav&quot;)</code> / <code>explosion.wav</code>) so
 a scenario rock can carry its own hit and death audio, the same surface a
 section's <code>base</code> block exposes. Spawned ship sections take the same two
-fields; see <a href="../guide-author-section/">Authoring a section</a>.</li>
+fields; see <a href="../../modding/sections/">Ship sections for mods</a>.</li>
 <li><code>Spaceship(SpaceshipConfig)</code> - sections plus a <code>SpaceshipController</code>:
-<code>None</code>, <code>Player</code> (input mapping, optional <code>speed_cap</code>, <code>infinite_ammo</code>,
-optional <code>lock_refire_secs</code>), or <code>AI</code> (patrol route, orbit directive,
-optional <code>leash</code> break-off radius, optional <code>orbit_hold_secs</code>, optional
+<code>None</code>, <code>Player</code> (input mapping, optional <code>speed_cap</code>, <code>infinite_ammo</code>), or
+<code>AI</code> (patrol route, orbit directive,
+optional <code>leash</code> break-off radius, optional
 <code>engage_delay: Some(secs)</code> arrival grace - the ship flies its passive
 routine and refuses to engage until the delay elapses, going hot
 immediately and permanently if shot; pair it with a clock-spaced
@@ -508,24 +542,37 @@ beacon doubles as its own <code>OnEnter</code>/<code>OnExit</code> trigger).</li
 <li><code>SalvageCrate(SalvageCrateConfig)</code> - proximity pickup (<code>size</code>,
 <code>area_radius</code>): flying through fires <code>OnEnter</code> under the crate's id; pair
 with <code>DespawnScenarioObject</code> and a counter variable.</li>
+<li><code>Light(LightConfig)</code> - the scene's own lighting (<code>objects/light.rs</code>), an
+ordinary spawned kind. Load-bearing: a scenario that spawns no <code>Light</code>
+renders black - the engine no longer supplies one.</li>
 </ul>
 <h2 id="built-in-scenarios" tabindex="-1">Built-in scenarios</h2>
-<p><code>crates/nova_assets/src/scenario.rs</code> builds <code>asteroid_field</code>, <code>asteroid_next</code>,
-and <code>menu_ambience</code> in Rust; <code>scenario/shakedown.rs</code> adds <code>shakedown_run</code>, the
-New Game starter and the beat-chain reference: one <code>beat</code> counter gates every
+<p>The builders live in <code>crates/nova_authoring/src/scenario{.rs,/}</code>:
+<code>scenario.rs</code> builds <code>asteroid_field</code> and <code>asteroid_next</code>, <code>scenario/menu.rs</code>
+the menu backdrops (<code>menu_ambience</code>, <code>menu_waystation</code>, <code>menu_scrapyard</code>),
+<code>scenario/shakedown/</code> the <code>shakedown_run</code> New Game starter - the beat-chain
+reference: one <code>beat</code> counter gates every
 handler, and count milestones run on <code>OnUpdate</code> handlers keyed on the counter
-(handler order within one event is not load-bearing). Loading scenarios from
-data files instead of Rust is still a TODO.</p>
+(handler order within one event is not load-bearing) - and <code>broadside.rs</code>,
+<code>lifeline.rs</code>, <code>final_tally.rs</code> the campaign chapters. The builders are an
+OFFLINE generator, not the runtime path: <code>content -- gen</code> serializes them to
+the committed <code>assets/base/scenarios/*.content.ron</code>, <code>base.bundle.ron</code> lists
+them, and <code>crates/nova_assets/src/merge.rs</code> merges the parsed RON into
+<code>GameScenarios</code> like any mod's. <code>content_ron_parity</code> pins builders == RON.</p>
 <h2 id="adding-new-pieces" tabindex="-1">Adding new pieces</h2>
 <ul>
 <li>Event: event + info structs in <code>nova_events/src/lib.rs</code>, an <code>EventConfig</code>
 variant in <code>events.rs</code>, and something that fires it (engine-driven events
-live in <code>loader.rs</code>, area events in <code>objects/area.rs</code>).</li>
-<li>Action: config struct + <code>EventAction&lt;NovaEventWorld&gt;</code> impl in <code>actions.rs</code>,
-plus an <code>EventActionConfig</code> variant.</li>
+live in <code>loader/</code> - <code>OnStart</code> in <code>lifecycle.rs</code>, <code>OnUpdate</code> in <code>clock.rs</code>,
+the orbit/lock trackers in <code>trackers.rs</code>; area events in <code>objects/area.rs</code>;
+<code>OnNeutralized</code> fires from <code>nova_gameplay</code>'s integrity stack).</li>
+<li>Action: config struct + <code>EventAction&lt;NovaEventWorld&gt;</code> impl in the right
+<code>actions/</code> submodule (<code>flow</code>/<code>mission</code>/<code>ship</code>/<code>spawn</code>/<code>view</code>), plus an
+<code>EventActionConfig</code> variant in <code>actions/mod.rs</code>.</li>
 <li>Filter: same pattern in <code>filters.rs</code> (<code>EventFilterConfig</code>).</li>
 <li>Object: a module under <code>objects/</code> (config + bundle function, plugin in
-<code>objects/mod.rs</code>) plus a <code>ScenarioObjectKind</code> variant/match in <code>actions.rs</code>.</li>
+<code>objects/mod.rs</code>) plus a <code>ScenarioObjectKind</code> variant/match in
+<code>actions/spawn.rs</code>.</li>
 </ul>
 
                     <div id="wiki-seealso"></div>

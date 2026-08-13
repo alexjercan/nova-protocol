@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Create your first scenario - Nova Protocol Wiki</title>
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Wiki navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="/nova-protocol/wiki/">Wiki</a>
+                        / Create your first scenario
+                    </p>
+                    <h1>Create your first scenario</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+                    
+                    <p>This tutorial builds a small shooting-range scenario in RON. You will start
+with the working Example Mod, follow one objective from start to victory, make
+it your own, and run it in the game. No code changes are required.</p>
+<p>This page teaches one happy path. Use the
+<a href="../reference/">modding reference</a> when you need the complete list of events,
+filters, actions, objects, and expression nodes.</p>
+<h2 id="1-start-with-the-working-example" tabindex="-1">1. Start with the working example</h2>
+<p>The repository includes a playable starter at <code>assets/mods/example/</code>. It
+already contains the long but routine scene setup: lights, a player ship, and
+two asteroid targets. This tutorial focuses on the mission script around that
+setup.</p>
+<p>From the repository root, first confirm that the starter is valid:</p>
+<pre><code class="hljs language-sh">nix develop --<span class="hljs-built_in">command</span> cargo run content lint --target example
+</code></pre>
+<p>The two files you will use are:</p>
+<pre><code class="hljs language-text">assets/mods/example/
+|- example.bundle.ron    # lists the mod&#x27;s content and resources
+`- example.content.ron   # sections and scenarios
+</code></pre>
+<p>Open <code>example.content.ron</code> and find <code>id: &quot;example_arena&quot;</code>. That <code>Scenario</code>
+item is the shooting range used below.</p>
+<h2 id="2-understand-the-scenario-file" tabindex="-1">2. Understand the scenario file</h2>
+<p>A content file is a list. Each scenario is one <code>Scenario((...))</code> item:</p>
+<pre><code class="hljs">[
+    Scenario((
+        id: &quot;example_arena&quot;,
+        name: &quot;Example Arena&quot;,
+        description: &quot;Destroy two drifting rocks under a mod-shipped skybox.&quot;,
+        cubemap: &quot;self://textures/nebula.png&quot;,
+        events: [
+            // The mission handlers go here.
+        ],
+    )),
+]
+</code></pre>
+<p>For this tutorial, each field has one job:</p>
+<ul>
+<li><code>id</code> is the stable name used by the game and other scenarios.</li>
+<li><code>name</code> and <code>description</code> appear in the Scenarios menu.</li>
+<li><code>cubemap</code> sets the background image.</li>
+<li><code>events</code> contains the mission logic.</li>
+</ul>
+<p>The complete field table, including thumbnails, hidden scenarios, and menu
+backdrops, is in <a href="../scenarios/">Scenario files</a>.</p>
+<h2 id="3-plan-one-short-story" tabindex="-1">3. Plan one short story</h2>
+<p>Keep a first scenario small. Write three beats before you write RON:</p>
+<ol>
+<li>Setup: Range Control welcomes the player.</li>
+<li>Goal: Destroy two derelict rocks.</li>
+<li>Payoff: Complete the objective and show victory.</li>
+</ol>
+<p>One line of story text per beat is enough. Objectives tell the player what to
+do. Story messages provide voice and context. Add more dialogue only after the
+playable flow works.</p>
+<p>The finished scenario follows this path:</p>
+<pre class="mermaid">flowchart TD
+    Start[&quot;OnStart: spawn scene, set destroyed = 0, add objective&quot;] --&gt; Play
+    Play[&quot;Player destroys a target&quot;] --&gt; Destroyed[&quot;OnDestroyed: target filter passes&quot;]
+    Destroyed --&gt; Count[&quot;VariableSet: destroyed += 1&quot;]
+    Count --&gt; Check{&quot;OnUpdate: destroyed &gt; 1 and arena_done == 0?&quot;}
+    Check --&gt;|no| Play
+    Check --&gt;|yes| Finish[&quot;Mark done, complete objective, show Victory&quot;]
+</pre>
+<h2 id="4-events-filters-and-actions" tabindex="-1">4. Events, filters, and actions</h2>
+<p>A handler has three parts:</p>
+<ul>
+<li>The event says when to check, such as <code>OnStart</code> or <code>OnDestroyed</code>.</li>
+<li>Every filter must pass.</li>
+<li>The actions then run in order.</li>
+</ul>
+<p>This handler reacts only when the first target is destroyed:</p>
+<pre><code class="hljs">(
+    name: OnDestroyed,
+    filters: [
+        Entity((
+            id: Some(&quot;example_target_1&quot;),
+        )),
+    ],
+    actions: [
+        VariableSet((
+            key: &quot;destroyed&quot;,
+            expression: Add(
+                Factor(Name(&quot;destroyed&quot;)),
+                Term(Factor(Literal(Number(1.0)))),
+            ),
+        )),
+    ],
+),
+</code></pre>
+<p>Read it as: &quot;When an object is destroyed, continue only if it is
+<code>example_target_1</code>, then add one to <code>destroyed</code>.&quot;</p>
+<p>The example has a matching handler for <code>example_target_2</code>. Separate filters
+make sure unrelated asteroids do not count.</p>
+<p>See <a href="../events/">Events</a>, <a href="../filters/">Filters</a>, and <a href="../actions/">Actions</a>
+for every available construct.</p>
+<h2 id="5-start-the-objective" tabindex="-1">5. Start the objective</h2>
+<p><code>OnStart</code> runs once when the scenario loads. The example uses it to spawn the
+scene and initialize the mission. Near the end of its action list, it sets the
+counter and adds a HUD objective:</p>
+<pre><code class="hljs">VariableSet((
+    key: &quot;destroyed&quot;,
+    expression: Term(Factor(Literal(Number(0.0)))),
+)),
+VariableSet((
+    key: &quot;arena_done&quot;,
+    expression: Term(Factor(Literal(Number(0.0)))),
+)),
+Objective((
+    id: &quot;clear_range&quot;,
+    message: &quot;Destroy the two derelict rocks. Aim with the mouse, [Left Mouse] fires.&quot;,
+)),
+</code></pre>
+<p>This introduces two useful actions:</p>
+<ul>
+<li><code>VariableSet</code> stores mission state.</li>
+<li><code>Objective</code> adds a goal to the HUD.</li>
+</ul>
+<p>Variables must be initialized before a filter reads them. The full expression
+grammar is in <a href="../expressions/">Variables and expressions</a>.</p>
+<h2 id="6-finish-the-objective" tabindex="-1">6. Finish the objective</h2>
+<p>The victory handler checks the counter every frame. It runs only after both
+rocks are gone and only once:</p>
+<pre><code class="hljs">(
+    name: OnUpdate,
+    filters: [
+        Expression((GreaterThan(
+            Term(Factor(Name(&quot;destroyed&quot;))),
+            Term(Factor(Literal(Number(1.0)))),
+        ))),
+        Expression((Equal(
+            Term(Factor(Name(&quot;arena_done&quot;))),
+            Term(Factor(Literal(Number(0.0)))),
+        ))),
+    ],
+    actions: [
+        VariableSet((
+            key: &quot;arena_done&quot;,
+            expression: Term(Factor(Literal(Number(1.0)))),
+        )),
+        ObjectiveComplete((
+            id: &quot;clear_range&quot;,
+        )),
+        Outcome((
+            outcome: Victory,
+            message: Some(&quot;Range cleared. Nice shooting.&quot;),
+        )),
+    ],
+),
+</code></pre>
+<p><code>destroyed &gt; 1</code> means two or more targets are gone. <code>arena_done == 0</code> is the
+one-shot guard. The first action changes it to <code>1</code>, so this repeating
+<code>OnUpdate</code> event cannot show victory again.</p>
+<p>The remaining actions complete the HUD objective and show the victory screen.
+This is enough for a complete first scenario.</p>
+<h2 id="7-make-it-yours" tabindex="-1">7. Make it yours</h2>
+<p>Edit the existing <code>example_arena</code> before adding new mechanics:</p>
+<ol>
+<li>Change the scenario <code>name</code> and <code>description</code>.</li>
+<li>Change the <code>StoryMessage</code> speaker and text in <code>OnStart</code>.</li>
+<li>Change the <code>Objective</code> message.</li>
+<li>Change the two asteroid names, positions, or <code>health</code> values.</li>
+<li>Change the <code>Outcome</code> message.</li>
+</ol>
+<p>For example:</p>
+<pre><code class="hljs">StoryMessage((
+    speaker: &quot;Harbor Master&quot;,
+    text: &quot;Two wrecks block the lane. Clear them before the convoy arrives.&quot;,
+)),
+</code></pre>
+<p>Keep the setup, goal, and payoff connected. If you add a third required
+target, add its <code>OnDestroyed</code> handler and change the win check from
+<code>destroyed &gt; 1</code> to <code>destroyed &gt; 2</code>.</p>
+<p>Do not try to learn every action here. Useful next steps include markers,
+beacons, dialogue, enemy ships, and scenario transitions. Browse them in the
+<a href="../actions/">Actions reference</a> after this version runs.</p>
+<h2 id="8-load-and-play-it" tabindex="-1">8. Load and play it</h2>
+<p>The Example Mod is already listed in <code>assets/mods.catalog.ron</code>. Use this exact
+iteration loop from the repository root.</p>
+<ol>
+<li>Check the mod:</li>
+</ol>
+<pre><code class="hljs language-sh">nix develop --<span class="hljs-built_in">command</span> cargo run content lint --target example
+</code></pre>
+<ol start="2">
+<li>Start the game:</li>
+</ol>
+<pre><code class="hljs language-sh">nix develop --<span class="hljs-built_in">command</span> cargo run --features dev
+</code></pre>
+<ol start="3">
+<li>In the main menu, open <strong>Mods</strong>.</li>
+<li>Select <strong>Example Mod</strong> and enable it.</li>
+<li>Return to the main menu and open <strong>Scenarios</strong>.</li>
+<li>Select your renamed scenario and press <strong>Play</strong>.</li>
+<li>Destroy both targets. Confirm that the objective completes and the Victory
+screen appears.</li>
+<li>Stop the game, edit the RON, and repeat the two commands.</li>
+</ol>
+<div class="figure">
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/wiki-first-scenario-picker.png</span>
+        <span class="figure__placeholder-note">The Scenarios menu with the enabled Example Mod scenario selected and its Play button visible.</span>
+    </div>
+    <figcaption class="figure__caption">Enable the mod first, then launch its visible scenario from the Scenarios menu.</figcaption>
+</div>
+<p>When the scenario works, give it its own folder and id with
+<a href="../mod-files/">Mod files</a>, then follow <a href="../publish-a-mod/">Publish a mod</a> to
+make it installable by other players. Keep <code>hidden</code> unset so players can find
+it in the Scenarios menu.</p>
+<h2 id="9-common-mistakes" tabindex="-1">9. Common mistakes</h2>
+<ul>
+<li>RON is strict. A misspelled field stops the file from loading.</li>
+<li>Keep double parentheses around action and object variants, such as
+<code>Objective((...))</code>.</li>
+<li>Write optional values as <code>Some(value)</code>, not as a bare value.</li>
+<li>Initialize a variable before a filter reads it.</li>
+<li>Spawn an object before an action targets its id.</li>
+<li>Give every visible scene lights. Copy the light setup from the Example Mod.</li>
+<li>Use unique ids for scenarios, objectives, objects, and variables.</li>
+</ul>
+<p>For syntax and field details, use the <a href="../reference/">modding reference</a>.</p>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

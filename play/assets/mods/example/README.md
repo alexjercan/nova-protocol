@@ -67,7 +67,7 @@ return to the pristine base game.
 
 ## Learn more
 
-- `web/src/wiki/dev/guide-make-a-mod.md` - package and publish a mod
-- `web/src/wiki/dev/guide-author-scenario.md` - the scenario event/action grammar
-- `web/src/wiki/dev/guide-author-section.md` - the section `base`/`kind` grammar
-- `web/src/wiki/dev/modding-ron.md` - the data-format reference
+- `web/src/wiki/modding/publish-a-mod.md` - publish a finished mod
+- `web/src/wiki/modding/scenarios.md` - scenario files and scripting chapters
+- `web/src/wiki/modding/sections.md` - the section `base`/`kind` reference
+- `web/src/wiki/modding/mod-files.md` - the mod folder and file format

@@ -11,7 +11,7 @@ with.
 
 ## Licenses in use
 
-- **MIT License** - used by 492 crate(s)
+- **MIT License** - used by 488 crate(s)
 - **Apache License 2.0** - used by 24 crate(s)
 - **Unicode License v3** - used by 23 crate(s)
 - **ISC License** - used by 6 crate(s)
@@ -4963,41 +4963,6 @@ DEALINGS IN THE SOFTWARE.
 
 Applies to:
 
-- ppv-lite86 0.2.21 - https://github.com/cryptocorrosion/cryptocorrosion
-
-```
-Copyright (c) 2019 The CryptoCorrosion Contributors
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
-
-```
-
-## MIT License
-
-Applies to:
-
 - tracing-attributes 0.1.30 - https://github.com/tokio-rs/tracing
 - tracing-core 0.1.34 - https://github.com/tokio-rs/tracing
 - tracing-log 0.2.0 - https://github.com/tokio-rs/tracing
@@ -5983,10 +5948,7 @@ Applies to:
 
 - rand 0.10.2 - https://github.com/rust-random/rand
 - rand 0.8.5 - https://github.com/rust-random/rand
-- rand 0.9.2 - https://github.com/rust-random/rand
-- rand_chacha 0.9.0 - https://github.com/rust-random/rand
 - rand_core 0.6.4 - https://github.com/rust-random/rand
-- rand_core 0.9.3 - https://github.com/rust-random/rand
 - rand_xorshift 0.3.0 - https://github.com/rust-random/rngs
 
 ```

@@ -6,9 +6,9 @@ sweeps and a steady hum) produced by `scripts/gen-placeholder-sounds.py` so the
 game is audible and wired end to end out of the box. They are not the final
 sound design.
 
-The audio layer itself is the reusable `SfxPlugin` / `SoundBank` from
-`bevy-common-systems`; Nova only owns the mapping from gameplay events to these
-files (see `crates/nova_gameplay/src/audio.rs`).
+The audio layer itself is the generic `SfxPlugin` / `SoundBank`; Nova owns
+both it and the mapping from gameplay events to these files (see
+`crates/nova_gameplay/src/audio/`).
 
 These files live UNDER `assets/base/` because the base game is just a mod
 (task 20260717-002228) and these are its WORLD/GAMEPLAY cues - the sounds of
@@ -49,8 +49,8 @@ these fixed paths and the audio module plays whatever handle it is given.
   bank: each file is the base mod's authored default, referenced from base
   content (`self://sounds/...`) and resolved by its cue at play time. OGG
   Vorbis also decodes (vorbis is on by default); to use `.ogg`, change the
-  extension in the base content refs (regenerate via `cargo run -p nova_assets
-  --bin content -- gen`; and in base content refs).
+  extension in the base content refs (regenerate via `cargo run content gen`;
+  and in base content refs).
 - Suggested: 44.1 kHz, normalized but not clipping. Keep the one-shots short;
   `thruster_loop.wav` is the only looping asset and should be seamless (its
   start and end must meet without a click).

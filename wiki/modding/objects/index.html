@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Scenario objects - Nova Protocol Wiki</title>
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Wiki navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="/nova-protocol/wiki/">Wiki</a>
+                        / <a href="/nova-protocol/wiki/modding/scenarios/">Scenario files</a>
+                        / Scenario objects
+                    </p>
+                    <h1>Scenario objects</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+                    <nav class="wiki-toc" aria-label="Contents">
+                        <p class="wiki-toc__title">Contents</p>
+                        <ol><li><a href="#asteroid">Asteroid</a><ol></ol></li><li><a href="#spaceship">Spaceship</a><ol><li><a href="#the-controller">The controller</a></li><li><a href="#the-sections-list">The sections list</a></li></ol></li><li><a href="#beacon">Beacon</a><ol></ol></li><li><a href="#salvagecrate">SalvageCrate</a><ol></ol></li><li><a href="#light">Light</a><ol></ol></li><li><a href="#traps-for-the-unwary">Traps for the unwary</a><ol></ol></li></ol>
+                    </nav>
+                    <p>Everything a scenario can place in the world. An object is spawned by
+<a href="../actions/#spawnscenarioobject"><code>SpawnScenarioObject</code></a> (or in bulk by
+<a href="../actions/#scatterobjects"><code>ScatterObjects</code></a>): a shared <code>base</code> block plus a
+<code>kind</code> that picks one of the FIVE kinds below. Every object gets the base's
+id, name and pose, is scenario-scoped (teardown removes it), and carries a
+type name the <code>type_name</code> filters match:</p>
+<table>
+<thead>
+<tr>
+<th>kind</th>
+<th>type name</th>
+<th>body</th>
+<th>what it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#asteroid"><code>Asteroid</code></a></td>
+<td><code>&quot;asteroid&quot;</code></td>
+<td>dynamic</td>
+<td>destructible rock, optional gravity well</td>
+</tr>
+<tr>
+<td><a href="#spaceship"><code>Spaceship</code></a></td>
+<td><code>&quot;spaceship&quot;</code></td>
+<td>dynamic</td>
+<td>a multi-section ship, player- or AI-flown</td>
+</tr>
+<tr>
+<td><a href="#beacon"><code>Beacon</code></a></td>
+<td><code>&quot;beacon&quot;</code></td>
+<td>static</td>
+<td>lockable nav marker with a HUD chip</td>
+</tr>
+<tr>
+<td><a href="#salvagecrate"><code>SalvageCrate</code></a></td>
+<td><code>&quot;salvage_crate&quot;</code></td>
+<td>static</td>
+<td>fly-through pickup</td>
+</tr>
+<tr>
+<td><a href="#light"><code>Light</code></a></td>
+<td><code>&quot;light&quot;</code></td>
+<td>static</td>
+<td>the scene's own lighting</td>
+</tr>
+</tbody>
+</table>
+<p>(Trigger AREAS are spawned by the
+<a href="../actions/#createscenarioarea"><code>CreateScenarioArea</code></a> action rather than as
+an object kind - and beacons and crates can be their own areas, below.)</p>
+<h2 id="asteroid" tabindex="-1">Asteroid</h2>
+<p>A noise-generated destructible rock. <code>radius</code> drives the mesh, collider,
+default mass and radar signature together.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>radius</code></td>
+<td>number</td>
+<td>required</td>
+<td>nominal radius in world units. The true mesh extent reaches up to 6x this (matters for <a href="../actions/#scatterobjects"><code>min_separation</code></a>)</td>
+</tr>
+<tr>
+<td><code>texture</code></td>
+<td>asset ref</td>
+<td>required</td>
+<td>surface texture (<code>dep://base/textures/asteroid.png</code> is the stock rock)</td>
+</tr>
+<tr>
+<td><code>health</code></td>
+<td>number</td>
+<td>required</td>
+<td>hit points; ignored when <code>invulnerable</code></td>
+</tr>
+<tr>
+<td><code>invulnerable</code></td>
+<td>bool</td>
+<td>required</td>
+<td><code>true</code> = no health node at all: can never be destroyed or disabled, so its gravity well can never die mid-scenario</td>
+</tr>
+<tr>
+<td><code>mass</code></td>
+<td><code>Option</code> number</td>
+<td><code>None</code></td>
+<td>the gravity parameter mu (u^3/s^2). <code>Some</code> ALWAYS makes this rock a well: pull is <code>a = mu / r^2</code>; size it by the sphere of influence you want (<code>mu = soi_cutoff_accel * soi^2</code>). <code>None</code> = the global rule (a default mass only if the radius qualifies it as a well)</td>
+</tr>
+<tr>
+<td><code>impact_sound</code></td>
+<td><code>Option</code> asset ref</td>
+<td><code>None</code></td>
+<td>played on hit (<code>Some(&quot;dep://base/sounds/impact.wav&quot;)</code>); omitted = silent</td>
+</tr>
+<tr>
+<td><code>destroy_sound</code></td>
+<td><code>Option</code> asset ref</td>
+<td><code>None</code></td>
+<td>played on destruction; omitted = silent</td>
+</tr>
+<tr>
+<td><code>lock_signature</code></td>
+<td><code>Option</code> number</td>
+<td><code>None</code></td>
+<td>radar signature override; <code>None</code> = the radius (big rocks lock far)</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">SpawnScenarioObject((
+    base: (id: &quot;planetoid&quot;, name: &quot;Planetoid&quot;, position: (250.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+    kind: Asteroid((
+        radius: 20.0,
+        texture: &quot;dep://base/textures/asteroid.png&quot;,
+        health: 2000.0,
+        mass: Some(45000.0),
+        invulnerable: true,
+    )),
+)),
+</code></pre>
+<p>Destruction fires <a href="../events/#ondestroyed"><code>OnDestroyed</code></a> with the rock's
+id and <code>&quot;asteroid&quot;</code>.</p>
+<h2 id="spaceship" tabindex="-1">Spaceship</h2>
+<p>A ship: a root entity plus a list of SECTION children. This is the most
+involved kind - a hand-authored ship with a full loadout runs to hundreds of
+lines, so copy a shipped block or build from
+<a href="../base-content/#section-prototypes">prototype ids</a> rather than typing one.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>controller</code></td>
+<td>controller</td>
+<td>required</td>
+<td>who flies it (below)</td>
+</tr>
+<tr>
+<td><code>allegiance</code></td>
+<td><code>Option</code> side</td>
+<td><code>None</code></td>
+<td>side override, strict RON <code>Some(Neutral)</code>. Omitted = the controller default: Player ships fight for the player, AI ships are hostile</td>
+</tr>
+<tr>
+<td><code>sections</code></td>
+<td>list</td>
+<td><code>[]</code></td>
+<td>the hull/thruster/gun/controller layout (below)</td>
+</tr>
+</tbody>
+</table>
+<p>An abbreviated player ship:</p>
+<pre><code class="hljs">SpawnScenarioObject((
+    base: (
+        id: &quot;player_spaceship&quot;,
+        name: &quot;Player Ship&quot;,
+        position: (0.0, 0.0, 0.0),
+        rotation: (0.0, 0.0, 0.0, 1.0),
+    ),
+    kind: Spaceship((
+        controller: Player((
+            input_mapping: {
+                &quot;turret&quot;: [Mouse(Left)],
+            },
+            infinite_ammo: false,
+        )),
+        sections: [
+            (
+                id: &quot;controller&quot;,
+                position: (0.0, 0.0, 0.0),
+                rotation: (0.0, 0.0, 0.0, 1.0),
+                source: Prototype(&quot;basic_controller_section&quot;),
+            ),
+            // ... hull, thruster, and turret sections ...
+        ],
+    )),
+)),
+</code></pre>
+<p>An abbreviated AI ship:</p>
+<pre><code class="hljs">SpawnScenarioObject((
+    base: (
+        id: &quot;raider_1&quot;,
+        name: &quot;Raider&quot;,
+        position: (0.0, 0.0, -300.0),
+        rotation: (0.0, 0.0, 0.0, 1.0),
+    ),
+    kind: Spaceship((
+        controller: AI((
+            patrol: [(0.0, 0.0, -300.0), (80.0, 0.0, -220.0)],
+            engage_delay: Some(8.0),
+        )),
+        sections: [
+            (
+                id: &quot;controller&quot;,
+                position: (0.0, 0.0, 0.0),
+                rotation: (0.0, 0.0, 0.0, 1.0),
+                source: Prototype(&quot;basic_controller_section&quot;),
+            ),
+            // ... hull, thruster, and weapon sections ...
+        ],
+    )),
+)),
+</code></pre>
+<p>The comments replace required sections, so these examples show the shape rather
+than complete flyable ships. Copy the full player or AI section list from
+<code>assets/mods/example/example.content.ron</code> or a shipped scenario.</p>
+<h3 id="the-controller" tabindex="-1">The controller</h3>
+<table>
+<thead>
+<tr>
+<th>variant</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>None</code></td>
+<td>nobody drives; the ship station-keeps</td>
+</tr>
+<tr>
+<td><code>Player((..))</code></td>
+<td>human-driven</td>
+</tr>
+<tr>
+<td><code>AI((..))</code></td>
+<td>bot-driven</td>
+</tr>
+</tbody>
+</table>
+<p><code>Player((..))</code> fields:</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>input_mapping</code></td>
+<td>map</td>
+<td><code>{}</code></td>
+<td>per-SECTION bindings, keyed by section id: <code>{ &quot;turret_port&quot;: [ Mouse(Left) ] }</code>. Values are <code>Keyboard(&lt;KeyCode&gt;)</code> / <code>Mouse(&lt;MouseButton&gt;)</code> / <code>Gamepad(&lt;GamepadButton&gt;)</code> - modifier-free buttons only</td>
+</tr>
+<tr>
+<td><code>speed_cap</code></td>
+<td><code>Option</code> number</td>
+<td><code>None</code></td>
+<td>soft manual-speed cap in u/s (the Shakedown starts at <code>Some(25.0)</code>); <code>None</code> = unbounded. Runtime mirror: <a href="../actions/#setspeedcap"><code>SetSpeedCap</code></a></td>
+</tr>
+<tr>
+<td><code>infinite_ammo</code></td>
+<td>bool</td>
+<td>required in shipped RON</td>
+<td>weapons built without magazines - never run dry</td>
+</tr>
+</tbody>
+</table>
+<p><code>AI((..))</code> fields:</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>patrol</code></td>
+<td>list of 3-tuples</td>
+<td><code>[]</code></td>
+<td>waypoint loop while nothing hostile is detected; empty = station-keep</td>
+</tr>
+<tr>
+<td><code>orbit</code></td>
+<td><code>Option</code> string</td>
+<td><code>None</code></td>
+<td>id of a gravity-well object to orbit passively. Precedence: orbit &gt; patrol &gt; idle</td>
+</tr>
+<tr>
+<td><code>leash</code></td>
+<td><code>Option</code> number</td>
+<td><code>None</code></td>
+<td>territorial tether radius; combat breaks off beyond it; <code>None</code> = chases freely</td>
+</tr>
+<tr>
+<td><code>engage_delay</code></td>
+<td><code>Option</code> number</td>
+<td><code>None</code></td>
+<td>arrival grace in seconds: flies its passive routine and refuses to engage until it elapses; being SHOT ends the grace instantly and permanently. The telegraphed-arrival tool</td>
+</tr>
+</tbody>
+</table>
+<p>An UNARMED AI ship (no turret or torpedo section) is automatically a
+NON-COMBATANT: it flies its routine and never acquires, chases or shoots -
+no field to set. Keep its <code>allegiance</code> on the side you want hunted and it
+becomes something to defend (the Lifeline convoy).</p>
+<p>Allegiance values: <code>Player</code> / <code>Enemy</code> / <code>Neutral</code>. Player and Enemy are
+mutually hostile; Neutral relates neutrally to everyone (stray blast damage
+still hurts it). Runtime flip:
+<a href="../actions/#setallegiance"><code>SetAllegiance</code></a>.</p>
+<h3 id="the-sections-list" tabindex="-1">The sections list</h3>
+<p>Each entry places one section in continuous ship-root space:</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>required</td>
+<td>scenario-local section id; keys <code>input_mapping</code> (shipped ships use semantic ids such as <code>&quot;turret_port&quot;</code>)</td>
+</tr>
+<tr>
+<td><code>position</code></td>
+<td>3-tuple</td>
+<td>required</td>
+<td>continuous offset from the ship root</td>
+</tr>
+<tr>
+<td><code>rotation</code></td>
+<td>4-tuple</td>
+<td>required</td>
+<td>rotation relative to the root; structural link points rotate with the section</td>
+</tr>
+<tr>
+<td><code>source</code></td>
+<td>source</td>
+<td>required</td>
+<td><code>Prototype(&quot;&lt;id&gt;&quot;)</code> - a <a href="../base-content/#section-prototypes">catalog id</a>, the compact reusable form - or <code>Inline((..))</code> with a full section config (<a href="../sections/">Ship sections for mods</a>)</td>
+</tr>
+<tr>
+<td><code>modifications</code></td>
+<td>list</td>
+<td><code>[]</code></td>
+<td>spawn-time deltas (below)</td>
+</tr>
+</tbody>
+</table>
+<p>Section modifications - closed, data-only deltas applied at spawn:</p>
+<table>
+<thead>
+<tr>
+<th>variant</th>
+<th>payload</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DisableVerb(&lt;verb&gt;)</code></td>
+<td><code>Stop</code>/<code>Goto</code>/<code>Orbit</code>/<code>Lock</code>/<code>Rcs</code></td>
+<td>withhold a flight verb from birth (controller sections; multiple accumulate). Runtime mirror: <a href="../actions/#setcontrollerverb"><code>SetControllerVerb</code></a></td>
+</tr>
+<tr>
+<td><code>SetHealth(&lt;number&gt;)</code></td>
+<td>starting health</td>
+<td>override the section's health (current and max)</td>
+</tr>
+<tr>
+<td><code>Rename(&lt;string&gt;)</code></td>
+<td>new name</td>
+<td>rename the section entity</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">(id: &quot;fuselage&quot;, position: (0.0, 0.7, 0.1), rotation: (0.0, 0.0, 0.0, 1.0),
+ source: Prototype(&quot;racer_fuselage&quot;),
+ modifications: [ DisableVerb(Goto), DisableVerb(Orbit) ]),
+</code></pre>
+<p>Ship structure is linted from authoritative link-point mates. A multi-section
+ship must form one graph. Collider AABB overlap is an Error unless the two
+sections directly mate, which permits intentional interlocking parts while
+still catching accidental embedding.</p>
+<h2 id="beacon" tabindex="-1">Beacon</h2>
+<p>A static, lockable, blinking nav marker with an automatic HUD chip (label,
+live distance, edge-clamped direction cue).</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>label</code></td>
+<td>string</td>
+<td>required</td>
+<td>HUD chip text (&quot;BEACON 1&quot;)</td>
+</tr>
+<tr>
+<td><code>radius</code></td>
+<td>number</td>
+<td>required</td>
+<td>visual orb radius, world units</td>
+</tr>
+<tr>
+<td><code>color</code></td>
+<td>color</td>
+<td>required</td>
+<td>orb + emissive tint, tagged: <code>Srgba((red: 0.3, green: 0.9, blue: 1.0, alpha: 1.0))</code></td>
+</tr>
+<tr>
+<td><code>area_radius</code></td>
+<td><code>Option</code> number</td>
+<td><code>None</code></td>
+<td>when set, the beacon IS its own trigger area of this radius - <a href="../events/#onenter"><code>OnEnter</code></a>/<code>OnExit</code> fire under the beacon's id, no <code>CreateScenarioArea</code> needed</td>
+</tr>
+<tr>
+<td><code>lock_signature</code></td>
+<td><code>Option</code> number</td>
+<td><code>None</code></td>
+<td>radar signature override; default 20 (about a 600 u lock range) - author bigger for longer GOTO legs</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">SpawnScenarioObject((
+    base: (id: &quot;beacon_1&quot;, name: &quot;BEACON 1&quot;, position: (0.0, 0.0, -350.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+    kind: Beacon((
+        label: &quot;BEACON 1&quot;,
+        radius: 2.0,
+        color: Srgba((red: 0.3, green: 0.9, blue: 1.0, alpha: 1.0)),
+        area_radius: Some(70.0),
+    )),
+)),
+</code></pre>
+<h2 id="salvagecrate" tabindex="-1">SalvageCrate</h2>
+<p>A minimal fly-through pickup: a static tumbling prop that is its own
+trigger area. There is no inventory system - &quot;collected&quot; is scenario state
+you author: an <code>OnEnter</code> handler under the crate's id, paired with
+<a href="../actions/#despawnscenarioobject"><code>DespawnScenarioObject</code></a> and a counter
+<a href="../actions/#variableset"><code>VariableSet</code></a>. The HUD brackets it
+automatically.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>size</code></td>
+<td>number</td>
+<td>required</td>
+<td>visible box edge length, world units</td>
+</tr>
+<tr>
+<td><code>area_radius</code></td>
+<td>number</td>
+<td>required</td>
+<td>the pickup sensor sphere (&quot;collected&quot; distance)</td>
+</tr>
+<tr>
+<td><code>pickup_sound</code></td>
+<td><code>Option</code> asset ref</td>
+<td><code>None</code></td>
+<td>the collection ding, player pickups only (<code>Some(&quot;dep://base/sounds/salvage_pickup.wav&quot;)</code> is the stock one); omitted = silent</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">SpawnScenarioObject((
+    base: (id: &quot;crate_1&quot;, name: &quot;Supply Pod&quot;, position: (40.0, 5.0, -60.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+    kind: SalvageCrate((size: 1.5, area_radius: 8.0, pickup_sound: Some(&quot;dep://base/sounds/salvage_pickup.wav&quot;))),
+)),
+</code></pre>
+<h2 id="light" tabindex="-1">Light</h2>
+<p>The scene's own lighting - and it is load-bearing: the engine spawns NO
+default light, so <strong>a scenario with no <code>Light</code> object renders black.</strong>
+<code>Light</code> takes one of two methods as an inner enum with NAMED fields in
+single parens (not the newtype double-paren shape).</p>
+<p><code>Directional</code> - a sun: parallel rays, direction only. The key/rim/fill
+workhorse.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>illuminance</code></td>
+<td>number</td>
+<td>required</td>
+<td>lux (the shipped key lights run ~11000)</td>
+</tr>
+<tr>
+<td><code>color</code></td>
+<td>color</td>
+<td>required</td>
+<td>tagged <code>Srgba((..))</code></td>
+</tr>
+<tr>
+<td><code>shadows</code></td>
+<td>bool</td>
+<td>required</td>
+<td>shadow casting; convention: exactly ONE caster per scene</td>
+</tr>
+<tr>
+<td><code>aim</code></td>
+<td><code>Option</code> 3-tuple</td>
+<td><code>None</code></td>
+<td>point the light AT this world position, ignoring <code>base.rotation</code> (hand-authoring an aim quaternion is impractical); <code>None</code> uses the rotation</td>
+</tr>
+</tbody>
+</table>
+<p><code>Point</code> - a positional lamp with falloff: a star, a floodlight, a nebula
+glow.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>intensity</code></td>
+<td>number</td>
+<td>required</td>
+<td>lumens; needs tuning by eye against your scene scale (~2.5M for a 200 u yard lamp)</td>
+</tr>
+<tr>
+<td><code>range</code></td>
+<td>number</td>
+<td>required</td>
+<td>contribution cutoff distance, world units</td>
+</tr>
+<tr>
+<td><code>radius</code></td>
+<td>number</td>
+<td>required</td>
+<td>source radius (softens the terminator)</td>
+</tr>
+<tr>
+<td><code>color</code></td>
+<td>color</td>
+<td>required</td>
+<td>tagged <code>Srgba((..))</code></td>
+</tr>
+<tr>
+<td><code>shadows</code></td>
+<td>bool</td>
+<td>required</td>
+<td>shadow casting</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">SpawnScenarioObject((
+    base: (id: &quot;key&quot;, name: &quot;Key Light&quot;, position: (-60.0, 50.0, 60.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+    kind: Light(Directional(
+        illuminance: 11000.0,
+        color: Srgba((red: 1.0, green: 0.96, blue: 0.9, alpha: 1.0)),
+        shadows: true,
+        aim: Some((0.0, 0.0, 0.0)),
+    )),
+)),
+</code></pre>
+<p>The shipped scenes all use the same three-point rig - an 11000 lux warm key
+(the only shadow caster), a 16000 lux cold rim from behind, and a 2600 lux cool
+fill from the shadow side. Copy the full light blocks from
+<code>assets/mods/example/example.content.ron</code>.</p>
+<h2 id="traps-for-the-unwary" tabindex="-1">Traps for the unwary</h2>
+<ul>
+<li>A despawned object fires no <code>OnExit</code> for itself, and a beacon/crate area
+dies with its object.</li>
+<li>Dynamic bodies (asteroids, ships) spawned overlapping shove apart
+violently on the first physics step - keep spawns separated (see
+<code>min_separation</code> under
+<a href="../actions/#scatterobjects"><code>ScatterObjects</code></a>).</li>
+<li>Every object id must be unique among live scoped entities; duplicate
+spawn ids in one handler are a lint Error.</li>
+<li>Ships are verbose; scatter is seeded. If you are typing a 400-line ship
+by hand, stop and reference <a href="../base-content/">prototypes</a> instead.</li>
+</ul>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

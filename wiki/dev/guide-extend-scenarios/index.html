@@ -38,9 +38,10 @@
                     </p>
                     <h1>Extend the scenario engine</h1>
                     <div class="wiki__tags" id="wiki-tags"></div>
+                    
                     <p>The scenario engine is config-open but code-closed. Authoring a scenario in RON
 from the primitives that already exist is a data change and lives in its own
-guide (see <a href="../guide-author-scenario/">Author a scenario</a>). Adding a NEW
+guide (see <a href="../../modding/author-a-scenario/">Create your first scenario</a>). Adding a NEW
 primitive - a new event, filter, action, or object kind - is a Rust change, and
 each of the four follows one repeated recipe: define the config, wire it into
 the matching dispatch enum, add the arm on the trait impl that fans out to it,
@@ -79,9 +80,11 @@ access (spawning, querying entities, resource mutation). The closure gets a
 <code>NovaEventWorld::state_to_world_system</code> (in <code>world.rs</code>) syncs objectives into
 <code>GameObjectives</code>, runs a queued non-lingering <code>NextScenario</code> switch, then drains
 the command queue - so every <code>push_command</code> closure lands at frame end, in
-order. The unit tests in <code>actions.rs</code> exercise exactly this: mutate a
-<code>NovaEventWorld</code>, call <code>NovaEventWorld::state_to_world_system(&amp;mut world)</code> to
-drain, then assert on the world (see <code>despawn_action_removes_the_scoped_object_by_id</code>).</p>
+order. The unit tests in the <code>actions/</code> submodules exercise exactly this:
+mutate a <code>NovaEventWorld</code>, call
+<code>NovaEventWorld::state_to_world_system(&amp;mut world)</code> to
+drain, then assert on the world (see
+<code>despawn_action_removes_the_scoped_object_by_id</code> in <code>actions/spawn.rs</code>).</p>
 <h2 id="recipe-1-add-an-event-kind" tabindex="-1">Recipe 1: add an event kind</h2>
 <p>An event is fired somewhere in the engine, and scenarios react to it through a
 handler. Adding one is two files: the event type (<code>nova_events</code>) and its config
@@ -128,7 +131,7 @@ EventConfig::OnDocked =&gt; EventHandler::new::&lt;OnDockedEvent&gt;(),
 <p>Fire it. Engine-driven events fire from <code>crates/nova_scenario/src/loader/</code>
 with <code>commands.fire::&lt;OnDockedEvent&gt;(OnDockedEventInfo { .. })</code> (see the
 <code>OnStart</code> site in <code>loader/lifecycle.rs</code>, <code>OnUpdate</code> in <code>loader/clock.rs</code>, and
-<code>OnOrbit</code>/the lock events in <code>loader/trackers.rs</code>); object-local events (an
+orbit-lifecycle/the lock events in <code>loader/trackers.rs</code>); object-local events (an
 area entering/leaving) fire from the object's own observer, the way
 <code>objects/asteroid.rs</code> fires <code>OnDestroyedEvent</code> from <code>on_asteroid_node_destroyed</code>.</p>
 </li>
@@ -220,27 +223,42 @@ EventActionConfig::<span class="hljs-title function_ invoke__">VariableClear</sp
 </code></pre>
 </li>
 <li>
-<p>Export the config struct from the <code>actions.rs</code> <code>prelude</code> block.</p>
+<p>Export the config struct from the <code>actions/mod.rs</code> <code>prelude</code> block.</p>
 </li>
 </ol>
-<p>Templates: the tests at the bottom of <code>actions.rs</code> are the pattern to copy -
-<code>despawn_action_removes_the_scoped_object_by_id</code> (queued world lookup, scoped),
-<code>hint_emphasis_actions_drive_the_resource</code> (resource mutation through the drain),
-<code>objective_marker_attach_and_detach_drive_the_component</code> (component insert/remove).
+<p>Templates: the tests at the bottom of the <code>actions/</code> submodules are the
+pattern to copy -
+<code>despawn_action_removes_the_scoped_object_by_id</code> (<code>actions/spawn.rs</code>; queued
+world lookup, scoped),
+<code>hint_emphasis_actions_drive_the_resource</code> (<code>actions/mission.rs</code>; resource
+mutation through the drain),
+<code>objective_marker_attach_and_detach_drive_the_component</code> (<code>actions/mission.rs</code>;
+component insert/remove).
 Each fires the action into a <code>NovaEventWorld</code>, drains with
 <code>NovaEventWorld::state_to_world_system</code>, then asserts.</p>
 <h2 id="recipe-4-add-a-scenario-object-kind" tabindex="-1">Recipe 4: add a scenario object kind</h2>
-<p>A scenario object is a scoped, interpolated, dynamic body spawned by
-<code>SpawnScenarioObject</code>. Model it on <code>crates/nova_scenario/src/objects/asteroid.rs</code>.</p>
+<p>A scenario object is a scoped entity spawned by <code>SpawnScenarioObject</code>; the
+kind decides its own body (or none - three of the five shipped kinds are
+static). Model it on <code>crates/nova_scenario/src/objects/asteroid.rs</code>.</p>
+<blockquote>
+<p>A kind is not required to be a physical body. <code>beacon.rs</code> declares
+<code>RigidBody::Static</code> (the base bundle supplies no body), and <code>light.rs</code> is a
+pure-render kind: it splits config from component with an <code>Add</code> observer so the <code>render</code>
+flag can skip the Bevy light entirely for headless tools. Note that scene
+lighting itself is authored content - a scenario with no <code>Light</code> object
+renders black, so any new example or fixture that renders needs one.</p>
+</blockquote>
 <ol>
 <li>
 <p>Create <code>crates/nova_scenario/src/objects/&lt;kind&gt;.rs</code>. It holds a config struct,
 a type-name const, a marker component, a <code>&lt;kind&gt;_scenario_object(config) -&gt; impl Bundle</code>
 builder, and (optionally) a <code>Plugin</code> for any observers/systems the kind needs.
 The bundle carries the marker plus an <code>EntityTypeName</code>; the shared
-<code>base_scenario_object</code> (id, name, transform, <code>RigidBody::Dynamic</code>,
-<code>TransformInterpolation</code>, visibility, <code>ScenarioScopedMarker</code>) is added by the
-spawn path, not here.</p>
+<code>base_scenario_object</code> (id, name, transform, visibility,
+<code>ScenarioScopedMarker</code>) is added by the spawn path, not here. It
+deliberately carries NO body - each kind declares its own <code>RigidBody</code> (the
+asteroid adds <code>Dynamic</code> + <code>TransformInterpolation</code>; three of the five kinds
+are static).</p>
 <pre><code class="hljs language-rust"><span class="hljs-keyword">pub</span> <span class="hljs-keyword">const</span> MINE_TYPE_NAME: &amp;<span class="hljs-type">str</span> = <span class="hljs-string">&quot;mine&quot;</span>;
 
 <span class="hljs-meta">#[derive(Component, Clone, Debug, Reflect)]</span>
@@ -281,6 +299,7 @@ and if the kind has a plugin add it in <code>ScenarioObjectsPlugin::build</code>
     <span class="hljs-title function_ invoke__">Spaceship</span>(SpaceshipConfig),
     <span class="hljs-title function_ invoke__">Beacon</span>(BeaconConfig),
     <span class="hljs-title function_ invoke__">SalvageCrate</span>(SalvageCrateConfig),
+    <span class="hljs-title function_ invoke__">Light</span>(LightConfig),
     <span class="hljs-title function_ invoke__">Mine</span>(MineConfig),
 }
 

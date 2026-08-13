@@ -8,6 +8,86 @@
             health: 200.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
+            link_points: [
+                (
+                    id: "positive_x",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "negative_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
         ),
         kind: Hull((
             render_mesh: Some("self://gltf/hull-01.glb#Scene0"),
@@ -22,6 +102,86 @@
             health: 70.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
+            link_points: [
+                (
+                    id: "positive_x",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "negative_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
         ),
         kind: Thruster((
             magnitude: 1.0,
@@ -37,6 +197,86 @@
             health: 100.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
+            link_points: [
+                (
+                    id: "positive_x",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "negative_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
         ),
         kind: Controller((
             frequency: 4.0,
@@ -59,6 +299,86 @@
             health: 130.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
+            link_points: [
+                (
+                    id: "positive_x",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "negative_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
         ),
         kind: Turret((
             root: (
@@ -145,6 +465,86 @@
             health: 60.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
+            link_points: [
+                (
+                    id: "positive_x",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "negative_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
         ),
         kind: Hull((
             render_mesh: Some("self://gltf/hull-01.glb#Scene0"),
@@ -159,6 +559,86 @@
             health: 60.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
+            link_points: [
+                (
+                    id: "positive_x",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "negative_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
         ),
         kind: Turret((
             root: (
@@ -245,6 +725,86 @@
             health: 100.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
+            link_points: [
+                (
+                    id: "positive_x",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "negative_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
         ),
         kind: Torpedo((
             render_mesh: Some("self://gltf/torpedo-bay-01.glb#Scene0"),
@@ -281,213 +841,66 @@
     )),
     Section((
         base: (
-            id: "racer_cube_i0_j0_k0",
-            name: "Racer Cube (0,0,0)",
-            description: "A cut hull cube of the Kenney craft_racer.",
-            mass: 1.0,
-            health: 60.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/racer/cube_i0_j0_k0.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "racer_cube_i0_j0_k1",
-            name: "Racer Cube (0,0,1)",
-            description: "A cut hull cube of the Kenney craft_racer.",
-            mass: 1.0,
-            health: 60.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/racer/cube_i0_j0_k1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "racer_cube_i0_j0_k2",
-            name: "Racer Cube (0,0,2)",
-            description: "A cut hull cube of the Kenney craft_racer.",
-            mass: 1.0,
-            health: 60.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/racer/cube_i0_j0_k2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "racer_cube_i0_j0_km1",
-            name: "Racer Cube (0,0,-1)",
-            description: "A cut hull cube of the Kenney craft_racer.",
-            mass: 1.0,
-            health: 60.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/racer/cube_i0_j0_km1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "racer_cube_i0_j0_km2",
-            name: "Racer Cube (0,0,-2)",
-            description: "A cut hull cube of the Kenney craft_racer.",
-            mass: 1.0,
-            health: 60.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/racer/cube_i0_j0_km2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "racer_cube_i0_j1_k0",
-            name: "Racer Controller",
-            description: "A cut hull cube of the Kenney craft_racer.",
-            mass: 1.0,
-            health: 100.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Controller((
-            frequency: 4.0,
-            damping_ratio: 4.0,
-            max_torque: 800.0,
-            render_mesh: Some("self://gltf/racer/cube_i0_j1_k0.glb#Scene0"),
-            lock_on_sound: Some("self://sounds/lock_on.wav"),
-            lock_off_sound: Some("self://sounds/lock_off.wav"),
-            radar_deny_sound: Some("self://sounds/radar_deny.wav"),
-            radar_retarget_sound: Some("self://sounds/radar_retarget.wav"),
-            safety_on_sound: Some("self://sounds/safety_on.wav"),
-            rcs_loop_sound: Some("self://sounds/rcs_loop.wav"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "racer_cube_i0_j1_k1",
-            name: "Racer Cube (0,1,1)",
-            description: "A cut hull cube of the Kenney craft_racer.",
-            mass: 1.0,
-            health: 60.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/racer/cube_i0_j1_k1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "racer_cube_i0_j1_k2",
-            name: "Racer Cube (0,1,2)",
-            description: "A cut hull cube of the Kenney craft_racer.",
-            mass: 1.0,
-            health: 60.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/racer/cube_i0_j1_k2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "racer_cube_i0_j1_km1",
-            name: "Racer Cube (0,1,-1)",
-            description: "A cut hull cube of the Kenney craft_racer.",
-            mass: 1.0,
-            health: 60.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/racer/cube_i0_j1_km1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "racer_cube_i0_j1_km2",
-            name: "Racer Cube (0,1,-2)",
-            description: "A cut hull cube of the Kenney craft_racer.",
-            mass: 1.0,
-            health: 60.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/racer/cube_i0_j1_km2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "racer_cube_i1_j0_k0",
-            name: "Racer Cube (1,0,0)",
-            description: "A cut hull cube of the Kenney craft_racer.",
-            mass: 1.0,
-            health: 60.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/racer/cube_i1_j0_k0.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "racer_cube_i1_j0_k1",
-            name: "Racer Cube (1,0,1)",
-            description: "A cut hull cube of the Kenney craft_racer.",
-            mass: 1.0,
-            health: 60.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/racer/cube_i1_j0_k1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "racer_cube_i1_j0_k2",
-            name: "Racer Thruster (1,0,2)",
-            description: "A cut hull cube of the Kenney craft_racer.",
+            id: "racer_engine_starboard",
+            name: "Engine Starboard",
+            description: "A semantic ship part from a Kenney spacecraft.",
             mass: 1.0,
             health: 70.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.49,
+                    0.74189,
+                    0.62567,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_tail",
+                    position: (
+                        -0.3275,
+                        0.1395275,
+                        0.049999952,
+                    ),
+                    normal: (
+                        -0.91104406,
+                        0.38813958,
+                        0.13909057,
+                    ),
+                ),
+                (
+                    id: "to_wing_starboard",
+                    position: (
+                        0.07500005,
+                        -0.035472512,
+                        -0.69749975,
+                    ),
+                    normal: (
+                        0.10677426,
+                        -0.050500672,
+                        -0.99300003,
+                    ),
+                ),
+            ],
             hide_in_editor: true,
         ),
         kind: Thruster((
             magnitude: 1.0,
-            render_mesh: Some("self://gltf/racer/cube_i1_j0_k2.glb#Scene0"),
+            render_mesh: Some("self://gltf/parts/racer/engine_starboard.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    -0.15499997,
+                    -0.070945024,
+                    -0.012835026,
+                ),
+            )),
             loop_sound: Some("self://sounds/thruster_loop.wav"),
             exhaust: Some((
                 offset: (
-                    -0.35,
                     0.0,
-                    -0.2,
+                    0.0,
+                    0.312835,
                 ),
                 rotation: (
                     0.70710677,
@@ -497,8 +910,8 @@
                 ),
                 shape: (
                     geometry: Rect,
-                    width: 0.3,
-                    height: 0.5,
+                    width: 0.343,
+                    height: 0.445134,
                     exhaust_height: 0.1,
                     exhaust_radius: 0.4,
                     exhaust_max: 1.0,
@@ -523,13 +936,476 @@
     )),
     Section((
         base: (
-            id: "racer_cube_i1_j0_km1",
-            name: "Racer Turret (1,0,-1)",
-            description: "A cut hull cube of the Kenney craft_racer.",
+            id: "racer_engine_port",
+            name: "Engine Port",
+            description: "A semantic ship part from a Kenney spacecraft.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.49,
+                    0.74189,
+                    0.62567,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_tail",
+                    position: (
+                        0.3275,
+                        0.1395275,
+                        0.049999952,
+                    ),
+                    normal: (
+                        0.91104406,
+                        0.38813958,
+                        0.13909057,
+                    ),
+                ),
+                (
+                    id: "to_wing_port",
+                    position: (
+                        -0.07500005,
+                        -0.035472512,
+                        -0.69749975,
+                    ),
+                    normal: (
+                        -0.10677426,
+                        -0.050500672,
+                        -0.99300003,
+                    ),
+                ),
+            ],
+            hide_in_editor: true,
+        ),
+        kind: Thruster((
+            magnitude: 1.0,
+            render_mesh: Some("self://gltf/parts/racer/engine_port.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.15499997,
+                    -0.070945024,
+                    -0.012835026,
+                ),
+            )),
+            loop_sound: Some("self://sounds/thruster_loop.wav"),
+            exhaust: Some((
+                offset: (
+                    0.0,
+                    0.0,
+                    0.312835,
+                ),
+                rotation: (
+                    0.70710677,
+                    0.0,
+                    0.0,
+                    0.70710677,
+                ),
+                shape: (
+                    geometry: Rect,
+                    width: 0.343,
+                    height: 0.445134,
+                    exhaust_height: 0.1,
+                    exhaust_radius: 0.4,
+                    exhaust_max: 1.0,
+                    exhaust_inner_height: 0.05,
+                    exhaust_inner_radius: 0.1,
+                    exhaust_inner_max: 0.5,
+                    emissive_color: (
+                        red: 0.0,
+                        green: 10.0,
+                        blue: 10.0,
+                        alpha: 1.0,
+                    ),
+                    emissive_inner_color: (
+                        red: 0.0,
+                        green: 0.0,
+                        blue: 10.0,
+                        alpha: 1.0,
+                    ),
+                ),
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "racer_wing_starboard",
+            name: "Wing Starboard",
+            description: "A semantic ship part from a Kenney spacecraft.",
+            mass: 1.0,
+            health: 180.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.78999996,
+                    1.0,
+                    2.164329,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_fuselage",
+                    position: (
+                        -0.4025,
+                        0.100000024,
+                        -0.008917749,
+                    ),
+                    normal: (
+                        -0.97027177,
+                        0.24106129,
+                        -0.021497242,
+                    ),
+                ),
+                (
+                    id: "to_engine_starboard",
+                    position: (
+                        -0.07499999,
+                        0.035472512,
+                        0.69749975,
+                    ),
+                    normal: (
+                        -0.10677426,
+                        0.050500672,
+                        0.99300003,
+                    ),
+                ),
+                (
+                    id: "to_turret_starboard",
+                    position: (
+                        0.27249998,
+                        -0.050000012,
+                        -0.45891777,
+                    ),
+                    normal: (
+                        0.5083374,
+                        -0.0932729,
+                        -0.85609186,
+                    ),
+                ),
+            ],
+            hide_in_editor: true,
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/parts/racer/wing_starboard.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.195,
+                    0.0,
+                    -0.11783552,
+                ),
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "racer_wing_port",
+            name: "Wing Port",
+            description: "A semantic ship part from a Kenney spacecraft.",
+            mass: 1.0,
+            health: 180.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.78999996,
+                    1.0,
+                    2.164329,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_fuselage",
+                    position: (
+                        0.4025,
+                        0.100000024,
+                        -0.008917749,
+                    ),
+                    normal: (
+                        0.97027177,
+                        0.24106129,
+                        -0.021497242,
+                    ),
+                ),
+                (
+                    id: "to_engine_port",
+                    position: (
+                        0.07499999,
+                        0.035472512,
+                        0.69749975,
+                    ),
+                    normal: (
+                        0.10677426,
+                        0.050500672,
+                        0.99300003,
+                    ),
+                ),
+                (
+                    id: "to_turret_port",
+                    position: (
+                        -0.27249998,
+                        -0.050000012,
+                        -0.45891777,
+                    ),
+                    normal: (
+                        -0.5083374,
+                        -0.0932729,
+                        -0.85609186,
+                    ),
+                ),
+            ],
+            hide_in_editor: true,
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/parts/racer/wing_port.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    -0.195,
+                    0.0,
+                    -0.11783552,
+                ),
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "racer_nose",
+            name: "Nose",
+            description: "A semantic ship part from a Kenney spacecraft.",
+            mass: 1.0,
+            health: 120.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.8,
+                    1.22265,
+                    1.02567,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_fuselage",
+                    position: (
+                        0.0,
+                        0.04433751,
+                        0.8064175,
+                    ),
+                    normal: (
+                        0.0,
+                        0.05489789,
+                        0.998492,
+                    ),
+                ),
+            ],
+            hide_in_editor: true,
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/parts/racer/nose.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.0,
+                    -0.111325026,
+                    0.012835026,
+                ),
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "racer_tail",
+            name: "Tail",
+            description: "A semantic ship part from a Kenney spacecraft.",
+            mass: 1.0,
+            health: 120.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.82,
+                    1.3,
+                    0.82567,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_fuselage",
+                    position: (
+                        0.0,
+                        -0.07500005,
+                        -0.75641745,
+                    ),
+                    normal: (
+                        0.0,
+                        -0.09866781,
+                        -0.99512047,
+                    ),
+                ),
+                (
+                    id: "to_engine_starboard",
+                    position: (
+                        0.3275,
+                        -0.1395275,
+                        -0.049999952,
+                    ),
+                    normal: (
+                        0.91104406,
+                        -0.38813958,
+                        -0.13909057,
+                    ),
+                ),
+                (
+                    id: "to_engine_port",
+                    position: (
+                        -0.3275,
+                        -0.1395275,
+                        -0.049999952,
+                    ),
+                    normal: (
+                        -0.91104406,
+                        -0.38813958,
+                        -0.13909057,
+                    ),
+                ),
+            ],
+            hide_in_editor: true,
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/parts/racer/tail.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.0,
+                    0.14999998,
+                    -0.11283493,
+                ),
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "racer_fuselage",
+            name: "Fuselage",
+            description: "A semantic ship part from a Kenney spacecraft.",
+            mass: 1.0,
+            health: 240.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.82,
+                    1.4,
+                    2.2,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_nose",
+                    position: (
+                        0.0,
+                        -0.04433745,
+                        -0.8064175,
+                    ),
+                    normal: (
+                        0.0,
+                        -0.05489789,
+                        -0.998492,
+                    ),
+                ),
+                (
+                    id: "to_tail",
+                    position: (
+                        0.0,
+                        0.07499999,
+                        0.75641745,
+                    ),
+                    normal: (
+                        0.0,
+                        0.09866781,
+                        0.99512047,
+                    ),
+                ),
+                (
+                    id: "to_wing_starboard",
+                    position: (
+                        0.4025,
+                        -0.099999964,
+                        0.008917749,
+                    ),
+                    normal: (
+                        0.97027177,
+                        -0.24106129,
+                        0.021497242,
+                    ),
+                ),
+                (
+                    id: "to_wing_port",
+                    position: (
+                        -0.4025,
+                        -0.099999964,
+                        0.008917749,
+                    ),
+                    normal: (
+                        -0.97027177,
+                        -0.24106129,
+                        0.021497242,
+                    ),
+                ),
+            ],
+            hide_in_editor: true,
+        ),
+        kind: Controller((
+            frequency: 4.0,
+            damping_ratio: 4.0,
+            max_torque: 800.0,
+            render_mesh: Some("self://gltf/parts/racer/fuselage.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.0,
+                    -0.19999999,
+                    -0.100000024,
+                ),
+            )),
+            lock_on_sound: Some("self://sounds/lock_on.wav"),
+            lock_off_sound: Some("self://sounds/lock_off.wav"),
+            radar_deny_sound: Some("self://sounds/radar_deny.wav"),
+            radar_retarget_sound: Some("self://sounds/radar_retarget.wav"),
+            safety_on_sound: Some("self://sounds/safety_on.wav"),
+            rcs_loop_sound: Some("self://sounds/rcs_loop.wav"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "racer_turret_starboard",
+            name: "Turret Starboard",
+            description: "A semantic ship part from a Kenney spacecraft.",
             mass: 1.0,
             health: 130.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.3,
+                    0.3,
+                    0.3,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_wing_starboard",
+                    position: (
+                        -0.049999982,
+                        -0.2725,
+                        0.45891777,
+                    ),
+                    normal: (
+                        -0.0932729,
+                        -0.5083373,
+                        0.85609186,
+                    ),
+                ),
+            ],
             hide_in_editor: true,
         ),
         kind: Turret((
@@ -539,20 +1415,6 @@
                     -0.5,
                     0.0,
                 ),
-                render_mesh: Some("self://gltf/racer/cube_i1_j0_km1.glb#Scene0"),
-                render_mesh_transform: Some((
-                    position: (
-                        0.0,
-                        0.5,
-                        0.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.70710677,
-                        0.70710677,
-                    ),
-                )),
                 children: [
                     (
                         offset: (
@@ -624,13 +1486,35 @@
     )),
     Section((
         base: (
-            id: "racer_light_cube_i1_j0_km1",
-            name: "Racer Light Turret (1,0,-1)",
-            description: "A cut hull cube of the Kenney craft_racer.",
+            id: "racer_turret_starboard_light",
+            name: "Turret Starboard Light",
+            description: "A semantic ship part from a Kenney spacecraft.",
             mass: 1.0,
             health: 60.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.3,
+                    0.3,
+                    0.3,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_wing_starboard",
+                    position: (
+                        -0.049999982,
+                        -0.2725,
+                        0.45891777,
+                    ),
+                    normal: (
+                        -0.0932729,
+                        -0.5083373,
+                        0.85609186,
+                    ),
+                ),
+            ],
             hide_in_editor: true,
         ),
         kind: Turret((
@@ -640,20 +1524,6 @@
                     -0.5,
                     0.0,
                 ),
-                render_mesh: Some("self://gltf/racer/cube_i1_j0_km1.glb#Scene0"),
-                render_mesh_transform: Some((
-                    position: (
-                        0.0,
-                        0.5,
-                        0.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.70710677,
-                        0.70710677,
-                    ),
-                )),
                 children: [
                     (
                         offset: (
@@ -725,96 +1595,35 @@
     )),
     Section((
         base: (
-            id: "racer_cube_im1_j0_k0",
-            name: "Racer Cube (-1,0,0)",
-            description: "A cut hull cube of the Kenney craft_racer.",
-            mass: 1.0,
-            health: 60.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/racer/cube_im1_j0_k0.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "racer_cube_im1_j0_k1",
-            name: "Racer Cube (-1,0,1)",
-            description: "A cut hull cube of the Kenney craft_racer.",
-            mass: 1.0,
-            health: 60.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/racer/cube_im1_j0_k1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "racer_cube_im1_j0_k2",
-            name: "Racer Thruster (-1,0,2)",
-            description: "A cut hull cube of the Kenney craft_racer.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Thruster((
-            magnitude: 1.0,
-            render_mesh: Some("self://gltf/racer/cube_im1_j0_k2.glb#Scene0"),
-            loop_sound: Some("self://sounds/thruster_loop.wav"),
-            exhaust: Some((
-                offset: (
-                    0.35,
-                    0.0,
-                    -0.2,
-                ),
-                rotation: (
-                    0.70710677,
-                    0.0,
-                    0.0,
-                    0.70710677,
-                ),
-                shape: (
-                    geometry: Rect,
-                    width: 0.3,
-                    height: 0.5,
-                    exhaust_height: 0.1,
-                    exhaust_radius: 0.4,
-                    exhaust_max: 1.0,
-                    exhaust_inner_height: 0.05,
-                    exhaust_inner_radius: 0.1,
-                    exhaust_inner_max: 0.5,
-                    emissive_color: (
-                        red: 0.0,
-                        green: 10.0,
-                        blue: 10.0,
-                        alpha: 1.0,
-                    ),
-                    emissive_inner_color: (
-                        red: 0.0,
-                        green: 0.0,
-                        blue: 10.0,
-                        alpha: 1.0,
-                    ),
-                ),
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "racer_cube_im1_j0_km1",
-            name: "Racer Turret (-1,0,-1)",
-            description: "A cut hull cube of the Kenney craft_racer.",
+            id: "racer_turret_port",
+            name: "Turret Port",
+            description: "A semantic ship part from a Kenney spacecraft.",
             mass: 1.0,
             health: 130.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.3,
+                    0.3,
+                    0.3,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_wing_port",
+                    position: (
+                        0.049999982,
+                        -0.2725,
+                        0.45891777,
+                    ),
+                    normal: (
+                        0.0932729,
+                        -0.5083373,
+                        0.85609186,
+                    ),
+                ),
+            ],
             hide_in_editor: true,
         ),
         kind: Turret((
@@ -824,20 +1633,6 @@
                     -0.5,
                     0.0,
                 ),
-                render_mesh: Some("self://gltf/racer/cube_im1_j0_km1.glb#Scene0"),
-                render_mesh_transform: Some((
-                    position: (
-                        0.0,
-                        0.5,
-                        0.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        -0.70710677,
-                        0.70710677,
-                    ),
-                )),
                 children: [
                     (
                         offset: (
@@ -909,13 +1704,35 @@
     )),
     Section((
         base: (
-            id: "racer_light_cube_im1_j0_km1",
-            name: "Racer Light Turret (-1,0,-1)",
-            description: "A cut hull cube of the Kenney craft_racer.",
+            id: "racer_turret_port_light",
+            name: "Turret Port Light",
+            description: "A semantic ship part from a Kenney spacecraft.",
             mass: 1.0,
             health: 60.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.3,
+                    0.3,
+                    0.3,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_wing_port",
+                    position: (
+                        0.049999982,
+                        -0.2725,
+                        0.45891777,
+                    ),
+                    normal: (
+                        0.0932729,
+                        -0.5083373,
+                        0.85609186,
+                    ),
+                ),
+            ],
             hide_in_editor: true,
         ),
         kind: Turret((
@@ -925,20 +1742,6 @@
                     -0.5,
                     0.0,
                 ),
-                render_mesh: Some("self://gltf/racer/cube_im1_j0_km1.glb#Scene0"),
-                render_mesh_transform: Some((
-                    position: (
-                        0.0,
-                        0.5,
-                        0.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        -0.70710677,
-                        0.70710677,
-                    ),
-                )),
                 children: [
                     (
                         offset: (
@@ -1010,303 +1813,47 @@
     )),
     Section((
         base: (
-            id: "cargob_cube_i0_j0_k0",
-            name: "Cargo Cube (0,0,0)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
+            id: "cargob_engine_starboard",
+            name: "Engine Starboard",
+            description: "A semantic ship part from a Kenney spacecraft.",
             mass: 1.0,
             health: 70.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_i0_j0_k0.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_i0_j0_k1",
-            name: "Cargo Cube (0,0,1)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_i0_j0_k1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_i0_j0_k2",
-            name: "Cargo Cube (0,0,2)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_i0_j0_k2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_i0_j0_km1",
-            name: "Cargo Cube (0,0,-1)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_i0_j0_km1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_i0_j1_k2",
-            name: "Cargo Cube (0,1,2)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_i0_j1_k2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_i0_j1_km1",
-            name: "Cargo Cube (0,1,-1)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_i0_j1_km1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_i0_j1_km2",
-            name: "Cargo Cube (0,1,-2)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_i0_j1_km2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_i0_j2_k0",
-            name: "Cargo Cube (0,2,0)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_i0_j2_k0.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_i0_j2_k1",
-            name: "Cargo Cube (0,2,1)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_i0_j2_k1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_i0_j2_k2",
-            name: "Cargo Cube (0,2,2)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_i0_j2_k2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_i0_j2_km1",
-            name: "Cargo Cube (0,2,-1)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_i0_j2_km1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_i0_j2_km2",
-            name: "Cargo Cube (0,2,-2)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_i0_j2_km2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_i1_j0_k0",
-            name: "Cargo Cube (1,0,0)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_i1_j0_k0.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_i1_j0_k1",
-            name: "Cargo Cube (1,0,1)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_i1_j0_k1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_i1_j0_k2",
-            name: "Cargo Cube (1,0,2)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_i1_j0_k2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_i1_j0_km1",
-            name: "Cargo Cube (1,0,-1)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_i1_j0_km1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_i1_j0_km2",
-            name: "Cargo Cube (1,0,-2)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_i1_j0_km2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_i1_j1_k0",
-            name: "Cargo Cube (1,1,0)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_i1_j1_k0.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_i1_j1_k1",
-            name: "Cargo Cube (1,1,1)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_i1_j1_k1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_i1_j1_k2",
-            name: "Cargo Thruster (1,1,2)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.78999996,
+                    1.0,
+                    1.0,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_pod_starboard",
+                    position: (
+                        0.024999976,
+                        0.0,
+                        -1.25,
+                    ),
+                    normal: (
+                        0.01999603,
+                        0.0,
+                        -0.9998,
+                    ),
+                ),
+            ],
             hide_in_editor: true,
         ),
         kind: Thruster((
             magnitude: 1.0,
-            render_mesh: Some("self://gltf/cargob/cube_i1_j1_k2.glb#Scene0"),
+            render_mesh: Some("self://gltf/parts/cargob/engine_starboard.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    -0.004999995,
+                    -0.19999999,
+                    0.0,
+                ),
+            )),
             loop_sound: Some("self://sounds/thruster_loop.wav"),
             exhaust: Some((
                 offset: (
@@ -1322,7 +1869,7 @@
                 ),
                 shape: (
                     geometry: Rect,
-                    width: 0.4,
+                    width: 0.553,
                     height: 0.6,
                     exhaust_height: 0.1,
                     exhaust_radius: 0.4,
@@ -1348,36 +1895,158 @@
     )),
     Section((
         base: (
-            id: "cargob_cube_i1_j1_km1",
-            name: "Cargo Cube (1,1,-1)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
+            id: "cargob_engine_port",
+            name: "Engine Port",
+            description: "A semantic ship part from a Kenney spacecraft.",
             mass: 1.0,
             health: 70.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.78999996,
+                    1.0,
+                    1.0,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_pod_port",
+                    position: (
+                        -0.024999976,
+                        0.0,
+                        -1.25,
+                    ),
+                    normal: (
+                        -0.01999603,
+                        0.0,
+                        -0.9998,
+                    ),
+                ),
+            ],
             hide_in_editor: true,
         ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_i1_j1_km1.glb#Scene0"),
+        kind: Thruster((
+            magnitude: 1.0,
+            render_mesh: Some("self://gltf/parts/cargob/engine_port.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.004999995,
+                    -0.19999999,
+                    0.0,
+                ),
+            )),
+            loop_sound: Some("self://sounds/thruster_loop.wav"),
+            exhaust: Some((
+                offset: (
+                    0.0,
+                    0.0,
+                    0.5,
+                ),
+                rotation: (
+                    0.70710677,
+                    0.0,
+                    0.0,
+                    0.70710677,
+                ),
+                shape: (
+                    geometry: Rect,
+                    width: 0.553,
+                    height: 0.6,
+                    exhaust_height: 0.1,
+                    exhaust_radius: 0.4,
+                    exhaust_max: 1.0,
+                    exhaust_inner_height: 0.05,
+                    exhaust_inner_radius: 0.1,
+                    exhaust_inner_max: 0.5,
+                    emissive_color: (
+                        red: 0.0,
+                        green: 10.0,
+                        blue: 10.0,
+                        alpha: 1.0,
+                    ),
+                    emissive_inner_color: (
+                        red: 0.0,
+                        green: 0.0,
+                        blue: 10.0,
+                        alpha: 1.0,
+                    ),
+                ),
+            )),
         )),
     )),
     Section((
         base: (
-            id: "cargob_cube_i1_j1_km2",
-            name: "Cargo Torpedo Bay (1,1,-2)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
+            id: "cargob_pod_starboard",
+            name: "Pod Starboard",
+            description: "A semantic ship part from a Kenney spacecraft.",
             mass: 1.0,
-            health: 100.0,
+            health: 350.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.89,
+                    1.0,
+                    4.0,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_fuselage",
+                    position: (
+                        -0.52750003,
+                        0.099999964,
+                        0.375,
+                    ),
+                    normal: (
+                        -0.80547845,
+                        0.15269731,
+                        0.57261497,
+                    ),
+                ),
+                (
+                    id: "to_engine_starboard",
+                    position: (
+                        -0.025000095,
+                        0.0,
+                        1.25,
+                    ),
+                    normal: (
+                        -0.01999603,
+                        0.0,
+                        0.9998,
+                    ),
+                ),
+                (
+                    id: "to_turret_starboard",
+                    position: (
+                        0.24749994,
+                        0.25000006,
+                        0.25,
+                    ),
+                    normal: (
+                        0.5734819,
+                        0.57927483,
+                        0.5792748,
+                    ),
+                ),
+            ],
             hide_in_editor: true,
         ),
         kind: Torpedo((
-            render_mesh: Some("self://gltf/cargob/cube_i1_j1_km2.glb#Scene0"),
+            render_mesh: Some("self://gltf/parts/cargob/pod_starboard.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    -0.055000067,
+                    -0.19999999,
+                    0.0,
+                ),
+            )),
             spawn_offset: (
                 0.0,
                 0.0,
-                -2.0,
+                -2.5,
             ),
             spawn_rotation: (
                 0.0,
@@ -1407,362 +2076,76 @@
     )),
     Section((
         base: (
-            id: "cargob_cube_i1_j2_k0",
-            name: "Cargo Turret (1,2,0)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
+            id: "cargob_pod_port",
+            name: "Pod Port",
+            description: "A semantic ship part from a Kenney spacecraft.",
             mass: 1.0,
-            health: 130.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Turret((
-            root: (
-                offset: (
-                    0.0,
-                    -0.5,
-                    0.0,
-                ),
-                render_mesh: Some("self://gltf/cargob/cube_i1_j2_k0.glb#Scene0"),
-                render_mesh_transform: Some((
-                    position: (
-                        0.0,
-                        0.5,
-                        0.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.70710677,
-                        0.70710677,
-                    ),
-                )),
-                children: [
-                    (
-                        offset: (
-                            0.0,
-                            0.1,
-                            0.0,
-                        ),
-                        axis: Some((
-                            0.0,
-                            1.0,
-                            0.0,
-                        )),
-                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
-                        children: [
-                            (
-                                offset: (
-                                    0.0,
-                                    0.332706,
-                                    0.303954,
-                                ),
-                                axis: Some((
-                                    1.0,
-                                    0.0,
-                                    0.0,
-                                )),
-                                min: Some(-0.5235988),
-                                max: Some(1.5707964),
-                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
-                                children: [
-                                    (
-                                        offset: (
-                                            0.0,
-                                            0.128437,
-                                            -0.110729,
-                                        ),
-                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
-                                        children: [
-                                            (
-                                                offset: (
-                                                    0.0,
-                                                    0.0,
-                                                    -1.2,
-                                                ),
-                                                muzzle: Some((
-                                                    fire_rate: 100.0,
-                                                )),
-                                            ),
-                                        ],
-                                    ),
-                                ],
-                            ),
-                        ],
-                    ),
-                ],
-            ),
-            muzzle_speed: 100.0,
-            projectile_lifetime: 5.0,
-            bullet_damage: 4.0,
-            bullet_kind: Kinetic,
-            fire_sound: Some("self://sounds/turret_fire.wav"),
-            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
-            ammo_capacity: Some(500),
-            reload: Some((
-                reload_time: 3.0,
-                rounds_per_cycle: 500,
-                only_when_empty: true,
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_i1_j2_k1",
-            name: "Cargo Cube (1,2,1)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_i1_j2_k1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_i1_j2_k2",
-            name: "Cargo Cube (1,2,2)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_i1_j2_k2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_i1_j2_km1",
-            name: "Cargo Cube (1,2,-1)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_i1_j2_km1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_i1_j2_km2",
-            name: "Cargo Cube (1,2,-2)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
+            health: 350.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
-                    0.8,
-                    0.8,
-                    0.8,
+                    0.89,
+                    1.0,
+                    4.0,
                 ),
             )),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_i1_j2_km2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_im1_j0_k0",
-            name: "Cargo Cube (-1,0,0)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_im1_j0_k0.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_im1_j0_k1",
-            name: "Cargo Cube (-1,0,1)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_im1_j0_k1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_im1_j0_k2",
-            name: "Cargo Cube (-1,0,2)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_im1_j0_k2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_im1_j0_km1",
-            name: "Cargo Cube (-1,0,-1)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_im1_j0_km1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_im1_j0_km2",
-            name: "Cargo Cube (-1,0,-2)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_im1_j0_km2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_im1_j1_k0",
-            name: "Cargo Cube (-1,1,0)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_im1_j1_k0.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_im1_j1_k1",
-            name: "Cargo Cube (-1,1,1)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_im1_j1_k1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_im1_j1_k2",
-            name: "Cargo Thruster (-1,1,2)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Thruster((
-            magnitude: 1.0,
-            render_mesh: Some("self://gltf/cargob/cube_im1_j1_k2.glb#Scene0"),
-            loop_sound: Some("self://sounds/thruster_loop.wav"),
-            exhaust: Some((
-                offset: (
-                    0.0,
-                    0.0,
-                    0.5,
-                ),
-                rotation: (
-                    0.70710677,
-                    0.0,
-                    0.0,
-                    0.70710677,
-                ),
-                shape: (
-                    geometry: Rect,
-                    width: 0.4,
-                    height: 0.6,
-                    exhaust_height: 0.1,
-                    exhaust_radius: 0.4,
-                    exhaust_max: 1.0,
-                    exhaust_inner_height: 0.05,
-                    exhaust_inner_radius: 0.1,
-                    exhaust_inner_max: 0.5,
-                    emissive_color: (
-                        red: 0.0,
-                        green: 10.0,
-                        blue: 10.0,
-                        alpha: 1.0,
+            link_points: [
+                (
+                    id: "to_fuselage",
+                    position: (
+                        0.52750003,
+                        0.099999964,
+                        0.375,
                     ),
-                    emissive_inner_color: (
-                        red: 0.0,
-                        green: 0.0,
-                        blue: 10.0,
-                        alpha: 1.0,
+                    normal: (
+                        0.80547845,
+                        0.15269731,
+                        0.57261497,
                     ),
                 ),
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_im1_j1_km1",
-            name: "Cargo Cube (-1,1,-1)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_im1_j1_km1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_im1_j1_km2",
-            name: "Cargo Torpedo Bay (-1,1,-2)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 100.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
+                (
+                    id: "to_engine_port",
+                    position: (
+                        0.025000095,
+                        0.0,
+                        1.25,
+                    ),
+                    normal: (
+                        0.01999603,
+                        0.0,
+                        0.9998,
+                    ),
+                ),
+                (
+                    id: "to_turret_port",
+                    position: (
+                        -0.24749994,
+                        0.25000006,
+                        0.25,
+                    ),
+                    normal: (
+                        -0.5734819,
+                        0.57927483,
+                        0.5792748,
+                    ),
+                ),
+            ],
             hide_in_editor: true,
         ),
         kind: Torpedo((
-            render_mesh: Some("self://gltf/cargob/cube_im1_j1_km2.glb#Scene0"),
+            render_mesh: Some("self://gltf/parts/cargob/pod_port.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.055000067,
+                    -0.19999999,
+                    0.0,
+                ),
+            )),
             spawn_offset: (
                 0.0,
                 0.0,
-                -2.0,
+                -2.5,
             ),
             spawn_rotation: (
                 0.0,
@@ -1792,187 +2175,176 @@
     )),
     Section((
         base: (
-            id: "cargob_cube_im1_j2_k0",
-            name: "Cargo Turret (-1,2,0)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
+            id: "cargob_nose",
+            name: "Nose",
+            description: "A semantic ship part from a Kenney spacecraft.",
             mass: 1.0,
-            health: 130.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Turret((
-            root: (
-                offset: (
-                    0.0,
-                    -0.5,
-                    0.0,
-                ),
-                render_mesh: Some("self://gltf/cargob/cube_im1_j2_k0.glb#Scene0"),
-                render_mesh_transform: Some((
-                    position: (
-                        0.0,
-                        0.5,
-                        0.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        -0.70710677,
-                        0.70710677,
-                    ),
-                )),
-                children: [
-                    (
-                        offset: (
-                            0.0,
-                            0.1,
-                            0.0,
-                        ),
-                        axis: Some((
-                            0.0,
-                            1.0,
-                            0.0,
-                        )),
-                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
-                        children: [
-                            (
-                                offset: (
-                                    0.0,
-                                    0.332706,
-                                    0.303954,
-                                ),
-                                axis: Some((
-                                    1.0,
-                                    0.0,
-                                    0.0,
-                                )),
-                                min: Some(-0.5235988),
-                                max: Some(1.5707964),
-                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
-                                children: [
-                                    (
-                                        offset: (
-                                            0.0,
-                                            0.128437,
-                                            -0.110729,
-                                        ),
-                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
-                                        children: [
-                                            (
-                                                offset: (
-                                                    0.0,
-                                                    0.0,
-                                                    -1.2,
-                                                ),
-                                                muzzle: Some((
-                                                    fire_rate: 100.0,
-                                                )),
-                                            ),
-                                        ],
-                                    ),
-                                ],
-                            ),
-                        ],
-                    ),
-                ],
-            ),
-            muzzle_speed: 100.0,
-            projectile_lifetime: 5.0,
-            bullet_damage: 4.0,
-            bullet_kind: Kinetic,
-            fire_sound: Some("self://sounds/turret_fire.wav"),
-            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
-            ammo_capacity: Some(500),
-            reload: Some((
-                reload_time: 3.0,
-                rounds_per_cycle: 500,
-                only_when_empty: true,
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_im1_j2_k1",
-            name: "Cargo Cube (-1,2,1)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_im1_j2_k1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_im1_j2_k2",
-            name: "Cargo Cube (-1,2,2)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_im1_j2_k2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_im1_j2_km1",
-            name: "Cargo Cube (-1,2,-1)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_im1_j2_km1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_cube_im1_j2_km2",
-            name: "Cargo Cube (-1,2,-2)",
-            description: "A cut hull cube of the Kenney craft_cargoB.",
-            mass: 1.0,
-            health: 70.0,
+            health: 180.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
-                    0.8,
-                    0.8,
-                    0.8,
+                    1.22,
+                    1.6,
+                    1.5,
                 ),
             )),
+            link_points: [
+                (
+                    id: "to_fuselage",
+                    position: (
+                        0.0,
+                        -0.050000012,
+                        1.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -0.04993763,
+                        0.99875236,
+                    ),
+                ),
+            ],
             hide_in_editor: true,
         ),
         kind: Hull((
-            render_mesh: Some("self://gltf/cargob/cube_im1_j2_km2.glb#Scene0"),
+            render_mesh: Some("self://gltf/parts/cargob/nose.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.0,
+                    0.0,
+                    -0.25,
+                ),
+            )),
         )),
     )),
     Section((
         base: (
-            id: "cargob_core_controller",
-            name: "Core Controller",
-            description: "The ship\'s controller, in the hollow core cell.",
+            id: "cargob_tail",
+            name: "Tail",
+            description: "A semantic ship part from a Kenney spacecraft.",
             mass: 1.0,
-            health: 100.0,
+            health: 150.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    1.22,
+                    1.3,
+                    1.0,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_fuselage",
+                    position: (
+                        0.0,
+                        0.125,
+                        -0.875,
+                    ),
+                    normal: (
+                        0.0,
+                        0.14142136,
+                        -0.9899495,
+                    ),
+                ),
+            ],
+            hide_in_editor: true,
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/parts/cargob/tail.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.0,
+                    -0.14999998,
+                    0.0,
+                ),
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargob_fuselage",
+            name: "Fuselage",
+            description: "A semantic ship part from a Kenney spacecraft.",
+            mass: 1.0,
+            health: 300.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    1.22,
+                    1.8,
+                    2.5,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_nose",
+                    position: (
+                        0.0,
+                        0.050000012,
+                        -1.0,
+                    ),
+                    normal: (
+                        0.0,
+                        0.04993763,
+                        -0.99875236,
+                    ),
+                ),
+                (
+                    id: "to_tail",
+                    position: (
+                        0.0,
+                        -0.125,
+                        0.875,
+                    ),
+                    normal: (
+                        0.0,
+                        -0.14142136,
+                        0.9899495,
+                    ),
+                ),
+                (
+                    id: "to_pod_starboard",
+                    position: (
+                        0.52750003,
+                        -0.100000024,
+                        -0.375,
+                    ),
+                    normal: (
+                        0.80547845,
+                        -0.15269731,
+                        -0.57261497,
+                    ),
+                ),
+                (
+                    id: "to_pod_port",
+                    position: (
+                        -0.52750003,
+                        -0.100000024,
+                        -0.375,
+                    ),
+                    normal: (
+                        -0.80547845,
+                        -0.15269731,
+                        -0.57261497,
+                    ),
+                ),
+            ],
             hide_in_editor: true,
         ),
         kind: Controller((
             frequency: 4.0,
             damping_ratio: 4.0,
             max_torque: 800.0,
+            render_mesh: Some("self://gltf/parts/cargob/fuselage.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.0,
+                    0.100000024,
+                    0.25,
+                ),
+            )),
             lock_on_sound: Some("self://sounds/lock_on.wav"),
             lock_off_sound: Some("self://sounds/lock_off.wav"),
             radar_deny_sound: Some("self://sounds/radar_deny.wav"),
@@ -1983,294 +2355,271 @@
     )),
     Section((
         base: (
-            id: "cargoa_cube_i0_j0_k0",
-            name: "Cargo Cube (0,0,0)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
+            id: "cargob_turret_starboard",
+            name: "Turret Starboard",
+            description: "A semantic ship part from a Kenney spacecraft.",
             mass: 1.0,
-            health: 70.0,
+            health: 130.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.3,
+                    0.3,
+                    0.3,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_pod_starboard",
+                    position: (
+                        0.24999999,
+                        -0.24749993,
+                        -0.24999999,
+                    ),
+                    normal: (
+                        0.57927483,
+                        -0.5734819,
+                        -0.5792748,
+                    ),
+                ),
+            ],
             hide_in_editor: true,
         ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i0_j0_k0.glb#Scene0"),
+        kind: Turret((
+            root: (
+                offset: (
+                    0.0,
+                    -0.5,
+                    0.0,
+                ),
+                children: [
+                    (
+                        offset: (
+                            0.0,
+                            0.1,
+                            0.0,
+                        ),
+                        axis: Some((
+                            0.0,
+                            1.0,
+                            0.0,
+                        )),
+                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
+                        children: [
+                            (
+                                offset: (
+                                    0.0,
+                                    0.332706,
+                                    0.303954,
+                                ),
+                                axis: Some((
+                                    1.0,
+                                    0.0,
+                                    0.0,
+                                )),
+                                min: Some(-0.5235988),
+                                max: Some(1.5707964),
+                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
+                                children: [
+                                    (
+                                        offset: (
+                                            0.0,
+                                            0.128437,
+                                            -0.110729,
+                                        ),
+                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
+                                        children: [
+                                            (
+                                                offset: (
+                                                    0.0,
+                                                    0.0,
+                                                    -1.2,
+                                                ),
+                                                muzzle: Some((
+                                                    fire_rate: 100.0,
+                                                )),
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+            muzzle_speed: 100.0,
+            projectile_lifetime: 5.0,
+            bullet_damage: 4.0,
+            bullet_kind: Kinetic,
+            fire_sound: Some("self://sounds/turret_fire.wav"),
+            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
+            ammo_capacity: Some(500),
+            reload: Some((
+                reload_time: 3.0,
+                rounds_per_cycle: 500,
+                only_when_empty: true,
+            )),
         )),
     )),
     Section((
         base: (
-            id: "cargoa_cube_i0_j0_k1",
-            name: "Cargo Cube (0,0,1)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
+            id: "cargob_turret_port",
+            name: "Turret Port",
+            description: "A semantic ship part from a Kenney spacecraft.",
             mass: 1.0,
-            health: 70.0,
+            health: 130.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.3,
+                    0.3,
+                    0.3,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_pod_port",
+                    position: (
+                        -0.24999999,
+                        -0.24749993,
+                        -0.24999999,
+                    ),
+                    normal: (
+                        -0.57927483,
+                        -0.5734819,
+                        -0.5792748,
+                    ),
+                ),
+            ],
             hide_in_editor: true,
         ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i0_j0_k1.glb#Scene0"),
+        kind: Turret((
+            root: (
+                offset: (
+                    0.0,
+                    -0.5,
+                    0.0,
+                ),
+                children: [
+                    (
+                        offset: (
+                            0.0,
+                            0.1,
+                            0.0,
+                        ),
+                        axis: Some((
+                            0.0,
+                            1.0,
+                            0.0,
+                        )),
+                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
+                        children: [
+                            (
+                                offset: (
+                                    0.0,
+                                    0.332706,
+                                    0.303954,
+                                ),
+                                axis: Some((
+                                    1.0,
+                                    0.0,
+                                    0.0,
+                                )),
+                                min: Some(-0.5235988),
+                                max: Some(1.5707964),
+                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
+                                children: [
+                                    (
+                                        offset: (
+                                            0.0,
+                                            0.128437,
+                                            -0.110729,
+                                        ),
+                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
+                                        children: [
+                                            (
+                                                offset: (
+                                                    0.0,
+                                                    0.0,
+                                                    -1.2,
+                                                ),
+                                                muzzle: Some((
+                                                    fire_rate: 100.0,
+                                                )),
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+            muzzle_speed: 100.0,
+            projectile_lifetime: 5.0,
+            bullet_damage: 4.0,
+            bullet_kind: Kinetic,
+            fire_sound: Some("self://sounds/turret_fire.wav"),
+            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
+            ammo_capacity: Some(500),
+            reload: Some((
+                reload_time: 3.0,
+                rounds_per_cycle: 500,
+                only_when_empty: true,
+            )),
         )),
     )),
     Section((
         base: (
-            id: "cargoa_cube_i0_j0_k2",
-            name: "Cargo Cube (0,0,2)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
+            id: "cargoa_engine_starboard",
+            name: "Engine Starboard",
+            description: "A semantic ship part from a Kenney spacecraft.",
             mass: 1.0,
             health: 70.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i0_j0_k2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i0_j0_km1",
-            name: "Cargo Cube (0,0,-1)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i0_j0_km1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i0_j1_k1",
-            name: "Cargo Cube (0,1,1)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i0_j1_k1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i0_j1_k2",
-            name: "Cargo Cube (0,1,2)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i0_j1_k2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i0_j1_km1",
-            name: "Cargo Cube (0,1,-1)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i0_j1_km1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i0_j1_km2",
-            name: "Cargo Cube (0,1,-2)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i0_j1_km2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i0_j2_k0",
-            name: "Cargo Cube (0,2,0)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i0_j2_k0.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i0_j2_k1",
-            name: "Cargo Cube (0,2,1)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i0_j2_k1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i0_j2_km1",
-            name: "Cargo Cube (0,2,-1)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i0_j2_km1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i0_j2_km2",
-            name: "Cargo Cube (0,2,-2)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i0_j2_km2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i1_j0_k0",
-            name: "Cargo Cube (1,0,0)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i1_j0_k0.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i1_j0_k1",
-            name: "Cargo Cube (1,0,1)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i1_j0_k1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i1_j0_k2",
-            name: "Cargo Cube (1,0,2)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i1_j0_k2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i1_j0_km1",
-            name: "Cargo Cube (1,0,-1)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i1_j0_km1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i1_j1_k0",
-            name: "Cargo Cube (1,1,0)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i1_j1_k0.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i1_j1_k1",
-            name: "Cargo Cube (1,1,1)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i1_j1_k1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i1_j1_k2",
-            name: "Cargo Thruster (1,1,2)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.79,
+                    0.795,
+                    0.95,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_pod_starboard",
+                    position: (
+                        0.0,
+                        0.049999952,
+                        -0.75,
+                    ),
+                    normal: (
+                        0.0,
+                        0.066518985,
+                        -0.99778515,
+                    ),
+                ),
+            ],
             hide_in_editor: true,
         ),
         kind: Thruster((
             magnitude: 1.0,
-            render_mesh: Some("self://gltf/cargoa/cube_i1_j1_k2.glb#Scene0"),
+            render_mesh: Some("self://gltf/parts/cargoa/engine_starboard.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    -0.20500004,
+                    -0.100000024,
+                    0.024999976,
+                ),
+            )),
             loop_sound: Some("self://sounds/thruster_loop.wav"),
             exhaust: Some((
                 offset: (
-                    0.2,
-                    -0.1,
-                    0.4,
+                    0.0,
+                    0.0,
+                    0.475,
                 ),
                 rotation: (
                     0.70710677,
@@ -2280,8 +2629,8 @@
                 ),
                 shape: (
                     geometry: Rect,
-                    width: 0.56,
-                    height: 0.4,
+                    width: 0.55300003,
+                    height: 0.47700003,
                     exhaust_height: 0.1,
                     exhaust_radius: 0.4,
                     exhaust_max: 1.0,
@@ -2306,309 +2655,53 @@
     )),
     Section((
         base: (
-            id: "cargoa_cube_i1_j1_km1",
-            name: "Cargo Cube (1,1,-1)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
+            id: "cargoa_engine_port",
+            name: "Engine Port",
+            description: "A semantic ship part from a Kenney spacecraft.",
             mass: 1.0,
             health: 70.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i1_j1_km1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i1_j1_km2",
-            name: "Cargo Cube (1,1,-2)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i1_j1_km2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i1_j2_k0",
-            name: "Cargo Cube (1,2,0)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i1_j2_k0.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i1_j2_k1",
-            name: "Cargo Cube (1,2,1)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i1_j2_k1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i1_j2_km1",
-            name: "Cargo Cube (1,2,-1)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i1_j2_km1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i1_j2_km2",
-            name: "Cargo Cube (1,2,-2)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i1_j2_km2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i2_j0_k0",
-            name: "Cargo Cube (2,0,0)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i2_j0_k0.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i2_j0_k1",
-            name: "Cargo Cube (2,0,1)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i2_j0_k1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i2_j0_km1",
-            name: "Cargo Cube (2,0,-1)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i2_j0_km1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i2_j1_k0",
-            name: "Cargo Cube (2,1,0)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i2_j1_k0.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i2_j1_k1",
-            name: "Cargo Cube (2,1,1)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i2_j1_k1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i2_j1_k2",
-            name: "Cargo Cube (2,1,2)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i2_j1_k2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_i2_j1_km1",
-            name: "Cargo Cube (2,1,-1)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_i2_j1_km1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_im1_j0_k0",
-            name: "Cargo Cube (-1,0,0)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_im1_j0_k0.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_im1_j0_k1",
-            name: "Cargo Cube (-1,0,1)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_im1_j0_k1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_im1_j0_k2",
-            name: "Cargo Cube (-1,0,2)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_im1_j0_k2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_im1_j0_km1",
-            name: "Cargo Cube (-1,0,-1)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_im1_j0_km1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_im1_j1_k0",
-            name: "Cargo Cube (-1,1,0)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_im1_j1_k0.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_im1_j1_k1",
-            name: "Cargo Cube (-1,1,1)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_im1_j1_k1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_im1_j1_k2",
-            name: "Cargo Thruster (-1,1,2)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.79,
+                    0.795,
+                    0.95,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_pod_port",
+                    position: (
+                        0.0,
+                        0.049999952,
+                        -0.75,
+                    ),
+                    normal: (
+                        0.0,
+                        0.066518985,
+                        -0.99778515,
+                    ),
+                ),
+            ],
             hide_in_editor: true,
         ),
         kind: Thruster((
             magnitude: 1.0,
-            render_mesh: Some("self://gltf/cargoa/cube_im1_j1_k2.glb#Scene0"),
+            render_mesh: Some("self://gltf/parts/cargoa/engine_port.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.20500004,
+                    -0.100000024,
+                    0.024999976,
+                ),
+            )),
             loop_sound: Some("self://sounds/thruster_loop.wav"),
             exhaust: Some((
                 offset: (
-                    -0.2,
-                    -0.1,
-                    0.4,
+                    0.0,
+                    0.0,
+                    0.475,
                 ),
                 rotation: (
                     0.70710677,
@@ -2618,8 +2711,8 @@
                 ),
                 shape: (
                     geometry: Rect,
-                    width: 0.56,
-                    height: 0.4,
+                    width: 0.55300003,
+                    height: 0.47700003,
                     exhaust_height: 0.1,
                     exhaust_radius: 0.4,
                     exhaust_max: 1.0,
@@ -2644,214 +2737,290 @@
     )),
     Section((
         base: (
-            id: "cargoa_cube_im1_j1_km1",
-            name: "Cargo Cube (-1,1,-1)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
+            id: "cargoa_pod_starboard",
+            name: "Pod Starboard",
+            description: "A semantic ship part from a Kenney spacecraft.",
             mass: 1.0,
-            health: 70.0,
+            health: 350.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.79,
+                    1.0,
+                    2.05,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_fuselage",
+                    position: (
+                        -0.6025,
+                        0.050000012,
+                        -0.15,
+                    ),
+                    normal: (
+                        -0.9672477,
+                        0.08026954,
+                        -0.24080856,
+                    ),
+                ),
+                (
+                    id: "to_engine_starboard",
+                    position: (
+                        0.0,
+                        -0.050000012,
+                        0.75,
+                    ),
+                    normal: (
+                        0.0,
+                        -0.066518985,
+                        0.99778515,
+                    ),
+                ),
+            ],
             hide_in_editor: true,
         ),
         kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_im1_j1_km1.glb#Scene0"),
+            render_mesh: Some("self://gltf/parts/cargoa/pod_starboard.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    -0.20500004,
+                    -0.19999999,
+                    0.024999976,
+                ),
+            )),
         )),
     )),
     Section((
         base: (
-            id: "cargoa_cube_im1_j1_km2",
-            name: "Cargo Cube (-1,1,-2)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
+            id: "cargoa_pod_port",
+            name: "Pod Port",
+            description: "A semantic ship part from a Kenney spacecraft.",
             mass: 1.0,
-            health: 70.0,
+            health: 350.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.79,
+                    1.0,
+                    2.05,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_fuselage",
+                    position: (
+                        0.6025,
+                        0.050000012,
+                        -0.15,
+                    ),
+                    normal: (
+                        0.9672477,
+                        0.08026954,
+                        -0.24080856,
+                    ),
+                ),
+                (
+                    id: "to_engine_port",
+                    position: (
+                        0.0,
+                        -0.050000012,
+                        0.75,
+                    ),
+                    normal: (
+                        0.0,
+                        -0.066518985,
+                        0.99778515,
+                    ),
+                ),
+            ],
             hide_in_editor: true,
         ),
         kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_im1_j1_km2.glb#Scene0"),
+            render_mesh: Some("self://gltf/parts/cargoa/pod_port.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.20500004,
+                    -0.19999999,
+                    0.024999976,
+                ),
+            )),
         )),
     )),
     Section((
         base: (
-            id: "cargoa_cube_im1_j2_k0",
-            name: "Cargo Cube (-1,2,0)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
+            id: "cargoa_nose",
+            name: "Nose",
+            description: "A semantic ship part from a Kenney spacecraft.",
             mass: 1.0,
-            health: 70.0,
+            health: 180.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    1.6,
+                    1.2,
+                    1.3,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_fuselage",
+                    position: (
+                        0.0,
+                        0.0,
+                        0.98749995,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        0.99999994,
+                    ),
+                ),
+            ],
             hide_in_editor: true,
         ),
         kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_im1_j2_k0.glb#Scene0"),
+            render_mesh: Some("self://gltf/parts/cargoa/nose.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.0,
+                    0.19999999,
+                    -0.20000005,
+                ),
+            )),
         )),
     )),
     Section((
         base: (
-            id: "cargoa_cube_im1_j2_k1",
-            name: "Cargo Cube (-1,2,1)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
+            id: "cargoa_tail",
+            name: "Tail",
+            description: "A semantic ship part from a Kenney spacecraft.",
             mass: 1.0,
-            health: 70.0,
+            health: 150.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    1.62,
+                    1.175,
+                    0.95,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_fuselage",
+                    position: (
+                        0.0,
+                        0.10625005,
+                        -0.9,
+                    ),
+                    normal: (
+                        0.0,
+                        0.11724141,
+                        -0.9931035,
+                    ),
+                ),
+            ],
             hide_in_editor: true,
         ),
         kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_im1_j2_k1.glb#Scene0"),
+            render_mesh: Some("self://gltf/parts/cargoa/tail.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.0,
+                    -0.087499976,
+                    0.024999976,
+                ),
+            )),
         )),
     )),
     Section((
         base: (
-            id: "cargoa_cube_im1_j2_km1",
-            name: "Cargo Cube (-1,2,-1)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
+            id: "cargoa_fuselage",
+            name: "Fuselage",
+            description: "A semantic ship part from a Kenney spacecraft.",
             mass: 1.0,
-            health: 70.0,
+            health: 350.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_im1_j2_km1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_im1_j2_km2",
-            name: "Cargo Cube (-1,2,-2)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_im1_j2_km2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_im2_j0_k0",
-            name: "Cargo Cube (-2,0,0)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_im2_j0_k0.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_im2_j0_k1",
-            name: "Cargo Cube (-2,0,1)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_im2_j0_k1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_im2_j0_km1",
-            name: "Cargo Cube (-2,0,-1)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_im2_j0_km1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_im2_j1_k0",
-            name: "Cargo Cube (-2,1,0)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_im2_j1_k0.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_im2_j1_k1",
-            name: "Cargo Cube (-2,1,1)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_im2_j1_k1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_im2_j1_k2",
-            name: "Cargo Cube (-2,1,2)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_im2_j1_k2.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_cube_im2_j1_km1",
-            name: "Cargo Cube (-2,1,-1)",
-            description: "A cut hull cube of the Kenney craft_cargoA.",
-            mass: 1.0,
-            health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            hide_in_editor: true,
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/cargoa/cube_im2_j1_km1.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_core_controller",
-            name: "Core Controller",
-            description: "The ship\'s controller, in the hollow core cell.",
-            mass: 1.0,
-            health: 100.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    1.62,
+                    1.6,
+                    2.65,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "to_nose",
+                    position: (
+                        0.0,
+                        0.0,
+                        -0.9875,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        -0.99999994,
+                    ),
+                ),
+                (
+                    id: "to_tail",
+                    position: (
+                        0.0,
+                        -0.10624999,
+                        0.90000004,
+                    ),
+                    normal: (
+                        0.0,
+                        -0.11724141,
+                        0.9931035,
+                    ),
+                ),
+                (
+                    id: "to_pod_starboard",
+                    position: (
+                        0.6025,
+                        -0.050000012,
+                        0.15,
+                    ),
+                    normal: (
+                        0.9672477,
+                        -0.08026954,
+                        0.24080856,
+                    ),
+                ),
+                (
+                    id: "to_pod_port",
+                    position: (
+                        -0.6025,
+                        -0.050000012,
+                        0.15,
+                    ),
+                    normal: (
+                        -0.9672477,
+                        -0.08026954,
+                        0.24080856,
+                    ),
+                ),
+            ],
             hide_in_editor: true,
         ),
         kind: Controller((
             frequency: 4.0,
             damping_ratio: 4.0,
             max_torque: 800.0,
+            render_mesh: Some("self://gltf/parts/cargoa/fuselage.glb#Scene0"),
+            render_mesh_transform: Some((
+                position: (
+                    0.0,
+                    0.19999999,
+                    -0.17500001,
+                ),
+            )),
             lock_on_sound: Some("self://sounds/lock_on.wav"),
             lock_off_sound: Some("self://sounds/lock_off.wav"),
             radar_deny_sound: Some("self://sounds/radar_deny.wav"),

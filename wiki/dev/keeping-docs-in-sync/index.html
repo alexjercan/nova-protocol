@@ -38,6 +38,7 @@
                     </p>
                     <h1>Keeping docs in sync</h1>
                     <div class="wiki__tags" id="wiki-tags"></div>
+                    
                     <p>Nova Protocol documents itself across several surfaces, each aimed at a
 different reader. None of them updates itself, so a code change is not finished
 until the docs it invalidates are fixed in the <strong>same task</strong>. This page is the
@@ -112,9 +113,9 @@ weapon, a scenario primitive, the modding UX)? Update the player wiki
 page(s) it affects, and the tutorial if the first-flight flow moved. A wiki
 page drifting behind the game is the exact failure to avoid.</li>
 <li><strong>Did internals, architecture, or a data format change?</strong> Update the dev
-wiki page(s) that describe them. A RON / bundle / catalog format break
-especially must land in <code>dev/modding-ron.md</code> and/or <code>dev/mod-portal.md</code> in
-the same task, or every mod author reads a lie.</li>
+wiki page(s) that describe them. A RON, bundle, catalog, or portal format
+change must also land in the matching <code>modding/</code> reference or publishing
+page in the same task, or every mod author reads a lie.</li>
 </ol>
 <h3 id="the-dependency-map" tabindex="-1">The dependency map</h3>
 <p>Which docs to check when you touch a given area. &quot;Check&quot; means read it and fix
@@ -130,19 +131,25 @@ it if the change made it wrong - not every change touches every listed page.</p>
 </thead>
 <tbody>
 <tr>
-<td>Ship sections, integrity, typed damage, ammo (<code>nova_gameplay/sections</code>, <code>integrity</code>)</td>
+<td><strong>The crate layout itself</strong>: a split, merge, rename, or move (<code>crates/*</code>)</td>
+<td></td>
+<td><code>dev/architecture.md</code> (crate map + dependency graph + assembly), <code>dev/project-tour.md</code> (crate map + change-X table), and THIS page's own row keys</td>
+<td>CHANGELOG (Internals)</td>
+</tr>
+<tr>
+<td>Ship sections, integrity, typed damage, ammo (<code>nova_ship/sections</code>, <code>nova_gameplay/integrity</code>)</td>
 <td><code>sections.md</code> (+ section children), <code>hud.md</code></td>
-<td><code>dev/sections.md</code>, <code>dev/guide-author-section.md</code>, <code>dev/guide-add-section.md</code></td>
+<td><code>dev/sections.md</code>, <code>dev/guide-add-section.md</code>, <code>modding/sections.md</code></td>
 <td>CHANGELOG</td>
 </tr>
 <tr>
-<td>Flight, controller, camera (<code>nova_gameplay/input</code>, <code>camera</code>)</td>
+<td>Flight, controller, camera (<code>nova_ship/input</code>, <code>camera</code>)</td>
 <td><code>flight-autopilot.md</code>, <code>keybinds.md</code></td>
 <td><code>dev/architecture.md</code></td>
 <td>CHANGELOG</td>
 </tr>
 <tr>
-<td>Targeting, radar, weapons, turrets, torpedoes (<code>nova_gameplay</code> targeting/hud)</td>
+<td>Targeting, radar, weapons, turrets, torpedoes (<code>nova_ship</code> targeting/sections, <code>nova_hud</code>)</td>
 <td><code>targeting-radar.md</code>, <code>combat-weapons.md</code>, <code>hud.md</code></td>
 <td><code>dev/architecture.md</code></td>
 <td>CHANGELOG</td>
@@ -156,26 +163,32 @@ it if the change made it wrong - not every change touches every listed page.</p>
 <tr>
 <td>Scenario engine: events, filters, actions, variables, objects (<code>nova_scenario</code>, <code>nova_events</code>)</td>
 <td><code>scenarios.md</code></td>
-<td><code>dev/scenario-system.md</code>, <code>dev/guide-author-scenario.md</code>, <code>dev/guide-extend-scenarios.md</code></td>
+<td><code>dev/scenario-system.md</code>, <code>modding/author-a-scenario.md</code>, <code>dev/guide-extend-scenarios.md</code>, <strong>the modding reference</strong> (<code>modding/scenarios.md</code>, <code>modding/events.md</code>, <code>modding/filters.md</code>, <code>modding/actions.md</code>, <code>modding/objects.md</code>, <code>modding/expressions.md</code> - a new/changed construct MUST land there, it is the exhaustive catalog)</td>
 <td>CHANGELOG</td>
 </tr>
 <tr>
 <td>Modding data format, bundles, catalog, local cache (<code>nova_mod_format</code>, <code>nova_modding</code>)</td>
 <td><code>modding.md</code></td>
-<td><code>dev/modding-ron.md</code>, <code>dev/guide-make-a-mod.md</code></td>
+<td><code>modding/mod-files.md</code>, <code>modding/base-content.md</code> (overlay rules, dep://base)</td>
 <td>CHANGELOG <strong>(breaking?)</strong></td>
 </tr>
 <tr>
 <td>Mod portal + generator (<code>scripts/gen-portal.py</code>, <code>nova_modding</code>)</td>
 <td><code>modding.md</code></td>
-<td><code>dev/mod-portal.md</code>, <code>dev/modding-ron.md</code></td>
+<td><code>modding/publish-a-mod.md</code></td>
 <td>CHANGELOG</td>
 </tr>
 <tr>
 <td>Menus, editor, UI (<code>nova_menu</code>, <code>nova_editor</code>, <code>nova_ui</code>)</td>
 <td><code>hud.md</code>, <code>sections.md</code></td>
 <td><code>dev/guide-add-section.md</code></td>
-<td>tutorial, CHANGELOG; <strong>theme tokens: <code>examples/ui/nova_ui_rework_poc.html</code> is the source for BOTH <code>nova_ui/src/theme.rs</code> and <code>web/src/style.css</code>; the site draws the PHOSPHOR skin only</strong></td>
+<td>tutorial, CHANGELOG; <strong>theme tokens: <code>web/design/nova_ui_rework_poc.html</code> is the source for BOTH <code>nova_ui/src/theme.rs</code> and <code>web/src/style.css</code>; the site draws the PHOSPHOR skin only</strong></td>
+</tr>
+<tr>
+<td>Automation drivers, the env contract, the completion protocol, the probe harness (<code>nova_autopilot</code>, <code>nova_probe</code>, <code>nova_probe_cli</code>)</td>
+<td></td>
+<td><code>dev/automation-harness.md</code>, <code>dev/development.md</code> (probe sections)</td>
+<td>CHANGELOG <strong>(env rename? breaking for every run script)</strong></td>
 </tr>
 <tr>
 <td>App assembly, plugin order, states (<code>nova_core</code>, <code>nova_assets</code>)</td>
@@ -184,9 +197,9 @@ it if the change made it wrong - not every change touches every listed page.</p>
 <td>CHANGELOG</td>
 </tr>
 <tr>
-<td>Content CLI: gen/lint/audit subcommands (<code>nova_assets</code> bin <code>content</code>)</td>
+<td>Content CLI: gen/lint subcommands, the base content builders (<code>nova_authoring</code>, the game binary's <code>content</code> subcommand)</td>
 <td></td>
-<td><code>dev/guide-author-scenario.md</code>, <code>dev/guide-make-a-mod.md</code>, <code>dev/modding-ron.md</code></td>
+<td><code>modding/author-a-scenario.md</code>, <code>modding/sections.md</code>, <code>dev/guide-add-section.md</code>, <code>modding/publish-a-mod.md</code>, <code>modding/mod-files.md</code>, <code>dev/scenario-system.md</code>, <code>dev/sections.md</code>, <code>modding/base-content.md</code> (the id/asset catalog - a builder change that adds, renames or rebalances an id lands there)</td>
 <td>CHANGELOG</td>
 </tr>
 <tr>
@@ -195,11 +208,32 @@ it if the change made it wrong - not every change touches every listed page.</p>
 <td><code>dev/development.md</code>, <a href="../keeping-docs-in-sync/">this page</a></td>
 <td></td>
 </tr>
+<tr>
+<td>Local dev servers (<code>scripts/serve-web.sh</code>, <code>scripts/serve-mods.sh</code>, <code>scripts/preview-web.sh</code>, <code>web/webpack.config.js</code>, <code>Trunk.toml</code>)</td>
+<td></td>
+<td><code>dev/development.md</code> (&quot;Local web preview&quot;), <code>modding/publish-a-mod.md</code> (&quot;Preview the repository portal&quot;)</td>
+<td><a href="http://README.md">README.md</a> quick start + scripts table</td>
+</tr>
 </tbody>
 </table>
-<p>When a change lives in <code>bevy-common-systems</code> (the pinned git dependency), fix it
-there first, bump the <code>rev</code> in <code>crates/nova_gameplay/Cargo.toml</code>, and note the
-bump in <code>CHANGELOG.md</code>.</p>
+<h3 id="check-means-re-derive-not-grep" tabindex="-1">&quot;Check&quot; means re-derive, not grep</h3>
+<p>The 20260806-121625 refactor is the cautionary tale. Its lanes DID sweep docs -
+at the name level (&quot;does the page name the new crate&quot;), and the pages did. What
+survived was every claim BETWEEN the names: a dependency graph still drawing
+<code>nova_ui</code> as menu-and-editor-only, a crate map missing four crates, commands
+attributed to the crate they moved out of. The after-benchmark's <code>docs</code> persona
+then failed a control question by trusting one of those stale claims
+(task 20260809-213446). So when a row above says &quot;check&quot;, it means: re-derive
+every crate name, module path, command, and dependency direction the page
+asserts against the current tree. A page that names the new thing can still
+describe the old one.</p>
+<p>Two structural traps this map cannot catch by itself:</p>
+<ul>
+<li>The map's own row keys are crate/dir names, so a structural refactor
+invalidates the MAP too - that is what the first row is for.</li>
+<li>A lane-per-change epic has no lane whose job is the cross-cutting sweep.
+Give the sweep its own step (or lane) whenever <code>crates/*</code> changes shape.</li>
+</ul>
 <h2 id="when-you-cut-a-release" tabindex="-1">When you cut a release</h2>
 <p>The full command-level checklist is in
 <a href="../development/">Building &amp; running -&gt; Versioning and release</a>. At the doc
@@ -207,10 +241,8 @@ level, a release means:</p>
 <ol>
 <li><strong><code>docs/</code> compile-and-wipe</strong> (ephemeral-docs model): <code>docs/</code> is free scratch
 during the cycle; before the tag, distil durable reference into the wiki,
-then run
-<code>scripts/wipe-docs.sh</code>. The release-flow guard fails the tag if <code>docs/</code>
-holds anything but its <code>README.md</code>. (Plans live in tatr tasks, not
-<code>docs/plans</code>.)</li>
+then clear everything under <code>docs/</code> except its <code>README.md</code>. (Plans live in
+tatr tasks, not <code>docs/plans</code>.)</li>
 <li><strong><code>CHANGELOG.md</code></strong>: promote <code>## [Unreleased]</code> to <code>## [&lt;version&gt;] - &lt;YYYY-MM-DD&gt;</code>, leave a fresh empty <code>[Unreleased]</code>, merge any duplicate
 subsystem headings that grew during the cycle, and update the compare links
 at the bottom.</li>

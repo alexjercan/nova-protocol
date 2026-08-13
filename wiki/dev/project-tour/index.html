@@ -38,6 +38,7 @@
                     </p>
                     <h1>Project tour</h1>
                     <div class="wiki__tags" id="wiki-tags"></div>
+                    
                     <blockquote>
 <p><strong>Start here.</strong> New to the codebase? Read the dev wiki in this order:</p>
 <ol>
@@ -83,7 +84,23 @@ for responsibilities and the dependency graph.</p>
 </tr>
 <tr>
 <td><code>nova_gameplay</code></td>
-<td>The game: sections, integrity, damage, flight, gravity, input (player/ai/radar), hud, camera, audio, juice. Owns <code>GameStates</code>/<code>PauseStates</code>/<code>GameMode</code>.</td>
+<td>The shared gameplay layer under the ship: integrity, damage, gravity, the SFX engine, juice, objectives, mesh/transform rigs, entity markers. Owns <code>GameStates</code>/<code>PauseStates</code>/<code>GameMode</code>.</td>
+</tr>
+<tr>
+<td><code>nova_ship</code></td>
+<td>The ship and how it is flown: sections, input (player/ai/radar), flight and its autopilot verbs, the camera rigs, the PD controller, the ship's soundtrack.</td>
+</tr>
+<tr>
+<td><code>nova_hud</code></td>
+<td>The flight HUD: one module per widget (crosshairs, target inset, ammo readout, objective markers, comms panel, keybind dock). Reads the ship, never drives it.</td>
+</tr>
+<tr>
+<td><code>nova_os</code></td>
+<td>NOVA OS logic: the terminal model, shell grammar and app runtime. No bevy UI.</td>
+</tr>
+<tr>
+<td><code>nova_os_ui</code></td>
+<td>The NOVA OS cockpit monitor the player opens with Tab: CRT terminal UI, forwarded pointer, and the <code>map</code>/<code>ship</code> apps. A peer of the HUD, added by <code>nova_core</code>.</td>
 </tr>
 <tr>
 <td><code>nova_scenario</code></td>
@@ -115,7 +132,7 @@ for responsibilities and the dependency graph.</p>
 </tr>
 <tr>
 <td><code>nova_ui</code></td>
-<td>Shared theme palette/metrics and themed widgets the menu and editor draw from.</td>
+<td>Shared theme, skin, themed widgets, screen composition, unit formatting. A leaf: every UI-drawing crate (<code>nova_gameplay</code>, <code>nova_hud</code>, <code>nova_os_ui</code>, <code>nova_menu</code>, <code>nova_editor</code>, <code>nova_assets</code>) draws from it.</td>
 </tr>
 <tr>
 <td><code>nova_debug</code></td>
@@ -126,8 +143,24 @@ for responsibilities and the dependency graph.</p>
 <td>Exposes <code>APP_VERSION</code>, injected by <code>build.rs</code>.</td>
 </tr>
 <tr>
+<td><code>nova_autopilot</code></td>
+<td>Scripted automation drivers + the run-completion protocol. Bevy-only, game-agnostic.</td>
+</tr>
+<tr>
 <td><code>nova_probe</code></td>
-<td>Dev tool (not in the shipped game): run-harness - frame-time capture + run-timeline/invariant report over autopilot examples; <code>run</code>/<code>report</code>.</td>
+<td>Dev tool (not in the shipped game): the in-game half of the run-harness - the frame-time/timeline/invariant capability plugins an example wires.</td>
+</tr>
+<tr>
+<td><code>nova_probe_cli</code></td>
+<td>Dev tool: the host half - spawns runs, grades artifacts, renders reports; the <code>probe run</code>/<code>report</code> CLI.</td>
+</tr>
+<tr>
+<td><code>nova_perf_web</code></td>
+<td>Dev tool: the wasm app <code>probe run --platform web</code> boots and measures.</td>
+</tr>
+<tr>
+<td><code>nova_authoring</code></td>
+<td>Offline content pipeline: the Rust builders for built-in scenarios/sections, <code>content -- gen</code> (writes <code>assets/base/**/*.content.ron</code>), <code>content -- lint</code>.</td>
 </tr>
 <tr>
 <td><code>nova_meta_gen</code></td>
@@ -148,7 +181,7 @@ for responsibilities and the dependency graph.</p>
 <tbody>
 <tr>
 <td>A ship section behavior</td>
-<td><code>crates/nova_gameplay/src/sections/</code></td>
+<td><code>crates/nova_ship/src/sections/</code></td>
 <td><a href="../sections/">Ship sections</a>, <a href="../guide-add-section/">Add a ship section</a></td>
 </tr>
 <tr>
@@ -163,17 +196,17 @@ for responsibilities and the dependency graph.</p>
 </tr>
 <tr>
 <td>Flight / autopilot verbs</td>
-<td><code>crates/nova_gameplay/src/flight/</code></td>
+<td><code>crates/nova_ship/src/flight/</code></td>
 <td>--</td>
 </tr>
 <tr>
 <td>Player input / AI</td>
-<td><code>crates/nova_gameplay/src/input/{player,ai}/</code></td>
+<td><code>crates/nova_ship/src/input/{player,ai}/</code></td>
 <td>--</td>
 </tr>
 <tr>
 <td>Radar targeting / lock-on</td>
-<td><code>crates/nova_gameplay/src/input/targeting/</code></td>
+<td><code>crates/nova_ship/src/input/targeting/</code></td>
 <td>--</td>
 </tr>
 <tr>
@@ -183,23 +216,33 @@ for responsibilities and the dependency graph.</p>
 </tr>
 <tr>
 <td>The HUD (widgets)</td>
-<td><code>crates/nova_gameplay/src/hud/</code></td>
+<td><code>crates/nova_hud/src/</code></td>
+<td>--</td>
+</tr>
+<tr>
+<td>The NOVA OS monitor / its apps</td>
+<td><code>crates/nova_os_ui/src/</code></td>
 <td>--</td>
 </tr>
 <tr>
 <td>A scenario event/filter/action</td>
-<td><code>crates/nova_scenario/src/{events,filters,actions}.rs</code></td>
+<td><code>crates/nova_scenario/src/{events.rs,filters.rs,actions/}</code></td>
 <td><a href="../scenario-system/">Scenario engine</a>, <a href="../guide-extend-scenarios/">Extend the scenario engine</a></td>
 </tr>
 <tr>
 <td>Scenario objects / loading</td>
-<td><code>crates/nova_scenario/src/{objects,loader}.rs</code></td>
+<td><code>crates/nova_scenario/src/{objects/,loader/}</code></td>
 <td><a href="../scenario-system/">Scenario engine</a></td>
 </tr>
 <tr>
 <td>Mod loading / merge</td>
 <td><code>crates/nova_assets/</code> + <code>crates/nova_modding/</code></td>
-<td><a href="../modding-ron/">Modding data format (RON)</a>, <a href="../mod-portal/">Mod portal</a></td>
+<td><a href="../../modding/mod-files/">Mod files</a>, <a href="../../modding/publish-a-mod/">Publish a mod</a></td>
+</tr>
+<tr>
+<td>A built-in scenario or section</td>
+<td><code>crates/nova_authoring/src/</code> (builders), then <code>content -- gen</code></td>
+<td><a href="../../modding/author-a-scenario/">Create your first scenario</a></td>
 </tr>
 <tr>
 <td>The ship editor</td>
@@ -220,8 +263,9 @@ for responsibilities and the dependency graph.</p>
 </table>
 <h2 id="the-boot-path-in-one-glance" tabindex="-1">The boot path in one glance</h2>
 <p><code>AppBuilder</code> (in <code>crates/nova_core/src/lib.rs</code>) is the single place the app is
-wired -- <code>DefaultPlugins</code> + window/log/asset setup, then the plugin stack
-(assets, gameplay, scenario, editor, menu, debug). The state machines:</p>
+wired -- <code>DefaultPlugins</code> + window/log/asset/render setup, then the plugin stack
+(assets, gameplay, ship, scenario, HUD + NOVA OS monitor, editor, menu, debug).
+The state machines:</p>
 <ul>
 <li><code>GameStates { Loading, MainMenu, Playing }</code> -- top-level lifecycle.</li>
 <li><code>PauseStates { Unpaused, Paused }</code> -- the ESC overlay, nested in <code>Playing</code>.</li>
@@ -233,7 +277,7 @@ gates entry; on <code>OnEnter(Loaded)</code> the app hands off to <code>MainMenu
 The plugin order, exact sets and frame flow live in
 <a href="../architecture/">Architecture</a> -- start there once the shape clicks.</p>
 <pre class="mermaid">flowchart LR
-    player[&quot;Player / AI input&quot;] --&gt; game[&quot;Game crates&lt;br/&gt;(nova_gameplay + nova_core)&quot;]
+    player[&quot;Player / AI input&quot;] --&gt; game[&quot;Game crates&lt;br/&gt;(nova_ship + nova_gameplay + nova_core)&quot;]
     game --&gt; scenario[&quot;nova_scenario&lt;br/&gt;(events / filters / actions)&quot;]
     data[&quot;Data (RON)&lt;br/&gt;scenarios + mods&quot;] --&gt; assets[&quot;nova_assets + nova_modding&quot;]
     assets --&gt; game
@@ -246,7 +290,7 @@ The plugin order, exact sets and frame flow live in
 <li><a href="../development/">Building &amp; running</a> -- toolchain, cargo commands, examples, the web build.</li>
 <li><a href="../sections/">Ship sections (internals)</a> and <a href="../guide-add-section/">Add a ship section</a>.</li>
 <li><a href="../scenario-system/">Scenario engine</a> and <a href="../guide-extend-scenarios/">Extend the scenario engine</a>.</li>
-<li><a href="../modding-ron/">Modding data format (RON)</a> and <a href="../mod-portal/">Mod portal</a>.</li>
+<li><a href="../../modding/mod-files/">Mod files</a> and <a href="../../modding/publish-a-mod/">Publish a mod</a>.</li>
 </ul>
 
                     <div id="wiki-seealso"></div>

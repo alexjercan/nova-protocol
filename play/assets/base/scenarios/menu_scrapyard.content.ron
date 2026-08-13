@@ -32,7 +32,7 @@
                             health: 2000.0,
                             impact_sound: Some("self://sounds/impact.wav"),
                             destroy_sound: Some("self://sounds/explosion.wav"),
-                            surface_gravity: Some(6.0),
+                            mass: Some(45000.0),
                             invulnerable: true,
                         )),
                     )),
@@ -58,11 +58,11 @@
                             )),
                             sections: [
                                 (
-                                    id: "cube_i0_j0_k0",
+                                    id: "engine_starboard",
                                     position: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
+                                        0.655,
+                                        0.570945,
+                                        1.512835,
                                     ),
                                     rotation: (
                                         0.0,
@@ -70,14 +70,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_cube_i0_j0_k0"),
+                                    source: Prototype("racer_engine_starboard"),
                                 ),
                                 (
-                                    id: "cube_i0_j0_k1",
+                                    id: "engine_port",
                                     position: (
-                                        0.0,
-                                        0.0,
-                                        1.0,
+                                        -0.655,
+                                        0.570945,
+                                        1.512835,
                                     ),
                                     rotation: (
                                         0.0,
@@ -85,14 +85,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_cube_i0_j0_k1"),
+                                    source: Prototype("racer_engine_port"),
                                 ),
                                 (
-                                    id: "cube_i0_j0_k2",
+                                    id: "wing_starboard",
                                     position: (
-                                        0.0,
-                                        0.0,
-                                        2.0,
+                                        0.805,
+                                        0.5,
+                                        0.11783552,
                                     ),
                                     rotation: (
                                         0.0,
@@ -100,14 +100,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_cube_i0_j0_k2"),
+                                    source: Prototype("racer_wing_starboard"),
                                 ),
                                 (
-                                    id: "cube_i0_j0_km1",
+                                    id: "wing_port",
                                     position: (
-                                        0.0,
-                                        0.0,
-                                        -1.0,
+                                        -0.805,
+                                        0.5,
+                                        0.11783552,
                                     ),
                                     rotation: (
                                         0.0,
@@ -115,14 +115,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_cube_i0_j0_km1"),
+                                    source: Prototype("racer_wing_port"),
                                 ),
                                 (
-                                    id: "cube_i0_j0_km2",
+                                    id: "nose",
                                     position: (
                                         0.0,
-                                        0.0,
-                                        -2.0,
+                                        0.611325,
+                                        -1.512835,
                                     ),
                                     rotation: (
                                         0.0,
@@ -130,14 +130,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_cube_i0_j0_km2"),
+                                    source: Prototype("racer_nose"),
                                 ),
                                 (
-                                    id: "cube_i0_j1_k0",
+                                    id: "tail",
                                     position: (
                                         0.0,
-                                        1.0,
-                                        0.0,
+                                        0.85,
+                                        1.6128349,
                                     ),
                                     rotation: (
                                         0.0,
@@ -145,14 +145,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_cube_i0_j1_k0"),
+                                    source: Prototype("racer_tail"),
                                 ),
                                 (
-                                    id: "cube_i0_j1_k1",
+                                    id: "fuselage",
                                     position: (
                                         0.0,
-                                        1.0,
-                                        1.0,
+                                        0.7,
+                                        0.100000024,
                                     ),
                                     rotation: (
                                         0.0,
@@ -160,104 +160,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_cube_i0_j1_k1"),
+                                    source: Prototype("racer_fuselage"),
                                 ),
                                 (
-                                    id: "cube_i0_j1_k2",
+                                    id: "turret_starboard",
                                     position: (
-                                        0.0,
-                                        1.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j1_k2"),
-                                ),
-                                (
-                                    id: "cube_i0_j1_km1",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j1_km1"),
-                                ),
-                                (
-                                    id: "cube_i0_j1_km2",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j1_km2"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_k0",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i1_j0_k0"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_k1",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i1_j0_k1"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_k2",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i1_j0_k2"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_km1",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        -1.0,
+                                        1.35,
+                                        0.4,
+                                        -0.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -265,59 +175,14 @@
                                         -0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Prototype("racer_cube_i1_j0_km1"),
+                                    source: Prototype("racer_turret_starboard"),
                                 ),
                                 (
-                                    id: "cube_im1_j0_k0",
+                                    id: "turret_port",
                                     position: (
-                                        -1.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_im1_j0_k0"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_k1",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_im1_j0_k1"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_k2",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_im1_j0_k2"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_km1",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        -1.0,
+                                        -1.35,
+                                        0.4,
+                                        -0.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -325,7 +190,7 @@
                                         0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Prototype("racer_cube_im1_j0_km1"),
+                                    source: Prototype("racer_turret_port"),
                                 ),
                             ],
                         )),
@@ -407,11 +272,126 @@
                             )),
                         )),
                     )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "scrapyard_key",
+                            name: "Key Light",
+                            position: (
+                                -120.0,
+                                100.0,
+                                120.0,
+                            ),
+                            rotation: (
+                                -0.24307884,
+                                -0.36920026,
+                                -0.10068656,
+                                0.8913283,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 11000.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.96,
+                                blue: 0.9,
+                                alpha: 1.0,
+                            )),
+                            shadows: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "scrapyard_rim",
+                            name: "Rim Light",
+                            position: (
+                                60.0,
+                                80.0,
+                                -160.0,
+                            ),
+                            rotation: (
+                                -0.03875094,
+                                0.9604674,
+                                0.21369855,
+                                0.17416595,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 16000.0,
+                            color: Srgba((
+                                red: 0.72,
+                                green: 0.86,
+                                blue: 1.0,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "scrapyard_fill",
+                            name: "Fill Light",
+                            position: (
+                                140.0,
+                                -40.0,
+                                80.0,
+                            ),
+                            rotation: (
+                                0.104897276,
+                                0.49822173,
+                                -0.060874254,
+                                0.8585255,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 2600.0,
+                            color: Srgba((
+                                red: 0.62,
+                                green: 0.72,
+                                blue: 0.95,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "scrapyard_lamp",
+                            name: "Planetoid Glow",
+                            position: (
+                                -60.0,
+                                20.0,
+                                90.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Light(Point(
+                            intensity: 2500000.0,
+                            range: 400.0,
+                            radius: 12.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.82,
+                                blue: 0.6,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
                     ScatterObjects((
                         id_prefix: "scrapyard_crate_",
                         count: 10,
                         seed: 433757350076153858,
                         region: Ring(
+                            center: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             inner: 150.0,
                             outer: 210.0,
                             y_min: -50.0,

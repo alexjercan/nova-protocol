@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>v0.10.0 - Nova demonstrates itself - Nova Protocol</title>
+        <meta name="description" content="Nova Protocol v0.10.0: Nova gains predicate-driven automation and proof-bearing reports, semantic Racer and cargo-ship parts with explicit structural mates, typed scenario queries and exact lifecycle events, authored lighting and mass-based gravity, reproducible screenshots, and a clearer workspace architecture." />
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/news.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="news">
+                <nav class="news__toc" aria-label="On this page">
+                    <p class="news__toc-title">On this page</p>
+                    <a href="#the-game-can-prove-its-own-paths" class="news__toc-link">The game can prove its own paths</a>
+                    <a href="#reports-state-their-limits" class="news__toc-link news__toc-link--sub">Reports state their limits</a>
+                    <a href="#a-screenshot-is-a-run-not-a-side-effect" class="news__toc-link news__toc-link--sub">A screenshot is a run, not a side effect</a>
+                    <a href="#cubes-become-ships-again" class="news__toc-link">Cubes become ships again</a>
+                    <a href="#how-seven-cuts-become-a-craft" class="news__toc-link news__toc-link--sub">How seven cuts become a craft</a>
+                    <a href="#structure-is-authored-not-guessed" class="news__toc-link news__toc-link--sub">Structure is authored, not guessed</a>
+                    <a href="#scenarios-speak-in-lifecycle-edges" class="news__toc-link">Scenarios speak in lifecycle edges</a>
+                    <a href="#a-wreck-is-not-a-missing-entity" class="news__toc-link news__toc-link--sub">A wreck is not a missing entity</a>
+                    <a href="#content-owns-the-scene" class="news__toc-link">Content owns the scene</a>
+                    <a href="#a-smaller-map-of-a-large-codebase" class="news__toc-link">A smaller map of a large codebase</a>
+                    <a href="#point-releases" class="news__toc-link">Point releases</a>
+                </nav>
+                <article class="prose news__body">
+                <p class="prose__meta">
+                    <a href="/nova-protocol/news/">&larr; News</a>
+                    &nbsp;//&nbsp; 2026-08-13 &nbsp;//&nbsp; v0.10.0
+                </p>
+                <h1>v0.10.0 - Nova demonstrates itself</h1>
+                <p>This release started with a testing problem: Nova Protocol had many runnable
+examples, screenshot scenes, and profiling tools, but they did not form one
+trustworthy story. Some scripts advanced on guessed delays. Some examples only
+proved that a window opened. Screenshot capture and correctness runs used
+related but separate machinery. A green process could still mean that the
+feature it claimed to show never happened.</p>
+<p>v0.10.0 gives Nova its own automation system and makes the game demonstrate
+itself through observed state. The example fleet now drives real player and UI
+paths, waits for named conditions, records invariants and timelines, captures
+frames, and produces reports that say what was and was not measured. The same
+runs maintain the images used by this site.</p>
+<p>That work became a foundation rather than a narrow test pass. While the
+automation watched the game more closely, it exposed unclear lifecycle edges,
+content assumptions, and architecture that depended on collider shape or spawn
+order. The release follows those findings through: ships gain semantic parts
+and explicit structural mates, scenarios gain typed queries and one-shot
+lifecycle events, and the workspace is reorganized around clearer ownership.</p>
+<h2 id="the-game-can-prove-its-own-paths" tabindex="-1">The game can prove its own paths</h2>
+<p>The new <code>nova_autopilot</code> crate owns scripted runs inside this repository. A run
+is a sequence of named steps. Each step enters once, can act each frame, and
+advances only when a predicate over the live Bevy world becomes true. If the
+condition never arrives, the run stops and names the stalled step instead of
+idling until a generic timeout.</p>
+<p>That sounds like a testing detail, but it changes what an example means. A menu
+example now moves a real pointer, presses and releases a real widget, and checks
+the rebuilt UI tree. A section example walks several scenes and asserts a named
+roster of invariants. The player-path example flies repeated rounds through
+live scenario state. The outcomes example dies, reaches Defeat, retries, wins,
+and follows the scenario transition in one process.</p>
+<p>The fleet is organized by what each category promises:</p>
+<ul>
+<li><code>sections/</code> demonstrates hull, controller, thruster, turret, and torpedo
+behavior over multi-round fixtures.</li>
+<li><code>systems/</code> demonstrates scenario grammar, the player path, and complete
+outcome flow without borrowing shipped story scenarios.</li>
+<li><code>ui/</code> drives real menus, editor widgets, settings, and HUD surfaces.</li>
+<li><code>stress/</code> sweeps bodies, sections, and projectiles for frame evidence.</li>
+<li><code>screenshots/</code> builds stable scenes for the website and documentation.</li>
+</ul>
+<p>The first design tried to keep extending the generic harness in
+<code>bevy_common_systems</code>, then pull changes back into Nova. That made every
+Nova-specific need a cross-repository synchronization problem before the need
+was understood. v0.10.0 makes the ownership explicit: Nova evolves its harness
+here. A reusable extraction can happen later, when another project provides a
+real second use case.</p>
+<figure class="figure">
+    <!-- Capture: assets/feature-autopilot.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/feature-autopilot.png</span>
+        <span class="figure__placeholder-note">A Racer ship under GOTO autopilot, with its destination, flight mode, objective marker, and contextual flight HUD visible.</span>
+    </div>
+    <figcaption class="figure__caption">The automation waits for the maneuver the player sees, not for a guessed number of seconds.</figcaption>
+</figure>
+<h3 id="reports-state-their-limits" tabindex="-1">Reports state their limits</h3>
+<p><code>nova_probe</code> now treats coverage as a handshake. Each example declares the
+capabilities it actually supplies. Process completion, reaching play, invariant
+checks, frame capture, and trace data are graded only when their evidence
+exists. An undeclared measurement reports <code>N/A</code>; an example with no probe
+contract reports <code>UNPROBEABLE</code>. Missing evidence can no longer become an
+accidental pass through a category-level exemption table.</p>
+<p>Probe runs also isolate saved settings and installed mods from the process they
+measure. Timelines record state transitions, scenario events, watched values,
+and invariant failures in order. Native tracing and frame-time capture happen
+when declared, while expensive sampling remains opt-in. One HTML report joins
+the result, logs, timeline, checks, and performance evidence without hand
+repair.</p>
+<p>The rebuilt fleet found real defects while it was being made stricter. A driven
+click could lose its release when a physical cursor event moved the pointer
+between frames. Spawn-order assumptions could publish an incomplete ship graph.
+A kill-cam fixture used generic cleanup while claiming physical destruction.
+Those failures were useful because each named the seam that had not actually
+been exercised.</p>
+<h3 id="a-screenshot-is-a-run-not-a-side-effect" tabindex="-1">A screenshot is a run, not a side effect</h3>
+<p>Screenshot capture used to have its own reel abstraction: one list described
+what happened, another list described the camera and capture beats, and guessed
+settle times tried to keep them synchronized. The image could be technically
+valid while showing the frame before the interesting state arrived.</p>
+<p>Now a screenshot producer is an ordinary predicate-driven script. The action,
+framing, and call to <code>shoot</code> sit together in named step order. A capture records
+its path only after Bevy writes the PNG, and the step waits on that
+acknowledgement. Slow disk does not create a missing image, and a failed capture
+stops at <code>shoot &lt;name&gt;</code> rather than leaving an unexplained hole for the packaging
+script to discover later.</p>
+<p>The web packaging script remains deliberately small and separate. It validates
+aspect ratios, copies declared shots, creates the few composites that cannot be
+captured as one frame, generates section icons, and reports image coverage by
+owner: reproducible game capture, manual art, or historical illustration. It is
+an advisory worklist rather than a false hard gate, because a generated run can
+prove a cockpit frame but cannot draw release-card art for the owner.</p>
+<p>This release rebuilt the screenshot scenes instead of patching the old files.
+The flight producer owns GOTO and ORBIT. The combat producer owns radar,
+torpedoes, aftermath, HUD, and combat-lock frames. Dedicated scenes own menus,
+sections, NOVA OS, and the parts gallery. The resulting images were reviewed at
+their shipped 16:9 framing, then the tutorial prose was replayed against the
+same current controls and Shakedown sequence.</p>
+<h2 id="cubes-become-ships-again" tabindex="-1">Cubes become ships again</h2>
+<p>Nova's modular ships were built from coordinate-named cube fragments. The
+system was convenient for a grid cutter, but the content described storage
+cells rather than a craft: <code>cube_i0_j1_km2</code> carried no authoring intent, and a
+small visual change could turn into dozens of prototypes and section ids.</p>
+<p>Racer, CargoA, and CargoB now use semantic body parts cut from their source
+meshes. Fuselages, noses, tails, engines, and side pods are sections with tight
+centered primitive colliders. Render offsets preserve the original mesh
+assembly, while mounted turrets remain functional modules. CargoB's side pods
+own its torpedo behavior. Twenty-one body meshes replace 112 shipped cube
+meshes, and the old coordinate prototypes and compatibility aliases are gone.</p>
+<p>This is intentionally a clean content break. Base scenarios, examples,
+Gauntlet, and every chapter of The Ledger were migrated to ids such as
+<code>fuselage</code>, <code>engine_port</code>, and <code>turret_starboard</code>. Gauntlet moves to 1.8.0 and
+The Ledger to 1.21.0 so installed copies receive the new content. Third-party
+content that names the removed cube prototypes must migrate too.</p>
+<p>Fewer, larger sections make damage chunkier and move the health and mass
+profile of each craft. That balance drift is accepted in this release rather
+than disguised with compatibility sections. A later playtest pass can tune the
+new ships as ships.</p>
+<h3 id="how-seven-cuts-become-a-craft" tabindex="-1">How seven cuts become a craft</h3>
+<p>The asset pipeline is recipe data plus one cutter, not one custom script per
+ship. A recipe names ordered planes, boxes, materials, or source objects that
+claim each semantic region. The cutter clips triangles, seals the new cut faces,
+preserves flat material colors, and emits one GLB per part plus a manifest of
+origins, bounds, and collider suggestions.</p>
+<p>Every generation checks the geometry rather than trusting an export command.
+The sum of output surface areas must match the source partition. New cut
+boundaries must close. Each written GLB is reopened and its decoded position
+bounds are compared with the manifest. The union of origin-placed part bounds
+must reconstruct the source ship bounds. Those checks caught recipe errors
+before a mesh ever reached content RON.</p>
+<p>Entity origins are then moved to the centers of tight primitive colliders. A
+separate render transform puts each mesh back at its exact recipe position. This
+makes physics origins honest without changing the assembled silhouette, and it
+keeps authored link points in the same centered local frame as the collider.
+The Rust content builder adds gameplay meaning after the mesh cut: which part is
+an engine, which pod owns a torpedo bay, which body owns control, and where a
+mounted turret joins the structure.</p>
+<p>The parts viewer uses the same manifests to reconstruct each source craft and
+push its pieces away from the center. The exploded Racer below shows the seven
+body meshes before the two gameplay turret modules are mounted. Nose, fuselage,
+tail, port and starboard engines, and both side structures remain complete
+pieces rather than piles of coordinate cells.</p>
+<figure class="figure">
+    <!-- Capture: assets/parts-viewer-racer-exploded.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/parts-viewer-racer-exploded.png</span>
+        <span class="figure__placeholder-note">An exploded three-quarter view of the Racer's seven semantic body meshes in the parts viewer, with the nose, central fuselage, tail, engines, and side structures separated around the assembled center.</span>
+    </div>
+    <figcaption class="figure__caption">Seven complete body meshes replace eighteen coordinate-named Racer cubes; mounted weapon modules are added by content.</figcaption>
+</figure>
+<h3 id="structure-is-authored-not-guessed" tabindex="-1">Structure is authored, not guessed</h3>
+<p>The old integrity graph inferred neighbors from distance and collider geometry.
+That worked for unit cubes and became wrong as soon as meaningful parts
+interlocked, overlapped by AABB, or sat farther apart at their entity origins.
+Physics geometry was being asked to answer an authoring question.</p>
+<p>Sections now expose link points, and explicit point mates are the sole source of
+structural adjacency. A ship must form one valid connected graph. Missing,
+ambiguous, or mismatched mates fail content lint and publish no partial runtime
+graph. Collider AABBs still serve physics, overlap checks, picking, framing, and
+broad phase, but they do not secretly weld a ship together. Directly mated
+sections may overlap by AABB so interlocking meshes remain valid; unmated
+overlap is still an error.</p>
+<p>NOVA OS can show the resulting <code>MATES</code> graph over the ship schematic. The same
+pure graph derivation drives authored-content lint, runtime integrity, tests,
+and that debug view, so those surfaces cannot quietly invent different ships.</p>
+<h2 id="scenarios-speak-in-lifecycle-edges" tabindex="-1">Scenarios speak in lifecycle edges</h2>
+<p>Automation also exposed scenario rules that depended on recurring polls and
+reserved magic values. v0.10.0 replaces several of those implicit contracts
+with typed, edge-triggered state.</p>
+<p>Scenarios gain keyed timers that freeze with pause: <code>TimerStart</code>, <code>TimerCancel</code>,
+and one-shot <code>OnTimerEnd</code>. Orbit and radar locks now have explicit starts and
+ends. Orbit adds stable and unstable edges, so a continuous hold composes from
+real lifecycle events instead of a repeatedly firing <code>OnOrbit</code>. Travel and
+combat locks stop refiring while held.</p>
+<p>Defeat has one exact-once scenario edge too. <code>OnDefeated</code> fires for either
+neutralization or direct destruction, before the more specific event. A
+neutralized wreck that is destroyed later does not defeat the same ship twice,
+and generic cleanup emits no combat outcome. This keeps tactical defeat,
+physical destruction, and teardown separate enough for scenarios and HUD
+presentation to tell the truth.</p>
+<p>World reads now use typed queries and declared watched variables. Scenario time
+is <code>Scenario(Elapsed)</code>, entity speed is an entity query, and strict single-entity
+queries reject ambiguity instead of choosing an arbitrary match. A query with
+no match is unavailable; a query that promised one entity and found several is
+an error. Watched names are read-only runtime observations, separate from the
+scenario's mutable variables even when both belong to the same authored story.
+Rust authors share one <code>nova_authoring::scenario_helpers</code> catalog for common
+expressions, filters, watches, and actions, while generated scenario hashes
+remain stable.</p>
+<h3 id="a-wreck-is-not-a-missing-entity" tabindex="-1">A wreck is not a missing entity</h3>
+<p>The lifecycle distinctions show up directly in combat. A neutralized ship is
+out of the fight but still in the world. Player threat tracking and AI target
+acquisition stop treating it as an active enemy, while the player can still
+combat-lock the wreck. Its filled allegiance triangle becomes a hollow chevron,
+target details read <code>NEUTRALIZED</code>, and the target inset confirms the defeat
+without pretending the hull vanished.</p>
+<p>Physical destruction has its own presentation. When the currently framed target
+crosses the destruction marker, the inset holds the final shot for two seconds
+and shows an amber <code>DESTROYED</code> ribbon. A scenario teardown, retry, or cleanup
+can despawn the same entity shape without producing that kill cam. The event
+model and the HUD now agree that removal, defeat, neutralization, and destruction
+are related but not interchangeable facts.</p>
+<p>These are breaking authoring changes, but they remove hidden aliases and timing
+rules instead of preserving two meanings indefinitely. The modding reference
+has been rebuilt around the current vocabulary, with complete action, event,
+filter, expression, object, and section pages.</p>
+<div class="callout callout--breaking">
+    <p class="callout__title">Breaking - migrating v0.9 mods</p>
+    <p>This release intentionally carries no compatibility aliases. Multi-section ships must author one connected link-point graph; collider contact and one-unit spacing no longer weld sections. Racer, CargoA, and CargoB cube prototypes and coordinate ids are removed. Scenario light objects replace the global fallback light. Gravity wells use <code>mass</code> instead of <code>surface_gravity</code>. Recurring orbit and lock events become one-shot lifecycle edges, and reserved runtime-value aliases become typed queries and watched variables. Run <code>cargo run content lint</code> against each bundle: the current reference documents every replacement, and the bundled example, Gauntlet, and The Ledger show migrated content.</p>
+</div>
+<figure class="figure">
+    <!-- Capture: assets/feature-combat.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/feature-combat.png</span>
+        <span class="figure__placeholder-note">A semantic Racer in combat with a red lock, target inset, weapon state, and modular damage visible.</span>
+    </div>
+    <figcaption class="figure__caption">Defeat, destruction, cleanup, and lock state now cross distinct observable edges.</figcaption>
+</figure>
+<h2 id="content-owns-the-scene" tabindex="-1">Content owns the scene</h2>
+<p>Scenario lighting is authored content now. Directional and point lights are
+scenario objects, replacing one hardcoded top-down key that made different
+scenes share the same flat answer. Every shipped scenario, bundled mod,
+example, and editor sandbox now supplies its own key, rim, and fill intent. A
+third-party scenario with no light renders black, so this is another deliberate
+format break rather than a hidden fallback.</p>
+<p>Gravity wells also move to a clearer physical input. Authors specify mass, the
+<code>mu</code> in the acceleration equation, instead of a surface-gravity value whose
+reach changed with procedural mesh radius. Sphere-of-influence cutoff is a
+shared setting. The same authored body now produces the same well across mesh
+seeds.</p>
+<p>Shakedown Run uses those systems in a denser opening scene: its planetoid moves
+closer and a seeded slalom belt bends around it without invading the tutorial's
+beat pockets. Scatter rings can center on a body, and a minimum-separation rule
+keeps sibling scatters from placing rocks on top of each other.</p>
+<p>The website image set was rebuilt from dedicated screenshot producers. The
+capture action and framing live in the same named script steps that create the
+state being photographed, and every shot acknowledges that its PNG reached
+disk. The tutorial, feature pages, and wiki therefore draw from reproducible
+current runs rather than an archive of unexplained images. Scenario-picker
+entries use generated, deliberate placeholders until owner-drawn art replaces
+them.</p>
+<h2 id="a-smaller-map-of-a-large-codebase" tabindex="-1">A smaller map of a large codebase</h2>
+<p>A release centered on proof also had to make the code easier to reason about.
+The workspace was split and rerouted so ownership follows the runtime pipeline:
+ship integrity belongs to <code>nova_ship</code>, generic lifecycle remains in
+<code>nova_gameplay</code>, content authoring lives in <code>nova_authoring</code>, probe process
+control lives in <code>nova_probe_cli</code>, and crate preludes define each public
+vocabulary.</p>
+<p>The game binary is now the front door for developer commands:
+<code>cargo run content gen|lint</code> and <code>cargo run --features debug probe run|report</code>.
+The old standalone binaries are gone. One persistence abstraction serves both
+settings and installed mods without moving their stored data. Camera writers
+share an explicit authority order. Nova owns its health, typed damage, and
+destruction pipeline instead of importing them from a generic dependency.</p>
+<p>The refactor was measured rather than treated as an automatic performance win.
+The benchmark was re-keyed around reproducible scenarios and probe metadata, and
+the after-runs were read for what they could actually support. Some rows became
+faster, some slower, and noisy host comparisons stayed warnings rather than
+being promoted into invented precision. The useful result is a repeatable
+measurement surface with build profile, renderer, GPU, resolution, settings,
+and git identity attached to each row.</p>
+<p>Much of this work should be invisible while playing. That is the point. The
+visible ships, scenarios, HUD, and website now sit on systems that can explain
+who owns a state change, what evidence a run collected, and why two sections
+stay attached.</p>
+<p>The final release sweep covers all 27 cataloged examples, including the parts
+viewer itself. It also walks the player path through repeated rounds, lints all
+base and bundled content, rebuilds the website, and checks native, default,
+debug, and WebAssembly compilation surfaces. A report can still say that a
+capability was not measured. It can no longer call that absence proof.</p>
+<p>v0.10.0 does not make Nova finished. It makes the next change easier to see,
+demonstrate, and challenge.</p>
+<h2 id="point-releases" tabindex="-1">Point releases</h2>
+<p>No point releases yet.</p>
+
+                <footer class="post-footer">
+                    <p class="post-footer__discuss">
+                        Got a reaction, a question, or a ship you want to show
+                        off?
+                        <a
+                            href="https://github.com/alexjercan/nova-protocol/discussions"
+                            target="_blank"
+                            rel="noopener"
+                            >Talk about this release on GitHub Discussions</a
+                        >.
+                    </p>
+                    <p class="post-footer__discuss">
+                        Want the terse, complete list for every version
+                        (patch releases included)?
+                        <a
+                            href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md"
+                            target="_blank"
+                            rel="noopener"
+                            >Read CHANGELOG.md on GitHub</a
+                        >.
+                    </p>
+                    <p class="post-footer__nav">
+                        <a href="/nova-protocol/news/">&larr; All news</a>
+                    </p>
+                </footer>
+            </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

@@ -38,6 +38,7 @@
                     </p>
                     <h1>Architecture</h1>
                     <div class="wiki__tags" id="wiki-tags"></div>
+                    
                     <blockquote>
 <p>New to the codebase? Start with the <a href="../project-tour/">Project tour</a> for a
 faster orientation, then come back here for the detail.</p>
@@ -72,31 +73,51 @@ real code lives under <code>crates/</code>.</p>
 </tr>
 <tr>
 <td><code>nova_gameplay</code></td>
-<td>Gameplay umbrella: <code>sections/</code>, <code>integrity/</code>, <code>damage</code>, <code>flight</code>, <code>gravity</code> (gravity wells), <code>input/</code> (player, ai, radar targeting with deliberate lock-on, <code>reference</code> keybind table), <code>hud/</code> (many widgets: crosshairs, target inset, ammo, flight status, markers, ...), <code>camera_controller</code>, <code>audio</code>, <code>juice</code>, <code>settings</code> (<code>MasterVolume</code>/<code>GraphicsQuality</code> + apply systems), <code>relations</code>, <code>beacon</code>, <code>objective_marker</code>, <code>plugin</code>. Also owns <code>GameStates</code>, <code>PauseStates</code>, and the <code>GameMode</code> resource.</td>
+<td>The shared gameplay layer under the ship: <code>integrity/</code>, <code>damage</code>, <code>gravity</code> (gravity wells), <code>markers</code> (the entity markers the ship tags with and this layer reads), <code>math</code>, <code>audio</code> (the generic SFX engine <code>nova_menu</code> and <code>nova_os_ui</code> also use), <code>juice</code>, <code>shake</code>, <code>settings</code> (<code>MasterVolume</code>/<code>GraphicsQuality</code> + apply systems), <code>mesh</code>, <code>transform</code>, <code>relations</code>, <code>beacon</code>, <code>objectives</code> (the <code>GameObjectives</code> list, its panel and the conveyance tags), <code>lifetime</code> (<code>TempEntity</code>/<code>DespawnEntity</code>), <code>cooldown</code>, <code>plugin</code>. Also owns <code>GameStates</code>, <code>PauseStates</code>, and the <code>GameMode</code> resource. Knows nothing about a ship.</td>
+</tr>
+<tr>
+<td><code>nova_ship</code></td>
+<td>The ship and how it is flown: <code>sections/</code> (the modular hull and its ammo/damage tint), <code>input/</code> (player rigs, the AI pilot and gunner, radar targeting with deliberate lock-on, the <code>reference</code> keybind table), <code>flight/</code> (the diegetic controller and its autopilot verbs), <code>camera/</code> (the chase-camera controller and the chase/skybox/post/WASD rigs under it), <code>physics/</code> (the PD attitude controller) and <code>ship_audio/</code> (the soundtrack those five produce). Depends on <code>nova_gameplay</code> and never the reverse; <code>NovaShipPlugin</code> owns the <code>SpaceshipSystems</code> brackets and <code>nova_core</code> adds it after <code>NovaGameplayPlugin</code>.</td>
+</tr>
+<tr>
+<td><code>nova_hud</code></td>
+<td>The flight HUD: one module per widget (crosshairs, target inset, ammo readout, flight status, objective markers, the comms panel, the keybind dock, the screen-indicator projection they all share). Reads gameplay state and never drives it, so the dependency runs <code>nova_hud -&gt; nova_gameplay</code>. <code>nova_core</code> adds <code>NovaHudPlugin</code> render-gated, and the crate places <code>NovaHudSystems</code> between the section and camera sets itself.</td>
+</tr>
+<tr>
+<td><code>nova_os</code></td>
+<td>NOVA OS logic with no UI in it: the terminal model (<code>terminal</code>), the shell command language and typo suggestions (<code>shell</code>), and the app runtime seam (<code>app</code>).</td>
+</tr>
+<tr>
+<td><code>nova_os_ui</code></td>
+<td>The NOVA OS cockpit monitor the player opens with Tab: the CRT casing and shader, the terminal nodes and keyboard/pointer systems (<code>terminal</code>), and the two apps that run on it - <code>map</code> (schematic local space) and <code>ship</code> (schematic player ship). A PEER of the flight HUD, not one of its widgets: <code>nova_core</code> adds it, and nothing in <code>nova_hud</code> reaches into it (it reads <code>NovaHudAssets</code> and <code>NovaHudSystems</code>, so it sits ABOVE <code>nova_hud</code>).</td>
 </tr>
 <tr>
 <td><code>nova_scenario</code></td>
-<td>Scenario/modding engine: <code>events</code>, <code>filters</code>, <code>actions</code>, <code>variables</code>, <code>world</code>, <code>loader</code>, <code>objects/</code>, <code>render_scale</code> (the Low-preset resolution lever: scenario view into a reduced offscreen target, upscaled to the window). See <a href="../scenario-system/">Scenario engine</a>.</td>
+<td>Scenario/modding engine: <code>events</code>, <code>filters</code>, <code>actions</code>, <code>variables</code>, <code>world</code>, <code>loader</code>, <code>objects/</code>, <code>lint/</code> (the scenario half of the <code>content -- lint</code> checks), <code>render_scale</code> (the Low-preset resolution lever: scenario view into a reduced offscreen target, upscaled to the window). See <a href="../scenario-system/">Scenario engine</a>.</td>
 </tr>
 <tr>
 <td><code>nova_events</code></td>
 <td>Game event kinds and entity identity components, shared between gameplay and scenario.</td>
 </tr>
 <tr>
+<td><code>nova_events_macros</code></td>
+<td>Procedural macros behind <code>nova_events</code>' derives.</td>
+</tr>
+<tr>
 <td><code>nova_assets</code></td>
-<td><code>bevy_asset_loader</code> setup. Loads glb/textures/shaders/sounds, then registers the built-in sections and scenarios. Owns the mod merge (<code>register_bundles</code>, <code>EnabledMods</code>, <code>ModCatalog</code>) and prefs persistence.</td>
+<td><code>bevy_asset_loader</code> setup. Loads glb/textures/shaders/sounds, and loads the base game's own generated content (<code>assets/base/</code>) through the same bundle machinery as mods. Owns the mod merge (<code>register_bundles</code>, <code>EnabledMods</code>, <code>ModCatalog</code>), the portal client and downloads (<code>portal/</code>), and prefs persistence.</td>
 </tr>
 <tr>
 <td><code>nova_modding</code></td>
-<td>Bundle/content/catalog ASSET LOADERS and the <code>Content</code> routing enum. See <a href="../modding-ron/">Modding data format (RON)</a>.</td>
+<td>Bundle/content/catalog ASSET LOADERS and the <code>Content</code> routing enum. See <a href="../../modding/mod-files/">Mod files</a>.</td>
 </tr>
 <tr>
 <td><code>nova_mod_format</code></td>
-<td>Pure serde types for the mod formats (bundle manifests, catalog declarations, the portal wire schema). Engine-free; re-exported by <code>nova_modding</code>. The static mod portal is built by <code>scripts/gen-portal.py</code>, not a crate. See <a href="../mod-portal/">Mod portal</a>.</td>
+<td>Pure serde types for the mod formats (bundle manifests, catalog declarations, the portal wire schema). Engine-free; re-exported by <code>nova_modding</code>. The static mod portal is built by <code>scripts/gen-portal.py</code>, not a crate. See <a href="../../modding/publish-a-mod/">Publish a mod</a>.</td>
 </tr>
 <tr>
 <td><code>nova_ui</code></td>
-<td>Shared UI: the theme palette/metrics (<code>theme::*</code>) and the themed widgets (<code>widget</code>: button, selection machinery, panel header) the menu and editor draw from.</td>
+<td>Shared UI, a leaf crate everything that renders UI draws from: the theme palette/metrics (<code>theme::*</code>), the <code>UiSkin</code> visual-language switch (<code>skin</code>), the themed widgets (<code>widget</code>: button, slider, segmented control, list rows, panel chrome), screen-level composition (<code>screen</code>: scrollable viewports and the list-beside-details layout the menu screens and the NOVA OS drawer share), the flight-HUD chip language (<code>hud</code>), player-facing unit formatting (<code>units</code>), the shared typeface (<code>font</code>) and the generic <code>status_bar</code>. Consumed by <code>nova_gameplay</code>, <code>nova_hud</code>, <code>nova_os_ui</code>, <code>nova_menu</code>, <code>nova_editor</code> and <code>nova_assets</code>.</td>
 </tr>
 <tr>
 <td><code>nova_debug</code></td>
@@ -107,8 +128,24 @@ real code lives under <code>crates/</code>.</p>
 <td>Exposes <code>APP_VERSION</code>, injected by <code>build.rs</code>.</td>
 </tr>
 <tr>
+<td><code>nova_autopilot</code></td>
+<td>Scripted automation drivers and the run-completion protocol the harness examples share. Engine-facing but game-agnostic; <code>nova_debug</code>, <code>nova_probe</code> and <code>nova_probe_cli</code> all build on it. See <a href="../automation-harness/">Automation harness</a>.</td>
+</tr>
+<tr>
 <td><code>nova_probe</code></td>
-<td>Dev tooling (not in the shipped game): the run-harness that drives an autopilot example headless and assembles a run report - frame-time capture plus the run-timeline recorder and continuous invariant checks. <code>run</code>/<code>report</code> CLI. See <a href="../development/">Development</a>.</td>
+<td>Dev tooling (not in the shipped game): the IN-GAME half of the run-harness - the capability plugins an example wires to collect evidence about its own run (<code>capabilities::frametime</code>, <code>capabilities::timeline</code>, <code>capabilities::invariants</code>, bundled by <code>NovaProbePlugin</code>), the <code>contract</code> an example declares, and the wire format the host reads. See <a href="../development/">Development</a>.</td>
+</tr>
+<tr>
+<td><code>nova_probe_cli</code></td>
+<td>Dev tooling: the HOST half of the run-harness - spawns autopilot runs as child processes, grades their artifacts (<code>evaluation</code>) and renders the reports (<code>report</code>). Owns the <code>cargo run --features debug probe run/report</code> CLI. The two halves meet at the filesystem: nothing in <code>nova_probe</code> reads a run's output back.</td>
+</tr>
+<tr>
+<td><code>nova_perf_web</code></td>
+<td>The wasm app <code>probe run --platform web</code> boots and measures: the real game started into a scenario with the frame-time capture armed. Dev tooling, never shipped.</td>
+</tr>
+<tr>
+<td><code>nova_authoring</code></td>
+<td>The OFFLINE half of the content pipeline (never shipped): the Rust builders that define every built-in scenario and section, the <code>content -- gen</code> serializer that writes them to the committed <code>assets/base/**/*.content.ron</code>, and the <code>content -- lint</code> walk that validates a content tree.</td>
 </tr>
 <tr>
 <td><code>nova_meta_gen</code></td>
@@ -122,61 +159,115 @@ real code lives under <code>crates/</code>.</p>
     core --&gt; menu[&quot;nova_menu&quot;]
     core --&gt; editor[&quot;nova_editor&quot;]
     core --&gt; gameplay[&quot;nova_gameplay&quot;]
+    core --&gt; ship[&quot;nova_ship&quot;]
+    core --&gt; hud[&quot;nova_hud&quot;]
+    core --&gt; osui[&quot;nova_os_ui&quot;]
     core --&gt; scenario[&quot;nova_scenario&quot;]
     core --&gt; assets[&quot;nova_assets&quot;]
-    gameplay --&gt; events[&quot;nova_events&quot;]
-    scenario --&gt; events
-    assets --&gt; modding[&quot;nova_modding&quot;]
-    modding --&gt; modfmt[&quot;nova_mod_format&quot;]
-    menu --&gt; ui[&quot;nova_ui&quot;]
+    ship --&gt; gameplay
+    ship --&gt; events[&quot;nova_events&quot;]
+    hud --&gt; ship
+    hud --&gt; gameplay
+    hud --&gt; ui[&quot;nova_ui&quot;]
+    osui --&gt; hud
+    osui --&gt; ship
+    osui --&gt; gameplay
+    osui --&gt; os[&quot;nova_os&quot;]
+    osui --&gt; ui
+    menu --&gt; osui
+    menu --&gt; ui
+    editor --&gt; ship
     editor --&gt; ui
+    gameplay --&gt; events
+    gameplay --&gt; ui
+    scenario --&gt; events
+    scenario --&gt; gameplay
+    scenario --&gt; ship
+    scenario --&gt; hud
+    assets --&gt; modding[&quot;nova_modding&quot;]
+    assets --&gt; scenario
+    modding --&gt; modfmt[&quot;nova_mod_format&quot;]
     core --&gt; debug[&quot;nova_debug&quot;]
     core --&gt; info[&quot;nova_info&quot;]
-    gameplay --&gt; bcs[&quot;bevy_common_systems (external)&quot;]
 </pre>
+<p>The graph is curated for readability, not exhaustive: <code>nova_core</code> and <code>nova_menu</code>
+depend on nearly every crate below them, and edges implied by the layering (for
+example <code>nova_menu -&gt; nova_ship</code>) are pruned. The authoritative dependency list
+for any crate is its <code>Cargo.toml</code>. Two edges people guess wrong:</p>
+<ul>
+<li><strong><code>nova_ui</code> is not menu-only.</strong> Every crate that renders UI draws on it -
+<code>nova_gameplay</code> (which adds <code>NovaUiPlugin</code> render-gated), <code>nova_hud</code> (the
+chip language and screen-indicator styling), <code>nova_os_ui</code>, <code>nova_menu</code>,
+<code>nova_editor</code> and <code>nova_assets</code>.</li>
+<li><strong><code>nova_scenario</code> reaches up into <code>nova_ship</code> and <code>nova_hud</code>.</strong> It spawns
+ships and drives HUD-facing surfaces (comms dwell limits, target-inset render
+targets), so it sits beside them, not below them.</li>
+</ul>
+<p>The dev-tool crates hang off this graph without joining it: <code>nova_debug</code> builds
+on <code>nova_autopilot</code> plus the game crates it inspects; <code>nova_probe</code> wires
+<code>nova_core</code> + <code>nova_autopilot</code> into a measurable app; <code>nova_probe_cli</code> depends
+only on <code>nova_probe</code>, <code>nova_autopilot</code> and <code>nova_assets</code> (it is a host process,
+not a game plugin); <code>nova_perf_web</code> is <code>nova_core</code> + <code>nova_probe</code>; and
+<code>nova_authoring</code> reads half the workspace to build and lint content offline.</p>
 <p>Every crate exposes a <code>pub mod prelude</code>. Import from the prelude
 (<code>use nova_gameplay::prelude::*</code>), not from inner modules. <code>nova_core::prelude</code>
 re-exports all sub-crate preludes, so top-level code and examples usually just do
 <code>use nova_protocol::prelude::*</code>.</p>
-<h3 id="external-shared-crate-bevy-common-systems" tabindex="-1">External shared crate: <code>bevy-common-systems</code></h3>
-<p>Generic, non-Nova Bevy helpers (WASD/chase cameras, skybox, post-processing, mesh
-explode, PD controller, health, status bar, the generic game-event queue
-<code>GameEventsPlugin</code>/<code>EventWorld</code>) live in a separate repo, <code>bevy-common-systems</code>,
-pinned as a git dependency (rev in <code>crates/nova_gameplay/Cargo.toml</code>) and re-exported
-through <code>nova_gameplay::prelude</code>. If a helper feels &quot;generic&quot;, it lives there.</p>
+<h3 id="generic-helpers-live-here-too" tabindex="-1">Generic helpers live here too</h3>
+<p>The generic, non-Nova Bevy helpers (WASD/chase cameras, skybox, post-processing,
+mesh explode, PD controller, health, status bar, the generic game-event queue
+<code>GameEventsPlugin</code>/<code>EventWorld</code>) are nova's own: the camera and transform rigs,
+the mesh toolkit in <code>nova_gameplay</code>, the camera rigs and the PD controller in
+<code>nova_ship</code>, the status bar and
+tween in <code>nova_ui</code>, the event engine in <code>nova_events</code>, the inspector and
+wireframe layers in <code>nova_debug</code>. They used to live in a separate pinned repo;
+task 20260806-180450 vendored them in, because splitting them out before the
+game was done produced generic-looking code shaped by one game's needs. Whether
+any of it deserves extracting is a question for after the game ships.</p>
 <p>The generic <code>HealthDisplay</code> bar stays here (still available for other games and
 for non-player entities), but Nova's player-ship health readout is no longer that
 bar: it is diegetic, grading each ship section's own mesh material by integrity
-(<code>nova_gameplay::sections::damage_tint</code>, task 20260717-003613). Because that
+(<code>nova_ship::sections::damage_tint</code>, task 20260717-003613). Because that
 readout keys on Nova's section graph and materials it is game-specific and is NOT
 a promotion candidate - the generic bar and the diegetic readout are different
 things at different layers.</p>
 <p>Boundary policy, from most game-agnostic to most game-specific:</p>
 <ol>
-<li><code>bevy_common_systems</code> (external) - fully reusable Bevy primitives.</li>
-<li><code>nova_gameplay</code> - Nova gameplay, plus generic-leaning helpers not yet ready for
-promotion (promotion is a deliberate cross-repo change, not automatic).</li>
+<li>The generic-leaning modules named above - reusable Bevy primitives that
+happen to live in a nova crate; keep them free of game-specific types.</li>
+<li><code>nova_gameplay</code> - the shared gameplay layer, ship-agnostic.</li>
+<li><code>nova_ship</code> - the ship above that layer.</li>
+<li><code>nova_hud</code> and <code>nova_os_ui</code> - consumers of the ship and of gameplay, above
+both. <code>nova_os_ui</code> is above <code>nova_hud</code> in turn: it orders itself against
+<code>NovaHudSystems</code>.</li>
 <li><code>nova_core</code> - wiring only.</li>
 </ol>
 <h2 id="app-assembly" tabindex="-1">App assembly</h2>
 <p><code>AppBuilder</code> (in <code>crates/nova_core/src/lib.rs</code>) is the single place the app is wired:</p>
-<pre><code class="hljs language-rust">AppBuilder::<span class="hljs-title function_ invoke__">new</span>()                 <span class="hljs-comment">// Bevy DefaultPlugins + window/log/asset setup</span>
+<pre><code class="hljs language-rust">AppBuilder::<span class="hljs-title function_ invoke__">new</span>()                 <span class="hljs-comment">// Bevy DefaultPlugins + window/log/asset/render setup</span>
     .<span class="hljs-title function_ invoke__">with_game_plugins</span>(my_plugin) <span class="hljs-comment">// optional: your own systems/observers</span>
     .<span class="hljs-title function_ invoke__">with_rendering</span>(<span class="hljs-literal">true</span>)         <span class="hljs-comment">// debug-only toggle for headless runs</span>
     .<span class="hljs-title function_ invoke__">build</span>()                      <span class="hljs-comment">// adds the plugin stack, returns App</span>
 </code></pre>
 <p><code>build()</code> inits <code>GameStates</code> + <code>PauseStates</code>, then adds, in order:
-<code>EnhancedInputPlugin</code>, <code>GameAssetsPlugin</code>, <code>NovaGameplayPlugin</code>,
-<code>NovaScenarioPlugin</code>, then <code>NovaEditorPlugin</code> and <code>NovaMenuPlugin</code> (both only when
-no custom game plugins were supplied; <code>with_main_menu(bool)</code> overrides the menu
-default), and finally <code>DebugPlugin</code> under the <code>debug</code> feature. On
+<code>EnhancedInputPlugin</code>, <code>GameAssetsPlugin</code>, <code>LoadingScreenPlugin</code>,
+<code>NovaGameplayPlugin</code>, <code>NovaShipPlugin</code> (the ship orders its sets inside
+gameplay's <code>SpaceshipSystems</code> brackets, so it comes after), <code>NovaScenarioPlugin</code>,
+then - render-gated, a headless harness run draws neither - <code>NovaHudPlugin</code> and
+<code>NovaOsUiPlugin</code> (HUD first: the monitor orders itself against
+<code>NovaHudSystems</code>), then <code>NovaEditorPlugin</code> and <code>NovaMenuPlugin</code> (both only when
+no custom game plugins were supplied - the menu fronts the default app and
+nothing else, so an example that brings its own game plugins goes straight
+<code>Loading -&gt; Playing</code>), and finally <code>DebugPlugin</code> under the <code>debug</code> feature. On
 <code>OnEnter(GameAssetsStates::Loaded)</code> it hands off to <code>MainMenu</code> (or straight to
 <code>Playing</code> when the menu is off) and spawns the status UI.</p>
 <p><code>NovaGameplayPlugin</code> pulls in avian3d <code>PhysicsPlugins</code> (zero gravity, projectile
 collision hooks), <code>bevy_rand</code>, <code>bevy_hanabi</code> particles (on wasm via the WebGPU
-backend), the
-<code>bevy_common_systems</code> helper plugins, and the Nova sub-plugins: input, sections,
-hud, camera controller, integrity, damage, flight, gravity, relations, audio, juice.</p>
+backend), <code>NovaUiPlugin</code> (render-gated), the transform/lifetime/mesh rigs, and
+the shared gameplay sub-plugins: integrity, damage, gravity, relations, audio,
+juice, settings. The ship stack (input, sections, flight, camera, physics) is
+<code>NovaShipPlugin</code>'s, and the HUD is <code>NovaHudPlugin</code>'s - both added by
+<code>nova_core</code>, not by gameplay.</p>
 <h2 id="states" tabindex="-1">States</h2>
 <ul>
 <li><code>GameStates { Loading, MainMenu, Playing }</code> (<code>nova_gameplay</code>) - top-level
@@ -190,7 +281,7 @@ UI, and the clock freeze (<code>Time&lt;Virtual&gt;</code> + <code>Time&lt;Physi
 inside <code>Playing</code>; leaving <code>Playing</code> resets it.</li>
 <li><code>GameAssetsStates { Loading, Processing, Loaded }</code> (<code>nova_assets</code>) - asset
 pipeline. Scenario setup hooks <code>OnEnter(GameAssetsStates::Loaded)</code> - see
-<code>examples/gameplay/scenario.rs</code>.</li>
+<code>examples/systems/scenario_grammar.rs</code>.</li>
 </ul>
 <p>The top-level lifecycle, the pause overlay nested inside <code>Playing</code>, and the asset
 pipeline that gates entry:</p>
@@ -218,7 +309,8 @@ pipeline that gates entry:</p>
 <p>Leaving <code>Playing</code> resets <code>PauseStates</code> back to <code>Unpaused</code>.</p>
 <h2 id="frame-flow" tabindex="-1">Frame flow</h2>
 <p>Gameplay systems run in an explicit chain, configured identically in <code>Update</code> and
-<code>FixedUpdate</code> (<code>nova_gameplay::plugin</code>):</p>
+<code>FixedUpdate</code>. <code>nova_ship::NovaShipPlugin</code> declares the brackets and the ship
+sets; <code>nova_hud</code> slots <code>NovaHudSystems</code> into the gap itself:</p>
 <pre><code class="hljs">SpaceshipSystems::First -&gt; SpaceshipInputSystems -&gt; SpaceshipSectionSystems
     -&gt; NovaHudSystems -&gt; NovaCameraSystems -&gt; SpaceshipSystems::Last
 </code></pre>
@@ -254,7 +346,7 @@ ticks:</p>
 </pre>
 <h3 id="update-vs-fixedupdate---which-schedule-does-my-system-go-in" tabindex="-1">Update vs FixedUpdate - which schedule does my system go in?</h3>
 <p>The chain above is configured IDENTICALLY in <code>Update</code> and <code>FixedUpdate</code>
-(<code>nova_gameplay::plugin</code>, two <code>configure_sets</code> calls with the same set order),
+(<code>nova_ship::NovaShipPlugin</code>, two <code>configure_sets</code> calls with the same set order),
 so a gameplay set can host systems in either schedule. The split is not
 cosmetic: since every dynamic body opted into avian's <code>TransformInterpolation</code>,
 the game carries two pose representations on two clocks (see the two-clocks
@@ -309,9 +401,12 @@ live UNDER <code>assets/base/</code> (exported <code>gltf/</code> models <code>.
 web (Trunk <code>copy-dir</code>) and native (<code>release.yaml</code>) builds ship, so non-runtime
 files must not live here. The Blender SOURCES the <code>gltf/</code> models are exported
 from live OUT of the shipped tree, in top-level <code>art/blender/</code> (they are
-2.7M that was never loaded at runtime). The built-in sections and scenarios are
-defined in Rust (<code>crates/nova_assets/src/sections.rs</code>, <code>scenario.rs</code>,
-<code>scenario/</code>); moving them to data files is a known future direction.</p>
+2.7M that was never loaded at runtime). The built-in sections and scenarios ARE
+data now: the Rust builders in <code>crates/nova_authoring</code> (<code>sections.rs</code>,
+<code>scenario.rs</code>, <code>scenario/</code>) are the single source, and
+<code>cargo run content gen</code> serializes them to the
+committed <code>assets/base/**/*.content.ron</code> the game loads like any other bundle.
+Never hand-edit the generated files; edit the builders and re-run <code>gen</code>.</p>
 
                     <div id="wiki-seealso"></div>
                 </article>

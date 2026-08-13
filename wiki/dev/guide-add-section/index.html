@@ -38,11 +38,13 @@
                     </p>
                     <h1>Add a ship section</h1>
                     <div class="wiki__tags" id="wiki-tags"></div>
+                    
                     <p>Ship-section kinds are a CLOSED enum. There is no data-driven registry for
-them: <code>SectionKind</code> (<code>crates/nova_gameplay/src/sections/base_section.rs</code>) is a
+them: <code>SectionKind</code> (<code>crates/nova_ship/src/sections/base_section.rs</code>) is a
 Rust enum, every match on it is exhaustive, and the compiler will not let you
 land a new variant until every site handles it. Adding a kind is a fixed
-sequence of ~10 edits across the gameplay, scenario, editor, and assets crates,
+sequence of ~10 edits across <code>nova_ship</code>, <code>nova_gameplay</code>, <code>nova_scenario</code>,
+<code>nova_editor</code>, <code>nova_os_ui</code>, and <code>nova_authoring</code>,
 ending at a runnable example.</p>
 <h2 id="why-it-is-closed" tabindex="-1">Why it is closed</h2>
 <p>Section kinds are first-class engine concepts, not content. Each kind carries
@@ -51,7 +53,7 @@ own row in the damage-resistance table -- none of which a RON author could
 supply. What IS data-extensible is the section CATALOG: a <code>SectionConfig</code>
 (base stats + one <code>SectionKind</code> instance) is authored in RON and loaded at
 runtime (see the <a href="../sections/">Ship sections</a> reference and
-<a href="../modding-ron/">modding</a>). New KINDS are code; new INSTANCES of an existing
+<a href="../../modding/sections/">modding</a>). New KINDS are code; new INSTANCES of an existing
 kind are data. This guide is about the former.</p>
 <p>The closed enum is a feature: it means &quot;did I wire the new kind into damage /
 the editor / spawning?&quot; is a compile error, not a silent gap.</p>
@@ -72,9 +74,9 @@ and the exhaustive matches force you through 3-7 once the enum has the variant.<
 <ol>
 <li>
 <p><strong>New config module.</strong>
-Create <code>crates/nova_gameplay/src/sections/&lt;kind&gt;_section.rs</code>, modelled on
-<code>hull_section.rs</code> (simplest) or <code>turret_section.rs</code> (behavior + FixedUpdate
-systems). It defines: a <code>&lt;Kind&gt;SectionConfig</code> struct, a <code>&lt;kind&gt;_section</code>
+Create <code>crates/nova_ship/src/sections/&lt;kind&gt;_section.rs</code>, modelled on
+<code>hull_section.rs</code> (simplest) or <code>turret_section/</code> (a multi-file module:
+behavior + FixedUpdate systems). It defines: a <code>&lt;Kind&gt;SectionConfig</code> struct, a <code>&lt;kind&gt;_section</code>
 bundle fn, a <code>&lt;Kind&gt;SectionMarker</code> component, a <code>&lt;Kind&gt;SectionPlugin</code>, and a
 <code>prelude</code> re-exporting them. The bundle MUST insert the marker and the
 <code>SectionDamageClass</code> for the kind:</p>
@@ -86,13 +88,13 @@ bundle fn, a <code>&lt;Kind&gt;SectionMarker</code> component, a <code>&lt;Kind&
     )
 }
 </code></pre>
-<p>Then register the module in <code>crates/nova_gameplay/src/sections/mod.rs</code>: add
+<p>Then register the module in <code>crates/nova_ship/src/sections/mod.rs</code>: add
 <code>pub mod &lt;kind&gt;_section;</code> and re-export <code>&lt;kind&gt;_section::prelude::*</code> in the
 module <code>prelude</code>.</p>
 </li>
 <li>
 <p><strong>Add the enum variant.</strong>
-In <code>crates/nova_gameplay/src/sections/base_section.rs</code>, add the variant to
+In <code>crates/nova_ship/src/sections/base_section.rs</code>, add the variant to
 <code>SectionKind</code> (grep for <code>enum SectionKind</code>):</p>
 <pre><code class="hljs language-rust"><span class="hljs-keyword">pub</span> <span class="hljs-keyword">enum</span> <span class="hljs-title class_">SectionKind</span> {
     <span class="hljs-title function_ invoke__">Hull</span>(HullSectionConfig),
@@ -125,10 +127,14 @@ class.</li>
 cell is a compile error -- you cannot forget one. Also add the new class to
 the <code>SectionDamageClass</code> array in this file's tests
 (<code>kinetic_resistance_is_one_on_every_section</code> iterates it).</p>
+<p>The NOVA OS ship app labels sections by the same enum: add an arm to the
+exhaustive matches <code>code_prefix</code>, <code>kind_glyph</code>, <code>kind_description</code> and
+<code>kind_index</code> in <code>crates/nova_os_ui/src/ship/sections.rs</code>, and to
+<code>section_kind_label</code> in <code>crates/nova_os_ui/src/terminal/content.rs</code>.</p>
 </li>
 <li>
 <p><strong>Wire the section plugin.</strong>
-In <code>crates/nova_gameplay/src/sections/mod.rs</code>, add your plugin to the
+In <code>crates/nova_ship/src/sections/mod.rs</code>, add your plugin to the
 <code>add_plugins((...))</code> tuple in <code>SpaceshipSectionPlugin::build</code> (grep for
 <code>impl Plugin for SpaceshipSectionPlugin</code>),
 passing the <code>render</code> flag like the others:</p>
@@ -153,14 +159,15 @@ for how the spaceship object and its section observer fit together.</p>
 </li>
 <li>
 <p><strong>Editor placement arm.</strong>
-In <code>crates/nova_editor/src/placement.rs</code>, add a <code>SectionKind::Shield(..)</code>
-arm to the <code>match &amp;section.kind</code> in the placement handler (grep for
-<code>match &amp;section.kind</code> in <code>placement.rs</code> - it is the one in the placement
-handler, not the hull/controller preview arms above it). Spawn
-a <code>preview_section(...) + &lt;kind&gt;_section(...)</code> child and record a
-<code>SpaceshipSectionConfig</code> in <code>player_config.sections</code>, modelling the <code>Hull</code>
-arm (no input binding) or the <code>Thruster</code> arm (rotation from surface normal +
-key/pad binding) as appropriate.</p>
+In <code>crates/nova_editor/src/placement.rs</code>, three exhaustive matches need an
+arm: <code>default_binds_for</code> (the kind's default key/pad binding, if any),
+<code>placement_rotation</code> (rotation from the surface normal), and the
+<code>match &amp;section.kind</code> inside <code>spawn_preview_section</code>, which spawns the
+<code>preview_section(...) + &lt;kind&gt;_section(...)</code> child. Model the <code>Hull</code>
+arm (no input binding) or the <code>Thruster</code> arm (surface-normal rotation +
+binding) as appropriate. Recording the placed section into
+<code>player_config.sections</code> is generic (<code>register_preview_section</code>, called
+from the click handler) - the arm only spawns.</p>
 </li>
 <li>
 <p><strong>Editor card tint + glyph.</strong>
@@ -176,7 +183,7 @@ SectionKind::<span class="hljs-title function_ invoke__">Shield</span>(_) =&gt; 
 </li>
 <li>
 <p><strong>Asset prototype.</strong>
-In <code>crates/nova_assets/src/sections.rs</code>, add a <code>SectionConfig</code> to the
+In <code>crates/nova_authoring/src/sections.rs</code>, add a <code>SectionConfig</code> to the
 <code>build_sections()</code> vec (grep for <code>fn build_sections</code>) so the catalog ships a
 ready-to-place
 instance. Give it a stable snake_case <code>id</code> (this is what
@@ -193,20 +200,27 @@ instance. Give it a stable snake_case <code>id</code> (this is what
 },
 </code></pre>
 <p>If your config needs a render-mesh <code>AssetRef</code>, add a field to
-<code>SectionMeshRefs</code> and its <code>from_paths()</code> alongside the existing ones.</p>
+<code>SectionMeshRefs</code> and its <code>from_paths()</code> alongside the existing ones (both
+in <code>crates/nova_authoring/src/sections.rs</code>).</p>
+<p>The builders do not feed the game directly: regenerate the committed RON
+with <code>cargo run content gen</code> and commit
+<code>assets/base/sections/base.content.ron</code> with the code change - the
+<code>content_ron_parity</code> test fails on drift.</p>
 </li>
 <li>
 <p><strong>Example.</strong>
 Add <code>examples/sections/&lt;kind&gt;_section.rs</code>, modelled on the existing
-per-section examples (<code>hull_section.rs</code> is the smallest), plus its
+per-section examples (<code>controller_section.rs</code> and <code>thruster_section.rs</code> are
+the most compact of the five), plus its
 <code>[[example]]</code> block in the root Cargo.toml (auto-discovery is off; the
-catalog is the source of truth) and its name in the <code>SECTIONS</code> list of
-<code>tests/examples_smoke.rs</code> - the <code>catalog_matches_disk</code> test fails until
-disk, catalog and smoke list agree. The example builds a minimal
+catalog is the source of truth) - <code>catalog_matches_disk</code> in
+<code>crates/nova_probe_cli/tests/catalog_drift.rs</code> fails until disk and catalog
+agree, and <code>sections_assert_their_invariant_roster</code> beside it fails until
+the new range has a named invariant roster. The example builds a minimal
 <code>ScenarioConfig</code> (a controller + your section), triggers
 <code>LoadScenario(...)</code>, and under <code>--features debug</code> drives an autopilot probe
 that asserts the kind's behavior end to end. Run it:</p>
-<pre><code class="hljs language-text">BCS_AUTOPILOT=1 cargo run --example &lt;kind&gt;_section --features debug
+<pre><code class="hljs language-text">NOVA_AUTOPILOT=1 cargo run --example &lt;kind&gt;_section --features debug
 </code></pre>
 </li>
 </ol>

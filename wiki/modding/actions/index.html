@@ -1,0 +1,976 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Actions - Nova Protocol Wiki</title>
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Wiki navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="/nova-protocol/wiki/">Wiki</a>
+                        / <a href="/nova-protocol/wiki/modding/scenarios/">Scenario files</a>
+                        / Actions
+                    </p>
+                    <h1>Actions</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+                    <nav class="wiki-toc" aria-label="Contents">
+                        <p class="wiki-toc__title">Contents</p>
+                        <ol><li><a href="#spawning-the-world">Spawning &amp; the world</a><ol><li><a href="#spawnscenarioobject">SpawnScenarioObject</a></li><li><a href="#scatterobjects">ScatterObjects</a></li><li><a href="#despawnscenarioobject">DespawnScenarioObject</a></li><li><a href="#createscenarioarea">CreateScenarioArea</a></li></ol></li><li><a href="#mission-story">Mission &amp; story</a><ol><li><a href="#objective">Objective</a></li><li><a href="#objectivecomplete">ObjectiveComplete</a></li><li><a href="#objectivemarkerattach">ObjectiveMarkerAttach</a></li><li><a href="#objectivemarkerdetach">ObjectiveMarkerDetach</a></li><li><a href="#storymessage">StoryMessage</a></li><li><a href="#hudreadout">HudReadout</a></li><li><a href="#hintemphasisset">HintEmphasisSet</a></li><li><a href="#hintemphasisclear">HintEmphasisClear</a></li></ol></li><li><a href="#flow-outcomes-transitions">Flow: outcomes &amp; transitions</a><ol><li><a href="#outcome">Outcome</a></li><li><a href="#nextscenario">NextScenario</a></li></ol></li><li><a href="#ship-state">Ship state</a><ol><li><a href="#setspeedcap">SetSpeedCap</a></li><li><a href="#setcontrollerverb">SetControllerVerb</a></li><li><a href="#setallegiance">SetAllegiance</a></li></ol></li><li><a href="#variables-timers-debugging">Variables, timers &amp; debugging</a><ol><li><a href="#timerstart">TimerStart</a></li><li><a href="#timercancel">TimerCancel</a></li><li><a href="#variableset">VariableSet</a></li><li><a href="#debugmessage">DebugMessage</a></li></ol></li><li><a href="#camera-photo-mode">Camera &amp; photo mode</a><ol><li><a href="#setcamera">SetCamera</a></li><li><a href="#screenshot">Screenshot</a></li><li><a href="#setskybox">SetSkybox</a></li></ol></li></ol>
+                    </nav>
+                    <p>Everything a handler can DO. Actions run in authored order once every filter
+passes; each is a newtype variant - <code>Name((field: value, ...))</code>, double
+parens even for one field. Failures warn and continue (a missing target id
+never panics a scenario). All 24, grouped by what they touch:</p>
+<table>
+<thead>
+<tr>
+<th>group</th>
+<th>actions</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#spawning-the-world">Spawning &amp; the world</a></td>
+<td><a href="#spawnscenarioobject"><code>SpawnScenarioObject</code></a>, <a href="#scatterobjects"><code>ScatterObjects</code></a>, <a href="#despawnscenarioobject"><code>DespawnScenarioObject</code></a>, <a href="#createscenarioarea"><code>CreateScenarioArea</code></a></td>
+</tr>
+<tr>
+<td><a href="#mission-story">Mission &amp; story</a></td>
+<td><a href="#objective"><code>Objective</code></a>, <a href="#objectivecomplete"><code>ObjectiveComplete</code></a>, <a href="#objectivemarkerattach"><code>ObjectiveMarkerAttach</code></a>, <a href="#objectivemarkerdetach"><code>ObjectiveMarkerDetach</code></a>, <a href="#storymessage"><code>StoryMessage</code></a>, <a href="#hudreadout"><code>HudReadout</code></a>, <a href="#hintemphasisset"><code>HintEmphasisSet</code></a>, <a href="#hintemphasisclear"><code>HintEmphasisClear</code></a></td>
+</tr>
+<tr>
+<td><a href="#flow-outcomes-transitions">Flow: outcomes &amp; transitions</a></td>
+<td><a href="#outcome"><code>Outcome</code></a>, <a href="#nextscenario"><code>NextScenario</code></a></td>
+</tr>
+<tr>
+<td><a href="#ship-state">Ship state</a></td>
+<td><a href="#setspeedcap"><code>SetSpeedCap</code></a>, <a href="#setcontrollerverb"><code>SetControllerVerb</code></a>, <a href="#setallegiance"><code>SetAllegiance</code></a></td>
+</tr>
+<tr>
+<td><a href="#variables-timers-debugging">Variables, timers &amp; debugging</a></td>
+<td><a href="#variableset"><code>VariableSet</code></a>, <a href="#timerstart"><code>TimerStart</code></a>, <a href="#timercancel"><code>TimerCancel</code></a>, <a href="#debugmessage"><code>DebugMessage</code></a></td>
+</tr>
+<tr>
+<td><a href="#camera-photo-mode">Camera &amp; photo mode</a></td>
+<td><a href="#setcamera"><code>SetCamera</code></a>, <a href="#screenshot"><code>Screenshot</code></a>, <a href="#setskybox"><code>SetSkybox</code></a></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Scoped targets.</strong> Every by-id action resolves its id ONLY among
+scenario-scoped entities (things this scenario spawned); the ship actions
+additionally require the id to be a ship ROOT. This is deliberate: ship
+SECTIONS carry per-ship ids like <code>&quot;controller&quot;</code> too, and an unscoped lookup
+would hit every ship's section. Referencing an id before it is spawned warns
+and does nothing - spawn first.</p>
+<h2 id="spawning-the-world" tabindex="-1">Spawning &amp; the world</h2>
+<h3 id="spawnscenarioobject" tabindex="-1">SpawnScenarioObject</h3>
+<p>Spawn one object. <code>base</code> is the shared identity block; <code>kind</code> picks the
+object and carries its config - the five kinds are the
+<a href="../objects/">Scenario objects reference</a>.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>base</code></td>
+<td>object base</td>
+<td>required</td>
+<td>identity + pose (below)</td>
+</tr>
+<tr>
+<td><code>kind</code></td>
+<td>object kind</td>
+<td>required</td>
+<td><code>Asteroid((..))</code> / <code>Spaceship((..))</code> / <code>Beacon((..))</code> / <code>SalvageCrate((..))</code> / <code>Light(..)</code></td>
+</tr>
+</tbody>
+</table>
+<p>The <code>base</code> block:</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>required</td>
+<td>the object's scenario id - the address every event, filter and by-id action uses</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>required</td>
+<td>display name</td>
+</tr>
+<tr>
+<td><code>position</code></td>
+<td>3-tuple</td>
+<td>required</td>
+<td>world position</td>
+</tr>
+<tr>
+<td><code>rotation</code></td>
+<td>4-tuple</td>
+<td>required</td>
+<td>world rotation quaternion <code>(x, y, z, w)</code></td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">SpawnScenarioObject((
+    base: (id: &quot;rock_1&quot;, name: &quot;Rock&quot;, position: (10.0, 0.0, -40.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+    kind: Asteroid((radius: 5.0, texture: &quot;dep://base/textures/asteroid.png&quot;, health: 100.0, invulnerable: false)),
+)),
+</code></pre>
+<p>The same spawn id twice in ONE handler is a lint Error; the same id across
+two handlers (an either-or fork) is a Warn.</p>
+<h3 id="scatterobjects" tabindex="-1">ScatterObjects</h3>
+<p>Spawn <code>count</code> copies of a template at deterministic random positions - the
+declarative asteroid-field primitive. Copy <code>i</code> gets id <code>&quot;{id_prefix}{i}&quot;</code>.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id_prefix</code></td>
+<td>string</td>
+<td>required</td>
+<td>id prefix for the copies (a filter id starting with this prefix lints clean)</td>
+</tr>
+<tr>
+<td><code>count</code></td>
+<td>integer</td>
+<td>required</td>
+<td>copies; runtime cap 4096, absurd counts are a lint Error</td>
+</tr>
+<tr>
+<td><code>seed</code></td>
+<td>integer</td>
+<td>required</td>
+<td>RNG seed - the same seed gives the same layout every load</td>
+</tr>
+<tr>
+<td><code>region</code></td>
+<td>region</td>
+<td>required</td>
+<td>sampling volume (below)</td>
+</tr>
+<tr>
+<td><code>template</code></td>
+<td>object config</td>
+<td>required</td>
+<td>the object each copy clones (any kind; same <code>base</code>/<code>kind</code> shape as <code>SpawnScenarioObject</code>)</td>
+</tr>
+<tr>
+<td><code>asteroid_radius</code></td>
+<td><code>Option</code> (lo, hi)</td>
+<td><code>None</code></td>
+<td>Asteroid templates only: randomize each rock's radius in <code>[lo, hi)</code></td>
+</tr>
+<tr>
+<td><code>min_separation</code></td>
+<td><code>Option</code> number</td>
+<td><code>None</code></td>
+<td>minimum centre-to-centre distance (world units) against EVERY body scattered so far this scenario, earlier scatters included; 64 placement tries per copy, unplaceable copies are DROPPED, never overlapped</td>
+</tr>
+</tbody>
+</table>
+<p><code>region</code> variants (struct variants - single parens, named fields):</p>
+<table>
+<thead>
+<tr>
+<th>variant</th>
+<th>fields</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Box(min: (..), max: (..))</code></td>
+<td>both required</td>
+<td>uniform per axis in <code>[min, max]</code></td>
+</tr>
+<tr>
+<td><code>Ring(center: (..), inner: .., outer: .., y_min: .., y_max: ..)</code></td>
+<td><code>center</code> defaults to the origin</td>
+<td>horizontal annulus: uniform angle, radius in <code>[inner, outer]</code>, y in <code>[y_min, y_max]</code></td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">ScatterObjects((
+    id_prefix: &quot;asteroid_&quot;,
+    count: 20,
+    seed: 433757350076153856,
+    region: Box(min: (-100.0, -20.0, -100.0), max: (100.0, 20.0, 100.0)),
+    template: (
+        base: (id: &quot;asteroid_&quot;, name: &quot;Asteroid&quot;, position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+        kind: Asteroid((radius: 1.0, texture: &quot;dep://base/textures/asteroid.png&quot;, health: 100.0, invulnerable: false)),
+    ),
+    asteroid_radius: Some((1.0, 3.0)),
+    min_separation: Some(32.0),
+)),
+</code></pre>
+<p>Set <code>min_separation</code> on any field of SOLID bodies: uniform sampling WILL
+nest rocks inside each other, and two overlapping dynamic bodies shove apart
+violently on the first physics step. Size it as the two widest bodies side
+by side - for asteroids that is NOT <code>radius</code>: the noise mesh reaches up to
+6x the nominal radius. Scatter results are gameplay content and are never
+thinned by graphics quality.</p>
+<h3 id="despawnscenarioobject" tabindex="-1">DespawnScenarioObject</h3>
+<p>Remove the scoped object whose id matches (recursively, whole child
+hierarchy). The classic pairing is a salvage crate on pickup.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>required</td>
+<td>scoped object to despawn; missing id warns</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">DespawnScenarioObject((id: &quot;crate_1&quot;)),
+</code></pre>
+<p>A body despawned while inside a trigger area fires NO <code>OnExit</code> for itself.</p>
+<h3 id="createscenarioarea" tabindex="-1">CreateScenarioArea</h3>
+<p>Spawn an invisible spherical SENSOR zone that drives
+<a href="../events/#onenter"><code>OnEnter</code></a> / <a href="../events/#onexit"><code>OnExit</code></a> under its
+id. Works mid-scenario, and works even when created AROUND a body already
+inside (the entry still fires).</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>required</td>
+<td>the id <code>OnEnter</code>/<code>OnExit</code> report as the area</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>required</td>
+<td>display name</td>
+</tr>
+<tr>
+<td><code>position</code></td>
+<td>3-tuple</td>
+<td>required</td>
+<td>sphere centre</td>
+</tr>
+<tr>
+<td><code>rotation</code></td>
+<td>4-tuple</td>
+<td>required</td>
+<td>rotation (cosmetic for a sphere)</td>
+</tr>
+<tr>
+<td><code>radius</code></td>
+<td>number</td>
+<td>required</td>
+<td>sensor radius, world units</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">CreateScenarioArea((id: &quot;safe_zone&quot;, name: &quot;Safe Zone&quot;,
+    position: (0.0, 0.0, -100.0), rotation: (0.0, 0.0, 0.0, 1.0), radius: 10.0)),
+</code></pre>
+<p>Beacons with <code>area_radius</code> and salvage crates are their OWN areas - no
+separate <code>CreateScenarioArea</code> needed for those.</p>
+<h2 id="mission-story" tabindex="-1">Mission &amp; story</h2>
+<h3 id="objective" tabindex="-1">Objective</h3>
+<p>Post a HUD objective. Objectives state goals; comms lines
+(<a href="#storymessage"><code>StoryMessage</code></a>) carry voice.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>required</td>
+<td>opaque handle <code>ObjectiveComplete</code> uses</td>
+</tr>
+<tr>
+<td><code>message</code></td>
+<td>string</td>
+<td>required</td>
+<td>the objective text on the HUD</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">Objective((id: &quot;destroy_asteroids&quot;, message: &quot;Objective: Destroy 5 asteroids!&quot;)),
+</code></pre>
+<p>Re-posting the same id with new text updates the entry in place (the
+&quot;recovered N/3&quot; tally trick). A duplicate post otherwise warns.</p>
+<h3 id="objectivecomplete" tabindex="-1">ObjectiveComplete</h3>
+<p>Complete (remove) the HUD objective with this id.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>required</td>
+<td>the objective to complete; a never-posted id warns (and lints)</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">ObjectiveComplete((id: &quot;destroy_asteroids&quot;)),
+</code></pre>
+<h3 id="objectivemarkerattach" tabindex="-1">ObjectiveMarkerAttach</h3>
+<p>Pin the gold HUD marker chip (label + live distance) on a scoped object.
+Re-attaching updates the label in place. A despawned target detaches
+implicitly.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>target_id</code></td>
+<td>string</td>
+<td>required</td>
+<td>scoped object to mark; spawn it first</td>
+</tr>
+<tr>
+<td><code>label</code></td>
+<td>string</td>
+<td>required</td>
+<td>short chip text (&quot;BEACON 1&quot;)</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">ObjectiveMarkerAttach((target_id: &quot;beacon_1&quot;, label: &quot;BEACON 1&quot;)),
+</code></pre>
+<h3 id="objectivemarkerdetach" tabindex="-1">ObjectiveMarkerDetach</h3>
+<p>Remove that marker.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>target_id</code></td>
+<td>string</td>
+<td>required</td>
+<td>scoped object to strip; a missing id is quietly fine (detach-after-despawn is legitimate)</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">ObjectiveMarkerDetach((target_id: &quot;beacon_1&quot;)),
+</code></pre>
+<h3 id="storymessage" tabindex="-1">StoryMessage</h3>
+<p>A speaker-attributed line for the HUD comms stack (bottom-left, arrival
+order, ~8 s hold each, at most three visible). One line per beat is the
+style; the queue is the safety net. Scenario-scoped: teardown clears the
+log.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>speaker</code></td>
+<td>string</td>
+<td>required</td>
+<td>the <code>SPEAKER &gt;</code> prefix</td>
+</tr>
+<tr>
+<td><code>text</code></td>
+<td>string</td>
+<td>required</td>
+<td>the line</td>
+</tr>
+<tr>
+<td><code>dwell</code></td>
+<td><code>Option</code> number</td>
+<td><code>None</code></td>
+<td>per-line hold override in seconds, clamped to [3, 30] (lint warns outside); <code>Some(12.0)</code></td>
+</tr>
+<tr>
+<td><code>icon</code></td>
+<td><code>Option</code> asset ref</td>
+<td><code>None</code></td>
+<td>speaker portrait (<code>Some(&quot;self://icons/okono.png&quot;)</code>); omitted = the cockpit fallback tile</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">StoryMessage((speaker: &quot;Foreman Okono&quot;, text: &quot;Strip it clean, Kestrel.&quot;, dwell: Some(12.0))),
+</code></pre>
+<p>Two story lines in one handler is a lint Warn (unreadable); a story line
+beside an <a href="#outcome"><code>Outcome</code></a> in one handler is a Warn (frozen behind the
+overlay). Let the outcome's own <code>message</code> carry the closing line.</p>
+<h3 id="hudreadout" tabindex="-1">HudReadout</h3>
+<p>Bind a live HUD readout to a scenario variable - the DISPLAY half of the
+variable vocabulary (a run clock, a score, a countdown). One fire is
+enough; the readout tracks the variable's current value every frame
+thereafter. It freezes under pause and behind the outcome overlay because
+the variable does - a time-trial's final time simply holds through the
+banner. Cleared at teardown.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>slot</code></td>
+<td>string</td>
+<td>required</td>
+<td>stable readout id; several slots run side by side; fire again to update or clear</td>
+</tr>
+<tr>
+<td><code>variable</code></td>
+<td>string</td>
+<td>required</td>
+<td>the variable shown (e.g. <code>&quot;scenario_elapsed&quot;</code>); undefined or non-numeric reads 0.0</td>
+</tr>
+<tr>
+<td><code>format</code></td>
+<td>format</td>
+<td><code>Number</code></td>
+<td><code>Number</code> (one decimal), <code>Integer</code> (rounded), <code>Time</code> (<code>mm:ss.s</code>)</td>
+</tr>
+<tr>
+<td><code>label</code></td>
+<td><code>Option</code> string</td>
+<td><code>None</code></td>
+<td>caption before the value (<code>Some(&quot;TIME&quot;)</code>)</td>
+</tr>
+<tr>
+<td><code>visible</code></td>
+<td>bool</td>
+<td><code>true</code></td>
+<td><code>true</code> shows/updates; <code>false</code> clears exactly this slot</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">HudReadout((slot: &quot;run_timer&quot;, variable: &quot;scenario_elapsed&quot;, format: Time, label: Some(&quot;TIME&quot;))),
+</code></pre>
+<h3 id="hintemphasisset" tabindex="-1">HintEmphasisSet</h3>
+<p>Pulse one keybind-dock chip gold. The dock normally hides verbs the player
+cannot use yet, so emphasizing an unavailable verb REVEALS its chip dimmed
+and pulses it - how a tutorial points at a key before granting it. Emphasis
+never grants the verb (<a href="#setcontrollerverb"><code>SetControllerVerb</code></a> does).</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>verb</code></td>
+<td>string</td>
+<td>required</td>
+<td>one of <code>&quot;STOP&quot;</code>, <code>&quot;GOTO&quot;</code>, <code>&quot;ORBIT&quot;</code>, <code>&quot;CANCEL&quot;</code>, <code>&quot;RADAR&quot;</code>, <code>&quot;COMPONENT&quot;</code>, <code>&quot;RCS&quot;</code>; unknown verbs warn and do nothing</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">HintEmphasisSet((verb: &quot;RADAR&quot;)),
+</code></pre>
+<h3 id="hintemphasisclear" tabindex="-1">HintEmphasisClear</h3>
+<p>Drop the gold emphasis on one chip (teardown clears all emphasis anyway).</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>verb</code></td>
+<td>string</td>
+<td>required</td>
+<td>the chip to un-pulse</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">HintEmphasisClear((verb: &quot;RADAR&quot;)),
+</code></pre>
+<h2 id="flow-outcomes-transitions" tabindex="-1">Flow: outcomes &amp; transitions</h2>
+<h3 id="outcome" tabindex="-1">Outcome</h3>
+<p>Declare the scenario's win or lose: the gold VICTORY / red DEFEAT banner,
+an optional message, and buttons - and it freezes the simulation behind it
+exactly like the pause menu until it clears. PRESENTATION ONLY: compose the
+consequence beside it. Queue a lingering <a href="#nextscenario"><code>NextScenario</code></a>
+and the overlay offers Continue (Victory) or Retry (Defeat); queue nothing
+and it offers only Main Menu.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>outcome</code></td>
+<td>kind</td>
+<td>required</td>
+<td><code>Victory</code> or <code>Defeat</code></td>
+</tr>
+<tr>
+<td><code>message</code></td>
+<td><code>Option</code> string</td>
+<td><code>None</code></td>
+<td>the line under the banner; strict RON <code>Some(&quot;...&quot;)</code></td>
+</tr>
+<tr>
+<td><code>auto_advance_secs</code></td>
+<td><code>Option</code> number</td>
+<td><code>None</code></td>
+<td>timed banner: advance the queued LINGERING switch after this many REAL seconds (the player can still click sooner); cap 300 s; meaningless without a lingering switch queued</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">Outcome((outcome: Defeat, message: Some(&quot;The convoy is lost.&quot;))),
+NextScenario((scenario_id: &quot;lifeline&quot;, linger: true)),
+</code></pre>
+<p>The paired switch must LINGER: an instant switch tears the scenario down
+the same frame and SWALLOWS the banner (lint warns on that composition).</p>
+<h3 id="nextscenario" tabindex="-1">NextScenario</h3>
+<p>Queue a switch to another scenario by id. Three gears:</p>
+<ul>
+<li><strong>Hard cut</strong> - <code>linger: false</code>, no delay: switches on the next sync.
+Menu-scene plumbing.</li>
+<li><strong>Delayed cut</strong> - <code>linger: false, delay: Some(4.0)</code>: the world keeps
+playing for the delay (a story line can land), then cuts. Ticks on
+pause-frozen time; Enter skips the wait.</li>
+<li><strong>Modal hold</strong> - <code>linger: true</code>: waits for the scenario-advance input
+(Enter / DPadDown) or the outcome overlay's Continue/Retry.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>scenario_id</code></td>
+<td>string</td>
+<td>required</td>
+<td>target scenario; a dangling id is a lint Error</td>
+</tr>
+<tr>
+<td><code>linger</code></td>
+<td>bool</td>
+<td>required</td>
+<td><code>true</code> defers until released; <code>false</code> switches now (or after <code>delay</code>)</td>
+</tr>
+<tr>
+<td><code>delay</code></td>
+<td><code>Option</code> number</td>
+<td><code>None</code></td>
+<td>delayed non-lingering cut, seconds; cap 300 s, lint warns above 60; meaningless with <code>linger: true</code></td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">NextScenario((scenario_id: &quot;asteroid_next&quot;, linger: true)),
+</code></pre>
+<p>The last request wins wholesale - a fresh <code>NextScenario</code> replaces a queued
+one and resets its clock.</p>
+<h2 id="ship-state" tabindex="-1">Ship state</h2>
+<h3 id="setspeedcap" tabindex="-1">SetSpeedCap</h3>
+<p>Install, update or remove the soft manual-speed governor on a scoped ship.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>required</td>
+<td>scoped ship root</td>
+</tr>
+<tr>
+<td><code>cap</code></td>
+<td><code>Option</code> number</td>
+<td><code>None</code></td>
+<td><code>Some(25.0)</code> installs/updates the cap (u/s); <code>None</code> or omitted REMOVES it</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">SetSpeedCap((id: &quot;player_spaceship&quot;, cap: Some(25.0))),
+SetSpeedCap((id: &quot;player_spaceship&quot;))              // release the governor
+</code></pre>
+<h3 id="setcontrollerverb" tabindex="-1">SetControllerVerb</h3>
+<p>Grant or withhold one flight verb on a scoped ship's controller - the
+tutorial-progression primitive (the Shakedown Run starts with <code>Goto</code>
+withheld and grants it at the beacon).</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>required</td>
+<td>scoped ship root</td>
+</tr>
+<tr>
+<td><code>verb</code></td>
+<td>verb</td>
+<td>required</td>
+<td><code>Stop</code> / <code>Goto</code> / <code>Orbit</code> / <code>Lock</code> / <code>Rcs</code> (bare enum, no quotes). Convention: never withhold <code>Stop</code> - an engaged autopilot should always be cancelable</td>
+</tr>
+<tr>
+<td><code>enabled</code></td>
+<td>bool</td>
+<td>required</td>
+<td><code>true</code> grants, <code>false</code> withholds</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">SetControllerVerb((id: &quot;player_spaceship&quot;, verb: Goto, enabled: true)),
+</code></pre>
+<p>The spawn-time twin is the <code>DisableVerb</code> section modification (see
+<a href="../objects/#spaceship">Spaceship</a>); this action is its runtime mirror.</p>
+<h3 id="setallegiance" tabindex="-1">SetAllegiance</h3>
+<p>Overwrite a scoped ship's side at runtime - the neutral-until-provoked
+primitive: spawn a bystander <code>Neutral</code>, flip it <code>Enemy</code> on a trigger.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>required</td>
+<td>scoped ship root; a dangling id is a lint Error</td>
+</tr>
+<tr>
+<td><code>allegiance</code></td>
+<td>side</td>
+<td>required</td>
+<td><code>Player</code> / <code>Enemy</code> / <code>Neutral</code> (bare enum)</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">SetAllegiance((id: &quot;magpie&quot;, allegiance: Enemy)),
+</code></pre>
+<h2 id="variables-timers-debugging" tabindex="-1">Variables, timers &amp; debugging</h2>
+<h3 id="timerstart" tabindex="-1">TimerStart</h3>
+<p>Start a keyed scenario timer. Starting an existing key restarts its deadline.
+The duration is a numeric expression and must evaluate to a positive finite
+number. Invalid values log an error and leave an existing timer unchanged.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>key</code></td>
+<td>string</td>
+<td>required</td>
+<td>scenario-local timer key</td>
+</tr>
+<tr>
+<td><code>seconds</code></td>
+<td>numeric expression</td>
+<td>required</td>
+<td>live, unpaused seconds until <code>OnTimerEnd</code></td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">TimerStart((
+    key: &quot;orbit_hold&quot;,
+    seconds: Term(Factor(Literal(Number(8.0)))),
+)),
+</code></pre>
+<p>Timers freeze under pause and clear on retry or teardown. Use an
+<a href="../events/#ontimerend"><code>OnTimerEnd</code></a> handler with a
+<a href="../filters/#timer"><code>Timer</code></a> filter to react once.</p>
+<h3 id="timercancel" tabindex="-1">TimerCancel</h3>
+<p>Cancel a running timer. A missing key is a no-op.</p>
+<pre><code class="hljs">TimerCancel((key: &quot;orbit_hold&quot;)),
+</code></pre>
+<h3 id="variableset" tabindex="-1">VariableSet</h3>
+<p>Evaluate an expression against the CURRENT variables and store the result -
+the write half of the whole
+<a href="../expressions/">variable vocabulary</a>. Re-evaluated per event, so
+<code>n = n + 1</code> accumulates.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>key</code></td>
+<td>string</td>
+<td>required</td>
+<td>mutable variable to write (overwrites); writing a watched variable is a lint ERROR</td>
+</tr>
+<tr>
+<td><code>expression</code></td>
+<td>expression node</td>
+<td>required</td>
+<td>see the <a href="../expressions/">expression grammar</a>; an evaluation error skips the write</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">VariableSet((
+    key: &quot;asteroids_destroyed&quot;,
+    expression: Add(Factor(Name(&quot;asteroids_destroyed&quot;)), Term(Factor(Literal(Number(1.0))))),
+)),
+</code></pre>
+<h3 id="debugmessage" tabindex="-1">DebugMessage</h3>
+<p>Log a line (debug builds; run with <code>--features dev</code> while iterating). No
+game effect - sprinkle these to watch handlers fire.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>message</code></td>
+<td>string</td>
+<td>required</td>
+<td>the log line</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">DebugMessage((message: &quot;gate 3 armed&quot;)),
+</code></pre>
+<h2 id="camera-photo-mode" tabindex="-1">Camera &amp; photo mode</h2>
+<h3 id="setcamera" tabindex="-1">SetCamera</h3>
+<p>Pin the scenario camera at a pose (drops free-fly control; the pose is
+re-enforced every frame). Part of the screenshot/photo surface; no scenario
+camera present is a warn no-op.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>position</code></td>
+<td>3-tuple</td>
+<td>required</td>
+<td>world camera position</td>
+</tr>
+<tr>
+<td><code>look_at</code></td>
+<td>3-tuple</td>
+<td>required</td>
+<td>world point to face (up is +Y)</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">SetCamera((position: (0.0, 30.0, 80.0), look_at: (0.0, 0.0, 0.0))),
+</code></pre>
+<h3 id="screenshot" tabindex="-1">Screenshot</h3>
+<p>Capture the primary window to a PNG. Relative paths land under the
+<code>NOVA_SHOT_DIR</code> env var when set; parent directories are created. A dev
+tool - pair <code>SetCamera</code> + settle frames + <code>Screenshot</code> to script a framed
+shot.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>path</code></td>
+<td>string</td>
+<td>required</td>
+<td>output PNG path</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">Screenshot((path: &quot;shots/my_scene.png&quot;)),
+</code></pre>
+<h3 id="setskybox" tabindex="-1">SetSkybox</h3>
+<p>Swap the scenario's skybox mid-scenario. The install is deferred until the
+new image has loaded; a failed load leaves the sky unchanged (warned).</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cubemap</code></td>
+<td>asset ref</td>
+<td>required</td>
+<td>the new cubemap path (<code>&quot;self://textures/nebula.png&quot;</code>)</td>
+</tr>
+<tr>
+<td><code>brightness</code></td>
+<td><code>Option</code> number</td>
+<td><code>None</code></td>
+<td>multiplier; <code>None</code> keeps the current brightness (initial scenario default 1000)</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs">SetSkybox((cubemap: &quot;self://textures/nebula.png&quot;, brightness: Some(700.0))),
+</code></pre>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

@@ -4,8 +4,16 @@
         name: "Broadside: Rust Tally",
         description: "The gang\'s gunship burns in to finish the job: screen its torpedoes with your PDC and break it section by section. Chapter two of the base storyline, part two.",
         cubemap: "self://textures/cubemap_alt.png",
-        thumbnail: Some("self://banner.png"),
+        thumbnail: Some("self://thumbnails/broadside_gunship.png"),
         hidden: true,
+        watches: [
+            (
+                variable: "scenario_elapsed",
+                query: Scenario((
+                    property: Elapsed,
+                )),
+            ),
+        ],
         events: [
             (
                 name: OnStart,
@@ -41,11 +49,11 @@
                         kind: Spaceship((
                             controller: Player((
                                 input_mapping: {
-                                    "cube_i1_j0_km1": [
+                                    "turret_port": [
                                         Mouse(Left),
                                         Gamepad(RightTrigger2),
                                     ],
-                                    "cube_im1_j0_km1": [
+                                    "turret_starboard": [
                                         Mouse(Left),
                                         Gamepad(RightTrigger2),
                                     ],
@@ -54,11 +62,11 @@
                             )),
                             sections: [
                                 (
-                                    id: "cube_i0_j0_k0",
+                                    id: "engine_starboard",
                                     position: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
+                                        0.655,
+                                        0.570945,
+                                        1.512835,
                                     ),
                                     rotation: (
                                         0.0,
@@ -66,14 +74,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_cube_i0_j0_k0"),
+                                    source: Prototype("racer_engine_starboard"),
                                 ),
                                 (
-                                    id: "cube_i0_j0_k1",
+                                    id: "engine_port",
                                     position: (
-                                        0.0,
-                                        0.0,
-                                        1.0,
+                                        -0.655,
+                                        0.570945,
+                                        1.512835,
                                     ),
                                     rotation: (
                                         0.0,
@@ -81,14 +89,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_cube_i0_j0_k1"),
+                                    source: Prototype("racer_engine_port"),
                                 ),
                                 (
-                                    id: "cube_i0_j0_k2",
+                                    id: "wing_starboard",
                                     position: (
-                                        0.0,
-                                        0.0,
-                                        2.0,
+                                        0.805,
+                                        0.5,
+                                        0.11783552,
                                     ),
                                     rotation: (
                                         0.0,
@@ -96,14 +104,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_cube_i0_j0_k2"),
+                                    source: Prototype("racer_wing_starboard"),
                                 ),
                                 (
-                                    id: "cube_i0_j0_km1",
+                                    id: "wing_port",
                                     position: (
-                                        0.0,
-                                        0.0,
-                                        -1.0,
+                                        -0.805,
+                                        0.5,
+                                        0.11783552,
                                     ),
                                     rotation: (
                                         0.0,
@@ -111,14 +119,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_cube_i0_j0_km1"),
+                                    source: Prototype("racer_wing_port"),
                                 ),
                                 (
-                                    id: "cube_i0_j0_km2",
+                                    id: "nose",
                                     position: (
                                         0.0,
-                                        0.0,
-                                        -2.0,
+                                        0.611325,
+                                        -1.512835,
                                     ),
                                     rotation: (
                                         0.0,
@@ -126,14 +134,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_cube_i0_j0_km2"),
+                                    source: Prototype("racer_nose"),
                                 ),
                                 (
-                                    id: "cube_i0_j1_k0",
+                                    id: "tail",
                                     position: (
                                         0.0,
-                                        1.0,
-                                        0.0,
+                                        0.85,
+                                        1.6128349,
                                     ),
                                     rotation: (
                                         0.0,
@@ -141,122 +149,32 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_cube_i0_j1_k0"),
+                                    source: Prototype("racer_tail"),
+                                ),
+                                (
+                                    id: "fuselage",
+                                    position: (
+                                        0.0,
+                                        0.7,
+                                        0.100000024,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_fuselage"),
                                     modifications: [
                                         DisableVerb(Rcs),
                                     ],
                                 ),
                                 (
-                                    id: "cube_i0_j1_k1",
+                                    id: "turret_starboard",
                                     position: (
-                                        0.0,
-                                        1.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j1_k1"),
-                                ),
-                                (
-                                    id: "cube_i0_j1_k2",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j1_k2"),
-                                ),
-                                (
-                                    id: "cube_i0_j1_km1",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j1_km1"),
-                                ),
-                                (
-                                    id: "cube_i0_j1_km2",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j1_km2"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_k0",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i1_j0_k0"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_k1",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i1_j0_k1"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_k2",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i1_j0_k2"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_km1",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        -1.0,
+                                        1.35,
+                                        0.4,
+                                        -0.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -264,59 +182,14 @@
                                         -0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Prototype("racer_cube_i1_j0_km1"),
+                                    source: Prototype("racer_turret_starboard"),
                                 ),
                                 (
-                                    id: "cube_im1_j0_k0",
+                                    id: "turret_port",
                                     position: (
-                                        -1.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_im1_j0_k0"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_k1",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_im1_j0_k1"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_k2",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_im1_j0_k2"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_km1",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        -1.0,
+                                        -1.35,
+                                        0.4,
+                                        -0.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -324,7 +197,7 @@
                                         0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Prototype("racer_cube_im1_j0_km1"),
+                                    source: Prototype("racer_turret_port"),
                                 ),
                             ],
                         )),
@@ -350,11 +223,11 @@
                             allegiance: Some(Neutral),
                             sections: [
                                 (
-                                    id: "cube_i0_j0_k0",
+                                    id: "engine_starboard",
                                     position: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
+                                        1.205,
+                                        0.6,
+                                        1.975,
                                     ),
                                     rotation: (
                                         0.0,
@@ -362,14 +235,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("cargoa_cube_i0_j0_k0"),
+                                    source: Prototype("cargoa_engine_starboard"),
                                 ),
                                 (
-                                    id: "cube_i0_j0_k1",
+                                    id: "engine_port",
                                     position: (
-                                        0.0,
-                                        0.0,
-                                        1.0,
+                                        -1.205,
+                                        0.6,
+                                        1.975,
                                     ),
                                     rotation: (
                                         0.0,
@@ -377,14 +250,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("cargoa_cube_i0_j0_k1"),
+                                    source: Prototype("cargoa_engine_port"),
                                 ),
                                 (
-                                    id: "cube_i0_j0_k2",
+                                    id: "pod_starboard",
                                     position: (
-                                        0.0,
-                                        0.0,
-                                        2.0,
+                                        1.205,
+                                        0.7,
+                                        0.47500002,
                                     ),
                                     rotation: (
                                         0.0,
@@ -392,14 +265,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("cargoa_cube_i0_j0_k2"),
+                                    source: Prototype("cargoa_pod_starboard"),
                                 ),
                                 (
-                                    id: "cube_i0_j0_km1",
+                                    id: "pod_port",
                                     position: (
-                                        0.0,
-                                        0.0,
-                                        -1.0,
+                                        -1.205,
+                                        0.7,
+                                        0.47500002,
                                     ),
                                     rotation: (
                                         0.0,
@@ -407,14 +280,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("cargoa_cube_i0_j0_km1"),
+                                    source: Prototype("cargoa_pod_port"),
                                 ),
                                 (
-                                    id: "cube_i0_j1_k1",
+                                    id: "nose",
                                     position: (
                                         0.0,
-                                        1.0,
-                                        1.0,
+                                        0.8,
+                                        -1.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -422,14 +295,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("cargoa_cube_i0_j1_k1"),
+                                    source: Prototype("cargoa_nose"),
                                 ),
                                 (
-                                    id: "cube_i0_j1_k2",
+                                    id: "tail",
                                     position: (
                                         0.0,
-                                        1.0,
-                                        2.0,
+                                        0.5875,
+                                        1.975,
                                     ),
                                     rotation: (
                                         0.0,
@@ -437,14 +310,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("cargoa_cube_i0_j1_k2"),
+                                    source: Prototype("cargoa_tail"),
                                 ),
                                 (
-                                    id: "cube_i0_j1_km1",
+                                    id: "fuselage",
                                     position: (
                                         0.0,
-                                        1.0,
-                                        -1.0,
+                                        0.8,
+                                        0.17500001,
                                     ),
                                     rotation: (
                                         0.0,
@@ -452,697 +325,7 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("cargoa_cube_i0_j1_km1"),
-                                ),
-                                (
-                                    id: "cube_i0_j1_km2",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i0_j1_km2"),
-                                ),
-                                (
-                                    id: "cube_i0_j2_k0",
-                                    position: (
-                                        0.0,
-                                        2.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i0_j2_k0"),
-                                ),
-                                (
-                                    id: "cube_i0_j2_k1",
-                                    position: (
-                                        0.0,
-                                        2.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i0_j2_k1"),
-                                ),
-                                (
-                                    id: "cube_i0_j2_km1",
-                                    position: (
-                                        0.0,
-                                        2.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i0_j2_km1"),
-                                ),
-                                (
-                                    id: "cube_i0_j2_km2",
-                                    position: (
-                                        0.0,
-                                        2.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i0_j2_km2"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_k0",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i1_j0_k0"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_k1",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i1_j0_k1"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_k2",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i1_j0_k2"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_km1",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i1_j0_km1"),
-                                ),
-                                (
-                                    id: "cube_i1_j1_k0",
-                                    position: (
-                                        1.0,
-                                        1.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i1_j1_k0"),
-                                ),
-                                (
-                                    id: "cube_i1_j1_k1",
-                                    position: (
-                                        1.0,
-                                        1.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i1_j1_k1"),
-                                ),
-                                (
-                                    id: "cube_i1_j1_k2",
-                                    position: (
-                                        1.0,
-                                        1.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i1_j1_k2"),
-                                ),
-                                (
-                                    id: "cube_i1_j1_km1",
-                                    position: (
-                                        1.0,
-                                        1.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i1_j1_km1"),
-                                ),
-                                (
-                                    id: "cube_i1_j1_km2",
-                                    position: (
-                                        1.0,
-                                        1.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i1_j1_km2"),
-                                ),
-                                (
-                                    id: "cube_i1_j2_k0",
-                                    position: (
-                                        1.0,
-                                        2.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i1_j2_k0"),
-                                ),
-                                (
-                                    id: "cube_i1_j2_k1",
-                                    position: (
-                                        1.0,
-                                        2.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i1_j2_k1"),
-                                ),
-                                (
-                                    id: "cube_i1_j2_km1",
-                                    position: (
-                                        1.0,
-                                        2.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i1_j2_km1"),
-                                ),
-                                (
-                                    id: "cube_i1_j2_km2",
-                                    position: (
-                                        1.0,
-                                        2.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i1_j2_km2"),
-                                ),
-                                (
-                                    id: "cube_i2_j0_k0",
-                                    position: (
-                                        2.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i2_j0_k0"),
-                                ),
-                                (
-                                    id: "cube_i2_j0_k1",
-                                    position: (
-                                        2.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i2_j0_k1"),
-                                ),
-                                (
-                                    id: "cube_i2_j0_km1",
-                                    position: (
-                                        2.0,
-                                        0.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i2_j0_km1"),
-                                ),
-                                (
-                                    id: "cube_i2_j1_k0",
-                                    position: (
-                                        2.0,
-                                        1.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i2_j1_k0"),
-                                ),
-                                (
-                                    id: "cube_i2_j1_k1",
-                                    position: (
-                                        2.0,
-                                        1.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i2_j1_k1"),
-                                ),
-                                (
-                                    id: "cube_i2_j1_k2",
-                                    position: (
-                                        2.0,
-                                        1.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i2_j1_k2"),
-                                ),
-                                (
-                                    id: "cube_i2_j1_km1",
-                                    position: (
-                                        2.0,
-                                        1.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i2_j1_km1"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_k0",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im1_j0_k0"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_k1",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im1_j0_k1"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_k2",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im1_j0_k2"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_km1",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im1_j0_km1"),
-                                ),
-                                (
-                                    id: "cube_im1_j1_k0",
-                                    position: (
-                                        -1.0,
-                                        1.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im1_j1_k0"),
-                                ),
-                                (
-                                    id: "cube_im1_j1_k1",
-                                    position: (
-                                        -1.0,
-                                        1.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im1_j1_k1"),
-                                ),
-                                (
-                                    id: "cube_im1_j1_k2",
-                                    position: (
-                                        -1.0,
-                                        1.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im1_j1_k2"),
-                                ),
-                                (
-                                    id: "cube_im1_j1_km1",
-                                    position: (
-                                        -1.0,
-                                        1.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im1_j1_km1"),
-                                ),
-                                (
-                                    id: "cube_im1_j1_km2",
-                                    position: (
-                                        -1.0,
-                                        1.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im1_j1_km2"),
-                                ),
-                                (
-                                    id: "cube_im1_j2_k0",
-                                    position: (
-                                        -1.0,
-                                        2.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im1_j2_k0"),
-                                ),
-                                (
-                                    id: "cube_im1_j2_k1",
-                                    position: (
-                                        -1.0,
-                                        2.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im1_j2_k1"),
-                                ),
-                                (
-                                    id: "cube_im1_j2_km1",
-                                    position: (
-                                        -1.0,
-                                        2.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im1_j2_km1"),
-                                ),
-                                (
-                                    id: "cube_im1_j2_km2",
-                                    position: (
-                                        -1.0,
-                                        2.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im1_j2_km2"),
-                                ),
-                                (
-                                    id: "cube_im2_j0_k0",
-                                    position: (
-                                        -2.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im2_j0_k0"),
-                                ),
-                                (
-                                    id: "cube_im2_j0_k1",
-                                    position: (
-                                        -2.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im2_j0_k1"),
-                                ),
-                                (
-                                    id: "cube_im2_j0_km1",
-                                    position: (
-                                        -2.0,
-                                        0.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im2_j0_km1"),
-                                ),
-                                (
-                                    id: "cube_im2_j1_k0",
-                                    position: (
-                                        -2.0,
-                                        1.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im2_j1_k0"),
-                                ),
-                                (
-                                    id: "cube_im2_j1_k1",
-                                    position: (
-                                        -2.0,
-                                        1.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im2_j1_k1"),
-                                ),
-                                (
-                                    id: "cube_im2_j1_k2",
-                                    position: (
-                                        -2.0,
-                                        1.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im2_j1_k2"),
-                                ),
-                                (
-                                    id: "cube_im2_j1_km1",
-                                    position: (
-                                        -2.0,
-                                        1.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im2_j1_km1"),
-                                ),
-                                (
-                                    id: "core_controller",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_core_controller"),
+                                    source: Prototype("cargoa_fuselage"),
                                 ),
                             ],
                         )),
@@ -1333,40 +516,10 @@
                             controller: AI(()),
                             sections: [
                                 (
-                                    id: "cube_i0_j0_k0",
+                                    id: "engine_starboard",
                                     position: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i0_j0_k0"),
-                                ),
-                                (
-                                    id: "cube_i0_j0_k1",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i0_j0_k1"),
-                                ),
-                                (
-                                    id: "cube_i0_j0_k2",
-                                    position: (
-                                        0.0,
-                                        0.0,
+                                        1.005,
+                                        0.7,
                                         2.0,
                                     ),
                                     rotation: (
@@ -1375,28 +528,13 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("cargob_cube_i0_j0_k2"),
+                                    source: Prototype("cargob_engine_starboard"),
                                 ),
                                 (
-                                    id: "cube_i0_j0_km1",
+                                    id: "engine_port",
                                     position: (
-                                        0.0,
-                                        0.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i0_j0_km1"),
-                                ),
-                                (
-                                    id: "cube_i0_j1_k2",
-                                    position: (
-                                        0.0,
-                                        1.0,
+                                        -1.005,
+                                        0.7,
                                         2.0,
                                     ),
                                     rotation: (
@@ -1405,14 +543,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("cargob_cube_i0_j1_k2"),
+                                    source: Prototype("cargob_engine_port"),
                                 ),
                                 (
-                                    id: "cube_i0_j1_km1",
+                                    id: "pod_starboard",
                                     position: (
-                                        0.0,
-                                        1.0,
-                                        -1.0,
+                                        1.0550001,
+                                        0.7,
+                                        -0.5,
                                     ),
                                     rotation: (
                                         0.0,
@@ -1420,14 +558,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("cargob_cube_i0_j1_km1"),
+                                    source: Prototype("cargob_pod_starboard"),
                                 ),
                                 (
-                                    id: "cube_i0_j1_km2",
+                                    id: "pod_port",
                                     position: (
-                                        0.0,
-                                        1.0,
-                                        -2.0,
+                                        -1.0550001,
+                                        0.7,
+                                        -0.5,
                                     ),
                                     rotation: (
                                         0.0,
@@ -1435,14 +573,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("cargob_cube_i0_j1_km2"),
+                                    source: Prototype("cargob_pod_port"),
                                 ),
                                 (
-                                    id: "cube_i0_j2_k0",
+                                    id: "nose",
                                     position: (
                                         0.0,
-                                        2.0,
-                                        0.0,
+                                        1.0,
+                                        -1.75,
                                     ),
                                     rotation: (
                                         0.0,
@@ -1450,28 +588,13 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("cargob_cube_i0_j2_k0"),
+                                    source: Prototype("cargob_nose"),
                                 ),
                                 (
-                                    id: "cube_i0_j2_k1",
+                                    id: "tail",
                                     position: (
                                         0.0,
-                                        2.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i0_j2_k1"),
-                                ),
-                                (
-                                    id: "cube_i0_j2_k2",
-                                    position: (
-                                        0.0,
-                                        2.0,
+                                        0.65,
                                         2.0,
                                     ),
                                     rotation: (
@@ -1480,14 +603,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("cargob_cube_i0_j2_k2"),
+                                    source: Prototype("cargob_tail"),
                                 ),
                                 (
-                                    id: "cube_i0_j2_km1",
+                                    id: "fuselage",
                                     position: (
                                         0.0,
-                                        2.0,
-                                        -1.0,
+                                        0.9,
+                                        0.25,
                                     ),
                                     rotation: (
                                         0.0,
@@ -1495,178 +618,13 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("cargob_cube_i0_j2_km1"),
+                                    source: Prototype("cargob_fuselage"),
                                 ),
                                 (
-                                    id: "cube_i0_j2_km2",
+                                    id: "turret_starboard",
                                     position: (
-                                        0.0,
-                                        2.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i0_j2_km2"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_k0",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j0_k0"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_k1",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j0_k1"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_k2",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j0_k2"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_km1",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j0_km1"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_km2",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j0_km2"),
-                                ),
-                                (
-                                    id: "cube_i1_j1_k0",
-                                    position: (
-                                        1.0,
-                                        1.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j1_k0"),
-                                ),
-                                (
-                                    id: "cube_i1_j1_k1",
-                                    position: (
-                                        1.0,
-                                        1.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j1_k1"),
-                                ),
-                                (
-                                    id: "cube_i1_j1_k2",
-                                    position: (
-                                        1.0,
-                                        1.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j1_k2"),
-                                ),
-                                (
-                                    id: "cube_i1_j1_km1",
-                                    position: (
-                                        1.0,
-                                        1.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j1_km1"),
-                                ),
-                                (
-                                    id: "cube_i1_j1_km2",
-                                    position: (
-                                        1.0,
-                                        1.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j1_km2"),
-                                ),
-                                (
-                                    id: "cube_i1_j2_k0",
-                                    position: (
-                                        1.0,
-                                        2.0,
+                                        1.55,
+                                        1.2,
                                         0.0,
                                     ),
                                     rotation: (
@@ -1675,223 +633,13 @@
                                         -0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Prototype("cargob_cube_i1_j2_k0"),
+                                    source: Prototype("cargob_turret_starboard"),
                                 ),
                                 (
-                                    id: "cube_i1_j2_k1",
+                                    id: "turret_port",
                                     position: (
-                                        1.0,
-                                        2.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j2_k1"),
-                                ),
-                                (
-                                    id: "cube_i1_j2_k2",
-                                    position: (
-                                        1.0,
-                                        2.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j2_k2"),
-                                ),
-                                (
-                                    id: "cube_i1_j2_km1",
-                                    position: (
-                                        1.0,
-                                        2.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j2_km1"),
-                                ),
-                                (
-                                    id: "cube_i1_j2_km2",
-                                    position: (
-                                        1.0,
-                                        2.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_i1_j2_km2"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_k0",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j0_k0"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_k1",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j0_k1"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_k2",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j0_k2"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_km1",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j0_km1"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_km2",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j0_km2"),
-                                ),
-                                (
-                                    id: "cube_im1_j1_k0",
-                                    position: (
-                                        -1.0,
-                                        1.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j1_k0"),
-                                ),
-                                (
-                                    id: "cube_im1_j1_k1",
-                                    position: (
-                                        -1.0,
-                                        1.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j1_k1"),
-                                ),
-                                (
-                                    id: "cube_im1_j1_k2",
-                                    position: (
-                                        -1.0,
-                                        1.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j1_k2"),
-                                ),
-                                (
-                                    id: "cube_im1_j1_km1",
-                                    position: (
-                                        -1.0,
-                                        1.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j1_km1"),
-                                ),
-                                (
-                                    id: "cube_im1_j1_km2",
-                                    position: (
-                                        -1.0,
-                                        1.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j1_km2"),
-                                ),
-                                (
-                                    id: "cube_im1_j2_k0",
-                                    position: (
-                                        -1.0,
-                                        2.0,
+                                        -1.55,
+                                        1.2,
                                         0.0,
                                     ),
                                     rotation: (
@@ -1900,82 +648,7 @@
                                         0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Prototype("cargob_cube_im1_j2_k0"),
-                                ),
-                                (
-                                    id: "cube_im1_j2_k1",
-                                    position: (
-                                        -1.0,
-                                        2.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j2_k1"),
-                                ),
-                                (
-                                    id: "cube_im1_j2_k2",
-                                    position: (
-                                        -1.0,
-                                        2.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j2_k2"),
-                                ),
-                                (
-                                    id: "cube_im1_j2_km1",
-                                    position: (
-                                        -1.0,
-                                        2.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j2_km1"),
-                                ),
-                                (
-                                    id: "cube_im1_j2_km2",
-                                    position: (
-                                        -1.0,
-                                        2.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_cube_im1_j2_km2"),
-                                ),
-                                (
-                                    id: "core_controller",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_core_controller"),
+                                    source: Prototype("cargob_turret_port"),
                                 ),
                             ],
                         )),
@@ -1994,6 +667,87 @@
                     )),
                     HintEmphasisSet((
                         verb: "RADAR",
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gunship_key",
+                            name: "Key Light",
+                            position: (
+                                -60.0,
+                                50.0,
+                                60.0,
+                            ),
+                            rotation: (
+                                -0.24307884,
+                                -0.36920026,
+                                -0.10068656,
+                                0.8913283,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 11000.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.96,
+                                blue: 0.9,
+                                alpha: 1.0,
+                            )),
+                            shadows: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gunship_rim",
+                            name: "Rim Light",
+                            position: (
+                                30.0,
+                                40.0,
+                                -80.0,
+                            ),
+                            rotation: (
+                                -0.03875094,
+                                0.9604674,
+                                0.21369855,
+                                0.17416595,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 16000.0,
+                            color: Srgba((
+                                red: 0.72,
+                                green: 0.86,
+                                blue: 1.0,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gunship_fill",
+                            name: "Fill Light",
+                            position: (
+                                70.0,
+                                -20.0,
+                                40.0,
+                            ),
+                            rotation: (
+                                0.104897276,
+                                0.49822173,
+                                -0.060874254,
+                                0.8585255,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 2600.0,
+                            color: Srgba((
+                                red: 0.62,
+                                green: 0.72,
+                                blue: 0.95,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
                     )),
                 ],
             ),

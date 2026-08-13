@@ -3,13 +3,13 @@
   "entries": [
     {
       "id": "gauntlet",
-      "version": "1.3.0",
+      "version": "1.8.0",
       "bundle": "gauntlet.bundle.ron",
       "meta": {
         "name": "Gauntlet Run",
         "description": "A parkour course: thread six gates through asteroid slaloms and a gravity well, START to FINISH. Fly clean or wreck.",
         "author": "Nova Protocol",
-        "version": "1.3.0",
+        "version": "1.8.0",
         "dependencies": [
           "base"
         ],
@@ -19,36 +19,41 @@
       "files": [
         {
           "path": "CHANGELOG.md",
-          "size": 1408,
-          "sha256": "8ccfda206d66c9e29c45e0de6d0865151412994ab52d1486ba3b3c86d69f28d7"
+          "size": 2449,
+          "sha256": "be0f6863ec10bd4dd22334273a794366985575ead81cbbaf2ecb182589d08483"
         },
         {
           "path": "README.md",
-          "size": 3371,
-          "sha256": "4c97478efb67cb50f0f04e1a683ee4b6d292b36293e6af90640eae1b801151df"
+          "size": 3313,
+          "sha256": "9f7756603c023922a3f6dad297724c8945c036b0f98fab55fca6659cbec8019a"
         },
         {
           "path": "gauntlet.bundle.ron",
-          "size": 1164,
-          "sha256": "54421ee80ac42fde04e0bfada5c99fedaabb286114e9e48879451eda9f186ce3"
+          "size": 1440,
+          "sha256": "6d88fb0b6bef5795c4572aadb9e4ead9b1f813529353d4f550e3e5883219e7fa"
         },
         {
           "path": "gauntlet.content.ron",
-          "size": 49297,
-          "sha256": "e9e8d67df6511c61bcde24c61f6aa3962da621668b1f0fe4cfe089a4c1f07335"
+          "size": 45859,
+          "sha256": "49f18b3a43d17d54dff2c65c67ec6c58fcba592448a5765dbf79baaa95f8ee3c"
+        },
+        {
+          "path": "thumbnails/gauntlet_run.png",
+          "size": 3454,
+          "sha256": "171e6eb2918105a3f526e04f84cf0fa5a1816701867f5a422a85d8df848a1ce9"
         }
       ],
-      "total_size": 55240
+      "total_size": 56515
     },
     {
       "id": "the-ledger",
-      "version": "1.14.0",
+      "version": "1.21.0",
       "bundle": "the-ledger.bundle.ron",
       "meta": {
         "name": "The Ledger",
         "description": "A salvage crew in over its head: four chapters and a reward finale, one sealed crate everyone in the belt wants.",
         "author": "Nova Protocol",
-        "version": "1.14.0",
+        "version": "1.21.0",
         "dependencies": [
           "base"
         ],
@@ -58,8 +63,8 @@
       "files": [
         {
           "path": "CHANGELOG.md",
-          "size": 7605,
-          "sha256": "9a752ecf7a2f360b9f419a02ce1d1990e501cf87a7c4f2a3fb65859bd1098e90"
+          "size": 9243,
+          "sha256": "9442ef446df0d00645c8938fc35aa39e4aec90670ced16114192f797a4202847"
         },
         {
           "path": "README.md",
@@ -73,41 +78,71 @@
         },
         {
           "path": "ledger_ch1.content.ron",
-          "size": 85280,
-          "sha256": "550a44b267f99e5a08d7b021711c1151ea0487e2273a796678b4dd74d16c0e38"
+          "size": 49753,
+          "sha256": "05520f8ce0e4fd4eb6725fced2de0180f32f2da1191f6072dfd5886e26428359"
         },
         {
           "path": "ledger_ch2.content.ron",
-          "size": 110019,
-          "sha256": "11d97dce58b7c30cf9bc13d8f6e19cefc9616e1f3f78d0c17fa42f11aa77c133"
+          "size": 56086,
+          "sha256": "9fea3a458f2cb5cc44d206be07d4f09692c0d6f41feb3fe04fdb428f85654519"
         },
         {
           "path": "ledger_ch2b.content.ron",
-          "size": 105521,
-          "sha256": "63cd2f637c80ec85a501915a1c824fefc444ce0afb88e76d49ba128be32cf33b"
+          "size": 54204,
+          "sha256": "ca6bc261c314132b2ee02461b319a777bc964129d36220934753dfdbd9bc57dd"
         },
         {
           "path": "ledger_ch3.content.ron",
-          "size": 104257,
-          "sha256": "280b1758fdd1907bea415a4cb10b8f5f2011e495207838e948ee98c7490e3084"
+          "size": 85011,
+          "sha256": "4e5baeb9b680d141f34fff4db04d9b9240792a712b6cc3e10080657601edef2b"
         },
         {
           "path": "ledger_ch4.content.ron",
-          "size": 62022,
-          "sha256": "87cc0cfa4caa0e4fb27ca4d78aa517552590c92bb775e0873a7de76d1ba4e2fd"
+          "size": 34026,
+          "sha256": "6cdc7bfa3fd71968f96507ba43bf2f57a326b5136340b923e22f1b40b698f81a"
         },
         {
           "path": "ledger_ch5_the_raid.content.ron",
-          "size": 143249,
-          "sha256": "f510c6b6a8b040a1485f0ae84064051eca18b8fe116b100b86321295fa43bad5"
+          "size": 81004,
+          "sha256": "c3183e79b664aff2fb1f51b10d13b3799d827bb2d9a8f2c9a2729ebcbf4239f1"
         },
         {
           "path": "the-ledger.bundle.ron",
-          "size": 1284,
-          "sha256": "5717d71d8ef9cc1128bc77230f94ca259863234109894000638978f7ac846f3e"
+          "size": 1930,
+          "sha256": "9e8c12494a038e01c35eb6ebc3381906540e99ea8dcab92d7dc07d7c35e1c993"
+        },
+        {
+          "path": "thumbnails/ledger_ch1_dead_weight.png",
+          "size": 3410,
+          "sha256": "85f198dd179d758d352d19ce3bde5b63c0afecd558234016ff177c2d353abae1"
+        },
+        {
+          "path": "thumbnails/ledger_ch2_claim_jumpers.png",
+          "size": 3630,
+          "sha256": "bac6c2fdb7992a0d506cfd04572f249651b892e893a5d2cb6c9164e96f06a9fc"
+        },
+        {
+          "path": "thumbnails/ledger_ch2b_the_heavies.png",
+          "size": 3370,
+          "sha256": "c614b813e2a0134e0d894ac591ad668f7b65e6756b8cac31a13d0e1d57c09576"
+        },
+        {
+          "path": "thumbnails/ledger_ch3_quiet_channel.png",
+          "size": 3742,
+          "sha256": "48ab1a0b28edc4ff5e87a275db05056495fbb4e506c84cacef811b95f5a6e09a"
+        },
+        {
+          "path": "thumbnails/ledger_ch4_the_buyer.png",
+          "size": 2912,
+          "sha256": "c243635671074a4dbf9b4811fab569c8bfd1451a91c60c467ff4fe264a1ab7ef"
+        },
+        {
+          "path": "thumbnails/ledger_ch5_the_raid.png",
+          "size": 2746,
+          "sha256": "5862dea24c8250f2ccea88c83bbd0f74a8029611bde9b758b7a80fb5a0841234"
         }
       ],
-      "total_size": 623616
+      "total_size": 395446
     }
   ]
 }

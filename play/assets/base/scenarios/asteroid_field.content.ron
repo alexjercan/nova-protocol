@@ -4,7 +4,7 @@
         name: "Asteroid Field",
         description: "A dense asteroid field.",
         cubemap: "self://textures/cubemap.png",
-        thumbnail: Some("self://banner.png"),
+        thumbnail: Some("self://thumbnails/asteroid_field.png"),
         events: [
             (
                 name: OnStart,
@@ -31,7 +31,7 @@
                             health: 2000.0,
                             impact_sound: Some("self://sounds/impact.wav"),
                             destroy_sound: Some("self://sounds/explosion.wav"),
-                            surface_gravity: Some(6.0),
+                            mass: Some(45000.0),
                             invulnerable: true,
                         )),
                     )),
@@ -238,6 +238,87 @@
                                     source: Prototype("better_turret_section"),
                                 ),
                             ],
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "field_key",
+                            name: "Key Light",
+                            position: (
+                                -60.0,
+                                50.0,
+                                60.0,
+                            ),
+                            rotation: (
+                                -0.24307884,
+                                -0.36920026,
+                                -0.10068656,
+                                0.8913283,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 11000.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.96,
+                                blue: 0.9,
+                                alpha: 1.0,
+                            )),
+                            shadows: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "field_rim",
+                            name: "Rim Light",
+                            position: (
+                                30.0,
+                                40.0,
+                                -80.0,
+                            ),
+                            rotation: (
+                                -0.03875094,
+                                0.9604674,
+                                0.21369855,
+                                0.17416595,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 16000.0,
+                            color: Srgba((
+                                red: 0.72,
+                                green: 0.86,
+                                blue: 1.0,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "field_fill",
+                            name: "Fill Light",
+                            position: (
+                                70.0,
+                                -20.0,
+                                40.0,
+                            ),
+                            rotation: (
+                                0.104897276,
+                                0.49822173,
+                                -0.060874254,
+                                0.8585255,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 2600.0,
+                            color: Srgba((
+                                red: 0.62,
+                                green: 0.72,
+                                blue: 0.95,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
                         )),
                     )),
                     ScatterObjects((
