@@ -90,7 +90,15 @@ enum NativePass {
     Samply,
 }
 
-fn post_clean_passes(frametime_declared: bool, sweeping: bool, samply: bool) -> Vec<NativePass> {
+fn post_clean_passes(
+    frametime_declared: bool,
+    sweeping: bool,
+    samply: bool,
+    correctness_only: bool,
+) -> Vec<NativePass> {
+    if correctness_only {
+        return Vec::new();
+    }
     let mut passes = Vec::with_capacity(3);
     if frametime_declared && !sweeping {
         passes.push(NativePass::FrameTime);
@@ -187,6 +195,12 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
         };
         eprintln!("probe: {cell_name} -> {}", out.join(&log_name).display());
         let mut env = clean_pass_env(&root, &out, &display, sweeping);
+        if opts.correctness_only {
+            env.push((
+                nova_probe::PROBE_MODE_ENV.into(),
+                nova_probe::CORRECTNESS_MODE.into(),
+            ));
+        }
         if sweeping {
             // Sweep cells measure frames, not the recorder surfaces.
             env.retain(|(k, _)| k != "NOVA_PERF_TIMELINE" && k != "NOVA_PERF_INVARIANTS");
@@ -217,7 +231,12 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
     // until the capture window closes. Whether there is anything to
     // capture is the program's answer (it wired nova_frametime(), or it
     // did not), and its contract tells the report which.
-    for pass in post_clean_passes(frametime_declared, sweeping, opts.samply) {
+    for pass in post_clean_passes(
+        frametime_declared,
+        sweeping,
+        opts.samply,
+        opts.correctness_only,
+    ) {
         let record = match pass {
             NativePass::FrameTime => {
                 eprintln!(
@@ -457,25 +476,26 @@ mod tests {
     #[test]
     fn default_passes_follow_the_runtime_contract() {
         assert_eq!(
-            post_clean_passes(false, false, false),
+            post_clean_passes(false, false, false, false),
             vec![NativePass::Profiled]
         );
         assert_eq!(
-            post_clean_passes(true, false, false),
+            post_clean_passes(true, false, false, false),
             vec![NativePass::FrameTime, NativePass::Profiled]
         );
         assert_eq!(
-            post_clean_passes(true, true, false),
+            post_clean_passes(true, true, false, false),
             vec![NativePass::Profiled]
         );
         assert_eq!(
-            post_clean_passes(true, false, true),
+            post_clean_passes(true, false, true, false),
             vec![
                 NativePass::FrameTime,
                 NativePass::Profiled,
                 NativePass::Samply,
             ]
         );
+        assert!(post_clean_passes(true, false, false, true).is_empty());
     }
 
     #[test]

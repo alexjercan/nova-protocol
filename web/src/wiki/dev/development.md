@@ -526,6 +526,7 @@ break behavior or perf?" - is one command:
 
 ```sh
 cargo run --features debug probe run player_path            # clean + frame time + trace -> report
+cargo run --features debug probe run player_path --correctness-only # clean behavioral evidence only
 cargo run --features debug probe run player_path --samply   # + named flamegraph
 cargo run --features debug probe run player_path --baseline probe-runs  # FPS deltas vs nearest prior commit
 cargo run --features debug probe run player_path,scenario_grammar   # comma list -> aggregate index
@@ -543,7 +544,10 @@ provisional OK/WARN/FAIL/NO_DATA/UNPROBEABLE the reviewer confirms. Every
 run dir carries a `probe-run.json` manifest (identity, full git SHA, passes, outcomes); `probe
 report` only re-renders dirs that have one. The commit root also gets
 `index.html`, `index.json`, and `probe-all.json`, even when the spec names one
-example. Two verbs is the whole surface - `run` and `report`; the transitional
+example. `--correctness-only` runs only the clean pass: timeline, invariants,
+autopilot assertions, completion, reached-Playing, and log checks remain armed,
+while frame-time and traced passes are omitted. CI uses this mode; release
+verification uses the full run. Two verbs is the whole surface - `run` and `report`; the transitional
 `sweep|web|profile` aliases and the `trace` verb retired at the v0.8.0 cut
 (retired commands error with a pointer to the `run` form).
 
@@ -833,7 +837,8 @@ The everyday loop for landing a change:
 4. **Open a PR.** CI (`.github/workflows/ci.yaml`) runs on every PR and push to
    `master`: `cargo fmt --check`, `cargo clippy --workspace --all-targets
    --features debug -- -D warnings`, `cargo test --workspace --features debug`,
-   then the windowed `probe run --all` sweep under Xvfb/lavapipe plus the
+   then the windowed `probe run --all --correctness-only` sweep under
+   Xvfb/lavapipe plus the
    `nova_autopilot` example test under Xvfb. Three more
    jobs run in parallel with that one: a default-features
    `cargo check --workspace --all-targets`, a

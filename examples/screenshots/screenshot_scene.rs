@@ -82,8 +82,7 @@ fn main() -> bevy::app::AppExit {
         // example instead of asserting nothing. No frame-time capture - the
         // walk is a sequence of posed framings with no steady-state window,
         // so a captured fps would measure the script, not the engine.
-        app.add_plugins(nova_probe::nova_timeline());
-        app.add_plugins(nova_probe::nova_invariants());
+        app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
         // Clean frames at a known 16:9: force the window size, drop the dev
         // overlays and the HUD chrome (this set carries no player HUD, so the
         // fps/version bar is just clutter).

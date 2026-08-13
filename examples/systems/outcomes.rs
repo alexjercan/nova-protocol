@@ -159,16 +159,9 @@ fn main() -> bevy::app::AppExit {
         // Run-timeline recorder (inert unless NOVA_PERF_TIMELINE names an output
         // path): the beats below push markers, so an armed run reads
         // "die -> retry -> kill -> continue" beside the scenario's own events.
-        app.add_plugins(nova_probe::nova_timeline());
-        // Continuous invariants (inert unless NOVA_PERF_INVARIANTS is set):
-        // `hostile_down` is a one-way latch across the WHOLE run - seeded 0 by
-        // both loads of A and set to 1 by the kill, so the Retry reload writes
-        // 0 over 0 and never regresses. `player_down` is deliberately NOT
-        // claimed: the death sets it to 1 and the Retry re-seeds it to 0, which
-        // is the point of the beat, not a violation.
-        app.add_plugins(nova_probe::nova_invariants().monotonic(["hostile_down"]));
-        // Frame-time capture (inert unless NOVA_PERF is set): fleet-wide wiring.
-        app.add_plugins(nova_probe::nova_frametime());
+        // `hostile_down` is one-way across the run. `player_down` is not: Retry
+        // intentionally re-seeds it to 0.
+        app.add_plugins(nova_probe::NovaProbePlugin::default().monotonic(["hostile_down"]));
     }
 
     app.run()

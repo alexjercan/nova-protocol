@@ -100,8 +100,7 @@ fn main() -> bevy::app::AppExit {
         // run timeline + engine-bound invariants, so `probe run` grades this
         // example instead of asserting nothing. No frame-time capture - a
         // posed lineup holds no steady-state load worth measuring.
-        app.add_plugins(nova_probe::nova_timeline());
-        app.add_plugins(nova_probe::nova_invariants());
+        app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
         // Clean frames at the fleet's known 16:9; dev overlays and the
         // fps/version bar out of shot (the subject labels are NOT HUD-tier,
         // so they stay - they are the point of the frame).

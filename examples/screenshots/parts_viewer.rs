@@ -129,8 +129,7 @@ fn main() -> AppExit {
         // Probe wiring, matching the other screenshots/ examples: run timeline
         // + engine-bound invariants (each inert without its NOVA_PERF_* env).
         // No frame-time capture - a paged walk holds no steady-state window.
-        app.add_plugins(nova_probe::nova_timeline());
-        app.add_plugins(nova_probe::nova_invariants());
+        app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
         if nova_protocol::prelude::capturing() {
             app.add_systems(Startup, nova_protocol::prelude::force_capture_resolution);
         }

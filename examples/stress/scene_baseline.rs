@@ -41,7 +41,7 @@
 
 use bevy::prelude::*;
 use clap::Parser;
-use nova_probe::{combat_burst_driver, nova_frametime};
+use nova_probe::{combat_burst_driver, NovaProbePlugin};
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
@@ -92,12 +92,12 @@ fn main() -> bevy::app::AppExit {
     // `NOVA_PERF_COMBAT=1` attaches the combat-burst driver (raise + hold fire,
     // keep combatants alive) so the capture measures particles/projectiles in
     // flight rather than the scene at rest - use it on a combat scenario.
-    let capture = if std::env::var("NOVA_PERF_COMBAT").is_ok() {
-        nova_frametime().drive(combat_burst_driver)
+    let probe = if std::env::var("NOVA_PERF_COMBAT").is_ok() {
+        NovaProbePlugin::default().drive_frametime(combat_burst_driver)
     } else {
-        nova_frametime()
+        NovaProbePlugin::default()
     };
-    app.add_plugins(capture);
+    app.add_plugins(probe);
 
     // Smoke-test assertion (debug-only, in nova_debug): fail a run against a
     // typo'd id loudly instead of measuring an empty scene.
@@ -111,11 +111,7 @@ fn main() -> bevy::app::AppExit {
     // exactly the folklore the protocol deletes. Everything here is inert
     // without its env.
     #[cfg(feature = "debug")]
-    {
-        app.add_plugins(nova_autopilot());
-        app.add_plugins(nova_probe::nova_timeline());
-        app.add_plugins(nova_probe::nova_invariants());
-    }
+    app.add_plugins(nova_autopilot());
 
     app.run()
 }

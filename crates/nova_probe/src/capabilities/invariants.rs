@@ -85,6 +85,7 @@ pub fn nova_invariants() -> InvariantsPlugin {
 }
 
 /// Plugin returned by [`nova_invariants`]. Construct it through that preset.
+#[derive(Clone)]
 pub struct InvariantsPlugin {
     armed_override: Option<bool>,
     strict_override: Option<bool>,

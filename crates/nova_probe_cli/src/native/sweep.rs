@@ -74,29 +74,35 @@ fn run_many(
         .canonicalize()
         .map_err(|e| format!("could not resolve out root: {e}"))?;
     let baseline_base = base.baseline.clone().unwrap_or_else(|| out_base.clone());
-    let baseline_root = resolve_baseline_root(
-        &baseline_base,
-        &git_sha,
-        &git_history_short(&root),
-        base.baseline.is_some(),
-    );
-    match (&base.baseline, &baseline_root) {
-        (Some(base), Some(root)) => {
-            eprintln!("probe: baseline {} -> {}", base.display(), root.display())
+    let baseline_root = (!base.correctness_only)
+        .then(|| {
+            resolve_baseline_root(
+                &baseline_base,
+                &git_sha,
+                &git_history_short(&root),
+                base.baseline.is_some(),
+            )
+        })
+        .flatten();
+    if !base.correctness_only {
+        match (&base.baseline, &baseline_root) {
+            (Some(base), Some(root)) => {
+                eprintln!("probe: baseline {} -> {}", base.display(), root.display())
+            }
+            (None, Some(root)) => eprintln!(
+                "probe: auto baseline in {} -> {}",
+                out_base.display(),
+                root.display()
+            ),
+            (Some(base), None) => eprintln!(
+                "probe: no baseline commit dir found in {}; skipping fps comparison",
+                base.display()
+            ),
+            (None, None) => eprintln!(
+                "probe: no previous baseline commit dir found in {}; skipping fps comparison",
+                out_base.display()
+            ),
         }
-        (None, Some(root)) => eprintln!(
-            "probe: auto baseline in {} -> {}",
-            out_base.display(),
-            root.display()
-        ),
-        (Some(base), None) => eprintln!(
-            "probe: no baseline commit dir found in {}; skipping fps comparison",
-            base.display()
-        ),
-        (None, None) => eprintln!(
-            "probe: no previous baseline commit dir found in {}; skipping fps comparison",
-            out_base.display()
-        ),
     }
     let (display, _xvfb) = ensure_display(base.display.as_deref())?;
     let started_unix = unix_now();

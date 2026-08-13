@@ -118,6 +118,7 @@ pub fn nova_frametime() -> FrameTimePlugin {
 }
 
 /// Plugin returned by [`nova_frametime`]. Construct it through that preset.
+#[derive(Clone)]
 pub struct FrameTimePlugin {
     driver: Option<Arc<PerfDriver>>,
 }

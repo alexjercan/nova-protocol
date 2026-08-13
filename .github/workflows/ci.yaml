@@ -17,11 +17,9 @@ jobs:
   check:
     name: fmt / clippy / test
     runs-on: ubuntu-latest
-    # The probe sweep launches real gameplay subprocesses; probe gives each one
-    # its own `--timeout`, but a wedged runner-level step would otherwise hang
-    # up to GitHub's 6h cap. Fail fast instead - a warm-cache run is well
-    # under this; the budget exists for cold-cache runs, which pay one full
-    # build of the tree on 2 cores.
+    # The correctness probe launches real gameplay subprocesses; probe gives
+    # each one its own `--timeout`, but a wedged runner-level step would
+    # otherwise hang up to GitHub's 6h cap. Fail fast instead.
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -85,11 +83,11 @@ jobs:
       - name: Tests
         run: cargo test --workspace --features debug
 
-      # The windowed run gate: `probe run --all` spawns EVERY cataloged example
-      # under NOVA_AUTOPILOT/Xvfb (lavapipe renders) and grades each one on the
-      # same six checks a local probe run reports - process exit, run
-      # completion, reached-Playing, invariants, frame time, and log_clean
-      # (panics, ERROR lines, and bevy_ecs command errors at any level).
+      # The windowed run gate: correctness-only probe spawns EVERY cataloged
+      # example under NOVA_AUTOPILOT/Xvfb (lavapipe renders) and grades process
+      # exit, run completion, reached-Playing, invariants, and log cleanliness.
+      # It skips the separate FPS and traced passes; full local/release probe
+      # runs own performance evidence.
       # `aggregate_exit` returns FAILURE on anything past OK/WARN/UNPROBEABLE
       # (UNPROBEABLE is the sanctioned no-probe-plugin opt-out, still gated on
       # its smoke checks), so this is a blocking gate. It REPLACED tests/examples_smoke.rs (task
@@ -118,7 +116,7 @@ jobs:
         run: >-
           xvfb-run --auto-servernum
           cargo run --features debug --
-          probe run --all --out "$RUNNER_TEMP/probe-runs"
+          probe run --all --correctness-only --out "$RUNNER_TEMP/probe-runs"
 
       # The reports and logs for whatever the sweep graded, green or not: a
       # failing check is diagnosed from its run.log, which the step output only

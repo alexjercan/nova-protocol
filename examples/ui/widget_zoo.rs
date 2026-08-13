@@ -107,9 +107,7 @@ fn main() -> AppExit {
         // inert without its NOVA_PERF_* env). `nova_invariants` takes its world
         // resource by `Option` and its component queries simply find nothing in
         // a bare app, so it needs no special-casing here.
-        app.add_plugins(nova_probe::nova_timeline());
-        app.add_plugins(nova_probe::nova_invariants());
-        app.add_plugins(nova_probe::nova_frametime());
+        app.add_plugins(nova_probe::NovaProbePlugin::default());
         if std::env::var_os("NOVA_AUTOPILOT").is_some() {
             // The zoo does not carry `nova_debug`'s `DebugPlugin` (it would drag
             // an inspector, a wireframe toggle and gameplay state into a widget

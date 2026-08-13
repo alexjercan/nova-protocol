@@ -163,9 +163,7 @@ fn main() -> bevy::app::AppExit {
                 .on_loop(reassemble_the_ship),
         );
         app.add_plugins(assert_scenario_loaded(SCENARIO_ID));
-        app.add_plugins(nova_probe::nova_timeline());
-        app.add_plugins(nova_probe::nova_invariants());
-        app.add_plugins(nova_probe::nova_frametime());
+        app.add_plugins(nova_probe::NovaProbePlugin::default());
         app.add_plugins(nova_screenshot());
     }
 

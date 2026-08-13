@@ -69,16 +69,27 @@ pub mod timeline {
 pub mod prelude {
     #[cfg(not(target_arch = "wasm32"))]
     pub use super::invariants::prelude::*;
-    pub use super::{frametime::prelude::*, timeline::prelude::*, NovaProbePlugin};
+    pub use super::{
+        frametime::prelude::*, timeline::prelude::*, NovaProbePlugin, CORRECTNESS_MODE,
+        PROBE_MODE_ENV,
+    };
 }
+
+/// Selects correctness-only probe wiring in child processes.
+///
+/// The host sets this to [`CORRECTNESS_MODE`] when it needs behavioral
+/// evidence without frame-time or profiling passes.
+pub const PROBE_MODE_ENV: &str = "NOVA_PROBE_MODE";
+
+/// Value of [`PROBE_MODE_ENV`] that selects correctness-only wiring.
+pub const CORRECTNESS_MODE: &str = "correctness";
 
 /// Every capability at once - what "this binary is being probed" looks like
 /// as one line.
 ///
-/// Each field is env-gated downstream exactly as the individual plugin is, so
-/// an unarmed run pays nothing. Wire a capability directly instead when it
-/// needs configuration ([`FrameTimePlugin::drive`], a custom timeline path);
-/// this bundles the defaults, it does not replace them.
+/// Each capability is env-gated downstream, so an unarmed run pays nothing.
+/// Builder methods retain the single bundle entry point for examples that
+/// need custom invariants, a frame-time driver, or no frame-time claim.
 ///
 /// ```no_run
 /// # use bevy::prelude::*;
@@ -88,36 +99,59 @@ pub mod prelude {
 /// # }
 /// ```
 pub struct NovaProbePlugin {
-    /// Wire the frame-time capture.
-    pub frametime: bool,
-    /// Wire the run-timeline recorder.
-    pub timeline: bool,
-    /// Wire the continuous invariant checks. Requires `timeline`: the
-    /// invariant entries ride that sink.
-    pub invariants: bool,
+    frametime: Option<FrameTimePlugin>,
+    #[cfg(not(target_arch = "wasm32"))]
+    invariants: InvariantsPlugin,
+}
+
+impl NovaProbePlugin {
+    /// Do not declare or wire frame-time capture for this example.
+    pub fn without_frametime(mut self) -> Self {
+        self.frametime = None;
+        self
+    }
+
+    /// Attach a per-frame driver to this example's frame-time capture.
+    pub fn drive_frametime(
+        mut self,
+        driver: impl Fn(&mut World, u32) + Send + Sync + 'static,
+    ) -> Self {
+        self.frametime = self.frametime.map(|plugin| plugin.drive(driver));
+        self
+    }
+
+    /// Register scenario variables that must never decrease.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn monotonic<I, S>(mut self, keys: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.invariants = self.invariants.monotonic(keys);
+        self
+    }
 }
 
 impl Default for NovaProbePlugin {
     fn default() -> Self {
         Self {
-            frametime: true,
-            timeline: true,
-            invariants: true,
+            frametime: Some(nova_frametime()),
+            #[cfg(not(target_arch = "wasm32"))]
+            invariants: nova_invariants(),
         }
     }
 }
 
 impl Plugin for NovaProbePlugin {
     fn build(&self, app: &mut App) {
-        if self.frametime {
-            app.add_plugins(nova_frametime());
+        let correctness_only = std::env::var(PROBE_MODE_ENV).as_deref() == Ok(CORRECTNESS_MODE);
+        if !correctness_only {
+            if let Some(plugin) = &self.frametime {
+                app.add_plugins(plugin.clone());
+            }
         }
-        if self.timeline {
-            app.add_plugins(nova_timeline());
-        }
+        app.add_plugins(nova_timeline());
         #[cfg(not(target_arch = "wasm32"))]
-        if self.invariants {
-            app.add_plugins(nova_invariants());
-        }
+        app.add_plugins(self.invariants.clone());
     }
 }

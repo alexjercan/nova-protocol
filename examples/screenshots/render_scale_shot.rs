@@ -89,8 +89,7 @@ fn main() -> bevy::app::AppExit {
         // example instead of asserting nothing. No frame-time capture - the
         // whole point here is the PIXELS at a preset, and the render-scale
         // lever's cost is what `probe run scene_baseline` already measures.
-        app.add_plugins(nova_probe::nova_timeline());
-        app.add_plugins(nova_probe::nova_invariants());
+        app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
         // The two shots are compared against each other, so both must be the
         // same known 16:9 - a window the WM sized would make "fewer pixels"
         // unreadable. Dev overlays out of the frame; the HUD stays, because a

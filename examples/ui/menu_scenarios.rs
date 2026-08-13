@@ -71,9 +71,7 @@ fn main() -> bevy::app::AppExit {
         }
         app.init_resource::<ScenariosAutopilot>();
         // Probe wiring (inert without its NOVA_PERF_* env).
-        app.add_plugins(nova_probe::nova_timeline());
-        app.add_plugins(nova_probe::nova_invariants());
-        app.add_plugins(nova_probe::nova_frametime());
+        app.add_plugins(nova_probe::NovaProbePlugin::default());
         app.add_plugins(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
                 // SCRIPT-OWNED completion: the step

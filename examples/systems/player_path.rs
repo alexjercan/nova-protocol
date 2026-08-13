@@ -189,17 +189,12 @@ fn main() -> bevy::app::AppExit {
         // output path): the script below pushes its beats as markers, so an
         // armed run reads "raise -> sweep -> fire -> ... -> done" in the same
         // JSONL stream as the scenario's own events and variables.
-        app.add_plugins(nova_probe::nova_timeline());
-        // Continuous invariants (inert unless NOVA_PERF_INVARIANTS is set):
         // target_down and leg are one-way latches in this scenario's design
         // (0 -> 1 on kill / lock), so a decrease is a real regression. A
         // round's reload re-seeds both, which is not one: the checker forgets
         // its monotonic memory on `ScenarioLoaded`, so each round is its own
         // life.
-        app.add_plugins(nova_probe::nova_invariants().monotonic(["target_down", "leg"]));
-        // Frame-time capture (inert unless NOVA_PERF is set): fleet-wide
-        // wiring, task 20260719-210443.
-        app.add_plugins(nova_probe::nova_frametime());
+        app.add_plugins(nova_probe::NovaProbePlugin::default().monotonic(["target_down", "leg"]));
     }
 
     app.run()

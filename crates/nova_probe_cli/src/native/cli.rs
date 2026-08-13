@@ -5,11 +5,12 @@ use std::path::PathBuf;
 
 pub(crate) const USAGE: &str = "\
 usage: probe <subcommand>
-  run <spec> [--all] [--out <dir>] [--samply]
+  run <spec> [--all] [--out <dir>] [--correctness-only] [--samply]
   [--baseline <base-dir>] [--timeout <secs>] [--display <:N>]
   [--release] [--render gpu|sw] [--scenario <id>]... [--preset <p>]...
   [--platform native|web]
-  the post-feature check and the perf sweep. <spec> is one example, a
+  the post-feature check and the perf sweep. --correctness-only runs only
+  the clean behavioral pass. <spec> is one example, a
   comma list (player_path,scenario_grammar), or a category dir
   (sections|systems|stress|ui|screenshots). --all runs the whole
   catalog - nothing is excluded.
@@ -31,6 +32,7 @@ pub(crate) struct RunOptions {
     pub example: String,
     pub out: Option<PathBuf>,
     pub samply: bool,
+    pub correctness_only: bool,
     pub baseline: Option<PathBuf>,
     pub timeout_secs: u64,
     pub display: Option<String>,
@@ -81,6 +83,7 @@ fn default_run(example: String) -> RunOptions {
         example,
         out: None,
         samply: false,
+        correctness_only: false,
         baseline: None,
         timeout_secs: 180,
         display: None,
@@ -151,6 +154,7 @@ fn parse_run(args: Vec<String>) -> Result<Cmd, String> {
         match arg.as_str() {
             "--all" => all = true,
             "--samply" => opts.samply = true,
+            "--correctness-only" => opts.correctness_only = true,
             "--release" => opts.release = true,
             "--out" => {
                 opts.out = Some(PathBuf::from(iter.next().ok_or("--out needs a directory")?));
@@ -207,10 +211,17 @@ fn parse_run(args: Vec<String>) -> Result<Cmd, String> {
     // Honest-combination gates that need no catalog. Multi-spec gates live in
     // resolve because they need to know whether the spec expands.
     let matrix = !opts.scenarios.is_empty() || !opts.presets.is_empty();
-    if opts.platform == Platform::Web && (opts.samply || matrix) {
+    if opts.platform == Platform::Web && (opts.samply || opts.correctness_only || matrix) {
         return Err(
             "--platform web captures the web frame line only; it does not combine \
-             with --samply/--scenario/--preset"
+             with --correctness-only/--samply/--scenario/--preset"
+                .into(),
+        );
+    }
+    if opts.correctness_only && (opts.samply || opts.baseline.is_some() || matrix) {
+        return Err(
+            "--correctness-only does not combine with measurement options \
+             --samply/--baseline/--scenario/--preset"
                 .into(),
         );
     }
@@ -344,6 +355,17 @@ mod tests {
 
     #[test]
     fn honest_combination_gates() {
+        let Ok(Cmd::RunSpec { base, .. }) = parse(&s(&["run", "x", "--correctness-only"])) else {
+            panic!("correctness-only run parses");
+        };
+        assert!(base.correctness_only);
+        for flag in ["--samply", "--baseline", "--scenario", "--preset"] {
+            let mut args = s(&["run", "x", "--correctness-only", flag]);
+            if flag != "--samply" {
+                args.push("value".into());
+            }
+            assert!(parse(&args).is_err(), "{flag} combined with correctness");
+        }
         // Matrix capture follows the example's runtime capability contract.
         assert!(parse(&s(&["run", "x", "--scenario", "a"])).is_ok());
         // Web does not combine with the native-only passes.

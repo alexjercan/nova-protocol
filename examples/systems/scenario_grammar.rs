@@ -187,13 +187,9 @@ fn main() -> bevy::app::AppExit {
         // Run-timeline recorder (inert unless NOVA_PERF_TIMELINE is set):
         // this example exercises the whole scenario language, so its recorded
         // timeline doubles as the recorder's stability probe.
-        app.add_plugins(nova_probe::nova_timeline());
-        // Continuous invariants (inert unless NOVA_PERF_INVARIANTS is set):
-        // every tally this scenario keeps is one-way by design - the beat
-        // chain, the kill count, the round counter, the trigger-volume
-        // crossings and the two latches. A reload re-seeds them, which the
-        // checker forgets at teardown, so the looped capture cycle is fine.
-        app.add_plugins(nova_probe::nova_invariants().monotonic([
+        // Every tally this scenario keeps is one-way by design. A reload
+        // re-seeds them, which the checker forgets at teardown.
+        app.add_plugins(nova_probe::NovaProbePlugin::default().monotonic([
             "beat",
             "rocks_destroyed",
             "round",
@@ -203,9 +199,6 @@ fn main() -> bevy::app::AppExit {
             "timer_ended",
             "ring_cleared",
         ]));
-        // Frame-time capture (inert unless NOVA_PERF is set): fleet-wide
-        // wiring, task 20260719-210443.
-        app.add_plugins(nova_probe::nova_frametime());
     }
 
     app.run()
