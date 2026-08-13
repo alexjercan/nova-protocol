@@ -18,7 +18,7 @@ use bevy::prelude::*;
 ///
 /// ```
 /// # use bevy::prelude::*;
-/// # use nova_gameplay::prelude::*;
+/// # use nova_ship::prelude::rigid_body_point_velocity;
 /// // A point 3 units along +X of a body spinning at 2 rad/s about +Y (stationary centre)
 /// // swings along -Z at 6 units/s.
 /// let v = rigid_body_point_velocity(Vec3::ZERO, Vec3::Y * 2.0, Vec3::ZERO, Vec3::X * 3.0);

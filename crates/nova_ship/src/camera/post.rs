@@ -13,7 +13,7 @@
 //!
 //! ```rust
 //! # use bevy::prelude::*;
-//! # use nova_gameplay::prelude::*;
+//! # use nova_ship::prelude::{PostProcessingCamera, PostProcessingDefaultPlugin};
 //! # fn demo(mut commands: Commands) {
 //! App::new()
 //!     .add_plugins(DefaultPlugins)

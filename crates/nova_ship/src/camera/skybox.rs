@@ -31,7 +31,7 @@
 //!
 //! ```rust
 //! # use bevy::prelude::*;
-//! # use nova_gameplay::prelude::*;
+//! # use nova_ship::prelude::SkyboxConfig;
 //! # fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 //! commands.spawn((
 //!     Camera3d::default(),

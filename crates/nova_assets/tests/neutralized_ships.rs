@@ -15,8 +15,8 @@
 
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{
-    CommandsGameEventExt, EventHandler, GameEventsPlugin, OnNeutralizedEvent,
-    OnNeutralizedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
+    CommandsGameEventExt, EventHandler, GameEventsPlugin, OnDefeatedEvent, OnDefeatedEventInfo,
+    OnNeutralizedEvent, OnNeutralizedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
 };
 use nova_gameplay::prelude::GameObjectives;
 use nova_scenario::prelude::*;
@@ -76,18 +76,22 @@ fn register_non_start_handlers(app: &mut App, scenario: &ScenarioConfig) {
     }
 }
 
-/// Fire the scenario `OnNeutralized` for a ship id - the same info the gameplay
-/// neutralize system emits - and pump the handlers + queued commands through.
+/// Fire the scenario outcome pair for a neutralized ship in production order:
+/// unified defeat first, then the specific neutralization edge.
 fn neutralize(app: &mut App, id: &str) {
-    let info = OnNeutralizedEventInfo {
+    let defeated = OnDefeatedEventInfo {
         id: id.to_string(),
         type_name: "spaceship".to_string(),
     };
     app.world_mut()
         .run_system_once(move |mut commands: Commands| {
-            commands.fire::<OnNeutralizedEvent>(info.clone());
+            commands.fire::<OnDefeatedEvent>(defeated.clone());
+            commands.fire::<OnNeutralizedEvent>(OnNeutralizedEventInfo {
+                id: defeated.id.clone(),
+                type_name: defeated.type_name.clone(),
+            });
         })
-        .expect("fire OnNeutralized");
+        .expect("fire neutralized outcome pair");
     app.update();
     app.update();
 }

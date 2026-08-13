@@ -16,7 +16,7 @@
 //!
 //! ```rust
 //! # use bevy::prelude::*;
-//! # use nova_gameplay::prelude::*;
+//! # use nova_ship::prelude::{WASDCamera, WASDCameraInput};
 //! # fn setup(mut commands: Commands) {
 //! commands.spawn((
 //!     Camera3d::default(),
