@@ -12,16 +12,12 @@ narrative live. This project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Breaking changes are
 tagged **(breaking)**.
 
-## [Unreleased]
+## [0.10.0] - 2026-08-13
 
 ### Ships & Sections
 
 - **(breaking)** Ship integrity now uses explicit section link-point mates. Collider contact and one-unit center spacing no longer create structural edges; multi-section mods must author one connected link-point graph. NOVA OS toggles a `MATES` structure overlay with `G`.
 - **(breaking)** Racer, CargoA, and CargoB now use semantic parts such as `fuselage`, `engine_port`, and `turret_starboard`. Coordinate-named cube prototypes and meshes are removed; bundled mods use the new ids.
-
-### Scenarios & Objectives
-
-- **(breaking)** Scenario world reads now use typed queries and declared watched variables. `Scenario(Elapsed)` replaces the implicit `scenario_elapsed` value, `Entity(... Speed)` replaces implicit player speed, and inline `Query(...)` factors support one-shot snapshots.
 
 ### Gameplay & Flight
 
@@ -48,6 +44,7 @@ tagged **(breaking)**.
 
 ### Scenarios & Objectives
 
+- **(breaking)** Scenario world reads now use typed queries and declared watched variables. `Scenario(Elapsed)` replaces the implicit `scenario_elapsed` value, `Entity(... Speed)` replaces implicit player speed, and inline `Query(...)` factors support one-shot snapshots.
 - Rust scenario authors gain one public `nova_authoring::scenario_helpers` catalog for common expression, filter, watch, and action constructors; built-in scenarios and examples no longer import generic helpers from Shakedown.
 - Scenario handlers gain `OnDefeated`, an exact-once ship outcome edge shared
   by neutralization and direct destruction. It precedes `OnNeutralized` or
@@ -109,6 +106,7 @@ tagged **(breaking)**.
   gone.
 - Probe runs declared frame-time capture and native tracing automatically;
   `--fps` and `--profile` are removed, while slow `--samply` stays opt-in.
+- All probe examples use the unified `NovaProbePlugin`; `probe run --correctness-only` keeps behavioral evidence while omitting frame-time and profiling passes, and is the CI windowed gate.
 - **(breaking)** `ScenarioConfig` no longer derives `Default`; build one with
   `ScenarioConfig::new(id, name, cubemap)` plus struct-update syntax. A
   defaulted `cubemap` was never a valid scenario.
