@@ -82,3 +82,25 @@ examples/gameplay (Shakedown walk)   examples/screenshots (tutorial-*)
 - Open: whether the narrow-width layout needs a different crop; the figures are
   16:9 `object-fit: cover`, so a tall crop may cut the HUD element the caption
   points at.
+
+## Accepted prose audit
+
+Owner confirmed on 2026-08-13 that progressive figure enhancement works and
+that the rendered tutorial images and desktop/narrow presentation look good.
+Keep the placeholder markup: `site.ts` replaces it with an image after the
+asset loads.
+
+Update only stale prose and figure alt text:
+
+- List the current New Game, Sandbox, Scenarios, Mods, Settings, and native Exit
+  menu entries.
+- Describe the functional volume, graphics, controls, and UI-skin settings.
+- Include Settings in the pause menu.
+- State that manual burn or RCS takes control from autopilot; camera and
+  targeting input do not.
+- Use current comms-stack and objective-notification terminology.
+- Describe staged Ctrl clearing: combat lock, then nav lock.
+- Say Shakedown teaches core flight and targeting verbs, not every game verb.
+
+The twelve steps, keys, objective order, orbit hold, combat flow, and Broadside
+continuation remain current.

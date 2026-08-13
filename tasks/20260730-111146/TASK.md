@@ -1,8 +1,8 @@
 # Refresh the tutorial against the current UI and automated captures
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 60
-- TAGS: v0.10.0, docs, web
+- TAGS: v0.10.0,docs,web
 
 ## Story
 
