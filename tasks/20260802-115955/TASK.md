@@ -1,8 +1,8 @@
 # Epic: Nova demonstrates itself automatically in v0.10.0
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 100
-- TAGS: v0.10.0, epic, tooling, content, automation
+- TAGS: v0.10.0,epic,tooling,content,automation
 
 ## Epic
 

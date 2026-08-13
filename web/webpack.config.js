@@ -256,6 +256,13 @@ const docPage = ({ slug, md, title, crumbParent, toc }) =>
 // fill the meta line; description is the head meta; the title comes from the H1.
 const NEWS_POSTS = [
     {
+        slug: "0.10.0",
+        version: "v0.10.0",
+        date: "2026-08-13",
+        description:
+            "Nova Protocol v0.10.0: Nova gains predicate-driven automation and proof-bearing reports, semantic Racer and cargo-ship parts with explicit structural mates, typed scenario queries and exact lifecycle events, authored lighting and mass-based gravity, reproducible screenshots, and a clearer workspace architecture.",
+    },
+    {
         slug: "0.9.0",
         version: "v0.9.0",
         date: "2026-08-01",

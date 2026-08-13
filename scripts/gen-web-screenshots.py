@@ -80,6 +80,9 @@ FIGURES = [
     ("feature-gravity.png",        "screenshot_scene"),
     ("wiki-gravity.png",           "screenshot_scene"),
     ("wiki-sections.png",          "screenshot_scene"),
+    # The part-candidate viewer shows the seven body meshes before functional
+    # modules are mounted by content. Used by the v0.10.0 release post.
+    ("parts-viewer-racer-exploded.png", "parts_viewer"),
     ("tutorial-menu.png",          "screenshot_ui"),
     ("feature-editor.png",         "screenshot_ui"),
     # The other two menu states the same walk drives: the Settings panel, and

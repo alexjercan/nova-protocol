@@ -205,7 +205,7 @@ fn scan_catalog(root: &Path) -> PartCatalog {
             .position(|k| *k == top)
             .unwrap_or(usize::MAX)
     };
-    manifest_dirs.sort_by(|a, b| (rank(a), a.clone()).cmp(&(rank(b), b.clone())));
+    manifest_dirs.sort_by_key(|a| (rank(a), a.clone()));
 
     let mut entries = Vec::new();
     let mut ships = Vec::new();
