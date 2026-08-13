@@ -158,8 +158,8 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
    ```
 
 8. **Asset prototype.**
-   In `crates/nova_authoring/src/sections.rs`, add a `SectionConfig` to the
-   `build_sections()` vec (grep for `fn build_sections`) so the catalog ships a
+   In `crates/nova_authoring/src/base_content/sections/standard.rs`, add a
+   `SectionConfig` to `standard_section_prototypes()` so the catalog ships a
    ready-to-place
    instance. Give it a stable snake_case `id` (this is what
    `sections.get_section("...")` and RON authors reference):
@@ -178,8 +178,8 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
    ```
 
    If your config needs a render-mesh `AssetRef`, add a field to
-   `SectionMeshRefs` and its `from_paths()` alongside the existing ones (both
-   in `crates/nova_authoring/src/sections.rs`).
+   `BaseContentAssets` and its `from_paths()` in
+   `crates/nova_authoring/src/base_content/assets.rs`.
 
    The builders do not feed the game directly: regenerate the committed RON
    with `cargo run content gen` and commit

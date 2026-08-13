@@ -24,8 +24,8 @@ use nova_ship::prelude::*;
 
 use super::{
     cast::{CAPTAIN_HALLORAN, PLAYER},
-    craft::{self, ShipGrade},
     pacing::{clock_past, gated_once, mark_clock, INSTRUCTION_GAP, MID_GAP, REVEAL_GAP},
+    ships::{self, ShipGrade},
     SCENARIO_ELAPSED_VAR,
 };
 use crate::scenario_helpers::prelude::*;
@@ -488,7 +488,7 @@ fn player_ship() -> ScenarioObjectConfig {
             allegiance: None,
             controller: SpaceshipController::Player(PlayerControllerConfig {
                 // Both racer turret cubes fire on LMB / right trigger.
-                input_mapping: craft::RACER_TURRET_IDS
+                input_mapping: ships::RACER_TURRET_IDS
                     .iter()
                     .map(|id| {
                         (
@@ -506,7 +506,7 @@ fn player_ship() -> ScenarioObjectConfig {
                 // reload cadence from the first scenario.
                 infinite_ammo: false,
             }),
-            sections: craft::racer_sections(ShipGrade::Player, controller_gate),
+            sections: ships::racer_sections(ShipGrade::Player, controller_gate),
         }),
     }
 }
@@ -538,7 +538,7 @@ fn pirate_ship() -> ScenarioObjectConfig {
                 ..Default::default()
             }),
             // A scavenger-grade racer: weaker turrets, squishier hull.
-            sections: craft::racer_sections(ShipGrade::Enemy, vec![]),
+            sections: ships::racer_sections(ShipGrade::Enemy, vec![]),
         }),
     }
 }

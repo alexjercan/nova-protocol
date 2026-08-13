@@ -3,7 +3,7 @@
 //! the authoring toolchain's own generators, not a synthetic fixture.
 
 use nova_assets::merge_bundles;
-use nova_authoring::scenario_generation;
+use nova_authoring::generation;
 use nova_modding::prelude::Content;
 
 /// Merge the built-in scenarios and the built-in campaign, then resolve the
@@ -17,10 +17,10 @@ use nova_modding::prelude::Content;
 #[test]
 fn merged_campaign_resolves_members_in_order_including_hidden() {
     let mut items: Vec<Content> = Vec::new();
-    for (_, content) in scenario_generation::build_scenario_contents() {
+    for (_, content) in generation::build_scenario_contents() {
         items.extend(content);
     }
-    for (_, content) in scenario_generation::build_campaign_contents() {
+    for (_, content) in generation::build_campaign_contents() {
         items.extend(content);
     }
 

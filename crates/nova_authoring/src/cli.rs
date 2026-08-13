@@ -9,7 +9,7 @@
 //! ```
 //!
 //! - `gen` writes the builder-backed base content files: the
-//!   scenario/section builders in [`crate::scenario_generation`] are the
+//!   private [`crate::base_content`] inventory serialized by [`crate::generation`] is the
 //!   single definition of each built-in; this serializes them into the
 //!   committed `assets/base/**/*.content.ron` the game loads. Run it (and
 //!   commit the result) after any builder change - the `content_ron_parity`
@@ -102,7 +102,7 @@ pub fn main(args: &[OsString]) -> ExitCode {
 /// compiled in, so the paths resolve regardless of the invocation directory.
 fn run_gen() -> ExitCode {
     let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets");
-    for (rel, contents) in crate::scenario_generation::content_files() {
+    for (rel, contents) in crate::generation::content_files() {
         let path = assets.join(&rel);
         nova_assets::storage::write_atomic(&path, contents.as_bytes())
             .unwrap_or_else(|err| panic!("write {}: {err}", path.display()));

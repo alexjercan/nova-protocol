@@ -291,7 +291,7 @@ cargo run content lint --target <mod> --report r.md     # + write a per-mod repo
 
 - `gen` serializes the code-built base content into the committed
   `assets/base/**/*.content.ron`. The base RON is GENERATED from Rust builders
-  (`nova_authoring::scenario_generation`) - edit the builder and regenerate, never
+  (`nova_authoring::generation`, backed by private `base_content`) - edit the builder and regenerate, never
   hand-edit the RON, or the `content_ron_parity` test goes red.
 - `lint` runs EVERY content check in one pass (the `audit` subcommand was folded
   in here - balance is a kind of lint):

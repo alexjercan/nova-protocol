@@ -36,8 +36,8 @@ use nova_ship::prelude::*;
 
 use super::{
     cast::{BELT_RELAY, CAPTAIN_HALLORAN, TALLYMAN},
-    craft::{self, ShipGrade},
     pacing::{self, open_gate, REVEAL_GAP},
+    ships::{self, ShipGrade},
     SCATTER_SEED, SCENARIO_ELAPSED_VAR,
 };
 use crate::scenario_helpers::prelude::*;
@@ -162,7 +162,7 @@ fn player_ship() -> ScenarioObjectConfig {
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::Player(PlayerControllerConfig {
-                input_mapping: craft::RACER_TURRET_IDS
+                input_mapping: ships::RACER_TURRET_IDS
                     .iter()
                     .map(|id| {
                         (
@@ -178,7 +178,7 @@ fn player_ship() -> ScenarioObjectConfig {
                 infinite_ammo: false,
             }),
             allegiance: None,
-            sections: craft::racer_sections(
+            sections: ships::racer_sections(
                 ShipGrade::Player,
                 vec![SectionModification::DisableVerb(FlightVerb::Rcs)],
             ),
@@ -212,7 +212,7 @@ fn convoy_hauler(
                 ..Default::default()
             }),
             allegiance: Some(Allegiance::Player),
-            sections: craft::cargoa_sections(),
+            sections: ships::cargoa_sections(),
         }),
     }
 }
@@ -240,7 +240,7 @@ fn raider(id: &str, spawn_pos: Vec3, grade: ShipGrade, engage_delay: f32) -> Sce
                 ..Default::default()
             }),
             allegiance: None,
-            sections: craft::racer_sections(grade, vec![]),
+            sections: ships::racer_sections(grade, vec![]),
         }),
     }
 }

@@ -305,7 +305,9 @@ fn ships_are_racers_and_the_pirate_is_scavenger_grade() {
     assert_eq!(ships.len(), 2, "player and pirate only");
 
     // The racer's sections reference base catalog prototypes; resolve them.
-    let catalog = crate::sections::build_sections(&crate::sections::SectionMeshRefs::from_paths());
+    let catalog = crate::base_content::sections::section_catalog(
+        &crate::base_content::assets::BaseContentAssets::from_paths(),
+    );
     let resolve = |section: &SpaceshipSectionConfig| -> SectionConfig {
         match &section.source {
             SectionSource::Inline(config) => config.clone(),

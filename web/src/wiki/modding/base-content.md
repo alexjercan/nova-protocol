@@ -171,9 +171,11 @@ How a mod item interacts with this catalog (implemented in
 
 ## See the source
 
-The builders behind this page: `crates/nova_authoring/src/sections.rs` (core
-sections), `crates/nova_authoring/src/scenario/craft.rs` (the semantic ship
-parts), `crates/nova_authoring/src/scenario*.rs` (scenarios and the
-campaign). If this page and the generated RON ever disagree, the RON is the
+The builders behind this page live under
+`crates/nova_authoring/src/base_content/`: `sections/standard.rs` owns generic
+section prototypes, `ships/` owns semantic parts and complete craft,
+`scenarios/` groups mainline, main-menu, and sandbox scenarios, and
+`campaigns.rs` owns campaign membership. If this page and the generated RON
+ever disagree, the RON is the
 truth and this page has a bug - the `content_ron_parity` test pins the RON to
 the builders.

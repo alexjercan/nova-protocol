@@ -33,9 +33,11 @@ fn scripted_app() -> App {
     // The ships reference their sections by prototype id, so
     // `insert_spaceship_sections` needs the real catalog in `GameSections`
     // to resolve them (production loads it from the sections RON).
-    app.insert_resource(GameSections(crate::sections::build_sections(
-        &crate::sections::SectionMeshRefs::from_paths(),
-    )));
+    app.insert_resource(GameSections(
+        crate::base_content::sections::section_catalog(
+            &crate::base_content::assets::BaseContentAssets::from_paths(),
+        ),
+    ));
     app.add_plugins(ScenarioObjectsPlugin { render: false });
     app.finish();
 
@@ -857,7 +859,9 @@ fn the_new_game_player_starts_with_goto_withheld() {
     let ScenarioObjectKind::Spaceship(config) = player.kind else {
         panic!("the player object must be a spaceship");
     };
-    let catalog = crate::sections::build_sections(&crate::sections::SectionMeshRefs::from_paths());
+    let catalog = crate::base_content::sections::section_catalog(
+        &crate::base_content::assets::BaseContentAssets::from_paths(),
+    );
     let is_controller = |section: &SpaceshipSectionConfig| match &section.source {
         SectionSource::Inline(c) => matches!(c.kind, SectionKind::Controller(_)),
         SectionSource::Prototype(id) => catalog

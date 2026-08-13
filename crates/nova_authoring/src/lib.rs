@@ -5,8 +5,8 @@
 //! `nova_assets` because keeping it there hid the runtime asset stack behind
 //! twice its own volume.
 //!
-//! Touch this crate to change what a built-in scenario IS (a builder under
-//! `scenario`, then `content gen`), or to change what the `content lint`
+//! Touch this crate to change what built-in content IS (a builder under
+//! `base_content`, then `content gen`), or to change what the `content lint`
 //! gate accepts.
 //!
 //! The CLI over all of it is [`cli`], reached as the game binary's `content`
@@ -18,8 +18,7 @@
 //! ```
 #![warn(missing_docs)]
 
-mod scenario;
-mod sections;
+mod base_content;
 
 pub mod balance;
 /// Generic constructors for Rust-authored scenario configuration.
@@ -31,15 +30,16 @@ pub mod scenario_helpers;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod cli;
 pub mod content_report;
+/// Deterministic serialization of the private built-in content inventory.
+pub mod generation;
 pub mod lint_walk;
-pub mod scenario_generation;
 
 /// Glob-import surface: `use nova_authoring::prelude::*` brings the content
 /// report model, the lint/balance walk entry points and the RON generation
 /// surface into scope.
 pub mod prelude {
     pub use super::{
-        balance::prelude::*, content_report::prelude::*, lint_walk::prelude::*,
-        scenario_generation::prelude::*, scenario_helpers::prelude::*,
+        balance::prelude::*, content_report::prelude::*, generation::prelude::*,
+        lint_walk::prelude::*, scenario_helpers::prelude::*,
     };
 }

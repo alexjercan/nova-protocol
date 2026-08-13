@@ -527,15 +527,15 @@ asteroid alone opts into `Dynamic` + `TransformInterpolation`.
 
 ## Built-in scenarios
 
-The builders live in `crates/nova_authoring/src/scenario{.rs,/}`:
-`scenario.rs` builds `asteroid_field` and `asteroid_next`, `scenario/menu.rs`
-the menu backdrops (`menu_ambience`, `menu_waystation`, `menu_scrapyard`),
-`scenario/shakedown/` the `shakedown_run` New Game starter - the beat-chain
-reference: one `beat` counter gates every
-handler, and count milestones run on `OnUpdate` handlers keyed on the counter
-(handler order within one event is not load-bearing) - and `broadside.rs`,
-`lifeline.rs`, `final_tally.rs` the campaign chapters. The builders are an
-OFFLINE generator, not the runtime path: `content -- gen` serializes them to
+The builders live under
+`crates/nova_authoring/src/base_content/scenarios/`. `sandbox/` owns
+`asteroid_field` and `asteroid_next`; `main_menu/` gives each menu backdrop its
+own file; and `nova_protocol/` owns the campaign chapters plus shared cast and
+pacing vocabulary. Its `shakedown/` module builds the New Game starter - the
+beat-chain reference: one `beat` counter gates every handler, and count
+milestones run on `OnUpdate` handlers keyed on the counter (handler order
+within one event is not load-bearing). The builders are an OFFLINE inventory,
+not the runtime path: `content -- gen` serializes them to
 the committed `assets/base/scenarios/*.content.ron`, `base.bundle.ron` lists
 them, and `crates/nova_assets/src/merge.rs` merges the parsed RON into
 `GameScenarios` like any mod's. `content_ron_parity` pins builders == RON.

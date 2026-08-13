@@ -40,8 +40,8 @@ use nova_ship::prelude::*;
 
 use super::{
     cast::{BELT_RELAY, CAPTAIN_HALLORAN, RUST_TALLY},
-    craft::{self, ShipGrade},
     pacing::{self, mark_clock, open_gate, MID_GAP, REVEAL_GAP},
+    ships::{self, ShipGrade},
     SCATTER_SEED, SCENARIO_ELAPSED_VAR,
 };
 use crate::scenario_helpers::prelude::*;
@@ -127,7 +127,7 @@ fn player_ship() -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::Player(PlayerControllerConfig {
                 // Both racer turret cubes fire on LMB / right trigger.
-                input_mapping: craft::RACER_TURRET_IDS
+                input_mapping: ships::RACER_TURRET_IDS
                     .iter()
                     .map(|id| {
                         (
@@ -149,7 +149,7 @@ fn player_ship() -> ScenarioObjectConfig {
             allegiance: None,
             // The racer. RCS is off in the mainline campaign until the rework;
             // no other verb is gated this chapter.
-            sections: craft::racer_sections(
+            sections: ships::racer_sections(
                 ShipGrade::Player,
                 vec![SectionModification::DisableVerb(FlightVerb::Rcs)],
             ),
@@ -174,7 +174,7 @@ fn hauler_ship() -> ScenarioObjectConfig {
             allegiance: Some(Allegiance::Neutral),
             // The Ceres Queen is the cargoa hauler - a wide, unarmed cargo hull
             // that reads as a civilian freighter caught in the crossfire.
-            sections: craft::cargoa_sections(),
+            sections: ships::cargoa_sections(),
         }),
     }
 }
@@ -200,7 +200,7 @@ fn corvette(id: &str, spawn_pos: Vec3) -> ScenarioObjectConfig {
             }),
             allegiance: None,
             // A scavenger-grade racer: weaker turrets, squishier hull.
-            sections: craft::racer_sections(ShipGrade::Enemy, vec![]),
+            sections: ships::racer_sections(ShipGrade::Enemy, vec![]),
         }),
     }
 }
@@ -223,7 +223,7 @@ fn gunship() -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::AI(AIControllerConfig::default()),
             allegiance: None,
-            sections: craft::cargob_sections(),
+            sections: ships::cargob_sections(),
         }),
     }
 }

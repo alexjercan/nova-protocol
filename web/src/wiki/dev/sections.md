@@ -25,10 +25,12 @@ A section is a `SectionConfig { base: BaseSectionConfig, kind: SectionKind }`.
 | `Turret`     | Aims and fires bullets. An authored joint tree (hinges + muzzles, each joint with its own `offset`/`axis`/`speed`/limits/`render_mesh`), section-wide `muzzle_speed` + authored `bullet_damage` + `bullet_kind`, per-muzzle `fire_rate`, optional `ammo_capacity`. |
 | `Torpedo`    | Torpedo bay. Fires guided torpedoes that detonate an Explosive area blast (`blast_radius`, `blast_damage`), optional `ammo_capacity`. |
 
-`GameSections(Vec<SectionConfig>)` is the resource of section blueprints:
-authored in `crates/nova_authoring/src/sections.rs` (`build_sections()`),
-generated into `assets/base/sections/base.content.ron` by
-`content -- gen`, and merged into the resource by
+`GameSections(Vec<SectionConfig>)` is the resource of section blueprints.
+Generic prototypes are authored in
+`crates/nova_authoring/src/base_content/sections/standard.rs`; semantic craft
+parts live under `base_content/ships/`. Their explicit `section_catalog()` is
+generated into `assets/base/sections/base.content.ron` by `content -- gen` and
+merged into the resource by
 `crates/nova_assets/src/merge.rs`. Look one up with
 `sections.get_section("basic_thruster_section")`.
 
@@ -68,8 +70,9 @@ a unit cube by default), `SectionLinkPoints`, `ConnectedTo`, and `Health` (`base
 `sections/base_section.rs`), so the ship is one rigid body whose child colliders
 each carry their own health.
 
-See the semantic Racer, CargoA, and CargoB builders in
-`crates/nova_authoring/src/scenario/craft.rs` for complete generated examples. The editor (`crates/nova_editor`) assembles ships interactively using
+See the semantic Racer, CargoA, and CargoB builders under
+`crates/nova_authoring/src/base_content/ships/` for complete generated examples.
+The editor (`crates/nova_editor`) assembles ships interactively using
 `preview_section`, which has no health or rigid body and never enters the
 damage pipeline.
 

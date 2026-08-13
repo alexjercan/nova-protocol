@@ -33,8 +33,8 @@ use nova_ship::prelude::*;
 
 use super::{
     cast::{BELT_RELAY, CAPTAIN_HALLORAN, TALLYMAN},
-    craft::{self, ShipGrade},
     pacing::{self, clock_past, mark_clock, open_gate, MID_GAP, REVEAL_GAP},
+    ships::{self, ShipGrade},
     SCATTER_SEED, SCENARIO_ELAPSED_VAR,
 };
 use crate::scenario_helpers::prelude::*;
@@ -141,7 +141,7 @@ fn player_ship() -> ScenarioObjectConfig {
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::Player(PlayerControllerConfig {
-                input_mapping: craft::RACER_TURRET_IDS
+                input_mapping: ships::RACER_TURRET_IDS
                     .iter()
                     .map(|id| {
                         (
@@ -157,7 +157,7 @@ fn player_ship() -> ScenarioObjectConfig {
                 infinite_ammo: false,
             }),
             allegiance: None,
-            sections: craft::racer_sections(
+            sections: ships::racer_sections(
                 ShipGrade::Player,
                 vec![SectionModification::DisableVerb(FlightVerb::Rcs)],
             ),
@@ -239,7 +239,7 @@ fn picket(id: &str, spawn_pos: Vec3) -> ScenarioObjectConfig {
                 ..Default::default()
             }),
             allegiance: None,
-            sections: craft::racer_sections(ShipGrade::Enemy, vec![]),
+            sections: ships::racer_sections(ShipGrade::Enemy, vec![]),
         }),
     }
 }
@@ -257,7 +257,7 @@ fn flagship() -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::AI(AIControllerConfig::default()),
             allegiance: None,
-            sections: craft::cargob_sections(),
+            sections: ships::cargob_sections(),
         }),
     }
 }
@@ -280,7 +280,7 @@ fn escort() -> ScenarioObjectConfig {
                 ..Default::default()
             }),
             allegiance: None,
-            sections: craft::racer_sections(ShipGrade::Enemy, vec![]),
+            sections: ships::racer_sections(ShipGrade::Enemy, vec![]),
         }),
     }
 }

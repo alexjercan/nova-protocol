@@ -188,19 +188,19 @@
       "id": "t1-014",
       "question": "Where are the built-in ship sections' stats authored - the health, fire-rate and thrust numbers for the stock hull, turret, thruster, torpedo and controller sections?",
       "grain": "file",
-      "expect": "crates/nova_authoring/src/sections.rs (493 lines)",
-      "citation": "crates/nova_authoring/src/sections.rs, 493 lines, opens with `use nova_gameplay::prelude::*` and `use nova_ship::prelude::*` after its module doc, followed by the per-section-type durability-baseline comment block",
-      "why_this_question": "Two names collide here. crates/nova_gameplay/src/sections/ holds the section BEHAVIOUR; crates/nova_assets/src/sections.rs holds the authored DATA. Answering the gameplay one is the predictable failure, and it is the case for moving base content out of the asset crate.",
-      "notes": "Answering crates/nova_gameplay/src/sections/ is 0.00 - that is the runtime, not the content. Answering assets/base/**/*.content.ron is 0.50: those files are generated output, and the question asks where they are authored."
+      "expect": "crates/nova_authoring/src/base_content/sections/standard.rs for generic stock modules, plus crates/nova_authoring/src/base_content/ships/ for semantic craft parts",
+      "citation": "crates/nova_authoring/src/base_content/sections/standard.rs (`standard_section_prototypes`) and crates/nova_authoring/src/base_content/ships/{racer,cargo_a,cargo_b}.rs; sections/mod.rs joins them in `section_catalog`",
+      "why_this_question": "Runtime behavior and authored content are distinct. crates/nova_ship/src/sections/ implements behavior; nova_authoring's explicit base_content sections and ships groups own authored prototypes.",
+      "notes": "Answering crates/nova_ship/src/sections/ is 0.00 - that is runtime behavior, not content. Answering assets/base/**/*.content.ron is 0.50: those files are generated output, and the question asks where they are authored."
     },
     {
       "id": "t1-015",
       "question": "Where do the built-in (non-mod) scenario scripts live - the shakedown campaign and its siblings?",
       "grain": "module",
-      "expect": "crates/nova_authoring/src/scenario/ plus crates/nova_authoring/src/scenario.rs, roughly 7,680 lines",
-      "citation": "crates/nova_authoring/src/scenario/ - broadside.rs, cast.rs, craft.rs, final_tally.rs, lifeline.rs, menu.rs, pacing.rs, shakedown/; plus crates/nova_authoring/src/scenario.rs; 7,678 lines total",
+      "expect": "crates/nova_authoring/src/base_content/scenarios/nova_protocol/ for the campaign; sibling main_menu/ and sandbox/ groups own non-campaign built-ins",
+      "citation": "crates/nova_authoring/src/base_content/scenarios/nova_protocol/ - broadside.rs, cast.rs, final_tally.rs, lifeline.rs, pacing.rs, shakedown/; scenarios/mod.rs is the explicit stable inventory",
       "why_this_question": "There is a crate called nova_scenario, and the built-in scenarios are not in it. Tests whether crate names distinguish engine from content. A nova_scenario answer proves they do not.",
-      "notes": "Answering crates/nova_scenario/ is 0.00. 0.50 for naming crates/nova_assets/ without the scenario subtree."
+      "notes": "Answering crates/nova_scenario/ is 0.00: that crate owns the generic runtime grammar. 0.50 for naming nova_authoring without the base_content/scenarios subtree."
     },
     {
       "id": "t1-016",

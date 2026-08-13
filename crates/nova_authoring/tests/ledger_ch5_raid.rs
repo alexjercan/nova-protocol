@@ -301,7 +301,7 @@ fn the_player_flies_a_torpedo_gunship() {
     let scenario = scenario_from(CH5_RON);
     let start = on_start(&scenario);
     let player = spaceship_at(start, "player_spaceship");
-    let catalog = nova_authoring::scenario_generation::build_section_catalog();
+    let catalog = nova_authoring::generation::build_section_catalog();
 
     // The whole point of the reward: unlike every prior chapter, the player's
     // ship actually CARRIES torpedo bays (and guns).
@@ -401,7 +401,7 @@ fn the_base_holds_station_thrusterless() {
     let scenario = scenario_from(CH5_RON);
     let start = on_start(&scenario);
     let base = spaceship_at(start, "magpie_base");
-    let catalog = nova_authoring::scenario_generation::build_section_catalog();
+    let catalog = nova_authoring::generation::build_section_catalog();
 
     let count = |pred: fn(&SectionKind) -> bool| {
         base.sections

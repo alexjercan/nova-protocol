@@ -565,7 +565,7 @@ fn on_start_stages_the_slice() {
     // Playtest tuning: torpedoes are the ENEMY's weapon this chapter - the
     // player screens them, not trades them - and the magazine is finite with
     // auto-reload.
-    let catalog = nova_authoring::scenario_generation::build_section_catalog();
+    let catalog = nova_authoring::generation::build_section_catalog();
     assert!(
         !player_ship
             .sections
@@ -630,7 +630,7 @@ fn the_gunship_keeps_its_torpedo_tubes() {
     let ScenarioObjectKind::Spaceship(ship) = &gunship.kind else {
         panic!("gunship is a spaceship");
     };
-    let catalog = nova_authoring::scenario_generation::build_section_catalog();
+    let catalog = nova_authoring::generation::build_section_catalog();
     let tubes = ship
         .sections
         .iter()

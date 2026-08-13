@@ -12,6 +12,12 @@ narrative live. This project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Breaking changes are
 tagged **(breaking)**.
 
+## [Unreleased]
+
+### Internals & Tooling
+
+- Built-in authoring content now has an explicit `base_content` inventory grouped into Nova Protocol chapters, private main-menu backdrops, sandboxes, standard section prototypes, and per-craft semantic parts; generated RON is unchanged.
+
 ## [0.10.0] - 2026-08-13
 
 ### Ships & Sections

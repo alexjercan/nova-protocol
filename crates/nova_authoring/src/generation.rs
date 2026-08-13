@@ -1,6 +1,7 @@
-//! The RON generation surface for the built-in scenarios. The scenario builders
-//! are the single definition of each built-in; production loads their serialized
-//! RON. This module rebuilds them with PATH-based asset refs and serializes them
+//! Deterministic RON serialization for the private built-in content inventory.
+//! The builders under `base_content` are the single definition of each built-in;
+//! production loads their serialized RON. This module rebuilds them with
+//! path-based asset refs and serializes them
 //! deterministically for two consumers that must agree byte for byte: the
 //! `content` CLI's `gen` subcommand WRITES the committed files (`cargo run
 //! content gen`) and the `content_ron_parity` integration test ASSERTS them.
@@ -10,12 +11,11 @@
 //! build - `nova_modding` (a dependency) turns on `nova_scenario/serde`, and
 //! Cargo feature unification carries it here.
 
-use nova_gameplay::prelude::AssetRef;
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::{CampaignConfig, ScenarioConfig};
 use nova_ship::prelude::SectionConfig;
 
-use crate::sections::{build_sections, SectionMeshRefs};
+use crate::base_content;
 
 /// The built-in builders, the deterministic RON serializer they are written
 /// through, and [`content_files`] - the file-by-file view `gen` writes and the
@@ -28,21 +28,13 @@ pub mod prelude {
     };
 }
 
-/// The skybox cubemap asset path (matches `GameAssets::cubemap`).
-const CUBEMAP_PATH: &str = "self://textures/cubemap.png";
-/// Broadside's deep-field sky: the alt cubemap, so chapter two reads as
-/// a different place than the trainer belt.
-const CUBEMAP_ALT_PATH: &str = "self://textures/cubemap_alt.png";
-/// The asteroid texture asset path (matches `GameAssets::asteroid_texture`).
-const ASTEROID_TEXTURE_PATH: &str = "self://textures/asteroid.png";
-
 /// The section-prototype catalog built from PATH-based mesh refs - the source
 /// the content parity test wraps as `Content::Section` items and serializes
 /// into `assets/base/sections/base.content.ron` (production loads that file
 /// via the base bundle and routes its items into `GameSections` via
 /// `register_bundles`).
 pub fn build_section_catalog() -> Vec<SectionConfig> {
-    build_sections(&SectionMeshRefs::from_paths())
+    base_content::build().sections
 }
 
 /// Build the built-in configs with path-based asset refs, in a stable
@@ -50,33 +42,7 @@ pub fn build_section_catalog() -> Vec<SectionConfig> {
 /// ships now reference the section catalog by prototype id, so the scenario
 /// generators no longer need the resolved `GameSections`.
 pub fn build_scenarios() -> Vec<ScenarioConfig> {
-    let cubemap = || AssetRef::from(CUBEMAP_PATH.to_string());
-    let texture = || AssetRef::from(ASTEROID_TEXTURE_PATH.to_string());
-
-    vec![
-        crate::scenario::asteroid_next(cubemap()),
-        crate::scenario::asteroid_field(cubemap(), texture()),
-        crate::scenario::menu::menu_ambience(cubemap(), texture()),
-        crate::scenario::menu::menu_waystation(cubemap(), texture()),
-        crate::scenario::menu::menu_scrapyard(cubemap(), texture()),
-        crate::scenario::shakedown::shakedown_run(cubemap(), texture()),
-        crate::scenario::broadside::broadside(
-            AssetRef::from(CUBEMAP_ALT_PATH.to_string()),
-            texture(),
-        ),
-        crate::scenario::broadside::broadside_gunship(
-            AssetRef::from(CUBEMAP_ALT_PATH.to_string()),
-            texture(),
-        ),
-        crate::scenario::lifeline::lifeline(
-            AssetRef::from(CUBEMAP_ALT_PATH.to_string()),
-            texture(),
-        ),
-        crate::scenario::final_tally::final_tally(
-            AssetRef::from(CUBEMAP_ALT_PATH.to_string()),
-            texture(),
-        ),
-    ]
+    base_content::build().scenarios
 }
 
 /// The base game's campaigns, in a stable order. Today just "Nova Protocol",
@@ -86,17 +52,7 @@ pub fn build_scenarios() -> Vec<ScenarioConfig> {
 /// replay under the campaign header. The member ids reference the scenario-id
 /// constants so a scenario rename cannot silently orphan a member.
 pub fn build_campaigns() -> Vec<CampaignConfig> {
-    vec![CampaignConfig {
-        id: "nova_protocol".to_string(),
-        name: "Nova Protocol".to_string(),
-        scenarios: vec![
-            crate::scenario::shakedown::SHAKEDOWN_SCENARIO_ID.to_string(),
-            crate::scenario::broadside::BROADSIDE_SCENARIO_ID.to_string(),
-            crate::scenario::broadside::BROADSIDE_GUNSHIP_SCENARIO_ID.to_string(),
-            crate::scenario::lifeline::LIFELINE_SCENARIO_ID.to_string(),
-            crate::scenario::final_tally::FINAL_TALLY_SCENARIO_ID.to_string(),
-        ],
-    }]
+    base_content::build().campaigns
 }
 
 /// The section catalog wrapped as one `Vec<Content>` of `Content::Section`
