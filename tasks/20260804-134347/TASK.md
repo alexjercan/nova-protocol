@@ -1,8 +1,8 @@
 # Cover the NOVA OS computer end to end in systems/
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog,examples,testing,ui
+- PRIORITY: 85
+- TAGS: v0.11.0,examples,testing,ui,nova-os
 
 ## Story
 
@@ -41,16 +41,15 @@ is assertions.
 ## Definition of Done
 
 - The run opens the computer and proves a click reaches the offscreen subtree.
-  (cmd: `nix develop --command cargo run -p nova_probe -- run systems`)
-- The example is smoked with its category.
-  (test: `systems_reach_playing_without_panic`)
+  (cmd: `nix develop --command cargo run --features debug -- probe run systems --correctness-only`)
+- The example is included in the catalog and the systems aggregate.
 
 ## Notes
 
-- Needs `20260804-093934` first: it establishes `examples/systems/` and its
-  smoke list.
-- The pointer vocabulary (`click_named`, `hover_named`, `ui_node_centre`) is
-  built by `20260804-094021` - do not write a fourth copy of `button_by_name`.
+- `20260804-093934` established `examples/systems/` and is closed.
+- The pointer vocabulary (`click_named`, `hover_named`, `ui_node_centre`) was
+  built by closed task `20260804-094021` - do not write another copy of
+  `button_by_name`.
 - The forwarded pointer is `nova_os_pointer_id()`; the mapping from screen to
   image UV is `nova_os_crt_screen_to_image_uv` and it is already unit-tested
   against the shader. The live claim is that the whole chain works at once.

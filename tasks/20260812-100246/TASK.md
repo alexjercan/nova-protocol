@@ -1,14 +1,19 @@
 # Spike: ship building from parts instead of cubes (design + prototype)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,spike,art,editor
+- TAGS: v0.10.0,spike,art,editor
 
 Goal: design and prototype the transition from cube-section ships ("blocks")
 to piece-based ships ("parts"), like the Fertile Soil Spaceship Blocks
 Collection. Users should eventually build ships in the editor from parts
 (fuselage, wings, cockpits, thrusters, weapons) instead of 1-unit cubes.
 Better silhouettes, better colliders.
+
+Closed after the spike verdict and prototype were consumed. v0.10.0 shipped the
+authoritative link-point graph (`20260812-130953`) and semantic Racer/Cargo
+migration (`20260812-131842`). Remaining editor snapping is narrowed into
+`20260812-131005`; this spike no longer owns implementation.
 
 Context:
 - Today: ships = root + section children on a 1-unit grid; visuals come from

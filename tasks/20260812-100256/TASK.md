@@ -1,12 +1,19 @@
 # Spike: art research round 2 - planet/asteroid textures + scene props
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,spike,art,content
+- TAGS: v0.10.0,spike,art,content
 
 Goal: continue the 2026-08-12 art research with acquisition and evaluation.
 Focus: nicer planet and asteroid textures and nicer-looking objects around
 the scene. Skyboxes are covered (space-3d output is good, keep it).
+
+Closed as complete. `SPIKE.md` records rounds 1-3 and the ordered escalation
+plan, `ASSETS.md` records inspected candidates and licenses, and
+`DESIGN-round3.md` resolves the planet, triplanar asteroid, carving, and scene
+prop directions. The `compare_asteroids` and `compare_planets` examples retain
+the in-engine evidence. Follow-up implementation must be scheduled from the
+round-3 escalation plan rather than reopening this research task.
 
 Context:
 - Current environment art: ONE asteroid texture (assets/base/textures/

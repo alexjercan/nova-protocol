@@ -1,8 +1,8 @@
 # Synthesize wheel scroll in nova_autopilot so driven runs can reach a row past the fold
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog
+- PRIORITY: 94
+- TAGS: v0.11.0,autopilot,testing,ui
 
 ## Story
 
