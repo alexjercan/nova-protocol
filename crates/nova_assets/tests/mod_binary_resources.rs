@@ -399,6 +399,7 @@ fn a_nested_dep_ref_is_rewritten() {
                             health: 50.0,
                             mass: None,
                             invulnerable: false,
+                            seed: None,
                             lock_signature: None,
                         )),
                     )),

@@ -25,6 +25,7 @@ pub(super) fn backdrop_planetoid(
             health: 2000.0,
             mass: Some(mass),
             invulnerable: true,
+            seed: None,
             lock_signature: None,
         }),
     }

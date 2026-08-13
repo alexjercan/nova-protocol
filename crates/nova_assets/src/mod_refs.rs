@@ -410,6 +410,7 @@ mod tests {
                                 health: 50.0,
                                 mass: None,
                                 invulnerable: false,
+                                seed: None,
                                 lock_signature: None,
                             )),
                         )),

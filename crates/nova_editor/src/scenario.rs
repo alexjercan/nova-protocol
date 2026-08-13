@@ -76,6 +76,7 @@ fn sandbox_objects(
                 health: 100.0,
                 mass: None,
                 invulnerable: false,
+                seed: None,
                 lock_signature: None,
             }),
         });
@@ -102,6 +103,7 @@ fn sandbox_objects(
             health: 100.0,
             mass: Some(300_000.0),
             invulnerable: true,
+            seed: None,
             lock_signature: None,
         }),
     });

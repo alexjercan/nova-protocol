@@ -62,7 +62,7 @@ declarative asteroid-field primitive. Copy `i` gets id `"{id_prefix}{i}"`.
 |---|---|---|---|
 | `id_prefix` | string | required | id prefix for the copies (a filter id starting with this prefix lints clean) |
 | `count` | integer | required | copies; runtime cap 4096, absurd counts are a lint Error |
-| `seed` | integer | required | RNG seed - the same seed gives the same layout every load |
+| `seed` | integer | required | RNG seed - the same seed gives the same layout every load. Asteroid templates without an authored `seed` also get deterministic per-rock silhouette seeds derived from it, so the field's shapes are stable too |
 | `region` | region | required | sampling volume (below) |
 | `template` | object config | required | the object each copy clones (any kind; same `base`/`kind` shape as `SpawnScenarioObject`) |
 | `asteroid_radius` | `Option` (lo, hi) | `None` | Asteroid templates only: randomize each rock's radius in `[lo, hi)` |

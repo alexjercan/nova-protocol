@@ -76,6 +76,7 @@ pub(crate) fn menu_waystation(
                 health: 100.0,
                 mass: None,
                 invulnerable: false,
+                seed: None,
                 lock_signature: None,
             }),
         },

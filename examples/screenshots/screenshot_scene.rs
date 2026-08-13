@@ -210,6 +210,7 @@ fn planetoid(game_assets: &GameAssets) -> EventActionConfig {
             destroy_sound: None,
             mass: Some(PLANETOID_MASS),
             invulnerable: true,
+            seed: None,
             lock_signature: None,
         }),
     })

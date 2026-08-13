@@ -20,6 +20,13 @@ tagged **(breaking)**.
   of persisting until scenario teardown, so long-lived scenes no longer
   accumulate physics bodies.
 
+### Scenarios & Objectives
+
+- Asteroids gain an optional `seed` pinning the generated silhouette (and the
+  derived geometric radius) across runs; `ScatterObjects` fills it
+  deterministically from the scatter seed, so authored fields keep the same
+  shapes every load.
+
 ### Internals & Tooling
 
 - Built-in authoring content now has an explicit `base_content` inventory grouped into Nova Protocol chapters, private main-menu backdrops, sandboxes, standard section prototypes, and per-craft semantic parts; generated RON is unchanged.

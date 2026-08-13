@@ -496,8 +496,10 @@ asteroid alone opts into `Dynamic` + `TransformInterpolation`.
   the distance where that decays to `GravitySettings::soi_cutoff_accel` - so
   author it by the SOI you want, `mu = soi_cutoff_accel * soi^2`),
   `invulnerable` (no health node, so its gravity well cannot die),
-  `lock_signature` override, and optional per-spawn `impact_sound` /
-  `destroy_sound` (`Some("dep://base/sounds/impact.wav")` / `explosion.wav`) so
+  `lock_signature` override, an optional `seed` pinning the noise silhouette
+  (and so the derived `BodyRadius`) across runs, and optional per-spawn
+  `impact_sound` / `destroy_sound`
+  (`Some("dep://base/sounds/impact.wav")` / `explosion.wav`) so
   a scenario rock can carry its own hit and death audio, the same surface a
   section's `base` block exposes. Spawned ship sections take the same two
   fields; see [Ship sections for mods](../../modding/sections/).

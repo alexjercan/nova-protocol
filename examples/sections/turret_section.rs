@@ -354,6 +354,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
             health,
             mass: None,
             invulnerable: false,
+            seed: None,
             lock_signature: None,
         }),
     };
@@ -395,6 +396,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
                 health: INDESTRUCTIBLE_HEALTH,
                 mass: Some(30_000.0),
                 invulnerable: false,
+                seed: None,
                 lock_signature: None,
             }),
         },

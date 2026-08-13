@@ -309,8 +309,14 @@ impl ScatterObjectsConfig {
 
 impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
     fn action(&self, world: &mut NovaEventWorld, info: &GameEventInfo) {
-        use rand::{RngExt, SeedableRng};
+        use rand::{Rng, RngExt, SeedableRng};
         let mut rng = rand::rngs::StdRng::seed_from_u64(self.seed);
+        // Per-rock silhouette seeds come from a SEPARATE stream: drawing them
+        // from the position RNG would shift every layout authored before
+        // silhouettes became deterministic. The salt only decorrelates the two
+        // streams; any fixed value works.
+        const SILHOUETTE_SALT: u64 = 0x51E0_0E77_E5EE_D000;
+        let mut silhouette_rng = rand::rngs::StdRng::seed_from_u64(self.seed ^ SILHOUETTE_SALT);
         // NOTE: always the authored count, never thinned by a graphics-quality
         // tier - scatter is gameplay content (asteroid / debris fields).
         // Bounded, though: `count` is an unvalidated authored u32 driving a
@@ -334,6 +340,14 @@ impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
             let mut object = self.template.clone();
             object.base.id = format!("{}{}", self.id_prefix, i);
             object.base.name = format!("{} {}", self.template.base.name, i);
+            // Drawn per index, before the drop check, so copy N keeps its
+            // silhouette even when an earlier copy is dropped by separation.
+            let silhouette_seed = silhouette_rng.next_u32();
+            if let ScenarioObjectKind::Asteroid(asteroid) = &mut object.kind {
+                // An authored template seed means "every copy identical" and
+                // is kept; the default is a stable per-rock silhouette.
+                asteroid.seed = asteroid.seed.or(Some(silhouette_seed));
+            }
             let Some(position) = self.sample_clear_of(&placed, &mut rng) else {
                 debug!(
                     "ScatterObjects: dropped '{}{}' - no position clearing the \
@@ -524,6 +538,7 @@ mod tests {
                     health: 100.0,
                     mass: None,
                     invulnerable: false,
+                    seed: None,
                     lock_signature: None,
                 }),
                 Collider::cuboid(1.0, 1.0, 1.0),
@@ -866,6 +881,7 @@ mod tests {
                     health: 100.0,
                     mass: None,
                     invulnerable: false,
+                    seed: None,
                     lock_signature: None,
                 }),
             },
@@ -933,6 +949,7 @@ mod tests {
                     health: 100.0,
                     mass: None,
                     invulnerable: false,
+                    seed: None,
                     lock_signature: None,
                 }),
             },
@@ -982,6 +999,85 @@ mod tests {
         assert_eq!(ids.len(), 8, "scattered ids are unique (no collision)");
     }
 
+    /// Scatter fills each rock's silhouette seed deterministically from its
+    /// own authored seed: the same action produces the same id -> seed map on
+    /// every load, and an authored template seed (every copy identical) is
+    /// kept. The seeds come from a stream SEPARATE from position sampling, so
+    /// enabling them cannot shift layouts authored before the field existed.
+    #[test]
+    fn scatter_assigns_deterministic_silhouette_seeds() {
+        let config = |template_seed: Option<u32>| ScatterObjectsConfig {
+            id_prefix: "rock_".to_string(),
+            count: 6,
+            seed: 123,
+            region: ScatterRegion::Box {
+                min: Vec3::new(-10.0, -5.0, -10.0),
+                max: Vec3::new(10.0, 5.0, 10.0),
+            },
+            template: ScenarioObjectConfig {
+                base: BaseScenarioObjectConfig {
+                    id: "rock".to_string(),
+                    name: "Rock".to_string(),
+                    position: Vec3::ZERO,
+                    rotation: Quat::IDENTITY,
+                },
+                kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                    impact_sound: None,
+                    destroy_sound: None,
+                    radius: 2.0,
+                    texture: nova_gameplay::prelude::AssetRef::default(),
+                    health: 100.0,
+                    mass: None,
+                    invulnerable: false,
+                    seed: template_seed,
+                    lock_signature: None,
+                }),
+            },
+            asteroid_radius: None,
+            min_separation: None,
+        };
+
+        let run = |config: &ScatterObjectsConfig| -> Vec<(String, Option<u32>)> {
+            let mut world = World::new();
+            world.init_resource::<NovaEventWorld>();
+            world.init_resource::<GameObjectives>();
+            {
+                let mut event_world = world.resource_mut::<NovaEventWorld>();
+                config.action(&mut event_world, &GameEventInfo::default());
+            }
+            NovaEventWorld::state_to_world_system(&mut world);
+            let mut query =
+                world.query_filtered::<(&EntityId, &AsteroidSeed), With<AsteroidMarker>>();
+            let mut seeds: Vec<(String, Option<u32>)> = query
+                .iter(&world)
+                .map(|(id, seed)| (id.0.clone(), **seed))
+                .collect();
+            seeds.sort();
+            seeds
+        };
+
+        let derived = config(None);
+        let first = run(&derived);
+        assert_eq!(first.len(), 6);
+        assert!(
+            first.iter().all(|(_, seed)| seed.is_some()),
+            "every scattered rock gets a silhouette seed: {first:?}"
+        );
+        let distinct: std::collections::HashSet<_> =
+            first.iter().map(|(_, seed)| seed.unwrap()).collect();
+        assert!(
+            distinct.len() > 1,
+            "per-rock seeds differ; identical copies are the AUTHORED case"
+        );
+        assert_eq!(first, run(&derived), "the id -> seed map is reproducible");
+
+        let authored = run(&config(Some(42)));
+        assert!(
+            authored.iter().all(|(_, seed)| *seed == Some(42)),
+            "an authored template seed is kept on every copy: {authored:?}"
+        );
+    }
+
     /// Scatter is gameplay content, so it spawns the full authored count on
     /// EVERY graphics tier. Regression: even with the cheapest (Low)
     /// [`GraphicsBudget`] inserted and carried into the event world, the field
@@ -1015,6 +1111,7 @@ mod tests {
                     health: 100.0,
                     mass: None,
                     invulnerable: false,
+                    seed: None,
                     lock_signature: None,
                 }),
             },

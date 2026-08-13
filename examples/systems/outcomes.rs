@@ -270,6 +270,7 @@ fn outcome_probe_a(game_assets: &GameAssets, sections: &GameSections) -> Scenari
                         health: 60.0,
                         mass: None,
                         invulnerable: false,
+                        seed: None,
                         lock_signature: Some(1000.0),
                     }),
                 }),

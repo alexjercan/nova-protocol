@@ -21,9 +21,9 @@ use rand::Rng;
 pub mod prelude {
     pub use super::{
         asteroid_scenario_object, AsteroidConfig, AsteroidInvulnerable, AsteroidMarker,
-        AsteroidMass, AsteroidPlugin, AsteroidRadius, AsteroidRenderMesh, AsteroidTexture,
-        PlanetHeight, ASTEROID_GEOMETRIC_FACTOR_MAX, ASTEROID_GEOMETRIC_FACTOR_MIN,
-        ASTEROID_TYPE_NAME,
+        AsteroidMass, AsteroidPlugin, AsteroidRadius, AsteroidRenderMesh, AsteroidSeed,
+        AsteroidTexture, PlanetHeight, ASTEROID_GEOMETRIC_FACTOR_MAX,
+        ASTEROID_GEOMETRIC_FACTOR_MIN, ASTEROID_TYPE_NAME,
     };
 }
 
@@ -89,6 +89,18 @@ pub struct AsteroidConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub lock_signature: Option<f32>,
+    /// Silhouette seed for the noise mesh. `Some` pins the generated shape -
+    /// and with it the derived geometric `BodyRadius` - across runs, so
+    /// content that authors clearances around this rock (patrol lanes, orbit
+    /// gates) holds on every load. `None` draws from the global RNG: a fresh
+    /// silhouette per spawn. `ScatterObjects` fills this deterministically
+    /// from its own seed, so scattered fields are stable without authoring
+    /// per-rock seeds.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub seed: Option<u32>,
 }
 
 /// Build the asteroid-root bundle from an [`AsteroidConfig`]: the marker, type
@@ -109,6 +121,7 @@ pub fn asteroid_scenario_object(config: AsteroidConfig) -> impl Bundle {
         },
         AsteroidInvulnerable(config.invulnerable),
         AsteroidMass(config.mass),
+        AsteroidSeed(config.seed),
         // The lock scanner sees a rock in proportion to its size: field
         // rocks only lock up close, big bodies from afar (well sources
         // are range-free in the targeting gate anyway). An authored
@@ -171,6 +184,11 @@ pub struct AsteroidInvulnerable(pub bool);
 /// when the asteroid spawns.
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct AsteroidMass(pub Option<f32>);
+
+/// The authored silhouette seed (see [`AsteroidConfig::seed`]), carried on the
+/// root; `insert_asteroid_collider` uses it in place of the global RNG.
+#[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
+pub struct AsteroidSeed(pub Option<u32>);
 
 /// Marks an asteroid root whose collider/health node has been destroyed, so its
 /// now-empty `RigidBody` husk is despawned next frame (see `despawn_asteroid_husk`).
@@ -307,7 +325,12 @@ fn insert_asteroid_collider(
     add: On<Add, AsteroidMarker>,
     mut commands: Commands,
     q_asteroid: Query<
-        (&AsteroidRadius, &AsteroidHealth, &AsteroidInvulnerable),
+        (
+            &AsteroidRadius,
+            &AsteroidHealth,
+            &AsteroidInvulnerable,
+            &AsteroidSeed,
+        ),
         With<AsteroidMarker>,
     >,
     mut rng: Single<&mut WyRand, With<GlobalRng>>,
@@ -315,7 +338,7 @@ fn insert_asteroid_collider(
     let entity = add.entity;
     trace!("insert_asteroid_render: entity {:?}", entity);
 
-    let Ok((radius, health, invulnerable)) = q_asteroid.get(entity) else {
+    let Ok((radius, health, invulnerable, seed)) = q_asteroid.get(entity) else {
         error!(
             "insert_asteroid_render: entity {:?} not found in q_asteroid",
             entity
@@ -323,7 +346,8 @@ fn insert_asteroid_collider(
         return;
     };
 
-    let planet = PlanetHeight::default().with_seed(rng.next_u32());
+    let seed = (**seed).unwrap_or_else(|| rng.next_u32());
+    let planet = PlanetHeight::default().with_seed(seed);
     let mesh = TriangleMeshBuilder::new_octahedron(3)
         .apply_noise(&planet)
         .build();
@@ -872,6 +896,51 @@ mod tests {
     }
 
     #[test]
+    fn an_authored_seed_pins_the_silhouette() {
+        // Same seed, same rock: the derived geometric BodyRadius is what
+        // authored clearances (patrol lanes, orbit gates) are measured
+        // against, so it must not drift run to run. The global RNG advances
+        // between the two spawns; a seeded rock must not care.
+        let mut app = App::new();
+        app.add_plugins(EntropyPlugin::<WyRand>::default());
+        app.add_observer(insert_asteroid_collider);
+        app.update();
+
+        let spawn_seeded = |app: &mut App| -> Entity {
+            app.world_mut()
+                .spawn(asteroid_scenario_object(AsteroidConfig {
+                    impact_sound: None,
+                    destroy_sound: None,
+                    radius: 10.0,
+                    texture: AssetRef::default(),
+                    health: 100.0,
+                    mass: None,
+                    invulnerable: false,
+                    seed: Some(7),
+                    lock_signature: None,
+                }))
+                .id()
+        };
+        let first = spawn_seeded(&mut app);
+        // An unseeded rock in between advances the global RNG stream.
+        spawn_asteroid(&mut app, 10.0, None);
+        let second = spawn_seeded(&mut app);
+        app.update();
+
+        let radius_of = |app: &App, entity: Entity| -> f32 {
+            app.world()
+                .get::<BodyRadius>(entity)
+                .map(|r| **r)
+                .expect("derived BodyRadius")
+        };
+        assert_eq!(
+            radius_of(&app, first),
+            radius_of(&app, second),
+            "one seed, one silhouette, regardless of the global RNG"
+        );
+    }
+
+    #[test]
     fn the_well_derives_from_the_geometric_radius() {
         // The full observer chain: the collider observer derives
         // BodyRadius from the mesh, and the well observer (triggered by
@@ -931,6 +1000,7 @@ mod tests {
                     health: 2000.0,
                     mass: Some(45_000.0),
                     invulnerable,
+                    seed: None,
                     lock_signature: None,
                 }))
                 .id()
@@ -974,6 +1044,7 @@ mod tests {
                 health: 100.0,
                 mass,
                 invulnerable: false,
+                seed: None,
                 lock_signature: None,
             }))
             .id()
@@ -1002,6 +1073,7 @@ mod tests {
                     health: 100.0,
                     mass,
                     invulnerable: false,
+                    seed: None,
                     lock_signature: None,
                 }),
                 // In the real pipeline the collider observer derives this

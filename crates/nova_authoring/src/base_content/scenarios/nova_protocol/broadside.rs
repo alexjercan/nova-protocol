@@ -257,6 +257,7 @@ fn cover_scatter(asteroid_texture: &AssetRef<Image>) -> EventActionConfig {
                 health: 100.0,
                 mass: None,
                 invulnerable: false,
+                seed: None,
                 lock_signature: None,
             }),
         },
@@ -290,6 +291,7 @@ fn hard_cover(asteroid_texture: &AssetRef<Image>) -> Vec<ScenarioObjectConfig> {
             health: 1000.0,
             mass: None,
             invulnerable: true,
+            seed: None,
             lock_signature: None,
         }),
     };

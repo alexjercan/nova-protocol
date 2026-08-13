@@ -423,6 +423,7 @@ fn derelict(asteroid_texture: AssetRef<Image>) -> ScenarioObjectConfig {
             health: DERELICT_HEALTH,
             mass: None,
             invulnerable: false,
+            seed: None,
             lock_signature: Some(DERELICT_LOCK_SIGNATURE),
         }),
     }
@@ -566,6 +567,7 @@ fn belt_rock(
             health: 100.0,
             mass: None,
             invulnerable: false,
+            seed: None,
             lock_signature: None,
         }),
     }
@@ -648,6 +650,7 @@ pub(crate) fn shakedown_run(
             health: 2000.0,
             mass: Some(PLANETOID_MASS),
             invulnerable: true,
+            seed: None,
             lock_signature: None,
         }),
     });
@@ -667,6 +670,7 @@ pub(crate) fn shakedown_run(
                 health: 100.0,
                 mass: None,
                 invulnerable: false,
+                seed: None,
                 lock_signature: None,
             }),
         });

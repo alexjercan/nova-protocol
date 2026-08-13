@@ -112,6 +112,7 @@ pub fn asteroid(
             health,
             mass: None,
             invulnerable: false,
+            seed: None,
             lock_signature,
         }),
     }

@@ -167,6 +167,7 @@ impl NearField {
                     // over a capture run.
                     mass: None,
                     invulnerable: false,
+                    seed: None,
                     lock_signature: None,
                 }),
             },

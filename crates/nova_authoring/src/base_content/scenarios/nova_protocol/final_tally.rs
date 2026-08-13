@@ -183,6 +183,7 @@ fn claim_anchor(asteroid_texture: &AssetRef<Image>) -> ScenarioObjectConfig {
             health: 2000.0,
             mass: Some(45_000.0),
             invulnerable: true,
+            seed: None,
             lock_signature: None,
         }),
     }
@@ -214,6 +215,7 @@ fn anchorage_wreck(
             health: 1000.0,
             mass: None,
             invulnerable: true,
+            seed: None,
             lock_signature,
         }),
     }
@@ -314,6 +316,7 @@ fn claim_belt(asteroid_texture: &AssetRef<Image>) -> EventActionConfig {
                 health: 100.0,
                 mass: None,
                 invulnerable: false,
+                seed: None,
                 lock_signature: None,
             }),
         },

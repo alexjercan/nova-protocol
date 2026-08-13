@@ -37,6 +37,7 @@ pub(crate) fn asteroid_field(
                 health: 100.0,
                 mass: None,
                 invulnerable: false,
+                seed: None,
                 lock_signature: None,
             }),
         },
@@ -68,6 +69,7 @@ pub(crate) fn asteroid_field(
             health: 2000.0,
             mass: Some(45_000.0),
             invulnerable: true,
+            seed: None,
             lock_signature: None,
         }),
     });
