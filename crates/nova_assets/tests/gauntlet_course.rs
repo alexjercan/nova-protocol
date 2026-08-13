@@ -391,21 +391,19 @@ fn on_start_stages_the_course() {
         .collect();
     assert!(seeds.contains(&"gate"), "OnStart seeds the gate counter");
 
-    // The player flies the racer (base craft-ships-into-base prototypes): its
-    // many hull cubes give the crash tolerance the course needs (run-and-fail,
-    // not one-touch death).
+    // The player flies the complete semantic-parts racer.
     let player = spawn_by_id(start, "player_spaceship");
     let ScenarioObjectKind::Spaceship(ship) = &player.kind else {
         panic!("player is a spaceship");
     };
-    let racer_cubes = ship
+    let racer_parts = ship
         .sections
         .iter()
         .filter(|s| matches!(&s.source, SectionSource::Prototype(p) if p.starts_with("racer_")))
         .count();
     assert!(
-        racer_cubes >= 10,
-        "the player flies the racer (got {racer_cubes} racer cubes)"
+        racer_parts == 9,
+        "the player flies the nine-section racer (got {racer_parts} parts)"
     );
 
     // The gravity well is an authored well (mass), invulnerable so it

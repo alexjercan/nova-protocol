@@ -3,6 +3,11 @@
 All notable changes to the Gauntlet Run mod. Versions are the `meta.version`
 in `gauntlet.bundle.ron`; the portal keeps every published version.
 
+## 1.8.0
+
+- Migrates the player ship from removed coordinate-named cube sections to the
+  base game's semantic Racer parts.
+
 ## 1.7.0
 
 - Declares a typed `Scenario(Elapsed)` watch for the run timer. Required by the

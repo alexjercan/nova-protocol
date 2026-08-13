@@ -138,7 +138,7 @@ than complete flyable ships. Copy the full player or AI section list from
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `input_mapping` | map | `{}` | per-SECTION bindings, keyed by section id: `{ "cube_i1_j0_km1": [ Mouse(Left) ] }`. Values are `Keyboard(<KeyCode>)` / `Mouse(<MouseButton>)` / `Gamepad(<GamepadButton>)` - modifier-free buttons only |
+| `input_mapping` | map | `{}` | per-SECTION bindings, keyed by section id: `{ "turret_port": [ Mouse(Left) ] }`. Values are `Keyboard(<KeyCode>)` / `Mouse(<MouseButton>)` / `Gamepad(<GamepadButton>)` - modifier-free buttons only |
 | `speed_cap` | `Option` number | `None` | soft manual-speed cap in u/s (the Shakedown starts at `Some(25.0)`); `None` = unbounded. Runtime mirror: [`SetSpeedCap`](../actions/#setspeedcap) |
 | `infinite_ammo` | bool | required in shipped RON | weapons built without magazines - never run dry |
 
@@ -163,13 +163,13 @@ still hurts it). Runtime flip:
 
 ### The sections list
 
-Each entry places one section on the ship's unit-cube grid:
+Each entry places one section in continuous ship-root space:
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `id` | string | required | scenario-LOCAL section id; keys `input_mapping` (shipped ships use bare stems like `"cube_i1_j0_km1"`) |
-| `position` | 3-tuple | required | offset from the ship root; cell centres sit 1.0 apart |
-| `rotation` | 4-tuple | required | rotation relative to the root; turret/torpedo mounts need the quarter-turn that seats their base (local -Y) against an occupied neighbor cell |
+| `id` | string | required | scenario-local section id; keys `input_mapping` (shipped ships use semantic ids such as `"turret_port"`) |
+| `position` | 3-tuple | required | continuous offset from the ship root |
+| `rotation` | 4-tuple | required | rotation relative to the root; structural link points rotate with the section |
 | `source` | source | required | `Prototype("<id>")` - a [catalog id](../base-content/#section-prototypes), the compact reusable form - or `Inline((..))` with a full section config ([Ship sections for mods](../sections/)) |
 | `modifications` | list | `[]` | spawn-time deltas (below) |
 
@@ -182,14 +182,15 @@ Section modifications - closed, data-only deltas applied at spawn:
 | `Rename(<string>)` | new name | rename the section entity |
 
 ```ron
-(id: "controller", position: (0.0, 1.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0),
- source: Prototype("racer_cube_i0_j1_k0"),
+(id: "fuselage", position: (0.0, 0.7, 0.1), rotation: (0.0, 0.0, 0.0, 1.0),
+ source: Prototype("racer_fuselage"),
  modifications: [ DisableVerb(Goto), DisableVerb(Orbit) ]),
 ```
 
-Ship-section GEOMETRY is linted: overlapping cells and a mount whose base
-points at empty space are Errors. The full grid-and-mount rules are in the
-[scenario guide's sharp edges](../author-a-scenario/#9-common-mistakes).
+Ship structure is linted from authoritative link-point mates. A multi-section
+ship must form one graph. Collider AABB overlap is an Error unless the two
+sections directly mate, which permits intentional interlocking parts while
+still catching accidental embedding.
 
 ## Beacon
 

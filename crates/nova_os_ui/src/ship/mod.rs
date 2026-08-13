@@ -6,7 +6,7 @@
 //! <id>` / `ship repair <id>` act on a section. Every section is addressed by a
 //! short [`SectionCode`] (`HULL-3`, `PDC-1`, `TRB-1`), assigned stably per session
 //! from the section kind + a stable index - the real ships use auto grid-coord
-//! `EntityId`s (`cube_i0_j0_k0`) that are unique but unreadable, so the code is the
+//! `EntityId`s (`engine_port`, `fuselage`) that can be long, so the code is the
 //! human/CLI/label handle.
 //!
 //! The viewer follows the `map` app pattern: a dedicated [`Camera3d`] on its own

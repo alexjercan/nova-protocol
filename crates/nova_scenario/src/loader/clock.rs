@@ -535,8 +535,8 @@ mod tests {
             .id();
         // Section ids are local to a ship and commonly repeat. They have no
         // LinearVelocity and must not enter strict entity-speed matching.
-        app.world_mut().spawn(EntityId::new("cube_i0_j0_k1"));
-        app.world_mut().spawn(EntityId::new("cube_i0_j0_k1"));
+        app.world_mut().spawn(EntityId::new("engine_port"));
+        app.world_mut().spawn(EntityId::new("engine_port"));
 
         app.update();
         assert_eq!(

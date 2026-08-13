@@ -17,6 +17,7 @@ tagged **(breaking)**.
 ### Ships & Sections
 
 - **(breaking)** Ship integrity now uses explicit section link-point mates. Collider contact and one-unit center spacing no longer create structural edges; multi-section mods must author one connected link-point graph. NOVA OS toggles a `MATES` structure overlay with `G`.
+- **(breaking)** Racer, CargoA, and CargoB now use semantic parts such as `fuselage`, `engine_port`, and `turret_starboard`. Coordinate-named cube prototypes and meshes are removed; bundled mods use the new ids.
 
 ### Scenarios & Objectives
 

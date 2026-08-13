@@ -3,6 +3,11 @@
 All notable changes to The Ledger campaign mod. Versions are the `meta.version`
 in `the-ledger.bundle.ron`; the portal keeps every published version.
 
+## 1.21.0
+
+- Migrates every Racer, CargoA, and CargoB ship from removed coordinate-named
+  cube sections to semantic base-game parts and section IDs.
+
 ## 1.20.0
 
 - Declares typed watches for scenario elapsed time and the chapter-three

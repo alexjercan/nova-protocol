@@ -31,9 +31,8 @@ pub(super) fn check_object_prototypes(
                 }
             }
         }
-        check_section_overlaps(config.base.id.as_str(), ship, scenario, issues);
+        check_section_overlaps(config.base.id.as_str(), ship, scenario, sections, issues);
         check_link_point_graph(config.base.id.as_str(), ship, scenario, sections, issues);
-        check_mount_adjacency(config.base.id.as_str(), ship, scenario, sections, issues);
         // Inline section configs a scenario writes directly (a Prototype ref
         // resolves to a catalog section, which is linted where the catalog is
         // walked - lint_bundle - so it is not re-linted here).
@@ -319,126 +318,82 @@ fn resolved_link_point<'a>(
     &points[reference.link_point_index]
 }
 
-/// Two sections of one ship OVERLAP - clip visually and double up their
-/// colliders in the same space - iff their axis-aligned collider boxes
-/// interpenetrate: centers strictly closer than the sum of their half-extents
-/// on EVERY axis. For the default unit-cube sections (half-extent 0.5 each)
-/// that is the classic "closer than 1.0 on every axis"; authorable colliders
-/// ([`SectionCollider`]) widen or narrow the threshold per section. Flush
-/// contact (distance exactly the half-extent sum on some axis) is the normal
-/// spine/side-mount layout and passes. The check ignores section ROTATION:
-/// exact for the quarter-turn rotations all shipped content uses (a unit cube
-/// is symmetric under them; a non-cube box's AABB is a conservative
-/// over-approximation), conservative-only for exotic angles. Only INLINE
-/// colliders are resolved; a `Prototype` section falls back to the unit cube
-/// (the catalog is not in scope here), matching pre-config behavior. Caught in
-/// the wild by the Auditor's torpedo bay authored at z 0.5, embedded between
-/// two spine sections.
+/// Reject collider AABB interpenetration unless the two sections directly mate.
+///
+/// Tight primitive colliders conservatively overlap where semantic meshes interlock. An
+/// authored mate makes that interface intentional. Unmated overlap still catches accidental
+/// duplicate or embedded parts. Rotation is intentionally ignored, so this remains a
+/// conservative broad-phase authoring check rather than physical narrow-phase geometry.
 fn check_section_overlaps(
-    ship_id: &str,
-    ship: &SpaceshipConfig,
-    scenario: &str,
-    issues: &mut Vec<LintIssue>,
-) {
-    /// AABB half-extents of a section's collider, ignoring rotation. Inline
-    /// sources use their authored collider (unit cube when unset); Prototype
-    /// sources fall back to the unit cube since the catalog is not resolvable
-    /// here.
-    fn half_extents(section: &SpaceshipSectionConfig) -> Vec3 {
-        match &section.source {
-            SectionSource::Inline(config) => {
-                config.base.collider.unwrap_or_default().aabb_half_extents()
-            }
-            SectionSource::Prototype(_) => SectionCollider::default().aabb_half_extents(),
-        }
-    }
-
-    for i in 0..ship.sections.len() {
-        for j in (i + 1)..ship.sections.len() {
-            let (a, b) = (&ship.sections[i], &ship.sections[j]);
-            let d = a.position - b.position;
-            let sum = half_extents(a) + half_extents(b);
-            if d.x.abs() < sum.x && d.y.abs() < sum.y && d.z.abs() < sum.z {
-                issues.push(LintIssue::error(
-                    scenario,
-                    format!(
-                        "ship '{ship_id}': sections '{}' at {:?} and '{}' at {:?} overlap (collider boxes interpenetrate: centers must be >= {:?} apart on some axis)",
-                        a.id, a.position, b.id, b.position, sum
-                    ),
-                ));
-            }
-        }
-    }
-}
-
-/// Mount-base adjacency: a mount section's base face (local -Y) must sit flush
-/// against an occupied neighbor cell - `position + rotation * -Y` lands on a
-/// sibling section's cell. ANY sibling counts, not just hulls (most shipped
-/// ships seat the aft turret's base against the controller cell). All shipped
-/// content rotates sections by quarter-turns, so the base direction is
-/// axis-aligned; a mount with a non-quarter rotation gets a Warn note and is
-/// otherwise skipped (conservative, like the overlap check's rotation caveat).
-/// This check would have caught both shipped wrong-roll bugs at authoring time:
-/// the Auditor bay bottom-down at a flank cell and all four gunship side mounts
-/// with spine-end rolls.
-fn check_mount_adjacency(
     ship_id: &str,
     ship: &SpaceshipConfig,
     scenario: &str,
     sections: &KnownSections,
     issues: &mut Vec<LintIssue>,
 ) {
-    // f32 quat error on authored quarter-turns is ~1e-7 and authored
-    // positions sit on the unit grid; the smallest shipped slip (the
-    // Auditor bay's 0.5-cell offset) is orders above both epsilons.
-    const AXIS_EPS: f32 = 1e-4;
-    const CELL_EPS: f32 = 1e-3;
-    for section in &ship.sections {
-        let is_mount = match &section.source {
-            SectionSource::Inline(config) => KnownSections::kind_mounts(&config.kind),
-            SectionSource::Prototype(proto) => {
-                sections.get(proto).is_some_and(|section| section.mounts)
+    fn resolved<'a>(
+        section: &'a SpaceshipSectionConfig,
+        sections: &'a KnownSections,
+    ) -> Option<(SectionCollider, &'a [nova_ship::prelude::LinkPoint])> {
+        match &section.source {
+            SectionSource::Inline(config) => Some((
+                config.base.collider.unwrap_or_default(),
+                &config.base.link_points,
+            )),
+            SectionSource::Prototype(id) => sections
+                .get(id)
+                .map(|known| (known.collider, known.link_points.as_slice())),
+        }
+    }
+
+    let resolved: Option<Vec<_>> = ship
+        .sections
+        .iter()
+        .map(|section| resolved(section, sections))
+        .collect();
+    let Some(resolved) = resolved else {
+        return;
+    };
+    let placed: Vec<_> = ship
+        .sections
+        .iter()
+        .zip(&resolved)
+        .map(|(section, (_, points))| PlacedSectionLinkPoints {
+            position: section.position,
+            rotation: section.rotation,
+            link_points: points,
+        })
+        .collect();
+    let direct_mates = derive_link_point_graph(&placed)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|mate| {
+            let a = mate.a.section_index.min(mate.b.section_index);
+            let b = mate.a.section_index.max(mate.b.section_index);
+            (a, b)
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+
+    for i in 0..ship.sections.len() {
+        for j in (i + 1)..ship.sections.len() {
+            let (a, b) = (&ship.sections[i], &ship.sections[j]);
+            let d = a.position - b.position;
+            let sum = resolved[i].0.aabb_half_extents() + resolved[j].0.aabb_half_extents();
+            if d.x.abs() < sum.x
+                && d.y.abs() < sum.y
+                && d.z.abs() < sum.z
+                && !direct_mates.contains(&(i, j))
+            {
+                issues.push(LintIssue::error(
+                    scenario,
+                    format!(
+                        "ship '{ship_id}': unmated sections '{}' at {:?} and '{}' at {:?} \
+                         overlap (collider boxes interpenetrate: centers must be >= {:?} apart \
+                         on some axis, or the sections must directly mate)",
+                        a.id, a.position, b.id, b.position, sum
+                    ),
+                ));
             }
-        };
-        if !is_mount {
-            continue;
-        }
-        let base_dir = section.rotation * Vec3::NEG_Y;
-        let snapped = base_dir.round();
-        // A quarter-turn of a UNIT quat sends -Y to a unit axis vector.
-        // Anything else - a free angle, or a non-unit hand-typed quat, for
-        // which `q * v` is not a rotation at all (a sqrt(2)-scaled quarter-turn
-        // yields an INTEGER base direction like (-2, 1, 0) that would pass the
-        // deviation test alone) - is statically uncheckable: note and skip. `snapped` components are exact integers, so the length
-        // comparison is exact.
-        if (base_dir - snapped).abs().max_element() > AXIS_EPS || snapped.length_squared() != 1.0 {
-            issues.push(LintIssue::warn(
-                scenario,
-                format!(
-                    "ship '{ship_id}' section '{}': non-quarter-turn (or non-unit) rotation, \
-                     mount-base adjacency unchecked (base direction {base_dir:?})",
-                    section.id
-                ),
-            ));
-            continue;
-        }
-        // The section can never satisfy itself: the target cell is a full
-        // unit away from its own position.
-        let target = section.position + snapped;
-        let occupied = ship
-            .sections
-            .iter()
-            .any(|other| (other.position - target).abs().max_element() < CELL_EPS);
-        if !occupied {
-            issues.push(LintIssue::error(
-                scenario,
-                format!(
-                    "ship '{ship_id}' section '{}' at {:?}: mount base (rotation * -Y = \
-                     {snapped:?}) points at empty cell {target:?} - a turret/torpedo bay \
-                     must sit base-against an occupied neighbor cell",
-                    section.id, section.position
-                ),
-            ));
         }
     }
 }
@@ -719,11 +674,28 @@ mod tests {
         );
     }
 
-    /// The mount-fixture ship: a hull cell at the origin plus one MOUNT
-    /// prototype at `pos`/`rotation`. Catalog for these tests:
-    /// `sections_with_mounts(&["hull_proto"], &["mount_proto"])`.
-    fn ship_with_mount(pos: Vec3, rotation: Quat) -> EventActionConfig {
-        EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+    /// A two-section fixture used to prove that a direct mate authorizes an
+    /// intentional collider overlap.
+    fn ship_with_mated_overlap() -> (EventActionConfig, KnownSections) {
+        use nova_ship::prelude::{BaseSectionConfig, HullSectionConfig, LinkPoint};
+
+        let section = |id: &str, normal: Vec3| SectionConfig {
+            base: BaseSectionConfig {
+                id: id.to_string(),
+                collider: Some(SectionCollider::Cuboid {
+                    size: Vec3::splat(2.0),
+                }),
+                link_points: vec![LinkPoint {
+                    id: "mate".to_string(),
+                    position: normal * 0.25,
+                    normal,
+                }],
+                ..default()
+            },
+            kind: SectionKind::Hull(HullSectionConfig::default()),
+        };
+        let configs = [section("left", Vec3::X), section("right", Vec3::NEG_X)];
+        let action = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
                 id: "ship".to_string(),
                 name: "ship".to_string(),
@@ -735,177 +707,31 @@ mod tests {
                 allegiance: None,
                 sections: vec![
                     SpaceshipSectionConfig {
-                        id: "hull".to_string(),
+                        id: "left".to_string(),
                         position: Vec3::ZERO,
                         rotation: Quat::IDENTITY,
-                        source: SectionSource::Prototype("hull_proto".to_string()),
+                        source: SectionSource::Prototype("left".to_string()),
                         modifications: vec![],
                     },
                     SpaceshipSectionConfig {
-                        id: "mount".to_string(),
-                        position: pos,
-                        rotation,
-                        source: SectionSource::Prototype("mount_proto".to_string()),
+                        id: "right".to_string(),
+                        position: Vec3::X * 0.5,
+                        rotation: Quat::IDENTITY,
+                        source: SectionSource::Prototype("right".to_string()),
                         modifications: vec![],
                     },
                 ],
             }),
-        })
+        });
+        (action, KnownSections::from_configs(&configs))
     }
 
-    /// every shipped mount-roll shape lints clean - flank mounts with inboard
-    /// Rz rolls, a top mount's identity, and the bow mount's Rx(-90) (base
-    /// against the cell astern of it).
     #[test]
-    fn mount_bases_against_occupied_cells_are_clean() {
-        use std::f32::consts::FRAC_PI_2;
-        let catalog = sections_with_mounts(&["hull_proto"], &["mount_proto"]);
-        for (pos, rotation) in [
-            // Starboard flank, base rolled inboard (-Y -> -X).
-            (Vec3::new(1.0, 0.0, 0.0), Quat::from_rotation_z(-FRAC_PI_2)),
-            // Port flank, the mirror roll (-Y -> +X).
-            (Vec3::new(-1.0, 0.0, 0.0), Quat::from_rotation_z(FRAC_PI_2)),
-            // Top mount, identity: base straight down at the hull.
-            (Vec3::new(0.0, 1.0, 0.0), Quat::IDENTITY),
-            // Bow mount, the player-ship roll: base astern (-Y -> +Z).
-            (Vec3::new(0.0, 0.0, -1.0), Quat::from_rotation_x(-FRAC_PI_2)),
-        ] {
-            let s = scenario(vec![ship_with_mount(pos, rotation)], vec![]);
-            let issues = lint_scenario(&s, &catalog, &known(&["test_scenario"]));
-            assert!(issues.is_empty(), "mount at {pos:?} flagged: {issues:?}");
-        }
-    }
-
-    /// The two shipped wrong-roll shapes are errors: the Auditor bay
-    /// bottom-down on a flank cell and the gunship side mounts with the
-    /// spine-end Rx(-90) roll.
-    #[test]
-    fn mount_base_at_an_empty_cell_is_an_error() {
-        let catalog = sections_with_mounts(&["hull_proto"], &["mount_proto"]);
-        for (pos, rotation) in [
-            (Vec3::new(1.0, 0.0, 0.0), Quat::IDENTITY),
-            (
-                Vec3::new(1.0, 0.0, 0.0),
-                Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-            ),
-        ] {
-            let s = scenario(vec![ship_with_mount(pos, rotation)], vec![]);
-            let issues = lint_scenario(&s, &catalog, &known(&["test_scenario"]));
-            let errs = errors(&issues);
-            assert_eq!(errs.len(), 1, "mount rot {rotation:?}: {issues:?}");
-            assert!(errs[0].message.contains("mount base"), "{issues:?}");
-        }
-    }
-
-    /// A non-quarter-turn - or non-unit (`q * v` is not a rotation for a
-    /// non-unit hand-typed quat, and a sqrt(2)-scaled quarter-turn snaps to an
-    /// integer NON-UNIT direction that the deviation test alone would accept) -
-    /// mount rotation is skipped with a Warn note, never errored: the
-    /// static check cannot reason about either (the same conservative caveat as
-    /// the overlap check's).
-    #[test]
-    fn mount_with_non_quarter_rotation_warns_and_skips() {
-        let catalog = sections_with_mounts(&["hull_proto"], &["mount_proto"]);
-        for rotation in [
-            Quat::from_rotation_z(0.7),
-            // Rz(-90) scaled by sqrt(2): base_dir snaps to (-2, 1, 0).
-            Quat::from_xyzw(0.0, 0.0, -1.0, 1.0),
-        ] {
-            let s = scenario(
-                vec![ship_with_mount(Vec3::new(1.0, 0.0, 0.0), rotation)],
-                vec![],
-            );
-            let issues = lint_scenario(&s, &catalog, &known(&["test_scenario"]));
-            assert!(
-                issues.iter().any(|issue| {
-                    issue.message.contains("disconnected")
-                        || issue.message.contains("must have unit length")
-                }),
-                "the link graph rejects the placement: {issues:?}"
-            );
-            assert!(
-                issues
-                    .iter()
-                    .any(|issue| issue.message.contains("non-quarter")),
-                "{issues:?}"
-            );
-        }
-    }
-
-    /// Occupancy is kind-blind: a mount seated base-against ANOTHER MOUNT's
-    /// cell passes - any sibling section counts, matching the shipped ships
-    /// that seat turrets against the controller cell.
-    #[test]
-    fn mount_seated_against_another_mount_is_clean() {
-        use std::f32::consts::FRAC_PI_2;
-        let inboard = Quat::from_rotation_z(-FRAC_PI_2);
-        let mount = |id: &str, pos: Vec3| SpaceshipSectionConfig {
-            id: id.to_string(),
-            position: pos,
-            rotation: inboard,
-            source: SectionSource::Prototype("mount_proto".to_string()),
-            modifications: vec![],
-        };
-        let s = scenario(
-            vec![EventActionConfig::SpawnScenarioObject(
-                ScenarioObjectConfig {
-                    base: BaseScenarioObjectConfig {
-                        id: "ship".to_string(),
-                        name: "ship".to_string(),
-                        position: Vec3::ZERO,
-                        rotation: Quat::IDENTITY,
-                    },
-                    kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-                        controller: SpaceshipController::None,
-                        allegiance: None,
-                        sections: vec![
-                            SpaceshipSectionConfig {
-                                id: "hull".to_string(),
-                                position: Vec3::ZERO,
-                                rotation: Quat::IDENTITY,
-                                source: SectionSource::Prototype("hull_proto".to_string()),
-                                modifications: vec![],
-                            },
-                            // Inner mount seats against the hull; the outer one
-                            // seats against the INNER MOUNT.
-                            mount("mount_inner", Vec3::new(1.0, 0.0, 0.0)),
-                            mount("mount_outer", Vec3::new(2.0, 0.0, 0.0)),
-                        ],
-                    }),
-                },
-            )],
-            vec![],
-        );
-        let catalog = sections_with_mounts(&["hull_proto"], &["mount_proto"]);
+    fn directly_mated_sections_may_overlap() {
+        let (action, catalog) = ship_with_mated_overlap();
+        let s = scenario(vec![action], vec![]);
         let issues = lint_scenario(&s, &catalog, &known(&["test_scenario"]));
         assert!(issues.is_empty(), "{issues:?}");
-    }
-
-    /// An INLINE mount section is checked from its own kind - no catalog
-    /// membership involved.
-    #[test]
-    fn inline_mount_sections_are_checked() {
-        use nova_ship::prelude::{BaseSectionConfig, TurretSectionConfig};
-
-        let mut action = ship_with_mount(Vec3::new(1.0, 0.0, 0.0), Quat::IDENTITY);
-        let EventActionConfig::SpawnScenarioObject(config) = &mut action else {
-            unreachable!()
-        };
-        let ScenarioObjectKind::Spaceship(ship) = &mut config.kind else {
-            unreachable!()
-        };
-        ship.sections[1].source = SectionSource::Inline(SectionConfig {
-            base: BaseSectionConfig {
-                link_points: nova_ship::prelude::unit_cube_link_points(),
-                ..default()
-            },
-            kind: SectionKind::Turret(TurretSectionConfig::default()),
-        });
-        let s = scenario(vec![action], vec![]);
-        let issues = lint_scenario(&s, &sections(&["hull_proto"]), &known(&["test_scenario"]));
-        let errs = errors(&issues);
-        assert_eq!(errs.len(), 1, "{issues:?}");
-        assert!(errs[0].message.contains("mount base"), "{issues:?}");
     }
 
     #[test]
@@ -1018,62 +844,27 @@ mod tests {
         }
     }
 
-    /// `KnownSections::from_configs` classifies the resolved last-wins definition.
     #[test]
-    fn section_catalog_classifies_mount_kinds() {
-        use nova_ship::prelude::{
-            BaseSectionConfig, ControllerSectionConfig, HullSectionConfig, ThrusterSectionConfig,
-            TorpedoSectionConfig, TurretSectionConfig,
-        };
+    fn section_catalog_keeps_last_wins_collider_data() {
+        use nova_ship::prelude::{BaseSectionConfig, HullSectionConfig};
 
-        let section = |id: &str, kind: SectionKind| SectionConfig {
+        let section = |size: f32| SectionConfig {
             base: BaseSectionConfig {
-                id: id.to_string(),
-                ..Default::default()
+                id: "contested".to_string(),
+                collider: Some(SectionCollider::Cuboid {
+                    size: Vec3::splat(size),
+                }),
+                ..default()
             },
-            kind,
+            kind: SectionKind::Hull(HullSectionConfig::default()),
         };
-        let configs = vec![
-            section("hull", SectionKind::Hull(HullSectionConfig::default())),
-            section(
-                "thruster",
-                SectionKind::Thruster(ThrusterSectionConfig::default()),
-            ),
-            section(
-                "controller",
-                SectionKind::Controller(ControllerSectionConfig::default()),
-            ),
-            section(
-                "turret",
-                SectionKind::Turret(TurretSectionConfig::default()),
-            ),
-            section(
-                "torpedo",
-                SectionKind::Torpedo(TorpedoSectionConfig::default()),
-            ),
-            // The same id defined as a mount in one bundle, a hull in another.
-            section(
-                "contested",
-                SectionKind::Turret(TurretSectionConfig::default()),
-            ),
-            section("contested", SectionKind::Hull(HullSectionConfig::default())),
-        ];
+        let configs = [section(1.0), section(2.0)];
         let catalog = KnownSections::from_configs(&configs);
-        for id in [
-            "hull",
-            "thruster",
-            "controller",
-            "turret",
-            "torpedo",
-            "contested",
-        ] {
-            assert!(catalog.contains(id), "missing {id}: {catalog:?}");
-        }
-        assert!(catalog.get("turret").unwrap().mounts);
-        assert!(catalog.get("torpedo").unwrap().mounts);
-        assert!(
-            !catalog.get("contested").unwrap().mounts,
-            "the later hull override wins: {catalog:?}"
+        assert_eq!(
+            catalog.get("contested").unwrap().collider,
+            SectionCollider::Cuboid {
+                size: Vec3::splat(2.0)
+            }
         );
     }
 }

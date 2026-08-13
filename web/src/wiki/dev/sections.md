@@ -34,9 +34,9 @@ generated into `assets/base/sections/base.content.ron` by
 
 ### Meshes and colliders (authorable)
 
-Two authorable knobs decouple a section's LOOK and PHYSICS from the default unit
-cube (`crates/nova_ship/src/sections/base_section.rs`); both default to the
-old behavior so unset content is byte-for-byte unchanged:
+Two authorable knobs decouple a section's look and physics from the default unit
+cube (`crates/nova_ship/src/sections/base_section.rs`). Unset content still uses
+the unit-cube defaults:
 
 - `render_mesh_transform` (optional, on every mesh-bearing kind; for turrets
   it sits per JOINT in the joint tree) - an offset /
@@ -68,8 +68,8 @@ a unit cube by default), `SectionLinkPoints`, `ConnectedTo`, and `Health` (`base
 `sections/base_section.rs`), so the ship is one rigid body whose child colliders
 each carry their own health.
 
-See the `asteroid_field` ship in `crates/nova_authoring/src/scenario.rs` for a
-full example. The editor (`crates/nova_editor`) assembles ships interactively using
+See the semantic Racer, CargoA, and CargoB builders in
+`crates/nova_authoring/src/scenario/craft.rs` for complete generated examples. The editor (`crates/nova_editor`) assembles ships interactively using
 `preview_section`, which has no health or rigid body and never enters the
 damage pipeline.
 

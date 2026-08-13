@@ -35,7 +35,8 @@ assets" below:
   released into the public domain under
   [The Unlicense](licenses/space-3d_Unlicense.md). No attribution is
   required; credited as a courtesy.
-- **Kenney Space Kit** (`art/kenney-space-kit/`) - [CC0 1.0
+- **Kenney Space Kit** (`art/kenney-space-kit/`, shipped semantic ship parts
+  under `assets/base/gltf/parts/`) - [CC0 1.0
   Universal](licenses/Kenney_Space_Kit_License.txt) (public domain). No
   attribution is required; credited as a courtesy.
 - **FREE Input Prompts** (`assets/input-prompts/keyboard/Alt/`, the key glyphs

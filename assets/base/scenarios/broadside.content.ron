@@ -64,11 +64,11 @@
                         kind: Spaceship((
                             controller: Player((
                                 input_mapping: {
-                                    "cube_i1_j0_km1": [
+                                    "turret_port": [
                                         Mouse(Left),
                                         Gamepad(RightTrigger2),
                                     ],
-                                    "cube_im1_j0_km1": [
+                                    "turret_starboard": [
                                         Mouse(Left),
                                         Gamepad(RightTrigger2),
                                     ],
@@ -77,11 +77,11 @@
                             )),
                             sections: [
                                 (
-                                    id: "cube_i0_j0_k0",
+                                    id: "engine_starboard",
                                     position: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
+                                        0.655,
+                                        0.570945,
+                                        1.512835,
                                     ),
                                     rotation: (
                                         0.0,
@@ -89,14 +89,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_cube_i0_j0_k0"),
+                                    source: Prototype("racer_engine_starboard"),
                                 ),
                                 (
-                                    id: "cube_i0_j0_k1",
+                                    id: "engine_port",
                                     position: (
-                                        0.0,
-                                        0.0,
-                                        1.0,
+                                        -0.655,
+                                        0.570945,
+                                        1.512835,
                                     ),
                                     rotation: (
                                         0.0,
@@ -104,14 +104,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_cube_i0_j0_k1"),
+                                    source: Prototype("racer_engine_port"),
                                 ),
                                 (
-                                    id: "cube_i0_j0_k2",
+                                    id: "wing_starboard",
                                     position: (
-                                        0.0,
-                                        0.0,
-                                        2.0,
+                                        0.805,
+                                        0.5,
+                                        0.11783552,
                                     ),
                                     rotation: (
                                         0.0,
@@ -119,14 +119,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_cube_i0_j0_k2"),
+                                    source: Prototype("racer_wing_starboard"),
                                 ),
                                 (
-                                    id: "cube_i0_j0_km1",
+                                    id: "wing_port",
                                     position: (
-                                        0.0,
-                                        0.0,
-                                        -1.0,
+                                        -0.805,
+                                        0.5,
+                                        0.11783552,
                                     ),
                                     rotation: (
                                         0.0,
@@ -134,14 +134,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_cube_i0_j0_km1"),
+                                    source: Prototype("racer_wing_port"),
                                 ),
                                 (
-                                    id: "cube_i0_j0_km2",
+                                    id: "nose",
                                     position: (
                                         0.0,
-                                        0.0,
-                                        -2.0,
+                                        0.611325,
+                                        -1.512835,
                                     ),
                                     rotation: (
                                         0.0,
@@ -149,14 +149,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_cube_i0_j0_km2"),
+                                    source: Prototype("racer_nose"),
                                 ),
                                 (
-                                    id: "cube_i0_j1_k0",
+                                    id: "tail",
                                     position: (
                                         0.0,
-                                        1.0,
-                                        0.0,
+                                        0.85,
+                                        1.6128349,
                                     ),
                                     rotation: (
                                         0.0,
@@ -164,122 +164,32 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_cube_i0_j1_k0"),
+                                    source: Prototype("racer_tail"),
+                                ),
+                                (
+                                    id: "fuselage",
+                                    position: (
+                                        0.0,
+                                        0.7,
+                                        0.100000024,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_fuselage"),
                                     modifications: [
                                         DisableVerb(Rcs),
                                     ],
                                 ),
                                 (
-                                    id: "cube_i0_j1_k1",
+                                    id: "turret_starboard",
                                     position: (
-                                        0.0,
-                                        1.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j1_k1"),
-                                ),
-                                (
-                                    id: "cube_i0_j1_k2",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j1_k2"),
-                                ),
-                                (
-                                    id: "cube_i0_j1_km1",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j1_km1"),
-                                ),
-                                (
-                                    id: "cube_i0_j1_km2",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j1_km2"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_k0",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i1_j0_k0"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_k1",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i1_j0_k1"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_k2",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i1_j0_k2"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_km1",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        -1.0,
+                                        1.35,
+                                        0.4,
+                                        -0.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -287,59 +197,14 @@
                                         -0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Prototype("racer_cube_i1_j0_km1"),
+                                    source: Prototype("racer_turret_starboard"),
                                 ),
                                 (
-                                    id: "cube_im1_j0_k0",
+                                    id: "turret_port",
                                     position: (
-                                        -1.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_im1_j0_k0"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_k1",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_im1_j0_k1"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_k2",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_im1_j0_k2"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_km1",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        -1.0,
+                                        -1.35,
+                                        0.4,
+                                        -0.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -347,7 +212,7 @@
                                         0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Prototype("racer_cube_im1_j0_km1"),
+                                    source: Prototype("racer_turret_port"),
                                 ),
                             ],
                         )),
@@ -373,11 +238,11 @@
                             allegiance: Some(Neutral),
                             sections: [
                                 (
-                                    id: "cube_i0_j0_k0",
+                                    id: "engine_starboard",
                                     position: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
+                                        1.205,
+                                        0.6,
+                                        1.975,
                                     ),
                                     rotation: (
                                         0.0,
@@ -385,14 +250,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("cargoa_cube_i0_j0_k0"),
+                                    source: Prototype("cargoa_engine_starboard"),
                                 ),
                                 (
-                                    id: "cube_i0_j0_k1",
+                                    id: "engine_port",
                                     position: (
-                                        0.0,
-                                        0.0,
-                                        1.0,
+                                        -1.205,
+                                        0.6,
+                                        1.975,
                                     ),
                                     rotation: (
                                         0.0,
@@ -400,14 +265,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("cargoa_cube_i0_j0_k1"),
+                                    source: Prototype("cargoa_engine_port"),
                                 ),
                                 (
-                                    id: "cube_i0_j0_k2",
+                                    id: "pod_starboard",
                                     position: (
-                                        0.0,
-                                        0.0,
-                                        2.0,
+                                        1.205,
+                                        0.7,
+                                        0.47500002,
                                     ),
                                     rotation: (
                                         0.0,
@@ -415,14 +280,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("cargoa_cube_i0_j0_k2"),
+                                    source: Prototype("cargoa_pod_starboard"),
                                 ),
                                 (
-                                    id: "cube_i0_j0_km1",
+                                    id: "pod_port",
                                     position: (
-                                        0.0,
-                                        0.0,
-                                        -1.0,
+                                        -1.205,
+                                        0.7,
+                                        0.47500002,
                                     ),
                                     rotation: (
                                         0.0,
@@ -430,14 +295,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("cargoa_cube_i0_j0_km1"),
+                                    source: Prototype("cargoa_pod_port"),
                                 ),
                                 (
-                                    id: "cube_i0_j1_k1",
+                                    id: "nose",
                                     position: (
                                         0.0,
-                                        1.0,
-                                        1.0,
+                                        0.8,
+                                        -1.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -445,14 +310,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("cargoa_cube_i0_j1_k1"),
+                                    source: Prototype("cargoa_nose"),
                                 ),
                                 (
-                                    id: "cube_i0_j1_k2",
+                                    id: "tail",
                                     position: (
                                         0.0,
-                                        1.0,
-                                        2.0,
+                                        0.5875,
+                                        1.975,
                                     ),
                                     rotation: (
                                         0.0,
@@ -460,14 +325,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("cargoa_cube_i0_j1_k2"),
+                                    source: Prototype("cargoa_tail"),
                                 ),
                                 (
-                                    id: "cube_i0_j1_km1",
+                                    id: "fuselage",
                                     position: (
                                         0.0,
-                                        1.0,
-                                        -1.0,
+                                        0.8,
+                                        0.17500001,
                                     ),
                                     rotation: (
                                         0.0,
@@ -475,697 +340,7 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("cargoa_cube_i0_j1_km1"),
-                                ),
-                                (
-                                    id: "cube_i0_j1_km2",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i0_j1_km2"),
-                                ),
-                                (
-                                    id: "cube_i0_j2_k0",
-                                    position: (
-                                        0.0,
-                                        2.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i0_j2_k0"),
-                                ),
-                                (
-                                    id: "cube_i0_j2_k1",
-                                    position: (
-                                        0.0,
-                                        2.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i0_j2_k1"),
-                                ),
-                                (
-                                    id: "cube_i0_j2_km1",
-                                    position: (
-                                        0.0,
-                                        2.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i0_j2_km1"),
-                                ),
-                                (
-                                    id: "cube_i0_j2_km2",
-                                    position: (
-                                        0.0,
-                                        2.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i0_j2_km2"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_k0",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i1_j0_k0"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_k1",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i1_j0_k1"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_k2",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i1_j0_k2"),
-                                ),
-                                (
-                                    id: "cube_i1_j0_km1",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i1_j0_km1"),
-                                ),
-                                (
-                                    id: "cube_i1_j1_k0",
-                                    position: (
-                                        1.0,
-                                        1.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i1_j1_k0"),
-                                ),
-                                (
-                                    id: "cube_i1_j1_k1",
-                                    position: (
-                                        1.0,
-                                        1.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i1_j1_k1"),
-                                ),
-                                (
-                                    id: "cube_i1_j1_k2",
-                                    position: (
-                                        1.0,
-                                        1.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i1_j1_k2"),
-                                ),
-                                (
-                                    id: "cube_i1_j1_km1",
-                                    position: (
-                                        1.0,
-                                        1.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i1_j1_km1"),
-                                ),
-                                (
-                                    id: "cube_i1_j1_km2",
-                                    position: (
-                                        1.0,
-                                        1.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i1_j1_km2"),
-                                ),
-                                (
-                                    id: "cube_i1_j2_k0",
-                                    position: (
-                                        1.0,
-                                        2.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i1_j2_k0"),
-                                ),
-                                (
-                                    id: "cube_i1_j2_k1",
-                                    position: (
-                                        1.0,
-                                        2.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i1_j2_k1"),
-                                ),
-                                (
-                                    id: "cube_i1_j2_km1",
-                                    position: (
-                                        1.0,
-                                        2.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i1_j2_km1"),
-                                ),
-                                (
-                                    id: "cube_i1_j2_km2",
-                                    position: (
-                                        1.0,
-                                        2.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i1_j2_km2"),
-                                ),
-                                (
-                                    id: "cube_i2_j0_k0",
-                                    position: (
-                                        2.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i2_j0_k0"),
-                                ),
-                                (
-                                    id: "cube_i2_j0_k1",
-                                    position: (
-                                        2.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i2_j0_k1"),
-                                ),
-                                (
-                                    id: "cube_i2_j0_km1",
-                                    position: (
-                                        2.0,
-                                        0.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i2_j0_km1"),
-                                ),
-                                (
-                                    id: "cube_i2_j1_k0",
-                                    position: (
-                                        2.0,
-                                        1.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i2_j1_k0"),
-                                ),
-                                (
-                                    id: "cube_i2_j1_k1",
-                                    position: (
-                                        2.0,
-                                        1.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i2_j1_k1"),
-                                ),
-                                (
-                                    id: "cube_i2_j1_k2",
-                                    position: (
-                                        2.0,
-                                        1.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i2_j1_k2"),
-                                ),
-                                (
-                                    id: "cube_i2_j1_km1",
-                                    position: (
-                                        2.0,
-                                        1.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_i2_j1_km1"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_k0",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im1_j0_k0"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_k1",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im1_j0_k1"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_k2",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im1_j0_k2"),
-                                ),
-                                (
-                                    id: "cube_im1_j0_km1",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im1_j0_km1"),
-                                ),
-                                (
-                                    id: "cube_im1_j1_k0",
-                                    position: (
-                                        -1.0,
-                                        1.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im1_j1_k0"),
-                                ),
-                                (
-                                    id: "cube_im1_j1_k1",
-                                    position: (
-                                        -1.0,
-                                        1.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im1_j1_k1"),
-                                ),
-                                (
-                                    id: "cube_im1_j1_k2",
-                                    position: (
-                                        -1.0,
-                                        1.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im1_j1_k2"),
-                                ),
-                                (
-                                    id: "cube_im1_j1_km1",
-                                    position: (
-                                        -1.0,
-                                        1.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im1_j1_km1"),
-                                ),
-                                (
-                                    id: "cube_im1_j1_km2",
-                                    position: (
-                                        -1.0,
-                                        1.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im1_j1_km2"),
-                                ),
-                                (
-                                    id: "cube_im1_j2_k0",
-                                    position: (
-                                        -1.0,
-                                        2.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im1_j2_k0"),
-                                ),
-                                (
-                                    id: "cube_im1_j2_k1",
-                                    position: (
-                                        -1.0,
-                                        2.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im1_j2_k1"),
-                                ),
-                                (
-                                    id: "cube_im1_j2_km1",
-                                    position: (
-                                        -1.0,
-                                        2.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im1_j2_km1"),
-                                ),
-                                (
-                                    id: "cube_im1_j2_km2",
-                                    position: (
-                                        -1.0,
-                                        2.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im1_j2_km2"),
-                                ),
-                                (
-                                    id: "cube_im2_j0_k0",
-                                    position: (
-                                        -2.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im2_j0_k0"),
-                                ),
-                                (
-                                    id: "cube_im2_j0_k1",
-                                    position: (
-                                        -2.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im2_j0_k1"),
-                                ),
-                                (
-                                    id: "cube_im2_j0_km1",
-                                    position: (
-                                        -2.0,
-                                        0.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im2_j0_km1"),
-                                ),
-                                (
-                                    id: "cube_im2_j1_k0",
-                                    position: (
-                                        -2.0,
-                                        1.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im2_j1_k0"),
-                                ),
-                                (
-                                    id: "cube_im2_j1_k1",
-                                    position: (
-                                        -2.0,
-                                        1.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im2_j1_k1"),
-                                ),
-                                (
-                                    id: "cube_im2_j1_k2",
-                                    position: (
-                                        -2.0,
-                                        1.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im2_j1_k2"),
-                                ),
-                                (
-                                    id: "cube_im2_j1_km1",
-                                    position: (
-                                        -2.0,
-                                        1.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_cube_im2_j1_km1"),
-                                ),
-                                (
-                                    id: "core_controller",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_core_controller"),
+                                    source: Prototype("cargoa_fuselage"),
                                 ),
                             ],
                         )),
@@ -1540,11 +715,11 @@
                             )),
                             sections: [
                                 (
-                                    id: "cube_i0_j0_k0",
+                                    id: "engine_starboard",
                                     position: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
+                                        0.655,
+                                        0.570945,
+                                        1.512835,
                                     ),
                                     rotation: (
                                         0.0,
@@ -1552,233 +727,125 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_cube_i0_j0_k0"),
-                                    modifications: [
-                                        SetHealth(35.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_i0_j0_k1",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j0_k1"),
-                                    modifications: [
-                                        SetHealth(35.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_i0_j0_k2",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j0_k2"),
-                                    modifications: [
-                                        SetHealth(35.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_i0_j0_km1",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j0_km1"),
-                                    modifications: [
-                                        SetHealth(35.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_i0_j0_km2",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j0_km2"),
-                                    modifications: [
-                                        SetHealth(35.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_i0_j1_k0",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j1_k0"),
-                                    modifications: [
-                                        SetHealth(45.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_i0_j1_k1",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j1_k1"),
-                                    modifications: [
-                                        SetHealth(35.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_i0_j1_k2",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j1_k2"),
-                                    modifications: [
-                                        SetHealth(35.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_i0_j1_km1",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j1_km1"),
-                                    modifications: [
-                                        SetHealth(35.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_i0_j1_km2",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j1_km2"),
-                                    modifications: [
-                                        SetHealth(35.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_i1_j0_k0",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i1_j0_k0"),
-                                    modifications: [
-                                        SetHealth(35.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_i1_j0_k1",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i1_j0_k1"),
-                                    modifications: [
-                                        SetHealth(35.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_i1_j0_k2",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i1_j0_k2"),
+                                    source: Prototype("racer_engine_starboard"),
                                     modifications: [
                                         SetHealth(25.0),
                                     ],
                                 ),
                                 (
-                                    id: "cube_i1_j0_km1",
+                                    id: "engine_port",
                                     position: (
-                                        1.0,
+                                        -0.655,
+                                        0.570945,
+                                        1.512835,
+                                    ),
+                                    rotation: (
                                         0.0,
-                                        -1.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_engine_port"),
+                                    modifications: [
+                                        SetHealth(25.0),
+                                    ],
+                                ),
+                                (
+                                    id: "wing_starboard",
+                                    position: (
+                                        0.805,
+                                        0.5,
+                                        0.11783552,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_wing_starboard"),
+                                    modifications: [
+                                        SetHealth(104.399994),
+                                    ],
+                                ),
+                                (
+                                    id: "wing_port",
+                                    position: (
+                                        -0.805,
+                                        0.5,
+                                        0.11783552,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_wing_port"),
+                                    modifications: [
+                                        SetHealth(104.399994),
+                                    ],
+                                ),
+                                (
+                                    id: "nose",
+                                    position: (
+                                        0.0,
+                                        0.611325,
+                                        -1.512835,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_nose"),
+                                    modifications: [
+                                        SetHealth(69.6),
+                                    ],
+                                ),
+                                (
+                                    id: "tail",
+                                    position: (
+                                        0.0,
+                                        0.85,
+                                        1.6128349,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_tail"),
+                                    modifications: [
+                                        SetHealth(69.6),
+                                    ],
+                                ),
+                                (
+                                    id: "fuselage",
+                                    position: (
+                                        0.0,
+                                        0.7,
+                                        0.100000024,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_fuselage"),
+                                    modifications: [
+                                        SetHealth(140.0),
+                                    ],
+                                ),
+                                (
+                                    id: "turret_starboard",
+                                    position: (
+                                        1.35,
+                                        0.4,
+                                        -0.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -1786,68 +853,14 @@
                                         -0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Prototype("racer_light_cube_i1_j0_km1"),
+                                    source: Prototype("racer_turret_starboard_light"),
                                 ),
                                 (
-                                    id: "cube_im1_j0_k0",
+                                    id: "turret_port",
                                     position: (
-                                        -1.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_im1_j0_k0"),
-                                    modifications: [
-                                        SetHealth(35.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_im1_j0_k1",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_im1_j0_k1"),
-                                    modifications: [
-                                        SetHealth(35.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_im1_j0_k2",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_im1_j0_k2"),
-                                    modifications: [
-                                        SetHealth(25.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_im1_j0_km1",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        -1.0,
+                                        -1.35,
+                                        0.4,
+                                        -0.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -1855,7 +868,7 @@
                                         0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Prototype("racer_light_cube_im1_j0_km1"),
+                                    source: Prototype("racer_turret_port_light"),
                                 ),
                             ],
                         )),
@@ -1895,11 +908,11 @@
                             )),
                             sections: [
                                 (
-                                    id: "cube_i0_j0_k0",
+                                    id: "engine_starboard",
                                     position: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
+                                        0.655,
+                                        0.570945,
+                                        1.512835,
                                     ),
                                     rotation: (
                                         0.0,
@@ -1907,233 +920,125 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_cube_i0_j0_k0"),
-                                    modifications: [
-                                        SetHealth(35.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_i0_j0_k1",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j0_k1"),
-                                    modifications: [
-                                        SetHealth(35.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_i0_j0_k2",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j0_k2"),
-                                    modifications: [
-                                        SetHealth(35.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_i0_j0_km1",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j0_km1"),
-                                    modifications: [
-                                        SetHealth(35.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_i0_j0_km2",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j0_km2"),
-                                    modifications: [
-                                        SetHealth(35.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_i0_j1_k0",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j1_k0"),
-                                    modifications: [
-                                        SetHealth(45.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_i0_j1_k1",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j1_k1"),
-                                    modifications: [
-                                        SetHealth(35.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_i0_j1_k2",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j1_k2"),
-                                    modifications: [
-                                        SetHealth(35.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_i0_j1_km1",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j1_km1"),
-                                    modifications: [
-                                        SetHealth(35.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_i0_j1_km2",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i0_j1_km2"),
-                                    modifications: [
-                                        SetHealth(35.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_i1_j0_k0",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i1_j0_k0"),
-                                    modifications: [
-                                        SetHealth(35.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_i1_j0_k1",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i1_j0_k1"),
-                                    modifications: [
-                                        SetHealth(35.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_i1_j0_k2",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_i1_j0_k2"),
+                                    source: Prototype("racer_engine_starboard"),
                                     modifications: [
                                         SetHealth(25.0),
                                     ],
                                 ),
                                 (
-                                    id: "cube_i1_j0_km1",
+                                    id: "engine_port",
                                     position: (
-                                        1.0,
+                                        -0.655,
+                                        0.570945,
+                                        1.512835,
+                                    ),
+                                    rotation: (
                                         0.0,
-                                        -1.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_engine_port"),
+                                    modifications: [
+                                        SetHealth(25.0),
+                                    ],
+                                ),
+                                (
+                                    id: "wing_starboard",
+                                    position: (
+                                        0.805,
+                                        0.5,
+                                        0.11783552,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_wing_starboard"),
+                                    modifications: [
+                                        SetHealth(104.399994),
+                                    ],
+                                ),
+                                (
+                                    id: "wing_port",
+                                    position: (
+                                        -0.805,
+                                        0.5,
+                                        0.11783552,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_wing_port"),
+                                    modifications: [
+                                        SetHealth(104.399994),
+                                    ],
+                                ),
+                                (
+                                    id: "nose",
+                                    position: (
+                                        0.0,
+                                        0.611325,
+                                        -1.512835,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_nose"),
+                                    modifications: [
+                                        SetHealth(69.6),
+                                    ],
+                                ),
+                                (
+                                    id: "tail",
+                                    position: (
+                                        0.0,
+                                        0.85,
+                                        1.6128349,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_tail"),
+                                    modifications: [
+                                        SetHealth(69.6),
+                                    ],
+                                ),
+                                (
+                                    id: "fuselage",
+                                    position: (
+                                        0.0,
+                                        0.7,
+                                        0.100000024,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_fuselage"),
+                                    modifications: [
+                                        SetHealth(140.0),
+                                    ],
+                                ),
+                                (
+                                    id: "turret_starboard",
+                                    position: (
+                                        1.35,
+                                        0.4,
+                                        -0.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -2141,68 +1046,14 @@
                                         -0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Prototype("racer_light_cube_i1_j0_km1"),
+                                    source: Prototype("racer_turret_starboard_light"),
                                 ),
                                 (
-                                    id: "cube_im1_j0_k0",
+                                    id: "turret_port",
                                     position: (
-                                        -1.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_im1_j0_k0"),
-                                    modifications: [
-                                        SetHealth(35.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_im1_j0_k1",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_im1_j0_k1"),
-                                    modifications: [
-                                        SetHealth(35.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_im1_j0_k2",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_cube_im1_j0_k2"),
-                                    modifications: [
-                                        SetHealth(25.0),
-                                    ],
-                                ),
-                                (
-                                    id: "cube_im1_j0_km1",
-                                    position: (
-                                        -1.0,
-                                        0.0,
-                                        -1.0,
+                                        -1.35,
+                                        0.4,
+                                        -0.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -2210,7 +1061,7 @@
                                         0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Prototype("racer_light_cube_im1_j0_km1"),
+                                    source: Prototype("racer_turret_port_light"),
                                 ),
                             ],
                         )),

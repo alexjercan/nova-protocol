@@ -960,7 +960,8 @@ fn assert_goto_indicators(world: &mut World) {
 #[cfg(feature = "debug")]
 fn kill_target(world: &mut World) {
     let target = target_root(world).expect("hud range: target ship vanished before the kill");
-    world.entity_mut(target).despawn();
+    // Physical destruction is the kill-cam seam; generic despawn can be cleanup.
+    world.entity_mut(target).insert(IntegrityDestroyMarker);
     // The turret keeps aiming at the camera ray even with no enemy, so
     // its anchor only clears through the disabled path: mark the section
     // inactive like the health pipeline does.

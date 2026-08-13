@@ -115,14 +115,20 @@ fn rocks(event: &ScenarioEventConfig) -> Vec<(&str, Vec3, &AsteroidConfig)> {
         .collect()
 }
 
-/// Count sections whose prototype id starts with `prefix`. The racer/cargob
-/// ships name their prototypes by cut-cube id (`racer_cube_*`, `racer_light_*`,
-/// `cargob_cube_*`), so grade is read from the prefix: `racer_light_` is the weak
-/// scavenger turret, and any `racer_` cube marks a racer.
+/// Count sections whose semantic-part prototype id starts with `prefix`.
 fn prototype_prefix_count(ship: &SpaceshipConfig, prefix: &str) -> usize {
     ship.sections
         .iter()
         .filter(|s| matches!(&s.source, SectionSource::Prototype(p) if p.starts_with(prefix)))
+        .count()
+}
+
+fn light_turret_count(ship: &SpaceshipConfig) -> usize {
+    ship.sections
+        .iter()
+        .filter(|section| {
+            matches!(&section.source, SectionSource::Prototype(id) if id.ends_with("_light"))
+        })
         .count()
 }
 
@@ -315,10 +321,10 @@ fn wave_one_spawns_far_light_and_on_one_bearing() {
             "'{id}' spawns {range:.0}u out (< {WAVE_ONE_MIN_RANGE}u): no approach phase"
         );
         assert_eq!(
-            prototype_prefix_count(ship, "racer_light_"),
+            light_turret_count(ship),
             2,
             "'{id}': a wave-one mook flies the WEAK scavenger racer - both turret \
-             cubes are the light `racer_light_*` gun (spike F1)"
+             modules are the light `_light` guns (spike F1)"
         );
         let SpaceshipController::AI(ai) = &ship.controller else {
             unreachable!("hostiles() filters on AI");
@@ -372,13 +378,14 @@ fn the_heavies_spawn_farther_with_exactly_one_better_gun() {
         // not the weak `racer_light_*` scavenger the wave-one mooks carry - the
         // post-checkpoint difficulty step (spike F1).
         assert_eq!(
-            prototype_prefix_count(ship, "racer_light_"),
+            light_turret_count(ship),
             0,
             "'{id}' is a full-power racer heavy, not a weak mook"
         );
-        assert!(
-            prototype_prefix_count(ship, "racer_") >= 10,
-            "'{id}' flies the racer"
+        assert_eq!(
+            prototype_prefix_count(ship, "racer_"),
+            9,
+            "'{id}' flies the complete semantic-parts racer"
         );
         let SpaceshipController::AI(ai) = &ship.controller else {
             unreachable!("hostiles() filters on AI");

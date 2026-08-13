@@ -124,20 +124,19 @@ const RAIDER_ID: &str = "hollow_raider";
 /// frame has depth between the two hulls, close enough that the target reads.
 const RAIDER_POSITION: Vec3 = Vec3::new(0.0, 0.6, -34.0);
 #[cfg(feature = "debug")]
-/// The raider section the scripted blow takes off - a forward hull cube on the
-/// camera's side of the ship, so the fragments and the hole are both in frame.
-const RAIDER_BLOWN_SECTION: &str = "racer_cube_i0_j0_km2";
+/// The raider section the scripted blow takes off - the semantic nose part is
+/// forward and camera-facing, so the fragments and the hole are both in frame.
+const RAIDER_BLOWN_SECTION: &str = "nose";
 #[cfg(feature = "debug")]
-/// The section the torpedo beat takes off, on the raider's upper deck where a
+/// The section the torpedo beat takes off on the raider's port side, where a
 /// blast arriving from above lands. A torpedo alone will NOT do this: the fuze
 /// goes 15 units out, and 100 blast damage with falloff at half the blast radius
 /// leaves a 70-100 health section standing. The frame is of a real detonation
 /// and a real section death, timed together.
-const RAIDER_BLAST_SECTION: &str = "racer_cube_i0_j1_km2";
+const RAIDER_BLAST_SECTION: &str = "wing_port";
 
 /// Scenario id of the friendly torpedo boat - the only hull in the set carrying
-/// bays (`cargob_cube_*_j1_km2` are the catalog's two Torpedo sections), and the
-/// ship the ordnance beats are shot off.
+/// torpedo pods, and the ship the ordnance beats are shot off.
 const LANCE_ID: &str = "hollow_lance";
 /// Where it sits: high and off the raider's far quarter, so the run comes DOWN
 /// onto the target - and, the reason for the height, through open sky. The rock

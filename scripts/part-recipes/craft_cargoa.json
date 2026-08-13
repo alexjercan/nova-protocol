@@ -1,0 +1,32 @@
+{
+  "_comment": "Semantic part recipe for art/kenney-space-kit/craft_cargoA.obj. Coordinates are post scale+yaw (game space: nose -Z, +X starboard), matching the former shipped CargoA cube library. The hauler uses the same seven-part vocabulary as CargoB: two rear engines, two side pods, nose, tail, and a central fuselage. The x cuts sit 0.01 outside the natural |x|=0.8 seam so coplanar side skin stays with the central body and cut openings remain cap-friendly. Rules run in order; the remainder becomes the fuselage.",
+  "scale": 2.0,
+  "yaw": 180.0,
+  "parts": [
+    {
+      "name": "engine_starboard",
+      "box": [[0.81, null, 1.5], [null, null, null]]
+    },
+    {
+      "name": "engine_port",
+      "box": [[null, null, 1.5], [-0.81, null, null]]
+    },
+    {
+      "name": "pod_starboard",
+      "box": [[0.81, null, null], [null, null, null]]
+    },
+    {
+      "name": "pod_port",
+      "box": [[null, null, null], [-0.81, null, null]]
+    },
+    {
+      "name": "nose",
+      "box": [[null, null, null], [null, null, -1.15]]
+    },
+    {
+      "name": "tail",
+      "box": [[null, null, 1.5], [null, null, null]]
+    }
+  ],
+  "rest": "fuselage"
+}

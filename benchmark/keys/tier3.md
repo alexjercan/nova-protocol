@@ -25,8 +25,8 @@ information.
 
 `assets/base/` is staged because a real modder can read it from the installed
 game, and the base prototype ids exist nowhere else in this channel. Its
-absence made the after-run's controller-cube swap unknowable: which
-`racer_cube_*` slot is the controller is stated only there and in
+absence made the after-run's controller-part swap unknowable: the semantic
+`racer_fuselage` controller prototype is stated only there and in
 `nova_authoring` (owner ruling, 20260809-213441; the run's own GAPS.md gap 3
 predicted the failure).
 

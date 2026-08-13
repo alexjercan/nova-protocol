@@ -13,7 +13,7 @@
 
 use std::collections::HashMap;
 
-use nova_ship::prelude::{LinkPoint, SectionConfig, SectionKind};
+use nova_ship::prelude::{LinkPoint, SectionCollider, SectionConfig};
 
 use crate::prelude::*;
 
@@ -37,8 +37,8 @@ pub mod prelude {
 /// Resolved lint-relevant data for one visible section prototype.
 #[derive(Clone, Debug, Default)]
 pub struct KnownSection {
-    /// Whether the prototype is a turret or torpedo mount.
-    pub mounts: bool,
+    /// Authored collider used by overlap lint. Unset means the default unit cube.
+    pub collider: SectionCollider,
     /// Structural sockets copied from the resolved prototype.
     pub link_points: Vec<LinkPoint>,
 }
@@ -50,11 +50,6 @@ pub struct KnownSections {
 }
 
 impl KnownSections {
-    /// Whether a section kind mounts by its -Y base face.
-    pub fn kind_mounts(kind: &SectionKind) -> bool {
-        matches!(kind, SectionKind::Turret(_) | SectionKind::Torpedo(_))
-    }
-
     /// Resolve full section configs in iterator order; later duplicate IDs replace earlier ones.
     pub fn from_configs<'a>(configs: impl IntoIterator<Item = &'a SectionConfig>) -> Self {
         let mut entries = HashMap::new();
@@ -62,7 +57,7 @@ impl KnownSections {
             entries.insert(
                 config.base.id.clone(),
                 KnownSection {
-                    mounts: Self::kind_mounts(&config.kind),
+                    collider: config.base.collider.unwrap_or_default(),
                     link_points: config.base.link_points.clone(),
                 },
             );

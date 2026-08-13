@@ -177,10 +177,10 @@ pub fn content_files() -> Vec<(String, String)> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
 
     use nova_scenario::prelude::{
-        EventActionConfig, ScenarioObjectConfig, ScenarioObjectKind, SectionSource, SpaceshipConfig,
+        EventActionConfig, ScenarioObjectConfig, ScenarioObjectKind, SectionSource,
     };
     use nova_ship::prelude::{derive_link_point_graph, PlacedSectionLinkPoints};
 
@@ -194,26 +194,8 @@ mod tests {
         }
     }
 
-    fn old_edges(ship: &SpaceshipConfig) -> HashSet<(usize, usize)> {
-        let mut edges = HashSet::new();
-        for a in 0..ship.sections.len() {
-            for b in (a + 1)..ship.sections.len() {
-                if (ship.sections[a]
-                    .position
-                    .distance(ship.sections[b].position)
-                    - 1.0)
-                    .abs()
-                    < 0.1
-                {
-                    edges.insert((a, b));
-                }
-            }
-        }
-        edges
-    }
-
     #[test]
-    fn link_points_preserve_every_built_in_cube_ship_edge() {
+    fn every_built_in_parts_ship_has_a_valid_link_point_graph() {
         let catalog: HashMap<_, _> = build_section_catalog()
             .into_iter()
             .map(|section| (section.base.id.clone(), section))
@@ -252,18 +234,17 @@ mod tests {
                                 scenario.id, object.base.id
                             )
                         });
-                        let new_edges: HashSet<_> = mates
-                            .into_iter()
-                            .map(|mate| {
-                                let a = mate.a.section_index;
-                                let b = mate.b.section_index;
-                                (a.min(b), a.max(b))
-                            })
-                            .collect();
-                        assert_eq!(
-                            new_edges,
-                            old_edges(ship),
-                            "scenario '{}' ship '{}' changed its integrity graph",
+                        assert!(
+                            ship.sections.len() <= 1 || !mates.is_empty(),
+                            "scenario '{}' ship '{}' has no structural mates",
+                            scenario.id,
+                            object.base.id
+                        );
+                        assert!(
+                            ship.sections
+                                .iter()
+                                .all(|section| !section.id.starts_with("cube_")),
+                            "scenario '{}' ship '{}' retains a cube section id",
                             scenario.id,
                             object.base.id
                         );

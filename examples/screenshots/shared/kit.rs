@@ -13,8 +13,7 @@
 //!
 //! What it holds, and nothing else:
 //!
-//! - [`kenney_hull`]: the section list for a whole Kenney ship, rebuilt from the
-//!   `*_cube_*` prototypes in the catalog.
+//! - [`kenney_hull`]: the section list for a whole semantic-parts Kenney ship.
 //! - [`NearField`]: near-field asteroid dressing, close enough to the subject to
 //!   actually be in frame.
 //!
@@ -28,106 +27,74 @@
 use bevy::prelude::*;
 use nova_protocol::prelude::*;
 
-/// The cell a Kenney hull's core controller fills, for the cargo hulls whose
-/// grid leaves it hollow (`cargoa_core_controller`, `cargob_core_controller`).
-/// Matches every shipped assembly (`menu_waystation`, `lifeline`,
-/// `final_tally`).
-const CORE_CONTROLLER_CELL: Vec3 = Vec3::new(0.0, 1.0, 0.0);
-
-/// Rebuild a whole Kenney ship's section list from the catalog: every
-/// `{hull}_cube_*` prototype, placed at the grid cell its id names, plus the
-/// `{hull}_core_controller` when the hull has one.
+/// Rebuild the shipped semantic-parts assembly used by screenshot fixtures.
 ///
-/// `hull` is the kit name without a trailing underscore: `"racer"`, `"cargoa"`,
-/// `"cargob"`. The prefix match is `{hull}_cube_`, so `"racer"` picks up the
-/// racer and never the separate `racer_light_cube_*` set.
-///
-/// The ids are the whole layout - `racer_cube_im1_j0_km2` sits at
-/// `(-1, 0, -2)` - which is why this is generated rather than copied: the
-/// shipped assemblies (`menu_scrapyard`, `broadside`, `lifeline`, ...) are
-/// hundreds of lines of RON saying exactly that, and every one of them agrees
-/// with the ids.
-///
-/// Panics if the hull is not in the catalog or an id does not parse - a scene
-/// missing its ship is a broken capture, not something to render around.
+/// The catalog remains the authority for prototype existence. Positions mirror
+/// the generated base ship builders so captures exercise the production parts.
 pub fn kenney_hull(sections: &GameSections, hull: &str) -> Vec<SpaceshipSectionConfig> {
-    let cube_prefix = format!("{hull}_cube_");
-    let mut out: Vec<SpaceshipSectionConfig> = sections
+    let identity = Quat::IDENTITY;
+    let port = Quat::from_rotation_z(std::f32::consts::FRAC_PI_2);
+    let starboard = Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2);
+    let specs: &[(&str, Vec3, Quat)] = match hull {
+        "racer" => &[
+            (
+                "engine_starboard",
+                Vec3::new(0.655, 0.570945, 1.512835),
+                identity,
+            ),
+            (
+                "engine_port",
+                Vec3::new(-0.655, 0.570945, 1.512835),
+                identity,
+            ),
+            ("wing_starboard", Vec3::new(0.805, 0.5, 0.117835), identity),
+            ("wing_port", Vec3::new(-0.805, 0.5, 0.117835), identity),
+            ("nose", Vec3::new(0.0, 0.611325, -1.512835), identity),
+            ("tail", Vec3::new(0.0, 0.85, 1.612835), identity),
+            ("fuselage", Vec3::new(0.0, 0.7, 0.1), identity),
+            ("turret_starboard", Vec3::new(1.35, 0.4, -0.8), starboard),
+            ("turret_port", Vec3::new(-1.35, 0.4, -0.8), port),
+        ],
+        "cargob" => &[
+            ("engine_starboard", Vec3::new(1.005, 0.7, 2.0), identity),
+            ("engine_port", Vec3::new(-1.005, 0.7, 2.0), identity),
+            ("pod_starboard", Vec3::new(1.055, 0.7, -0.5), identity),
+            ("pod_port", Vec3::new(-1.055, 0.7, -0.5), identity),
+            ("nose", Vec3::new(0.0, 1.0, -1.75), identity),
+            ("tail", Vec3::new(0.0, 0.65, 2.0), identity),
+            ("fuselage", Vec3::new(0.0, 0.9, 0.25), identity),
+            ("turret_starboard", Vec3::new(1.55, 1.2, 0.0), starboard),
+            ("turret_port", Vec3::new(-1.55, 1.2, 0.0), port),
+        ],
+        "cargoa" => &[
+            ("engine_starboard", Vec3::new(1.205, 0.6, 1.975), identity),
+            ("engine_port", Vec3::new(-1.205, 0.6, 1.975), identity),
+            ("pod_starboard", Vec3::new(1.205, 0.7, 0.475), identity),
+            ("pod_port", Vec3::new(-1.205, 0.7, 0.475), identity),
+            ("nose", Vec3::new(0.0, 0.8, -1.8), identity),
+            ("tail", Vec3::new(0.0, 0.5875, 1.975), identity),
+            ("fuselage", Vec3::new(0.0, 0.8, 0.175), identity),
+        ],
+        _ => panic!("kenney_hull: unknown semantic ship '{hull}'"),
+    };
+
+    specs
         .iter()
-        .filter(|section| section.base.id.starts_with(&cube_prefix))
-        .map(|section| {
-            let cell = grid_cell(&section.base.id[cube_prefix.len()..]).unwrap_or_else(|| {
-                panic!(
-                    "kenney_hull: section '{}' does not name a grid cell",
-                    section.base.id
-                )
-            });
-            mounted(&section.base.id, cell, mount_rotation(section, cell))
+        .map(|(id, position, rotation)| {
+            let prototype = format!("{hull}_{id}");
+            assert!(
+                sections.get_section(&prototype).is_some(),
+                "kenney_hull: missing prototype '{prototype}'"
+            );
+            SpaceshipSectionConfig {
+                id: (*id).to_string(),
+                position: *position,
+                rotation: *rotation,
+                source: SectionSource::Prototype(prototype),
+                modifications: vec![],
+            }
         })
-        .collect();
-
-    let core = format!("{hull}_core_controller");
-    if sections.get_section(&core).is_some() {
-        out.push(mounted(&core, CORE_CONTROLLER_CELL, Quat::IDENTITY));
-    }
-
-    assert!(
-        !out.is_empty(),
-        "kenney_hull: no '{cube_prefix}*' prototypes in the section catalog"
-    );
-    // The catalog's order is the content file's order; sorting makes the built
-    // ship the same list whatever the merge produced.
-    out.sort_by(|a, b| a.id.cmp(&b.id));
-    out
-}
-
-/// One hull cube, mounted at `position` and referencing its catalog prototype.
-fn mounted(id: &str, position: Vec3, rotation: Quat) -> SpaceshipSectionConfig {
-    SpaceshipSectionConfig {
-        id: id.to_string(),
-        position,
-        rotation,
-        source: SectionSource::Prototype(id.to_string()),
-        modifications: vec![],
-    }
-}
-
-/// Parse the grid-cell suffix of a cube prototype id (`i1_j0_km2`) into its
-/// cell. `m` is the minus sign the ids use, so `km2` is `z = -2`.
-fn grid_cell(suffix: &str) -> Option<Vec3> {
-    let mut parts = suffix.split('_');
-    let x = axis(parts.next()?, 'i')?;
-    let y = axis(parts.next()?, 'j')?;
-    let z = axis(parts.next()?, 'k')?;
-    if parts.next().is_some() {
-        return None;
-    }
-    Some(Vec3::new(x, y, z))
-}
-
-/// One axis of a grid-cell suffix: the axis letter, an optional `m` for minus,
-/// then the magnitude.
-fn axis(part: &str, letter: char) -> Option<f32> {
-    let rest = part.strip_prefix(letter)?;
-    match rest.strip_prefix('m') {
-        Some(magnitude) => Some(-magnitude.parse::<f32>().ok()?),
-        None => rest.parse::<f32>().ok(),
-    }
-}
-
-/// How a cube mounts on the hull: hulls, thrusters and controllers sit as cut
-/// (identity), and a turret is rolled 90 degrees about Z so its barrel points
-/// away from the ship - away being the side of the hull it sits on.
-///
-/// This is the rule every shipped assembly follows: the racer's two wing-tip
-/// turrets and the cargo-B's two dorsal turrets are the only rotated pieces in
-/// `broadside`, `lifeline`, `shakedown_run` and `final_tally`, and all of them
-/// carry exactly this rotation.
-fn mount_rotation(section: &SectionConfig, cell: Vec3) -> Quat {
-    if !matches!(section.kind, SectionKind::Turret(_)) || cell.x == 0.0 {
-        return Quat::IDENTITY;
-    }
-    Quat::from_rotation_z(-cell.x.signum() * std::f32::consts::FRAC_PI_2)
+        .collect()
 }
 
 /// Near-field asteroid dressing: a ring of rocks close enough to the subject to

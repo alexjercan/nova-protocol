@@ -352,7 +352,7 @@ fn ships_are_racers_and_the_pirate_is_scavenger_grade() {
             .iter()
             .filter(|s| matches!(resolve(s).kind, SectionKind::Turret(_)))
             .count();
-        assert_eq!(turrets, 2, "'{}' is a racer with two turret cubes", id);
+        assert_eq!(turrets, 2, "'{}' is a racer with two turret modules", id);
         assert!(
             !ship
                 .sections
@@ -363,19 +363,25 @@ fn ships_are_racers_and_the_pirate_is_scavenger_grade() {
         );
     }
 
-    // No holes in the silhouette (playtest finding 7): every section
-    // sits within one unit of another section.
+    // Every semantic part belongs to the authoritative structural graph.
     for (id, ship) in &ships {
-        for section in &ship.sections {
-            let adjacent = ship.sections.iter().any(|other| {
-                other.id != section.id && other.position.distance(section.position) <= 1.0 + 1e-3
-            });
-            assert!(
-                adjacent,
-                "'{}' section '{}' at {:?} has no adjacent neighbor",
-                id, section.id, section.position
-            );
-        }
+        let points: Vec<_> = ship
+            .sections
+            .iter()
+            .map(|section| SectionLinkPoints(resolve(section).base.link_points))
+            .collect();
+        let placed: Vec<_> = ship
+            .sections
+            .iter()
+            .zip(&points)
+            .map(|(section, link_points)| PlacedSectionLinkPoints {
+                position: section.position,
+                rotation: section.rotation,
+                link_points,
+            })
+            .collect();
+        derive_link_point_graph(&placed)
+            .unwrap_or_else(|errors| panic!("'{id}' has an invalid parts graph: {errors:?}"));
     }
 
     let player = ships.iter().find(|(id, _)| *id == ID_PLAYER).unwrap().1;

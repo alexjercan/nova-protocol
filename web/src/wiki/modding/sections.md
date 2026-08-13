@@ -195,7 +195,7 @@ kind: Thruster((
 | `shape.emissive_color`, `shape.emissive_inner_color` | linear color | cyan, blue | Outer and inner glow colors. |
 
 Every nested exhaust field has a default, so a mod can override only the values
-it needs. Copy a cut-cube thruster from
+it needs. Copy a semantic engine part from
 `assets/base/sections/base.content.ron` for a complete rectangular example.
 
 ## Controller
@@ -403,15 +403,15 @@ alongside the base catalog. Either way, a ship references the section by id via
 `source: Prototype("<id>")` in its `sections` list. To ship the section, package
 the file as a mod - [Publish a mod](../publish-a-mod/) is the release flow.
 
-Base ships a whole CATALOG of ship-part prototypes - the mainline campaign ships
-(the racer, the cargo hauler) are themselves built from `racer_cube_*` /
-`cargob_cube_*` prototype parts. So a mod does not have to inline a big ship or
+Base ships a whole catalog of semantic ship-part prototypes. The mainline
+Racer and cargo haulers use `racer_*`, `cargob_*`, and `cargoa_*` parts. A mod
+does not have to inline a big ship or
 carry any mesh paths: build one as a compact list of
 `(id, position, rotation, source: Prototype("<base-part-id>"))` entries, and each
 prototype resolves the base's meshes and sounds for you. Vary a ship by grade by
-swapping which prototypes it references (e.g. a weaker `_light_` turret variant
+swapping which prototypes it references (for example a weaker `_light` turret variant
 for an enemy) rather than re-authoring the parts. `SectionSource` is `Inline`
 (the full config, for a one-off part) or `Prototype` (a catalog reference, the
 compact reusable form). Every prototype id base ships - with its kind, so you
-can tell a structure cube from a gun - is tabled in the
+can tell structure from a gun - is tabled in the
 [base content catalog](../base-content/).

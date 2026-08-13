@@ -1,6 +1,6 @@
 # Replace cube ships with parts ships (no compat, fix what breaks)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 70
 - TAGS: v0.10.0,ship,content
 
