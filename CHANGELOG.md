@@ -14,6 +14,12 @@ tagged **(breaking)**.
 
 ## [Unreleased]
 
+### Gameplay & Flight
+
+- Sliced mesh fragments (asteroid debris) now despawn after 30 seconds instead
+  of persisting until scenario teardown, so long-lived scenes no longer
+  accumulate physics bodies.
+
 ### Internals & Tooling
 
 - Built-in authoring content now has an explicit `base_content` inventory grouped into Nova Protocol chapters, private main-menu backdrops, sandboxes, standard section prototypes, and per-craft semantic parts; generated RON is unchanged.

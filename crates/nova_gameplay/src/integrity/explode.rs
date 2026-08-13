@@ -1,7 +1,7 @@
 //! The visual side of destruction: when an [`ExplodableEntity`] is destroyed
 //! its mesh is sliced into debris fragments (tagged [`MeshFragmentMarker`]) that
-//! are spawned with physics and fade out. Reacts to the destruction events fired
-//! by the integrity glue rather than deciding when something dies.
+//! are spawned with physics and a bounded lifetime. Reacts to the destruction
+//! events fired by the integrity glue rather than deciding when something dies.
 //!
 //! Touch this module to change how wrecks come apart (fragment count, spread,
 //! lifetime). Health, disable, and destroy bookkeeping lives in the generic
@@ -25,6 +25,15 @@ use crate::{
 pub mod prelude {
     pub use super::{ExplodableEntity, MeshFragmentMarker};
 }
+
+/// How long a sliced mesh fragment survives before it despawns.
+///
+/// Fragments are dynamic rigid bodies with convex-hull colliders and nothing
+/// despawns them otherwise until scenario teardown; an unattended scene that
+/// keeps destroying rocks (a menu backdrop, a long mission) accumulates
+/// physics bodies without bound. Long enough to watch the wreck drift apart,
+/// short enough to keep the body count flat.
+const MESH_FRAGMENT_LIFETIME_SECS: f32 = 30.0;
 
 /// Marker component to indicate that an entity can be exploded.
 #[derive(Component, Clone, Debug, Default, Reflect)]
@@ -284,6 +293,7 @@ fn handle_entity_explosion(
             RigidBody::Dynamic,
             Collider::convex_hull_from_mesh(mesh).unwrap_or(Collider::sphere(0.5)),
             LinearVelocity(velocity),
+            TempEntity(MESH_FRAGMENT_LIFETIME_SECS),
         ));
     }
 
@@ -293,6 +303,7 @@ fn handle_entity_explosion(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mesh::explode::ExplodeFragment;
 
     #[derive(Resource, Default)]
     struct FiredEvents(Vec<&'static str>);
@@ -386,6 +397,56 @@ mod tests {
         assert_eq!(
             app.world().resource::<FiredEvents>().0,
             [OnDestroyedEvent::name()]
+        );
+    }
+
+    #[test]
+    fn mesh_fragments_carry_a_bounded_lifetime() {
+        // Fragments are the only destruction debris nothing else cleans up:
+        // an unattended scene (menu backdrop) must not accumulate physics
+        // bodies without bound, so every fragment must ride TempEntity.
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<Mesh>();
+        app.init_asset::<StandardMaterial>();
+        app.add_plugins(EntropyPlugin::<WyRand>::default());
+        app.add_observer(handle_entity_explosion);
+
+        let mesh = app
+            .world_mut()
+            .resource_mut::<Assets<Mesh>>()
+            .add(Mesh::from(Cuboid::new(1.0, 1.0, 1.0)));
+        let material = app
+            .world_mut()
+            .resource_mut::<Assets<StandardMaterial>>()
+            .add(StandardMaterial::default());
+
+        let origin = app
+            .world_mut()
+            .spawn((
+                Mesh3d(mesh.clone()),
+                MeshMaterial3d(material),
+                GlobalTransform::default(),
+            ))
+            .id();
+        app.world_mut().spawn((
+            ExplodableEntity,
+            ExplodeFragments(vec![ExplodeFragment {
+                origin,
+                mesh,
+                direction: Dir3::X,
+            }]),
+        ));
+        app.update();
+
+        let mut q_fragments = app
+            .world_mut()
+            .query_filtered::<Has<TempEntity>, With<MeshFragmentMarker>>();
+        let lifetimes: Vec<bool> = q_fragments.iter(app.world()).collect();
+        assert!(!lifetimes.is_empty(), "explosion must spawn fragments");
+        assert!(
+            lifetimes.iter().all(|has| *has),
+            "every fragment must carry a despawn lifetime"
         );
     }
 
