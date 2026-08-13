@@ -105,6 +105,10 @@ jobs:
       - name: Probe correctness sweep
         env:
           RUST_BACKTRACE: full
+          # Software rendering stretches the longest screenshot walk beyond
+          # the harness's interactive 120s default, but it still fits under
+          # probe's 180s process timeout.
+          NOVA_AUTOPILOT_DEADLINE: 170
         # probe is the game binary's `probe` subcommand, which only exists
         # under --features debug. That flag is also what keeps this step on ONE
         # Bevy variant: probe builds each example itself with --features debug,

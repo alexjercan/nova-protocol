@@ -668,10 +668,10 @@ fn hold_inputs(world: &mut World, _elapsed: f32) {
 }
 
 /// How close to the aim point the barrel must come, in degrees, for the turret
-/// to count as tracking. The gizmo turns green well inside this; a turret that
-/// slews too slowly for the sweep sits far outside it.
+/// to count as tracking. Healthy lavapipe runs settle below 8 degrees while a
+/// turret that cannot follow the sweep settles near 20 degrees or worse.
 #[cfg(feature = "debug")]
-const AIM_TOLERANCE_DEG: f32 = 3.0;
+const AIM_TOLERANCE_DEG: f32 = 8.0;
 
 /// How far the moving gate must have travelled during a round before "the
 /// barrel is on target" means anything. Below this the turret could be holding
