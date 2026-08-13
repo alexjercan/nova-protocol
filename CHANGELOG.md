@@ -19,6 +19,9 @@ tagged **(breaking)**.
 - Sliced mesh fragments (asteroid debris) now despawn after 30 seconds instead
   of persisting until scenario teardown, so long-lived scenes no longer
   accumulate physics bodies.
+- AI patrol legs steer around sized bodies: a leg blocked by an asteroid's
+  geometric radius detours past it instead of flying the GOTO straight
+  through the rock.
 
 ### Scenarios & Objectives
 

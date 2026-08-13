@@ -147,7 +147,7 @@ than complete flyable ships. Copy the full player or AI section list from
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `patrol` | list of 3-tuples | `[]` | waypoint loop while nothing hostile is detected; empty = station-keep |
+| `patrol` | list of 3-tuples | `[]` | waypoint loop while nothing hostile is detected; empty = station-keep. Legs blocked by a sized body (an asteroid's geometric radius) are flown around automatically, so routes need not measure every rock |
 | `orbit` | `Option` string | `None` | id of a gravity-well object to orbit passively. Precedence: orbit > patrol > idle |
 | `leash` | `Option` number | `None` | territorial tether radius; combat breaks off beyond it; `None` = chases freely |
 | `engage_delay` | `Option` number | `None` | arrival grace in seconds: flies its passive routine and refuses to engage until it elapses; being SHOT ends the grace instantly and permanently. The telegraphed-arrival tool |

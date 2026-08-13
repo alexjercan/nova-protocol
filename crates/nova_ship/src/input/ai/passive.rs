@@ -1,6 +1,6 @@
-//! What an AI ship does with nothing hostile in range: fly its patrol legs,
-//! hold an orbit, or station-keep. Drives the real autopilot rather than
-//! steering directly.
+//! What an AI ship does with nothing hostile in range: fly its patrol legs
+//! (steering around sized bodies via [`AIAvoidanceDetour`]), hold an orbit,
+//! or station-keep. Drives the real autopilot rather than steering directly.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -25,10 +25,88 @@ const AI_WAYPOINT_SLACK: f32 = 25.0;
 /// kept well above the autopilot's stop_speed_epsilon so a completed STOP
 /// actually satisfies it and the helm rests between corrections.
 const AI_IDLE_DRIFT_SPEED: f32 = 1.0;
+/// Lateral clearance (m) beyond a body's geometric [`BodyRadius`] under
+/// which a patrol leg counts as blocked. The autopilot itself has no
+/// obstacle awareness ([`AutopilotAction::GotoPos`] flies a straight leg),
+/// so this is the passive pilot's own margin; sized to a ship length plus
+/// drift slack, NOT to the noise spread of asteroid meshes - the derived
+/// BodyRadius already carries the real geometric extent.
+const AI_AVOID_MARGIN: f32 = 20.0;
+/// Extra clearance a DETOURING ship demands before it calls the direct leg
+/// clear again: the clear-check margin is [`AI_AVOID_MARGIN`] plus this
+/// band, so a leg that just cleared sits comfortably outside the
+/// block-check and cannot re-block next tick. Without the band, a leg
+/// grazing the margin flips blocked/clear every tick, and each flip swaps
+/// the GOTO goal - autopilot churn that resets the maneuver to Align
+/// forever.
+const AI_AVOID_HYSTERESIS: f32 = 10.0;
+
+/// The active avoidance detour: a STABLE intermediate GOTO goal, held until
+/// the ship reaches it or the direct leg to the current waypoint clears.
+/// Stability is the point - recomputing the corner from the live ship
+/// position would move the goal every frame, and a moving goal re-engages
+/// (churns) the autopilot back into its align phase forever.
+#[derive(Component, Clone, Copy, Debug, Reflect)]
+pub struct AIAvoidanceDetour(pub Vec3);
+
+/// The first sized body blocking the leg `from -> to`: its center comes
+/// within `body_radius + margin` of the leg, measured at the closest point
+/// on the segment. Bodies whose clearance already contains `to` are
+/// ignored - a waypoint authored against a rock face can never clear, and
+/// endlessly detouring around it would orbit the author's mistake instead
+/// of flying the route. Returns (center, body_radius, closest point).
+fn first_leg_blocker(
+    from: Vec3,
+    to: Vec3,
+    margin: f32,
+    obstacles: impl Iterator<Item = (Vec3, f32)>,
+) -> Option<(Vec3, f32, Vec3)> {
+    let leg = to - from;
+    let len_sq = leg.length_squared();
+    let mut best: Option<(f32, (Vec3, f32, Vec3))> = None;
+    for (center, radius) in obstacles {
+        let clearance = radius + margin;
+        if to.distance_squared(center) < clearance * clearance {
+            continue;
+        }
+        let t = if len_sq > f32::EPSILON {
+            ((center - from).dot(leg) / len_sq).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        let closest = from + leg * t;
+        if closest.distance_squared(center) >= clearance * clearance {
+            continue;
+        }
+        if best.map_or(true, |(best_t, _)| t < best_t) {
+            best = Some((t, (center, radius, closest)));
+        }
+    }
+    best.map(|(_, blocker)| blocker)
+}
+
+/// The corner goal that rounds `blocker`: pushed out from the body's center
+/// through the leg's closest point. The push runs past the blocked
+/// clearance by the hysteresis band PLUS the corner's own arrival window
+/// (`arrive_radius`): anywhere the pilot can call the corner reached must
+/// already see the direct leg comfortably clear, or the rounding stalls
+/// hopping corner to corner inside its own arrival radius (observed on the
+/// physics harness before the window was added). A body dead on the leg
+/// line has no side to prefer; any perpendicular works and the pick only
+/// has to be deterministic.
+fn detour_around(from: Vec3, to: Vec3, blocker: (Vec3, f32, Vec3), arrive_radius: f32) -> Vec3 {
+    let (center, radius, closest) = blocker;
+    let side = (closest - center).try_normalize().unwrap_or_else(|| {
+        Dir3::new(to - from).map_or(Vec3::X, |leg| leg.any_orthonormal_vector())
+    });
+    center + side * (radius + AI_AVOID_MARGIN + AI_AVOID_HYSTERESIS + arrive_radius)
+}
 
 /// Fly the passive states through the real autopilot (flight/) instead of
 /// a parallel steering path: `Patrol` keeps a GOTO engaged toward the
-/// current [`AIPatrolRoute`] waypoint and turns onto the next leg on
+/// current [`AIPatrolRoute`] waypoint - detouring around any sized body
+/// blocking the leg (the GOTO itself flies blind straight lines; see
+/// [`AIAvoidanceDetour`]) - and turns onto the next leg on
 /// arrival; `Orbit` keeps an ORBIT engaged on its directive's well (the
 /// autopilot plans its own insertion on the first tick and never
 /// self-completes, so one engage holds the ring); `Idle` engages a STOP
@@ -54,12 +132,21 @@ pub(super) fn update_passive_flight(
             Option<&mut AIPatrolRoute>,
             Option<&AIOrbitDirective>,
             Option<&Autopilot>,
+            Option<&AIAvoidanceDetour>,
         ),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
     q_wells: Query<(Entity, &EntityId), With<GravityWell>>,
+    q_obstacles: Query<(&Transform, &BodyRadius), Without<AISpaceshipMarker>>,
 ) {
-    for (ship, transform, velocity, state, route, orbit, autopilot) in &mut q_spaceship {
+    // Sized bodies (asteroids, planetoids - anything with a derived
+    // geometric BodyRadius) are what patrol legs steer around. Collected
+    // once; the field does not change per ship.
+    let obstacles: Vec<(Vec3, f32)> = q_obstacles
+        .iter()
+        .map(|(transform, radius)| (transform.translation, **radius))
+        .collect();
+    for (ship, transform, velocity, state, route, orbit, autopilot, detour) in &mut q_spaceship {
         let has_autopilot = autopilot.is_some();
         match *state {
             AIBehaviorState::Patrol => {
@@ -77,8 +164,14 @@ pub(super) fn update_passive_flight(
                 // shoved onto its waypoint (or re-entering Patrol on top of
                 // one) advances too.
                 let arrive_radius = settings.arrival_standoff + AI_WAYPOINT_SLACK;
-                if transform.translation.distance(waypoint) <= arrive_radius {
+                let position = transform.translation;
+                let mut detour = detour.map(|detour| detour.0);
+                if position.distance(waypoint) <= arrive_radius {
                     route.advance();
+                    // A detour belongs to the leg it was computed for.
+                    if detour.take().is_some() {
+                        commands.entity(ship).remove::<AIAvoidanceDetour>();
+                    }
                 }
                 let Some(goal) = route.current_waypoint() else {
                     continue;
@@ -86,20 +179,64 @@ pub(super) fn update_passive_flight(
                 // On station (a single-waypoint route, parked at it with the
                 // drift killed) there is nothing left to fly; re-engaging
                 // would churn engage/complete every frame.
-                let on_station = transform.translation.distance(goal) <= arrive_radius
+                let on_station = position.distance(goal) <= arrive_radius
                     && velocity.length() <= AI_IDLE_DRIFT_SPEED;
-                // (Re)engage when the leg changed or nothing is engaged; a
-                // maneuver already flying the current leg is left alone.
-                let leg_changed = goal != waypoint;
-                if (leg_changed || !has_autopilot) && !on_station {
+                // A held detour is flown out until the corner is reached or
+                // the direct leg is comfortably clear (the hysteresis band).
+                if let Some(corner) = detour {
+                    let clear = first_leg_blocker(
+                        position,
+                        goal,
+                        AI_AVOID_MARGIN + AI_AVOID_HYSTERESIS,
+                        obstacles.iter().copied(),
+                    )
+                    .is_none();
+                    if clear || position.distance(corner) <= arrive_radius {
+                        commands.entity(ship).remove::<AIAvoidanceDetour>();
+                        detour = None;
+                    }
+                }
+                // Fresh decision: fly the leg, unless a body blocks it - then
+                // hold a corner that rounds the first blocker. Reaching a
+                // corner with the leg still blocked lands here too and picks
+                // the corner around the NEXT blocker (the field is crossed
+                // one rounding at a time).
+                let flight_goal = detour.unwrap_or_else(|| {
+                    match first_leg_blocker(
+                        position,
+                        goal,
+                        AI_AVOID_MARGIN,
+                        obstacles.iter().copied(),
+                    ) {
+                        Some(blocker) => {
+                            let corner = detour_around(position, goal, blocker, arrive_radius);
+                            commands.entity(ship).insert(AIAvoidanceDetour(corner));
+                            corner
+                        }
+                        None => goal,
+                    }
+                });
+                // (Re)engage when the flown goal changed or nothing is
+                // engaged; a maneuver already flying the current goal is
+                // left alone (re-engaging churns the autopilot phase).
+                let engaged_goto = autopilot.and_then(|autopilot| match autopilot.action {
+                    AutopilotAction::GotoPos { position } => Some(position),
+                    _ => None,
+                });
+                if engaged_goto != Some(flight_goal) && !on_station {
                     commands
                         .entity(ship)
                         .insert(Autopilot::engage(AutopilotAction::GotoPos {
-                            position: goal,
+                            position: flight_goal,
                         }));
                 }
             }
             AIBehaviorState::Orbit => {
+                // The ORBIT autopilot plans its own ring; a leftover patrol
+                // detour has no meaning here.
+                if detour.is_some() {
+                    commands.entity(ship).remove::<AIAvoidanceDetour>();
+                }
                 // Orbit without a directive cannot happen through the
                 // transition function; a hand-set state drifts, not panics.
                 let Some(directive) = orbit else {
@@ -143,6 +280,9 @@ pub(super) fn update_passive_flight(
                 }
             }
             AIBehaviorState::Idle => {
+                if detour.is_some() {
+                    commands.entity(ship).remove::<AIAvoidanceDetour>();
+                }
                 if !has_autopilot && velocity.length() > AI_IDLE_DRIFT_SPEED {
                     commands
                         .entity(ship)
@@ -154,8 +294,203 @@ pub(super) fn update_passive_flight(
                 if has_autopilot {
                     commands.entity(ship).remove::<Autopilot>();
                 }
+                if detour.is_some() {
+                    commands.entity(ship).remove::<AIAvoidanceDetour>();
+                }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod avoidance_tests {
+    use bevy::ecs::system::RunSystemOnce;
+
+    use super::*;
+
+    const W1: Vec3 = Vec3::new(0.0, 0.0, -400.0);
+    const W2: Vec3 = Vec3::new(400.0, 0.0, -400.0);
+
+    #[test]
+    fn a_clear_leg_has_no_blocker() {
+        // Off to the side by more than radius + margin: clear.
+        let rocks = [(Vec3::new(0.0, 80.0, -200.0), 40.0)];
+        assert!(
+            first_leg_blocker(Vec3::ZERO, W1, AI_AVOID_MARGIN, rocks.iter().copied()).is_none()
+        );
+    }
+
+    #[test]
+    fn the_nearest_intruding_body_blocks_the_leg() {
+        let near = (Vec3::new(10.0, 0.0, -150.0), 40.0);
+        let far = (Vec3::new(-10.0, 0.0, -300.0), 40.0);
+        let (center, radius, _) =
+            first_leg_blocker(Vec3::ZERO, W1, AI_AVOID_MARGIN, [far, near].iter().copied())
+                .expect("both intrude; the leg is blocked");
+        assert_eq!((center, radius), near, "the FIRST body on the leg wins");
+    }
+
+    #[test]
+    fn a_body_hugging_the_waypoint_is_not_a_blocker() {
+        // A waypoint authored inside a body's clearance can never clear;
+        // detouring around it would circle the author's mistake forever
+        // instead of flying the route (the GOTO's own arrival standoff is
+        // what keeps the ship off the rock).
+        let rocks = [(W1 + Vec3::new(0.0, 30.0, 0.0), 40.0)];
+        assert!(
+            first_leg_blocker(Vec3::ZERO, W1, AI_AVOID_MARGIN, rocks.iter().copied()).is_none()
+        );
+    }
+
+    #[test]
+    fn the_detour_corner_clears_the_blocker() {
+        let rocks = [(Vec3::new(15.0, 0.0, -200.0), 40.0)];
+        let blocker = first_leg_blocker(Vec3::ZERO, W1, AI_AVOID_MARGIN, rocks.iter().copied())
+            .expect("the rock sits on the leg");
+        let corner = detour_around(Vec3::ZERO, W1, blocker, 75.0);
+        assert!(
+            corner.distance(rocks[0].0)
+                > rocks[0].1 + AI_AVOID_MARGIN + AI_AVOID_HYSTERESIS + 75.0 - 1.0,
+            "the corner sits past the clear-check band plus its arrival window"
+        );
+    }
+
+    #[test]
+    fn a_dead_center_body_still_yields_a_corner() {
+        // The closest point coincides with the center: no side to prefer,
+        // but the pick must be deterministic and outside the clearance,
+        // not NaN.
+        let rocks = [(Vec3::new(0.0, 0.0, -200.0), 40.0)];
+        let blocker = first_leg_blocker(Vec3::ZERO, W1, AI_AVOID_MARGIN, rocks.iter().copied())
+            .expect("dead on the leg");
+        let corner = detour_around(Vec3::ZERO, W1, blocker, 75.0);
+        assert!(corner.is_finite());
+        assert!(corner.distance(rocks[0].0) > rocks[0].1 + AI_AVOID_MARGIN);
+    }
+
+    /// Run the passive-flight system alone (state is hand-set to Patrol).
+    fn run_passive(world: &mut World) {
+        world.run_system_once(update_passive_flight).unwrap();
+    }
+
+    fn blocked_patrol_world() -> (World, Entity, Vec3) {
+        let mut world = World::new();
+        world.init_resource::<FlightSettings>();
+        world.init_resource::<Time>();
+        let rock_center = Vec3::new(10.0, 0.0, -200.0);
+        world.spawn((Transform::from_translation(rock_center), BodyRadius(50.0)));
+        let ship = world
+            .spawn((
+                AISpaceshipMarker,
+                AIBehaviorState::Patrol,
+                AIPatrolRoute::new(vec![W1, W2]),
+                Transform::default(),
+                LinearVelocity(Vec3::ZERO),
+            ))
+            .id();
+        (world, ship, rock_center)
+    }
+
+    #[test]
+    fn a_blocked_leg_flies_a_detour_corner() {
+        let (mut world, ship, rock_center) = blocked_patrol_world();
+
+        run_passive(&mut world);
+
+        let corner = world
+            .entity(ship)
+            .get::<AIAvoidanceDetour>()
+            .expect("the blocked leg holds a detour")
+            .0;
+        assert!(
+            corner.distance(rock_center) > 50.0 + AI_AVOID_MARGIN,
+            "the corner rounds the rock outside its clearance"
+        );
+        assert_eq!(
+            world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
+            Some(AutopilotAction::GotoPos { position: corner }),
+            "the GOTO flies the corner, not the blocked waypoint"
+        );
+    }
+
+    #[test]
+    fn a_held_detour_does_not_churn_the_autopilot() {
+        // The corner is computed from the ship's position at block time; a
+        // recompute per tick would move the goal and re-engage (churn) the
+        // autopilot every frame. Sentinel phase: churn resets it to Align.
+        let (mut world, ship, _) = blocked_patrol_world();
+
+        run_passive(&mut world);
+        world.entity_mut(ship).get_mut::<Autopilot>().unwrap().phase = AutopilotPhase::Burn;
+        // The ship advanced a little along the detour; the corner must hold.
+        world
+            .entity_mut(ship)
+            .get_mut::<Transform>()
+            .unwrap()
+            .translation = Vec3::new(-5.0, 0.0, -20.0);
+        run_passive(&mut world);
+
+        assert_eq!(
+            world.entity(ship).get::<Autopilot>().map(|ap| ap.phase),
+            Some(AutopilotPhase::Burn),
+            "an autopilot flying a held detour is untouched"
+        );
+    }
+
+    #[test]
+    fn a_cleared_leg_drops_the_detour_and_resumes_the_route() {
+        let (mut world, ship, rock_center) = blocked_patrol_world();
+        run_passive(&mut world);
+        assert!(world.entity(ship).get::<AIAvoidanceDetour>().is_some());
+
+        // The ship rounded the rock: from abeam the far side, the direct
+        // leg to W1 is clear by more than margin + hysteresis.
+        world
+            .entity_mut(ship)
+            .get_mut::<Transform>()
+            .unwrap()
+            .translation = rock_center + Vec3::new(120.0, 0.0, -10.0);
+        run_passive(&mut world);
+
+        assert!(
+            world.entity(ship).get::<AIAvoidanceDetour>().is_none(),
+            "a comfortably clear leg drops the detour"
+        );
+        assert_eq!(
+            world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
+            Some(AutopilotAction::GotoPos { position: W1 }),
+            "the route leg is engaged again"
+        );
+    }
+
+    #[test]
+    fn arriving_at_the_waypoint_clears_the_detour_with_the_leg() {
+        let (mut world, ship, _) = blocked_patrol_world();
+        run_passive(&mut world);
+        assert!(world.entity(ship).get::<AIAvoidanceDetour>().is_some());
+
+        // Shoved onto W1 (however it got there): the route turns onto the
+        // W2 leg and the stale detour goes with the old leg.
+        world
+            .entity_mut(ship)
+            .get_mut::<Transform>()
+            .unwrap()
+            .translation = W1;
+        run_passive(&mut world);
+
+        assert_eq!(
+            world.entity(ship).get::<AIPatrolRoute>().unwrap().current,
+            1
+        );
+        assert_eq!(
+            world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
+            Some(AutopilotAction::GotoPos { position: W2 }),
+            "the new leg is clear and flown directly"
+        );
+        assert!(
+            world.entity(ship).get::<AIAvoidanceDetour>().is_none(),
+            "the detour belonged to the old leg"
+        );
     }
 }
 
@@ -702,8 +1037,59 @@ mod patrol_physics_tests {
         },
         thruster_section::thruster_impulse_system,
     };
+
+    /// The physics half of avoidance: a rock dead on the first leg, and the
+    /// real autopilot (align + burn + brake on real sections) must round it
+    /// - the ship reaches the waypoint WITHOUT its center ever entering the
+    /// rock's geometric radius. Pins the menu "asteroid weave" backdrop's
+    /// acceptance: patrol routes survive rocks the author did not measure.
     #[test]
-    fn a_patrol_ship_flies_its_first_leg_and_turns_onto_the_next() {
+    fn a_patrol_ship_rounds_a_rock_on_its_leg() {
+        let mut app = patrol_physics_app();
+
+        let first = Vec3::new(0.0, 0.0, -300.0);
+        let second = Vec3::new(0.0, 0.0, 300.0);
+        let rock_center = Vec3::new(5.0, 0.0, -150.0);
+        let rock_radius = 40.0;
+        app.world_mut().spawn((
+            Transform::from_translation(rock_center),
+            BodyRadius(rock_radius),
+        ));
+        let ship = spawn_patrol_ship(&mut app, vec![first, second]);
+
+        settle(&mut app);
+        app.update();
+        assert_eq!(
+            *app.world().get::<AIBehaviorState>(ship).unwrap(),
+            AIBehaviorState::Patrol
+        );
+
+        let mut min_clearance = f32::INFINITY;
+        let mut turned = false;
+        for _ in 0..4800 {
+            app.update();
+            let position = app.world().get::<Transform>(ship).unwrap().translation;
+            min_clearance = min_clearance.min(position.distance(rock_center));
+            if app.world().get::<AIPatrolRoute>(ship).unwrap().current == 1 {
+                turned = true;
+                break;
+            }
+        }
+        assert!(
+            turned,
+            "the ship must round the rock and still reach its waypoint \
+             (closest approach {min_clearance:.1}u)"
+        );
+        assert!(
+            min_clearance >= rock_radius,
+            "the ship's center must never enter the rock's geometric radius \
+             ({rock_radius}u), got {min_clearance:.1}u"
+        );
+    }
+
+    /// The shared physics harness: real flight plugin, real sections, the AI
+    /// passive pipeline chained in front.
+    fn patrol_physics_app() -> App {
         let mut app = unfinished_integrity_physics_app();
         app.add_plugins(PDControllerPlugin);
         // The real flight layer: autopilot_system flies what
@@ -741,16 +1127,19 @@ mod patrol_physics_tests {
                 .in_set(SpaceshipSectionSystems),
         );
         app.finish();
+        app
+    }
 
-        let first = Vec3::new(0.0, 0.0, -300.0);
-        let second = Vec3::new(0.0, 0.0, 300.0);
+    /// One AI ship with the minimum real section set (hull, thruster,
+    /// controller) the autopilot needs to fly.
+    fn spawn_patrol_ship(app: &mut App, waypoints: Vec<Vec3>) -> Entity {
         let ship = app
             .world_mut()
             .spawn((
                 RigidBody::Dynamic,
                 Transform::default(),
                 AISpaceshipMarker,
-                AIPatrolRoute::new(vec![first, second]),
+                AIPatrolRoute::new(waypoints),
             ))
             .id();
         app.world_mut().spawn((
@@ -785,6 +1174,16 @@ mod patrol_physics_tests {
             Collider::cuboid(1.0, 1.0, 1.0),
             ColliderDensity(1.0),
         ));
+        ship
+    }
+
+    #[test]
+    fn a_patrol_ship_flies_its_first_leg_and_turns_onto_the_next() {
+        let mut app = patrol_physics_app();
+
+        let first = Vec3::new(0.0, 0.0, -300.0);
+        let second = Vec3::new(0.0, 0.0, 300.0);
+        let ship = spawn_patrol_ship(&mut app, vec![first, second]);
 
         settle(&mut app);
 
