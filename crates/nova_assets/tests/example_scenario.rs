@@ -204,7 +204,7 @@ fn mod_catalog_lists_installed_mods_metadata() {
         "The copy-me tutorial mod: a section overlay, a new section, a playable arena, mod-shipped art, and a menu backdrop - a little of everything.",
         "example's description comes from its bundle meta (the catalog has none)"
     );
-    assert_eq!(mods[1].meta.version, "1.0.0", "bundle meta version decodes");
+    assert_eq!(mods[1].meta.version, "1.1.0", "bundle meta version decodes");
     assert_eq!(mods[1].meta.author, "Nova Protocol");
 }
 
