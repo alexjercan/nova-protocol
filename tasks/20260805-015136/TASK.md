@@ -1,14 +1,14 @@
-# ScriptBuilder::on_enter silently replaces instead of appending
+# StepBuilder::on_enter appends actions in call order
 
-- STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog,bug,testing
+- STATUS: CLOSED
+- PRIORITY: 98
+- TAGS: v0.11.0, bug, testing, autopilot
 
 ## Story
 
-`ScriptBuilder`'s `on_enter` REPLACES the step's enter hook rather than
-appending, so two chained `.on_enter(...)` calls on one step silently drop the
-first. Task `20260804-094006` lost a full measurement cycle to this: the
+The type is now named `StepBuilder`, but its `on_enter` still REPLACED the
+step's enter hook rather than appending. Two chained `.on_enter(...)` calls on
+one step silently dropped the first. Task `20260804-094006` lost a full measurement cycle to this: the
 dropped call was `capture_reload_end`, so the fps reload gate latched open and
 every frame after the first loop was excluded from the capture. The run still
 passed - it just measured nothing.
@@ -23,8 +23,8 @@ before choosing.
 
 ## Done when
 
-- [ ] `cmd:` a test pins that two `on_enter` calls on one step both run (or
-      that the second call panics), failing against today's builder.
-- [ ] `cmd:` the three duplicated warning comments in `examples/stress/` are
-      deleted, and the sweeps still fill their capture windows
-      (`cargo run -p nova_probe -- run stress --fps` -> aggregate OK).
+- [x] `cmd:` a test pins that two `on_enter` calls on one step run in call
+      order and failed against the old builder.
+- [x] `cmd:` the three duplicated warning comments in `examples/stress/` are
+      deleted, and the sweeps fill their capture windows
+      (`cargo run --features debug -- probe run stress` -> aggregate OK).

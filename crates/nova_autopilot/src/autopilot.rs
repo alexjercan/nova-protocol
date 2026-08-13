@@ -100,7 +100,7 @@ pub struct AutopilotLoop;
 struct Step<S: States + FreelyMutableState> {
     name: String,
     enter: Option<S>,
-    on_enter: Option<Arc<EnterFn>>,
+    on_enter: Vec<Arc<EnterFn>>,
     each: Option<Arc<EachFn>>,
     until: Arc<Predicate>,
     deadline: Option<f32>,
@@ -185,7 +185,7 @@ impl<S: States + FreelyMutableState> AutopilotPlugin<S> {
             step: Step {
                 name: name.into(),
                 enter: None,
-                on_enter: None,
+                on_enter: Vec::new(),
                 each: None,
                 until: immediately(),
                 deadline: None,
@@ -270,10 +270,11 @@ impl<S: States + FreelyMutableState> StepBuilder<S> {
         self
     }
 
-    /// Run `f` once, on entry, after the state has been set. The
-    /// [`input`](crate::input) actions are built for this slot.
+    /// Append `f` to the actions run once on entry, after the state has been
+    /// set. Actions run in call order. The [`input`](crate::input) actions are
+    /// built for this slot.
     pub fn on_enter(mut self, f: impl Fn(&mut World) + Send + Sync + 'static) -> Self {
-        self.step.on_enter = Some(Arc::new(f));
+        self.step.on_enter.push(Arc::new(f));
         self
     }
 
@@ -424,7 +425,7 @@ fn autopilot_drive<S: States + FreelyMutableState>(world: &mut World) {
             }
         }
         info!("autopilot: step `{}` begins", step.name);
-        if let Some(on_enter) = &step.on_enter {
+        for on_enter in &step.on_enter {
             on_enter(world);
         }
         st.entered = true;
@@ -765,6 +766,22 @@ mod tests {
             "the `on_enter` action runs after InputSystems too, so its press \
              is just_pressed on the entry frame rather than swallowed by it"
         );
+    }
+
+    #[test]
+    fn multiple_on_enter_actions_run_in_call_order() {
+        let actions = Arc::new(Mutex::new(Vec::new()));
+        let first = Arc::clone(&actions);
+        let second = Arc::clone(&actions);
+        let mut app = app(AutopilotPlugin::new()
+            .step("compose entry actions")
+            .on_enter(move |_| first.lock().unwrap().push("first"))
+            .on_enter(move |_| second.lock().unwrap().push("second"))
+            .add());
+
+        run(&mut app, 4);
+
+        assert_eq!(*actions.lock().unwrap(), ["first", "second"]);
     }
 
     /// The per-step `each` clock is STEP-relative, which is what the scripts'

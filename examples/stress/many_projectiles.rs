@@ -171,18 +171,9 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 // The scene is live again: close the reload interval so the
                 // capture excludes it. A no-op on the first cycle.
-                //
-                // ONE closure doing both jobs, not two `on_enter` calls:
-                // `on_enter` REPLACES the hook rather than appending, so a
-                // second call silently drops the first. Splitting these left
-                // the reload gate latched open for the rest of the run, and
-                // every frame after the first loop was excluded from the
-                // capture - the fps window could never fill.
                 .step("close the reload interval")
-                .on_enter(|world: &mut World| {
-                    nova_probe::capture_reload_end(world);
-                    report_field_up(world);
-                })
+                .on_enter(nova_probe::capture_reload_end)
+                .on_enter(report_field_up)
                 .add()
                 // Raise the stance and WAIT for the safety to actually go hot.
                 // Pressing fire while cold latches nothing, forever: the safety
